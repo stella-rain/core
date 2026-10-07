@@ -1,0 +1,14 @@
+# Fails on CRLF line endings, or if .gitattributes loses `* text=auto eol=lf`.
+name: Line endings
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  eol:
+    uses: stella-rain/.github/.github/workflows/eol-check.yml@main

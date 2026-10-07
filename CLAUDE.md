@@ -53,6 +53,7 @@ PR as `NOT VERIFIED: <gate>: <reason>`.
 | Simulation | Replay corpus: every tick's hash matches (once `tests/corpus/` exists) |
 | Parser, validator, replay loader | Fuzz targets build; a short fuzz run when parsing changed |
 | `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too) |
+| Line endings | `.gitattributes` keeps `* text=auto eol=lf`; CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 
 The arm64 hash check and release fuzzing are release gates (ADR-022); when they are needed and
 cannot run here, add `cmd:verify-needs-kade` to the issue.
