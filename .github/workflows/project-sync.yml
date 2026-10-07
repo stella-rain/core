@@ -1,0 +1,15 @@
+# Adds this repository's issues to the Stella Rain organization Project and applies
+# command labels (cmd:status-now, cmd:verify-needs-kade, ...). See ADR-031.
+name: Project sync
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    uses: stella-rain/.github/.github/workflows/project-sync.yml@main
+    secrets: inherit
