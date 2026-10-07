@@ -1,0 +1,16 @@
+# Keeps CLAUDE.md at most 100 lines and each .claude/rules/*.md at most 80 lines with `paths:`.
+name: CLAUDE.md check
+
+on:
+  push:
+    branches: [main]
+    paths: ["CLAUDE.md", ".claude/**", ".github/workflows/claude-md-check.yml"]
+  pull_request:
+    paths: ["CLAUDE.md", ".claude/**", ".github/workflows/claude-md-check.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    uses: stella-rain/.github/.github/workflows/claude-md-check.yml@main
