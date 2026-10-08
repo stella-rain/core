@@ -1,3 +1,7 @@
+---
+source: tests/golden.rs
+expression: recording
+---
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":1,"type":"Input"}
 {"data":{"source":1,"ticks":5},"dir":"be>fe","tick":1,"type":"Telegraph"}
 {"data":"f17152a2c4898258","dir":"be>fe","tick":1,"type":"StateHash"}

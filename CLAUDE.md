@@ -43,7 +43,7 @@ So far: the ADR-014 spike, the version 0 types, validator, engine, attacks, boss
 | `src/engine.rs`, `src/rules_v0/`, `src/trig.rs`, `src/presets.rs` | The engine (`Engine`: step, events, snapshot, hash); the rules of `sim_version` 0 (agents, attacks, skills, the main shot, boss phases and parts), which say what they do not do yet; the interpolated sine table; attack presets in the stage's own JSON |
 | `src/validate.rs`, `src/registry.rs` | The validator (size limit, strict parse, registry, static budgets; ADR-020) and the content-ID registry (ADR-026) |
 | `schema/` | JSON Schema generated from the types; `UPDATE_SCHEMA=1 cargo test --test schema` regenerates it |
-| `tests/` | Integration tests; `spike.rs` and `engine.rs` pin golden hashes every platform must match; `golden.rs` compares `tests/golden/*.jsonl` (`UPDATE_GOLDEN=1`, feature `record`) |
+| `tests/` | Integration tests; `spike.rs` and `engine.rs` pin golden hashes every platform must match; `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/` (`cargo insta test --features record --review`) |
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
 | `src/bin/stage_verify.rs` | `stage-verify`: re-simulates a replay and checks the clear and the final hash (ADR-009, ADR-015) |
 | `tests/corpus/` | Replay corpus with per-tick hashes, per `sim_version` (ADR-019) |

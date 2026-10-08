@@ -1,3 +1,7 @@
+---
+source: tests/golden.rs
+expression: recording
+---
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":1,"type":"Input"}
 {"data":{"agent":2,"rule":2,"target":0},"dir":"be>fe","tick":1,"type":"RuleFired"}
 {"data":"018ff51a34d3810e","dir":"be>fe","tick":1,"type":"StateHash"}
