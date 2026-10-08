@@ -37,6 +37,7 @@ The crate holds the ADR-014 spike so far; create the rest as the code arrives.
 |---|---|
 | `src/` | Library: simulation, fixed-point math, RNG, collision, blocks, stage parsing, validation, replay |
 | `src/hash.rs`, `src/spike.rs` | The FNV-1a 64 state hash; the ADR-014 spike simulation (not a frozen `rules_vN`) |
+| `src/content_hash.rs` | The stage content hash, SHA-256 of the two file hashes (ADR-034); the one dependency, `sha2`, lives outside the simulation path |
 | `tests/` | Integration tests; `tests/spike.rs` pins the golden hash every platform must match |
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
 | `stage-verify` binary | CLI that re-simulates a replay and checks the clear (ADR-009, ADR-015) |

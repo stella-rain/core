@@ -12,6 +12,9 @@ publish = false
 name = "stella_rain_core"
 
 [dependencies]
+# Only for `content_hash` (ADR-034): a fixed standard, so a crate cannot change its output.
+# Never used in the simulation path; the PRNG and the state hash are written in `core`.
+sha2 = { version = "0.11.0", default-features = false }
 
 # Overflow behaves the same in every profile (ADR-019): it panics unless the code says
 # `wrapping_*` or `saturating_*`. Release and bench would otherwise wrap silently.
