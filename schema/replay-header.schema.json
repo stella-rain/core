@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReplayHeader",
+  "type": "object",
+  "properties": {
+    "final_hash": {
+      "description": "The FNV-1a 64 state hash after the last tick (ADR-019), 16 lowercase hex digits. Hex,\nbecause JSON readers that use doubles cannot hold every 64-bit integer.",
+      "type": "string"
+    },
+    "schema_version": {
+      "description": "Must equal the stage's (ADR-020).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "seed": {
+      "description": "Must equal the stage's.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sim_version": {
+      "description": "Must equal the stage's (ADR-020).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "stage_sha256": {
+      "description": "SHA-256 of the exact stage file bytes, lowercase hex: a changed stage invalidates the\nreplay.",
+      "type": "string"
+    },
+    "ticks": {
+      "description": "Ticks recorded; at most the stage's length.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "seed",
+    "stage_sha256",
+    "ticks",
+    "final_hash"
+  ]
+}

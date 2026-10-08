@@ -1,0 +1,177 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "placeholder-golem",
+  "title": "Placeholder Golem",
+  "description": "Every tier of ADR-036 with placeholder content.",
+  "seed": 48213,
+  "length_ticks": 18000,
+  "player": {
+    "base": "pilot_a",
+    "hp": 3,
+    "atk": 10,
+    "shot": { "preset": { "id": "twin_shot", "args": [] } },
+    "skills": [
+      {
+        "slot": 1,
+        "target": "boss_first",
+        "skill": { "type": "shot", "pattern": { "preset": { "id": "spread_5", "args": [] } }, "damage": 40 },
+        "cooldown_ticks": 600
+      },
+      {
+        "slot": 2,
+        "target": "nearest_ally",
+        "skill": { "type": "atk_up", "value_pct": 20, "duration_ticks": 300 },
+        "charges": 2
+      }
+    ]
+  },
+  "companions": [
+    {
+      "base": "fairy_a",
+      "hp": 5,
+      "radius": 768,
+      "movement": { "type": "orbit", "radius": 10240 },
+      "rules": [
+        {
+          "when": { "type": "hp_below", "who": "lowest_hp_ally", "pct": 50 },
+          "target": "lowest_hp_ally",
+          "do": { "type": "cast", "skill": { "type": "heal", "amount": 1 } },
+          "cooldown_ticks": 900
+        },
+        {
+          "when": { "type": "always" },
+          "target": "highest_aggro_ally",
+          "do": { "type": "cast", "skill": { "type": "atk_up", "value_pct": 15, "duration_ticks": 480 } },
+          "cooldown_ticks": 480
+        }
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "at_tick": 120,
+      "enemy": {
+        "base": "bat",
+        "palette": "ice",
+        "hp": 20,
+        "radius": 2048,
+        "movement": { "type": "straight", "vx": 0, "vy": 384 },
+        "rules": [
+          {
+            "when": { "type": "time_above", "ticks": 30 },
+            "target": "player",
+            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [512] } } },
+            "once": true
+          }
+        ]
+      },
+      "spawn": { "x": 46080, "y": 0 },
+      "count": 6,
+      "every_ticks": 20
+    }
+  ],
+  "boss": {
+    "base": "golem",
+    "palette": "ice",
+    "hp": 900,
+    "radius": 8192,
+    "spawn": { "x": 46080, "y": 25600 },
+    "parts": [
+      { "id": "horn_left", "asset": "horns_2", "hp": 120, "offset": { "x": -4096, "y": -6144 }, "radius": 2048 }
+    ],
+    "phases": [
+      {
+        "until": { "type": "hp_below", "who": "self", "pct": 30 },
+        "timeline": [
+          { "type": "telegraph", "ticks": 45 },
+          {
+            "type": "attack",
+            "attack": {
+              "inline": [
+                {
+                  "type": "repeat",
+                  "count": 5,
+                  "interval_ticks": 12,
+                  "body": [
+                    {
+                      "type": "ring",
+                      "count": { "add": [12, { "arg": 0 }] },
+                      "body": [
+                        {
+                          "type": "fire",
+                          "speed": { "clamp": [{ "rand": [384, 640] }, 256, 768] },
+                          "direction": { "type": "relative", "angle": { "mul": ["loop_index", 1280] } }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          { "type": "wait", "ticks": 90 },
+          { "type": "loop" }
+        ],
+        "rules": [
+          {
+            "when": { "type": "part_broken", "part": "horn_left" },
+            "target": "self",
+            "do": { "type": "telegraph", "ticks": 30 },
+            "once": true
+          }
+        ]
+      },
+      {
+        "transition": [{ "type": "clear_bullets" }, { "type": "invulnerable_ticks", "ticks": 60 }],
+        "timeline": [
+          { "type": "move_to", "to": { "x": 46080, "y": 38400 }, "ticks": 60 },
+          {
+            "type": "attack",
+            "attack": {
+              "inline": [
+                {
+                  "type": "on_bullet",
+                  "after_ticks": 40,
+                  "body": [
+                    { "type": "spread", "count": 7, "angle": 15360,
+                      "body": [{ "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }] }
+                  ],
+                  "then": [
+                    { "type": "rotate", "angle": "phase_time",
+                      "body": [{ "type": "fire", "speed": 256, "direction": { "type": "sequential", "step": 2560 }, "bullet": "orb_small" }] }
+                  ]
+                }
+              ]
+            }
+          },
+          { "type": "loop" }
+        ],
+        "rules": [
+          {
+            "when": { "type": "player_firing" },
+            "target": { "part": "horn_left" },
+            "do": { "type": "move_to", "to": { "x": 46080, "y": 12800 }, "ticks": 30 },
+            "cooldown_ticks": 120
+          },
+          {
+            "when": { "type": "aggro_above", "who": "highest_aggro_ally", "value": 100 },
+            "target": "highest_aggro_ally",
+            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } },
+            "charges": 3
+          },
+          {
+            "when": { "type": "has_status", "who": "self", "status": "vulnerable" },
+            "target": "self",
+            "do": {
+              "type": "summon",
+              "agent": { "base": "bat", "hp": 10, "radius": 2048, "movement": { "type": "hold", "at": { "x": 0, "y": 0 } } },
+              "count": 2
+            },
+            "once": true
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Input",
+  "type": "object",
+  "properties": {
+    "dx": {
+      "description": "Movement this tick in 1/256 pixel units, before the simulation's speed cap (ADR-038).",
+      "type": "integer",
+      "format": "int16",
+      "maximum": 32767,
+      "minimum": -32768
+    },
+    "dy": {
+      "type": "integer",
+      "format": "int16",
+      "maximum": 32767,
+      "minimum": -32768
+    },
+    "fire": {
+      "description": "The main shot fires only on ticks with `fire` (ADR-038).",
+      "type": "boolean"
+    },
+    "focus": {
+      "type": "boolean"
+    },
+    "held": {
+      "description": "The skill slot held this tick: 0 for none, 1 to 3 (ADR-032). Press, hold and release\nare read from how this changes between ticks.",
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "dx",
+    "dy",
+    "focus",
+    "fire",
+    "held"
+  ]
+}

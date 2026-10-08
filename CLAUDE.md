@@ -31,13 +31,16 @@ Follow the `kade-workflow` skill; where it and this file differ, this file wins.
 
 ## Layout
 
-The crate holds the ADR-014 spike so far; create the rest as the code arrives.
+The crate holds the ADR-014 spike and the version 0 types so far; create the rest as the code
+arrives.
 
 | Path | What |
 |---|---|
 | `src/` | Library: simulation, fixed-point math, RNG, collision, blocks, stage parsing, validation, replay |
 | `src/hash.rs`, `src/spike.rs` | The FNV-1a 64 state hash; the ADR-014 spike simulation (not a frozen `rules_vN`) |
-| `src/content_hash.rs` | The stage content hash, SHA-256 of the two file hashes (ADR-034); the one dependency, `sha2`, lives outside the simulation path |
+| `src/content_hash.rs` | The stage content hash, SHA-256 of the two file hashes (ADR-034); `sha2` lives outside the simulation path |
+| `src/stage.rs`, `behaviour.rs`, `attack.rs`, `input.rs`, `event.rs`, `snapshot.rs`, `replay.rs` | The version 0 types (ADR-035, ADR-036); `serde`, `serde_json` and `schemars` parse and describe them, outside the simulation path |
+| `schema/` | JSON Schema generated from the types; `UPDATE_SCHEMA=1 cargo test --test schema` regenerates it |
 | `tests/` | Integration tests; `tests/spike.rs` pins the golden hash every platform must match |
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
 | `stage-verify` binary | CLI that re-simulates a replay and checks the clear (ADR-009, ADR-015) |
