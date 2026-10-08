@@ -15,8 +15,9 @@ use super::{
     FOCUS_SPEED, HOLD_LIMIT_TICKS, PLAYER_BULLET_SPEED, PLAYER_ID, PLAYER_SPEED, SHOT_INTERVAL,
     spawn_bullet,
 };
-use crate::engine::{BulletState, StatusKind};
+use crate::engine::{BulletState, Dir, StatusKind};
 use crate::fixed::Point;
+use crate::trig;
 
 /// Limits a move to `cap` units, keeping its direction: a diagonal is no faster (ADR-038).
 fn capped_move(dx: i16, dy: i16, cap: i32) -> (i32, i32) {
@@ -40,7 +41,7 @@ pub(super) fn update(
     s.player.invulnerable = s.player.invulnerable.saturating_sub(1);
     move_player(s, input);
     shoot(stage, s, input, spawns_left);
-    skills(stage, s, input, events, spawns_left);
+    skills(stage, s, input, events);
 }
 
 fn move_player(s: &mut State, input: Input) {
@@ -74,9 +75,15 @@ fn shoot(stage: &Stage, s: &mut State, input: Input, spawns_left: &mut u32) {
         at: s.player.at,
         vx: Fx(0),
         vy: Fx(-PLAYER_BULLET_SPEED),
+        dir: Dir {
+            x: 0,
+            y: -trig::SCALE,
+        },
+        style: 0,
         owner: PLAYER_ID,
         friendly: true,
         damage,
+        hook: None,
     };
     spawn_bullet(s, bullet, spawns_left);
 }
@@ -85,13 +92,7 @@ fn shoot(stage: &Stage, s: &mut State, input: Input, spawns_left: &mut u32) {
 /// holding for `HOLD_LIMIT_TICKS`, casts the skill at the target its selector picks. One hold
 /// at a time, and a skill that is not ready cannot be held. The slot is the input's `held`
 /// field; the frontend slows its own clock while a hold lasts, which the simulation never sees.
-fn skills(
-    stage: &Stage,
-    s: &mut State,
-    input: Input,
-    events: &mut Vec<DomainEvent>,
-    spawns_left: &mut u32,
-) {
+fn skills(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
     for sk in &mut s.player.skills {
         sk.cooldown_left = sk.cooldown_left.saturating_sub(1);
     }
@@ -104,7 +105,7 @@ fn skills(
         let ticks = hold.ticks + 1;
         if held != stage.player.skills[index].slot || ticks >= HOLD_LIMIT_TICKS {
             s.player.hold = None;
-            cast_slot(stage, s, index, events, spawns_left);
+            cast_slot(stage, s, index, events);
         } else {
             s.player.hold = Some(HoldState {
                 index: hold.index,
@@ -126,13 +127,7 @@ fn skills(
 
 /// Casts the skill in slot `index` if it is still ready and has a target. With no target it
 /// fizzles and costs nothing.
-fn cast_slot(
-    stage: &Stage,
-    s: &mut State,
-    index: usize,
-    events: &mut Vec<DomainEvent>,
-    spawns_left: &mut u32,
-) {
+fn cast_slot(stage: &Stage, s: &mut State, index: usize, events: &mut Vec<DomainEvent>) {
     let def = &stage.player.skills[index];
     if !s.player.skills[index].is_ready() {
         return;
@@ -149,5 +144,5 @@ fn cast_slot(
         slot: def.slot,
         target: Some(s.id_of(target)),
     });
-    cast(s, Who::Player, target, &def.skill, events, spawns_left);
+    cast(s, Who::Player, target, &def.skill, events);
 }

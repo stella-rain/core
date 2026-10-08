@@ -6,22 +6,27 @@
 //! 2. the main character moves (speed cap, focus, slowing, playfield), fires on `fire` ticks
 //!    only (ADR-038, no auto-fire), and its skills are held and cast (ADR-032);
 //! 3. companions, then enemies, in entity-ID order: move, then the first rule that can fire,
-//!    fires (ADR-036);
-//! 4. bullets move and leave the field;
-//! 5. collisions: shots of allies hurt enemies and the boss, shots of enemies hurt the main
+//!    fires (ADR-036), which for an attack or a shot skill starts an attack task;
+//! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
+//!    is carried out up to its next wait (`attacks`), making bullets;
+//! 5. bullets move and leave the field;
+//! 6. collisions: shots of allies hurt enemies and the boss, shots of enemies hurt the main
 //!    character and the companions;
-//! 6. the outcome is decided: death or running out of ticks fails, an empty stage clears.
+//! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
 //!
-//! Not yet in this version: boss phases, parts and timelines (core#17); attack contents
-//! (every `attack` fires one aimed bullet, until core#18); summons by companions. Rule
-//! conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
+//! Not yet in this version: boss phases, parts and timelines (core#17); the main shot being an
+//! attack (it is one straight bullet, whatever the stage's `shot` says); summons by companions.
+//! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
-//! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, `MAX_BULLETS_ALIVE` bullets
-//! and `MAX_BULLET_SPAWNS_PER_TICK` new bullets per tick. A spawn past a cap is dropped, in
-//! spawn order, and a wave spawn that is dropped still counts as spawned.
+//! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, `MAX_BULLETS_ALIVE` bullets,
+//! `MAX_BULLET_SPAWNS_PER_TICK` new bullets per tick, `MAX_ATTACK_TASKS` attacks at once and
+//! `MAX_EMITTER_STEPS_PER_TICK` steps of them per tick. A spawn past a cap is dropped, in
+//! spawn order, and a wave spawn that is dropped still counts as spawned; attacks past the
+//! step budget wait for the next tick.
 
 mod act;
 mod agents;
+mod attacks;
 mod entity;
 mod player;
 mod select;
@@ -46,6 +51,10 @@ use entity::{Who, scale_damage, status_pct};
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 300;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
 pub(crate) const MAX_BULLET_SPAWNS_PER_TICK: u32 = 200;
+/// Attacks being carried out at once (ADR-036 tier 3), and the node steps they may take in a
+/// tick between them. An attack that would take more waits for the next tick.
+pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
+pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 
 /// The main character is always entity 0; the boss, if any, is 1, then the companions.
 const PLAYER_ID: EntityId = EntityId(0);
@@ -58,7 +67,6 @@ const PLAYER_START_Y_FROM_BOTTOM: i32 = Fx::px(64).0;
 const SHOT_INTERVAL: u32 = 6;
 const PLAYER_BULLET_SPEED: i32 = Fx::px(8).0;
 const PLAYER_BULLET_RADIUS: i32 = Fx::px(2).0;
-const ENEMY_BULLET_SPEED: i32 = Fx::px(3).0;
 const ENEMY_BULLET_RADIUS: i32 = Fx::px(3).0;
 /// Ticks of invulnerability after the main character is hit.
 const HIT_INVULNERABLE_TICKS: u32 = 60;
@@ -143,6 +151,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
         boss,
         companions,
         enemies: Vec::new(),
+        tasks: Vec::new(),
         bullets: Vec::new(),
         spawned: vec![0; stage.waves.len()],
         next_id,
@@ -165,7 +174,9 @@ pub(crate) fn step(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<
     spawn_waves(stage, s);
     entity::tick_statuses_and_aggro(s);
     player::update(stage, s, input, events, &mut spawns_left);
-    agents::act(stage, s, events, &mut spawns_left);
+    agents::act(stage, s, events);
+    attacks::fire_hooks(s);
+    attacks::run(s, &mut spawns_left);
     move_bullets(s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
@@ -214,21 +225,6 @@ fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
     s.bullets.push(bullet);
 }
 
-/// A bullet velocity from `from` toward `to` at `speed`; straight down if they coincide.
-fn aimed(from: Point, to: Point, speed: i32) -> (Fx, Fx) {
-    let dx = i64::from(to.x.0) - i64::from(from.x.0);
-    let dy = i64::from(to.y.0) - i64::from(from.y.0);
-    let dist = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
-    if dist == 0 {
-        return (Fx(0), Fx(speed));
-    }
-    let speed = i64::from(speed);
-    (
-        Fx((dx * speed / dist) as i32),
-        Fx((dy * speed / dist) as i32),
-    )
-}
-
 fn move_bullets(s: &mut State) {
     for b in &mut s.bullets {
         b.at.x = b.at.x.saturating_add(b.vx);
@@ -245,14 +241,29 @@ fn overlaps(a: Point, ra: i32, b: Point, rb: i32) -> bool {
     dx * dx + dy * dy <= r * r
 }
 
+/// What a hit needs to know about the bullet that made it.
+#[derive(Clone, Copy)]
+struct Shot {
+    at: Point,
+    owner: EntityId,
+    friendly: bool,
+    damage: u32,
+}
+
 fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     let mut consumed = Vec::with_capacity(s.bullets.len());
     for i in 0..s.bullets.len() {
-        let b = s.bullets[i];
-        consumed.push(if b.friendly {
-            hit_enemy_side(stage, s, b, events)
+        let b = &s.bullets[i];
+        let shot = Shot {
+            at: b.at,
+            owner: b.owner,
+            friendly: b.friendly,
+            damage: b.damage,
+        };
+        consumed.push(if shot.friendly {
+            hit_enemy_side(stage, s, shot, events)
         } else {
-            hit_ally_side(stage, s, b, events)
+            hit_ally_side(stage, s, shot, events)
         });
     }
     let mut flags = consumed.into_iter();
@@ -263,7 +274,7 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
 
 /// Damage to an enemy, a companion or the boss: raised by its vulnerability, reported, and
 /// credited to the shooter's aggro. Death is reported too.
-fn damage(s: &mut State, b: BulletState, target: Who, events: &mut Vec<DomainEvent>) {
+fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
     let dealt = scale_damage(b.damage, 0, vulnerable);
     let id = s.id_of(target);
@@ -282,12 +293,7 @@ fn damage(s: &mut State, b: BulletState, target: Who, events: &mut Vec<DomainEve
 }
 
 /// An ally's shot against the enemies in ID order, then the boss. Returns whether it was used up.
-fn hit_enemy_side(
-    stage: &Stage,
-    s: &mut State,
-    b: BulletState,
-    events: &mut Vec<DomainEvent>,
-) -> bool {
+fn hit_enemy_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     for i in 0..s.enemies.len() {
         let e = &s.enemies[i];
         let radius = agent_def(stage, e.key).radius.0;
@@ -307,12 +313,7 @@ fn hit_enemy_side(
 
 /// An enemy's shot against the main character (unless it is invulnerable), then the
 /// companions in ID order.
-fn hit_ally_side(
-    stage: &Stage,
-    s: &mut State,
-    b: BulletState,
-    events: &mut Vec<DomainEvent>,
-) -> bool {
+fn hit_ally_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
     if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
         let vulnerable = status_pct(&p.statuses, crate::engine::StatusKind::Vulnerable);
@@ -402,6 +403,47 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
     hash_statuses(h, &a.statuses);
 }
 
+fn hash_path(h: &mut StateHasher, path: &[crate::engine::PathStep]) {
+    h.write_u32(count(path));
+    for step in path {
+        h.write_u32(u32::from(step.node));
+        h.write_bool(step.then);
+    }
+}
+
+/// What identifies an attack task for the hash is where it has got to, not which program it
+/// runs: a preset and its inline copy are the same task and hash the same.
+fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
+    h.write_u32(t.owner.0);
+    hash_path(h, &t.base);
+    match t.origin {
+        crate::engine::Origin::Owner => h.write_bool(false),
+        crate::engine::Origin::At(p) => {
+            h.write_bool(true);
+            h.write_i32(p.x.0);
+            h.write_i32(p.y.0);
+        }
+    }
+    h.write_u32(t.target.0);
+    h.write_bool(t.friendly);
+    h.write_u32(t.damage);
+    h.write_u32(t.age);
+    h.write_u32(t.wait_left);
+    h.write_i32(t.parent_dir.x);
+    h.write_i32(t.parent_dir.y);
+    h.write_i32(t.last_dir.x);
+    h.write_i32(t.last_dir.y);
+    h.write_u32(count(&t.frames));
+    for f in &t.frames {
+        h.write_u32(u32::from(f.idx));
+        h.write_u32(f.loop_i);
+        h.write_u32(f.loop_n);
+        h.write_i32(f.param);
+        h.write_i32(f.offset);
+        h.write_u32(f.hook_after);
+    }
+}
+
 /// The state hash: FNV-1a 64 over the whole state at fixed widths, field by field in the order
 /// of the `State` types, with each list preceded by its length (ADR-019).
 pub(crate) fn state_hash(s: &State) -> u64 {
@@ -462,15 +504,34 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     for e in &s.enemies {
         hash_agent(&mut h, e);
     }
+    h.write_u32(count(&s.tasks));
+    for t in &s.tasks {
+        hash_task(&mut h, t);
+    }
     h.write_u32(count(&s.bullets));
     for b in &s.bullets {
         h.write_i32(b.at.x.0);
         h.write_i32(b.at.y.0);
         h.write_i32(b.vx.0);
         h.write_i32(b.vy.0);
+        h.write_i32(b.dir.x);
+        h.write_i32(b.dir.y);
+        h.write_u32(u32::from(b.style));
         h.write_u32(b.owner.0);
         h.write_bool(b.friendly);
         h.write_u32(b.damage);
+        match &b.hook {
+            Some(hook) => {
+                h.write_bool(true);
+                hash_path(&mut h, &hook.path);
+                h.write_u32(hook.left);
+                h.write_u32(hook.owner.0);
+                h.write_u32(hook.target.0);
+                h.write_bool(hook.friendly);
+                h.write_u32(hook.damage);
+            }
+            None => h.write_bool(false),
+        }
     }
     h.finish()
 }

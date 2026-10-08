@@ -19,7 +19,7 @@ pub enum AttackRef {
         #[serde(default)]
         args: Vec<i32>,
     },
-    /// The root nodes, run together.
+    /// The nodes, carried out in order (see `rules_v0`'s attacks for what each one does).
     Inline(Vec<Emitter>),
 }
 
@@ -34,24 +34,27 @@ pub enum Emitter {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bullet: Option<ContentId>,
     },
-    /// Runs `body` `count` times, `interval_ticks` apart.
+    /// Runs `body` `count` times (at most 100). The next round starts `interval_ticks` ticks
+    /// after the body of the last one ends.
     Repeat {
         count: Expr,
         interval_ticks: Expr,
         body: Vec<Emitter>,
     },
-    /// Runs `body` `count` times, spread evenly round a full circle.
+    /// Runs `body` `count` times at once, each round turned a full turn / `count` further than
+    /// the one before.
     Ring {
         count: Expr,
         body: Vec<Emitter>,
     },
-    /// Runs `body` `count` times, spread evenly across `angle`.
+    /// Runs `body` `count` times at once, fanned evenly across `angle` and centred on the
+    /// direction of the bullets.
     Spread {
         count: Expr,
         angle: Expr,
         body: Vec<Emitter>,
     },
-    /// Turns the direction of everything in `body`.
+    /// Turns the direction of everything in `body` by `angle`.
     Rotate {
         angle: Expr,
         body: Vec<Emitter>,
@@ -59,7 +62,8 @@ pub enum Emitter {
     Wait {
         ticks: Expr,
     },
-    /// Each bullet fired by `body` starts `then` after `after_ticks`.
+    /// Each bullet fired by `body` starts `then` as an attack of its own, from where the bullet
+    /// is, `after_ticks` ticks later (at the next tick if 0), if it is still flying.
     OnBullet {
         after_ticks: Expr,
         body: Vec<Emitter>,
@@ -70,13 +74,15 @@ pub enum Emitter {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Direction {
-    /// At the target, plus an offset.
+    /// At the target, turned by `offset`.
     Aimed { offset: Expr },
-    /// A fixed angle; 0 points down the screen.
+    /// A fixed angle: 0 points down the screen, and positive angles turn toward the right.
     Absolute { angle: Expr },
-    /// Relative to the parent's direction.
+    /// Turned by `angle` from the parent's direction: straight down for an attack that a rule
+    /// started, the direction of the bullet for a `then` list of `on_bullet`.
     Relative { angle: Expr },
-    /// The previous bullet's direction plus a step.
+    /// Turned by `step` from the previous bullet's direction; not affected by the turns of
+    /// `rotate`, `ring` and `spread`.
     Sequential { step: Expr },
 }
 
@@ -89,9 +95,10 @@ pub enum Expr {
     Arg(u8),
     /// Index of the innermost `repeat`, `ring` or `spread`.
     LoopIndex,
-    /// Ticks since the boss phase, or the agent, began.
+    /// Ticks since the attack started: 0 on its first tick.
     PhaseTime,
-    /// A draw from the run's SplitMix64 (ADR-033), from `lo` to `hi` inclusive.
+    /// A draw from the run's SplitMix64 (ADR-033), from `lo` to `hi` inclusive; `lo` if the
+    /// range is empty. Expressions are evaluated left to right, so the order of draws is fixed.
     Rand(Box<(Expr, Expr)>),
     Add(Box<(Expr, Expr)>),
     Sub(Box<(Expr, Expr)>),

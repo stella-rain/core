@@ -13,6 +13,7 @@ pub mod fixed;
 pub mod hash;
 pub mod id;
 pub mod input;
+pub mod presets;
 #[cfg(feature = "record")]
 pub mod recording;
 pub mod registry;

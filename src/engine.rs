@@ -7,6 +7,9 @@
 //! changes in place until the freeze (ADR-035): see `rules_v0` for what it does and does not
 //! do yet.
 
+use std::sync::Arc;
+
+use crate::attack::Emitter;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
@@ -140,7 +143,7 @@ impl Engine {
                 .map(|b| BulletView {
                     at: b.at,
                     radius: Fx(rules_v0::bullet_radius(b.friendly)),
-                    style: 0,
+                    style: b.style,
                     friendly: b.friendly,
                 })
                 .collect(),
@@ -166,6 +169,8 @@ pub(crate) struct State {
     pub companions: Vec<AgentState>,
     /// In spawn order, which is entity-ID order.
     pub enemies: Vec<AgentState>,
+    /// Attacks that are being carried out, oldest first (ADR-036 tier 3).
+    pub tasks: Vec<AttackTask>,
     /// In spawn order.
     pub bullets: Vec<BulletState>,
     /// Enemies spawned so far, per wave.
@@ -310,14 +315,108 @@ pub(crate) struct StatusState {
     pub value_pct: u16,
 }
 
-#[derive(Clone, Copy, Debug)]
+/// A direction as a vector of length about `trig::SCALE`. Angle 0 is straight down the screen
+/// and positive angles turn toward the right.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Dir {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl Dir {
+    pub const DOWN: Dir = Dir {
+        x: 0,
+        y: crate::trig::SCALE,
+    };
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct BulletState {
     pub at: Point,
     pub vx: Fx,
     pub vy: Fx,
+    /// The direction it was fired in, which `relative` directions of its children start from.
+    pub dir: Dir,
+    /// For the renderer; 0 is the default bullet.
+    pub style: u16,
     /// Who fired it, for the hit event and for aggro.
     pub owner: EntityId,
     /// Fired by an ally rather than an enemy.
     pub friendly: bool,
     pub damage: u32,
+    /// Starts an attack of its own after a while (`on_bullet`).
+    pub hook: Option<Box<Hook>>,
+}
+
+/// An `on_bullet` waiting on a bullet.
+#[derive(Clone, Debug)]
+pub(crate) struct Hook {
+    pub program: Arc<Vec<Emitter>>,
+    /// The `on_bullet` node in the program: its `then` list is what the bullet starts.
+    pub path: Vec<PathStep>,
+    /// Ticks left before it starts.
+    pub left: u32,
+    pub owner: EntityId,
+    pub target: EntityId,
+    pub friendly: bool,
+    pub damage: u32,
+}
+
+/// One step down a program: the node at `node` in the current list, then its `body` list, or
+/// its `then` list if `then` is set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PathStep {
+    pub node: u16,
+    pub then: bool,
+}
+
+/// Where an attack's bullets start from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Origin {
+    /// Wherever its owner is, for as long as the owner lives.
+    Owner,
+    /// A fixed point: where a bullet was when it started this attack.
+    At(Point),
+}
+
+/// A place in the middle of a list of nodes, and the state of the loop or turn whose body the
+/// next frame up is running.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Frame {
+    /// The node of this frame's list that is being carried out.
+    pub idx: u16,
+    pub loop_i: u32,
+    pub loop_n: u32,
+    /// A spread's angle.
+    pub param: i32,
+    /// The turn this node adds to the directions of its body.
+    pub offset: i32,
+    /// For `on_bullet`: ticks the bullets of its body wait before starting their attack.
+    pub hook_after: u32,
+}
+
+/// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it
+/// needs to know to aim and to hurt. Presets are expanded before they get here, so a preset and
+/// its inline copy are the same task.
+#[derive(Clone, Debug)]
+pub(crate) struct AttackTask {
+    pub owner: EntityId,
+    pub program: Arc<Vec<Emitter>>,
+    /// Where in the program this task starts; empty for the whole program.
+    pub base: Vec<PathStep>,
+    pub origin: Origin,
+    /// What `aimed` directions point at, by entity ID.
+    pub target: EntityId,
+    pub friendly: bool,
+    pub damage: u32,
+    /// Ticks since it started.
+    pub age: u32,
+    /// Ticks to wait before going on.
+    pub wait_left: u32,
+    /// The stack of lists being carried out, outermost first.
+    pub frames: Vec<Frame>,
+    /// The direction `relative` directions start from.
+    pub parent_dir: Dir,
+    /// The direction of the last bullet, which `sequential` directions turn from.
+    pub last_dir: Dir,
 }

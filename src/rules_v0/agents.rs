@@ -87,29 +87,18 @@ pub(super) fn agent_mut(s: &mut State, who: Who) -> &mut AgentState {
 }
 
 /// Every agent moves, then acts, in entity-ID order. Agents summoned this tick start next tick.
-pub(super) fn act(
-    stage: &Stage,
-    s: &mut State,
-    events: &mut Vec<DomainEvent>,
-    spawns_left: &mut u32,
-) {
+pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     for i in 0..s.companions.len() {
-        act_one(stage, s, Who::Companion(i), events, spawns_left);
+        act_one(stage, s, Who::Companion(i), events);
     }
     for i in 0..s.enemies.len() {
-        act_one(stage, s, Who::Enemy(i), events, spawns_left);
+        act_one(stage, s, Who::Enemy(i), events);
     }
     // Enemies that have left the field are gone, whether or not they were killed.
     s.enemies.retain(|e| super::inside_with_margin(e.at));
 }
 
-fn act_one(
-    stage: &Stage,
-    s: &mut State,
-    me: Who,
-    events: &mut Vec<DomainEvent>,
-    spawns_left: &mut u32,
-) {
+fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
     let def = agent_def(stage, agent(s, me).key);
     {
         let a = agent_mut(s, me);
@@ -130,7 +119,7 @@ fn act_one(
         let Some(target) = select(stage, s, me, &rule.target) else {
             continue;
         };
-        if !perform(stage, s, me, target, i, &rule.action, events, spawns_left) {
+        if !perform(stage, s, me, target, i, &rule.action, events) {
             continue;
         }
         let id = s.id_of(me);

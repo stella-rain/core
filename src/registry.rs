@@ -57,6 +57,8 @@ pub const ENTRIES: &[Entry] = &[
     entry("ice", Kind::Palette, 0),
     entry("orb_small", Kind::Bullet, 0),
     entry("aimed_single", Kind::Preset, 1),
+    entry("aimed_spread", Kind::Preset, 1),
+    entry("spiral", Kind::Preset, 1),
     entry("spread_5", Kind::Preset, 0),
     entry("twin_shot", Kind::Preset, 0),
     entry("atk_up", Kind::Status, 0),
@@ -78,4 +80,14 @@ pub fn is_well_formed(id: &str) -> bool {
 /// The entry for `id` of `kind` in `entries`.
 pub fn find<'a>(entries: &'a [Entry], kind: Kind, id: &str) -> Option<&'a Entry> {
     entries.iter().find(|e| e.kind == kind && e.id == id)
+}
+
+/// The style of a bullet asset for the renderer: 0 for the default bullet, otherwise 1 plus the
+/// position of the asset among the bullet assets of `ENTRIES`.
+pub fn bullet_style(id: &str) -> u16 {
+    ENTRIES
+        .iter()
+        .filter(|e| e.kind == Kind::Bullet)
+        .position(|e| e.id == id)
+        .map_or(0, |i| u16::try_from(i + 1).unwrap_or(0))
 }

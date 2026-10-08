@@ -43,7 +43,7 @@ fn shoot_at(selector: &str, cooldown: u32) -> Value {
     rule(
         always(),
         json!(selector),
-        json!({ "type": "attack", "attack": { "preset": { "id": "twin_shot", "args": [] } } }),
+        json!({ "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
         cooldown,
     )
 }
