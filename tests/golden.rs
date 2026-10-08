@@ -1,42 +1,25 @@
-//! Golden recordings (ADR-016): the JSON Lines recording of a short run for a companion and
-//! for an enemy, compared byte for byte with the files in `tests/golden/`. They read like a
-//! story of what each agent did and why the hash moved, and any change to the rules shows up
-//! as a diff in review. After an intended change, regenerate them with
-//! `UPDATE_GOLDEN=1 cargo test --features record --test golden` and say
-//! `Corpus regenerated: <why>` in the PR (ADR-035).
+//! Golden recordings (ADR-016): the JSON Lines recording of a short run for a companion, an
+//! enemy, a boss and the main shot, kept as `insta` snapshots in `tests/golden/` (ADR-021).
+//! They read like a story of what each agent did and why the hash moved, and any change to the
+//! rules shows up as a diff in review. After an intended change, run
+//! `cargo insta test --features record --test golden --review` (or set `INSTA_UPDATE=always`)
+//! and say `Corpus regenerated: <why>` in the PR (ADR-035). In CI a difference always fails.
 #![cfg(feature = "record")]
 
 mod common;
-
-use std::path::Path;
 
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::input::Input;
 use stella_rain_core::recording;
 
+/// Compares a recording with `tests/golden/<name>.snap`. Below the header (the lines up to
+/// the second `---`), the file is the recording itself, one JSON object a line, so the event
+/// player can read it too.
 fn check(name: &str, recording: &str) {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/golden")
-        .join(format!("{name}.jsonl"));
-    if std::env::var_os("UPDATE_GOLDEN").is_some() {
-        std::fs::write(&path, recording).unwrap();
-    }
-    let golden = std::fs::read_to_string(&path).unwrap_or_default();
-    if golden != recording {
-        let first = golden
-            .lines()
-            .zip(recording.lines())
-            .position(|(a, b)| a != b)
-            .unwrap_or_else(|| golden.lines().count().min(recording.lines().count()));
-        panic!(
-            "{name}.jsonl differs from the recording, first at line {}:\n  golden:    {}\n  recording: {}\n\
-             after an intended change run `UPDATE_GOLDEN=1 cargo test --features record --test golden`",
-            first + 1,
-            golden.lines().nth(first).unwrap_or("(end of file)"),
-            recording.lines().nth(first).unwrap_or("(end of file)"),
-        );
-    }
+    insta::with_settings!({ snapshot_path => "golden", prepend_module_to_snapshot => false }, {
+        insta::assert_snapshot!(name, recording);
+    });
 }
 
 fn shoot_at(selector: &str, cooldown: u32) -> Value {
