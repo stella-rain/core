@@ -37,6 +37,12 @@ published stages fail to verify.
 
 ## `sim_version` (ADR-017)
 
+- Version 0 is a development version (ADR-035): rules, numbers and the state's byte encoding
+  change in place, without a `rules_vN` copy, until the freeze at P3. The x86_64 and arm64
+  hash check is not relaxed: a PR that changes an outcome on purpose regenerates the version 0
+  corpus and says `Corpus regenerated: <why>`; any other hash change is a bug. SplitMix64 and
+  FNV-1a 64 stay fixed under version 0.
+- From version 1 on, the rules below apply in full.
 - Released `rules_vN` modules are frozen. A change that can alter an outcome goes into a new
   version through the `schema-change` skill.
 - Shared helpers used by a frozen version keep their behaviour; copy before changing.

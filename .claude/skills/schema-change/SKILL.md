@@ -13,19 +13,24 @@ This file is identical in `app` and `core`; change both copies in the same task.
 
 | Change | Bump | What else |
 |---|---|---|
+| Any of the changes below while the version is still 0 (ADR-035) | none | Change in place: no migration, no `rules_vN` copy, no deprecation. If outcomes change, regenerate the version 0 corpus and write `Corpus regenerated: <why>` in the PR |
 | File structure of stages, events or recordings: a field added, removed, renamed or retyped | `schema_version` | Forward migration on load |
 | Anything that can alter an outcome: rules, numbers, RNG use, math, what a content ID does | `sim_version` | A new frozen `rules_vN`; older versions untouched |
 | New content ID (asset, palette, part, block, targeting, skill, attack pattern) | none | Registry entry; permanent once released |
 | Rename or remove a released content ID | not allowed | Deprecate it instead |
 | Refactor, docs, comments | none | The replay corpus proves the hashes are unchanged |
 
-Not sure whether outcomes change? Run the replay corpus: any hash difference means `sim_version`.
+Not sure whether outcomes change? Run the replay corpus: any hash difference means `sim_version`
+(under version 0: a corpus regeneration, named in the PR). Version 0 never relaxes determinism:
+the corpus must still match on x86_64 and arm64, and SplitMix64, FNV-1a 64 and the content hash
+stay fixed (ADR-019, ADR-033, ADR-034). Version 0 ends with the freeze at P3.
 
 ## 2. Test first
 
 - `schema_version`: a test that loads a file of the previous version and asserts the migrated result.
 - `sim_version`: a corpus replay recorded under the new version, and the existing corpus still
   passing under the old versions without changes.
+- Version 0: tests for the new behaviour; the regenerated corpus passing on both architectures.
 - If the change adds size or count (more entities, a longer list), adjust the budget in both the
   validator and the runtime clamp (ADR-020), with a test at the limit and one past it.
 
@@ -58,4 +63,5 @@ corpus. Name any that could not run: `NOT VERIFIED: <gate>: <reason>`.
 
 The subject states the effect, for example
 `Waves gain an optional delay_ticks; schema_version 2 migrates version 1 files with a delay of 0`.
-The body names the version bumped and why, the migration, and the corpus result.
+The body names the version bumped and why, the migration, and the corpus result; under
+version 0, whether the corpus was regenerated and why.
