@@ -50,7 +50,8 @@ corpus. Name any that could not run: `NOT VERIFIED: <gate>: <reason>`.
 
 - Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-029), in its own commit
   or PR that refers to the `core` change.
-- GDScript validation and editor fields come from the generated JSON Schema; never hand-edit a copy.
+- Editor fields come from the generated JSON Schema; never hand-edit a copy. Validation is
+  core's alone: GDScript calls it through gdext and never validates against the schema (ADR-018).
 - Work spanning both repositories is an epic issue in `app` with a sub-issue in `core`.
 
 ## 6. Commit
