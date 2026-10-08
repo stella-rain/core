@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Snapshot",
+  "type": "object",
+  "properties": {
+    "bullets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/BulletView"
+      }
+    },
+    "entities": {
+      "description": "Companions, enemies, the boss and its parts, in entity-ID order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EntityView"
+      }
+    },
+    "player": {
+      "$ref": "#/$defs/PlayerView"
+    },
+    "tick": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "tick",
+    "player",
+    "entities",
+    "bullets"
+  ],
+  "$defs": {
+    "BulletView": {
+      "description": "Bullets carry no ID or asset name: thousands are drawn per tick, batched by `style`.",
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Point"
+        },
+        "friendly": {
+          "description": "Fired by the main character or a companion, rather than an enemy.",
+          "type": "boolean"
+        },
+        "radius": {
+          "$ref": "#/$defs/Fx"
+        },
+        "style": {
+          "description": "The bullet asset, as an index into the bullet asset IDs the stage uses, in order of\nfirst appearance.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "radius",
+        "style",
+        "friendly"
+      ]
+    },
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    },
+    "EntityId": {
+      "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "EntityKind": {
+      "type": "string",
+      "enum": [
+        "companion",
+        "enemy",
+        "boss",
+        "boss_part"
+      ]
+    },
+    "EntityView": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "$ref": "#/$defs/ContentId"
+        },
+        "at": {
+          "$ref": "#/$defs/Point"
+        },
+        "hp": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "id": {
+          "$ref": "#/$defs/EntityId"
+        },
+        "kind": {
+          "$ref": "#/$defs/EntityKind"
+        },
+        "palette": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "asset",
+        "at",
+        "hp"
+      ]
+    },
+    "Fx": {
+      "description": "A length in 1/256 pixel units. In files it is the plain integer.",
+      "type": "integer",
+      "format": "int32"
+    },
+    "PlayerView": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Point"
+        },
+        "firing": {
+          "type": "boolean"
+        },
+        "focus": {
+          "type": "boolean"
+        },
+        "held": {
+          "description": "The slot held this tick, 0 for none; the frontend slows its tick clock while a ready\nskill is held (ADR-032).",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "hp": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SkillView"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "hp",
+        "focus",
+        "firing",
+        "held",
+        "skills"
+      ]
+    },
+    "Point": {
+      "description": "A point on the playfield, from its top-left corner.",
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/Fx"
+        },
+        "y": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "SkillView": {
+      "type": "object",
+      "properties": {
+        "charges_left": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "cooldown_left": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "slot": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "ready",
+        "cooldown_left"
+      ]
+    }
+  }
+}

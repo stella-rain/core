@@ -1,0 +1,1581 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Stage",
+  "type": "object",
+  "properties": {
+    "boss": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Boss"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companions": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Agent"
+      }
+    },
+    "description": {
+      "type": "string",
+      "default": ""
+    },
+    "id": {
+      "description": "The stage ID: the file name and the first half of the version tag.",
+      "type": "string"
+    },
+    "length_ticks": {
+      "description": "Ticks until the stage ends if the boss is still alive.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "player": {
+      "$ref": "#/$defs/Player"
+    },
+    "schema_version": {
+      "description": "`crate::version::SCHEMA_VERSION` when the game wrote the file.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "seed": {
+      "description": "Seeds the run's SplitMix64 (ADR-033). 32 bits so that every tool reading the file as\nJSON, GDScript included, keeps it exact; the simulation widens it.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sim_version": {
+      "description": "`crate::version::SIM_VERSION` when the game wrote the file.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "title": {
+      "type": "string"
+    },
+    "waves": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Wave"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "id",
+    "title",
+    "seed",
+    "length_ticks",
+    "player"
+  ],
+  "$defs": {
+    "Action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "skill": {
+              "$ref": "#/$defs/Skill"
+            },
+            "type": {
+              "type": "string",
+              "const": "cast"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "skill"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attack": {
+              "$ref": "#/$defs/AttackRef"
+            },
+            "type": {
+              "type": "string",
+              "const": "attack"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "attack"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "agent": {
+              "$ref": "#/$defs/Agent"
+            },
+            "count": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "summon"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "agent",
+            "count"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            },
+            "type": {
+              "type": "string",
+              "const": "move_to"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "to",
+            "ticks"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "telegraph"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "ticks"
+          ]
+        }
+      ]
+    },
+    "Agent": {
+      "description": "A companion, a regular enemy or (inside a boss phase) the boss: a movement and a rule list.",
+      "type": "object",
+      "properties": {
+        "base": {
+          "description": "Asset ID of the sprite (ADR-007).",
+          "$ref": "#/$defs/ContentId"
+        },
+        "hp": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "movement": {
+          "$ref": "#/$defs/Movement"
+        },
+        "palette": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "radius": {
+          "description": "Radius of the hurt circle.",
+          "$ref": "#/$defs/Fx"
+        },
+        "rules": {
+          "description": "Evaluated in order each tick; the first rule that can fire, fires (ADR-036).",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Rule"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "base",
+        "hp",
+        "radius",
+        "movement"
+      ]
+    },
+    "AttackRef": {
+      "description": "A preset by ID with its arguments, or an inline definition.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "preset": {
+              "type": "object",
+              "properties": {
+                "args": {
+                  "type": "array",
+                  "default": [],
+                  "items": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                },
+                "id": {
+                  "$ref": "#/$defs/ContentId"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "preset"
+          ]
+        },
+        {
+          "description": "The root nodes, run together.",
+          "type": "object",
+          "properties": {
+            "inline": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "inline"
+          ]
+        }
+      ]
+    },
+    "Boss": {
+      "description": "Tier 2 (ADR-036): body parts and an ordered list of phases that only move forward.",
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/ContentId"
+        },
+        "hp": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "palette": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/BossPart"
+          }
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Phase"
+          }
+        },
+        "radius": {
+          "$ref": "#/$defs/Fx"
+        },
+        "spawn": {
+          "$ref": "#/$defs/Point"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "base",
+        "hp",
+        "radius",
+        "spawn",
+        "phases"
+      ]
+    },
+    "BossPart": {
+      "description": "A breakable part with its own HP and hurt circle (ADR-007, ADR-036).",
+      "type": "object",
+      "properties": {
+        "asset": {
+          "description": "Asset ID of the part's sprite.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "hp": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "id": {
+          "description": "Unique within the boss; `part_broken` and the `part` selector use it.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "offset": {
+          "description": "Offset from the boss's centre.",
+          "$ref": "#/$defs/Point"
+        },
+        "radius": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "asset",
+        "hp",
+        "offset",
+        "radius"
+      ]
+    },
+    "Condition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "always"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "pct": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "hp_below"
+            },
+            "who": {
+              "$ref": "#/$defs/Selector"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "who",
+            "pct"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "type": {
+              "type": "string",
+              "const": "has_status"
+            },
+            "who": {
+              "$ref": "#/$defs/Selector"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "who",
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "aggro_above"
+            },
+            "value": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "who": {
+              "$ref": "#/$defs/Selector"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "who",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "part": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "type": {
+              "type": "string",
+              "const": "part_broken"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "part"
+          ]
+        },
+        {
+          "description": "Ticks since the agent spawned, or since the boss phase began.",
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "time_above"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "ticks"
+          ]
+        },
+        {
+          "description": "The main character fires on this tick (ADR-038).",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "player_firing"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    },
+    "Direction": {
+      "oneOf": [
+        {
+          "description": "At the target, plus an offset.",
+          "type": "object",
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "aimed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "offset"
+          ]
+        },
+        {
+          "description": "A fixed angle; 0 points down the screen.",
+          "type": "object",
+          "properties": {
+            "angle": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "absolute"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "angle"
+          ]
+        },
+        {
+          "description": "Relative to the parent's direction.",
+          "type": "object",
+          "properties": {
+            "angle": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "relative"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "angle"
+          ]
+        },
+        {
+          "description": "The previous bullet's direction plus a step.",
+          "type": "object",
+          "properties": {
+            "step": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "sequential"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "step"
+          ]
+        }
+      ]
+    },
+    "Emitter": {
+      "oneOf": [
+        {
+          "description": "One bullet.",
+          "type": "object",
+          "properties": {
+            "bullet": {
+              "description": "Bullet asset; absent means the default bullet.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ContentId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "direction": {
+              "$ref": "#/$defs/Direction"
+            },
+            "speed": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "fire"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "speed",
+            "direction"
+          ]
+        },
+        {
+          "description": "Runs `body` `count` times, `interval_ticks` apart.",
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "count": {
+              "$ref": "#/$defs/Expr"
+            },
+            "interval_ticks": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "repeat"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "count",
+            "interval_ticks",
+            "body"
+          ]
+        },
+        {
+          "description": "Runs `body` `count` times, spread evenly round a full circle.",
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "count": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "ring"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "count",
+            "body"
+          ]
+        },
+        {
+          "description": "Runs `body` `count` times, spread evenly across `angle`.",
+          "type": "object",
+          "properties": {
+            "angle": {
+              "$ref": "#/$defs/Expr"
+            },
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "count": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "spread"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "count",
+            "angle",
+            "body"
+          ]
+        },
+        {
+          "description": "Turns the direction of everything in `body`.",
+          "type": "object",
+          "properties": {
+            "angle": {
+              "$ref": "#/$defs/Expr"
+            },
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "rotate"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "angle",
+            "body"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "wait"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "ticks"
+          ]
+        },
+        {
+          "description": "Each bullet fired by `body` starts `then` after `after_ticks`.",
+          "type": "object",
+          "properties": {
+            "after_ticks": {
+              "$ref": "#/$defs/Expr"
+            },
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "then": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "on_bullet"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "after_ticks",
+            "body",
+            "then"
+          ]
+        }
+      ]
+    },
+    "Expr": {
+      "description": "A fixed-point expression (ADR-036): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself.",
+      "anyOf": [
+        {
+          "description": "The attack's argument at this index.",
+          "type": "object",
+          "properties": {
+            "arg": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "arg"
+          ]
+        },
+        {
+          "description": "Index of the innermost `repeat`, `ring` or `spread`.",
+          "type": "string",
+          "const": "loop_index"
+        },
+        {
+          "description": "Ticks since the boss phase, or the agent, began.",
+          "type": "string",
+          "const": "phase_time"
+        },
+        {
+          "description": "A draw from the run's SplitMix64 (ADR-033), from `lo` to `hi` inclusive.",
+          "type": "object",
+          "properties": {
+            "rand": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "rand"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "add": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "add"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sub": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "sub"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mul": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "mul"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "div": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "div"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "min"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "max": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "max"
+          ]
+        },
+        {
+          "description": "`[value, lo, hi]`.",
+          "type": "object",
+          "properties": {
+            "clamp": {
+              "type": "array",
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "clamp"
+          ]
+        },
+        {
+          "description": "A literal; written as a plain integer.",
+          "type": "integer",
+          "format": "int32"
+        }
+      ]
+    },
+    "Fx": {
+      "description": "A length in 1/256 pixel units. In files it is the plain integer.",
+      "type": "integer",
+      "format": "int32"
+    },
+    "Movement": {
+      "oneOf": [
+        {
+          "description": "Circles the main character.",
+          "type": "object",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "orbit"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius"
+          ]
+        },
+        {
+          "description": "Trails the main character at a distance.",
+          "type": "object",
+          "properties": {
+            "distance": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "follow"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "distance"
+          ]
+        },
+        {
+          "description": "Stays at a point.",
+          "type": "object",
+          "properties": {
+            "at": {
+              "$ref": "#/$defs/Point"
+            },
+            "type": {
+              "type": "string",
+              "const": "hold"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "at"
+          ]
+        },
+        {
+          "description": "Moves at a constant velocity per tick.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "straight"
+            },
+            "vx": {
+              "$ref": "#/$defs/Fx"
+            },
+            "vy": {
+              "$ref": "#/$defs/Fx"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "vx",
+            "vy"
+          ]
+        }
+      ]
+    },
+    "Phase": {
+      "type": "object",
+      "properties": {
+        "rules": {
+          "description": "Reactions, evaluated like an agent's rules.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Rule"
+          }
+        },
+        "timeline": {
+          "description": "The choreography, one step at a time.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Step"
+          }
+        },
+        "transition": {
+          "description": "Runs when the phase begins.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Transition"
+          }
+        },
+        "until": {
+          "description": "Ends the phase; absent on the last phase, which lasts until the boss dies.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Player": {
+      "description": "The main character, as the creator configured it; challengers get exactly this (ADR-012).",
+      "type": "object",
+      "properties": {
+        "atk": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "base": {
+          "$ref": "#/$defs/ContentId"
+        },
+        "hp": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "shot": {
+          "description": "The main shot, fired on ticks whose input has `fire` (ADR-038).",
+          "$ref": "#/$defs/AttackRef"
+        },
+        "skills": {
+          "description": "Up to 3 active skills (ADR-032).",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SkillSlot"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "base",
+        "hp",
+        "atk",
+        "shot"
+      ]
+    },
+    "Point": {
+      "description": "A point on the playfield, from its top-left corner.",
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/Fx"
+        },
+        "y": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "Rule": {
+      "description": "`when <condition>` → `target <selector>` → `do <action>` (ADR-036).",
+      "type": "object",
+      "properties": {
+        "charges": {
+          "description": "Times the rule may fire; absent means unlimited.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "cooldown_ticks": {
+          "description": "Ticks after firing before the rule is ready again.",
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "do": {
+          "$ref": "#/$defs/Action"
+        },
+        "once": {
+          "description": "Fires at most once (the same as one charge, kept for editor clarity).",
+          "type": "boolean",
+          "default": false
+        },
+        "target": {
+          "$ref": "#/$defs/Selector"
+        },
+        "when": {
+          "$ref": "#/$defs/Condition"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "when",
+        "target",
+        "do"
+      ]
+    },
+    "Selector": {
+      "description": "Who a rule, condition or skill acts on. Ties break by squared fixed-point distance, then\nentity ID (ADR-036).",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "self",
+            "player",
+            "nearest_enemy",
+            "boss_first",
+            "nearest_ally",
+            "lowest_hp_ally",
+            "highest_aggro_ally"
+          ]
+        },
+        {
+          "description": "A boss part, by the part ID the stage gives it.",
+          "type": "object",
+          "properties": {
+            "part": {
+              "$ref": "#/$defs/ContentId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "part"
+          ]
+        }
+      ]
+    },
+    "Skill": {
+      "description": "A skill block (ADR-008, ADR-032). Percentages are whole percent.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "damage": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "pattern": {
+              "$ref": "#/$defs/AttackRef"
+            },
+            "type": {
+              "type": "string",
+              "const": "shot"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "pattern",
+            "damage"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "duration_ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "atk_up"
+            },
+            "value_pct": {
+              "type": "integer",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value_pct",
+            "duration_ticks"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "duration_ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "vulnerable"
+            },
+            "value_pct": {
+              "type": "integer",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value_pct",
+            "duration_ticks"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "duration_ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "slow"
+            },
+            "value_pct": {
+              "type": "integer",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value_pct",
+            "duration_ticks"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "amount": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "heal"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "amount"
+          ]
+        }
+      ]
+    },
+    "SkillSlot": {
+      "type": "object",
+      "properties": {
+        "charges": {
+          "description": "Uses per run; absent means unlimited, limited by the cooldown.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "cooldown_ticks": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "skill": {
+          "$ref": "#/$defs/Skill"
+        },
+        "slot": {
+          "description": "1 to 3; the input's `held` field names it.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "target": {
+          "$ref": "#/$defs/Selector"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "target",
+        "skill"
+      ]
+    },
+    "Step": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            },
+            "type": {
+              "type": "string",
+              "const": "move_to"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "to",
+            "ticks"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "wait"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "ticks"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "telegraph"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "ticks"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attack": {
+              "$ref": "#/$defs/AttackRef"
+            },
+            "type": {
+              "type": "string",
+              "const": "attack"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "attack"
+          ]
+        },
+        {
+          "description": "Starts the timeline again from its first step.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "loop"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "Transition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "clear_bullets"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "invulnerable_ticks"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "ticks"
+          ]
+        }
+      ]
+    },
+    "Wave": {
+      "description": "`count` copies of `enemy`, the first at `at_tick`, then one every `every_ticks`.",
+      "type": "object",
+      "properties": {
+        "at_tick": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "count": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "enemy": {
+          "$ref": "#/$defs/Agent"
+        },
+        "every_ticks": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "spawn": {
+          "$ref": "#/$defs/Point"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "at_tick",
+        "enemy",
+        "spawn",
+        "count"
+      ]
+    }
+  }
+}

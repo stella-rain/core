@@ -1,0 +1,352 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DomainEvent",
+  "oneOf": [
+    {
+      "description": "`source` damaged `target`.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "damage": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "source": {
+              "$ref": "#/$defs/EntityId"
+            },
+            "target": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "target",
+            "damage"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "Hit"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The main character was hit.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "hp_left": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "hp_left"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "PlayerHit"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "duration_ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "stacks": {
+              "type": "integer",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0
+            },
+            "status": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "target": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "target",
+            "status",
+            "stacks",
+            "duration_ticks"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "StatusApplied"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The main character cast a skill from a slot (ADR-032).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "slot": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/EntityId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "slot"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "SkillCast"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-036).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "agent": {
+              "$ref": "#/$defs/EntityId"
+            },
+            "rule": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/EntityId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "agent",
+            "rule"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "RuleFired"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The boss entered phase `phase` (0-based).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "phase"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "PhaseChanged"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "An attack is announced `ticks` ahead.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/EntityId"
+            },
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "ticks"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "Telegraph"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "$ref": "#/$defs/ContentId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "part"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "PartBroken"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "entity": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "entity"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "Died"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "StageCleared"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "StageFailed"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    }
+  ],
+  "$defs": {
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    },
+    "EntityId": {
+      "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  }
+}
