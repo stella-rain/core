@@ -17,5 +17,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write  # close the issues a merged PR says it closes
       checks: read
       statuses: read
