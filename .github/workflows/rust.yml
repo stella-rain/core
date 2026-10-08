@@ -1,0 +1,71 @@
+# Rust gates (CLAUDE.md): fmt, clippy, and the tests in debug and release on x86_64 and on an
+# arm64 runner, which must agree on the same golden state hash (ADR-019); plus `cargo check`
+# for the mobile targets (ADR-014: arm64-v8a and x86_64 Android, iOS kept buildable).
+name: Rust
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: fmt and clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+
+  test:
+    name: tests on ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: uname -m && rustc -vV
+      - run: cargo test --locked
+      - run: cargo test --locked --release
+
+  cross:
+    name: cargo check for mobile targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: |
+          rustup toolchain install stable --profile minimal \
+            --target aarch64-apple-ios,aarch64-linux-android,x86_64-linux-android
+          rustup default stable
+      - run: |
+          for t in aarch64-apple-ios aarch64-linux-android x86_64-linux-android; do
+            cargo check --locked --all-targets --target "$t"
+          done

@@ -31,16 +31,19 @@ Follow the `kade-workflow` skill; where it and this file differ, this file wins.
 
 ## Layout
 
-The crate is not written yet; create these as the code arrives.
+The crate holds the ADR-014 spike so far; create the rest as the code arrives.
 
 | Path | What |
 |---|---|
 | `src/` | Library: simulation, fixed-point math, RNG, collision, blocks, stage parsing, validation, replay |
+| `src/hash.rs`, `src/spike.rs` | The FNV-1a 64 state hash; the ADR-014 spike simulation (not a frozen `rules_vN`) |
+| `tests/` | Integration tests; `tests/spike.rs` pins the golden hash every platform must match |
+| `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
 | `stage-verify` binary | CLI that re-simulates a replay and checks the clear (ADR-009, ADR-015) |
 | `tests/corpus/` | Replay corpus with per-tick hashes, per `sim_version` (ADR-019) |
 | `fuzz/` | `cargo-fuzz` targets: parser, validator, replay loader (ADR-020) |
 | `benches/` | `criterion` tick-time benchmarks with worst-case budgets (ADR-021) |
-| `.github/workflows/` | Project sync, `CLAUDE.md` check, auto-merge |
+| `.github/workflows/` | Rust gates on x86_64 and arm64, mobile `cargo check`, Project sync, `CLAUDE.md` check, auto-merge |
 
 ## Gates
 

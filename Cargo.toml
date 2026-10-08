@@ -1,0 +1,28 @@
+[package]
+name = "stella-rain-core"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Deterministic simulation for Stella Rain"
+repository = "https://github.com/stella-rain/core"
+publish = false
+
+[lib]
+name = "stella_rain_core"
+
+[dependencies]
+
+# Overflow behaves the same in every profile (ADR-019): it panics unless the code says
+# `wrapping_*` or `saturating_*`. Release and bench would otherwise wrap silently.
+[profile.dev]
+overflow-checks = true
+
+[profile.release]
+overflow-checks = true
+
+[profile.test]
+overflow-checks = true
+
+[profile.bench]
+overflow-checks = true

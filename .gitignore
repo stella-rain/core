@@ -1,0 +1,5 @@
+# Build output and generated fuzz data (CLAUDE.md "Never commit"); tests/corpus/ is committed.
+/target/
+/fuzz/target/
+/fuzz/artifacts/
+/fuzz/corpus/
