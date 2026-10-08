@@ -50,13 +50,14 @@ PR as `NOT VERIFIED: <gate>: <reason>`.
 | Part | Gate |
 |---|---|
 | Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` |
-| Simulation | Replay corpus: every tick's hash matches (once `tests/corpus/` exists) |
+| Simulation | Replay corpus: every tick's hash matches, on x86_64 and on an arm64 runner, every PR (once `tests/corpus/` exists; ADR-019) |
+| iOS readiness | `cargo check --target aarch64-apple-ios` (ADR-014) |
 | Parser, validator, replay loader | Fuzz targets build; a short fuzz run when parsing changed |
 | `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too) |
 | Line endings | `.gitattributes` keeps `* text=auto eol=lf`; CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 
-The arm64 hash check and release fuzzing are release gates (ADR-022); when they are needed and
-cannot run here, add `cmd:verify-needs-kade` to the issue.
+The corpus run on an Android device and the long fuzz run are release gates (ADR-022); when they
+are needed and cannot run here, add `cmd:verify-needs-kade` to the issue.
 
 ## State
 
