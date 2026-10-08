@@ -40,7 +40,7 @@ The crate is not written yet; create these as the code arrives.
 | `tests/corpus/` | Replay corpus with per-tick hashes, per `sim_version` (ADR-019) |
 | `fuzz/` | `cargo-fuzz` targets: parser, validator, replay loader (ADR-020) |
 | `benches/` | `criterion` tick-time benchmarks with worst-case budgets (ADR-021) |
-| `.github/workflows/` | Project sync, `CLAUDE.md` check |
+| `.github/workflows/` | Project sync, `CLAUDE.md` check, auto-merge |
 
 ## Gates
 
@@ -71,8 +71,11 @@ are needed and cannot run here, add `cmd:verify-needs-kade` to the issue.
 
 - **Local sessions** (on Kade's PC): commit each finished task to `main` automatically,
   without being asked. Kade pushes.
-- **Cloud sessions**: branch `claude/<task>`, push, open a PR that says `Closes #N`; Kade
-  merges. Never commit to `main`. One task per PR; wait for the merge before the next.
+- **Cloud sessions**: branch `claude/<task>`, push, open a PR that says `Closes #N`.
+  `auto-merge.yml` merges it once every check on its head is green and deletes the branch;
+  never merge by hand, and never skip or weaken a check to get green. Never commit to `main`.
+  One task per PR; wait for the merge before the next. `auto-merge.yml` is read from `main`,
+  so a change to it acts only after its own merge.
 - Author: `Kade <23338687+enjay27@users.noreply.github.com>`. No other email in commits or git config.
 - Subject: the finding or the point of the change (`kade-workflow` section 5).
 - Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app
