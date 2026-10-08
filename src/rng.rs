@@ -1,5 +1,5 @@
-//! Seeded PRNG for the spike: SplitMix64. ADR-004 asks for one seeded PRNG per run but does
-//! not name the algorithm; choosing it for `rules_v1` is still open.
+//! The simulation PRNG: SplitMix64 (ADR-033). The algorithm, `below(n)` and the order of draws
+//! are frozen rules (ADR-017); `tests/rng.rs` pins the outputs.
 
 #[derive(Clone, Debug)]
 pub struct SplitMix64 {

@@ -21,8 +21,8 @@ published stages fail to verify.
 - Fixed-point integers for positions, velocities and angles (for example 1/256 pixel units).
   No `f32` or `f64` in simulation state; trigonometry through lookup tables.
 - Explicit integer widths: no `usize` or `isize` in simulation state or in the hash.
-- One PRNG per run, seeded from the stage. No other randomness: no thread RNG, time, pointer
-  addresses or thread scheduling.
+- One PRNG per run, seeded from the stage: SplitMix64 written in `core` (ADR-033), never a
+  crate. No other randomness: no thread RNG, time, pointer addresses or thread scheduling.
 - Collision is our own code (circle vs point, circle vs circle); no engine physics.
 - Entities live in `Vec`s with stable IDs. Never iterate a `HashMap` or `HashSet` in
   simulation code; use `Vec`, `BTreeMap` or sorted keys.
