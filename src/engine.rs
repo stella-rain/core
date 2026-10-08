@@ -13,7 +13,7 @@ use crate::id::{ContentId, EntityId};
 use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
-use crate::snapshot::{BulletView, EntityKind, EntityView, PlayerView, Snapshot};
+use crate::snapshot::{BulletView, EntityKind, EntityView, PlayerView, SkillView, Snapshot};
 use crate::stage::Stage;
 use crate::validate::{self, Error};
 
@@ -93,16 +93,22 @@ impl Engine {
                 });
             }
         }
-        for e in &s.enemies {
-            let agent = &self.stage.waves[e.wave as usize].enemy;
-            entities.push(EntityView {
-                id: e.id,
-                kind: EntityKind::Enemy,
-                asset: ContentId(agent.base.0.clone()),
-                palette: agent.palette.clone(),
-                at: e.at,
-                hp: e.hp,
-            });
+        // Boss, companions, then enemies: the order of their entity IDs.
+        for (kind, agents) in [
+            (EntityKind::Companion, &s.companions),
+            (EntityKind::Enemy, &s.enemies),
+        ] {
+            for a in agents {
+                let def = rules_v0::agent_def(&self.stage, a.key);
+                entities.push(EntityView {
+                    id: a.id,
+                    kind,
+                    asset: ContentId(def.base.0.clone()),
+                    palette: def.palette.clone(),
+                    at: a.at,
+                    hp: a.hp,
+                });
+            }
         }
         Snapshot {
             tick: s.tick,
@@ -112,8 +118,20 @@ impl Engine {
                 focus: s.input.focus,
                 firing: s.input.fire,
                 held: s.input.held,
-                // Skills are cast once agents and selectors exist (core#16).
-                skills: Vec::new(),
+                skills: self
+                    .stage
+                    .player
+                    .skills
+                    .iter()
+                    .zip(&s.player.skills)
+                    .map(|(def, state)| SkillView {
+                        slot: def.slot,
+                        ready: state.is_ready(),
+                        cooldown_left: state.cooldown_left,
+                        charges_left: (state.charges_left != UNLIMITED)
+                            .then(|| u16::try_from(state.charges_left).unwrap_or(u16::MAX)),
+                    })
+                    .collect(),
             },
             entities,
             bullets: s
@@ -130,6 +148,9 @@ impl Engine {
     }
 }
 
+/// Firings or casts left when there is no limit.
+pub(crate) const UNLIMITED: u32 = u32::MAX;
+
 /// The whole state of a run. Everything here is in the state hash (`rules_v0::state_hash`),
 /// at fixed widths and in this order.
 #[derive(Clone, Debug)]
@@ -141,8 +162,10 @@ pub(crate) struct State {
     pub input: Input,
     pub player: PlayerState,
     pub boss: Option<BossState>,
+    /// The allies that act on their own, in entity-ID order.
+    pub companions: Vec<AgentState>,
     /// In spawn order, which is entity-ID order.
-    pub enemies: Vec<EnemyState>,
+    pub enemies: Vec<AgentState>,
     /// In spawn order.
     pub bullets: Vec<BulletState>,
     /// Enemies spawned so far, per wave.
@@ -154,10 +177,42 @@ pub(crate) struct State {
 pub(crate) struct PlayerState {
     pub at: Point,
     pub hp: u32,
+    pub max_hp: u32,
     /// Ticks of invulnerability left after a hit.
     pub invulnerable: u32,
     /// Ticks until the main shot may fire again.
     pub shot_cooldown: u32,
+    /// Ticks in a row the input has had `fire`.
+    pub firing_streak: u32,
+    pub aggro: u32,
+    pub statuses: Vec<StatusState>,
+    /// One per skill slot of the stage, in order.
+    pub skills: Vec<SkillState>,
+    /// The slot being held with a ready skill, if any (ADR-032).
+    pub hold: Option<HoldState>,
+    /// The `held` field of the last tick's input, to see presses and releases.
+    pub held_before: u8,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SkillState {
+    pub cooldown_left: u32,
+    /// Casts left; `UNLIMITED` if there is no limit.
+    pub charges_left: u32,
+}
+
+impl SkillState {
+    pub fn is_ready(&self) -> bool {
+        self.cooldown_left == 0 && self.charges_left != 0
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct HoldState {
+    /// Index into the stage's skill slots.
+    pub index: u32,
+    /// Ticks held so far.
+    pub ticks: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -165,27 +220,94 @@ pub(crate) struct BossState {
     pub id: EntityId,
     pub at: Point,
     pub hp: u32,
+    pub max_hp: u32,
+    pub statuses: Vec<StatusState>,
 }
 
+/// Which definition an agent runs: its `Agent` in the stage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct AgentKey {
+    pub source: AgentSource,
+    /// The companion index, or the wave index.
+    pub index: u32,
+    /// For summoned agents, the rule of the wave's enemy that summoned them.
+    pub rule: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AgentSource {
+    Companion,
+    Wave,
+    Summoned,
+}
+
+/// A companion or an enemy: a movement and a rule list (ADR-036 tier 1).
 #[derive(Clone, Debug)]
-pub(crate) struct EnemyState {
+pub(crate) struct AgentState {
     pub id: EntityId,
-    /// Index of the wave that spawned it; its agent is `stage.waves[wave].enemy`.
-    pub wave: u32,
+    pub key: AgentKey,
     pub at: Point,
     pub hp: u32,
+    pub max_hp: u32,
     /// Ticks since it spawned.
     pub age: u32,
     /// One per rule of its agent, in order.
     pub rules: Vec<RuleState>,
+    pub statuses: Vec<StatusState>,
+    /// Companions only; enemies stay at 0.
+    pub aggro: u32,
+    /// A `move_to` in progress, which replaces its movement.
+    pub order: Option<MoveOrder>,
+    /// For `orbit`, in 1/256 degree.
+    pub orbit_angle: i32,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MoveOrder {
+    pub to: Point,
+    pub ticks_left: u32,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RuleState {
     pub cooldown_left: u32,
-    /// Firings left; `u32::MAX` for unlimited.
+    /// Firings left; `UNLIMITED` if there is no limit.
     pub charges_left: u32,
     pub fired: bool,
+}
+
+/// The statuses a skill can apply in this version (ADR-036). The IDs in the registry are the
+/// names below.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StatusKind {
+    /// More damage dealt.
+    AtkUp,
+    /// More damage taken.
+    Vulnerable,
+    /// Slower movement.
+    Slow,
+}
+
+impl StatusKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            StatusKind::AtkUp => "atk_up",
+            StatusKind::Vulnerable => "vulnerable",
+            StatusKind::Slow => "slow",
+        }
+    }
+}
+
+/// One status on one entity. Applying it again refreshes the duration and adds a stack.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct StatusState {
+    pub kind: StatusKind,
+    /// Who applied it last.
+    pub source: EntityId,
+    pub remaining: u32,
+    pub stacks: u16,
+    /// Percent per stack.
+    pub value_pct: u16,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -193,7 +315,9 @@ pub(crate) struct BulletState {
     pub at: Point,
     pub vx: Fx,
     pub vy: Fx,
-    /// Fired by the main character rather than an enemy.
+    /// Who fired it, for the hit event and for aggro.
+    pub owner: EntityId,
+    /// Fired by an ally rather than an enemy.
     pub friendly: bool,
     pub damage: u32,
 }

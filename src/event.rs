@@ -20,6 +20,11 @@ pub enum DomainEvent {
     PlayerHit {
         hp_left: u32,
     },
+    /// `target` regained `amount` hit points.
+    Healed {
+        target: EntityId,
+        amount: u32,
+    },
     StatusApplied {
         target: EntityId,
         status: ContentId,

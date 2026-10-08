@@ -12,126 +12,11 @@ use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::Error;
 
+mod common;
+
+use common::*;
+
 const FIXTURE: &str = include_str!("fixtures/stage_v0.json");
-
-// Playfield and speeds in 1/256 pixel (the rules' constants, worked out by hand).
-const START_X: i32 = 46_080;
-const START_Y: i32 = 147_456;
-const SPEED: i32 = 768;
-const FOCUS_SPEED: i32 = 256;
-
-fn idle() -> Input {
-    Input::default()
-}
-
-fn firing() -> Input {
-    Input {
-        fire: true,
-        ..Input::default()
-    }
-}
-
-fn moving(dx: i16, dy: i16) -> Input {
-    Input {
-        dx,
-        dy,
-        ..Input::default()
-    }
-}
-
-/// A boss that cannot be reached or beaten, so a stage keeps running.
-fn far_boss() -> Value {
-    json!({ "base": "golem", "hp": 1_000_000, "radius": 1000, "spawn": { "x": 0, "y": 0 },
-            "phases": [{}] })
-}
-
-fn boss_at(hp: u32, y: i32) -> Value {
-    json!({ "base": "golem", "hp": hp, "radius": 8192, "spawn": { "x": START_X, "y": y },
-            "phases": [{}] })
-}
-
-fn enemy(hp: u32, movement: Value, rules: Value) -> Value {
-    json!({ "base": "bat", "hp": hp, "radius": 2048, "movement": movement, "rules": rules })
-}
-
-fn hold(x: i32, y: i32) -> Value {
-    json!({ "type": "hold", "at": { "x": x, "y": y } })
-}
-
-fn wave(at_tick: u32, count: u16, every_ticks: u32, enemy: Value, x: i32, y: i32) -> Value {
-    json!({ "at_tick": at_tick, "enemy": enemy, "spawn": { "x": x, "y": y },
-            "count": count, "every_ticks": every_ticks })
-}
-
-fn attack_rule(when: Value, cooldown_ticks: u32) -> Value {
-    json!({ "when": when, "target": "player",
-            "do": { "type": "attack", "attack": { "preset": { "id": "twin_shot", "args": [] } } },
-            "cooldown_ticks": cooldown_ticks })
-}
-
-fn always() -> Value {
-    json!({ "type": "always" })
-}
-
-fn stage_with(length_ticks: u32, boss: Option<Value>, waves: Vec<Value>) -> Stage {
-    let mut v = json!({
-        "schema_version": 0, "sim_version": 0, "id": "test", "title": "Test", "seed": 7,
-        "length_ticks": length_ticks,
-        "player": { "base": "pilot_a", "hp": 3, "atk": 10,
-                    "shot": { "preset": { "id": "twin_shot", "args": [] } } },
-        "waves": waves,
-    });
-    if let Some(boss) = boss {
-        v["boss"] = boss;
-    }
-    serde_json::from_value(v).expect("the test stage parses")
-}
-
-fn engine(stage: &Stage) -> Engine {
-    Engine::new(stage).expect("the test stage is valid")
-}
-
-fn running(waves: Vec<Value>) -> Engine {
-    engine(&stage_with(18_000, Some(far_boss()), waves))
-}
-
-fn player_at(e: &Engine) -> (i32, i32) {
-    let at = e.snapshot().player.at;
-    (at.x.0, at.y.0)
-}
-
-fn enemies(s: &Snapshot) -> usize {
-    s.entities
-        .iter()
-        .filter(|e| e.kind == EntityKind::Enemy)
-        .count()
-}
-
-/// Steps with `input` until `stop` says so, collecting `(tick, event)` for every event.
-fn run_until(
-    e: &mut Engine,
-    input: Input,
-    max_ticks: u32,
-    mut stop: impl FnMut(&Engine) -> bool,
-) -> Vec<(u32, DomainEvent)> {
-    let mut seen = Vec::new();
-    for _ in 0..max_ticks {
-        e.step(input);
-        seen.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
-        if stop(e) {
-            break;
-        }
-    }
-    seen
-}
-
-fn ticks_of(events: &[(u32, DomainEvent)], pick: impl Fn(&DomainEvent) -> bool) -> Vec<u32> {
-    events
-        .iter()
-        .filter(|(_, ev)| pick(ev))
-        .map(|(t, _)| *t)
-        .collect()
-}
 
 // --- Starting a run -------------------------------------------------------------------------
 
@@ -539,17 +424,16 @@ fn only_the_first_ready_rule_fires_and_the_others_wait() {
 
 #[test]
 fn rules_this_version_cannot_run_yet_never_fire_and_do_not_block_later_ones() {
-    let hp_below = attack_rule(json!({ "type": "hp_below", "who": "self", "pct": 100 }), 0);
-    let mut other_target = attack_rule(always(), 0);
-    other_target["target"] = json!("nearest_ally");
-    let move_to = json!({ "when": always(), "target": "player",
-                          "do": { "type": "move_to", "to": { "x": 0, "y": 0 }, "ticks": 5 } });
+    // Boss parts come with boss timelines (core#17): until then these never fire.
+    let part_broken = attack_rule(json!({ "type": "part_broken", "part": "horn_left" }), 0);
+    let mut part_target = attack_rule(always(), 0);
+    part_target["target"] = json!({ "part": "horn_left" });
     let fired = rule_firings(
-        json!([hp_below, other_target, move_to, attack_rule(always(), 40)]),
+        json!([part_broken, part_target, attack_rule(always(), 40)]),
         idle(),
         50,
     );
-    assert_eq!(fired, [(1, 3), (41, 3)]);
+    assert_eq!(fired, [(1, 2), (41, 2)]);
 }
 
 #[test]
@@ -655,7 +539,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x693c_cded_0a17_c97f;
+const GOLDEN_HASH: u64 = 0x9107_8490_b272_14cf;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {

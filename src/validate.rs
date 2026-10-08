@@ -460,7 +460,8 @@ impl<'a> Ctx<'a> {
 
     fn condition(&mut self, cond: &Condition) {
         match cond {
-            Condition::Always | Condition::PlayerFiring => {}
+            Condition::Always => {}
+            Condition::PlayerFiring { min_ticks } => self.ticks("min_ticks", *min_ticks, 1),
             Condition::HpBelow { who, pct } => {
                 self.key("who", |c| c.selector(who));
                 self.within("pct", i64::from(*pct), 0, 100);
