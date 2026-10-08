@@ -376,6 +376,34 @@ impl Dir {
         x: 0,
         y: crate::trig::SCALE,
     };
+    pub const UP: Dir = Dir {
+        x: 0,
+        y: -crate::trig::SCALE,
+    };
+}
+
+/// What an attack's `aimed` directions point at, and which way it faces. This is where the
+/// ways of aiming meet: enemies, companions and the boss aim at an entity; the main
+/// character's shot has no target and aims along its heading, straight up. A new way of aiming
+/// (the nearest enemy, a homing shot the main character acquires) is a new variant, read in
+/// `attacks::aim`, hashed in `hash_task` and given its heading here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Aim {
+    /// At the entity with this ID; straight down if it is gone.
+    Entity(EntityId),
+    /// Along a fixed direction.
+    Fixed(Dir),
+}
+
+impl Aim {
+    /// The way the attack faces when it starts: where `relative` and `sequential` directions
+    /// begin. An attack at an entity faces down the screen, as the enemies do.
+    pub fn heading(self) -> Dir {
+        match self {
+            Aim::Entity(_) => Dir::DOWN,
+            Aim::Fixed(d) => d,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -405,7 +433,7 @@ pub(crate) struct Hook {
     /// Ticks left before it starts.
     pub left: u32,
     pub owner: EntityId,
-    pub target: EntityId,
+    pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
 }
@@ -453,8 +481,8 @@ pub(crate) struct AttackTask {
     /// Where in the program this task starts; empty for the whole program.
     pub base: Vec<PathStep>,
     pub origin: Origin,
-    /// What `aimed` directions point at, by entity ID.
-    pub target: EntityId,
+    /// What `aimed` directions point at.
+    pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
     /// Ticks since it started.

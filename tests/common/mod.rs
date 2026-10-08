@@ -8,8 +8,8 @@ use stella_rain_core::input::Input;
 use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::stage::Stage;
 
-/// A stage whose boss (20 hp, 10 damage a hit) is beaten on tick 62 by holding fire: the first
-/// shot touches it on tick 56 and the second, fired on tick 7, on tick 62.
+/// A stage whose boss (20 hp, 10 damage a bullet) is beaten on tick 57 by holding fire: the
+/// first shot is the default twin shot, and both of its bullets touch the boss on tick 57.
 pub fn clearing_stage_json() -> Value {
     json!({
         "schema_version": 0, "sim_version": 0, "id": "test-stage", "title": "Test Stage",
@@ -25,7 +25,7 @@ pub fn stage_bytes() -> Vec<u8> {
     serde_json::to_vec(&clearing_stage_json()).unwrap()
 }
 
-pub const CLEAR_TICK: u32 = 62;
+pub const CLEAR_TICK: u32 = 57;
 
 pub fn firing() -> Input {
     Input {
@@ -34,7 +34,7 @@ pub fn firing() -> Input {
     }
 }
 
-/// Inputs that clear `clearing_stage_json` on tick 62, with some movement along the way.
+/// Inputs that clear `clearing_stage_json` on tick 57, with some movement along the way.
 pub fn clearing_inputs() -> Vec<Input> {
     (0..CLEAR_TICK)
         .map(|t| Input {
@@ -120,8 +120,11 @@ pub fn stage_full(
     let mut v = json!({
         "schema_version": 0, "sim_version": 0, "id": "test", "title": "Test", "seed": 7,
         "length_ticks": length_ticks,
+        // One bullet straight up at 8 pixels a tick, so that the hand-worked numbers of the
+        // tests that are not about the main shot stay simple (`tests/shot.rs` is about it).
         "player": { "base": "pilot_a", "hp": 99, "atk": 10,
-                    "shot": { "preset": { "id": "twin_shot", "args": [] } }, "skills": skills },
+                    "shot": { "preset": { "id": "aimed_single", "args": [2048] } },
+                    "skills": skills },
         "companions": companions,
         "waves": waves,
     });

@@ -419,7 +419,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
         })
         .collect();
     assert!(verify_against(&stage, &bytes, &hashes).is_ok());
-    for bad_index in [0usize, 30, 61] {
+    for bad_index in [0usize, 30, 56] {
         let mut wrong = hashes.clone();
         wrong[bad_index] ^= 1;
         assert_eq!(
@@ -449,8 +449,8 @@ fn the_encoding_is_pinned() {
         concat!(
             r#"{"schema_version":0,"sim_version":0,"seed":7,"#,
             r#""stage_sha256":"b66fe06722776b68bb952d2afe01491c456fa7cc6dc17934afd1f793f9fe619d","#,
-            r#""ticks":62,"final_hash":"5c062e5141468341","#,
-            r#""inputs":"AQpQAAkCUAAKAgAAAQoAABMCAAABCgAAEwIAAAEKAAABAgAA"}"#,
+            r#""ticks":57,"final_hash":"1600481dd197a827","#,
+            r#""inputs":"AQpQAAkCUAAKAgAAAQoAABMCAAABCgAAEAIAAA=="}"#,
             "\n"
         )
     );
@@ -463,7 +463,7 @@ fn the_encoding_is_pinned() {
     );
     assert_eq!(
         to_hex(&content_hash(&stage, &bytes)),
-        "dd57d4abbce72fafd8ffef5cc01e7db9782a26f033258e6b301150695375c515"
+        "f4cc2709473416c443e418df5cc3d4b4e95d3d1dffdb3650639b6da7b0e5cc0d"
     );
 }
 

@@ -3,8 +3,9 @@
 //!
 //! What a tick does, in this order:
 //! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
-//! 2. the main character moves (speed cap, focus, slowing, playfield), fires on `fire` ticks
-//!    only (ADR-038, no auto-fire), and its skills are held and cast (ADR-032);
+//! 2. the main character moves (speed cap, focus, slowing, playfield), starts its shot attack
+//!    on `fire` ticks only (ADR-038, no auto-fire; see `player::main_shot`), and its skills are
+//!    held and cast (ADR-032);
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
 //!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
 //!    a shot skill starts an attack task;
@@ -15,8 +16,8 @@
 //!    character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
 //!
-//! Not yet in this version: the main shot being an
-//! attack (it is one straight bullet, whatever the stage's `shot` says); summons by companions.
+//! Not yet in this version: summons by companions; ways of shooting the main character acquires
+//! during a run (`player::main_shot` is where they would plug in).
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
 //! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, `MAX_BULLETS_ALIVE` bullets,
@@ -67,7 +68,6 @@ const PLAYER_RADIUS: i32 = Fx::px(2).0;
 const PLAYER_START_Y_FROM_BOTTOM: i32 = Fx::px(64).0;
 /// Ticks between main shots while `fire` is held.
 const SHOT_INTERVAL: u32 = 6;
-const PLAYER_BULLET_SPEED: i32 = Fx::px(8).0;
 const PLAYER_BULLET_RADIUS: i32 = Fx::px(2).0;
 const ENEMY_BULLET_RADIUS: i32 = Fx::px(3).0;
 /// Ticks of invulnerability after the main character is hit.
@@ -202,7 +202,7 @@ pub(crate) fn step(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<
 
     spawn_waves(stage, s);
     entity::tick_statuses_and_aggro(s);
-    player::update(stage, s, input, events, &mut spawns_left);
+    player::update(stage, s, input, events);
     boss::act(stage, s, events);
     agents::act(stage, s, events);
     attacks::fire_hooks(s);
@@ -471,6 +471,20 @@ fn hash_path(h: &mut StateHasher, path: &[crate::engine::PathStep]) {
     }
 }
 
+fn hash_aim(h: &mut StateHasher, aim: crate::engine::Aim) {
+    match aim {
+        crate::engine::Aim::Entity(id) => {
+            h.write_bool(false);
+            h.write_u32(id.0);
+        }
+        crate::engine::Aim::Fixed(d) => {
+            h.write_bool(true);
+            h.write_i32(d.x);
+            h.write_i32(d.y);
+        }
+    }
+}
+
 /// What identifies an attack task for the hash is where it has got to, not which program it
 /// runs: a preset and its inline copy are the same task and hash the same.
 fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
@@ -484,7 +498,7 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
             h.write_i32(p.y.0);
         }
     }
-    h.write_u32(t.target.0);
+    hash_aim(h, t.aim);
     h.write_bool(t.friendly);
     h.write_u32(t.damage);
     h.write_u32(t.age);
@@ -613,7 +627,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 hash_path(&mut h, &hook.path);
                 h.write_u32(hook.left);
                 h.write_u32(hook.owner.0);
-                h.write_u32(hook.target.0);
+                hash_aim(&mut h, hook.aim);
                 h.write_bool(hook.friendly);
                 h.write_u32(hook.damage);
             }

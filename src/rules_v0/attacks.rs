@@ -31,10 +31,9 @@ use std::sync::Arc;
 
 use crate::attack::{AttackRef, Direction, Emitter, Expr};
 use crate::engine::{
-    AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, State, StatusKind,
+    Aim, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, State, StatusKind,
 };
 use crate::fixed::{Fx, Point};
-use crate::id::EntityId;
 use crate::presets;
 use crate::registry;
 use crate::rng::SplitMix64;
@@ -60,6 +59,19 @@ pub(super) fn start_aged(
     base_damage: u32,
     age: u32,
 ) {
+    let aim = Aim::Entity(s.id_of(target));
+    start_with(s, owner, aim, attack, base_damage, age);
+}
+
+/// As `start_aged`, for any way of aiming: the main character's shot aims along its heading.
+pub(super) fn start_with(
+    s: &mut State,
+    owner: Who,
+    aim: Aim,
+    attack: &AttackRef,
+    base_damage: u32,
+    age: u32,
+) {
     if count(&s.tasks) >= MAX_ATTACK_TASKS {
         return;
     }
@@ -76,14 +88,14 @@ pub(super) fn start_aged(
         program,
         base: Vec::new(),
         origin: Origin::Owner,
-        target: s.id_of(target),
+        aim,
         friendly: State::is_ally(owner),
         damage,
         age,
         wait_left: 0,
         frames: vec![Frame::default()],
-        parent_dir: Dir::DOWN,
-        last_dir: Dir::DOWN,
+        parent_dir: aim.heading(),
+        last_dir: aim.heading(),
     });
 }
 
@@ -110,7 +122,7 @@ pub(super) fn fire_hooks(s: &mut State) {
             program: hook.program,
             base: hook.path,
             origin: Origin::At(at),
-            target: hook.target,
+            aim: hook.aim,
             friendly: hook.friendly,
             damage: hook.damage,
             age: 0,
@@ -330,17 +342,21 @@ fn rotate(d: Dir, angle: i32) -> Dir {
     normalize((x * cos + y * sin) / scale, (-x * sin + y * cos) / scale)
 }
 
-/// The direction from `from` to the entity `target`; straight down if it is gone.
-fn aim(s: &State, from: Point, target: EntityId) -> Dir {
-    match s.find(target) {
-        Some(w) => {
-            let to = s.at(w);
-            normalize(
-                i64::from(to.x.0) - i64::from(from.x.0),
-                i64::from(to.y.0) - i64::from(from.y.0),
-            )
-        }
-        None => Dir::DOWN,
+/// The direction an `aimed` bullet takes from `from`: at the entity (straight down if it is
+/// gone), or along the fixed direction.
+fn aim(s: &State, from: Point, aim: Aim) -> Dir {
+    match aim {
+        Aim::Entity(target) => match s.find(target) {
+            Some(w) => {
+                let to = s.at(w);
+                normalize(
+                    i64::from(to.x.0) - i64::from(from.x.0),
+                    i64::from(to.y.0) - i64::from(from.y.0),
+                )
+            }
+            None => Dir::DOWN,
+        },
+        Aim::Fixed(d) => d,
     }
 }
 
@@ -525,7 +541,7 @@ fn emit(
     let dir = match direction {
         Direction::Aimed { offset } => {
             let turn = value(s, t, ab, offset).saturating_add(ab.turn);
-            rotate(aim(s, origin, t.target), turn)
+            rotate(aim(s, origin, t.aim), turn)
         }
         Direction::Absolute { angle } => {
             rotate(Dir::DOWN, value(s, t, ab, angle).saturating_add(ab.turn))
@@ -550,7 +566,7 @@ fn emit(
             path,
             left: after,
             owner: t.owner,
-            target: t.target,
+            aim: t.aim,
             friendly: t.friendly,
             damage: t.damage,
         })
