@@ -27,6 +27,7 @@ jobs:
       - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
 
   test:
     name: tests on ${{ matrix.arch }}
@@ -50,6 +51,9 @@ jobs:
       - run: uname -m && rustc -vV
       - run: cargo test --locked
       - run: cargo test --locked --release
+      # The `record` feature (ADR-016) is off by default and must keep working.
+      - run: cargo test --locked --all-features
+      - run: cargo test --locked --release --all-features
 
   cross:
     name: cargo check for mobile targets

@@ -31,21 +31,21 @@ Follow the `kade-workflow` skill; where it and this file differ, this file wins.
 
 ## Layout
 
-The crate holds the ADR-014 spike, the version 0 types, the validator and the engine so far;
-create the rest as the code arrives.
+So far: the ADR-014 spike, the version 0 types, validator, engine and replays; the rest as it arrives.
 
 | Path | What |
 |---|---|
 | `src/` | Library: simulation, fixed-point math, RNG, collision, blocks, stage parsing, validation, replay |
 | `src/hash.rs`, `src/spike.rs` | The FNV-1a 64 state hash; the ADR-014 spike simulation (not a frozen `rules_vN`) |
 | `src/content_hash.rs` | The stage content hash, SHA-256 of the two file hashes (ADR-034); `sha2` lives outside the simulation path |
-| `src/stage.rs`, `behaviour.rs`, `attack.rs`, `input.rs`, `event.rs`, `snapshot.rs`, `replay.rs` | The version 0 types (ADR-035, ADR-036); `serde`, `serde_json` and `schemars` parse and describe them, outside the simulation path |
+| `src/stage.rs`, `behaviour.rs`, `attack.rs`, `input.rs`, `event.rs`, `snapshot.rs` | The version 0 types (ADR-035, ADR-036); `serde`, `serde_json` and `schemars` parse and describe them, outside the simulation path |
+| `src/replay.rs`, `share.rs`, `base64.rs`, `recording.rs` | The `.replay` file and its packed inputs, record and verify (ADR-009, ADR-016); share codes (`miniz_oxide`, outside the simulation path); `recording` is the `record` feature's JSON Lines |
 | `src/engine.rs`, `src/rules_v0.rs` | The engine (`Engine`: step, events, snapshot, hash) and the rules of `sim_version` 0, which say what they do not do yet |
 | `src/validate.rs`, `src/registry.rs` | The validator (size limit, strict parse, registry, static budgets; ADR-020) and the content-ID registry (ADR-026) |
 | `schema/` | JSON Schema generated from the types; `UPDATE_SCHEMA=1 cargo test --test schema` regenerates it |
 | `tests/` | Integration tests; `tests/spike.rs` pins the golden hash every platform must match |
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
-| `stage-verify` binary | CLI that re-simulates a replay and checks the clear (ADR-009, ADR-015) |
+| `src/bin/stage_verify.rs` | `stage-verify`: re-simulates a replay and checks the clear and the final hash (ADR-009, ADR-015) |
 | `tests/corpus/` | Replay corpus with per-tick hashes, per `sim_version` (ADR-019) |
 | `fuzz/` | `cargo-fuzz` targets: parser, validator, replay loader (ADR-020) |
 | `benches/` | `criterion` tick-time benchmarks with worst-case budgets (ADR-021) |

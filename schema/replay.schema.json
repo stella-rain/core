@@ -1,10 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "ReplayHeader",
+  "title": "Replay",
   "type": "object",
   "properties": {
     "final_hash": {
       "description": "The FNV-1a 64 state hash after the last tick (ADR-019), 16 lowercase hex digits. Hex,\nbecause JSON readers that use doubles cannot hold every 64-bit integer.",
+      "type": "string"
+    },
+    "inputs": {
+      "description": "The per-tick inputs, packed as described in the module documentation, then base64.",
       "type": "string"
     },
     "schema_version": {
@@ -30,7 +34,7 @@
       "type": "string"
     },
     "ticks": {
-      "description": "Ticks recorded; at most the stage's length.",
+      "description": "Ticks recorded, at most the stage's length. A replay that proves a clear ends on the\ntick of the clear.",
       "type": "integer",
       "format": "uint32",
       "minimum": 0
@@ -43,6 +47,7 @@
     "seed",
     "stage_sha256",
     "ticks",
-    "final_hash"
+    "final_hash",
+    "inputs"
   ]
 }

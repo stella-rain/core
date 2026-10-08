@@ -6,7 +6,7 @@ use schemars::schema_for;
 
 use crate::event::DomainEvent;
 use crate::input::Input;
-use crate::replay::ReplayHeader;
+use crate::replay::Replay;
 use crate::snapshot::Snapshot;
 use crate::stage::Stage;
 
@@ -22,9 +22,6 @@ pub fn all() -> Vec<(&'static str, String)> {
         ("input.schema.json", pretty(schema_for!(Input))),
         ("event.schema.json", pretty(schema_for!(DomainEvent))),
         ("snapshot.schema.json", pretty(schema_for!(Snapshot))),
-        (
-            "replay-header.schema.json",
-            pretty(schema_for!(ReplayHeader)),
-        ),
+        ("replay.schema.json", pretty(schema_for!(Replay))),
     ]
 }

@@ -11,7 +11,19 @@ publish = false
 [lib]
 name = "stella_rain_core"
 
+[[bin]]
+name = "stage-verify"
+path = "src/bin/stage_verify.rs"
+
+[features]
+# The JSON Lines recorder of ADR-016: commands, domain events and state hashes, for tests and
+# debugging. Not in release builds; a bug report is a stage and a replay instead.
+record = []
+
 [dependencies]
+# Share codes only (ADR-018): zlib compression with a limit on the decompressed size. Pure
+# Rust, no `unsafe` (`forbid(unsafe_code)`), no floats; outside the simulation path.
+miniz_oxide = "0.8"
 # Files and their schema only (ADR-018): parsing stages, events and replays, and generating
 # JSON Schema. Never in the simulation path; types use fixed-width integers only.
 schemars = "1"
