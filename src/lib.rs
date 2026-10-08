@@ -6,6 +6,7 @@
 pub mod attack;
 pub mod behaviour;
 pub mod content_hash;
+pub mod engine;
 pub mod event;
 pub mod fixed;
 pub mod hash;
@@ -14,6 +15,7 @@ pub mod input;
 pub mod registry;
 pub mod replay;
 pub mod rng;
+pub(crate) mod rules_v0;
 pub mod schema;
 pub mod snapshot;
 pub mod spike;
