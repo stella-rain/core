@@ -1,5 +1,5 @@
 # Adds this repository's issues to the Stella Rain organization Project and applies
-# command labels (cmd:status-now, cmd:verify-needs-kade, ...). See ADR-031.
+# command labels (cmd:status-now, cmd:verify-not-verified, ...). See ADR-031.
 name: Project sync
 
 on:

@@ -67,7 +67,7 @@ PR as `NOT VERIFIED: <gate>: <reason>`.
 | Line endings | `.gitattributes` keeps `* text=auto eol=lf`; CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 
 The corpus run on an Android device and the long fuzz run are release gates (ADR-022); when they
-are needed and cannot run here, add `cmd:verify-needs-kade` to the issue.
+are needed and cannot run here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
 
 ## State
 
