@@ -1,23 +1,19 @@
 //! The main character: movement, the main shot and the skill slots with hold and release
 //! (ADR-032, ADR-038).
 
-use crate::engine::{HoldState, State, UNLIMITED};
+use crate::attack::AttackRef;
+use crate::engine::{Aim, Dir, HoldState, State, UNLIMITED};
 use crate::event::DomainEvent;
-use crate::fixed::Fx;
+use crate::fixed::{Fx, Point};
 use crate::input::Input;
 use crate::stage::Stage;
 use crate::validate::limits::{FIELD_H, FIELD_W};
 
 use super::act::cast;
-use super::entity::{Who, scale_damage, speed_pct, status_pct};
+use super::attacks;
+use super::entity::{Who, speed_pct};
 use super::select::select;
-use super::{
-    FOCUS_SPEED, HOLD_LIMIT_TICKS, PLAYER_BULLET_SPEED, PLAYER_ID, PLAYER_SPEED, SHOT_INTERVAL,
-    spawn_bullet,
-};
-use crate::engine::{BulletState, Dir, StatusKind};
-use crate::fixed::Point;
-use crate::trig;
+use super::{FOCUS_SPEED, HOLD_LIMIT_TICKS, PLAYER_SPEED, SHOT_INTERVAL};
 
 /// Limits a move to `cap` units, keeping its direction: a diagonal is no faster (ADR-038).
 fn capped_move(dx: i16, dy: i16, cap: i32) -> (i32, i32) {
@@ -31,16 +27,10 @@ fn capped_move(dx: i16, dy: i16, cap: i32) -> (i32, i32) {
     ((dx * cap / len) as i32, (dy * cap / len) as i32)
 }
 
-pub(super) fn update(
-    stage: &Stage,
-    s: &mut State,
-    input: Input,
-    events: &mut Vec<DomainEvent>,
-    spawns_left: &mut u32,
-) {
+pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
     s.player.invulnerable = s.player.invulnerable.saturating_sub(1);
     move_player(s, input);
-    shoot(stage, s, input, spawns_left);
+    shoot(stage, s, input);
     skills(stage, s, input, events);
 }
 
@@ -59,33 +49,41 @@ fn move_player(s: &mut State, input: Input) {
     };
 }
 
-/// The main shot fires only on ticks whose input has `fire` (ADR-038).
-fn shoot(stage: &Stage, s: &mut State, input: Input, spawns_left: &mut u32) {
+/// What the main character shoots, and how, right now. This is the one place that says so, so
+/// that ways of shooting it can acquire during a run (a different attack, aimed at the nearest
+/// enemy, homing, a faster rhythm) change what this returns and nothing else: the attack runs
+/// as any other, with the aim and the damage given here.
+struct MainShot<'a> {
+    attack: &'a AttackRef,
+    /// Where `aimed` directions point. Straight up: the ship faces up the screen.
+    aim: Aim,
+    /// Hit points a bullet takes before the attack-up status.
+    damage: u32,
+    /// Ticks between starts while `fire` is held.
+    interval: u32,
+}
+
+/// Today the stage's own `shot` attack, straight up, at the stage's attack stat.
+fn main_shot<'a>(stage: &'a Stage, _s: &State) -> MainShot<'a> {
+    MainShot {
+        attack: &stage.player.shot,
+        aim: Aim::Fixed(Dir::UP),
+        damage: stage.player.atk,
+        interval: SHOT_INTERVAL,
+    }
+}
+
+/// The main shot starts its attack only on ticks whose input has `fire` (ADR-038). The attack
+/// is a task like any other: once started it runs to its end whether or not `fire` is still
+/// held, follows the main character and counts against the attack and bullet budgets.
+fn shoot(stage: &Stage, s: &mut State, input: Input) {
     s.player.shot_cooldown = s.player.shot_cooldown.saturating_sub(1);
     if !input.fire || s.player.shot_cooldown > 0 {
         return;
     }
-    s.player.shot_cooldown = SHOT_INTERVAL;
-    let damage = scale_damage(
-        stage.player.atk,
-        status_pct(&s.player.statuses, StatusKind::AtkUp),
-        0,
-    );
-    let bullet = BulletState {
-        at: s.player.at,
-        vx: Fx(0),
-        vy: Fx(-PLAYER_BULLET_SPEED),
-        dir: Dir {
-            x: 0,
-            y: -trig::SCALE,
-        },
-        style: 0,
-        owner: PLAYER_ID,
-        friendly: true,
-        damage,
-        hook: None,
-    };
-    spawn_bullet(s, bullet, spawns_left);
+    let shot = main_shot(stage, s);
+    s.player.shot_cooldown = shot.interval;
+    attacks::start_with(s, Who::Player, shot.aim, shot.attack, shot.damage, 0);
 }
 
 /// Hold and release (ADR-032). Pressing a ready skill's slot starts a hold; releasing it, or

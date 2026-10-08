@@ -147,3 +147,25 @@ fn a_boss_breaks_a_part_and_changes_phase() {
     let inputs: Vec<Input> = (0..160).map(|_| firing()).collect();
     check("boss", &recording::record(&stage, &inputs).unwrap());
 }
+
+/// The main shot is the stage's attack, straight up: the default twin shot at a boss in front
+/// of the main character, then a wait-and-fire attack that carries on after `fire` is released.
+/// Entities: boss 1.
+#[test]
+fn the_main_shot_is_the_stages_attack() {
+    let mut stage = stage_full(600, Some(boss_at(100, 80_000)), vec![], vec![], vec![]);
+    stage.player.shot = serde_json::from_value(json!({
+        "inline": [
+            { "type": "spread", "count": 2, "angle": 1280, "body": [
+                { "type": "fire", "speed": 2048,
+                  "direction": { "type": "aimed", "offset": 0 } } ] },
+            { "type": "wait", "ticks": 4 },
+            { "type": "fire", "speed": 2048, "direction": { "type": "aimed", "offset": 0 } }
+        ]
+    }))
+    .unwrap();
+    let inputs: Vec<Input> = (0..40)
+        .map(|t| if t < 7 { firing() } else { idle() })
+        .collect();
+    check("shot", &recording::record(&stage, &inputs).unwrap());
+}

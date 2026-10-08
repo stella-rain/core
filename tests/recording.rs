@@ -31,10 +31,10 @@ fn every_tick_has_an_input_its_events_and_a_hash() {
             .collect()
     };
     assert_eq!(kinds(1), ["Input", "StateHash"]);
-    // The last tick: the shot lands, the boss dies, the stage is cleared.
+    // The last tick: both bullets of the shot land, the boss dies, the stage is cleared.
     assert_eq!(
         kinds(u64::from(CLEAR_TICK)),
-        ["Input", "Hit", "Died", "StageCleared", "StateHash"]
+        ["Input", "Hit", "Hit", "Died", "StageCleared", "StateHash"]
     );
     let directions: Vec<(&str, &str)> = lines
         .iter()

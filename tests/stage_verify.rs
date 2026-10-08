@@ -96,7 +96,7 @@ fn a_clear_is_verified_and_reported() {
     assert_eq!(
         out(&o),
         format!(
-            "result: cleared\nticks: 62\nfinal_hash: {}\ncontent_hash: {}\n",
+            "result: cleared\nticks: 57\nfinal_hash: {}\ncontent_hash: {}\n",
             hash_to_hex(engine.state_hash()),
             to_hex(&content_hash(&c.stage, &c.replay))
         )
@@ -163,7 +163,7 @@ fn a_share_code_is_verified_from_a_file_or_standard_input() {
     let file = c.dir.file("code.txt", format!("  {code}\n").as_bytes());
     let o = run(&["--share-code", &file]);
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
-    assert!(out(&o).starts_with("result: cleared\nticks: 62\n"));
+    assert!(out(&o).starts_with("result: cleared\nticks: 57\n"));
     let o = run_with_stdin(&["--share-code", "-"], code.as_bytes());
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
 
