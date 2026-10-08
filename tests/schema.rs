@@ -16,6 +16,18 @@ fn checked_in_schema_is_current() {
             stale.push(name);
         }
     }
+    // A file for a type that no longer exists is stale too.
+    let known: Vec<&str> = stella_rain_core::schema::all()
+        .iter()
+        .map(|(n, _)| *n)
+        .collect();
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let name = entry.unwrap().file_name().into_string().unwrap();
+        assert!(
+            known.contains(&name.as_str()),
+            "schema/{name} belongs to no type: delete it"
+        );
+    }
     assert!(
         stale.is_empty(),
         "stale schema files {stale:?}: run `UPDATE_SCHEMA=1 cargo test --test schema`"

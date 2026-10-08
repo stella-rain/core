@@ -4,7 +4,7 @@
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::input::Input;
-use stella_rain_core::replay::ReplayHeader;
+use stella_rain_core::replay::Replay;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -131,15 +131,18 @@ fn events_are_type_and_data() {
 }
 
 #[test]
-fn replay_header_round_trips() {
-    let header = ReplayHeader {
+fn replay_round_trips_and_rejects_unknown_fields() {
+    let replay = Replay {
         schema_version: 0,
         sim_version: 0,
         seed: 48213,
         stage_sha256: "0".repeat(64),
         ticks: 18000,
         final_hash: "9f3a0c12aa55bb66".into(),
+        inputs: "AQAAAA==".into(),
     };
-    let json = serde_json::to_string(&header).unwrap();
-    assert_eq!(serde_json::from_str::<ReplayHeader>(&json).unwrap(), header);
+    let json = serde_json::to_string(&replay).unwrap();
+    assert_eq!(serde_json::from_str::<Replay>(&json).unwrap(), replay);
+    let extra = json.replacen('{', r#"{"unexpected":true,"#, 1);
+    assert!(serde_json::from_str::<Replay>(&extra).is_err());
 }
