@@ -771,3 +771,22 @@ fn damaged_files_never_panic() {
         let _ = parse_and_validate(&bytes);
     }
 }
+
+#[test]
+fn player_firing_needs_between_one_and_a_stages_worth_of_ticks() {
+    let b = base();
+    let with = |when: Value| {
+        let mut v = b.clone();
+        set(&mut v, "/companions/0/rules/0/when", when);
+        v
+    };
+    // Left out, it means this tick.
+    assert_valid(&with(json!({ "type": "player_firing" })));
+    for ok in [1, 30, MAX_TICKS] {
+        assert_valid(&with(json!({ "type": "player_firing", "min_ticks": ok })));
+    }
+    for bad in [0, MAX_TICKS + 1] {
+        let issue = first_issue(&with(json!({ "type": "player_firing", "min_ticks": bad })));
+        assert_eq!(issue.path, "$.companions[0].rules[0].when.min_ticks");
+    }
+}

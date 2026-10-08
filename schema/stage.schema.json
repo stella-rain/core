@@ -484,9 +484,15 @@
           ]
         },
         {
-          "description": "The main character fires on this tick (ADR-038).",
+          "description": "The main character has fired on at least `min_ticks` ticks in a row (ADR-038); 1 means\non this tick. A boss can punish steady shooting this way, which asks the player to\nstop for a while.",
           "type": "object",
           "properties": {
+            "min_ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "default": 1,
+              "minimum": 0
+            },
             "type": {
               "type": "string",
               "const": "player_firing"

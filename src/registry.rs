@@ -59,6 +59,8 @@ pub const ENTRIES: &[Entry] = &[
     entry("aimed_single", Kind::Preset, 1),
     entry("spread_5", Kind::Preset, 0),
     entry("twin_shot", Kind::Preset, 0),
+    entry("atk_up", Kind::Status, 0),
+    entry("slow", Kind::Status, 0),
     entry("vulnerable", Kind::Status, 0),
 ];
 
