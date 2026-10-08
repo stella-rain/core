@@ -6,7 +6,7 @@ name: Auto-merge
 
 on:
   workflow_run:
-    workflows: ["CLAUDE.md check", "Line endings"]
+    workflows: ["CLAUDE.md check", "Line endings", "Rust"]
     types: [completed]
 
 permissions: {}
