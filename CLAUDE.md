@@ -28,6 +28,7 @@ Follow the `kade-workflow` skill; where it and this file differ, this file wins.
   renamed or removed, only deprecated (ADR-026).
 - ADRs marked *Proposed* are the current plan: build on them, but raise a departure with Kade
   rather than depart silently.
+- New module, crate or dependency: decide it with Kade first (options, trade-offs for long-term release maintainability, your recommendation).
 
 ## Layout
 
