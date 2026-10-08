@@ -1,0 +1,21 @@
+# Merges a green pull request from a `claude/*` branch into main, then deletes the branch.
+# Runs when any check below finishes; the reusable workflow merges only when every check on
+# the PR's head commit is green. Add each new PR check's workflow name to `workflows:`.
+# `workflow_run` is read from main: a change to this file acts only after its own merge.
+name: Auto-merge
+
+on:
+  workflow_run:
+    workflows: ["CLAUDE.md check", "Line endings"]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  merge:
+    uses: stella-rain/.github/.github/workflows/auto-merge.yml@main
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      statuses: read
