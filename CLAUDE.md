@@ -47,7 +47,7 @@ So far: the ADR-014 spike, the version 0 types, validator, engine, attacks, boss
 | `tests/` | Integration tests; `spike.rs` and `engine.rs` pin golden hashes every platform must match; `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/` (`cargo insta test --features record --review`) |
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
 | `src/bin/stage_verify.rs` | `stage-verify`: re-simulates a replay and checks the clear and the final hash (ADR-009, ADR-015) |
-| `tests/corpus/` | Replay corpus with per-tick hashes, per `sim_version` (ADR-019) |
+| `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `corpus.rs` checks it (ADR-019) |
 | `fuzz/` | `cargo-fuzz` targets: parser, validator, replay loader (ADR-020) |
 | `benches/` | `criterion` tick-time benchmarks with worst-case budgets (ADR-021) |
 | `.github/workflows/` | Rust gates on x86_64 and arm64, mobile `cargo check`, Project sync, `CLAUDE.md` check, auto-merge |
@@ -60,7 +60,7 @@ PR as `NOT VERIFIED: <gate>: <reason>`.
 | Part | Gate |
 |---|---|
 | Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` |
-| Simulation | Replay corpus: every tick's hash matches, on x86_64 and on an arm64 runner, every PR (once `tests/corpus/` exists; ADR-019) |
+| Simulation | Replay corpus: every tick's hash matches, on x86_64 and on an arm64 runner, every PR (ADR-019); an intended change: `UPDATE_CORPUS=1 cargo test --test corpus` |
 | iOS readiness | `cargo check --target aarch64-apple-ios` (ADR-014) |
 | Parser, validator, replay loader | Fuzz targets build; a short fuzz run when parsing changed |
 | `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too) |

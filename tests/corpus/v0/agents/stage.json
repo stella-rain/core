@@ -1,0 +1,139 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "test",
+  "title": "Test",
+  "description": "",
+  "seed": 7,
+  "length_ticks": 600,
+  "player": {
+    "base": "pilot_a",
+    "hp": 99,
+    "atk": 10,
+    "shot": {
+      "preset": {
+        "id": "aimed_single",
+        "args": [
+          2048
+        ]
+      }
+    },
+    "skills": []
+  },
+  "companions": [
+    {
+      "base": "fairy_a",
+      "hp": 10,
+      "radius": 1024,
+      "movement": {
+        "type": "orbit",
+        "radius": 10240
+      },
+      "rules": [
+        {
+          "when": {
+            "type": "always"
+          },
+          "target": "player",
+          "do": {
+            "type": "cast",
+            "skill": {
+              "type": "atk_up",
+              "value_pct": 25,
+              "duration_ticks": 40
+            }
+          },
+          "cooldown_ticks": 30,
+          "once": false
+        }
+      ]
+    },
+    {
+      "base": "fairy_a",
+      "hp": 10,
+      "radius": 1024,
+      "movement": {
+        "type": "follow",
+        "distance": 12288
+      },
+      "rules": [
+        {
+          "when": {
+            "type": "hp_below",
+            "who": "lowest_hp_ally",
+            "pct": 100
+          },
+          "target": "lowest_hp_ally",
+          "do": {
+            "type": "cast",
+            "skill": {
+              "type": "heal",
+              "amount": 5
+            }
+          },
+          "cooldown_ticks": 0,
+          "once": false
+        }
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "at_tick": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 50,
+        "radius": 2048,
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 96
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    768
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 5,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 46080,
+        "y": 100000
+      },
+      "count": 1,
+      "every_ticks": 0
+    }
+  ],
+  "boss": {
+    "base": "golem",
+    "hp": 1000000,
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    },
+    "parts": [],
+    "phases": [
+      {
+        "transition": [],
+        "timeline": [],
+        "rules": []
+      }
+    ]
+  }
+}

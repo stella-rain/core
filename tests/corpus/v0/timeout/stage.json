@@ -1,0 +1,42 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "test",
+  "title": "Test",
+  "description": "",
+  "seed": 7,
+  "length_ticks": 90,
+  "player": {
+    "base": "pilot_a",
+    "hp": 3,
+    "atk": 10,
+    "shot": {
+      "preset": {
+        "id": "aimed_single",
+        "args": [
+          2048
+        ]
+      }
+    },
+    "skills": []
+  },
+  "companions": [],
+  "waves": [],
+  "boss": {
+    "base": "golem",
+    "hp": 1000000,
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    },
+    "parts": [],
+    "phases": [
+      {
+        "transition": [],
+        "timeline": [],
+        "rules": []
+      }
+    ]
+  }
+}
