@@ -96,7 +96,7 @@
                   "body": [
                     {
                       "type": "ring",
-                      "count": { "add": [12, { "arg": 0 }] },
+                      "count": { "add": [12, 4] },
                       "body": [
                         {
                           "type": "fire",
