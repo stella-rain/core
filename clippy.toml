@@ -1,0 +1,7 @@
+# ADR-019: no floats and no hash-ordered collections in simulation code.
+disallowed-types = [
+    { path = "f32", reason = "simulation state is fixed-point (ADR-004)" },
+    { path = "f64", reason = "simulation state is fixed-point (ADR-004)" },
+    { path = "std::collections::HashMap", reason = "iteration order is not deterministic (ADR-019)" },
+    { path = "std::collections::HashSet", reason = "iteration order is not deterministic (ADR-019)" },
+]
