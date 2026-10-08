@@ -54,6 +54,15 @@ jobs:
       # The `record` feature (ADR-016) is off by default and must keep working.
       - run: cargo test --locked --all-features
       - run: cargo test --locked --release --all-features
+      # A corpus mismatch writes the snapshots of the first diverging tick and the one before to
+      # target/corpus-diff (tests/corpus.rs); one artifact per architecture to compare them.
+      - name: Upload the corpus diff
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: corpus-diff-${{ matrix.arch }}
+          path: target/corpus-diff
+          if-no-files-found: ignore
 
   cross:
     name: cargo check for mobile targets
