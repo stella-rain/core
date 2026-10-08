@@ -35,7 +35,7 @@ fn enemies(s: &State) -> impl Iterator<Item = Who> + '_ {
 }
 
 /// The entity `selector` picks for `me`, if there is one.
-pub(super) fn select(_stage: &Stage, s: &State, me: Who, selector: &Selector) -> Option<Who> {
+pub(super) fn select(stage: &Stage, s: &State, me: Who, selector: &Selector) -> Option<Who> {
     let from = s.at(me);
     let by_distance = |w: &Who| (dist2(from, s.at(*w)), s.id_of(*w));
     match selector {
@@ -54,7 +54,15 @@ pub(super) fn select(_stage: &Stage, s: &State, me: Who, selector: &Selector) ->
         Selector::HighestAggroAlly => {
             allies(s).min_by_key(|w| (Reverse(s.aggro(*w)), dist2(from, s.at(*w)), s.id_of(*w)))
         }
-        // Boss parts arrive with boss timelines (core#17).
-        Selector::Part(_) => None,
+        // A part of the boss that has not broken yet.
+        Selector::Part(id) => {
+            let index = stage
+                .boss
+                .iter()
+                .flat_map(|b| &b.parts)
+                .position(|p| p.id == *id)?;
+            let part = s.boss.as_ref()?.parts.get(index)?;
+            (part.hp > 0).then_some(Who::BossPart(index))
+        }
     }
 }

@@ -449,7 +449,7 @@ fn the_encoding_is_pinned() {
         concat!(
             r#"{"schema_version":0,"sim_version":0,"seed":7,"#,
             r#""stage_sha256":"b66fe06722776b68bb952d2afe01491c456fa7cc6dc17934afd1f793f9fe619d","#,
-            r#""ticks":62,"final_hash":"c1dc732c1df407d5","#,
+            r#""ticks":62,"final_hash":"5c062e5141468341","#,
             r#""inputs":"AQpQAAkCUAAKAgAAAQoAABMCAAABCgAAEwIAAAEKAAABAgAA"}"#,
             "\n"
         )
@@ -463,7 +463,7 @@ fn the_encoding_is_pinned() {
     );
     assert_eq!(
         to_hex(&content_hash(&stage, &bytes)),
-        "d1911e6f87f5601f25800a04784c9bd3fcbe5befc8a6c6cc5142edfa65088a47"
+        "dd57d4abbce72fafd8ffef5cc01e7db9782a26f033258e6b301150695375c515"
     );
 }
 

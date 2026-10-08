@@ -9,12 +9,14 @@ use crate::id::{ContentId, EntityId};
 
 use super::{MAX_AGGRO, PLAYER_ID};
 
-/// An entity of the run, by place. Indexes are into `State::companions` and `State::enemies`
-/// and stay valid within a tick: nothing is removed until the collision step ends.
+/// An entity of the run, by place. Indexes are into `State::companions`, `State::enemies` and
+/// the boss's parts, and stay valid within a tick: nothing is removed until the collision step
+/// ends (a broken part keeps its place with 0 hit points).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Who {
     Player,
     Boss,
+    BossPart(usize),
     Companion(usize),
     Enemy(usize),
 }
@@ -36,6 +38,7 @@ impl State {
         match who {
             Who::Player => PLAYER_ID,
             Who::Boss => self.boss_state().id,
+            Who::BossPart(i) => self.boss_state().parts[i].id,
             Who::Companion(i) => self.companions[i].id,
             Who::Enemy(i) => self.enemies[i].id,
         }
@@ -45,6 +48,8 @@ impl State {
         match who {
             Who::Player => self.player.at,
             Who::Boss => self.boss_state().at,
+            // Where the part is: the boss's place and the part's offset (the stage has it).
+            Who::BossPart(i) => self.part_at(i),
             Who::Companion(i) => self.companions[i].at,
             Who::Enemy(i) => self.enemies[i].at,
         }
@@ -54,6 +59,7 @@ impl State {
         match who {
             Who::Player => self.player.hp,
             Who::Boss => self.boss_state().hp,
+            Who::BossPart(i) => self.boss_state().parts[i].hp,
             Who::Companion(i) => self.companions[i].hp,
             Who::Enemy(i) => self.enemies[i].hp,
         }
@@ -63,6 +69,7 @@ impl State {
         match who {
             Who::Player => &mut self.player.hp,
             Who::Boss => &mut self.boss.as_mut().expect("a boss").hp,
+            Who::BossPart(i) => &mut self.boss.as_mut().expect("a boss").parts[i].hp,
             Who::Companion(i) => &mut self.companions[i].hp,
             Who::Enemy(i) => &mut self.enemies[i].hp,
         }
@@ -72,8 +79,19 @@ impl State {
         match who {
             Who::Player => self.player.max_hp,
             Who::Boss => self.boss_state().max_hp,
+            Who::BossPart(i) => self.boss_state().parts[i].max_hp,
             Who::Companion(i) => self.companions[i].max_hp,
             Who::Enemy(i) => self.enemies[i].max_hp,
+        }
+    }
+
+    /// Where part `i` of the boss is: the boss's place plus the part's offset.
+    fn part_at(&self, i: usize) -> Point {
+        let b = self.boss_state();
+        let offset = b.parts[i].offset;
+        Point {
+            x: b.at.x.saturating_add(offset.x),
+            y: b.at.y.saturating_add(offset.y),
         }
     }
 
@@ -82,7 +100,7 @@ impl State {
         match who {
             Who::Player => self.player.aggro,
             Who::Companion(i) => self.companions[i].aggro,
-            Who::Boss | Who::Enemy(_) => 0,
+            Who::Boss | Who::BossPart(_) | Who::Enemy(_) => 0,
         }
     }
 
@@ -90,6 +108,7 @@ impl State {
         match who {
             Who::Player => &self.player.statuses,
             Who::Boss => &self.boss_state().statuses,
+            Who::BossPart(i) => &self.boss_state().parts[i].statuses,
             Who::Companion(i) => &self.companions[i].statuses,
             Who::Enemy(i) => &self.enemies[i].statuses,
         }
@@ -99,6 +118,7 @@ impl State {
         match who {
             Who::Player => &mut self.player.statuses,
             Who::Boss => &mut self.boss.as_mut().expect("a boss").statuses,
+            Who::BossPart(i) => &mut self.boss.as_mut().expect("a boss").parts[i].statuses,
             Who::Companion(i) => &mut self.companions[i].statuses,
             Who::Enemy(i) => &mut self.enemies[i].statuses,
         }
@@ -120,6 +140,14 @@ impl State {
         }
         if self.boss.as_ref().is_some_and(|b| b.id == id) {
             return Some(Who::Boss);
+        }
+        if let Some(i) = self
+            .boss
+            .iter()
+            .flat_map(|b| &b.parts)
+            .position(|p| p.id == id && p.hp > 0)
+        {
+            return Some(Who::BossPart(i));
         }
         if let Some(i) = self.companions.iter().position(|c| c.id == id) {
             return Some(Who::Companion(i));
@@ -228,6 +256,9 @@ pub(super) fn tick_statuses_and_aggro(s: &mut State) {
     s.player.aggro = s.player.aggro.saturating_sub(super::AGGRO_DECAY);
     if let Some(b) = &mut s.boss {
         age(&mut b.statuses);
+        for part in &mut b.parts {
+            age(&mut part.statuses);
+        }
     }
     for c in &mut s.companions {
         age(&mut c.statuses);

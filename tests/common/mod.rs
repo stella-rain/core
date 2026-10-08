@@ -70,8 +70,6 @@ pub fn moving(dx: i16, dy: i16) -> Input {
 /// A boss that cannot be reached or beaten, so a stage keeps running.
 pub fn far_boss() -> Value {
     json!({ "base": "golem", "hp": 1_000_000, "radius": 1000, "spawn": { "x": 0, "y": 0 },
-            "parts": [{ "id": "horn_left", "asset": "horns_2", "hp": 10,
-                        "offset": { "x": 0, "y": 0 }, "radius": 100 }],
             "phases": [{}] })
 }
 
