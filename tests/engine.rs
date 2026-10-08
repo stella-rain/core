@@ -423,20 +423,6 @@ fn only_the_first_ready_rule_fires_and_the_others_wait() {
 }
 
 #[test]
-fn rules_this_version_cannot_run_yet_never_fire_and_do_not_block_later_ones() {
-    // Boss parts come with boss timelines (core#17): until then these never fire.
-    let part_broken = attack_rule(json!({ "type": "part_broken", "part": "horn_left" }), 0);
-    let mut part_target = attack_rule(always(), 0);
-    part_target["target"] = json!({ "part": "horn_left" });
-    let fired = rule_firings(
-        json!([part_broken, part_target, attack_rule(always(), 40)]),
-        idle(),
-        50,
-    );
-    assert_eq!(fired, [(1, 2), (41, 2)]);
-}
-
-#[test]
 fn an_attack_fires_one_bullet_aimed_at_the_character() {
     let mut e = running(vec![wave(
         1,
@@ -539,7 +525,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x26ad_d04a_a192_b5e9;
+const GOLDEN_HASH: u64 = 0x98eb_bc4b_4aee_4658;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {

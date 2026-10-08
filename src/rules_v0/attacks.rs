@@ -47,6 +47,19 @@ use super::{MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, count, spawn_bullet};
 /// Starts `attack` for `owner`, aimed at `target`. Bullets do `base_damage`, raised by the
 /// owner's atk-up as it is now. Nothing starts if too many attacks are going already.
 pub(super) fn start(s: &mut State, owner: Who, target: Who, attack: &AttackRef, base_damage: u32) {
+    start_aged(s, owner, target, attack, base_damage, 0);
+}
+
+/// As `start`, for an attack whose clock does not start at 0: the boss's attacks count the time
+/// since its phase began, so that `phase_time` is the phase's time (ADR-036).
+pub(super) fn start_aged(
+    s: &mut State,
+    owner: Who,
+    target: Who,
+    attack: &AttackRef,
+    base_damage: u32,
+    age: u32,
+) {
     if count(&s.tasks) >= MAX_ATTACK_TASKS {
         return;
     }
@@ -66,7 +79,7 @@ pub(super) fn start(s: &mut State, owner: Who, target: Who, attack: &AttackRef, 
         target: s.id_of(target),
         friendly: State::is_ally(owner),
         damage,
-        age: 0,
+        age,
         wait_left: 0,
         frames: vec![Frame::default()],
         parent_dir: Dir::DOWN,

@@ -110,3 +110,40 @@ fn an_enemy_waits_telegraphs_shoots_and_summons() {
     let inputs: Vec<Input> = (0..90).map(|_| firing()).collect();
     check("enemy", &recording::record(&stage, &inputs).unwrap());
 }
+
+/// A placeholder boss: a horn that breaks, two phases, a timeline of telegraph, attack and
+/// move, a transition that clears the bullets and shields the boss, and a rule that reacts to
+/// the horn. Entities: boss 1, the horn 2.
+#[test]
+fn a_boss_breaks_a_part_and_changes_phase() {
+    let horn = json!({ "id": "horn", "asset": "horns_2", "hp": 30,
+                       "offset": { "x": 0, "y": 16_000 }, "radius": 6_000 });
+    let shot = json!({ "type": "attack",
+                       "attack": { "preset": { "id": "aimed_single", "args": [768] } } });
+    let boss = json!({
+        "base": "golem", "hp": 100, "radius": 8192, "spawn": { "x": 46_080, "y": 60_000 },
+        "parts": [horn],
+        "phases": [
+            {
+                "until": { "type": "part_broken", "part": "horn" },
+                "timeline": [
+                    { "type": "telegraph", "ticks": 5 }, shot.clone(),
+                    { "type": "move_to", "to": { "x": 49_000, "y": 60_000 }, "ticks": 10 },
+                    { "type": "wait", "ticks": 5 }, { "type": "loop" }
+                ],
+                "rules": [rule(
+                    json!({ "type": "hp_below", "who": { "part": "horn" }, "pct": 50 }),
+                    json!("self"), telegraph(), 0
+                )]
+            },
+            {
+                "transition": [{ "type": "clear_bullets" },
+                               { "type": "invulnerable_ticks", "ticks": 10 }],
+                "timeline": [shot, { "type": "wait", "ticks": 8 }, { "type": "loop" }]
+            }
+        ]
+    });
+    let stage = stage_full(600, Some(boss), vec![], vec![], vec![]);
+    let inputs: Vec<Input> = (0..160).map(|_| firing()).collect();
+    check("boss", &recording::record(&stage, &inputs).unwrap());
+}

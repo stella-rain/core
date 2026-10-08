@@ -5,8 +5,9 @@
 //! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
 //! 2. the main character moves (speed cap, focus, slowing, playfield), fires on `fire` ticks
 //!    only (ADR-038, no auto-fire), and its skills are held and cast (ADR-032);
-//! 3. companions, then enemies, in entity-ID order: move, then the first rule that can fire,
-//!    fires (ADR-036), which for an attack or a shot skill starts an attack task;
+//! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
+//!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
+//!    a shot skill starts an attack task;
 //! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
 //!    is carried out up to its next wait (`attacks`), making bullets;
 //! 5. bullets move and leave the field;
@@ -14,7 +15,7 @@
 //!    character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
 //!
-//! Not yet in this version: boss phases, parts and timelines (core#17); the main shot being an
+//! Not yet in this version: the main shot being an
 //! attack (it is one straight bullet, whatever the stage's `shot` says); summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
@@ -27,13 +28,14 @@
 mod act;
 mod agents;
 mod attacks;
+mod boss;
 mod entity;
 mod player;
 mod select;
 
 use crate::engine::{
-    AgentKey, AgentSource, BossState, BulletState, HoldState, Outcome, PlayerState, SkillState,
-    State, UNLIMITED,
+    AgentKey, AgentSource, BossState, BulletState, HoldState, Outcome, PartState, PlayerState,
+    SkillState, State, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -90,16 +92,10 @@ pub(crate) fn bullet_radius(friendly: bool) -> i32 {
 
 pub(crate) fn initial_state(stage: &Stage) -> State {
     let mut next_id = 1;
-    let boss = stage.boss.as_ref().map(|b| {
+    let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
         next_id += 1;
-        BossState {
-            id,
-            at: b.spawn,
-            hp: b.hp,
-            max_hp: b.hp,
-            statuses: Vec::new(),
-        }
+        id
     });
     let start = Point {
         x: Fx(FIELD_W / 2),
@@ -122,6 +118,39 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
             agents::new_agent(id, key, def, start, angle)
         })
         .collect();
+    // The boss's parts come after the companions in the order of entity IDs.
+    let boss = stage.boss.as_ref().zip(boss_id).map(|(b, id)| BossState {
+        id,
+        at: b.spawn,
+        hp: b.hp,
+        max_hp: b.hp,
+        statuses: Vec::new(),
+        phase: 0,
+        phase_age: 0,
+        invulnerable: 0,
+        step: 0,
+        wait_left: 0,
+        order: None,
+        // The first phase begins on the first tick (see `boss::act`).
+        rules: Vec::new(),
+        parts: b
+            .parts
+            .iter()
+            .map(|p| {
+                let part_id = EntityId(next_id);
+                next_id += 1;
+                PartState {
+                    id: part_id,
+                    name: p.id.clone(),
+                    hp: p.hp,
+                    max_hp: p.hp,
+                    offset: p.offset,
+                    radius: p.radius.0,
+                    statuses: Vec::new(),
+                }
+            })
+            .collect(),
+    });
     State {
         tick: 0,
         rng: SplitMix64::new(u64::from(stage.seed)),
@@ -174,6 +203,7 @@ pub(crate) fn step(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<
     spawn_waves(stage, s);
     entity::tick_statuses_and_aggro(s);
     player::update(stage, s, input, events, &mut spawns_left);
+    boss::act(stage, s, events);
     agents::act(stage, s, events);
     attacks::fire_hooks(s);
     attacks::run(s, &mut spawns_left);
@@ -287,7 +317,13 @@ fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
         damage: dealt,
     });
     if dead {
-        events.push(DomainEvent::Died { entity: id });
+        // A part breaks; everything else dies.
+        events.push(match (target, s.boss.as_ref()) {
+            (Who::BossPart(i), Some(boss)) => DomainEvent::PartBroken {
+                part: boss.parts[i].name.clone(),
+            },
+            _ => DomainEvent::Died { entity: id },
+        });
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
 }
@@ -302,11 +338,35 @@ fn hit_enemy_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<Domain
             return true;
         }
     }
-    if let (Some(state), Some(def)) = (&s.boss, &stage.boss) {
-        if state.hp > 0 && overlaps(b.at, PLAYER_BULLET_RADIUS, state.at, def.radius.0) {
-            damage(s, b, Who::Boss, events);
+    let Some((def, state)) = stage.boss.as_ref().zip(s.boss.as_ref()) else {
+        return false;
+    };
+    if state.hp == 0 {
+        return false;
+    }
+    // The parts are in front of the body. While the boss is invulnerable a shot that lands is
+    // used up and does no harm.
+    let absorbed = state.invulnerable > 0;
+    for (i, part) in state.parts.iter().enumerate() {
+        if part.hp > 0
+            && overlaps(
+                b.at,
+                PLAYER_BULLET_RADIUS,
+                s.at(Who::BossPart(i)),
+                part.radius,
+            )
+        {
+            if !absorbed {
+                damage(s, b, Who::BossPart(i), events);
+            }
             return true;
         }
+    }
+    if overlaps(b.at, PLAYER_BULLET_RADIUS, state.at, def.radius.0) {
+        if !absorbed {
+            damage(s, b, Who::Boss, events);
+        }
+        return true;
     }
     false
 }
@@ -488,6 +548,33 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_u32(b.hp);
             h.write_u32(b.max_hp);
             hash_statuses(&mut h, &b.statuses);
+            h.write_u32(b.phase);
+            h.write_u32(b.phase_age);
+            h.write_u32(b.invulnerable);
+            h.write_u32(b.step);
+            h.write_u32(b.wait_left);
+            match b.order {
+                Some(o) => {
+                    h.write_bool(true);
+                    h.write_i32(o.to.x.0);
+                    h.write_i32(o.to.y.0);
+                    h.write_u32(o.ticks_left);
+                }
+                None => h.write_bool(false),
+            }
+            h.write_u32(count(&b.rules));
+            for r in &b.rules {
+                h.write_u32(r.cooldown_left);
+                h.write_u32(r.charges_left);
+                h.write_bool(r.fired);
+            }
+            h.write_u32(count(&b.parts));
+            for part in &b.parts {
+                h.write_u32(part.id.0);
+                h.write_u32(part.hp);
+                h.write_u32(part.max_hp);
+                hash_statuses(&mut h, &part.statuses);
+            }
         }
         None => h.write_bool(false),
     }

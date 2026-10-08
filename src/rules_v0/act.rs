@@ -32,7 +32,12 @@ pub(super) fn perform(
             } else {
                 1
             };
-            attacks::start(s, me, target, attack, base);
+            // The boss's clock is its phase's, so `phase_time` is the phase's time.
+            let age = match (me, s.boss.as_ref()) {
+                (Who::Boss, Some(b)) => b.phase_age.saturating_sub(1),
+                _ => 0,
+            };
+            attacks::start_aged(s, me, target, attack, base, age);
             true
         }
         Action::Cast { skill } => {
@@ -41,10 +46,14 @@ pub(super) fn perform(
         }
         Action::Summon { count: n, .. } => summon(stage, s, me, rule_index, *n),
         Action::MoveTo { to, ticks } => {
-            agent_mut(s, me).order = Some(MoveOrder {
+            let order = Some(MoveOrder {
                 to: *to,
                 ticks_left: (*ticks).max(1),
             });
+            match me {
+                Who::Boss => s.boss.as_mut().expect("a boss").order = order,
+                _ => agent_mut(s, me).order = order,
+            }
             true
         }
         Action::Telegraph { ticks } => {
@@ -99,21 +108,34 @@ pub(super) fn cast(
     }
 }
 
-/// An enemy from a wave summons `n` more enemies where it stands. Companions and summoned
-/// agents cannot summon in this version (the validator already keeps summoned agents from it).
+/// An enemy from a wave, or the boss, summons `n` more enemies where it stands. Companions and
+/// summoned agents cannot summon in this version (the validator already keeps summoned agents
+/// from it).
 fn summon(stage: &Stage, s: &mut State, me: Who, rule_index: usize, n: u8) -> bool {
-    let Who::Enemy(i) = me else {
-        return false;
-    };
-    let parent = &s.enemies[i];
-    if parent.key.source != AgentSource::Wave {
-        return false;
-    }
-    let (wave, at) = (parent.key.index, parent.at);
-    let key = AgentKey {
-        source: AgentSource::Summoned,
-        index: wave,
-        rule: u32::try_from(rule_index).unwrap_or(u32::MAX),
+    let rule = u32::try_from(rule_index).unwrap_or(u32::MAX);
+    let (key, at) = match me {
+        Who::Enemy(i) => {
+            let parent = &s.enemies[i];
+            if parent.key.source != AgentSource::Wave {
+                return false;
+            }
+            let key = AgentKey {
+                source: AgentSource::Summoned,
+                index: parent.key.index,
+                rule,
+            };
+            (key, parent.at)
+        }
+        Who::Boss => {
+            let boss = s.boss.as_ref().expect("a boss");
+            let key = AgentKey {
+                source: AgentSource::BossRule,
+                index: boss.phase,
+                rule,
+            };
+            (key, boss.at)
+        }
+        _ => return false,
     };
     let def = agent_def(stage, key);
     for _ in 0..n {

@@ -96,23 +96,40 @@ impl Engine {
                 });
             }
         }
-        // Boss, companions, then enemies: the order of their entity IDs.
-        for (kind, agents) in [
-            (EntityKind::Companion, &s.companions),
-            (EntityKind::Enemy, &s.enemies),
-        ] {
-            for a in agents {
-                let def = rules_v0::agent_def(&self.stage, a.key);
-                entities.push(EntityView {
-                    id: a.id,
-                    kind,
-                    asset: ContentId(def.base.0.clone()),
-                    palette: def.palette.clone(),
-                    at: a.at,
-                    hp: a.hp,
-                });
+        // Boss, companions, boss parts, then enemies: the order of their entity IDs.
+        let agent_views =
+            |kind, agents: &[crate::engine::AgentState], out: &mut Vec<EntityView>| {
+                for a in agents {
+                    let def = rules_v0::agent_def(&self.stage, a.key);
+                    out.push(EntityView {
+                        id: a.id,
+                        kind,
+                        asset: ContentId(def.base.0.clone()),
+                        palette: def.palette.clone(),
+                        at: a.at,
+                        hp: a.hp,
+                    });
+                }
+            };
+        agent_views(EntityKind::Companion, &s.companions, &mut entities);
+        if let (Some(b), Some(boss)) = (&s.boss, &self.stage.boss) {
+            for (part, def) in b.parts.iter().zip(&boss.parts) {
+                if part.hp > 0 {
+                    entities.push(EntityView {
+                        id: part.id,
+                        kind: EntityKind::BossPart,
+                        asset: ContentId(def.asset.0.clone()),
+                        palette: None,
+                        at: Point {
+                            x: b.at.x.saturating_add(part.offset.x),
+                            y: b.at.y.saturating_add(part.offset.y),
+                        },
+                        hp: part.hp,
+                    });
+                }
             }
         }
+        agent_views(EntityKind::Enemy, &s.enemies, &mut entities);
         Snapshot {
             tick: s.tick,
             player: PlayerView {
@@ -227,6 +244,35 @@ pub(crate) struct BossState {
     pub hp: u32,
     pub max_hp: u32,
     pub statuses: Vec<StatusState>,
+    /// The phase being carried out, 0-based (ADR-036 tier 2).
+    pub phase: u32,
+    /// Ticks since the phase began.
+    pub phase_age: u32,
+    /// Ticks left in which shots do the boss and its parts no harm.
+    pub invulnerable: u32,
+    /// The timeline step to carry out next, and the ticks to wait before it.
+    pub step: u32,
+    pub wait_left: u32,
+    /// A `move_to` in progress.
+    pub order: Option<MoveOrder>,
+    /// One per rule of the phase, in order.
+    pub rules: Vec<RuleState>,
+    /// One per part of the stage's boss, in order.
+    pub parts: Vec<PartState>,
+}
+
+/// A breakable part of the boss, with its own hit points (ADR-007).
+#[derive(Clone, Debug)]
+pub(crate) struct PartState {
+    pub id: EntityId,
+    /// The ID the stage gave it, which `part_broken` and the `part` selector name.
+    pub name: ContentId,
+    pub hp: u32,
+    pub max_hp: u32,
+    /// From the boss's centre, and the hurt circle's radius: both from the stage.
+    pub offset: Point,
+    pub radius: i32,
+    pub statuses: Vec<StatusState>,
 }
 
 /// Which definition an agent runs: its `Agent` in the stage.
@@ -244,6 +290,8 @@ pub(crate) enum AgentSource {
     Companion,
     Wave,
     Summoned,
+    /// Summoned by a rule of the boss: `index` is its phase, `rule` the rule in it.
+    BossRule,
 }
 
 /// A companion or an enemy: a movement and a rule list (ADR-036 tier 1).
