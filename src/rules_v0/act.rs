@@ -2,21 +2,18 @@
 //! Main-character skills (ADR-032) use the same casts as agents' rules.
 
 use crate::behaviour::{Action, Skill};
-use crate::engine::{AgentKey, AgentSource, BulletState, MoveOrder, State, StatusKind};
+use crate::engine::{AgentKey, AgentSource, MoveOrder, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::id::EntityId;
 use crate::stage::Stage;
 
 use super::agents::{agent_def, agent_mut, new_agent};
-use super::entity::{Who, scale_damage, status_pct};
-use super::{
-    AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, ENEMY_BULLET_SPEED, MAX_ENEMIES_ALIVE,
-    PLAYER_BULLET_SPEED, aimed, count, spawn_bullet,
-};
+use super::attacks;
+use super::entity::Who;
+use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, MAX_ENEMIES_ALIVE, count};
 
 /// Does the action for rule `rule_index` of `me`, aimed at `target`. False if this version
 /// cannot do it, in which case the rule does not fire and the next one gets its turn.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn perform(
     stage: &Stage,
     s: &mut State,
@@ -25,22 +22,21 @@ pub(super) fn perform(
     rule_index: usize,
     action: &Action,
     events: &mut Vec<DomainEvent>,
-    spawns_left: &mut u32,
 ) -> bool {
     match action {
-        // Until attack contents arrive (core#18) every attack is one aimed bullet: an ally's
-        // is as strong as the main shot, an enemy's takes 1 hit point.
-        Action::Attack { .. } => {
+        // An attack does as much as the main shot if an ally makes it, and 1 hit point if an
+        // enemy does.
+        Action::Attack { attack } => {
             let base = if State::is_ally(me) {
                 stage.player.atk
             } else {
                 1
             };
-            fire(s, me, target, base, spawns_left);
+            attacks::start(s, me, target, attack, base);
             true
         }
         Action::Cast { skill } => {
-            cast(s, me, target, skill, events, spawns_left);
+            cast(s, me, target, skill, events);
             true
         }
         Action::Summon { count: n, .. } => summon(stage, s, me, rule_index, *n),
@@ -61,28 +57,6 @@ pub(super) fn perform(
     }
 }
 
-/// One bullet from `from` toward `target`, `base` damage before the shooter's atk-up.
-pub(super) fn fire(s: &mut State, from: Who, target: Who, base: u32, spawns_left: &mut u32) {
-    let friendly = State::is_ally(from);
-    let speed = if friendly {
-        PLAYER_BULLET_SPEED
-    } else {
-        ENEMY_BULLET_SPEED
-    };
-    let at = s.at(from);
-    let (vx, vy) = aimed(at, s.at(target), speed);
-    let damage = scale_damage(base, status_pct(s.statuses(from), StatusKind::AtkUp), 0);
-    let bullet = BulletState {
-        at,
-        vx,
-        vy,
-        owner: s.id_of(from),
-        friendly,
-        damage,
-    };
-    spawn_bullet(s, bullet, spawns_left);
-}
-
 /// Casts `skill` from `caster` at `target`. Allies gain aggro for buffs and heals.
 pub(super) fn cast(
     s: &mut State,
@@ -90,7 +64,6 @@ pub(super) fn cast(
     target: Who,
     skill: &Skill,
     events: &mut Vec<DomainEvent>,
-    spawns_left: &mut u32,
 ) {
     let source = s.id_of(caster);
     let mut apply = |s: &mut State, kind, value_pct: u16, duration: u32| {
@@ -98,7 +71,7 @@ pub(super) fn cast(
         s.raise_aggro(source, AGGRO_PER_BUFF);
     };
     match skill {
-        Skill::Shot { damage, .. } => fire(s, caster, target, *damage, spawns_left),
+        Skill::Shot { pattern, damage } => attacks::start(s, caster, target, pattern, *damage),
         Skill::AtkUp {
             value_pct,
             duration_ticks,

@@ -398,7 +398,7 @@ fn hp_below_is_strictly_below_a_percent_of_the_maximum() {
             always(),
             json!("nearest_ally"),
             json!({
-        "type": "attack", "attack": { "preset": { "id": "twin_shot", "args": [] } } }),
+        "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
             0
         )]),
     );
@@ -552,16 +552,25 @@ fn an_orbiting_companion_circles_the_main_character() {
         vec![],
     );
     let mut e = engine(&stage);
+    // Within a unit or two of the exact values: the table is interpolated and the radius is
+    // 10,240 units, so one table unit of 1/65536 is 0.16 of a unit here.
+    let near = |at: (i32, i32), dx: i32, dy: i32| {
+        let (x, y) = (at.0 - START_X, at.1 - START_Y);
+        assert!(
+            (x - dx).abs() <= 2 && (y - dy).abs() <= 2,
+            "{x},{y} is not near {dx},{dy}"
+        );
+    };
     e.step(idle());
-    // 1.5 degrees on tick 1 is the whole degree 1: sin 18 / cos 1024 (times 1024). The second
-    // companion starts a quarter turn on: sin 1024, cos -18.
-    assert_eq!(companion_at(&e, 2), (START_X + 10_240, START_Y + 180));
-    assert_eq!(companion_at(&e, 3), (START_X - 180, START_Y + 10_240));
+    // 1.5 degrees on tick 1: 10240 * sin = 268.05, 10240 * cos = 10236.49. The second
+    // companion starts a quarter turn on, at 91.5 degrees.
+    near(companion_at(&e, 2), 10_236, 268);
+    near(companion_at(&e, 3), -268, 10_236);
     for _ in 0..3 {
         e.step(idle());
     }
-    // 6 degrees on tick 4: sin 107, cos 1018.
-    assert_eq!(companion_at(&e, 2), (START_X + 10_180, START_Y + 1_070));
+    // 6 degrees on tick 4: 10240 * sin = 1070.37, 10240 * cos = 10183.90.
+    near(companion_at(&e, 2), 10_184, 1_070);
 }
 
 #[test]
@@ -844,7 +853,7 @@ fn heals_stop_at_the_maximum_and_say_how_much_they_gave() {
             always(),
             json!("nearest_ally"),
             json!({
-        "type": "attack", "attack": { "preset": { "id": "twin_shot", "args": [] } } }),
+        "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
             0
         )]),
     );
@@ -898,7 +907,7 @@ fn damage_dealt_raises_aggro_and_enemies_turn_on_the_ally_with_the_most() {
         json!([rule(
             always(),
             json!("highest_aggro_ally"),
-            json!({ "type": "attack", "attack": { "preset": { "id": "twin_shot", "args": [] } } }),
+            json!({ "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
             10,
         )]),
     );
@@ -937,7 +946,7 @@ fn a_companion_that_is_hit_enough_dies_and_stops_being_selected() {
             always(),
             json!("nearest_ally"),
             json!({
-        "type": "attack", "attack": { "preset": { "id": "twin_shot", "args": [] } } }),
+        "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
             0
         )]),
     );
@@ -1071,7 +1080,7 @@ fn a_companion_cannot_summon_and_the_next_rule_gets_its_turn() {
 // --- The main character's skills (ADR-032) ----------------------------------------------------
 
 fn shot_skill(damage: u32) -> Value {
-    json!({ "type": "shot", "damage": damage, "pattern": { "preset": { "id": "twin_shot", "args": [] } } })
+    json!({ "type": "shot", "damage": damage, "pattern": { "preset": { "id": "aimed_single", "args": [2048] } } })
 }
 
 fn skill_stage(skills: Vec<Value>) -> Engine {

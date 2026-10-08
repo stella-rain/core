@@ -113,6 +113,20 @@ impl State {
         self.hp(who) > 0
     }
 
+    /// The entity with this ID, if it is still around.
+    pub(super) fn find(&self, id: EntityId) -> Option<Who> {
+        if id == PLAYER_ID {
+            return Some(Who::Player);
+        }
+        if self.boss.as_ref().is_some_and(|b| b.id == id) {
+            return Some(Who::Boss);
+        }
+        if let Some(i) = self.companions.iter().position(|c| c.id == id) {
+            return Some(Who::Companion(i));
+        }
+        self.enemies.iter().position(|e| e.id == id).map(Who::Enemy)
+    }
+
     /// The ally with this entity ID, if it is still around.
     pub(super) fn find_ally(&self, id: EntityId) -> Option<Who> {
         if id == PLAYER_ID {

@@ -95,7 +95,7 @@ pub fn wave(at_tick: u32, count: u16, every_ticks: u32, enemy: Value, x: i32, y:
 
 pub fn attack_rule(when: Value, cooldown_ticks: u32) -> Value {
     json!({ "when": when, "target": "player",
-            "do": { "type": "attack", "attack": { "preset": { "id": "twin_shot", "args": [] } } },
+            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } },
             "cooldown_ticks": cooldown_ticks })
 }
 

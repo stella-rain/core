@@ -159,6 +159,28 @@ pub fn parse_and_validate(bytes: &[u8]) -> Result<Stage, Error> {
     Ok(stage)
 }
 
+/// Checks the nodes of one attack against the same budgets as a stage's inline attacks, for an
+/// attack that takes `arity` arguments (the developer's presets, ADR-036). The problems are
+/// reported at paths from the attack: `$[0].body[1]`.
+pub fn validate_attack(nodes: &[Emitter], arity: u8, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+    let mut ctx = Ctx {
+        registry,
+        sim_version: crate::version::SIM_VERSION,
+        parts: Vec::new(),
+        path: Vec::new(),
+        issues: Vec::new(),
+        left_out: false,
+        arity,
+    };
+    let mut count = 0;
+    ctx.emitters(nodes, 1, &mut count);
+    if ctx.issues.is_empty() {
+        Ok(())
+    } else {
+        Err(ctx.issues)
+    }
+}
+
 fn check_versions(schema_version: u32, sim_version: u32) -> Result<(), Error> {
     if schema_version == SCHEMA_VERSION && sim_version == SIM_VERSION {
         Ok(())
@@ -189,6 +211,7 @@ pub fn validate_with(stage: &Stage, registry: &[Entry]) -> Result<(), Error> {
         path: Vec::new(),
         issues: Vec::new(),
         left_out: false,
+        arity: 0,
     };
     ctx.stage(stage);
     if ctx.left_out {
@@ -218,6 +241,8 @@ struct Ctx<'a> {
     path: Vec<Seg>,
     issues: Vec<Issue>,
     left_out: bool,
+    /// How many arguments the attack being checked takes: 0 for an inline attack in a stage.
+    arity: u8,
 }
 
 impl<'a> Ctx<'a> {
@@ -805,11 +830,11 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// An expression of at most `MAX_EXPR_NODES` nodes. Stage attacks take no arguments, so
-    /// `arg` is never valid here; presets, which do, are defined in `core`.
+    /// An expression of at most `MAX_EXPR_NODES` nodes. An inline attack in a stage takes no
+    /// arguments, so `arg` is not valid there; presets, which do, are checked with `validate_attack`.
     fn expr(&mut self, e: &Expr) {
         let mut nodes = 0;
-        self.expr_node(e, 0, &mut nodes);
+        self.expr_node(e, self.arity, &mut nodes);
     }
 
     fn expr_node(&mut self, e: &Expr, args: u8, nodes: &mut u32) {

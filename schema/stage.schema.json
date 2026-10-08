@@ -261,7 +261,7 @@
           ]
         },
         {
-          "description": "The root nodes, run together.",
+          "description": "The nodes, carried out in order (see `rules_v0`'s attacks for what each one does).",
           "type": "object",
           "properties": {
             "inline": {
@@ -512,7 +512,7 @@
     "Direction": {
       "oneOf": [
         {
-          "description": "At the target, plus an offset.",
+          "description": "At the target, turned by `offset`.",
           "type": "object",
           "properties": {
             "offset": {
@@ -530,7 +530,7 @@
           ]
         },
         {
-          "description": "A fixed angle; 0 points down the screen.",
+          "description": "A fixed angle: 0 points down the screen, and positive angles turn toward the right.",
           "type": "object",
           "properties": {
             "angle": {
@@ -548,7 +548,7 @@
           ]
         },
         {
-          "description": "Relative to the parent's direction.",
+          "description": "Turned by `angle` from the parent's direction: straight down for an attack that a rule\nstarted, the direction of the bullet for a `then` list of `on_bullet`.",
           "type": "object",
           "properties": {
             "angle": {
@@ -566,7 +566,7 @@
           ]
         },
         {
-          "description": "The previous bullet's direction plus a step.",
+          "description": "Turned by `step` from the previous bullet's direction; not affected by the turns of\n`rotate`, `ring` and `spread`.",
           "type": "object",
           "properties": {
             "step": {
@@ -621,7 +621,7 @@
           ]
         },
         {
-          "description": "Runs `body` `count` times, `interval_ticks` apart.",
+          "description": "Runs `body` `count` times (at most 100). The next round starts `interval_ticks` ticks\nafter the body of the last one ends.",
           "type": "object",
           "properties": {
             "body": {
@@ -650,7 +650,7 @@
           ]
         },
         {
-          "description": "Runs `body` `count` times, spread evenly round a full circle.",
+          "description": "Runs `body` `count` times at once, each round turned a full turn / `count` further than\nthe one before.",
           "type": "object",
           "properties": {
             "body": {
@@ -675,7 +675,7 @@
           ]
         },
         {
-          "description": "Runs `body` `count` times, spread evenly across `angle`.",
+          "description": "Runs `body` `count` times at once, fanned evenly across `angle` and centred on the\ndirection of the bullets.",
           "type": "object",
           "properties": {
             "angle": {
@@ -704,7 +704,7 @@
           ]
         },
         {
-          "description": "Turns the direction of everything in `body`.",
+          "description": "Turns the direction of everything in `body` by `angle`.",
           "type": "object",
           "properties": {
             "angle": {
@@ -746,7 +746,7 @@
           ]
         },
         {
-          "description": "Each bullet fired by `body` starts `then` after `after_ticks`.",
+          "description": "Each bullet fired by `body` starts `then` as an attack of its own, from where the bullet\nis, `after_ticks` ticks later (at the next tick if 0), if it is still flying.",
           "type": "object",
           "properties": {
             "after_ticks": {
@@ -804,12 +804,12 @@
           "const": "loop_index"
         },
         {
-          "description": "Ticks since the boss phase, or the agent, began.",
+          "description": "Ticks since the attack started: 0 on its first tick.",
           "type": "string",
           "const": "phase_time"
         },
         {
-          "description": "A draw from the run's SplitMix64 (ADR-033), from `lo` to `hi` inclusive.",
+          "description": "A draw from the run's SplitMix64 (ADR-033), from `lo` to `hi` inclusive; `lo` if the\nrange is empty. Expressions are evaluated left to right, so the order of draws is fixed.",
           "type": "object",
           "properties": {
             "rand": {
