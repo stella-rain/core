@@ -1,7 +1,7 @@
 # One Rust for both development machines and CI (ADR-039); the same file is in `core` and `app`.
 # rustup installs this toolchain, with these components and targets, the first time cargo runs.
 [toolchain]
-channel = "1.93.0"
+channel = "1.99.0"
 profile = "minimal"
 components = ["rustfmt", "clippy"]
 targets = [
