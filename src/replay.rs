@@ -21,6 +21,7 @@ use crate::base64;
 use crate::content_hash::{self, to_hex};
 use crate::engine::{Engine, Outcome};
 use crate::input::Input;
+use crate::parsed_stage_hash;
 use crate::stage::Stage;
 use crate::validate;
 
@@ -150,6 +151,8 @@ pub struct Verified {
     pub final_hash: u64,
     /// The stage content hash of ADR-034, for the catalog and the blocklist.
     pub content_hash: [u8; 32],
+    /// The parsed-stage hash of ADR-046, which the blocklist blocks a stage by.
+    pub parsed_stage_hash: [u8; 32],
 }
 
 /// A state hash as written in files: 16 lowercase hex digits.
@@ -407,5 +410,6 @@ fn verify_inner(
         ticks: engine.tick(),
         final_hash: actual,
         content_hash: content_hash::content_hash(stage_bytes, replay_bytes),
+        parsed_stage_hash: parsed_stage_hash::parsed_stage_hash(&stage),
     })
 }

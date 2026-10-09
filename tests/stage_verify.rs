@@ -11,6 +11,7 @@ use common::{clearing_inputs, stage_bytes};
 use serde_json::{Value, json};
 use stella_rain_core::content_hash::{content_hash, to_hex};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::parsed_stage_hash::parsed_stage_hash;
 use stella_rain_core::replay::{hash_to_hex, record};
 use stella_rain_core::share;
 use stella_rain_core::validate::parse_and_validate;
@@ -96,9 +97,11 @@ fn a_clear_is_verified_and_reported() {
     assert_eq!(
         out(&o),
         format!(
-            "result: cleared\nticks: 57\nfinal_hash: {}\ncontent_hash: {}\n",
+            "result: cleared\nticks: 57\nfinal_hash: {}\ncontent_hash: {}\n\
+             parsed_stage_hash: {}\n",
             hash_to_hex(engine.state_hash()),
-            to_hex(&content_hash(&c.stage, &c.replay))
+            to_hex(&content_hash(&c.stage, &c.replay)),
+            to_hex(&parsed_stage_hash(&parsed))
         )
     );
     assert_eq!(err(&o), "");
