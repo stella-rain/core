@@ -72,11 +72,12 @@ are needed and cannot run here, add `cmd:verify-needs-android` (or `-windows`, `
 
 ## Version control
 
-- **Local sessions** (on Kade's PC or Mac): commit each finished task to `main` automatically,
-  without being asked. Kade pushes.
-- **Cloud sessions**: the PR says `Closes #N`. `auto-merge.yml` (not GitHub auto-merge) merges
-  it once every check on its head is green and deletes the branch. `auto-merge.yml` is read
-  from `main`, so a change to it acts only after its own merge.
+- **Local and cloud sessions** work on `claude/<task>`; a task may hold several commits and
+  gets one PR that says `Closes #N`. `auto-merge.yml` (not GitHub auto-merge) merges it once
+  every check on its head is green and deletes the branch. Any other branch (Kade's own) is
+  merged by hand. A local session opens the PR with Kade's `gh` login; without it, it prints
+  the commands for Kade. `auto-merge.yml` is read from `main`, so a change to it acts only
+  after its own merge.
 - Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app
   can use it (ADR-029).
 - Zip deliveries (needed on the Windows PC only) are laid out from the `stella-rain` root.
