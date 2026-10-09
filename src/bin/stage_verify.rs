@@ -12,8 +12,8 @@
 //!
 //! Exit status: 0 verified; 1 not verified (the stage or the replay is at fault); 2 the
 //! command line or a file could not be read. On success, standard output holds `result`,
-//! `ticks`, `final_hash` and `content_hash` (ADR-034) as `name: value` lines. Messages never
-//! repeat text from the files.
+//! `ticks`, `final_hash`, `content_hash` (ADR-034) and `parsed_stage_hash` (ADR-046) as
+//! `name: value` lines. Messages never repeat text from the files.
 
 use std::fs::File;
 use std::io::Read;
@@ -133,5 +133,6 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
     println!("ticks: {}", verified.ticks);
     println!("final_hash: {}", replay::hash_to_hex(verified.final_hash));
     println!("content_hash: {}", to_hex(&verified.content_hash));
+    println!("parsed_stage_hash: {}", to_hex(&verified.parsed_stage_hash));
     Ok(())
 }

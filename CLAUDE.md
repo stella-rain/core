@@ -35,6 +35,7 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `src/` | Library: simulation, fixed-point math, RNG, collision, blocks, stage parsing, validation, replay |
 | `src/hash.rs`, `src/spike.rs` | The FNV-1a 64 state hash; the ADR-039 spike simulation (not a frozen `rules_vN`) |
 | `src/content_hash.rs` | The stage content hash, SHA-256 of the two file hashes (ADR-034); `sha2` lives outside the simulation path |
+| `src/parsed_stage_hash.rs` | The parsed-stage hash the blocklist uses: SHA-256 of a tag and the parsed stage's compact JSON without `id` (ADR-046); its bytes are pinned in `tests/parsed_stage_hash.rs` |
 | `src/stage.rs`, `behaviour.rs`, `attack.rs`, `input.rs`, `event.rs`, `snapshot.rs` | The version 0 types (ADR-035, ADR-036); `serde`, `serde_json` and `schemars` parse and describe them, outside the simulation path |
 | `src/replay.rs`, `share.rs`, `base64.rs`, `recording.rs` | The `.replay` file and its packed inputs, record and verify (ADR-009, ADR-016); share codes (`miniz_oxide`, outside the simulation path); `recording` is the `record` feature's JSON Lines |
 | `src/engine.rs`, `src/rules_v0/`, `src/trig.rs`, `src/presets.rs` | The engine (`Engine`: step, events, snapshot, hash); the rules of `sim_version` 0 (agents, attacks, skills, the main shot, boss phases and parts), which say what they do not do yet; the interpolated sine table; attack presets in the stage's own JSON |
@@ -42,7 +43,7 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `schema/` | JSON Schema generated from the types; `UPDATE_SCHEMA=1 cargo test --test schema` regenerates it |
 | `tests/` | Integration tests; `spike.rs` and `engine.rs` pin golden hashes every platform must match; `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/` (`cargo insta test --features record --review`) |
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
-| `src/bin/stage_verify.rs` | `stage-verify`: re-simulates a replay and checks the clear and the final hash (ADR-009, ADR-015) |
+| `src/bin/stage_verify.rs` | `stage-verify`: re-simulates a replay, checks the clear and the final hash, and prints both stage hashes (ADR-009, ADR-015, ADR-046) |
 | `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `corpus.rs` checks it (ADR-019) |
 | `fuzz/` | `cargo-fuzz` targets: parser, validator, replay loader (ADR-020) |
 | `benches/` | `criterion` tick-time benchmarks with worst-case budgets (ADR-021) |
