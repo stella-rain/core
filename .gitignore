@@ -6,3 +6,9 @@
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# macOS Finder and Spotlight files
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
