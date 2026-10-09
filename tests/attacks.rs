@@ -435,6 +435,16 @@ fn expressions_follow_integer_rules() {
 }
 
 #[test]
+fn dividing_the_smallest_value_by_minus_one_saturates() {
+    // -10^12 saturates to i32::MIN; MIN / -1 is 2^31, which saturates to i32::MAX rather than
+    // wrapping back to MIN (and, unchecked, panicking). The minimum with 700 tells them apart.
+    let speed = |e: Value| velocities(&inline(vec![fire(e, absolute(0))], 1))[0].1;
+    let smallest = json!({ "mul": [-1_000_000, 1_000_000] });
+    let flipped = json!({ "div": [smallest, -1] });
+    assert_eq!(speed(json!({ "min": [flipped, 700] })), 700);
+}
+
+#[test]
 fn rand_draws_from_the_runs_generator_left_to_right() {
     // The stage's seed is 7: the two draws of one expression are the generator's first two.
     let both = json!({ "add": [{ "rand": [0, 1000] }, { "rand": [0, 1000] }] });
