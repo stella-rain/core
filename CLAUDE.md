@@ -3,16 +3,13 @@
 Pure-Rust deterministic simulation for Stella Rain, a stage-creator vertical shooter:
 fixed-tick simulation, the stage, event and replay types, and the `stage-verify` CLI that
 proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MIT or Apache-2.0.
-Follow the `kade-workflow` skill; where it and this file differ, this file wins.
 
 ## This repository is public
 
-- Everything here is public: code, history, issues, Actions logs.
 - Private planning (ads, moderation strategy, roadmap) goes in `stella-rain/app` issues, never here.
 - Architecture decisions live in the private app repository; cite them by number (ADR-004).
   Rules about core's own behaviour (determinism, schema, input validation) may be summarised
   here; nothing else from the app repository is copied in.
-- No secrets, tokens, internal URLs or personal email addresses in code, fixtures or commits.
 
 ## Hard rules
 
@@ -28,7 +25,6 @@ Follow the `kade-workflow` skill; where it and this file differ, this file wins.
   renamed or removed, only deprecated (ADR-026).
 - ADRs marked *Proposed* are the current plan: build on them, but raise a departure with Kade
   rather than depart silently.
-- New module, crate or dependency: decide it with Kade first (options, trade-offs for long-term release maintainability, your recommendation).
 
 ## Layout
 
@@ -54,9 +50,6 @@ So far: the ADR-014 spike, the version 0 types, validator, engine, attacks, boss
 
 ## Gates
 
-Run the gate for every part touched. A gate that could not run is named in the commit body or
-PR as `NOT VERIFIED: <gate>: <reason>`.
-
 | Part | Gate |
 |---|---|
 | Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` |
@@ -64,7 +57,7 @@ PR as `NOT VERIFIED: <gate>: <reason>`.
 | iOS readiness | `cargo check --target aarch64-apple-ios` (ADR-014) |
 | Parser, validator, replay loader | Fuzz targets build; a short fuzz run when parsing changed |
 | `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too) |
-| Line endings | `.gitattributes` keeps `* text=auto eol=lf`; CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
+| Line endings | CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 
 The corpus run on an Android device and the long fuzz run are release gates (ADR-022); when they
 are needed and cannot run here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
@@ -81,20 +74,14 @@ are needed and cannot run here, add `cmd:verify-needs-android` (or `-windows`, `
 
 - **Local sessions** (on Kade's PC): commit each finished task to `main` automatically,
   without being asked. Kade pushes.
-- **Cloud sessions**: branch `claude/<task>`, push, open a PR that says `Closes #N`.
-  `auto-merge.yml` merges it once every check on its head is green and deletes the branch;
-  never merge by hand, and never skip or weaken a check to get green. Never commit to `main`.
-  One task per PR; wait for the merge before the next. `auto-merge.yml` is read from `main`,
-  so a change to it acts only after its own merge.
-- Author: `Kade <23338687+enjay27@users.noreply.github.com>`. No other email in commits or git config.
-- Subject: the finding or the point of the change (`kade-workflow` section 5).
+- **Cloud sessions**: the PR says `Closes #N`. `auto-merge.yml` (not GitHub auto-merge) merges
+  it once every check on its head is green and deletes the branch. `auto-merge.yml` is read
+  from `main`, so a change to it acts only after its own merge.
 - Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app
   can use it (ADR-029).
-- The remote file tools cannot write `.github/` or `.claude/` on Kade's PC. Deliver those
-  files as a zip laid out from the `stella-rain` root; Kade extracts it, then commit.
+- Zip deliveries are laid out from the `stella-rain` root.
 
 ## Never commit
 
 - `target/`, fuzz `artifacts/` and generated fuzz corpora (the replay corpus in
   `tests/corpus/` is committed).
-- Secrets of any kind.
