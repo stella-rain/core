@@ -1,6 +1,6 @@
 # Rust gates (CLAUDE.md): fmt, clippy, and the tests in debug and release on x86_64 and on an
 # arm64 runner, which must agree on the same golden state hash (ADR-019); plus `cargo check`
-# for the mobile targets (ADR-014: arm64-v8a and x86_64 Android, iOS kept buildable).
+# for the mobile targets (ADR-039: arm64-v8a and x86_64 Android, iOS kept buildable).
 name: Rust
 
 on:

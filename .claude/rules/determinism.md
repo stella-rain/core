@@ -53,7 +53,7 @@ published stages fail to verify.
 
 - The corpus in `tests/corpus/` holds replays per `sim_version` with per-tick hashes. Every
   PR re-simulates it on x86_64 and on an arm64 runner; a mismatch reports the first diverging
-  tick and dumps both snapshots. The Android device run is a release gate (ADR-022).
+  tick and dumps both snapshots. The Android device run is a release gate (ADR-040).
 - `proptest` invariants: same input gives the same hash, HP never negative, buffs expire,
   positions stay in bounds.
 - Budgets (ADR-020) are enforced twice, by the validator and by runtime clamps; test at the

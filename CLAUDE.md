@@ -28,12 +28,12 @@ proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MI
 
 ## Layout
 
-So far: the ADR-014 spike, the version 0 types, validator, engine, attacks, bosses and replays; the rest as it arrives.
+So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, bosses and replays; the rest as it arrives.
 
 | Path | What |
 |---|---|
 | `src/` | Library: simulation, fixed-point math, RNG, collision, blocks, stage parsing, validation, replay |
-| `src/hash.rs`, `src/spike.rs` | The FNV-1a 64 state hash; the ADR-014 spike simulation (not a frozen `rules_vN`) |
+| `src/hash.rs`, `src/spike.rs` | The FNV-1a 64 state hash; the ADR-039 spike simulation (not a frozen `rules_vN`) |
 | `src/content_hash.rs` | The stage content hash, SHA-256 of the two file hashes (ADR-034); `sha2` lives outside the simulation path |
 | `src/stage.rs`, `behaviour.rs`, `attack.rs`, `input.rs`, `event.rs`, `snapshot.rs` | The version 0 types (ADR-035, ADR-036); `serde`, `serde_json` and `schemars` parse and describe them, outside the simulation path |
 | `src/replay.rs`, `share.rs`, `base64.rs`, `recording.rs` | The `.replay` file and its packed inputs, record and verify (ADR-009, ADR-016); share codes (`miniz_oxide`, outside the simulation path); `recording` is the `record` feature's JSON Lines |
@@ -59,7 +59,7 @@ So far: the ADR-014 spike, the version 0 types, validator, engine, attacks, boss
 | `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too) |
 | Line endings | CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 
-The corpus run on an Android device and the long fuzz run are release gates (ADR-022); when they
+The corpus run on an Android device and the long fuzz run are release gates (ADR-040); when they
 are needed and cannot run here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
 
 ## State

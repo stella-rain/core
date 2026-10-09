@@ -2,7 +2,7 @@
 //! and `hashes.txt` (the state hash after every tick, one lowercase hex hash a line). Each case
 //! is re-simulated and every tick compared, so a change that moves any hash fails on the first
 //! tick it moved, on x86_64 and on the arm64 runner alike. The files are plain, so the device
-//! run can read them too (ADR-022).
+//! run can read them too (ADR-040).
 //!
 //! On a mismatch the failure names the first diverging tick and writes the snapshots of that
 //! tick and the one before to `target/corpus-diff/<name>.json`; CI uploads that folder per
