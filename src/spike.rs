@@ -1,4 +1,4 @@
-//! ADR-014 week-one spike: the smallest simulation that exercises fixed-point movement, a
+//! ADR-039 week-one spike: the smallest simulation that exercises fixed-point movement, a
 //! seeded PRNG, ordered entity storage, a budget cap and the state hash. It is a test bed
 //! for the "same hash on the phone as on x86_64" check, not a frozen `rules_vN`.
 

@@ -1,4 +1,4 @@
-//! ADR-014 spike: a tiny simulation whose per-tick hashes must be identical on every platform.
+//! ADR-039 spike: a tiny simulation whose per-tick hashes must be identical on every platform.
 //! CI runs these on x86_64 and on an arm64 runner against the same golden value (ADR-019).
 
 use stella_rain_core::spike::{Input, Spike};
