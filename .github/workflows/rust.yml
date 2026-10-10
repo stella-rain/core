@@ -2,8 +2,9 @@
 # arm64 runner, which must agree on the same golden state hash (ADR-019); plus `cargo check`
 # for the mobile targets (ADR-039: arm64-v8a and x86_64 Android, iOS kept buildable); and the
 # fuzz targets (ADR-020): tested and linted on stable, built on a pinned nightly, and run for a
-# minute each when a PR touches parsing. They are jobs of this workflow because auto-merge.yml
-# waits for the workflows it names.
+# minute each when a PR touches parsing; and the instruction count of a worst-case tick (ADR-021),
+# compared with the base commit's on both architectures. They are jobs of this workflow because
+# auto-merge.yml waits for the workflows it names.
 name: Rust
 
 on:
@@ -19,6 +20,8 @@ env:
   # dated nightly and a pinned cargo-fuzz keep the fuzz jobs from changing under a PR.
   FUZZ_NIGHTLY: nightly-2026-10-09
   CARGO_FUZZ_VERSION: 0.13.2
+  # Must be the version of the `iai-callgrind` dev-dependency in Cargo.toml.
+  IAI_CALLGRIND_RUNNER_VERSION: 0.16.1
 
 jobs:
   lint:
@@ -195,3 +198,66 @@ jobs:
           name: fuzz-artifacts
           path: fuzz/artifacts
           if-no-files-found: ignore
+
+  bench:
+    name: worst-case tick on ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: sudo apt-get update && sudo apt-get install -y valgrind
+      - run: cargo install iai-callgrind-runner --version "$IAI_CALLGRIND_RUNNER_VERSION" --locked
+      # One target directory for both builds: the baseline of the base commit is saved in it and
+      # the PR is compared with that baseline, on this runner and this architecture.
+      - run: echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target" >> "$GITHUB_ENV"
+      - name: Count the base commit
+        id: base
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -eu
+          if ! git cat-file -e "$BASE:benches/worst_tick.rs" 2>/dev/null; then
+            echo "The base commit has no benchmark yet: nothing to compare with."
+            echo "compare=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! git diff --quiet "$BASE" HEAD -- benches tests/common; then
+            echo "This PR changes the benchmark itself: its count cannot be compared with the base's."
+            echo "compare=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git worktree add "$RUNNER_TEMP/base" "$BASE"
+          (cd "$RUNNER_TEMP/base" && cargo bench --bench worst_tick -- --save-baseline=main)
+          echo "compare=true" >> "$GITHUB_OUTPUT"
+      # A rise of more than 2% in instructions fails the job. The count is the same on every run
+      # of a build, so the limit is for a real change: one more pass over 4,000 bullets is 1.8%.
+      - name: Count the worst-case tick
+        env:
+          COMPARE: ${{ steps.base.outputs.compare }}
+        run: |
+          set -euo pipefail
+          limits=""
+          if [ "$COMPARE" = true ]; then
+            limits="--baseline=main --callgrind-limits=ir=2%"
+          fi
+          # shellcheck disable=SC2086
+          cargo bench --bench worst_tick -- $limits | tee "$RUNNER_TEMP/bench.txt"
+          {
+            echo "### Worst-case tick on ${{ matrix.arch }}"
+            grep Instructions "$RUNNER_TEMP/bench.txt" | sed 's/^ */    /'
+          } >> "$GITHUB_STEP_SUMMARY"
