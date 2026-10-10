@@ -11,6 +11,10 @@
 # (listed in the pull request that added this file). A skipped job counts as passed, so
 # `the head is main` must be required too.
 #
+# Rehearsing: check runs belong to the head commit, so a rehearsal pull request whose head is the
+# branch of another open pull request leaves a failed `the head is main` on that commit, and
+# auto-merge (which stops at any failed check) never merges the other one. Use a throwaway branch.
+#
 # Not here yet: the regression corpus of the stages the catalog has verified (ADR-040, ADR-045),
 # which cannot run before the catalog exists (core#52).
 name: Release checks
