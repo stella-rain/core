@@ -41,12 +41,10 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `src/engine.rs`, `src/rules_v0/`, `src/trig.rs`, `src/presets.rs` | The engine (`Engine`: step, events, snapshot, hash); the rules of `sim_version` 0 (agents, attacks, skills, the main shot, boss phases and parts), which say what they do not do yet; the interpolated sine table; attack presets in the stage's own JSON |
 | `src/validate.rs`, `src/registry.rs` | The validator (size limit, strict parse, registry, static budgets; ADR-020) and the content-ID registry (ADR-026) |
 | `schema/` | JSON Schema generated from the types; `UPDATE_SCHEMA=1 cargo test --test schema` regenerates it |
-| `tests/` | Integration tests; `spike.rs` and `engine.rs` pin golden hashes every platform must match; `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/` (`cargo insta test --features record --review`) |
+| `tests/` | Integration tests; `spike.rs` and `engine.rs` pin golden hashes every platform must match; `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/` (`cargo insta test --features record --review`); `properties.rs` checks `proptest` invariants on the corpus stages (`PROPTEST_CASES=2000` for a longer run) |
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
 | `src/bin/stage_verify.rs` | `stage-verify`: re-simulates a replay, checks the clear and the final hash, and prints both stage hashes (ADR-009, ADR-015, ADR-046) |
 | `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `corpus.rs` checks it (ADR-019) |
-| `fuzz/` | `cargo-fuzz` targets: parser, validator, replay loader (ADR-020) |
-| `benches/` | `criterion` tick-time benchmarks with worst-case budgets (ADR-021) |
 | `.github/workflows/` | Rust gates on x86_64 and arm64, mobile `cargo check`, Project sync, `CLAUDE.md` check, auto-merge |
 
 ## Gates
