@@ -1,0 +1,67 @@
+# Fuzz targets for the untrusted inputs of `core` (ADR-020): stage files, replay files and share
+# codes. A separate workspace, so `cargo` in the repository root never builds it; `cargo fuzz`
+# needs a nightly toolchain, and the root crate stays on the pinned stable one (ADR-039).
+[package]
+name = "stella-rain-core-fuzz"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Fuzz targets for stella-rain-core"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]
+
+[dependencies]
+# The fuzzing engine. Its licence is `(MIT OR Apache-2.0) AND NCSA`: the NCSA part is LLVM's
+# libFuzzer. This crate is never published or shipped.
+libfuzzer-sys = "0.4"
+# The same zlib crate `core` uses for share codes: it wraps fuzz bytes in a valid code, so the
+# fuzzer reaches the code behind the decompression.
+miniz_oxide = "0.8"
+serde_json = "1"
+stella-rain-core = { path = ".." }
+
+[[bin]]
+name = "stage_parse"
+path = "fuzz_targets/stage_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "stage_run"
+path = "fuzz_targets/stage_run.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "replay_load"
+path = "fuzz_targets/replay_load.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "share_decode"
+path = "fuzz_targets/share_decode.rs"
+test = false
+doc = false
+bench = false
+
+# Overflow panics in every profile, as in the root crate (ADR-019): a profile of the root
+# `Cargo.toml` does not reach this workspace. `cargo fuzz` builds with the release profile.
+[profile.dev]
+overflow-checks = true
+
+[profile.release]
+overflow-checks = true
+debug = 1
+
+[profile.test]
+overflow-checks = true

@@ -45,7 +45,8 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
 | `src/bin/stage_verify.rs` | `stage-verify`: re-simulates a replay, checks the clear and the final hash, and prints both stage hashes (ADR-009, ADR-015, ADR-046) |
 | `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `corpus.rs` checks it (ADR-019) |
-| `.github/workflows/` | Rust gates on x86_64 and arm64, mobile `cargo check`, Project sync, `CLAUDE.md` check, auto-merge |
+| `fuzz/` | `cargo-fuzz` targets for the stage parser, the run after validation, the replay loader and the share-code decoder (ADR-020); its own workspace on nightly; `tests/smoke.rs` runs them on stable, `regressions/<target>/` keeps the inputs of crashes that were fixed |
+| `.github/workflows/` | Rust gates on x86_64 and arm64, mobile `cargo check`, the fuzz jobs, Project sync, `CLAUDE.md` check, auto-merge |
 
 ## Gates
 
@@ -54,7 +55,7 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` |
 | Simulation | Replay corpus: every tick's hash matches, on x86_64 and on an arm64 runner, every PR (ADR-019); an intended change: `UPDATE_CORPUS=1 cargo test --test corpus` |
 | iOS readiness | `cargo check --target aarch64-apple-ios` (ADR-039) |
-| Parser, validator, replay loader | Fuzz targets build; a short fuzz run when parsing changed |
+| Parser, validator, replay loader, share codes | In `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo +nightly fuzz build`; a PR that touches parsing also runs `cargo +nightly fuzz run <target> -- -max_total_time=60` for each of the four targets (CI: `rust.yml`) |
 | `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too) |
 | Line endings | CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 

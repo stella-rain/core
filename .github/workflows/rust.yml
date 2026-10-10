@@ -1,6 +1,9 @@
 # Rust gates (CLAUDE.md): fmt, clippy, and the tests in debug and release on x86_64 and on an
 # arm64 runner, which must agree on the same golden state hash (ADR-019); plus `cargo check`
-# for the mobile targets (ADR-039: arm64-v8a and x86_64 Android, iOS kept buildable).
+# for the mobile targets (ADR-039: arm64-v8a and x86_64 Android, iOS kept buildable); and the
+# fuzz targets (ADR-020): tested and linted on stable, built on a pinned nightly, and run for a
+# minute each when a PR touches parsing. They are jobs of this workflow because auto-merge.yml
+# waits for the workflows it names.
 name: Rust
 
 on:
@@ -12,6 +15,10 @@ permissions: {}
 
 env:
   CARGO_TERM_COLOR: always
+  # `cargo fuzz` needs a nightly compiler; everything else stays on the pinned stable one. A
+  # dated nightly and a pinned cargo-fuzz keep the fuzz jobs from changing under a PR.
+  FUZZ_NIGHTLY: nightly-2026-10-09
+  CARGO_FUZZ_VERSION: 0.13.2
 
 jobs:
   lint:
@@ -82,3 +89,109 @@ jobs:
           for t in aarch64-apple-ios aarch64-linux-android x86_64-linux-android; do
             cargo check --locked --all-targets --target "$t"
           done
+
+  fuzz-stable:
+    name: fuzz crate fmt, clippy and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - run: cargo fmt --manifest-path fuzz/Cargo.toml --check
+      - run: cargo clippy --manifest-path fuzz/Cargo.toml --all-targets --locked -- -D warnings
+      # Every target on the corpus files, every prefix and flipped byte of them, and the
+      # crashes that real fuzz runs found (fuzz/regressions/).
+      - run: cargo test --manifest-path fuzz/Cargo.toml --locked
+
+  fuzz-build:
+    name: fuzz targets build (nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
+      - run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
+      - run: cargo "+$FUZZ_NIGHTLY" fuzz build
+
+  fuzz-changes:
+    name: parsing changed
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      parsing: ${{ steps.diff.outputs.parsing }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The code that reads untrusted files (ADR-020), the fuzz crate and this workflow.
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE" HEAD -- \
+            src/validate.rs src/stage.rs src/behaviour.rs src/attack.rs src/input.rs \
+            src/replay.rs src/share.rs src/base64.rs src/registry.rs src/presets.rs \
+            src/id.rs src/fixed.rs src/version.rs fuzz .github/workflows/rust.yml)
+          if [ -n "$changed" ]; then
+            echo "parsing=true" >> "$GITHUB_OUTPUT"
+            echo "changed: $(echo "$changed" | wc -l) files"
+          else
+            echo "parsing=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  fuzz-short:
+    name: short fuzz run
+    needs: fuzz-changes
+    if: needs.fuzz-changes.outputs.parsing == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
+      - run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
+      # The corpus stages and replays are the seeds; nothing generated is committed.
+      - name: Seeds from the replay corpus
+        run: |
+          mkdir -p seeds/stage seeds/replay
+          for dir in tests/corpus/v0/*/; do
+            name=$(basename "$dir")
+            cp "$dir/stage.json" "seeds/stage/$name.json"
+            cp "$dir/run.replay" "seeds/replay/$name.replay"
+          done
+      - name: Fuzz each target for 60 seconds
+        run: |
+          set -eu
+          for target in stage_parse stage_run replay_load share_decode; do
+            case "$target" in
+              stage_*) seeds=seeds/stage ;;
+              replay_load) seeds=seeds/replay ;;
+              *) seeds= ;;
+            esac
+            # shellcheck disable=SC2086
+            cargo "+$FUZZ_NIGHTLY" fuzz run "$target" $seeds -- -max_total_time=60 -max_len=65536
+          done
+      # A crash input is a stage, replay or share code, so it can be read here and replayed with
+      # `cargo fuzz run <target> <file>`; copy it to fuzz/regressions/<target>/ with the fix.
+      - name: Upload the crash inputs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts
+          if-no-files-found: ignore
