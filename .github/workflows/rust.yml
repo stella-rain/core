@@ -1,5 +1,6 @@
 # Rust gates (CLAUDE.md): fmt, clippy, and the tests in debug and release on x86_64 and on an
-# arm64 runner, which must agree on the same golden state hash (ADR-019); plus `cargo check`
+# arm64 runner, which must agree on the same golden state hash (ADR-019), and on the Windows
+# x86_64 and macOS arm64 runners, so every shipped desktop hashes alike (ADR-039); plus `cargo check`
 # for the mobile targets (ADR-039: arm64-v8a and x86_64 Android, iOS kept buildable); and the
 # fuzz targets (ADR-020): tested and linted on stable, built on a pinned nightly, and run for a
 # minute each when a PR touches parsing; and the instruction count of a worst-case tick (ADR-021),
@@ -42,9 +43,13 @@ jobs:
   test:
     name: tests on ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: read
+    # bash on every runner: the Windows default is PowerShell.
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -53,6 +58,10 @@ jobs:
             runner: ubuntu-latest
           - arch: arm64
             runner: ubuntu-24.04-arm
+          - arch: windows-x86_64
+            runner: windows-latest
+          - arch: macos-arm64
+            runner: macos-latest
     steps:
       - uses: actions/checkout@v7
         with:

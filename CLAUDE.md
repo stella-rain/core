@@ -47,14 +47,14 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `corpus.rs` checks it (ADR-019) |
 | `benches/` | `worst_tick.rs`: `iai-callgrind` instruction count of a worst-case tick, every dynamic cap of ADR-020 reached (ADR-021); `worst_case/` builds the stage and `tests/worst_case.rs` checks it holds every cap (`Engine::load`) |
 | `fuzz/` | `cargo-fuzz` targets for the stage parser, the run after validation, the replay loader and the share-code decoder (ADR-020); its own workspace on nightly; `tests/smoke.rs` runs them on stable, `regressions/<target>/` keeps the inputs of crashes that were fixed |
-| `.github/workflows/` | Rust gates on x86_64 and arm64, mobile `cargo check`, the fuzz jobs, the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge |
+| `.github/workflows/` | Rust gates on x86_64 and arm64 (tests also on Windows and macOS), mobile `cargo check`, the fuzz jobs, the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge |
 
 ## Gates
 
 | Part | Gate |
 |---|---|
 | Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` |
-| Simulation | Replay corpus: every tick's hash matches, on x86_64 and on an arm64 runner, every PR (ADR-019); an intended change: `UPDATE_CORPUS=1 cargo test --test corpus` |
+| Simulation | Replay corpus: every tick's hash matches, on x86_64, on an arm64 runner, and (tests only) on Windows x86_64 and macOS arm64 runners, every PR (ADR-019, ADR-039); an intended change: `UPDATE_CORPUS=1 cargo test --test corpus` |
 | iOS readiness | `cargo check --target aarch64-apple-ios` (ADR-039) |
 | Parser, validator, replay loader, share codes | In `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo +nightly fuzz build`; a PR that touches parsing also runs `cargo +nightly fuzz run <target> -- -max_total_time=60` for each of the four targets (CI: `rust.yml`) |
 | Tick cost | `cargo bench --bench worst_tick` (needs `valgrind` and `iai-callgrind-runner` 0.16.1); CI compares it with the base commit's on both architectures and fails on more than +2% instructions (`rust.yml`); `-- --save-baseline=base`, then `-- --baseline=base --callgrind-limits=ir=2%` runs the same comparison here |
