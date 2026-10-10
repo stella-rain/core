@@ -1,0 +1,130 @@
+# The long fuzz run of the four fuzz targets (ADR-020 item 7, ADR-040): every week, on demand,
+# and as a reusable workflow for the release checks of `main` into `rc` (core#24 calls it).
+# `rust.yml` keeps the 60-second run of a PR that touches parsing.
+#
+# Each target runs in its own job and keeps a corpus that grows from run to run in the Actions
+# cache. A failed run uploads the crash inputs for 14 days and opens one issue per target (or
+# comments on the open one) with the target, commit, run and the inputs' sizes and hashes, never
+# their contents (.github/scripts/fuzz-report.sh). This repository is public, so the artifact
+# and the run's log (libFuzzer prints a crashing input) can be read by anyone: that is the same
+# exposure as the short run. A scheduled run is not a PR check, so auto-merge.yml does not name it.
+name: Fuzz (long)
+
+on:
+  schedule:
+    # Mondays, 03:23 UTC.
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes per target
+        type: number
+        default: 7
+  workflow_call:
+    inputs:
+      minutes:
+        description: Minutes per target
+        type: number
+        default: 7
+
+permissions: {}
+
+env:
+  # The same pins as rust.yml.
+  FUZZ_NIGHTLY: nightly-2026-10-09
+  CARGO_FUZZ_VERSION: 0.13.2
+  # A scheduled run has no inputs.
+  MINUTES: ${{ inputs.minutes || 7 }}
+
+jobs:
+  fuzz:
+    name: fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [stage_parse, stage_run, replay_load, share_decode]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
+      - run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
+      # The newest corpus of an earlier run of this target. A new key is saved at the end, so the
+      # corpus keeps growing; with no cache the run starts from the seeds below.
+      - uses: actions/cache/restore@v4
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: fuzz-corpus-${{ matrix.target }}-
+      # The corpus stages and replays are the seeds; nothing generated is committed.
+      - name: Seeds from the replay corpus
+        run: |
+          mkdir -p seeds/stage seeds/replay
+          for dir in tests/corpus/v0/*/; do
+            name=$(basename "$dir")
+            cp "$dir/stage.json" "seeds/stage/$name.json"
+            cp "$dir/run.replay" "seeds/replay/$name.replay"
+          done
+      - name: Fuzz ${{ matrix.target }}
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          case "$TARGET" in
+            stage_*) seeds=seeds/stage ;;
+            replay_load) seeds=seeds/replay ;;
+            *) seeds= ;;
+          esac
+          mkdir -p "fuzz/corpus/$TARGET"
+          # The first directory is the one libFuzzer adds new inputs to.
+          # shellcheck disable=SC2086
+          cargo "+$FUZZ_NIGHTLY" fuzz run "$TARGET" "fuzz/corpus/$TARGET" $seeds -- \
+            -max_total_time=$((MINUTES * 60)) -max_len=65536
+      # Saved even when the run found a crash: the inputs it grew are still worth keeping.
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+      # A crash input is a stage, replay or share code; replay it with
+      # `cargo fuzz run <target> <file>` and keep it in fuzz/regressions/<target>/ with the fix.
+      - name: Upload the crash inputs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          retention-days: 14
+          if-no-files-found: ignore
+
+  report:
+    name: issue for a failed run
+    needs: fuzz
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only this job may write issues; it runs the script from the commit being fuzzed. A caller
+    # of this workflow must grant `issues: write` too.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # No crash artifact (a build or setup failure) is not an error here: the script then opens
+      # the generic issue.
+      - run: mkdir -p crashes
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: fuzz-crash-*
+          path: crashes
+      - name: Open or update the issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/fuzz-report.sh crashes
