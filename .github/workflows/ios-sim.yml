@@ -1,0 +1,67 @@
+# The tests and the replay corpus in the iOS Simulator (ADR-039, ADR-040): the spike's golden hash
+# and the version 0 corpus must match there as on every other platform. iOS is a run-check target
+# for release candidates, so this is not a check of every PR: it runs by hand and as a reusable
+# workflow for the release checks of `main` into `rc` (core#24 calls it). A job that is not a PR
+# check needs no entry in auto-merge.yml.
+#
+# The tests run as a Cargo runner: .github/scripts/ios-sim-runner.sh starts each test binary with
+# `xcrun simctl spawn booted` (no extra tool such as cargo-dinghy). Doc-tests do not cross-run, and
+# tests/stage_verify.rs, which starts a host process, is left out of the iOS build.
+name: iOS Simulator
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  ios-sim:
+    name: tests in the iOS Simulator (${{ matrix.profile }})
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [debug, release]
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUNNER: ${{ github.workspace }}/.github/scripts/ios-sim-runner.sh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal --target aarch64-apple-ios-sim && rustup default stable
+      - name: Boot an iPhone Simulator
+        run: |
+          set -eu
+          xcrun simctl list runtimes available
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime, entries in sorted(devices.items(), reverse=True):
+              if "iOS" not in runtime:
+                  continue
+              for device in entries:
+                  if device["name"].startswith("iPhone") and device.get("isAvailable"):
+                      print(device["udid"])
+                      sys.exit(0)
+          sys.exit("no available iPhone Simulator on this runner")
+          ')
+          echo "Simulator $udid"
+          xcrun simctl boot "$udid"
+          # Waits until the Simulator has finished booting.
+          xcrun simctl bootstatus "$udid" -b
+      - name: Test in the Simulator
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -eu
+          flags=""
+          if [ "$PROFILE" = release ]; then
+            flags="--release"
+          fi
+          # shellcheck disable=SC2086
+          cargo test --locked --all-features --tests $flags --target aarch64-apple-ios-sim

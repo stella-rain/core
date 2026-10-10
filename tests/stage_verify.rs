@@ -1,6 +1,10 @@
 //! The `stage-verify` command line (ADR-009, ADR-015): exit status, output, and that nothing
 //! from the files is repeated back.
 
+// It starts the `stage-verify` binary as a host process; the iOS Simulator run (ios-sim.yml)
+// cannot start one, and the library the binary calls is covered by the other tests.
+#![cfg(not(target_os = "ios"))]
+
 mod common;
 
 use std::io::Write;
