@@ -10,9 +10,6 @@
 name: iOS Simulator
 
 on:
-  # TEMPORARY, removed before the merge: runs this workflow on pushes to its own branch.
-  push:
-    branches: [claude/ios-simulator-tests, claude/ios-sim-plant]
   workflow_dispatch:
   workflow_call:
 
