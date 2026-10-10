@@ -30,6 +30,33 @@ pub enum Outcome {
     Failed,
 }
 
+/// How much of each dynamic budget (ADR-020) a tick used: the most it reached during the tick.
+/// A read-out for tests and benchmarks, not part of the state: nothing here is hashed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Load {
+    /// Enemies alive when the attacks ran, after spawns and summons.
+    pub enemies: u32,
+    /// Attacks being carried out, counted before any of them finished.
+    pub tasks: u32,
+    /// Bullets alive after the attacks fired, before the tick moved and removed any.
+    pub bullets: u32,
+    /// Bullets made in the tick.
+    pub bullet_spawns: u32,
+    /// Emitter nodes carried out in the tick, across all attacks.
+    pub emitter_steps: u32,
+}
+
+impl Load {
+    /// The caps of the rules (`rules_v0`): a tick that reaches all of them is a worst-case tick.
+    pub const CAPS: Load = Load {
+        enemies: rules_v0::MAX_ENEMIES_ALIVE,
+        tasks: rules_v0::MAX_ATTACK_TASKS,
+        bullets: rules_v0::MAX_BULLETS_ALIVE,
+        bullet_spawns: rules_v0::MAX_BULLET_SPAWNS_PER_TICK,
+        emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
+    };
+}
+
 /// A run of one stage.
 #[derive(Clone, Debug)]
 pub struct Engine {
@@ -37,6 +64,8 @@ pub struct Engine {
     state: State,
     /// Events of the last tick; cleared when the next one starts.
     events: Vec<DomainEvent>,
+    /// What the last tick used of the dynamic budgets; zero when the tick did not run.
+    load: Load,
 }
 
 impl Engine {
@@ -48,6 +77,7 @@ impl Engine {
             state: rules_v0::initial_state(stage),
             stage: stage.clone(),
             events: Vec::new(),
+            load: Load::default(),
         })
     }
 
@@ -55,8 +85,15 @@ impl Engine {
     /// is longer than the run cannot change the final hash.
     pub fn step(&mut self, input: Input) {
         self.events.clear();
+        self.load = Load::default();
         match self.stage.sim_version {
-            0 => rules_v0::step(&self.stage, &mut self.state, input, &mut self.events),
+            0 => rules_v0::step(
+                &self.stage,
+                &mut self.state,
+                input,
+                &mut self.events,
+                &mut self.load,
+            ),
             // `new` validated the version; fail closed if that ever stops being true.
             _ => self.state.outcome = Outcome::Failed,
         }
@@ -78,6 +115,11 @@ impl Engine {
     /// The domain events of the last tick, in the order they happened.
     pub fn events(&self) -> &[DomainEvent] {
         &self.events
+    }
+
+    /// How much of each dynamic budget the last tick used (ADR-020).
+    pub fn load(&self) -> Load {
+        self.load
     }
 
     /// What the frontend draws after the last tick (ADR-005).

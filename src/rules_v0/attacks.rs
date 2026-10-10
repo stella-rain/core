@@ -134,12 +134,15 @@ pub(super) fn fire_hooks(s: &mut State) {
     }
 }
 
-/// Carries out every attack up to its next wait, in the order they started.
-pub(super) fn run(s: &mut State, spawns_left: &mut u32) {
+/// Carries out every attack up to its next wait, in the order they started. Returns how many
+/// attacks there were and how many nodes were carried out (`Load`).
+pub(super) fn run(s: &mut State, spawns_left: &mut u32) -> (u32, u32) {
     let mut tasks = std::mem::take(&mut s.tasks);
+    let running = count(&tasks);
     let mut budget = MAX_EMITTER_STEPS_PER_TICK;
     tasks.retain_mut(|t| step_task(s, t, &mut budget, spawns_left));
     s.tasks = tasks;
+    (running, MAX_EMITTER_STEPS_PER_TICK - budget)
 }
 
 /// One tick of one attack. False once it has finished.

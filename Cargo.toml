@@ -42,6 +42,14 @@ insta = "1.49"
 # is reported as the shortest inputs that still fail. Tests only; never in the library or the
 # simulation path. Without `fork` and `timeout`, which tests do not need.
 proptest = { version = "1.11", default-features = false, features = ["std"] }
+# Instruction counts of a worst-case tick under Valgrind (ADR-021): the same count on every run
+# of a build, so a CI runner's load does not move it. Tests only; never in the library or the
+# simulation path. Needs the `iai-callgrind-runner` binary of the same version and `valgrind`.
+iai-callgrind = "0.16.1"
+
+[[bench]]
+name = "worst_tick"
+harness = false
 
 # Overflow behaves the same in every profile (ADR-019): it panics unless the code says
 # `wrapping_*` or `saturating_*`. Release and bench would otherwise wrap silently.

@@ -35,8 +35,8 @@ mod player;
 mod select;
 
 use crate::engine::{
-    AgentKey, AgentSource, BossState, BulletState, HoldState, Outcome, PartState, PlayerState,
-    SkillState, State, UNLIMITED,
+    AgentKey, AgentSource, BossState, BulletState, HoldState, Load, Outcome, PartState,
+    PlayerState, SkillState, State, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -187,7 +187,13 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
     }
 }
 
-pub(crate) fn step(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
+pub(crate) fn step(
+    stage: &Stage,
+    s: &mut State,
+    input: Input,
+    events: &mut Vec<DomainEvent>,
+    load: &mut Load,
+) {
     if s.outcome != Outcome::Running {
         return;
     }
@@ -206,7 +212,14 @@ pub(crate) fn step(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<
     boss::act(stage, s, events);
     agents::act(stage, s, events);
     attacks::fire_hooks(s);
-    attacks::run(s, &mut spawns_left);
+    let (tasks, emitter_steps) = attacks::run(s, &mut spawns_left);
+    *load = Load {
+        enemies: count(&s.enemies),
+        tasks,
+        bullets: count(&s.bullets),
+        bullet_spawns: MAX_BULLET_SPAWNS_PER_TICK - spawns_left,
+        emitter_steps,
+    };
     move_bullets(s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
