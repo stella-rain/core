@@ -38,6 +38,10 @@ sha2 = { version = "0.11.0", default-features = false }
 # Snapshot tests of the JSON Lines recordings (ADR-021), with `cargo insta review` to accept
 # an intended change. Tests only; never in the library or the simulation path.
 insta = "1.49"
+# Property tests (ADR-019, ADR-021): random input sequences with shrinking, so a failing run
+# is reported as the shortest inputs that still fail. Tests only; never in the library or the
+# simulation path. Without `fork` and `timeout`, which tests do not need.
+proptest = { version = "1.11", default-features = false, features = ["std"] }
 
 # Overflow behaves the same in every profile (ADR-019): it panics unless the code says
 # `wrapping_*` or `saturating_*`. Release and bench would otherwise wrap silently.
