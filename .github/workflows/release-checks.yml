@@ -1,0 +1,61 @@
+# The release checks of a pull request from `main` into `rc` (ADR-040): the iOS Simulator run and
+# a long fuzz run, on top of the checks every pull request already has (`rust.yml`: tests with the
+# replay corpus on Linux x86_64 and arm64, Windows and macOS, the mobile `cargo check`, the
+# worst-tick benchmark). Kade merges such a pull request by hand and tags the merge commit on `rc`.
+#
+# `rc` receives changes only through pull requests whose head is `main`: `head-is-main` fails at
+# once for any other head, and the heavy jobs wait for it, so a wrong head costs no macOS minutes.
+# `auto-merge.yml` never touches these pull requests: it acts only on `claude/*` heads into `main`.
+#
+# The ruleset on `rc` should require `the head is main` and every check of the called jobs
+# (listed in the pull request that added this file). A skipped job counts as passed, so
+# `the head is main` must be required too.
+#
+# Not here yet: the regression corpus of the stages the catalog has verified (ADR-040, ADR-045),
+# which cannot run before the catalog exists (core#52).
+name: Release checks
+
+on:
+  pull_request:
+    branches: [rc]
+
+permissions: {}
+
+concurrency:
+  group: release-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  head-is-main:
+    name: the head is main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Only main, from this repository, may be merged into rc
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ] || [ "$HEAD_REF" != main ]; then
+            echo "::error::rc takes pull requests from main of this repository only (ADR-040); a fix goes to main first."
+            exit 1
+          fi
+
+  ios-simulator:
+    name: iOS Simulator
+    needs: head-is-main
+    uses: ./.github/workflows/ios-sim.yml
+    permissions:
+      contents: read
+
+  long-fuzz:
+    name: long fuzz
+    needs: head-is-main
+    uses: ./.github/workflows/fuzz-long.yml
+    with:
+      # Longer than the weekly run's 7: about 20 minutes of wall time, 4 targets in parallel.
+      minutes: 15
+    # A crash opens the same hash-only issue as a weekly run (fuzz-long.yml needs issues: write).
+    permissions:
+      contents: read
+      issues: write
