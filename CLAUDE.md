@@ -47,7 +47,7 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `corpus.rs` checks it (ADR-019) |
 | `benches/` | `worst_tick.rs`: `iai-callgrind` instruction count of a worst-case tick, every dynamic cap of ADR-020 reached (ADR-021); `worst_case/` builds the stage and `tests/worst_case.rs` checks it holds every cap (`Engine::load`) |
 | `fuzz/` | `cargo-fuzz` targets for the stage parser, the run after validation, the replay loader and the share-code decoder (ADR-020); its own workspace on nightly; `tests/smoke.rs` runs them on stable, `regressions/<target>/` keeps the inputs of crashes that were fixed |
-| `.github/workflows/` | Rust gates on x86_64 and arm64 (tests also on Windows and macOS), mobile `cargo check`, the fuzz jobs, the weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`), both reusable by the release checks, the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge |
+| `.github/workflows/` | Rust gates on x86_64 and arm64 (tests also on Windows and macOS), mobile `cargo check`, the fuzz jobs, the weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`), both called by the release checks (`release-checks.yml`), the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge |
 
 ## Gates
 
@@ -61,8 +61,9 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too) |
 | Line endings | CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 
-The corpus run on an Android device and the long fuzz run are release gates (ADR-040); when they
-are needed and cannot run here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
+The corpus run on an Android device is a release gate (ADR-040), and so are the iOS Simulator and long
+fuzz runs (`release-checks.yml`, on a PR from `main` into `rc`); when a gate is needed and cannot run
+here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
 
 ## State
 
@@ -80,6 +81,10 @@ are needed and cannot run here, add `cmd:verify-needs-android` (or `-windows`, `
   merged by hand. A local session opens the PR with Kade's `gh` login; without it, it prints
   the commands for Kade. `auto-merge.yml` is read from `main`, so a change to it acts only
   after its own merge.
+- Release candidates are pull requests from `main` into `rc` (ADR-040): never commit to `rc`, and
+  no other head. Kade merges the PR by hand and tags the merge commit on `rc`. `auto-merge.yml`
+  never touches it (it acts on `claude/*` heads into `main` only). A fix found on a candidate
+  goes to `main` first.
 - Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app
   can use it (ADR-029).
 - Zip deliveries (needed on the Windows PC only) are laid out from the `stella-rain` root.
