@@ -31,6 +31,7 @@ mod agents;
 mod attacks;
 mod boss;
 mod entity;
+mod grid;
 mod player;
 mod select;
 
@@ -50,6 +51,7 @@ use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W};
 
 pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
+use grid::Grid;
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 300;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
@@ -294,6 +296,9 @@ struct Shot {
 }
 
 fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+    // The enemies do not move while bullets land, so one grid, built for the first friendly
+    // bullet, serves all of them; a tick without friendly bullets never builds it.
+    let mut grid: Option<Grid> = None;
     let mut consumed = Vec::with_capacity(s.bullets.len());
     for i in 0..s.bullets.len() {
         let b = &s.bullets[i];
@@ -304,7 +309,8 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
             damage: b.damage,
         };
         consumed.push(if shot.friendly {
-            hit_enemy_side(stage, s, shot, events)
+            let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
+            hit_enemy_side(stage, s, grid, shot, events)
         } else {
             hit_ally_side(stage, s, shot, events)
         });
@@ -313,6 +319,16 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     s.bullets.retain(|_| !flags.next().unwrap_or(false));
     s.companions.retain(|c| c.hp > 0);
     s.enemies.retain(|e| e.hp > 0);
+}
+
+/// The enemies as circles, in index order, for friendly bullets to land on.
+fn enemy_grid(stage: &Stage, s: &State) -> Grid {
+    let circles = s
+        .enemies
+        .iter()
+        .map(|e| (e.at, agent_def(stage, e.key).radius.0))
+        .collect();
+    Grid::new(circles, PLAYER_BULLET_RADIUS)
 }
 
 /// Damage to an enemy, a companion or the boss: raised by its vulnerability, reported, and
@@ -342,14 +358,17 @@ fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
 }
 
 /// An ally's shot against the enemies in ID order, then the boss. Returns whether it was used up.
-fn hit_enemy_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
-    for i in 0..s.enemies.len() {
-        let e = &s.enemies[i];
-        let radius = agent_def(stage, e.key).radius.0;
-        if e.hp > 0 && overlaps(b.at, PLAYER_BULLET_RADIUS, e.at, radius) {
-            damage(s, b, Who::Enemy(i), events);
-            return true;
-        }
+/// `grid` holds the enemies of this tick, so only those near the shot are checked.
+fn hit_enemy_side(
+    stage: &Stage,
+    s: &mut State,
+    grid: &Grid,
+    b: Shot,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
+    if let Some(i) = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, |i| s.enemies[i].hp > 0) {
+        damage(s, b, Who::Enemy(i), events);
+        return true;
     }
     let Some((def, state)) = stage.boss.as_ref().zip(s.boss.as_ref()) else {
         return false;
