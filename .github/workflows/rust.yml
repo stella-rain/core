@@ -6,12 +6,19 @@
 # minute each when a PR touches parsing; and the instruction count of a worst-case tick (ADR-021),
 # compared with the base commit's on both architectures. They are jobs of this workflow because
 # auto-merge.yml waits for the workflows it names.
+# Weekly, the whole workflow also runs on main, so a toolchain or runner change, or a main that
+# no push run re-tested (merges by GITHUB_TOKEN start none), fails within a week; PR-only jobs
+# are skipped and the benchmark counts without comparing. It is not a PR check, so auto-merge.yml
+# requires nothing from it.
 name: Rust
 
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Sundays 04:17 UTC, away from the long fuzz run (Mondays 03:23).
+    - cron: "17 4 * * 0"
 
 permissions: {}
 
