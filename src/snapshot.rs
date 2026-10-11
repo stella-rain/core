@@ -24,10 +24,24 @@ pub struct PlayerView {
     pub hp: u32,
     pub focus: bool,
     pub firing: bool,
-    /// The slot held this tick, 0 for none; the frontend slows its tick clock while a ready
-    /// skill is held (ADR-032).
+    /// The slot held in this tick's input, 0 for none. Whether that started a hold is `hold`:
+    /// a key held down from before the skill was ready starts none.
     pub held: u8,
+    /// The hold in progress, if any: a press of a ready skill's slot starts one, and the release
+    /// or the hold limit casts the skill (ADR-032). The frontend slows its clock while it lasts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hold: Option<HoldView>,
+    /// The main character's hurt circle.
+    pub radius: Fx,
     pub skills: Vec<SkillView>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HoldView {
+    pub slot: u8,
+    /// Ticks held since the press: 0 on the tick of the press.
+    pub ticks: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -49,6 +63,8 @@ pub struct EntityView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette: Option<ContentId>,
     pub at: Point,
+    /// The hurt circle that hits use.
+    pub radius: Fx,
     pub hp: u32,
 }
 

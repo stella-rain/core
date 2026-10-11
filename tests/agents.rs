@@ -1169,6 +1169,44 @@ fn a_long_hold_casts_by_itself_after_thirty_ticks() {
 }
 
 #[test]
+fn the_snapshot_shows_a_hold_from_its_press_to_its_cast() {
+    let mut e = skill_stage(vec![skill_slot(1, "boss_first", shot_skill(40), 100)]);
+    // Pressed on tick 5 and released on tick 10; held down again from tick 20, while the skill
+    // is cooling down, until tick 200; pressed on tick 205 and never let go.
+    let input = |t: u32| {
+        if (5..10).contains(&t) || (20..200).contains(&t) || t >= 205 {
+            held(1)
+        } else {
+            idle()
+        }
+    };
+    // The hold after each tick, by tick.
+    let mut seen = vec![None];
+    let mut events = Vec::new();
+    for _ in 0..240 {
+        events.extend(play(&mut e, 1, input));
+        let s = e.snapshot();
+        seen.push(s.player.hold.map(|h| (h.slot, h.ticks)));
+        if e.tick() == 150 {
+            assert!(s.player.skills[0].ready && s.player.held == 1);
+        }
+    }
+    assert_eq!(seen[4], None);
+    assert_eq!(seen[5], Some((1, 0)), "the press starts it at 0 ticks");
+    assert_eq!(seen[9], Some((1, 4)));
+    assert_eq!(seen[10], None, "the release casts it");
+    // Ready again from tick 110, but the key went down before that: no press, so no hold.
+    assert!(seen[10..205].iter().all(Option::is_none), "{seen:?}");
+    assert_eq!(seen[205], Some((1, 0)));
+    assert_eq!(seen[234], Some((1, 29)));
+    assert_eq!(seen[235], None, "the thirtieth tick casts it");
+    assert_eq!(
+        casts(&events).iter().map(|c| c.0).collect::<Vec<_>>(),
+        [10, 235]
+    );
+}
+
+#[test]
 fn switching_slots_releases_the_first_and_presses_the_second() {
     let mut e = skill_stage(vec![
         skill_slot(1, "boss_first", shot_skill(40), 1000),

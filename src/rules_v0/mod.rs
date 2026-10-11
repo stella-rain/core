@@ -66,7 +66,7 @@ const PLAYER_ID: EntityId = EntityId(0);
 const PLAYER_SPEED: i32 = Fx::px(3).0;
 const FOCUS_SPEED: i32 = Fx::px(1).0;
 /// The hurt circle, a tiny one (ADR-038).
-const PLAYER_RADIUS: i32 = Fx::px(2).0;
+pub(crate) const PLAYER_RADIUS: i32 = Fx::px(2).0;
 const PLAYER_START_Y_FROM_BOTTOM: i32 = Fx::px(64).0;
 /// Ticks between main shots while `fire` is held.
 const SHOT_INTERVAL: u32 = 6;
