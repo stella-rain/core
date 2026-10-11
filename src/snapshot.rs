@@ -66,6 +66,11 @@ pub enum EntityKind {
 #[serde(deny_unknown_fields)]
 pub struct BulletView {
     pub at: Point,
+    /// How far the bullet moves each tick, in 1/256 pixel: it moved by this to reach `at`, and
+    /// moves by it again on the next tick. The frontend draws it at `at` plus this times the
+    /// fraction of the tick that has passed.
+    pub vx: Fx,
+    pub vy: Fx,
     pub radius: Fx,
     /// The bullet asset, as an index into the bullet asset IDs the stage uses, in order of
     /// first appearance.

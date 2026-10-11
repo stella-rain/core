@@ -201,6 +201,8 @@ impl Engine {
                 .iter()
                 .map(|b| BulletView {
                     at: b.at,
+                    vx: b.vx,
+                    vy: b.vy,
                     radius: Fx(rules_v0::bullet_radius(b.friendly)),
                     style: b.style,
                     friendly: b.friendly,

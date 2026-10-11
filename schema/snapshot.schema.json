@@ -53,11 +53,20 @@
           "format": "uint16",
           "maximum": 65535,
           "minimum": 0
+        },
+        "vx": {
+          "description": "How far the bullet moves each tick, in 1/256 pixel: it moved by this to reach `at`, and\nmoves by it again on the next tick. The frontend draws it at `at` plus this times the\nfraction of the tick that has passed.",
+          "$ref": "#/$defs/Fx"
+        },
+        "vy": {
+          "$ref": "#/$defs/Fx"
         }
       },
       "additionalProperties": false,
       "required": [
         "at",
+        "vx",
+        "vy",
         "radius",
         "style",
         "friendly"
