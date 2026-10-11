@@ -1,0 +1,12 @@
+# Monthly bumps of the GitHub Actions the workflows use, in one grouped PR per repository.
+# Actions only: Cargo dependencies are bumped by hand, because a bump can change a simulation
+# outcome (ADR-019). Dependabot's branches are not `claude/*`, so auto-merge leaves its PRs to Kade.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
