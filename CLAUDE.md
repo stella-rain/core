@@ -47,7 +47,7 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `corpus.rs` checks it (ADR-019) |
 | `benches/` | `worst_tick.rs`: `iai-callgrind` instruction count of a worst-case tick, every dynamic cap of ADR-020 reached (ADR-021); `worst_case/` builds the stage and `tests/worst_case.rs` checks it holds every cap (`Engine::load`); `collide_tick.rs` counts the worst friendly-bullet collision within the caps (`collide_case/`, `tests/collide_case.rs`) |
 | `fuzz/` | `cargo-fuzz` targets for the stage parser, the run after validation, the replay loader and the share-code decoder (ADR-020); its own workspace on nightly; `tests/smoke.rs` runs them on stable, `regressions/<target>/` keeps the inputs of crashes that were fixed |
-| `.github/workflows/` | Rust gates on x86_64 and arm64 (tests also on Windows and macOS), mobile `cargo check`, the fuzz jobs, the weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`), both called by the release checks (`release-checks.yml`), the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge |
+| `.github/workflows/` | Rust gates on x86_64 and arm64 (tests also on Windows and macOS), mobile `cargo check`, the fuzz jobs, the weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`), both called by the release checks (`release-checks.yml`), the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge, branch cleanup |
 
 ## Gates
 
@@ -78,10 +78,10 @@ here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
 - **Local and cloud sessions** work on `claude/<task>`; a task may hold several commits and
   gets one PR that says `Closes #N`. `auto-merge.yml` (not GitHub auto-merge) merges it once
   every check on its head is green and deletes the branch. Drafts and PRs that touch
-  `.github/workflows/` are left to Kade (ADR-052). Any other branch (Kade's own) is
-  merged by hand. A local session opens the PR with Kade's `gh` login; without it, it prints
-  the commands for Kade. `auto-merge.yml` is read from `main`, so a change to it acts only
-  after its own merge.
+  `.github/workflows/` are left to Kade (ADR-052); `branch-cleanup.yml` deletes their merged
+  branches (ADR-053). Any other branch (Kade's own) is merged by hand. A local session opens
+  the PR with Kade's `gh` login; without it, it prints the commands for Kade.
+  `auto-merge.yml` is read from `main`, so a change to it acts only after its own merge.
 - Release candidates are pull requests from `main` into `rc` (ADR-040): never commit to `rc`, and
   no other head. Kade merges the PR by hand and tags the merge commit on `rc`. `auto-merge.yml`
   never touches it (it acts on `claude/*` heads into `main` only). A fix found on a candidate
