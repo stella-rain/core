@@ -16,7 +16,9 @@ use crate::id::{ContentId, EntityId};
 use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
-use crate::snapshot::{BulletView, EntityKind, EntityView, PlayerView, SkillView, Snapshot};
+use crate::snapshot::{
+    BulletView, EntityKind, EntityView, HoldView, PlayerView, SkillView, Snapshot,
+};
 use crate::stage::Stage;
 use crate::validate::{self, Error};
 
@@ -134,6 +136,7 @@ impl Engine {
                     asset: boss.base.clone(),
                     palette: boss.palette.clone(),
                     at: b.at,
+                    radius: boss.radius,
                     hp: b.hp,
                 });
             }
@@ -149,6 +152,7 @@ impl Engine {
                         asset: ContentId(def.base.0.clone()),
                         palette: def.palette.clone(),
                         at: a.at,
+                        radius: def.radius,
                         hp: a.hp,
                     });
                 }
@@ -166,6 +170,7 @@ impl Engine {
                             x: b.at.x.saturating_add(part.offset.x),
                             y: b.at.y.saturating_add(part.offset.y),
                         },
+                        radius: Fx(part.radius),
                         hp: part.hp,
                     });
                 }
@@ -180,6 +185,11 @@ impl Engine {
                 focus: s.input.focus,
                 firing: s.input.fire,
                 held: s.input.held,
+                hold: s.player.hold.map(|h| HoldView {
+                    slot: self.stage.player.skills[h.index as usize].slot,
+                    ticks: h.ticks,
+                }),
+                radius: Fx(rules_v0::PLAYER_RADIUS),
                 skills: self
                     .stage
                     .player
@@ -201,6 +211,8 @@ impl Engine {
                 .iter()
                 .map(|b| BulletView {
                     at: b.at,
+                    vx: b.vx,
+                    vy: b.vy,
                     radius: Fx(rules_v0::bullet_radius(b.friendly)),
                     style: b.style,
                     friendly: b.friendly,

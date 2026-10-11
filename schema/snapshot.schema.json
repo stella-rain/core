@@ -53,11 +53,20 @@
           "format": "uint16",
           "maximum": 65535,
           "minimum": 0
+        },
+        "vx": {
+          "description": "How far the bullet moves each tick, in 1/256 pixel: it moved by this to reach `at`, and\nmoves by it again on the next tick. The frontend draws it at `at` plus this times the\nfraction of the tick that has passed.",
+          "$ref": "#/$defs/Fx"
+        },
+        "vy": {
+          "$ref": "#/$defs/Fx"
         }
       },
       "additionalProperties": false,
       "required": [
         "at",
+        "vx",
+        "vy",
         "radius",
         "style",
         "friendly"
@@ -111,6 +120,10 @@
               "type": "null"
             }
           ]
+        },
+        "radius": {
+          "description": "The hurt circle that hits use.",
+          "$ref": "#/$defs/Fx"
         }
       },
       "additionalProperties": false,
@@ -119,6 +132,7 @@
         "kind",
         "asset",
         "at",
+        "radius",
         "hp"
       ]
     },
@@ -126,6 +140,28 @@
       "description": "A length in 1/256 pixel units. In files it is the plain integer.",
       "type": "integer",
       "format": "int32"
+    },
+    "HoldView": {
+      "type": "object",
+      "properties": {
+        "slot": {
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "ticks": {
+          "description": "Ticks held since the press: 0 on the tick of the press.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "ticks"
+      ]
     },
     "PlayerView": {
       "type": "object",
@@ -140,16 +176,31 @@
           "type": "boolean"
         },
         "held": {
-          "description": "The slot held this tick, 0 for none; the frontend slows its tick clock while a ready\nskill is held (ADR-032).",
+          "description": "The slot held in this tick's input, 0 for none. Whether that started a hold is `hold`:\na key held down from before the skill was ready starts none.",
           "type": "integer",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0
         },
+        "hold": {
+          "description": "The hold in progress, if any: a press of a ready skill's slot starts one, and the release\nor the hold limit casts the skill (ADR-032). The frontend slows its clock while it lasts.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HoldView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "radius": {
+          "description": "The main character's hurt circle.",
+          "$ref": "#/$defs/Fx"
         },
         "skills": {
           "type": "array",
@@ -165,6 +216,7 @@
         "focus",
         "firing",
         "held",
+        "radius",
         "skills"
       ]
     },

@@ -1,6 +1,6 @@
 [package]
 name = "stella-rain-core"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -49,6 +49,10 @@ iai-callgrind = "0.16.1"
 
 [[bench]]
 name = "worst_tick"
+harness = false
+
+[[bench]]
+name = "collide_tick"
 harness = false
 
 # Overflow behaves the same in every profile (ADR-019): it panics unless the code says
