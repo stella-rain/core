@@ -1,4 +1,4 @@
-# The long fuzz run of the four fuzz targets (ADR-020 item 7, ADR-040): every week, on demand,
+# The long fuzz run of the four fuzz targets (ADR-020 item 7, ADR-054): every week, on demand,
 # and as a reusable workflow for the release checks of `main` into `rc` (core#24 calls it).
 # `rust.yml` keeps the 60-second run of a PR that touches parsing.
 #

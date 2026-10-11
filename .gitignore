@@ -12,3 +12,6 @@
 ._*
 .Spotlight-V100
 .Trashes
+
+# Python bytecode from running the script tests in .github/scripts
+__pycache__/
