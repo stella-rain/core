@@ -12,7 +12,7 @@ name: Auto-merge
 
 on:
   workflow_run:
-    workflows: ["CLAUDE.md check", "Line endings", "Rust"]
+    workflows: ["CLAUDE.md check", "Line endings", "Rust", "Scripts"]
     types: [completed]
 
 permissions: {}
@@ -34,6 +34,7 @@ jobs:
         worst-case tick on x86_64
         worst-case tick on arm64
         eol / LF line endings
+        script unit tests
     permissions:
       contents: write
       pull-requests: write

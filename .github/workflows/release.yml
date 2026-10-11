@@ -1,0 +1,170 @@
+# The release (ADR-054): Kade starts it by hand on rc after merging a release candidate. For the
+# head commit of rc it finds the PR from main merged as that commit, and tags the commit only if
+#   - every required check (.github/scripts/release_tag.py REQUIRED_CHECKS: the rc ruleset's,
+#     with `version is new`) succeeded on that PR's head commit,
+#   - the rc commit's tree is that head's tree, so the tag names what the checks tested,
+#   - the commit carries no v* tag yet, and the crate version is new (release_tag.py tag).
+# The tag is the annotated `v<Cargo.toml version>`, then a GitHub Release with `stage-verify`
+# for the four desktop runners and the JSON Schema. Only the tagging job can write; the v*
+# ruleset keeps tags from moving or being deleted. The workflow is read from rc, so a change to
+# it acts from the release after the one that carries it. Ported from enjay27/lakehouse.
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: the release checks passed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read  # the PR merged as the rc commit
+      checks: read         # the release checks on its head
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      notes: ${{ steps.check.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Read the release checks of the rc commit
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != refs/heads/rc ]; then
+            echo "::error::a release is made from rc only (ADR-054); this run is on $GITHUB_REF"
+            exit 1
+          fi
+          commit=$GITHUB_SHA
+          if [ -n "$(git tag --points-at "$commit" --list 'v*')" ]; then
+            echo "::error::$commit is already released: $(git tag --points-at "$commit" --list 'v*')"
+            exit 1
+          fi
+          gh api "repos/$REPO/commits/$commit/pulls" > "$RUNNER_TEMP/pulls.json"
+          pr=$(jq -c --arg c "$commit" \
+                 '[.[] | select(.base.ref == "rc" and .head.ref == "main" and .merge_commit_sha == $c)][0]' \
+                 "$RUNNER_TEMP/pulls.json")
+          if [ "$pr" = null ]; then
+            echo "::error::$commit is not the merge of a PR from main into rc (ADR-054)"
+            exit 1
+          fi
+          head=$(jq -r .head.sha <<<"$pr")
+          url=$(jq -r .html_url <<<"$pr")
+          if [ "$(git rev-parse "$commit^{tree}")" != "$(git rev-parse "$head^{tree}")" ]; then
+            echo "::error::rc at $commit differs from the tested head $head of $url"
+            exit 1
+          fi
+          gh api --paginate "repos/$REPO/commits/$head/check-runs?per_page=100" \
+            --jq '.check_runs[] | {name, status, conclusion, html_url}' | jq -s . > "$RUNNER_TEMP/checks.json"
+          if ! python3 .github/scripts/release_tag.py verify "$RUNNER_TEMP/checks.json" > "$RUNNER_TEMP/problems.txt"; then
+            echo "::error::the release checks did not pass on $head ($url): $(paste -sd ';' "$RUNNER_TEMP/problems.txt")"
+            exit 1
+          fi
+          # shellcheck disable=SC2046  # tag names have no spaces
+          if ! tag=$(python3 .github/scripts/release_tag.py tag Cargo.toml fuzz/Cargo.lock $(git tag --list 'v*')); then
+            echo "::error::$(paste -sd ';' <<<"$tag")"
+            exit 1
+          fi
+          # shellcheck disable=SC2046
+          previous=$(python3 .github/scripts/release_tag.py previous $(git tag --merged "$commit" --list 'v*'))
+          if [ -n "$previous" ]; then
+            git log --no-merges --format='%h %s' "$previous..$commit" > "$RUNNER_TEMP/log.txt"
+          else
+            : > "$RUNNER_TEMP/log.txt"
+          fi
+          python3 .github/scripts/release_tag.py notes "$tag" "$commit" "${previous:--}" "$url" \
+            "$RUNNER_TEMP/checks.json" "$RUNNER_TEMP/log.txt" > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "notes=$(base64 -w0 "$RUNNER_TEMP/notes.md")" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: stage-verify on ${{ matrix.arch }}
+    needs: check
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: linux-x86_64
+            runner: ubuntu-latest
+          - arch: linux-arm64
+            runner: ubuntu-24.04-arm
+          - arch: windows-x86_64
+            runner: windows-latest
+            ext: .exe
+          - arch: macos-arm64
+            runner: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustc -vV
+      - run: cargo build --release --locked --bin stage-verify
+      - name: Name the binary after the release
+        env:
+          TAG: ${{ needs.check.outputs.tag }}
+          ARCH: ${{ matrix.arch }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          mkdir dist
+          cp "target/release/stage-verify$EXT" "dist/stage-verify-$TAG-$ARCH$EXT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stage-verify-${{ matrix.arch }}
+          path: dist/
+          if-no-files-found: error
+
+  tag:
+    name: tag and GitHub release
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # create the tag and the release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: stage-verify-*
+          path: dist
+          merge-multiple: true
+      - name: Create the annotated tag and the release on the rc commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+          NOTES: ${{ needs.check.outputs.notes }}
+        run: |
+          set -euo pipefail
+          base64 -d <<<"$NOTES" > "$RUNNER_TEMP/notes.md"
+          # An annotated tag object, then its ref; `gh release create` alone would make a
+          # lightweight tag.
+          object=$(gh api "repos/$REPO/git/tags" -f tag="$TAG" -f message="$TAG" \
+                     -f object="$GITHUB_SHA" -f type=commit --jq .sha)
+          gh api "repos/$REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$object" > /dev/null
+          gh release create "$TAG" --repo "$REPO" --verify-tag --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md" dist/* schema/*.schema.json
+          echo "Released $TAG at $GITHUB_SHA." >> "$GITHUB_STEP_SUMMARY"
