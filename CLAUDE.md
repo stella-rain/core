@@ -45,7 +45,7 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-019) |
 | `src/bin/stage_verify.rs` | `stage-verify`: re-simulates a replay, checks the clear and the final hash, and prints both stage hashes (ADR-009, ADR-015, ADR-046) |
 | `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `corpus.rs` checks it (ADR-019) |
-| `benches/` | `worst_tick.rs`: `iai-callgrind` instruction count of a worst-case tick, every dynamic cap of ADR-020 reached (ADR-021); `worst_case/` builds the stage and `tests/worst_case.rs` checks it holds every cap (`Engine::load`) |
+| `benches/` | `worst_tick.rs`: `iai-callgrind` instruction count of a worst-case tick, every dynamic cap of ADR-020 reached (ADR-021); `worst_case/` builds the stage and `tests/worst_case.rs` checks it holds every cap (`Engine::load`); `collide_tick.rs` counts the worst friendly-bullet collision within the caps (`collide_case/`, `tests/collide_case.rs`) |
 | `fuzz/` | `cargo-fuzz` targets for the stage parser, the run after validation, the replay loader and the share-code decoder (ADR-020); its own workspace on nightly; `tests/smoke.rs` runs them on stable, `regressions/<target>/` keeps the inputs of crashes that were fixed |
 | `.github/workflows/` | Rust gates on x86_64 and arm64 (tests also on Windows and macOS), mobile `cargo check`, the fuzz jobs, the weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`), both called by the release checks (`release-checks.yml`), the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge |
 

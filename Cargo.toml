@@ -51,6 +51,10 @@ iai-callgrind = "0.16.1"
 name = "worst_tick"
 harness = false
 
+[[bench]]
+name = "collide_tick"
+harness = false
+
 # Overflow behaves the same in every profile (ADR-019): it panics unless the code says
 # `wrapping_*` or `saturating_*`. Release and bench would otherwise wrap silently.
 [profile.dev]
