@@ -55,7 +55,7 @@ jobs:
       - run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
       # The newest corpus of an earlier run of this target. A new key is saved at the end, so the
       # corpus keeps growing; with no cache the run starts from the seeds below.
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
@@ -85,7 +85,7 @@ jobs:
           cargo "+$FUZZ_NIGHTLY" fuzz run "$TARGET" "fuzz/corpus/$TARGET" $seeds -- \
             -max_total_time=$((MINUTES * 60)) -max_len=65536
       # Saved even when the run found a crash: the inputs it grew are still worth keeping.
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@v6
         if: always()
         with:
           path: fuzz/corpus/${{ matrix.target }}
@@ -119,7 +119,7 @@ jobs:
       # No crash artifact (a build or setup failure) is not an error here: the script then opens
       # the generic issue.
       - run: mkdir -p crashes
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           pattern: fuzz-crash-*
