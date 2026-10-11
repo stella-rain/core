@@ -115,6 +115,37 @@ fn nothing_fires_unless_the_input_says_fire() {
 }
 
 #[test]
+fn the_snapshot_gives_each_circle_the_radius_hits_use() {
+    let boss = json!({ "base": "golem", "hp": 1000, "radius": 8192,
+                       "spawn": { "x": 46_080, "y": 25_600 },
+                       "parts": [{ "id": "horn", "asset": "horns_2", "hp": 10,
+                                   "offset": { "x": 4096, "y": 0 }, "radius": 3072 }],
+                       "phases": [{}] });
+    let bat = enemy(50, hold(20_000, 60_000), json!([]));
+    let mut e = engine(&stage_full(
+        18_000,
+        Some(boss),
+        vec![wave(1, 1, 0, bat, 20_000, 60_000)],
+        vec![companion(10, hold(30_000, 140_000), json!([]))],
+        vec![],
+    ));
+    e.step(idle());
+    let s = e.snapshot();
+    // The main character's hurt circle is 2 pixels.
+    assert_eq!(s.player.radius.0, 512);
+    let radii: Vec<(EntityKind, i32)> = s.entities.iter().map(|v| (v.kind, v.radius.0)).collect();
+    assert_eq!(
+        radii,
+        [
+            (EntityKind::Boss, 8192),
+            (EntityKind::Companion, 1024),
+            (EntityKind::BossPart, 3072),
+            (EntityKind::Enemy, 2048),
+        ]
+    );
+}
+
+#[test]
 fn holding_fire_shoots_every_six_ticks_and_releasing_stops_it() {
     let mut e = running(vec![]);
     for _ in 0..60 {
