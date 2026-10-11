@@ -922,3 +922,54 @@ fn a_cast_shot_makes_friendly_bullets_from_its_pattern() {
     assert_eq!(bullets.len(), 5);
     assert!(bullets.iter().all(|b| b.friendly));
 }
+
+#[test]
+fn a_bullet_shows_the_movement_it_makes_each_tick() {
+    // A slow ring of eight from an enemy to the left, and the main shot straight up: none
+    // leaves the field or hits anything in 30 ticks, so each snapshot's bullets begin with the
+    // previous snapshot's, in the same order.
+    let ring_of_eight = json!({ "inline": [ring(8, vec![down(256)])] });
+    let left = enemy(
+        50,
+        hold(20_000, OY),
+        json!([{ "when": always(), "target": "player", "once": true,
+                 "do": { "type": "attack", "attack": ring_of_eight } }]),
+    );
+    let mut e = engine(&stage_full(
+        18_000,
+        Some(far_boss()),
+        vec![wave(1, 1, 0, left, 20_000, OY)],
+        vec![],
+        vec![],
+    ));
+    let mut before = e.snapshot().bullets;
+    let (mut friendly, mut hostile) = (0, 0);
+    for _ in 0..30 {
+        e.step(firing());
+        let after = e.snapshot().bullets;
+        assert!(after.len() >= before.len(), "no bullet is gone");
+        for (old, new) in before.iter().zip(&after) {
+            assert_eq!(
+                (new.vx, new.vy),
+                (old.vx, old.vy),
+                "a bullet keeps its velocity"
+            );
+            assert_eq!(
+                (new.at.x.0 - old.at.x.0, new.at.y.0 - old.at.y.0),
+                (new.vx.0, new.vy.0),
+                "{new:?} moved by its velocity"
+            );
+            if new.friendly {
+                friendly += 1;
+            } else {
+                hostile += 1;
+            }
+        }
+        before = after;
+    }
+    assert!(friendly > 0 && hostile > 0, "{friendly} {hostile}");
+    // The ring goes every way, and the main shot straight up at 8 pixels a tick.
+    let v: Vec<(i32, i32)> = before.iter().map(|b| (b.vx.0, b.vy.0)).collect();
+    assert!(v.contains(&(0, -2048)), "{v:?}");
+    assert!(v.contains(&(256, 0)) && v.contains(&(-256, 0)), "{v:?}");
+}
