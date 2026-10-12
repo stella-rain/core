@@ -1,0 +1,19 @@
+# Fails if a tracked file is an environment, key or keystore file, or a text file holds a
+# private key block, an AWS access key ID or a GitHub token; findings name the file, line and
+# kind, never the value. The reusable workflow in stella-rain/.github reads its script from
+# that repository's main. It runs on every PR, so auto-merge's `require:` names its check
+# (ADR-052).
+name: Repository check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+jobs:
+  secrets:
+    uses: stella-rain/.github/.github/workflows/repo-check.yml@main
+    permissions:
+      contents: read
