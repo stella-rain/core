@@ -286,6 +286,8 @@ pub(crate) struct PlayerState {
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
+    /// Copied from the stage when it appears (ADR-056).
+    pub defence: u32,
     /// Ticks of invulnerability left after a hit.
     pub invulnerable: u32,
     /// Ticks until the main shot may fire again.
@@ -329,6 +331,8 @@ pub(crate) struct BossState {
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
+    /// Copied from the stage when it appears (ADR-056).
+    pub defence: u32,
     pub statuses: Vec<StatusState>,
     /// The phase being carried out, 0-based (ADR-036 tier 2).
     pub phase: u32,
@@ -355,6 +359,8 @@ pub(crate) struct PartState {
     pub name: ContentId,
     pub hp: u32,
     pub max_hp: u32,
+    /// Copied from the stage when it appears (ADR-056).
+    pub defence: u32,
     /// From the boss's centre, and the hurt circle's radius: both from the stage.
     pub offset: Point,
     pub radius: i32,
@@ -388,6 +394,8 @@ pub(crate) struct AgentState {
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
+    /// Copied from the stage when it appears (ADR-056).
+    pub defence: u32,
     /// Ticks since it spawned.
     pub age: u32,
     /// One per rule of its agent, in order.

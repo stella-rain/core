@@ -375,6 +375,24 @@ fn ranges_keep_numbers_inside_the_loadout() {
         bad("/companions/0/radius", json!(MAX_RADIUS + 1)),
         "$.companions[0].radius"
     );
+    // Defence (ADR-056): 0 to MAX_DEFENCE on everything that can be hurt. The fixture has
+    // none, so it is added to each owner.
+    for (owner, path) in [
+        ("/player", "$.player.defence"),
+        ("/boss", "$.boss.defence"),
+        ("/boss/parts/0", "$.boss.parts[0].defence"),
+        ("/companions/0", "$.companions[0].defence"),
+        ("/waves/0/enemy", "$.waves[0].enemy.defence"),
+    ] {
+        let with = |defence: u32| {
+            let mut v = b.clone();
+            v.pointer_mut(owner).unwrap()["defence"] = json!(defence);
+            v
+        };
+        assert_valid(&with(0));
+        assert_valid(&with(MAX_DEFENCE));
+        assert_eq!(first_issue(&with(MAX_DEFENCE + 1)).path, path);
+    }
     assert_eq!(bad("/length_ticks", json!(0)), "$.length_ticks");
     ok("/length_ticks", json!(MAX_TICKS));
     assert_eq!(bad("/length_ticks", json!(MAX_TICKS + 1)), "$.length_ticks");

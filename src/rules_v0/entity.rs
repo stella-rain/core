@@ -75,6 +75,16 @@ impl State {
         }
     }
 
+    pub(super) fn defence(&self, who: Who) -> u32 {
+        match who {
+            Who::Player => self.player.defence,
+            Who::Boss => self.boss_state().defence,
+            Who::BossPart(i) => self.boss_state().parts[i].defence,
+            Who::Companion(i) => self.companions[i].defence,
+            Who::Enemy(i) => self.enemies[i].defence,
+        }
+    }
+
     pub(super) fn max_hp(&self, who: Who) -> u32 {
         match who {
             Who::Player => self.player.max_hp,
@@ -234,11 +244,17 @@ pub(super) fn speed_pct(statuses: &[StatusState]) -> i64 {
     100 - i64::from(status_pct(statuses, StatusKind::Slow))
 }
 
+/// `K` of ADR-056: a defence of `K` halves a hit. A tuning value.
+const DEFENCE_K: u64 = 100;
+
 /// `base` damage, raised by the attacker's atk-up and by the target's vulnerability (percent
-/// each). A hit with any damage at all does at least 1.
-pub(super) fn scale_damage(base: u32, atk_up_pct: u32, vulnerable_pct: u32) -> u32 {
+/// each), then reduced to `K / (K + defence)` of it (ADR-056), in that order, truncating at each
+/// step in 64 bits. A hit with any damage at all does at least 1.
+pub(super) fn scale_damage(base: u32, atk_up_pct: u32, vulnerable_pct: u32, defence: u32) -> u32 {
     let scaled =
-        u64::from(base) * u64::from(100 + atk_up_pct) / 100 * u64::from(100 + vulnerable_pct) / 100;
+        u64::from(base) * u64::from(100 + atk_up_pct) / 100 * u64::from(100 + vulnerable_pct) / 100
+            * DEFENCE_K
+            / (DEFENCE_K + u64::from(defence));
     u32::try_from(scaled)
         .unwrap_or(u32::MAX)
         .max(u32::from(base > 0))

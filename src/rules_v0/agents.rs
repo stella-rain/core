@@ -65,6 +65,7 @@ pub(super) fn new_agent(
         at,
         hp: def.hp,
         max_hp: def.hp,
+        defence: def.defence,
         age: 0,
         rules: new_rule_states(&def.rules),
         statuses: Vec::new(),

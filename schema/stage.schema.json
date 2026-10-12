@@ -189,6 +189,12 @@
           "description": "Asset ID of the sprite (ADR-007).",
           "$ref": "#/$defs/ContentId"
         },
+        "defence": {
+          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
@@ -348,6 +354,12 @@
         "base": {
           "$ref": "#/$defs/ContentId"
         },
+        "defence": {
+          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
@@ -399,6 +411,12 @@
         "asset": {
           "description": "Asset ID of the part's sprite.",
           "$ref": "#/$defs/ContentId"
+        },
+        "defence": {
+          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         },
         "hp": {
           "type": "integer",
@@ -1289,6 +1307,12 @@
         },
         "base": {
           "$ref": "#/$defs/ContentId"
+        },
+        "defence": {
+          "description": "Reduces every hit the main character takes (ADR-056); 0 when absent. It moves to the\nrun's setup when the setup exists (ADR-049).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         },
         "hp": {
           "type": "integer",
