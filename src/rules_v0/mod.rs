@@ -127,6 +127,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
         at: b.spawn,
         hp: b.hp,
         max_hp: b.hp,
+        defence: b.defence,
         statuses: Vec::new(),
         phase: 0,
         phase_age: 0,
@@ -147,6 +148,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
                     name: p.id.clone(),
                     hp: p.hp,
                     max_hp: p.hp,
+                    defence: p.defence,
                     offset: p.offset,
                     radius: p.radius.0,
                     statuses: Vec::new(),
@@ -163,6 +165,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
             at: start,
             hp: stage.player.hp,
             max_hp: stage.player.hp,
+            defence: stage.player.defence,
             invulnerable: 0,
             shot_cooldown: 0,
             firing_streak: 0,
@@ -335,11 +338,11 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
     Grid::new(circles, PLAYER_BULLET_RADIUS)
 }
 
-/// Damage to an enemy, a companion or the boss: raised by its vulnerability, reported, and
-/// credited to the shooter's aggro. Death is reported too.
+/// Damage to an enemy, a companion or the boss: raised by its vulnerability, reduced by its
+/// defence, reported, and credited to the shooter's aggro. Death is reported too.
 fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
-    let dealt = scale_damage(b.damage, 0, vulnerable);
+    let dealt = scale_damage(b.damage, 0, vulnerable, s.defence(target));
     let id = s.id_of(target);
     let hp = s.hp_mut(target);
     *hp = hp.saturating_sub(dealt);
@@ -407,11 +410,11 @@ fn hit_enemy_side(
     false
 }
 
-/// Damage to the main character, raised by its vulnerability; it is then invulnerable for a
-/// while.
+/// Damage to the main character, raised by its vulnerability and reduced by its defence; it is
+/// then invulnerable for a while.
 fn hurt_player(s: &mut State, damage: u32, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
-    let dealt = scale_damage(damage, 0, vulnerable);
+    let dealt = scale_damage(damage, 0, vulnerable, s.player.defence);
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = HIT_INVULNERABLE_TICKS;
@@ -484,6 +487,7 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
     h.write_i32(a.at.y.0);
     h.write_u32(a.hp);
     h.write_u32(a.max_hp);
+    h.write_u32(a.defence);
     h.write_u32(a.age);
     h.write_u32(a.aggro);
     h.write_i32(a.orbit_angle);
@@ -598,6 +602,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_i32(p.at.y.0);
     h.write_u32(p.hp);
     h.write_u32(p.max_hp);
+    h.write_u32(p.defence);
     h.write_u32(p.invulnerable);
     h.write_u32(p.shot_cooldown);
     h.write_u32(p.firing_streak);
@@ -625,6 +630,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_i32(b.at.y.0);
             h.write_u32(b.hp);
             h.write_u32(b.max_hp);
+            h.write_u32(b.defence);
             hash_statuses(&mut h, &b.statuses);
             h.write_u32(b.phase);
             h.write_u32(b.phase_age);
@@ -651,6 +657,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 h.write_u32(part.id.0);
                 h.write_u32(part.hp);
                 h.write_u32(part.max_hp);
+                h.write_u32(part.defence);
                 hash_statuses(&mut h, &part.statuses);
             }
         }

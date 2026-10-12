@@ -376,8 +376,8 @@ fn fail() -> Definition {
 
 /// Melee (ADR-055): three enemies trail the main character and swing at it, a wind-up, an arc
 /// and a recovery, rooted while they wind up and swing; a companion orbiting it cleaves them
-/// with a wide arc that hits again every 2 ticks. The main character stands still, then walks
-/// from side to side. Nobody fires a bullet.
+/// with a wide arc that hits again every 2 ticks, through their defence. The main character
+/// stands still, then walks from side to side. Nobody fires a bullet.
 fn melee() -> Definition {
     let phase = |kind: &str, ticks: u32, hit_box: Value, damage: u32, move_pct: u8| {
         json!({ "kind": kind, "ticks": ticks, "hit_box": hit_box, "damage": damage,
@@ -392,7 +392,7 @@ fn melee() -> Definition {
         phase("active", 3, arc(6_144, 60), 2, 0),
         json!({ "kind": "recovery", "ticks": 10 })
     ]);
-    let swordsman = enemy(
+    let mut swordsman = enemy(
         12,
         json!({ "type": "follow", "distance": 4_096 }),
         json!([rule(
@@ -402,6 +402,8 @@ fn melee() -> Definition {
             0
         )]),
     );
+    // Defence 50 (ADR-056): each cleave of 3 lands as 3 × 100 / 150 = 2.
+    swordsman["defence"] = json!(50);
     let mut cleave = phase("active", 4, arc(10_240, 90), 3, 100);
     cleave["rehit_ticks"] = json!(2);
     let guard = companion(

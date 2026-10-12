@@ -59,6 +59,8 @@ pub mod limits {
     pub const MAX_AGENT_HP: u32 = 100_000;
     pub const MAX_BOSS_HP: u32 = 1_000_000;
     pub const MAX_DAMAGE: u32 = 10_000;
+    /// At this defence a hit keeps about 1% of its damage (ADR-056, K = 100).
+    pub const MAX_DEFENCE: u32 = 10_000;
     pub const MAX_BUFF_PCT: u16 = 500;
     pub const MAX_AGGRO: u32 = 1_000_000;
     /// A number in an expression, an argument or a velocity-like field.
@@ -419,6 +421,7 @@ impl<'a> Ctx<'a> {
         self.content_id("base", &p.base, Kind::Asset);
         self.within("hp", i64::from(p.hp), 1, i64::from(MAX_PLAYER_HP));
         self.within("atk", i64::from(p.atk), 1, i64::from(MAX_PLAYER_ATK));
+        self.within("defence", i64::from(p.defence), 0, i64::from(MAX_DEFENCE));
         self.key("shot", |c| c.attack_ref(&p.shot));
         if self.at_most("skills", p.skills.len(), MAX_SKILL_SLOTS, "skill slots") {
             self.key("skills", |c| {
@@ -459,6 +462,7 @@ impl<'a> Ctx<'a> {
             self.content_id("palette", p, Kind::Palette);
         }
         self.within("hp", i64::from(a.hp), 1, i64::from(MAX_AGENT_HP));
+        self.within("defence", i64::from(a.defence), 0, i64::from(MAX_DEFENCE));
         self.within("radius", i64::from(a.radius.0), 1, i64::from(MAX_RADIUS));
         self.key("movement", |c| c.movement(&a.movement));
         self.rules("rules", &a.rules, summon_ok);
@@ -604,6 +608,7 @@ impl<'a> Ctx<'a> {
             self.content_id("palette", p, Kind::Palette);
         }
         self.within("hp", i64::from(b.hp), 1, i64::from(MAX_BOSS_HP));
+        self.within("defence", i64::from(b.defence), 0, i64::from(MAX_DEFENCE));
         self.within("radius", i64::from(b.radius.0), 1, i64::from(MAX_RADIUS));
         self.point("spawn", &b.spawn);
         if self.at_most("parts", b.parts.len(), MAX_BOSS_PARTS, "boss parts") {
@@ -635,6 +640,7 @@ impl<'a> Ctx<'a> {
         });
         self.content_id("asset", &p.asset, Kind::Asset);
         self.within("hp", i64::from(p.hp), 1, i64::from(MAX_AGENT_HP));
+        self.within("defence", i64::from(p.defence), 0, i64::from(MAX_DEFENCE));
         self.within("radius", i64::from(p.radius.0), 1, i64::from(MAX_RADIUS));
         self.key("offset", |c| {
             let max = i64::from(MAX_LEN);

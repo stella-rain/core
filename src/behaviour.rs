@@ -28,6 +28,9 @@ pub struct Agent {
     pub hp: u32,
     /// Radius of the hurt circle.
     pub radius: Fx,
+    /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub defence: u32,
     pub movement: Movement,
     /// Evaluated in order each tick; the first rule that can fire, fires (ADR-036).
     #[serde(default)]
@@ -134,4 +137,9 @@ pub enum Skill {
     Vulnerable { value_pct: u16, duration_ticks: u32 },
     Slow { value_pct: u16, duration_ticks: u32 },
     Heal { amount: u32 },
+}
+
+/// For `skip_serializing_if`: a 0 that is the default is left out of the file.
+pub(crate) fn is_zero(v: &u32) -> bool {
+    *v == 0
 }

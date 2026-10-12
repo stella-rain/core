@@ -87,6 +87,7 @@
         "base": "bat",
         "hp": 12,
         "radius": 2048,
+        "defence": 50,
         "movement": {
           "type": "follow",
           "distance": 4096
@@ -156,6 +157,7 @@
         "base": "bat",
         "hp": 12,
         "radius": 2048,
+        "defence": 50,
         "movement": {
           "type": "follow",
           "distance": 4096
@@ -225,6 +227,7 @@
         "base": "bat",
         "hp": 12,
         "radius": 2048,
+        "defence": 50,
         "movement": {
           "type": "follow",
           "distance": 4096

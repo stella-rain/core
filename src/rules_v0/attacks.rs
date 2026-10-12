@@ -183,7 +183,7 @@ pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
 /// phase's own, or else the starter's, raised by the atk-up fixed at the attack's start.
 pub(super) fn phase_damage(r: &AttackRun) -> u32 {
     let p = &r.phases[r.phase as usize];
-    scale_damage(p.damage.unwrap_or(r.base), r.atk_up_pct, 0)
+    scale_damage(p.damage.unwrap_or(r.base), r.atk_up_pct, 0, 0)
 }
 
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase

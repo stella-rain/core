@@ -43,6 +43,10 @@ pub struct Player {
     pub base: ContentId,
     pub hp: u32,
     pub atk: u32,
+    /// Reduces every hit the main character takes (ADR-056); 0 when absent. It moves to the
+    /// run's setup when the setup exists (ADR-049).
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub defence: u32,
     /// The main shot, fired on ticks whose input has `fire` (ADR-038).
     pub shot: AttackRef,
     /// Up to 3 active skills (ADR-032).
@@ -85,6 +89,9 @@ pub struct Boss {
     pub palette: Option<ContentId>,
     pub hp: u32,
     pub radius: Fx,
+    /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub defence: u32,
     pub spawn: Point,
     #[serde(default)]
     pub parts: Vec<BossPart>,
@@ -103,6 +110,9 @@ pub struct BossPart {
     /// Offset from the boss's centre.
     pub offset: Point,
     pub radius: Fx,
+    /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub defence: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
