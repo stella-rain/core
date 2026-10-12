@@ -6,9 +6,10 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   eol:
     uses: stella-rain/.github/.github/workflows/eol-check.yml@main
+    permissions:
+      contents: read
