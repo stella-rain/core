@@ -28,9 +28,9 @@ import tomllib
 CRATE = "stella-rain-core"
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
-# The checks the `rc` ruleset requires: release-checks.yml's jobs, and the rust.yml and
-# eol-check.yml checks every pull request runs (the same 12 as auto-merge.yml's `require:`).
-# A change to either list changes this one in the same pull request.
+# The checks the `rc` ruleset requires: release-checks.yml's jobs, the rust.yml and
+# eol-check.yml checks every pull request runs, and rust.yml's path-filtered `short fuzz run`.
+# A change to the ruleset changes this list in the same pull request.
 REQUIRED_CHECKS = (
     "the head is main",
     "version is new",
@@ -52,7 +52,11 @@ REQUIRED_CHECKS = (
     "worst-case tick on x86_64",
     "worst-case tick on arm64",
     "eol / LF line endings",
+    "short fuzz run",
 )
+# Checks that pass when skipped, as the ruleset counts them: `short fuzz run` skips when the
+# pull request changes no parsing file.
+SKIPPABLE_CHECKS = ("short fuzz run",)
 
 
 def _key(tag):
@@ -93,8 +97,13 @@ def lock_problems(version, fuzz_lock):
     return []
 
 
+def _passing(name):
+    return ("success", "skipped") if name in SKIPPABLE_CHECKS else ("success",)
+
+
 def verify(check_runs):
-    """Problems with the required checks; a name passes if any of its runs succeeded."""
+    """Problems with the required checks; a name passes if any of its runs succeeded, or,
+    for SKIPPABLE_CHECKS, was skipped."""
     by_name = {}
     for run in check_runs:
         by_name.setdefault(run["name"], []).append(run)
@@ -103,7 +112,7 @@ def verify(check_runs):
         runs = by_name.get(name, [])
         if not runs:
             problems.append(f"{name}: not reported")
-        elif not any(r.get("conclusion") == "success" for r in runs):
+        elif not any(r.get("conclusion") in _passing(name) for r in runs):
             last = runs[-1]
             problems.append(f"{name}: {last.get('conclusion') or last.get('status')}")
     return problems
