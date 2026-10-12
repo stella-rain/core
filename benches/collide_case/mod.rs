@@ -26,11 +26,11 @@ pub fn stage() -> Stage {
         .map(|_| common::wave(1, 100, 1, enemy.clone(), 2_048, 160_000))
         .collect();
     let mut stage = common::stage_full(18_000, Some(common::far_boss()), waves, vec![], vec![]);
-    stage.player.shot = serde_json::from_value(json!({ "inline": [{
+    stage.player.shot = serde_json::from_value(json!({ "inline": common::spawned(json!([{
         "type": "spread", "count": 90, "angle": 15_360, "body": [{
             "type": "fire", "speed": 512, "direction": { "type": "relative", "angle": 0 }
         }]
-    }]}))
+    }]))}))
     .expect("the fan parses");
     stage
 }

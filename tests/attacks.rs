@@ -131,7 +131,10 @@ fn shots_of(stage: &Stage, ticks: u32) -> Vec<Seen> {
 }
 
 fn inline(nodes: Vec<Value>, ticks: u32) -> Vec<Seen> {
-    shots_of(&attack_stage(json!({ "inline": nodes })), ticks)
+    shots_of(
+        &attack_stage(json!({ "inline": spawned(json!(nodes)) })),
+        ticks,
+    )
 }
 
 fn velocities(shots: &[Seen]) -> Vec<(i32, i32)> {
@@ -196,7 +199,7 @@ fn aimed_points_at_the_target_and_turns_by_its_offset() {
 fn aimed_follows_the_target_not_the_enemys_line() {
     // The main character a little to the right: the bullet leans that way.
     let mut e = engine(&attack_stage(
-        json!({ "inline": [fire(json!(768), aimed())] }),
+        json!({ "inline": spawned(json!([fire(json!(768), aimed())])) }),
     ));
     e.step(moving(10_000, 0));
     let bullet = e.snapshot().bullets[0];
@@ -519,7 +522,8 @@ fn bullets_start_where_the_attacks_owner_is_at_that_moment() {
         50,
         json!({ "type": "straight", "vx": 0, "vy": 100 }),
         json!([{ "when": always(), "target": "player", "once": true,
-                 "do": { "type": "attack", "attack": { "inline": [down(0), wait(10), down(0)] } } }]),
+                 "do": { "type": "attack",
+                         "attack": { "inline": spawned(json!([down(0), wait(10), down(0)])) } } }]),
     );
     let stage = stage_full(
         18_000,
@@ -539,7 +543,9 @@ fn bullets_start_where_the_attacks_owner_is_at_that_moment() {
 #[test]
 fn the_seed_changes_the_draws() {
     let body = || fire(json!({ "rand": [0, 100_000] }), absolute(0));
-    let mut a = attack_stage(json!({ "inline": [repeat(json!(20), json!(0), vec![body()])] }));
+    let mut a = attack_stage(
+        json!({ "inline": spawned(json!([repeat(json!(20), json!(0), vec![body()])])) }),
+    );
     let first = velocities(&shots_of(&a, 1));
     a.seed += 1;
     assert_ne!(first, velocities(&shots_of(&a, 1)));
@@ -644,7 +650,8 @@ fn a_child_goes_on_after_its_owner_is_gone_and_a_parent_does_not() {
                     10,
                     hold(OX, 25_600),
                     json!([{ "when": always(), "target": "player", "once": true,
-                             "do": { "type": "attack", "attack": { "inline": [attack] } } }]),
+                             "do": { "type": "attack",
+                                     "attack": { "inline": spawned(json!([attack])) } } }]),
                 ),
                 OX,
                 25_600,
@@ -685,7 +692,9 @@ fn at_most_two_hundred_new_bullets_a_tick_whatever_the_attacks() {
                 1,
                 1,
                 0,
-                shooter(json!({ "inline": [repeat(json!(100), json!(0), vec![down(0)])] })),
+                shooter(json!({
+                    "inline": spawned(json!([repeat(json!(100), json!(0), vec![down(0)])]))
+                })),
                 OX,
                 OY,
             )
@@ -702,7 +711,7 @@ fn at_most_two_hundred_fifty_six_attacks_are_carried_out_at_once() {
     // attack that makes a bullet ten ticks later. Only 256 of the 300 attacks can be going at
     // once, so 56 of the 100 that start on tick 2 do: 200 bullets on tick 11 (the cap on new
     // bullets a tick) and 56 on tick 12, where 100 would be made without the cap.
-    let attack = json!({ "inline": [wait(10), down(0)] });
+    let attack = json!({ "inline": spawned(json!([wait(10), down(0)])) });
     let waves = (0..200)
         .map(|_| wave(1, 100, 1, shooter(attack.clone()), OX, OY))
         .collect();
@@ -792,7 +801,9 @@ fn taking_a_preset_apart_writes_its_arguments_in_as_constants() {
     let apart = presets::take_apart("aimed_single", &[900]).unwrap();
     assert_eq!(
         serde_json::to_value(&apart).unwrap(),
-        json!([{ "type": "fire", "speed": 900, "direction": { "type": "aimed", "offset": 0 } }])
+        spawned(
+            json!([{ "type": "fire", "speed": 900, "direction": { "type": "aimed", "offset": 0 } }])
+        )
     );
     assert_eq!(presets::highest_arg(&apart), None);
     // The wrong number of arguments, or no such preset.
@@ -826,13 +837,14 @@ fn every_registered_preset_has_a_definition_that_passes_the_validator() {
 
 #[test]
 fn the_validator_holds_a_preset_to_the_budgets_of_an_inline_attack() {
-    let nodes: Vec<stella_rain_core::attack::Emitter> = serde_json::from_value(json!([
-        { "type": "fire", "speed": { "arg": 1 }, "direction": { "type": "aimed", "offset": 0 } }
-    ]))
-    .unwrap();
-    assert!(validate_attack(&nodes, 2, registry::ENTRIES).is_ok());
-    let issues = validate_attack(&nodes, 1, registry::ENTRIES).unwrap_err();
-    assert_eq!(issues[0].path, "$[0].speed");
+    let phases: Vec<stella_rain_core::attack::AttackPhase> =
+        serde_json::from_value(spawned(json!([
+            { "type": "fire", "speed": { "arg": 1 }, "direction": { "type": "aimed", "offset": 0 } }
+        ])))
+        .unwrap();
+    assert!(validate_attack(&phases, 2, registry::ENTRIES).is_ok());
+    let issues = validate_attack(&phases, 1, registry::ENTRIES).unwrap_err();
+    assert_eq!(issues[0].path, "$[0].spawn[0].speed");
 }
 
 // --- What the presets do ---------------------------------------------------------------------
@@ -891,7 +903,9 @@ fn the_spiral_turns_six_degrees_a_bullet_every_three_ticks() {
 fn a_bullet_names_its_style() {
     let styled =
         json!({ "type": "fire", "speed": 768, "bullet": "orb_small", "direction": absolute(0) });
-    let mut e = engine(&attack_stage(json!({ "inline": [styled, down(768)] })));
+    let mut e = engine(&attack_stage(
+        json!({ "inline": spawned(json!([styled, down(768)])) }),
+    ));
     e.step(idle());
     let styles: Vec<u16> = e.snapshot().bullets.iter().map(|b| b.style).collect();
     assert_eq!(styles, [1, 0]);
@@ -928,7 +942,7 @@ fn a_bullet_shows_the_movement_it_makes_each_tick() {
     // A slow ring of eight from an enemy to the left, and the main shot straight up: none
     // leaves the field or hits anything in 30 ticks, so each snapshot's bullets begin with the
     // previous snapshot's, in the same order.
-    let ring_of_eight = json!({ "inline": [ring(8, vec![down(256)])] });
+    let ring_of_eight = json!({ "inline": spawned(json!([ring(8, vec![down(256)])])) });
     let left = enemy(
         50,
         hold(20_000, OY),

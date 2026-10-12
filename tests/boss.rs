@@ -880,8 +880,8 @@ fn an_attack_started_by_a_rule_runs_on_the_phase_clock() {
     // when the phase is 6 ticks old, on tick 16, at phase time 5: the bullet's speed is
     // 100 + 5 * 10 (aimed straight down).
     let speed = json!({ "add": [100, { "mul": ["phase_time", 10] }] });
-    let attack = json!({ "inline": [{ "type": "fire", "speed": speed,
-                                      "direction": { "type": "absolute", "angle": 0 } }] });
+    let attack = json!({ "inline": spawned(json!([{ "type": "fire", "speed": speed,
+                                      "direction": { "type": "absolute", "angle": 0 } }])) });
     let rules = json!([{ "when": time_above(5), "target": "player", "once": true,
                          "do": { "type": "attack", "attack": attack }, "cooldown_ticks": 0 }]);
     let stage = stage_of(boss(

@@ -37,7 +37,7 @@ pub fn stage() -> Stage {
     let attack = common::rule(
         common::always(),
         json!("player"),
-        json!({ "type": "attack", "attack": { "inline": [burst] } }),
+        json!({ "type": "attack", "attack": { "inline": common::spawned(json!([burst])) } }),
         30,
     );
     let (x, y) = (60_000, 140_000);

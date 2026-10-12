@@ -57,7 +57,7 @@ fn repeated(v: &Value, pointer: &str, n: usize) -> Value {
 }
 
 fn shot(emitters: Value) -> Value {
-    json!({ "inline": emitters })
+    json!({ "inline": [{ "kind": "active", "ticks": 1, "spawn": emitters }] })
 }
 
 fn fire(speed: Value) -> Value {
@@ -236,7 +236,7 @@ fn pattern_depth_and_node_budgets() {
     let issue = first_issue(&nested(MAX_PATTERN_DEPTH as usize));
     assert!(issue.message.contains("levels deep"), "{issue:?}");
     assert!(
-        issue.path.starts_with("$.player.shot.inline[0]"),
+        issue.path.starts_with("$.player.shot.inline[0].spawn[0]"),
         "{issue:?}"
     );
 
@@ -247,7 +247,7 @@ fn pattern_depth_and_node_budgets() {
     };
     assert_valid(&waits(MAX_PATTERN_NODES as usize));
     let issue = first_issue(&waits(MAX_PATTERN_NODES as usize + 1));
-    assert_eq!(issue.path, "$.player.shot.inline[64]");
+    assert_eq!(issue.path, "$.player.shot.inline[0].spawn[64]");
     assert!(issue.message.contains("64 nodes"), "{issue:?}");
 
     // Nodes are counted across the whole tree, branches included.
@@ -478,11 +478,11 @@ fn registry_ids_must_exist_with_the_right_kind() {
     );
     assert_eq!(
         bad(
-            "/boss/phases/1/timeline/1/attack/inline/0/then/0/body/0/bullet",
+            "/boss/phases/1/timeline/1/attack/inline/0/spawn/0/then/0/body/0/bullet",
             "orb_huge"
         )
         .path,
-        "$.boss.phases[1].timeline[1].attack.inline[0].then[0].body[0].bullet"
+        "$.boss.phases[1].timeline[1].attack.inline[0].spawn[0].then[0].body[0].bullet"
     );
 }
 
@@ -549,8 +549,76 @@ fn inline_attacks_take_no_arguments() {
     let mut v = base();
     v["player"]["shot"] = shot(json!([fire(json!({ "arg": 0 }))]));
     let issue = first_issue(&v);
-    assert_eq!(issue.path, "$.player.shot.inline[0].speed");
+    assert_eq!(issue.path, "$.player.shot.inline[0].spawn[0].speed");
     assert!(issue.message.contains("no such argument"));
+}
+
+/// One phase of an inline attack that spawns one bullet, with `extra` fields set on it.
+fn phase(extra: Value) -> Value {
+    let mut p = json!({ "kind": "active", "ticks": 1, "spawn": [fire(json!(256))] });
+    for (k, v) in extra.as_object().expect("an object") {
+        p[k] = v.clone();
+    }
+    p
+}
+
+fn with_phases(phases: Value) -> Value {
+    let mut v = base();
+    v["player"]["shot"] = json!({ "inline": phases });
+    v
+}
+
+#[test]
+fn an_inline_attack_is_a_list_of_phases() {
+    assert_valid(&with_phases(json!([phase(json!({}))])));
+    assert_valid(&with_phases(json!([phase(json!({ "move_pct": 100 }))])));
+    // A list of emitter nodes is no longer an attack (ADR-055).
+    let mut nodes = base();
+    nodes["player"]["shot"] = json!({ "inline": [fire(json!(256))] });
+    assert!(serde_json::from_value::<Stage>(nodes).is_err());
+
+    let issue = first_issue(&with_phases(json!([])));
+    assert_eq!(issue.path, "$.player.shot.inline");
+    assert!(issue.message.contains("at least one phase"), "{issue:?}");
+}
+
+#[test]
+fn an_attack_has_at_most_max_attack_phases() {
+    // Phases past the first are refused until the rules run them, so the limit is checked on
+    // the count alone.
+    let issue = first_issue(&with_phases(Value::Array(vec![
+        phase(json!({}));
+        MAX_ATTACK_PHASES + 1
+    ])));
+    assert_eq!(issue.path, "$.player.shot.inline");
+    assert!(issue.message.contains("at most 8 phases"), "{issue:?}");
+}
+
+/// Until the rules run phases (core#82), an attack is one active phase of one tick that only
+/// spawns: anything else is refused, never ignored.
+#[test]
+fn phases_the_rules_do_not_run_yet_are_refused() {
+    let at = |key: &str| format!("$.player.shot.inline[0].{key}");
+    for (extra, path) in [
+        (json!({ "kind": "wind_up" }), at("kind")),
+        (json!({ "kind": "recovery" }), at("kind")),
+        (json!({ "ticks": 2 }), at("ticks")),
+        (json!({ "ticks": 0 }), at("ticks")),
+        (
+            json!({ "hit_box": { "type": "circle", "radius": 256 } }),
+            at("hit_box"),
+        ),
+        (json!({ "damage": 1 }), at("damage")),
+        (json!({ "rehit_ticks": 10 }), at("rehit_ticks")),
+        (json!({ "move_pct": 50 }), at("move_pct")),
+    ] {
+        let issue = first_issue(&with_phases(json!([phase(extra.clone())])));
+        assert_eq!(issue.path, path, "{extra}");
+        assert!(issue.message.contains("not run yet"), "{issue:?}");
+    }
+    let issue = first_issue(&with_phases(json!([phase(json!({})), phase(json!({}))])));
+    assert_eq!(issue.path, "$.player.shot.inline[1]");
+    assert!(issue.message.contains("not run yet"), "{issue:?}");
 }
 
 #[test]

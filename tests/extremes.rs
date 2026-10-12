@@ -107,7 +107,7 @@ fn extremes() -> Vec<(&'static str, Value)> {
 
 fn rule(attack: Vec<Value>) -> Value {
     json!({ "when": always(), "target": "player", "cooldown_ticks": 90,
-            "do": { "type": "attack", "attack": { "inline": attack } } })
+            "do": { "type": "attack", "attack": { "inline": spawned(json!(attack)) } } })
 }
 
 /// Two shooters that start their attack again every 90 ticks, between them using every slot.

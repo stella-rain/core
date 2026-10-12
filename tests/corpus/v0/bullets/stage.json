@@ -40,21 +40,27 @@
             "attack": {
               "inline": [
                 {
-                  "type": "repeat",
-                  "count": 20,
-                  "interval_ticks": 3,
-                  "body": [
+                  "kind": "active",
+                  "ticks": 1,
+                  "spawn": [
                     {
-                      "type": "ring",
-                      "count": 24,
+                      "type": "repeat",
+                      "count": 20,
+                      "interval_ticks": 3,
                       "body": [
                         {
-                          "type": "fire",
-                          "speed": 1024,
-                          "direction": {
-                            "type": "relative",
-                            "angle": 0
-                          }
+                          "type": "ring",
+                          "count": 24,
+                          "body": [
+                            {
+                              "type": "fire",
+                              "speed": 1024,
+                              "direction": {
+                                "type": "relative",
+                                "angle": 0
+                              }
+                            }
+                          ]
                         }
                       ]
                     }
@@ -72,17 +78,23 @@
             "attack": {
               "inline": [
                 {
-                  "type": "repeat",
-                  "count": 40,
-                  "interval_ticks": 2,
-                  "body": [
+                  "kind": "active",
+                  "ticks": 1,
+                  "spawn": [
                     {
-                      "type": "fire",
-                      "speed": 1536,
-                      "direction": {
-                        "type": "sequential",
-                        "step": 1792
-                      }
+                      "type": "repeat",
+                      "count": 40,
+                      "interval_ticks": 2,
+                      "body": [
+                        {
+                          "type": "fire",
+                          "speed": 1536,
+                          "direction": {
+                            "type": "sequential",
+                            "step": 1792
+                          }
+                        }
+                      ]
                     }
                   ]
                 }

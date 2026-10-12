@@ -39,7 +39,7 @@ fn shooting(shot: Value, atk: u32, waves: Vec<Value>) -> Stage {
 }
 
 fn inline(nodes: Vec<Value>) -> Value {
-    json!({ "inline": nodes })
+    json!({ "inline": spawned(json!(nodes)) })
 }
 
 /// Steps `ticks` ticks with fire held, or not held after the first `fire_ticks`.
