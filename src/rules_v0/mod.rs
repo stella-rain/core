@@ -62,7 +62,7 @@ pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
 pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 
 /// The main character is always entity 0; the boss, if any, is 1, then the companions.
-const PLAYER_ID: EntityId = EntityId(0);
+pub(crate) const PLAYER_ID: EntityId = EntityId(0);
 const PLAYER_SPEED: i32 = Fx::px(3).0;
 const FOCUS_SPEED: i32 = Fx::px(1).0;
 /// The hurt circle, a tiny one (ADR-038).
@@ -183,6 +183,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
         companions,
         enemies: Vec::new(),
         tasks: Vec::new(),
+        runs: Vec::new(),
         bullets: Vec::new(),
         spawned: vec![0; stage.waves.len()],
         next_id,
@@ -210,6 +211,7 @@ pub(crate) fn step(
 
     spawn_waves(stage, s);
     entity::tick_statuses_and_aggro(s);
+    attacks::advance_runs(s, events);
     player::update(stage, s, input, events);
     boss::act(stage, s, events);
     agents::act(stage, s, events);
@@ -550,6 +552,22 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
     }
 }
 
+/// A phased attack in progress (ADR-055). Like a task's program, its phases are not written:
+/// they come from the stage, and where the run has got to is.
+fn hash_run(h: &mut StateHasher, r: &crate::engine::AttackRun) {
+    h.write_u32(r.owner.0);
+    h.write_u32(u32::from(r.slot));
+    h.write_u32(count(&r.phases));
+    h.write_u32(r.phase);
+    h.write_u32(r.tick);
+    h.write_i32(r.facing.x);
+    h.write_i32(r.facing.y);
+    hash_aim(h, r.aim);
+    h.write_bool(r.friendly);
+    h.write_u32(r.damage);
+    h.write_u32(r.age);
+}
+
 /// The state hash: FNV-1a 64 over the whole state at fixed widths, field by field in the order
 /// of the `State` types, with each list preceded by its length (ADR-019).
 pub(crate) fn state_hash(s: &State) -> u64 {
@@ -640,6 +658,10 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_u32(count(&s.tasks));
     for t in &s.tasks {
         hash_task(&mut h, t);
+    }
+    h.write_u32(count(&s.runs));
+    for r in &s.runs {
+        hash_run(&mut h, r);
     }
     h.write_u32(count(&s.bullets));
     for b in &s.bullets {

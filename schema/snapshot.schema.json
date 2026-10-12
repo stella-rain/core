@@ -33,6 +33,75 @@
     "bullets"
   ],
   "$defs": {
+    "AttackView": {
+      "description": "An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the\nsame tick that `core` judges them.",
+      "type": "object",
+      "properties": {
+        "facing": {
+          "description": "The facing locked when the attack started.",
+          "$ref": "#/$defs/Facing"
+        },
+        "hit_box": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HitBox"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/PhaseKind"
+        },
+        "phase": {
+          "description": "Which phase, from 0.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "preset": {
+          "description": "The preset it came from; absent for an inline attack.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "slot": {
+          "description": "0 for an agent's or the boss's attacks and the main shot; 1 for a main-character skill.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "tick": {
+          "description": "Ticks done in the phase: 0 on its first tick.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ticks": {
+          "description": "How long the phase lasts.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "phase",
+        "kind",
+        "tick",
+        "ticks",
+        "facing"
+      ]
+    },
     "BulletView": {
       "description": "Bullets carry no ID or asset name: thousands are drawn per tick, batched by `style`.",
       "type": "object",
@@ -100,6 +169,17 @@
         "at": {
           "$ref": "#/$defs/Point"
         },
+        "attack": {
+          "description": "The attack it is making, if any.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttackView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
@@ -136,10 +216,88 @@
         "hp"
       ]
     },
+    "Facing": {
+      "description": "A direction as a unit vector times `trig::SCALE`; `y` grows down the screen.",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
+      ]
+    },
     "Fx": {
       "description": "A length in 1/256 pixel units. In files it is the plain integer.",
       "type": "integer",
       "format": "int32"
+    },
+    "HitBox": {
+      "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "circle"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius"
+          ]
+        },
+        {
+          "description": "A circle sector centred on the facing, `half_angle` to each side.",
+          "type": "object",
+          "properties": {
+            "half_angle": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "arc"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius",
+            "half_angle"
+          ]
+        }
+      ]
     },
     "HoldView": {
       "type": "object",
@@ -163,11 +321,52 @@
         "ticks"
       ]
     },
+    "Offset": {
+      "type": "object",
+      "properties": {
+        "forward": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        },
+        "right": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "PhaseKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "recovery"
+          ]
+        },
+        {
+          "description": "The telegraph: its hit box is the warned area, and it deals no damage.",
+          "type": "string",
+          "const": "wind_up"
+        },
+        {
+          "description": "Its hit box deals damage.",
+          "type": "string",
+          "const": "active"
+        }
+      ]
+    },
     "PlayerView": {
       "type": "object",
       "properties": {
         "at": {
           "$ref": "#/$defs/Point"
+        },
+        "attacks": {
+          "description": "Its attacks in progress, by slot.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttackView"
+          }
         },
         "firing": {
           "type": "boolean"

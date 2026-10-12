@@ -37,6 +37,11 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
         return;
     };
     {
+        // An attack phase with `move_pct` 0 holds the boss where it is (ADR-055).
+        let rooted = s
+            .boss
+            .as_ref()
+            .is_some_and(|b| attacks::move_pct(s, b.id) == 0);
         let Some(b) = s.boss.as_mut() else {
             return;
         };
@@ -48,7 +53,7 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
         for r in &mut b.rules {
             r.cooldown_left = r.cooldown_left.saturating_sub(1);
         }
-        if let Some(order) = b.order {
+        if let Some(order) = b.order.filter(|_| !rooted) {
             (b.at, b.order) = step_order(b.at, order);
         }
     }
@@ -103,6 +108,7 @@ fn begin_phase(
     // The attacks the boss itself was making end with the phase.
     s.tasks
         .retain(|t| !(t.owner == id && t.origin == Origin::Owner));
+    attacks::end_runs_of(s, id);
     if index > 0 {
         events.push(DomainEvent::PhaseChanged {
             phase: u8::try_from(index).unwrap_or(u8::MAX),
@@ -125,6 +131,11 @@ fn timeline(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(def) = stage.boss.as_ref() else {
         return;
     };
+    // An `attack` step lasts as long as its attack (ADR-055), and so does any attack the
+    // boss's rules started: one attack at a time.
+    if s.boss.as_ref().is_some_and(|b| attacks::busy(s, b.id, 0)) {
+        return;
+    }
     let Some(b) = s.boss.as_mut() else {
         return;
     };
@@ -172,7 +183,11 @@ fn timeline(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
                     return;
                 }
             }
-            Step::Attack { attack } => start_attack(s, attack),
+            Step::Attack { attack } => {
+                if start_attack(s, attack, events) {
+                    return;
+                }
+            }
             Step::Loop => b.step = 0,
         }
     }
@@ -180,7 +195,7 @@ fn timeline(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
 
 /// An attack of the boss's own, aimed at the main character, one hit point a bullet, on the
 /// phase's clock: `phase_time` is 0 on the first tick of the phase.
-fn start_attack(s: &mut State, attack: &AttackRef) {
+fn start_attack(s: &mut State, attack: &AttackRef, events: &mut Vec<DomainEvent>) -> bool {
     let age = s.boss.as_ref().map_or(0, |b| b.phase_age.saturating_sub(1));
-    attacks::start_aged(s, Who::Boss, Who::Player, attack, 1, age);
+    attacks::start_aged(s, Who::Boss, 0, Who::Player, attack, 1, age, events)
 }

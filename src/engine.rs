@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use crate::attack::Emitter;
+use crate::attack::{AttackPhase, Emitter};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
@@ -17,7 +17,8 @@ use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
 use crate::snapshot::{
-    BulletView, EntityKind, EntityView, HoldView, PlayerView, SkillView, Snapshot,
+    AttackView, BulletView, EntityKind, EntityView, Facing, HoldView, PlayerView, SkillView,
+    Snapshot,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error};
@@ -127,6 +128,23 @@ impl Engine {
     /// What the frontend draws after the last tick (ADR-005).
     pub fn snapshot(&self) -> Snapshot {
         let s = &self.state;
+        let view = |r: &AttackRun| {
+            let p = &r.phases[r.phase as usize];
+            AttackView {
+                slot: r.slot,
+                preset: r.preset.clone(),
+                phase: u8::try_from(r.phase).unwrap_or(u8::MAX),
+                kind: p.kind,
+                tick: r.tick,
+                ticks: p.ticks,
+                hit_box: p.hit_box.clone(),
+                facing: Facing {
+                    x: r.facing.x,
+                    y: r.facing.y,
+                },
+            }
+        };
+        let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
         let mut entities = Vec::new();
         if let (Some(b), Some(boss)) = (&s.boss, &self.stage.boss) {
             if b.hp > 0 {
@@ -138,6 +156,7 @@ impl Engine {
                     at: b.at,
                     radius: boss.radius,
                     hp: b.hp,
+                    attack: attack_of(b.id),
                 });
             }
         }
@@ -154,6 +173,7 @@ impl Engine {
                         at: a.at,
                         radius: def.radius,
                         hp: a.hp,
+                        attack: attack_of(a.id),
                     });
                 }
             };
@@ -172,6 +192,7 @@ impl Engine {
                         },
                         radius: Fx(part.radius),
                         hp: part.hp,
+                        attack: None,
                     });
                 }
             }
@@ -204,6 +225,15 @@ impl Engine {
                             .then(|| u16::try_from(state.charges_left).unwrap_or(u16::MAX)),
                     })
                     .collect(),
+                attacks: {
+                    let mut runs: Vec<&AttackRun> = s
+                        .runs
+                        .iter()
+                        .filter(|r| r.owner == rules_v0::PLAYER_ID)
+                        .collect();
+                    runs.sort_by_key(|r| r.slot);
+                    runs.into_iter().map(view).collect()
+                },
             },
             entities,
             bullets: s
@@ -242,6 +272,8 @@ pub(crate) struct State {
     pub enemies: Vec<AgentState>,
     /// Attacks that are being carried out, oldest first (ADR-036 tier 3).
     pub tasks: Vec<AttackTask>,
+    /// Phased attacks in progress, in the order they started (ADR-055).
+    pub runs: Vec<AttackRun>,
     /// In spawn order.
     pub bullets: Vec<BulletState>,
     /// Enemies spawned so far, per wave.
@@ -523,6 +555,28 @@ pub(crate) struct Frame {
     pub offset: i32,
     /// For `on_bullet`: ticks the bullets of its body wait before starting their attack.
     pub hook_after: u32,
+}
+
+/// A phased attack an attacker is carrying out (ADR-055): one at a time per attacker and slot.
+/// Its phases spawn their nodes as `AttackTask`s, which run to their own end.
+#[derive(Clone, Debug)]
+pub(crate) struct AttackRun {
+    pub owner: EntityId,
+    /// 0 for an agent's or the boss's attacks and the main shot; 1 for a main-character skill.
+    pub slot: u8,
+    /// The preset it came from, for the frontend to pick its animation.
+    pub preset: Option<ContentId>,
+    pub phases: Arc<Vec<AttackPhase>>,
+    pub phase: u32,
+    /// Ticks done in the phase: 0 on its first tick.
+    pub tick: u32,
+    /// Locked when the attack starts.
+    pub facing: Dir,
+    pub aim: Aim,
+    pub friendly: bool,
+    pub damage: u32,
+    /// `phase_time` of the attack's first tick, for the nodes its phases spawn.
+    pub age: u32,
 }
 
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it
