@@ -85,11 +85,11 @@ class Verify(unittest.TestCase):
         self.assertEqual(rt.verify(ALL_GREEN), [])
 
     def test_the_required_checks_are_the_rc_ruleset_and_version_is_new(self):
-        self.assertEqual(len(rt.REQUIRED_CHECKS), 20)
+        self.assertEqual(len(rt.REQUIRED_CHECKS), 21)
         self.assertIn("the head is main", rt.REQUIRED_CHECKS)
         self.assertIn("version is new", rt.REQUIRED_CHECKS)
         self.assertIn("long fuzz / fuzz share_decode", rt.REQUIRED_CHECKS)
-        self.assertNotIn("short fuzz run", rt.REQUIRED_CHECKS)
+        self.assertIn("short fuzz run", rt.REQUIRED_CHECKS)
 
     def test_a_missing_check_is_a_problem(self):
         runs = [r for r in ALL_GREEN if r["name"] != "tests on arm64"]
@@ -101,6 +101,21 @@ class Verify(unittest.TestCase):
                 runs = [r for r in ALL_GREEN if r["name"] != "version is new"]
                 runs.append(run("version is new", conclusion=conclusion))
                 self.assertEqual(rt.verify(runs), [f"version is new: {conclusion}"])
+
+    def test_a_skipped_short_fuzz_run_passes(self):
+        # Path-filtered: it skips when no parsing file changed, and the rc ruleset counts
+        # a skipped check as passing.
+        runs = [r for r in ALL_GREEN if r["name"] != "short fuzz run"]
+        runs.append(run("short fuzz run", conclusion="skipped"))
+        self.assertEqual(rt.verify(runs), [])
+
+    def test_a_failed_or_missing_short_fuzz_run_is_a_problem(self):
+        others = [r for r in ALL_GREEN if r["name"] != "short fuzz run"]
+        self.assertEqual(rt.verify(others), ["short fuzz run: not reported"])
+        for conclusion in ("failure", "cancelled"):
+            with self.subTest(conclusion=conclusion):
+                runs = others + [run("short fuzz run", conclusion=conclusion)]
+                self.assertEqual(rt.verify(runs), [f"short fuzz run: {conclusion}"])
 
     def test_a_rerun_that_succeeded_counts(self):
         runs = ALL_GREEN + [run("tests on arm64", conclusion="failure")]
