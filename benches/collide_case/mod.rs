@@ -20,12 +20,36 @@ pub const WARMUP_TICKS: u32 = 400;
 /// fires 90 bullets every 6 ticks at 2 pixels a tick, fanned over 60 degrees around straight up:
 /// none of them hits an enemy, so each is checked against the enemies on every tick it flies,
 /// and about 3,900 are alive (`MAX_BULLETS_ALIVE` is 4,000).
+///
+/// Hit boxes (ADR-055): four companions (`MAX_COMPANIONS`) stand to the right of the enemies,
+/// facing them, each in an active phase with a 256-pixel arc pushed 156 pixels past the
+/// enemies. All 300 come back from the grid's range query, and each is tested against the
+/// arc's angle and both its edges, and missed: the arc faces away from them.
 pub fn stage() -> Stage {
     let enemy = common::enemy(100_000, common::hold(2_048, 160_000), json!([]));
     let waves: Vec<Value> = (0..3)
         .map(|_| common::wave(1, 100, 1, enemy.clone(), 2_048, 160_000))
         .collect();
-    let mut stage = common::stage_full(18_000, Some(common::far_boss()), waves, vec![], vec![]);
+    let sweep = json!([{ "kind": "active", "ticks": 30, "damage": 1, "rehit_ticks": 1,
+                         "hit_box": { "type": "arc", "offset": { "forward": 40_000 },
+                                      "radius": 65_536, "half_angle": 60 * 256 } }]);
+    let guard = common::companion(
+        50,
+        common::hold(30_000, 160_000),
+        json!([common::rule(
+            common::always(),
+            json!("nearest_enemy"),
+            json!({ "type": "attack", "attack": { "inline": sweep } }),
+            0
+        )]),
+    );
+    let mut stage = common::stage_full(
+        18_000,
+        Some(common::far_boss()),
+        waves,
+        vec![guard; 4],
+        vec![],
+    );
     stage.player.shot = serde_json::from_value(json!({ "inline": common::spawned(json!([{
         "type": "spread", "count": 90, "angle": 15_360, "body": [{
             "type": "fire", "speed": 512, "direction": { "type": "relative", "angle": 0 }

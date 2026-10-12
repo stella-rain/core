@@ -37,7 +37,9 @@ pub struct AttackPhase {
     /// The area the phase covers, attached to the attacker.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hit_box: Option<HitBox>,
-    /// Base damage of the phase's hits and of the bullets it spawns (ADR-056).
+    /// Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is
+    /// what the attacker's own attack does: the main character's `atk`, a `shot` skill's
+    /// `damage`, or 1 for an enemy or the boss.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub damage: Option<u32>,
     /// An active phase only: a target already hit may be hit again after this many ticks.
