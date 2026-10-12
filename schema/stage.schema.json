@@ -228,6 +228,69 @@
         "movement"
       ]
     },
+    "AttackPhase": {
+      "description": "One phase of an attack (ADR-055).",
+      "type": "object",
+      "properties": {
+        "damage": {
+          "description": "Base damage of the phase's hits and of the bullets it spawns (ADR-056).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "hit_box": {
+          "description": "The area the phase covers, attached to the attacker.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HitBox"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/PhaseKind"
+        },
+        "move_pct": {
+          "description": "The attacker's movement speed during the phase, in percent; 0 roots it.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "rehit_ticks": {
+          "description": "An active phase only: a target already hit may be hit again after this many ticks.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "spawn": {
+          "description": "Emitter nodes started on the phase's first tick, carried out in order (see `rules_v0`'s\nattacks for what each one does).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Emitter"
+          }
+        },
+        "ticks": {
+          "description": "How long the phase lasts: a constant, never an expression, so that an attack's length\nand its telegraph are known before it runs.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "ticks"
+      ]
+    },
     "AttackRef": {
       "description": "A preset by ID with its arguments, or an inline definition.",
       "oneOf": [
@@ -261,13 +324,13 @@
           ]
         },
         {
-          "description": "The nodes, carried out in order (see `rules_v0`'s attacks for what each one does).",
+          "description": "The phases, in order.",
           "type": "object",
           "properties": {
             "inline": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/Emitter"
+                "$ref": "#/$defs/AttackPhase"
               }
             }
           },
@@ -1001,6 +1064,65 @@
       "type": "integer",
       "format": "int32"
     },
+    "HitBox": {
+      "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "circle"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius"
+          ]
+        },
+        {
+          "description": "A circle sector centred on the facing, `half_angle` to each side.",
+          "type": "object",
+          "properties": {
+            "half_angle": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "arc"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius",
+            "half_angle"
+          ]
+        }
+      ]
+    },
     "Movement": {
       "oneOf": [
         {
@@ -1081,6 +1203,20 @@
         }
       ]
     },
+    "Offset": {
+      "type": "object",
+      "properties": {
+        "forward": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        },
+        "right": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
     "Phase": {
       "type": "object",
       "properties": {
@@ -1121,6 +1257,26 @@
         }
       },
       "additionalProperties": false
+    },
+    "PhaseKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "recovery"
+          ]
+        },
+        {
+          "description": "The telegraph: its hit box is the warned area, and it deals no damage.",
+          "type": "string",
+          "const": "wind_up"
+        },
+        {
+          "description": "Its hit box deals damage.",
+          "type": "string",
+          "const": "active"
+        }
+      ]
     },
     "Player": {
       "description": "The main character, as the creator configured it; challengers get exactly this (ADR-012).",

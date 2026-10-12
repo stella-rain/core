@@ -1,54 +1,60 @@
-//! Attack presets (ADR-036 tier 3): the developer's attacks, written in the same format as the
-//! attacks creators write inline, and registered as content IDs (ADR-026). A stage uses one by
-//! ID with arguments, or holds an inline copy. **Taking a preset apart** copies its definition
-//! inline with each argument written in as a constant; the stage then edits it freely and no
-//! longer depends on the ID. The engine runs a preset by that same expansion, so a preset and
+//! Attack presets (ADR-036 tier 3, ADR-055): the developer's attacks, written in the same
+//! format as the attacks creators write inline, and registered as content IDs (ADR-026). A stage
+//! uses one by ID with arguments, or holds an inline copy. **Taking a preset apart** copies its
+//! definition inline with each argument written in as a constant; the stage then edits it
+//! freely and no longer depends on the ID. The engine runs a preset by that same expansion, so a preset and
 //! its inline copy run the same program and reach the same state hashes.
 //!
 //! Under version 0 (ADR-035) these definitions are placeholders and change in place.
 
 use std::sync::{Arc, OnceLock};
 
-use crate::attack::{AttackRef, Direction, Emitter, Expr};
+use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr};
 use crate::registry::{self, Kind};
 
 /// `(id, definition)`: the definitions are JSON, the stage format's own, with `{"arg": n}` for
-/// the preset's arguments. Angles are in 1/256 degree and speeds in 1/256 pixel a tick.
+/// the preset's arguments. Angles are in 1/256 degree and speeds in 1/256 pixel a tick. Each is
+/// one active phase of one tick that spawns its bullets.
 const DEFINITIONS: &[(&str, &str)] = &[
     // One bullet at the target; argument 0 is its speed.
     (
         "aimed_single",
-        r#"[{"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]"#,
+        r#"[{"kind":"active","ticks":1,"spawn":[
+            {"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]}]"#,
     ),
     // Seven bullets in a 30 degree fan at the target; argument 0 is their speed.
     (
         "aimed_spread",
-        r#"[{"type":"spread","count":7,"angle":7680,"body":[
-            {"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]}]"#,
+        r#"[{"kind":"active","ticks":1,"spawn":[
+            {"type":"spread","count":7,"angle":7680,"body":[
+            {"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
     // Forty bullets, one every 3 ticks, each turned 6 degrees from the one before; argument 0
     // is their speed.
     (
         "spiral",
-        r#"[{"type":"repeat","count":40,"interval_ticks":3,"body":[
-            {"type":"fire","speed":{"arg":0},"direction":{"type":"sequential","step":1536}}]}]"#,
+        r#"[{"kind":"active","ticks":1,"spawn":[
+            {"type":"repeat","count":40,"interval_ticks":3,"body":[
+            {"type":"fire","speed":{"arg":0},"direction":{"type":"sequential","step":1536}}]}]}]"#,
     ),
     // Five bullets in a 20 degree fan at the target.
     (
         "spread_5",
-        r#"[{"type":"spread","count":5,"angle":5120,"body":[
-            {"type":"fire","speed":1536,"direction":{"type":"aimed","offset":0}}]}]"#,
+        r#"[{"kind":"active","ticks":1,"spawn":[
+            {"type":"spread","count":5,"angle":5120,"body":[
+            {"type":"fire","speed":1536,"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
     // Two bullets side by side, 5 degrees apart, at the target.
     (
         "twin_shot",
-        r#"[{"type":"spread","count":2,"angle":1280,"body":[
-            {"type":"fire","speed":2048,"direction":{"type":"aimed","offset":0}}]}]"#,
+        r#"[{"kind":"active","ticks":1,"spawn":[
+            {"type":"spread","count":2,"angle":1280,"body":[
+            {"type":"fire","speed":2048,"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
 ];
 
-fn parsed() -> &'static [(&'static str, Vec<Emitter>)] {
-    static PARSED: OnceLock<Vec<(&'static str, Vec<Emitter>)>> = OnceLock::new();
+fn parsed() -> &'static [(&'static str, Vec<AttackPhase>)] {
+    static PARSED: OnceLock<Vec<(&'static str, Vec<AttackPhase>)>> = OnceLock::new();
     PARSED.get_or_init(|| {
         DEFINITIONS
             .iter()
@@ -67,7 +73,7 @@ pub fn ids() -> impl Iterator<Item = &'static str> {
 }
 
 /// A preset's definition, with its arguments still as `arg` nodes.
-pub fn definition(id: &str) -> Option<&'static [Emitter]> {
+pub fn definition(id: &str) -> Option<&'static [AttackPhase]> {
     parsed()
         .iter()
         .find(|(i, _)| *i == id)
@@ -76,24 +82,44 @@ pub fn definition(id: &str) -> Option<&'static [Emitter]> {
 
 /// The preset `id` taken apart: its definition with each `arg` replaced by the constant in
 /// `args`. `None` if there is no such preset or the number of arguments is wrong.
-pub fn take_apart(id: &str, args: &[i32]) -> Option<Vec<Emitter>> {
+pub fn take_apart(id: &str, args: &[i32]) -> Option<Vec<AttackPhase>> {
     let arity = registry::find(registry::ENTRIES, Kind::Preset, id)?.args;
     if usize::from(arity) != args.len() {
         return None;
     }
-    Some(emitters(definition(id)?, args))
+    Some(
+        definition(id)?
+            .iter()
+            .map(|p| AttackPhase {
+                spawn: emitters(&p.spawn, args),
+                ..p.clone()
+            })
+            .collect(),
+    )
 }
 
-/// The program an attack runs: a preset taken apart, or the inline nodes themselves.
+/// The program an attack runs: the nodes its first phase spawns, from a preset taken apart or
+/// from the inline phases. Until the rules run phases (core#82), the validator accepts only one
+/// active phase of one tick, which spawns its nodes on the tick the attack starts.
 pub fn program(attack: &AttackRef) -> Option<Arc<Vec<Emitter>>> {
+    let first = |phases: &[AttackPhase]| phases.first().map_or_else(Vec::new, |p| p.spawn.clone());
     match attack {
-        AttackRef::Preset { id, args } => take_apart(&id.0, args).map(Arc::new),
-        AttackRef::Inline(nodes) => Some(Arc::new(nodes.clone())),
+        AttackRef::Preset { id, args } => take_apart(&id.0, args).map(|p| Arc::new(first(&p))),
+        AttackRef::Inline(phases) => Some(Arc::new(first(phases))),
     }
 }
 
+/// The highest argument number an attack's phases read, if they read any.
+pub fn highest_arg(phases: &[AttackPhase]) -> Option<u8> {
+    phases
+        .iter()
+        .map(|p| nodes_highest_arg(&p.spawn))
+        .max()
+        .flatten()
+}
+
 /// The highest argument number a list of nodes reads, if it reads any.
-pub fn highest_arg(nodes: &[Emitter]) -> Option<u8> {
+fn nodes_highest_arg(nodes: &[Emitter]) -> Option<u8> {
     fn expr(e: &Expr) -> Option<u8> {
         match e {
             Expr::Arg(i) => Some(*i),
@@ -127,20 +153,22 @@ pub fn highest_arg(nodes: &[Emitter]) -> Option<u8> {
                 count,
                 interval_ticks,
                 body,
-            } => expr(count).max(expr(interval_ticks)).max(highest_arg(body)),
-            Emitter::Ring { count, body } => expr(count).max(highest_arg(body)),
+            } => expr(count)
+                .max(expr(interval_ticks))
+                .max(nodes_highest_arg(body)),
+            Emitter::Ring { count, body } => expr(count).max(nodes_highest_arg(body)),
             Emitter::Spread { count, angle, body } => {
-                expr(count).max(expr(angle)).max(highest_arg(body))
+                expr(count).max(expr(angle)).max(nodes_highest_arg(body))
             }
-            Emitter::Rotate { angle, body } => expr(angle).max(highest_arg(body)),
+            Emitter::Rotate { angle, body } => expr(angle).max(nodes_highest_arg(body)),
             Emitter::Wait { ticks } => expr(ticks),
             Emitter::OnBullet {
                 after_ticks,
                 body,
                 then,
             } => expr(after_ticks)
-                .max(highest_arg(body))
-                .max(highest_arg(then)),
+                .max(nodes_highest_arg(body))
+                .max(nodes_highest_arg(then)),
         })
         .max()
         .flatten()

@@ -61,7 +61,8 @@ fn unknown_fields_are_rejected_at_every_level() {
         "/boss/phases/0",
         "/boss/phases/0/timeline/0",
         "/boss/phases/0/timeline/1/attack/inline/0",
-        "/boss/phases/0/timeline/1/attack/inline/0/body/0/body/0/direction",
+        "/boss/phases/0/timeline/1/attack/inline/0/spawn/0",
+        "/boss/phases/0/timeline/1/attack/inline/0/spawn/0/body/0/body/0/direction",
         "/boss/phases/1/transition/1",
     ] {
         let err = parse(&with_extra_field(pointer))

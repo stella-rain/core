@@ -21,6 +21,12 @@ pub fn clearing_stage_json() -> Value {
     })
 }
 
+/// The phases of an attack that spawns `nodes` on the tick it starts: one active phase of one
+/// tick (ADR-055).
+pub fn spawned(nodes: Value) -> Value {
+    json!([{ "kind": "active", "ticks": 1, "spawn": nodes }])
+}
+
 pub fn stage_bytes() -> Vec<u8> {
     serde_json::to_vec(&clearing_stage_json()).unwrap()
 }

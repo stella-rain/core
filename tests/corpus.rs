@@ -298,8 +298,10 @@ fn bullets() -> Definition {
     let boss = json!({
         "base": "golem", "hp": 1_000_000, "radius": 8192, "spawn": { "x": 46_080, "y": 40_000 },
         "phases": [{ "timeline": [
-            { "type": "attack", "attack": { "inline": [ring] } }, { "type": "wait", "ticks": 70 },
-            { "type": "attack", "attack": { "inline": [spiral] } }, { "type": "wait", "ticks": 90 },
+            { "type": "attack", "attack": { "inline": spawned(json!([ring])) } },
+            { "type": "wait", "ticks": 70 },
+            { "type": "attack", "attack": { "inline": spawned(json!([spiral])) } },
+            { "type": "wait", "ticks": 90 },
             { "type": "loop" } ] }]
     });
     let stage = stage_full(600, Some(boss), vec![], vec![], vec![]);

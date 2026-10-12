@@ -88,7 +88,7 @@
           {
             "type": "attack",
             "attack": {
-              "inline": [
+              "inline": [{ "kind": "active", "ticks": 1, "spawn": [
                 {
                   "type": "repeat",
                   "count": 5,
@@ -107,7 +107,7 @@
                     }
                   ]
                 }
-              ]
+              ]}]
             }
           },
           { "type": "wait", "ticks": 90 },
@@ -129,7 +129,7 @@
           {
             "type": "attack",
             "attack": {
-              "inline": [
+              "inline": [{ "kind": "active", "ticks": 1, "spawn": [
                 {
                   "type": "on_bullet",
                   "after_ticks": 40,
@@ -142,7 +142,7 @@
                       "body": [{ "type": "fire", "speed": 256, "direction": { "type": "sequential", "step": 2560 }, "bullet": "orb_small" }] }
                   ]
                 }
-              ]
+              ]}]
             }
           },
           { "type": "loop" }
