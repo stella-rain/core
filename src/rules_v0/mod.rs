@@ -12,8 +12,8 @@
 //! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
 //!    is carried out up to its next wait (`attacks`), making bullets;
 //! 5. bullets move and leave the field;
-//! 6. collisions: shots of allies hurt enemies and the boss, shots of enemies hurt the main
-//!    character and the companions;
+//! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
+//!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
 //!
 //! Not yet in this version: summons by companions; ways of shooting the main character acquires
@@ -32,6 +32,7 @@ mod attacks;
 mod boss;
 mod entity;
 mod grid;
+mod hit_boxes;
 mod player;
 mod select;
 
@@ -298,9 +299,10 @@ struct Shot {
 }
 
 fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
-    // The enemies do not move while bullets land, so one grid, built for the first friendly
-    // bullet, serves all of them; a tick without friendly bullets never builds it.
+    // The enemies do not move while hit boxes and bullets land, so one grid, built for the first
+    // friendly hit box or bullet, serves all of them; a tick without either never builds it.
     let mut grid: Option<Grid> = None;
+    hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = Vec::with_capacity(s.bullets.len());
     for i in 0..s.bullets.len() {
         let b = &s.bullets[i];
@@ -405,17 +407,23 @@ fn hit_enemy_side(
     false
 }
 
+/// Damage to the main character, raised by its vulnerability; it is then invulnerable for a
+/// while.
+fn hurt_player(s: &mut State, damage: u32, events: &mut Vec<DomainEvent>) {
+    let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
+    let dealt = scale_damage(damage, 0, vulnerable);
+    let p = &mut s.player;
+    p.hp = p.hp.saturating_sub(dealt);
+    p.invulnerable = HIT_INVULNERABLE_TICKS;
+    events.push(DomainEvent::PlayerHit { hp_left: p.hp });
+}
+
 /// An enemy's shot against the main character (unless it is invulnerable), then the
 /// companions in ID order.
 fn hit_ally_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
     if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
-        let vulnerable = status_pct(&p.statuses, crate::engine::StatusKind::Vulnerable);
-        let dealt = scale_damage(b.damage, 0, vulnerable);
-        let p = &mut s.player;
-        p.hp = p.hp.saturating_sub(dealt);
-        p.invulnerable = HIT_INVULNERABLE_TICKS;
-        events.push(DomainEvent::PlayerHit { hp_left: p.hp });
+        hurt_player(s, b.damage, events);
         return true;
     }
     for i in 0..s.companions.len() {
@@ -564,8 +572,14 @@ fn hash_run(h: &mut StateHasher, r: &crate::engine::AttackRun) {
     h.write_i32(r.facing.y);
     hash_aim(h, r.aim);
     h.write_bool(r.friendly);
-    h.write_u32(r.damage);
+    h.write_u32(r.base);
+    h.write_u32(r.atk_up_pct);
     h.write_u32(r.age);
+    h.write_u32(count(&r.hits));
+    for (id, tick) in &r.hits {
+        h.write_u32(id.0);
+        h.write_u32(*tick);
+    }
 }
 
 /// The state hash: FNV-1a 64 over the whole state at fixed widths, field by field in the order

@@ -124,11 +124,7 @@ pub(super) fn start_with(
     let Some(phases) = presets::phases(attack).filter(|p| !p.is_empty()) else {
         return false;
     };
-    let damage = scale_damage(
-        base_damage,
-        status_pct(s.statuses(owner), StatusKind::AtkUp),
-        0,
-    );
+    let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp);
     let preset: Option<ContentId> = match attack {
         AttackRef::Preset { id, .. } => Some(id.clone()),
         AttackRef::Inline(_) => None,
@@ -144,8 +140,10 @@ pub(super) fn start_with(
         facing,
         aim,
         friendly: State::is_ally(owner),
-        damage,
+        base: base_damage,
+        atk_up_pct,
         age,
+        hits: Vec::new(),
     });
     begin_phase(s, s.runs.len() - 1, events);
     true
@@ -181,9 +179,20 @@ pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
     s.runs.retain(|r| r.owner != owner);
 }
 
-/// The first tick of run `i`'s current phase: a wind-up announces itself, and the phase's
-/// nodes start as a task (unless too many attacks are going already).
+/// The damage of run `r`'s current phase, for its hit box and the bullets it spawns: the
+/// phase's own, or else the starter's, raised by the atk-up fixed at the attack's start.
+pub(super) fn phase_damage(r: &AttackRun) -> u32 {
+    let p = &r.phases[r.phase as usize];
+    scale_damage(p.damage.unwrap_or(r.base), r.atk_up_pct, 0)
+}
+
+/// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase
+/// starts a new hit list, and the phase's nodes start as a task (unless too many attacks are
+/// going already).
 fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
+    if s.runs[i].phases[s.runs[i].phase as usize].kind == PhaseKind::Active {
+        s.runs[i].hits.clear();
+    }
     let r = &s.runs[i];
     let p = &r.phases[r.phase as usize];
     if p.kind == PhaseKind::WindUp {
@@ -206,7 +215,7 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         origin: Origin::Owner,
         aim: r.aim,
         friendly: r.friendly,
-        damage: r.damage,
+        damage: phase_damage(r),
         age: r.age.saturating_add(elapsed),
         wait_left: 0,
         frames: vec![Frame::default()],
@@ -454,7 +463,7 @@ fn normalize(x: i64, y: i64) -> Dir {
 }
 
 /// `d` turned by `angle` (1/256 degree), toward the right for positive angles.
-fn rotate(d: Dir, angle: i32) -> Dir {
+pub(super) fn rotate(d: Dir, angle: i32) -> Dir {
     let (sin, cos) = trig::sin_cos(angle);
     let (x, y) = (i64::from(d.x), i64::from(d.y));
     let (sin, cos) = (i64::from(sin), i64::from(cos));

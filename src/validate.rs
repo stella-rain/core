@@ -15,11 +15,12 @@ use std::fmt;
 
 use serde::Deserialize;
 
-use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr};
+use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill};
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
 use crate::stage::{Boss, BossPart, Phase, Player, SkillSlot, Stage, Step, Transition, Wave};
+use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
 /// Limits a stage must keep. The first block is ADR-020, the second ADR-036, the rest the
@@ -747,20 +748,45 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// One phase: its ticks and movement are bounded. Hit boxes and their damage are not run
-    /// yet (core#82), so they are refused rather than ignored (fail closed).
+    /// One phase: its ticks, movement, hit box, damage and re-hits are bounded. A re-hit needs
+    /// an active phase with a hit box, since nothing else hits.
     fn attack_phase(&mut self, p: &AttackPhase) {
         self.within("ticks", i64::from(p.ticks), 1, i64::from(MAX_PHASE_TICKS));
         self.within("move_pct", i64::from(p.move_pct), 0, 100);
-        let unsupported = [
-            ("hit_box", p.hit_box.is_some()),
-            ("damage", p.damage.is_some()),
-            ("rehit_ticks", p.rehit_ticks.is_some()),
-        ];
-        for (key, found) in unsupported {
-            if found {
-                self.key(key, |c| c.fail("not run yet: hit boxes come with core#82"));
+        if let Some(h) = &p.hit_box {
+            self.key("hit_box", |c| c.hit_box(h));
+        }
+        if let Some(d) = p.damage {
+            self.within("damage", i64::from(d), 1, i64::from(MAX_DAMAGE));
+        }
+        if let Some(r) = p.rehit_ticks {
+            if p.kind != PhaseKind::Active || p.hit_box.is_none() {
+                self.key("rehit_ticks", |c| {
+                    c.fail("only an active phase with a hit box hits again")
+                });
+            } else {
+                self.within("rehit_ticks", i64::from(r), 1, i64::from(MAX_PHASE_TICKS));
             }
+        }
+    }
+
+    /// A hit box's radius and offset are at most `MAX_RADIUS`, and an arc's half angle is 0 to
+    /// 180 degrees.
+    fn hit_box(&mut self, h: &HitBox) {
+        let (HitBox::Circle { offset, radius } | HitBox::Arc { offset, radius, .. }) = h;
+        let r = i64::from(MAX_RADIUS);
+        self.within("radius", i64::from(radius.0), 1, r);
+        self.key("offset", |c| {
+            c.within("forward", i64::from(offset.forward.0), -r, r);
+            c.within("right", i64::from(offset.right.0), -r, r);
+        });
+        if let HitBox::Arc { half_angle, .. } = h {
+            self.within(
+                "half_angle",
+                i64::from(*half_angle),
+                0,
+                i64::from(180 * trig::PER_DEGREE),
+            );
         }
     }
 

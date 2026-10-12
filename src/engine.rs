@@ -574,9 +574,16 @@ pub(crate) struct AttackRun {
     pub facing: Dir,
     pub aim: Aim,
     pub friendly: bool,
-    pub damage: u32,
+    /// The damage its starter gives a phase that sets none (ADR-055): the main character's
+    /// attack, a shot skill's own damage, 1 for an enemy or the boss.
+    pub base: u32,
+    /// The attacker's atk-up, in percent, fixed when the attack starts (ADR-056).
+    pub atk_up_pct: u32,
     /// `phase_time` of the attack's first tick, for the nodes its phases spawn.
     pub age: u32,
+    /// Who the current active phase has hit, and on which tick last, sorted by entity ID;
+    /// emptied when an active phase begins.
+    pub hits: Vec<(EntityId, u32)>,
 }
 
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it

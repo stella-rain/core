@@ -611,21 +611,68 @@ fn a_phase_lasts_1_to_max_phase_ticks_and_moves_0_to_100_percent() {
     }
 }
 
-/// Hit boxes are not run yet (core#82): they are refused, never ignored.
+/// Hit boxes, their damage and re-hits are bounded (ADR-055), at the limit and one past it.
 #[test]
-fn hit_boxes_and_their_damage_are_refused_until_the_rules_run_them() {
+fn hit_boxes_damage_and_rehits_are_bounded() {
     let at = |key: &str| format!("$.player.shot.inline[0].{key}");
-    for (extra, path) in [
+    let half = 180 * 256;
+    let r = MAX_RADIUS;
+    let valid = [
+        json!({ "hit_box": { "type": "circle", "radius": 1 } }),
+        json!({ "hit_box": { "type": "circle", "radius": r,
+                             "offset": { "forward": r, "right": -r } } }),
+        json!({ "hit_box": { "type": "arc", "radius": r, "half_angle": 0 } }),
+        json!({ "hit_box": { "type": "arc", "radius": r, "half_angle": half } }),
+        json!({ "damage": 1 }),
+        json!({ "damage": MAX_DAMAGE }),
+        json!({ "kind": "wind_up", "hit_box": { "type": "circle", "radius": 256 } }),
+        json!({ "kind": "recovery", "hit_box": { "type": "circle", "radius": 256 } }),
+        json!({ "hit_box": { "type": "circle", "radius": 256 }, "rehit_ticks": 1 }),
+        json!({ "hit_box": { "type": "circle", "radius": 256 },
+                "rehit_ticks": MAX_PHASE_TICKS }),
+    ];
+    for extra in valid {
+        assert_valid(&with_phases(json!([phase(extra)])));
+    }
+    let circle = |radius: i32, forward: i32, right: i32| {
+        json!({ "hit_box": { "type": "circle", "radius": radius,
+                             "offset": { "forward": forward, "right": right } } })
+    };
+    let invalid = [
+        (circle(0, 0, 0), at("hit_box.radius")),
+        (circle(r + 1, 0, 0), at("hit_box.radius")),
+        (circle(256, r + 1, 0), at("hit_box.offset.forward")),
+        (circle(256, 0, -r - 1), at("hit_box.offset.right")),
         (
-            json!({ "hit_box": { "type": "circle", "radius": 256 } }),
-            at("hit_box"),
+            json!({ "hit_box": { "type": "arc", "radius": 256, "half_angle": -1 } }),
+            at("hit_box.half_angle"),
         ),
-        (json!({ "damage": 1 }), at("damage")),
+        (
+            json!({ "hit_box": { "type": "arc", "radius": 256, "half_angle": half + 1 } }),
+            at("hit_box.half_angle"),
+        ),
+        (json!({ "damage": 0 }), at("damage")),
+        (json!({ "damage": MAX_DAMAGE + 1 }), at("damage")),
+        (
+            json!({ "hit_box": { "type": "circle", "radius": 256 }, "rehit_ticks": 0 }),
+            at("rehit_ticks"),
+        ),
+        (
+            json!({ "hit_box": { "type": "circle", "radius": 256 },
+                    "rehit_ticks": MAX_PHASE_TICKS + 1 }),
+            at("rehit_ticks"),
+        ),
+        // A re-hit needs something to hit with: an active phase with a hit box.
         (json!({ "rehit_ticks": 10 }), at("rehit_ticks")),
-    ] {
+        (
+            json!({ "kind": "wind_up", "hit_box": { "type": "circle", "radius": 256 },
+                    "rehit_ticks": 10 }),
+            at("rehit_ticks"),
+        ),
+    ];
+    for (extra, path) in invalid {
         let issue = first_issue(&with_phases(json!([phase(extra.clone())])));
         assert_eq!(issue.path, path, "{extra}");
-        assert!(issue.message.contains("not run yet"), "{issue:?}");
     }
 }
 

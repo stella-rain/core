@@ -4,7 +4,7 @@ expression: recording
 ---
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":1,"type":"Input"}
 {"data":{"agent":2,"rule":2,"target":0},"dir":"be>fe","tick":1,"type":"RuleFired"}
-{"data":"5e7fd96ce0b484e2","dir":"be>fe","tick":1,"type":"StateHash"}
+{"data":"89843d52ffc9f342","dir":"be>fe","tick":1,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":2,"type":"Input"}
 {"data":"670774d5080003cf","dir":"be>fe","tick":2,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":3,"type":"Input"}
@@ -16,7 +16,7 @@ expression: recording
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":6,"type":"Input"}
 {"data":"55efe9956078da63","dir":"be>fe","tick":6,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":7,"type":"Input"}
-{"data":"7164e7f48662280e","dir":"be>fe","tick":7,"type":"StateHash"}
+{"data":"865ebf0f5649b9ae","dir":"be>fe","tick":7,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":8,"type":"Input"}
 {"data":"f112f63bd2609002","dir":"be>fe","tick":8,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":9,"type":"Input"}
@@ -31,7 +31,7 @@ expression: recording
 {"data":"718f98ff83de913e","dir":"be>fe","tick":12,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":13,"type":"Input"}
 {"data":{"agent":2,"rule":2,"target":0},"dir":"be>fe","tick":13,"type":"RuleFired"}
-{"data":"cfd56dc752ef8c2a","dir":"be>fe","tick":13,"type":"StateHash"}
+{"data":"02e4c8fe4865b90a","dir":"be>fe","tick":13,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":14,"type":"Input"}
 {"data":"3043bd935a03666c","dir":"be>fe","tick":14,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":15,"type":"Input"}
@@ -43,7 +43,7 @@ expression: recording
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":18,"type":"Input"}
 {"data":"5d79d7e7c5110df3","dir":"be>fe","tick":18,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":19,"type":"Input"}
-{"data":"f76bcebd4954301d","dir":"be>fe","tick":19,"type":"StateHash"}
+{"data":"a6d88f4a06d085dd","dir":"be>fe","tick":19,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":20,"type":"Input"}
 {"data":{"agent":2,"rule":1,"target":0},"dir":"be>fe","tick":20,"type":"RuleFired"}
 {"data":"3a614bb45de2037e","dir":"be>fe","tick":20,"type":"StateHash"}
@@ -57,7 +57,7 @@ expression: recording
 {"data":"aabd3731d848dba1","dir":"be>fe","tick":24,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":25,"type":"Input"}
 {"data":{"agent":2,"rule":2,"target":0},"dir":"be>fe","tick":25,"type":"RuleFired"}
-{"data":"43608c37cc660302","dir":"be>fe","tick":25,"type":"StateHash"}
+{"data":"e8e5705ca312ffa2","dir":"be>fe","tick":25,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":26,"type":"Input"}
 {"data":"3e11346268de6221","dir":"be>fe","tick":26,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":27,"type":"Input"}
@@ -69,7 +69,7 @@ expression: recording
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":30,"type":"Input"}
 {"data":"c3638664254ab0d2","dir":"be>fe","tick":30,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":31,"type":"Input"}
-{"data":"93e457bbd45eafc5","dir":"be>fe","tick":31,"type":"StateHash"}
+{"data":"f5005dc0dbec2dc5","dir":"be>fe","tick":31,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":32,"type":"Input"}
 {"data":"935d679def1a095f","dir":"be>fe","tick":32,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":33,"type":"Input"}
@@ -82,7 +82,7 @@ expression: recording
 {"data":"dee31327b5846790","dir":"be>fe","tick":36,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":37,"type":"Input"}
 {"data":{"agent":2,"rule":2,"target":0},"dir":"be>fe","tick":37,"type":"RuleFired"}
-{"data":"c2f1cc4ea747909a","dir":"be>fe","tick":37,"type":"StateHash"}
+{"data":"c3471d2255de0c3a","dir":"be>fe","tick":37,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":38,"type":"Input"}
 {"data":"f8c095c9db2db1ee","dir":"be>fe","tick":38,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":39,"type":"Input"}
@@ -95,7 +95,7 @@ expression: recording
 {"data":{"damage":10,"source":0,"target":2},"dir":"be>fe","tick":42,"type":"Hit"}
 {"data":"1f7bb53697b413ea","dir":"be>fe","tick":42,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":43,"type":"Input"}
-{"data":"7503d2ceb9d46fe1","dir":"be>fe","tick":43,"type":"StateHash"}
+{"data":"337d44a23ddd0901","dir":"be>fe","tick":43,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":44,"type":"Input"}
 {"data":"55017aede03fd12b","dir":"be>fe","tick":44,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":45,"type":"Input"}
@@ -109,7 +109,7 @@ expression: recording
 {"data":"63295fc47640e603","dir":"be>fe","tick":48,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":49,"type":"Input"}
 {"data":{"agent":2,"rule":2,"target":0},"dir":"be>fe","tick":49,"type":"RuleFired"}
-{"data":"410aee847e8d97bd","dir":"be>fe","tick":49,"type":"StateHash"}
+{"data":"b6a349c14d53b51d","dir":"be>fe","tick":49,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":50,"type":"Input"}
 {"data":"fed7764c429a7c89","dir":"be>fe","tick":50,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":51,"type":"Input"}
@@ -122,7 +122,7 @@ expression: recording
 {"data":{"damage":10,"source":0,"target":2},"dir":"be>fe","tick":54,"type":"Hit"}
 {"data":"ac9dd0aa7a7f305b","dir":"be>fe","tick":54,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":55,"type":"Input"}
-{"data":"3cc69c1d2971f743","dir":"be>fe","tick":55,"type":"StateHash"}
+{"data":"b492c81badc077e3","dir":"be>fe","tick":55,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":56,"type":"Input"}
 {"data":"7ac677569b092fbe","dir":"be>fe","tick":56,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":57,"type":"Input"}
@@ -136,7 +136,7 @@ expression: recording
 {"data":"b6b6a669d0722fa8","dir":"be>fe","tick":60,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":61,"type":"Input"}
 {"data":{"agent":2,"rule":2,"target":0},"dir":"be>fe","tick":61,"type":"RuleFired"}
-{"data":"d5cdd421364f9d6f","dir":"be>fe","tick":61,"type":"StateHash"}
+{"data":"8f441a87e9be058f","dir":"be>fe","tick":61,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":62,"type":"Input"}
 {"data":"3b130a924d4c3dc0","dir":"be>fe","tick":62,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":63,"type":"Input"}
@@ -149,7 +149,7 @@ expression: recording
 {"data":{"damage":10,"source":0,"target":2},"dir":"be>fe","tick":66,"type":"Hit"}
 {"data":"d41cd0df5e9bdd80","dir":"be>fe","tick":66,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":67,"type":"Input"}
-{"data":"af15be02e5ce6e4f","dir":"be>fe","tick":67,"type":"StateHash"}
+{"data":"ad8abff460b678af","dir":"be>fe","tick":67,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":68,"type":"Input"}
 {"data":"7a15761c66ec73f1","dir":"be>fe","tick":68,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":69,"type":"Input"}
@@ -163,7 +163,7 @@ expression: recording
 {"data":"0afbf51943825f31","dir":"be>fe","tick":72,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":73,"type":"Input"}
 {"data":{"agent":2,"rule":2,"target":0},"dir":"be>fe","tick":73,"type":"RuleFired"}
-{"data":"6d47afee7c1d4473","dir":"be>fe","tick":73,"type":"StateHash"}
+{"data":"5944261ffeee7013","dir":"be>fe","tick":73,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":74,"type":"Input"}
 {"data":"b9a5d515089d66df","dir":"be>fe","tick":74,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":75,"type":"Input"}
@@ -176,7 +176,7 @@ expression: recording
 {"data":{"damage":10,"source":0,"target":2},"dir":"be>fe","tick":78,"type":"Hit"}
 {"data":"99638b267db00111","dir":"be>fe","tick":78,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":79,"type":"Input"}
-{"data":"37de78aef0904335","dir":"be>fe","tick":79,"type":"StateHash"}
+{"data":"9451abf754757015","dir":"be>fe","tick":79,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":80,"type":"Input"}
 {"data":"56b75940e8bdf938","dir":"be>fe","tick":80,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":81,"type":"Input"}
@@ -190,7 +190,7 @@ expression: recording
 {"data":"e78d15bcd33f4b32","dir":"be>fe","tick":84,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":85,"type":"Input"}
 {"data":{"agent":2,"rule":2,"target":0},"dir":"be>fe","tick":85,"type":"RuleFired"}
-{"data":"17830709495c1e5d","dir":"be>fe","tick":85,"type":"StateHash"}
+{"data":"5d8ba48ff261233d","dir":"be>fe","tick":85,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":86,"type":"Input"}
 {"data":"9966df10e01db0a6","dir":"be>fe","tick":86,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":87,"type":"Input"}

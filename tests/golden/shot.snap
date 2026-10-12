@@ -3,7 +3,7 @@ source: tests/golden.rs
 expression: recording
 ---
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":1,"type":"Input"}
-{"data":"b3c6cc97bbe78365","dir":"be>fe","tick":1,"type":"StateHash"}
+{"data":"c91bef3b5c7d2685","dir":"be>fe","tick":1,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":2,"type":"Input"}
 {"data":"c72d8eeded3a6397","dir":"be>fe","tick":2,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":3,"type":"Input"}
@@ -15,7 +15,7 @@ expression: recording
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":6,"type":"Input"}
 {"data":"ed386d81a4dc00da","dir":"be>fe","tick":6,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":true,"focus":false,"held":0},"dir":"fe>be","tick":7,"type":"Input"}
-{"data":"6251ebc4b2d00661","dir":"be>fe","tick":7,"type":"StateHash"}
+{"data":"964ad441fe8f9dc1","dir":"be>fe","tick":7,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":false,"focus":false,"held":0},"dir":"fe>be","tick":8,"type":"Input"}
 {"data":"3ff0ce7b3d2ed875","dir":"be>fe","tick":8,"type":"StateHash"}
 {"data":{"dx":0,"dy":0,"fire":false,"focus":false,"held":0},"dir":"fe>be","tick":9,"type":"Input"}

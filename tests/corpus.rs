@@ -374,6 +374,68 @@ fn fail() -> Definition {
     )
 }
 
+/// Melee (ADR-055): three enemies trail the main character and swing at it, a wind-up, an arc
+/// and a recovery, rooted while they wind up and swing; a companion orbiting it cleaves them
+/// with a wide arc that hits again every 2 ticks. The main character stands still, then walks
+/// from side to side. Nobody fires a bullet.
+fn melee() -> Definition {
+    let phase = |kind: &str, ticks: u32, hit_box: Value, damage: u32, move_pct: u8| {
+        json!({ "kind": kind, "ticks": ticks, "hit_box": hit_box, "damage": damage,
+                "move_pct": move_pct })
+    };
+    let arc = |radius: i32, half: i32| {
+        json!({ "type": "arc", "offset": { "forward": 1_024 }, "radius": radius,
+                "half_angle": half * 256 })
+    };
+    let swing = json!([
+        phase("wind_up", 12, arc(6_144, 60), 2, 0),
+        phase("active", 3, arc(6_144, 60), 2, 0),
+        json!({ "kind": "recovery", "ticks": 10 })
+    ]);
+    let swordsman = enemy(
+        12,
+        json!({ "type": "follow", "distance": 4_096 }),
+        json!([rule(
+            always(),
+            json!("player"),
+            json!({ "type": "attack", "attack": { "inline": swing } }),
+            0
+        )]),
+    );
+    let mut cleave = phase("active", 4, arc(10_240, 90), 3, 100);
+    cleave["rehit_ticks"] = json!(2);
+    let guard = companion(
+        30,
+        json!({ "type": "orbit", "radius": 6_144 }),
+        json!([rule(
+            always(),
+            json!("nearest_enemy"),
+            json!({ "type": "attack", "attack": { "inline": [
+                { "kind": "wind_up", "ticks": 6, "hit_box": arc(10_240, 90) },
+                cleave,
+                { "kind": "recovery", "ticks": 8 }
+            ] } }),
+            0
+        )]),
+    );
+    let waves = [(1, 30_000), (40, 46_080), (80, 62_000)]
+        .into_iter()
+        .map(|(at, x)| wave(at, 1, 0, swordsman.clone(), x, 128_000))
+        .collect();
+    let stage = stage_full(600, Some(far_boss()), waves, vec![guard], vec![]);
+    let inputs = (0..300)
+        .map(|t| Input {
+            dx: match t {
+                0..150 => 0,
+                _ if (t / 40) % 2 == 0 => 200,
+                _ => -200,
+            },
+            ..Input::default()
+        })
+        .collect();
+    ("melee", bytes(&stage), inputs)
+}
+
 /// A stage that runs out of ticks with the boss standing.
 fn timeout() -> Definition {
     let stage = stage_with(90, Some(far_boss()), vec![]);
@@ -395,6 +457,7 @@ fn definitions() -> Vec<Definition> {
         bullets(),
         boss(),
         fail(),
+        melee(),
         timeout(),
     ]
 }
@@ -432,6 +495,29 @@ fn the_cases_are_what_their_names_say() {
         what_happens("bullets").2
     );
     assert_eq!(what_happens("agents").0, Outcome::Running);
+    // Hit boxes alone: no bullet ever flies, yet the main character is hurt and enemies die.
+    let (outcome, hp, peak) = what_happens("melee");
+    assert_eq!((outcome, peak), (Outcome::Running, 0));
+    assert!(hp < 99, "the swings land: {hp} hp left");
+    assert!(deaths("melee") >= 2, "the companion cleaves");
+}
+
+/// How many entities die in a recorded case.
+fn deaths(name: &str) -> usize {
+    let case = corpus_dir().join(name);
+    let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+    let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+    let mut died = 0;
+    for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
+        engine.step(input);
+        died += engine
+            .events()
+            .iter()
+            .filter(|e| matches!(e, stella_rain_core::event::DomainEvent::Died { .. }))
+            .count();
+    }
+    died
 }
 
 #[test]

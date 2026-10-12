@@ -25,6 +25,12 @@ pub const WARMUP_TICKS: u32 = 200;
 /// are in the air when a tick starts, the tick makes the 20th, and 4,000 are alive
 /// (`MAX_BULLETS_ALIVE`) until the 200 that are about to leave go. The main character waits at
 /// the left wall, where no bullet flies.
+///
+/// Hit boxes (ADR-055): the enemies' attack is one active phase of 30 ticks, so every enemy is
+/// always in it, with a 128-pixel arc facing the main character, out of its reach. The four
+/// companions (`MAX_COMPANIONS`) stand 78 pixels to the right of the enemies, behind every
+/// arc, so each arc tests each of them against its angle and both edges and misses. They cleave
+/// all 300 enemies every tick with an arc of their own (`rehit_ticks` 1, 1 damage a hit).
 pub fn stage() -> Stage {
     let burst = json!({
         "type": "repeat", "count": 100, "interval_ticks": 0, "body": [{
@@ -34,10 +40,13 @@ pub fn stage() -> Stage {
             }]
         }]
     });
+    let swing = json!([{ "kind": "active", "ticks": 30, "spawn": [burst],
+                         "hit_box": { "type": "arc", "radius": 32_768,
+                                      "half_angle": 60 * 256 } }]);
     let attack = common::rule(
         common::always(),
         json!("player"),
-        json!({ "type": "attack", "attack": { "inline": common::spawned(json!([burst])) } }),
+        json!({ "type": "attack", "attack": { "inline": swing } }),
         30,
     );
     let (x, y) = (60_000, 140_000);
@@ -45,7 +54,26 @@ pub fn stage() -> Stage {
     let waves: Vec<Value> = (0..3)
         .map(|_| common::wave(1, 100, 1, enemy.clone(), x, y))
         .collect();
-    common::stage_full(18_000, Some(common::far_boss()), waves, vec![], vec![])
+    let cleave = json!([{ "kind": "active", "ticks": 30, "damage": 1, "rehit_ticks": 1,
+                          "hit_box": { "type": "arc", "offset": { "forward": 10_000 },
+                                       "radius": 65_536, "half_angle": 90 * 256 } }]);
+    let guard = common::companion(
+        50,
+        common::hold(x + 20_000, y),
+        json!([common::rule(
+            common::always(),
+            json!("nearest_enemy"),
+            json!({ "type": "attack", "attack": { "inline": cleave } }),
+            0
+        )]),
+    );
+    common::stage_full(
+        18_000,
+        Some(common::far_boss()),
+        waves,
+        vec![guard; 4],
+        vec![],
+    )
 }
 
 /// The input of tick `tick` (from 1): the main character goes to the left wall, then waits.
