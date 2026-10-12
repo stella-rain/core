@@ -1,4 +1,11 @@
-//! Attacks (ADR-036 tier 3): a tree of emitter nodes carried out over time. A task keeps a stack
+//! Attacks (ADR-055): an attacker runs one phased attack at a time per slot (`AttackRun`). A
+//! run starts with its first phase on the tick it starts; at the start of each later tick it
+//! goes on to its next phase once the current one has lasted its ticks, and ends after the last.
+//! Leaving its attacker (death, or a boss leaving the phase that started it) ends it too. A
+//! wind-up announces itself with a `Telegraph` event. Each phase spawns its nodes on its first
+//! tick as a task of their own, which runs to its end whatever the run does next.
+//!
+//! The nodes (ADR-036 tier 3) are a tree carried out over time. A task keeps a stack
 //! of frames, one for each list of nodes it is inside, so that it can stop at a `wait` or between
 //! the rounds of a `repeat` and go on in a later tick. Presets are expanded to inline nodes
 //! before a task starts (see `presets`), so a preset and its inline copy are the same task.
@@ -29,11 +36,13 @@
 
 use std::sync::Arc;
 
-use crate::attack::{AttackRef, Direction, Emitter, Expr};
+use crate::attack::{AttackRef, Direction, Emitter, Expr, PhaseKind};
 use crate::engine::{
-    Aim, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, State, StatusKind,
+    Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, State, StatusKind,
 };
+use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
+use crate::id::{ContentId, EntityId};
 use crate::presets;
 use crate::registry;
 use crate::rng::SplitMix64;
@@ -43,60 +52,168 @@ use crate::validate::limits::{MAX_LEN, MAX_REPEAT, MAX_TICKS};
 use super::entity::{Who, scale_damage, status_pct};
 use super::{MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, count, spawn_bullet};
 
-/// Starts `attack` for `owner`, aimed at `target`. Bullets do `base_damage`, raised by the
-/// owner's atk-up as it is now. Nothing starts if too many attacks are going already.
-pub(super) fn start(s: &mut State, owner: Who, target: Who, attack: &AttackRef, base_damage: u32) {
-    start_aged(s, owner, target, attack, base_damage, 0);
+/// The slot an attacker's skills attack from: the main character's skills run beside its main
+/// shot; everyone else has one slot.
+pub(super) fn skill_slot(who: Who) -> u8 {
+    u8::from(who == Who::Player)
+}
+
+/// Whether `owner` is running an attack in `slot`.
+pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
+    s.runs.iter().any(|r| r.owner == owner && r.slot == slot)
+}
+
+/// The movement speed, in percent, that `owner`'s running attacks leave it: the lowest
+/// `move_pct` of their current phases, 100 with none.
+pub(super) fn move_pct(s: &State, owner: EntityId) -> i64 {
+    s.runs
+        .iter()
+        .filter(|r| r.owner == owner)
+        .map(|r| i64::from(r.phases[r.phase as usize].move_pct))
+        .min()
+        .unwrap_or(100)
+}
+
+/// Starts `attack` for `owner` in `slot`, aimed at `target`. Bullets do `base_damage`, raised by
+/// the owner's atk-up as it is now. False, starting nothing, if the slot is busy.
+pub(super) fn start(
+    s: &mut State,
+    owner: Who,
+    slot: u8,
+    target: Who,
+    attack: &AttackRef,
+    base_damage: u32,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
+    start_aged(s, owner, slot, target, attack, base_damage, 0, events)
 }
 
 /// As `start`, for an attack whose clock does not start at 0: the boss's attacks count the time
 /// since its phase began, so that `phase_time` is the phase's time (ADR-036).
+#[allow(clippy::too_many_arguments)]
 pub(super) fn start_aged(
     s: &mut State,
     owner: Who,
+    slot: u8,
     target: Who,
     attack: &AttackRef,
     base_damage: u32,
     age: u32,
-) {
+    events: &mut Vec<DomainEvent>,
+) -> bool {
     let aim = Aim::Entity(s.id_of(target));
-    start_with(s, owner, aim, attack, base_damage, age);
+    start_with(s, owner, slot, aim, attack, base_damage, age, events)
 }
 
 /// As `start_aged`, for any way of aiming: the main character's shot aims along its heading.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn start_with(
     s: &mut State,
     owner: Who,
+    slot: u8,
     aim: Aim,
     attack: &AttackRef,
     base_damage: u32,
     age: u32,
-) {
-    if count(&s.tasks) >= MAX_ATTACK_TASKS {
-        return;
+    events: &mut Vec<DomainEvent>,
+) -> bool {
+    let id = s.id_of(owner);
+    if busy(s, id, slot) {
+        return false;
     }
-    let Some(program) = presets::program(attack) else {
-        return;
+    let Some(phases) = presets::phases(attack).filter(|p| !p.is_empty()) else {
+        return false;
     };
     let damage = scale_damage(
         base_damage,
         status_pct(s.statuses(owner), StatusKind::AtkUp),
         0,
     );
-    s.tasks.push(AttackTask {
-        owner: s.id_of(owner),
-        program,
-        base: Vec::new(),
-        origin: Origin::Owner,
+    let preset: Option<ContentId> = match attack {
+        AttackRef::Preset { id, .. } => Some(id.clone()),
+        AttackRef::Inline(_) => None,
+    };
+    let facing = self::aim(s, s.at(owner), aim);
+    s.runs.push(AttackRun {
+        owner: id,
+        slot,
+        preset,
+        phases,
+        phase: 0,
+        tick: 0,
+        facing,
         aim,
         friendly: State::is_ally(owner),
         damage,
         age,
+    });
+    begin_phase(s, s.runs.len() - 1, events);
+    true
+}
+
+/// Every run goes on by a tick: to its next phase once the current one has lasted its ticks,
+/// or away after its last phase or when its attacker is gone. Called at the start of a tick,
+/// before anyone acts, so that an attacker whose attack has ended can start the next one.
+pub(super) fn advance_runs(s: &mut State, events: &mut Vec<DomainEvent>) {
+    let mut i = 0;
+    while i < s.runs.len() {
+        if s.find(s.runs[i].owner).is_none() {
+            s.runs.remove(i);
+            continue;
+        }
+        let r = &mut s.runs[i];
+        r.tick = r.tick.saturating_add(1);
+        if r.tick >= r.phases[r.phase as usize].ticks {
+            r.phase += 1;
+            r.tick = 0;
+            if r.phase as usize >= r.phases.len() {
+                s.runs.remove(i);
+                continue;
+            }
+            begin_phase(s, i, events);
+        }
+        i += 1;
+    }
+}
+
+/// Ends every run of `owner` (a boss leaving the phase that started them).
+pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
+    s.runs.retain(|r| r.owner != owner);
+}
+
+/// The first tick of run `i`'s current phase: a wind-up announces itself, and the phase's
+/// nodes start as a task (unless too many attacks are going already).
+fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
+    let r = &s.runs[i];
+    let p = &r.phases[r.phase as usize];
+    if p.kind == PhaseKind::WindUp {
+        events.push(DomainEvent::Telegraph {
+            source: r.owner,
+            ticks: p.ticks,
+        });
+    }
+    if p.spawn.is_empty() || count(&s.tasks) >= MAX_ATTACK_TASKS {
+        return;
+    }
+    // `phase_time` counts from the attack's first tick.
+    let elapsed: u32 = r.phases[..r.phase as usize]
+        .iter()
+        .fold(0, |sum, q| sum.saturating_add(q.ticks.max(1)));
+    let task = AttackTask {
+        owner: r.owner,
+        program: Arc::new(p.spawn.clone()),
+        base: Vec::new(),
+        origin: Origin::Owner,
+        aim: r.aim,
+        friendly: r.friendly,
+        damage: r.damage,
+        age: r.age.saturating_add(elapsed),
         wait_left: 0,
         frames: vec![Frame::default()],
-        parent_dir: aim.heading(),
-        last_dir: aim.heading(),
-    });
+        parent_dir: r.aim.heading(),
+        last_dir: r.aim.heading(),
+    };
+    s.tasks.push(task);
 }
 
 /// Bullets whose `on_bullet` wait is over start their attacks, to be carried out this tick.

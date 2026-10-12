@@ -440,8 +440,9 @@ fn a_timeline_that_ends_stops_and_the_boss_waits_for_its_rules() {
 }
 
 #[test]
-fn a_timeline_takes_a_bounded_number_of_steps_a_tick() {
-    // Nothing in `[attack, loop]` ever waits: the boss takes 16 steps, 8 attacks, a tick.
+fn a_loop_of_attack_steps_makes_one_attack_a_tick() {
+    // An `attack` step lasts as long as its attack (ADR-055), one tick for this preset, so
+    // `[attack, loop]` attacks once a tick; before, it took 16 steps, 8 attacks, a tick.
     let stage = stage_of(boss(
         1_000_000,
         vec![],
@@ -454,9 +455,9 @@ fn a_timeline_takes_a_bounded_number_of_steps_a_tick() {
     ));
     let mut e = engine(&stage);
     e.step(idle());
-    assert_eq!(hostile_bullets(&e), 8);
+    assert_eq!(hostile_bullets(&e), 1);
     e.step(idle());
-    assert_eq!(hostile_bullets(&e), 16);
+    assert_eq!(hostile_bullets(&e), 2);
 }
 
 #[test]

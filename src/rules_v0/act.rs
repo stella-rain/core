@@ -37,10 +37,15 @@ pub(super) fn perform(
                 (Who::Boss, Some(b)) => b.phase_age.saturating_sub(1),
                 _ => 0,
             };
-            attacks::start_aged(s, me, target, attack, base, age);
-            true
+            // Not ready while its last attack runs (ADR-055): the next rule gets its turn.
+            attacks::start_aged(s, me, 0, target, attack, base, age, events)
         }
         Action::Cast { skill } => {
+            if matches!(skill, Skill::Shot { .. })
+                && attacks::busy(s, s.id_of(me), attacks::skill_slot(me))
+            {
+                return false;
+            }
             cast(s, me, target, skill, events);
             true
         }
@@ -80,7 +85,10 @@ pub(super) fn cast(
         s.raise_aggro(source, AGGRO_PER_BUFF);
     };
     match skill {
-        Skill::Shot { pattern, damage } => attacks::start(s, caster, target, pattern, *damage),
+        Skill::Shot { pattern, damage } => {
+            let slot = attacks::skill_slot(caster);
+            attacks::start(s, caster, slot, target, pattern, *damage, events);
+        }
         Skill::AtkUp {
             value_pct,
             duration_ticks,

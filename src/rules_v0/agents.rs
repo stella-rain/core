@@ -245,9 +245,15 @@ fn clamp_to_field(p: Point) -> Point {
     }
 }
 
+/// An attack phase's `move_pct` slows the agent like a slow status does; at 0 it holds still,
+/// a `move_to` order included (ADR-055).
 fn move_agent(s: &mut State, me: Who, def: &Agent) {
     let player_at = s.player.at;
-    let keep = speed_pct(s.statuses(me));
+    let attacking = super::attacks::move_pct(s, s.id_of(me));
+    if attacking == 0 {
+        return;
+    }
+    let keep = speed_pct(s.statuses(me)) * attacking / 100;
     let a = agent_mut(s, me);
     if let Some(order) = a.order {
         (a.at, a.order) = step_order(a.at, order);

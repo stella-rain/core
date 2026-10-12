@@ -98,14 +98,11 @@ pub fn take_apart(id: &str, args: &[i32]) -> Option<Vec<AttackPhase>> {
     )
 }
 
-/// The program an attack runs: the nodes its first phase spawns, from a preset taken apart or
-/// from the inline phases. Until the rules run phases (core#82), the validator accepts only one
-/// active phase of one tick, which spawns its nodes on the tick the attack starts.
-pub fn program(attack: &AttackRef) -> Option<Arc<Vec<Emitter>>> {
-    let first = |phases: &[AttackPhase]| phases.first().map_or_else(Vec::new, |p| p.spawn.clone());
+/// The phases an attack runs: a preset taken apart, or the inline phases themselves.
+pub fn phases(attack: &AttackRef) -> Option<Arc<Vec<AttackPhase>>> {
     match attack {
-        AttackRef::Preset { id, args } => take_apart(&id.0, args).map(|p| Arc::new(first(&p))),
-        AttackRef::Inline(phases) => Some(Arc::new(first(phases))),
+        AttackRef::Preset { id, args } => take_apart(&id.0, args).map(Arc::new),
+        AttackRef::Inline(phases) => Some(Arc::new(phases.clone())),
     }
 }
 

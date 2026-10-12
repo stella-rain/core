@@ -2,6 +2,7 @@
 //! (ADR-032, ADR-038).
 
 use crate::attack::AttackRef;
+use crate::behaviour::Skill;
 use crate::engine::{Aim, Dir, HoldState, State, UNLIMITED};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -30,7 +31,7 @@ fn capped_move(dx: i16, dy: i16, cap: i32) -> (i32, i32) {
 pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
     s.player.invulnerable = s.player.invulnerable.saturating_sub(1);
     move_player(s, input);
-    shoot(stage, s, input);
+    shoot(stage, s, input, events);
     skills(stage, s, input, events);
 }
 
@@ -40,7 +41,8 @@ fn move_player(s: &mut State, input: Input) {
     } else {
         PLAYER_SPEED
     };
-    let cap = (i64::from(cap) * speed_pct(&s.player.statuses) / 100) as i32;
+    let keep = speed_pct(&s.player.statuses) * attacks::move_pct(s, s.id_of(Who::Player)) / 100;
+    let cap = (i64::from(cap) * keep / 100) as i32;
     let (dx, dy) = capped_move(input.dx, input.dy, cap);
     let p = &mut s.player;
     p.at = Point {
@@ -76,14 +78,24 @@ fn main_shot<'a>(stage: &'a Stage, _s: &State) -> MainShot<'a> {
 /// The main shot starts its attack only on ticks whose input has `fire` (ADR-038). The attack
 /// is a task like any other: once started it runs to its end whether or not `fire` is still
 /// held, follows the main character and counts against the attack and bullet budgets.
-fn shoot(stage: &Stage, s: &mut State, input: Input) {
+/// The next shot waits for the last one's attack to end (ADR-055: one attack at a time).
+fn shoot(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
     s.player.shot_cooldown = s.player.shot_cooldown.saturating_sub(1);
-    if !input.fire || s.player.shot_cooldown > 0 {
+    if !input.fire || s.player.shot_cooldown > 0 || attacks::busy(s, s.id_of(Who::Player), 0) {
         return;
     }
     let shot = main_shot(stage, s);
     s.player.shot_cooldown = shot.interval;
-    attacks::start_with(s, Who::Player, shot.aim, shot.attack, shot.damage, 0);
+    attacks::start_with(
+        s,
+        Who::Player,
+        0,
+        shot.aim,
+        shot.attack,
+        shot.damage,
+        0,
+        events,
+    );
 }
 
 /// Hold and release (ADR-032). Pressing a ready skill's slot starts a hold; releasing it, or
@@ -128,6 +140,12 @@ fn skills(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEve
 fn cast_slot(stage: &Stage, s: &mut State, index: usize, events: &mut Vec<DomainEvent>) {
     let def = &stage.player.skills[index];
     if !s.player.skills[index].is_ready() {
+        return;
+    }
+    // A shot waits for the last skill attack to end, at no cost (ADR-055).
+    if matches!(def.skill, Skill::Shot { .. })
+        && attacks::busy(s, s.id_of(Who::Player), attacks::skill_slot(Who::Player))
+    {
         return;
     }
     let Some(target) = select(stage, s, Who::Player, &def.target) else {

@@ -15,7 +15,7 @@ use std::fmt;
 
 use serde::Deserialize;
 
-use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, PhaseKind};
+use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr};
 use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill};
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
@@ -42,8 +42,9 @@ pub mod limits {
     pub const MAX_PATTERN_NODES: u32 = 64;
     pub const MAX_EXPR_NODES: u32 = 16;
     pub const MAX_REPEAT: i32 = 100;
-    /// Phases in one attack (ADR-055).
+    /// Phases in one attack, and the ticks one lasts: 10 seconds (ADR-055).
     pub const MAX_ATTACK_PHASES: usize = 8;
+    pub const MAX_PHASE_TICKS: u32 = 600;
 
     pub const MAX_SKILL_SLOTS: usize = 3;
     pub const MAX_BOSS_PARTS: usize = 8;
@@ -737,7 +738,7 @@ impl<'a> Ctx<'a> {
         let mut count = 0;
         for (i, p) in phases.iter().enumerate() {
             let going = self.idx(i, |c| {
-                c.phase_the_rules_run(i, p);
+                c.attack_phase(p);
                 c.key("spawn", |c| c.emitters(&p.spawn, 1, &mut count))
             });
             if !going {
@@ -746,25 +747,19 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// Until the rules run phases (core#82), an attack is one active phase of one tick that
-    /// only spawns; anything else is refused rather than ignored (fail closed).
-    fn phase_the_rules_run(&mut self, index: usize, p: &AttackPhase) {
-        const NOT_YET: &str = "not run yet: an attack is one active phase of one tick";
-        if index > 0 {
-            self.fail(NOT_YET);
-            return;
-        }
+    /// One phase: its ticks and movement are bounded. Hit boxes and their damage are not run
+    /// yet (core#82), so they are refused rather than ignored (fail closed).
+    fn attack_phase(&mut self, p: &AttackPhase) {
+        self.within("ticks", i64::from(p.ticks), 1, i64::from(MAX_PHASE_TICKS));
+        self.within("move_pct", i64::from(p.move_pct), 0, 100);
         let unsupported = [
-            ("kind", p.kind != PhaseKind::Active),
-            ("ticks", p.ticks != 1),
             ("hit_box", p.hit_box.is_some()),
             ("damage", p.damage.is_some()),
             ("rehit_ticks", p.rehit_ticks.is_some()),
-            ("move_pct", p.move_pct != 100),
         ];
         for (key, found) in unsupported {
             if found {
-                self.key(key, |c| c.fail(NOT_YET));
+                self.key(key, |c| c.fail("not run yet: hit boxes come with core#82"));
             }
         }
     }
