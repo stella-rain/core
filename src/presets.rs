@@ -5,12 +5,16 @@
 //! freely and no longer depends on the ID. The engine runs a preset by that same expansion, so a preset and
 //! its inline copy run the same program and reach the same state hashes.
 //!
+//! Weapon presets (core#83) are the developer's weapons, each with its Main and its Sub role,
+//! written the same way; a stage uses one by ID, without arguments, or holds an inline weapon.
+//!
 //! Under version 0 (ADR-035) these definitions are placeholders and change in place.
 
 use std::sync::{Arc, OnceLock};
 
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr};
 use crate::registry::{self, Kind};
+use crate::weapon::{Role, Weapon, WeaponPreset, WeaponRef};
 
 /// `(id, definition)`: the definitions are JSON, the stage format's own, with `{"arg": n}` for
 /// the preset's arguments. Angles are in 1/256 degree and speeds in 1/256 pixel a tick. Each is
@@ -52,6 +56,63 @@ const DEFINITIONS: &[(&str, &str)] = &[
             {"type":"fire","speed":2048,"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
 ];
+
+/// `(id, definition)` of the weapon presets, in the stage format's own JSON. Placeholders until
+/// the game design's weapons are written (Giant Sword and the others).
+const WEAPONS: &[(&str, &str)] = &[
+    // Main: the twin shot along the facing every 6 ticks. Sub: one bullet at the nearest enemy
+    // every 30 ticks.
+    (
+        "blaster",
+        r#"{"main":{"attack":{"preset":{"id":"twin_shot"}},"targeting":"facing","cooldown_ticks":6},
+            "sub":{"attack":{"preset":{"id":"aimed_single","args":[2048]}},
+                   "targeting":"nearest_enemy","cooldown_ticks":30}}"#,
+    ),
+    // Main: one fast bullet at the nearest enemy every 10 ticks. Sub: five bullets in a fan
+    // along the facing every 45 ticks.
+    (
+        "needle",
+        r#"{"main":{"attack":{"preset":{"id":"aimed_single","args":[3072]}},
+                    "targeting":"nearest_enemy","cooldown_ticks":10},
+            "sub":{"attack":{"preset":{"id":"spread_5"}},"targeting":"facing","cooldown_ticks":45}}"#,
+    ),
+];
+
+fn parsed_weapons() -> &'static [(&'static str, WeaponPreset)] {
+    static PARSED: OnceLock<Vec<(&'static str, WeaponPreset)>> = OnceLock::new();
+    PARSED.get_or_init(|| {
+        WEAPONS
+            .iter()
+            .map(|(id, json)| {
+                let preset = serde_json::from_str(json)
+                    .unwrap_or_else(|e| panic!("the built-in weapon {id} does not parse: {e}"));
+                (*id, preset)
+            })
+            .collect()
+    })
+}
+
+/// The ID of every weapon preset that has a definition.
+pub fn weapon_ids() -> impl Iterator<Item = &'static str> {
+    WEAPONS.iter().map(|(id, _)| *id)
+}
+
+/// A weapon preset's definition, both roles.
+pub fn weapon_preset(id: &str) -> Option<&'static WeaponPreset> {
+    parsed_weapons()
+        .iter()
+        .find(|(i, _)| *i == id)
+        .map(|(_, w)| w)
+}
+
+/// The weapon a reference names in `role`: the preset's role, or the inline weapon itself.
+/// `None` for a preset that has no definition.
+pub fn weapon(weapon: &WeaponRef, role: Role) -> Option<&Weapon> {
+    match weapon {
+        WeaponRef::Preset { id } => weapon_preset(&id.0).map(|p| p.role(role)),
+        WeaponRef::Inline(w) => Some(w),
+    }
+}
 
 fn parsed() -> &'static [(&'static str, Vec<AttackPhase>)] {
     static PARSED: OnceLock<Vec<(&'static str, Vec<AttackPhase>)>> = OnceLock::new();

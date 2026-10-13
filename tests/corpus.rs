@@ -267,14 +267,20 @@ fn agents() -> Definition {
         json!({ "type": "straight", "vx": 0, "vy": 96 }),
         json!([shoot("nearest_ally", 5)]),
     );
-    let stage = stage_full(
-        600,
-        Some(far_boss()),
-        vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
-        vec![k, healer],
+    // The Sub weapon is the `needle` preset's: five bullets in a fan along the facing.
+    let stage = armed(
+        stage_full(
+            600,
+            Some(far_boss()),
+            vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
+            vec![k, healer],
+        ),
+        json!({ "inline": { "attack": { "preset": { "id": "aimed_single", "args": [2048] } },
+                            "targeting": "facing", "cooldown_ticks": 6 } }),
+        json!({ "preset": { "id": "needle" } }),
     );
     // Standing still for 40 ticks, shooting up at the enemy, then walking right, which turns
-    // the shots away from it.
+    // the Main weapon's shots away from it.
     let inputs = (0..80)
         .map(|t| if t < 40 { idle() } else { moving(64, 0) })
         .collect();
@@ -299,9 +305,11 @@ fn bullets() -> Definition {
             { "type": "wait", "ticks": 90 },
             { "type": "loop" } ] }]
     });
-    let stage = stage_full(600, Some(boss), vec![], vec![]);
-    // Half speed from side to side, turning to face up the field once a second so that the main
-    // shot does not only go sideways, and evading twice.
+    // The Sub weapon is the `blaster` preset's: one bullet at the nearest enemy, the boss.
+    let mut stage = stage_full(600, Some(boss), vec![], vec![]);
+    stage.player.sub = serde_json::from_value(json!({ "preset": { "id": "blaster" } })).unwrap();
+    // Half speed from side to side, turning to face up the field once a second so that the Main
+    // weapon does not only shoot sideways, and evading twice.
     let inputs = (0..300)
         .map(|t| match t {
             _ if t % 60 == 0 => moving(0, -1),
@@ -346,7 +354,17 @@ fn boss() -> Definition {
             }
         ]
     });
-    let stage = stage_full(600, Some(boss), vec![], vec![]);
+    // The Sub weapon aims at the horn every 12 ticks: a bullet 5 degrees off the line to it,
+    // then one aimed again 3 ticks later. Once the horn breaks it has nothing to aim at and
+    // waits.
+    let at_horn = json!({ "inline": spawned(json!([
+        { "type": "fire", "speed": 2048, "direction": { "type": "relative", "angle": 1280 } },
+        { "type": "wait", "ticks": 3 },
+        { "type": "fire", "speed": 2048, "direction": { "type": "aimed", "offset": 0 } }
+    ])) });
+    let mut stage = stage_full(600, Some(boss), vec![], vec![]);
+    stage.player.sub =
+        serde_json::from_value(weapon(at_horn, json!({ "part": "horn" }), 12)).unwrap();
     ("boss", bytes(&stage), firing_for(600))
 }
 
@@ -425,7 +443,7 @@ fn melee() -> Definition {
         .into_iter()
         .map(|(at, x)| wave(at, 1, 0, swordsman.clone(), x, 128_000))
         .collect();
-    // The main shot does nothing here, so that no bullet flies.
+    // The weapons do nothing here, so that no bullet flies.
     let stage = quiet(stage_full(600, Some(far_boss()), waves, vec![guard]));
     let inputs = (0..300)
         .map(|t| match t {

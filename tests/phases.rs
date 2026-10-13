@@ -34,7 +34,7 @@ fn attacker(phases: Vec<Value>, once: bool) -> Value {
     )
 }
 
-/// The main shot is quiet, so that every bullet is the attacker's.
+/// The weapons are quiet, so that every bullet is the attacker's.
 fn stage_of(enemy: Value) -> Stage {
     quiet(stage_full(
         18_000,

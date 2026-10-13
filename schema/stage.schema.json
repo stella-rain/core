@@ -1334,9 +1334,13 @@
           "format": "uint32",
           "minimum": 0
         },
-        "shot": {
-          "description": "The main shot, which attacks on its own along the main character's facing (ADR-050,\nADR-055). The Main and Sub weapons replace it (core#83).",
-          "$ref": "#/$defs/AttackRef"
+        "main": {
+          "description": "The Main weapon, which attacks on its own (ADR-050, core#83). It moves to the run's\nsetup when the setup exists (ADR-049, ADR-051).",
+          "$ref": "#/$defs/WeaponRef"
+        },
+        "sub": {
+          "description": "The Sub weapon, which attacks on its own beside the Main one.",
+          "$ref": "#/$defs/WeaponRef"
         }
       },
       "additionalProperties": false,
@@ -1344,7 +1348,8 @@
         "base",
         "hp",
         "atk",
-        "shot",
+        "main",
+        "sub",
         "evade"
       ]
     },
@@ -1659,6 +1664,40 @@
         }
       ]
     },
+    "Targeting": {
+      "description": "What a weapon attacks: along the main character's facing, or at an enemy one of ADR-036's\nselectors picks. Only the selectors that pick an enemy are here, so a weapon cannot aim at\nan ally. With a selector and nothing to pick, the weapon does not attack and spends no\ncooldown.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "nearest_enemy"
+          ]
+        },
+        {
+          "description": "`aimed` directions point along the facing at the attack's start.",
+          "type": "string",
+          "const": "facing"
+        },
+        {
+          "description": "The boss while it is alive, else the nearest enemy.",
+          "type": "string",
+          "const": "boss_first"
+        },
+        {
+          "description": "A boss part, by the part ID the stage gives it, until it breaks.",
+          "type": "object",
+          "properties": {
+            "part": {
+              "$ref": "#/$defs/ContentId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "part"
+          ]
+        }
+      ]
+    },
     "Transition": {
       "oneOf": [
         {
@@ -1729,6 +1768,70 @@
         "enemy",
         "spawn",
         "count"
+      ]
+    },
+    "Weapon": {
+      "description": "One role of a weapon: the attack it makes on its own, at what, and how often.",
+      "type": "object",
+      "properties": {
+        "attack": {
+          "description": "Never slows the main character: every phase keeps `move_pct` at 100 (the validator).",
+          "$ref": "#/$defs/AttackRef"
+        },
+        "cooldown_ticks": {
+          "description": "Ticks from one attack's start to the next one's. If the attack lasts longer, the next\none waits for it to end.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "targeting": {
+          "description": "The nearest enemy when absent (ADR-050).",
+          "$ref": "#/$defs/Targeting",
+          "default": "nearest_enemy"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attack",
+        "cooldown_ticks"
+      ]
+    },
+    "WeaponRef": {
+      "description": "A weapon preset by ID, or an inline weapon.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "preset": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/ContentId"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "preset"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "inline": {
+              "$ref": "#/$defs/Weapon"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "inline"
+          ]
+        }
       ]
     }
   }

@@ -175,7 +175,7 @@ fn enemy_bullets_hurt_the_character_with_invulnerability_in_between() {
             25_600,
         )],
     );
-    // The main shot is quiet, so that the enemy lives.
+    // The weapons are quiet, so that the enemy lives.
     let mut e = engine(&quiet(stage));
     let events = run_until(&mut e, idle(), 400, |e| e.outcome() != Outcome::Running);
     // The first bullet is fired on tick 1 and has moved 157 times when it touches the
@@ -255,7 +255,7 @@ fn without_a_boss_the_stage_clears_when_every_enemy_is_gone() {
         json!({ "type": "straight", "vx": 0, "vy": 2048 }),
         json!([]),
     );
-    // The main shot is quiet, so that the enemies leave rather than die.
+    // The weapons are quiet, so that the enemies leave rather than die.
     let mut e = engine(&quiet(stage_with(
         18_000,
         None,
@@ -342,7 +342,7 @@ fn bullet_caps_are_two_hundred_new_and_four_thousand_alive() {
 // --- Rules (ADR-036) -------------------------------------------------------------------------
 
 /// One enemy standing far from the character, with `rules`; every `RuleFired` as (tick, rule).
-/// A running stage whose main shot is quiet, so that the enemies the tests set up live.
+/// A running stage whose weapons are quiet, so that the enemies the tests set up live.
 fn quiet_running(waves: Vec<Value>) -> Engine {
     engine(&quiet(stage_with(18_000, Some(far_boss()), waves)))
 }
@@ -504,7 +504,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x3db4_f3ba_5ab2_136d;
+const GOLDEN_HASH: u64 = 0x09b2_83b9_adc0_2762;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {

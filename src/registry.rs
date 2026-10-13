@@ -17,6 +17,8 @@ pub enum Kind {
     Preset,
     /// A buff or debuff (ADR-036).
     Status,
+    /// A weapon preset, with its Main and Sub roles (core#83).
+    Weapon,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,6 +66,8 @@ pub const ENTRIES: &[Entry] = &[
     entry("atk_up", Kind::Status, 0),
     entry("slow", Kind::Status, 0),
     entry("vulnerable", Kind::Status, 0),
+    entry("blaster", Kind::Weapon, 0),
+    entry("needle", Kind::Weapon, 0),
 ];
 
 /// Lowercase `snake_case`, 1 to 32 characters (ADR-026). Stage-defined names, such as boss part

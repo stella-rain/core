@@ -23,8 +23,8 @@ pub(super) fn perform(
     events: &mut Vec<DomainEvent>,
 ) -> bool {
     match action {
-        // An attack does as much as the main shot if an ally makes it, and 1 hit point if an
-        // enemy does.
+        // An attack does as much as the main character's weapons (its attack stat) if an ally
+        // makes it, and 1 hit point if an enemy does.
         Action::Attack { attack } => {
             let base = if State::is_ally(me) {
                 stage.player.atk
@@ -40,9 +40,7 @@ pub(super) fn perform(
             attacks::start_aged(s, me, 0, target, attack, base, age, events)
         }
         Action::Cast { skill } => {
-            if matches!(skill, Skill::Shot { .. })
-                && attacks::busy(s, s.id_of(me), attacks::skill_slot(me))
-            {
+            if matches!(skill, Skill::Shot { .. }) && attacks::busy(s, s.id_of(me), 0) {
                 return false;
             }
             cast(s, me, target, skill, events);
@@ -85,8 +83,7 @@ pub(super) fn cast(
     };
     match skill {
         Skill::Shot { pattern, damage } => {
-            let slot = attacks::skill_slot(caster);
-            attacks::start(s, caster, slot, target, pattern, *damage, events);
+            attacks::start(s, caster, 0, target, pattern, *damage, events);
         }
         Skill::AtkUp {
             value_pct,

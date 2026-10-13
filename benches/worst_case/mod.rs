@@ -24,7 +24,9 @@ pub const WARMUP_TICKS: u32 = 200;
 /// 163,840 high and its margin 16,384, so a bullet is gone on its 20th move: 19 batches of 200
 /// are in the air when a tick starts, the tick makes the 20th, and 4,000 are alive
 /// (`MAX_BULLETS_ALIVE`) until the 200 that are about to leave go. The main character waits at
-/// the left wall, where no enemy bullet flies, its own shot going into the wall (ADR-050).
+/// the left wall, where no enemy bullet flies. Both its weapons aim at the nearest enemy and
+/// start an attack every tick (core#83), so every tick picks a target among the 300 enemies
+/// twice; their attacks find 256 attacks going and spawn nothing.
 ///
 /// Hit boxes (ADR-055): the enemies' attack is one active phase of 30 ticks, so every enemy is
 /// always in it, with a 128-pixel arc facing the main character, out of its reach. The four
@@ -67,7 +69,16 @@ pub fn stage() -> Stage {
             0
         )]),
     );
-    common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4])
+    let at_nearest = common::weapon(
+        json!({ "preset": { "id": "aimed_single", "args": [2048] } }),
+        json!("nearest_enemy"),
+        1,
+    );
+    common::armed(
+        common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4]),
+        at_nearest.clone(),
+        at_nearest,
+    )
 }
 
 /// The input of tick `tick` (from 1): the main character goes to the left wall, then waits.

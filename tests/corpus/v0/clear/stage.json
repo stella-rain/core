@@ -23,10 +23,23 @@
       "ticks": 8
     },
     "hp": 3,
-    "shot": {
+    "main": {
       "preset": {
-        "args": [],
-        "id": "twin_shot"
+        "id": "blaster"
+      }
+    },
+    "sub": {
+      "inline": {
+        "attack": {
+          "inline": [
+            {
+              "kind": "recovery",
+              "ticks": 1
+            }
+          ]
+        },
+        "cooldown_ticks": 1,
+        "targeting": "facing"
       }
     }
   },
