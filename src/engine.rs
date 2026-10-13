@@ -417,6 +417,9 @@ pub(crate) struct AgentState {
     pub order: Option<MoveOrder>,
     /// For `orbit`, in 1/256 degree.
     pub orbit_angle: i32,
+    /// Enemies only: the last push-apart found it overlapping its neighbours by more than a
+    /// pixel, so it does not take its own step to its place this tick (ADR-058).
+    pub crowded: bool,
 }
 
 #[derive(Clone, Copy, Debug)]

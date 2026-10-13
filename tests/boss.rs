@@ -736,15 +736,25 @@ fn a_boss_rule_shoots_summons_and_moves_like_an_agent_would() {
     assert_eq!(fired, vec![(1, 2), (3, 0), (11, 2), (21, 1), (22, 2)]);
     // The move took ticks 4 to 6, 1000 a tick.
     assert_eq!(boss_at(&e), (BOSS_X + 3_000, BOSS_Y));
-    // Two summoned enemies, entities 2 and 3, went to their post.
+    // Two summoned enemies, entities 2 and 3, appeared where the boss stood on tick 21. The boss
+    // acts before the enemies, so on that tick they stepped 4 pixels toward their post and were
+    // pushed apart 4 pixels; crowded, on tick 22 they yielded and were pushed 4 pixels more.
     let s = e.snapshot();
-    let helpers: Vec<(u32, i32, i32)> = s
+    let helpers: Vec<(u32, i64)> = s
         .entities
         .iter()
         .filter(|v| v.kind == EntityKind::Enemy)
-        .map(|v| (v.id.0, v.at.x.0, v.at.y.0))
+        .map(|v| {
+            let dx = i64::from(v.at.x.0 - (BOSS_X + 3_000));
+            let dy = i64::from(v.at.y.0 - BOSS_Y);
+            (v.id.0, (dx * dx + dy * dy).isqrt())
+        })
         .collect();
-    assert_eq!(helpers, vec![(2, 10_000, 30_000), (3, 10_000, 30_000)]);
+    assert_eq!(helpers.iter().map(|h| h.0).collect::<Vec<_>>(), [2, 3]);
+    assert!(
+        helpers.iter().all(|h| (1..=3 * 1_024).contains(&h.1)),
+        "{helpers:?}"
+    );
 }
 
 #[test]

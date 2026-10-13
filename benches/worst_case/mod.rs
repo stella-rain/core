@@ -14,14 +14,28 @@ use stella_rain_core::stage::Stage;
 /// Ticks to run before the tick that is measured, so that the caps are reached and held.
 pub const WARMUP_TICKS: u32 = 200;
 
+/// Where the enemies stand.
+pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
+
 /// 500 enemies (`MAX_ENEMIES_ALIVE`) stand in one place, five waves of 100 that spawn one enemy
-/// a tick each. Every enemy starts the same attack every 30 ticks: 100 rounds of 100 rounds of
+/// a tick each.
+///
+/// The push-apart (ADR-058) parts a fresh stack on every tick: on each tick it does not start
+/// its attack, every enemy orders itself back to the point in one tick (`move_to`, which a
+/// crowded enemy still carries out). So when the pass runs, all stand on the point but the 15
+/// or 20 that started their attack the tick before, which are within 8 pixels of it. Every
+/// enemy reads 32 others from the grid and counts 6. It also means every enemy fires a rule on
+/// every tick.
+///
+/// Every enemy starts the same attack every 30 ticks: 100 rounds of 100 rounds of
 /// one bullet. Each start is refused once 256 attacks are going (`MAX_ATTACK_TASKS`), and the
 /// oldest attacks use up the 4,096 node steps of the tick (`MAX_EMITTER_STEPS_PER_TICK`) and
 /// ask for far more than 200 bullets (`MAX_BULLET_SPAWNS_PER_TICK`).
 ///
-/// The bullets fly straight down at 2,048 (8 pixels a tick) from y = 140,000. The field is
-/// 163,840 high and its margin 16,384, so a bullet is gone on its 20th move: 19 batches of 200
+/// The bullets fly straight down at 8,192 (32 pixels a tick) from where their enemy stands:
+/// y = 20,480, or up to 12 pixels (3,072) from it once the enemy has been pushed. The field is
+/// 163,840 high and its margin 16,384, so from 17,408 to 23,552 a bullet is gone on its 20th
+/// move, wherever in that range it started: 19 batches of 200
 /// are in the air when a tick starts, the tick makes the 20th, and 4,000 are alive
 /// (`MAX_BULLETS_ALIVE`) until the 200 that are about to leave go. The main character waits at
 /// the left wall, where no enemy bullet flies. Both its weapons aim at the nearest enemy and
@@ -38,7 +52,7 @@ pub fn stage() -> Stage {
     let burst = json!({
         "type": "repeat", "count": 100, "interval_ticks": 0, "body": [{
             "type": "repeat", "count": 100, "interval_ticks": 0, "body": [{
-                "type": "fire", "speed": 2048,
+                "type": "fire", "speed": 8192,
                 "direction": { "type": "absolute", "angle": 0 }
             }]
         }]
@@ -52,8 +66,14 @@ pub fn stage() -> Stage {
         json!({ "type": "attack", "attack": { "inline": swing } }),
         30,
     );
-    let (x, y) = (60_000, 140_000);
-    let enemy = common::enemy(100_000, common::hold(x, y), json!([attack]));
+    let (x, y) = ENEMIES_AT;
+    let back = common::rule(
+        common::always(),
+        json!("self"),
+        json!({ "type": "move_to", "to": { "x": x, "y": y }, "ticks": 1 }),
+        0,
+    );
+    let enemy = common::enemy(100_000, common::hold(x, y), json!([attack, back]));
     let waves: Vec<Value> = (0..5)
         .map(|_| common::wave(1, 100, 1, enemy.clone(), x, y))
         .collect();

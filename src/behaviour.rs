@@ -35,11 +35,13 @@ pub struct Agent {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Movement {
-    /// Circles the main character.
+    /// Circles the main character. A companion is set on its circle; an enemy moves to its
+    /// place on it, at most its orbit step plus 4 pixels a tick (ADR-058).
     Orbit { radius: Fx },
     /// Trails the main character at a distance.
     Follow { distance: Fx },
-    /// Stays at a point.
+    /// Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at
+    /// most 4 pixels a tick, and walks back when it is pushed off it (ADR-058).
     Hold { at: Point },
     /// Moves at a constant velocity per tick.
     Straight { vx: Fx, vy: Fx },
