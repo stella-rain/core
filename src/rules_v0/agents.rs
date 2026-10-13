@@ -238,8 +238,27 @@ pub(super) fn step_order(at: Point, order: MoveOrder) -> (Point, Option<MoveOrde
     )
 }
 
+/// `from` moved straight toward `to` by at most `most`, landing exactly on it when it is that
+/// near.
+fn step_toward(from: Point, to: Point, most: i64) -> Point {
+    let dx = i64::from(to.x.0) - i64::from(from.x.0);
+    let dy = i64::from(to.y.0) - i64::from(from.y.0);
+    let dist = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+    if dist <= most {
+        return to;
+    }
+    Point {
+        x: from.x.saturating_add(Fx((dx * most / dist) as i32)),
+        y: from.y.saturating_add(Fx((dy * most / dist) as i32)),
+    }
+}
+
 /// An attack phase's `move_pct` slows the agent like a slow status does; at 0 it holds still,
 /// a `move_to` order included (ADR-055).
+///
+/// A companion with `Hold` or `Orbit` is set on its place. An enemy moves to it, at most 4
+/// pixels a tick (`Orbit`: its orbit step plus 4 pixels), so that a push carries over to the
+/// next tick (ADR-058).
 fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
     let map = stage.map();
     let player_at = s.player.at;
@@ -255,22 +274,42 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
         return;
     }
     match def.movement {
-        Movement::Hold { at } => a.at = at,
+        Movement::Hold { at } => {
+            a.at = match me {
+                Who::Enemy(_) => step_toward(a.at, at, FOLLOW_SPEED * keep / 100),
+                _ => at,
+            }
+        }
         Movement::Straight { vx, vy } => {
             let scaled = |v: Fx| (i64::from(v.0) * keep / 100) as i32;
             a.at.x = a.at.x.saturating_add(Fx(scaled(vx)));
             a.at.y = a.at.y.saturating_add(Fx(scaled(vy)));
         }
         Movement::Orbit { radius } => {
+            let on_circle = |angle: i32| {
+                let (sin, cos) = trig::sin_cos(angle);
+                let offset = |component: i32| {
+                    (i64::from(radius.0) * i64::from(component) / i64::from(trig::SCALE)) as i32
+                };
+                (offset(cos), offset(sin))
+            };
+            let was = on_circle(a.orbit_angle);
             let step = (i64::from(ORBIT_STEP) * keep / 100) as i32;
             a.orbit_angle = (a.orbit_angle + step).rem_euclid(trig::PER_TURN);
-            let (sin, cos) = trig::sin_cos(a.orbit_angle);
-            let offset = |component: i32| {
-                (i64::from(radius.0) * i64::from(component) / i64::from(trig::SCALE)) as i32
+            let now = on_circle(a.orbit_angle);
+            let place = Point {
+                x: player_at.x.saturating_add(Fx(now.0)),
+                y: player_at.y.saturating_add(Fx(now.1)),
             };
-            a.at = Point {
-                x: player_at.x.saturating_add(Fx(offset(cos))),
-                y: player_at.y.saturating_add(Fx(offset(sin))),
+            a.at = match me {
+                // Its orbit step, the chord its place moved along the circle, plus the 4 pixels.
+                Who::Enemy(_) => {
+                    let (dx, dy) = (i64::from(now.0 - was.0), i64::from(now.1 - was.1));
+                    let chord =
+                        i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(0);
+                    step_toward(a.at, place, chord + FOLLOW_SPEED * keep / 100)
+                }
+                _ => place,
             };
         }
         Movement::Follow { distance } => {

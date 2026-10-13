@@ -536,6 +536,97 @@ fn an_orbit_stays_on_its_circle_and_follows_the_main_character() {
     }
 }
 
+fn enemy_at(e: &Engine) -> (i32, i32) {
+    let s = e.snapshot();
+    let en = s
+        .entities
+        .iter()
+        .find(|en| en.kind == EntityKind::Enemy)
+        .expect("the enemy is there");
+    (en.at.x.0, en.at.y.0)
+}
+
+/// One enemy of `movement`, spawned on tick 1 at `(x, y)`.
+fn one_enemy(movement: Value, x: i32, y: i32) -> Engine {
+    let waves = vec![wave(1, 1, 0, enemy(50, movement, json!([])), x, y)];
+    engine(&quiet(with_companions(vec![], waves)))
+}
+
+#[test]
+fn a_hold_enemy_walks_to_its_point_four_pixels_a_tick() {
+    // 40 pixels straight below its spawn: ten ticks of 4 pixels (1,024 units), then it stays.
+    let mut e = one_enemy(hold(46_080, 60_240), 46_080, 50_000);
+    for tick in 1..=10 {
+        e.step(idle());
+        assert_eq!(enemy_at(&e), (46_080, 50_000 + 1_024 * tick), "tick {tick}");
+    }
+    for _ in 0..5 {
+        e.step(idle());
+        assert_eq!(enemy_at(&e), (46_080, 60_240));
+    }
+}
+
+#[test]
+fn a_hold_enemy_lands_exactly_on_its_point() {
+    // 3,000 and 4,000 units away: 5,000 along the line, so four steps of 1,024 and one of 904.
+    let mut e = one_enemy(hold(43_000, 54_000), 40_000, 50_000);
+    e.step(idle());
+    // 1,024 * 3 / 5 = 614.4 and 1,024 * 4 / 5 = 819.2, rounded toward zero.
+    assert_eq!(enemy_at(&e), (40_614, 50_819));
+    for _ in 0..4 {
+        e.step(idle());
+    }
+    assert_eq!(enemy_at(&e), (43_000, 54_000));
+}
+
+#[test]
+fn a_hold_companion_is_still_set_on_its_point() {
+    let stage = with_companions(
+        vec![companion(50, hold(20_000, 100_000), json!([]))],
+        vec![],
+    );
+    let mut e = engine(&stage);
+    e.step(idle());
+    assert_eq!(companion_at(&e, 2), (20_000, 100_000));
+}
+
+#[test]
+fn an_orbiting_enemy_moves_to_its_circle_and_then_keeps_it() {
+    // It spawns 200 pixels above the main character; its circle is 40 pixels round it.
+    let radius = 10_240;
+    let mut e = one_enemy(
+        json!({ "type": "orbit", "radius": radius }),
+        START_X,
+        START_Y - 51_200,
+    );
+    // The orbit step: 1.5 degrees of a 10,240 circle is a chord of 268 units; plus 4 pixels.
+    let most = 268 + 1_024 + 2;
+    let mut was = (START_X, START_Y - 51_200);
+    let mut arrived = None;
+    for tick in 1..=120 {
+        e.step(idle());
+        let at = enemy_at(&e);
+        let moved = i64::from(at.0 - was.0).pow(2) + i64::from(at.1 - was.1).pow(2);
+        assert!(
+            moved <= i64::from(most).pow(2),
+            "tick {tick}: {was:?} to {at:?}"
+        );
+        was = at;
+        let (px, py) = player_at(&e);
+        let d2 = i64::from(at.0 - px).pow(2) + i64::from(at.1 - py).pow(2);
+        let r2 = i64::from(radius).pow(2);
+        let on_circle = (d2 - r2).abs() < r2 / 100;
+        if arrived.is_some() {
+            assert!(on_circle, "tick {tick}: it left its circle");
+        } else if on_circle {
+            arrived = Some(tick);
+        }
+    }
+    // 160 pixels to close at a little under 4 pixels a tick more than the circle turns.
+    let arrived = arrived.expect("it reaches its circle");
+    assert!((35..=60).contains(&arrived), "it arrived on tick {arrived}");
+}
+
 #[test]
 fn a_following_companion_closes_to_its_distance_and_stops() {
     let stage = with_companions(
@@ -936,11 +1027,16 @@ fn an_enemy_summons_more_enemies_where_it_stands() {
         [1, 2, 3, 4],
         "boss, the summoner, then the two summoned"
     );
-    // They appear where the summoner stands, and start acting (and holding) next tick.
+    // They appear where the summoner stands, and start acting next tick: 4 pixels (1,024 units)
+    // toward their point at (1000, 1000), which is 45,080 and 49,000 units away, 66,582 along
+    // the line.
     assert_eq!(s.entities[2].at.x.0, 46_080);
     e.step(idle());
     let s = e.snapshot();
-    assert_eq!((s.entities[2].at.x.0, s.entities[2].at.y.0), (1000, 1000));
+    assert_eq!(
+        (s.entities[2].at.x.0, s.entities[2].at.y.0),
+        (46_080 - 693, 50_000 - 753)
+    );
 }
 
 #[test]
