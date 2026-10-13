@@ -3,40 +3,28 @@
   "title": "Input",
   "type": "object",
   "properties": {
-    "dx": {
-      "description": "Movement this tick in 1/256 pixel units, before the simulation's speed cap (ADR-038).",
-      "type": "integer",
-      "format": "int16",
-      "maximum": 32767,
-      "minimum": -32768
-    },
-    "dy": {
-      "type": "integer",
-      "format": "int16",
-      "maximum": 32767,
-      "minimum": -32768
-    },
-    "fire": {
-      "description": "The main shot fires only on ticks with `fire` (ADR-038).",
+    "evade": {
+      "description": "Skill 1 pressed on this tick: a ready evade dashes (ADR-050).",
       "type": "boolean"
     },
-    "focus": {
-      "type": "boolean"
-    },
-    "held": {
-      "description": "The skill slot held this tick: 0 for none, 1 to 3 (ADR-032). Press, hold and release\nare read from how this changes between ticks.",
+    "move_x": {
+      "description": "Movement direction and strength, each −127 to 127 (−128 counts as −127). The simulation\nclamps the vector to length 127 and scales it to the character's speed (ADR-050).",
       "type": "integer",
-      "format": "uint8",
-      "maximum": 255,
-      "minimum": 0
+      "format": "int8",
+      "maximum": 127,
+      "minimum": -128
+    },
+    "move_y": {
+      "type": "integer",
+      "format": "int8",
+      "maximum": 127,
+      "minimum": -128
     }
   },
   "additionalProperties": false,
   "required": [
-    "dx",
-    "dy",
-    "focus",
-    "fire",
-    "held"
+    "move_x",
+    "move_y",
+    "evade"
   ]
 }

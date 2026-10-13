@@ -11,20 +11,7 @@
     "hp": 3,
     "atk": 10,
     "shot": { "preset": { "id": "twin_shot", "args": [] } },
-    "skills": [
-      {
-        "slot": 1,
-        "target": "boss_first",
-        "skill": { "type": "shot", "pattern": { "preset": { "id": "spread_5", "args": [] } }, "damage": 40 },
-        "cooldown_ticks": 600
-      },
-      {
-        "slot": 2,
-        "target": "nearest_ally",
-        "skill": { "type": "atk_up", "value_pct": 20, "duration_ticks": 300 },
-        "charges": 2
-      }
-    ]
+    "evade": { "distance": 12288, "ticks": 8, "invulnerable_ticks": 10, "cooldown_ticks": 40 }
   },
   "companions": [
     {
@@ -149,7 +136,7 @@
         ],
         "rules": [
           {
-            "when": { "type": "player_firing" },
+            "when": { "type": "time_above", "ticks": 120 },
             "target": { "part": "horn_left" },
             "do": { "type": "move_to", "to": { "x": 46080, "y": 12800 }, "ticks": 30 },
             "cooldown_ticks": 120

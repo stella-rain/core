@@ -1,5 +1,4 @@
 //! What a rule or a skill does once it fires: attacks, casts, summons, moves and telegraphs.
-//! Main-character skills (ADR-032) use the same casts as agents' rules.
 
 use crate::behaviour::{Action, Skill};
 use crate::engine::{AgentKey, AgentSource, MoveOrder, State, StatusKind};

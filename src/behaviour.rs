@@ -1,6 +1,5 @@
 //! Tier 1 of the behaviour model (ADR-036): agents with ordered rule lists, and the conditions,
-//! selectors, actions and skills they are built from. The main character's skills (ADR-032)
-//! reuse the same selectors and skills.
+//! selectors, actions and skills they are built from.
 //!
 //! Every variant here is a content ID (its serialised name) and will be recorded in the
 //! registry with the `sim_version` that introduced it (ADR-026). Names and fields are
@@ -12,10 +11,6 @@ use serde::{Deserialize, Serialize};
 use crate::attack::AttackRef;
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
-
-fn one_tick() -> u32 {
-    1
-}
 
 /// A companion, a regular enemy or (inside a boss phase) the boss: a movement and a rule list.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -92,13 +87,6 @@ pub enum Condition {
     TimeAbove {
         ticks: u32,
     },
-    /// The main character has fired on at least `min_ticks` ticks in a row (ADR-038); 1 means
-    /// on this tick. A boss can punish steady shooting this way, which asks the player to
-    /// stop for a while.
-    PlayerFiring {
-        #[serde(default = "one_tick")]
-        min_ticks: u32,
-    },
 }
 
 /// Who a rule, condition or skill acts on. Ties break by squared fixed-point distance, then
@@ -128,7 +116,7 @@ pub enum Action {
     Telegraph { ticks: u32 },
 }
 
-/// A skill block (ADR-008, ADR-032). Percentages are whole percent.
+/// A skill block (ADR-008, ADR-036). Percentages are whole percent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Skill {

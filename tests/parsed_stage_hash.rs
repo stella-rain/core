@@ -15,7 +15,9 @@ const CLEAR_INPUT: &str = concat!(
     "stella-rain/parsed-stage/v1\n",
     r#"{"schema_version":0,"sim_version":0,"title":"Test Stage","description":"","seed":7,"#,
     r#""length_ticks":600,"player":{"base":"pilot_a","hp":3,"atk":10,"#,
-    r#""shot":{"preset":{"id":"twin_shot","args":[]}},"skills":[]},"companions":[],"waves":[],"#,
+    r#""shot":{"preset":{"id":"twin_shot","args":[]}},"#,
+    r#""evade":{"distance":12288,"ticks":8,"invulnerable_ticks":10,"cooldown_ticks":40}},"#,
+    r#""companions":[],"waves":[],"#,
     r#""boss":{"base":"golem","hp":20,"radius":8192,"spawn":{"x":46080,"y":25600},"parts":[],"#,
     r#""phases":[{"transition":[],"timeline":[],"rules":[]}]}}"#,
 );
@@ -44,7 +46,7 @@ fn matches_the_adr_046_vector() {
     // SHA-256 of `CLEAR_INPUT`, computed with `sha256sum`, not with `core`.
     assert_eq!(
         hash_of(CLEAR),
-        "79af423b38d2d3f18bd79d2c8cca8d3b60721ca65238cf1ef03821e39989e570"
+        "6aca6a164e8b2efc1632b5f48caadf6967a033e904bad51bba427cdd552e4cf0"
     );
 }
 
@@ -55,23 +57,23 @@ fn every_corpus_stage_keeps_its_hash() {
     for (bytes, expected) in [
         (
             &include_bytes!("corpus/v0/agents/stage.json")[..],
-            "458975f6a021cc1d5a2e80b4c8b9d1b5880339a0b2ac7c25aab93cd93315c3ee",
+            "7d75d53dc13aa3cf8d887bafb5ff740a5ffcac53eb8b9df7cab64b1f889bb242",
         ),
         (
             &include_bytes!("corpus/v0/boss/stage.json")[..],
-            "c33e5b41f3ecbe40ec0ade426124e90c5a1a6ea46e1cddaee5a56ddca8b89372",
+            "6e7c9cc8812d557468a66497cfac11122f51f3ca5ad587bde4e14638df0f577e",
         ),
         (
             &include_bytes!("corpus/v0/bullets/stage.json")[..],
-            "5aa2f42b58c3d1972af36e401eaf0a06ab02e045e33f3e5bb0003e2e9c2c5493",
+            "bc9cf994278771b80284a8d5189caf62cdec8f90018ec385f10fc0d2d7556af6",
         ),
         (
             &include_bytes!("corpus/v0/fail/stage.json")[..],
-            "9b92d230ea04d1125c7965dd284eb38bca8c0a1cf944f9fe83d297df449854f7",
+            "0085a2a43d6a3cdae570e7e25e3de817725ba720b5c5f715dcae117f1c69d8e5",
         ),
         (
             &include_bytes!("corpus/v0/timeout/stage.json")[..],
-            "151560a57ac41ab2255b6eeb71035a9ec032e0b5684c24408164d55387e95121",
+            "868fd7548c7c5eed7b24949d32488a406ef20be8cc0ef7b45a23e66a670721f2",
         ),
     ] {
         assert_eq!(hash_of(bytes), expected);
@@ -82,7 +84,8 @@ fn every_corpus_stage_keeps_its_hash() {
 fn formatting_and_key_order_do_not_change_the_hash() {
     let reformatted = br#"{"title":"Test Stage",
         "boss":{"phases":[{}],"spawn":{"y":25600,"x":46080},"radius":8192,"hp":20,"base":"golem"},
-        "player":{"shot":{"preset":{"args":[],"id":"twin_shot"}},"atk":10,"hp":3,"base":"pilot_a"},
+        "player":{"shot":{"preset":{"args":[],"id":"twin_shot"}},"atk":10,"hp":3,"base":"pilot_a",
+                  "evade":{"cooldown_ticks":40,"invulnerable_ticks":10,"ticks":8,"distance":12288}},
         "length_ticks":600,   "seed":7,
         "id":"test-stage","sim_version":0,"schema_version":0}
 "#;

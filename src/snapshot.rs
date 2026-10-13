@@ -54,39 +54,28 @@ pub struct Snapshot {
 pub struct PlayerView {
     pub at: Point,
     pub hp: u32,
-    pub focus: bool,
-    pub firing: bool,
-    /// The slot held in this tick's input, 0 for none. Whether that started a hold is `hold`:
-    /// a key held down from before the skill was ready starts none.
-    pub held: u8,
-    /// The hold in progress, if any: a press of a ready skill's slot starts one, and the release
-    /// or the hold limit casts the skill (ADR-032). The frontend slows its clock while it lasts.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hold: Option<HoldView>,
     /// The main character's hurt circle.
     pub radius: Fx,
-    pub skills: Vec<SkillView>,
+    /// The last non-zero movement direction (ADR-055).
+    pub facing: Facing,
+    /// Ticks of invulnerability left, after a hit or from an evade; the frontend can flash it.
+    pub invulnerable: u32,
+    pub evade: EvadeView,
     /// Its attacks in progress, by slot.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
 }
 
+/// Skill 1 (ADR-050).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HoldView {
-    pub slot: u8,
-    /// Ticks held since the press: 0 on the tick of the press.
-    pub ticks: u32,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillView {
-    pub slot: u8,
+pub struct EvadeView {
+    /// A press on the next tick would dash.
     pub ready: bool,
+    /// Ticks until it is ready again, counted from the press.
     pub cooldown_left: u32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub charges_left: Option<u16>,
+    /// Ticks of the dash still to move: 0 when not dashing.
+    pub dash_left: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

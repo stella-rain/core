@@ -3,7 +3,7 @@
 //! Golden-file tests and the debug overlay read it; a replay stores only the inputs.
 //!
 //! ```text
-//! {"tick":1203,"dir":"fe>be","type":"Input","data":{"dx":-3,"dy":1,"focus":true,"fire":false,"held":0}}
+//! {"tick":1203,"dir":"fe>be","type":"Input","data":{"move_x":-3,"move_y":127,"evade":true}}
 //! {"tick":1203,"dir":"be>fe","type":"PhaseChanged","data":{"phase":1}}
 //! {"tick":1203,"dir":"be>fe","type":"StateHash","data":"9f3a0c12aa55bb66"}
 //! ```

@@ -190,18 +190,6 @@ fn stage_budgets_hold_at_the_limit_and_fail_one_past() {
             Value::Array(vec![json!({ "type": "wait", "ticks": 1 }); n]);
         v
     });
-    at_limit_and_over(MAX_SKILL_SLOTS, "$.player.skills", |n| {
-        let mut v = b.clone();
-        let skills: Vec<Value> = (0..n)
-            .map(|i| {
-                let mut s = b.pointer("/player/skills/0").unwrap().clone();
-                s["slot"] = json!(i % 3 + 1);
-                s
-            })
-            .collect();
-        v["player"]["skills"] = Value::Array(skills);
-        v
-    });
     at_limit_and_over(MAX_BOSS_PARTS, "$.boss.parts", |n| {
         let mut v = b.clone();
         let parts: Vec<Value> = (0..n)
@@ -426,40 +414,59 @@ fn ranges_keep_numbers_inside_the_loadout() {
         "$.companions[0].rules[0].cooldown_ticks"
     );
     assert_eq!(
-        bad("/player/skills/1/charges", json!(0)),
-        "$.player.skills[1].charges"
+        bad("/boss/phases/1/rules/1/charges", json!(0)),
+        "$.boss.phases[1].rules[1].charges"
+    );
+    let shot = |damage: u32| {
+        json!({ "type": "shot", "damage": damage,
+                "pattern": { "preset": { "id": "spread_5", "args": [] } } })
+    };
+    ok("/companions/0/rules/0/do/skill", shot(MAX_DAMAGE));
+    assert_eq!(
+        bad("/companions/0/rules/0/do/skill", shot(MAX_DAMAGE + 1)),
+        "$.companions[0].rules[0].do.skill.damage"
     );
     assert_eq!(
-        bad("/player/skills/0/skill/damage", json!(MAX_DAMAGE + 1)),
-        "$.player.skills[0].skill.damage"
+        bad(
+            "/companions/0/rules/1/do/skill/value_pct",
+            json!(MAX_BUFF_PCT + 1)
+        ),
+        "$.companions[0].rules[1].do.skill.value_pct"
     );
     assert_eq!(
-        bad("/player/skills/1/skill/value_pct", json!(MAX_BUFF_PCT + 1)),
-        "$.player.skills[1].skill.value_pct"
-    );
-    assert_eq!(
-        bad("/player/skills/1/skill/duration_ticks", json!(0)),
-        "$.player.skills[1].skill.duration_ticks"
+        bad("/companions/0/rules/1/do/skill/duration_ticks", json!(0)),
+        "$.companions[0].rules[1].do.skill.duration_ticks"
     );
 }
 
 #[test]
-fn skill_slots_are_one_to_three_and_unique() {
+fn an_evade_is_bounded_and_required() {
     let b = base();
-    let slots = |a: u8, c: u8| {
+    let with = |key: &str, value: i64| {
         let mut v = b.clone();
-        v["player"]["skills"][0]["slot"] = json!(a);
-        v["player"]["skills"][1]["slot"] = json!(c);
+        set(&mut v, &format!("/player/evade/{key}"), json!(value));
         v
     };
-    assert_valid(&slots(1, 2));
-    assert_valid(&slots(3, 1));
-    assert_eq!(first_issue(&slots(2, 2)).path, "$.player.skills[1].slot");
-    assert_eq!(first_issue(&slots(0, 2)).path, "$.player.skills[0].slot");
-    assert_eq!(first_issue(&slots(1, 4)).path, "$.player.skills[1].slot");
+    for (key, lo, hi) in [
+        ("distance", 0, i64::from(MAX_EVADE_DISTANCE)),
+        ("ticks", 1, i64::from(MAX_EVADE_TICKS)),
+        ("invulnerable_ticks", 0, i64::from(MAX_EVADE_TICKS)),
+        ("cooldown_ticks", 0, i64::from(MAX_TICKS)),
+    ] {
+        let path = format!("$.player.evade.{key}");
+        assert_valid(&with(key, lo));
+        assert_valid(&with(key, hi));
+        assert_eq!(first_issue(&with(key, hi + 1)).path, path);
+        if key == "distance" || key == "ticks" {
+            assert_eq!(first_issue(&with(key, lo - 1)).path, path);
+        }
+    }
     let mut none = b.clone();
-    none["player"]["skills"] = json!([]);
-    assert_valid(&none);
+    none["player"].as_object_mut().unwrap().remove("evade");
+    assert!(matches!(
+        parse_and_validate(none.to_string().as_bytes()),
+        Err(Error::Parse { .. })
+    ));
 }
 
 #[test]
@@ -910,24 +917,5 @@ fn damaged_files_never_panic() {
             }
         }
         let _ = parse_and_validate(&bytes);
-    }
-}
-
-#[test]
-fn player_firing_needs_between_one_and_a_stages_worth_of_ticks() {
-    let b = base();
-    let with = |when: Value| {
-        let mut v = b.clone();
-        set(&mut v, "/companions/0/rules/0/when", when);
-        v
-    };
-    // Left out, it means this tick.
-    assert_valid(&with(json!({ "type": "player_firing" })));
-    for ok in [1, 30, MAX_TICKS] {
-        assert_valid(&with(json!({ "type": "player_firing", "min_ticks": ok })));
-    }
-    for bad in [0, MAX_TICKS + 1] {
-        let issue = first_issue(&with(json!({ "type": "player_firing", "min_ticks": bad })));
-        assert_eq!(issue.path, "$.companions[0].rules[0].when.min_ticks");
     }
 }

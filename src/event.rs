@@ -31,11 +31,8 @@ pub enum DomainEvent {
         stacks: u16,
         duration_ticks: u32,
     },
-    /// The main character cast a skill from a slot (ADR-032).
-    SkillCast {
-        slot: u8,
-        target: Option<EntityId>,
-    },
+    /// The main character started an evade (ADR-050).
+    Evaded,
     /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-036).
     RuleFired {
         agent: EntityId,

@@ -3,9 +3,9 @@
 //!
 //! What a tick does, in this order:
 //! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
-//! 2. the main character moves (speed cap, focus, slowing, playfield), starts its shot attack
-//!    on `fire` ticks only (ADR-038, no auto-fire; see `player::main_shot`), and its skills are
-//!    held and cast (ADR-032);
+//! 2. the main character turns to its stick, starts a ready evade on a press, then dashes or
+//!    moves (speed cap, slowing, playfield), and starts its shot attack on its own along its
+//!    facing (ADR-050, ADR-055; see `player::main_shot`);
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
 //!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
 //!    a shot skill starts an attack task;
@@ -16,7 +16,8 @@
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
 //!
-//! Not yet in this version: summons by companions; ways of shooting the main character acquires
+//! Not yet in this version: summons by companions; the Main and Sub weapons, the charged Main
+//! skill and the Sub skill (ADR-050, core#83); ways of shooting the main character acquires
 //! during a run (`player::main_shot` is where they would plug in).
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
@@ -37,8 +38,8 @@ mod player;
 mod select;
 
 use crate::engine::{
-    AgentKey, AgentSource, BossState, BulletState, HoldState, Load, Outcome, PartState,
-    PlayerState, SkillState, State, UNLIMITED,
+    AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, Outcome, PartState,
+    PlayerState, State,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -64,19 +65,17 @@ pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 
 /// The main character is always entity 0; the boss, if any, is 1, then the companions.
 pub(crate) const PLAYER_ID: EntityId = EntityId(0);
+/// The speed cap at full stick (ADR-050).
 const PLAYER_SPEED: i32 = Fx::px(3).0;
-const FOCUS_SPEED: i32 = Fx::px(1).0;
-/// The hurt circle, a tiny one (ADR-038).
+/// The hurt circle, a tiny one (ADR-050).
 pub(crate) const PLAYER_RADIUS: i32 = Fx::px(2).0;
 const PLAYER_START_Y_FROM_BOTTOM: i32 = Fx::px(64).0;
-/// Ticks between main shots while `fire` is held.
+/// Ticks between the starts of main shots.
 const SHOT_INTERVAL: u32 = 6;
 const PLAYER_BULLET_RADIUS: i32 = Fx::px(2).0;
 const ENEMY_BULLET_RADIUS: i32 = Fx::px(3).0;
 /// Ticks of invulnerability after the main character is hit.
 const HIT_INVULNERABLE_TICKS: u32 = 60;
-/// A held skill casts by itself after this many ticks (ADR-032).
-const HOLD_LIMIT_TICKS: u32 = 30;
 
 /// Aggro (ADR-036): raised by damage dealt, by buffs and by heals; fading every tick.
 const AGGRO_PER_DAMAGE: u32 = 1;
@@ -160,28 +159,19 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
         tick: 0,
         rng: SplitMix64::new(u64::from(stage.seed)),
         outcome: Outcome::Running,
-        input: Input::default(),
         player: PlayerState {
             at: start,
             hp: stage.player.hp,
             max_hp: stage.player.hp,
             defence: stage.player.defence,
             invulnerable: 0,
+            // Up the field, where the stage comes from, until the map turns landscape (core#87).
+            facing: Dir::UP,
             shot_cooldown: 0,
-            firing_streak: 0,
+            evade_cooldown: 0,
+            dash: None,
             aggro: 0,
             statuses: Vec::new(),
-            skills: stage
-                .player
-                .skills
-                .iter()
-                .map(|sk| SkillState {
-                    cooldown_left: 0,
-                    charges_left: sk.charges.map_or(UNLIMITED, u32::from),
-                })
-                .collect(),
-            hold: None,
-            held_before: 0,
         },
         boss,
         companions,
@@ -205,12 +195,6 @@ pub(crate) fn step(
         return;
     }
     s.tick += 1;
-    s.input = input;
-    s.player.firing_streak = if input.fire {
-        s.player.firing_streak.saturating_add(1)
-    } else {
-        0
-    };
     let mut spawns_left = MAX_BULLET_SPAWNS_PER_TICK;
 
     spawn_waves(stage, s);
@@ -604,24 +588,22 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_u32(p.max_hp);
     h.write_u32(p.defence);
     h.write_u32(p.invulnerable);
+    h.write_i32(p.facing.x);
+    h.write_i32(p.facing.y);
     h.write_u32(p.shot_cooldown);
-    h.write_u32(p.firing_streak);
-    h.write_u32(p.aggro);
-    h.write_u32(u32::from(p.held_before));
-    hash_statuses(&mut h, &p.statuses);
-    h.write_u32(count(&p.skills));
-    for sk in &p.skills {
-        h.write_u32(sk.cooldown_left);
-        h.write_u32(sk.charges_left);
-    }
-    match p.hold {
-        Some(HoldState { index, ticks }) => {
+    h.write_u32(p.evade_cooldown);
+    match p.dash {
+        Some(DashState { dir, done, left }) => {
             h.write_bool(true);
-            h.write_u32(index);
-            h.write_u32(ticks);
+            h.write_i32(dir.x);
+            h.write_i32(dir.y);
+            h.write_u32(done);
+            h.write_u32(left);
         }
         None => h.write_bool(false),
     }
+    h.write_u32(p.aggro);
+    hash_statuses(&mut h, &p.statuses);
     match &s.boss {
         Some(b) => {
             h.write_bool(true);

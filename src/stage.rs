@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::attack::AttackRef;
-use crate::behaviour::{Agent, Condition, Rule, Selector, Skill};
+use crate::behaviour::{Agent, Condition, Rule};
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 
@@ -47,25 +47,24 @@ pub struct Player {
     /// run's setup when the setup exists (ADR-049).
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub defence: u32,
-    /// The main shot, fired on ticks whose input has `fire` (ADR-038).
+    /// The main shot, which attacks on its own along the main character's facing (ADR-050,
+    /// ADR-055). The Main and Sub weapons replace it (core#83).
     pub shot: AttackRef,
-    /// Up to 3 active skills (ADR-032).
-    #[serde(default)]
-    pub skills: Vec<SkillSlot>,
+    /// Skill 1 (ADR-050). It moves to the run's setup with the character when the setup exists
+    /// (ADR-049).
+    pub evade: Evade,
 }
 
+/// A dash with invulnerability (ADR-050). A ready press dashes `distance` over `ticks`, along
+/// the movement direction, or along the facing when the stick is centred; the stick is ignored
+/// until the dash ends. Invulnerability and the cooldown count from the press.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SkillSlot {
-    /// 1 to 3; the input's `held` field names it.
-    pub slot: u8,
-    pub target: Selector,
-    pub skill: Skill,
-    #[serde(default)]
+pub struct Evade {
+    pub distance: Fx,
+    pub ticks: u32,
+    pub invulnerable_ticks: u32,
     pub cooldown_ticks: u32,
-    /// Uses per run; absent means unlimited, limited by the cooldown.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub charges: Option<u16>,
 }
 
 /// `count` copies of `enemy`, the first at `at_tick`, then one every `every_ticks`.

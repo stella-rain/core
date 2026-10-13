@@ -202,7 +202,6 @@ pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition, stage: &Stag
             select(stage, s, me, who).is_some_and(|w| s.aggro(w) > *value)
         }
         Condition::TimeAbove { ticks } => time_since_start(s, me) > *ticks,
-        Condition::PlayerFiring { min_ticks } => s.player.firing_streak >= *min_ticks,
         Condition::PartBroken { part } => {
             let index = stage
                 .boss

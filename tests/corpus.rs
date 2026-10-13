@@ -232,7 +232,7 @@ fn bytes(stage: &impl serde::Serialize) -> Vec<u8> {
 }
 
 fn firing_for(ticks: u32) -> Vec<Input> {
-    (0..ticks).map(|_| common::firing()).collect()
+    (0..ticks).map(|_| common::idle()).collect()
 }
 
 /// Agents of every movement type: a companion that orbits the main character and buffs it, a
@@ -272,16 +272,11 @@ fn agents() -> Definition {
         Some(far_boss()),
         vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
         vec![k, healer],
-        vec![],
     );
+    // Standing still for 40 ticks, shooting up at the enemy, then walking right, which turns
+    // the shots away from it.
     let inputs = (0..80)
-        .map(|t| {
-            if t < 40 {
-                common::firing()
-            } else {
-                common::idle()
-            }
-        })
+        .map(|t| if t < 40 { idle() } else { moving(64, 0) })
         .collect();
     ("agents", bytes(&stage), inputs)
 }
@@ -304,12 +299,18 @@ fn bullets() -> Definition {
             { "type": "wait", "ticks": 90 },
             { "type": "loop" } ] }]
     });
-    let stage = stage_full(600, Some(boss), vec![], vec![], vec![]);
+    let stage = stage_full(600, Some(boss), vec![], vec![]);
+    // Half speed from side to side, turning to face up the field once a second so that the main
+    // shot does not only go sideways, and evading twice.
     let inputs = (0..300)
-        .map(|t| Input {
-            dx: if (t / 25) % 2 == 0 { 300 } else { -300 },
-            fire: true,
-            ..Input::default()
+        .map(|t| match t {
+            _ if t % 60 == 0 => moving(0, -1),
+            100 | 230 => Input {
+                evade: true,
+                ..moving(50, 0)
+            },
+            _ if (t / 25) % 2 == 0 => moving(50, 0),
+            _ => moving(-50, 0),
         })
         .collect();
     ("bullets", bytes(&stage), inputs)
@@ -345,7 +346,7 @@ fn boss() -> Definition {
             }
         ]
     });
-    let stage = stage_full(600, Some(boss), vec![], vec![], vec![]);
+    let stage = stage_full(600, Some(boss), vec![], vec![]);
     ("boss", bytes(&stage), firing_for(600))
 }
 
@@ -424,15 +425,13 @@ fn melee() -> Definition {
         .into_iter()
         .map(|(at, x)| wave(at, 1, 0, swordsman.clone(), x, 128_000))
         .collect();
-    let stage = stage_full(600, Some(far_boss()), waves, vec![guard], vec![]);
+    // The main shot does nothing here, so that no bullet flies.
+    let stage = quiet(stage_full(600, Some(far_boss()), waves, vec![guard]));
     let inputs = (0..300)
-        .map(|t| Input {
-            dx: match t {
-                0..150 => 0,
-                _ if (t / 40) % 2 == 0 => 200,
-                _ => -200,
-            },
-            ..Input::default()
+        .map(|t| match t {
+            0..150 => idle(),
+            _ if (t / 40) % 2 == 0 => moving(33, 0),
+            _ => moving(-33, 0),
         })
         .collect();
     ("melee", bytes(&stage), inputs)

@@ -43,13 +43,7 @@ pub fn stage() -> Stage {
             0
         )]),
     );
-    let mut stage = common::stage_full(
-        18_000,
-        Some(common::far_boss()),
-        waves,
-        vec![guard; 4],
-        vec![],
-    );
+    let mut stage = common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4]);
     stage.player.shot = serde_json::from_value(json!({ "inline": common::spawned(json!([{
         "type": "spread", "count": 90, "angle": 15_360, "body": [{
             "type": "fire", "speed": 512, "direction": { "type": "relative", "angle": 0 }
@@ -59,9 +53,9 @@ pub fn stage() -> Stage {
     stage
 }
 
-/// The main character stays where it starts and fires on every tick.
+/// The main character stays where it starts, its shot attacking on its own (ADR-050).
 pub fn input(_tick: u32) -> Input {
-    common::firing()
+    common::idle()
 }
 
 /// An engine `WARMUP_TICKS` ticks into the run: the next `step` is the measured tick.

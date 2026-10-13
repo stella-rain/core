@@ -17,8 +17,7 @@ use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
 use crate::snapshot::{
-    AttackView, BulletView, EntityKind, EntityView, Facing, HoldView, PlayerView, SkillView,
-    Snapshot,
+    AttackView, BulletView, EntityKind, EntityView, EvadeView, Facing, PlayerView, Snapshot,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error};
@@ -203,28 +202,17 @@ impl Engine {
             player: PlayerView {
                 at: s.player.at,
                 hp: s.player.hp,
-                focus: s.input.focus,
-                firing: s.input.fire,
-                held: s.input.held,
-                hold: s.player.hold.map(|h| HoldView {
-                    slot: self.stage.player.skills[h.index as usize].slot,
-                    ticks: h.ticks,
-                }),
                 radius: Fx(rules_v0::PLAYER_RADIUS),
-                skills: self
-                    .stage
-                    .player
-                    .skills
-                    .iter()
-                    .zip(&s.player.skills)
-                    .map(|(def, state)| SkillView {
-                        slot: def.slot,
-                        ready: state.is_ready(),
-                        cooldown_left: state.cooldown_left,
-                        charges_left: (state.charges_left != UNLIMITED)
-                            .then(|| u16::try_from(state.charges_left).unwrap_or(u16::MAX)),
-                    })
-                    .collect(),
+                facing: Facing {
+                    x: s.player.facing.x,
+                    y: s.player.facing.y,
+                },
+                invulnerable: s.player.invulnerable,
+                evade: EvadeView {
+                    ready: s.player.evade_ready(),
+                    cooldown_left: s.player.evade_cooldown,
+                    dash_left: s.player.dash.map_or(0, |d| d.left),
+                },
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -262,8 +250,6 @@ pub(crate) struct State {
     pub tick: u32,
     pub rng: SplitMix64,
     pub outcome: Outcome,
-    /// The input of the last tick, for the snapshot.
-    pub input: Input,
     pub player: PlayerState,
     pub boss: Option<BossState>,
     /// The allies that act on their own, in entity-ID order.
@@ -288,41 +274,33 @@ pub(crate) struct PlayerState {
     pub max_hp: u32,
     /// Copied from the stage when it appears (ADR-056).
     pub defence: u32,
-    /// Ticks of invulnerability left after a hit.
+    /// Ticks of invulnerability left, after a hit or from an evade.
     pub invulnerable: u32,
+    /// The last non-zero movement direction (ADR-055): where the main shot goes and where an
+    /// evade without movement dashes.
+    pub facing: Dir,
     /// Ticks until the main shot may fire again.
     pub shot_cooldown: u32,
-    /// Ticks in a row the input has had `fire`.
-    pub firing_streak: u32,
+    /// Ticks until the evade is ready again, counted from its press.
+    pub evade_cooldown: u32,
+    /// The dash in progress, if any.
+    pub dash: Option<DashState>,
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
-    /// One per skill slot of the stage, in order.
-    pub skills: Vec<SkillState>,
-    /// The slot being held with a ready skill, if any (ADR-032).
-    pub hold: Option<HoldState>,
-    /// The `held` field of the last tick's input, to see presses and releases.
-    pub held_before: u8,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct SkillState {
-    pub cooldown_left: u32,
-    /// Casts left; `UNLIMITED` if there is no limit.
-    pub charges_left: u32,
-}
-
-impl SkillState {
-    pub fn is_ready(&self) -> bool {
-        self.cooldown_left == 0 && self.charges_left != 0
+impl PlayerState {
+    pub fn evade_ready(&self) -> bool {
+        self.evade_cooldown == 0 && self.dash.is_none()
     }
 }
 
+/// An evade's dash: locked to its direction, `done` of its ticks moved, `left` to go.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct HoldState {
-    /// Index into the stage's skill slots.
-    pub index: u32,
-    /// Ticks held so far.
-    pub ticks: u32,
+pub(crate) struct DashState {
+    pub dir: Dir,
+    pub done: u32,
+    pub left: u32,
 }
 
 #[derive(Clone, Debug)]

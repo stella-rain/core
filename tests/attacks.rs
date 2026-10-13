@@ -8,7 +8,6 @@ mod common;
 
 use common::*;
 use serde_json::{Value, json};
-use stella_rain_core::input::Input;
 use stella_rain_core::presets;
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::rng::SplitMix64;
@@ -99,14 +98,14 @@ fn shooter(attack: Value) -> Value {
     )
 }
 
+/// The main shot is quiet, so that every bullet is the enemy's.
 fn attack_stage(attack: Value) -> Stage {
-    stage_full(
+    quiet(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, shooter(attack), OX, OY)],
         vec![],
-        vec![],
-    )
+    ))
 }
 
 /// Runs `ticks` ticks and lists every bullet the attack made, in the order they appeared. The
@@ -201,7 +200,7 @@ fn aimed_follows_the_target_not_the_enemys_line() {
     let mut e = engine(&attack_stage(
         json!({ "inline": spawned(json!([fire(json!(768), aimed())])) }),
     ));
-    e.step(moving(10_000, 0));
+    e.step(moving(127, 0));
     let bullet = e.snapshot().bullets[0];
     assert!(bullet.at.x.0 > OX, "{bullet:?}");
 }
@@ -525,13 +524,12 @@ fn bullets_start_where_the_attacks_owner_is_at_that_moment() {
                  "do": { "type": "attack",
                          "attack": { "inline": spawned(json!([down(0), wait(10), down(0)])) } } }]),
     );
-    let stage = stage_full(
+    let stage = quiet(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, walker, OX, OY)],
         vec![],
-        vec![],
-    );
+    ));
     let shots = shots_of(&stage, 12);
     // Tick 1 the enemy has moved once; tick 11 ten times more.
     assert_eq!(
@@ -657,7 +655,6 @@ fn a_child_goes_on_after_its_owner_is_gone_and_a_parent_does_not() {
                 25_600,
             )],
             vec![],
-            vec![],
         )
     };
     let hostile = |stage: &Stage| {
@@ -665,7 +662,7 @@ fn a_child_goes_on_after_its_owner_is_gone_and_a_parent_does_not() {
         let mut fired = 0;
         let mut last = 0;
         for _ in 0..120 {
-            e.step(firing());
+            e.step(idle());
             let now = e.snapshot().bullets.iter().filter(|b| !b.friendly).count();
             if now > last {
                 fired += now - last;
@@ -700,7 +697,7 @@ fn at_most_two_hundred_new_bullets_a_tick_whatever_the_attacks() {
             )
         })
         .collect();
-    let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![], vec![]));
+    let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
     e.step(idle());
     assert_eq!(e.snapshot().bullets.len(), 200);
 }
@@ -715,7 +712,7 @@ fn at_most_two_hundred_fifty_six_attacks_are_carried_out_at_once() {
     let waves = (0..200)
         .map(|_| wave(1, 100, 1, shooter(attack.clone()), OX, OY))
         .collect();
-    let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![], vec![]));
+    let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
     let mut bullets = Vec::new();
     for _ in 0..12 {
         e.step(idle());
@@ -752,10 +749,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
     let mut e = engine(stage);
     (0..ticks)
         .map(|t| {
-            e.step(Input {
-                fire: t % 40 < 20,
-                ..Input::default()
-            });
+            e.step(moving(if t % 40 < 20 { 64 } else { -64 }, 0));
             e.state_hash()
         })
         .collect()
@@ -782,13 +776,12 @@ fn a_preset_and_its_inline_copy_reach_the_same_hashes() {
             )
         };
         let stage = |attack: Value| {
-            stage_full(
+            quiet(stage_full(
                 600,
                 Some(far_boss()),
                 vec![wave(1, 1, 0, rule(attack), OX, OY)],
                 vec![],
-                vec![],
-            )
+            ))
         };
         let a = hashes(&stage(by_id), 200);
         let b = hashes(&stage(copy), 200);
@@ -914,30 +907,6 @@ fn a_bullet_names_its_style() {
 }
 
 #[test]
-fn a_cast_shot_makes_friendly_bullets_from_its_pattern() {
-    let skills = vec![
-        json!({ "slot": 1, "target": "boss_first", "cooldown_ticks": 100,
-        "skill": { "type": "shot", "damage": 40,
-                   "pattern": { "preset": { "id": "spread_5", "args": [] } } } }),
-    ];
-    let mut e = engine(&stage_full(
-        18_000,
-        Some(boss_at(100_000, 25_600)),
-        vec![],
-        vec![],
-        skills,
-    ));
-    e.step(Input {
-        held: 1,
-        ..Input::default()
-    });
-    e.step(idle());
-    let bullets = e.snapshot().bullets;
-    assert_eq!(bullets.len(), 5);
-    assert!(bullets.iter().all(|b| b.friendly));
-}
-
-#[test]
 fn a_bullet_shows_the_movement_it_makes_each_tick() {
     // A slow ring of eight from an enemy to the left, and the main shot straight up: none
     // leaves the field or hits anything in 30 ticks, so each snapshot's bullets begin with the
@@ -954,12 +923,11 @@ fn a_bullet_shows_the_movement_it_makes_each_tick() {
         Some(far_boss()),
         vec![wave(1, 1, 0, left, 20_000, OY)],
         vec![],
-        vec![],
     ));
     let mut before = e.snapshot().bullets;
     let (mut friendly, mut hostile) = (0, 0);
     for _ in 0..30 {
-        e.step(firing());
+        e.step(idle());
         let after = e.snapshot().bullets;
         assert!(after.len() >= before.len(), "no bullet is gone");
         for (old, new) in before.iter().zip(&after) {

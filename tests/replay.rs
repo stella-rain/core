@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::{CLEAR_TICK, clearing_inputs, firing, stage_bytes};
+use common::{CLEAR_TICK, clearing_inputs, idle, stage_bytes};
 use serde_json::{Value, json};
 use stella_rain_core::base64;
 use stella_rain_core::content_hash::{content_hash, sha256, to_hex};
@@ -39,7 +39,15 @@ fn replay_of(inputs: &[Input], ticks: u32) -> Replay {
         stage_sha256: String::new(),
         ticks,
         final_hash: hash_to_hex(0),
-        inputs: pack_inputs(inputs).unwrap(),
+        inputs: pack_inputs(inputs),
+    }
+}
+
+fn stick(move_x: i8, move_y: i8, evade: bool) -> Input {
+    Input {
+        move_x,
+        move_y,
+        evade,
     }
 }
 
@@ -47,83 +55,36 @@ fn replay_of(inputs: &[Input], ticks: u32) -> Replay {
 fn packed_inputs_round_trip_including_the_extremes() {
     let mut rng = SplitMix64::new(19);
     let mut inputs = vec![
-        Input {
-            dx: i16::MIN,
-            dy: i16::MAX,
-            focus: true,
-            fire: true,
-            held: 3,
-        },
-        Input {
-            dx: i16::MAX,
-            dy: i16::MIN,
-            focus: false,
-            fire: false,
-            held: 0,
-        },
-        Input {
-            dx: 0,
-            dy: 0,
-            focus: false,
-            fire: false,
-            held: 0,
-        },
-        Input {
-            dx: -1,
-            dy: 1,
-            focus: true,
-            fire: false,
-            held: 1,
-        },
+        stick(-127, 127, true),
+        stick(127, -127, false),
+        stick(0, 0, false),
+        stick(-1, 1, true),
     ];
     for _ in 0..500 {
-        let held = rng.below(4) as u8;
-        inputs.push(Input {
-            dx: (rng.next_u64() & 0xffff) as u16 as i16,
-            dy: (rng.next_u64() & 0xffff) as u16 as i16,
-            focus: rng.below(2) == 0,
-            fire: rng.below(2) == 0,
-            held,
-        });
+        // Any byte but 0x80, which is −128.
+        let mut axis = || (rng.below(255) as u8).wrapping_add(0x81) as i8;
+        let (move_x, move_y) = (axis(), axis());
+        inputs.push(stick(move_x, move_y, rng.below(2) == 0));
     }
     // Long runs of one input, and of nothing.
     inputs.extend(std::iter::repeat_n(Input::default(), 300));
-    inputs.extend(std::iter::repeat_n(
-        Input {
-            fire: true,
-            ..Input::default()
-        },
-        17,
-    ));
+    inputs.extend(std::iter::repeat_n(stick(0, -127, false), 17));
     let replay = replay_of(&inputs, inputs.len() as u32);
     assert_eq!(replay.unpack_inputs(u32::MAX).unwrap(), inputs);
 }
 
 #[test]
 fn steady_input_packs_into_a_few_bytes() {
-    let held_key = vec![
-        Input {
-            dx: 768,
-            fire: true,
-            ..Input::default()
-        };
-        18_000
-    ];
-    assert!(pack_inputs(&held_key).unwrap().len() <= 16);
-    assert_eq!(pack_inputs(&[]).unwrap(), "");
+    let held_key = vec![stick(127, 0, false); 18_000];
+    assert!(pack_inputs(&held_key).len() <= 16);
+    assert_eq!(pack_inputs(&[]), "");
 }
 
 #[test]
 fn a_replay_of_never_repeating_input_fits_the_size_limit() {
-    // The worst case: 18,000 ticks (five minutes), every input different and large.
+    // The worst case: 18,000 ticks (five minutes), every input different from the last.
     let inputs: Vec<Input> = (0..18_000u32)
-        .map(|t| Input {
-            dx: if t % 2 == 0 { i16::MIN } else { i16::MAX },
-            dy: t as i16,
-            focus: t % 3 == 0,
-            fire: t % 5 == 0,
-            held: (t % 4) as u8,
-        })
+        .map(|t| stick(if t % 2 == 0 { -127 } else { 127 }, 0, t % 3 == 0))
         .collect();
     let mut replay = replay_of(&inputs, 18_000);
     replay.stage_sha256 = "0".repeat(64);
@@ -135,15 +96,14 @@ fn a_replay_of_never_repeating_input_fits_the_size_limit() {
 }
 
 #[test]
-fn a_held_slot_above_three_cannot_be_packed() {
-    let input = Input {
-        held: 4,
-        ..Input::default()
-    };
-    assert!(matches!(
-        pack_inputs(&[input]),
-        Err(ReplayError::BadInputs(_))
-    ));
+fn a_stick_at_minus_128_packs_as_minus_127() {
+    // The engine runs both the same (`tests/controls.rs`), and a file holds one of them only.
+    let inputs = [stick(-128, 0, false), stick(5, -128, true)];
+    let replay = replay_of(&inputs, 2);
+    assert_eq!(
+        replay.unpack_inputs(2).unwrap(),
+        [stick(-127, 0, false), stick(5, -127, true)]
+    );
 }
 
 fn unpack_raw(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, ReplayError> {
@@ -156,28 +116,34 @@ fn unpack_raw(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, ReplayError> {
 
 #[test]
 fn damaged_packed_inputs_are_refused_with_a_reason() {
-    // One run of two ticks, flags `fire`, dx and dy zero: [2, 0b10, 0, 0].
-    assert_eq!(unpack_raw(&[2, 2, 0, 0], 2).unwrap().len(), 2);
+    // One run of two ticks, flags `evade`, the stick at (−1, 127): [2, 0b1, 0xff, 0x7f].
+    assert_eq!(
+        unpack_raw(&[2, 1, 0xff, 0x7f], 2).unwrap(),
+        [stick(-1, 127, true); 2]
+    );
     let reason = |bytes: &[u8], ticks: u32| match unpack_raw(bytes, ticks) {
         Err(ReplayError::BadInputs(why)) => why,
         other => panic!("{bytes:?}: {other:?}"),
     };
     assert!(reason(&[0, 0, 0, 0], 1).contains("length 0"));
-    assert!(reason(&[3, 2, 0, 0], 2).contains("more inputs than ticks"));
-    assert!(reason(&[1, 2, 0, 0], 2).contains("fewer inputs"));
-    assert!(reason(&[2, 0xf0, 0, 0], 2).contains("unknown flags"));
-    assert!(reason(&[2, 2, 0], 2).contains("middle"));
+    assert!(reason(&[3, 1, 0, 0], 2).contains("more inputs than ticks"));
+    assert!(reason(&[1, 1, 0, 0], 2).contains("fewer inputs"));
+    for flags in [2, 0x80, 0xfe] {
+        assert!(reason(&[2, flags, 0, 0], 2).contains("unknown flags"));
+    }
+    assert!(reason(&[2, 1, 0], 2).contains("middle"));
     assert!(reason(&[2], 2).contains("middle"));
     assert!(
-        reason(&[2, 2, 0, 0, 1], 3).contains("middle"),
+        reason(&[2, 1, 0, 0, 1], 3).contains("middle"),
         "trailing partial run"
     );
-    // A movement of zigzag 65536 is 32768, which is not an i16.
-    assert!(reason(&[1, 0, 0x80, 0x80, 0x04, 0], 1).contains("out of range"));
-    // Numbers not in their shortest form, too long, or too large.
-    assert!(reason(&[0x81, 0x00, 2, 0, 0], 1).contains("shortest"));
-    assert!(reason(&[0x80, 0x80, 0x80, 0x80, 0x80, 0x01, 2, 0, 0], 1).contains("too"));
-    assert!(reason(&[0xff, 0xff, 0xff, 0xff, 0x1f, 2, 0, 0], 1).contains("too large"));
+    // −128 is no stick position, on either axis.
+    assert!(reason(&[1, 0, 0x80, 0], 1).contains("out of range"));
+    assert!(reason(&[1, 0, 0, 0x80], 1).contains("out of range"));
+    // Run lengths not in their shortest form, too long, or too large.
+    assert!(reason(&[0x81, 0x00, 1, 0, 0], 1).contains("shortest"));
+    assert!(reason(&[0x80, 0x80, 0x80, 0x80, 0x80, 0x01, 1, 0, 0], 1).contains("too"));
+    assert!(reason(&[0xff, 0xff, 0xff, 0xff, 0x1f, 1, 0, 0], 1).contains("too large"));
     assert!(matches!(
         Replay {
             inputs: "not base64!".into(),
@@ -201,7 +167,7 @@ fn a_hostile_tick_count_is_refused_before_anything_is_allocated() {
         );
     }
     // A run longer than the ticks, or than the room left, is refused without expanding it.
-    let huge_run = [0xff, 0xff, 0xff, 0xff, 0x0f, 2, 0, 0];
+    let huge_run = [0xff, 0xff, 0xff, 0xff, 0x0f, 1, 0, 0];
     assert!(matches!(
         unpack_raw(&huge_run, 10),
         Err(ReplayError::BadInputs(_))
@@ -295,7 +261,7 @@ fn a_recorded_clear_verifies() {
 #[test]
 fn recording_stops_on_the_tick_the_run_ends() {
     let stage = stage_bytes();
-    let replay = record(&stage, &vec![firing(); 400]).unwrap();
+    let replay = record(&stage, &vec![idle(); 400]).unwrap();
     assert_eq!(replay.ticks, CLEAR_TICK);
     assert_eq!(
         replay.unpack_inputs(600).unwrap().len(),
@@ -307,15 +273,20 @@ fn recording_stops_on_the_tick_the_run_ends() {
 #[test]
 fn a_replay_that_does_not_clear_is_recorded_but_does_not_verify() {
     let stage = stage_bytes();
-    // Failed: idle until the stage runs out of ticks on tick 600.
-    let failed = record(&stage, &vec![Input::default(); 700]).unwrap();
+    // Failed: facing down the field, away from the boss, until the stage runs out of ticks on
+    // tick 600.
+    let away = Input {
+        move_y: 1,
+        ..Input::default()
+    };
+    let failed = record(&stage, &vec![away; 700]).unwrap();
     assert_eq!(failed.ticks, 600);
     assert_eq!(
         verify(&stage, &failed.to_bytes()),
         Err(ReplayError::NotCleared { tick: 600 })
     );
     // Still running when the inputs end: a bug report (ADR-016).
-    let running = record(&stage, &[firing(); 10]).unwrap();
+    let running = record(&stage, &[idle(); 10]).unwrap();
     assert_eq!(running.ticks, 10);
     assert_eq!(
         verify(&stage, &running.to_bytes()),
@@ -332,7 +303,7 @@ fn inputs_after_the_clear_are_refused() {
     let (stage, replay, _) = recorded();
     let longer = Replay {
         ticks: CLEAR_TICK + 1,
-        inputs: pack_inputs(&[clearing_inputs(), vec![firing()]].concat()).unwrap(),
+        inputs: pack_inputs(&[clearing_inputs(), vec![idle()]].concat()),
         ..replay
     };
     assert_eq!(
@@ -380,9 +351,9 @@ fn a_replay_only_verifies_against_its_own_stage() {
     }
     // Different inputs reach a different final hash.
     let mut inputs = clearing_inputs();
-    inputs[3].dx = 50;
+    inputs[3].move_x = 50;
     let swapped = Replay {
-        inputs: pack_inputs(&inputs).unwrap(),
+        inputs: pack_inputs(&inputs),
         ..replay
     };
     assert!(matches!(
@@ -448,22 +419,24 @@ fn the_encoding_is_pinned() {
         String::from_utf8(bytes.clone()).unwrap(),
         concat!(
             r#"{"schema_version":0,"sim_version":0,"seed":7,"#,
-            r#""stage_sha256":"b66fe06722776b68bb952d2afe01491c456fa7cc6dc17934afd1f793f9fe619d","#,
-            r#""ticks":57,"final_hash":"7e0a9b3b8ea49da7","#,
-            r#""inputs":"AQpQAAkCUAAKAgAAAQoAABMCAAABCgAAEAIAAA=="}"#,
+            r#""stage_sha256":"cdc460773f3eb56f5d2d2691e9c11bc960ac6059cc10f5c0e97f060acf86e7fb","#,
+            r#""ticks":57,"final_hash":"1cbe3247e9f5c846","#,
+            r#""inputs":"AQAA/wkABwAKAAAAAQEAACQAAAA="}"#,
             "\n"
         )
     );
-    // The packed inputs, decoded by hand: one tick of fire with slot 2 held and dx 40
-    // (01 0a 50 00), then nine ticks of fire and dx 40 (09 02 50 00), and so on.
-    assert!(
-        base64::decode(&replay.inputs)
-            .unwrap()
-            .starts_with(&[1, 0x0a, 0x50, 0, 9, 2, 0x50, 0])
+    // The packed inputs, decoded by hand: one tick with the stick at (0, −1) (01 00 00 ff),
+    // nine at (7, 0) (09 00 07 00), ten idle (0a 00 00 00), one evade (01 01 00 00), then 36
+    // idle (24 00 00 00).
+    assert_eq!(
+        base64::decode(&replay.inputs).unwrap(),
+        [
+            1, 0, 0, 0xff, 9, 0, 7, 0, 10, 0, 0, 0, 1, 1, 0, 0, 36, 0, 0, 0
+        ]
     );
     assert_eq!(
         to_hex(&content_hash(&stage, &bytes)),
-        "709d8d890fd9200f319a9f373a9d3887d68240713d2fbc24278d9369cf7eb5dd"
+        "92beb45ac74ecdde6a4afeaa418e1c1c537bfd27f05b93d8b5c6334bde5f5e5b"
     );
 }
 
