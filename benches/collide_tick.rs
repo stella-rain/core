@@ -1,5 +1,5 @@
 //! The instruction count of the worst friendly-bullet collision tick within the caps of ADR-020
-//! (`benches/collide_case`): 300 enemies and about 3,900 friendly bullets that hit none of them.
+//! (`benches/collide_case`): 500 enemies and about 3,900 friendly bullets that hit none of them.
 //! Run it with `cargo bench --bench collide_tick` (needs what `worst_tick` needs).
 
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};

@@ -12,7 +12,7 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::snapshot::EntityKind;
 
 /// Every enemy and every companion is in an active phase with a hit box, every companion's
-/// cleave lands on all 300 enemies, and nothing hurts a companion.
+/// cleave lands on all 500 enemies, and nothing hurts a companion.
 fn assert_hit_boxes(engine: &Engine) {
     let snapshot = engine.snapshot();
     let attackers: Vec<_> = snapshot
@@ -20,7 +20,7 @@ fn assert_hit_boxes(engine: &Engine) {
         .iter()
         .filter(|e| matches!(e.kind, EntityKind::Enemy | EntityKind::Companion))
         .collect();
-    assert_eq!(attackers.len(), 304);
+    assert_eq!(attackers.len(), 504);
     for e in attackers {
         let a = e.attack.as_ref().expect("an attack runs");
         assert_eq!(a.kind, PhaseKind::Active, "entity {:?}", e.id);
@@ -31,7 +31,7 @@ fn assert_hit_boxes(engine: &Engine) {
         .iter()
         .filter(|ev| matches!(ev, DomainEvent::Hit { .. }))
         .count();
-    assert_eq!(hits, 4 * 300);
+    assert_eq!(hits, 4 * 500);
 }
 
 #[test]

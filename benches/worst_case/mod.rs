@@ -14,7 +14,7 @@ use stella_rain_core::stage::Stage;
 /// Ticks to run before the tick that is measured, so that the caps are reached and held.
 pub const WARMUP_TICKS: u32 = 200;
 
-/// 300 enemies (`MAX_ENEMIES_ALIVE`) stand in one place, three waves of 100 that spawn one enemy
+/// 500 enemies (`MAX_ENEMIES_ALIVE`) stand in one place, five waves of 100 that spawn one enemy
 /// a tick each. Every enemy starts the same attack every 30 ticks: 100 rounds of 100 rounds of
 /// one bullet. Each start is refused once 256 attacks are going (`MAX_ATTACK_TASKS`), and the
 /// oldest attacks use up the 4,096 node steps of the tick (`MAX_EMITTER_STEPS_PER_TICK`) and
@@ -25,7 +25,7 @@ pub const WARMUP_TICKS: u32 = 200;
 /// are in the air when a tick starts, the tick makes the 20th, and 4,000 are alive
 /// (`MAX_BULLETS_ALIVE`) until the 200 that are about to leave go. The main character waits at
 /// the left wall, where no enemy bullet flies. Both its weapons aim at the nearest enemy and
-/// start an attack every tick (core#83), so every tick picks a target among the 300 enemies
+/// start an attack every tick (core#83), so every tick picks a target among the 500 enemies
 /// twice; their attacks find 256 attacks going and spawn nothing. On the measured tick it also
 /// releases a charge and presses the Sub skill, which picks a target a third time.
 ///
@@ -33,7 +33,7 @@ pub const WARMUP_TICKS: u32 = 200;
 /// always in it, with a 128-pixel arc facing the main character, out of its reach. The four
 /// companions (`MAX_COMPANIONS`) stand 78 pixels to the right of the enemies, behind every
 /// arc, so each arc tests each of them against its angle and both edges and misses. They cleave
-/// all 300 enemies every tick with an arc of their own (`rehit_ticks` 1, 1 damage a hit).
+/// all 500 enemies every tick with an arc of their own (`rehit_ticks` 1, 1 damage a hit).
 pub fn stage() -> Stage {
     let burst = json!({
         "type": "repeat", "count": 100, "interval_ticks": 0, "body": [{
@@ -54,7 +54,7 @@ pub fn stage() -> Stage {
     );
     let (x, y) = (60_000, 140_000);
     let enemy = common::enemy(100_000, common::hold(x, y), json!([attack]));
-    let waves: Vec<Value> = (0..3)
+    let waves: Vec<Value> = (0..5)
         .map(|_| common::wave(1, 100, 1, enemy.clone(), x, y))
         .collect();
     let cleave = json!([{ "kind": "active", "ticks": 30, "damage": 1, "rehit_ticks": 1,
