@@ -188,6 +188,7 @@ pub fn validate_attack(
     let mut ctx = Ctx {
         registry,
         sim_version: crate::version::SIM_VERSION,
+        map: crate::stage::Map::PORTRAIT,
         parts: Vec::new(),
         path: Vec::new(),
         issues: Vec::new(),
@@ -209,6 +210,7 @@ pub fn validate_weapon_preset(preset: &WeaponPreset, registry: &[Entry]) -> Resu
     let mut ctx = Ctx {
         registry,
         sim_version: crate::version::SIM_VERSION,
+        map: crate::stage::Map::PORTRAIT,
         parts: Vec::new(),
         path: Vec::new(),
         issues: Vec::new(),
@@ -246,6 +248,7 @@ pub fn validate_with(stage: &Stage, registry: &[Entry]) -> Result<(), Error> {
     let mut ctx = Ctx {
         registry,
         sim_version: stage.sim_version,
+        map: stage.map(),
         parts: stage
             .boss
             .iter()
@@ -279,6 +282,8 @@ enum Seg {
 struct Ctx<'a> {
     registry: &'a [Entry],
     sim_version: u32,
+    /// Points are checked against it.
+    map: crate::stage::Map,
     /// Boss part IDs, which conditions and selectors may name.
     parts: Vec<&'a str>,
     path: Vec<Seg>,
@@ -383,13 +388,13 @@ impl<'a> Ctx<'a> {
                 "x",
                 i64::from(p.x.0),
                 -i64::from(FIELD_MARGIN),
-                i64::from(FIELD_W) + i64::from(FIELD_MARGIN),
+                i64::from(c.map.width.0) + i64::from(FIELD_MARGIN),
             );
             c.within(
                 "y",
                 i64::from(p.y.0),
                 -i64::from(FIELD_MARGIN),
-                i64::from(FIELD_H) + i64::from(FIELD_MARGIN),
+                i64::from(c.map.height.0) + i64::from(FIELD_MARGIN),
             );
         });
     }

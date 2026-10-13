@@ -10,7 +10,6 @@ use crate::input::Input;
 use crate::presets;
 use crate::stage::Stage;
 use crate::trig::SCALE;
-use crate::validate::limits::{FIELD_H, FIELD_W};
 use crate::weapon::{Charge, ChargeLevel, Targeting, WeaponAttack};
 
 use super::PLAYER_SPEED;
@@ -81,18 +80,12 @@ pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Ve
     sub_skill(stage, s, input, events);
 }
 
-fn move_by(p: &mut PlayerState, dx: i64, dy: i64) {
+fn move_by(stage: &Stage, p: &mut PlayerState, dx: i64, dy: i64) {
     // Both are within a speed cap or an evade's distance, which the validator bounds.
-    p.at = Point {
-        x: p.at
-            .x
-            .saturating_add(Fx(dx as i32))
-            .clamp(Fx(0), Fx(FIELD_W)),
-        y: p.at
-            .y
-            .saturating_add(Fx(dy as i32))
-            .clamp(Fx(0), Fx(FIELD_H)),
-    };
+    p.at = stage.map().clamp(Point {
+        x: p.at.x.saturating_add(Fx(dx as i32)),
+        y: p.at.y.saturating_add(Fx(dy as i32)),
+    });
 }
 
 fn move_player(stage: &Stage, s: &mut State, x: i8, y: i8) {
@@ -101,7 +94,7 @@ fn move_player(stage: &Stage, s: &mut State, x: i8, y: i8) {
         / 100;
     let cap = i64::from(PLAYER_SPEED) * keep / 100;
     let (dx, dy) = stick_move(x, y, cap);
-    move_by(&mut s.player, dx, dy);
+    move_by(stage, &mut s.player, dx, dy);
 }
 
 /// A ready press dashes along the facing, which is the stick's direction when it is not
@@ -131,6 +124,7 @@ fn dash(stage: &Stage, p: &mut PlayerState) {
     let step = at(i64::from(d.done) + 1) - at(i64::from(d.done));
     let scale = i64::from(SCALE);
     move_by(
+        stage,
         p,
         i64::from(d.dir.x) * step / scale,
         i64::from(d.dir.y) * step / scale,

@@ -9,6 +9,7 @@ use crate::attack::AttackRef;
 use crate::behaviour::{Agent, Condition, Rule};
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
+use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W};
 use crate::weapon::{MainWeapon, SubWeapon, WeaponRef};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -35,6 +36,50 @@ pub struct Stage {
     pub waves: Vec<Wave>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boss: Option<Boss>,
+}
+
+impl Stage {
+    /// The map the run plays on (core#87).
+    pub fn map(&self) -> Map {
+        Map::PORTRAIT
+    }
+}
+
+/// The rectangle the run plays on, from its top-left corner, and where the main character
+/// starts. The main character and agents are clamped to it; enemies and bullets leave once they
+/// are more than `FIELD_MARGIN` outside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Map {
+    pub width: Fx,
+    pub height: Fx,
+    pub start: Point,
+}
+
+impl Map {
+    /// The portrait field of the vertical shooter: 360 by 640 pixels, the start 64 pixels above
+    /// the middle of the bottom edge.
+    pub const PORTRAIT: Map = Map {
+        width: Fx(FIELD_W),
+        height: Fx(FIELD_H),
+        start: Point {
+            x: Fx(FIELD_W / 2),
+            y: Fx(FIELD_H - Fx::px(64).0),
+        },
+    };
+
+    /// `p` moved onto the map.
+    pub fn clamp(&self, p: Point) -> Point {
+        Point {
+            x: p.x.clamp(Fx(0), self.width),
+            y: p.y.clamp(Fx(0), self.height),
+        }
+    }
+
+    /// Whether `p` is on the map or at most `FIELD_MARGIN` outside it.
+    pub fn holds(&self, p: Point) -> bool {
+        let range = |v: Fx, max: Fx| (-FIELD_MARGIN..=max.0 + FIELD_MARGIN).contains(&v.0);
+        range(p.x, self.width) && range(p.y, self.height)
+    }
 }
 
 /// The main character, as the creator configured it; challengers get exactly this (ADR-012).
