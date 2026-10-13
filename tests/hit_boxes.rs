@@ -50,8 +50,9 @@ fn fighter(hp: u32, phases: Vec<Value>) -> Value {
     companion(hp, hold(CX, CY), attack("nearest_enemy", false, phases))
 }
 
+/// The main shot is quiet, so that only hit boxes deal damage.
 fn stage(waves: Vec<Value>, companions: Vec<Value>) -> Stage {
-    stage_full(18_000, Some(far_boss()), waves, companions, vec![])
+    quiet(stage_full(18_000, Some(far_boss()), waves, companions))
 }
 
 /// `(tick, target, damage)` of every hit by `source` over `ticks` ticks of `input`.
@@ -126,7 +127,7 @@ fn the_offset_is_in_the_attackers_frame_and_the_facing_is_locked_at_the_start() 
             attack("player", true, swing),
         );
         let mut e = engine(&stage(vec![foe], vec![]));
-        let mut events = run_until(&mut e, moving(-SPEED as i16, 0), 7, |_| false);
+        let mut events = run_until(&mut e, moving(-127, 0), 7, |_| false);
         assert_eq!(player_at(&e), (START_X - 7 * SPEED, START_Y));
         events.extend(run_until(&mut e, idle(), 30, |_| false));
         player_hits(&events)
@@ -313,7 +314,7 @@ fn a_hit_box_over_the_boss_hits_the_body_and_each_part_once() {
                        "phases": [{}] });
     let sweep = vec![phase("active", 3, Some(circle(0, 0, 50 * 256)), Some(2))];
     let companion = companion(50, hold(CX, CY), attack("boss_first", true, sweep));
-    let st = stage_full(18_000, Some(boss), vec![], vec![companion], vec![]);
+    let st = stage_full(18_000, Some(boss), vec![], vec![companion]);
     // The boss is 1, the companion 2, the parts 3 and 4; the tail is out of reach.
     assert_eq!(
         hits_by(&st, COMPANION, 3, idle()),

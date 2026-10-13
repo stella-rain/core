@@ -563,26 +563,6 @@
             "type",
             "ticks"
           ]
-        },
-        {
-          "description": "The main character has fired on at least `min_ticks` ticks in a row (ADR-038); 1 means\non this tick. A boss can punish steady shooting this way, which asks the player to\nstop for a while.",
-          "type": "object",
-          "properties": {
-            "min_ticks": {
-              "type": "integer",
-              "format": "uint32",
-              "default": 1,
-              "minimum": 0
-            },
-            "type": {
-              "type": "string",
-              "const": "player_firing"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type"
-          ]
         }
       ]
     },
@@ -858,6 +838,37 @@
             "then"
           ]
         }
+      ]
+    },
+    "Evade": {
+      "description": "A dash with invulnerability (ADR-050). A ready press dashes `distance` over `ticks`, along\nthe movement direction, or along the facing when the stick is centred; the stick is ignored\nuntil the dash ends. Invulnerability and the cooldown count from the press.",
+      "type": "object",
+      "properties": {
+        "cooldown_ticks": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "distance": {
+          "$ref": "#/$defs/Fx"
+        },
+        "invulnerable_ticks": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ticks": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "distance",
+        "ticks",
+        "invulnerable_ticks",
+        "cooldown_ticks"
       ]
     },
     "Expr": {
@@ -1314,22 +1325,18 @@
           "format": "uint32",
           "minimum": 0
         },
+        "evade": {
+          "description": "Skill 1 (ADR-050). It moves to the run's setup with the character when the setup exists\n(ADR-049).",
+          "$ref": "#/$defs/Evade"
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
         "shot": {
-          "description": "The main shot, fired on ticks whose input has `fire` (ADR-038).",
+          "description": "The main shot, which attacks on its own along the main character's facing (ADR-050,\nADR-055). The Main and Sub weapons replace it (core#83).",
           "$ref": "#/$defs/AttackRef"
-        },
-        "skills": {
-          "description": "Up to 3 active skills (ADR-032).",
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/SkillSlot"
-          }
         }
       },
       "additionalProperties": false,
@@ -1337,7 +1344,8 @@
         "base",
         "hp",
         "atk",
-        "shot"
+        "shot",
+        "evade"
       ]
     },
     "Point": {
@@ -1431,7 +1439,7 @@
       ]
     },
     "Skill": {
-      "description": "A skill block (ADR-008, ADR-032). Percentages are whole percent.",
+      "description": "A skill block (ADR-008, ADR-036). Percentages are whole percent.",
       "oneOf": [
         {
           "type": "object",
@@ -1553,46 +1561,6 @@
             "amount"
           ]
         }
-      ]
-    },
-    "SkillSlot": {
-      "type": "object",
-      "properties": {
-        "charges": {
-          "description": "Uses per run; absent means unlimited, limited by the cooldown.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        },
-        "cooldown_ticks": {
-          "type": "integer",
-          "format": "uint32",
-          "default": 0,
-          "minimum": 0
-        },
-        "skill": {
-          "$ref": "#/$defs/Skill"
-        },
-        "slot": {
-          "description": "1 to 3; the input's `held` field names it.",
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
-        },
-        "target": {
-          "$ref": "#/$defs/Selector"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "slot",
-        "target",
-        "skill"
       ]
     },
     "Step": {

@@ -24,7 +24,7 @@ pub const WARMUP_TICKS: u32 = 200;
 /// 163,840 high and its margin 16,384, so a bullet is gone on its 20th move: 19 batches of 200
 /// are in the air when a tick starts, the tick makes the 20th, and 4,000 are alive
 /// (`MAX_BULLETS_ALIVE`) until the 200 that are about to leave go. The main character waits at
-/// the left wall, where no bullet flies.
+/// the left wall, where no enemy bullet flies, its own shot going into the wall (ADR-050).
 ///
 /// Hit boxes (ADR-055): the enemies' attack is one active phase of 30 ticks, so every enemy is
 /// always in it, with a 128-pixel arc facing the main character, out of its reach. The four
@@ -67,19 +67,13 @@ pub fn stage() -> Stage {
             0
         )]),
     );
-    common::stage_full(
-        18_000,
-        Some(common::far_boss()),
-        waves,
-        vec![guard; 4],
-        vec![],
-    )
+    common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4])
 }
 
 /// The input of tick `tick` (from 1): the main character goes to the left wall, then waits.
 pub fn input(tick: u32) -> Input {
     if tick <= 80 {
-        common::moving(-768, 0)
+        common::moving(-127, 0)
     } else {
         common::idle()
     }

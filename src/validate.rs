@@ -19,7 +19,7 @@ use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, Ph
 use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill};
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
-use crate::stage::{Boss, BossPart, Phase, Player, SkillSlot, Stage, Step, Transition, Wave};
+use crate::stage::{Boss, BossPart, Evade, Phase, Player, Stage, Step, Transition, Wave};
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -47,7 +47,10 @@ pub mod limits {
     pub const MAX_ATTACK_PHASES: usize = 8;
     pub const MAX_PHASE_TICKS: u32 = 600;
 
-    pub const MAX_SKILL_SLOTS: usize = 3;
+    /// An evade's dash: at most 256 pixels, over at most a second, and at most a second of
+    /// invulnerability (ADR-050).
+    pub const MAX_EVADE_DISTANCE: i32 = 65_536;
+    pub const MAX_EVADE_TICKS: u32 = 60;
     pub const MAX_BOSS_PARTS: usize = 8;
     pub const MAX_TRANSITIONS: usize = 4;
     pub const MAX_PRESET_ARGS: usize = 8;
@@ -423,31 +426,24 @@ impl<'a> Ctx<'a> {
         self.within("atk", i64::from(p.atk), 1, i64::from(MAX_PLAYER_ATK));
         self.within("defence", i64::from(p.defence), 0, i64::from(MAX_DEFENCE));
         self.key("shot", |c| c.attack_ref(&p.shot));
-        if self.at_most("skills", p.skills.len(), MAX_SKILL_SLOTS, "skill slots") {
-            self.key("skills", |c| {
-                let mut used = [false; MAX_SKILL_SLOTS];
-                for (i, slot) in p.skills.iter().enumerate() {
-                    c.idx(i, |c| c.skill_slot(slot, &mut used));
-                }
-            });
-        }
+        self.key("evade", |c| c.evade(&p.evade));
     }
 
-    fn skill_slot(&mut self, s: &SkillSlot, used: &mut [bool; MAX_SKILL_SLOTS]) {
-        self.within("slot", i64::from(s.slot), 1, MAX_SKILL_SLOTS as i64);
-        if let Some(seen) = usize::from(s.slot)
-            .checked_sub(1)
-            .and_then(|i| used.get_mut(i))
-        {
-            if *seen {
-                self.key("slot", |c| c.fail("two skills use this slot"));
-            }
-            *seen = true;
-        }
-        self.key("target", |c| c.selector(&s.target));
-        self.key("skill", |c| c.skill(&s.skill));
-        self.ticks("cooldown_ticks", s.cooldown_ticks, 0);
-        self.charges(s.charges);
+    fn evade(&mut self, e: &Evade) {
+        self.within(
+            "distance",
+            i64::from(e.distance.0),
+            0,
+            i64::from(MAX_EVADE_DISTANCE),
+        );
+        self.within("ticks", i64::from(e.ticks), 1, i64::from(MAX_EVADE_TICKS));
+        self.within(
+            "invulnerable_ticks",
+            i64::from(e.invulnerable_ticks),
+            0,
+            i64::from(MAX_EVADE_TICKS),
+        );
+        self.ticks("cooldown_ticks", e.cooldown_ticks, 0);
     }
 
     fn charges(&mut self, charges: Option<u16>) {
@@ -506,7 +502,6 @@ impl<'a> Ctx<'a> {
     fn condition(&mut self, cond: &Condition) {
         match cond {
             Condition::Always => {}
-            Condition::PlayerFiring { min_ticks } => self.ticks("min_ticks", *min_ticks, 1),
             Condition::HpBelow { who, pct } => {
                 self.key("who", |c| c.selector(who));
                 self.within("pct", i64::from(*pct), 0, 100);

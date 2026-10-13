@@ -38,47 +38,18 @@ fn a_run_starts_at_tick_zero_with_the_character_near_the_bottom() {
     assert!(e.events().is_empty());
 }
 
-// --- Movement (ADR-038) ---------------------------------------------------------------------
-
-#[test]
-fn movement_is_capped_per_tick_and_focus_slows_it() {
-    let mut e = running(vec![]);
-    e.step(moving(10_000, 0));
-    assert_eq!(player_at(&e), (START_X + SPEED, START_Y));
-
-    let mut e = running(vec![]);
-    e.step(Input {
-        focus: true,
-        ..moving(10_000, 0)
-    });
-    assert_eq!(player_at(&e), (START_X + FOCUS_SPEED, START_Y));
-
-    // Under the cap the move is exact.
-    let mut e = running(vec![]);
-    e.step(moving(100, -50));
-    assert_eq!(player_at(&e), (START_X + 100, START_Y - 50));
-}
-
-#[test]
-fn a_diagonal_is_no_faster_than_a_straight_move() {
-    let mut e = running(vec![]);
-    e.step(moving(10_000, 10_000));
-    // 768 along the diagonal is 543 on each axis (768 * 10000 / 14142, truncated).
-    assert_eq!(player_at(&e), (START_X + 543, START_Y + 543));
-    let (dx, dy) = (543i64, 543i64);
-    assert!(dx * dx + dy * dy <= i64::from(SPEED) * i64::from(SPEED));
-}
+// --- Movement (ADR-050; the speed cap and the facing are in `tests/controls.rs`) -------------
 
 #[test]
 fn the_character_stays_inside_the_playfield() {
     let mut e = running(vec![]);
-    // A diagonal covers 543 units an axis per tick: the corner is under 300 ticks away.
+    // A full diagonal covers 541 units an axis per tick: the corner is under 310 ticks away.
     for _ in 0..400 {
-        e.step(moving(-10_000, -10_000));
+        e.step(moving(-127, -127));
     }
     assert_eq!(player_at(&e), (0, 0));
     for _ in 0..400 {
-        e.step(moving(10_000, 10_000));
+        e.step(moving(127, 127));
     }
     assert_eq!(player_at(&e), (92_160, 163_840));
 }
@@ -86,32 +57,14 @@ fn the_character_stays_inside_the_playfield() {
 #[test]
 fn extreme_input_values_do_not_overflow() {
     let mut e = running(vec![]);
-    for (dx, dy) in [
-        (i16::MIN, i16::MIN),
-        (i16::MAX, i16::MAX),
-        (i16::MIN, i16::MAX),
-        (0, i16::MIN),
-    ] {
+    for (move_x, move_y) in [(i8::MIN, i8::MIN), (i8::MAX, i8::MAX), (i8::MIN, i8::MAX)] {
         e.step(Input {
-            dx,
-            dy,
-            focus: true,
-            fire: true,
-            held: u8::MAX,
+            move_x,
+            move_y,
+            evade: true,
         });
     }
-    assert_eq!(e.tick(), 4);
-}
-
-// --- The main shot: no auto-fire (ADR-038) ---------------------------------------------------
-
-#[test]
-fn nothing_fires_unless_the_input_says_fire() {
-    let mut e = running(vec![]);
-    for _ in 0..200 {
-        e.step(moving(3, 3));
-        assert!(e.snapshot().bullets.is_empty());
-    }
+    assert_eq!(e.tick(), 3);
 }
 
 #[test]
@@ -127,7 +80,6 @@ fn the_snapshot_gives_each_circle_the_radius_hits_use() {
         Some(boss),
         vec![wave(1, 1, 0, bat, 20_000, 60_000)],
         vec![companion(10, hold(30_000, 140_000), json!([]))],
-        vec![],
     ));
     e.step(idle());
     let s = e.snapshot();
@@ -146,19 +98,20 @@ fn the_snapshot_gives_each_circle_the_radius_hits_use() {
 }
 
 #[test]
-fn holding_fire_shoots_every_six_ticks_and_releasing_stops_it() {
+fn the_main_shot_attacks_every_six_ticks_and_its_shots_leave_the_field() {
     let mut e = running(vec![]);
     for _ in 0..60 {
-        e.step(firing());
+        e.step(idle());
     }
     // Shots on ticks 1, 7, ..., 55; none has left the field yet.
     let s = e.snapshot();
     assert_eq!(s.bullets.len(), 10);
     assert!(s.bullets.iter().all(|b| b.friendly));
+    // A shot is gone 80 ticks after it starts, so 14 are ever in the air at once.
     for _ in 0..200 {
         e.step(idle());
     }
-    assert!(e.snapshot().bullets.is_empty(), "shots leave the field");
+    assert_eq!(e.snapshot().bullets.len(), 14);
 }
 
 // --- Collisions, damage and death ------------------------------------------------------------
@@ -178,7 +131,7 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
         )],
     );
     let mut e = engine(&stage);
-    let events = run_until(&mut e, firing(), 200, |e| {
+    let events = run_until(&mut e, idle(), 200, |e| {
         e.outcome() != Outcome::Running || {
             e.snapshot()
                 .entities
@@ -222,7 +175,8 @@ fn enemy_bullets_hurt_the_character_with_invulnerability_in_between() {
             25_600,
         )],
     );
-    let mut e = engine(&stage);
+    // The main shot is quiet, so that the enemy lives.
+    let mut e = engine(&quiet(stage));
     let events = run_until(&mut e, idle(), 400, |e| e.outcome() != Outcome::Running);
     // The first bullet is fired on tick 1 and has moved 157 times when it touches the
     // character; each hit grants 60 ticks without damage.
@@ -249,7 +203,7 @@ fn a_finished_run_ignores_further_ticks() {
     assert_eq!(ticks_of(&events, |ev| *ev == DomainEvent::StageFailed), [5]);
     let hash = e.state_hash();
     for _ in 0..50 {
-        e.step(firing());
+        e.step(idle());
         assert!(e.events().is_empty());
     }
     assert_eq!((e.tick(), e.state_hash()), (5, hash));
@@ -260,7 +214,7 @@ fn a_finished_run_ignores_further_ticks() {
 #[test]
 fn beating_the_boss_clears_the_stage() {
     let mut e = engine(&stage_with(18_000, Some(boss_at(20, 25_600)), vec![]));
-    let events = run_until(&mut e, firing(), 300, |e| e.outcome() != Outcome::Running);
+    let events = run_until(&mut e, idle(), 300, |e| e.outcome() != Outcome::Running);
     // The first shot touches the boss on tick 56, the second (fired on tick 7) on tick 62.
     assert_eq!((e.tick(), e.outcome()), (62, Outcome::Cleared));
     let last: Vec<_> = events
@@ -301,11 +255,12 @@ fn without_a_boss_the_stage_clears_when_every_enemy_is_gone() {
         json!({ "type": "straight", "vx": 0, "vy": 2048 }),
         json!([]),
     );
-    let mut e = engine(&stage_with(
+    // The main shot is quiet, so that the enemies leave rather than die.
+    let mut e = engine(&quiet(stage_with(
         18_000,
         None,
         vec![wave(1, 3, 10, runner, START_X, 0)],
-    ));
+    )));
     run_until(&mut e, idle(), 500, |e| e.outcome() != Outcome::Running);
     assert_eq!((e.tick(), e.outcome()), (109, Outcome::Cleared));
 }
@@ -387,8 +342,13 @@ fn bullet_caps_are_two_hundred_new_and_four_thousand_alive() {
 // --- Rules (ADR-036) -------------------------------------------------------------------------
 
 /// One enemy standing far from the character, with `rules`; every `RuleFired` as (tick, rule).
+/// A running stage whose main shot is quiet, so that the enemies the tests set up live.
+fn quiet_running(waves: Vec<Value>) -> Engine {
+    engine(&quiet(stage_with(18_000, Some(far_boss()), waves)))
+}
+
 fn rule_firings(rules: Value, input: Input, ticks: u32) -> Vec<(u32, u8)> {
-    let mut e = running(vec![wave(
+    let mut e = quiet_running(vec![wave(
         1,
         1,
         0,
@@ -436,13 +396,6 @@ fn time_above_waits_for_the_agent_to_be_older() {
 }
 
 #[test]
-fn player_firing_is_a_condition_agents_can_read() {
-    let rules = json!([attack_rule(json!({ "type": "player_firing" }), 0)]);
-    assert_eq!(rule_firings(rules.clone(), idle(), 20), []);
-    assert_eq!(rule_firings(rules, firing(), 3), [(1, 0), (2, 0), (3, 0)]);
-}
-
-#[test]
 fn only_the_first_ready_rule_fires_and_the_others_wait() {
     let telegraph = json!({ "when": always(), "target": "player",
                             "do": { "type": "telegraph", "ticks": 10 } });
@@ -455,7 +408,7 @@ fn only_the_first_ready_rule_fires_and_the_others_wait() {
 
 #[test]
 fn an_attack_fires_one_bullet_aimed_at_the_character() {
-    let mut e = running(vec![wave(
+    let mut e = quiet_running(vec![wave(
         1,
         1,
         0,
@@ -501,19 +454,16 @@ fn events_are_those_of_the_last_tick_only() {
 }
 
 #[test]
-fn the_snapshot_reports_the_last_input_and_survives_json() {
+fn the_snapshot_survives_json() {
     let mut e = running(vec![]);
     e.step(Input {
-        dx: 5,
-        dy: -5,
-        focus: true,
-        fire: true,
-        held: 2,
+        move_x: 5,
+        move_y: -5,
+        evade: true,
     });
     let s = e.snapshot();
     assert_eq!(s.tick, 1);
-    assert!(s.player.focus && s.player.firing);
-    assert_eq!(s.player.held, 2);
+    assert_eq!(s.player.evade.dash_left, EVADE_TICKS - 1);
     let json = serde_json::to_string(&s).unwrap();
     assert_eq!(serde_json::from_str::<Snapshot>(&json).unwrap(), s);
 }
@@ -524,20 +474,18 @@ fn fixture() -> Stage {
     serde_json::from_str(FIXTURE).expect("the fixture parses")
 }
 
-/// A fixed, varied script: drift about, fire in bursts, focus now and then, hold a skill slot.
+/// A fixed, varied script: drift about at different strengths, and evade now and then.
 fn script(tick: u32) -> Input {
-    let (dx, dy) = match (tick / 45) % 4 {
-        0 => (400, 0),
-        1 => (-300, -200),
-        2 => (0, 500),
-        _ => (250, 250),
+    let (move_x, move_y) = match (tick / 45) % 4 {
+        0 => (64, 0),
+        1 => (-48, -32),
+        2 => (0, 80),
+        _ => (40, 40),
     };
     Input {
-        dx,
-        dy,
-        focus: (tick / 60) % 3 == 2,
-        fire: (tick / 30) % 3 != 2,
-        held: ((tick / 90) % 4) as u8,
+        move_x,
+        move_y,
+        evade: tick % 120 == 60,
     }
 }
 
@@ -556,7 +504,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x563a_729c_ee5d_5263;
+const GOLDEN_HASH: u64 = 0x3db4_f3ba_5ab2_136d;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {
@@ -573,7 +521,7 @@ fn the_seed_and_the_input_change_the_hash() {
     let mut e = engine(&stage);
     let mut f = engine(&stage);
     e.step(idle());
-    f.step(firing());
+    f.step(moving(1, 0));
     assert_ne!(e.state_hash(), f.state_hash());
 }
 
@@ -631,13 +579,11 @@ fn random_inputs_keep_every_invariant() {
         let mut rng = SplitMix64::new(0xE16E);
         let (mut last_hp, mut last_tick, mut finished_at) = (u32::MAX, 0, None);
         for _ in 0..2500 {
-            let any = |rng: &mut SplitMix64| (rng.next_u64() & 0xffff) as u16 as i16;
+            let any = |rng: &mut SplitMix64| (rng.next_u64() & 0xff) as u8 as i8;
             let input = Input {
-                dx: any(&mut rng),
-                dy: any(&mut rng),
-                focus: rng.below(2) == 0,
-                fire: rng.below(4) != 0,
-                held: rng.below(256) as u8,
+                move_x: any(&mut rng),
+                move_y: any(&mut rng),
+                evade: rng.below(8) == 0,
             };
             e.step(input);
             let s = e.snapshot();

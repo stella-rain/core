@@ -1,8 +1,8 @@
-//! The main shot (ADR-038): the stage's `shot` attack, started by the main character every
-//! `SHOT_INTERVAL` ticks while `fire` is held. Its `aimed` directions point straight up the
-//! screen, the way the ship faces, and `relative` ones start from there; `absolute` ones stay
-//! fixed on the field (0 is down). Small stages whose every tick can be worked out by hand: the
-//! main character stands at (46080, 147456) and does not move.
+//! The main shot (ADR-050): the stage's `shot` attack, started by the main character on its own
+//! every `SHOT_INTERVAL` ticks. Its `aimed` directions point along the facing (ADR-055), up the
+//! screen until the main character moves, and `relative` ones start from there; `absolute` ones
+//! stay fixed on the field (0 is down). Small stages whose every tick can be worked out by hand:
+//! the main character stands at (46080, 147456) unless a test moves it.
 
 mod common;
 
@@ -10,6 +10,7 @@ use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::Fx;
+use stella_rain_core::input::Input;
 use stella_rain_core::snapshot::Snapshot;
 use stella_rain_core::stage::Stage;
 
@@ -42,11 +43,11 @@ fn inline(nodes: Vec<Value>) -> Value {
     json!({ "inline": spawned(json!(nodes)) })
 }
 
-/// Steps `ticks` ticks with fire held, or not held after the first `fire_ticks`.
-fn run(e: &mut Engine, ticks: u32, fire_ticks: u32) -> Vec<Snapshot> {
+/// Steps `ticks` ticks of `input`.
+fn run(e: &mut Engine, ticks: u32, input: Input) -> Vec<Snapshot> {
     (0..ticks)
-        .map(|t| {
-            e.step(if t < fire_ticks { firing() } else { idle() });
+        .map(|_| {
+            e.step(input);
             e.snapshot()
         })
         .collect()
@@ -63,7 +64,7 @@ fn friendly(s: &Snapshot) -> Vec<(i32, i32)> {
 
 fn first_tick_bullets(stage: &Stage) -> Vec<(i32, i32)> {
     let mut e = engine(stage);
-    e.step(firing());
+    e.step(idle());
     friendly(&e.snapshot())
 }
 
@@ -167,10 +168,10 @@ fn sequential_starts_from_the_heading_too() {
 // --- When it fires ---------------------------------------------------------------------------
 
 #[test]
-fn the_shot_repeats_every_six_ticks_while_fire_is_held() {
+fn the_shot_repeats_every_six_ticks_on_its_own() {
     let stage = shooting(inline(vec![fire(256, aimed(0))]), 10, vec![]);
     let mut e = engine(&stage);
-    let seen = run(&mut e, 20, 20);
+    let seen = run(&mut e, 20, idle());
     // New bullets on ticks 1, 7, 13 and 19; bullets are alive until they leave the field.
     let counts: Vec<usize> = seen.iter().map(|s| friendly(s).len()).collect();
     assert_eq!(counts[0], 1);
@@ -182,27 +183,43 @@ fn the_shot_repeats_every_six_ticks_while_fire_is_held() {
 }
 
 #[test]
-fn nothing_is_shot_without_fire() {
-    let stage = shooting(inline(vec![fire(256, aimed(0))]), 10, vec![]);
-    let mut e = engine(&stage);
-    let seen = run(&mut e, 30, 0);
-    assert!(seen.iter().all(|s| friendly(s).is_empty()));
+fn aimed_and_relative_follow_the_facing_and_absolute_does_not() {
+    let one = |direction: Value| {
+        let mut e = engine(&shooting(inline(vec![fire(1024, direction)]), 10, vec![]));
+        // Turned right on the tick of the shot, by a stick too small to move it.
+        e.step(moving(1, 0));
+        e.snapshot()
+            .bullets
+            .iter()
+            .map(|b| (b.vx.0, b.vy.0))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(one(aimed(0)), [(1024, 0)]);
+    assert_eq!(one(json!({ "type": "relative", "angle": 0 })), [(1024, 0)]);
+    assert_eq!(one(json!({ "type": "absolute", "angle": 0 })), [(0, 1024)]);
 }
 
 #[test]
-fn a_shot_that_has_started_carries_on_after_fire_is_released() {
-    // One bullet now, one 10 ticks later, whether or not fire is still held.
+fn a_shot_that_has_started_carries_on_along_its_first_facing() {
+    // One bullet now and one 10 ticks later, both up the field, though the main character faces
+    // down from tick 2 on. The pattern runs past its one-tick phase (ADR-055), so the next shot
+    // starts on tick 7, down the field.
     let stage = shooting(
         inline(vec![fire(256, aimed(0)), wait(10), fire(256, aimed(0))]),
         10,
         vec![],
     );
     let mut e = engine(&stage);
-    let seen = run(&mut e, 14, 1);
+    e.step(idle());
+    let mut seen = vec![e.snapshot()];
+    seen.extend(run(&mut e, 10, moving(0, 1)));
     let counts: Vec<usize> = seen.iter().map(|s| friendly(s).len()).collect();
-    assert_eq!(counts[0], 1);
-    assert_eq!(counts[9], 1);
-    assert_eq!(counts[10], 2, "the second bullet, on tick 11");
+    assert_eq!((counts[0], counts[5], counts[6]), (1, 1, 2));
+    assert_eq!(counts[10], 3, "the second bullet, on tick 11");
+    let mut velocities: Vec<(i32, i32)> =
+        seen[10].bullets.iter().map(|b| (b.vx.0, b.vy.0)).collect();
+    velocities.sort();
+    assert_eq!(velocities, [(0, -256), (0, -256), (0, 256)]);
 }
 
 #[test]
@@ -214,14 +231,15 @@ fn a_shot_follows_the_main_character_while_it_runs() {
         vec![],
     );
     let mut e = engine(&stage);
-    e.step(firing());
+    e.step(idle());
+    // 100 / 127 of the speed cap: 100 × 768 / 127 = 604.7, truncated.
     for _ in 0..5 {
         e.step(moving(100, 0));
     }
     let b = e.snapshot().bullets;
     assert_eq!(b.len(), 2);
     assert_eq!(b[0].at.x.0, START_X);
-    assert_eq!(b[1].at.x.0, START_X + 5 * 100);
+    assert_eq!(b[1].at.x.0, START_X + 5 * 604);
 }
 
 // --- Damage ----------------------------------------------------------------------------------
@@ -237,7 +255,7 @@ fn every_bullet_of_the_shot_does_the_attack_stat_in_damage() {
     stage.boss = Some(serde_json::from_value(boss_at(1_000, 100_000)).expect("the boss parses"));
     let mut e = engine(&stage);
     for _ in 0..60 {
-        e.step(if e.tick() == 0 { firing() } else { idle() });
+        e.step(idle());
         if e.snapshot().entities.iter().any(|v| v.hp < 1_000) {
             break;
         }
@@ -252,10 +270,13 @@ fn a_raised_attack_stat_raises_the_damage() {
     let damage_of = |atk: u32| {
         let mut stage = shooting(inline(vec![fire(2048, aimed(0))]), atk, vec![]);
         stage.boss = Some(serde_json::from_value(boss_at(1_000, 100_000)).unwrap());
+        // The damage of the first hit.
         let mut e = engine(&stage);
-        e.step(firing());
         for _ in 0..60 {
             e.step(idle());
+            if e.snapshot().entities[0].hp < 1_000 {
+                break;
+            }
         }
         1_000 - e.snapshot().entities[0].hp
     };
@@ -266,12 +287,11 @@ fn a_raised_attack_stat_raises_the_damage() {
 // --- The main shot is a task like any other --------------------------------------------------
 
 #[test]
-fn the_main_shot_is_started_on_the_tick_it_fires_and_not_before() {
+fn the_main_shot_starts_on_the_first_tick() {
     let stage = shooting(inline(vec![fire(256, aimed(0))]), 10, vec![]);
     let mut e = engine(&stage);
-    e.step(idle());
     assert!(friendly(&e.snapshot()).is_empty());
-    e.step(firing());
+    e.step(idle());
     assert_eq!(friendly(&e.snapshot()).len(), 1);
     assert_eq!(e.snapshot().player.at.x, Fx(START_X));
 }
@@ -294,7 +314,7 @@ fn a_run_with_the_main_shot_is_the_same_every_time() {
         let mut e = engine(&stage);
         (0..200)
             .map(|t| {
-                e.step(if t % 9 < 6 { firing() } else { idle() });
+                e.step(if t % 9 < 6 { idle() } else { moving(0, -64) });
                 e.state_hash()
             })
             .collect::<Vec<_>>()

@@ -60,11 +60,11 @@ fn a_companion_buffs_is_shot_at_and_is_healed() {
         Some(far_boss()),
         vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
         vec![k, healer],
-        vec![],
     );
-    // 80 ticks, firing for the first 40: the buff changes the shots' damage.
+    // 80 ticks: 40 standing still, shooting up at the enemy (the buff changes the shots'
+    // damage), then 40 walking right, which turns the shots away from it.
     let inputs: Vec<Input> = (0..80)
-        .map(|t| if t < 40 { firing() } else { idle() })
+        .map(|t| if t < 40 { idle() } else { moving(64, 0) })
         .collect();
     check("companion", &recording::record(&stage, &inputs).unwrap());
 }
@@ -78,7 +78,7 @@ fn an_enemy_waits_telegraphs_shoots_and_summons() {
             "when": { "type": "time_above", "ticks": 10 }, "target": "player", "once": true,
             "do": telegraph()
         },
-        { "when": { "type": "player_firing", "min_ticks": 20 }, "target": "player", "once": true,
+        { "when": { "type": "time_above", "ticks": 20 }, "target": "player", "once": true,
           "do": summon(2) },
         shoot_at("player", 12),
     ]);
@@ -88,9 +88,8 @@ fn an_enemy_waits_telegraphs_shoots_and_summons() {
         Some(far_boss()),
         vec![wave(1, 1, 0, boss_in_the_way, 46_080, 60_000)],
         vec![],
-        vec![],
     );
-    let inputs: Vec<Input> = (0..90).map(|_| firing()).collect();
+    let inputs: Vec<Input> = (0..90).map(|_| idle()).collect();
     check("enemy", &recording::record(&stage, &inputs).unwrap());
 }
 
@@ -126,17 +125,17 @@ fn a_boss_breaks_a_part_and_changes_phase() {
             }
         ]
     });
-    let stage = stage_full(600, Some(boss), vec![], vec![], vec![]);
-    let inputs: Vec<Input> = (0..160).map(|_| firing()).collect();
+    let stage = stage_full(600, Some(boss), vec![], vec![]);
+    let inputs: Vec<Input> = (0..160).map(|_| idle()).collect();
     check("boss", &recording::record(&stage, &inputs).unwrap());
 }
 
-/// The main shot is the stage's attack, straight up: the default twin shot at a boss in front
-/// of the main character, then a wait-and-fire attack that carries on after `fire` is released.
+/// The main shot is the stage's attack, along the facing: a wait-and-fire attack at a boss in
+/// front of the main character, which carries on after the main character turns away.
 /// Entities: boss 1.
 #[test]
 fn the_main_shot_is_the_stages_attack() {
-    let mut stage = stage_full(600, Some(boss_at(100, 80_000)), vec![], vec![], vec![]);
+    let mut stage = stage_full(600, Some(boss_at(100, 80_000)), vec![], vec![]);
     stage.player.shot = serde_json::from_value(json!({
         "inline": spawned(json!([
             { "type": "spread", "count": 2, "angle": 1280, "body": [
@@ -148,7 +147,7 @@ fn the_main_shot_is_the_stages_attack() {
     }))
     .unwrap();
     let inputs: Vec<Input> = (0..40)
-        .map(|t| if t < 7 { firing() } else { idle() })
+        .map(|t| if t < 7 { idle() } else { moving(1, 0) })
         .collect();
     check("shot", &recording::record(&stage, &inputs).unwrap());
 }

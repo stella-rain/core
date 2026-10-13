@@ -34,14 +34,14 @@ fn attacker(phases: Vec<Value>, once: bool) -> Value {
     )
 }
 
+/// The main shot is quiet, so that every bullet is the attacker's.
 fn stage_of(enemy: Value) -> Stage {
-    stage_full(
+    quiet(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, enemy, OX, OY)],
         vec![],
-        vec![],
-    )
+    ))
 }
 
 /// The ticks on which new bullets appeared, over `ticks` ticks.
@@ -225,7 +225,7 @@ fn a_boss_timeline_attack_step_waits_for_its_attack() {
     let boss = json!({ "base": "golem", "hp": 1_000_000, "radius": 8192,
                        "spawn": { "x": OX, "y": OY },
                        "phases": [{ "timeline": [attack.clone(), attack] }] });
-    let stage = stage_full(18_000, Some(boss), vec![], vec![], vec![]);
+    let stage = quiet(stage_full(18_000, Some(boss), vec![], vec![]));
     assert_eq!(bullet_ticks(&stage, 45), [1, 21]);
 }
 
@@ -242,6 +242,6 @@ fn leaving_a_boss_phase_ends_its_attack() {
                                  phase("recovery", 28, vec![]),
                                  phase("active", 1, vec![down()]) ] } }] },
                            {} ] });
-    let stage = stage_full(18_000, Some(boss), vec![], vec![], vec![]);
+    let stage = quiet(stage_full(18_000, Some(boss), vec![], vec![]));
     assert_eq!(bullet_ticks(&stage, 40), [1]);
 }

@@ -8,14 +8,28 @@ use stella_rain_core::input::Input;
 use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::stage::Stage;
 
-/// A stage whose boss (20 hp, 10 damage a bullet) is beaten on tick 57 by holding fire: the
-/// first shot is the default twin shot, and both of its bullets touch the boss on tick 57.
+// The evade of every test stage (ADR-050): 48 pixels over 8 ticks, 10 ticks of invulnerability
+// and a 40-tick cooldown.
+pub const EVADE_DISTANCE: i32 = 12_288;
+pub const EVADE_TICKS: u32 = 8;
+pub const EVADE_INVULNERABLE: u32 = 10;
+pub const EVADE_COOLDOWN: u32 = 40;
+
+pub fn evade() -> Value {
+    json!({ "distance": EVADE_DISTANCE, "ticks": EVADE_TICKS,
+            "invulnerable_ticks": EVADE_INVULNERABLE, "cooldown_ticks": EVADE_COOLDOWN })
+}
+
+/// A stage whose boss (20 hp, 10 damage a bullet) is beaten on tick 57 by the main shot, which
+/// attacks on its own straight up: the first shot is the default twin shot, and both of its
+/// bullets touch the boss on tick 57.
 pub fn clearing_stage_json() -> Value {
     json!({
         "schema_version": 0, "sim_version": 0, "id": "test-stage", "title": "Test Stage",
         "seed": 7, "length_ticks": 600,
         "player": { "base": "pilot_a", "hp": 3, "atk": 10,
-                    "shot": { "preset": { "id": "twin_shot", "args": [] } } },
+                    "shot": { "preset": { "id": "twin_shot", "args": [] } },
+                    "evade": evade() },
         "boss": { "base": "golem", "hp": 20, "radius": 8192,
                   "spawn": { "x": 46080, "y": 25600 }, "phases": [{}] }
     })
@@ -33,22 +47,14 @@ pub fn stage_bytes() -> Vec<u8> {
 
 pub const CLEAR_TICK: u32 = 57;
 
-pub fn firing() -> Input {
-    Input {
-        fire: true,
-        ..Input::default()
-    }
-}
-
-/// Inputs that clear `clearing_stage_json` on tick 57, with some movement along the way.
+/// Inputs that clear `clearing_stage_json` on tick 57: a nudge up the field on tick 1, so that
+/// the first shot goes up and beats the boss, then some movement to the right and an evade.
 pub fn clearing_inputs() -> Vec<Input> {
     (0..CLEAR_TICK)
         .map(|t| Input {
-            dx: if t < 10 { 40 } else { 0 },
-            dy: 0,
-            focus: false,
-            fire: true,
-            held: u8::from(t % 20 == 0) * 2,
+            move_x: if (1..10).contains(&t) { 7 } else { 0 },
+            move_y: if t == 0 { -1 } else { 0 },
+            evade: t == 20,
         })
         .collect()
 }
@@ -58,17 +64,17 @@ pub fn clearing_inputs() -> Vec<Input> {
 // Playfield and speeds in 1/256 pixel (the rules' constants, worked out by hand).
 pub const START_X: i32 = 46_080;
 pub const START_Y: i32 = 147_456;
+/// The speed cap at full stick.
 pub const SPEED: i32 = 768;
-pub const FOCUS_SPEED: i32 = 256;
 
 pub fn idle() -> Input {
     Input::default()
 }
 
-pub fn moving(dx: i16, dy: i16) -> Input {
+pub fn moving(move_x: i8, move_y: i8) -> Input {
     Input {
-        dx,
-        dy,
+        move_x,
+        move_y,
         ..Input::default()
     }
 }
@@ -107,30 +113,29 @@ pub fn always() -> Value {
     json!({ "type": "always" })
 }
 
-/// A stage with a 3-hp main character, no companions and no skills.
+/// A stage with a 3-hp main character and no companions.
 pub fn stage_with(length_ticks: u32, boss: Option<Value>, waves: Vec<Value>) -> Stage {
-    let mut stage = stage_full(length_ticks, boss, waves, vec![], vec![]);
+    let mut stage = stage_full(length_ticks, boss, waves, vec![]);
     stage.player.hp = 3;
     stage
 }
 
-/// A stage with a 99-hp main character (so it outlives a test), the given companions and
-/// skill slots.
+/// A stage with a 99-hp main character (so it outlives a test) and the given companions.
 pub fn stage_full(
     length_ticks: u32,
     boss: Option<Value>,
     waves: Vec<Value>,
     companions: Vec<Value>,
-    skills: Vec<Value>,
 ) -> Stage {
     let mut v = json!({
         "schema_version": 0, "sim_version": 0, "id": "test", "title": "Test", "seed": 7,
         "length_ticks": length_ticks,
-        // One bullet straight up at 8 pixels a tick, so that the hand-worked numbers of the
-        // tests that are not about the main shot stay simple (`tests/shot.rs` is about it).
+        // One bullet along the facing (straight up until it moves) at 8 pixels a tick, every 6
+        // ticks, so that the hand-worked numbers of the tests that are not about the main shot
+        // stay simple (`tests/shot.rs` is about it).
         "player": { "base": "pilot_a", "hp": 99, "atk": 10,
                     "shot": { "preset": { "id": "aimed_single", "args": [2048] } },
-                    "skills": skills },
+                    "evade": evade() },
         "companions": companions,
         "waves": waves,
     });
@@ -138,6 +143,16 @@ pub fn stage_full(
         v["boss"] = boss;
     }
     serde_json::from_value(v).expect("the test stage parses")
+}
+
+/// The main shot replaced by one that does nothing, for tests whose hand-worked numbers would
+/// be thrown off by the shot that attacks on its own (ADR-050).
+pub fn quiet(mut stage: Stage) -> Stage {
+    stage.player.shot = serde_json::from_value(json!({ "inline": [
+        { "kind": "recovery", "ticks": 1 }
+    ] }))
+    .expect("the quiet shot parses");
+    stage
 }
 
 pub fn engine(stage: &Stage) -> Engine {

@@ -32,8 +32,11 @@ fn target(defence: Option<u32>) -> Value {
 
 /// A companion at the corner that runs `rules` against the nearest enemy.
 fn striker(rules: Value) -> Stage {
-    stage_full(18_000, Some(far_boss()), vec![target(None)], vec![], vec![])
-        .with_companion(companion(50, hold(CX, CY), rules))
+    stage_full(18_000, Some(far_boss()), vec![target(None)], vec![]).with_companion(companion(
+        50,
+        hold(CX, CY),
+        rules,
+    ))
 }
 
 trait WithCompanion {
@@ -130,7 +133,7 @@ fn the_main_character_companions_the_boss_and_its_parts_have_defence() {
             START_X,
             START_Y - 5_120,
         );
-        let mut st = stage_full(18_000, Some(far_boss()), vec![foe], vec![], vec![]);
+        let mut st = stage_full(18_000, Some(far_boss()), vec![foe], vec![]);
         st.player.defence = defence.unwrap_or(0);
         run_until(&mut engine(&st), idle(), 3, |_| false)
             .into_iter()
@@ -157,7 +160,6 @@ fn the_main_character_companions_the_boss_and_its_parts_have_defence() {
             Some(far_boss()),
             vec![wave(1, 1, 0, foe, CX + 2_560, CY)],
             vec![ally],
-            vec![],
         );
         dealt(&st, EntityId(3), 3)
     };
@@ -179,7 +181,6 @@ fn the_main_character_companions_the_boss_and_its_parts_have_defence() {
         Some(boss),
         vec![],
         vec![companion(50, hold(CX, CY), sweep)],
-        vec![],
     );
     assert_eq!(dealt(&st, COMPANION, 3), [6, 3]);
 }

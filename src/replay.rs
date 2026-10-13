@@ -8,9 +8,9 @@
 //! and `verify`.
 //!
 //! Packed inputs are runs of identical inputs. Each run is a LEB128 run length (at least 1),
-//! one flags byte (bit 0 `focus`, bit 1 `fire`, bits 2 and 3 the held skill slot, the rest
-//! zero), then `dx` and `dy` as zigzag LEB128 numbers. Five minutes of changing inputs take
-//! about 100 KB, inside `MAX_REPLAY_BYTES`; steady input takes a few bytes.
+//! one flags byte (bit 0 `evade`, the rest zero), then `move_x` and `move_y` as one
+//! two's-complement byte each, −127 to 127 (ADR-050). Five minutes of changing inputs take about
+//! 96 KB, inside `MAX_REPLAY_BYTES`; steady input takes a few bytes.
 
 use std::fmt;
 
@@ -237,33 +237,30 @@ fn read_varint(bytes: &[u8], pos: &mut usize) -> Result<u32, &'static str> {
     Err("a number is too long")
 }
 
-fn zigzag(v: i16) -> u32 {
-    let v = i32::from(v);
-    ((v << 1) ^ (v >> 31)) as u32
-}
+/// −128, which is not a stick position (ADR-050): packing writes it as −127, which the engine
+/// runs the same, and unpacking refuses it, so each input has one encoding.
+const NO_STICK: u8 = 0x80;
 
-fn unzigzag(z: u32) -> Option<i16> {
-    let v = ((z >> 1) as i32) ^ -((z & 1) as i32);
-    i16::try_from(v).ok()
-}
-
-/// Packs `inputs` into runs, then base64. Fails if a `held` slot is above 3.
-pub fn pack_inputs(inputs: &[Input]) -> Result<String, ReplayError> {
+/// Packs `inputs` into runs, then base64.
+pub fn pack_inputs(inputs: &[Input]) -> String {
+    let canonical = |i: &Input| Input {
+        move_x: i.move_x.max(-i8::MAX),
+        move_y: i.move_y.max(-i8::MAX),
+        evade: i.evade,
+    };
+    let inputs: Vec<Input> = inputs.iter().map(canonical).collect();
     let mut out = Vec::new();
     let mut i = 0;
     while i < inputs.len() {
         let input = inputs[i];
-        if input.held > 3 {
-            return Err(ReplayError::BadInputs("a held skill slot is above 3"));
-        }
         let run = inputs[i..].iter().take_while(|x| **x == input).count();
         write_varint(&mut out, u32::try_from(run).unwrap_or(u32::MAX));
-        out.push(u8::from(input.focus) | (u8::from(input.fire) << 1) | (input.held << 2));
-        write_varint(&mut out, zigzag(input.dx));
-        write_varint(&mut out, zigzag(input.dy));
+        out.push(u8::from(input.evade));
+        out.push(input.move_x.to_le_bytes()[0]);
+        out.push(input.move_y.to_le_bytes()[0]);
         i += run;
     }
-    Ok(base64::encode(&out))
+    base64::encode(&out)
 }
 
 /// Unpacks exactly `ticks` inputs from the runs in `bytes`.
@@ -279,19 +276,21 @@ fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static str> {
         if run > room {
             return Err("there are more inputs than ticks");
         }
-        let flags = *bytes.get(pos).ok_or("ends in the middle of a run")?;
-        pos += 1;
-        if flags & 0xf0 != 0 {
+        let [flags, x, y] = *bytes
+            .get(pos..pos + 3)
+            .and_then(|b| <&[u8; 3]>::try_from(b).ok())
+            .ok_or("ends in the middle of a run")?;
+        pos += 3;
+        if flags & !1 != 0 {
             return Err("a run has unknown flags");
         }
-        let dx = unzigzag(read_varint(bytes, &mut pos)?).ok_or("a movement is out of range")?;
-        let dy = unzigzag(read_varint(bytes, &mut pos)?).ok_or("a movement is out of range")?;
+        if x == NO_STICK || y == NO_STICK {
+            return Err("a stick axis is out of range");
+        }
         let input = Input {
-            dx,
-            dy,
-            focus: flags & 1 != 0,
-            fire: flags & 2 != 0,
-            held: (flags >> 2) & 3,
+            move_x: i8::from_le_bytes([x]),
+            move_y: i8::from_le_bytes([y]),
+            evade: flags & 1 != 0,
         };
         inputs.extend(std::iter::repeat_n(input, run as usize));
     }
@@ -323,7 +322,7 @@ pub fn record(stage_bytes: &[u8], inputs: &[Input]) -> Result<Replay, ReplayErro
         stage_sha256: to_hex(&content_hash::sha256(stage_bytes)),
         ticks: engine.tick(),
         final_hash: hash_to_hex(engine.state_hash()),
-        inputs: pack_inputs(&inputs[..used])?,
+        inputs: pack_inputs(&inputs[..used]),
     })
 }
 

@@ -16,6 +16,12 @@
   "player": {
     "atk": 10,
     "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
     "hp": 3,
     "shot": {
       "preset": {

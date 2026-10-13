@@ -61,23 +61,16 @@ fn corpus_stages() -> &'static [Stage] {
     })
 }
 
-/// Mostly speeds a player can have, sometimes the whole `i16` range; `held` is mostly a real
-/// skill slot, sometimes any byte, because the record is untrusted until it is replayed.
+/// Any stick position, −128 included, because the engine is also called directly; the evade
+/// pressed now and then (held over a run, it dashes again whenever it is ready).
 fn input() -> impl Strategy<Value = Input> {
-    (
-        prop_oneof![3 => -800i16..=800, 1 => any::<i16>()],
-        prop_oneof![3 => -800i16..=800, 1 => any::<i16>()],
-        any::<bool>(),
-        prop::bool::weighted(0.75),
-        prop_oneof![3 => 0u8..=3, 1 => any::<u8>()],
-    )
-        .prop_map(|(dx, dy, focus, fire, held)| Input {
-            dx,
-            dy,
-            focus,
-            fire,
-            held,
-        })
+    (any::<i8>(), any::<i8>(), prop::bool::weighted(0.25)).prop_map(|(move_x, move_y, evade)| {
+        Input {
+            move_x,
+            move_y,
+            evade,
+        }
+    })
 }
 
 /// Runs of one input held for a while, up to 300 ticks in all: crossing the field at the main
@@ -247,9 +240,7 @@ proptest! {
             vec![
                 companion(50, hold(46_080, 90_000), apply),
                 companion(50, hold(46_080, 90_000), watch),
-            ],
-            vec![],
-        );
+            ],);
         let mut e = engine(&stage);
         let events = run_until(&mut e, idle(), TICKS, |_| false);
 

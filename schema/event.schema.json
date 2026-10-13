@@ -145,43 +145,17 @@
       ]
     },
     {
-      "description": "The main character cast a skill from a slot (ADR-032).",
+      "description": "The main character started an evade (ADR-050).",
       "type": "object",
       "properties": {
-        "data": {
-          "type": "object",
-          "properties": {
-            "slot": {
-              "type": "integer",
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0
-            },
-            "target": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/EntityId"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "slot"
-          ]
-        },
         "type": {
           "type": "string",
-          "const": "SkillCast"
+          "const": "Evaded"
         }
       },
       "additionalProperties": false,
       "required": [
-        "type",
-        "data"
+        "type"
       ]
     },
     {
