@@ -162,7 +162,12 @@ impl State {
         if let Some(i) = self.companions.iter().position(|c| c.id == id) {
             return Some(Who::Companion(i));
         }
-        self.enemies.iter().position(|e| e.id == id).map(Who::Enemy)
+        // Enemies are kept in ascending ID order (`enemies_in_id_order`), so a binary search
+        // finds one in about 9 steps among 500.
+        self.enemies
+            .binary_search_by_key(&id, |e| e.id)
+            .ok()
+            .map(Who::Enemy)
     }
 
     /// The ally with this entity ID, if it is still around.
@@ -223,6 +228,12 @@ impl State {
             duration_ticks: duration,
         });
     }
+}
+
+/// Enemies are in ascending entity-ID order, which `State::find` relies on: spawns and summons
+/// push new IDs at the end, and removal keeps the order. Checked after every tick in debug builds.
+pub(super) fn enemies_in_id_order(s: &State) -> bool {
+    s.enemies.windows(2).all(|w| w[0].id < w[1].id)
 }
 
 /// The percent that the statuses of `kind` add up to (value times stacks), within its cap.
