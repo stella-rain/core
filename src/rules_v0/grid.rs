@@ -2,7 +2,8 @@
 //! near it rather than all of them (core#62). It is rebuilt in each tick's `collide`, where the
 //! enemies do not move, and it picks exactly the enemy the plain scan in index order picks: the
 //! lowest-index live enemy whose circle overlaps the bullet's. Hit boxes (ADR-055) ask it for
-//! every enemy within their reach instead (`within`).
+//! every enemy within their reach instead (`within`), and the push-apart (ADR-058) for the
+//! enemies around one (`neighbours`).
 
 use crate::fixed::Point;
 
@@ -127,6 +128,46 @@ impl Grid {
             }
         }
         best
+    }
+
+    /// Up to `most` circles other than `me`, into `out` (cleared first): those of `me`'s own cell,
+    /// then of the 8 cells around it (west, east, north, south, north-west, south-east,
+    /// north-east, south-west), each cell in ascending index order. Reading the own cell first
+    /// and then opposite sides in turn keeps a full list from leaning to one side.
+    ///
+    /// In a grid built for probes as large as its largest circle, every circle that overlaps
+    /// `me`'s has its centre in one of those cells.
+    pub(super) fn neighbours(&self, me: usize, most: usize, out: &mut Vec<u32>) {
+        const AROUND: [(i64, i64); 9] = [
+            (0, 0),
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
+            (-1, -1),
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+        ];
+        out.clear();
+        let (col, row) = self.col_row(self.circles[me].0);
+        for (dc, dr) in AROUND {
+            let (c, r) = (col + dc, row + dr);
+            if !(0..self.cols).contains(&c) || !(0..self.rows).contains(&r) {
+                continue;
+            }
+            let cell = (r * self.cols + c) as usize;
+            let (from, to) = (self.start[cell] as usize, self.start[cell + 1] as usize);
+            for &i in &self.members[from..to] {
+                if i as usize == me {
+                    continue;
+                }
+                if out.len() == most {
+                    return;
+                }
+                out.push(i);
+            }
+        }
     }
 
     /// Every circle that overlaps the probe circle at `at` with `reach`, in ascending index

@@ -253,8 +253,10 @@ fn an_attacker_killed_earlier_in_the_tick_still_lands_its_hit() {
 
 #[test]
 fn invulnerability_stops_a_hit_without_using_it_up() {
-    // Both enemies swing on tick 1. The first hits; the second's hit box stays over the main
-    // character for 100 ticks and lands as soon as the invulnerability after the first hit ends.
+    // Both enemies swing on tick 1, one from above the main character and one from below (on one
+    // point they would push each other away). The first hits; the second's hit box stays over
+    // the main character for 100 ticks and lands as soon as the invulnerability after the first
+    // hit ends.
     let over = || Some(circle(20 * 256, 0, 4 * 256));
     let quick = vec![phase("active", 1, over(), Some(1))];
     let lingering = vec![phase("active", 100, over(), Some(1))];
@@ -268,7 +270,7 @@ fn invulnerability_stops_a_hit_without_using_it_up() {
         still_enemy(
             50,
             START_X,
-            START_Y - 20 * 256,
+            START_Y + 20 * 256,
             attack("player", true, lingering),
         ),
     ];

@@ -71,6 +71,7 @@ pub(super) fn new_agent(
         aggro: 0,
         order: None,
         orbit_angle: angle,
+        crowded: false,
     }
 }
 
@@ -258,7 +259,8 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 ///
 /// A companion with `Hold` or `Orbit` is set on its place. An enemy moves to it, at most 4
 /// pixels a tick (`Orbit`: its orbit step plus 4 pixels), so that a push carries over to the
-/// next tick (ADR-058).
+/// next tick (ADR-058). An enemy that the last push-apart found crowded does not take that step;
+/// `Straight` and a `move_to` order are not held back.
 fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
     let map = stage.map();
     let player_at = s.player.at;
@@ -273,9 +275,13 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
         a.at = map.clamp(a.at);
         return;
     }
+    // A crowded enemy yields: it does not walk into the neighbours the push just parted it from.
+    // Only enemies are ever crowded, and one that flies straight goes to no place, so it flies on.
+    let yields = a.crowded;
     match def.movement {
         Movement::Hold { at } => {
             a.at = match me {
+                Who::Enemy(_) if yields => a.at,
                 Who::Enemy(_) => step_toward(a.at, at, FOLLOW_SPEED * keep / 100),
                 _ => at,
             }
@@ -303,6 +309,8 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
             };
             a.at = match me {
                 // Its orbit step, the chord its place moved along the circle, plus the 4 pixels.
+                // Its place circles on while it yields.
+                Who::Enemy(_) if yields => a.at,
                 Who::Enemy(_) => {
                     let (dx, dy) = (i64::from(now.0 - was.0), i64::from(now.1 - was.1));
                     let chord =
@@ -318,7 +326,7 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
             let dist =
                 i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
             let gap = dist - i64::from(distance.0);
-            if gap > 0 {
+            if gap > 0 && !yields {
                 let step = gap.min(FOLLOW_SPEED * keep / 100);
                 a.at.x = a.at.x.saturating_add(Fx((dx * step / dist) as i32));
                 a.at.y = a.at.y.saturating_add(Fx((dy * step / dist) as i32));

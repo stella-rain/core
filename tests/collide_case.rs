@@ -14,7 +14,7 @@ fn the_measured_tick_has_its_load() {
     engine.step(collide_case::input(collide_case::WARMUP_TICKS + 1));
     let load = engine.load();
     assert_eq!(load.enemies, 500);
-    assert!(load.bullets >= 3_900, "{load:?}");
+    assert!((3_900..4_000).contains(&load.bullets), "{load:?}");
     let snapshot = engine.snapshot();
     let enemies: Vec<_> = snapshot
         .entities
@@ -25,6 +25,23 @@ fn the_measured_tick_has_its_load() {
     assert!(
         enemies.iter().all(|e| e.hp == 100_000),
         "neither a friendly bullet nor a hit box hits an enemy"
+    );
+    // The crowd is at rest (ADR-058): spread round its point, no 32-pixel cell of it crowded.
+    let (x, y) = collide_case::ENEMIES_AT;
+    let mut cells: Vec<(i32, i32)> = enemies
+        .iter()
+        .map(|e| (e.at.x.0.div_euclid(8_192), e.at.y.0.div_euclid(8_192)))
+        .collect();
+    cells.sort_unstable();
+    let fullest = cells.chunk_by(|a, b| a == b).map(<[_]>::len).max();
+    let farthest = enemies
+        .iter()
+        .map(|e| (i64::from(e.at.x.0 - x).pow(2) + i64::from(e.at.y.0 - y).pow(2)).isqrt())
+        .max();
+    assert!(fullest <= Some(12), "{fullest:?} enemies in one cell");
+    assert!(
+        farthest <= Some(64_000),
+        "{farthest:?} units from the point"
     );
     let guards: Vec<_> = snapshot
         .entities

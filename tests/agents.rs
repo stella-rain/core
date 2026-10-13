@@ -1013,12 +1013,13 @@ fn an_enemy_summons_more_enemies_where_it_stands() {
         hold(46_080, 50_000),
         json!([{ "when": always(), "target": "player", "do": summon(2), "once": true }]),
     );
-    let mut e = engine(&stage_full(
+    // Quiet weapons: the summoner stands straight above the main character.
+    let mut e = engine(&quiet(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, summoner, 46_080, 50_000)],
         vec![],
-    ));
+    )));
     e.step(idle());
     let s = e.snapshot();
     let ids: Vec<u32> = s.entities.iter().map(|x| x.id.0).collect();
@@ -1027,16 +1028,24 @@ fn an_enemy_summons_more_enemies_where_it_stands() {
         [1, 2, 3, 4],
         "boss, the summoner, then the two summoned"
     );
-    // They appear where the summoner stands, and start acting next tick: 4 pixels (1,024 units)
-    // toward their point at (1000, 1000), which is 45,080 and 49,000 units away, 66,582 along
-    // the line.
-    assert_eq!(s.entities[2].at.x.0, 46_080);
-    e.step(idle());
+    // They appear where the summoner stands, and the three are pushed apart on that tick, at
+    // most 4 pixels (1,024 units) each.
+    let from = |v: &stella_rain_core::snapshot::EntityView, x: i32, y: i32| {
+        (i64::from(v.at.x.0 - x).pow(2) + i64::from(v.at.y.0 - y).pow(2)).isqrt()
+    };
+    for v in &s.entities[1..] {
+        assert!(from(v, 46_080, 50_000) <= 1_024, "{v:?}");
+    }
+    // The summoned start acting next tick: they walk to their point at (1000, 1000), 66,582
+    // units away, at 4 pixels a tick, and keep to it side by side.
+    for _ in 0..150 {
+        e.step(idle());
+    }
     let s = e.snapshot();
-    assert_eq!(
-        (s.entities[2].at.x.0, s.entities[2].at.y.0),
-        (46_080 - 693, 50_000 - 753)
-    );
+    for v in &s.entities[2..] {
+        assert!(from(v, 1_000, 1_000) <= 4_096, "{v:?}");
+    }
+    assert!(from(&s.entities[2], s.entities[3].at.x.0, s.entities[3].at.y.0) >= 3_840);
 }
 
 #[test]

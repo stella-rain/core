@@ -34,6 +34,28 @@ fn assert_hit_boxes(engine: &Engine) {
     assert_eq!(hits, 4 * 500);
 }
 
+/// The push-apart has a fresh stack to part (ADR-058): the pass moves an enemy at most 4 pixels
+/// (1,024 units) from the point the stack stood on, so after the tick at least 480 enemies are
+/// that near it. The others, the 15 or 20 that started their attack the tick before and so were
+/// not ordered back, are within 8 pixels more.
+fn assert_fresh_stack(engine: &Engine) {
+    let (x, y) = worst_case::ENEMIES_AT;
+    let far: Vec<i64> = engine
+        .snapshot()
+        .entities
+        .iter()
+        .filter(|e| e.kind == EntityKind::Enemy)
+        .map(|e| (i64::from(e.at.x.0 - x).pow(2) + i64::from(e.at.y.0 - y).pow(2)).isqrt())
+        .collect();
+    let stacked = far.iter().filter(|d| **d <= 1_024).count();
+    assert!(stacked >= 480, "{stacked} enemies were on the point");
+    assert!(
+        far.iter().all(|d| *d <= 3 * 1_024),
+        "{:?}",
+        far.iter().max()
+    );
+}
+
 #[test]
 fn the_measured_tick_reaches_every_dynamic_cap() {
     let mut engine = worst_case::warmed_up();
@@ -41,6 +63,7 @@ fn the_measured_tick_reaches_every_dynamic_cap() {
     assert_eq!(engine.outcome(), Outcome::Running, "the run ended");
     assert_eq!(engine.load(), Load::CAPS);
     assert_hit_boxes(&engine);
+    assert_fresh_stack(&engine);
 }
 
 #[test]
@@ -55,5 +78,6 @@ fn the_caps_are_held_tick_after_tick() {
         );
         assert_eq!(engine.load(), Load::CAPS, "on tick {tick}");
         assert_hit_boxes(&engine);
+        assert_fresh_stack(&engine);
     }
 }

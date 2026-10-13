@@ -325,7 +325,9 @@ fn bullet_caps_are_two_hundred_new_and_four_thousand_alive() {
     let waves = (0..200)
         .map(|_| wave(1, 100, 1, shooter(), START_X, 0))
         .collect();
-    let mut e = running(waves);
+    // Quiet weapons: the enemies spread from their point as they push apart, into the path of
+    // the main character's own bullets, which would count here and be used up there.
+    let mut e = engine(&quiet(stage_with(18_000, Some(far_boss()), waves)));
     let mut before = 0;
     for tick in 1..=60 {
         e.step(idle());
@@ -509,7 +511,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x344e_c8b6_de4b_d3b0;
+const GOLDEN_HASH: u64 = 0x345d_d242_347f_dcca;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {

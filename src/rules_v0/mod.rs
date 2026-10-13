@@ -10,7 +10,8 @@
 //!    core#83; see `player`);
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
 //!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
-//!    a shot skill starts an attack task;
+//!    a shot skill starts an attack task; then the enemies push apart, all at once (`push`,
+//!    ADR-058), and one found crowded does not step to its place on the next tick;
 //! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
 //!    is carried out up to its next wait (`attacks`), making bullets;
 //! 5. bullets move and leave the map;
@@ -36,6 +37,7 @@ mod entity;
 mod grid;
 mod hit_boxes;
 mod player;
+mod push;
 
 pub(crate) use player::{charge_ready, charge_view, skill_ready};
 mod select;
@@ -204,6 +206,7 @@ pub(crate) fn step(
     player::update(stage, s, input, events);
     boss::act(stage, s, events);
     agents::act(stage, s, events);
+    push::apply(stage, s);
     attacks::fire_hooks(s);
     let (tasks, emitter_steps) = attacks::run(s, &mut spawns_left);
     *load = Load {
@@ -478,6 +481,7 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
     h.write_u32(a.age);
     h.write_u32(a.aggro);
     h.write_i32(a.orbit_angle);
+    h.write_bool(a.crowded);
     match a.order {
         Some(o) => {
             h.write_bool(true);
