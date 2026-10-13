@@ -15,7 +15,7 @@ use stella_rain_core::stage::Stage;
 /// their number has settled just under `MAX_BULLETS_ALIVE`.
 pub const WARMUP_TICKS: u32 = 400;
 
-/// 300 enemies (`MAX_ENEMIES_ALIVE`) stand in one point at the bottom-left of the field, three
+/// 500 enemies (`MAX_ENEMIES_ALIVE`) stand in one point at the bottom-left of the field, five
 /// waves of 100 that spawn one a tick each. The main character, at its start (bottom centre),
 /// fires 90 bullets every 6 ticks at 2 pixels a tick, fanned over 60 degrees around straight up:
 /// none of them hits an enemy, so each is checked against the enemies on every tick it flies,
@@ -23,11 +23,11 @@ pub const WARMUP_TICKS: u32 = 400;
 ///
 /// Hit boxes (ADR-055): four companions (`MAX_COMPANIONS`) stand to the right of the enemies,
 /// facing them, each in an active phase with a 256-pixel arc pushed 156 pixels past the
-/// enemies. All 300 come back from the grid's range query, and each is tested against the
+/// enemies. All 500 come back from the grid's range query, and each is tested against the
 /// arc's angle and both its edges, and missed: the arc faces away from them.
 pub fn stage() -> Stage {
     let enemy = common::enemy(100_000, common::hold(2_048, 160_000), json!([]));
-    let waves: Vec<Value> = (0..3)
+    let waves: Vec<Value> = (0..5)
         .map(|_| common::wave(1, 100, 1, enemy.clone(), 2_048, 160_000))
         .collect();
     let sweep = json!([{ "kind": "active", "ticks": 30, "damage": 1, "rehit_ticks": 1,

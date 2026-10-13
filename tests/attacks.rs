@@ -704,10 +704,10 @@ fn at_most_two_hundred_new_bullets_a_tick_whatever_the_attacks() {
 
 #[test]
 fn at_most_two_hundred_fifty_six_attacks_are_carried_out_at_once() {
-    // 200 enemies spawn on tick 1 and 100 more on tick 2 (the enemy cap is 300), and each starts an
-    // attack that makes a bullet ten ticks later. Only 256 of the 300 attacks can be going at
-    // once, so 56 of the 100 that start on tick 2 do: 200 bullets on tick 11 (the cap on new
-    // bullets a tick) and 56 on tick 12, where 100 would be made without the cap.
+    // 200 enemies spawn on tick 1 and 200 more on tick 2 (the enemy cap is 500), and each starts an
+    // attack that makes a bullet ten ticks later. Only 256 of the 400 attacks can be going at
+    // once, so 56 of the 200 that start on tick 2 do: 200 bullets on tick 11 (the cap on new
+    // bullets a tick) and 56 on tick 12, where 200 would be made without the cap.
     let attack = json!({ "inline": spawned(json!([wait(10), down(0)])) });
     let waves = (0..200)
         .map(|_| wave(1, 100, 1, shooter(attack.clone()), OX, OY))

@@ -57,7 +57,7 @@ pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
 use grid::Grid;
 
-pub(crate) const MAX_ENEMIES_ALIVE: u32 = 300;
+pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
 pub(crate) const MAX_BULLET_SPAWNS_PER_TICK: u32 = 200;
 /// Attacks being carried out at once (ADR-036 tier 3), and the node steps they may take in a

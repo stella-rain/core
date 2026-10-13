@@ -13,7 +13,7 @@ fn the_measured_tick_has_its_load() {
     let mut engine = collide_case::warmed_up();
     engine.step(collide_case::input(collide_case::WARMUP_TICKS + 1));
     let load = engine.load();
-    assert_eq!(load.enemies, 300);
+    assert_eq!(load.enemies, 500);
     assert!(load.bullets >= 3_900, "{load:?}");
     let snapshot = engine.snapshot();
     let enemies: Vec<_> = snapshot
@@ -21,7 +21,7 @@ fn the_measured_tick_has_its_load() {
         .iter()
         .filter(|e| e.kind == EntityKind::Enemy)
         .collect();
-    assert_eq!(enemies.len(), 300);
+    assert_eq!(enemies.len(), 500);
     assert!(
         enemies.iter().all(|e| e.hp == 100_000),
         "neither a friendly bullet nor a hit box hits an enemy"
