@@ -216,6 +216,10 @@ pub(crate) fn step(
     move_bullets(stage, s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
+    debug_assert!(
+        entity::enemies_in_id_order(s),
+        "enemies out of entity-ID order"
+    );
 }
 
 fn count<T>(items: &[T]) -> u32 {
