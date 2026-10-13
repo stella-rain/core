@@ -44,10 +44,20 @@ pub struct Facing {
 #[serde(deny_unknown_fields)]
 pub struct Snapshot {
     pub tick: u32,
+    /// The map's size, so the frontend can bound its camera (core#87).
+    pub map: MapView,
     pub player: PlayerView,
     /// Companions, enemies, the boss and its parts, in entity-ID order.
     pub entities: Vec<EntityView>,
     pub bullets: Vec<BulletView>,
+}
+
+/// The map's width and height, from its top-left corner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MapView {
+    pub width: Fx,
+    pub height: Fx,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -36,23 +36,29 @@ pub struct Stage {
     pub waves: Vec<Wave>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boss: Option<Boss>,
+    /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub map: Option<Map>,
 }
 
 impl Stage {
     /// The map the run plays on (core#87).
     pub fn map(&self) -> Map {
-        Map::PORTRAIT
+        self.map.unwrap_or(Map::PORTRAIT)
     }
 }
 
 /// The rectangle the run plays on, from its top-left corner, and where the main character
-/// starts. The main character and agents are clamped to it; enemies and bullets leave once they
-/// are more than `FIELD_MARGIN` outside it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// starts. The main character and companions are clamped to it; enemies and bullets leave once
+/// they are more than `FIELD_MARGIN` outside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Map {
     pub width: Fx,
     pub height: Fx,
-    pub start: Point,
+    /// The centre of the map when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<Point>,
 }
 
 impl Map {
@@ -61,11 +67,19 @@ impl Map {
     pub const PORTRAIT: Map = Map {
         width: Fx(FIELD_W),
         height: Fx(FIELD_H),
-        start: Point {
+        start: Some(Point {
             x: Fx(FIELD_W / 2),
             y: Fx(FIELD_H - Fx::px(64).0),
-        },
+        }),
     };
+
+    /// Where the main character starts.
+    pub fn start(&self) -> Point {
+        self.start.unwrap_or(Point {
+            x: Fx(self.width.0 / 2),
+            y: Fx(self.height.0 / 2),
+        })
+    }
 
     /// `p` moved onto the map.
     pub fn clamp(&self, p: Point) -> Point {
@@ -75,10 +89,15 @@ impl Map {
         }
     }
 
-    /// Whether `p` is on the map or at most `FIELD_MARGIN` outside it.
-    pub fn holds(&self, p: Point) -> bool {
-        let range = |v: Fx, max: Fx| (-FIELD_MARGIN..=max.0 + FIELD_MARGIN).contains(&v.0);
-        range(p.x, self.width) && range(p.y, self.height)
+    /// Whether a point is on the map or at most `FIELD_MARGIN` outside it. It runs for every
+    /// bullet every tick, so each axis is one unsigned comparison, as the compiler made it when
+    /// the bounds were constants: `v + FIELD_MARGIN` wraps below 0 to above any span, and the
+    /// validator keeps the spans far below `i32::MAX`.
+    pub fn holds(&self) -> impl Fn(Point) -> bool + use<> {
+        let span = |side: Fx| (side.0 + 2 * FIELD_MARGIN) as u32;
+        let (w, h) = (span(self.width), span(self.height));
+        let inside = |v: Fx, span: u32| (v.0.wrapping_add(FIELD_MARGIN) as u32) <= span;
+        move |p| inside(p.x, w) && inside(p.y, h)
     }
 }
 

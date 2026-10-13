@@ -34,6 +34,17 @@
       "format": "uint32",
       "minimum": 0
     },
+    "map": {
+      "description": "The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Map"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "player": {
       "$ref": "#/$defs/Player"
     },
@@ -1254,6 +1265,34 @@
       "required": [
         "auto",
         "charge"
+      ]
+    },
+    "Map": {
+      "description": "The rectangle the run plays on, from its top-left corner, and where the main character\nstarts. The main character and companions are clamped to it; enemies and bullets leave once\nthey are more than `FIELD_MARGIN` outside it.",
+      "type": "object",
+      "properties": {
+        "height": {
+          "$ref": "#/$defs/Fx"
+        },
+        "start": {
+          "description": "The centre of the map when absent.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Point"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "width": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height"
       ]
     },
     "Movement": {

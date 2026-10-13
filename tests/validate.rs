@@ -413,6 +413,17 @@ fn ranges_keep_numbers_inside_the_loadout() {
         bad("/waves/0/spawn/y", json!(163840 + 16385)),
         "$.waves[0].spawn.y"
     );
+    // Without a map, a point beyond the portrait field is out; on a wide map it is in.
+    assert_eq!(
+        bad("/waves/0/spawn/x", json!(524_288)),
+        "$.waves[0].spawn.x"
+    );
+    let mut wide = b.clone();
+    wide["map"] = json!({ "width": 1_048_576, "height": 262_144 });
+    set(&mut wide, "/waves/0/spawn/x", json!(1_048_576 + 16_384));
+    assert_valid(&wide);
+    set(&mut wide, "/waves/0/spawn/x", json!(1_048_576 + 16_385));
+    assert_eq!(first_issue(&wide).path, "$.waves[0].spawn.x");
     assert_eq!(
         bad("/companions/0/movement/radius", json!(MAX_LEN + 1)),
         "$.companions[0].movement.radius"
@@ -824,6 +835,72 @@ fn a_summoned_agent_cannot_summon() {
     let issue = first_issue(&v);
     assert_eq!(issue.path, "$.boss.phases[1].rules[2].do.agent.rules[0].do");
     assert!(issue.message.contains("cannot summon"));
+}
+
+/// A stage's map (core#87): each side from `MIN_MAP_SIDE` to `MAX_MAP_SIDE`, and the start on
+/// the map itself, not in its margin.
+#[test]
+fn a_map_is_bounded_and_its_start_is_on_it() {
+    let with_map = |map: Value| {
+        let mut v = base();
+        v["map"] = map;
+        v
+    };
+    let side = 262_144;
+    assert_valid(&with_map(json!({ "width": side, "height": side })));
+    assert_valid(&with_map(
+        json!({ "width": MAX_MAP_SIDE, "height": MAX_MAP_SIDE }),
+    ));
+    for (map, path) in [
+        (
+            json!({ "width": MAX_MAP_SIDE + 1, "height": side }),
+            "$.map.width",
+        ),
+        (
+            json!({ "width": side, "height": MAX_MAP_SIDE + 1 }),
+            "$.map.height",
+        ),
+        (
+            json!({ "width": MIN_MAP_SIDE - 1, "height": side }),
+            "$.map.width",
+        ),
+        (
+            json!({ "width": side, "height": MIN_MAP_SIDE - 1 }),
+            "$.map.height",
+        ),
+        (
+            json!({ "width": side, "height": side, "start": { "x": side + 1, "y": 0 } }),
+            "$.map.start.x",
+        ),
+        (
+            json!({ "width": side, "height": side, "start": { "x": 0, "y": -1 } }),
+            "$.map.start.y",
+        ),
+    ] {
+        assert_eq!(first_issue(&with_map(map.clone())).path, path, "{map}");
+    }
+    // The smallest side is accepted (the fixture's points then fall outside, reported later).
+    let smallest = issues(&with_map(
+        json!({ "width": MIN_MAP_SIDE, "height": MIN_MAP_SIDE }),
+    ));
+    assert!(
+        smallest.iter().all(|i| !i.path.starts_with("$.map")),
+        "{smallest:?}"
+    );
+    assert_valid(&with_map(
+        json!({ "width": side, "height": side, "start": { "x": side, "y": side } }),
+    ));
+    // Unknown fields are rejected, as everywhere in the stage.
+    let mut v = with_map(json!({ "width": side, "height": side, "depth": 1 }));
+    assert!(matches!(
+        parse_and_validate(&serde_json::to_vec(&v).unwrap()),
+        Err(Error::Parse { .. })
+    ));
+    v["map"] = json!({ "width": side });
+    assert!(matches!(
+        parse_and_validate(&serde_json::to_vec(&v).unwrap()),
+        Err(Error::Parse { .. })
+    ));
 }
 
 #[test]

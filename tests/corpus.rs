@@ -472,6 +472,39 @@ fn melee() -> Definition {
     ("melee", bytes(&stage), inputs)
 }
 
+/// A landscape map of 2,048 by 1,024 pixels (core#87). The main character starts near the
+/// right edge, walks into the top-right corner (clamped there), then left along the top, shooting
+/// along its facing; enemies cross the middle of the map to the right, shooting at it.
+fn landscape() -> Definition {
+    let (width, height) = (524_288, 262_144);
+    let crosser = enemy(
+        30,
+        json!({ "type": "straight", "vx": 512, "vy": 0 }),
+        json!([attack_rule(always(), 20)]),
+    );
+    let mut stage = serde_json::to_value(stage_full(
+        300,
+        Some(far_boss()),
+        vec![
+            wave(1, 4, 25, crosser.clone(), width / 2, 30_000),
+            wave(60, 4, 25, crosser, width / 2 - 100_000, 8_000),
+        ],
+        vec![],
+    ))
+    .unwrap();
+    stage["map"] = json!({ "width": width, "height": height,
+                           "start": { "x": width - 30_720, "y": 20_000 } });
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..60 => moving(127, 0),
+            60..100 => moving(0, -127),
+            100..220 => moving(-127, 0),
+            _ => moving(-64, 64),
+        })
+        .collect();
+    ("landscape", bytes(&stage), inputs)
+}
+
 /// A stage that runs out of ticks with the boss standing.
 fn timeout() -> Definition {
     let stage = stage_with(90, Some(far_boss()), vec![]);
@@ -493,6 +526,7 @@ fn definitions() -> Vec<Definition> {
         bullets(),
         boss(),
         fail(),
+        landscape(),
         melee(),
         timeout(),
     ]
@@ -536,6 +570,31 @@ fn the_cases_are_what_their_names_say() {
     assert_eq!((outcome, peak), (Outcome::Running, 0));
     assert!(hp < 99, "the swings land: {hp} hp left");
     assert!(deaths("melee") >= 2, "the companion cleaves");
+    // The map, not the portrait field: the corner holds the main character, and shots and
+    // enemies get past where the portrait field's margin would have removed them.
+    let (corner, farthest) = landscape_reach();
+    assert!(corner, "the main character reaches the top-right corner");
+    assert!(farthest > 92_160 + 16_384, "x {farthest}");
+}
+
+/// Whether the landscape case's main character stands in the map's top-right corner on some
+/// tick, and the largest x any bullet or enemy reaches.
+fn landscape_reach() -> (bool, i32) {
+    let case = corpus_dir().join("landscape");
+    let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+    let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+    let (mut corner, mut farthest) = (false, 0);
+    for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
+        engine.step(input);
+        let s = engine.snapshot();
+        corner |= (s.player.at.x.0, s.player.at.y.0) == (s.map.width.0, 0);
+        let xs = s.bullets.iter().map(|b| b.at.x.0);
+        farthest = xs
+            .chain(s.entities.iter().map(|e| e.at.x.0))
+            .fold(farthest, i32::max);
+    }
+    (corner, farthest)
 }
 
 /// How many entities die in a recorded case.

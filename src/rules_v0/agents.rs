@@ -102,9 +102,9 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     for i in 0..s.enemies.len() {
         act_one(stage, s, Who::Enemy(i), events);
     }
-    // Enemies that have left the field are gone, whether or not they were killed.
-    let map = stage.map();
-    s.enemies.retain(|e| map.holds(e.at));
+    // Enemies that have left the map are gone, whether or not they were killed.
+    let holds = stage.map().holds();
+    s.enemies.retain(|e| holds(e.at));
 }
 
 fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
@@ -286,7 +286,7 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
             }
         }
     }
-    // Enemies may leave the field (and are removed when they do); companions stay in it.
+    // Enemies may leave the map (and are removed when they do); companions stay on it.
     if matches!(me, Who::Companion(_)) {
         a.at = map.clamp(a.at);
     }

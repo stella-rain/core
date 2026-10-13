@@ -81,10 +81,14 @@ pub mod limits {
     pub const MAX_LEN: i32 = 262_144;
     /// A hurt circle radius in 1/256 pixels: 256 pixels.
     pub const MAX_RADIUS: i32 = 65_536;
-    /// The playfield in 1/256 pixels (360 by 640 pixels), and how far outside it a point may be.
+    /// The portrait field in 1/256 pixels (360 by 640 pixels), the map of a stage without one,
+    /// and how far outside a map a point may be.
     pub const FIELD_W: i32 = 92_160;
     pub const FIELD_H: i32 = 163_840;
     pub const FIELD_MARGIN: i32 = 16_384;
+    /// A stage's map: each side from 1 to 4,096 pixels (core#87).
+    pub const MIN_MAP_SIDE: i32 = 256;
+    pub const MAX_MAP_SIDE: i32 = 1_048_576;
 
     /// Problems reported before the rest are left out.
     pub const MAX_ISSUES: usize = 32;
@@ -399,11 +403,34 @@ impl<'a> Ctx<'a> {
         });
     }
 
+    /// Each side bounded (core#87), and the start on the map itself, not in its margin.
+    fn map(&mut self, m: &crate::stage::Map) {
+        let side = |c: &mut Self, key, v: crate::fixed::Fx| {
+            c.within(
+                key,
+                i64::from(v.0),
+                i64::from(MIN_MAP_SIDE),
+                i64::from(MAX_MAP_SIDE),
+            );
+        };
+        side(self, "width", m.width);
+        side(self, "height", m.height);
+        if let Some(start) = m.start {
+            self.key("start", |c| {
+                c.within("x", i64::from(start.x.0), 0, i64::from(m.width.0));
+                c.within("y", i64::from(start.y.0), 0, i64::from(m.height.0));
+            });
+        }
+    }
+
     fn ticks(&mut self, key: &'static str, ticks: u32, lo: u32) {
         self.within(key, i64::from(ticks), i64::from(lo), i64::from(MAX_TICKS));
     }
 
     fn stage(&mut self, s: &Stage) {
+        if let Some(map) = &s.map {
+            self.key("map", |c| c.map(map));
+        }
         self.key("id", |c| {
             let ok = (1..=MAX_STAGE_ID_CHARS).contains(&s.id.len())
                 && s.id

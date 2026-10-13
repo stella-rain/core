@@ -13,7 +13,7 @@
 //!    a shot skill starts an attack task;
 //! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
 //!    is carried out up to its next wait (`attacks`), making bullets;
-//! 5. bullets move and leave the field;
+//! 5. bullets move and leave the map;
 //! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
@@ -98,7 +98,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
         next_id += 1;
         id
     });
-    let start = stage.map().start;
+    let start = stage.map().start();
     let companions = stage
         .companions
         .iter()
@@ -161,7 +161,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
             max_hp: stage.player.hp,
             defence: stage.player.defence,
             invulnerable: 0,
-            // Up the field, where the stage comes from, until the map turns landscape (core#87).
+            // Up the map on every map, landscape ones included; a stage cannot set it yet.
             facing: Dir::UP,
             main_cooldown: 0,
             charge: None,
@@ -261,8 +261,8 @@ fn move_bullets(stage: &Stage, s: &mut State) {
         b.at.x = b.at.x.saturating_add(b.vx);
         b.at.y = b.at.y.saturating_add(b.vy);
     }
-    let map = stage.map();
-    s.bullets.retain(|b| map.holds(b.at));
+    let holds = stage.map().holds();
+    s.bullets.retain(|b| holds(b.at));
 }
 
 /// Two circles overlap (touching counts), in 64-bit fixed point.

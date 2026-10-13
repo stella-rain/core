@@ -1,0 +1,189 @@
+{
+  "boss": {
+    "base": "golem",
+    "hp": 1000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [],
+        "transition": []
+      }
+    ],
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "companions": [],
+  "description": "",
+  "id": "test",
+  "length_ticks": 300,
+  "map": {
+    "height": 262144,
+    "start": {
+      "x": 493568,
+      "y": 20000
+    },
+    "width": 524288
+  },
+  "player": {
+    "atk": 10,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 99,
+    "main": {
+      "inline": {
+        "auto": {
+          "attack": {
+            "preset": {
+              "args": [
+                2048
+              ],
+              "id": "aimed_single"
+            }
+          },
+          "cooldown_ticks": 6,
+          "targeting": "facing"
+        },
+        "charge": {
+          "cooldown_ticks": 0,
+          "levels": [
+            {
+              "at_ticks": 0,
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "recovery",
+                    "ticks": 1
+                  }
+                ]
+              }
+            }
+          ],
+          "max_ticks": 600
+        }
+      }
+    },
+    "sub": {
+      "inline": {
+        "auto": {
+          "attack": {
+            "inline": [
+              {
+                "kind": "recovery",
+                "ticks": 1
+              }
+            ]
+          },
+          "cooldown_ticks": 1,
+          "targeting": "facing"
+        },
+        "skill": {
+          "attack": {
+            "inline": [
+              {
+                "kind": "recovery",
+                "ticks": 1
+              }
+            ]
+          },
+          "cooldown_ticks": 1,
+          "targeting": "facing"
+        }
+      }
+    }
+  },
+  "schema_version": 0,
+  "seed": 7,
+  "sim_version": 0,
+  "title": "Test",
+  "waves": [
+    {
+      "at_tick": 1,
+      "count": 4,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "movement": {
+          "type": "straight",
+          "vx": 512,
+          "vy": 0
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 20,
+            "do": {
+              "attack": {
+                "preset": {
+                  "args": [
+                    768
+                  ],
+                  "id": "aimed_single"
+                }
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 25,
+      "spawn": {
+        "x": 262144,
+        "y": 30000
+      }
+    },
+    {
+      "at_tick": 60,
+      "count": 4,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "movement": {
+          "type": "straight",
+          "vx": 512,
+          "vy": 0
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 20,
+            "do": {
+              "attack": {
+                "preset": {
+                  "args": [
+                    768
+                  ],
+                  "id": "aimed_single"
+                }
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 25,
+      "spawn": {
+        "x": 162144,
+        "y": 8000
+      }
+    }
+  ]
+}
