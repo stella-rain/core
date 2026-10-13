@@ -10,7 +10,8 @@
     "base": "pilot_a",
     "hp": 3,
     "atk": 10,
-    "shot": { "preset": { "id": "twin_shot", "args": [] } },
+    "main": { "preset": { "id": "blaster" } },
+    "sub": { "preset": { "id": "needle" } },
     "evade": { "distance": 12288, "ticks": 8, "invulnerable_ticks": 10, "cooldown_ticks": 40 }
   },
   "companions": [

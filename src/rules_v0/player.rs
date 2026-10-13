@@ -1,18 +1,21 @@
 //! The main character (ADR-050): movement from the input's stick, the persistent facing
-//! (ADR-055), the main shot that attacks on its own along it, and the evade.
+//! (ADR-055), the Main and Sub weapons that attack on their own (core#83), and the evade.
 
 use crate::attack::AttackRef;
 use crate::engine::{Aim, DashState, Dir, PlayerState, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::input::Input;
+use crate::presets;
 use crate::stage::Stage;
 use crate::trig::SCALE;
 use crate::validate::limits::{FIELD_H, FIELD_W};
+use crate::weapon::Role;
 
+use super::PLAYER_SPEED;
 use super::attacks;
 use super::entity::{Who, speed_pct};
-use super::{PLAYER_SPEED, SHOT_INTERVAL};
+use super::select::select;
 
 /// The stick's full deflection on each axis (ADR-050); −128 counts as −127.
 const STICK_MAX: i8 = 127;
@@ -128,49 +131,91 @@ fn dash(stage: &Stage, p: &mut PlayerState) {
     });
 }
 
-/// What the main character shoots, and how, right now. This is the one place that says so, so
-/// that ways of shooting it can acquire during a run (a different attack, aimed at the nearest
-/// enemy, homing, a faster rhythm) change what this returns and nothing else: the attack runs
-/// as any other, with the aim and the damage given here.
-struct MainShot<'a> {
+/// The attack slots of the main character's weapons (core#83): each runs one attack at a time
+/// (ADR-055), beside the other's. The charged Main skill and the Sub skill take slots 2 and 3.
+const MAIN_SLOT: u8 = 0;
+const SUB_SLOT: u8 = 1;
+
+/// What a weapon attacks with, and how, right now. This is the one place that says so, so that
+/// what the main character acquires during a run (a different attack, homing, a faster rhythm,
+/// more damage) changes what this returns and nothing else: the attack runs as any other, with
+/// the aim and the damage given here.
+struct Shot<'a> {
     attack: &'a AttackRef,
-    /// Where `aimed` directions point: along the facing.
+    /// Where `aimed` directions point: along the facing, or at the target.
     aim: Aim,
     /// Hit points a bullet takes before the attack-up status.
     damage: u32,
-    /// Ticks between starts.
-    interval: u32,
+    /// Ticks from this attack's start to the next one's.
+    cooldown: u32,
 }
 
-/// Today the stage's own `shot` attack, along the facing, at the stage's attack stat.
-fn main_shot<'a>(stage: &'a Stage, s: &State) -> MainShot<'a> {
-    MainShot {
-        attack: &stage.player.shot,
-        aim: Aim::Fixed(s.player.facing),
+/// Today the stage's weapon in `role`, at the stage's attack stat, aimed as its targeting says:
+/// `None` when its selector finds nothing to aim at.
+fn shot<'a>(stage: &'a Stage, s: &State, role: Role) -> Option<Shot<'a>> {
+    let reference = match role {
+        Role::Main => &stage.player.main,
+        Role::Sub => &stage.player.sub,
+    };
+    // The validator lets only defined presets through.
+    let weapon = presets::weapon(reference, role)?;
+    let aim = match weapon.targeting.selector() {
+        None => Aim::Fixed(s.player.facing),
+        Some(selector) => {
+            let target = select(stage, s, Who::Player, &selector)?;
+            // Both are set to the direction to the target as the attack starts.
+            Aim::Target {
+                id: s.id_of(target),
+                heading: s.player.facing,
+                last: s.player.facing,
+            }
+        }
+    };
+    Some(Shot {
+        attack: &weapon.attack,
+        aim,
         damage: stage.player.atk,
-        interval: SHOT_INTERVAL,
-    }
+        cooldown: weapon.cooldown_ticks,
+    })
 }
 
-/// The main shot attacks on its own every `interval` ticks (ADR-050). The attack is a task like
-/// any other: once started it runs to its end, follows the main character and counts against
-/// the attack and bullet budgets. The next shot waits for the last one's attack to end
-/// (ADR-055: one attack at a time).
+/// The Main weapon, then the Sub weapon (ADR-050, core#83).
 fn shoot(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
-    s.player.shot_cooldown = s.player.shot_cooldown.saturating_sub(1);
-    if s.player.shot_cooldown > 0 || attacks::busy(s, s.id_of(Who::Player), 0) {
+    attack_with(stage, s, Role::Main, events);
+    attack_with(stage, s, Role::Sub, events);
+}
+
+/// A weapon attacks on its own once its cooldown, counted from its last attack's start, is
+/// over and that attack has ended (ADR-055: one attack at a time). With nothing to aim at it
+/// does not attack and spends no cooldown, so it attacks on the first tick it finds a target.
+/// The attack is a task like any other: once started it runs to its end, follows the main
+/// character and counts against the attack and bullet budgets.
+fn attack_with(stage: &Stage, s: &mut State, role: Role, events: &mut Vec<DomainEvent>) {
+    let (slot, cooldown) = match role {
+        Role::Main => (MAIN_SLOT, &mut s.player.main_cooldown),
+        Role::Sub => (SUB_SLOT, &mut s.player.sub_cooldown),
+    };
+    *cooldown = cooldown.saturating_sub(1);
+    if *cooldown > 0 || attacks::busy(s, s.id_of(Who::Player), slot) {
         return;
     }
-    let shot = main_shot(stage, s);
-    s.player.shot_cooldown = shot.interval;
-    attacks::start_with(
+    let Some(shot) = shot(stage, s, role) else {
+        return;
+    };
+    let started = attacks::start_with(
         s,
         Who::Player,
-        0,
+        slot,
         shot.aim,
         shot.attack,
         shot.damage,
         0,
         events,
     );
+    if started {
+        match role {
+            Role::Main => s.player.main_cooldown = shot.cooldown,
+            Role::Sub => s.player.sub_cooldown = shot.cooldown,
+        }
+    }
 }

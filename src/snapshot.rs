@@ -13,7 +13,8 @@ use crate::id::{ContentId, EntityId};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttackView {
-    /// 0 for an agent's or the boss's attacks and the main shot; 1 for a main-character skill.
+    /// 0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its
+    /// Sub weapon (core#83).
     pub slot: u8,
     /// The preset it came from; absent for an inline attack.
     #[serde(default, skip_serializing_if = "Option::is_none")]

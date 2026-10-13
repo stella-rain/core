@@ -98,7 +98,7 @@ fn shooter(attack: Value) -> Value {
     )
 }
 
-/// The main shot is quiet, so that every bullet is the enemy's.
+/// The weapons are quiet, so that every bullet is the enemy's.
 fn attack_stage(attack: Value) -> Stage {
     quiet(stage_full(
         18_000,

@@ -18,10 +18,12 @@ use serde::Deserialize;
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill};
 use crate::id::ContentId;
+use crate::presets;
 use crate::registry::{self, Entry, Kind};
 use crate::stage::{Boss, BossPart, Evade, Phase, Player, Stage, Step, Transition, Wave};
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::weapon::{Targeting, Weapon, WeaponRef};
 
 /// Limits a stage must keep. The first block is ADR-020, the second ADR-036, the rest the
 /// loadout and numeric ranges that ADR-012 and ADR-019 ask for.
@@ -186,6 +188,27 @@ pub fn validate_attack(
         arity,
     };
     ctx.phases(phases);
+    if ctx.issues.is_empty() {
+        Ok(())
+    } else {
+        Err(ctx.issues)
+    }
+}
+
+/// Checks one role of a weapon, as a stage's inline weapons are checked, without a boss (so a
+/// part to aim at is never found): the developer's weapon presets. Paths are from the weapon:
+/// `$.attack.preset.id`.
+pub fn validate_weapon(weapon: &Weapon, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+    let mut ctx = Ctx {
+        registry,
+        sim_version: crate::version::SIM_VERSION,
+        parts: Vec::new(),
+        path: Vec::new(),
+        issues: Vec::new(),
+        left_out: false,
+        arity: 0,
+    };
+    ctx.weapon(weapon);
     if ctx.issues.is_empty() {
         Ok(())
     } else {
@@ -425,8 +448,54 @@ impl<'a> Ctx<'a> {
         self.within("hp", i64::from(p.hp), 1, i64::from(MAX_PLAYER_HP));
         self.within("atk", i64::from(p.atk), 1, i64::from(MAX_PLAYER_ATK));
         self.within("defence", i64::from(p.defence), 0, i64::from(MAX_DEFENCE));
-        self.key("shot", |c| c.attack_ref(&p.shot));
+        self.key("main", |c| c.weapon_ref(&p.main));
+        self.key("sub", |c| c.weapon_ref(&p.sub));
         self.key("evade", |c| c.evade(&p.evade));
+    }
+
+    fn weapon_ref(&mut self, w: &WeaponRef) {
+        match w {
+            WeaponRef::Preset { id } => self.key("preset", |c| {
+                c.content_id("id", id, Kind::Weapon);
+            }),
+            WeaponRef::Inline(w) => self.key("inline", |c| c.weapon(w)),
+        }
+    }
+
+    /// One role of a weapon (core#83): its attack, which never slows the main character, a part
+    /// it aims at that the boss has, and its cooldown.
+    fn weapon(&mut self, w: &Weapon) {
+        self.key("attack", |c| {
+            c.attack_ref(&w.attack);
+            c.never_slows(&w.attack);
+        });
+        if let Targeting::Part(id) = &w.targeting {
+            self.key("targeting", |c| c.part("part", id));
+        }
+        self.ticks("cooldown_ticks", w.cooldown_ticks, 0);
+    }
+
+    /// A weapon's attack keeps `move_pct` at 100 in every phase: the main character moves at
+    /// full speed while its weapons attack on their own (core#83). A preset is checked taken
+    /// apart, and reported at its ID.
+    fn never_slows(&mut self, attack: &AttackRef) {
+        const MESSAGE: &str = "a weapon's attack never slows the main character (move_pct 100)";
+        match attack {
+            AttackRef::Inline(phases) => self.key("inline", |c| {
+                for (i, p) in phases.iter().enumerate() {
+                    if p.move_pct != 100 {
+                        c.idx(i, |c| c.key("move_pct", |c| c.fail(MESSAGE)));
+                    }
+                }
+            }),
+            AttackRef::Preset { id, args } => {
+                let slows = presets::take_apart(&id.0, args)
+                    .is_some_and(|phases| phases.iter().any(|p| p.move_pct != 100));
+                if slows {
+                    self.key("preset", |c| c.key("id", |c| c.fail(MESSAGE)));
+                }
+            }
+        }
     }
 
     fn evade(&mut self, e: &Evade) {

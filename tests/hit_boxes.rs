@@ -50,7 +50,7 @@ fn fighter(hp: u32, phases: Vec<Value>) -> Value {
     companion(hp, hold(CX, CY), attack("nearest_enemy", false, phases))
 }
 
-/// The main shot is quiet, so that only hit boxes deal damage.
+/// The weapons are quiet, so that only hit boxes deal damage.
 fn stage(waves: Vec<Value>, companions: Vec<Value>) -> Stage {
     quiet(stage_full(18_000, Some(far_boss()), waves, companions))
 }

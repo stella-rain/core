@@ -10,12 +10,23 @@
     "base": "pilot_a",
     "hp": 99,
     "atk": 10,
-    "shot": {
+    "main": {
+      "inline": {
+        "attack": {
+          "preset": {
+            "id": "aimed_single",
+            "args": [
+              2048
+            ]
+          }
+        },
+        "targeting": "facing",
+        "cooldown_ticks": 6
+      }
+    },
+    "sub": {
       "preset": {
-        "id": "aimed_single",
-        "args": [
-          2048
-        ]
+        "id": "needle"
       }
     },
     "evade": {

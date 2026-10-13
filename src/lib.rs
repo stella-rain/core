@@ -29,3 +29,4 @@ pub mod stage;
 pub mod trig;
 pub mod validate;
 pub mod version;
+pub mod weapon;

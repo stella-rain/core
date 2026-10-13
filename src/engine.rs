@@ -276,11 +276,13 @@ pub(crate) struct PlayerState {
     pub defence: u32,
     /// Ticks of invulnerability left, after a hit or from an evade.
     pub invulnerable: u32,
-    /// The last non-zero movement direction (ADR-055): where the main shot goes and where an
-    /// evade without movement dashes.
+    /// The last non-zero movement direction (ADR-055): where a weapon aimed along the facing
+    /// attacks and where an evade without movement dashes.
     pub facing: Dir,
-    /// Ticks until the main shot may fire again.
-    pub shot_cooldown: u32,
+    /// Ticks until the Main weapon may attack again, counted from its last attack's start.
+    pub main_cooldown: u32,
+    /// The same for the Sub weapon.
+    pub sub_cooldown: u32,
     /// Ticks until the evade is ready again, counted from its press.
     pub evade_cooldown: u32,
     /// The dash in progress, if any.
@@ -456,15 +458,22 @@ impl Dir {
 
 /// What an attack's `aimed` directions point at, and which way it faces. This is where the
 /// ways of aiming meet: enemies, companions and the boss aim at an entity; the main
-/// character's shot has no target and aims along its heading, straight up. A new way of aiming
-/// (the nearest enemy, a homing shot the main character acquires) is a new variant, read in
-/// `attacks::aim`, hashed in `hash_task` and given its heading here.
+/// character's weapons aim along its facing or at the target their targeting picked. A new way
+/// of aiming (a homing shot the main character acquires) is a new variant, read in
+/// `attacks::aim`, hashed in `hash_aim` and given its heading here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Aim {
     /// At the entity with this ID; straight down if it is gone.
     Entity(EntityId),
     /// Along a fixed direction.
     Fixed(Dir),
+    /// At a weapon's target (core#83); when it is gone, along `last`, the last direction taken
+    /// to it. `heading` is the direction to it when the attack started.
+    Target {
+        id: EntityId,
+        heading: Dir,
+        last: Dir,
+    },
 }
 
 impl Aim {
@@ -473,7 +482,7 @@ impl Aim {
     pub fn heading(self) -> Dir {
         match self {
             Aim::Entity(_) => Dir::DOWN,
-            Aim::Fixed(d) => d,
+            Aim::Fixed(d) | Aim::Target { heading: d, .. } => d,
         }
     }
 }
@@ -548,7 +557,8 @@ pub(crate) struct Frame {
 #[derive(Clone, Debug)]
 pub(crate) struct AttackRun {
     pub owner: EntityId,
-    /// 0 for an agent's or the boss's attacks and the main shot; 1 for a main-character skill.
+    /// 0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its
+    /// Sub weapon (core#83).
     pub slot: u8,
     /// The preset it came from, for the frontend to pick its animation.
     pub preset: Option<ContentId>,

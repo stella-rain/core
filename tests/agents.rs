@@ -798,7 +798,7 @@ fn heals_stop_at_the_maximum_and_say_how_much_they_gave() {
         cast(json!({ "type": "heal", "amount": 5 })),
         0
     )]);
-    // The main shot is quiet, so that the shooter lives.
+    // The weapons are quiet, so that the shooter lives.
     let stage = quiet(stage_full(
         18_000,
         Some(far_boss()),
@@ -1020,7 +1020,7 @@ fn a_cast_shot_hits_for_its_own_damage() {
         hold(46_080, 90_000),
         json!([rule(always(), json!("boss_first"), cast(shot), 1000)]),
     );
-    // The main shot is quiet, so that every hit on the boss is the companion's.
+    // The weapons are quiet, so that every hit on the boss is the companion's.
     let mut e = engine(&quiet(stage_full(
         18_000,
         Some(boss_at(100_000, 25_600)),

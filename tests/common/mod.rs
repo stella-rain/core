@@ -20,19 +20,43 @@ pub fn evade() -> Value {
             "invulnerable_ticks": EVADE_INVULNERABLE, "cooldown_ticks": EVADE_COOLDOWN })
 }
 
-/// A stage whose boss (20 hp, 10 damage a bullet) is beaten on tick 57 by the main shot, which
-/// attacks on its own straight up: the first shot is the default twin shot, and both of its
-/// bullets touch the boss on tick 57.
+/// A stage whose boss (20 hp, 10 damage a bullet) is beaten on tick 57 by the Main weapon, which
+/// attacks on its own straight up: the `blaster` preset's Main role, the twin shot, both of whose
+/// bullets touch the boss on tick 57. The Sub weapon does nothing.
 pub fn clearing_stage_json() -> Value {
     json!({
         "schema_version": 0, "sim_version": 0, "id": "test-stage", "title": "Test Stage",
         "seed": 7, "length_ticks": 600,
         "player": { "base": "pilot_a", "hp": 3, "atk": 10,
-                    "shot": { "preset": { "id": "twin_shot", "args": [] } },
+                    "main": { "preset": { "id": "blaster" } },
+                    "sub": quiet_weapon(),
                     "evade": evade() },
         "boss": { "base": "golem", "hp": 20, "radius": 8192,
                   "spawn": { "x": 46080, "y": 25600 }, "phases": [{}] }
     })
+}
+
+/// An inline weapon (core#83): `attack` (a preset or `{"inline": [...]}`) at `targeting`, every
+/// `cooldown_ticks` ticks.
+pub fn weapon(attack: Value, targeting: Value, cooldown_ticks: u32) -> Value {
+    json!({ "inline": { "attack": attack, "targeting": targeting,
+                        "cooldown_ticks": cooldown_ticks } })
+}
+
+/// A weapon that does nothing: one tick of recovery, along the facing.
+pub fn quiet_weapon() -> Value {
+    weapon(
+        json!({ "inline": [{ "kind": "recovery", "ticks": 1 }] }),
+        json!("facing"),
+        1,
+    )
+}
+
+/// `stage` with `main` and `sub` as its weapons (`weapon` values or presets).
+pub fn armed(mut stage: Stage, main: Value, sub: Value) -> Stage {
+    stage.player.main = serde_json::from_value(main).expect("the Main weapon parses");
+    stage.player.sub = serde_json::from_value(sub).expect("the Sub weapon parses");
+    stage
 }
 
 /// The phases of an attack that spawns `nodes` on the tick it starts: one active phase of one
@@ -130,11 +154,14 @@ pub fn stage_full(
     let mut v = json!({
         "schema_version": 0, "sim_version": 0, "id": "test", "title": "Test", "seed": 7,
         "length_ticks": length_ticks,
-        // One bullet along the facing (straight up until it moves) at 8 pixels a tick, every 6
-        // ticks, so that the hand-worked numbers of the tests that are not about the main shot
-        // stay simple (`tests/shot.rs` is about it).
+        // The Main weapon: one bullet along the facing (straight up until it moves) at 8 pixels
+        // a tick, every 6 ticks; the Sub weapon does nothing. So the hand-worked numbers of the
+        // tests that are not about weapons stay simple (`tests/shot.rs` and `tests/weapons.rs`
+        // are about them).
         "player": { "base": "pilot_a", "hp": 99, "atk": 10,
-                    "shot": { "preset": { "id": "aimed_single", "args": [2048] } },
+                    "main": weapon(json!({ "preset": { "id": "aimed_single", "args": [2048] } }),
+                                   json!("facing"), 6),
+                    "sub": quiet_weapon(),
                     "evade": evade() },
         "companions": companions,
         "waves": waves,
@@ -145,14 +172,10 @@ pub fn stage_full(
     serde_json::from_value(v).expect("the test stage parses")
 }
 
-/// The main shot replaced by one that does nothing, for tests whose hand-worked numbers would
-/// be thrown off by the shot that attacks on its own (ADR-050).
-pub fn quiet(mut stage: Stage) -> Stage {
-    stage.player.shot = serde_json::from_value(json!({ "inline": [
-        { "kind": "recovery", "ticks": 1 }
-    ] }))
-    .expect("the quiet shot parses");
-    stage
+/// Both weapons replaced by ones that do nothing, for tests whose hand-worked numbers would be
+/// thrown off by the weapons that attack on their own (ADR-050).
+pub fn quiet(stage: Stage) -> Stage {
+    armed(stage, quiet_weapon(), quiet_weapon())
 }
 
 pub fn engine(stage: &Stage) -> Engine {

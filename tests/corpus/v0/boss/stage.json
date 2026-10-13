@@ -10,12 +10,56 @@
     "base": "pilot_a",
     "hp": 99,
     "atk": 10,
-    "shot": {
-      "preset": {
-        "id": "aimed_single",
-        "args": [
-          2048
-        ]
+    "main": {
+      "inline": {
+        "attack": {
+          "preset": {
+            "id": "aimed_single",
+            "args": [
+              2048
+            ]
+          }
+        },
+        "targeting": "facing",
+        "cooldown_ticks": 6
+      }
+    },
+    "sub": {
+      "inline": {
+        "attack": {
+          "inline": [
+            {
+              "kind": "active",
+              "ticks": 1,
+              "spawn": [
+                {
+                  "type": "fire",
+                  "speed": 2048,
+                  "direction": {
+                    "type": "relative",
+                    "angle": 1280
+                  }
+                },
+                {
+                  "type": "wait",
+                  "ticks": 3
+                },
+                {
+                  "type": "fire",
+                  "speed": 2048,
+                  "direction": {
+                    "type": "aimed",
+                    "offset": 0
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "targeting": {
+          "part": "horn"
+        },
+        "cooldown_ticks": 12
       }
     },
     "evade": {

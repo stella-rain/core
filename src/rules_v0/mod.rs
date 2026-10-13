@@ -4,8 +4,9 @@
 //! What a tick does, in this order:
 //! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
 //! 2. the main character turns to its stick, starts a ready evade on a press, then dashes or
-//!    moves (speed cap, slowing, playfield), and starts its shot attack on its own along its
-//!    facing (ADR-050, ADR-055; see `player::main_shot`);
+//!    moves (speed cap, slowing, playfield), then its Main and its Sub weapon each start their
+//!    attack on their own, along its facing or at their target (ADR-050, ADR-055, core#83; see
+//!    `player::shot`);
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
 //!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
 //!    a shot skill starts an attack task;
@@ -16,9 +17,9 @@
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
 //!
-//! Not yet in this version: summons by companions; the Main and Sub weapons, the charged Main
-//! skill and the Sub skill (ADR-050, core#83); ways of shooting the main character acquires
-//! during a run (`player::main_shot` is where they would plug in).
+//! Not yet in this version: summons by companions; the charged Main skill and the Sub skill
+//! (ADR-050, core#83); what the main character's weapons acquire during a run (`player::shot`
+//! is where it would plug in).
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
 //! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, `MAX_BULLETS_ALIVE` bullets,
@@ -70,8 +71,6 @@ const PLAYER_SPEED: i32 = Fx::px(3).0;
 /// The hurt circle, a tiny one (ADR-050).
 pub(crate) const PLAYER_RADIUS: i32 = Fx::px(2).0;
 const PLAYER_START_Y_FROM_BOTTOM: i32 = Fx::px(64).0;
-/// Ticks between the starts of main shots.
-const SHOT_INTERVAL: u32 = 6;
 const PLAYER_BULLET_RADIUS: i32 = Fx::px(2).0;
 const ENEMY_BULLET_RADIUS: i32 = Fx::px(3).0;
 /// Ticks of invulnerability after the main character is hit.
@@ -167,7 +166,8 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
             invulnerable: 0,
             // Up the field, where the stage comes from, until the map turns landscape (core#87).
             facing: Dir::UP,
-            shot_cooldown: 0,
+            main_cooldown: 0,
+            sub_cooldown: 0,
             evade_cooldown: 0,
             dash: None,
             aggro: 0,
@@ -504,13 +504,21 @@ fn hash_path(h: &mut StateHasher, path: &[crate::engine::PathStep]) {
 fn hash_aim(h: &mut StateHasher, aim: crate::engine::Aim) {
     match aim {
         crate::engine::Aim::Entity(id) => {
-            h.write_bool(false);
+            h.write_u32(0);
             h.write_u32(id.0);
         }
         crate::engine::Aim::Fixed(d) => {
-            h.write_bool(true);
+            h.write_u32(1);
             h.write_i32(d.x);
             h.write_i32(d.y);
+        }
+        crate::engine::Aim::Target { id, heading, last } => {
+            h.write_u32(2);
+            h.write_u32(id.0);
+            h.write_i32(heading.x);
+            h.write_i32(heading.y);
+            h.write_i32(last.x);
+            h.write_i32(last.y);
         }
     }
 }
@@ -590,7 +598,8 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_u32(p.invulnerable);
     h.write_i32(p.facing.x);
     h.write_i32(p.facing.y);
-    h.write_u32(p.shot_cooldown);
+    h.write_u32(p.main_cooldown);
+    h.write_u32(p.sub_cooldown);
     h.write_u32(p.evade_cooldown);
     match p.dash {
         Some(DashState { dir, done, left }) => {

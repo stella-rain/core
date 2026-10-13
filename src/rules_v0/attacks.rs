@@ -12,11 +12,13 @@
 //!
 //! What the nodes mean:
 //! - `fire` makes one bullet at the attack's origin. Its direction is a unit vector: `aimed`
-//!   points at the target and turns by `offset`, `absolute` is an angle from straight down,
-//!   `relative` turns the direction the attack's parent was going (straight down for an attack
-//!   a rule started, the bullet's own direction for an `on_bullet` child), and `sequential`
-//!   turns the last bullet's direction by `step`. The first three also turn by every `rotate`,
-//!   `ring` and `spread` round them. Positive angles turn from straight down toward the right.
+//!   points at the target (a weapon's: along the last direction to it once it is gone) and
+//!   turns by `offset`, `absolute` is an angle from straight down, `relative` turns the
+//!   direction the attack's parent was going (straight down for an attack a rule started; the
+//!   facing, or the direction to the target when the attack started, for a weapon's; the
+//!   bullet's own direction for an `on_bullet` child), and `sequential` turns the last bullet's
+//!   direction by `step`. The first three also turn by every `rotate`, `ring` and `spread`
+//!   round them. Positive angles turn from straight down toward the right.
 //! - `repeat` runs its body `count` times; the next round starts `interval_ticks` ticks after
 //!   the body of the last one ends. `ring` runs its body `count` times at once, round after
 //!   round turned a full turn / `count` further; `spread` the same, fanned evenly across
@@ -51,12 +53,6 @@ use crate::validate::limits::{MAX_LEN, MAX_REPEAT, MAX_TICKS};
 
 use super::entity::{Who, scale_damage, status_pct};
 use super::{MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, count, spawn_bullet};
-
-/// The slot an attacker's skills attack from: the main character's skills run beside its main
-/// shot; everyone else has one slot.
-pub(super) fn skill_slot(who: Who) -> u8 {
-    u8::from(who == Who::Player)
-}
 
 /// Whether `owner` is running an attack in `slot`.
 pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
@@ -129,7 +125,17 @@ pub(super) fn start_with(
         AttackRef::Preset { id, .. } => Some(id.clone()),
         AttackRef::Inline(_) => None,
     };
+    let aim = refreshed(s, s.at(owner), aim);
     let facing = self::aim(s, s.at(owner), aim);
+    // A weapon's attack heads where its target was when it started.
+    let aim = match aim {
+        Aim::Target { id, last, .. } => Aim::Target {
+            id,
+            heading: facing,
+            last,
+        },
+        other => other,
+    };
     s.runs.push(AttackRun {
         owner: id,
         slot,
@@ -192,6 +198,9 @@ pub(super) fn phase_damage(r: &AttackRun) -> u32 {
 fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
     if s.runs[i].phases[s.runs[i].phase as usize].kind == PhaseKind::Active {
         s.runs[i].hits.clear();
+    }
+    if let Some(owner) = s.find(s.runs[i].owner) {
+        s.runs[i].aim = refreshed(s, s.at(owner), s.runs[i].aim);
     }
     let r = &s.runs[i];
     let p = &r.phases[r.phase as usize];
@@ -471,21 +480,37 @@ pub(super) fn rotate(d: Dir, angle: i32) -> Dir {
     normalize((x * cos + y * sin) / scale, (-x * sin + y * cos) / scale)
 }
 
+/// The direction from `from` to the entity `target`, if it is there.
+fn toward(s: &State, from: Point, target: EntityId) -> Option<Dir> {
+    let to = s.at(s.find(target)?);
+    Some(normalize(
+        i64::from(to.x.0) - i64::from(from.x.0),
+        i64::from(to.y.0) - i64::from(from.y.0),
+    ))
+}
+
 /// The direction an `aimed` bullet takes from `from`: at the entity (straight down if it is
-/// gone), or along the fixed direction.
+/// gone), along the fixed direction, or at a weapon's target (along the last direction taken to
+/// it if it is gone).
 fn aim(s: &State, from: Point, aim: Aim) -> Dir {
     match aim {
-        Aim::Entity(target) => match s.find(target) {
-            Some(w) => {
-                let to = s.at(w);
-                normalize(
-                    i64::from(to.x.0) - i64::from(from.x.0),
-                    i64::from(to.y.0) - i64::from(from.y.0),
-                )
-            }
-            None => Dir::DOWN,
-        },
+        Aim::Entity(target) => toward(s, from, target).unwrap_or(Dir::DOWN),
         Aim::Fixed(d) => d,
+        Aim::Target { id, last, .. } => toward(s, from, id).unwrap_or(last),
+    }
+}
+
+/// `aim` with a weapon target's last direction brought up to date from `from`, while the target
+/// is there. Called when an attack starts, when each of its phases begins and when it fires an
+/// `aimed` bullet, so that once the target is gone the attack carries on where it last aimed.
+fn refreshed(s: &State, from: Point, aim: Aim) -> Aim {
+    match aim {
+        Aim::Target { id, heading, last } => Aim::Target {
+            id,
+            heading,
+            last: toward(s, from, id).unwrap_or(last),
+        },
+        other => other,
     }
 }
 
@@ -670,6 +695,7 @@ fn emit(
     let dir = match direction {
         Direction::Aimed { offset } => {
             let turn = value(s, t, ab, offset).saturating_add(ab.turn);
+            t.aim = refreshed(s, origin, t.aim);
             rotate(aim(s, origin, t.aim), turn)
         }
         Direction::Absolute { angle } => {

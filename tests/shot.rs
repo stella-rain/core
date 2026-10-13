@@ -1,5 +1,5 @@
-//! The main shot (ADR-050): the stage's `shot` attack, started by the main character on its own
-//! every `SHOT_INTERVAL` ticks. Its `aimed` directions point along the facing (ADR-055), up the
+//! The Main weapon along the facing (ADR-050, core#83): its attack, started by the main character
+//! on its own every 6 ticks (its cooldown). Its `aimed` directions point along the facing (ADR-055), up the
 //! screen until the main character moves, and `relative` ones start from there; `absolute` ones
 //! stay fixed on the field (0 is down). Small stages whose every tick can be worked out by hand:
 //! the main character stands at (46080, 147456) unless a test moves it.
@@ -34,7 +34,8 @@ fn wait(ticks: i32) -> Value {
 /// cannot be reached, with `waves` of enemies and the main character's attack at `atk`.
 fn shooting(shot: Value, atk: u32, waves: Vec<Value>) -> Stage {
     let mut stage = stage_with(600, Some(far_boss()), waves);
-    stage.player.shot = serde_json::from_value(shot).expect("the shot parses");
+    stage.player.main =
+        serde_json::from_value(weapon(shot, json!("facing"), 6)).expect("the shot parses");
     stage.player.atk = atk;
     stage
 }

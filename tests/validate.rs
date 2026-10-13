@@ -56,7 +56,13 @@ fn repeated(v: &Value, pointer: &str, n: usize) -> Value {
     Value::Array(vec![v.pointer(pointer).unwrap().clone(); n])
 }
 
-fn shot(emitters: Value) -> Value {
+/// The attack of the fixture's wave enemy, where the attack tests put theirs.
+fn enemy_attack(v: &mut Value) -> &mut Value {
+    &mut v["waves"][0]["enemy"]["rules"][0]["do"]["attack"]
+}
+
+/// An attack of one active phase that spawns `emitters`.
+fn spawning(emitters: Value) -> Value {
     json!({ "inline": [{ "kind": "active", "ticks": 1, "spawn": emitters }] })
 }
 
@@ -217,32 +223,38 @@ fn pattern_depth_and_node_budgets() {
             node = json!({ "type": "rotate", "angle": 0, "body": [node] });
         }
         let mut v = b.clone();
-        v["player"]["shot"] = shot(json!([node]));
+        *enemy_attack(&mut v) = spawning(json!([node]));
         v
     };
     assert_valid(&nested(MAX_PATTERN_DEPTH as usize - 1));
     let issue = first_issue(&nested(MAX_PATTERN_DEPTH as usize));
     assert!(issue.message.contains("levels deep"), "{issue:?}");
     assert!(
-        issue.path.starts_with("$.player.shot.inline[0].spawn[0]"),
+        issue
+            .path
+            .starts_with("$.waves[0].enemy.rules[0].do.attack.inline[0].spawn[0]"),
         "{issue:?}"
     );
 
     let waits = |n: usize| {
         let mut v = b.clone();
-        v["player"]["shot"] = shot(Value::Array(vec![json!({ "type": "wait", "ticks": 1 }); n]));
+        *enemy_attack(&mut v) =
+            spawning(Value::Array(vec![json!({ "type": "wait", "ticks": 1 }); n]));
         v
     };
     assert_valid(&waits(MAX_PATTERN_NODES as usize));
     let issue = first_issue(&waits(MAX_PATTERN_NODES as usize + 1));
-    assert_eq!(issue.path, "$.player.shot.inline[0].spawn[64]");
+    assert_eq!(
+        issue.path,
+        "$.waves[0].enemy.rules[0].do.attack.inline[0].spawn[64]"
+    );
     assert!(issue.message.contains("64 nodes"), "{issue:?}");
 
     // Nodes are counted across the whole tree, branches included.
     let branches = |n: usize| {
         let leaf = |_: usize| json!({ "type": "rotate", "angle": 0, "body": [fire(json!(1))] });
         let mut v = b.clone();
-        v["player"]["shot"] = shot(Value::Array((0..n).map(leaf).collect()));
+        *enemy_attack(&mut v) = spawning(Value::Array((0..n).map(leaf).collect()));
         v
     };
     assert_valid(&branches(32));
@@ -254,7 +266,7 @@ fn expressions_have_at_most_sixteen_nodes() {
     let b = base();
     let with = |n: u32| {
         let mut v = b.clone();
-        v["player"]["shot"] = shot(json!([fire(expr_with_nodes(n))]));
+        *enemy_attack(&mut v) = spawning(json!([fire(expr_with_nodes(n))]));
         v
     };
     for n in [1, 3, 15, MAX_EXPR_NODES] {
@@ -279,7 +291,7 @@ fn constant_repeat_counts_are_at_most_one_hundred() {
                 _ => {}
             }
             let mut v = b.clone();
-            v["player"]["shot"] = shot(json!([node]));
+            *enemy_attack(&mut v) = spawning(json!([node]));
             v
         };
         assert_valid(&with(json!(MAX_REPEAT)));
@@ -541,40 +553,43 @@ fn presets_take_the_arguments_the_registry_says() {
     let b = base();
     let with = |id: &str, args: Value| {
         let mut v = b.clone();
-        v["player"]["shot"] = json!({ "preset": { "id": id, "args": args } });
+        *enemy_attack(&mut v) = json!({ "preset": { "id": id, "args": args } });
         v
     };
     assert_valid(&with("twin_shot", json!([])));
     assert_valid(&with("aimed_single", json!([512])));
     assert_eq!(
         first_issue(&with("aimed_single", json!([]))).path,
-        "$.player.shot.preset.args"
+        "$.waves[0].enemy.rules[0].do.attack.preset.args"
     );
     assert_eq!(
         first_issue(&with("twin_shot", json!([1]))).path,
-        "$.player.shot.preset.args"
+        "$.waves[0].enemy.rules[0].do.attack.preset.args"
     );
     assert_eq!(
         first_issue(&with("aimed_single", json!([MAX_NUMBER + 1]))).path,
-        "$.player.shot.preset.args[0].value"
+        "$.waves[0].enemy.rules[0].do.attack.preset.args[0].value"
     );
     let many = Value::Array(vec![json!(0); MAX_PRESET_ARGS + 1]);
     assert_eq!(
         first_issue(&with("twin_shot", many)).path,
-        "$.player.shot.preset.args"
+        "$.waves[0].enemy.rules[0].do.attack.preset.args"
     );
     assert_eq!(
         first_issue(&with("not_a_preset", json!([]))).path,
-        "$.player.shot.preset.id"
+        "$.waves[0].enemy.rules[0].do.attack.preset.id"
     );
 }
 
 #[test]
 fn inline_attacks_take_no_arguments() {
     let mut v = base();
-    v["player"]["shot"] = shot(json!([fire(json!({ "arg": 0 }))]));
+    *enemy_attack(&mut v) = spawning(json!([fire(json!({ "arg": 0 }))]));
     let issue = first_issue(&v);
-    assert_eq!(issue.path, "$.player.shot.inline[0].spawn[0].speed");
+    assert_eq!(
+        issue.path,
+        "$.waves[0].enemy.rules[0].do.attack.inline[0].spawn[0].speed"
+    );
     assert!(issue.message.contains("no such argument"));
 }
 
@@ -589,7 +604,7 @@ fn phase(extra: Value) -> Value {
 
 fn with_phases(phases: Value) -> Value {
     let mut v = base();
-    v["player"]["shot"] = json!({ "inline": phases });
+    *enemy_attack(&mut v) = json!({ "inline": phases });
     v
 }
 
@@ -599,24 +614,26 @@ fn an_inline_attack_is_a_list_of_phases() {
     assert_valid(&with_phases(json!([phase(json!({ "move_pct": 100 }))])));
     // A list of emitter nodes is no longer an attack (ADR-055).
     let mut nodes = base();
-    nodes["player"]["shot"] = json!({ "inline": [fire(json!(256))] });
+    *enemy_attack(&mut nodes) = json!({ "inline": [fire(json!(256))] });
     assert!(serde_json::from_value::<Stage>(nodes).is_err());
 
     let issue = first_issue(&with_phases(json!([])));
-    assert_eq!(issue.path, "$.player.shot.inline");
+    assert_eq!(issue.path, "$.waves[0].enemy.rules[0].do.attack.inline");
     assert!(issue.message.contains("at least one phase"), "{issue:?}");
 }
 
 #[test]
 fn an_attack_has_at_most_max_attack_phases() {
-    at_limit_and_over(MAX_ATTACK_PHASES, "$.player.shot.inline", |n| {
-        with_phases(Value::Array(vec![phase(json!({})); n]))
-    });
+    at_limit_and_over(
+        MAX_ATTACK_PHASES,
+        "$.waves[0].enemy.rules[0].do.attack.inline",
+        |n| with_phases(Value::Array(vec![phase(json!({})); n])),
+    );
 }
 
 #[test]
 fn a_phase_lasts_1_to_max_phase_ticks_and_moves_0_to_100_percent() {
-    let at = |key: &str| format!("$.player.shot.inline[0].{key}");
+    let at = |key: &str| format!("$.waves[0].enemy.rules[0].do.attack.inline[0].{key}");
     for kind in ["wind_up", "active", "recovery"] {
         assert_valid(&with_phases(json!([phase(json!({ "kind": kind }))])));
     }
@@ -639,7 +656,7 @@ fn a_phase_lasts_1_to_max_phase_ticks_and_moves_0_to_100_percent() {
 /// Hit boxes, their damage and re-hits are bounded (ADR-055), at the limit and one past it.
 #[test]
 fn hit_boxes_damage_and_rehits_are_bounded() {
-    let at = |key: &str| format!("$.player.shot.inline[0].{key}");
+    let at = |key: &str| format!("$.waves[0].enemy.rules[0].do.attack.inline[0].{key}");
     let half = 180 * 256;
     let r = MAX_RADIUS;
     let valid = [
@@ -918,4 +935,112 @@ fn damaged_files_never_panic() {
         }
         let _ = parse_and_validate(&bytes);
     }
+}
+
+// --- Weapons (core#83) -----------------------------------------------------------------------
+
+/// An inline weapon firing `attack` (an attack reference) at `targeting`.
+fn inline_weapon(attack: Value, targeting: Value, cooldown_ticks: u32) -> Value {
+    json!({ "inline": { "attack": attack, "targeting": targeting,
+                        "cooldown_ticks": cooldown_ticks } })
+}
+
+fn with_weapon(role: &str, weapon: Value) -> Value {
+    let mut v = base();
+    v["player"][role] = weapon;
+    v
+}
+
+#[test]
+fn a_weapons_attack_never_slows_the_main_character() {
+    for role in ["main", "sub"] {
+        let slowing = |move_pct: u8| {
+            let attack =
+                json!({ "inline": [phase(json!({})), phase(json!({ "move_pct": move_pct }))] });
+            with_weapon(role, inline_weapon(attack, json!("facing"), 6))
+        };
+        assert_valid(&slowing(100));
+        let issue = first_issue(&slowing(99));
+        assert_eq!(
+            issue.path,
+            format!("$.player.{role}.inline.attack.inline[1].move_pct")
+        );
+        assert!(issue.message.contains("never slows"), "{issue:?}");
+    }
+}
+
+#[test]
+fn a_weapon_preset_is_a_weapon_id() {
+    let preset = |id: &str| with_weapon("sub", json!({ "preset": { "id": id } }));
+    assert_valid(&preset("blaster"));
+    assert_valid(&preset("needle"));
+    for id in ["twin_shot", "no_such_weapon"] {
+        assert_eq!(first_issue(&preset(id)).path, "$.player.sub.preset.id");
+    }
+    // A weapon preset takes no arguments.
+    let args = with_weapon("main", json!({ "preset": { "id": "blaster", "args": [] } }));
+    assert!(serde_json::from_value::<Stage>(args).is_err());
+}
+
+#[test]
+fn a_weapons_cooldown_is_0_to_max_ticks() {
+    let attack = json!({ "preset": { "id": "twin_shot" } });
+    let with = |ticks| {
+        with_weapon(
+            "main",
+            inline_weapon(attack.clone(), json!("facing"), ticks),
+        )
+    };
+    assert_valid(&with(0));
+    assert_valid(&with(MAX_TICKS));
+    assert_eq!(
+        first_issue(&with(MAX_TICKS + 1)).path,
+        "$.player.main.inline.cooldown_ticks"
+    );
+}
+
+#[test]
+fn a_weapon_aims_at_an_enemy_and_only_at_a_part_the_boss_has() {
+    let attack = json!({ "preset": { "id": "aimed_single", "args": [512] } });
+    let with = |targeting: Value| with_weapon("sub", inline_weapon(attack.clone(), targeting, 30));
+    for ok in [
+        json!("facing"),
+        json!("nearest_enemy"),
+        json!("boss_first"),
+        json!({ "part": "horn_left" }),
+    ] {
+        assert_valid(&with(ok));
+    }
+    assert_eq!(
+        first_issue(&with(json!({ "part": "horn_right" }))).path,
+        "$.player.sub.inline.targeting.part"
+    );
+    // Selectors that pick an ally are not targeting.
+    for ally in [
+        "self",
+        "player",
+        "nearest_ally",
+        "lowest_hp_ally",
+        "highest_aggro_ally",
+    ] {
+        assert!(
+            serde_json::from_value::<Stage>(with(json!(ally))).is_err(),
+            "{ally}"
+        );
+    }
+}
+
+#[test]
+fn targeting_is_the_nearest_enemy_when_absent() {
+    let mut v = base();
+    v["player"]["sub"] = json!({ "inline": { "attack": { "preset": { "id": "twin_shot" } },
+                                            "cooldown_ticks": 30 } });
+    let stage: Stage = serde_json::from_value(v).unwrap();
+    let stella_rain_core::weapon::WeaponRef::Inline(w) = &stage.player.sub else {
+        panic!("an inline weapon");
+    };
+    assert_eq!(
+        w.targeting,
+        stella_rain_core::weapon::Targeting::NearestEnemy
+    );
 }
