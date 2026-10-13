@@ -14,4 +14,9 @@ pub struct Input {
     pub move_y: i8,
     /// Skill 1 pressed on this tick: a ready evade dashes (ADR-050).
     pub evade: bool,
+    /// Skill 2 held on this tick: a press while ready starts the charge, letting go releases it
+    /// (ADR-050).
+    pub charge: bool,
+    /// Skill 3 pressed on this tick: a ready Sub skill happens (ADR-050).
+    pub sub: bool,
 }

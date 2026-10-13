@@ -23,7 +23,9 @@ use crate::registry::{self, Entry, Kind};
 use crate::stage::{Boss, BossPart, Evade, Phase, Player, Stage, Step, Transition, Wave};
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
-use crate::weapon::{Targeting, Weapon, WeaponRef};
+use crate::weapon::{
+    Charge, MainWeapon, SubWeapon, Targeting, WeaponAttack, WeaponPreset, WeaponRef,
+};
 
 /// Limits a stage must keep. The first block is ADR-020, the second ADR-036, the rest the
 /// loadout and numeric ranges that ADR-012 and ADR-019 ask for.
@@ -53,6 +55,11 @@ pub mod limits {
     /// invulnerability (ADR-050).
     pub const MAX_EVADE_DISTANCE: i32 = 65_536;
     pub const MAX_EVADE_TICKS: u32 = 60;
+    /// A charge (core#83): at most 8 levels over at most 10 seconds of game time, and a perfect
+    /// bonus of at most +1000%.
+    pub const MAX_CHARGE_LEVELS: usize = 8;
+    pub const MAX_CHARGE_TICKS: u32 = 600;
+    pub const MAX_PERFECT_PCT: u16 = 1000;
     pub const MAX_BOSS_PARTS: usize = 8;
     pub const MAX_TRANSITIONS: usize = 4;
     pub const MAX_PRESET_ARGS: usize = 8;
@@ -195,10 +202,10 @@ pub fn validate_attack(
     }
 }
 
-/// Checks one role of a weapon, as a stage's inline weapons are checked, without a boss (so a
-/// part to aim at is never found): the developer's weapon presets. Paths are from the weapon:
-/// `$.attack.preset.id`.
-pub fn validate_weapon(weapon: &Weapon, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+/// Checks a weapon preset's two roles, as a stage's inline weapons are checked, without a boss
+/// (so a part to aim at is never found): the developer's weapon presets. Paths are from the
+/// preset: `$.main.charge.levels[0].at_ticks`.
+pub fn validate_weapon_preset(preset: &WeaponPreset, registry: &[Entry]) -> Result<(), Vec<Issue>> {
     let mut ctx = Ctx {
         registry,
         sim_version: crate::version::SIM_VERSION,
@@ -208,7 +215,8 @@ pub fn validate_weapon(weapon: &Weapon, registry: &[Entry]) -> Result<(), Vec<Is
         left_out: false,
         arity: 0,
     };
-    ctx.weapon(weapon);
+    ctx.key("main", |c| c.main_weapon(&preset.main));
+    ctx.key("sub", |c| c.sub_weapon(&preset.sub));
     if ctx.issues.is_empty() {
         Ok(())
     } else {
@@ -448,31 +456,101 @@ impl<'a> Ctx<'a> {
         self.within("hp", i64::from(p.hp), 1, i64::from(MAX_PLAYER_HP));
         self.within("atk", i64::from(p.atk), 1, i64::from(MAX_PLAYER_ATK));
         self.within("defence", i64::from(p.defence), 0, i64::from(MAX_DEFENCE));
-        self.key("main", |c| c.weapon_ref(&p.main));
-        self.key("sub", |c| c.weapon_ref(&p.sub));
+        self.key("main", |c| c.weapon_ref(&p.main, Self::main_weapon));
+        self.key("sub", |c| c.weapon_ref(&p.sub, Self::sub_weapon));
         self.key("evade", |c| c.evade(&p.evade));
     }
 
-    fn weapon_ref(&mut self, w: &WeaponRef) {
+    /// A weapon preset's ID, or an inline weapon checked by `inline`.
+    fn weapon_ref<W>(&mut self, w: &WeaponRef<W>, inline: impl FnOnce(&mut Self, &W)) {
         match w {
             WeaponRef::Preset { id } => self.key("preset", |c| {
                 c.content_id("id", id, Kind::Weapon);
             }),
-            WeaponRef::Inline(w) => self.key("inline", |c| c.weapon(w)),
+            WeaponRef::Inline(w) => self.key("inline", |c| inline(c, w)),
         }
     }
 
-    /// One role of a weapon (core#83): its attack, which never slows the main character, a part
-    /// it aims at that the boss has, and its cooldown.
-    fn weapon(&mut self, w: &Weapon) {
+    fn main_weapon(&mut self, w: &MainWeapon) {
+        self.key("auto", |c| c.weapon_attack(&w.auto, true));
+        self.key("charge", |c| c.charge(&w.charge));
+    }
+
+    fn sub_weapon(&mut self, w: &SubWeapon) {
+        self.key("auto", |c| c.weapon_attack(&w.auto, true));
+        self.key("skill", |c| c.weapon_attack(&w.skill, false));
+    }
+
+    /// A weapon's attack (core#83): an automatic one never slows the main character; a part it
+    /// aims at must be one the boss has; its cooldown is bounded.
+    fn weapon_attack(&mut self, w: &WeaponAttack, auto: bool) {
         self.key("attack", |c| {
             c.attack_ref(&w.attack);
-            c.never_slows(&w.attack);
+            if auto {
+                c.never_slows(&w.attack);
+            }
         });
         if let Targeting::Part(id) = &w.targeting {
             self.key("targeting", |c| c.part("part", id));
         }
         self.ticks("cooldown_ticks", w.cooldown_ticks, 0);
+    }
+
+    /// The charged skill (ADR-050, core#83). The levels start at 0 and rise strictly, all
+    /// before `max_ticks`; a perfect window ends by the next level (or `max_ticks`), and the
+    /// first level has none, or a tap would be perfect.
+    fn charge(&mut self, c: &Charge) {
+        self.within(
+            "max_ticks",
+            i64::from(c.max_ticks),
+            1,
+            i64::from(MAX_CHARGE_TICKS),
+        );
+        self.ticks("cooldown_ticks", c.cooldown_ticks, 0);
+        self.within("move_pct", i64::from(c.move_pct), 0, 100);
+        if c.levels.is_empty() {
+            self.key("levels", |c| c.fail("a charge has at least one level"));
+            return;
+        }
+        if !self.at_most("levels", c.levels.len(), MAX_CHARGE_LEVELS, "levels") {
+            return;
+        }
+        self.key("levels", |ctx| {
+            for (i, l) in c.levels.iter().enumerate() {
+                let next = c.levels.get(i + 1).map_or(c.max_ticks, |n| n.at_ticks);
+                ctx.idx(i, |ctx| {
+                    if i == 0 && l.at_ticks != 0 {
+                        ctx.key("at_ticks", |c| c.fail("the first level is at 0"));
+                    }
+                    if i > 0 && l.at_ticks <= c.levels[i - 1].at_ticks {
+                        ctx.key("at_ticks", |c| c.fail("levels rise strictly"));
+                    }
+                    if l.at_ticks >= c.max_ticks {
+                        ctx.key("at_ticks", |c| c.fail("a level comes before max_ticks"));
+                    }
+                    if i == 0 && l.perfect_ticks != 0 {
+                        ctx.key("perfect_ticks", |c| {
+                            c.fail("the first level has no perfect window (a tap would be perfect)")
+                        });
+                    }
+                    if u64::from(l.at_ticks) + u64::from(l.perfect_ticks) > u64::from(next) {
+                        ctx.key("perfect_ticks", |c| {
+                            c.fail("a perfect window ends by the next level, or max_ticks")
+                        });
+                    }
+                    ctx.within(
+                        "perfect_pct",
+                        i64::from(l.perfect_pct),
+                        0,
+                        i64::from(MAX_PERFECT_PCT),
+                    );
+                    ctx.key("attack", |c| c.attack_ref(&l.attack));
+                    if let Some(a) = &l.perfect_attack {
+                        ctx.key("perfect_attack", |c| c.attack_ref(a));
+                    }
+                });
+            }
+        });
     }
 
     /// A weapon's attack keeps `move_pct` at 100 in every phase: the main character moves at

@@ -136,7 +136,7 @@ fn a_boss_breaks_a_part_and_changes_phase() {
 #[test]
 fn the_main_shot_is_the_stages_attack() {
     let mut stage = stage_full(600, Some(boss_at(100, 80_000)), vec![], vec![]);
-    stage.player.main = serde_json::from_value(weapon(
+    stage.player.main = serde_json::from_value(main_ref(weapon(
         json!({
             "inline": spawned(json!([
                 { "type": "spread", "count": 2, "angle": 1280, "body": [
@@ -148,7 +148,7 @@ fn the_main_shot_is_the_stages_attack() {
         }),
         json!("facing"),
         6,
-    ))
+    )))
     .unwrap();
     let inputs: Vec<Input> = (0..40)
         .map(|t| if t < 7 { idle() } else { moving(1, 0) })

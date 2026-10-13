@@ -16,8 +16,11 @@ const CLEAR_INPUT: &str = concat!(
     r#"{"schema_version":0,"sim_version":0,"title":"Test Stage","description":"","seed":7,"#,
     r#""length_ticks":600,"player":{"base":"pilot_a","hp":3,"atk":10,"#,
     r#""main":{"preset":{"id":"blaster"}},"#,
-    r#""sub":{"inline":{"attack":{"inline":[{"kind":"recovery","ticks":1}]},"#,
-    r#""targeting":"facing","cooldown_ticks":1}},"#,
+    r#""sub":{"inline":{"#,
+    r#""auto":{"attack":{"inline":[{"kind":"recovery","ticks":1}]},"targeting":"facing","#,
+    r#""cooldown_ticks":1},"#,
+    r#""skill":{"attack":{"inline":[{"kind":"recovery","ticks":1}]},"targeting":"facing","#,
+    r#""cooldown_ticks":1}}},"#,
     r#""evade":{"distance":12288,"ticks":8,"invulnerable_ticks":10,"cooldown_ticks":40}},"#,
     r#""companions":[],"waves":[],"#,
     r#""boss":{"base":"golem","hp":20,"radius":8192,"spawn":{"x":46080,"y":25600},"parts":[],"#,
@@ -48,7 +51,7 @@ fn matches_the_adr_046_vector() {
     // SHA-256 of `CLEAR_INPUT`, computed with `sha256sum`, not with `core`.
     assert_eq!(
         hash_of(CLEAR),
-        "4acf40741ac5b5ecddc780dbbdaec0019974ac614912553ddab64b75e43e2230"
+        "d9d67c41ae9e864dd13f192b11f15964e0196489ffc1dcfb61b4bbfead8e5c91"
     );
 }
 
@@ -59,23 +62,23 @@ fn every_corpus_stage_keeps_its_hash() {
     for (bytes, expected) in [
         (
             &include_bytes!("corpus/v0/agents/stage.json")[..],
-            "44a88cb51ef09d285fb839583b3ca54c7397d8d32d106aaf9cfdb0fbad6143a0",
+            "c5e3e04276ba999225c8647babe91891fb78204ba30fa94eddd6a64290819a4b",
         ),
         (
             &include_bytes!("corpus/v0/boss/stage.json")[..],
-            "33c6bfc653d9462949ee1c845c551d62cfab471364f194098609ecea3b1f11a5",
+            "d5a83c726b81c2e4af33fcdb2cc1b8dd28697f5f732b34872d8deb879610778b",
         ),
         (
             &include_bytes!("corpus/v0/bullets/stage.json")[..],
-            "9eae427a69024dcdd241e84c4544f7fb6f26c529695424dbee307fe5e7cb01b2",
+            "8f8d383d2a4c8027159504e613ae92e5eb64bfed3cfc73a25ab9f042ff6bc1dd",
         ),
         (
             &include_bytes!("corpus/v0/fail/stage.json")[..],
-            "a49d758a982692f371918b2df4a733c04e6d280d306df8fe9f979ad610c5dd51",
+            "e3ac5fbe6592a9f05040db531b514d7cde53b99a40289210fd410f98a2dd1d74",
         ),
         (
             &include_bytes!("corpus/v0/timeout/stage.json")[..],
-            "918feacb759315c09606ffe9294946d380d6916d06345f22bdca8d90458813b3",
+            "6332d4564546f1dfdb23daeb3bf0a203c89619e1e7a509814435e56c81253544",
         ),
     ] {
         assert_eq!(hash_of(bytes), expected);
@@ -86,8 +89,11 @@ fn every_corpus_stage_keeps_its_hash() {
 fn formatting_and_key_order_do_not_change_the_hash() {
     let reformatted = br#"{"title":"Test Stage",
         "boss":{"phases":[{}],"spawn":{"y":25600,"x":46080},"radius":8192,"hp":20,"base":"golem"},
-        "player":{"sub":{"inline":{"cooldown_ticks":1,"targeting":"facing",
-                                   "attack":{"inline":[{"ticks":1,"kind":"recovery"}]}}},
+        "player":{"sub":{"inline":{
+                    "skill":{"cooldown_ticks":1,"targeting":"facing",
+                             "attack":{"inline":[{"ticks":1,"kind":"recovery"}]}},
+                    "auto":{"cooldown_ticks":1,"targeting":"facing",
+                            "attack":{"inline":[{"ticks":1,"kind":"recovery"}]}}}},
                   "main":{"preset":{"id":"blaster"}},"atk":10,"hp":3,"base":"pilot_a",
                   "evade":{"cooldown_ticks":40,"invulnerable_ticks":10,"ticks":8,"distance":12288}},
         "length_ticks":600,   "seed":7,

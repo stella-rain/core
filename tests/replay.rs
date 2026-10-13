@@ -48,6 +48,16 @@ fn stick(move_x: i8, move_y: i8, evade: bool) -> Input {
         move_x,
         move_y,
         evade,
+        ..Input::default()
+    }
+}
+
+/// `stick` with skill 2 held and skill 3 pressed as given.
+fn skills(input: Input, charge: bool, sub: bool) -> Input {
+    Input {
+        charge,
+        sub,
+        ..input
     }
 }
 
@@ -64,7 +74,8 @@ fn packed_inputs_round_trip_including_the_extremes() {
         // Any byte but 0x80, which is −128.
         let mut axis = || (rng.below(255) as u8).wrapping_add(0x81) as i8;
         let (move_x, move_y) = (axis(), axis());
-        inputs.push(stick(move_x, move_y, rng.below(2) == 0));
+        let input = stick(move_x, move_y, rng.below(2) == 0);
+        inputs.push(skills(input, rng.below(2) == 0, rng.below(2) == 0));
     }
     // Long runs of one input, and of nothing.
     inputs.extend(std::iter::repeat_n(Input::default(), 300));
@@ -128,7 +139,12 @@ fn damaged_packed_inputs_are_refused_with_a_reason() {
     assert!(reason(&[0, 0, 0, 0], 1).contains("length 0"));
     assert!(reason(&[3, 1, 0, 0], 2).contains("more inputs than ticks"));
     assert!(reason(&[1, 1, 0, 0], 2).contains("fewer inputs"));
-    for flags in [2, 0x80, 0xfe] {
+    // Bits 1 and 2 are `charge` and `sub`; the rest are unknown.
+    assert_eq!(
+        unpack_raw(&[1, 0b111, 0, 0], 1).unwrap(),
+        [skills(stick(0, 0, true), true, true)]
+    );
+    for flags in [8, 0x80, 0xf8] {
         assert!(reason(&[2, flags, 0, 0], 2).contains("unknown flags"));
     }
     assert!(reason(&[2, 1, 0], 2).contains("middle"));
@@ -419,8 +435,8 @@ fn the_encoding_is_pinned() {
         String::from_utf8(bytes.clone()).unwrap(),
         concat!(
             r#"{"schema_version":0,"sim_version":0,"seed":7,"#,
-            r#""stage_sha256":"85e0821187356221c5a34bd55f6befdabf07a110cb9367dca0ea11dd99c8f303","#,
-            r#""ticks":57,"final_hash":"4155cbe3c328f42a","#,
+            r#""stage_sha256":"5f1e45e8741de95bd8bca63dcfa449381e720e2229fc33d83a3b0ef8de9576e0","#,
+            r#""ticks":57,"final_hash":"fb88cc279d1db664","#,
             r#""inputs":"AQAA/wkABwAKAAAAAQEAACQAAAA="}"#,
             "\n"
         )
@@ -436,7 +452,7 @@ fn the_encoding_is_pinned() {
     );
     assert_eq!(
         to_hex(&content_hash(&stage, &bytes)),
-        "8a32e745f76a894e938b83ac66992fdd60638eee68d78766b6db344129dfa3da"
+        "51c9281ea9e003e8fac6831be022fea007fc0bb73bfcbc248bd1e15d183cb263"
     );
 }
 

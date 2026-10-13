@@ -238,6 +238,10 @@
       "description": "One phase of an attack (ADR-055).",
       "type": "object",
       "properties": {
+        "breaks_charge": {
+          "description": "A powerful attack: its hits on the main character, by hit box or by the bullets the phase\nspawns, break a charge in progress (core#83).",
+          "type": "boolean"
+        },
         "damage": {
           "description": "Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 1 for an enemy or the boss.",
           "type": [
@@ -442,6 +446,89 @@
         "hp",
         "offset",
         "radius"
+      ]
+    },
+    "Charge": {
+      "description": "The charged Main skill (ADR-050): a ready press starts the charge, the ticks held raise\nits level, and the release attacks along the facing at the level reached. Releasing inside\nthe level's perfect window adds its perfect bonus; at `max_ticks` it releases by itself,\nwithout the bonus. The frontend slows time while charging; the rules do not.",
+      "type": "object",
+      "properties": {
+        "cooldown_ticks": {
+          "description": "Ticks from the release to the next ready press. An evade or a hit that breaks the charge\nspends half of it, rounded up.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "levels": {
+          "description": "In order of `at_ticks`; the first is at 0.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChargeLevel"
+          }
+        },
+        "max_ticks": {
+          "description": "The longest hold, in ticks.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "move_pct": {
+          "description": "The main character's movement speed while charging, in percent; 100 when absent.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "levels",
+        "max_ticks",
+        "cooldown_ticks"
+      ]
+    },
+    "ChargeLevel": {
+      "description": "One level of a charge.",
+      "type": "object",
+      "properties": {
+        "at_ticks": {
+          "description": "Ticks held at which the level is reached.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "attack": {
+          "description": "The release at this level.",
+          "$ref": "#/$defs/AttackRef"
+        },
+        "perfect_attack": {
+          "description": "A perfect release makes this attack instead, with `perfect_pct` too.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttackRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "perfect_pct": {
+          "description": "The perfect bonus: this much more damage, in percent, for every hit of the release.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "perfect_ticks": {
+          "description": "The perfect window: the first `perfect_ticks` ticks of the level. 0 for none, which the\nfirst level must be, or a tap would be perfect.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "at_ticks",
+        "attack"
       ]
     },
     "Condition": {
@@ -1152,6 +1239,23 @@
         }
       ]
     },
+    "MainWeapon": {
+      "description": "A weapon as Main: its automatic attack and its charged skill (skill 2, ADR-050).",
+      "type": "object",
+      "properties": {
+        "auto": {
+          "$ref": "#/$defs/WeaponAttack"
+        },
+        "charge": {
+          "$ref": "#/$defs/Charge"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "auto",
+        "charge"
+      ]
+    },
     "Movement": {
       "oneOf": [
         {
@@ -1335,12 +1439,12 @@
           "minimum": 0
         },
         "main": {
-          "description": "The Main weapon, which attacks on its own (ADR-050, core#83). It moves to the run's\nsetup when the setup exists (ADR-049, ADR-051).",
+          "description": "The Main weapon, which attacks on its own and brings the charged skill (ADR-050,\ncore#83). It moves to the run's setup when the setup exists (ADR-049, ADR-051).",
           "$ref": "#/$defs/WeaponRef"
         },
         "sub": {
-          "description": "The Sub weapon, which attacks on its own beside the Main one.",
-          "$ref": "#/$defs/WeaponRef"
+          "description": "The Sub weapon, which attacks on its own beside the Main one and brings the Sub skill.",
+          "$ref": "#/$defs/WeaponRef2"
         }
       },
       "additionalProperties": false,
@@ -1664,6 +1768,23 @@
         }
       ]
     },
+    "SubWeapon": {
+      "description": "A weapon as Sub: its automatic attack and its skill (skill 3, ADR-050), which happens on a\nready press, with no charge.",
+      "type": "object",
+      "properties": {
+        "auto": {
+          "$ref": "#/$defs/WeaponAttack"
+        },
+        "skill": {
+          "$ref": "#/$defs/WeaponAttack"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "auto",
+        "skill"
+      ]
+    },
     "Targeting": {
       "description": "What a weapon attacks: along the main character's facing, or at an enemy one of ADR-036's\nselectors picks. Only the selectors that pick an enemy are here, so a weapon cannot aim at\nan ally. With a selector and nothing to pick, the weapon does not attack and spends no\ncooldown.",
       "oneOf": [
@@ -1770,12 +1891,12 @@
         "count"
       ]
     },
-    "Weapon": {
-      "description": "One role of a weapon: the attack it makes on its own, at what, and how often.",
+    "WeaponAttack": {
+      "description": "An attack a weapon makes at what its targeting picks: on its own every `cooldown_ticks`\n(an automatic attack), or on a ready press (the Sub skill).",
       "type": "object",
       "properties": {
         "attack": {
-          "description": "Never slows the main character: every phase keeps `move_pct` at 100 (the validator).",
+          "description": "An automatic attack never slows the main character: every phase keeps `move_pct` at 100\n(the validator). A skill may.",
           "$ref": "#/$defs/AttackRef"
         },
         "cooldown_ticks": {
@@ -1797,7 +1918,7 @@
       ]
     },
     "WeaponRef": {
-      "description": "A weapon preset by ID, or an inline weapon.",
+      "description": "A weapon preset by ID, or an inline weapon in one role (`MainWeapon` or `SubWeapon`).",
       "oneOf": [
         {
           "type": "object",
@@ -1824,7 +1945,45 @@
           "type": "object",
           "properties": {
             "inline": {
-              "$ref": "#/$defs/Weapon"
+              "$ref": "#/$defs/MainWeapon"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "inline"
+          ]
+        }
+      ]
+    },
+    "WeaponRef2": {
+      "description": "A weapon preset by ID, or an inline weapon in one role (`MainWeapon` or `SubWeapon`).",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "preset": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/ContentId"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "preset"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "inline": {
+              "$ref": "#/$defs/SubWeapon"
             }
           },
           "additionalProperties": false,

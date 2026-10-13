@@ -52,6 +52,10 @@ pub struct AttackPhase {
     /// The attacker's movement speed during the phase, in percent; 0 roots it.
     #[serde(default = "full_speed", skip_serializing_if = "is_full_speed")]
     pub move_pct: u8,
+    /// A powerful attack: its hits on the main character, by hit box or by the bullets the phase
+    /// spawns, break a charge in progress (core#83).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub breaks_charge: bool,
 }
 
 fn full_speed() -> u8 {

@@ -8,7 +8,7 @@
 //! and `verify`.
 //!
 //! Packed inputs are runs of identical inputs. Each run is a LEB128 run length (at least 1),
-//! one flags byte (bit 0 `evade`, the rest zero), then `move_x` and `move_y` as one
+//! one flags byte (bit 0 `evade`, bit 1 `charge`, bit 2 `sub`, the rest zero), then `move_x` and `move_y` as one
 //! two's-complement byte each, −127 to 127 (ADR-050). Five minutes of changing inputs take about
 //! 96 KB, inside `MAX_REPLAY_BYTES`; steady input takes a few bytes.
 
@@ -246,7 +246,7 @@ pub fn pack_inputs(inputs: &[Input]) -> String {
     let canonical = |i: &Input| Input {
         move_x: i.move_x.max(-i8::MAX),
         move_y: i.move_y.max(-i8::MAX),
-        evade: i.evade,
+        ..*i
     };
     let inputs: Vec<Input> = inputs.iter().map(canonical).collect();
     let mut out = Vec::new();
@@ -255,7 +255,7 @@ pub fn pack_inputs(inputs: &[Input]) -> String {
         let input = inputs[i];
         let run = inputs[i..].iter().take_while(|x| **x == input).count();
         write_varint(&mut out, u32::try_from(run).unwrap_or(u32::MAX));
-        out.push(u8::from(input.evade));
+        out.push(u8::from(input.evade) | u8::from(input.charge) << 1 | u8::from(input.sub) << 2);
         out.push(input.move_x.to_le_bytes()[0]);
         out.push(input.move_y.to_le_bytes()[0]);
         i += run;
@@ -281,7 +281,7 @@ fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static str> {
             .and_then(|b| <&[u8; 3]>::try_from(b).ok())
             .ok_or("ends in the middle of a run")?;
         pos += 3;
-        if flags & !1 != 0 {
+        if flags & !0b111 != 0 {
             return Err("a run has unknown flags");
         }
         if x == NO_STICK || y == NO_STICK {
@@ -291,6 +291,8 @@ fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static str> {
             move_x: i8::from_le_bytes([x]),
             move_y: i8::from_le_bytes([y]),
             evade: flags & 1 != 0,
+            charge: flags & 0b10 != 0,
+            sub: flags & 0b100 != 0,
         };
         inputs.extend(std::iter::repeat_n(input, run as usize));
     }

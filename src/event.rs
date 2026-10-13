@@ -33,6 +33,14 @@ pub enum DomainEvent {
     },
     /// The main character started an evade (ADR-050).
     Evaded,
+    /// The charged Main skill was released at `level` (from 1), `perfect` inside the level's
+    /// perfect window (ADR-050, core#83).
+    ChargeReleased {
+        level: u8,
+        perfect: bool,
+    },
+    /// A charge ended without an attack: an evade, or a hit from an attack that breaks charges.
+    ChargeBroken,
     /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-036).
     RuleFired {
         agent: EntityId,

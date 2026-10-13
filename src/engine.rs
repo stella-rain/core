@@ -17,7 +17,8 @@ use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
 use crate::snapshot::{
-    AttackView, BulletView, EntityKind, EntityView, EvadeView, Facing, PlayerView, Snapshot,
+    AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, PlayerView,
+    SkillView, Snapshot,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error};
@@ -213,6 +214,22 @@ impl Engine {
                     cooldown_left: s.player.evade_cooldown,
                     dash_left: s.player.dash.map_or(0, |d| d.left),
                 },
+                charge: s.player.charge.and_then(|held| {
+                    let (level, perfect) = rules_v0::charge_view(&self.stage, held)?;
+                    Some(ChargeView {
+                        level,
+                        held,
+                        perfect,
+                    })
+                }),
+                main_skill: SkillView {
+                    ready: rules_v0::charge_ready(s),
+                    cooldown_left: s.player.charge_cooldown,
+                },
+                sub_skill: SkillView {
+                    ready: rules_v0::skill_ready(s),
+                    cooldown_left: s.player.skill_cooldown,
+                },
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -285,6 +302,14 @@ pub(crate) struct PlayerState {
     pub sub_cooldown: u32,
     /// Ticks until the evade is ready again, counted from its press.
     pub evade_cooldown: u32,
+    /// The charge in progress (skill 2): ticks held since the press, 0 on the press's tick.
+    pub charge: Option<u32>,
+    /// Skill 2 was held on the last tick, so that only a press starts a charge.
+    pub charge_held: bool,
+    /// Ticks until the charged skill is ready again, counted from its release.
+    pub charge_cooldown: u32,
+    /// Ticks until the Sub skill is ready again, counted from its start.
+    pub skill_cooldown: u32,
     /// The dash in progress, if any.
     pub dash: Option<DashState>,
     pub aggro: u32,
@@ -501,6 +526,8 @@ pub(crate) struct BulletState {
     /// Fired by an ally rather than an enemy.
     pub friendly: bool,
     pub damage: u32,
+    /// Its hit breaks the main character's charge (core#83).
+    pub breaks_charge: bool,
     /// Starts an attack of its own after a while (`on_bullet`).
     pub hook: Option<Box<Hook>>,
 }
@@ -517,6 +544,7 @@ pub(crate) struct Hook {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
+    pub breaks_charge: bool,
 }
 
 /// One step down a program: the node at `node` in the current list, then its `body` list, or
@@ -558,7 +586,7 @@ pub(crate) struct Frame {
 pub(crate) struct AttackRun {
     pub owner: EntityId,
     /// 0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its
-    /// Sub weapon (core#83).
+    /// Sub weapon, 2 for its charged skill and 3 for its Sub skill (core#83).
     pub slot: u8,
     /// The preset it came from, for the frontend to pick its animation.
     pub preset: Option<ContentId>,
@@ -596,6 +624,8 @@ pub(crate) struct AttackTask {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
+    /// The bullets it fires break the main character's charge (core#83).
+    pub breaks_charge: bool,
     /// Ticks since it started.
     pub age: u32,
     /// Ticks to wait before going on.

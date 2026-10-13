@@ -98,7 +98,7 @@ pub(super) fn start_aged(
     events: &mut Vec<DomainEvent>,
 ) -> bool {
     let aim = Aim::Entity(s.id_of(target));
-    start_with(s, owner, slot, aim, attack, base_damage, age, events)
+    start_with(s, owner, slot, aim, attack, base_damage, age, 0, events)
 }
 
 /// As `start_aged`, for any way of aiming: the main character's shot aims along its heading.
@@ -111,6 +111,7 @@ pub(super) fn start_with(
     attack: &AttackRef,
     base_damage: u32,
     age: u32,
+    bonus_pct: u32,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
     let id = s.id_of(owner);
@@ -120,7 +121,8 @@ pub(super) fn start_with(
     let Some(phases) = presets::phases(attack).filter(|p| !p.is_empty()) else {
         return false;
     };
-    let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp);
+    // A bonus (a perfect release's) adds to the atk-up, for every hit of the attack.
+    let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp).saturating_add(bonus_pct);
     let preset: Option<ContentId> = match attack {
         AttackRef::Preset { id, .. } => Some(id.clone()),
         AttackRef::Inline(_) => None,
@@ -225,6 +227,7 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         aim: r.aim,
         friendly: r.friendly,
         damage: phase_damage(r),
+        breaks_charge: p.breaks_charge,
         age: r.age.saturating_add(elapsed),
         wait_left: 0,
         frames: vec![Frame::default()],
@@ -260,6 +263,7 @@ pub(super) fn fire_hooks(s: &mut State) {
             aim: hook.aim,
             friendly: hook.friendly,
             damage: hook.damage,
+            breaks_charge: hook.breaks_charge,
             age: 0,
             wait_left: 0,
             frames: vec![Frame::default()],
@@ -724,6 +728,7 @@ fn emit(
             aim: t.aim,
             friendly: t.friendly,
             damage: t.damage,
+            breaks_charge: t.breaks_charge,
         })
     });
     let scale = i64::from(trig::SCALE);
@@ -739,6 +744,7 @@ fn emit(
             owner: t.owner,
             friendly: t.friendly,
             damage: t.damage,
+            breaks_charge: t.breaks_charge,
             hook,
         },
         spawns_left,

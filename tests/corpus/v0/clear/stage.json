@@ -30,16 +30,30 @@
     },
     "sub": {
       "inline": {
-        "attack": {
-          "inline": [
-            {
-              "kind": "recovery",
-              "ticks": 1
-            }
-          ]
+        "auto": {
+          "attack": {
+            "inline": [
+              {
+                "kind": "recovery",
+                "ticks": 1
+              }
+            ]
+          },
+          "cooldown_ticks": 1,
+          "targeting": "facing"
         },
-        "cooldown_ticks": 1,
-        "targeting": "facing"
+        "skill": {
+          "attack": {
+            "inline": [
+              {
+                "kind": "recovery",
+                "ticks": 1
+              }
+            ]
+          },
+          "cooldown_ticks": 1,
+          "targeting": "facing"
+        }
       }
     }
   },

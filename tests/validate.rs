@@ -939,10 +939,35 @@ fn damaged_files_never_panic() {
 
 // --- Weapons (core#83) -----------------------------------------------------------------------
 
-/// An inline weapon firing `attack` (an attack reference) at `targeting`.
-fn inline_weapon(attack: Value, targeting: Value, cooldown_ticks: u32) -> Value {
-    json!({ "inline": { "attack": attack, "targeting": targeting,
-                        "cooldown_ticks": cooldown_ticks } })
+/// A weapon attack firing `attack` (an attack reference) at `targeting`.
+fn weapon_attack(attack: Value, targeting: Value, cooldown_ticks: u32) -> Value {
+    json!({ "attack": attack, "targeting": targeting, "cooldown_ticks": cooldown_ticks })
+}
+
+/// A charge of three levels, at 0, 30 and 60 of 90 ticks, with `edit` applied.
+fn charge(edit: impl FnOnce(&mut Value)) -> Value {
+    let level = |at: u32, perfect: u32| {
+        json!({ "at_ticks": at, "perfect_ticks": perfect, "perfect_pct": 50,
+                "attack": { "preset": { "id": "twin_shot" } } })
+    };
+    let mut c = json!({ "levels": [level(0, 0), level(30, 8), level(60, 8)],
+                        "max_ticks": 90, "cooldown_ticks": 120 });
+    edit(&mut c);
+    c
+}
+
+/// An inline weapon in `role` ("main" or "sub") whose automatic attack is `auto`.
+fn inline_weapon(role: &str, auto: Value) -> Value {
+    if role == "main" {
+        json!({ "inline": { "auto": auto, "charge": charge(|_| {}) } })
+    } else {
+        let skill = weapon_attack(
+            json!({ "preset": { "id": "twin_shot" } }),
+            json!("facing"),
+            60,
+        );
+        json!({ "inline": { "auto": auto, "skill": skill } })
+    }
 }
 
 fn with_weapon(role: &str, weapon: Value) -> Value {
@@ -951,22 +976,43 @@ fn with_weapon(role: &str, weapon: Value) -> Value {
     v
 }
 
+fn with_charge(edit: impl FnOnce(&mut Value)) -> Value {
+    let auto = weapon_attack(
+        json!({ "preset": { "id": "twin_shot" } }),
+        json!("facing"),
+        6,
+    );
+    with_weapon(
+        "main",
+        json!({ "inline": { "auto": auto, "charge": charge(edit) } }),
+    )
+}
+
+const CHARGE: &str = "$.player.main.inline.charge";
+
 #[test]
-fn a_weapons_attack_never_slows_the_main_character() {
+fn a_weapons_automatic_attack_never_slows_the_main_character_but_its_skills_may() {
+    let slowing = |move_pct: u8| json!({ "inline": [phase(json!({})), phase(json!({ "move_pct": move_pct }))] });
     for role in ["main", "sub"] {
-        let slowing = |move_pct: u8| {
-            let attack =
-                json!({ "inline": [phase(json!({})), phase(json!({ "move_pct": move_pct }))] });
-            with_weapon(role, inline_weapon(attack, json!("facing"), 6))
+        let auto = |move_pct| {
+            with_weapon(
+                role,
+                inline_weapon(role, weapon_attack(slowing(move_pct), json!("facing"), 6)),
+            )
         };
-        assert_valid(&slowing(100));
-        let issue = first_issue(&slowing(99));
+        assert_valid(&auto(100));
+        let issue = first_issue(&auto(99));
         assert_eq!(
             issue.path,
-            format!("$.player.{role}.inline.attack.inline[1].move_pct")
+            format!("$.player.{role}.inline.auto.attack.inline[1].move_pct")
         );
         assert!(issue.message.contains("never slows"), "{issue:?}");
     }
+    // The Sub skill and the charged release may root the main character.
+    let mut sub = inline_weapon("sub", weapon_attack(slowing(100), json!("facing"), 6));
+    sub["inline"]["skill"]["attack"] = slowing(0);
+    assert_valid(&with_weapon("sub", sub));
+    assert_valid(&with_charge(|c| c["levels"][2]["attack"] = slowing(0)));
 }
 
 #[test]
@@ -988,21 +1034,29 @@ fn a_weapons_cooldown_is_0_to_max_ticks() {
     let with = |ticks| {
         with_weapon(
             "main",
-            inline_weapon(attack.clone(), json!("facing"), ticks),
+            inline_weapon(
+                "main",
+                weapon_attack(attack.clone(), json!("facing"), ticks),
+            ),
         )
     };
     assert_valid(&with(0));
     assert_valid(&with(MAX_TICKS));
     assert_eq!(
         first_issue(&with(MAX_TICKS + 1)).path,
-        "$.player.main.inline.cooldown_ticks"
+        "$.player.main.inline.auto.cooldown_ticks"
     );
 }
 
 #[test]
 fn a_weapon_aims_at_an_enemy_and_only_at_a_part_the_boss_has() {
     let attack = json!({ "preset": { "id": "aimed_single", "args": [512] } });
-    let with = |targeting: Value| with_weapon("sub", inline_weapon(attack.clone(), targeting, 30));
+    let with = |targeting: Value| {
+        with_weapon(
+            "sub",
+            inline_weapon("sub", weapon_attack(attack.clone(), targeting, 30)),
+        )
+    };
     for ok in [
         json!("facing"),
         json!("nearest_enemy"),
@@ -1013,7 +1067,7 @@ fn a_weapon_aims_at_an_enemy_and_only_at_a_part_the_boss_has() {
     }
     assert_eq!(
         first_issue(&with(json!({ "part": "horn_right" }))).path,
-        "$.player.sub.inline.targeting.part"
+        "$.player.sub.inline.auto.targeting.part"
     );
     // Selectors that pick an ally are not targeting.
     for ally in [
@@ -1032,15 +1086,115 @@ fn a_weapon_aims_at_an_enemy_and_only_at_a_part_the_boss_has() {
 
 #[test]
 fn targeting_is_the_nearest_enemy_when_absent() {
-    let mut v = base();
-    v["player"]["sub"] = json!({ "inline": { "attack": { "preset": { "id": "twin_shot" } },
-                                            "cooldown_ticks": 30 } });
-    let stage: Stage = serde_json::from_value(v).unwrap();
+    let auto = json!({ "attack": { "preset": { "id": "twin_shot" } }, "cooldown_ticks": 30 });
+    let stage: Stage =
+        serde_json::from_value(with_weapon("sub", inline_weapon("sub", auto))).unwrap();
     let stella_rain_core::weapon::WeaponRef::Inline(w) = &stage.player.sub else {
         panic!("an inline weapon");
     };
     assert_eq!(
-        w.targeting,
+        w.auto.targeting,
         stella_rain_core::weapon::Targeting::NearestEnemy
     );
+}
+
+#[test]
+fn a_main_weapon_needs_a_charge_and_a_sub_weapon_a_skill() {
+    let auto = weapon_attack(
+        json!({ "preset": { "id": "twin_shot" } }),
+        json!("facing"),
+        6,
+    );
+    let sub_as_main = with_weapon("main", inline_weapon("sub", auto.clone()));
+    assert!(serde_json::from_value::<Stage>(sub_as_main).is_err());
+    let main_as_sub = with_weapon("sub", inline_weapon("main", auto));
+    assert!(serde_json::from_value::<Stage>(main_as_sub).is_err());
+}
+
+#[test]
+fn charge_levels_start_at_0_rise_strictly_and_come_before_max_ticks() {
+    assert_valid(&with_charge(|_| {}));
+    let at = |key: &str| format!("{CHARGE}.{key}");
+    let first_at_5 = with_charge(|c| c["levels"][0]["at_ticks"] = json!(5));
+    assert_eq!(first_issue(&first_at_5).path, at("levels[0].at_ticks"));
+    // Level 2's window is emptied, so only the level order is wrong.
+    let not_rising = with_charge(|c| {
+        c["levels"][1]["perfect_ticks"] = json!(0);
+        c["levels"][2]["at_ticks"] = json!(30);
+    });
+    assert_eq!(first_issue(&not_rising).path, at("levels[2].at_ticks"));
+    let at_max = with_charge(|c| {
+        c["levels"][2]["perfect_ticks"] = json!(0);
+        c["levels"][2]["at_ticks"] = json!(90);
+    });
+    assert_eq!(first_issue(&at_max).path, at("levels[2].at_ticks"));
+    let issue = first_issue(&with_charge(|c| c["levels"] = json!([])));
+    assert_eq!(issue.path, at("levels"));
+}
+
+#[test]
+fn a_perfect_window_ends_by_the_next_level_and_the_first_level_has_none() {
+    let at = |key: &str| format!("{CHARGE}.{key}");
+    // Level 2 is at 30 and level 3 at 60: a window of 30 ends exactly at the next level.
+    assert_valid(&with_charge(|c| {
+        c["levels"][1]["perfect_ticks"] = json!(30)
+    }));
+    assert_eq!(
+        first_issue(&with_charge(|c| c["levels"][1]["perfect_ticks"] = json!(31))).path,
+        at("levels[1].perfect_ticks")
+    );
+    // The last ends by max_ticks, 90.
+    assert_valid(&with_charge(|c| {
+        c["levels"][2]["perfect_ticks"] = json!(30)
+    }));
+    assert_eq!(
+        first_issue(&with_charge(|c| c["levels"][2]["perfect_ticks"] = json!(31))).path,
+        at("levels[2].perfect_ticks")
+    );
+    let issue = first_issue(&with_charge(|c| c["levels"][0]["perfect_ticks"] = json!(1)));
+    assert_eq!(issue.path, at("levels[0].perfect_ticks"));
+    assert!(issue.message.contains("tap"), "{issue:?}");
+}
+
+#[test]
+fn charge_limits_hold_at_the_limit_and_fail_one_past() {
+    let at = |key: &str| format!("{CHARGE}.{key}");
+    let level = |i: u32| json!({ "at_ticks": i, "attack": { "preset": { "id": "twin_shot" } } });
+    at_limit_and_over(MAX_CHARGE_LEVELS, &at("levels"), |n| {
+        with_charge(|c| c["levels"] = Value::Array((0..n as u32).map(level).collect()))
+    });
+    assert_valid(&with_charge(|c| c["max_ticks"] = json!(MAX_CHARGE_TICKS)));
+    assert_eq!(
+        first_issue(&with_charge(
+            |c| c["max_ticks"] = json!(MAX_CHARGE_TICKS + 1)
+        ))
+        .path,
+        at("max_ticks")
+    );
+    assert_valid(&with_charge(|c| {
+        c["levels"][1]["perfect_pct"] = json!(MAX_PERFECT_PCT)
+    }));
+    assert_eq!(
+        first_issue(&with_charge(|c| {
+            c["levels"][1]["perfect_pct"] = json!(MAX_PERFECT_PCT + 1)
+        }))
+        .path,
+        at("levels[1].perfect_pct")
+    );
+    assert_valid(&with_charge(|c| c["move_pct"] = json!(0)));
+    assert_eq!(
+        first_issue(&with_charge(|c| c["move_pct"] = json!(101))).path,
+        at("move_pct")
+    );
+    assert_eq!(
+        first_issue(&with_charge(|c| c["cooldown_ticks"] = json!(MAX_TICKS + 1))).path,
+        at("cooldown_ticks")
+    );
+}
+
+#[test]
+fn a_phase_may_break_charges() {
+    let mut v = base();
+    *enemy_attack(&mut v) = json!({ "inline": [phase(json!({ "breaks_charge": true }))] });
+    assert_valid(&v);
 }

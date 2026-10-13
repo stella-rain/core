@@ -50,7 +50,8 @@ pub fn stage() -> Stage {
         }]
     }]))});
     stage.player.main =
-        serde_json::from_value(common::weapon(fan, json!("facing"), 6)).expect("the fan parses");
+        serde_json::from_value(common::main_ref(common::weapon(fan, json!("facing"), 6)))
+            .expect("the fan parses");
     stage
 }
 

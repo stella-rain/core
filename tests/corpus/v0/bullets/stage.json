@@ -11,17 +11,8 @@
     "hp": 99,
     "atk": 10,
     "main": {
-      "inline": {
-        "attack": {
-          "preset": {
-            "id": "aimed_single",
-            "args": [
-              2048
-            ]
-          }
-        },
-        "targeting": "facing",
-        "cooldown_ticks": 6
+      "preset": {
+        "id": "blaster"
       }
     },
     "sub": {

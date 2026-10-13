@@ -15,6 +15,7 @@ fn evading(move_x: i8, move_y: i8) -> Input {
         move_x,
         move_y,
         evade: true,
+        ..Input::default()
     }
 }
 

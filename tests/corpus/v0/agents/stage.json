@@ -12,16 +12,35 @@
     "atk": 10,
     "main": {
       "inline": {
-        "attack": {
-          "preset": {
-            "id": "aimed_single",
-            "args": [
-              2048
-            ]
-          }
+        "auto": {
+          "attack": {
+            "preset": {
+              "id": "aimed_single",
+              "args": [
+                2048
+              ]
+            }
+          },
+          "targeting": "facing",
+          "cooldown_ticks": 6
         },
-        "targeting": "facing",
-        "cooldown_ticks": 6
+        "charge": {
+          "levels": [
+            {
+              "at_ticks": 0,
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "recovery",
+                    "ticks": 1
+                  }
+                ]
+              }
+            }
+          ],
+          "max_ticks": 600,
+          "cooldown_ticks": 0
+        }
       }
     },
     "sub": {
