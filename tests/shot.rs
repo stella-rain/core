@@ -34,8 +34,8 @@ fn wait(ticks: i32) -> Value {
 /// cannot be reached, with `waves` of enemies and the main character's attack at `atk`.
 fn shooting(shot: Value, atk: u32, waves: Vec<Value>) -> Stage {
     let mut stage = stage_with(600, Some(far_boss()), waves);
-    stage.player.main =
-        serde_json::from_value(weapon(shot, json!("facing"), 6)).expect("the shot parses");
+    stage.player.main = serde_json::from_value(main_ref(weapon(shot, json!("facing"), 6)))
+        .expect("the shot parses");
     stage.player.atk = atk;
     stage
 }

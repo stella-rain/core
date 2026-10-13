@@ -3,6 +3,10 @@
   "title": "Input",
   "type": "object",
   "properties": {
+    "charge": {
+      "description": "Skill 2 held on this tick: a press while ready starts the charge, letting go releases it\n(ADR-050).",
+      "type": "boolean"
+    },
     "evade": {
       "description": "Skill 1 pressed on this tick: a ready evade dashes (ADR-050).",
       "type": "boolean"
@@ -19,12 +23,18 @@
       "format": "int8",
       "maximum": 127,
       "minimum": -128
+    },
+    "sub": {
+      "description": "Skill 3 pressed on this tick: a ready Sub skill happens (ADR-050).",
+      "type": "boolean"
     }
   },
   "additionalProperties": false,
   "required": [
     "move_x",
     "move_y",
-    "evade"
+    "evade",
+    "charge",
+    "sub"
   ]
 }

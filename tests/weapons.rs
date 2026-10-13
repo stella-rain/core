@@ -7,11 +7,11 @@ mod common;
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::input::Input;
 use stella_rain_core::presets;
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::stage::Stage;
-use stella_rain_core::validate::validate_weapon;
-use stella_rain_core::weapon::{Role, WeaponRef};
+use stella_rain_core::validate::validate_weapon_preset;
 
 // --- Builders --------------------------------------------------------------------------------
 
@@ -116,7 +116,7 @@ fn the_cooldown_counts_from_the_attacks_start_and_a_longer_attack_waits() {
 fn the_nearest_enemy_is_the_default_target() {
     // 160 pixels to the right and 168 to the left; the boss is far up and to the left.
     let waves = vec![target_at(1000, 40_960, 0), target_at(1000, -43_000, 0)];
-    let sub = json!({ "inline": { "attack": one_bullet(1024), "cooldown_ticks": 600 } });
+    let sub = json!({ "attack": one_bullet(1024), "cooldown_ticks": 600 });
     let stage = armed(far(waves), quiet_weapon(), sub);
     assert_eq!(first_tick(&stage), [(1024, 0)]);
 }
@@ -252,12 +252,8 @@ fn a_preset_runs_its_main_role_as_main_and_its_sub_role_as_sub() {
 #[test]
 fn a_preset_and_its_inline_copy_run_the_same() {
     let preset = |id: &str| json!({ "preset": { "id": id } });
-    let copy = |id: &str, role: Role| {
-        let w = presets::weapon_preset(id)
-            .expect("a weapon preset")
-            .role(role);
-        json!({ "inline": serde_json::to_value(w).unwrap() })
-    };
+    let preset_of = |id: &str| presets::weapon_preset(id).expect("a weapon preset");
+    let copy = |w: Value| json!({ "inline": w });
     let waves = || {
         vec![
             target_at(1000, 40_960, -20_000),
@@ -265,14 +261,20 @@ fn a_preset_and_its_inline_copy_run_the_same() {
         ]
     };
     let by_id = armed(far(waves()), preset("needle"), preset("blaster"));
-    let inline = armed(
+    let inline = armed_full(
         far(waves()),
-        copy("needle", Role::Main),
-        copy("blaster", Role::Sub),
+        copy(serde_json::to_value(&preset_of("needle").main).unwrap()),
+        copy(serde_json::to_value(&preset_of("blaster").sub).unwrap()),
     );
     let (mut a, mut b) = (engine(&by_id), engine(&inline));
+    // Charging for 45 ticks (a perfect release at level 2 of needle's charge), and the Sub
+    // skill pressed on tick 50.
     for t in 0..120 {
-        let input = if t < 60 { idle() } else { moving(40, -20) };
+        let input = Input {
+            charge: (5..50).contains(&t),
+            sub: t == 50,
+            ..if t < 60 { idle() } else { moving(40, -20) }
+        };
         a.step(input);
         b.step(input);
         assert_eq!(a.state_hash(), b.state_hash(), "tick {}", a.tick());
@@ -289,14 +291,7 @@ fn every_weapon_preset_is_registered_and_both_roles_are_valid() {
     let defined: Vec<_> = presets::weapon_ids().collect();
     assert_eq!(registered, defined);
     for id in defined {
-        for role in [Role::Main, Role::Sub] {
-            let reference = WeaponRef::Preset { id: id.into() };
-            let w = presets::weapon(&reference, role).expect("a definition");
-            assert_eq!(
-                validate_weapon(w, registry::ENTRIES),
-                Ok(()),
-                "{id} {role:?}"
-            );
-        }
+        let w = presets::weapon_preset(id).expect("a definition");
+        assert_eq!(validate_weapon_preset(w, registry::ENTRIES), Ok(()), "{id}");
     }
 }

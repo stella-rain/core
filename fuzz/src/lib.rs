@@ -55,7 +55,8 @@ pub fn stage_run(data: &[u8]) -> bool {
     engine.tick() > 0
 }
 
-/// Inputs read out of `data`, three bytes a tick and round again at its end. The stick takes
+/// Inputs read out of `data`, three bytes a tick (the stick, then the three skills' bits) and
+/// round again at its end. The stick takes
 /// −128 too, which no replay can hold, because the engine is also called directly.
 fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
     let byte = |t: usize, i: usize| {
@@ -68,6 +69,8 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
             move_x: i8::from_le_bytes([byte(t, 0)]),
             move_y: i8::from_le_bytes([byte(t, 1)]),
             evade: byte(t, 2) & 1 != 0,
+            charge: byte(t, 2) & 2 != 0,
+            sub: byte(t, 2) & 4 != 0,
         })
         .collect()
 }

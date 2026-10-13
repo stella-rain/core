@@ -73,7 +73,7 @@
           ]
         },
         "slot": {
-          "description": "0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its\nSub weapon (core#83).",
+          "description": "0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its\nSub weapon, 2 for its charged skill and 3 for its Sub skill (core#83).",
           "type": "integer",
           "format": "uint8",
           "maximum": 255,
@@ -139,6 +139,35 @@
         "radius",
         "style",
         "friendly"
+      ]
+    },
+    "ChargeView": {
+      "description": "A charge in progress (ADR-050). `core` judges the perfect window on this tick, so what the\nfrontend shows is what a release on the next tick gets.",
+      "type": "object",
+      "properties": {
+        "held": {
+          "description": "Ticks held since the press, 0 on the press's tick.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "level": {
+          "description": "The level reached, from 1.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "perfect": {
+          "description": "Inside the level's perfect window: letting go on the next tick is a perfect release.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "held",
+        "perfect"
       ]
     },
     "ContentId": {
@@ -374,6 +403,17 @@
             "$ref": "#/$defs/AttackView"
           }
         },
+        "charge": {
+          "description": "The charge in progress (skill 2), if any (ADR-050).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChargeView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "evade": {
           "$ref": "#/$defs/EvadeView"
         },
@@ -392,9 +432,17 @@
           "format": "uint32",
           "minimum": 0
         },
+        "main_skill": {
+          "description": "Skill 2, the charged Main skill.",
+          "$ref": "#/$defs/SkillView"
+        },
         "radius": {
           "description": "The main character's hurt circle.",
           "$ref": "#/$defs/Fx"
+        },
+        "sub_skill": {
+          "description": "Skill 3, the Sub skill.",
+          "$ref": "#/$defs/SkillView"
         }
       },
       "additionalProperties": false,
@@ -404,7 +452,9 @@
         "radius",
         "facing",
         "invulnerable",
-        "evade"
+        "evade",
+        "main_skill",
+        "sub_skill"
       ]
     },
     "Point": {
@@ -422,6 +472,27 @@
       "required": [
         "x",
         "y"
+      ]
+    },
+    "SkillView": {
+      "description": "Skill 2 or 3 (ADR-050).",
+      "type": "object",
+      "properties": {
+        "cooldown_left": {
+          "description": "Ticks until it is ready again.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ready": {
+          "description": "A press on the next tick would start it (the Sub skill only if it finds a target).",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "ready",
+        "cooldown_left"
       ]
     }
   }

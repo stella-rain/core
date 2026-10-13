@@ -29,31 +29,63 @@ pub fn clearing_stage_json() -> Value {
         "seed": 7, "length_ticks": 600,
         "player": { "base": "pilot_a", "hp": 3, "atk": 10,
                     "main": { "preset": { "id": "blaster" } },
-                    "sub": quiet_weapon(),
+                    "sub": sub_ref(quiet_weapon()),
                     "evade": evade() },
         "boss": { "base": "golem", "hp": 20, "radius": 8192,
                   "spawn": { "x": 46080, "y": 25600 }, "phases": [{}] }
     })
 }
 
-/// An inline weapon (core#83): `attack` (a preset or `{"inline": [...]}`) at `targeting`, every
-/// `cooldown_ticks` ticks.
+/// A weapon's attack (core#83): `attack` (a preset or `{"inline": [...]}`) at `targeting`,
+/// every `cooldown_ticks` ticks.
 pub fn weapon(attack: Value, targeting: Value, cooldown_ticks: u32) -> Value {
-    json!({ "inline": { "attack": attack, "targeting": targeting,
-                        "cooldown_ticks": cooldown_ticks } })
+    json!({ "attack": attack, "targeting": targeting, "cooldown_ticks": cooldown_ticks })
 }
 
-/// A weapon that does nothing: one tick of recovery, along the facing.
+/// An attack that does nothing: one tick of recovery.
+pub fn quiet_attack() -> Value {
+    json!({ "inline": [{ "kind": "recovery", "ticks": 1 }] })
+}
+
+/// A weapon attack that does nothing, along the facing.
 pub fn quiet_weapon() -> Value {
-    weapon(
-        json!({ "inline": [{ "kind": "recovery", "ticks": 1 }] }),
-        json!("facing"),
-        1,
-    )
+    weapon(quiet_attack(), json!("facing"), 1)
 }
 
-/// `stage` with `main` and `sub` as its weapons (`weapon` values or presets).
-pub fn armed(mut stage: Stage, main: Value, sub: Value) -> Stage {
+/// A charge that does nothing: one level, whose release is quiet.
+pub fn quiet_charge() -> Value {
+    json!({ "levels": [{ "at_ticks": 0, "attack": quiet_attack() }],
+            "max_ticks": 600, "cooldown_ticks": 0 })
+}
+
+/// An inline Main weapon whose automatic attack is `auto` and whose charge does nothing.
+pub fn main_ref(auto: Value) -> Value {
+    json!({ "inline": { "auto": auto, "charge": quiet_charge() } })
+}
+
+/// An inline Sub weapon whose automatic attack is `auto` and whose skill does nothing.
+pub fn sub_ref(auto: Value) -> Value {
+    json!({ "inline": { "auto": auto, "skill": quiet_weapon() } })
+}
+
+/// `stage` with weapons whose automatic attacks are `main` and `sub` (`weapon` values, with
+/// skills that do nothing), or presets (`{"preset": ...}`).
+pub fn armed(stage: Stage, main: Value, sub: Value) -> Stage {
+    let main = if main.get("preset").is_some() {
+        main
+    } else {
+        main_ref(main)
+    };
+    let sub = if sub.get("preset").is_some() {
+        sub
+    } else {
+        sub_ref(sub)
+    };
+    armed_full(stage, main, sub)
+}
+
+/// `stage` with `main` and `sub` as its weapons, whole references.
+pub fn armed_full(mut stage: Stage, main: Value, sub: Value) -> Stage {
     stage.player.main = serde_json::from_value(main).expect("the Main weapon parses");
     stage.player.sub = serde_json::from_value(sub).expect("the Sub weapon parses");
     stage
@@ -79,6 +111,7 @@ pub fn clearing_inputs() -> Vec<Input> {
             move_x: if (1..10).contains(&t) { 7 } else { 0 },
             move_y: if t == 0 { -1 } else { 0 },
             evade: t == 20,
+            ..Input::default()
         })
         .collect()
 }
@@ -159,9 +192,10 @@ pub fn stage_full(
         // tests that are not about weapons stay simple (`tests/shot.rs` and `tests/weapons.rs`
         // are about them).
         "player": { "base": "pilot_a", "hp": 99, "atk": 10,
-                    "main": weapon(json!({ "preset": { "id": "aimed_single", "args": [2048] } }),
-                                   json!("facing"), 6),
-                    "sub": quiet_weapon(),
+                    "main": main_ref(weapon(
+                        json!({ "preset": { "id": "aimed_single", "args": [2048] } }),
+                        json!("facing"), 6)),
+                    "sub": sub_ref(quiet_weapon()),
                     "evade": evade() },
         "companions": companions,
         "waves": waves,

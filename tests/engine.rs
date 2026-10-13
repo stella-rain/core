@@ -62,6 +62,7 @@ fn extreme_input_values_do_not_overflow() {
             move_x,
             move_y,
             evade: true,
+            ..Input::default()
         });
     }
     assert_eq!(e.tick(), 3);
@@ -460,6 +461,7 @@ fn the_snapshot_survives_json() {
         move_x: 5,
         move_y: -5,
         evade: true,
+        ..Input::default()
     });
     let s = e.snapshot();
     assert_eq!(s.tick, 1);
@@ -486,6 +488,9 @@ fn script(tick: u32) -> Input {
         move_x,
         move_y,
         evade: tick % 120 == 60,
+        // A charge held for 40 ticks every 200, and the Sub skill pressed every 150.
+        charge: (100..140).contains(&(tick % 200)),
+        sub: tick % 150 == 75,
     }
 }
 
@@ -504,7 +509,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x09b2_83b9_adc0_2762;
+const GOLDEN_HASH: u64 = 0x344e_c8b6_de4b_d3b0;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {
@@ -584,6 +589,8 @@ fn random_inputs_keep_every_invariant() {
                 move_x: any(&mut rng),
                 move_y: any(&mut rng),
                 evade: rng.below(8) == 0,
+                charge: rng.below(2) == 0,
+                sub: rng.below(16) == 0,
             };
             e.step(input);
             let s = e.snapshot();
@@ -592,7 +599,13 @@ fn random_inputs_keep_every_invariant() {
             assert!(s.bullets.len() <= 4000);
             assert!(enemies(&s) <= 300);
             assert!(s.entities.windows(2).all(|w| w[0].id < w[1].id));
-            assert!(s.player.hp <= last_hp, "hp never rises");
+            // HP rises only by a heal (the fixture's companion heals the main character below
+            // half its HP), as `tests/properties.rs` checks for every entity.
+            let healed = e
+                .events()
+                .iter()
+                .any(|ev| matches!(ev, DomainEvent::Healed { target, .. } if target.0 == 0));
+            assert!(s.player.hp <= last_hp || healed, "hp rises only by a heal");
             last_hp = s.player.hp;
             assert!(e.tick() >= last_tick);
             last_tick = e.tick();

@@ -14,7 +14,7 @@ use std::sync::{Arc, OnceLock};
 
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr};
 use crate::registry::{self, Kind};
-use crate::weapon::{Role, Weapon, WeaponPreset, WeaponRef};
+use crate::weapon::{MainWeapon, SubWeapon, WeaponPreset, WeaponRef};
 
 /// `(id, definition)`: the definitions are JSON, the stage format's own, with `{"arg": n}` for
 /// the preset's arguments. Angles are in 1/256 degree and speeds in 1/256 pixel a tick. Each is
@@ -60,21 +60,40 @@ const DEFINITIONS: &[(&str, &str)] = &[
 /// `(id, definition)` of the weapon presets, in the stage format's own JSON. Placeholders until
 /// the game design's weapons are written (Giant Sword and the others).
 const WEAPONS: &[(&str, &str)] = &[
-    // Main: the twin shot along the facing every 6 ticks. Sub: one bullet at the nearest enemy
-    // every 30 ticks.
+    // Main: the twin shot along the facing every 6 ticks; the charge, at half speed, fans five
+    // bullets, then seven at level 2 and faster seven at level 3, whose perfect release spirals
+    // instead. Sub: one bullet at the nearest enemy every 30 ticks; its skill fans seven at it.
     (
         "blaster",
-        r#"{"main":{"attack":{"preset":{"id":"twin_shot"}},"targeting":"facing","cooldown_ticks":6},
-            "sub":{"attack":{"preset":{"id":"aimed_single","args":[2048]}},
-                   "targeting":"nearest_enemy","cooldown_ticks":30}}"#,
+        r#"{"main":{"auto":{"attack":{"preset":{"id":"twin_shot"}},"targeting":"facing",
+                            "cooldown_ticks":6},
+                    "charge":{"max_ticks":90,"cooldown_ticks":120,"move_pct":50,"levels":[
+                        {"at_ticks":0,"attack":{"preset":{"id":"spread_5"}}},
+                        {"at_ticks":30,"perfect_ticks":8,"perfect_pct":50,
+                         "attack":{"preset":{"id":"aimed_spread","args":[2048]}}},
+                        {"at_ticks":60,"perfect_ticks":8,"perfect_pct":100,
+                         "attack":{"preset":{"id":"aimed_spread","args":[3072]}},
+                         "perfect_attack":{"preset":{"id":"spiral","args":[2048]}}}]}},
+            "sub":{"auto":{"attack":{"preset":{"id":"aimed_single","args":[2048]}},
+                           "targeting":"nearest_enemy","cooldown_ticks":30},
+                   "skill":{"attack":{"preset":{"id":"aimed_spread","args":[2048]}},
+                            "targeting":"nearest_enemy","cooldown_ticks":180}}}"#,
     ),
-    // Main: one fast bullet at the nearest enemy every 10 ticks. Sub: five bullets in a fan
-    // along the facing every 45 ticks.
+    // Main: one fast bullet at the nearest enemy every 10 ticks; the charge fires one fast
+    // bullet, or seven from level 2, doubled by a perfect release. Sub: five bullets in a fan
+    // along the facing every 45 ticks; its skill spirals.
     (
         "needle",
-        r#"{"main":{"attack":{"preset":{"id":"aimed_single","args":[3072]}},
-                    "targeting":"nearest_enemy","cooldown_ticks":10},
-            "sub":{"attack":{"preset":{"id":"spread_5"}},"targeting":"facing","cooldown_ticks":45}}"#,
+        r#"{"main":{"auto":{"attack":{"preset":{"id":"aimed_single","args":[3072]}},
+                            "targeting":"nearest_enemy","cooldown_ticks":10},
+                    "charge":{"max_ticks":80,"cooldown_ticks":150,"levels":[
+                        {"at_ticks":0,"attack":{"preset":{"id":"aimed_single","args":[3072]}}},
+                        {"at_ticks":40,"perfect_ticks":6,"perfect_pct":100,
+                         "attack":{"preset":{"id":"aimed_spread","args":[3072]}}}]}},
+            "sub":{"auto":{"attack":{"preset":{"id":"spread_5"}},"targeting":"facing",
+                           "cooldown_ticks":45},
+                   "skill":{"attack":{"preset":{"id":"spiral","args":[1536]}},
+                            "targeting":"facing","cooldown_ticks":240}}}"#,
     ),
 ];
 
@@ -105,11 +124,19 @@ pub fn weapon_preset(id: &str) -> Option<&'static WeaponPreset> {
         .map(|(_, w)| w)
 }
 
-/// The weapon a reference names in `role`: the preset's role, or the inline weapon itself.
+/// The Main weapon a reference names: the preset's Main role, or the inline weapon itself.
 /// `None` for a preset that has no definition.
-pub fn weapon(weapon: &WeaponRef, role: Role) -> Option<&Weapon> {
+pub fn main_weapon(weapon: &WeaponRef<MainWeapon>) -> Option<&MainWeapon> {
     match weapon {
-        WeaponRef::Preset { id } => weapon_preset(&id.0).map(|p| p.role(role)),
+        WeaponRef::Preset { id } => weapon_preset(&id.0).map(|p| &p.main),
+        WeaponRef::Inline(w) => Some(w),
+    }
+}
+
+/// The Sub weapon a reference names, as `main_weapon` does.
+pub fn sub_weapon(weapon: &WeaponRef<SubWeapon>) -> Option<&SubWeapon> {
+    match weapon {
+        WeaponRef::Preset { id } => weapon_preset(&id.0).map(|p| &p.sub),
         WeaponRef::Inline(w) => Some(w),
     }
 }

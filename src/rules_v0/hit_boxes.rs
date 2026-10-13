@@ -41,6 +41,7 @@ struct Swing {
     arc: Option<Sector>,
     damage: u32,
     rehit_ticks: Option<u32>,
+    breaks_charge: bool,
 }
 
 /// What an arc's test needs, worked out once per swing rather than once per target: the cosine
@@ -109,6 +110,7 @@ fn active_swings(s: &State) -> Vec<Swing> {
             arc,
             damage: super::attacks::phase_damage(r),
             rehit_ticks: p.rehit_ticks,
+            breaks_charge: p.breaks_charge,
         });
     }
     swings
@@ -215,6 +217,7 @@ fn shot(w: &Swing) -> Shot {
         owner: w.owner,
         friendly: w.friendly,
         damage: w.damage,
+        breaks_charge: w.breaks_charge,
     }
 }
 
@@ -265,7 +268,7 @@ fn hit_ally_side(stage: &Stage, s: &mut State, w: &Swing, events: &mut Vec<Domai
         && covers(w, p.at, PLAYER_RADIUS)
         && take_hit(s, w, super::PLAYER_ID)
     {
-        hurt_player(s, w.damage, events);
+        hurt_player(stage, s, shot(w), events);
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];

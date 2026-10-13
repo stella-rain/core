@@ -83,11 +83,13 @@ fn missing_required_fields_are_rejected() {
 }
 
 #[test]
-fn input_record_holds_the_stick_and_the_evade_only() {
+fn input_record_holds_the_stick_and_the_three_skills_only() {
     let input = Input {
         move_x: -127,
         move_y: 64,
         evade: true,
+        charge: true,
+        sub: false,
     };
     let value = serde_json::to_value(input).unwrap();
     let keys: Vec<&str> = value
@@ -96,12 +98,13 @@ fn input_record_holds_the_stick_and_the_evade_only() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert_eq!(keys, ["evade", "move_x", "move_y"]);
+    assert_eq!(keys, ["charge", "evade", "move_x", "move_y", "sub"]);
     assert_eq!(serde_json::from_value::<Input>(value).unwrap(), input);
     for bad in [
-        r#"{"move_x":0,"move_y":0,"evade":false,"device":"touch"}"#,
-        r#"{"move_x":0,"move_y":0,"evade":false,"fire":true}"#,
-        r#"{"move_x":128,"move_y":0,"evade":false}"#,
+        r#"{"move_x":0,"move_y":0,"evade":false,"charge":false,"sub":false,"device":"touch"}"#,
+        r#"{"move_x":0,"move_y":0,"evade":false,"charge":false,"sub":false,"fire":true}"#,
+        r#"{"move_x":128,"move_y":0,"evade":false,"charge":false,"sub":false}"#,
+        r#"{"move_x":0,"move_y":0,"evade":false,"charge":false}"#,
     ] {
         assert!(serde_json::from_str::<Input>(bad).is_err(), "{bad}");
     }

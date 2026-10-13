@@ -275,8 +275,11 @@ fn agents() -> Definition {
             vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
             vec![k, healer],
         ),
-        json!({ "inline": { "attack": { "preset": { "id": "aimed_single", "args": [2048] } },
-                            "targeting": "facing", "cooldown_ticks": 6 } }),
+        weapon(
+            json!({ "preset": { "id": "aimed_single", "args": [2048] } }),
+            json!("facing"),
+            6,
+        ),
         json!({ "preset": { "id": "needle" } }),
     );
     // Standing still for 40 ticks, shooting up at the enemy, then walking right, which turns
@@ -305,20 +308,34 @@ fn bullets() -> Definition {
             { "type": "wait", "ticks": 90 },
             { "type": "loop" } ] }]
     });
-    // The Sub weapon is the `blaster` preset's: one bullet at the nearest enemy, the boss.
-    let mut stage = stage_full(600, Some(boss), vec![], vec![]);
-    stage.player.sub = serde_json::from_value(json!({ "preset": { "id": "blaster" } })).unwrap();
+    // Both weapons are the `blaster` preset's: the twin shot along the facing, and one bullet
+    // at the nearest enemy, the boss; its charge and its Sub skill are used too.
+    let blaster = json!({ "preset": { "id": "blaster" } });
+    let stage = armed_full(
+        stage_full(600, Some(boss), vec![], vec![]),
+        blaster.clone(),
+        blaster,
+    );
     // Half speed from side to side, turning to face up the field once a second so that the Main
     // weapon does not only shoot sideways, and evading twice.
+    // Charging from tick 20 for 34 ticks (a perfect release at level 2), from tick 180 until
+    // the evade on tick 230 breaks it, and the Sub skill pressed on ticks 40 and 260.
     let inputs = (0..300)
-        .map(|t| match t {
-            _ if t % 60 == 0 => moving(0, -1),
-            100 | 230 => Input {
-                evade: true,
-                ..moving(50, 0)
-            },
-            _ if (t / 25) % 2 == 0 => moving(50, 0),
-            _ => moving(-50, 0),
+        .map(|t| {
+            let input = match t {
+                _ if t % 60 == 0 => moving(0, -1),
+                100 | 230 => Input {
+                    evade: true,
+                    ..moving(50, 0)
+                },
+                _ if (t / 25) % 2 == 0 => moving(50, 0),
+                _ => moving(-50, 0),
+            };
+            Input {
+                charge: (20..54).contains(&t) || (180..240).contains(&t),
+                sub: t == 40 || t == 260,
+                ..input
+            }
         })
         .collect();
     ("bullets", bytes(&stage), inputs)
@@ -364,7 +381,7 @@ fn boss() -> Definition {
     ])) });
     let mut stage = stage_full(600, Some(boss), vec![], vec![]);
     stage.player.sub =
-        serde_json::from_value(weapon(at_horn, json!({ "part": "horn" }), 12)).unwrap();
+        serde_json::from_value(sub_ref(weapon(at_horn, json!({ "part": "horn" }), 12))).unwrap();
     ("boss", bytes(&stage), firing_for(600))
 }
 
