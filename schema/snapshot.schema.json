@@ -16,6 +16,10 @@
         "$ref": "#/$defs/EntityView"
       }
     },
+    "map": {
+      "description": "The map's size, so the frontend can bound its camera (core#87).",
+      "$ref": "#/$defs/MapView"
+    },
     "player": {
       "$ref": "#/$defs/PlayerView"
     },
@@ -28,6 +32,7 @@
   "additionalProperties": false,
   "required": [
     "tick",
+    "map",
     "player",
     "entities",
     "bullets"
@@ -354,6 +359,23 @@
             "half_angle"
           ]
         }
+      ]
+    },
+    "MapView": {
+      "description": "The map's width and height, from its top-left corner.",
+      "type": "object",
+      "properties": {
+        "height": {
+          "$ref": "#/$defs/Fx"
+        },
+        "width": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height"
       ]
     },
     "Offset": {

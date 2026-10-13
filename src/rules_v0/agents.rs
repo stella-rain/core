@@ -10,7 +10,6 @@ use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::stage::Stage;
 use crate::trig;
-use crate::validate::limits::{FIELD_H, FIELD_W};
 
 use super::act::perform;
 use super::entity::{Who, speed_pct};
@@ -103,8 +102,9 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     for i in 0..s.enemies.len() {
         act_one(stage, s, Who::Enemy(i), events);
     }
-    // Enemies that have left the field are gone, whether or not they were killed.
-    s.enemies.retain(|e| super::inside_with_margin(e.at));
+    // Enemies that have left the map are gone, whether or not they were killed.
+    let holds = stage.map().holds();
+    s.enemies.retain(|e| holds(e.at));
 }
 
 fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
@@ -116,7 +116,7 @@ fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
             r.cooldown_left = r.cooldown_left.saturating_sub(1);
         }
     }
-    move_agent(s, me, def);
+    move_agent(stage, s, me, def);
     fire_first_rule(stage, s, me, &def.rules, events);
 }
 
@@ -238,16 +238,10 @@ pub(super) fn step_order(at: Point, order: MoveOrder) -> (Point, Option<MoveOrde
     )
 }
 
-fn clamp_to_field(p: Point) -> Point {
-    Point {
-        x: p.x.clamp(Fx(0), Fx(FIELD_W)),
-        y: p.y.clamp(Fx(0), Fx(FIELD_H)),
-    }
-}
-
 /// An attack phase's `move_pct` slows the agent like a slow status does; at 0 it holds still,
 /// a `move_to` order included (ADR-055).
-fn move_agent(s: &mut State, me: Who, def: &Agent) {
+fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
+    let map = stage.map();
     let player_at = s.player.at;
     let attacking = super::attacks::move_pct(s, s.id_of(me));
     if attacking == 0 {
@@ -257,7 +251,7 @@ fn move_agent(s: &mut State, me: Who, def: &Agent) {
     let a = agent_mut(s, me);
     if let Some(order) = a.order {
         (a.at, a.order) = step_order(a.at, order);
-        a.at = clamp_to_field(a.at);
+        a.at = map.clamp(a.at);
         return;
     }
     match def.movement {
@@ -292,8 +286,8 @@ fn move_agent(s: &mut State, me: Who, def: &Agent) {
             }
         }
     }
-    // Enemies may leave the field (and are removed when they do); companions stay in it.
+    // Enemies may leave the map (and are removed when they do); companions stay on it.
     if matches!(me, Who::Companion(_)) {
-        a.at = clamp_to_field(a.at);
+        a.at = map.clamp(a.at);
     }
 }

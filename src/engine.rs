@@ -17,8 +17,8 @@ use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
 use crate::snapshot::{
-    AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, PlayerView,
-    SkillView, Snapshot,
+    AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, MapView,
+    PlayerView, SkillView, Snapshot,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error};
@@ -198,8 +198,13 @@ impl Engine {
             }
         }
         agent_views(EntityKind::Enemy, &s.enemies, &mut entities);
+        let map = self.stage.map();
         Snapshot {
             tick: s.tick,
+            map: MapView {
+                width: map.width,
+                height: map.height,
+            },
             player: PlayerView {
                 at: s.player.at,
                 hp: s.player.hp,

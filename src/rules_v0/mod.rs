@@ -13,7 +13,7 @@
 //!    a shot skill starts an attack task;
 //! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
 //!    is carried out up to its next wait (`attacks`), making bullets;
-//! 5. bullets move and leave the field;
+//! 5. bullets move and leave the map;
 //! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
@@ -52,7 +52,6 @@ use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::stage::Stage;
 use crate::trig;
-use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W};
 
 pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
@@ -72,7 +71,6 @@ pub(crate) const PLAYER_ID: EntityId = EntityId(0);
 const PLAYER_SPEED: i32 = Fx::px(3).0;
 /// The hurt circle, a tiny one (ADR-050).
 pub(crate) const PLAYER_RADIUS: i32 = Fx::px(2).0;
-const PLAYER_START_Y_FROM_BOTTOM: i32 = Fx::px(64).0;
 const PLAYER_BULLET_RADIUS: i32 = Fx::px(2).0;
 const ENEMY_BULLET_RADIUS: i32 = Fx::px(3).0;
 /// Ticks of invulnerability after the main character is hit.
@@ -100,10 +98,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
         next_id += 1;
         id
     });
-    let start = Point {
-        x: Fx(FIELD_W / 2),
-        y: Fx(FIELD_H - PLAYER_START_Y_FROM_BOTTOM),
-    };
+    let start = stage.map().start();
     let companions = stage
         .companions
         .iter()
@@ -166,7 +161,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
             max_hp: stage.player.hp,
             defence: stage.player.defence,
             invulnerable: 0,
-            // Up the field, where the stage comes from, until the map turns landscape (core#87).
+            // Up the map on every map, landscape ones included; a stage cannot set it yet.
             facing: Dir::UP,
             main_cooldown: 0,
             charge: None,
@@ -218,18 +213,13 @@ pub(crate) fn step(
         bullet_spawns: MAX_BULLET_SPAWNS_PER_TICK - spawns_left,
         emitter_steps,
     };
-    move_bullets(s);
+    move_bullets(stage, s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
 }
 
 fn count<T>(items: &[T]) -> u32 {
     u32::try_from(items.len()).unwrap_or(u32::MAX)
-}
-
-fn inside_with_margin(p: Point) -> bool {
-    let range = |v: i32, max: i32| (-FIELD_MARGIN..=max + FIELD_MARGIN).contains(&v);
-    range(p.x.0, FIELD_W) && range(p.y.0, FIELD_H)
 }
 
 fn spawn_waves(stage: &Stage, s: &mut State) {
@@ -266,12 +256,13 @@ fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
     s.bullets.push(bullet);
 }
 
-fn move_bullets(s: &mut State) {
+fn move_bullets(stage: &Stage, s: &mut State) {
     for b in &mut s.bullets {
         b.at.x = b.at.x.saturating_add(b.vx);
         b.at.y = b.at.y.saturating_add(b.vy);
     }
-    s.bullets.retain(|b| inside_with_margin(b.at));
+    let holds = stage.map().holds();
+    s.bullets.retain(|b| holds(b.at));
 }
 
 /// Two circles overlap (touching counts), in 64-bit fixed point.

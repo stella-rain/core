@@ -9,6 +9,7 @@ use crate::attack::AttackRef;
 use crate::behaviour::{Agent, Condition, Rule};
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
+use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W};
 use crate::weapon::{MainWeapon, SubWeapon, WeaponRef};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -35,6 +36,69 @@ pub struct Stage {
     pub waves: Vec<Wave>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boss: Option<Boss>,
+    /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub map: Option<Map>,
+}
+
+impl Stage {
+    /// The map the run plays on (core#87).
+    pub fn map(&self) -> Map {
+        self.map.unwrap_or(Map::PORTRAIT)
+    }
+}
+
+/// The rectangle the run plays on, from its top-left corner, and where the main character
+/// starts. The main character and companions are clamped to it; enemies and bullets leave once
+/// they are more than `FIELD_MARGIN` outside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Map {
+    pub width: Fx,
+    pub height: Fx,
+    /// The centre of the map when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<Point>,
+}
+
+impl Map {
+    /// The portrait field of the vertical shooter: 360 by 640 pixels, the start 64 pixels above
+    /// the middle of the bottom edge.
+    pub const PORTRAIT: Map = Map {
+        width: Fx(FIELD_W),
+        height: Fx(FIELD_H),
+        start: Some(Point {
+            x: Fx(FIELD_W / 2),
+            y: Fx(FIELD_H - Fx::px(64).0),
+        }),
+    };
+
+    /// Where the main character starts.
+    pub fn start(&self) -> Point {
+        self.start.unwrap_or(Point {
+            x: Fx(self.width.0 / 2),
+            y: Fx(self.height.0 / 2),
+        })
+    }
+
+    /// `p` moved onto the map.
+    pub fn clamp(&self, p: Point) -> Point {
+        Point {
+            x: p.x.clamp(Fx(0), self.width),
+            y: p.y.clamp(Fx(0), self.height),
+        }
+    }
+
+    /// Whether a point is on the map or at most `FIELD_MARGIN` outside it. It runs for every
+    /// bullet every tick, so each axis is one unsigned comparison, as the compiler made it when
+    /// the bounds were constants: `v + FIELD_MARGIN` wraps below 0 to above any span, and the
+    /// validator keeps the spans far below `i32::MAX`.
+    pub fn holds(&self) -> impl Fn(Point) -> bool + use<> {
+        let span = |side: Fx| (side.0 + 2 * FIELD_MARGIN) as u32;
+        let (w, h) = (span(self.width), span(self.height));
+        let inside = |v: Fx, span: u32| (v.0.wrapping_add(FIELD_MARGIN) as u32) <= span;
+        move |p| inside(p.x, w) && inside(p.y, h)
+    }
 }
 
 /// The main character, as the creator configured it; challengers get exactly this (ADR-012).
