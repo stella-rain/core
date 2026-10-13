@@ -238,9 +238,15 @@ jobs:
       - run: rustup toolchain install stable --profile minimal && rustup default stable
       - run: sudo apt-get update && sudo apt-get install -y valgrind
       - run: cargo install iai-callgrind-runner --version "$IAI_CALLGRIND_RUNNER_VERSION" --locked
-      # One target directory for both builds: the baseline of the base commit is saved in it and
-      # the PR is compared with that baseline, on this runner and this architecture.
-      - run: echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target" >> "$GITHUB_ENV"
+      # The base commit and the PR build in separate target directories. In one, cargo takes the
+      # PR's crate for the base's (same name, same path in the workspace), finds it newer than the
+      # PR's sources and counts the base twice. iai-callgrind keeps its baselines in one home that
+      # both share, so the PR is compared with the base's, on this runner and this architecture.
+      - run: |
+          {
+            echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target"
+            echo "IAI_CALLGRIND_HOME=$RUNNER_TEMP/iai"
+          } >> "$GITHUB_ENV"
       - name: Count the base commit
         id: base
         if: github.event_name == 'pull_request'
@@ -260,7 +266,7 @@ jobs:
             exit 0
           fi
           git worktree add "$RUNNER_TEMP/base" "$BASE"
-          (cd "$RUNNER_TEMP/base" &&
+          (cd "$RUNNER_TEMP/base" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-base" \
             cargo bench --bench worst_tick --bench collide_tick -- --save-baseline=main)
           echo "compare=true" >> "$GITHUB_OUTPUT"
       # A rise of more than 2% in instructions on either tick fails the job. The count is the same
