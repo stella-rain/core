@@ -25,6 +25,7 @@ proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MI
   renamed or removed, only deprecated (ADR-026).
 - ADRs marked *Proposed* are the current plan: build on them, but raise a departure with Kade
   rather than depart silently.
+- Design: standard practice first; give Kade options, trade-offs, a pick; better ideas as options.
 
 ## Layout
 
