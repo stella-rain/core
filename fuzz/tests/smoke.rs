@@ -1,5 +1,5 @@
 //! The fuzz targets on stable (ADR-020), every PR: each target reaches the code behind its first
-//! gate on a real stage, replay, share code and run setup, rejects garbage, and survives a deterministic
+//! gate on a real stage, replay, run replay, share code and run setup, rejects garbage, and survives a deterministic
 //! sweep over those files: every prefix, and a flipped byte at a regular step. Crashes that a
 //! real fuzz run found are kept in `regressions/<target>/` and replayed here.
 
@@ -43,6 +43,21 @@ fn corpus() -> Vec<(String, Vec<u8>, Vec<u8>)> {
         .collect()
 }
 
+/// The `run.replay` of every run case of the corpus (ADR-051), which `replay_load` also loads.
+fn run_replays() -> Vec<Vec<u8>> {
+    let dir = root().join("tests/corpus/runs/v0");
+    let mut cases: Vec<_> = fs::read_dir(&dir)
+        .expect("the run corpus directory")
+        .map(|e| e.expect("a run case").path())
+        .collect();
+    cases.sort();
+    assert!(!cases.is_empty(), "the corpus has no run cases");
+    cases
+        .iter()
+        .map(|case| fs::read(case.join("run.replay")).expect("run.replay"))
+        .collect()
+}
+
 fn clear() -> (Vec<u8>, Vec<u8>) {
     let (_, stage, replay) = corpus().into_iter().find(|c| c.0 == "clear").unwrap();
     (stage, replay)
@@ -62,6 +77,16 @@ fn a_real_replay_verifies() {
         replay_load(&replay),
         "replay_load does not verify the clear replay"
     );
+}
+
+#[test]
+fn a_real_run_replay_verifies() {
+    for replay in run_replays() {
+        assert!(
+            replay_load(&replay),
+            "replay_load does not verify a run replay"
+        );
+    }
 }
 
 #[test]
@@ -117,13 +142,14 @@ fn garbage_is_rejected_without_a_panic() {
     }
 }
 
-/// The files each target is given: stages for the stage targets, replays for the replay target,
+/// The files each target is given: stages for the stage targets, stage and run replays for the
+/// replay target,
 /// share codes (of the corpus pairs) for the share target and run setups for the setup target.
 fn seeds(target: &str) -> Vec<Vec<u8>> {
     if target == "run_setup" {
         return setups();
     }
-    corpus()
+    let mut seeds: Vec<Vec<u8>> = corpus()
         .into_iter()
         .flat_map(|(_, stage, replay)| match target {
             "stage_parse" | "stage_run" => vec![stage],
@@ -133,7 +159,11 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
                 .into_iter()
                 .collect(),
         })
-        .collect()
+        .collect();
+    if target == "replay_load" {
+        seeds.extend(run_replays());
+    }
+    seeds
 }
 
 #[test]

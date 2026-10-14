@@ -208,7 +208,8 @@ impl Replay {
     }
 }
 
-fn write_varint(out: &mut Vec<u8>, mut v: u32) {
+/// Appends `v` as LEB128: seven bits a byte, low first.
+pub(crate) fn write_varint(out: &mut Vec<u8>, mut v: u32) {
     while v >= 0x80 {
         out.push((v & 0x7f) as u8 | 0x80);
         v >>= 7;
@@ -216,7 +217,8 @@ fn write_varint(out: &mut Vec<u8>, mut v: u32) {
     out.push(v as u8);
 }
 
-fn read_varint(bytes: &[u8], pos: &mut usize) -> Result<u32, &'static str> {
+/// Reads one LEB128 `u32` at `pos`, in its shortest form only.
+pub(crate) fn read_varint(bytes: &[u8], pos: &mut usize) -> Result<u32, &'static str> {
     let mut value = 0u32;
     for i in 0..5u32 {
         let b = *bytes.get(*pos).ok_or("ends in the middle of a number")?;
@@ -264,7 +266,7 @@ pub fn pack_inputs(inputs: &[Input]) -> String {
 }
 
 /// Unpacks exactly `ticks` inputs from the runs in `bytes`.
-fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static str> {
+pub(crate) fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static str> {
     let mut inputs = Vec::with_capacity(ticks as usize);
     let mut pos = 0;
     while pos < bytes.len() {
