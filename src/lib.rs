@@ -21,6 +21,7 @@ pub mod registry;
 pub mod replay;
 pub mod rng;
 pub(crate) mod rules_v0;
+pub mod run_setup;
 pub mod schema;
 pub mod share;
 pub mod snapshot;

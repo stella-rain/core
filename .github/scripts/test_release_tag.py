@@ -85,10 +85,11 @@ class Verify(unittest.TestCase):
         self.assertEqual(rt.verify(ALL_GREEN), [])
 
     def test_the_required_checks_are_the_rc_ruleset_and_version_is_new(self):
-        self.assertEqual(len(rt.REQUIRED_CHECKS), 21)
+        self.assertEqual(len(rt.REQUIRED_CHECKS), 22)
         self.assertIn("the head is main", rt.REQUIRED_CHECKS)
         self.assertIn("version is new", rt.REQUIRED_CHECKS)
         self.assertIn("long fuzz / fuzz share_decode", rt.REQUIRED_CHECKS)
+        self.assertIn("long fuzz / fuzz run_setup", rt.REQUIRED_CHECKS)
         self.assertIn("short fuzz run", rt.REQUIRED_CHECKS)
 
     def test_a_missing_check_is_a_problem(self):

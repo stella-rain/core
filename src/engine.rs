@@ -1,7 +1,7 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
 //! (ADR-004, ADR-015). The only external influence is one `Input` per tick; everything else
-//! comes from the stage and its seed, so the state hash after each tick is the same on every
-//! platform (ADR-019).
+//! comes from the stage and its seed, or from a run setup (ADR-051), so the state hash after
+//! each tick is the same on every platform (ADR-019).
 //!
 //! Rules are dispatched by the stage's `sim_version` (ADR-017). Only version 0 exists, and it
 //! changes in place until the freeze (ADR-035): see `rules_v0` for what it does and does not
@@ -16,6 +16,7 @@ use crate::id::{ContentId, EntityId};
 use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
+use crate::run_setup::{self, RunSetup};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, MapView,
     PlayerView, SkillView, Snapshot,
@@ -77,8 +78,20 @@ impl Engine {
     pub fn new(stage: &Stage) -> Result<Engine, Error> {
         validate::validate(stage)?;
         Ok(Engine {
-            state: rules_v0::initial_state(stage),
+            state: rules_v0::initial_state(stage, u64::from(stage.seed)),
             stage: stage.clone(),
+            events: Vec::new(),
+            load: Load::default(),
+        })
+    }
+
+    /// Starts a run from a setup alone (ADR-051): the setup is validated, then its mode's stage
+    /// runs with its weapons and seed.
+    pub fn start(setup: &RunSetup) -> Result<Engine, Error> {
+        let stage = run_setup::stage(setup)?;
+        Ok(Engine {
+            state: rules_v0::initial_state(&stage, setup.seed),
+            stage,
             events: Vec::new(),
             load: Load::default(),
         })

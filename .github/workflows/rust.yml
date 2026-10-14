@@ -163,7 +163,8 @@ jobs:
           changed=$(git diff --name-only "$BASE" HEAD -- \
             src/validate.rs src/stage.rs src/behaviour.rs src/attack.rs src/input.rs \
             src/replay.rs src/share.rs src/base64.rs src/registry.rs src/presets.rs \
-            src/id.rs src/fixed.rs src/version.rs fuzz .github/workflows/rust.yml)
+            src/id.rs src/fixed.rs src/version.rs src/run_setup.rs modes \
+            tests/fixtures/run_setup fuzz .github/workflows/rust.yml)
           if [ -n "$changed" ]; then
             echo "parsing=true" >> "$GITHUB_OUTPUT"
             echo "changed: $(echo "$changed" | wc -l) files"
@@ -185,22 +186,25 @@ jobs:
           persist-credentials: false
       - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
       - run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
-      # The corpus stages and replays are the seeds; nothing generated is committed.
+      # The corpus stages and replays, and the run setups of tests/fixtures/run_setup/, are the
+      # seeds; nothing generated is committed.
       - name: Seeds from the replay corpus
         run: |
-          mkdir -p seeds/stage seeds/replay
+          mkdir -p seeds/stage seeds/replay seeds/setup
           for dir in tests/corpus/v0/*/; do
             name=$(basename "$dir")
             cp "$dir/stage.json" "seeds/stage/$name.json"
             cp "$dir/run.replay" "seeds/replay/$name.replay"
           done
+          cp tests/fixtures/run_setup/*.json seeds/setup/
       - name: Fuzz each target for 60 seconds
         run: |
           set -eu
-          for target in stage_parse stage_run replay_load share_decode; do
+          for target in stage_parse stage_run replay_load share_decode run_setup; do
             case "$target" in
               stage_*) seeds=seeds/stage ;;
               replay_load) seeds=seeds/replay ;;
+              run_setup) seeds=seeds/setup ;;
               *) seeds= ;;
             esac
             # shellcheck disable=SC2086

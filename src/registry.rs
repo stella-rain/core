@@ -19,6 +19,8 @@ pub enum Kind {
     Status,
     /// A weapon preset, with its Main and Sub roles (core#83).
     Weapon,
+    /// A game mode: the content a run plays (ADR-051), bundled in `core` (`modes/`).
+    Mode,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,6 +70,7 @@ pub const ENTRIES: &[Entry] = &[
     entry("vulnerable", Kind::Status, 0),
     entry("blaster", Kind::Weapon, 0),
     entry("needle", Kind::Weapon, 0),
+    entry("trial", Kind::Mode, 0),
 ];
 
 /// Lowercase `snake_case`, 1 to 32 characters (ADR-026). Stage-defined names, such as boss part

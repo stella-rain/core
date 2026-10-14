@@ -10,6 +10,7 @@ use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay};
+use stella_rain_core::run_setup;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::{self, parse_and_validate};
@@ -49,6 +50,24 @@ pub fn stage_run(data: &[u8]) -> bool {
     let mut engine = Engine::new(&stage).expect("a stage that validates starts a run");
     let ticks = usize::try_from(stage.length_ticks).map_or(RUN_TICKS, |n| n.min(RUN_TICKS));
     for input in inputs_from(data, ticks) {
+        engine.step(input);
+        let _ = engine.snapshot();
+    }
+    engine.tick() > 0
+}
+
+/// The run setup (ADR-051) and the run it starts: a setup that validates must save and load as
+/// the same setup, start a run, and survive `RUN_TICKS` ticks of any input without a panic
+/// (ADR-019, ADR-020). The bytes are the setup file and, read over and over, the inputs.
+pub fn run_setup(data: &[u8]) -> bool {
+    let Ok(setup) = run_setup::parse_and_validate(data) else {
+        return false;
+    };
+    let saved = serde_json::to_vec(&setup).expect("a setup serialises");
+    let again = run_setup::parse_and_validate(&saved).expect("a setup that loaded loads again");
+    assert_eq!(again, setup, "a saved setup loads as another setup");
+    let mut engine = Engine::start(&setup).expect("a setup that validates starts a run");
+    for input in inputs_from(data, RUN_TICKS) {
         engine.step(input);
         let _ = engine.snapshot();
     }

@@ -19,6 +19,7 @@ fn entries_are_sorted_by_kind_then_id_without_duplicates() {
         Kind::Preset => 3,
         Kind::Status => 4,
         Kind::Weapon => 5,
+        Kind::Mode => 6,
     };
     for pair in ENTRIES.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
