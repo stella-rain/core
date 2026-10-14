@@ -19,6 +19,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, hash_from_hex, hash_to_hex};
+use stella_rain_core::snapshot::Snapshot;
 use stella_rain_core::validate::parse_and_validate;
 
 fn corpus_dir() -> PathBuf {
@@ -64,28 +65,8 @@ fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let mut previous = engine.snapshot();
     for (input, expected) in inputs.iter().zip(&hashes) {
         engine.step(*input);
-        let actual = engine.state_hash();
-        if actual != *expected {
-            let tick = engine.tick();
-            let dump = json!({
-                "case": name,
-                "tick": tick,
-                "expected_hash": hash_to_hex(*expected),
-                "actual_hash": hash_to_hex(actual),
-                "previous": previous,
-                "at": engine.snapshot(),
-            });
-            let path = diff_dir.join(format!("{name}.json"));
-            fs::create_dir_all(diff_dir).unwrap();
-            fs::write(&path, serde_json::to_vec_pretty(&dump).unwrap()).unwrap();
-            return Err(format!(
-                "corpus case `{name}` diverges first on tick {tick}: expected {}, got {}; \
-                 snapshots of ticks {} and {tick} are in {}",
-                hash_to_hex(*expected),
-                hash_to_hex(actual),
-                tick - 1,
-                path.display()
-            ));
+        if engine.state_hash() != *expected {
+            return Err(divergence(&name, *expected, &engine, &previous, diff_dir));
         }
         previous = engine.snapshot();
     }
@@ -100,6 +81,38 @@ fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
             .map_err(|e| format!("corpus case `{name}`: {e}"))?;
     }
     Ok(())
+}
+
+/// Writes the snapshots of the first diverging tick (`engine`'s) and of the one before to
+/// `<diff_dir>/<name>.json`, and returns the message the case fails with.
+fn divergence(
+    name: &str,
+    expected: u64,
+    engine: &Engine,
+    previous: &Snapshot,
+    diff_dir: &Path,
+) -> String {
+    let tick = engine.tick();
+    let actual = engine.state_hash();
+    let dump = json!({
+        "case": name,
+        "tick": tick,
+        "expected_hash": hash_to_hex(expected),
+        "actual_hash": hash_to_hex(actual),
+        "previous": previous,
+        "at": engine.snapshot(),
+    });
+    let path = diff_dir.join(format!("{name}.json"));
+    fs::create_dir_all(diff_dir).unwrap();
+    fs::write(&path, serde_json::to_vec_pretty(&dump).unwrap()).unwrap();
+    format!(
+        "corpus case `{name}` diverges first on tick {tick}: expected {}, got {}; \
+         snapshots of ticks {} and {tick} are in {}",
+        hash_to_hex(expected),
+        hash_to_hex(actual),
+        tick - 1,
+        path.display()
+    )
 }
 
 /// A scratch directory under the target directory, emptied first.
