@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RunSetup",
+  "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-051).",
+  "type": "object",
+  "properties": {
+    "main": {
+      "description": "A weapon preset, used in its Main role.",
+      "$ref": "#/$defs/ContentId"
+    },
+    "main_expertise": {
+      "description": "The Main weapon's expertise level, at most `MAX_EXPERTISE` (10); grants nothing yet.",
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    },
+    "mode": {
+      "description": "A mode ID: the content the run plays.",
+      "$ref": "#/$defs/ContentId"
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "seed": {
+      "description": "Seeds the run's SplitMix64 (ADR-033), all 64 bits.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "sim_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sub": {
+      "description": "A weapon preset, used in its Sub role.",
+      "$ref": "#/$defs/ContentId"
+    },
+    "sub_expertise": {
+      "description": "The Sub weapon's expertise level, at most `MAX_EXPERTISE` (10); grants nothing yet.",
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "mode",
+    "main",
+    "sub",
+    "main_expertise",
+    "sub_expertise",
+    "seed"
+  ],
+  "$defs": {
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    }
+  }
+}
