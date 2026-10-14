@@ -111,6 +111,13 @@ fn parsed_weapons() -> &'static [(&'static str, WeaponPreset)] {
     })
 }
 
+/// Every preset's source as `(kind, id, definition)`, attacks (`b'a'`) then weapons (`b'w'`),
+/// each in its list's order: what the run replay's content hash covers (ADR-051).
+pub(crate) fn sources() -> impl Iterator<Item = (u8, &'static str, &'static str)> {
+    let attacks = DEFINITIONS.iter().map(|(id, json)| (b'a', *id, *json));
+    attacks.chain(WEAPONS.iter().map(|(id, json)| (b'w', *id, *json)))
+}
+
 /// The ID of every weapon preset that has a definition.
 pub fn weapon_ids() -> impl Iterator<Item = &'static str> {
     WEAPONS.iter().map(|(id, _)| *id)
