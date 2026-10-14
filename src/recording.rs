@@ -38,28 +38,40 @@ impl std::error::Error for RecordingError {}
 pub fn record(stage: &Stage, inputs: &[Input]) -> Result<String, validate::Error> {
     let mut engine = Engine::new(stage)?;
     let mut out = String::new();
-    let mut line = |tick: u32, dir: &str, mut body: Value| {
-        let object = body.as_object_mut().expect("a line body is an object");
-        object.insert("tick".into(), json!(tick));
-        object.insert("dir".into(), json!(dir));
-        out.push_str(&body.to_string());
-        out.push('\n');
-    };
     for input in inputs {
         if engine.outcome() != Outcome::Running {
             break;
         }
         engine.step(*input);
         let tick = engine.tick();
-        line(tick, "fe>be", json!({ "type": "Input", "data": input }));
+        line(
+            &mut out,
+            tick,
+            "fe>be",
+            json!({ "type": "Input", "data": input }),
+        );
         for event in engine.events() {
             let body = serde_json::to_value(event).expect("an event serialises");
-            line(tick, "be>fe", body);
+            line(&mut out, tick, "be>fe", body);
         }
         let hash = hash_to_hex(engine.state_hash());
-        line(tick, "be>fe", json!({ "type": "StateHash", "data": hash }));
+        line(
+            &mut out,
+            tick,
+            "be>fe",
+            json!({ "type": "StateHash", "data": hash }),
+        );
     }
     Ok(out)
+}
+
+/// Appends one line: `body` with its `tick` and `dir`.
+fn line(out: &mut String, tick: u32, dir: &str, mut body: Value) {
+    let object = body.as_object_mut().expect("a line body is an object");
+    object.insert("tick".into(), json!(tick));
+    object.insert("dir".into(), json!(dir));
+    out.push_str(&body.to_string());
+    out.push('\n');
 }
 
 /// The `Input` lines, in order. Ticks must count up from 1 without gaps.
