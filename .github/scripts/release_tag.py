@@ -40,6 +40,7 @@ REQUIRED_CHECKS = (
     "long fuzz / fuzz stage_run",
     "long fuzz / fuzz replay_load",
     "long fuzz / fuzz share_decode",
+    "long fuzz / fuzz run_setup",
     "fmt and clippy",
     "tests on x86_64",
     "tests on arm64",

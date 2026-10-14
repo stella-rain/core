@@ -1,0 +1,340 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "trial",
+  "title": "Trial",
+  "description": "The trial mode: one placeholder stage of bats in waves, a fairy that heals, and a golem whose horn breaks. The weapons and the seed come from the run setup.",
+  "seed": 20261010,
+  "length_ticks": 5400,
+  "map": {
+    "width": 327680,
+    "height": 184320,
+    "start": {
+      "x": 163840,
+      "y": 153600
+    }
+  },
+  "player": {
+    "base": "pilot_a",
+    "hp": 5,
+    "atk": 10,
+    "main": {
+      "preset": {
+        "id": "blaster"
+      }
+    },
+    "sub": {
+      "preset": {
+        "id": "blaster"
+      }
+    },
+    "evade": {
+      "distance": 12288,
+      "ticks": 8,
+      "invulnerable_ticks": 10,
+      "cooldown_ticks": 40
+    }
+  },
+  "companions": [
+    {
+      "base": "fairy_a",
+      "hp": 10,
+      "radius": 1024,
+      "movement": {
+        "type": "orbit",
+        "radius": 10240
+      },
+      "rules": [
+        {
+          "when": {
+            "type": "hp_below",
+            "who": "lowest_hp_ally",
+            "pct": 60
+          },
+          "target": "lowest_hp_ally",
+          "do": {
+            "type": "cast",
+            "skill": {
+              "type": "heal",
+              "amount": 1
+            }
+          },
+          "cooldown_ticks": 600,
+          "once": false
+        }
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "at_tick": 120,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "radius": 2048,
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 192
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 70,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 61440,
+        "y": 0
+      },
+      "count": 5,
+      "every_ticks": 40
+    },
+    {
+      "at_tick": 600,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "radius": 2048,
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 192
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 70,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 266240,
+        "y": 0
+      },
+      "count": 5,
+      "every_ticks": 40
+    },
+    {
+      "at_tick": 1200,
+      "enemy": {
+        "base": "bat",
+        "hp": 60,
+        "radius": 2560,
+        "movement": {
+          "type": "straight",
+          "vx": 64,
+          "vy": 128
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "spread_5",
+                  "args": []
+                }
+              }
+            },
+            "cooldown_ticks": 120,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 102400,
+        "y": 0
+      },
+      "count": 4,
+      "every_ticks": 60
+    }
+  ],
+  "boss": {
+    "base": "golem",
+    "hp": 3000,
+    "radius": 8192,
+    "spawn": {
+      "x": 163840,
+      "y": 35840
+    },
+    "parts": [
+      {
+        "id": "horn",
+        "asset": "horns_2",
+        "hp": 400,
+        "offset": {
+          "x": 0,
+          "y": -7680
+        },
+        "radius": 4096
+      }
+    ],
+    "phases": [
+      {
+        "until": {
+          "type": "part_broken",
+          "part": "horn"
+        },
+        "transition": [],
+        "timeline": [
+          {
+            "type": "wait",
+            "ticks": 90
+          },
+          {
+            "type": "telegraph",
+            "ticks": 30
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  768
+                ]
+              }
+            }
+          },
+          {
+            "type": "move_to",
+            "to": {
+              "x": 92160,
+              "y": 35840
+            },
+            "ticks": 60
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  768
+                ]
+              }
+            }
+          },
+          {
+            "type": "move_to",
+            "to": {
+              "x": 235520,
+              "y": 35840
+            },
+            "ticks": 90
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  768
+                ]
+              }
+            }
+          },
+          {
+            "type": "move_to",
+            "to": {
+              "x": 163840,
+              "y": 35840
+            },
+            "ticks": 60
+          },
+          {
+            "type": "loop"
+          }
+        ],
+        "rules": []
+      },
+      {
+        "transition": [
+          {
+            "type": "clear_bullets"
+          },
+          {
+            "type": "invulnerable_ticks",
+            "ticks": 60
+          }
+        ],
+        "timeline": [
+          {
+            "type": "telegraph",
+            "ticks": 40
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "spiral",
+                "args": [
+                  512
+                ]
+              }
+            }
+          },
+          {
+            "type": "wait",
+            "ticks": 150
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  896
+                ]
+              }
+            }
+          },
+          {
+            "type": "wait",
+            "ticks": 60
+          },
+          {
+            "type": "loop"
+          }
+        ],
+        "rules": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,234 @@
+//! The run setup (ADR-051 §1): a run starts from the setup alone, and the setup is untrusted
+//! (ADR-020).
+
+use stella_rain_core::engine::Engine;
+use stella_rain_core::input::Input;
+use stella_rain_core::registry::{ENTRIES, Entry, Kind};
+use stella_rain_core::run_setup::{self, MAX_EXPERTISE, MAX_SETUP_BYTES, RunSetup};
+use stella_rain_core::validate::{self, Error, Issue};
+use stella_rain_core::weapon::WeaponRef;
+
+fn setup() -> RunSetup {
+    RunSetup {
+        schema_version: 0,
+        sim_version: 0,
+        mode: "trial".into(),
+        main: "needle".into(),
+        sub: "blaster".into(),
+        main_expertise: 3,
+        sub_expertise: 0,
+        seed: 20_261_010,
+    }
+}
+
+fn bytes(setup: &RunSetup) -> Vec<u8> {
+    serde_json::to_vec(setup).unwrap()
+}
+
+/// Moves, evades, charges and presses the Sub skill, so the weapons and the RNG are used.
+fn script(tick: u32) -> Input {
+    Input {
+        move_x: if (tick / 40) % 2 == 0 { 127 } else { -127 },
+        move_y: 0,
+        evade: tick % 50 == 25,
+        charge: (tick / 45) % 3 == 1,
+        sub: tick % 9 == 0,
+    }
+}
+
+/// The hash after each of `ticks` ticks.
+fn hashes(mut engine: Engine, ticks: u32) -> Vec<u64> {
+    (0..ticks)
+        .map(|t| {
+            engine.step(script(t));
+            engine.state_hash()
+        })
+        .collect()
+}
+
+fn issues(error: Error) -> Vec<Issue> {
+    match error {
+        Error::Invalid(issues) => issues,
+        other => panic!("not Invalid: {other:?}"),
+    }
+}
+
+fn issue(path: &str, message: &str) -> Issue {
+    Issue {
+        path: path.into(),
+        message: message.into(),
+    }
+}
+
+#[test]
+fn a_setup_file_reads_back_as_the_setup() {
+    assert_eq!(run_setup::parse_and_validate(&bytes(&setup())), Ok(setup()));
+}
+
+#[test]
+fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
+    let mut by_hand =
+        validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
+    by_hand.player.main = WeaponRef::Preset {
+        id: "needle".into(),
+    };
+    by_hand.player.sub = WeaponRef::Preset {
+        id: "blaster".into(),
+    };
+    by_hand.seed = 20_261_010;
+    assert_eq!(run_setup::stage(&setup()), Ok(by_hand.clone()));
+    let started = hashes(Engine::start(&setup()).unwrap(), 600);
+    assert_eq!(started, hashes(Engine::new(&by_hand).unwrap(), 600));
+}
+
+#[test]
+fn the_same_setup_always_runs_the_same() {
+    let a = hashes(Engine::start(&setup()).unwrap(), 600);
+    let b = hashes(Engine::start(&setup()).unwrap(), 600);
+    assert_eq!(a, b);
+}
+
+#[test]
+fn the_setup_s_seed_seeds_the_run_all_64_bits_of_it() {
+    let run = |seed: u64| hashes(Engine::start(&RunSetup { seed, ..setup() }).unwrap(), 60);
+    assert_ne!(run(1), run(2), "another seed, another run");
+    assert_ne!(run(7), run((1 << 32) | 7), "the high 32 bits count");
+}
+
+#[test]
+fn the_setup_s_weapons_arm_the_run() {
+    let run = |main: &str| {
+        hashes(
+            Engine::start(&RunSetup {
+                main: main.into(),
+                ..setup()
+            })
+            .unwrap(),
+            300,
+        )
+    };
+    assert_ne!(run("needle"), run("blaster"));
+}
+
+#[test]
+fn a_file_over_the_limit_is_not_parsed() {
+    let big = vec![b' '; MAX_SETUP_BYTES + 1];
+    assert_eq!(
+        run_setup::parse_and_validate(&big),
+        Err(Error::TooLarge {
+            size: MAX_SETUP_BYTES + 1,
+            limit: MAX_SETUP_BYTES
+        })
+    );
+}
+
+#[test]
+fn only_the_setup_format_parses() {
+    let text = String::from_utf8(bytes(&setup())).unwrap();
+    for bad in [
+        "not json".to_owned(),
+        text.replace("\"seed\"", "\"secret\":1,\"seed\""),
+        text.replace(",\"sub_expertise\":0", ""),
+        text.replace("20261010", "-1"),
+        text.replace("\"main_expertise\":3", "\"main_expertise\":256"),
+        text.replace("20261010", "18446744073709551616"),
+    ] {
+        let result = run_setup::parse_and_validate(bad.as_bytes());
+        assert!(
+            matches!(result, Err(Error::Parse { .. })),
+            "{bad}: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn a_setup_from_a_newer_game_is_refused() {
+    let newer = RunSetup {
+        sim_version: 1,
+        ..setup()
+    };
+    assert_eq!(
+        run_setup::parse_and_validate(&bytes(&newer)),
+        Err(Error::UnsupportedVersion {
+            schema_version: 0,
+            sim_version: 1
+        })
+    );
+    assert!(matches!(
+        Engine::start(&newer),
+        Err(Error::UnsupportedVersion { .. })
+    ));
+}
+
+#[test]
+fn every_problem_is_named_with_its_path() {
+    let bad = RunSetup {
+        mode: "no_such_mode".into(),
+        main: "bat".into(),
+        sub: "Not-An-Id".into(),
+        main_expertise: MAX_EXPERTISE + 1,
+        sub_expertise: u8::MAX,
+        ..setup()
+    };
+    let found = issues(run_setup::parse_and_validate(&bytes(&bad)).unwrap_err());
+    assert_eq!(
+        found,
+        vec![
+            issue("$.mode", "no such Mode ID in the registry"),
+            issue("$.main", "no such Weapon ID in the registry"),
+            issue(
+                "$.sub",
+                "not a valid content ID (lowercase snake_case, at most 32 characters)"
+            ),
+            issue("$.main_expertise", "at most 10 (found 11)"),
+            issue("$.sub_expertise", "at most 10 (found 255)"),
+        ]
+    );
+    assert_eq!(issues(Engine::start(&bad).unwrap_err()), found);
+}
+
+#[test]
+fn the_highest_expertise_is_valid() {
+    let top = RunSetup {
+        main_expertise: MAX_EXPERTISE,
+        sub_expertise: MAX_EXPERTISE,
+        ..setup()
+    };
+    assert_eq!(run_setup::validate(&top), Ok(()));
+}
+
+#[test]
+fn an_id_newer_than_the_setup_s_sim_version_is_refused() {
+    let newer: Vec<Entry> = ENTRIES
+        .iter()
+        .map(|e| Entry {
+            introduced: if e.id == "needle" { 1 } else { e.introduced },
+            ..*e
+        })
+        .collect();
+    let found = issues(run_setup::validate_with(&setup(), &newer).unwrap_err());
+    assert_eq!(
+        found,
+        vec![issue(
+            "$.main",
+            "introduced in sim_version 1, newer than this setup's 0"
+        )]
+    );
+}
+
+#[test]
+fn every_mode_has_content_that_validates_and_nothing_else_has() {
+    let modes: Vec<&str> = ENTRIES
+        .iter()
+        .filter(|e| e.kind == Kind::Mode)
+        .map(|e| e.id)
+        .collect();
+    assert!(modes.contains(&"trial"));
+    for id in &modes {
+        let content = run_setup::mode_stage(id).unwrap_or_else(|| panic!("{id} has no content"));
+        if let Err(e) = validate::parse_and_validate(content) {
+            panic!("mode {id}: {e}");
+        }
+    }
+    assert_eq!(run_setup::mode_stage("needle"), None);
+}

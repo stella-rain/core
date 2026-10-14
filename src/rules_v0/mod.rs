@@ -93,7 +93,9 @@ pub(crate) fn bullet_radius(friendly: bool) -> i32 {
     }
 }
 
-pub(crate) fn initial_state(stage: &Stage) -> State {
+/// The state before the first tick, its generator seeded with `seed`: the stage's own for a
+/// stage, the setup's for a run (ADR-051).
+pub(crate) fn initial_state(stage: &Stage, seed: u64) -> State {
     let mut next_id = 1;
     let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
@@ -155,7 +157,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
     });
     State {
         tick: 0,
-        rng: SplitMix64::new(u64::from(stage.seed)),
+        rng: SplitMix64::new(seed),
         outcome: Outcome::Running,
         player: PlayerState {
             at: start,

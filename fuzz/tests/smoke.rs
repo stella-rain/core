@@ -1,5 +1,5 @@
 //! The fuzz targets on stable (ADR-020), every PR: each target reaches the code behind its first
-//! gate on a real stage, replay and share code, rejects garbage, and survives a deterministic
+//! gate on a real stage, replay, share code and run setup, rejects garbage, and survives a deterministic
 //! sweep over those files: every prefix, and a flipped byte at a regular step. Crashes that a
 //! real fuzz run found are kept in `regressions/<target>/` and replayed here.
 
@@ -7,15 +7,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use stella_rain_core::share;
-use stella_rain_core_fuzz::{replay_load, share_decode, stage_parse, stage_run};
+use stella_rain_core_fuzz::{replay_load, run_setup, share_decode, stage_parse, stage_run};
 
 type Target = fn(&[u8]) -> bool;
 
-const TARGETS: [(&str, Target); 4] = [
+const TARGETS: [(&str, Target); 5] = [
     ("stage_parse", stage_parse),
     ("stage_run", stage_run),
     ("replay_load", replay_load),
     ("share_decode", share_decode),
+    ("run_setup", run_setup),
 ];
 
 fn root() -> PathBuf {
@@ -73,6 +74,25 @@ fn a_real_share_code_decodes() {
     );
 }
 
+/// The run setups the `run_setup` target is seeded with (CI copies the same directory).
+fn setups() -> Vec<Vec<u8>> {
+    let dir = root().join("tests/fixtures/run_setup");
+    let mut files: Vec<_> = fs::read_dir(&dir)
+        .expect("the run setup seeds")
+        .map(|e| e.expect("a seed").path())
+        .collect();
+    files.sort();
+    assert!(!files.is_empty(), "no run setup seeds");
+    files.iter().map(|f| fs::read(f).expect("a seed")).collect()
+}
+
+#[test]
+fn a_real_setup_gets_past_the_parser_and_runs() {
+    for setup in setups() {
+        assert!(run_setup(&setup), "run_setup rejects a seed");
+    }
+}
+
 #[test]
 fn garbage_is_rejected_without_a_panic() {
     let long_run = [b'{'; 5000];
@@ -97,9 +117,12 @@ fn garbage_is_rejected_without_a_panic() {
     }
 }
 
-/// The files each target is given: stages for the stage targets, replays for the replay target
-/// and share codes (of the corpus pairs) for the share target.
+/// The files each target is given: stages for the stage targets, replays for the replay target,
+/// share codes (of the corpus pairs) for the share target and run setups for the setup target.
 fn seeds(target: &str) -> Vec<Vec<u8>> {
+    if target == "run_setup" {
+        return setups();
+    }
     corpus()
         .into_iter()
         .flat_map(|(_, stage, replay)| match target {
