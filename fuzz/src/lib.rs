@@ -10,6 +10,7 @@ use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay};
+use stella_rain_core::run_replay::{self, Command, RunReplay};
 use stella_rain_core::run_setup;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::limits::MAX_TICKS;
@@ -49,8 +50,8 @@ pub fn stage_run(data: &[u8]) -> bool {
     }
     let mut engine = Engine::new(&stage).expect("a stage that validates starts a run");
     let ticks = usize::try_from(stage.length_ticks).map_or(RUN_TICKS, |n| n.min(RUN_TICKS));
-    for input in inputs_from(data, ticks) {
-        engine.step(input);
+    for (t, input) in inputs_from(data, ticks).into_iter().enumerate() {
+        step_choosing(&mut engine, input, pick(data, t));
         let _ = engine.snapshot();
     }
     engine.tick() > 0
@@ -67,11 +68,36 @@ pub fn run_setup(data: &[u8]) -> bool {
     let again = run_setup::parse_and_validate(&saved).expect("a setup that loaded loads again");
     assert_eq!(again, setup, "a saved setup loads as another setup");
     let mut engine = Engine::start(&setup).expect("a setup that validates starts a run");
-    for input in inputs_from(data, RUN_TICKS) {
-        engine.step(input);
+    for (t, input) in inputs_from(data, RUN_TICKS).into_iter().enumerate() {
+        step_choosing(&mut engine, input, pick(data, t));
         let _ = engine.snapshot();
     }
     engine.tick() > 0
+}
+
+/// One tick of `input`, after answering every open offer (ADR-051): first with `pick` as it
+/// is, which may be refused and must then change nothing, then with `pick` inside the offer.
+fn step_choosing(engine: &mut Engine, input: Input, pick: u8) {
+    while let Some(options) = engine.offer() {
+        let len = u32::try_from(options.len()).expect("an offer is short");
+        let hash = engine.state_hash();
+        if engine.choose(u32::from(pick)).is_err() {
+            assert_eq!(
+                engine.state_hash(),
+                hash,
+                "a refused choice changed the run"
+            );
+            engine
+                .choose(u32::from(pick) % len)
+                .expect("an index inside the offer is taken");
+        }
+    }
+    engine.step(input);
+}
+
+/// The option to pick on tick `t`: a byte of `data`, round again at its end.
+fn pick(data: &[u8], t: usize) -> u8 {
+    data.get(t % data.len().max(1)).copied().unwrap_or(0)
 }
 
 /// Inputs read out of `data`, three bytes a tick (the stick, then the three skills' bits) and
@@ -94,9 +120,10 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
         .collect()
 }
 
-/// The replay loader (ADR-020 item 5): a replay that loads unpacks without a panic and saves
-/// to bytes that load as the same replay; and any bytes verified against a stage that is
-/// cleared never panic, whatever they claim.
+/// The replay loader (ADR-020 item 5, ADR-051 §3), for stage replays and run replays: a replay
+/// that loads unpacks without a panic and saves to bytes that load as the same replay; any
+/// bytes verified against a stage that is cleared, or as a run replay, never panic, whatever
+/// they claim; and a run replay that verifies is exactly what its own commands record.
 pub fn replay_load(data: &[u8]) -> bool {
     if let Ok(replay) = Replay::from_bytes(data) {
         let _ = replay.unpack_inputs(MAX_TICKS);
@@ -104,7 +131,41 @@ pub fn replay_load(data: &[u8]) -> bool {
             .expect("a replay that loaded loads again once saved");
         assert_eq!(again, replay, "a saved replay loads as another replay");
     }
-    replay::verify(CLEAR_STAGE, data).is_ok()
+    if let Ok(run) = RunReplay::from_bytes(data) {
+        let _ = run.unpack_inputs(MAX_TICKS);
+        let _ = run.unpack_choices();
+        let again = RunReplay::from_bytes(&run.to_bytes())
+            .expect("a run replay that loaded loads again once saved");
+        assert_eq!(again, run, "a saved run replay loads as another run replay");
+    }
+    let stage_replay = replay::verify(CLEAR_STAGE, data).is_ok();
+    let run_replay = run_replay::verify_run(data).is_ok();
+    if run_replay {
+        let run = RunReplay::from_bytes(data).expect("a run replay that verified loads");
+        let recorded = run_replay::record_run(&run.setup, &commands(&run))
+            .expect("the commands of a run replay that verified record");
+        assert_eq!(recorded, run, "a verified run replay records as another");
+    }
+    stage_replay || run_replay
+}
+
+/// A run replay's commands in the order they were made: before each tick the choices that
+/// carry the tick before it, then its input; at the end the choices of the last tick.
+fn commands(run: &RunReplay) -> Vec<Command> {
+    let inputs = run
+        .unpack_inputs(MAX_TICKS)
+        .expect("verified inputs unpack");
+    let choices = run.unpack_choices().expect("verified choices unpack");
+    let mut next = choices.iter().peekable();
+    let mut out = Vec::new();
+    for (tick, input) in (0u32..).zip(inputs) {
+        while let Some(c) = next.next_if(|c| c.tick == tick) {
+            out.push(Command::Choose(c.index));
+        }
+        out.push(Command::Step(input));
+    }
+    out.extend(next.map(|c| Command::Choose(c.index)));
+    out
 }
 
 /// The share-code decoder (ADR-020 item 7, ADR-009). The bytes are tried as a code, and wrapped

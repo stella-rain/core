@@ -6,6 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::id::{ContentId, EntityId};
+use crate::upgrade::Upgrade;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "data", deny_unknown_fields)]
@@ -64,4 +65,16 @@ pub enum DomainEvent {
     },
     StageCleared,
     StageFailed,
+    /// The main character reached `level` (ADR-051).
+    LeveledUp {
+        level: u32,
+    },
+    /// An offer opened at the end of the tick: the world waits for a choice among `options`.
+    OfferOpened {
+        options: Vec<Upgrade>,
+    },
+    /// The player chose `upgrade` from the open offer, between ticks.
+    UpgradeChosen {
+        upgrade: Upgrade,
+    },
 }

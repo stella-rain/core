@@ -15,6 +15,7 @@ use crate::weapon::{Charge, ChargeLevel, Targeting, WeaponAttack};
 use super::PLAYER_SPEED;
 use super::attacks;
 use super::entity::{Who, speed_pct};
+use super::levels;
 use super::select::select;
 
 /// The stick's full deflection on each axis (ADR-050); −128 counts as −127.
@@ -67,7 +68,8 @@ pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Ve
         p.facing = dir;
     }
     if input.evade && p.evade_ready() {
-        start_evade(stage, p, events);
+        let cooldown = levels::evade_cooldown(s, stage.player.evade.cooldown_ticks);
+        start_evade(stage, &mut s.player, cooldown, events);
         break_charge(stage, s, events);
     }
     charge(stage, s, input, events);
@@ -92,21 +94,21 @@ fn move_player(stage: &Stage, s: &mut State, x: i8, y: i8) {
     let keep = speed_pct(&s.player.statuses) * attacks::move_pct(s, s.id_of(Who::Player)) / 100
         * charge_move_pct(stage, s)
         / 100;
-    let cap = i64::from(PLAYER_SPEED) * keep / 100;
+    let cap = levels::speed(s, i64::from(PLAYER_SPEED) * keep / 100);
     let (dx, dy) = stick_move(x, y, cap);
     move_by(stage, &mut s.player, dx, dy);
 }
 
 /// A ready press dashes along the facing, which is the stick's direction when it is not
 /// centred (ADR-050). Invulnerability and the cooldown count from the press.
-fn start_evade(stage: &Stage, p: &mut PlayerState, events: &mut Vec<DomainEvent>) {
+fn start_evade(stage: &Stage, p: &mut PlayerState, cooldown: u32, events: &mut Vec<DomainEvent>) {
     let evade = &stage.player.evade;
     p.dash = Some(DashState {
         dir: p.facing,
         done: 0,
         left: evade.ticks,
     });
-    p.evade_cooldown = evade.cooldown_ticks;
+    p.evade_cooldown = cooldown;
     p.invulnerable = p.invulnerable.max(evade.invulnerable_ticks);
     events.push(DomainEvent::Evaded);
 }
@@ -179,7 +181,7 @@ fn shot<'a>(stage: &Stage, s: &State, weapon: &'a WeaponAttack) -> Option<Shot<'
     Some(Shot {
         attack: &weapon.attack,
         aim: aim_for(stage, s, &weapon.targeting)?,
-        damage: stage.player.atk,
+        damage: levels::attack(s, stage.player.atk),
         cooldown: weapon.cooldown_ticks,
     })
 }
@@ -239,7 +241,7 @@ fn attack_with(
         events,
     );
     if started {
-        *auto_cooldown(&mut s.player, slot) = shot.cooldown;
+        *auto_cooldown(&mut s.player, slot) = levels::auto_cooldown(s, shot.cooldown);
     }
 }
 
@@ -368,7 +370,7 @@ fn release(
         CHARGE_SLOT,
         Aim::Fixed(s.player.facing),
         attack,
-        stage.player.atk,
+        levels::attack(s, stage.player.atk),
         0,
         bonus,
         events,

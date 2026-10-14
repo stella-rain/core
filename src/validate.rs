@@ -20,7 +20,7 @@ use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill
 use crate::id::ContentId;
 use crate::presets;
 use crate::registry::{self, Entry, Kind};
-use crate::stage::{Boss, BossPart, Evade, Phase, Player, Stage, Step, Transition, Wave};
+use crate::stage::{Boss, BossPart, Evade, Levels, Phase, Player, Stage, Step, Transition, Wave};
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 use crate::weapon::{
@@ -64,6 +64,11 @@ pub mod limits {
     pub const MAX_TRANSITIONS: usize = 4;
     pub const MAX_PRESET_ARGS: usize = 8;
     pub const MAX_WAVE_COUNT: u16 = 100;
+    /// Entries in a stage's `levels.xp`, and the experience in each (ADR-051).
+    pub const MAX_LEVELS: usize = 100;
+    pub const MAX_LEVEL_XP: u32 = 1_000_000;
+    /// The experience an enemy gives.
+    pub const MAX_ENEMY_XP: u32 = 1000;
     pub const MAX_SUMMON_COUNT: u8 = 8;
 
     pub const MAX_PLAYER_HP: u32 = 99;
@@ -481,6 +486,25 @@ impl<'a> Ctx<'a> {
         if let Some(boss) = &s.boss {
             self.key("boss", |c| c.boss(boss));
         }
+        if let Some(levels) = &s.levels {
+            self.key("levels", |c| c.levels(levels));
+        }
+    }
+
+    fn levels(&mut self, l: &Levels) {
+        if l.xp.is_empty() {
+            self.key("xp", |c| c.fail("needs at least one level".to_owned()));
+        } else if self.at_most("xp", l.xp.len(), MAX_LEVELS, "levels") {
+            self.key("xp", |c| {
+                for (i, xp) in l.xp.iter().enumerate() {
+                    if !(1..=MAX_LEVEL_XP).contains(xp) {
+                        c.idx(i, |c| {
+                            c.fail(format!("must be between 1 and {MAX_LEVEL_XP} (found {xp})"))
+                        });
+                    }
+                }
+            });
+        }
     }
 
     fn player(&mut self, p: &Player) {
@@ -774,6 +798,9 @@ impl<'a> Ctx<'a> {
         self.point("spawn", &w.spawn);
         self.within("count", i64::from(w.count), 1, i64::from(MAX_WAVE_COUNT));
         self.ticks("every_ticks", w.every_ticks, u32::from(w.count > 1));
+        if let Some(xp) = w.xp {
+            self.within("xp", i64::from(xp), 0, i64::from(MAX_ENEMY_XP));
+        }
     }
 
     fn boss(&mut self, b: &Boss) {

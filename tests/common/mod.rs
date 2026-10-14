@@ -1,5 +1,8 @@
-//! Shared by the replay, share-code, recording and `stage-verify` tests.
+//! Shared by the replay, share-code, recording and `stage-verify` tests; `run` by the run
+//! replay tests.
 #![allow(dead_code)]
+
+pub mod run;
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
