@@ -3,7 +3,7 @@
   "sim_version": 0,
   "id": "trial",
   "title": "Trial",
-  "description": "The trial mode: one placeholder stage of bats in waves, a fairy that heals, and a golem whose horn breaks. The weapons and the seed come from the run setup.",
+  "description": "The trial mode: one placeholder stage of bats in waves, a fairy that heals, and a golem whose horn breaks. Defeated enemies give experience, and each level offers an upgrade. The weapons and the seed come from the run setup.",
   "seed": 20261010,
   "length_ticks": 5400,
   "map": {
@@ -182,7 +182,8 @@
         "y": 0
       },
       "count": 4,
-      "every_ticks": 60
+      "every_ticks": 60,
+      "xp": 2
     }
   ],
   "boss": {
@@ -335,6 +336,13 @@
         ],
         "rules": []
       }
+    ]
+  },
+  "levels": {
+    "xp": [
+      3,
+      4,
+      5
     ]
   }
 }

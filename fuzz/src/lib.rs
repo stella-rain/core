@@ -49,8 +49,8 @@ pub fn stage_run(data: &[u8]) -> bool {
     }
     let mut engine = Engine::new(&stage).expect("a stage that validates starts a run");
     let ticks = usize::try_from(stage.length_ticks).map_or(RUN_TICKS, |n| n.min(RUN_TICKS));
-    for input in inputs_from(data, ticks) {
-        engine.step(input);
+    for (t, input) in inputs_from(data, ticks).into_iter().enumerate() {
+        step_choosing(&mut engine, input, pick(data, t));
         let _ = engine.snapshot();
     }
     engine.tick() > 0
@@ -67,11 +67,36 @@ pub fn run_setup(data: &[u8]) -> bool {
     let again = run_setup::parse_and_validate(&saved).expect("a setup that loaded loads again");
     assert_eq!(again, setup, "a saved setup loads as another setup");
     let mut engine = Engine::start(&setup).expect("a setup that validates starts a run");
-    for input in inputs_from(data, RUN_TICKS) {
-        engine.step(input);
+    for (t, input) in inputs_from(data, RUN_TICKS).into_iter().enumerate() {
+        step_choosing(&mut engine, input, pick(data, t));
         let _ = engine.snapshot();
     }
     engine.tick() > 0
+}
+
+/// One tick of `input`, after answering every open offer (ADR-051): first with `pick` as it
+/// is, which may be refused and must then change nothing, then with `pick` inside the offer.
+fn step_choosing(engine: &mut Engine, input: Input, pick: u8) {
+    while let Some(options) = engine.offer() {
+        let len = u32::try_from(options.len()).expect("an offer is short");
+        let hash = engine.state_hash();
+        if engine.choose(u32::from(pick)).is_err() {
+            assert_eq!(
+                engine.state_hash(),
+                hash,
+                "a refused choice changed the run"
+            );
+            engine
+                .choose(u32::from(pick) % len)
+                .expect("an index inside the offer is taken");
+        }
+    }
+    engine.step(input);
+}
+
+/// The option to pick on tick `t`: a byte of `data`, round again at its end.
+fn pick(data: &[u8], t: usize) -> u8 {
+    data.get(t % data.len().max(1)).copied().unwrap_or(0)
 }
 
 /// Inputs read out of `data`, three bytes a tick (the stick, then the three skills' bits) and

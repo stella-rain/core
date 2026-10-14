@@ -39,6 +39,19 @@ pub struct Stage {
     /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map: Option<Map>,
+    /// Experience and levels, each level-up offering upgrades (ADR-051); a mode's stages have
+    /// them. Without them defeated enemies give nothing and nothing is offered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub levels: Option<Levels>,
+}
+
+/// How much experience each level needs.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Levels {
+    /// The experience each next level needs, the first from level 1 to 2; the last entry
+    /// repeats for every level after it.
+    pub xp: Vec<u32>,
 }
 
 impl Stage {
@@ -144,6 +157,10 @@ pub struct Wave {
     pub count: u16,
     #[serde(default)]
     pub every_ticks: u32,
+    /// The experience each enemy of the wave gives when defeated, in a stage with `levels`;
+    /// 1 when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xp: Option<u32>,
 }
 
 /// Tier 2 (ADR-036): body parts and an ordered list of phases that only move forward.

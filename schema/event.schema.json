@@ -390,6 +390,92 @@
       "required": [
         "type"
       ]
+    },
+    {
+      "description": "The main character reached `level` (ADR-051).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "level"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "LeveledUp"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "An offer opened at the end of the tick: the world waits for a choice among `options`.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "options": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Upgrade"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "options"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "OfferOpened"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The player chose `upgrade` from the open offer, between ticks.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "upgrade": {
+              "$ref": "#/$defs/Upgrade"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "upgrade"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "UpgradeChosen"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
     }
   ],
   "$defs": {
@@ -402,6 +488,35 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0
+    },
+    "Upgrade": {
+      "oneOf": [
+        {
+          "description": "One more hit point at most, and one healed.",
+          "type": "string",
+          "const": "max_hp"
+        },
+        {
+          "description": "More damage from every attack of the main character.",
+          "type": "string",
+          "const": "attack"
+        },
+        {
+          "description": "Shorter cooldowns for both weapons' automatic attacks.",
+          "type": "string",
+          "const": "haste"
+        },
+        {
+          "description": "A shorter evade cooldown.",
+          "type": "string",
+          "const": "evade"
+        },
+        {
+          "description": "A higher movement speed.",
+          "type": "string",
+          "const": "speed"
+        }
+      ]
     }
   }
 }
