@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::attack::{HitBox, PhaseKind};
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
+use crate::upgrade::Upgrade;
 
 /// An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -50,6 +51,26 @@ pub struct Snapshot {
     /// Companions, enemies, the boss and its parts, in entity-ID order.
     pub entities: Vec<EntityView>,
     pub bullets: Vec<BulletView>,
+    /// Experience, level, upgrades and the open offer; absent in a stage without levels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<ProgressView>,
+}
+
+/// Where the run stands in experience and levels (ADR-051).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProgressView {
+    /// From 1.
+    pub level: u32,
+    /// Experience gained toward the next level.
+    pub xp: u32,
+    /// Experience the next level needs; 0 at the highest level.
+    pub xp_next: u32,
+    /// The upgrades taken and their stacks, in `Upgrade::ALL` order.
+    pub upgrades: Vec<(Upgrade, u8)>,
+    /// The open offer's options: while it is open, `step` does nothing until a choice.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offer: Option<Vec<Upgrade>>,
 }
 
 /// The map's width and height, from its top-left corner.

@@ -19,6 +19,9 @@
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
 //!
+//! 8. in a stage with levels, the first waiting reward offer opens if the run goes on
+//!    (`levels`): defeated enemies gave their experience as they were removed in step 6.
+//!
 //! Not yet in this version: summons by companions; what the main character's weapons acquire
 //! during a run (`player::shot` is where it would plug in).
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
@@ -36,6 +39,7 @@ mod boss;
 mod entity;
 mod grid;
 mod hit_boxes;
+mod levels;
 mod player;
 mod push;
 
@@ -44,7 +48,7 @@ mod select;
 
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, Outcome, PartState,
-    PlayerState, State,
+    PlayerState, Progress, State,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -54,10 +58,12 @@ use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::stage::Stage;
 use crate::trig;
+use crate::upgrade::Upgrade;
 
 pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
 use grid::Grid;
+pub(crate) use levels::{choose, xp_next};
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
@@ -186,6 +192,13 @@ pub(crate) fn initial_state(stage: &Stage, seed: u64) -> State {
         bullets: Vec::new(),
         spawned: vec![0; stage.waves.len()],
         next_id,
+        progress: stage.levels.as_ref().map(|_| Progress {
+            level: 1,
+            xp: 0,
+            pending: 0,
+            stacks: [0; Upgrade::ALL.len()],
+            offer: None,
+        }),
     }
 }
 
@@ -221,6 +234,10 @@ pub(crate) fn step(
     move_bullets(stage, s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
+    // A reward due on this tick is offered at its end, unless the run ended (ADR-051).
+    if s.outcome == Outcome::Running {
+        levels::open_offer(s, events);
+    }
     debug_assert!(
         entity::enemies_in_id_order(s),
         "enemies out of entity-ID order"
@@ -317,6 +334,7 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     let mut flags = consumed.into_iter();
     s.bullets.retain(|_| !flags.next().unwrap_or(false));
     s.companions.retain(|c| c.hp > 0);
+    levels::credit_defeated(stage, s, events);
     s.enemies.retain(|e| e.hp > 0);
 }
 
@@ -722,6 +740,26 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 h.write_bool(hook.friendly);
                 h.write_u32(hook.damage);
                 h.write_bool(hook.breaks_charge);
+            }
+            None => h.write_bool(false),
+        }
+    }
+    // Last, and only in a stage with levels, so that the hashes of stages without stay as they
+    // were.
+    if let Some(p) = &s.progress {
+        h.write_u32(p.level);
+        h.write_u32(p.xp);
+        h.write_u32(p.pending);
+        for n in p.stacks {
+            h.write_u32(u32::from(n));
+        }
+        match &p.offer {
+            Some(options) => {
+                h.write_bool(true);
+                h.write_u32(count(options));
+                for u in options {
+                    h.write_u32(*u as u32);
+                }
             }
             None => h.write_bool(false),
         }

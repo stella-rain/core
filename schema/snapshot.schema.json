@@ -23,6 +23,17 @@
     "player": {
       "$ref": "#/$defs/PlayerView"
     },
+    "progress": {
+      "description": "Experience, level, upgrades and the open offer; absent in a stage without levels.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProgressView"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "tick": {
       "type": "integer",
       "format": "uint32",
@@ -496,6 +507,67 @@
         "y"
       ]
     },
+    "ProgressView": {
+      "description": "Where the run stands in experience and levels (ADR-051).",
+      "type": "object",
+      "properties": {
+        "level": {
+          "description": "From 1.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "offer": {
+          "description": "The open offer's options: while it is open, `step` does nothing until a choice.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/Upgrade"
+          }
+        },
+        "upgrades": {
+          "description": "The upgrades taken and their stacks, in `Upgrade::ALL` order.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "#/$defs/Upgrade"
+              },
+              {
+                "type": "integer",
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0
+              }
+            ]
+          }
+        },
+        "xp": {
+          "description": "Experience gained toward the next level.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "xp_next": {
+          "description": "Experience the next level needs; 0 at the highest level.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "xp",
+        "xp_next",
+        "upgrades"
+      ]
+    },
     "SkillView": {
       "description": "Skill 2 or 3 (ADR-050).",
       "type": "object",
@@ -515,6 +587,35 @@
       "required": [
         "ready",
         "cooldown_left"
+      ]
+    },
+    "Upgrade": {
+      "oneOf": [
+        {
+          "description": "One more hit point at most, and one healed.",
+          "type": "string",
+          "const": "max_hp"
+        },
+        {
+          "description": "More damage from every attack of the main character.",
+          "type": "string",
+          "const": "attack"
+        },
+        {
+          "description": "Shorter cooldowns for both weapons' automatic attacks.",
+          "type": "string",
+          "const": "haste"
+        },
+        {
+          "description": "A shorter evade cooldown.",
+          "type": "string",
+          "const": "evade"
+        },
+        {
+          "description": "A higher movement speed.",
+          "type": "string",
+          "const": "speed"
+        }
       ]
     }
   }

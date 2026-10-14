@@ -28,6 +28,7 @@ pub mod snapshot;
 pub mod spike;
 pub mod stage;
 pub mod trig;
+pub mod upgrade;
 pub mod validate;
 pub mod version;
 pub mod weapon;

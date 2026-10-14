@@ -34,6 +34,17 @@
       "format": "uint32",
       "minimum": 0
     },
+    "levels": {
+      "description": "Experience and levels, each level-up offering upgrades (ADR-051); a mode's stages have\nthem. Without them defeated enemies give nothing and nothing is offered.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Levels"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "map": {
       "description": "The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).",
       "anyOf": [
@@ -1250,6 +1261,25 @@
         }
       ]
     },
+    "Levels": {
+      "description": "How much experience each level needs.",
+      "type": "object",
+      "properties": {
+        "xp": {
+          "description": "The experience each next level needs, the first from level 1 to 2; the last entry\nrepeats for every level after it.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "xp"
+      ]
+    },
     "MainWeapon": {
       "description": "A weapon as Main: its automatic attack and its charged skill (skill 2, ADR-050).",
       "type": "object",
@@ -1920,6 +1950,15 @@
         },
         "spawn": {
           "$ref": "#/$defs/Point"
+        },
+        "xp": {
+          "description": "The experience each enemy of the wave gives when defeated, in a stage with `levels`;\n1 when absent.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
         }
       },
       "additionalProperties": false,

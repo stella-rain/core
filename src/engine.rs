@@ -19,10 +19,20 @@ use crate::rules_v0;
 use crate::run_setup::{self, RunSetup};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, MapView,
-    PlayerView, SkillView, Snapshot,
+    PlayerView, ProgressView, SkillView, Snapshot,
 };
 use crate::stage::Stage;
+use crate::upgrade::Upgrade;
 use crate::validate::{self, Error};
+
+/// Why `Engine::choose` refused a choice; the run is unchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChoiceError {
+    /// No offer is open.
+    NoOffer,
+    /// `index` is not below the open offer's number of `options`.
+    OutOfRange { index: u32, options: u32 },
+}
 
 /// How a run stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,8 +108,12 @@ impl Engine {
     }
 
     /// Advances one tick with `input`. Once the run is over this does nothing, so a replay that
-    /// is longer than the run cannot change the final hash.
+    /// is longer than the run cannot change the final hash. While an offer is open it does
+    /// nothing either, not even clear the last events: the world waits for `choose` (ADR-051).
     pub fn step(&mut self, input: Input) {
+        if self.offer().is_some() {
+            return;
+        }
         self.events.clear();
         self.load = Load::default();
         match self.stage.sim_version {
@@ -113,6 +127,28 @@ impl Engine {
             // `new` validated the version; fail closed if that ever stops being true.
             _ => self.state.outcome = Outcome::Failed,
         }
+    }
+
+    /// Chooses option `index` of the open offer, between ticks (ADR-051): its upgrade applies
+    /// at once, and the next level-up's offer opens if one is waiting. The events are then this
+    /// choice's. Refused, changing nothing, with no offer open or an index outside it.
+    pub fn choose(&mut self, index: u32) -> Result<(), ChoiceError> {
+        let options = self.offer().ok_or(ChoiceError::NoOffer)?.len();
+        let options = u32::try_from(options).unwrap_or(u32::MAX);
+        if index >= options {
+            return Err(ChoiceError::OutOfRange { index, options });
+        }
+        self.events.clear();
+        match self.stage.sim_version {
+            0 => rules_v0::choose(&mut self.state, index, &mut self.events),
+            _ => self.state.outcome = Outcome::Failed,
+        }
+        Ok(())
+    }
+
+    /// The open offer's options, if one is open.
+    pub fn offer(&self) -> Option<&[Upgrade]> {
+        self.state.progress.as_ref()?.offer.as_deref()
     }
 
     pub fn tick(&self) -> u32 {
@@ -271,6 +307,18 @@ impl Engine {
                     friendly: b.friendly,
                 })
                 .collect(),
+            progress: s.progress.as_ref().map(|p| ProgressView {
+                level: p.level,
+                xp: p.xp,
+                xp_next: rules_v0::xp_next(&self.stage, p.level),
+                upgrades: Upgrade::ALL
+                    .iter()
+                    .zip(p.stacks)
+                    .filter(|(_, n)| *n > 0)
+                    .map(|(u, n)| (*u, n))
+                    .collect(),
+                offer: p.offer.clone(),
+            }),
         }
     }
 }
@@ -300,6 +348,23 @@ pub(crate) struct State {
     /// Enemies spawned so far, per wave.
     pub spawned: Vec<u16>,
     pub next_id: u32,
+    /// Experience and levels; `None` in a stage without levels, which hashes nothing for it.
+    pub progress: Option<Progress>,
+}
+
+/// Experience, levels and offers (ADR-051).
+#[derive(Clone, Debug)]
+pub(crate) struct Progress {
+    /// From 1.
+    pub level: u32,
+    /// Experience toward the next level.
+    pub xp: u32,
+    /// Level-ups whose offers have not opened yet.
+    pub pending: u32,
+    /// Stacks of each upgrade, in `Upgrade::ALL` order.
+    pub stacks: [u8; Upgrade::ALL.len()],
+    /// The open offer, in the order drawn.
+    pub offer: Option<Vec<Upgrade>>,
 }
 
 #[derive(Clone, Debug)]
