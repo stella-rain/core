@@ -1,13 +1,16 @@
-//! Tier 3 of the behaviour model (ADR-036): an attack is a tree of emitter nodes whose
-//! parameters are small fixed-point expressions. Presets are registered content IDs; a stage
-//! refers to one with arguments, or holds an inline copy it may edit freely.
+//! Attacks (ADR-055, amending tier 3 of ADR-036): an attack is an ordered list of phases, each
+//! lasting a fixed number of ticks, with its own hit box, base damage and the emitter nodes it
+//! spawns. Emitter nodes are trees whose parameters are small fixed-point expressions. Presets
+//! are registered content IDs; a stage refers to one with arguments, or holds an inline copy it
+//! may edit freely.
 //!
-//! Angles are in 1/256 degree; speeds in 1/256 pixel per tick (the units of `Fx`).
-//! Node and operator names are placeholders until the freeze (ADR-035).
+//! Angles are in 1/256 degree; speeds and lengths in 1/256 pixel (per tick for speeds; the
+//! units of `Fx`). Field, node and operator names are placeholders until the freeze (ADR-035).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::fixed::Fx;
 use crate::id::ContentId;
 
 /// A preset by ID with its arguments, or an inline definition.
@@ -19,8 +22,86 @@ pub enum AttackRef {
         #[serde(default)]
         args: Vec<i32>,
     },
-    /// The nodes, carried out in order (see `rules_v0`'s attacks for what each one does).
-    Inline(Vec<Emitter>),
+    /// The phases, in order.
+    Inline(Vec<AttackPhase>),
+}
+
+/// One phase of an attack (ADR-055).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AttackPhase {
+    pub kind: PhaseKind,
+    /// How long the phase lasts: a constant, never an expression, so that an attack's length
+    /// and its telegraph are known before it runs.
+    pub ticks: u32,
+    /// The area the phase covers, attached to the attacker.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hit_box: Option<HitBox>,
+    /// Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is
+    /// what the attacker's own attack does: the main character's `atk`, a `shot` skill's
+    /// `damage`, or 1 for an enemy or the boss.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub damage: Option<u32>,
+    /// An active phase only: a target already hit may be hit again after this many ticks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rehit_ticks: Option<u32>,
+    /// Emitter nodes started on the phase's first tick, carried out in order (see `rules_v0`'s
+    /// attacks for what each one does).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spawn: Vec<Emitter>,
+    /// The attacker's movement speed during the phase, in percent; 0 roots it.
+    #[serde(default = "full_speed", skip_serializing_if = "is_full_speed")]
+    pub move_pct: u8,
+    /// A powerful attack: its hits on the main character, by hit box or by the bullets the phase
+    /// spawns, break a charge in progress (core#83).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub breaks_charge: bool,
+}
+
+fn full_speed() -> u8 {
+    100
+}
+
+fn is_full_speed(v: &u8) -> bool {
+    *v == 100
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PhaseKind {
+    /// The telegraph: its hit box is the warned area, and it deals no damage.
+    WindUp,
+    /// Its hit box deals damage.
+    Active,
+    Recovery,
+}
+
+/// A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing
+/// and to its right.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum HitBox {
+    Circle {
+        #[serde(default)]
+        offset: Offset,
+        radius: Fx,
+    },
+    /// A circle sector centred on the facing, `half_angle` to each side.
+    Arc {
+        #[serde(default)]
+        offset: Offset,
+        radius: Fx,
+        half_angle: i32,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Offset {
+    #[serde(default)]
+    pub forward: Fx,
+    #[serde(default)]
+    pub right: Fx,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

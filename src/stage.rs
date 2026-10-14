@@ -6,9 +6,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::attack::AttackRef;
-use crate::behaviour::{Agent, Condition, Rule, Selector, Skill};
+use crate::behaviour::{Agent, Condition, Rule};
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
+use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W};
+use crate::weapon::{MainWeapon, SubWeapon, WeaponRef};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -34,6 +36,69 @@ pub struct Stage {
     pub waves: Vec<Wave>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boss: Option<Boss>,
+    /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub map: Option<Map>,
+}
+
+impl Stage {
+    /// The map the run plays on (core#87).
+    pub fn map(&self) -> Map {
+        self.map.unwrap_or(Map::PORTRAIT)
+    }
+}
+
+/// The rectangle the run plays on, from its top-left corner, and where the main character
+/// starts. The main character and companions are clamped to it; enemies and bullets leave once
+/// they are more than `FIELD_MARGIN` outside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Map {
+    pub width: Fx,
+    pub height: Fx,
+    /// The centre of the map when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<Point>,
+}
+
+impl Map {
+    /// The portrait field of the vertical shooter: 360 by 640 pixels, the start 64 pixels above
+    /// the middle of the bottom edge.
+    pub const PORTRAIT: Map = Map {
+        width: Fx(FIELD_W),
+        height: Fx(FIELD_H),
+        start: Some(Point {
+            x: Fx(FIELD_W / 2),
+            y: Fx(FIELD_H - Fx::px(64).0),
+        }),
+    };
+
+    /// Where the main character starts.
+    pub fn start(&self) -> Point {
+        self.start.unwrap_or(Point {
+            x: Fx(self.width.0 / 2),
+            y: Fx(self.height.0 / 2),
+        })
+    }
+
+    /// `p` moved onto the map.
+    pub fn clamp(&self, p: Point) -> Point {
+        Point {
+            x: p.x.clamp(Fx(0), self.width),
+            y: p.y.clamp(Fx(0), self.height),
+        }
+    }
+
+    /// Whether a point is on the map or at most `FIELD_MARGIN` outside it. It runs for every
+    /// bullet every tick, so each axis is one unsigned comparison, as the compiler made it when
+    /// the bounds were constants: `v + FIELD_MARGIN` wraps below 0 to above any span, and the
+    /// validator keeps the spans far below `i32::MAX`.
+    pub fn holds(&self) -> impl Fn(Point) -> bool + use<> {
+        let span = |side: Fx| (side.0 + 2 * FIELD_MARGIN) as u32;
+        let (w, h) = (span(self.width), span(self.height));
+        let inside = |v: Fx, span: u32| (v.0.wrapping_add(FIELD_MARGIN) as u32) <= span;
+        move |p| inside(p.x, w) && inside(p.y, h)
+    }
 }
 
 /// The main character, as the creator configured it; challengers get exactly this (ADR-012).
@@ -43,25 +108,30 @@ pub struct Player {
     pub base: ContentId,
     pub hp: u32,
     pub atk: u32,
-    /// The main shot, fired on ticks whose input has `fire` (ADR-038).
-    pub shot: AttackRef,
-    /// Up to 3 active skills (ADR-032).
-    #[serde(default)]
-    pub skills: Vec<SkillSlot>,
+    /// Reduces every hit the main character takes (ADR-056); 0 when absent. It moves to the
+    /// run's setup when the setup exists (ADR-049).
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub defence: u32,
+    /// The Main weapon, which attacks on its own and brings the charged skill (ADR-050,
+    /// core#83). It moves to the run's setup when the setup exists (ADR-049, ADR-051).
+    pub main: WeaponRef<MainWeapon>,
+    /// The Sub weapon, which attacks on its own beside the Main one and brings the Sub skill.
+    pub sub: WeaponRef<SubWeapon>,
+    /// Skill 1 (ADR-050). It moves to the run's setup with the character when the setup exists
+    /// (ADR-049).
+    pub evade: Evade,
 }
 
+/// A dash with invulnerability (ADR-050). A ready press dashes `distance` over `ticks`, along
+/// the movement direction, or along the facing when the stick is centred; the stick is ignored
+/// until the dash ends. Invulnerability and the cooldown count from the press.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SkillSlot {
-    /// 1 to 3; the input's `held` field names it.
-    pub slot: u8,
-    pub target: Selector,
-    pub skill: Skill,
-    #[serde(default)]
+pub struct Evade {
+    pub distance: Fx,
+    pub ticks: u32,
+    pub invulnerable_ticks: u32,
     pub cooldown_ticks: u32,
-    /// Uses per run; absent means unlimited, limited by the cooldown.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub charges: Option<u16>,
 }
 
 /// `count` copies of `enemy`, the first at `at_tick`, then one every `every_ticks`.
@@ -85,6 +155,9 @@ pub struct Boss {
     pub palette: Option<ContentId>,
     pub hp: u32,
     pub radius: Fx,
+    /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub defence: u32,
     pub spawn: Point,
     #[serde(default)]
     pub parts: Vec<BossPart>,
@@ -103,6 +176,9 @@ pub struct BossPart {
     /// Offset from the boss's centre.
     pub offset: Point,
     pub radius: Fx,
+    /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub defence: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

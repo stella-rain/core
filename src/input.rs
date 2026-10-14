@@ -1,5 +1,5 @@
-//! The per-tick input record (ADR-016, ADR-032, ADR-038): the only external influence on a
-//! run, and all a replay stores. Touch and keyboard produce the same record; it never says
+//! The per-tick input record (ADR-016, ADR-050): the only external influence on a run, and all
+//! a replay stores. Touch, keyboard and later a gamepad produce the same record; it never says
 //! which device made it.
 
 use schemars::JsonSchema;
@@ -8,13 +8,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Input {
-    /// Movement this tick in 1/256 pixel units, before the simulation's speed cap (ADR-038).
-    pub dx: i16,
-    pub dy: i16,
-    pub focus: bool,
-    /// The main shot fires only on ticks with `fire` (ADR-038).
-    pub fire: bool,
-    /// The skill slot held this tick: 0 for none, 1 to 3 (ADR-032). Press, hold and release
-    /// are read from how this changes between ticks.
-    pub held: u8,
+    /// Movement direction and strength, each −127 to 127 (−128 counts as −127). The simulation
+    /// clamps the vector to length 127 and scales it to the character's speed (ADR-050).
+    pub move_x: i8,
+    pub move_y: i8,
+    /// Skill 1 pressed on this tick: a ready evade dashes (ADR-050).
+    pub evade: bool,
+    /// Skill 2 held on this tick: a press while ready starts the charge, letting go releases it
+    /// (ADR-050).
+    pub charge: bool,
+    /// Skill 3 pressed on this tick: a ready Sub skill happens (ADR-050).
+    pub sub: bool,
 }

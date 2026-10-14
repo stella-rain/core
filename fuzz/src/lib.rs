@@ -55,21 +55,22 @@ pub fn stage_run(data: &[u8]) -> bool {
     engine.tick() > 0
 }
 
-/// Inputs read out of `data`, five bytes a tick and round again at its end. Skill slots and
-/// speeds go beyond what a player can send, because a replay is untrusted.
+/// Inputs read out of `data`, three bytes a tick (the stick, then the three skills' bits) and
+/// round again at its end. The stick takes
+/// −128 too, which no replay can hold, because the engine is also called directly.
 fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
     let byte = |t: usize, i: usize| {
-        data.get((t * 5 + i) % data.len().max(1))
+        data.get((t * 3 + i) % data.len().max(1))
             .copied()
             .unwrap_or(0)
     };
     (0..ticks)
         .map(|t| Input {
-            dx: i16::from_le_bytes([byte(t, 0), byte(t, 1)]),
-            dy: i16::from_le_bytes([byte(t, 2), byte(t, 3)]),
-            focus: byte(t, 4) & 1 != 0,
-            fire: byte(t, 4) & 2 != 0,
-            held: byte(t, 4) >> 2,
+            move_x: i8::from_le_bytes([byte(t, 0)]),
+            move_y: i8::from_le_bytes([byte(t, 1)]),
+            evade: byte(t, 2) & 1 != 0,
+            charge: byte(t, 2) & 2 != 0,
+            sub: byte(t, 2) & 4 != 0,
         })
         .collect()
 }

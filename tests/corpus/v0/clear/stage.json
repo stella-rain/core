@@ -16,11 +16,44 @@
   "player": {
     "atk": 10,
     "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
     "hp": 3,
-    "shot": {
+    "main": {
       "preset": {
-        "args": [],
-        "id": "twin_shot"
+        "id": "blaster"
+      }
+    },
+    "sub": {
+      "inline": {
+        "auto": {
+          "attack": {
+            "inline": [
+              {
+                "kind": "recovery",
+                "ticks": 1
+              }
+            ]
+          },
+          "cooldown_ticks": 1,
+          "targeting": "facing"
+        },
+        "skill": {
+          "attack": {
+            "inline": [
+              {
+                "kind": "recovery",
+                "ticks": 1
+              }
+            ]
+          },
+          "cooldown_ticks": 1,
+          "targeting": "facing"
+        }
       }
     }
   },

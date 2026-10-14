@@ -18,9 +18,10 @@ use serde_json::json;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
+use stella_rain_core::snapshot::MapView;
 use stella_rain_core::snapshot::Snapshot;
 use stella_rain_core::stage::Stage;
-use stella_rain_core::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W};
+use stella_rain_core::validate::limits::FIELD_MARGIN;
 use stella_rain_core::validate::parse_and_validate;
 
 fn config() -> ProptestConfig {
@@ -61,22 +62,23 @@ fn corpus_stages() -> &'static [Stage] {
     })
 }
 
-/// Mostly speeds a player can have, sometimes the whole `i16` range; `held` is mostly a real
-/// skill slot, sometimes any byte, because the record is untrusted until it is replayed.
+/// Any stick position, −128 included, because the engine is also called directly; the evade
+/// and the Sub skill pressed now and then (held over a run, they start again whenever they are
+/// ready), and the charge held half the time.
 fn input() -> impl Strategy<Value = Input> {
     (
-        prop_oneof![3 => -800i16..=800, 1 => any::<i16>()],
-        prop_oneof![3 => -800i16..=800, 1 => any::<i16>()],
+        any::<i8>(),
+        any::<i8>(),
+        prop::bool::weighted(0.25),
         any::<bool>(),
-        prop::bool::weighted(0.75),
-        prop_oneof![3 => 0u8..=3, 1 => any::<u8>()],
+        prop::bool::weighted(0.25),
     )
-        .prop_map(|(dx, dy, focus, fire, held)| Input {
-            dx,
-            dy,
-            focus,
-            fire,
-            held,
+        .prop_map(|(move_x, move_y, evade, charge, sub)| Input {
+            move_x,
+            move_y,
+            evade,
+            charge,
+            sub,
         })
 }
 
@@ -137,15 +139,15 @@ proptest! {
 
 // --- Positions stay in bounds (ADR-020) ------------------------------------------------------
 
-fn within(x: i32, y: i32, margin: i32) -> bool {
-    (-margin..=FIELD_W + margin).contains(&x) && (-margin..=FIELD_H + margin).contains(&y)
+fn within(map: MapView, x: i32, y: i32, margin: i32) -> bool {
+    (-margin..=map.width.0 + margin).contains(&x) && (-margin..=map.height.0 + margin).contains(&y)
 }
 
 proptest! {
     #![proptest_config(config())]
 
-    /// The main character is clamped to the field. Everything else may spawn, and bullets may
-    /// fly, up to the margin around it, and is gone beyond that.
+    /// The main character is clamped to the stage's map. Everything else may spawn, and bullets
+    /// may fly, up to the margin around it, and is gone beyond that.
     #[test]
     fn positions_stay_in_bounds(stage in 0..corpus_stages().len(), inputs in inputs()) {
         let mut e = engine(&corpus_stages()[stage]);
@@ -153,14 +155,14 @@ proptest! {
             e.step(*input);
             let s = e.snapshot();
             let player = s.player.at;
-            prop_assert!(within(player.x.0, player.y.0, 0), "player {:?} on tick {}", player, s.tick);
+            prop_assert!(within(s.map, player.x.0, player.y.0, 0), "player {:?} on tick {}", player, s.tick);
             for entity in &s.entities {
                 let at = entity.at;
-                prop_assert!(within(at.x.0, at.y.0, FIELD_MARGIN), "entity {:?} on tick {}", entity, s.tick);
+                prop_assert!(within(s.map, at.x.0, at.y.0, FIELD_MARGIN), "entity {:?} on tick {}", entity, s.tick);
             }
             for bullet in &s.bullets {
                 let at = bullet.at;
-                prop_assert!(within(at.x.0, at.y.0, FIELD_MARGIN), "bullet {:?} on tick {}", bullet, s.tick);
+                prop_assert!(within(s.map, at.x.0, at.y.0, FIELD_MARGIN), "bullet {:?} on tick {}", bullet, s.tick);
             }
         }
     }
@@ -247,9 +249,7 @@ proptest! {
             vec![
                 companion(50, hold(46_080, 90_000), apply),
                 companion(50, hold(46_080, 90_000), watch),
-            ],
-            vec![],
-        );
+            ],);
         let mut e = engine(&stage);
         let events = run_until(&mut e, idle(), TICKS, |_| false);
 

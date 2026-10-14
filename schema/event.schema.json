@@ -145,43 +145,65 @@
       ]
     },
     {
-      "description": "The main character cast a skill from a slot (ADR-032).",
+      "description": "The main character started an evade (ADR-050).",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "Evaded"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "The charged Main skill was released at `level` (from 1), `perfect` inside the level's\nperfect window (ADR-050, core#83).",
       "type": "object",
       "properties": {
         "data": {
           "type": "object",
           "properties": {
-            "slot": {
+            "level": {
               "type": "integer",
               "format": "uint8",
               "maximum": 255,
               "minimum": 0
             },
-            "target": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/EntityId"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+            "perfect": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false,
           "required": [
-            "slot"
+            "level",
+            "perfect"
           ]
         },
         "type": {
           "type": "string",
-          "const": "SkillCast"
+          "const": "ChargeReleased"
         }
       },
       "additionalProperties": false,
       "required": [
         "type",
         "data"
+      ]
+    },
+    {
+      "description": "A charge ended without an attack: an evade, or a hit from an attack that breaks charges.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "ChargeBroken"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
       ]
     },
     {

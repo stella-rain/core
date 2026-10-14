@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 68c3a36a2995010648d6dddcf1287100bf631a46d9c31d8c0b5f7435a5362665 # shrinks to bodies = [Body { id: 1, at: Point { x: Fx(3254), y: Fx(-3454) }, radius: 2060 }, Body { id: 2, at: Point { x: Fx(2640), y: Fx(-3049) }, radius: 2048 }]

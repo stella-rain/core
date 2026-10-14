@@ -1,4 +1,4 @@
-# The tests and the replay corpus in the iOS Simulator (ADR-039, ADR-040): the spike's golden hash
+# The tests and the replay corpus in the iOS Simulator (ADR-039, ADR-054): the spike's golden hash
 # and the version 0 corpus must match there as on every other platform. iOS is a run-check target
 # for release candidates, so this is not a check of every PR: it runs by hand and as a reusable
 # workflow for the release checks of `main` into `rc` (core#24 calls it). A job that is not a PR

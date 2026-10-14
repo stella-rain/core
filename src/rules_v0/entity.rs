@@ -75,6 +75,16 @@ impl State {
         }
     }
 
+    pub(super) fn defence(&self, who: Who) -> u32 {
+        match who {
+            Who::Player => self.player.defence,
+            Who::Boss => self.boss_state().defence,
+            Who::BossPart(i) => self.boss_state().parts[i].defence,
+            Who::Companion(i) => self.companions[i].defence,
+            Who::Enemy(i) => self.enemies[i].defence,
+        }
+    }
+
     pub(super) fn max_hp(&self, who: Who) -> u32 {
         match who {
             Who::Player => self.player.max_hp,
@@ -152,7 +162,12 @@ impl State {
         if let Some(i) = self.companions.iter().position(|c| c.id == id) {
             return Some(Who::Companion(i));
         }
-        self.enemies.iter().position(|e| e.id == id).map(Who::Enemy)
+        // Enemies are kept in ascending ID order (`enemies_in_id_order`), so a binary search
+        // finds one in about 9 steps among 500.
+        self.enemies
+            .binary_search_by_key(&id, |e| e.id)
+            .ok()
+            .map(Who::Enemy)
     }
 
     /// The ally with this entity ID, if it is still around.
@@ -215,6 +230,12 @@ impl State {
     }
 }
 
+/// Enemies are in ascending entity-ID order, which `State::find` relies on: spawns and summons
+/// push new IDs at the end, and removal keeps the order. Checked after every tick in debug builds.
+pub(super) fn enemies_in_id_order(s: &State) -> bool {
+    s.enemies.windows(2).all(|w| w[0].id < w[1].id)
+}
+
 /// The percent that the statuses of `kind` add up to (value times stacks), within its cap.
 pub(super) fn status_pct(statuses: &[StatusState], kind: StatusKind) -> u32 {
     let sum: u32 = statuses
@@ -234,11 +255,17 @@ pub(super) fn speed_pct(statuses: &[StatusState]) -> i64 {
     100 - i64::from(status_pct(statuses, StatusKind::Slow))
 }
 
+/// `K` of ADR-056: a defence of `K` halves a hit. A tuning value.
+const DEFENCE_K: u64 = 100;
+
 /// `base` damage, raised by the attacker's atk-up and by the target's vulnerability (percent
-/// each). A hit with any damage at all does at least 1.
-pub(super) fn scale_damage(base: u32, atk_up_pct: u32, vulnerable_pct: u32) -> u32 {
+/// each), then reduced to `K / (K + defence)` of it (ADR-056), in that order, truncating at each
+/// step in 64 bits. A hit with any damage at all does at least 1.
+pub(super) fn scale_damage(base: u32, atk_up_pct: u32, vulnerable_pct: u32, defence: u32) -> u32 {
     let scaled =
-        u64::from(base) * u64::from(100 + atk_up_pct) / 100 * u64::from(100 + vulnerable_pct) / 100;
+        u64::from(base) * u64::from(100 + atk_up_pct) / 100 * u64::from(100 + vulnerable_pct) / 100
+            * DEFENCE_K
+            / (DEFENCE_K + u64::from(defence));
     u32::try_from(scaled)
         .unwrap_or(u32::MAX)
         .max(u32::from(base > 0))

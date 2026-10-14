@@ -10,15 +10,22 @@
     "base": "pilot_a",
     "hp": 99,
     "atk": 10,
-    "shot": {
+    "main": {
       "preset": {
-        "id": "aimed_single",
-        "args": [
-          2048
-        ]
+        "id": "blaster"
       }
     },
-    "skills": []
+    "sub": {
+      "preset": {
+        "id": "blaster"
+      }
+    },
+    "evade": {
+      "distance": 12288,
+      "ticks": 8,
+      "invulnerable_ticks": 10,
+      "cooldown_ticks": 40
+    }
   },
   "companions": [],
   "waves": [],
@@ -40,21 +47,27 @@
             "attack": {
               "inline": [
                 {
-                  "type": "repeat",
-                  "count": 20,
-                  "interval_ticks": 3,
-                  "body": [
+                  "kind": "active",
+                  "ticks": 1,
+                  "spawn": [
                     {
-                      "type": "ring",
-                      "count": 24,
+                      "type": "repeat",
+                      "count": 20,
+                      "interval_ticks": 3,
                       "body": [
                         {
-                          "type": "fire",
-                          "speed": 1024,
-                          "direction": {
-                            "type": "relative",
-                            "angle": 0
-                          }
+                          "type": "ring",
+                          "count": 24,
+                          "body": [
+                            {
+                              "type": "fire",
+                              "speed": 1024,
+                              "direction": {
+                                "type": "relative",
+                                "angle": 0
+                              }
+                            }
+                          ]
                         }
                       ]
                     }
@@ -72,17 +85,23 @@
             "attack": {
               "inline": [
                 {
-                  "type": "repeat",
-                  "count": 40,
-                  "interval_ticks": 2,
-                  "body": [
+                  "kind": "active",
+                  "ticks": 1,
+                  "spawn": [
                     {
-                      "type": "fire",
-                      "speed": 1536,
-                      "direction": {
-                        "type": "sequential",
-                        "step": 1792
-                      }
+                      "type": "repeat",
+                      "count": 40,
+                      "interval_ticks": 2,
+                      "body": [
+                        {
+                          "type": "fire",
+                          "speed": 1536,
+                          "direction": {
+                            "type": "sequential",
+                            "step": 1792
+                          }
+                        }
+                      ]
                     }
                   ]
                 }

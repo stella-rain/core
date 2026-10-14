@@ -1,5 +1,5 @@
 //! Agents (ADR-036 tier 1): rule lists, selectors, conditions, statuses, aggro, movement,
-//! summons and the main character's skills (ADR-032). Small stages whose every tick can be
+//! summons and the skills they cast. Small stages whose every tick can be
 //! worked out by hand; the expected numbers come from the constants in `rules_v0`.
 
 mod common;
@@ -13,17 +13,6 @@ use stella_rain_core::input::Input;
 use stella_rain_core::snapshot::EntityKind;
 
 // --- Builders --------------------------------------------------------------------------------
-
-fn skill_slot(slot: u8, target: &str, skill: Value, cooldown_ticks: u32) -> Value {
-    json!({ "slot": slot, "target": target, "skill": skill, "cooldown_ticks": cooldown_ticks })
-}
-
-fn held(slot: u8) -> Input {
-    Input {
-        held: slot,
-        ..Input::default()
-    }
-}
 
 fn id(n: u32) -> EntityId {
     EntityId(n)
@@ -66,7 +55,7 @@ fn first_target(
 
 /// A boss that cannot be reached, then `companions`: boss is entity 1, companions 2, 3, ...
 fn with_companions(companions: Vec<Value>, waves: Vec<Value>) -> stella_rain_core::stage::Stage {
-    stage_full(18_000, Some(far_boss()), waves, companions, vec![])
+    stage_full(18_000, Some(far_boss()), waves, companions)
 }
 
 fn probe(selector: Value) -> Value {
@@ -248,7 +237,6 @@ fn nearest_enemy_picks_the_closest_and_breaks_ties_by_entity_id() {
             hold(46_080, 90_000),
             json!([probe(json!("nearest_enemy"))]),
         )],
-        vec![],
     );
     // Spawned on tick 1, so enemies 3, 4, 5. From (46080, 90000) the third is nearest.
     assert_eq!(first_target(&stage, 2, 3), Some(id(5)));
@@ -279,7 +267,6 @@ fn nearest_enemy_picks_the_closest_and_breaks_ties_by_entity_id() {
             hold(46_080, 90_000),
             json!([probe(json!("nearest_enemy"))]),
         )],
-        vec![],
     );
     assert_eq!(first_target(&stage, 2, 3), Some(id(3)));
 }
@@ -299,7 +286,6 @@ fn boss_first_prefers_the_boss_and_otherwise_the_nearest_enemy() {
             100_000,
         )],
         vec![companion(50, hold(46_080, 90_000), probe_rule())],
-        vec![],
     );
     assert_eq!(
         first_target(&stage, 2, 3),
@@ -318,7 +304,6 @@ fn boss_first_prefers_the_boss_and_otherwise_the_nearest_enemy() {
             100_000,
         )],
         vec![companion(50, hold(46_080, 90_000), probe_rule())],
-        vec![],
     );
     // No boss: the enemy, spawned on tick 1 after the companion (entity 1).
     assert_eq!(first_target(&stage, 1, 3), Some(id(2)));
@@ -336,7 +321,6 @@ fn a_selector_that_finds_nobody_does_not_fire() {
             hold(46_080, 90_000),
             json!([probe(json!("nearest_enemy"))]),
         )],
-        vec![],
     );
     let mut e = engine(&stage);
     let events = play(&mut e, 40, |_| idle());
@@ -370,7 +354,6 @@ fn rules_run_companions_first_then_enemies_in_entity_id_order() {
             companion(50, hold(46_080, 90_000), json!([probe(json!("player"))])),
             companion(50, hold(46_080, 91_000), json!([probe(json!("player"))])),
         ],
-        vec![],
     );
     let mut e = engine(&stage);
     e.step(idle());
@@ -422,7 +405,6 @@ fn hp_below_is_strictly_below_a_percent_of_the_maximum() {
         Some(far_boss()),
         vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
         vec![companion(10, hold(46_080, 130_000), k_rules)],
-        vec![],
     );
     let mut e = engine(&stage);
     let events = play(&mut e, 120, |_| idle());
@@ -487,48 +469,6 @@ fn aggro_above_compares_with_the_aggro_that_fades() {
     assert_eq!(ticks, (2..=10).collect::<Vec<u32>>());
 }
 
-#[test]
-fn player_firing_needs_the_player_to_have_fired_for_min_ticks_in_a_row() {
-    let stage = |when: Value| {
-        with_companions(
-            vec![companion(
-                50,
-                hold(46_080, 90_000),
-                json!([rule(when, json!("self"), telegraph(), 0)]),
-            )],
-            vec![],
-        )
-    };
-    // Fire on ticks 1 to 3, stop on 4, fire on 5 to 11.
-    let input = |t: u32| {
-        if (1..=3).contains(&t) || (5..=11).contains(&t) {
-            firing()
-        } else {
-            idle()
-        }
-    };
-    let run = |when: Value| {
-        let mut e = engine(&stage(when));
-        let events = play(&mut e, 14, input);
-        rule_firings_of(&events, 2)
-            .iter()
-            .map(|f| f.0)
-            .collect::<Vec<u32>>()
-    };
-    assert_eq!(
-        run(json!({ "type": "player_firing", "min_ticks": 5 })),
-        [9, 10, 11]
-    );
-    assert_eq!(
-        run(json!({ "type": "player_firing" })),
-        [1, 2, 3, 5, 6, 7, 8, 9, 10, 11]
-    );
-    assert_eq!(
-        run(json!({ "type": "player_firing", "min_ticks": 1 })),
-        [1, 2, 3, 5, 6, 7, 8, 9, 10, 11]
-    );
-}
-
 // --- Movement --------------------------------------------------------------------------------
 
 fn companion_at(e: &Engine, n: u32) -> (i32, i32) {
@@ -586,7 +526,7 @@ fn an_orbit_stays_on_its_circle_and_follows_the_main_character() {
     let mut e = engine(&stage);
     for t in 0..400 {
         // 30 ticks of 768 units keep the player, and the circle round it, inside the field.
-        e.step(if t < 30 { moving(-10_000, 0) } else { idle() });
+        e.step(if t < 30 { moving(-127, 0) } else { idle() });
         let (px, py) = player_at(&e);
         let (cx, cy) = companion_at(&e, 2);
         let d2 = i64::from(cx - px).pow(2) + i64::from(cy - py).pow(2);
@@ -594,6 +534,97 @@ fn an_orbit_stays_on_its_circle_and_follows_the_main_character() {
         // The table has whole degrees, so the radius is right to within a little.
         assert!((d2 - r2).abs() < r2 / 100, "tick {t}: {d2} vs {r2}");
     }
+}
+
+fn enemy_at(e: &Engine) -> (i32, i32) {
+    let s = e.snapshot();
+    let en = s
+        .entities
+        .iter()
+        .find(|en| en.kind == EntityKind::Enemy)
+        .expect("the enemy is there");
+    (en.at.x.0, en.at.y.0)
+}
+
+/// One enemy of `movement`, spawned on tick 1 at `(x, y)`.
+fn one_enemy(movement: Value, x: i32, y: i32) -> Engine {
+    let waves = vec![wave(1, 1, 0, enemy(50, movement, json!([])), x, y)];
+    engine(&quiet(with_companions(vec![], waves)))
+}
+
+#[test]
+fn a_hold_enemy_walks_to_its_point_four_pixels_a_tick() {
+    // 40 pixels straight below its spawn: ten ticks of 4 pixels (1,024 units), then it stays.
+    let mut e = one_enemy(hold(46_080, 60_240), 46_080, 50_000);
+    for tick in 1..=10 {
+        e.step(idle());
+        assert_eq!(enemy_at(&e), (46_080, 50_000 + 1_024 * tick), "tick {tick}");
+    }
+    for _ in 0..5 {
+        e.step(idle());
+        assert_eq!(enemy_at(&e), (46_080, 60_240));
+    }
+}
+
+#[test]
+fn a_hold_enemy_lands_exactly_on_its_point() {
+    // 3,000 and 4,000 units away: 5,000 along the line, so four steps of 1,024 and one of 904.
+    let mut e = one_enemy(hold(43_000, 54_000), 40_000, 50_000);
+    e.step(idle());
+    // 1,024 * 3 / 5 = 614.4 and 1,024 * 4 / 5 = 819.2, rounded toward zero.
+    assert_eq!(enemy_at(&e), (40_614, 50_819));
+    for _ in 0..4 {
+        e.step(idle());
+    }
+    assert_eq!(enemy_at(&e), (43_000, 54_000));
+}
+
+#[test]
+fn a_hold_companion_is_still_set_on_its_point() {
+    let stage = with_companions(
+        vec![companion(50, hold(20_000, 100_000), json!([]))],
+        vec![],
+    );
+    let mut e = engine(&stage);
+    e.step(idle());
+    assert_eq!(companion_at(&e, 2), (20_000, 100_000));
+}
+
+#[test]
+fn an_orbiting_enemy_moves_to_its_circle_and_then_keeps_it() {
+    // It spawns 200 pixels above the main character; its circle is 40 pixels round it.
+    let radius = 10_240;
+    let mut e = one_enemy(
+        json!({ "type": "orbit", "radius": radius }),
+        START_X,
+        START_Y - 51_200,
+    );
+    // The orbit step: 1.5 degrees of a 10,240 circle is a chord of 268 units; plus 4 pixels.
+    let most = 268 + 1_024 + 2;
+    let mut was = (START_X, START_Y - 51_200);
+    let mut arrived = None;
+    for tick in 1..=120 {
+        e.step(idle());
+        let at = enemy_at(&e);
+        let moved = i64::from(at.0 - was.0).pow(2) + i64::from(at.1 - was.1).pow(2);
+        assert!(
+            moved <= i64::from(most).pow(2),
+            "tick {tick}: {was:?} to {at:?}"
+        );
+        was = at;
+        let (px, py) = player_at(&e);
+        let d2 = i64::from(at.0 - px).pow(2) + i64::from(at.1 - py).pow(2);
+        let r2 = i64::from(radius).pow(2);
+        let on_circle = (d2 - r2).abs() < r2 / 100;
+        if arrived.is_some() {
+            assert!(on_circle, "tick {tick}: it left its circle");
+        } else if on_circle {
+            arrived = Some(tick);
+        }
+    }
+    // 160 pixels to close at a little under 4 pixels a tick more than the circle turns.
+    let arrived = arrived.expect("it reaches its circle");
+    assert!((35..=60).contains(&arrived), "it arrived on tick {arrived}");
 }
 
 #[test]
@@ -608,7 +639,7 @@ fn a_following_companion_closes_to_its_distance_and_stops() {
     );
     let mut e = engine(&stage);
     for _ in 0..30 {
-        e.step(moving(-10_000, 0));
+        e.step(moving(-127, 0));
     }
     for _ in 0..200 {
         e.step(idle());
@@ -703,10 +734,9 @@ fn atk_up_raises_the_damage_of_shots_fired_after_it() {
         Some(boss_at(1_000, 25_600)),
         vec![],
         vec![companion(50, hold(0, 0), rules)],
-        vec![],
     );
     let mut e = engine(&stage);
-    let events = play(&mut e, 90, |_| firing());
+    let events = play(&mut e, 90, |_| idle());
     let damages = hit_damages(&events, 1);
     assert_eq!(&damages[..4], [10, 15, 15, 15], "{damages:?}");
 }
@@ -747,10 +777,9 @@ fn vulnerable_raises_the_damage_a_target_takes() {
             Some(boss_at(5_000, 25_600)),
             vec![],
             vec![companion(50, hold(0, 0), rules)],
-            vec![],
         );
         let mut e = engine(&stage);
-        hit_damages(&play(&mut e, 120, |_| firing()), 1)
+        hit_damages(&play(&mut e, 120, |_| idle()), 1)
     };
     let plain = hits(json!([]));
     let vulnerable = hits(
@@ -773,11 +802,10 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
         Some(far_boss()),
         vec![],
         vec![companion(50, hold(0, 0), rules)],
-        vec![],
     ));
-    e.step(moving(10_000, 0));
+    e.step(moving(127, 0));
     assert_eq!(player_at(&e).0, START_X + SPEED);
-    e.step(moving(10_000, 0));
+    e.step(moving(127, 0));
     // Half speed from the tick after the cast.
     assert_eq!(player_at(&e).0, START_X + SPEED + SPEED / 2);
 
@@ -788,13 +816,12 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
         Some(far_boss()),
         vec![],
         vec![companion(50, hold(0, 0), rules)],
-        vec![],
     ));
     for _ in 0..20 {
-        e.step(moving(10_000, 0));
+        e.step(moving(127, 0));
     }
     let before = player_at(&e).0;
-    e.step(moving(10_000, 0));
+    e.step(moving(127, 0));
     assert_eq!(
         player_at(&e).0 - before,
         76,
@@ -814,7 +841,6 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
         Some(far_boss()),
         vec![wave(1, 1, 0, runner, START_X, 0)],
         vec![companion(50, hold(46_080, 90_000), rules)],
-        vec![],
     ));
     e.step(idle());
     let y1 = e
@@ -863,7 +889,8 @@ fn heals_stop_at_the_maximum_and_say_how_much_they_gave() {
         cast(json!({ "type": "heal", "amount": 5 })),
         0
     )]);
-    let stage = stage_full(
+    // The weapons are quiet, so that the shooter lives.
+    let stage = quiet(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
@@ -871,8 +898,7 @@ fn heals_stop_at_the_maximum_and_say_how_much_they_gave() {
             companion(10, hold(46_080, 130_000), json!([])),
             companion(10, hold(80_000, 147_456), healer),
         ],
-        vec![],
-    );
+    ));
     let mut e = engine(&stage);
     let events = play(&mut e, 150, |_| idle());
     let healed: Vec<(EntityId, u32)> = events
@@ -919,10 +945,9 @@ fn damage_dealt_raises_aggro_and_enemies_turn_on_the_ally_with_the_most() {
             wave(1, 1, 0, shooter, 70_000, 100_000),
         ],
         vec![companion(50, hold(60_000, 100_000), json!([]))],
-        vec![],
     );
     let mut e = engine(&stage);
-    let events = play(&mut e, 100, |_| firing());
+    let events = play(&mut e, 100, |_| idle());
     // Entities: boss 1, K 2, target 3, shooter 4.
     let aimed_at: Vec<(u32, Option<EntityId>)> = rule_firings_of(&events, 4)
         .iter()
@@ -959,7 +984,6 @@ fn a_companion_that_is_hit_enough_dies_and_stops_being_selected() {
             companion(3, hold(46_080, 130_000), json!([])),
             companion(50, hold(80_000, 147_456), probe_rule),
         ],
-        vec![],
     );
     let mut e = engine(&stage);
     let events = play(&mut e, 120, |_| idle());
@@ -989,13 +1013,13 @@ fn an_enemy_summons_more_enemies_where_it_stands() {
         hold(46_080, 50_000),
         json!([{ "when": always(), "target": "player", "do": summon(2), "once": true }]),
     );
-    let mut e = engine(&stage_full(
+    // Quiet weapons: the summoner stands straight above the main character.
+    let mut e = engine(&quiet(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, summoner, 46_080, 50_000)],
         vec![],
-        vec![],
-    ));
+    )));
     e.step(idle());
     let s = e.snapshot();
     let ids: Vec<u32> = s.entities.iter().map(|x| x.id.0).collect();
@@ -1004,17 +1028,30 @@ fn an_enemy_summons_more_enemies_where_it_stands() {
         [1, 2, 3, 4],
         "boss, the summoner, then the two summoned"
     );
-    // They appear where the summoner stands, and start acting (and holding) next tick.
-    assert_eq!(s.entities[2].at.x.0, 46_080);
-    e.step(idle());
+    // They appear where the summoner stands, and the three are pushed apart on that tick, at
+    // most 4 pixels (1,024 units) each.
+    let from = |v: &stella_rain_core::snapshot::EntityView, x: i32, y: i32| {
+        (i64::from(v.at.x.0 - x).pow(2) + i64::from(v.at.y.0 - y).pow(2)).isqrt()
+    };
+    for v in &s.entities[1..] {
+        assert!(from(v, 46_080, 50_000) <= 1_024, "{v:?}");
+    }
+    // The summoned start acting next tick: they walk to their point at (1000, 1000), 66,582
+    // units away, at 4 pixels a tick, and keep to it side by side.
+    for _ in 0..150 {
+        e.step(idle());
+    }
     let s = e.snapshot();
-    assert_eq!((s.entities[2].at.x.0, s.entities[2].at.y.0), (1000, 1000));
+    for v in &s.entities[2..] {
+        assert!(from(v, 1_000, 1_000) <= 4_096, "{v:?}");
+    }
+    assert!(from(&s.entities[2], s.entities[3].at.x.0, s.entities[3].at.y.0) >= 3_840);
 }
 
 #[test]
 fn summons_respect_the_enemy_cap() {
     // 200 enemies on tick 1, one of which summons 8 more; later waves fill the rest. Never
-    // more than 300 alive.
+    // more than 500 alive.
     let mut waves: Vec<Value> = (0..200)
         .map(|_| {
             wave(
@@ -1039,7 +1076,7 @@ fn summons_respect_the_enemy_cap() {
         46_080,
         50_000,
     );
-    let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![], vec![]));
+    let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![]));
     e.step(idle());
     let alive = |e: &Engine| {
         e.snapshot()
@@ -1051,9 +1088,9 @@ fn summons_respect_the_enemy_cap() {
     assert_eq!(alive(&e), 208);
     for _ in 0..5 {
         e.step(idle());
-        assert!(alive(&e) <= 300);
+        assert!(alive(&e) <= 500);
     }
-    assert_eq!(alive(&e), 300);
+    assert_eq!(alive(&e), 500);
 }
 
 #[test]
@@ -1077,251 +1114,31 @@ fn a_companion_cannot_summon_and_the_next_rule_gets_its_turn() {
     assert_eq!(e.snapshot().entities.len(), 2, "no enemies appeared");
 }
 
-// --- The main character's skills (ADR-032) ----------------------------------------------------
-
-fn shot_skill(damage: u32) -> Value {
-    json!({ "type": "shot", "damage": damage, "pattern": { "preset": { "id": "aimed_single", "args": [2048] } } })
-}
-
-fn skill_stage(skills: Vec<Value>) -> Engine {
-    engine(&stage_full(
-        18_000,
-        Some(boss_at(100_000, 25_600)),
-        vec![],
-        vec![],
-        skills,
-    ))
-}
-
-fn casts(events: &[(u32, DomainEvent)]) -> Vec<(u32, u8, Option<EntityId>)> {
-    events
-        .iter()
-        .filter_map(|(t, ev)| match ev {
-            DomainEvent::SkillCast { slot, target } => Some((*t, *slot, *target)),
-            _ => None,
-        })
-        .collect()
-}
-
-/// `held(slot)` on ticks `from..to`, nothing otherwise.
-fn hold_between(slot: u8, from: u32, to: u32) -> impl Fn(u32) -> Input {
-    move |t| {
-        if (from..to).contains(&t) {
-            held(slot)
-        } else {
-            idle()
-        }
-    }
-}
-
-#[test]
-fn releasing_a_held_skill_casts_it_at_its_target() {
-    let mut e = skill_stage(vec![skill_slot(1, "boss_first", shot_skill(40), 100)]);
-    // Pressed on tick 5, released on tick 10.
-    let events = play(&mut e, 20, hold_between(1, 5, 10));
-    assert_eq!(casts(&events), [(10, 1, Some(id(1)))]);
-    let skill = &e.snapshot().player.skills[0];
-    assert_eq!(
-        (skill.slot, skill.ready, skill.cooldown_left),
-        (1, false, 90)
-    );
-}
+// --- Skills cast by companions -------------------------------------------------------------
 
 #[test]
 fn a_cast_shot_hits_for_its_own_damage() {
-    let mut e = skill_stage(vec![skill_slot(1, "boss_first", shot_skill(40), 100)]);
-    let events = play(&mut e, 80, hold_between(1, 1, 3));
-    assert_eq!(casts(&events).len(), 1);
+    let shot = json!({ "type": "shot", "damage": 40,
+                       "pattern": { "preset": { "id": "aimed_single", "args": [2048] } } });
+    let caster = companion(
+        50,
+        hold(46_080, 90_000),
+        json!([rule(always(), json!("boss_first"), cast(shot), 1000)]),
+    );
+    // The weapons are quiet, so that every hit on the boss is the companion's.
+    let mut e = engine(&quiet(stage_full(
+        18_000,
+        Some(boss_at(100_000, 25_600)),
+        vec![],
+        vec![caster],
+    )));
+    let events = play(&mut e, 80, |_| idle());
     assert_eq!(hit_damages(&events, 1), [40]);
 }
 
 #[test]
-fn a_skill_on_cooldown_cannot_be_held() {
-    let mut e = skill_stage(vec![skill_slot(1, "boss_first", shot_skill(40), 100)]);
-    // Cast on tick 3 (pressed 1, released 3); the cooldown of 100 ends on tick 103. A press at
-    // tick 50 does nothing: no hold, no cast on release.
-    let input = |t: u32| {
-        if t < 3 || (50..60).contains(&t) {
-            held(1)
-        } else {
-            idle()
-        }
-    };
-    let events = play(&mut e, 110, input);
-    assert_eq!(casts(&events).iter().map(|c| c.0).collect::<Vec<_>>(), [3]);
-    assert!(e.snapshot().player.skills[0].ready);
-}
-
-#[test]
-fn a_long_hold_casts_by_itself_after_thirty_ticks() {
-    // A short cooldown, so that a second cast would be possible if holding on counted as a new press.
-    let mut e = skill_stage(vec![skill_slot(1, "boss_first", shot_skill(40), 5)]);
-    // Pressed on tick 10 and never let go: the cast is on tick 40, and holding on does not
-    // start another.
-    let events = play(&mut e, 120, hold_between(1, 10, 200));
-    assert_eq!(casts(&events).iter().map(|c| c.0).collect::<Vec<_>>(), [40]);
-    // Letting go and pressing again does: pressed on tick 130, auto-cast on tick 160.
-    let events = play(&mut e, 80, |t| if t >= 130 { held(1) } else { idle() });
-    assert_eq!(
-        casts(&events).iter().map(|c| c.0).collect::<Vec<_>>(),
-        [160]
-    );
-}
-
-#[test]
-fn the_snapshot_shows_a_hold_from_its_press_to_its_cast() {
-    let mut e = skill_stage(vec![skill_slot(1, "boss_first", shot_skill(40), 100)]);
-    // Pressed on tick 5 and released on tick 10; held down again from tick 20, while the skill
-    // is cooling down, until tick 200; pressed on tick 205 and never let go.
-    let input = |t: u32| {
-        if (5..10).contains(&t) || (20..200).contains(&t) || t >= 205 {
-            held(1)
-        } else {
-            idle()
-        }
-    };
-    // The hold after each tick, by tick.
-    let mut seen = vec![None];
-    let mut events = Vec::new();
-    for _ in 0..240 {
-        events.extend(play(&mut e, 1, input));
-        let s = e.snapshot();
-        seen.push(s.player.hold.map(|h| (h.slot, h.ticks)));
-        if e.tick() == 150 {
-            assert!(s.player.skills[0].ready && s.player.held == 1);
-        }
-    }
-    assert_eq!(seen[4], None);
-    assert_eq!(seen[5], Some((1, 0)), "the press starts it at 0 ticks");
-    assert_eq!(seen[9], Some((1, 4)));
-    assert_eq!(seen[10], None, "the release casts it");
-    // Ready again from tick 110, but the key went down before that: no press, so no hold.
-    assert!(seen[10..205].iter().all(Option::is_none), "{seen:?}");
-    assert_eq!(seen[205], Some((1, 0)));
-    assert_eq!(seen[234], Some((1, 29)));
-    assert_eq!(seen[235], None, "the thirtieth tick casts it");
-    assert_eq!(
-        casts(&events).iter().map(|c| c.0).collect::<Vec<_>>(),
-        [10, 235]
-    );
-}
-
-#[test]
-fn switching_slots_releases_the_first_and_presses_the_second() {
-    let mut e = skill_stage(vec![
-        skill_slot(1, "boss_first", shot_skill(40), 1000),
-        skill_slot(
-            2,
-            "player",
-            json!({ "type": "atk_up", "value_pct": 10, "duration_ticks": 100 }),
-            1000,
-        ),
-    ]);
-    let input = |t: u32| match t {
-        3..=9 => held(1),
-        10..=19 => held(2),
-        _ => idle(),
-    };
-    let events = play(&mut e, 30, input);
-    assert_eq!(casts(&events), [(10, 1, Some(id(1))), (20, 2, Some(id(0)))]);
-}
-
-#[test]
-fn charges_run_out_and_the_view_says_so() {
-    let mut slot = skill_slot(
-        1,
-        "player",
-        json!({ "type": "atk_up", "value_pct": 10, "duration_ticks": 5 }),
-        0,
-    );
-    slot["charges"] = json!(2);
-    let mut e = skill_stage(vec![slot]);
-    assert_eq!(e.snapshot().player.skills[0].charges_left, Some(2));
-    // Three quick presses and releases: two casts.
-    let input = |t: u32| {
-        if matches!(t, 2 | 5 | 8) {
-            held(1)
-        } else {
-            idle()
-        }
-    };
-    let events = play(&mut e, 12, input);
-    assert_eq!(
-        casts(&events).iter().map(|c| c.0).collect::<Vec<_>>(),
-        [3, 6]
-    );
-    let view = &e.snapshot().player.skills[0];
-    assert_eq!((view.ready, view.charges_left), (false, Some(0)));
-}
-
-#[test]
-fn a_skill_with_nobody_to_aim_at_fizzles_and_costs_nothing() {
-    let mut e = skill_stage(vec![skill_slot(
-        1,
-        "nearest_ally",
-        json!({ "type": "heal", "amount": 5 }),
-        100,
-    )]);
-    let events = play(&mut e, 10, hold_between(1, 2, 5));
-    assert_eq!(casts(&events), []);
-    assert!(e.snapshot().player.skills[0].ready);
-}
-
-#[test]
-fn a_held_slot_that_does_not_exist_holds_nothing() {
-    let mut e = skill_stage(vec![skill_slot(1, "boss_first", shot_skill(40), 100)]);
-    for slot in [0u8, 2, 3, 4, 7, 255] {
-        let events = play(&mut e, 10, hold_between(slot, 1, 5));
-        assert_eq!(casts(&events), [], "slot {slot}");
-    }
-}
-
-#[test]
-fn a_skill_view_counts_down_its_cooldown() {
-    let mut e = skill_stage(vec![skill_slot(1, "boss_first", shot_skill(40), 20)]);
-    play(&mut e, 3, hold_between(1, 1, 3));
-    let at_cast = e.snapshot().player.skills[0].cooldown_left;
-    assert_eq!(at_cast, 20);
-    play(&mut e, 5, |_| idle());
-    assert_eq!(e.snapshot().player.skills[0].cooldown_left, 15);
-    play(&mut e, 15, |_| idle());
-    assert!(e.snapshot().player.skills[0].ready);
-}
-
-#[test]
-fn a_cast_buff_raises_aggro_and_the_main_characters_damage() {
-    let slot = skill_slot(
-        1,
-        "player",
-        json!({ "type": "atk_up", "value_pct": 100, "duration_ticks": 1000 }),
-        1000,
-    );
-    let mut e = engine(&stage_full(
-        18_000,
-        Some(boss_at(5_000, 25_600)),
-        vec![],
-        vec![],
-        vec![slot],
-    ));
-    // Buff on tick 3; the shots fired since are doubled.
-    let input = |t: u32| {
-        if t < 3 {
-            Input {
-                held: 1,
-                ..firing()
-            }
-        } else {
-            firing()
-        }
-    };
-    let events = play(&mut e, 90, input);
-    let damages = hit_damages(&events, 1);
-    assert_eq!(&damages[..3], [10, 20, 20], "{damages:?}");
-}
-
-#[test]
 fn the_finished_run_still_ends_normally() {
-    // Skills and companions do not change how a run ends.
+    // Evades and companions do not change how a run ends.
     let mut e = engine(&stage_full(
         200,
         Some(boss_at(20, 25_600)),
@@ -1331,16 +1148,10 @@ fn the_finished_run_still_ends_normally() {
             json!({ "type": "orbit", "radius": 5_000 }),
             json!([]),
         )],
-        vec![skill_slot(
-            1,
-            "player",
-            json!({ "type": "atk_up", "value_pct": 10, "duration_ticks": 50 }),
-            10,
-        )],
     ));
     play(&mut e, 300, |t| Input {
-        held: (t % 7 == 0) as u8,
-        ..firing()
+        evade: t % 7 == 0,
+        ..idle()
     });
     assert_eq!(e.outcome(), Outcome::Cleared);
 }

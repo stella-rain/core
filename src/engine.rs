@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use crate::attack::Emitter;
+use crate::attack::{AttackPhase, Emitter};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
@@ -17,7 +17,8 @@ use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
 use crate::snapshot::{
-    BulletView, EntityKind, EntityView, HoldView, PlayerView, SkillView, Snapshot,
+    AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, MapView,
+    PlayerView, SkillView, Snapshot,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error};
@@ -127,6 +128,23 @@ impl Engine {
     /// What the frontend draws after the last tick (ADR-005).
     pub fn snapshot(&self) -> Snapshot {
         let s = &self.state;
+        let view = |r: &AttackRun| {
+            let p = &r.phases[r.phase as usize];
+            AttackView {
+                slot: r.slot,
+                preset: r.preset.clone(),
+                phase: u8::try_from(r.phase).unwrap_or(u8::MAX),
+                kind: p.kind,
+                tick: r.tick,
+                ticks: p.ticks,
+                hit_box: p.hit_box.clone(),
+                facing: Facing {
+                    x: r.facing.x,
+                    y: r.facing.y,
+                },
+            }
+        };
+        let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
         let mut entities = Vec::new();
         if let (Some(b), Some(boss)) = (&s.boss, &self.stage.boss) {
             if b.hp > 0 {
@@ -138,6 +156,7 @@ impl Engine {
                     at: b.at,
                     radius: boss.radius,
                     hp: b.hp,
+                    attack: attack_of(b.id),
                 });
             }
         }
@@ -154,6 +173,7 @@ impl Engine {
                         at: a.at,
                         radius: def.radius,
                         hp: a.hp,
+                        attack: attack_of(a.id),
                     });
                 }
             };
@@ -172,38 +192,58 @@ impl Engine {
                         },
                         radius: Fx(part.radius),
                         hp: part.hp,
+                        attack: None,
                     });
                 }
             }
         }
         agent_views(EntityKind::Enemy, &s.enemies, &mut entities);
+        let map = self.stage.map();
         Snapshot {
             tick: s.tick,
+            map: MapView {
+                width: map.width,
+                height: map.height,
+            },
             player: PlayerView {
                 at: s.player.at,
                 hp: s.player.hp,
-                focus: s.input.focus,
-                firing: s.input.fire,
-                held: s.input.held,
-                hold: s.player.hold.map(|h| HoldView {
-                    slot: self.stage.player.skills[h.index as usize].slot,
-                    ticks: h.ticks,
-                }),
                 radius: Fx(rules_v0::PLAYER_RADIUS),
-                skills: self
-                    .stage
-                    .player
-                    .skills
-                    .iter()
-                    .zip(&s.player.skills)
-                    .map(|(def, state)| SkillView {
-                        slot: def.slot,
-                        ready: state.is_ready(),
-                        cooldown_left: state.cooldown_left,
-                        charges_left: (state.charges_left != UNLIMITED)
-                            .then(|| u16::try_from(state.charges_left).unwrap_or(u16::MAX)),
+                facing: Facing {
+                    x: s.player.facing.x,
+                    y: s.player.facing.y,
+                },
+                invulnerable: s.player.invulnerable,
+                evade: EvadeView {
+                    ready: s.player.evade_ready(),
+                    cooldown_left: s.player.evade_cooldown,
+                    dash_left: s.player.dash.map_or(0, |d| d.left),
+                },
+                charge: s.player.charge.and_then(|held| {
+                    let (level, perfect) = rules_v0::charge_view(&self.stage, held)?;
+                    Some(ChargeView {
+                        level,
+                        held,
+                        perfect,
                     })
-                    .collect(),
+                }),
+                main_skill: SkillView {
+                    ready: rules_v0::charge_ready(s),
+                    cooldown_left: s.player.charge_cooldown,
+                },
+                sub_skill: SkillView {
+                    ready: rules_v0::skill_ready(s),
+                    cooldown_left: s.player.skill_cooldown,
+                },
+                attacks: {
+                    let mut runs: Vec<&AttackRun> = s
+                        .runs
+                        .iter()
+                        .filter(|r| r.owner == rules_v0::PLAYER_ID)
+                        .collect();
+                    runs.sort_by_key(|r| r.slot);
+                    runs.into_iter().map(view).collect()
+                },
             },
             entities,
             bullets: s
@@ -232,8 +272,6 @@ pub(crate) struct State {
     pub tick: u32,
     pub rng: SplitMix64,
     pub outcome: Outcome,
-    /// The input of the last tick, for the snapshot.
-    pub input: Input,
     pub player: PlayerState,
     pub boss: Option<BossState>,
     /// The allies that act on their own, in entity-ID order.
@@ -242,6 +280,8 @@ pub(crate) struct State {
     pub enemies: Vec<AgentState>,
     /// Attacks that are being carried out, oldest first (ADR-036 tier 3).
     pub tasks: Vec<AttackTask>,
+    /// Phased attacks in progress, in the order they started (ADR-055).
+    pub runs: Vec<AttackRun>,
     /// In spawn order.
     pub bullets: Vec<BulletState>,
     /// Enemies spawned so far, per wave.
@@ -254,41 +294,45 @@ pub(crate) struct PlayerState {
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
-    /// Ticks of invulnerability left after a hit.
+    /// Copied from the stage when it appears (ADR-056).
+    pub defence: u32,
+    /// Ticks of invulnerability left, after a hit or from an evade.
     pub invulnerable: u32,
-    /// Ticks until the main shot may fire again.
-    pub shot_cooldown: u32,
-    /// Ticks in a row the input has had `fire`.
-    pub firing_streak: u32,
+    /// The last non-zero movement direction (ADR-055): where a weapon aimed along the facing
+    /// attacks and where an evade without movement dashes.
+    pub facing: Dir,
+    /// Ticks until the Main weapon may attack again, counted from its last attack's start.
+    pub main_cooldown: u32,
+    /// The same for the Sub weapon.
+    pub sub_cooldown: u32,
+    /// Ticks until the evade is ready again, counted from its press.
+    pub evade_cooldown: u32,
+    /// The charge in progress (skill 2): ticks held since the press, 0 on the press's tick.
+    pub charge: Option<u32>,
+    /// Skill 2 was held on the last tick, so that only a press starts a charge.
+    pub charge_held: bool,
+    /// Ticks until the charged skill is ready again, counted from its release.
+    pub charge_cooldown: u32,
+    /// Ticks until the Sub skill is ready again, counted from its start.
+    pub skill_cooldown: u32,
+    /// The dash in progress, if any.
+    pub dash: Option<DashState>,
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
-    /// One per skill slot of the stage, in order.
-    pub skills: Vec<SkillState>,
-    /// The slot being held with a ready skill, if any (ADR-032).
-    pub hold: Option<HoldState>,
-    /// The `held` field of the last tick's input, to see presses and releases.
-    pub held_before: u8,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct SkillState {
-    pub cooldown_left: u32,
-    /// Casts left; `UNLIMITED` if there is no limit.
-    pub charges_left: u32,
-}
-
-impl SkillState {
-    pub fn is_ready(&self) -> bool {
-        self.cooldown_left == 0 && self.charges_left != 0
+impl PlayerState {
+    pub fn evade_ready(&self) -> bool {
+        self.evade_cooldown == 0 && self.dash.is_none()
     }
 }
 
+/// An evade's dash: locked to its direction, `done` of its ticks moved, `left` to go.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct HoldState {
-    /// Index into the stage's skill slots.
-    pub index: u32,
-    /// Ticks held so far.
-    pub ticks: u32,
+pub(crate) struct DashState {
+    pub dir: Dir,
+    pub done: u32,
+    pub left: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -297,6 +341,8 @@ pub(crate) struct BossState {
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
+    /// Copied from the stage when it appears (ADR-056).
+    pub defence: u32,
     pub statuses: Vec<StatusState>,
     /// The phase being carried out, 0-based (ADR-036 tier 2).
     pub phase: u32,
@@ -323,6 +369,8 @@ pub(crate) struct PartState {
     pub name: ContentId,
     pub hp: u32,
     pub max_hp: u32,
+    /// Copied from the stage when it appears (ADR-056).
+    pub defence: u32,
     /// From the boss's centre, and the hurt circle's radius: both from the stage.
     pub offset: Point,
     pub radius: i32,
@@ -356,6 +404,8 @@ pub(crate) struct AgentState {
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
+    /// Copied from the stage when it appears (ADR-056).
+    pub defence: u32,
     /// Ticks since it spawned.
     pub age: u32,
     /// One per rule of its agent, in order.
@@ -367,6 +417,9 @@ pub(crate) struct AgentState {
     pub order: Option<MoveOrder>,
     /// For `orbit`, in 1/256 degree.
     pub orbit_angle: i32,
+    /// Enemies only: the last push-apart found it overlapping its neighbours by more than a
+    /// pixel, so it does not take its own step to its place this tick (ADR-058).
+    pub crowded: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -438,15 +491,22 @@ impl Dir {
 
 /// What an attack's `aimed` directions point at, and which way it faces. This is where the
 /// ways of aiming meet: enemies, companions and the boss aim at an entity; the main
-/// character's shot has no target and aims along its heading, straight up. A new way of aiming
-/// (the nearest enemy, a homing shot the main character acquires) is a new variant, read in
-/// `attacks::aim`, hashed in `hash_task` and given its heading here.
+/// character's weapons aim along its facing or at the target their targeting picked. A new way
+/// of aiming (a homing shot the main character acquires) is a new variant, read in
+/// `attacks::aim`, hashed in `hash_aim` and given its heading here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Aim {
     /// At the entity with this ID; straight down if it is gone.
     Entity(EntityId),
     /// Along a fixed direction.
     Fixed(Dir),
+    /// At a weapon's target (core#83); when it is gone, along `last`, the last direction taken
+    /// to it. `heading` is the direction to it when the attack started.
+    Target {
+        id: EntityId,
+        heading: Dir,
+        last: Dir,
+    },
 }
 
 impl Aim {
@@ -455,7 +515,7 @@ impl Aim {
     pub fn heading(self) -> Dir {
         match self {
             Aim::Entity(_) => Dir::DOWN,
-            Aim::Fixed(d) => d,
+            Aim::Fixed(d) | Aim::Target { heading: d, .. } => d,
         }
     }
 }
@@ -474,6 +534,8 @@ pub(crate) struct BulletState {
     /// Fired by an ally rather than an enemy.
     pub friendly: bool,
     pub damage: u32,
+    /// Its hit breaks the main character's charge (core#83).
+    pub breaks_charge: bool,
     /// Starts an attack of its own after a while (`on_bullet`).
     pub hook: Option<Box<Hook>>,
 }
@@ -490,6 +552,7 @@ pub(crate) struct Hook {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
+    pub breaks_charge: bool,
 }
 
 /// One step down a program: the node at `node` in the current list, then its `body` list, or
@@ -525,6 +588,36 @@ pub(crate) struct Frame {
     pub hook_after: u32,
 }
 
+/// A phased attack an attacker is carrying out (ADR-055): one at a time per attacker and slot.
+/// Its phases spawn their nodes as `AttackTask`s, which run to their own end.
+#[derive(Clone, Debug)]
+pub(crate) struct AttackRun {
+    pub owner: EntityId,
+    /// 0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its
+    /// Sub weapon, 2 for its charged skill and 3 for its Sub skill (core#83).
+    pub slot: u8,
+    /// The preset it came from, for the frontend to pick its animation.
+    pub preset: Option<ContentId>,
+    pub phases: Arc<Vec<AttackPhase>>,
+    pub phase: u32,
+    /// Ticks done in the phase: 0 on its first tick.
+    pub tick: u32,
+    /// Locked when the attack starts.
+    pub facing: Dir,
+    pub aim: Aim,
+    pub friendly: bool,
+    /// The damage its starter gives a phase that sets none (ADR-055): the main character's
+    /// attack, a shot skill's own damage, 1 for an enemy or the boss.
+    pub base: u32,
+    /// The attacker's atk-up, in percent, fixed when the attack starts (ADR-056).
+    pub atk_up_pct: u32,
+    /// `phase_time` of the attack's first tick, for the nodes its phases spawn.
+    pub age: u32,
+    /// Who the current active phase has hit, and on which tick last, sorted by entity ID;
+    /// emptied when an active phase begins.
+    pub hits: Vec<(EntityId, u32)>,
+}
+
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it
 /// needs to know to aim and to hurt. Presets are expanded before they get here, so a preset and
 /// its inline copy are the same task.
@@ -539,6 +632,8 @@ pub(crate) struct AttackTask {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
+    /// The bullets it fires break the main character's charge (core#83).
+    pub breaks_charge: bool,
     /// Ticks since it started.
     pub age: u32,
     /// Ticks to wait before going on.

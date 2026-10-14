@@ -16,6 +16,10 @@
         "$ref": "#/$defs/EntityView"
       }
     },
+    "map": {
+      "description": "The map's size, so the frontend can bound its camera (core#87).",
+      "$ref": "#/$defs/MapView"
+    },
     "player": {
       "$ref": "#/$defs/PlayerView"
     },
@@ -28,11 +32,81 @@
   "additionalProperties": false,
   "required": [
     "tick",
+    "map",
     "player",
     "entities",
     "bullets"
   ],
   "$defs": {
+    "AttackView": {
+      "description": "An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the\nsame tick that `core` judges them.",
+      "type": "object",
+      "properties": {
+        "facing": {
+          "description": "The facing locked when the attack started.",
+          "$ref": "#/$defs/Facing"
+        },
+        "hit_box": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HitBox"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/PhaseKind"
+        },
+        "phase": {
+          "description": "Which phase, from 0.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "preset": {
+          "description": "The preset it came from; absent for an inline attack.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "slot": {
+          "description": "0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its\nSub weapon, 2 for its charged skill and 3 for its Sub skill (core#83).",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "tick": {
+          "description": "Ticks done in the phase: 0 on its first tick.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ticks": {
+          "description": "How long the phase lasts.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "phase",
+        "kind",
+        "tick",
+        "ticks",
+        "facing"
+      ]
+    },
     "BulletView": {
       "description": "Bullets carry no ID or asset name: thousands are drawn per tick, batched by `style`.",
       "type": "object",
@@ -72,6 +146,35 @@
         "friendly"
       ]
     },
+    "ChargeView": {
+      "description": "A charge in progress (ADR-050). `core` judges the perfect window on this tick, so what the\nfrontend shows is what a release on the next tick gets.",
+      "type": "object",
+      "properties": {
+        "held": {
+          "description": "Ticks held since the press, 0 on the press's tick.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "level": {
+          "description": "The level reached, from 1.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "perfect": {
+          "description": "Inside the level's perfect window: letting go on the next tick is a perfect release.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "held",
+        "perfect"
+      ]
+    },
     "ContentId": {
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
@@ -99,6 +202,17 @@
         },
         "at": {
           "$ref": "#/$defs/Point"
+        },
+        "attack": {
+          "description": "The attack it is making, if any.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttackView"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "hp": {
           "type": "integer",
@@ -136,31 +250,166 @@
         "hp"
       ]
     },
+    "EvadeView": {
+      "description": "Skill 1 (ADR-050).",
+      "type": "object",
+      "properties": {
+        "cooldown_left": {
+          "description": "Ticks until it is ready again, counted from the press.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "dash_left": {
+          "description": "Ticks of the dash still to move: 0 when not dashing.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ready": {
+          "description": "A press on the next tick would dash.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "ready",
+        "cooldown_left",
+        "dash_left"
+      ]
+    },
+    "Facing": {
+      "description": "A direction as a unit vector times `trig::SCALE`; `y` grows down the screen.",
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "y": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
+      ]
+    },
     "Fx": {
       "description": "A length in 1/256 pixel units. In files it is the plain integer.",
       "type": "integer",
       "format": "int32"
     },
-    "HoldView": {
+    "HitBox": {
+      "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "circle"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius"
+          ]
+        },
+        {
+          "description": "A circle sector centred on the facing, `half_angle` to each side.",
+          "type": "object",
+          "properties": {
+            "half_angle": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "arc"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius",
+            "half_angle"
+          ]
+        }
+      ]
+    },
+    "MapView": {
+      "description": "The map's width and height, from its top-left corner.",
       "type": "object",
       "properties": {
-        "slot": {
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
+        "height": {
+          "$ref": "#/$defs/Fx"
         },
-        "ticks": {
-          "description": "Ticks held since the press: 0 on the tick of the press.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
+        "width": {
+          "$ref": "#/$defs/Fx"
         }
       },
       "additionalProperties": false,
       "required": [
-        "slot",
-        "ticks"
+        "width",
+        "height"
+      ]
+    },
+    "Offset": {
+      "type": "object",
+      "properties": {
+        "forward": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        },
+        "right": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "PhaseKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "recovery"
+          ]
+        },
+        {
+          "description": "The telegraph: its hit box is the warned area, and it deals no damage.",
+          "type": "string",
+          "const": "wind_up"
+        },
+        {
+          "description": "Its hit box deals damage.",
+          "type": "string",
+          "const": "active"
+        }
       ]
     },
     "PlayerView": {
@@ -169,55 +418,65 @@
         "at": {
           "$ref": "#/$defs/Point"
         },
-        "firing": {
-          "type": "boolean"
+        "attacks": {
+          "description": "Its attacks in progress, by slot.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttackView"
+          }
         },
-        "focus": {
-          "type": "boolean"
-        },
-        "held": {
-          "description": "The slot held in this tick's input, 0 for none. Whether that started a hold is `hold`:\na key held down from before the skill was ready starts none.",
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
-        },
-        "hold": {
-          "description": "The hold in progress, if any: a press of a ready skill's slot starts one, and the release\nor the hold limit casts the skill (ADR-032). The frontend slows its clock while it lasts.",
+        "charge": {
+          "description": "The charge in progress (skill 2), if any (ADR-050).",
           "anyOf": [
             {
-              "$ref": "#/$defs/HoldView"
+              "$ref": "#/$defs/ChargeView"
             },
             {
               "type": "null"
             }
           ]
         },
+        "evade": {
+          "$ref": "#/$defs/EvadeView"
+        },
+        "facing": {
+          "description": "The last non-zero movement direction (ADR-055).",
+          "$ref": "#/$defs/Facing"
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
+        "invulnerable": {
+          "description": "Ticks of invulnerability left, after a hit or from an evade; the frontend can flash it.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "main_skill": {
+          "description": "Skill 2, the charged Main skill.",
+          "$ref": "#/$defs/SkillView"
+        },
         "radius": {
           "description": "The main character's hurt circle.",
           "$ref": "#/$defs/Fx"
         },
-        "skills": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/SkillView"
-          }
+        "sub_skill": {
+          "description": "Skill 3, the Sub skill.",
+          "$ref": "#/$defs/SkillView"
         }
       },
       "additionalProperties": false,
       "required": [
         "at",
         "hp",
-        "focus",
-        "firing",
-        "held",
         "radius",
-        "skills"
+        "facing",
+        "invulnerable",
+        "evade",
+        "main_skill",
+        "sub_skill"
       ]
     },
     "Point": {
@@ -238,35 +497,22 @@
       ]
     },
     "SkillView": {
+      "description": "Skill 2 or 3 (ADR-050).",
       "type": "object",
       "properties": {
-        "charges_left": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        },
         "cooldown_left": {
+          "description": "Ticks until it is ready again.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
         "ready": {
+          "description": "A press on the next tick would start it (the Sub skill only if it finds a target).",
           "type": "boolean"
-        },
-        "slot": {
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
-        "slot",
         "ready",
         "cooldown_left"
       ]

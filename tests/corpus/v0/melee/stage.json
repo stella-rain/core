@@ -1,0 +1,370 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "test",
+  "title": "Test",
+  "description": "",
+  "seed": 7,
+  "length_ticks": 600,
+  "player": {
+    "base": "pilot_a",
+    "hp": 99,
+    "atk": 10,
+    "main": {
+      "inline": {
+        "auto": {
+          "attack": {
+            "inline": [
+              {
+                "kind": "recovery",
+                "ticks": 1
+              }
+            ]
+          },
+          "targeting": "facing",
+          "cooldown_ticks": 1
+        },
+        "charge": {
+          "levels": [
+            {
+              "at_ticks": 0,
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "recovery",
+                    "ticks": 1
+                  }
+                ]
+              }
+            }
+          ],
+          "max_ticks": 600,
+          "cooldown_ticks": 0
+        }
+      }
+    },
+    "sub": {
+      "inline": {
+        "auto": {
+          "attack": {
+            "inline": [
+              {
+                "kind": "recovery",
+                "ticks": 1
+              }
+            ]
+          },
+          "targeting": "facing",
+          "cooldown_ticks": 1
+        },
+        "skill": {
+          "attack": {
+            "inline": [
+              {
+                "kind": "recovery",
+                "ticks": 1
+              }
+            ]
+          },
+          "targeting": "facing",
+          "cooldown_ticks": 1
+        }
+      }
+    },
+    "evade": {
+      "distance": 12288,
+      "ticks": 8,
+      "invulnerable_ticks": 10,
+      "cooldown_ticks": 40
+    }
+  },
+  "companions": [
+    {
+      "base": "fairy_a",
+      "hp": 30,
+      "radius": 1024,
+      "movement": {
+        "type": "orbit",
+        "radius": 6144
+      },
+      "rules": [
+        {
+          "when": {
+            "type": "always"
+          },
+          "target": "nearest_enemy",
+          "do": {
+            "type": "attack",
+            "attack": {
+              "inline": [
+                {
+                  "kind": "wind_up",
+                  "ticks": 6,
+                  "hit_box": {
+                    "type": "arc",
+                    "offset": {
+                      "forward": 1024,
+                      "right": 0
+                    },
+                    "radius": 10240,
+                    "half_angle": 23040
+                  }
+                },
+                {
+                  "kind": "active",
+                  "ticks": 4,
+                  "hit_box": {
+                    "type": "arc",
+                    "offset": {
+                      "forward": 1024,
+                      "right": 0
+                    },
+                    "radius": 10240,
+                    "half_angle": 23040
+                  },
+                  "damage": 3,
+                  "rehit_ticks": 2
+                },
+                {
+                  "kind": "recovery",
+                  "ticks": 8
+                }
+              ]
+            }
+          },
+          "cooldown_ticks": 0,
+          "once": false
+        }
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "at_tick": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 12,
+        "radius": 2048,
+        "defence": 50,
+        "movement": {
+          "type": "follow",
+          "distance": 4096
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "player",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 12,
+                    "hit_box": {
+                      "type": "arc",
+                      "offset": {
+                        "forward": 1024,
+                        "right": 0
+                      },
+                      "radius": 6144,
+                      "half_angle": 15360
+                    },
+                    "damage": 2,
+                    "move_pct": 0
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 3,
+                    "hit_box": {
+                      "type": "arc",
+                      "offset": {
+                        "forward": 1024,
+                        "right": 0
+                      },
+                      "radius": 6144,
+                      "half_angle": 15360
+                    },
+                    "damage": 2,
+                    "move_pct": 0
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              }
+            },
+            "cooldown_ticks": 0,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 30000,
+        "y": 128000
+      },
+      "count": 1,
+      "every_ticks": 0
+    },
+    {
+      "at_tick": 40,
+      "enemy": {
+        "base": "bat",
+        "hp": 12,
+        "radius": 2048,
+        "defence": 50,
+        "movement": {
+          "type": "follow",
+          "distance": 4096
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "player",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 12,
+                    "hit_box": {
+                      "type": "arc",
+                      "offset": {
+                        "forward": 1024,
+                        "right": 0
+                      },
+                      "radius": 6144,
+                      "half_angle": 15360
+                    },
+                    "damage": 2,
+                    "move_pct": 0
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 3,
+                    "hit_box": {
+                      "type": "arc",
+                      "offset": {
+                        "forward": 1024,
+                        "right": 0
+                      },
+                      "radius": 6144,
+                      "half_angle": 15360
+                    },
+                    "damage": 2,
+                    "move_pct": 0
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              }
+            },
+            "cooldown_ticks": 0,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 46080,
+        "y": 128000
+      },
+      "count": 1,
+      "every_ticks": 0
+    },
+    {
+      "at_tick": 80,
+      "enemy": {
+        "base": "bat",
+        "hp": 12,
+        "radius": 2048,
+        "defence": 50,
+        "movement": {
+          "type": "follow",
+          "distance": 4096
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "player",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 12,
+                    "hit_box": {
+                      "type": "arc",
+                      "offset": {
+                        "forward": 1024,
+                        "right": 0
+                      },
+                      "radius": 6144,
+                      "half_angle": 15360
+                    },
+                    "damage": 2,
+                    "move_pct": 0
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 3,
+                    "hit_box": {
+                      "type": "arc",
+                      "offset": {
+                        "forward": 1024,
+                        "right": 0
+                      },
+                      "radius": 6144,
+                      "half_angle": 15360
+                    },
+                    "damage": 2,
+                    "move_pct": 0
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              }
+            },
+            "cooldown_ticks": 0,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 62000,
+        "y": 128000
+      },
+      "count": 1,
+      "every_ticks": 0
+    }
+  ],
+  "boss": {
+    "base": "golem",
+    "hp": 1000000,
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    },
+    "parts": [],
+    "phases": [
+      {
+        "transition": [],
+        "timeline": [],
+        "rules": []
+      }
+    ]
+  }
+}

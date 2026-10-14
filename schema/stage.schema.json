@@ -34,6 +34,17 @@
       "format": "uint32",
       "minimum": 0
     },
+    "map": {
+      "description": "The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Map"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "player": {
       "$ref": "#/$defs/Player"
     },
@@ -189,6 +200,12 @@
           "description": "Asset ID of the sprite (ADR-007).",
           "$ref": "#/$defs/ContentId"
         },
+        "defence": {
+          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
@@ -228,6 +245,73 @@
         "movement"
       ]
     },
+    "AttackPhase": {
+      "description": "One phase of an attack (ADR-055).",
+      "type": "object",
+      "properties": {
+        "breaks_charge": {
+          "description": "A powerful attack: its hits on the main character, by hit box or by the bullets the phase\nspawns, break a charge in progress (core#83).",
+          "type": "boolean"
+        },
+        "damage": {
+          "description": "Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 1 for an enemy or the boss.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "hit_box": {
+          "description": "The area the phase covers, attached to the attacker.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HitBox"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/PhaseKind"
+        },
+        "move_pct": {
+          "description": "The attacker's movement speed during the phase, in percent; 0 roots it.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "rehit_ticks": {
+          "description": "An active phase only: a target already hit may be hit again after this many ticks.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "spawn": {
+          "description": "Emitter nodes started on the phase's first tick, carried out in order (see `rules_v0`'s\nattacks for what each one does).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Emitter"
+          }
+        },
+        "ticks": {
+          "description": "How long the phase lasts: a constant, never an expression, so that an attack's length\nand its telegraph are known before it runs.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "ticks"
+      ]
+    },
     "AttackRef": {
       "description": "A preset by ID with its arguments, or an inline definition.",
       "oneOf": [
@@ -261,13 +345,13 @@
           ]
         },
         {
-          "description": "The nodes, carried out in order (see `rules_v0`'s attacks for what each one does).",
+          "description": "The phases, in order.",
           "type": "object",
           "properties": {
             "inline": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/Emitter"
+                "$ref": "#/$defs/AttackPhase"
               }
             }
           },
@@ -284,6 +368,12 @@
       "properties": {
         "base": {
           "$ref": "#/$defs/ContentId"
+        },
+        "defence": {
+          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         },
         "hp": {
           "type": "integer",
@@ -337,6 +427,12 @@
           "description": "Asset ID of the part's sprite.",
           "$ref": "#/$defs/ContentId"
         },
+        "defence": {
+          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
@@ -361,6 +457,89 @@
         "hp",
         "offset",
         "radius"
+      ]
+    },
+    "Charge": {
+      "description": "The charged Main skill (ADR-050): a ready press starts the charge, the ticks held raise\nits level, and the release attacks along the facing at the level reached. Releasing inside\nthe level's perfect window adds its perfect bonus; at `max_ticks` it releases by itself,\nwithout the bonus. The frontend slows time while charging; the rules do not.",
+      "type": "object",
+      "properties": {
+        "cooldown_ticks": {
+          "description": "Ticks from the release to the next ready press. An evade or a hit that breaks the charge\nspends half of it, rounded up.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "levels": {
+          "description": "In order of `at_ticks`; the first is at 0.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChargeLevel"
+          }
+        },
+        "max_ticks": {
+          "description": "The longest hold, in ticks.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "move_pct": {
+          "description": "The main character's movement speed while charging, in percent; 100 when absent.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "levels",
+        "max_ticks",
+        "cooldown_ticks"
+      ]
+    },
+    "ChargeLevel": {
+      "description": "One level of a charge.",
+      "type": "object",
+      "properties": {
+        "at_ticks": {
+          "description": "Ticks held at which the level is reached.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "attack": {
+          "description": "The release at this level.",
+          "$ref": "#/$defs/AttackRef"
+        },
+        "perfect_attack": {
+          "description": "A perfect release makes this attack instead, with `perfect_pct` too.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttackRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "perfect_pct": {
+          "description": "The perfect bonus: this much more damage, in percent, for every hit of the release.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "perfect_ticks": {
+          "description": "The perfect window: the first `perfect_ticks` ticks of the level. 0 for none, which the\nfirst level must be, or a tap would be perfect.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "at_ticks",
+        "attack"
       ]
     },
     "Condition": {
@@ -481,26 +660,6 @@
           "required": [
             "type",
             "ticks"
-          ]
-        },
-        {
-          "description": "The main character has fired on at least `min_ticks` ticks in a row (ADR-038); 1 means\non this tick. A boss can punish steady shooting this way, which asks the player to\nstop for a while.",
-          "type": "object",
-          "properties": {
-            "min_ticks": {
-              "type": "integer",
-              "format": "uint32",
-              "default": 1,
-              "minimum": 0
-            },
-            "type": {
-              "type": "string",
-              "const": "player_firing"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type"
           ]
         }
       ]
@@ -779,6 +938,37 @@
         }
       ]
     },
+    "Evade": {
+      "description": "A dash with invulnerability (ADR-050). A ready press dashes `distance` over `ticks`, along\nthe movement direction, or along the facing when the stick is centred; the stick is ignored\nuntil the dash ends. Invulnerability and the cooldown count from the press.",
+      "type": "object",
+      "properties": {
+        "cooldown_ticks": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "distance": {
+          "$ref": "#/$defs/Fx"
+        },
+        "invulnerable_ticks": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ticks": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "distance",
+        "ticks",
+        "invulnerable_ticks",
+        "cooldown_ticks"
+      ]
+    },
     "Expr": {
       "description": "A fixed-point expression (ADR-036): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself.",
       "anyOf": [
@@ -1001,10 +1191,114 @@
       "type": "integer",
       "format": "int32"
     },
+    "HitBox": {
+      "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "circle"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius"
+          ]
+        },
+        {
+          "description": "A circle sector centred on the facing, `half_angle` to each side.",
+          "type": "object",
+          "properties": {
+            "half_angle": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "arc"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius",
+            "half_angle"
+          ]
+        }
+      ]
+    },
+    "MainWeapon": {
+      "description": "A weapon as Main: its automatic attack and its charged skill (skill 2, ADR-050).",
+      "type": "object",
+      "properties": {
+        "auto": {
+          "$ref": "#/$defs/WeaponAttack"
+        },
+        "charge": {
+          "$ref": "#/$defs/Charge"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "auto",
+        "charge"
+      ]
+    },
+    "Map": {
+      "description": "The rectangle the run plays on, from its top-left corner, and where the main character\nstarts. The main character and companions are clamped to it; enemies and bullets leave once\nthey are more than `FIELD_MARGIN` outside it.",
+      "type": "object",
+      "properties": {
+        "height": {
+          "$ref": "#/$defs/Fx"
+        },
+        "start": {
+          "description": "The centre of the map when absent.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Point"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "width": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height"
+      ]
+    },
     "Movement": {
       "oneOf": [
         {
-          "description": "Circles the main character.",
+          "description": "Circles the main character. A companion is set on its circle; an enemy moves to its\nplace on it, at most its orbit step plus 4 pixels a tick (ADR-058).",
           "type": "object",
           "properties": {
             "radius": {
@@ -1040,7 +1334,7 @@
           ]
         },
         {
-          "description": "Stays at a point.",
+          "description": "Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at\nmost 4 pixels a tick, and walks back when it is pushed off it (ADR-058).",
           "type": "object",
           "properties": {
             "at": {
@@ -1080,6 +1374,20 @@
           ]
         }
       ]
+    },
+    "Offset": {
+      "type": "object",
+      "properties": {
+        "forward": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        },
+        "right": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        }
+      },
+      "additionalProperties": false
     },
     "Phase": {
       "type": "object",
@@ -1122,6 +1430,26 @@
       },
       "additionalProperties": false
     },
+    "PhaseKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "recovery"
+          ]
+        },
+        {
+          "description": "The telegraph: its hit box is the warned area, and it deals no damage.",
+          "type": "string",
+          "const": "wind_up"
+        },
+        {
+          "description": "Its hit box deals damage.",
+          "type": "string",
+          "const": "active"
+        }
+      ]
+    },
     "Player": {
       "description": "The main character, as the creator configured it; challengers get exactly this (ADR-012).",
       "type": "object",
@@ -1134,22 +1462,28 @@
         "base": {
           "$ref": "#/$defs/ContentId"
         },
+        "defence": {
+          "description": "Reduces every hit the main character takes (ADR-056); 0 when absent. It moves to the\nrun's setup when the setup exists (ADR-049).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "evade": {
+          "description": "Skill 1 (ADR-050). It moves to the run's setup with the character when the setup exists\n(ADR-049).",
+          "$ref": "#/$defs/Evade"
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "shot": {
-          "description": "The main shot, fired on ticks whose input has `fire` (ADR-038).",
-          "$ref": "#/$defs/AttackRef"
+        "main": {
+          "description": "The Main weapon, which attacks on its own and brings the charged skill (ADR-050,\ncore#83). It moves to the run's setup when the setup exists (ADR-049, ADR-051).",
+          "$ref": "#/$defs/WeaponRef"
         },
-        "skills": {
-          "description": "Up to 3 active skills (ADR-032).",
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/SkillSlot"
-          }
+        "sub": {
+          "description": "The Sub weapon, which attacks on its own beside the Main one and brings the Sub skill.",
+          "$ref": "#/$defs/WeaponRef2"
         }
       },
       "additionalProperties": false,
@@ -1157,7 +1491,9 @@
         "base",
         "hp",
         "atk",
-        "shot"
+        "main",
+        "sub",
+        "evade"
       ]
     },
     "Point": {
@@ -1251,7 +1587,7 @@
       ]
     },
     "Skill": {
-      "description": "A skill block (ADR-008, ADR-032). Percentages are whole percent.",
+      "description": "A skill block (ADR-008, ADR-036). Percentages are whole percent.",
       "oneOf": [
         {
           "type": "object",
@@ -1375,46 +1711,6 @@
         }
       ]
     },
-    "SkillSlot": {
-      "type": "object",
-      "properties": {
-        "charges": {
-          "description": "Uses per run; absent means unlimited, limited by the cooldown.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        },
-        "cooldown_ticks": {
-          "type": "integer",
-          "format": "uint32",
-          "default": 0,
-          "minimum": 0
-        },
-        "skill": {
-          "$ref": "#/$defs/Skill"
-        },
-        "slot": {
-          "description": "1 to 3; the input's `held` field names it.",
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
-        },
-        "target": {
-          "$ref": "#/$defs/Selector"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "slot",
-        "target",
-        "skill"
-      ]
-    },
     "Step": {
       "oneOf": [
         {
@@ -1511,6 +1807,57 @@
         }
       ]
     },
+    "SubWeapon": {
+      "description": "A weapon as Sub: its automatic attack and its skill (skill 3, ADR-050), which happens on a\nready press, with no charge.",
+      "type": "object",
+      "properties": {
+        "auto": {
+          "$ref": "#/$defs/WeaponAttack"
+        },
+        "skill": {
+          "$ref": "#/$defs/WeaponAttack"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "auto",
+        "skill"
+      ]
+    },
+    "Targeting": {
+      "description": "What a weapon attacks: along the main character's facing, or at an enemy one of ADR-036's\nselectors picks. Only the selectors that pick an enemy are here, so a weapon cannot aim at\nan ally. With a selector and nothing to pick, the weapon does not attack and spends no\ncooldown.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "nearest_enemy"
+          ]
+        },
+        {
+          "description": "`aimed` directions point along the facing at the attack's start.",
+          "type": "string",
+          "const": "facing"
+        },
+        {
+          "description": "The boss while it is alive, else the nearest enemy.",
+          "type": "string",
+          "const": "boss_first"
+        },
+        {
+          "description": "A boss part, by the part ID the stage gives it, until it breaks.",
+          "type": "object",
+          "properties": {
+            "part": {
+              "$ref": "#/$defs/ContentId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "part"
+          ]
+        }
+      ]
+    },
     "Transition": {
       "oneOf": [
         {
@@ -1581,6 +1928,108 @@
         "enemy",
         "spawn",
         "count"
+      ]
+    },
+    "WeaponAttack": {
+      "description": "An attack a weapon makes at what its targeting picks: on its own every `cooldown_ticks`\n(an automatic attack), or on a ready press (the Sub skill).",
+      "type": "object",
+      "properties": {
+        "attack": {
+          "description": "An automatic attack never slows the main character: every phase keeps `move_pct` at 100\n(the validator). A skill may.",
+          "$ref": "#/$defs/AttackRef"
+        },
+        "cooldown_ticks": {
+          "description": "Ticks from one attack's start to the next one's. If the attack lasts longer, the next\none waits for it to end.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "targeting": {
+          "description": "The nearest enemy when absent (ADR-050).",
+          "$ref": "#/$defs/Targeting",
+          "default": "nearest_enemy"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attack",
+        "cooldown_ticks"
+      ]
+    },
+    "WeaponRef": {
+      "description": "A weapon preset by ID, or an inline weapon in one role (`MainWeapon` or `SubWeapon`).",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "preset": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/ContentId"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "preset"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "inline": {
+              "$ref": "#/$defs/MainWeapon"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "inline"
+          ]
+        }
+      ]
+    },
+    "WeaponRef2": {
+      "description": "A weapon preset by ID, or an inline weapon in one role (`MainWeapon` or `SubWeapon`).",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "preset": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/ContentId"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "preset"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "inline": {
+              "$ref": "#/$defs/SubWeapon"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "inline"
+          ]
+        }
       ]
     }
   }

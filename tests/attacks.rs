@@ -8,7 +8,6 @@ mod common;
 
 use common::*;
 use serde_json::{Value, json};
-use stella_rain_core::input::Input;
 use stella_rain_core::presets;
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::rng::SplitMix64;
@@ -99,14 +98,14 @@ fn shooter(attack: Value) -> Value {
     )
 }
 
+/// The weapons are quiet, so that every bullet is the enemy's.
 fn attack_stage(attack: Value) -> Stage {
-    stage_full(
+    quiet(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, shooter(attack), OX, OY)],
         vec![],
-        vec![],
-    )
+    ))
 }
 
 /// Runs `ticks` ticks and lists every bullet the attack made, in the order they appeared. The
@@ -131,7 +130,10 @@ fn shots_of(stage: &Stage, ticks: u32) -> Vec<Seen> {
 }
 
 fn inline(nodes: Vec<Value>, ticks: u32) -> Vec<Seen> {
-    shots_of(&attack_stage(json!({ "inline": nodes })), ticks)
+    shots_of(
+        &attack_stage(json!({ "inline": spawned(json!(nodes)) })),
+        ticks,
+    )
 }
 
 fn velocities(shots: &[Seen]) -> Vec<(i32, i32)> {
@@ -196,9 +198,9 @@ fn aimed_points_at_the_target_and_turns_by_its_offset() {
 fn aimed_follows_the_target_not_the_enemys_line() {
     // The main character a little to the right: the bullet leans that way.
     let mut e = engine(&attack_stage(
-        json!({ "inline": [fire(json!(768), aimed())] }),
+        json!({ "inline": spawned(json!([fire(json!(768), aimed())])) }),
     ));
-    e.step(moving(10_000, 0));
+    e.step(moving(127, 0));
     let bullet = e.snapshot().bullets[0];
     assert!(bullet.at.x.0 > OX, "{bullet:?}");
 }
@@ -519,15 +521,15 @@ fn bullets_start_where_the_attacks_owner_is_at_that_moment() {
         50,
         json!({ "type": "straight", "vx": 0, "vy": 100 }),
         json!([{ "when": always(), "target": "player", "once": true,
-                 "do": { "type": "attack", "attack": { "inline": [down(0), wait(10), down(0)] } } }]),
+                 "do": { "type": "attack",
+                         "attack": { "inline": spawned(json!([down(0), wait(10), down(0)])) } } }]),
     );
-    let stage = stage_full(
+    let stage = quiet(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, walker, OX, OY)],
         vec![],
-        vec![],
-    );
+    ));
     let shots = shots_of(&stage, 12);
     // Tick 1 the enemy has moved once; tick 11 ten times more.
     assert_eq!(
@@ -539,7 +541,9 @@ fn bullets_start_where_the_attacks_owner_is_at_that_moment() {
 #[test]
 fn the_seed_changes_the_draws() {
     let body = || fire(json!({ "rand": [0, 100_000] }), absolute(0));
-    let mut a = attack_stage(json!({ "inline": [repeat(json!(20), json!(0), vec![body()])] }));
+    let mut a = attack_stage(
+        json!({ "inline": spawned(json!([repeat(json!(20), json!(0), vec![body()])])) }),
+    );
     let first = velocities(&shots_of(&a, 1));
     a.seed += 1;
     assert_ne!(first, velocities(&shots_of(&a, 1)));
@@ -644,12 +648,12 @@ fn a_child_goes_on_after_its_owner_is_gone_and_a_parent_does_not() {
                     10,
                     hold(OX, 25_600),
                     json!([{ "when": always(), "target": "player", "once": true,
-                             "do": { "type": "attack", "attack": { "inline": [attack] } } }]),
+                             "do": { "type": "attack",
+                                     "attack": { "inline": spawned(json!([attack])) } } }]),
                 ),
                 OX,
                 25_600,
             )],
-            vec![],
             vec![],
         )
     };
@@ -658,7 +662,7 @@ fn a_child_goes_on_after_its_owner_is_gone_and_a_parent_does_not() {
         let mut fired = 0;
         let mut last = 0;
         for _ in 0..120 {
-            e.step(firing());
+            e.step(idle());
             let now = e.snapshot().bullets.iter().filter(|b| !b.friendly).count();
             if now > last {
                 fired += now - last;
@@ -685,28 +689,30 @@ fn at_most_two_hundred_new_bullets_a_tick_whatever_the_attacks() {
                 1,
                 1,
                 0,
-                shooter(json!({ "inline": [repeat(json!(100), json!(0), vec![down(0)])] })),
+                shooter(json!({
+                    "inline": spawned(json!([repeat(json!(100), json!(0), vec![down(0)])]))
+                })),
                 OX,
                 OY,
             )
         })
         .collect();
-    let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![], vec![]));
+    let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
     e.step(idle());
     assert_eq!(e.snapshot().bullets.len(), 200);
 }
 
 #[test]
 fn at_most_two_hundred_fifty_six_attacks_are_carried_out_at_once() {
-    // 200 enemies spawn on tick 1 and 100 more on tick 2 (the enemy cap is 300), and each starts an
-    // attack that makes a bullet ten ticks later. Only 256 of the 300 attacks can be going at
-    // once, so 56 of the 100 that start on tick 2 do: 200 bullets on tick 11 (the cap on new
-    // bullets a tick) and 56 on tick 12, where 100 would be made without the cap.
-    let attack = json!({ "inline": [wait(10), down(0)] });
+    // 200 enemies spawn on tick 1 and 200 more on tick 2 (the enemy cap is 500), and each starts an
+    // attack that makes a bullet ten ticks later. Only 256 of the 400 attacks can be going at
+    // once, so 56 of the 200 that start on tick 2 do: 200 bullets on tick 11 (the cap on new
+    // bullets a tick) and 56 on tick 12, where 200 would be made without the cap.
+    let attack = json!({ "inline": spawned(json!([wait(10), down(0)])) });
     let waves = (0..200)
         .map(|_| wave(1, 100, 1, shooter(attack.clone()), OX, OY))
         .collect();
-    let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![], vec![]));
+    let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
     let mut bullets = Vec::new();
     for _ in 0..12 {
         e.step(idle());
@@ -743,10 +749,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
     let mut e = engine(stage);
     (0..ticks)
         .map(|t| {
-            e.step(Input {
-                fire: t % 40 < 20,
-                ..Input::default()
-            });
+            e.step(moving(if t % 40 < 20 { 64 } else { -64 }, 0));
             e.state_hash()
         })
         .collect()
@@ -773,13 +776,12 @@ fn a_preset_and_its_inline_copy_reach_the_same_hashes() {
             )
         };
         let stage = |attack: Value| {
-            stage_full(
+            quiet(stage_full(
                 600,
                 Some(far_boss()),
                 vec![wave(1, 1, 0, rule(attack), OX, OY)],
                 vec![],
-                vec![],
-            )
+            ))
         };
         let a = hashes(&stage(by_id), 200);
         let b = hashes(&stage(copy), 200);
@@ -792,7 +794,9 @@ fn taking_a_preset_apart_writes_its_arguments_in_as_constants() {
     let apart = presets::take_apart("aimed_single", &[900]).unwrap();
     assert_eq!(
         serde_json::to_value(&apart).unwrap(),
-        json!([{ "type": "fire", "speed": 900, "direction": { "type": "aimed", "offset": 0 } }])
+        spawned(
+            json!([{ "type": "fire", "speed": 900, "direction": { "type": "aimed", "offset": 0 } }])
+        )
     );
     assert_eq!(presets::highest_arg(&apart), None);
     // The wrong number of arguments, or no such preset.
@@ -826,13 +830,14 @@ fn every_registered_preset_has_a_definition_that_passes_the_validator() {
 
 #[test]
 fn the_validator_holds_a_preset_to_the_budgets_of_an_inline_attack() {
-    let nodes: Vec<stella_rain_core::attack::Emitter> = serde_json::from_value(json!([
-        { "type": "fire", "speed": { "arg": 1 }, "direction": { "type": "aimed", "offset": 0 } }
-    ]))
-    .unwrap();
-    assert!(validate_attack(&nodes, 2, registry::ENTRIES).is_ok());
-    let issues = validate_attack(&nodes, 1, registry::ENTRIES).unwrap_err();
-    assert_eq!(issues[0].path, "$[0].speed");
+    let phases: Vec<stella_rain_core::attack::AttackPhase> =
+        serde_json::from_value(spawned(json!([
+            { "type": "fire", "speed": { "arg": 1 }, "direction": { "type": "aimed", "offset": 0 } }
+        ])))
+        .unwrap();
+    assert!(validate_attack(&phases, 2, registry::ENTRIES).is_ok());
+    let issues = validate_attack(&phases, 1, registry::ENTRIES).unwrap_err();
+    assert_eq!(issues[0].path, "$[0].spawn[0].speed");
 }
 
 // --- What the presets do ---------------------------------------------------------------------
@@ -891,7 +896,9 @@ fn the_spiral_turns_six_degrees_a_bullet_every_three_ticks() {
 fn a_bullet_names_its_style() {
     let styled =
         json!({ "type": "fire", "speed": 768, "bullet": "orb_small", "direction": absolute(0) });
-    let mut e = engine(&attack_stage(json!({ "inline": [styled, down(768)] })));
+    let mut e = engine(&attack_stage(
+        json!({ "inline": spawned(json!([styled, down(768)])) }),
+    ));
     e.step(idle());
     let styles: Vec<u16> = e.snapshot().bullets.iter().map(|b| b.style).collect();
     assert_eq!(styles, [1, 0]);
@@ -900,35 +907,11 @@ fn a_bullet_names_its_style() {
 }
 
 #[test]
-fn a_cast_shot_makes_friendly_bullets_from_its_pattern() {
-    let skills = vec![
-        json!({ "slot": 1, "target": "boss_first", "cooldown_ticks": 100,
-        "skill": { "type": "shot", "damage": 40,
-                   "pattern": { "preset": { "id": "spread_5", "args": [] } } } }),
-    ];
-    let mut e = engine(&stage_full(
-        18_000,
-        Some(boss_at(100_000, 25_600)),
-        vec![],
-        vec![],
-        skills,
-    ));
-    e.step(Input {
-        held: 1,
-        ..Input::default()
-    });
-    e.step(idle());
-    let bullets = e.snapshot().bullets;
-    assert_eq!(bullets.len(), 5);
-    assert!(bullets.iter().all(|b| b.friendly));
-}
-
-#[test]
 fn a_bullet_shows_the_movement_it_makes_each_tick() {
     // A slow ring of eight from an enemy to the left, and the main shot straight up: none
     // leaves the field or hits anything in 30 ticks, so each snapshot's bullets begin with the
     // previous snapshot's, in the same order.
-    let ring_of_eight = json!({ "inline": [ring(8, vec![down(256)])] });
+    let ring_of_eight = json!({ "inline": spawned(json!([ring(8, vec![down(256)])])) });
     let left = enemy(
         50,
         hold(20_000, OY),
@@ -940,12 +923,11 @@ fn a_bullet_shows_the_movement_it_makes_each_tick() {
         Some(far_boss()),
         vec![wave(1, 1, 0, left, 20_000, OY)],
         vec![],
-        vec![],
     ));
     let mut before = e.snapshot().bullets;
     let (mut friendly, mut hostile) = (0, 0);
     for _ in 0..30 {
-        e.step(firing());
+        e.step(idle());
         let after = e.snapshot().bullets;
         assert!(after.len() >= before.len(), "no bullet is gone");
         for (old, new) in before.iter().zip(&after) {

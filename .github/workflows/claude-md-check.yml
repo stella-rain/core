@@ -8,9 +8,10 @@ on:
   pull_request:
     paths: ["CLAUDE.md", ".claude/**", ".github/workflows/claude-md-check.yml"]
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   check:
     uses: stella-rain/.github/.github/workflows/claude-md-check.yml@main
+    permissions:
+      contents: read

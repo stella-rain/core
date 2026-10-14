@@ -2,7 +2,7 @@
 //! and `hashes.txt` (the state hash after every tick, one lowercase hex hash a line). Each case
 //! is re-simulated and every tick compared, so a change that moves any hash fails on the first
 //! tick it moved, on x86_64 and on the arm64 runner alike. The files are plain, so the device
-//! run can read them too (ADR-040).
+//! run can read them too (ADR-054).
 //!
 //! On a mismatch the failure names the first diverging tick and writes the snapshots of that
 //! tick and the one before to `target/corpus-diff/<name>.json`; CI uploads that folder per
@@ -232,7 +232,7 @@ fn bytes(stage: &impl serde::Serialize) -> Vec<u8> {
 }
 
 fn firing_for(ticks: u32) -> Vec<Input> {
-    (0..ticks).map(|_| common::firing()).collect()
+    (0..ticks).map(|_| common::idle()).collect()
 }
 
 /// Agents of every movement type: a companion that orbits the main character and buffs it, a
@@ -267,21 +267,25 @@ fn agents() -> Definition {
         json!({ "type": "straight", "vx": 0, "vy": 96 }),
         json!([shoot("nearest_ally", 5)]),
     );
-    let stage = stage_full(
-        600,
-        Some(far_boss()),
-        vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
-        vec![k, healer],
-        vec![],
+    // The Sub weapon is the `needle` preset's: five bullets in a fan along the facing.
+    let stage = armed(
+        stage_full(
+            600,
+            Some(far_boss()),
+            vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
+            vec![k, healer],
+        ),
+        weapon(
+            json!({ "preset": { "id": "aimed_single", "args": [2048] } }),
+            json!("facing"),
+            6,
+        ),
+        json!({ "preset": { "id": "needle" } }),
     );
+    // Standing still for 40 ticks, shooting up at the enemy, then walking right, which turns
+    // the Main weapon's shots away from it.
     let inputs = (0..80)
-        .map(|t| {
-            if t < 40 {
-                common::firing()
-            } else {
-                common::idle()
-            }
-        })
+        .map(|t| if t < 40 { idle() } else { moving(64, 0) })
         .collect();
     ("agents", bytes(&stage), inputs)
 }
@@ -298,16 +302,40 @@ fn bullets() -> Definition {
     let boss = json!({
         "base": "golem", "hp": 1_000_000, "radius": 8192, "spawn": { "x": 46_080, "y": 40_000 },
         "phases": [{ "timeline": [
-            { "type": "attack", "attack": { "inline": [ring] } }, { "type": "wait", "ticks": 70 },
-            { "type": "attack", "attack": { "inline": [spiral] } }, { "type": "wait", "ticks": 90 },
+            { "type": "attack", "attack": { "inline": spawned(json!([ring])) } },
+            { "type": "wait", "ticks": 70 },
+            { "type": "attack", "attack": { "inline": spawned(json!([spiral])) } },
+            { "type": "wait", "ticks": 90 },
             { "type": "loop" } ] }]
     });
-    let stage = stage_full(600, Some(boss), vec![], vec![], vec![]);
+    // Both weapons are the `blaster` preset's: the twin shot along the facing, and one bullet
+    // at the nearest enemy, the boss; its charge and its Sub skill are used too.
+    let blaster = json!({ "preset": { "id": "blaster" } });
+    let stage = armed_full(
+        stage_full(600, Some(boss), vec![], vec![]),
+        blaster.clone(),
+        blaster,
+    );
+    // Half speed from side to side, turning to face up the field once a second so that the Main
+    // weapon does not only shoot sideways, and evading twice.
+    // Charging from tick 20 for 34 ticks (a perfect release at level 2), from tick 180 until
+    // the evade on tick 230 breaks it, and the Sub skill pressed on ticks 40 and 260.
     let inputs = (0..300)
-        .map(|t| Input {
-            dx: if (t / 25) % 2 == 0 { 300 } else { -300 },
-            fire: true,
-            ..Input::default()
+        .map(|t| {
+            let input = match t {
+                _ if t % 60 == 0 => moving(0, -1),
+                100 | 230 => Input {
+                    evade: true,
+                    ..moving(50, 0)
+                },
+                _ if (t / 25) % 2 == 0 => moving(50, 0),
+                _ => moving(-50, 0),
+            };
+            Input {
+                charge: (20..54).contains(&t) || (180..240).contains(&t),
+                sub: t == 40 || t == 260,
+                ..input
+            }
         })
         .collect();
     ("bullets", bytes(&stage), inputs)
@@ -343,7 +371,17 @@ fn boss() -> Definition {
             }
         ]
     });
-    let stage = stage_full(600, Some(boss), vec![], vec![], vec![]);
+    // The Sub weapon aims at the horn every 12 ticks: a bullet 5 degrees off the line to it,
+    // then one aimed again 3 ticks later. Once the horn breaks it has nothing to aim at and
+    // waits.
+    let at_horn = json!({ "inline": spawned(json!([
+        { "type": "fire", "speed": 2048, "direction": { "type": "relative", "angle": 1280 } },
+        { "type": "wait", "ticks": 3 },
+        { "type": "fire", "speed": 2048, "direction": { "type": "aimed", "offset": 0 } }
+    ])) });
+    let mut stage = stage_full(600, Some(boss), vec![], vec![]);
+    stage.player.sub =
+        serde_json::from_value(sub_ref(weapon(at_horn, json!({ "part": "horn" }), 12))).unwrap();
     ("boss", bytes(&stage), firing_for(600))
 }
 
@@ -372,6 +410,101 @@ fn fail() -> Definition {
     )
 }
 
+/// Melee (ADR-055): three enemies trail the main character and swing at it, a wind-up, an arc
+/// and a recovery, rooted while they wind up and swing; a companion orbiting it cleaves them
+/// with a wide arc that hits again every 2 ticks, through their defence. The main character
+/// stands still, then walks from side to side. Nobody fires a bullet.
+fn melee() -> Definition {
+    let phase = |kind: &str, ticks: u32, hit_box: Value, damage: u32, move_pct: u8| {
+        json!({ "kind": kind, "ticks": ticks, "hit_box": hit_box, "damage": damage,
+                "move_pct": move_pct })
+    };
+    let arc = |radius: i32, half: i32| {
+        json!({ "type": "arc", "offset": { "forward": 1_024 }, "radius": radius,
+                "half_angle": half * 256 })
+    };
+    let swing = json!([
+        phase("wind_up", 12, arc(6_144, 60), 2, 0),
+        phase("active", 3, arc(6_144, 60), 2, 0),
+        json!({ "kind": "recovery", "ticks": 10 })
+    ]);
+    let mut swordsman = enemy(
+        12,
+        json!({ "type": "follow", "distance": 4_096 }),
+        json!([rule(
+            always(),
+            json!("player"),
+            json!({ "type": "attack", "attack": { "inline": swing } }),
+            0
+        )]),
+    );
+    // Defence 50 (ADR-056): each cleave of 3 lands as 3 × 100 / 150 = 2.
+    swordsman["defence"] = json!(50);
+    let mut cleave = phase("active", 4, arc(10_240, 90), 3, 100);
+    cleave["rehit_ticks"] = json!(2);
+    let guard = companion(
+        30,
+        json!({ "type": "orbit", "radius": 6_144 }),
+        json!([rule(
+            always(),
+            json!("nearest_enemy"),
+            json!({ "type": "attack", "attack": { "inline": [
+                { "kind": "wind_up", "ticks": 6, "hit_box": arc(10_240, 90) },
+                cleave,
+                { "kind": "recovery", "ticks": 8 }
+            ] } }),
+            0
+        )]),
+    );
+    let waves = [(1, 30_000), (40, 46_080), (80, 62_000)]
+        .into_iter()
+        .map(|(at, x)| wave(at, 1, 0, swordsman.clone(), x, 128_000))
+        .collect();
+    // The weapons do nothing here, so that no bullet flies.
+    let stage = quiet(stage_full(600, Some(far_boss()), waves, vec![guard]));
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..150 => idle(),
+            _ if (t / 40) % 2 == 0 => moving(33, 0),
+            _ => moving(-33, 0),
+        })
+        .collect();
+    ("melee", bytes(&stage), inputs)
+}
+
+/// A landscape map of 2,048 by 1,024 pixels (core#87). The main character starts near the
+/// right edge, walks into the top-right corner (clamped there), then left along the top, shooting
+/// along its facing; enemies cross the middle of the map to the right, shooting at it.
+fn landscape() -> Definition {
+    let (width, height) = (524_288, 262_144);
+    let crosser = enemy(
+        30,
+        json!({ "type": "straight", "vx": 512, "vy": 0 }),
+        json!([attack_rule(always(), 20)]),
+    );
+    let mut stage = serde_json::to_value(stage_full(
+        300,
+        Some(far_boss()),
+        vec![
+            wave(1, 4, 25, crosser.clone(), width / 2, 30_000),
+            wave(60, 4, 25, crosser, width / 2 - 100_000, 8_000),
+        ],
+        vec![],
+    ))
+    .unwrap();
+    stage["map"] = json!({ "width": width, "height": height,
+                           "start": { "x": width - 30_720, "y": 20_000 } });
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..60 => moving(127, 0),
+            60..100 => moving(0, -127),
+            100..220 => moving(-127, 0),
+            _ => moving(-64, 64),
+        })
+        .collect();
+    ("landscape", bytes(&stage), inputs)
+}
+
 /// A stage that runs out of ticks with the boss standing.
 fn timeout() -> Definition {
     let stage = stage_with(90, Some(far_boss()), vec![]);
@@ -393,6 +526,8 @@ fn definitions() -> Vec<Definition> {
         bullets(),
         boss(),
         fail(),
+        landscape(),
+        melee(),
         timeout(),
     ]
 }
@@ -430,6 +565,54 @@ fn the_cases_are_what_their_names_say() {
         what_happens("bullets").2
     );
     assert_eq!(what_happens("agents").0, Outcome::Running);
+    // Hit boxes alone: no bullet ever flies, yet the main character is hurt and enemies die.
+    let (outcome, hp, peak) = what_happens("melee");
+    assert_eq!((outcome, peak), (Outcome::Running, 0));
+    assert!(hp < 99, "the swings land: {hp} hp left");
+    assert!(deaths("melee") >= 2, "the companion cleaves");
+    // The map, not the portrait field: the corner holds the main character, and shots and
+    // enemies get past where the portrait field's margin would have removed them.
+    let (corner, farthest) = landscape_reach();
+    assert!(corner, "the main character reaches the top-right corner");
+    assert!(farthest > 92_160 + 16_384, "x {farthest}");
+}
+
+/// Whether the landscape case's main character stands in the map's top-right corner on some
+/// tick, and the largest x any bullet or enemy reaches.
+fn landscape_reach() -> (bool, i32) {
+    let case = corpus_dir().join("landscape");
+    let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+    let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+    let (mut corner, mut farthest) = (false, 0);
+    for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
+        engine.step(input);
+        let s = engine.snapshot();
+        corner |= (s.player.at.x.0, s.player.at.y.0) == (s.map.width.0, 0);
+        let xs = s.bullets.iter().map(|b| b.at.x.0);
+        farthest = xs
+            .chain(s.entities.iter().map(|e| e.at.x.0))
+            .fold(farthest, i32::max);
+    }
+    (corner, farthest)
+}
+
+/// How many entities die in a recorded case.
+fn deaths(name: &str) -> usize {
+    let case = corpus_dir().join(name);
+    let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+    let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+    let mut died = 0;
+    for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
+        engine.step(input);
+        died += engine
+            .events()
+            .iter()
+            .filter(|e| matches!(e, stella_rain_core::event::DomainEvent::Died { .. }))
+            .count();
+    }
+    died
 }
 
 #[test]

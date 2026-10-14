@@ -107,7 +107,7 @@ fn extremes() -> Vec<(&'static str, Value)> {
 
 fn rule(attack: Vec<Value>) -> Value {
     json!({ "when": always(), "target": "player", "cooldown_ticks": 90,
-            "do": { "type": "attack", "attack": { "inline": attack } } })
+            "do": { "type": "attack", "attack": { "inline": spawned(json!(attack)) } } })
 }
 
 /// Two shooters that start their attack again every 90 ticks, between them using every slot.
@@ -156,7 +156,8 @@ fn stage(value: &dyn Fn(&str) -> Value) -> Stage {
             OY,
         ),
     ];
-    let mut stage = stage_full(FULL_LENGTH, Some(far_boss()), waves, vec![], vec![]);
+    // The weapons are quiet, so that the enemies live to fill the field.
+    let mut stage = quiet(stage_full(FULL_LENGTH, Some(far_boss()), waves, vec![]));
     stage.player.hp = 99;
     stage
 }
@@ -224,7 +225,7 @@ fn busy_stages_survive_the_whole_stage() {
 /// platform must produce exactly this (ADR-019): a difference in how overflow, saturation or
 /// division behaves on another architecture would show here. Under version 0 a change to the
 /// rules may change it (ADR-035); then it is regenerated and the PR says so.
-const MIXED_HASH: u64 = 0x5c8dcba57004eebb;
+const MIXED_HASH: u64 = 0xa8b8e47919dfc4e4;
 
 #[test]
 fn a_mixed_extreme_run_gives_the_same_hash_on_every_platform() {

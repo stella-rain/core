@@ -51,8 +51,8 @@ fn unknown_fields_are_rejected_at_every_level() {
     for pointer in [
         "",
         "/player",
-        "/player/skills/0",
-        "/player/skills/0/skill",
+        "/player/evade",
+        "/companions/0/rules/0/do/skill",
         "/companions/0/rules/0",
         "/companions/0/rules/0/when",
         "/companions/0/movement",
@@ -61,7 +61,8 @@ fn unknown_fields_are_rejected_at_every_level() {
         "/boss/phases/0",
         "/boss/phases/0/timeline/0",
         "/boss/phases/0/timeline/1/attack/inline/0",
-        "/boss/phases/0/timeline/1/attack/inline/0/body/0/body/0/direction",
+        "/boss/phases/0/timeline/1/attack/inline/0/spawn/0",
+        "/boss/phases/0/timeline/1/attack/inline/0/spawn/0/body/0/body/0/direction",
         "/boss/phases/1/transition/1",
     ] {
         let err = parse(&with_extra_field(pointer))
@@ -82,13 +83,13 @@ fn missing_required_fields_are_rejected() {
 }
 
 #[test]
-fn input_record_holds_movement_focus_fire_and_held_slot_only() {
+fn input_record_holds_the_stick_and_the_three_skills_only() {
     let input = Input {
-        dx: -768,
-        dy: 256,
-        focus: true,
-        fire: true,
-        held: 2,
+        move_x: -127,
+        move_y: 64,
+        evade: true,
+        charge: true,
+        sub: false,
     };
     let value = serde_json::to_value(input).unwrap();
     let keys: Vec<&str> = value
@@ -97,14 +98,16 @@ fn input_record_holds_movement_focus_fire_and_held_slot_only() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert_eq!(keys, ["dx", "dy", "fire", "focus", "held"]);
+    assert_eq!(keys, ["charge", "evade", "move_x", "move_y", "sub"]);
     assert_eq!(serde_json::from_value::<Input>(value).unwrap(), input);
-    assert!(
-        serde_json::from_str::<Input>(
-            r#"{"dx":0,"dy":0,"focus":false,"fire":false,"held":0,"device":"touch"}"#
-        )
-        .is_err()
-    );
+    for bad in [
+        r#"{"move_x":0,"move_y":0,"evade":false,"charge":false,"sub":false,"device":"touch"}"#,
+        r#"{"move_x":0,"move_y":0,"evade":false,"charge":false,"sub":false,"fire":true}"#,
+        r#"{"move_x":128,"move_y":0,"evade":false,"charge":false,"sub":false}"#,
+        r#"{"move_x":0,"move_y":0,"evade":false,"charge":false}"#,
+    ] {
+        assert!(serde_json::from_str::<Input>(bad).is_err(), "{bad}");
+    }
 }
 
 #[test]

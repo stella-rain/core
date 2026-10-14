@@ -15,12 +15,17 @@ use std::fmt;
 
 use serde::Deserialize;
 
-use crate::attack::{AttackRef, Direction, Emitter, Expr};
+use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill};
 use crate::id::ContentId;
+use crate::presets;
 use crate::registry::{self, Entry, Kind};
-use crate::stage::{Boss, BossPart, Phase, Player, SkillSlot, Stage, Step, Transition, Wave};
+use crate::stage::{Boss, BossPart, Evade, Phase, Player, Stage, Step, Transition, Wave};
+use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::weapon::{
+    Charge, MainWeapon, SubWeapon, Targeting, WeaponAttack, WeaponPreset, WeaponRef,
+};
 
 /// Limits a stage must keep. The first block is ADR-020, the second ADR-036, the rest the
 /// loadout and numeric ranges that ADR-012 and ADR-019 ask for.
@@ -42,8 +47,19 @@ pub mod limits {
     pub const MAX_PATTERN_NODES: u32 = 64;
     pub const MAX_EXPR_NODES: u32 = 16;
     pub const MAX_REPEAT: i32 = 100;
+    /// Phases in one attack, and the ticks one lasts: 10 seconds (ADR-055).
+    pub const MAX_ATTACK_PHASES: usize = 8;
+    pub const MAX_PHASE_TICKS: u32 = 600;
 
-    pub const MAX_SKILL_SLOTS: usize = 3;
+    /// An evade's dash: at most 256 pixels, over at most a second, and at most a second of
+    /// invulnerability (ADR-050).
+    pub const MAX_EVADE_DISTANCE: i32 = 65_536;
+    pub const MAX_EVADE_TICKS: u32 = 60;
+    /// A charge (core#83): at most 8 levels over at most 10 seconds of game time, and a perfect
+    /// bonus of at most +1000%.
+    pub const MAX_CHARGE_LEVELS: usize = 8;
+    pub const MAX_CHARGE_TICKS: u32 = 600;
+    pub const MAX_PERFECT_PCT: u16 = 1000;
     pub const MAX_BOSS_PARTS: usize = 8;
     pub const MAX_TRANSITIONS: usize = 4;
     pub const MAX_PRESET_ARGS: usize = 8;
@@ -55,6 +71,8 @@ pub mod limits {
     pub const MAX_AGENT_HP: u32 = 100_000;
     pub const MAX_BOSS_HP: u32 = 1_000_000;
     pub const MAX_DAMAGE: u32 = 10_000;
+    /// At this defence a hit keeps about 1% of its damage (ADR-056, K = 100).
+    pub const MAX_DEFENCE: u32 = 10_000;
     pub const MAX_BUFF_PCT: u16 = 500;
     pub const MAX_AGGRO: u32 = 1_000_000;
     /// A number in an expression, an argument or a velocity-like field.
@@ -63,10 +81,14 @@ pub mod limits {
     pub const MAX_LEN: i32 = 262_144;
     /// A hurt circle radius in 1/256 pixels: 256 pixels.
     pub const MAX_RADIUS: i32 = 65_536;
-    /// The playfield in 1/256 pixels (360 by 640 pixels), and how far outside it a point may be.
+    /// The portrait field in 1/256 pixels (360 by 640 pixels), the map of a stage without one,
+    /// and how far outside a map a point may be.
     pub const FIELD_W: i32 = 92_160;
     pub const FIELD_H: i32 = 163_840;
     pub const FIELD_MARGIN: i32 = 16_384;
+    /// A stage's map: each side from 1 to 4,096 pixels (core#87).
+    pub const MIN_MAP_SIDE: i32 = 256;
+    pub const MAX_MAP_SIDE: i32 = 1_048_576;
 
     /// Problems reported before the rest are left out.
     pub const MAX_ISSUES: usize = 32;
@@ -159,21 +181,48 @@ pub fn parse_and_validate(bytes: &[u8]) -> Result<Stage, Error> {
     Ok(stage)
 }
 
-/// Checks the nodes of one attack against the same budgets as a stage's inline attacks, for an
+/// Checks the phases of one attack against the same budgets as a stage's inline attacks, for an
 /// attack that takes `arity` arguments (the developer's presets, ADR-036). The problems are
-/// reported at paths from the attack: `$[0].body[1]`.
-pub fn validate_attack(nodes: &[Emitter], arity: u8, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+/// reported at paths from the attack: `$[0].spawn[0].body[1]`.
+pub fn validate_attack(
+    phases: &[AttackPhase],
+    arity: u8,
+    registry: &[Entry],
+) -> Result<(), Vec<Issue>> {
     let mut ctx = Ctx {
         registry,
         sim_version: crate::version::SIM_VERSION,
+        map: crate::stage::Map::PORTRAIT,
         parts: Vec::new(),
         path: Vec::new(),
         issues: Vec::new(),
         left_out: false,
         arity,
     };
-    let mut count = 0;
-    ctx.emitters(nodes, 1, &mut count);
+    ctx.phases(phases);
+    if ctx.issues.is_empty() {
+        Ok(())
+    } else {
+        Err(ctx.issues)
+    }
+}
+
+/// Checks a weapon preset's two roles, as a stage's inline weapons are checked, without a boss
+/// (so a part to aim at is never found): the developer's weapon presets. Paths are from the
+/// preset: `$.main.charge.levels[0].at_ticks`.
+pub fn validate_weapon_preset(preset: &WeaponPreset, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+    let mut ctx = Ctx {
+        registry,
+        sim_version: crate::version::SIM_VERSION,
+        map: crate::stage::Map::PORTRAIT,
+        parts: Vec::new(),
+        path: Vec::new(),
+        issues: Vec::new(),
+        left_out: false,
+        arity: 0,
+    };
+    ctx.key("main", |c| c.main_weapon(&preset.main));
+    ctx.key("sub", |c| c.sub_weapon(&preset.sub));
     if ctx.issues.is_empty() {
         Ok(())
     } else {
@@ -203,6 +252,7 @@ pub fn validate_with(stage: &Stage, registry: &[Entry]) -> Result<(), Error> {
     let mut ctx = Ctx {
         registry,
         sim_version: stage.sim_version,
+        map: stage.map(),
         parts: stage
             .boss
             .iter()
@@ -236,6 +286,8 @@ enum Seg {
 struct Ctx<'a> {
     registry: &'a [Entry],
     sim_version: u32,
+    /// Points are checked against it.
+    map: crate::stage::Map,
     /// Boss part IDs, which conditions and selectors may name.
     parts: Vec<&'a str>,
     path: Vec<Seg>,
@@ -301,6 +353,15 @@ impl<'a> Ctx<'a> {
         true
     }
 
+    /// As `at_most`, for the list at the current path.
+    fn at_most_here(&mut self, len: usize, max: usize, what: &str) -> bool {
+        if len > max {
+            self.fail(format!("at most {max} {what} (found {len})"));
+            return false;
+        }
+        true
+    }
+
     /// A content ID of `kind` that exists and is available to this stage's `sim_version`.
     fn content_id(&mut self, key: &'static str, id: &ContentId, kind: Kind) -> Option<Entry> {
         self.key(key, |c| {
@@ -331,15 +392,35 @@ impl<'a> Ctx<'a> {
                 "x",
                 i64::from(p.x.0),
                 -i64::from(FIELD_MARGIN),
-                i64::from(FIELD_W) + i64::from(FIELD_MARGIN),
+                i64::from(c.map.width.0) + i64::from(FIELD_MARGIN),
             );
             c.within(
                 "y",
                 i64::from(p.y.0),
                 -i64::from(FIELD_MARGIN),
-                i64::from(FIELD_H) + i64::from(FIELD_MARGIN),
+                i64::from(c.map.height.0) + i64::from(FIELD_MARGIN),
             );
         });
+    }
+
+    /// Each side bounded (core#87), and the start on the map itself, not in its margin.
+    fn map(&mut self, m: &crate::stage::Map) {
+        let side = |c: &mut Self, key, v: crate::fixed::Fx| {
+            c.within(
+                key,
+                i64::from(v.0),
+                i64::from(MIN_MAP_SIDE),
+                i64::from(MAX_MAP_SIDE),
+            );
+        };
+        side(self, "width", m.width);
+        side(self, "height", m.height);
+        if let Some(start) = m.start {
+            self.key("start", |c| {
+                c.within("x", i64::from(start.x.0), 0, i64::from(m.width.0));
+                c.within("y", i64::from(start.y.0), 0, i64::from(m.height.0));
+            });
+        }
     }
 
     fn ticks(&mut self, key: &'static str, ticks: u32, lo: u32) {
@@ -347,6 +428,9 @@ impl<'a> Ctx<'a> {
     }
 
     fn stage(&mut self, s: &Stage) {
+        if let Some(map) = &s.map {
+            self.key("map", |c| c.map(map));
+        }
         self.key("id", |c| {
             let ok = (1..=MAX_STAGE_ID_CHARS).contains(&s.id.len())
                 && s.id
@@ -403,32 +487,142 @@ impl<'a> Ctx<'a> {
         self.content_id("base", &p.base, Kind::Asset);
         self.within("hp", i64::from(p.hp), 1, i64::from(MAX_PLAYER_HP));
         self.within("atk", i64::from(p.atk), 1, i64::from(MAX_PLAYER_ATK));
-        self.key("shot", |c| c.attack_ref(&p.shot));
-        if self.at_most("skills", p.skills.len(), MAX_SKILL_SLOTS, "skill slots") {
-            self.key("skills", |c| {
-                let mut used = [false; MAX_SKILL_SLOTS];
-                for (i, slot) in p.skills.iter().enumerate() {
-                    c.idx(i, |c| c.skill_slot(slot, &mut used));
-                }
-            });
+        self.within("defence", i64::from(p.defence), 0, i64::from(MAX_DEFENCE));
+        self.key("main", |c| c.weapon_ref(&p.main, Self::main_weapon));
+        self.key("sub", |c| c.weapon_ref(&p.sub, Self::sub_weapon));
+        self.key("evade", |c| c.evade(&p.evade));
+    }
+
+    /// A weapon preset's ID, or an inline weapon checked by `inline`.
+    fn weapon_ref<W>(&mut self, w: &WeaponRef<W>, inline: impl FnOnce(&mut Self, &W)) {
+        match w {
+            WeaponRef::Preset { id } => self.key("preset", |c| {
+                c.content_id("id", id, Kind::Weapon);
+            }),
+            WeaponRef::Inline(w) => self.key("inline", |c| inline(c, w)),
         }
     }
 
-    fn skill_slot(&mut self, s: &SkillSlot, used: &mut [bool; MAX_SKILL_SLOTS]) {
-        self.within("slot", i64::from(s.slot), 1, MAX_SKILL_SLOTS as i64);
-        if let Some(seen) = usize::from(s.slot)
-            .checked_sub(1)
-            .and_then(|i| used.get_mut(i))
-        {
-            if *seen {
-                self.key("slot", |c| c.fail("two skills use this slot"));
+    fn main_weapon(&mut self, w: &MainWeapon) {
+        self.key("auto", |c| c.weapon_attack(&w.auto, true));
+        self.key("charge", |c| c.charge(&w.charge));
+    }
+
+    fn sub_weapon(&mut self, w: &SubWeapon) {
+        self.key("auto", |c| c.weapon_attack(&w.auto, true));
+        self.key("skill", |c| c.weapon_attack(&w.skill, false));
+    }
+
+    /// A weapon's attack (core#83): an automatic one never slows the main character; a part it
+    /// aims at must be one the boss has; its cooldown is bounded.
+    fn weapon_attack(&mut self, w: &WeaponAttack, auto: bool) {
+        self.key("attack", |c| {
+            c.attack_ref(&w.attack);
+            if auto {
+                c.never_slows(&w.attack);
             }
-            *seen = true;
+        });
+        if let Targeting::Part(id) = &w.targeting {
+            self.key("targeting", |c| c.part("part", id));
         }
-        self.key("target", |c| c.selector(&s.target));
-        self.key("skill", |c| c.skill(&s.skill));
-        self.ticks("cooldown_ticks", s.cooldown_ticks, 0);
-        self.charges(s.charges);
+        self.ticks("cooldown_ticks", w.cooldown_ticks, 0);
+    }
+
+    /// The charged skill (ADR-050, core#83). The levels start at 0 and rise strictly, all
+    /// before `max_ticks`; a perfect window ends by the next level (or `max_ticks`), and the
+    /// first level has none, or a tap would be perfect.
+    fn charge(&mut self, c: &Charge) {
+        self.within(
+            "max_ticks",
+            i64::from(c.max_ticks),
+            1,
+            i64::from(MAX_CHARGE_TICKS),
+        );
+        self.ticks("cooldown_ticks", c.cooldown_ticks, 0);
+        self.within("move_pct", i64::from(c.move_pct), 0, 100);
+        if c.levels.is_empty() {
+            self.key("levels", |c| c.fail("a charge has at least one level"));
+            return;
+        }
+        if !self.at_most("levels", c.levels.len(), MAX_CHARGE_LEVELS, "levels") {
+            return;
+        }
+        self.key("levels", |ctx| {
+            for (i, l) in c.levels.iter().enumerate() {
+                let next = c.levels.get(i + 1).map_or(c.max_ticks, |n| n.at_ticks);
+                ctx.idx(i, |ctx| {
+                    if i == 0 && l.at_ticks != 0 {
+                        ctx.key("at_ticks", |c| c.fail("the first level is at 0"));
+                    }
+                    if i > 0 && l.at_ticks <= c.levels[i - 1].at_ticks {
+                        ctx.key("at_ticks", |c| c.fail("levels rise strictly"));
+                    }
+                    if l.at_ticks >= c.max_ticks {
+                        ctx.key("at_ticks", |c| c.fail("a level comes before max_ticks"));
+                    }
+                    if i == 0 && l.perfect_ticks != 0 {
+                        ctx.key("perfect_ticks", |c| {
+                            c.fail("the first level has no perfect window (a tap would be perfect)")
+                        });
+                    }
+                    if u64::from(l.at_ticks) + u64::from(l.perfect_ticks) > u64::from(next) {
+                        ctx.key("perfect_ticks", |c| {
+                            c.fail("a perfect window ends by the next level, or max_ticks")
+                        });
+                    }
+                    ctx.within(
+                        "perfect_pct",
+                        i64::from(l.perfect_pct),
+                        0,
+                        i64::from(MAX_PERFECT_PCT),
+                    );
+                    ctx.key("attack", |c| c.attack_ref(&l.attack));
+                    if let Some(a) = &l.perfect_attack {
+                        ctx.key("perfect_attack", |c| c.attack_ref(a));
+                    }
+                });
+            }
+        });
+    }
+
+    /// A weapon's attack keeps `move_pct` at 100 in every phase: the main character moves at
+    /// full speed while its weapons attack on their own (core#83). A preset is checked taken
+    /// apart, and reported at its ID.
+    fn never_slows(&mut self, attack: &AttackRef) {
+        const MESSAGE: &str = "a weapon's attack never slows the main character (move_pct 100)";
+        match attack {
+            AttackRef::Inline(phases) => self.key("inline", |c| {
+                for (i, p) in phases.iter().enumerate() {
+                    if p.move_pct != 100 {
+                        c.idx(i, |c| c.key("move_pct", |c| c.fail(MESSAGE)));
+                    }
+                }
+            }),
+            AttackRef::Preset { id, args } => {
+                let slows = presets::take_apart(&id.0, args)
+                    .is_some_and(|phases| phases.iter().any(|p| p.move_pct != 100));
+                if slows {
+                    self.key("preset", |c| c.key("id", |c| c.fail(MESSAGE)));
+                }
+            }
+        }
+    }
+
+    fn evade(&mut self, e: &Evade) {
+        self.within(
+            "distance",
+            i64::from(e.distance.0),
+            0,
+            i64::from(MAX_EVADE_DISTANCE),
+        );
+        self.within("ticks", i64::from(e.ticks), 1, i64::from(MAX_EVADE_TICKS));
+        self.within(
+            "invulnerable_ticks",
+            i64::from(e.invulnerable_ticks),
+            0,
+            i64::from(MAX_EVADE_TICKS),
+        );
+        self.ticks("cooldown_ticks", e.cooldown_ticks, 0);
     }
 
     fn charges(&mut self, charges: Option<u16>) {
@@ -443,6 +637,7 @@ impl<'a> Ctx<'a> {
             self.content_id("palette", p, Kind::Palette);
         }
         self.within("hp", i64::from(a.hp), 1, i64::from(MAX_AGENT_HP));
+        self.within("defence", i64::from(a.defence), 0, i64::from(MAX_DEFENCE));
         self.within("radius", i64::from(a.radius.0), 1, i64::from(MAX_RADIUS));
         self.key("movement", |c| c.movement(&a.movement));
         self.rules("rules", &a.rules, summon_ok);
@@ -486,7 +681,6 @@ impl<'a> Ctx<'a> {
     fn condition(&mut self, cond: &Condition) {
         match cond {
             Condition::Always => {}
-            Condition::PlayerFiring { min_ticks } => self.ticks("min_ticks", *min_ticks, 1),
             Condition::HpBelow { who, pct } => {
                 self.key("who", |c| c.selector(who));
                 self.within("pct", i64::from(*pct), 0, 100);
@@ -588,6 +782,7 @@ impl<'a> Ctx<'a> {
             self.content_id("palette", p, Kind::Palette);
         }
         self.within("hp", i64::from(b.hp), 1, i64::from(MAX_BOSS_HP));
+        self.within("defence", i64::from(b.defence), 0, i64::from(MAX_DEFENCE));
         self.within("radius", i64::from(b.radius.0), 1, i64::from(MAX_RADIUS));
         self.point("spawn", &b.spawn);
         if self.at_most("parts", b.parts.len(), MAX_BOSS_PARTS, "boss parts") {
@@ -619,6 +814,7 @@ impl<'a> Ctx<'a> {
         });
         self.content_id("asset", &p.asset, Kind::Asset);
         self.within("hp", i64::from(p.hp), 1, i64::from(MAX_AGENT_HP));
+        self.within("defence", i64::from(p.defence), 0, i64::from(MAX_DEFENCE));
         self.within("radius", i64::from(p.radius.0), 1, i64::from(MAX_RADIUS));
         self.key("offset", |c| {
             let max = i64::from(MAX_LEN);
@@ -707,12 +903,70 @@ impl<'a> Ctx<'a> {
                     });
                 });
             }
-            AttackRef::Inline(nodes) => {
-                self.key("inline", |c| {
-                    let mut count = 0;
-                    c.emitters(nodes, 1, &mut count);
-                });
+            AttackRef::Inline(phases) => self.key("inline", |c| c.phases(phases)),
+        }
+    }
+
+    /// An attack's phases (ADR-055). The nodes they spawn count against one pattern budget.
+    fn phases(&mut self, phases: &[AttackPhase]) {
+        if phases.is_empty() {
+            self.fail("an attack has at least one phase");
+            return;
+        }
+        if !self.at_most_here(phases.len(), MAX_ATTACK_PHASES, "phases") {
+            return;
+        }
+        let mut count = 0;
+        for (i, p) in phases.iter().enumerate() {
+            let going = self.idx(i, |c| {
+                c.attack_phase(p);
+                c.key("spawn", |c| c.emitters(&p.spawn, 1, &mut count))
+            });
+            if !going {
+                return;
             }
+        }
+    }
+
+    /// One phase: its ticks, movement, hit box, damage and re-hits are bounded. A re-hit needs
+    /// an active phase with a hit box, since nothing else hits.
+    fn attack_phase(&mut self, p: &AttackPhase) {
+        self.within("ticks", i64::from(p.ticks), 1, i64::from(MAX_PHASE_TICKS));
+        self.within("move_pct", i64::from(p.move_pct), 0, 100);
+        if let Some(h) = &p.hit_box {
+            self.key("hit_box", |c| c.hit_box(h));
+        }
+        if let Some(d) = p.damage {
+            self.within("damage", i64::from(d), 1, i64::from(MAX_DAMAGE));
+        }
+        if let Some(r) = p.rehit_ticks {
+            if p.kind != PhaseKind::Active || p.hit_box.is_none() {
+                self.key("rehit_ticks", |c| {
+                    c.fail("only an active phase with a hit box hits again")
+                });
+            } else {
+                self.within("rehit_ticks", i64::from(r), 1, i64::from(MAX_PHASE_TICKS));
+            }
+        }
+    }
+
+    /// A hit box's radius and offset are at most `MAX_RADIUS`, and an arc's half angle is 0 to
+    /// 180 degrees.
+    fn hit_box(&mut self, h: &HitBox) {
+        let (HitBox::Circle { offset, radius } | HitBox::Arc { offset, radius, .. }) = h;
+        let r = i64::from(MAX_RADIUS);
+        self.within("radius", i64::from(radius.0), 1, r);
+        self.key("offset", |c| {
+            c.within("forward", i64::from(offset.forward.0), -r, r);
+            c.within("right", i64::from(offset.right.0), -r, r);
+        });
+        if let HitBox::Arc { half_angle, .. } = h {
+            self.within(
+                "half_angle",
+                i64::from(*half_angle),
+                0,
+                i64::from(180 * trig::PER_DEGREE),
+            );
         }
     }
 

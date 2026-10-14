@@ -10,15 +10,50 @@
     "base": "pilot_a",
     "hp": 99,
     "atk": 10,
-    "shot": {
-      "preset": {
-        "id": "aimed_single",
-        "args": [
-          2048
-        ]
+    "main": {
+      "inline": {
+        "auto": {
+          "attack": {
+            "preset": {
+              "id": "aimed_single",
+              "args": [
+                2048
+              ]
+            }
+          },
+          "targeting": "facing",
+          "cooldown_ticks": 6
+        },
+        "charge": {
+          "levels": [
+            {
+              "at_ticks": 0,
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "recovery",
+                    "ticks": 1
+                  }
+                ]
+              }
+            }
+          ],
+          "max_ticks": 600,
+          "cooldown_ticks": 0
+        }
       }
     },
-    "skills": []
+    "sub": {
+      "preset": {
+        "id": "needle"
+      }
+    },
+    "evade": {
+      "distance": 12288,
+      "ticks": 8,
+      "invulnerable_ticks": 10,
+      "cooldown_ticks": 40
+    }
   },
   "companions": [
     {

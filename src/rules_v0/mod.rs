@@ -3,21 +3,24 @@
 //!
 //! What a tick does, in this order:
 //! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
-//! 2. the main character moves (speed cap, focus, slowing, playfield), starts its shot attack
-//!    on `fire` ticks only (ADR-038, no auto-fire; see `player::main_shot`), and its skills are
-//!    held and cast (ADR-032);
+//! 2. the main character turns to its stick, starts a ready evade on a press (breaking a
+//!    charge), charges or releases its charged skill, then dashes or moves (speed cap, slowing,
+//!    playfield), then its Main and its Sub weapon each start their attack on their own, along
+//!    its facing or at their target, and a ready press starts the Sub skill (ADR-050, ADR-055,
+//!    core#83; see `player`);
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
 //!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
-//!    a shot skill starts an attack task;
+//!    a shot skill starts an attack task; then the enemies push apart, all at once (`push`,
+//!    ADR-058), and one found crowded does not step to its place on the next tick;
 //! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
 //!    is carried out up to its next wait (`attacks`), making bullets;
-//! 5. bullets move and leave the field;
-//! 6. collisions: shots of allies hurt enemies and the boss, shots of enemies hurt the main
-//!    character and the companions;
+//! 5. bullets move and leave the map;
+//! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
+//!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
 //!
-//! Not yet in this version: summons by companions; ways of shooting the main character acquires
-//! during a run (`player::main_shot` is where they would plug in).
+//! Not yet in this version: summons by companions; what the main character's weapons acquire
+//! during a run (`player::shot` is where it would plug in).
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
 //! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, `MAX_BULLETS_ALIVE` bullets,
@@ -32,12 +35,16 @@ mod attacks;
 mod boss;
 mod entity;
 mod grid;
+mod hit_boxes;
 mod player;
+mod push;
+
+pub(crate) use player::{charge_ready, charge_view, skill_ready};
 mod select;
 
 use crate::engine::{
-    AgentKey, AgentSource, BossState, BulletState, HoldState, Load, Outcome, PartState,
-    PlayerState, SkillState, State, UNLIMITED,
+    AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, Outcome, PartState,
+    PlayerState, State,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -47,13 +54,12 @@ use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::stage::Stage;
 use crate::trig;
-use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W};
 
 pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
 use grid::Grid;
 
-pub(crate) const MAX_ENEMIES_ALIVE: u32 = 300;
+pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
 pub(crate) const MAX_BULLET_SPAWNS_PER_TICK: u32 = 200;
 /// Attacks being carried out at once (ADR-036 tier 3), and the node steps they may take in a
@@ -62,20 +68,15 @@ pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
 pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 
 /// The main character is always entity 0; the boss, if any, is 1, then the companions.
-const PLAYER_ID: EntityId = EntityId(0);
+pub(crate) const PLAYER_ID: EntityId = EntityId(0);
+/// The speed cap at full stick (ADR-050).
 const PLAYER_SPEED: i32 = Fx::px(3).0;
-const FOCUS_SPEED: i32 = Fx::px(1).0;
-/// The hurt circle, a tiny one (ADR-038).
+/// The hurt circle, a tiny one (ADR-050).
 pub(crate) const PLAYER_RADIUS: i32 = Fx::px(2).0;
-const PLAYER_START_Y_FROM_BOTTOM: i32 = Fx::px(64).0;
-/// Ticks between main shots while `fire` is held.
-const SHOT_INTERVAL: u32 = 6;
 const PLAYER_BULLET_RADIUS: i32 = Fx::px(2).0;
 const ENEMY_BULLET_RADIUS: i32 = Fx::px(3).0;
 /// Ticks of invulnerability after the main character is hit.
 const HIT_INVULNERABLE_TICKS: u32 = 60;
-/// A held skill casts by itself after this many ticks (ADR-032).
-const HOLD_LIMIT_TICKS: u32 = 30;
 
 /// Aggro (ADR-036): raised by damage dealt, by buffs and by heals; fading every tick.
 const AGGRO_PER_DAMAGE: u32 = 1;
@@ -99,10 +100,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
         next_id += 1;
         id
     });
-    let start = Point {
-        x: Fx(FIELD_W / 2),
-        y: Fx(FIELD_H - PLAYER_START_Y_FROM_BOTTOM),
-    };
+    let start = stage.map().start();
     let companions = stage
         .companions
         .iter()
@@ -126,6 +124,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
         at: b.spawn,
         hp: b.hp,
         max_hp: b.hp,
+        defence: b.defence,
         statuses: Vec::new(),
         phase: 0,
         phase_age: 0,
@@ -146,6 +145,7 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
                     name: p.id.clone(),
                     hp: p.hp,
                     max_hp: p.hp,
+                    defence: p.defence,
                     offset: p.offset,
                     radius: p.radius.0,
                     statuses: Vec::new(),
@@ -157,32 +157,30 @@ pub(crate) fn initial_state(stage: &Stage) -> State {
         tick: 0,
         rng: SplitMix64::new(u64::from(stage.seed)),
         outcome: Outcome::Running,
-        input: Input::default(),
         player: PlayerState {
             at: start,
             hp: stage.player.hp,
             max_hp: stage.player.hp,
+            defence: stage.player.defence,
             invulnerable: 0,
-            shot_cooldown: 0,
-            firing_streak: 0,
+            // Up the map on every map, landscape ones included; a stage cannot set it yet.
+            facing: Dir::UP,
+            main_cooldown: 0,
+            charge: None,
+            charge_held: false,
+            charge_cooldown: 0,
+            skill_cooldown: 0,
+            sub_cooldown: 0,
+            evade_cooldown: 0,
+            dash: None,
             aggro: 0,
             statuses: Vec::new(),
-            skills: stage
-                .player
-                .skills
-                .iter()
-                .map(|sk| SkillState {
-                    cooldown_left: 0,
-                    charges_left: sk.charges.map_or(UNLIMITED, u32::from),
-                })
-                .collect(),
-            hold: None,
-            held_before: 0,
         },
         boss,
         companions,
         enemies: Vec::new(),
         tasks: Vec::new(),
+        runs: Vec::new(),
         bullets: Vec::new(),
         spawned: vec![0; stage.waves.len()],
         next_id,
@@ -200,19 +198,15 @@ pub(crate) fn step(
         return;
     }
     s.tick += 1;
-    s.input = input;
-    s.player.firing_streak = if input.fire {
-        s.player.firing_streak.saturating_add(1)
-    } else {
-        0
-    };
     let mut spawns_left = MAX_BULLET_SPAWNS_PER_TICK;
 
     spawn_waves(stage, s);
     entity::tick_statuses_and_aggro(s);
+    attacks::advance_runs(s, events);
     player::update(stage, s, input, events);
     boss::act(stage, s, events);
     agents::act(stage, s, events);
+    push::apply(stage, s);
     attacks::fire_hooks(s);
     let (tasks, emitter_steps) = attacks::run(s, &mut spawns_left);
     *load = Load {
@@ -222,18 +216,17 @@ pub(crate) fn step(
         bullet_spawns: MAX_BULLET_SPAWNS_PER_TICK - spawns_left,
         emitter_steps,
     };
-    move_bullets(s);
+    move_bullets(stage, s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
+    debug_assert!(
+        entity::enemies_in_id_order(s),
+        "enemies out of entity-ID order"
+    );
 }
 
 fn count<T>(items: &[T]) -> u32 {
     u32::try_from(items.len()).unwrap_or(u32::MAX)
-}
-
-fn inside_with_margin(p: Point) -> bool {
-    let range = |v: i32, max: i32| (-FIELD_MARGIN..=max + FIELD_MARGIN).contains(&v);
-    range(p.x.0, FIELD_W) && range(p.y.0, FIELD_H)
 }
 
 fn spawn_waves(stage: &Stage, s: &mut State) {
@@ -270,12 +263,13 @@ fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
     s.bullets.push(bullet);
 }
 
-fn move_bullets(s: &mut State) {
+fn move_bullets(stage: &Stage, s: &mut State) {
     for b in &mut s.bullets {
         b.at.x = b.at.x.saturating_add(b.vx);
         b.at.y = b.at.y.saturating_add(b.vy);
     }
-    s.bullets.retain(|b| inside_with_margin(b.at));
+    let holds = stage.map().holds();
+    s.bullets.retain(|b| holds(b.at));
 }
 
 /// Two circles overlap (touching counts), in 64-bit fixed point.
@@ -293,12 +287,14 @@ struct Shot {
     owner: EntityId,
     friendly: bool,
     damage: u32,
+    breaks_charge: bool,
 }
 
 fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
-    // The enemies do not move while bullets land, so one grid, built for the first friendly
-    // bullet, serves all of them; a tick without friendly bullets never builds it.
+    // The enemies do not move while hit boxes and bullets land, so one grid, built for the first
+    // friendly hit box or bullet, serves all of them; a tick without either never builds it.
     let mut grid: Option<Grid> = None;
+    hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = Vec::with_capacity(s.bullets.len());
     for i in 0..s.bullets.len() {
         let b = &s.bullets[i];
@@ -307,6 +303,7 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
             owner: b.owner,
             friendly: b.friendly,
             damage: b.damage,
+            breaks_charge: b.breaks_charge,
         };
         consumed.push(if shot.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
@@ -331,11 +328,11 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
     Grid::new(circles, PLAYER_BULLET_RADIUS)
 }
 
-/// Damage to an enemy, a companion or the boss: raised by its vulnerability, reported, and
-/// credited to the shooter's aggro. Death is reported too.
+/// Damage to an enemy, a companion or the boss: raised by its vulnerability, reduced by its
+/// defence, reported, and credited to the shooter's aggro. Death is reported too.
 fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
-    let dealt = scale_damage(b.damage, 0, vulnerable);
+    let dealt = scale_damage(b.damage, 0, vulnerable, s.defence(target));
     let id = s.id_of(target);
     let hp = s.hp_mut(target);
     *hp = hp.saturating_sub(dealt);
@@ -403,17 +400,27 @@ fn hit_enemy_side(
     false
 }
 
+/// Damage to the main character, raised by its vulnerability and reduced by its defence; it is
+/// then invulnerable for a while.
+fn hurt_player(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
+    let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
+    let dealt = scale_damage(b.damage, 0, vulnerable, s.player.defence);
+    let p = &mut s.player;
+    p.hp = p.hp.saturating_sub(dealt);
+    p.invulnerable = HIT_INVULNERABLE_TICKS;
+    events.push(DomainEvent::PlayerHit { hp_left: p.hp });
+    // A powerful attack breaks a charge (core#83).
+    if b.breaks_charge {
+        player::break_charge(stage, s, events);
+    }
+}
+
 /// An enemy's shot against the main character (unless it is invulnerable), then the
 /// companions in ID order.
 fn hit_ally_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
     if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
-        let vulnerable = status_pct(&p.statuses, crate::engine::StatusKind::Vulnerable);
-        let dealt = scale_damage(b.damage, 0, vulnerable);
-        let p = &mut s.player;
-        p.hp = p.hp.saturating_sub(dealt);
-        p.invulnerable = HIT_INVULNERABLE_TICKS;
-        events.push(DomainEvent::PlayerHit { hp_left: p.hp });
+        hurt_player(stage, s, b, events);
         return true;
     }
     for i in 0..s.companions.len() {
@@ -474,9 +481,11 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
     h.write_i32(a.at.y.0);
     h.write_u32(a.hp);
     h.write_u32(a.max_hp);
+    h.write_u32(a.defence);
     h.write_u32(a.age);
     h.write_u32(a.aggro);
     h.write_i32(a.orbit_angle);
+    h.write_bool(a.crowded);
     match a.order {
         Some(o) => {
             h.write_bool(true);
@@ -506,13 +515,21 @@ fn hash_path(h: &mut StateHasher, path: &[crate::engine::PathStep]) {
 fn hash_aim(h: &mut StateHasher, aim: crate::engine::Aim) {
     match aim {
         crate::engine::Aim::Entity(id) => {
-            h.write_bool(false);
+            h.write_u32(0);
             h.write_u32(id.0);
         }
         crate::engine::Aim::Fixed(d) => {
-            h.write_bool(true);
+            h.write_u32(1);
             h.write_i32(d.x);
             h.write_i32(d.y);
+        }
+        crate::engine::Aim::Target { id, heading, last } => {
+            h.write_u32(2);
+            h.write_u32(id.0);
+            h.write_i32(heading.x);
+            h.write_i32(heading.y);
+            h.write_i32(last.x);
+            h.write_i32(last.y);
         }
     }
 }
@@ -533,6 +550,7 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
     hash_aim(h, t.aim);
     h.write_bool(t.friendly);
     h.write_u32(t.damage);
+    h.write_bool(t.breaks_charge);
     h.write_u32(t.age);
     h.write_u32(t.wait_left);
     h.write_i32(t.parent_dir.x);
@@ -547,6 +565,28 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
         h.write_i32(f.param);
         h.write_i32(f.offset);
         h.write_u32(f.hook_after);
+    }
+}
+
+/// A phased attack in progress (ADR-055). Like a task's program, its phases are not written:
+/// they come from the stage, and where the run has got to is.
+fn hash_run(h: &mut StateHasher, r: &crate::engine::AttackRun) {
+    h.write_u32(r.owner.0);
+    h.write_u32(u32::from(r.slot));
+    h.write_u32(count(&r.phases));
+    h.write_u32(r.phase);
+    h.write_u32(r.tick);
+    h.write_i32(r.facing.x);
+    h.write_i32(r.facing.y);
+    hash_aim(h, r.aim);
+    h.write_bool(r.friendly);
+    h.write_u32(r.base);
+    h.write_u32(r.atk_up_pct);
+    h.write_u32(r.age);
+    h.write_u32(count(&r.hits));
+    for (id, tick) in &r.hits {
+        h.write_u32(id.0);
+        h.write_u32(*tick);
     }
 }
 
@@ -566,25 +606,35 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_i32(p.at.y.0);
     h.write_u32(p.hp);
     h.write_u32(p.max_hp);
+    h.write_u32(p.defence);
     h.write_u32(p.invulnerable);
-    h.write_u32(p.shot_cooldown);
-    h.write_u32(p.firing_streak);
-    h.write_u32(p.aggro);
-    h.write_u32(u32::from(p.held_before));
-    hash_statuses(&mut h, &p.statuses);
-    h.write_u32(count(&p.skills));
-    for sk in &p.skills {
-        h.write_u32(sk.cooldown_left);
-        h.write_u32(sk.charges_left);
-    }
-    match p.hold {
-        Some(HoldState { index, ticks }) => {
+    h.write_i32(p.facing.x);
+    h.write_i32(p.facing.y);
+    h.write_u32(p.main_cooldown);
+    h.write_u32(p.sub_cooldown);
+    h.write_u32(p.evade_cooldown);
+    match p.charge {
+        Some(held) => {
             h.write_bool(true);
-            h.write_u32(index);
-            h.write_u32(ticks);
+            h.write_u32(held);
         }
         None => h.write_bool(false),
     }
+    h.write_bool(p.charge_held);
+    h.write_u32(p.charge_cooldown);
+    h.write_u32(p.skill_cooldown);
+    match p.dash {
+        Some(DashState { dir, done, left }) => {
+            h.write_bool(true);
+            h.write_i32(dir.x);
+            h.write_i32(dir.y);
+            h.write_u32(done);
+            h.write_u32(left);
+        }
+        None => h.write_bool(false),
+    }
+    h.write_u32(p.aggro);
+    hash_statuses(&mut h, &p.statuses);
     match &s.boss {
         Some(b) => {
             h.write_bool(true);
@@ -593,6 +643,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_i32(b.at.y.0);
             h.write_u32(b.hp);
             h.write_u32(b.max_hp);
+            h.write_u32(b.defence);
             hash_statuses(&mut h, &b.statuses);
             h.write_u32(b.phase);
             h.write_u32(b.phase_age);
@@ -619,6 +670,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 h.write_u32(part.id.0);
                 h.write_u32(part.hp);
                 h.write_u32(part.max_hp);
+                h.write_u32(part.defence);
                 hash_statuses(&mut h, &part.statuses);
             }
         }
@@ -641,6 +693,10 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     for t in &s.tasks {
         hash_task(&mut h, t);
     }
+    h.write_u32(count(&s.runs));
+    for r in &s.runs {
+        hash_run(&mut h, r);
+    }
     h.write_u32(count(&s.bullets));
     for b in &s.bullets {
         h.write_i32(b.at.x.0);
@@ -653,6 +709,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(b.owner.0);
         h.write_bool(b.friendly);
         h.write_u32(b.damage);
+        h.write_bool(b.breaks_charge);
         match &b.hook {
             Some(hook) => {
                 h.write_bool(true);
@@ -662,6 +719,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 hash_aim(&mut h, hook.aim);
                 h.write_bool(hook.friendly);
                 h.write_u32(hook.damage);
+                h.write_bool(hook.breaks_charge);
             }
             None => h.write_bool(false),
         }

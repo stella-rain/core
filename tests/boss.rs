@@ -70,7 +70,7 @@ fn step_loop() -> Value {
 }
 
 fn stage_of(boss: Value) -> Stage {
-    stage_full(18_000, Some(boss), vec![], vec![], vec![])
+    stage_full(18_000, Some(boss), vec![], vec![])
 }
 
 fn play(e: &mut Engine, ticks: u32, input: Input) -> Vec<(u32, DomainEvent)> {
@@ -201,7 +201,7 @@ fn a_phase_can_end_on_the_boss_hp() {
         ],
     ));
     let mut e = engine(&stage);
-    let events = play(&mut e, 200, firing());
+    let events = play(&mut e, 200, idle());
     let hit_ticks: Vec<(u32, u32)> = hits(&events)
         .iter()
         .map(|(t, _, damage)| (*t, *damage))
@@ -229,7 +229,7 @@ fn a_phase_can_end_when_a_part_breaks() {
         ],
     ));
     let mut e = engine(&stage);
-    let events = play(&mut e, 200, firing());
+    let events = play(&mut e, 200, idle());
     let broken: Vec<u32> = ticks_of(
         &events,
         |ev| matches!(ev, DomainEvent::PartBroken { part } if part.0 == "horn"),
@@ -288,12 +288,12 @@ fn clear_bullets_removes_the_hostile_bullets_and_keeps_the_players() {
         ],
     ));
     let mut e = engine(&stage);
-    play(&mut e, 29, firing());
+    play(&mut e, 29, idle());
     assert!(hostile_bullets(&e) > 0, "the boss has been shooting");
     let friendly = friendly_bullets(&e);
     assert!(friendly > 0, "so has the main character");
     // Tick 30 begins phase 1.
-    e.step(firing());
+    e.step(idle());
     assert_eq!(e.tick(), 30);
     assert_eq!(hostile_bullets(&e), 0);
     assert!(friendly_bullets(&e) > 0);
@@ -316,7 +316,7 @@ fn invulnerable_ticks_use_up_the_shots_that_land_for_exactly_that_long() {
             ],
         ))
     };
-    let run = |stage: &Stage| hits(&play(&mut engine(stage), 140, firing()));
+    let run = |stage: &Stage| hits(&play(&mut engine(stage), 140, idle()));
     let open = run(&build(20, json!([])));
     let landing: Vec<u32> = open
         .iter()
@@ -352,7 +352,7 @@ fn an_invulnerable_boss_also_shields_its_parts() {
             vec![phase(None, transition, json!([]), json!([]))],
         ))
     };
-    let run = |stage: &Stage| hits(&play(&mut engine(stage), 100, firing()));
+    let run = |stage: &Stage| hits(&play(&mut engine(stage), 100, idle()));
     let open = run(&build(json!([])));
     let shielded = run(&build(
         json!([{ "type": "invulnerable_ticks", "ticks": 40 }]),
@@ -440,8 +440,9 @@ fn a_timeline_that_ends_stops_and_the_boss_waits_for_its_rules() {
 }
 
 #[test]
-fn a_timeline_takes_a_bounded_number_of_steps_a_tick() {
-    // Nothing in `[attack, loop]` ever waits: the boss takes 16 steps, 8 attacks, a tick.
+fn a_loop_of_attack_steps_makes_one_attack_a_tick() {
+    // An `attack` step lasts as long as its attack (ADR-055), one tick for this preset, so
+    // `[attack, loop]` attacks once a tick; before, it took 16 steps, 8 attacks, a tick.
     let stage = stage_of(boss(
         1_000_000,
         vec![],
@@ -454,9 +455,9 @@ fn a_timeline_takes_a_bounded_number_of_steps_a_tick() {
     ));
     let mut e = engine(&stage);
     e.step(idle());
-    assert_eq!(hostile_bullets(&e), 8);
+    assert_eq!(hostile_bullets(&e), 1);
     e.step(idle());
-    assert_eq!(hostile_bullets(&e), 16);
+    assert_eq!(hostile_bullets(&e), 2);
 }
 
 #[test]
@@ -472,7 +473,7 @@ fn a_timeline_attack_is_aimed_at_the_main_character() {
             json!([]),
         )],
     ));
-    let mut e = engine(&stage);
+    let mut e = engine(&quiet(stage));
     e.step(idle());
     let first = e.snapshot().bullets[0].at;
     e.step(idle());
@@ -540,7 +541,6 @@ fn parts_have_ids_after_the_companions_and_come_before_the_enemies_in_the_snapsh
             10_000,
         )],
         vec![companion(10, hold(30_000, 140_000), json!([]))],
-        vec![],
     );
     let mut e = engine(&stage);
     e.step(idle());
@@ -573,7 +573,7 @@ fn a_part_has_its_own_hp_and_a_shot_that_hits_it_hurts_only_it() {
         vec![phase(None, json!([]), json!([]), json!([]))],
     ));
     let mut e = engine(&stage);
-    let events = play(&mut e, 200, firing());
+    let events = play(&mut e, 200, idle());
     let hit = hits(&events);
     let horn = EntityId(2);
     let on_horn: Vec<_> = hit.iter().filter(|(_, t, _)| *t == horn).collect();
@@ -606,7 +606,7 @@ fn a_part_that_is_missed_leaves_the_body_to_be_hit_and_the_part_whole() {
         vec![phase(None, json!([]), json!([]), json!([]))],
     ));
     let mut e = engine(&stage);
-    let events = play(&mut e, 100, firing());
+    let events = play(&mut e, 100, idle());
     let hit = hits(&events);
     assert!(!hit.is_empty());
     assert!(hit.iter().all(|(_, t, _)| *t == BOSS));
@@ -664,7 +664,7 @@ fn the_part_selector_picks_a_part_that_is_still_whole() {
         vec![phase(None, json!([]), json!([]), rule)],
     ));
     let mut e = engine(&stage);
-    let events = play(&mut e, 120, firing());
+    let events = play(&mut e, 120, idle());
     let broken = ticks_of(&events, |ev| matches!(ev, DomainEvent::PartBroken { .. }))[0];
     let fired: Vec<(u32, Option<EntityId>)> = events
         .iter()
@@ -695,7 +695,7 @@ fn hp_below_can_ask_about_a_part() {
         ],
     ));
     let mut e = engine(&stage);
-    let events = play(&mut e, 120, firing());
+    let events = play(&mut e, 120, idle());
     // 30 hp, 10 a hit: below half (15) after the second hit.
     let second = hits(&events)[1].0;
     assert_eq!(phase_changes(&events), vec![(second + 1, 1)]);
@@ -736,15 +736,25 @@ fn a_boss_rule_shoots_summons_and_moves_like_an_agent_would() {
     assert_eq!(fired, vec![(1, 2), (3, 0), (11, 2), (21, 1), (22, 2)]);
     // The move took ticks 4 to 6, 1000 a tick.
     assert_eq!(boss_at(&e), (BOSS_X + 3_000, BOSS_Y));
-    // Two summoned enemies, entities 2 and 3, went to their post.
+    // Two summoned enemies, entities 2 and 3, appeared where the boss stood on tick 21. The boss
+    // acts before the enemies, so on that tick they stepped 4 pixels toward their post and were
+    // pushed apart 4 pixels; crowded, on tick 22 they yielded and were pushed 4 pixels more.
     let s = e.snapshot();
-    let helpers: Vec<(u32, i32, i32)> = s
+    let helpers: Vec<(u32, i64)> = s
         .entities
         .iter()
         .filter(|v| v.kind == EntityKind::Enemy)
-        .map(|v| (v.id.0, v.at.x.0, v.at.y.0))
+        .map(|v| {
+            let dx = i64::from(v.at.x.0 - (BOSS_X + 3_000));
+            let dy = i64::from(v.at.y.0 - BOSS_Y);
+            (v.id.0, (dx * dx + dy * dy).isqrt())
+        })
         .collect();
-    assert_eq!(helpers, vec![(2, 10_000, 30_000), (3, 10_000, 30_000)]);
+    assert_eq!(helpers.iter().map(|h| h.0).collect::<Vec<_>>(), [2, 3]);
+    assert!(
+        helpers.iter().all(|h| (1..=3 * 1_024).contains(&h.1)),
+        "{helpers:?}"
+    );
 }
 
 #[test]
@@ -767,7 +777,6 @@ fn the_boss_acts_before_the_companions_and_the_enemies() {
             10_000,
         )],
         vec![companion(10, hold(30_000, 140_000), all)],
-        vec![],
     );
     let mut e = engine(&stage);
     play(&mut e, 2, idle());
@@ -797,7 +806,7 @@ fn beating_the_boss_in_an_early_phase_clears_the_stage() {
         ],
     ));
     let mut e = engine(&stage);
-    let events = play(&mut e, 200, firing());
+    let events = play(&mut e, 200, idle());
     assert_eq!(e.outcome(), Outcome::Cleared);
     assert!(
         events
@@ -841,7 +850,7 @@ fn a_boss_run_is_the_same_every_time() {
         let mut e = engine(&stage);
         (0..400)
             .map(|t| {
-                e.step(if t % 7 < 5 { firing() } else { idle() });
+                e.step(if t % 7 < 5 { idle() } else { moving(0, -64) });
                 e.state_hash()
             })
             .collect::<Vec<_>>()
@@ -880,8 +889,8 @@ fn an_attack_started_by_a_rule_runs_on_the_phase_clock() {
     // when the phase is 6 ticks old, on tick 16, at phase time 5: the bullet's speed is
     // 100 + 5 * 10 (aimed straight down).
     let speed = json!({ "add": [100, { "mul": ["phase_time", 10] }] });
-    let attack = json!({ "inline": [{ "type": "fire", "speed": speed,
-                                      "direction": { "type": "absolute", "angle": 0 } }] });
+    let attack = json!({ "inline": spawned(json!([{ "type": "fire", "speed": speed,
+                                      "direction": { "type": "absolute", "angle": 0 } }])) });
     let rules = json!([{ "when": time_above(5), "target": "player", "once": true,
                          "do": { "type": "attack", "attack": attack }, "cooldown_ticks": 0 }]);
     let stage = stage_of(boss(
@@ -892,7 +901,7 @@ fn an_attack_started_by_a_rule_runs_on_the_phase_clock() {
             phase(None, json!([]), json!([]), rules),
         ],
     ));
-    let mut e = engine(&stage);
+    let mut e = engine(&quiet(stage));
     for _ in 0..16 {
         e.step(idle());
     }

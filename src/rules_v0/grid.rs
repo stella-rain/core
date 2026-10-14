@@ -1,7 +1,9 @@
 //! A uniform grid over the enemies, so that a friendly bullet is checked only against the enemies
 //! near it rather than all of them (core#62). It is rebuilt in each tick's `collide`, where the
 //! enemies do not move, and it picks exactly the enemy the plain scan in index order picks: the
-//! lowest-index live enemy whose circle overlaps the bullet's.
+//! lowest-index live enemy whose circle overlaps the bullet's. Hit boxes (ADR-055) ask it for
+//! every enemy within their reach instead (`within`), and the push-apart (ADR-058) for the
+//! enemies around one (`neighbours`).
 
 use crate::fixed::Point;
 
@@ -16,6 +18,8 @@ pub(super) struct Grid {
     /// The corner of cell (0, 0): the smallest x and y of the circles' centres.
     min_x: i64,
     min_y: i64,
+    /// The largest circle radius.
+    largest: i64,
     cell: i64,
     cols: i64,
     rows: i64,
@@ -39,6 +43,7 @@ impl Grid {
             circles,
             min_x,
             min_y,
+            largest,
             cell,
             cols,
             rows,
@@ -87,6 +92,10 @@ impl Grid {
     /// the grid overlaps nothing. Each cell lists its circles in ascending index order, so the
     /// first hit in a cell is that cell's lowest, and the lowest over the 9 cells is the scan's
     /// choice.
+    ///
+    /// Always inlined: it runs once per friendly bullet, and out of line it costs about 10% more
+    /// instructions in `collide_tick`.
+    #[inline(always)]
     pub(super) fn first_hit(
         &self,
         at: Point,
@@ -120,6 +129,82 @@ impl Grid {
         }
         best
     }
+
+    /// Up to `most` circles other than `me`, into `out` (cleared first): those of `me`'s own cell,
+    /// then of the 8 cells around it (west, east, north, south, north-west, south-east,
+    /// north-east, south-west), each cell in ascending index order. Reading the own cell first
+    /// and then opposite sides in turn keeps a full list from leaning to one side.
+    ///
+    /// In a grid built for probes as large as its largest circle, every circle that overlaps
+    /// `me`'s has its centre in one of those cells.
+    pub(super) fn neighbours(&self, me: usize, most: usize, out: &mut Vec<u32>) {
+        const AROUND: [(i64, i64); 9] = [
+            (0, 0),
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
+            (-1, -1),
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+        ];
+        out.clear();
+        let (col, row) = self.col_row(self.circles[me].0);
+        for (dc, dr) in AROUND {
+            let (c, r) = (col + dc, row + dr);
+            if !(0..self.cols).contains(&c) || !(0..self.rows).contains(&r) {
+                continue;
+            }
+            let cell = (r * self.cols + c) as usize;
+            let (from, to) = (self.start[cell] as usize, self.start[cell + 1] as usize);
+            for &i in &self.members[from..to] {
+                if i as usize == me {
+                    continue;
+                }
+                if out.len() == most {
+                    return;
+                }
+                out.push(i);
+            }
+        }
+    }
+
+    /// Every circle that overlaps the probe circle at `at` with `reach`, in ascending index
+    /// order, into `out` (cleared first). Any reach works: the cells searched are those a
+    /// circle overlapping the probe can have its centre in, at most `reach` plus the largest
+    /// radius away on each axis.
+    pub(super) fn within(&self, at: Point, reach: i32, out: &mut Vec<usize>) {
+        out.clear();
+        if self.circles.is_empty() {
+            return;
+        }
+        let span = i64::from(reach) + self.largest;
+        let (x, y) = (i64::from(at.x.0), i64::from(at.y.0));
+        let col = |v: i64| (v - self.min_x).div_euclid(self.cell);
+        let row = |v: i64| (v - self.min_y).div_euclid(self.cell);
+        let (c0, c1) = (col(x - span).max(0), col(x + span).min(self.cols - 1));
+        let (r0, r1) = (row(y - span).max(0), row(y + span).min(self.rows - 1));
+        if c0 > c1 || r0 > r1 {
+            return;
+        }
+        for r in r0..=r1 {
+            for c in c0..=c1 {
+                let cell = (r * self.cols + c) as usize;
+                let (from, to) = (self.start[cell] as usize, self.start[cell + 1] as usize);
+                out.extend(
+                    self.members[from..to]
+                        .iter()
+                        .map(|&i| i as usize)
+                        .filter(|&i| {
+                            let (centre, radius) = self.circles[i];
+                            super::overlaps(at, reach, centre, radius)
+                        }),
+                );
+            }
+        }
+        out.sort_unstable();
+    }
 }
 
 #[cfg(test)]
@@ -139,7 +224,39 @@ mod tests {
         (-range..=range, -range..=range).prop_map(|(x, y)| Point { x: Fx(x), y: Fx(y) })
     }
 
+    /// Every circle the probe overlaps, in index order, as a plain scan finds them.
+    fn scan_all(circles: &[(Point, i32)], at: Point, probe: i32) -> Vec<usize> {
+        (0..circles.len())
+            .filter(|&i| super::super::overlaps(at, probe, circles[i].0, circles[i].1))
+            .collect()
+    }
+
     proptest! {
+        // A range query for any reach, whatever probe radius the grid was built for: small
+        // reaches, and reaches far wider than a cell.
+        #[test]
+        fn the_range_query_finds_what_the_scan_finds(
+            range in prop_oneof![Just(20_000), Just(200_000)],
+            circles in prop::collection::vec((point(200_000), 1..=65_536i32), 0..80),
+            probes in prop::collection::vec((point(260_000), 1..=200_000i32), 1..20),
+            probe_radius in 1..=2_048i32,
+        ) {
+            let shapes: Vec<(Point, i32)> = circles
+                .into_iter()
+                .map(|(p, r)| {
+                    let p = Point { x: Fx(p.x.0 % range), y: Fx(p.y.0 % range) };
+                    (p, if range == 20_000 { r % 4_096 + 1 } else { r })
+                })
+                .collect();
+            let grid = Grid::new(shapes.clone(), probe_radius);
+            let near = shapes.iter().map(|c| (c.0, 1));
+            for (at, reach) in probes.into_iter().chain(near) {
+                let mut found = Vec::new();
+                grid.within(at, reach, &mut found);
+                prop_assert_eq!(found, scan_all(&shapes, at, reach));
+            }
+        }
+
         // Crowded (a few cells) and spread out (many cells), with radii up to the validator's 256
         // pixels, dead circles, and probes inside and far outside the circles' bounds.
         #[test]
