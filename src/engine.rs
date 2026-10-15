@@ -227,9 +227,11 @@ impl Engine {
                 }
             };
         agent_views(EntityKind::Companion, &s.companions, &mut entities);
+        // A part is drawn while it and its boss are alive: a dead boss takes its unbroken
+        // parts with it (core#60).
         if let (Some(b), Some(boss)) = (&s.boss, &self.stage.boss) {
             for (part, def) in b.parts.iter().zip(&boss.parts) {
-                if part.hp > 0 {
+                if b.hp > 0 && part.hp > 0 {
                     entities.push(EntityView {
                         id: part.id,
                         kind: EntityKind::BossPart,

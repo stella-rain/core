@@ -619,6 +619,36 @@ fn a_part_that_is_missed_leaves_the_body_to_be_hit_and_the_part_whole() {
 }
 
 #[test]
+fn a_dead_boss_takes_its_unbroken_parts_out_of_the_snapshot() {
+    // core#60: the horn is to the side of the shots, so the body dies (20 hp, 10 a hit) with the
+    // horn whole. Neither may stay drawn once the boss is dead.
+    let stage = stage_of(boss(
+        20,
+        vec![part("horn", 20, 30_000, 0, 2_048)],
+        vec![phase(None, json!([]), json!([]), json!([]))],
+    ));
+    let mut e = engine(&stage);
+    let events = play(&mut e, 200, idle());
+    assert!(events.iter().any(|(_, ev)| matches!(
+        ev,
+        DomainEvent::Died { entity } if *entity == BOSS
+    )));
+    assert!(
+        !events
+            .iter()
+            .any(|(_, ev)| matches!(ev, DomainEvent::PartBroken { .. }))
+    );
+    let s = e.snapshot();
+    assert!(
+        s.entities
+            .iter()
+            .all(|v| v.kind != EntityKind::Boss && v.kind != EntityKind::BossPart),
+        "{:?}",
+        s.entities.iter().map(|v| v.kind).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn parts_move_with_the_boss() {
     let stage = stage_of(boss(
         1_000_000,
