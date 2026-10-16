@@ -21,10 +21,8 @@ proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MI
 - The Rust types here are the only schema; JSON Schema is generated from them (ADR-018).
   Any change to stage, event or replay types, or to a simulation outcome, follows the
   `schema-change` skill.
-- Released content IDs (assets, palettes, parts, blocks, skills, attack patterns) are never
-  renamed or removed, only deprecated (ADR-026).
-- ADRs marked *Proposed* are the current plan: build on them, but raise a departure with Kade
-  rather than depart silently.
+- Released content IDs (assets, palettes, parts, blocks, skills, attack patterns) are never renamed or removed, only deprecated (ADR-026).
+- ADRs marked *Proposed* are the current plan: build on them, but raise a departure with Kade rather than depart silently.
 - Design: standard practice first; give Kade options, trade-offs, a pick; better ideas as options.
 
 ## Layout
@@ -90,11 +88,13 @@ here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
   release checks and tags `v<Cargo.toml version>` with a GitHub Release (ADR-054). `auto-merge.yml`
   never touches it (it acts on `claude/*` heads into `main` only). A fix found on a candidate
   goes to `main` first.
-- Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app
-  can use it (ADR-029).
+- Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app can use it (ADR-029).
 - Zip deliveries (needed on the Windows PC only) are laid out from the `stella-rain` root.
+
+## Overrides of global rules
+
+None.
 
 ## Never commit
 
-- `target/`, fuzz `artifacts/` and generated fuzz corpora (the replay corpus in
-  `tests/corpus/` is committed).
+- `target/`, fuzz `artifacts/` and generated fuzz corpora (the replay corpus in `tests/corpus/` is committed).
