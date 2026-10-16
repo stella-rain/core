@@ -14,7 +14,7 @@
 //! than the mode is long and no more than `MAX_COMMANDS` commands. Re-simulation steps tick by
 //! tick; before each tick it applies the commands carrying the current tick, in order, and fails
 //! closed on an unknown kind, a command the engine refuses (a choice with no offer open, a spend
-//! with no point left, an index outside the run stats, a stat at its limit), a command left
+//! after the run ended or with no point left, an index outside the run stats, a stat at its limit), a command left
 //! over at the end, an input after the run ended, and a final hash that differs.
 //!
 //! The content hash covers the mode's bundled file, every attack and weapon preset's
@@ -200,6 +200,9 @@ impl fmt::Display for RunReplayError {
                 ChoiceError::NoOffer => write!(f, "a choice on tick {tick} has no offer open"),
             },
             RunReplayError::SpendRefused { tick, error } => match error {
+                SpendError::RunOver => {
+                    write!(f, "a spend on tick {tick} comes after the run ended")
+                }
                 SpendError::NoPoint => write!(f, "a spend on tick {tick} has no point to spend"),
                 SpendError::OutOfRange { index, stats } => write!(
                     f,

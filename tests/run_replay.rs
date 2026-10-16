@@ -103,6 +103,33 @@ fn a_run_that_ends_is_recorded_to_the_tick_it_ends() {
 }
 
 #[test]
+fn a_spend_after_the_run_ended_is_refused() {
+    // The run ends with its points unspent; they are lost, so a spend after the end is refused
+    // like a step, and a replay holding one does not verify (recording would leave it out).
+    let commands: Vec<Command> = play_run(TRIAL_LENGTH)
+        .into_iter()
+        .filter(|c| !matches!(c, Command::Spend(_)))
+        .collect();
+    let replay = record_run(&trial_setup(), &commands).unwrap();
+    let mut engine = Engine::start(&trial_setup()).unwrap();
+    for input in replay.unpack_inputs(TRIAL_LENGTH).unwrap() {
+        engine.step(input);
+    }
+    assert_eq!(engine.outcome(), Outcome::Failed);
+    assert!(engine.snapshot().progress.unwrap().points > 0);
+    let hash = engine.state_hash();
+    assert_eq!(engine.spend(0), Err(SpendError::RunOver));
+    assert_eq!(engine.state_hash(), hash);
+    assert_eq!(
+        verify_run(&with_commands(&replay, &[spend(replay.ticks, 0)])),
+        Err(RunReplayError::SpendRefused {
+            tick: replay.ticks,
+            error: SpendError::RunOver
+        })
+    );
+}
+
+#[test]
 fn the_final_hash_is_the_one_after_the_last_spend() {
     let point = first_point_tick();
     let replay = recorded(point);

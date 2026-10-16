@@ -36,6 +36,8 @@ pub enum ChoiceError {
 /// Why `Engine::spend` refused to spend a stat point; the run is unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpendError {
+    /// The run has ended: its unspent points are lost.
+    RunOver,
     /// No point is left (or the stage has no levels).
     NoPoint,
     /// `index` is not below the number of run `stats`.
@@ -159,8 +161,12 @@ impl Engine {
 
     /// Spends a stat point on the run stat at `index`, between ticks (ADR-066 §4): the stat
     /// rises by its step at once, and the events are then this spend's. Refused, changing
-    /// nothing, with no point left, an index outside the run stats, or the stat at its limit.
+    /// nothing, once the run has ended, with no point left, an index outside the run stats, or
+    /// the stat at its limit.
     pub fn spend(&mut self, index: u32) -> Result<(), SpendError> {
+        if self.state.outcome != Outcome::Running {
+            return Err(SpendError::RunOver);
+        }
         let p = self
             .state
             .progress
