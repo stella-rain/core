@@ -196,6 +196,9 @@ jobs:
             cp "$dir/stage.json" "seeds/stage/$name.json"
             cp "$dir/run.replay" "seeds/replay/$name.replay"
           done
+          for dir in tests/corpus/runs/v0/*/; do
+            cp "$dir/run.replay" "seeds/replay/run-$(basename "$dir").replay"
+          done
           cp tests/fixtures/run_setup/*.json seeds/setup/
       - name: Fuzz each target for 60 seconds
         run: |
