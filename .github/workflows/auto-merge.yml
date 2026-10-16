@@ -2,11 +2,13 @@
 # Runs when any check below finishes; the reusable workflow merges only when every check on
 # the PR's head commit is green and every check in `require:` has succeeded, so a check whose
 # workflow has not started yet is never skipped. Drafts and PRs that touch .github/workflows/
-# are left to Kade (ADR-052), this file included.
+# (this file included) or a `protected:` path, the agent rules, are left to Kade (ADR-052).
 # Add each new PR check's workflow name to `workflows:`, and its check names to `require:` if
 # they run on every pull request into main: a skipped or path-filtered check never succeeds
 # (`short fuzz run`, `check / CLAUDE.md and rules within limits`), and naming one would leave
-# every PR waiting. A renamed check changes here in the same PR.
+# every PR waiting. Rust's jobs are skipped on a PR of only `*.md` files, so only its
+# always-run `rust checks`, which fails when one of them did, is required. A renamed check
+# changes here in the same PR.
 # `workflow_run` is read from main: a change to this file acts only after its own merge.
 name: Auto-merge
 
@@ -22,20 +24,13 @@ jobs:
     uses: stella-rain/.github/.github/workflows/auto-merge.yml@main
     with:
       require: |
-        fmt and clippy
-        tests on x86_64
-        tests on arm64
-        tests on windows-x86_64
-        tests on macos-arm64
-        cargo check for mobile targets
-        fuzz crate fmt, clippy and tests
-        fuzz targets build (nightly)
-        parsing changed
-        worst-case tick on x86_64
-        worst-case tick on arm64
+        rust checks
         eol / LF line endings
         script unit tests
         secrets / no secrets or key files
+      protected: |
+        CLAUDE.md
+        .claude/rules/
     permissions:
       contents: write
       pull-requests: write

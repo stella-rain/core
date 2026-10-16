@@ -296,6 +296,10 @@ pub(crate) fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static st
             charge: flags & 0b10 != 0,
             sub: flags & 0b100 != 0,
         };
+        // Packing writes equal inputs as one run, so each list of inputs has one encoding.
+        if inputs.last() == Some(&input) {
+            return Err("a run repeats the input of the run before");
+        }
         inputs.extend(std::iter::repeat_n(input, run as usize));
     }
     if inputs.len() != ticks as usize {

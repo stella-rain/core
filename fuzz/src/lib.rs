@@ -10,8 +10,9 @@ use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay};
-use stella_rain_core::run_replay::{self, Command, RunReplay};
+use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay};
 use stella_rain_core::run_setup;
+use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::{self, parse_and_validate};
@@ -25,8 +26,14 @@ const RUN_TICKS: usize = 120;
 const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/v0/clear/stage.json");
 
 /// The stage parser and validator (ADR-020 items 1 to 4). A stage that loads can be saved
-/// again, which is what the editor does, and loads again as the same stage.
+/// again, which is what the editor does, and loads again as the same stage. The same bytes are
+/// also read as run stats (ADR-067), content that may come from outside the app: they parse
+/// without a panic, and stats that load hash the same twice.
 pub fn stage_parse(data: &[u8]) -> bool {
+    if let Ok(stats) = RunStats::parse(data) {
+        let again = RunStats::parse(data).expect("run stats that loaded load again");
+        assert_eq!(again, stats, "the same bytes loaded as other run stats");
+    }
     let Ok(stage) = parse_and_validate(data) else {
         return false;
     };
@@ -51,7 +58,7 @@ pub fn stage_run(data: &[u8]) -> bool {
     let mut engine = Engine::new(&stage).expect("a stage that validates starts a run");
     let ticks = usize::try_from(stage.length_ticks).map_or(RUN_TICKS, |n| n.min(RUN_TICKS));
     for (t, input) in inputs_from(data, ticks).into_iter().enumerate() {
-        step_choosing(&mut engine, input, pick(data, t));
+        step_spending(&mut engine, input, pick(data, t));
         let _ = engine.snapshot();
     }
     engine.tick() > 0
@@ -69,27 +76,33 @@ pub fn run_setup(data: &[u8]) -> bool {
     assert_eq!(again, setup, "a saved setup loads as another setup");
     let mut engine = Engine::start(&setup).expect("a setup that validates starts a run");
     for (t, input) in inputs_from(data, RUN_TICKS).into_iter().enumerate() {
-        step_choosing(&mut engine, input, pick(data, t));
+        step_spending(&mut engine, input, pick(data, t));
         let _ = engine.snapshot();
     }
     engine.tick() > 0
 }
 
-/// One tick of `input`, after answering every open offer (ADR-051): first with `pick` as it
-/// is, which may be refused and must then change nothing, then with `pick` inside the offer.
-fn step_choosing(engine: &mut Engine, input: Input, pick: u8) {
-    while let Some(options) = engine.offer() {
-        let len = u32::try_from(options.len()).expect("an offer is short");
+/// One tick of `input`, after a choice and two spends between ticks (ADR-066): a choice with
+/// `pick` (refused, no offer opens yet), then a spend of `pick` as it is and one of `pick`
+/// inside the stats. Each may be refused, and must then change nothing.
+fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
+    let stats = u32::try_from(engine.run_stats().stats().len()).expect("few run stats");
+    for (kind, index) in [
+        (CommandKind::Choose, u32::from(pick)),
+        (CommandKind::Spend, u32::from(pick)),
+        (CommandKind::Spend, u32::from(pick) % stats),
+    ] {
         let hash = engine.state_hash();
-        if engine.choose(u32::from(pick)).is_err() {
+        let refused = match kind {
+            CommandKind::Choose => engine.choose(index).is_err(),
+            CommandKind::Spend => engine.spend(index).is_err(),
+        };
+        if refused {
             assert_eq!(
                 engine.state_hash(),
                 hash,
-                "a refused choice changed the run"
+                "a refused command changed the run"
             );
-            engine
-                .choose(u32::from(pick) % len)
-                .expect("an index inside the offer is taken");
         }
     }
     engine.step(input);
@@ -133,7 +146,7 @@ pub fn replay_load(data: &[u8]) -> bool {
     }
     if let Ok(run) = RunReplay::from_bytes(data) {
         let _ = run.unpack_inputs(MAX_TICKS);
-        let _ = run.unpack_choices();
+        let _ = run.unpack_commands();
         let again = RunReplay::from_bytes(&run.to_bytes())
             .expect("a run replay that loaded loads again once saved");
         assert_eq!(again, run, "a saved run replay loads as another run replay");
@@ -149,22 +162,26 @@ pub fn replay_load(data: &[u8]) -> bool {
     stage_replay || run_replay
 }
 
-/// A run replay's commands in the order they were made: before each tick the choices that
-/// carry the tick before it, then its input; at the end the choices of the last tick.
+/// A run replay's commands in the order they were made: before each tick the commands that
+/// carry the tick before it, then its input; at the end the commands of the last tick.
 fn commands(run: &RunReplay) -> Vec<Command> {
     let inputs = run
         .unpack_inputs(MAX_TICKS)
         .expect("verified inputs unpack");
-    let choices = run.unpack_choices().expect("verified choices unpack");
-    let mut next = choices.iter().peekable();
+    let between = run.unpack_commands().expect("verified commands unpack");
+    let mut next = between.iter().peekable();
+    let command = |c: &run_replay::TickCommand| match c.kind {
+        CommandKind::Choose => Command::Choose(c.index),
+        CommandKind::Spend => Command::Spend(c.index),
+    };
     let mut out = Vec::new();
     for (tick, input) in (0u32..).zip(inputs) {
         while let Some(c) = next.next_if(|c| c.tick == tick) {
-            out.push(Command::Choose(c.index));
+            out.push(command(c));
         }
         out.push(Command::Step(input));
     }
-    out.extend(next.map(|c| Command::Choose(c.index)));
+    out.extend(next.map(command));
     out
 }
 

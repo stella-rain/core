@@ -9,9 +9,9 @@
 //! architecture. After an intended change, run `UPDATE_CORPUS=1 cargo test --test corpus` and
 //! say `Corpus regenerated: <why>` in the PR (ADR-035).
 //!
-//! Runs of the launch game (ADR-051) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
-//! `run.replay` (a run replay: setup, content hash, inputs and choices) and `hashes.txt` (the
-//! hash after every tick, before that tick's choices). They need no stage file, because the
+//! Runs of the launch game (ADR-066) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
+//! `run.replay` (a run replay: setup, content hash, inputs and commands) and `hashes.txt` (the
+//! hash after every tick, before the commands between it and the next). They need no stage file, because the
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
 
 mod common;
@@ -24,7 +24,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, hash_from_hex, hash_to_hex};
-use stella_rain_core::run_replay::{self, Command, RunReplay};
+use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::snapshot::Snapshot;
 use stella_rain_core::validate::parse_and_validate;
@@ -106,7 +106,15 @@ fn read_hashes(case: &Path, name: &str) -> Result<Vec<u64>, String> {
         .collect()
 }
 
-/// Re-simulates one run case (ADR-051), taking its choices between the ticks, and compares
+/// Applies one command between ticks, as a replay's verification does.
+fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> {
+    match c.kind {
+        CommandKind::Choose => engine.choose(c.index).map_err(|e| format!("{e:?}")),
+        CommandKind::Spend => engine.spend(c.index).map_err(|e| format!("{e:?}")),
+    }
+}
+
+/// Re-simulates one run case (ADR-066), taking its commands between the ticks, and compares
 /// every tick's hash; then the run replay must verify against the same hashes.
 fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let name = case.file_name().unwrap().to_string_lossy().into_owned();
@@ -118,7 +126,7 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let inputs = recorded
         .unpack_inputs(stage.length_ticks)
         .map_err(|e| fail(&e))?;
-    let choices = recorded.unpack_choices().map_err(|e| fail(&e))?;
+    let commands = recorded.unpack_commands().map_err(|e| fail(&e))?;
     if hashes.len() != inputs.len() {
         return Err(fail(&format!(
             "hashes.txt has {} hashes, run.replay has {} ticks",
@@ -128,12 +136,10 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     }
 
     let mut engine = Engine::start(&recorded.setup).map_err(|e| fail(&e))?;
-    let mut next = choices.iter().peekable();
+    let mut next = commands.iter().peekable();
     for (input, expected) in inputs.iter().zip(&hashes) {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            engine
-                .choose(c.index)
-                .map_err(|e| fail(&format!("{e:?}")))?;
+            apply(&mut engine, c).map_err(|e| fail(&e))?;
         }
         let previous = engine.snapshot();
         engine.step(*input);
@@ -145,15 +151,15 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The hash after every tick of a run replay, before that tick's choices.
+/// The hash after every tick of a run replay, before the commands that follow it.
 fn run_hashes(replay: &RunReplay) -> Vec<u64> {
     let mut engine = Engine::start(&replay.setup).unwrap();
-    let choices = replay.unpack_choices().unwrap();
-    let mut next = choices.iter().peekable();
+    let commands = replay.unpack_commands().unwrap();
+    let mut next = commands.iter().peekable();
     let mut hashes = Vec::new();
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            engine.choose(c.index).unwrap();
+            apply(&mut engine, c).unwrap();
         }
         engine.step(input);
         hashes.push(engine.state_hash());
@@ -321,16 +327,16 @@ fn a_replay_that_is_not_the_stages_fails() {
     assert!(message.contains("stage file has changed"), "{message}");
 }
 
-// --- Run cases (ADR-051) -----------------------------------------------------------------------
+// --- Run cases (ADR-066) -----------------------------------------------------------------------
 
 fn changed_run_case(name: &str) -> (PathBuf, PathBuf) {
     let dir = scratch(&format!("run-{name}"));
     let case = dir.join("case");
-    let offer = common::run::first_offer_tick();
+    let point = common::run::first_point_tick();
     write_run_case(
         &case,
         &common::run::trial_setup(),
-        &common::run::play_run(offer + 20),
+        &common::run::play_run(point + 20),
     );
     (case, dir.join("diff"))
 }
@@ -345,31 +351,31 @@ fn an_unchanged_run_case_passes() {
 #[test]
 fn a_changed_hash_in_a_run_case_fails_naming_its_tick() {
     let (case, diff) = changed_run_case("tick-n");
-    let after_offer = common::run::first_offer_tick() as usize + 1;
-    change_hash(&case, after_offer);
+    let after_point = common::run::first_point_tick() as usize + 1;
+    change_hash(&case, after_point);
     let message = check_run_case(&case, &diff).unwrap_err();
     assert!(
-        message.contains(&format!("tick {after_offer}")),
+        message.contains(&format!("tick {after_point}")),
         "{message}"
     );
     let dump: Value = serde_json::from_slice(&fs::read(diff.join("case.json")).unwrap()).unwrap();
-    assert_eq!(dump["tick"], json!(after_offer));
+    assert_eq!(dump["tick"], json!(after_point));
 }
 
 #[test]
-fn a_run_case_whose_choice_changed_fails() {
-    let (case, diff) = changed_run_case("choice");
+fn a_run_case_whose_spend_changed_fails() {
+    let (case, diff) = changed_run_case("spend");
     let path = case.join("run.replay");
     let mut replay = RunReplay::from_bytes(&fs::read(&path).unwrap()).unwrap();
-    let mut choices = replay.unpack_choices().unwrap();
-    choices[0].index = 0;
-    replay.choices = run_replay::pack_choices(&choices);
+    let mut commands = replay.unpack_commands().unwrap();
+    commands[0].index = 0;
+    replay.commands = run_replay::pack_commands(&commands);
     fs::write(&path, replay.to_bytes()).unwrap();
-    // The tick after the choice differs from the one recorded.
+    // The tick after the spend differs from the one recorded.
     let message = check_run_case(&case, &diff).unwrap_err();
-    let after_offer = choices[0].tick + 1;
+    let after_point = commands[0].tick + 1;
     assert!(
-        message.contains(&format!("tick {after_offer}")),
+        message.contains(&format!("tick {after_point}")),
         "{message}"
     );
 }
@@ -699,8 +705,8 @@ fn definitions() -> Vec<Definition> {
     ]
 }
 
-/// The run cases: the trial mode played until the main character falls, with an offer
-/// answered on the way.
+/// The run cases: the trial mode played until the main character falls, spending its points
+/// on the way.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Vec<Command>)> {
     vec![(
         "trial",
@@ -718,7 +724,13 @@ fn the_run_cases_are_what_their_names_say() {
         Outcome::Failed,
         "the main character falls"
     );
-    assert!(verified.choices >= 1, "an offer is answered");
+    let replay = RunReplay::from_bytes(&bytes).unwrap();
+    let commands = replay.unpack_commands().unwrap();
+    assert!(
+        !commands.is_empty() && commands.iter().all(|c| c.kind == CommandKind::Spend),
+        "points are spent: {commands:?}"
+    );
+    assert_eq!(verified.commands, u32::try_from(commands.len()).unwrap());
 }
 
 /// How a recorded case ends and the most bullets it ever has on screen.

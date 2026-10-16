@@ -7,6 +7,12 @@
 # the friendly-bullet collision tick (ADR-021, ADR-058), each compared with the base commit's on
 # both architectures. They are jobs of this workflow because
 # auto-merge.yml waits for the workflows it names.
+# A PR into main whose files are all `*.md` runs none of them: `what changed` says so, and every
+# Rust job waits on it (`parsing changed` keeps its name: the `rc` ruleset and release_tag.py
+# require it, and a release candidate runs every job). `rust checks` always runs and fails when
+# a job it needs failed, was cancelled, or was skipped though it had to run, so auto-merge.yml
+# requires only that one check, which a docs-only PR passes too. A newer push to a PR cancels
+# the run of the older one.
 # Weekly, the whole workflow also runs on main, so a toolchain or runner change, or a main that
 # no push run re-tested (merges by GITHUB_TOKEN start none), fails within a week; PR-only jobs
 # are skipped and the benchmark counts without comparing. It is not a PR check, so auto-merge.yml
@@ -23,6 +29,12 @@ on:
 
 permissions: {}
 
+# One run per PR: a new push cancels the older one. Runs on main (push, weekly) are never
+# cancelled, each event in its own group.
+concurrency:
+  group: rust-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   # `cargo fuzz` needs a nightly compiler; everything else stays on the pinned stable one. A
@@ -33,8 +45,44 @@ env:
   IAI_CALLGRIND_RUNNER_VERSION: 0.16.1
 
 jobs:
+  changes:
+    name: what changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # False only for a PR into main whose files are all `*.md` (no Rust code reads one). A
+      # release candidate into `rc` and every run off a PR run every job.
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != pull_request ] || [ "$BASE_REF" != main ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "$EVENT into ${BASE_REF:-nothing}: every Rust job runs"
+            exit 0
+          fi
+          all=$(git diff --name-only "$BASE" HEAD)
+          code=false
+          if [ -z "$all" ] || grep -qv '\.md$' <<<"$all"; then code=true; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "$(grep -c . <<<"$all" || true) files changed; code=$code"
+
   lint:
     name: fmt and clippy
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -50,6 +98,8 @@ jobs:
 
   test:
     name: tests on ${{ matrix.arch }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
@@ -93,6 +143,8 @@ jobs:
 
   cross:
     name: cargo check for mobile targets
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -112,6 +164,8 @@ jobs:
 
   fuzz-stable:
     name: fuzz crate fmt, clippy and tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -129,6 +183,8 @@ jobs:
 
   fuzz-build:
     name: fuzz targets build (nightly)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -196,6 +252,9 @@ jobs:
             cp "$dir/stage.json" "seeds/stage/$name.json"
             cp "$dir/run.replay" "seeds/replay/$name.replay"
           done
+          for dir in tests/corpus/runs/v0/*/; do
+            cp "$dir/run.replay" "seeds/replay/run-$(basename "$dir").replay"
+          done
           cp tests/fixtures/run_setup/*.json seeds/setup/
       - name: Fuzz each target for 60 seconds
         run: |
@@ -222,6 +281,8 @@ jobs:
 
   bench:
     name: worst-case tick on ${{ matrix.arch }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
@@ -291,3 +352,42 @@ jobs:
             echo "### Worst-case and collision ticks on ${{ matrix.arch }}"
             grep -E '^[a-z_]+::|Instructions' "$RUNNER_TEMP/bench.txt" | sed 's/^ */    /'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # The one check auto-merge.yml requires from this workflow. A job may be skipped only when it
+  # need not run: `parsing changed` off a PR, the short fuzz run when it says no, the others when
+  # `what changed` says no; every other skipped, failed or cancelled job fails this one.
+  checks:
+    name: rust checks
+    needs: [changes, fuzz-changes, lint, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - env:
+          EVENT: ${{ github.event_name }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          code=$(jq -r '.changes.outputs.code // ""' <<<"$NEEDS")
+          parsing=$(jq -r '."fuzz-changes".outputs.parsing // ""' <<<"$NEEDS")
+          pr=false
+          if [ "$EVENT" = pull_request ]; then pr=true; fi
+          fail=0
+          for job in $(jq -r 'keys[]' <<<"$NEEDS"); do
+            result=$(jq -r --arg j "$job" '.[$j].result' <<<"$NEEDS")
+            case "$job" in
+              changes) runs=true ;;
+              fuzz-changes) runs=$pr ;;
+              # No `parsing` off a PR, or when `parsing changed` failed, which fails this anyway.
+              fuzz-short) runs=false; if [ "$parsing" = true ]; then runs=true; fi ;;
+              *) runs=$code ;;
+            esac
+            if [ "$result" = success ] || { [ "$result" = skipped ] && [ "$runs" = false ]; }; then
+              echo "$job: $result"
+            else
+              echo "::error::$job: $result (code=$code parsing=$parsing)"
+              fail=1
+            fi
+          done
+          exit "$fail"

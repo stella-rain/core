@@ -1,14 +1,15 @@
-//! Experience, levels and reward offers (ADR-051 §2): defeated enemies give experience, a level-up
-//! opens an offer at the end of its tick, the world stops until a choice, and a choice applies
-//! its upgrade at once. Only a stage with `levels` (a mode's) has them.
+//! Experience, levels and stat points (ADR-066 §2, §4): defeated enemies give experience, a
+//! level-up gives one stat point and opens no offer, and `spend` raises a run stat (ADR-067) by
+//! its step between ticks. Only a stage with `levels` (a mode's) has them.
 
 use serde_json::{Value, json};
-use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
+use stella_rain_core::engine::{ChoiceError, Engine, Outcome, SpendError};
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::ContentId;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_setup::RunSetup;
+use stella_rain_core::run_stats::{RunStats, StatEffect};
 use stella_rain_core::stage::Stage;
-use stella_rain_core::upgrade::{MAX_STACKS, OFFER_SIZE, Upgrade};
 use stella_rain_core::validate::{self, Error, limits};
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -43,52 +44,39 @@ fn leveled(xp: &[u32], waves: Vec<Value>) -> Stage {
     stage
 }
 
-fn with_seed(mut stage: Stage, seed: u32) -> Stage {
-    stage.seed = seed;
-    stage
+fn points(e: &Engine) -> u32 {
+    e.snapshot().progress.expect("a stage with levels").points
 }
 
-/// Steps idle until an offer opens, returning the events of that tick.
-fn until_offer(e: &mut Engine, max_ticks: u32) -> Vec<DomainEvent> {
+fn spent(e: &Engine) -> Vec<u8> {
+    e.snapshot().progress.expect("a stage with levels").spent
+}
+
+/// Steps idle until a point is unspent, returning the events of that tick.
+fn until_point(e: &mut Engine, max_ticks: u32) -> Vec<DomainEvent> {
     for _ in 0..max_ticks {
         e.step(idle());
-        if e.offer().is_some() {
+        if points(e) > 0 {
             return e.events().to_vec();
         }
     }
-    panic!("no offer within {max_ticks} ticks");
+    panic!("no point within {max_ticks} ticks");
 }
 
-fn offered(e: &Engine) -> Vec<Upgrade> {
-    e.offer().expect("an offer is open").to_vec()
+/// The index of the bundled run stat with `effect`.
+fn stat_of(effect: StatEffect) -> u32 {
+    let i = RunStats::bundled()
+        .stats()
+        .iter()
+        .position(|s| s.effect == effect)
+        .expect("a bundled stat of each effect");
+    u32::try_from(i).unwrap()
 }
 
-/// An engine on `stage` (seed by seed) whose first offer holds `wanted`, after choosing it.
-fn chose(stage: &Stage, wanted: Upgrade) -> Engine {
-    for seed in 0..200 {
-        let mut e = engine(&with_seed(stage.clone(), seed));
-        until_offer(&mut e, 600);
-        if let Some(i) = offered(&e).iter().position(|u| *u == wanted) {
-            e.choose(u32::try_from(i).unwrap()).expect("a valid choice");
-            return e;
-        }
-    }
-    panic!("no seed offered {wanted:?}");
-}
-
-/// As `chose`, but choosing the first option that is not `wanted`, for the same tick.
-fn chose_other(stage: &Stage, wanted: Upgrade) -> Engine {
-    let mut e = engine(stage);
-    until_offer(&mut e, 600);
-    let i = offered(&e).iter().position(|u| *u != wanted).unwrap();
-    e.choose(u32::try_from(i).unwrap()).unwrap();
-    e
-}
-
-// --- Experience and levels --------------------------------------------------------------------
+// --- Experience, levels and points -------------------------------------------------------------
 
 #[test]
-fn a_stage_without_levels_has_no_progress_and_never_offers() {
+fn a_stage_without_levels_has_no_progress_and_nothing_to_spend_or_choose() {
     let mut e = engine(&stage_full(
         18_000,
         Some(far_boss()),
@@ -97,9 +85,9 @@ fn a_stage_without_levels_has_no_progress_and_never_offers() {
     ));
     for _ in 0..300 {
         e.step(idle());
-        assert!(e.offer().is_none());
     }
     assert!(e.snapshot().progress.is_none());
+    assert_eq!(e.spend(0), Err(SpendError::NoPoint));
     assert_eq!(e.choose(0), Err(ChoiceError::NoOffer));
 }
 
@@ -118,192 +106,134 @@ fn defeated_enemies_give_their_wave_s_experience() {
 }
 
 #[test]
-fn a_level_up_opens_an_offer_of_different_upgrades_at_the_end_of_its_tick() {
+fn a_level_up_gives_one_point_and_the_run_goes_on() {
     let mut e = engine(&leveled(&[2], vec![targets(4, None)]));
-    let events = until_offer(&mut e, 600);
-    let options = offered(&e);
-    assert_eq!(options.len(), OFFER_SIZE as usize);
-    let mut sorted = options.clone();
-    sorted.sort();
-    sorted.dedup();
-    assert_eq!(sorted.len(), options.len(), "no upgrade twice: {options:?}");
-    let level_up = events
-        .iter()
-        .position(|ev| *ev == DomainEvent::LeveledUp { level: 2 })
-        .expect("a LeveledUp event");
-    let opened = events
-        .iter()
-        .position(|ev| {
-            *ev == DomainEvent::OfferOpened {
-                options: options.clone(),
-            }
-        })
-        .expect("an OfferOpened event");
+    assert_eq!(points(&e), 0);
+    let events = until_point(&mut e, 600);
     assert!(
-        level_up < opened && opened == events.len() - 1,
+        events.contains(&DomainEvent::LeveledUp { level: 2 }),
         "{events:?}"
     );
     let progress = e.snapshot().progress.unwrap();
-    assert_eq!((progress.level, progress.xp), (2, 0));
-    assert_eq!(progress.offer, Some(options));
-}
-
-#[test]
-fn while_an_offer_is_open_step_does_nothing() {
-    let mut e = engine(&leveled(&[2], vec![targets(4, None)]));
-    until_offer(&mut e, 600);
-    let (tick, hash, events, snapshot) =
-        (e.tick(), e.state_hash(), e.events().to_vec(), e.snapshot());
-    for _ in 0..30 {
-        e.step(moving(127, 0));
-    }
-    assert_eq!((e.tick(), e.state_hash()), (tick, hash));
-    assert_eq!(e.events(), events.as_slice());
-    assert_eq!(e.snapshot(), snapshot);
-}
-
-#[test]
-fn choose_refuses_an_index_outside_the_offer_and_changes_nothing() {
-    let mut e = engine(&leveled(&[2], vec![targets(4, None)]));
-    until_offer(&mut e, 600);
-    let hash = e.state_hash();
-    for index in [OFFER_SIZE, u32::MAX] {
-        assert_eq!(
-            e.choose(index),
-            Err(ChoiceError::OutOfRange {
-                index,
-                options: OFFER_SIZE
-            })
-        );
-    }
-    assert_eq!(e.state_hash(), hash);
-    assert!(e.offer().is_some());
-}
-
-#[test]
-fn a_choice_applies_its_upgrade_closes_the_offer_and_the_next_step_is_the_next_tick() {
-    let mut e = engine(&leveled(&[2], vec![targets(4, None)]));
-    until_offer(&mut e, 600);
-    let upgrade = offered(&e)[1];
-    let tick = e.tick();
-    assert_eq!(e.choose(1), Ok(()));
-    assert_eq!(e.events(), [DomainEvent::UpgradeChosen { upgrade }]);
-    assert_eq!(e.tick(), tick, "a choice is between ticks");
-    let progress = e.snapshot().progress.unwrap();
-    assert_eq!(progress.offer, None);
-    assert_eq!(progress.upgrades, vec![(upgrade, 1)]);
+    assert_eq!((progress.level, progress.xp, progress.points), (2, 0, 1));
+    assert_eq!(progress.spent, vec![0; RunStats::bundled().stats().len()]);
+    // No offer opens: the next step is the next tick, and there is nothing to choose.
     assert_eq!(e.choose(0), Err(ChoiceError::NoOffer));
+    let tick = e.tick();
     e.step(idle());
     assert_eq!(e.tick(), tick + 1);
 }
 
 #[test]
-fn two_levels_in_one_tick_open_two_offers_in_turn_on_that_tick() {
+fn two_levels_in_one_tick_give_two_points() {
     let mut e = engine(&leveled(&[1], vec![targets(1, Some(2))]));
-    let events = until_offer(&mut e, 600);
-    assert_eq!(
-        events
-            .iter()
-            .filter(|ev| matches!(ev, DomainEvent::LeveledUp { .. }))
-            .count(),
-        2
-    );
-    assert_eq!(e.snapshot().progress.unwrap().level, 3);
-    let tick = e.tick();
-    e.choose(0).unwrap();
-    assert!(e.offer().is_some(), "the second level's offer opens");
-    assert!(matches!(
-        e.events().last(),
-        Some(DomainEvent::OfferOpened { .. })
-    ));
-    e.choose(0).unwrap();
-    assert!(e.offer().is_none());
-    assert_eq!(e.tick(), tick);
+    let events = until_point(&mut e, 600);
+    let levels = events
+        .iter()
+        .filter(|ev| matches!(ev, DomainEvent::LeveledUp { .. }))
+        .count();
+    assert_eq!(levels, 2);
+    assert_eq!((e.snapshot().progress.unwrap().level, points(&e)), (3, 2));
 }
 
 #[test]
-fn the_same_seed_draws_the_same_offers_and_other_seeds_other_offers() {
-    let stage = leveled(&[2], vec![targets(4, None)]);
-    let first = |seed| {
-        let mut e = engine(&with_seed(stage.clone(), seed));
-        until_offer(&mut e, 600);
-        offered(&e)
-    };
-    assert_eq!(first(7), first(7));
-    let offers: Vec<_> = (0..20).map(first).collect();
-    assert!(offers.iter().any(|o| *o != offers[0]), "{offers:?}");
-}
-
-#[test]
-fn an_upgrade_at_its_most_stacks_leaves_the_pool_and_an_empty_pool_opens_no_offer() {
-    let all = Upgrade::ALL.len() as u32 * u32::from(MAX_STACKS);
-    let mut e = engine(&leveled(&[1], vec![targets(100, None)]));
-    let mut chosen = 0;
-    let mut levels = 0;
-    for _ in 0..1200 {
+fn unspent_points_stay_for_the_rest_of_the_run() {
+    let mut e = engine(&leveled(&[1], vec![targets(3, None)]));
+    run_until(&mut e, idle(), 600, |e| points(e) == 3);
+    for _ in 0..300 {
         e.step(idle());
-        levels += e
-            .events()
-            .iter()
-            .filter(|ev| matches!(ev, DomainEvent::LeveledUp { .. }))
-            .count() as u32;
-        while e.offer().is_some() {
-            let options = offered(&e);
-            let stacks = e.snapshot().progress.unwrap().upgrades;
-            for u in &options {
-                let has = stacks.iter().find(|(s, _)| s == u).map_or(0, |(_, n)| *n);
-                assert!(has < MAX_STACKS, "{u:?} offered at {has} stacks");
-            }
-            e.choose(0).unwrap();
-            chosen += 1;
-        }
     }
-    assert_eq!(chosen, all);
-    assert!(
-        levels > all,
-        "levels went on after the pool ran out: {levels}"
-    );
-    let upgrades = e.snapshot().progress.unwrap().upgrades;
-    assert_eq!(upgrades.len(), Upgrade::ALL.len());
-    assert!(upgrades.iter().all(|(_, n)| *n == MAX_STACKS));
+    assert_eq!(points(&e), 3);
 }
 
 #[test]
-fn no_offer_opens_on_the_tick_the_run_ends() {
-    // The only enemy is the boss: its death clears the stage and gives no experience, and the
-    // stage ends there.
-    let mut stage = leveled(&[1], vec![]);
-    stage.boss = Some(serde_json::from_value(boss_at(10, ENEMY_Y)).unwrap());
-    let mut e = engine(&stage);
-    run_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
-    assert_eq!(e.outcome(), Outcome::Cleared);
-    assert!(e.offer().is_none());
+fn spend_raises_a_stat_by_one_step_between_ticks() {
+    let mut e = engine(&leveled(&[2], vec![targets(4, None)]));
+    until_point(&mut e, 600);
+    let (tick, hash) = (e.tick(), e.state_hash());
+    let attack = stat_of(StatEffect::AttackPct);
+    assert_eq!(e.spend(attack), Ok(()));
+    assert_eq!(
+        e.events(),
+        [DomainEvent::StatRaised {
+            stat: ContentId("attack".into()),
+            spent: 1
+        }]
+    );
+    assert_eq!(e.tick(), tick, "spending is between ticks");
+    assert_ne!(e.state_hash(), hash, "a spend changes the state");
+    let mut expected = vec![0; RunStats::bundled().stats().len()];
+    expected[attack as usize] = 1;
+    assert_eq!((points(&e), spent(&e)), (0, expected));
+    e.step(idle());
+    assert_eq!(e.tick(), tick + 1);
 }
 
-// --- What each upgrade does --------------------------------------------------------------------
+#[test]
+fn spend_is_refused_without_a_point_and_changes_nothing() {
+    let mut e = engine(&leveled(&[2], vec![targets(4, None)]));
+    e.step(idle());
+    let (hash, events) = (e.state_hash(), e.events().to_vec());
+    assert_eq!(e.spend(0), Err(SpendError::NoPoint));
+    assert_eq!((e.state_hash(), e.events()), (hash, events.as_slice()));
+}
+
+#[test]
+fn spend_is_refused_for_an_index_outside_the_stats_and_changes_nothing() {
+    let mut e = engine(&leveled(&[2], vec![targets(4, None)]));
+    until_point(&mut e, 600);
+    let hash = e.state_hash();
+    let stats = u32::try_from(RunStats::bundled().stats().len()).unwrap();
+    for index in [stats, u32::MAX] {
+        assert_eq!(e.spend(index), Err(SpendError::OutOfRange { index, stats }));
+    }
+    assert_eq!((e.state_hash(), points(&e)), (hash, 1));
+}
+
+#[test]
+fn spend_is_refused_for_a_stat_at_its_limit_and_changes_nothing() {
+    let limit = RunStats::bundled().stats()[0].limit;
+    let mut e = engine(&leveled(&[1], vec![targets(20, None)]));
+    run_until(&mut e, idle(), 1200, |e| points(e) > u32::from(limit));
+    for _ in 0..limit {
+        e.spend(0).unwrap();
+    }
+    let (hash, left) = (e.state_hash(), points(&e));
+    assert_eq!(e.spend(0), Err(SpendError::AtLimit { index: 0, limit }));
+    assert_eq!((e.state_hash(), points(&e)), (hash, left));
+    assert_eq!(e.spend(1), Ok(()), "another stat still takes the point");
+}
+
+// --- What each effect does ---------------------------------------------------------------------
 
 fn effect_stage() -> Stage {
     leveled(&[1], vec![targets(1, None)])
 }
 
+/// An engine on `stage` at its first point, after spending it on the stat with `effect` (or
+/// keeping it with `None`).
+fn after_spending(stage: &Stage, effect: Option<StatEffect>) -> Engine {
+    let mut e = engine(stage);
+    until_point(&mut e, 600);
+    if let Some(effect) = effect {
+        e.spend(stat_of(effect)).unwrap();
+    }
+    e
+}
+
 #[test]
 fn max_hp_raises_the_most_hp_and_heals_as_much() {
-    let e = chose(&effect_stage(), Upgrade::MaxHp);
-    assert_eq!(e.snapshot().player.hp, 100);
+    let with = after_spending(&effect_stage(), Some(StatEffect::MaxHp));
+    let without = after_spending(&effect_stage(), None);
+    assert_eq!(with.snapshot().player.hp, without.snapshot().player.hp + 1);
 }
 
 #[test]
 fn attack_raises_the_damage_of_the_main_character_s_attacks() {
-    // Later offers are answered without taking `Attack`; bullets already flying keep the
-    // damage of the attack that made them.
+    // Bullets already flying keep the damage of the attack that made them.
     let hit_after = |mut e: Engine| {
         let mut damages = Vec::new();
         for _ in 0..120 {
-            if let Some(options) = e.offer() {
-                let i = options.iter().position(|u| *u != Upgrade::Attack).unwrap();
-                e.choose(u32::try_from(i).unwrap()).unwrap();
-                continue;
-            }
             e.step(idle());
             damages.extend(e.events().iter().filter_map(|ev| match ev {
                 DomainEvent::Hit { damage, .. } => Some(*damage),
@@ -312,7 +242,7 @@ fn attack_raises_the_damage_of_the_main_character_s_attacks() {
         }
         damages
     };
-    // A tough enemy from tick 60, after the choice, takes the next shots.
+    // A tough enemy from tick 60, after the spend, takes the next shots.
     let tough = wave(
         60,
         1,
@@ -323,8 +253,8 @@ fn attack_raises_the_damage_of_the_main_character_s_attacks() {
     );
     let mut stage = effect_stage();
     stage.waves.push(serde_json::from_value(tough).unwrap());
-    let with = hit_after(chose(&stage, Upgrade::Attack));
-    let without = hit_after(chose_other(&stage, Upgrade::Attack));
+    let with = hit_after(after_spending(&stage, Some(StatEffect::AttackPct)));
+    let without = hit_after(after_spending(&stage, None));
     assert!(
         with.contains(&11) && !without.contains(&11),
         "{with:?} vs {without:?}"
@@ -338,11 +268,12 @@ fn speed_raises_the_movement_speed() {
         e.step(moving(127, 0));
         player_at(&e).0 - before
     };
+    let stage = effect_stage();
     assert_eq!(
-        moved(chose(&effect_stage(), Upgrade::Speed)),
+        moved(after_spending(&stage, Some(StatEffect::SpeedPct))),
         SPEED * 108 / 100
     );
-    assert_eq!(moved(chose_other(&effect_stage(), Upgrade::Speed)), SPEED);
+    assert_eq!(moved(after_spending(&stage, None)), SPEED);
 }
 
 #[test]
@@ -354,19 +285,17 @@ fn evade_shortens_the_evade_s_cooldown() {
         });
         e.snapshot().player.evade.cooldown_left
     };
+    let stage = effect_stage();
     assert_eq!(
-        cooldown(chose(&effect_stage(), Upgrade::Evade)),
+        cooldown(after_spending(&stage, Some(StatEffect::EvadePct))),
         EVADE_COOLDOWN * 90 / 100
     );
-    assert_eq!(
-        cooldown(chose_other(&effect_stage(), Upgrade::Evade)),
-        EVADE_COOLDOWN
-    );
+    assert_eq!(cooldown(after_spending(&stage, None)), EVADE_COOLDOWN);
 }
 
 #[test]
 fn haste_shortens_the_weapons_automatic_attack_cooldowns() {
-    // The Main weapon attacks every 6 ticks; with one stack of haste every 5.
+    // The Main weapon attacks every 6 ticks; with one step of haste every 5.
     let starts = |mut e: Engine| {
         let mut n = 0;
         for _ in 0..60 {
@@ -381,14 +310,97 @@ fn haste_shortens_the_weapons_automatic_attack_cooldowns() {
         }
         n
     };
-    assert_eq!(starts(chose(&effect_stage(), Upgrade::Haste)), 12);
-    assert_eq!(starts(chose_other(&effect_stage(), Upgrade::Haste)), 10);
+    let stage = effect_stage();
+    assert_eq!(
+        starts(after_spending(&stage, Some(StatEffect::HastePct))),
+        12
+    );
+    assert_eq!(starts(after_spending(&stage, None)), 10);
+}
+
+// --- Stats are content: a new one needs no code ------------------------------------------------
+
+/// The bundled run stats with one more on an existing effect: `attack_plus`, 25% a point, at
+/// most 2 points.
+fn with_attack_plus() -> RunStats {
+    let mut file: Value =
+        serde_json::from_slice(RunStats::BUNDLED).expect("the bundled stats are JSON");
+    file["stats"].as_array_mut().unwrap().push(json!({
+        "id": "attack_plus",
+        "effect": "attack_pct",
+        "step": 25,
+        "limit": 2,
+        "title": "Attack+",
+        "description": "Much more damage from every attack"
+    }));
+    RunStats::parse(file.to_string().as_bytes()).expect("the stats validate")
+}
+
+#[test]
+fn a_stat_added_in_the_content_works_with_no_code() {
+    let stats = with_attack_plus();
+    let plus = u32::try_from(stats.stats().len() - 1).unwrap();
+    let mut e = Engine::new_with(&leveled(&[1], vec![targets(20, None)]), &stats).unwrap();
+    run_until(&mut e, idle(), 1200, |e| points(e) >= 3);
+    assert_eq!(spent(&e).len(), stats.stats().len());
+    e.spend(plus).unwrap();
+    assert_eq!(
+        e.events(),
+        [DomainEvent::StatRaised {
+            stat: ContentId("attack_plus".into()),
+            spent: 1
+        }]
+    );
+    e.spend(plus).unwrap();
+    assert_eq!(
+        e.spend(plus),
+        Err(SpendError::AtLimit {
+            index: plus,
+            limit: 2
+        })
+    );
+}
+
+#[test]
+fn stats_with_the_same_effect_add_up() {
+    // Attack 10 with two steps of 25%: 15; with one step of the bundled 10% as well: 16.
+    let stats = with_attack_plus();
+    let plus = u32::try_from(stats.stats().len() - 1).unwrap();
+    let attack = stat_of(StatEffect::AttackPct);
+    let damages = |spends: &[u32]| {
+        let tough = wave(
+            200,
+            1,
+            0,
+            enemy(100_000, hold(START_X, ENEMY_Y), json!([])),
+            START_X,
+            ENEMY_Y,
+        );
+        let mut stage = leveled(&[1], vec![targets(4, None)]);
+        stage.waves.push(serde_json::from_value(tough).unwrap());
+        let mut e = Engine::new_with(&stage, &stats).unwrap();
+        run_until(&mut e, idle(), 199, |e| points(e) >= 3);
+        for i in spends {
+            e.spend(*i).unwrap();
+        }
+        let mut seen = Vec::new();
+        for _ in 0..200 {
+            e.step(idle());
+            seen.extend(e.events().iter().filter_map(|ev| match ev {
+                DomainEvent::Hit { damage, .. } => Some(*damage),
+                _ => None,
+            }));
+        }
+        seen
+    };
+    assert!(damages(&[plus, plus]).contains(&15));
+    assert!(damages(&[plus, plus, attack]).contains(&16));
 }
 
 // --- The trial mode and the validator ----------------------------------------------------------
 
 #[test]
-fn a_trial_run_levels_up_and_offers() {
+fn a_trial_run_levels_up_and_spends_its_points() {
     let setup = RunSetup {
         schema_version: SCHEMA_VERSION,
         sim_version: SIM_VERSION,
@@ -417,16 +429,16 @@ fn a_trial_run_levels_up_and_offers() {
     };
     let mut e = Engine::start(&setup).unwrap();
     assert_eq!(e.snapshot().progress.unwrap().level, 1);
-    let mut offers = 0;
+    let mut spends = 0;
     while e.outcome() == Outcome::Running && e.tick() < 5400 {
         let input = bot(&e);
         e.step(input);
-        while e.offer().is_some() {
-            e.choose(0).unwrap();
-            offers += 1;
+        while points(&e) > 0 {
+            e.spend(spends % 5).unwrap();
+            spends += 1;
         }
     }
-    assert!(offers > 0, "the trial offers at least one upgrade");
+    assert!(spends > 0, "the trial gives at least one point");
 }
 
 fn invalid_at(stage: &Stage, path: &str) {

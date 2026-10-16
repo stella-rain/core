@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::run::{first_offer_tick, play_run, trial_setup};
+use common::run::{SPEND_INDEX, first_point_tick, play_run, trial_setup};
 use common::{CLEAR_TICK, clearing_inputs, stage_bytes};
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -123,7 +123,7 @@ fn a_damaged_recording_is_refused_with_its_line() {
     assert_eq!(inputs_from_jsonl("\n\n").unwrap(), vec![]);
 }
 
-// --- Runs with choices (ADR-051) --------------------------------------------------------------
+// --- Runs with commands between ticks (ADR-066 §5) --------------------------------------------
 
 fn lines_of(text: &str) -> Vec<Value> {
     text.lines()
@@ -132,32 +132,33 @@ fn lines_of(text: &str) -> Vec<Value> {
 }
 
 #[test]
-fn a_choice_is_a_choose_line_between_the_ticks_it_falls_between() {
-    let offer = first_offer_tick();
-    let text = record_run(&trial_setup(), &play_run(offer + 1)).unwrap();
+fn a_spend_is_a_spend_line_between_the_ticks_it_falls_between() {
+    let point = first_point_tick();
+    let text = record_run(&trial_setup(), &play_run(point + 1)).unwrap();
     let lines = lines_of(&text);
-    let at_offer: Vec<(&str, &str)> = lines
+    let at_point: Vec<(&str, &str)> = lines
         .iter()
-        .filter(|l| l["tick"] == json!(offer))
+        .filter(|l| l["tick"] == json!(point))
         .map(|l| (l["dir"].as_str().unwrap(), l["type"].as_str().unwrap()))
         .collect();
-    // The tick's input, its events (the offer opening among them) and hash, then the choice and
-    // the events it caused; the next tick's input follows.
-    assert_eq!(at_offer.first(), Some(&("fe>be", "Input")));
-    let hash = at_offer.iter().position(|l| l.1 == "StateHash").unwrap();
-    assert!(at_offer[..hash].contains(&("be>fe", "OfferOpened")));
+    // The tick's input, its events (the level-up among them) and hash, then the spend and the
+    // events it caused; the next tick's input follows.
+    assert_eq!(at_point.first(), Some(&("fe>be", "Input")));
+    let hash = at_point.iter().position(|l| l.1 == "StateHash").unwrap();
+    assert!(at_point[..hash].contains(&("be>fe", "LeveledUp")));
     assert_eq!(
-        &at_offer[hash + 1..],
-        &[("fe>be", "Choose"), ("be>fe", "UpgradeChosen")]
+        &at_point[hash + 1..],
+        &[("fe>be", "Spend"), ("be>fe", "StatRaised")]
     );
-    let choose = lines.iter().find(|l| l["type"] == "Choose").unwrap();
-    assert_eq!(choose["data"], json!({ "index": 1 }));
-    assert_eq!(lines.last().unwrap()["tick"], json!(offer + 1));
+    let spend = lines.iter().find(|l| l["type"] == "Spend").unwrap();
+    assert_eq!(spend["data"], json!({ "index": SPEND_INDEX }));
+    assert_eq!(lines.last().unwrap()["tick"], json!(point + 1));
 }
 
 #[test]
 fn commands_go_to_a_recording_and_back_unchanged() {
-    let commands = play_run(first_offer_tick() + 30);
+    let commands = play_run(first_point_tick() + 30);
+    assert!(commands.iter().any(|c| matches!(c, Command::Spend(_))));
     let text = record_run(&trial_setup(), &commands).unwrap();
     assert_eq!(commands_from_jsonl(&text).unwrap(), commands);
 
@@ -166,11 +167,23 @@ fn commands_go_to_a_recording_and_back_unchanged() {
         .iter()
         .filter_map(|c| match c {
             Command::Step(input) => Some(*input),
-            Command::Choose(_) => None,
+            Command::Choose(_) | Command::Spend(_) => None,
         })
         .collect();
     assert_eq!(inputs_from_jsonl(&text).unwrap(), inputs);
     assert_eq!(hashes_from_jsonl(&text).unwrap().len(), inputs.len());
+}
+
+#[test]
+fn a_choose_line_reads_back_as_a_choice() {
+    let text = concat!(
+        r#"{"tick":1,"dir":"fe>be","type":"Input","data":{"move_x":0,"move_y":0,"evade":false,"charge":false,"sub":false}}"#,
+        "\n",
+        r#"{"tick":1,"dir":"fe>be","type":"Choose","data":{"index":2}}"#,
+        "\n"
+    );
+    let commands = commands_from_jsonl(text).unwrap();
+    assert_eq!(commands[1], Command::Choose(2));
 }
 
 #[test]
@@ -181,33 +194,42 @@ fn a_run_recording_fails_closed_like_the_replay() {
         record_run(&trial_setup(), &commands),
         Err(RunReplayError::ChoiceRefused { tick: 2, .. })
     ));
+    let mut commands = play_run(10);
+    commands.insert(2, Command::Spend(0));
+    assert!(matches!(
+        record_run(&trial_setup(), &commands),
+        Err(RunReplayError::SpendRefused { tick: 2, .. })
+    ));
 }
 
 #[test]
-fn a_damaged_choose_line_is_refused_with_its_line() {
-    let offer = first_offer_tick();
-    let good = record_run(&trial_setup(), &play_run(offer + 1)).unwrap();
-    let at = good.lines().position(|l| l.contains("\"Choose\"")).unwrap();
+fn a_damaged_command_line_is_refused_with_its_line() {
+    let point = first_point_tick();
+    let good = record_run(&trial_setup(), &play_run(point + 1)).unwrap();
+    let at = good.lines().position(|l| l.contains("\"Spend\"")).unwrap();
     let line = |replacement: String| {
         let mut lines: Vec<String> = good.lines().map(str::to_owned).collect();
         lines[at] = replacement;
         lines.join("\n")
     };
-    let choose = |tick: u32, data: &str| {
-        format!(r#"{{"tick":{tick},"dir":"fe>be","type":"Choose","data":{data}}}"#)
+    let command = |kind: &str, tick: u32, data: &str| {
+        format!(r#"{{"tick":{tick},"dir":"fe>be","type":"{kind}","data":{data}}}"#)
     };
-    let err = commands_from_jsonl(&line(choose(offer - 1, r#"{"index":1}"#))).unwrap_err();
-    assert_eq!(
-        (err.line, err.reason),
-        (at + 1, "a choice is not after its tick")
-    );
-    for data in [
-        r#"{"index":-1}"#,
-        r#"{"index":"1"}"#,
-        r#"{}"#,
-        r#"{"index":1,"x":0}"#,
+    for (kind, late, bad) in [
+        ("Spend", "a spend is not after its tick", "not a spend"),
+        ("Choose", "a choice is not after its tick", "not a choice"),
     ] {
-        let err = commands_from_jsonl(&line(choose(offer, data))).unwrap_err();
-        assert_eq!((err.line, err.reason), (at + 1, "not a choice"), "{data}");
+        let err =
+            commands_from_jsonl(&line(command(kind, point - 1, r#"{"index":1}"#))).unwrap_err();
+        assert_eq!((err.line, err.reason), (at + 1, late));
+        for data in [
+            r#"{"index":-1}"#,
+            r#"{"index":"1"}"#,
+            r#"{}"#,
+            r#"{"index":1,"x":0}"#,
+        ] {
+            let err = commands_from_jsonl(&line(command(kind, point, data))).unwrap_err();
+            assert_eq!((err.line, err.reason), (at + 1, bad), "{kind} {data}");
+        }
     }
 }
