@@ -19,8 +19,8 @@
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
 //!
-//! 8. in a stage with levels, the first waiting reward offer opens if the run goes on
-//!    (`levels`): defeated enemies gave their experience as they were removed in step 6.
+//! In a stage with levels, defeated enemies give their experience as they are removed in
+//! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks.
 //!
 //! Not yet in this version: summons by companions; what the main character's weapons acquire
 //! during a run (`player::shot` is where it would plug in).
@@ -56,14 +56,14 @@ use crate::hash::StateHasher;
 use crate::id::EntityId;
 use crate::input::Input;
 use crate::rng::SplitMix64;
+use crate::run_stats::{RunStats, StatEffect};
 use crate::stage::Stage;
 use crate::trig;
-use crate::upgrade::Upgrade;
 
 pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
 use grid::Grid;
-pub(crate) use levels::{choose, xp_next};
+pub(crate) use levels::{spend, xp_next};
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
@@ -101,7 +101,7 @@ pub(crate) fn bullet_radius(friendly: bool) -> i32 {
 
 /// The state before the first tick, its generator seeded with `seed`: the stage's own for a
 /// stage, the setup's for a run (ADR-051).
-pub(crate) fn initial_state(stage: &Stage, seed: u64) -> State {
+pub(crate) fn initial_state(stage: &Stage, run_stats: &RunStats, seed: u64) -> State {
     let mut next_id = 1;
     let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
@@ -195,9 +195,9 @@ pub(crate) fn initial_state(stage: &Stage, seed: u64) -> State {
         progress: stage.levels.as_ref().map(|_| Progress {
             level: 1,
             xp: 0,
-            pending: 0,
-            stacks: [0; Upgrade::ALL.len()],
-            offer: None,
+            points: 0,
+            spent: vec![0; run_stats.stats().len()],
+            totals: [0; StatEffect::ALL.len()],
         }),
     }
 }
@@ -234,10 +234,6 @@ pub(crate) fn step(
     move_bullets(stage, s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
-    // A reward due on this tick is offered at its end, unless the run ended (ADR-051).
-    if s.outcome == Outcome::Running {
-        levels::open_offer(s, events);
-    }
     debug_assert!(
         entity::enemies_in_id_order(s),
         "enemies out of entity-ID order"
@@ -749,19 +745,13 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     if let Some(p) = &s.progress {
         h.write_u32(p.level);
         h.write_u32(p.xp);
-        h.write_u32(p.pending);
-        for n in p.stacks {
-            h.write_u32(u32::from(n));
+        h.write_u32(p.points);
+        h.write_u32(count(&p.spent));
+        for n in &p.spent {
+            h.write_u32(u32::from(*n));
         }
-        match &p.offer {
-            Some(options) => {
-                h.write_bool(true);
-                h.write_u32(count(options));
-                for u in options {
-                    h.write_u32(*u as u32);
-                }
-            }
-            None => h.write_bool(false),
+        for t in p.totals {
+            h.write_u32(t);
         }
     }
     h.finish()

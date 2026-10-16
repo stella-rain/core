@@ -508,7 +508,7 @@
       ]
     },
     "ProgressView": {
-      "description": "Where the run stands in experience and levels (ADR-051).",
+      "description": "Where the run stands in experience, levels and stat points (ADR-066 §2, §4).",
       "type": "object",
       "properties": {
         "level": {
@@ -517,34 +517,20 @@
           "format": "uint32",
           "minimum": 0
         },
-        "offer": {
-          "description": "The open offer's options: while it is open, `step` does nothing until a choice.",
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "$ref": "#/$defs/Upgrade"
-          }
+        "points": {
+          "description": "Stat points not spent yet.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         },
-        "upgrades": {
-          "description": "The upgrades taken and their stacks, in `Upgrade::ALL` order.",
+        "spent": {
+          "description": "Points spent on each run stat, in the run stats' order (ADR-067).",
           "type": "array",
           "items": {
-            "type": "array",
-            "maxItems": 2,
-            "minItems": 2,
-            "prefixItems": [
-              {
-                "$ref": "#/$defs/Upgrade"
-              },
-              {
-                "type": "integer",
-                "format": "uint8",
-                "maximum": 255,
-                "minimum": 0
-              }
-            ]
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
           }
         },
         "xp": {
@@ -565,7 +551,8 @@
         "level",
         "xp",
         "xp_next",
-        "upgrades"
+        "points",
+        "spent"
       ]
     },
     "SkillView": {
@@ -587,35 +574,6 @@
       "required": [
         "ready",
         "cooldown_left"
-      ]
-    },
-    "Upgrade": {
-      "oneOf": [
-        {
-          "description": "One more hit point at most, and one healed.",
-          "type": "string",
-          "const": "max_hp"
-        },
-        {
-          "description": "More damage from every attack of the main character.",
-          "type": "string",
-          "const": "attack"
-        },
-        {
-          "description": "Shorter cooldowns for both weapons' automatic attacks.",
-          "type": "string",
-          "const": "haste"
-        },
-        {
-          "description": "A shorter evade cooldown.",
-          "type": "string",
-          "const": "evade"
-        },
-        {
-          "description": "A higher movement speed.",
-          "type": "string",
-          "const": "speed"
-        }
       ]
     }
   }

@@ -1,7 +1,8 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
-//! (ADR-004, ADR-015). The only external influence is one `Input` per tick; everything else
-//! comes from the stage and its seed, or from a run setup (ADR-051), so the state hash after
-//! each tick is the same on every platform (ADR-019).
+//! (ADR-004, ADR-015). The only external influence is one `Input` per tick and the commands
+//! between ticks (ADR-066: `choose` and `spend`); everything else comes from the stage and its
+//! seed, or from a run setup, and from the run stats (ADR-067), so the state hash after each
+//! tick is the same on every platform (ADR-019).
 //!
 //! Rules are dispatched by the stage's `sim_version` (ADR-017). Only version 0 exists, and it
 //! changes in place until the freeze (ADR-035): see `rules_v0` for what it does and does not
@@ -17,21 +18,30 @@ use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
 use crate::run_setup::{self, RunSetup};
+use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, MapView,
     PlayerView, ProgressView, SkillView, Snapshot,
 };
 use crate::stage::Stage;
-use crate::upgrade::Upgrade;
 use crate::validate::{self, Error};
 
 /// Why `Engine::choose` refused a choice; the run is unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChoiceError {
-    /// No offer is open.
+    /// No offer is open. Version 0 opens none yet: offers come with falling stars.
     NoOffer,
-    /// `index` is not below the open offer's number of `options`.
-    OutOfRange { index: u32, options: u32 },
+}
+
+/// Why `Engine::spend` refused to spend a stat point; the run is unchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpendError {
+    /// No point is left (or the stage has no levels).
+    NoPoint,
+    /// `index` is not below the number of run `stats`.
+    OutOfRange { index: u32, stats: u32 },
+    /// The stat at `index` already has its `limit` of points.
+    AtLimit { index: u32, limit: u8 },
 }
 
 /// How a run stands.
@@ -75,6 +85,8 @@ impl Load {
 #[derive(Clone, Debug)]
 pub struct Engine {
     stage: Stage,
+    /// What a stat point can raise (ADR-067), fixed for the run.
+    run_stats: RunStats,
     state: State,
     /// Events of the last tick; cleared when the next one starts.
     events: Vec<DomainEvent>,
@@ -85,35 +97,44 @@ pub struct Engine {
 impl Engine {
     /// Starts a run. The stage is validated first (ADR-020), so the rules below only ever see
     /// stages inside the budgets.
+    /// A stage with levels spends its points on the bundled run stats.
     pub fn new(stage: &Stage) -> Result<Engine, Error> {
+        Engine::new_with(stage, RunStats::bundled())
+    }
+
+    /// As `new`, with `run_stats` in place of the bundled ones (ADR-067).
+    pub fn new_with(stage: &Stage, run_stats: &RunStats) -> Result<Engine, Error> {
         validate::validate(stage)?;
         Ok(Engine {
-            state: rules_v0::initial_state(stage, u64::from(stage.seed)),
+            state: rules_v0::initial_state(stage, run_stats, u64::from(stage.seed)),
             stage: stage.clone(),
+            run_stats: run_stats.clone(),
             events: Vec::new(),
             load: Load::default(),
         })
     }
 
-    /// Starts a run from a setup alone (ADR-051): the setup is validated, then its mode's stage
-    /// runs with its weapons and seed.
+    /// Starts a run from a setup alone (ADR-066 §1): the setup is validated, then its mode's
+    /// stage runs with its weapons and seed, and the bundled run stats.
     pub fn start(setup: &RunSetup) -> Result<Engine, Error> {
+        Engine::start_with(setup, RunStats::bundled())
+    }
+
+    /// As `start`, with `run_stats` in place of the bundled ones (ADR-067).
+    pub fn start_with(setup: &RunSetup, run_stats: &RunStats) -> Result<Engine, Error> {
         let stage = run_setup::stage(setup)?;
         Ok(Engine {
-            state: rules_v0::initial_state(&stage, setup.seed),
+            state: rules_v0::initial_state(&stage, run_stats, setup.seed),
             stage,
+            run_stats: run_stats.clone(),
             events: Vec::new(),
             load: Load::default(),
         })
     }
 
     /// Advances one tick with `input`. Once the run is over this does nothing, so a replay that
-    /// is longer than the run cannot change the final hash. While an offer is open it does
-    /// nothing either, not even clear the last events: the world waits for `choose` (ADR-051).
+    /// is longer than the run cannot change the final hash.
     pub fn step(&mut self, input: Input) {
-        if self.offer().is_some() {
-            return;
-        }
         self.events.clear();
         self.load = Load::default();
         match self.stage.sim_version {
@@ -129,26 +150,48 @@ impl Engine {
         }
     }
 
-    /// Chooses option `index` of the open offer, between ticks (ADR-051): its upgrade applies
-    /// at once, and the next level-up's offer opens if one is waiting. The events are then this
-    /// choice's. Refused, changing nothing, with no offer open or an index outside it.
+    /// Chooses option `index` of the open offer, between ticks (ADR-066 §3). Version 0 opens
+    /// no offer yet, so every choice is refused and changes nothing.
     pub fn choose(&mut self, index: u32) -> Result<(), ChoiceError> {
-        let options = self.offer().ok_or(ChoiceError::NoOffer)?.len();
-        let options = u32::try_from(options).unwrap_or(u32::MAX);
-        if index >= options {
-            return Err(ChoiceError::OutOfRange { index, options });
+        let _ = index;
+        Err(ChoiceError::NoOffer)
+    }
+
+    /// Spends a stat point on the run stat at `index`, between ticks (ADR-066 §4): the stat
+    /// rises by its step at once, and the events are then this spend's. Refused, changing
+    /// nothing, with no point left, an index outside the run stats, or the stat at its limit.
+    pub fn spend(&mut self, index: u32) -> Result<(), SpendError> {
+        let p = self
+            .state
+            .progress
+            .as_ref()
+            .filter(|p| p.points > 0)
+            .ok_or(SpendError::NoPoint)?;
+        let stats = self.run_stats.stats();
+        let Some(at) = usize::try_from(index).ok().filter(|i| *i < stats.len()) else {
+            return Err(SpendError::OutOfRange {
+                index,
+                stats: u32::try_from(stats.len()).unwrap_or(u32::MAX),
+            });
+        };
+        let stat = &stats[at];
+        if p.spent[at] >= stat.limit {
+            return Err(SpendError::AtLimit {
+                index,
+                limit: stat.limit,
+            });
         }
         self.events.clear();
         match self.stage.sim_version {
-            0 => rules_v0::choose(&mut self.state, index, &mut self.events),
+            0 => rules_v0::spend(&mut self.state, at, stat, &mut self.events),
             _ => self.state.outcome = Outcome::Failed,
         }
         Ok(())
     }
 
-    /// The open offer's options, if one is open.
-    pub fn offer(&self) -> Option<&[Upgrade]> {
-        self.state.progress.as_ref()?.offer.as_deref()
+    /// The run stats this run spends its points on.
+    pub fn run_stats(&self) -> &RunStats {
+        &self.run_stats
     }
 
     pub fn tick(&self) -> u32 {
@@ -313,13 +356,8 @@ impl Engine {
                 level: p.level,
                 xp: p.xp,
                 xp_next: rules_v0::xp_next(&self.stage, p.level),
-                upgrades: Upgrade::ALL
-                    .iter()
-                    .zip(p.stacks)
-                    .filter(|(_, n)| *n > 0)
-                    .map(|(u, n)| (*u, n))
-                    .collect(),
-                offer: p.offer.clone(),
+                points: p.points,
+                spent: p.spent.clone(),
             }),
         }
     }
@@ -354,19 +392,19 @@ pub(crate) struct State {
     pub progress: Option<Progress>,
 }
 
-/// Experience, levels and offers (ADR-051).
+/// Experience, levels and stat points (ADR-066 §2, §4).
 #[derive(Clone, Debug)]
 pub(crate) struct Progress {
     /// From 1.
     pub level: u32,
     /// Experience toward the next level.
     pub xp: u32,
-    /// Level-ups whose offers have not opened yet.
-    pub pending: u32,
-    /// Stacks of each upgrade, in `Upgrade::ALL` order.
-    pub stacks: [u8; Upgrade::ALL.len()],
-    /// The open offer, in the order drawn.
-    pub offer: Option<Vec<Upgrade>>,
+    /// Stat points not spent yet: one per level-up.
+    pub points: u32,
+    /// Points spent on each run stat, in the run stats' order.
+    pub spent: Vec<u8>,
+    /// What the points spent add up to for each effect, in `StatEffect::ALL` order.
+    pub totals: [u32; StatEffect::ALL.len()],
 }
 
 #[derive(Clone, Debug)]
