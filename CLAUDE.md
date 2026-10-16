@@ -53,7 +53,7 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 
 | Part | Gate |
 |---|---|
-| Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` |
+| Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`; in CI (`rust.yml`) a PR of only `*.md` files skips every Rust job, and `rust checks` passes when each job ran or was skipped by right |
 | Simulation | Replay corpus: every tick's hash matches, on x86_64, on an arm64 runner, and (tests only) on Windows x86_64 and macOS arm64 runners, every PR and weekly on `main` (ADR-019, ADR-039); an intended change: `UPDATE_CORPUS=1 cargo test --test corpus` |
 | iOS readiness | `cargo check --target aarch64-apple-ios` on every PR (ADR-039); the tests and the corpus run in the iOS Simulator by hand or from the release checks (`ios-sim.yml`, runner `.github/scripts/ios-sim-runner.sh`, ADR-054) |
 | Parser, validator, replay loader, share codes, run setups | In `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo +nightly fuzz build`; a PR that touches parsing also runs `cargo +nightly fuzz run <target> -- -max_total_time=60` for each of the five targets (CI: `rust.yml`); weekly, each target runs 7 minutes on a growing cached corpus, and a crash opens a hash-only issue (`fuzz-long.yml`, `.github/scripts/fuzz-report.sh`) |
@@ -79,8 +79,8 @@ here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
 - **Local and cloud sessions** work on `claude/<task>`; a task may hold several commits and
   gets one PR that says `Closes #N`. `auto-merge.yml` (not GitHub auto-merge) merges it once
   every check on its head is green and deletes the branch. Drafts and PRs that touch
-  `.github/workflows/` are left to Kade (ADR-052); `branch-cleanup.yml` deletes their merged
-  branches (ADR-053). Any other branch (Kade's own) is merged by hand. A local session opens
+  `.github/workflows/`, `CLAUDE.md` or `.claude/rules/` are left to Kade (ADR-052): open such a
+  PR as a draft, and he merges it; `branch-cleanup.yml` deletes their merged branches (ADR-053). Any other branch (Kade's own) is merged by hand. A local session opens
   the PR with Kade's `gh` login; without it, it prints the commands for Kade.
   `auto-merge.yml` is read from `main`, so a change to it acts only after its own merge.
 - Release candidates are pull requests from `main` into `rc` (ADR-054): never commit to `rc`, and
