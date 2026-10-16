@@ -12,44 +12,58 @@ use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
 use stella_rain_core::stage::{Map, Stage};
 
-/// Ticks before the measured tick: the oldest friendly bullets have flown about 280 ticks, so
+/// Ticks before the measured tick: the oldest friendly bullets have flown about 260 ticks, so
 /// their number has settled just under `MAX_BULLETS_ALIVE`.
 pub const WARMUP_TICKS: u32 = 400;
 
-/// Where the enemies hold.
-pub const ENEMIES_AT: (i32, i32) = (38_400, 102_400);
+/// The enemies hold `HOLDS` points down a vertical line 120 pixels from the left edge, from 40 to
+/// 600 pixels from the top.
+pub const BAND_X: i32 = 30_720;
+pub const BAND_TOP: i32 = 10_240;
+pub const BAND_BOTTOM: i32 = 153_600;
+pub const HOLDS: i32 = 20;
 
-/// The crowd at rest (ADR-058): 500 enemies (`MAX_ENEMIES_ALIVE`) hold one point, five waves of
-/// 100 that spawn on it one a tick each, and by the measured tick they have pushed apart into a
-/// crowd about 420 pixels across round it, against the left edge of the map.
+/// Where the main character starts: 238 pixels from the left and 620 from the top, so the fan
+/// flies up about 15 pixels clear of the band's right edge.
+pub const START: (i32, i32) = (60_928, 158_720);
+
+/// The fan's whole angle: 2 degrees, in 1/256 degree.
+pub const FAN_ANGLE: i32 = 512;
+
+/// The crowd at rest (ADR-058): 500 enemies (`MAX_ENEMIES_ALIVE`) in 20 waves of 25 that spawn
+/// one a tick, each wave holding its own point of the line. By the measured tick they have pushed
+/// apart into a band about 180 pixels wide down the whole height of the map.
 ///
-/// The map is 1,024 by 640 pixels, so the crowd and the bullets have room beside each other. The
-/// main character starts 700 pixels from the left and 438 from the top, and fires 90 bullets
-/// every 6 ticks at 2 pixels a tick, fanned over 60 degrees around straight up. The fan's left
-/// edge passes more than 100 pixels to the right of the crowd, so no bullet hits an enemy, and
-/// about 3,900 are alive (`MAX_BULLETS_ALIVE` is 4,000).
+/// The map is 1,024 by 640 pixels. The main character fires 90 bullets every 6 ticks at 2 pixels
+/// a tick, fanned over 2 degrees round straight up, so they fly up beside the band for their
+/// whole flight. All but those above the map are within one cell of the enemy grid, so
+/// `Grid::first_hit` reads the cells round each, which hold enemies near the band's edge
+/// (core#100), and none hits: about 3,900 are alive (`MAX_BULLETS_ALIVE` is 4,000).
 ///
-/// Hit boxes (ADR-055): four companions (`MAX_COMPANIONS`) stand at the crowd's right edge, level
-/// with the main character and so facing right, away from the crowd. Each is in an active phase
-/// with a 256-pixel arc 10 pixels ahead of it. The enemies of the crowd's right half come back
-/// from the grid's range query, and each is tested against the arc's angle and both its edges,
-/// and missed: all of them are behind the arc.
+/// Hit boxes (ADR-055): four companions (`MAX_COMPANIONS`) stand 10 pixels left of the main
+/// character, level with it and so facing right, away from the band. Each is in an active phase
+/// with a 256-pixel arc 10 pixels ahead of it. The enemies near them come back from the grid's
+/// range query, and each is tested against the arc's angle and both its edges, and missed: all
+/// of them are behind the arc.
 pub fn stage() -> Stage {
-    let (x, y) = ENEMIES_AT;
-    let enemy = common::enemy(100_000, common::hold(x, y), json!([]));
-    let waves: Vec<Value> = (0..5)
-        .map(|_| common::wave(1, 100, 1, enemy.clone(), x, y))
+    let per_hold = 500 / HOLDS;
+    let waves: Vec<Value> = (0..HOLDS)
+        .map(|i| {
+            let y = BAND_TOP + (BAND_BOTTOM - BAND_TOP) * i / (HOLDS - 1);
+            let enemy = common::enemy(100_000, common::hold(BAND_X, y), json!([]));
+            common::wave(1, per_hold as u16, 1, enemy, BAND_X, y)
+        })
         .collect();
     let sweep = json!([{ "kind": "active", "ticks": 30, "damage": 1, "rehit_ticks": 1,
                          "hit_box": { "type": "arc", "offset": { "forward": 2_560 },
                                       "radius": 65_536, "half_angle": 60 * 256 } }]);
     let start = Point {
-        x: Fx(179_200),
-        y: Fx(112_128),
+        x: Fx(START.0),
+        y: Fx(START.1),
     };
     let guard = common::companion(
         50,
-        common::hold(102_400, start.y.0),
+        common::hold(START.0 - 2_560, start.y.0),
         json!([common::rule(
             common::always(),
             json!("player"),
@@ -64,7 +78,7 @@ pub fn stage() -> Stage {
         start: Some(start),
     });
     let fan = json!({ "inline": common::spawned(json!([{
-        "type": "spread", "count": 90, "angle": 15_360, "body": [{
+        "type": "spread", "count": 90, "angle": FAN_ANGLE, "body": [{
             "type": "fire", "speed": 512, "direction": { "type": "relative", "angle": 0 }
         }]
     }]))});
