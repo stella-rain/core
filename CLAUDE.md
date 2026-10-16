@@ -1,6 +1,6 @@
 # Stella Rain: core
 
-Pure-Rust deterministic simulation for Stella Rain, a stage-creator vertical shooter:
+Pure-Rust deterministic simulation for Stella Rain, an action shooter for phones and computers:
 fixed-tick simulation, the stage, event and replay types, and the `stage-verify` CLI that
 proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MIT or Apache-2.0.
 
