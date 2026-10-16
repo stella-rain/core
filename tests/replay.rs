@@ -137,6 +137,13 @@ fn damaged_packed_inputs_are_refused_with_a_reason() {
         other => panic!("{bytes:?}: {other:?}"),
     };
     assert!(reason(&[0, 0, 0, 0], 1).contains("length 0"));
+    // Inputs have one encoding: a run of the same input as the run before is two runs that
+    // packing would have written as one.
+    assert!(reason(&[1, 1, 0xff, 0x7f, 1, 1, 0xff, 0x7f], 2).contains("the run before"));
+    assert_eq!(
+        unpack_raw(&[1, 1, 0xff, 0x7f, 1, 0, 0xff, 0x7f], 2).unwrap(),
+        [stick(-1, 127, true), stick(-1, 127, false)]
+    );
     assert!(reason(&[3, 1, 0, 0], 2).contains("more inputs than ticks"));
     assert!(reason(&[1, 1, 0, 0], 2).contains("fewer inputs"));
     // Bits 1 and 2 are `charge` and `sub`; the rest are unknown.
