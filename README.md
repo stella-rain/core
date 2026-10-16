@@ -1,6 +1,6 @@
 # Stella Rain Core
 
-Deterministic simulation core for **Stella Rain**, a stage-creator vertical shooter.
+Deterministic simulation core for **Stella Rain**, an action shooter for phones and computers.
 Pure Rust with no Godot dependency: fixed-tick simulation, stage and replay schemas,
 and the `stage-verify` CLI that proves a stage can be cleared.
 
