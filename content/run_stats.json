@@ -1,0 +1,46 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "stats": [
+    {
+      "id": "max_hp",
+      "effect": "max_hp",
+      "step": 1,
+      "limit": 5,
+      "title": "Max HP",
+      "description": "One more hit point at most, and one healed"
+    },
+    {
+      "id": "attack",
+      "effect": "attack_pct",
+      "step": 10,
+      "limit": 5,
+      "title": "Attack",
+      "description": "More damage from every attack"
+    },
+    {
+      "id": "haste",
+      "effect": "haste_pct",
+      "step": 8,
+      "limit": 5,
+      "title": "Haste",
+      "description": "Both weapons attack more often"
+    },
+    {
+      "id": "evade",
+      "effect": "evade_pct",
+      "step": 10,
+      "limit": 5,
+      "title": "Evade",
+      "description": "A shorter evade cooldown"
+    },
+    {
+      "id": "speed",
+      "effect": "speed_pct",
+      "step": 8,
+      "limit": 5,
+      "title": "Speed",
+      "description": "Move faster"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ use crate::input::Input;
 use crate::replay::Replay;
 use crate::run_replay::RunReplay;
 use crate::run_setup::RunSetup;
+use crate::run_stats::RunStatsFile;
 use crate::snapshot::Snapshot;
 use crate::stage::Stage;
 
@@ -27,5 +28,6 @@ pub fn all() -> Vec<(&'static str, String)> {
         ("replay.schema.json", pretty(schema_for!(Replay))),
         ("run_setup.schema.json", pretty(schema_for!(RunSetup))),
         ("run_replay.schema.json", pretty(schema_for!(RunReplay))),
+        ("run_stats.schema.json", pretty(schema_for!(RunStatsFile))),
     ]
 }
