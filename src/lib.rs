@@ -21,6 +21,7 @@ pub mod registry;
 pub mod replay;
 pub mod rng;
 pub(crate) mod rules_v0;
+pub mod run_content;
 pub mod run_replay;
 pub mod run_setup;
 pub mod run_stats;

@@ -36,8 +36,8 @@ use crate::presets;
 use crate::replay::{
     MAX_REPLAY_BYTES, hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack, write_varint,
 };
+use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
-use crate::run_stats::RunStats;
 use crate::validate;
 
 /// The most commands a run replay holds (a tuning value; ADR-066 decides that a cap exists).
@@ -246,21 +246,21 @@ pub struct RunVerified {
     pub commands: u32,
 }
 
-/// The SHA-256 of the game content a run of `mode` uses with the bundled run stats. `None` for
-/// a mode with no content.
+/// The SHA-256 of the game content a run of `mode` uses with the bundled content files.
+/// `None` for a mode with no content.
 pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
-    content_sha256_with(mode, RunStats::bundled())
+    content_sha256_with(mode, RunContent::bundled())
 }
 
-/// The SHA-256 of the game content a run of `mode` uses with `run_stats`: the mode's bundled
+/// The SHA-256 of the game content a run of `mode` uses with `content`: the mode's bundled
 /// file, every preset's definition and the run stats' bytes, tagged and length-prefixed.
 /// `None` for a mode with no content.
-pub fn content_sha256_with(mode: &str, run_stats: &RunStats) -> Option<[u8; 32]> {
+pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
     let file = run_setup::mode_stage(mode)?;
     Some(hash_content(
         mode,
         file,
-        &run_stats.sha256(),
+        &content.run_stats().sha256(),
         presets::sources(),
     ))
 }
@@ -384,19 +384,19 @@ pub struct RunRecorder {
 }
 
 impl RunRecorder {
-    /// Starts a run from `setup` (ADR-066 §1) with the bundled run stats.
+    /// Starts a run from `setup` (ADR-066 §1) with the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<RunRecorder, RunReplayError> {
-        RunRecorder::start_with(setup, RunStats::bundled())
+        RunRecorder::start_with(setup, RunContent::bundled())
     }
 
-    /// As `start`, with `run_stats` in place of the bundled ones (ADR-067).
+    /// As `start`, with `content` in place of the bundled files (ADR-067).
     pub fn start_with(
         setup: &RunSetup,
-        run_stats: &RunStats,
+        content: &RunContent,
     ) -> Result<RunRecorder, RunReplayError> {
-        let engine = Engine::start_with(setup, run_stats).map_err(RunReplayError::Setup)?;
+        let engine = Engine::start_with(setup, content).map_err(RunReplayError::Setup)?;
         let content =
-            content_sha256_with(&setup.mode.0, run_stats).expect("a mode that starts has content");
+            content_sha256_with(&setup.mode.0, content).expect("a mode that starts has content");
         Ok(RunRecorder {
             setup: setup.clone(),
             content_sha256: to_hex(&content),
@@ -494,15 +494,15 @@ pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<RunReplay, R
 /// Re-simulates a run replay from its bytes and the bundled run stats, and checks every
 /// command and the final hash (ADR-066 §5). The whole file is untrusted.
 pub fn verify_run(replay_bytes: &[u8]) -> Result<RunVerified, RunReplayError> {
-    verify_inner(replay_bytes, RunStats::bundled(), None)
+    verify_inner(replay_bytes, RunContent::bundled(), None)
 }
 
-/// As `verify_run`, with the run stats the run used in place of the bundled ones.
+/// As `verify_run`, with the content files the run used in place of the bundled ones.
 pub fn verify_run_with(
     replay_bytes: &[u8],
-    run_stats: &RunStats,
+    content: &RunContent,
 ) -> Result<RunVerified, RunReplayError> {
-    verify_inner(replay_bytes, run_stats, None)
+    verify_inner(replay_bytes, content, None)
 }
 
 /// As `verify_run`, and also compares the hash after every tick (before the commands that
@@ -512,17 +512,17 @@ pub fn verify_run_against(
     replay_bytes: &[u8],
     expected: &[u64],
 ) -> Result<RunVerified, RunReplayError> {
-    verify_inner(replay_bytes, RunStats::bundled(), Some(expected))
+    verify_inner(replay_bytes, RunContent::bundled(), Some(expected))
 }
 
 fn verify_inner(
     replay_bytes: &[u8],
-    run_stats: &RunStats,
+    run_content: &RunContent,
     expected: Option<&[u64]>,
 ) -> Result<RunVerified, RunReplayError> {
     let replay = RunReplay::from_bytes(replay_bytes)?;
     let stage = run_setup::stage(&replay.setup).map_err(RunReplayError::Setup)?;
-    let content = content_sha256_with(&replay.setup.mode.0, run_stats)
+    let content = content_sha256_with(&replay.setup.mode.0, run_content)
         .ok_or(RunReplayError::ContentChanged)?;
     if replay.content_sha256 != to_hex(&content) {
         return Err(RunReplayError::ContentChanged);
@@ -539,7 +539,8 @@ fn verify_inner(
         }
     }
 
-    let mut engine = Engine::start_with(&replay.setup, run_stats).map_err(RunReplayError::Setup)?;
+    let mut engine =
+        Engine::start_with(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
     let mut next = 0;
     for (i, input) in inputs.iter().enumerate() {
         apply_commands(&mut engine, &commands, &mut next)?;

@@ -17,6 +17,7 @@ use crate::id::{ContentId, EntityId};
 use crate::input::Input;
 use crate::rng::SplitMix64;
 use crate::rules_v0;
+use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
@@ -87,8 +88,8 @@ impl Load {
 #[derive(Clone, Debug)]
 pub struct Engine {
     stage: Stage,
-    /// What a stat point can raise (ADR-067), fixed for the run.
-    run_stats: RunStats,
+    /// The content files the run reads (ADR-067), fixed for the run.
+    content: RunContent,
     state: State,
     /// Events of the last tick; cleared when the next one starts.
     events: Vec<DomainEvent>,
@@ -101,34 +102,34 @@ impl Engine {
     /// stages inside the budgets.
     /// A stage with levels spends its points on the bundled run stats.
     pub fn new(stage: &Stage) -> Result<Engine, Error> {
-        Engine::new_with(stage, RunStats::bundled())
+        Engine::new_with(stage, RunContent::bundled())
     }
 
-    /// As `new`, with `run_stats` in place of the bundled ones (ADR-067).
-    pub fn new_with(stage: &Stage, run_stats: &RunStats) -> Result<Engine, Error> {
+    /// As `new`, with `content` in place of the bundled files (ADR-067).
+    pub fn new_with(stage: &Stage, content: &RunContent) -> Result<Engine, Error> {
         validate::validate(stage)?;
         Ok(Engine {
-            state: rules_v0::initial_state(stage, run_stats, u64::from(stage.seed)),
+            state: rules_v0::initial_state(stage, content.run_stats(), u64::from(stage.seed)),
             stage: stage.clone(),
-            run_stats: run_stats.clone(),
+            content: content.clone(),
             events: Vec::new(),
             load: Load::default(),
         })
     }
 
     /// Starts a run from a setup alone (ADR-066 §1): the setup is validated, then its mode's
-    /// stage runs with its weapons and seed, and the bundled run stats.
+    /// stage runs with its weapons and seed, and the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<Engine, Error> {
-        Engine::start_with(setup, RunStats::bundled())
+        Engine::start_with(setup, RunContent::bundled())
     }
 
-    /// As `start`, with `run_stats` in place of the bundled ones (ADR-067).
-    pub fn start_with(setup: &RunSetup, run_stats: &RunStats) -> Result<Engine, Error> {
+    /// As `start`, with `content` in place of the bundled files (ADR-067).
+    pub fn start_with(setup: &RunSetup, content: &RunContent) -> Result<Engine, Error> {
         let stage = run_setup::stage(setup)?;
         Ok(Engine {
-            state: rules_v0::initial_state(&stage, run_stats, setup.seed),
+            state: rules_v0::initial_state(&stage, content.run_stats(), setup.seed),
             stage,
-            run_stats: run_stats.clone(),
+            content: content.clone(),
             events: Vec::new(),
             load: Load::default(),
         })
@@ -173,7 +174,7 @@ impl Engine {
             .as_ref()
             .filter(|p| p.points > 0)
             .ok_or(SpendError::NoPoint)?;
-        let stats = self.run_stats.stats();
+        let stats = self.content.run_stats().stats();
         let Some(at) = usize::try_from(index).ok().filter(|i| *i < stats.len()) else {
             return Err(SpendError::OutOfRange {
                 index,
@@ -197,7 +198,12 @@ impl Engine {
 
     /// The run stats this run spends its points on.
     pub fn run_stats(&self) -> &RunStats {
-        &self.run_stats
+        self.content.run_stats()
+    }
+
+    /// The content files this run reads.
+    pub fn content(&self) -> &RunContent {
+        &self.content
     }
 
     pub fn tick(&self) -> u32 {
