@@ -1038,7 +1038,7 @@ fn charge(edit: impl FnOnce(&mut Value)) -> Value {
 
 /// An inline Main weapon whose root branches are `combo`, with `edit` applied to it.
 fn main_weapon(combo: Value, edit: impl FnOnce(&mut Value)) -> Value {
-    let mut w = json!({ "combo": combo, "window_ticks": 20 });
+    let mut w = json!({ "combo": combo, "window_ticks": 20, "assist_range": 0 });
     edit(&mut w);
     json!({ "inline": w })
 }
@@ -1170,6 +1170,19 @@ fn combo_limits_hold_at_the_limit_and_fail_one_past() {
             format!("$.player.main.inline.{key}")
         );
     }
+}
+
+#[test]
+fn an_assist_range_is_0_to_its_limit() {
+    let with_range = |r: i64| with_main(chain(1), |w| w["assist_range"] = json!(r));
+    assert_valid(&with_range(0));
+    assert_valid(&with_range(i64::from(MAX_ASSIST_RANGE)));
+    let at = "$.player.main.inline.assist_range";
+    assert_eq!(first_issue(&with_range(-1)).path, at);
+    assert_eq!(
+        first_issue(&with_range(i64::from(MAX_ASSIST_RANGE) + 1)).path,
+        at
+    );
 }
 
 #[test]

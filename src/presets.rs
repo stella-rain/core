@@ -88,7 +88,8 @@ const DEFINITIONS: &[(&str, &str)] = &[
 const WEAPONS: &[(&str, &str)] = &[
     // Main: slash, slash, then a thrust that charges (a thrust at level 1, a slam at level 2), or
     // a thrust after the second slash for B; B from the root thrusts, then slashes; a dash-strike
-    // thrusts. Sub: pulls what a B step hits by up to 24 pixels over 6 ticks.
+    // thrusts; assist looks 160 pixels away. Sub: pulls what a B step hits by up to 24 pixels
+    // over 6 ticks.
     (
         "blade",
         r#"{"main":{"combo":{
@@ -104,11 +105,11 @@ const WEAPONS: &[(&str, &str)] = &[
                 "sub":{"attack":{"preset":{"id":"thrust"}},"next":{
                     "sub":{"attack":{"preset":{"id":"slash"}}}}}},
             "dash":{"main":{"attack":{"preset":{"id":"thrust"}}}},
-            "window_ticks":20,"dash_strike_ticks":10},
+            "window_ticks":20,"dash_strike_ticks":10,"assist_range":40960},
             "sub":{"bonus":{"type":"pull","distance":6144,"ticks":6}}}"#,
     ),
-    // Main: slam, then a slam that charges, rooted (a slam at level 1); B slashes. Sub: pulls
-    // what a B step hits by up to 40 pixels over 8 ticks.
+    // Main: slam, then a slam that charges, rooted (a slam at level 1); B slashes; assist looks
+    // 128 pixels away. Sub: pulls what a B step hits by up to 40 pixels over 8 ticks.
     (
         "maul",
         r#"{"main":{"combo":{
@@ -118,7 +119,7 @@ const WEAPONS: &[(&str, &str)] = &[
                                 {"at_ticks":30,"perfect_ticks":8,"perfect_pct":100,
                                  "attack":{"preset":{"id":"slam"}}}]}}}},
                 "sub":{"attack":{"preset":{"id":"slash"}}}},
-            "window_ticks":24},
+            "window_ticks":24,"assist_range":32768},
             "sub":{"bonus":{"type":"pull","distance":10240,"ticks":8}}}"#,
     ),
 ];

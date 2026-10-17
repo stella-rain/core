@@ -64,6 +64,8 @@ fn the_measured_tick_reaches_every_dynamic_cap() {
     assert_eq!(engine.load(), Load::CAPS);
     assert_hit_boxes(&engine);
     assert_fresh_stack(&engine);
+    // Aim assist looked through every enemy and found none in range, so no step faces one.
+    assert_eq!(engine.snapshot().player.target, None);
 }
 
 #[test]

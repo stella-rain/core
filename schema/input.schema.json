@@ -4,11 +4,11 @@
   "type": "object",
   "properties": {
     "assist": {
-      "description": "Aim assist is on for this tick, a switch (ADR-072; it does nothing yet).",
+      "description": "Aim assist is on for this tick, a switch (ADR-072): a combo step faces the target.",
       "type": "boolean"
     },
     "auto": {
-      "description": "Auto mode is on for this tick, a switch (ADR-073; it does nothing yet).",
+      "description": "Auto mode is on for this tick, a switch (ADR-073): the simulation plays the auto combo\nat the target. Its presses come from the state, never from this record.",
       "type": "boolean"
     },
     "evade": {

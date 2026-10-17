@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::stage::Stage;
+use stella_rain_core::validate::limits::MAX_ASSIST_RANGE;
 
 /// Ticks to run before the tick that is measured, so that the caps are reached and held.
 pub const WARMUP_TICKS: u32 = 200;
@@ -41,6 +42,9 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// the left wall, where no enemy bullet flies, charging its Main weapon's step from tick 81
 /// (ADR-070); on the measured tick it lets go, and the release starts an attack, which finds
 /// 256 attacks going and spawns nothing. The steps that follow are pressed every other tick.
+/// From the measured tick aim assist and auto mode are on, with the longest assist range, so
+/// every tick looks through all 500 enemies for a target (ADR-072, ADR-073); the enemies stand
+/// just out of that range.
 ///
 /// Hit boxes (ADR-055): the enemies' attack is one active phase of 30 ticks, so every enemy is
 /// always in it, with a 128-pixel arc facing the main character, out of its reach. The four
@@ -92,21 +96,25 @@ pub fn stage() -> Stage {
     let shot = json!({ "preset": { "id": "aimed_single", "args": [2048] } });
     let charged = json!({ "attack": shot, "charge": {
         "levels": [{ "at_ticks": 1, "attack": shot }], "max_ticks": 600 } });
+    let mut main = common::main_combo(json!({ "main": charged, "sub": common::step(shot) }));
+    main["inline"]["assist_range"] = json!(MAX_ASSIST_RANGE);
     common::armed(
         common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4]),
-        common::main_combo(json!({ "main": charged, "sub": common::step(shot) })),
+        main,
         common::sub_pull(16_384, 60),
     )
 }
 
 /// The input of tick `tick` (from 1): the main character goes to the left wall, then waits,
 /// charging until the tick after the warm-up, when it lets go; from then on it presses `sub`
-/// every other tick.
+/// every other tick, with aim assist and auto mode on.
 pub fn input(tick: u32) -> Input {
     let after_warmup = tick > WARMUP_TICKS;
     Input {
         main: tick > 80 && !after_warmup,
         sub: after_warmup && tick % 2 == 0,
+        assist: after_warmup,
+        auto: after_warmup,
         ..if tick <= 80 {
             common::moving(-127, 0)
         } else {

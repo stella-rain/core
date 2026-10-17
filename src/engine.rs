@@ -375,12 +375,13 @@ impl Engine {
                     dash_left: s.player.dash.map_or(0, |d| d.left),
                 },
                 combo: {
-                    let (presses, dash, buffered, window_left) = rules_v0::combo_view(s);
+                    let (presses, dash, buffered, window_left, auto) = rules_v0::combo_view(s);
                     ComboView {
                         presses,
                         dash,
                         buffered,
                         window_left,
+                        auto,
                     }
                 },
                 charge: rules_v0::charge_view(&self.stage, s).map(|(level, held, perfect)| {
@@ -390,6 +391,7 @@ impl Engine {
                         perfect,
                     }
                 }),
+                target: s.player.target,
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -562,6 +564,8 @@ pub(crate) struct PlayerState {
     /// The last non-zero movement direction (ADR-069): where a combo step attacks and where an
     /// evade without movement dashes.
     pub facing: Dir,
+    /// The enemy aim assist and auto mode face, picked each tick while either is on (ADR-072).
+    pub target: Option<EntityId>,
     /// Ticks until the evade is ready again, counted from its press.
     pub evade_cooldown: u32,
     /// The buttons held on the last tick (`input::held_buttons`), so that only a button held now
@@ -600,6 +604,13 @@ pub(crate) struct ComboState {
     pub dash_strike_left: u32,
     /// The current step charging: ticks held, 0 on the tick it began.
     pub charge: Option<u32>,
+    /// A press by hand took a step in this combo (ADR-073): auto mode waits, and the combo
+    /// becomes the auto combo when it resets, unless it began in the dash branch.
+    pub hand: bool,
+    /// The auto combo auto mode plays: its presses from the root, the first in bit 0 (1 for
+    /// `sub`), and how many; at most the tree's depth.
+    pub auto_path: u32,
+    pub auto_depth: u8,
 }
 
 /// The Sub weapon's pull on what a combo part hits (ADR-070), carried by the attack and the

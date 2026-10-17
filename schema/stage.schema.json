@@ -1387,6 +1387,10 @@
       "description": "A weapon as Main (ADR-070): its combo tree and the timings that join its steps.",
       "type": "object",
       "properties": {
+        "assist_range": {
+          "description": "How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle\nreaches within this distance of the main character.",
+          "$ref": "#/$defs/Fx"
+        },
         "combo": {
           "description": "The first step for each press, from the root.",
           "$ref": "#/$defs/Branches"
@@ -1411,7 +1415,8 @@
       "additionalProperties": false,
       "required": [
         "combo",
-        "window_ticks"
+        "window_ticks",
+        "assist_range"
       ]
     },
     "Map": {

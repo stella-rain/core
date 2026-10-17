@@ -53,7 +53,8 @@ fn test_weapon(window: u32) -> Value {
             "sub": step(swing(B))
         },
         "dash": { "main": step(swing(D)) },
-        "window_ticks": window, "dash_strike_ticks": DASH_STRIKE
+        "window_ticks": window, "dash_strike_ticks": DASH_STRIKE,
+        "assist_range": 0
     } })
 }
 

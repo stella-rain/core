@@ -1,0 +1,141 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "test",
+  "title": "Test",
+  "description": "",
+  "seed": 7,
+  "length_ticks": 600,
+  "player": {
+    "base": "pilot_a",
+    "hp": 99,
+    "atk": 10,
+    "main": {
+      "preset": {
+        "id": "blade"
+      }
+    },
+    "sub": {
+      "preset": {
+        "id": "maul"
+      }
+    },
+    "evade": {
+      "distance": 12288,
+      "ticks": 8,
+      "invulnerable_ticks": 10,
+      "cooldown_ticks": 40
+    }
+  },
+  "companions": [],
+  "waves": [
+    {
+      "at_tick": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "radius": 2048,
+        "movement": {
+          "type": "hold",
+          "at": {
+            "x": 20000,
+            "y": 140000
+          }
+        },
+        "rules": []
+      },
+      "spawn": {
+        "x": 20000,
+        "y": 140000
+      },
+      "count": 1,
+      "every_ticks": 0
+    },
+    {
+      "at_tick": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "radius": 2048,
+        "movement": {
+          "type": "hold",
+          "at": {
+            "x": 22000,
+            "y": 152000
+          }
+        },
+        "rules": []
+      },
+      "spawn": {
+        "x": 22000,
+        "y": 152000
+      },
+      "count": 1,
+      "every_ticks": 0
+    },
+    {
+      "at_tick": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "radius": 2048,
+        "movement": {
+          "type": "hold",
+          "at": {
+            "x": 26000,
+            "y": 147456
+          }
+        },
+        "rules": []
+      },
+      "spawn": {
+        "x": 26000,
+        "y": 147456
+      },
+      "count": 1,
+      "every_ticks": 0
+    },
+    {
+      "at_tick": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 40,
+        "radius": 2048,
+        "movement": {
+          "type": "hold",
+          "at": {
+            "x": 76000,
+            "y": 147456
+          }
+        },
+        "rules": [],
+        "elite": {
+          "range": 1
+        }
+      },
+      "spawn": {
+        "x": 76000,
+        "y": 147456
+      },
+      "count": 1,
+      "every_ticks": 0
+    }
+  ],
+  "boss": {
+    "base": "golem",
+    "hp": 1000000,
+    "radius": 8192,
+    "spawn": {
+      "x": 46080,
+      "y": 40000
+    },
+    "parts": [],
+    "phases": [
+      {
+        "transition": [],
+        "timeline": [],
+        "rules": []
+      }
+    ]
+  }
+}

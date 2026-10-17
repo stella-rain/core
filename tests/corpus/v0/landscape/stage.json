@@ -40,6 +40,7 @@
     "hp": 99,
     "main": {
       "inline": {
+        "assist_range": 0,
         "combo": {
           "main": {
             "attack": {
