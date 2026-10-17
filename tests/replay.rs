@@ -52,11 +52,15 @@ fn stick(move_x: i8, move_y: i8, evade: bool) -> Input {
     }
 }
 
-/// `stick` with skill 2 held and skill 3 pressed as given.
-fn skills(input: Input, charge: bool, sub: bool) -> Input {
+/// `stick` with the buttons and switches of bits 1 to 5 of `bits` (ADR-071): `main`, `sub`,
+/// `skill`, `assist`, `auto`.
+fn buttons(input: Input, bits: u32) -> Input {
     Input {
-        charge,
-        sub,
+        main: bits & 0b1 != 0,
+        sub: bits & 0b10 != 0,
+        skill: bits & 0b100 != 0,
+        assist: bits & 0b1000 != 0,
+        auto: bits & 0b1_0000 != 0,
         ..input
     }
 }
@@ -75,7 +79,7 @@ fn packed_inputs_round_trip_including_the_extremes() {
         let mut axis = || (rng.below(255) as u8).wrapping_add(0x81) as i8;
         let (move_x, move_y) = (axis(), axis());
         let input = stick(move_x, move_y, rng.below(2) == 0);
-        inputs.push(skills(input, rng.below(2) == 0, rng.below(2) == 0));
+        inputs.push(buttons(input, rng.below(32)));
     }
     // Long runs of one input, and of nothing.
     inputs.extend(std::iter::repeat_n(Input::default(), 300));
@@ -146,12 +150,16 @@ fn damaged_packed_inputs_are_refused_with_a_reason() {
     );
     assert!(reason(&[3, 1, 0, 0], 2).contains("more inputs than ticks"));
     assert!(reason(&[1, 1, 0, 0], 2).contains("fewer inputs"));
-    // Bits 1 and 2 are `charge` and `sub`; the rest are unknown.
+    // Bits 1 to 5 are `main`, `sub`, `skill`, `assist` and `auto`; the rest are unknown.
     assert_eq!(
-        unpack_raw(&[1, 0b111, 0, 0], 1).unwrap(),
-        [skills(stick(0, 0, true), true, true)]
+        unpack_raw(&[1, 0b11_1111, 0, 0], 1).unwrap(),
+        [buttons(stick(0, 0, true), 0b1_1111)]
     );
-    for flags in [8, 0x80, 0xf8] {
+    assert_eq!(
+        unpack_raw(&[1, 0b10_1010, 0, 0], 1).unwrap(),
+        [buttons(stick(0, 0, false), 0b1_0101)]
+    );
+    for flags in [0x40, 0x80, 0xc0] {
         assert!(reason(&[2, flags, 0, 0], 2).contains("unknown flags"));
     }
     assert!(reason(&[2, 1, 0], 2).contains("middle"));

@@ -107,7 +107,7 @@ pub fn stage() -> Stage {
 pub fn input(tick: u32) -> Input {
     let after_warmup = tick > WARMUP_TICKS;
     Input {
-        charge: tick > 80 && !after_warmup,
+        main: tick > 80 && !after_warmup,
         sub: after_warmup,
         ..if tick <= 80 {
             common::moving(-127, 0)

@@ -505,7 +505,7 @@ fn bullets() -> Definition {
                 _ => moving(-50, 0),
             };
             Input {
-                charge: (20..54).contains(&t) || (180..240).contains(&t),
+                main: (20..54).contains(&t) || (180..240).contains(&t),
                 sub: t == 40 || t == 260,
                 ..input
             }

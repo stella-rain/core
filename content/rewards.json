@@ -57,31 +57,31 @@
       "description": "25 percent more damage"
     },
     {
-      "id": "haste_common",
+      "id": "attack_speed_common",
       "rarity": "common",
-      "effect": "haste_pct",
+      "effect": "attack_speed_pct",
       "amount": 4,
       "limit": 5,
-      "title": "Haste (Common)",
-      "description": "4 percent shorter automatic-attack cooldowns"
+      "title": "Swiftness (Common)",
+      "description": "Attacks 4 percent faster"
     },
     {
-      "id": "haste_rare",
+      "id": "attack_speed_rare",
       "rarity": "rare",
-      "effect": "haste_pct",
+      "effect": "attack_speed_pct",
       "amount": 10,
       "limit": 3,
-      "title": "Haste (Rare)",
-      "description": "10 percent shorter automatic-attack cooldowns"
+      "title": "Swiftness (Rare)",
+      "description": "Attacks 10 percent faster"
     },
     {
-      "id": "haste_legendary",
+      "id": "attack_speed_legendary",
       "rarity": "legendary",
-      "effect": "haste_pct",
+      "effect": "attack_speed_pct",
       "amount": 20,
       "limit": 1,
-      "title": "Haste (Legendary)",
-      "description": "20 percent shorter automatic-attack cooldowns"
+      "title": "Swiftness (Legendary)",
+      "description": "Attacks 20 percent faster"
     },
     {
       "id": "evade_common",

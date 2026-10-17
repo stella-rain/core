@@ -4,8 +4,9 @@
 //! level reached gives one stat point and opens no offer; points wait, unspent, until the run
 //! ends. Spending one, between ticks, raises a run stat (ADR-067) by its step, and adds the
 //! step to its effect's total. What a total does: `MaxHp` that many more hit points at most and
-//! as many healed at once; `AttackPct` that percent more damage; `HastePct` and `EvadePct` that
-//! percent shorter automatic-attack and evade cooldowns, at least 1 tick; `SpeedPct` that
+//! as many healed at once; `AttackPct` that percent more damage; `AttackSpeedPct` that percent
+//! faster combo steps (`attacks::faster`); `EvadePct` that percent shorter evade cooldowns, at
+//! least 1 tick; `SpeedPct` that
 //! percent more speed; `XpPct` that percent more experience from each tick's kills. A reward
 //! taken from an offer adds its amount to its effect's total the same way (`add_effect`).
 //! Percentages round down.
@@ -130,9 +131,9 @@ pub(super) fn attack(s: &State, atk: u32) -> u32 {
     raised(atk, total(s, StatEffect::AttackPct))
 }
 
-/// An automatic attack's cooldown with the points spent on haste.
-pub(super) fn auto_cooldown(s: &State, ticks: u32) -> u32 {
-    shortened(ticks, total(s, StatEffect::HastePct))
+/// The main character's attack speed, in percent, with the points spent on it.
+pub(super) fn attack_speed(s: &State) -> u32 {
+    total(s, StatEffect::AttackSpeedPct)
 }
 
 /// The evade's cooldown with the points spent on evading.

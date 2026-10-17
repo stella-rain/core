@@ -271,7 +271,7 @@ fn a_preset_and_its_inline_copy_run_the_same() {
     // skill pressed on tick 50.
     for t in 0..120 {
         let input = Input {
-            charge: (5..50).contains(&t),
+            main: (5..50).contains(&t),
             sub: t == 50,
             ..if t < 60 { idle() } else { moving(40, -20) }
         };

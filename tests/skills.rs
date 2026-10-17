@@ -55,7 +55,10 @@ fn far() -> Stage {
 }
 
 fn held(charge: bool) -> Input {
-    Input { charge, ..idle() }
+    Input {
+        main: charge,
+        ..idle()
+    }
 }
 
 /// Steps through `inputs`, returning every event with its tick.
@@ -234,7 +237,7 @@ fn the_main_weapons_automatic_attack_pauses_while_charging_and_the_subs_goes_on(
 fn charging_slows_the_main_character() {
     let mut e = engine(&quiet_charging(far()));
     e.step(Input {
-        charge: true,
+        main: true,
         ..moving(127, 0)
     });
     assert_eq!(player_at(&e), (START_X + SPEED / 2, START_Y));

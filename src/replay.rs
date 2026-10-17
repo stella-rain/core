@@ -8,8 +8,8 @@
 //! and `verify`.
 //!
 //! Packed inputs are runs of identical inputs. Each run is a LEB128 run length (at least 1),
-//! one flags byte (bit 0 `evade`, bit 1 `charge`, bit 2 `sub`, the rest zero), then `move_x` and `move_y` as one
-//! two's-complement byte each, −127 to 127 (ADR-050). Five minutes of changing inputs take about
+//! one flags byte (bit 0 `evade`, then `main`, `sub`, `skill`, `assist` and `auto`; bits 6 and 7
+//! zero), then `move_x` and `move_y` as one two's-complement byte each, −127 to 127 (ADR-071). Five minutes of changing inputs take about
 //! 96 KB, inside `MAX_REPLAY_BYTES`; steady input takes a few bytes.
 
 use std::fmt;
@@ -239,9 +239,22 @@ pub(crate) fn read_varint(bytes: &[u8], pos: &mut usize) -> Result<u32, &'static
     Err("a number is too long")
 }
 
-/// −128, which is not a stick position (ADR-050): packing writes it as −127, which the engine
+/// −128, which is not a stick position (ADR-071): packing writes it as −127, which the engine
 /// runs the same, and unpacking refuses it, so each input has one encoding.
 const NO_STICK: u8 = 0x80;
+
+/// The flags byte of a run (ADR-071): `evade` in bit 0, then `main`, `sub`, `skill`, `assist`
+/// and `auto`; bits 6 and 7 are never set.
+const ALL_FLAGS: u8 = 0b11_1111;
+
+fn flags_of(input: &Input) -> u8 {
+    u8::from(input.evade)
+        | u8::from(input.main) << 1
+        | u8::from(input.sub) << 2
+        | u8::from(input.skill) << 3
+        | u8::from(input.assist) << 4
+        | u8::from(input.auto) << 5
+}
 
 /// Packs `inputs` into runs, then base64.
 pub fn pack_inputs(inputs: &[Input]) -> String {
@@ -257,7 +270,7 @@ pub fn pack_inputs(inputs: &[Input]) -> String {
         let input = inputs[i];
         let run = inputs[i..].iter().take_while(|x| **x == input).count();
         write_varint(&mut out, u32::try_from(run).unwrap_or(u32::MAX));
-        out.push(u8::from(input.evade) | u8::from(input.charge) << 1 | u8::from(input.sub) << 2);
+        out.push(flags_of(&input));
         out.push(input.move_x.to_le_bytes()[0]);
         out.push(input.move_y.to_le_bytes()[0]);
         i += run;
@@ -283,7 +296,7 @@ pub(crate) fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static st
             .and_then(|b| <&[u8; 3]>::try_from(b).ok())
             .ok_or("ends in the middle of a run")?;
         pos += 3;
-        if flags & !0b111 != 0 {
+        if flags & !ALL_FLAGS != 0 {
             return Err("a run has unknown flags");
         }
         if x == NO_STICK || y == NO_STICK {
@@ -293,8 +306,11 @@ pub(crate) fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static st
             move_x: i8::from_le_bytes([x]),
             move_y: i8::from_le_bytes([y]),
             evade: flags & 1 != 0,
-            charge: flags & 0b10 != 0,
+            main: flags & 0b10 != 0,
             sub: flags & 0b100 != 0,
+            skill: flags & 0b1000 != 0,
+            assist: flags & 0b1_0000 != 0,
+            auto: flags & 0b10_0000 != 0,
         };
         // Packing writes equal inputs as one run, so each list of inputs has one encoding.
         if inputs.last() == Some(&input) {

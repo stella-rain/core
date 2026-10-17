@@ -491,8 +491,9 @@ fn script(tick: u32) -> Input {
         move_y,
         evade: tick % 120 == 60,
         // A charge held for 40 ticks every 200, and the Sub skill pressed every 150.
-        charge: (100..140).contains(&(tick % 200)),
+        main: (100..140).contains(&(tick % 200)),
         sub: tick % 150 == 75,
+        ..Input::default()
     }
 }
 
@@ -591,8 +592,9 @@ fn random_inputs_keep_every_invariant() {
                 move_x: any(&mut rng),
                 move_y: any(&mut rng),
                 evade: rng.below(8) == 0,
-                charge: rng.below(2) == 0,
+                main: rng.below(2) == 0,
                 sub: rng.below(16) == 0,
+                ..Input::default()
             };
             e.step(input);
             let s = e.snapshot();

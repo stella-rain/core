@@ -9,6 +9,14 @@ use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
 use crate::snapshot::OfferKind;
 
+/// Which button's press took a combo step (ADR-070): A or B.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Press {
+    Main,
+    Sub,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "data", deny_unknown_fields)]
 pub enum DomainEvent {
@@ -33,10 +41,18 @@ pub enum DomainEvent {
         stacks: u16,
         duration_ticks: u32,
     },
-    /// The main character started an evade (ADR-050).
+    /// The main character started an evade (ADR-074).
     Evaded,
-    /// The charged Main skill was released at `level` (from 1), `perfect` inside the level's
-    /// perfect window (ADR-050, core#83).
+    /// A press took a combo step (ADR-070): the step `depth` presses from the root.
+    ComboStep {
+        press: Press,
+        depth: u8,
+    },
+    /// The combo went back to the root: its window passed, an evade, a broken charge, or a press
+    /// with no next step.
+    ComboReset,
+    /// A charged step was released at `level` (from 1; a release before level 1 is a plain step
+    /// and says nothing), `perfect` inside the level's perfect window (ADR-070).
     ChargeReleased {
         level: u8,
         perfect: bool,

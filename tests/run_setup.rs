@@ -38,8 +38,9 @@ fn script(tick: u32) -> Input {
         move_x: if (tick / 40) % 2 == 0 { 127 } else { -127 },
         move_y: 0,
         evade: tick % 50 == 25,
-        charge: (tick / 45) % 3 == 1,
+        main: (tick / 45) % 3 == 1,
         sub: tick % 9 == 0,
+        ..Input::default()
     }
 }
 

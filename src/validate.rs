@@ -18,7 +18,6 @@ use serde::Deserialize;
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill};
 use crate::id::ContentId;
-use crate::presets;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::Rarity;
 use crate::stage::{
@@ -26,9 +25,7 @@ use crate::stage::{
 };
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
-use crate::weapon::{
-    Charge, MainWeapon, SubWeapon, Targeting, WeaponAttack, WeaponPreset, WeaponRef,
-};
+use crate::weapon::{Branches, Charge, MainWeapon, SubBonus, SubWeapon, WeaponPreset, WeaponRef};
 
 /// Limits a stage must keep. The first block is ADR-020, the second ADR-036, the rest the
 /// loadout and numeric ranges that ADR-012 and ADR-019 ask for.
@@ -62,6 +59,15 @@ pub mod limits {
     /// bonus of at most +1000%.
     pub const MAX_CHARGE_LEVELS: usize = 8;
     pub const MAX_CHARGE_TICKS: u32 = 600;
+    /// A Main weapon's combos (ADR-070): at most 32 steps in its tree and dash branch together,
+    /// none deeper than 8; a window of at most 2 seconds and a dash-strike of at most 1 second.
+    pub const MAX_COMBO_STEPS: usize = 32;
+    pub const MAX_COMBO_DEPTH: u32 = 8;
+    pub const MAX_COMBO_WINDOW_TICKS: u32 = 120;
+    pub const MAX_DASH_STRIKE_TICKS: u32 = 60;
+    /// The Sub weapon's pull (ADR-070): at most 64 pixels, over at most 1 second.
+    pub const MAX_PULL_DISTANCE: i32 = 16_384;
+    pub const MAX_PULL_TICKS: u32 = 60;
     pub const MAX_PERFECT_PCT: u16 = 1000;
     pub const MAX_BOSS_PARTS: usize = 8;
     pub const MAX_TRANSITIONS: usize = 4;
@@ -624,34 +630,70 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// The Main weapon's combo tree (ADR-070): at most `MAX_COMBO_STEPS` steps in all, none
+    /// deeper than `MAX_COMBO_DEPTH`, each attack and charge checked.
     fn main_weapon(&mut self, w: &MainWeapon) {
-        self.key("auto", |c| c.weapon_attack(&w.auto, true));
-        self.key("charge", |c| c.charge(&w.charge));
+        let mut steps = 0;
+        self.key("combo", |c| c.branches(&w.combo, 1, &mut steps));
+        self.key("dash", |c| c.branches(&w.dash, 1, &mut steps));
+        if steps > MAX_COMBO_STEPS {
+            self.key("combo", |c| {
+                c.fail(format!(
+                    "at most {MAX_COMBO_STEPS} steps in a weapon's combos"
+                ))
+            });
+        }
+        self.within(
+            "window_ticks",
+            i64::from(w.window_ticks),
+            0,
+            i64::from(MAX_COMBO_WINDOW_TICKS),
+        );
+        self.within(
+            "dash_strike_ticks",
+            i64::from(w.dash_strike_ticks),
+            0,
+            i64::from(MAX_DASH_STRIKE_TICKS),
+        );
+    }
+
+    fn branches(&mut self, b: &Branches, depth: u32, steps: &mut usize) {
+        for (key, step) in [("main", &b.main), ("sub", &b.sub)] {
+            let Some(step) = step else {
+                continue;
+            };
+            *steps += 1;
+            self.key(key, |c| {
+                if depth > MAX_COMBO_DEPTH {
+                    c.fail(format!("a combo is at most {MAX_COMBO_DEPTH} steps deep"));
+                    return;
+                }
+                c.key("attack", |c| c.attack_ref(&step.attack));
+                if let Some(charge) = &step.charge {
+                    c.key("charge", |c| c.charge(charge));
+                }
+                c.key("next", |c| c.branches(&step.next, depth + 1, steps));
+            });
+        }
     }
 
     fn sub_weapon(&mut self, w: &SubWeapon) {
-        self.key("auto", |c| c.weapon_attack(&w.auto, true));
-        self.key("skill", |c| c.weapon_attack(&w.skill, false));
-    }
-
-    /// A weapon's attack (core#83): an automatic one never slows the main character; a part it
-    /// aims at must be one the boss has; its cooldown is bounded.
-    fn weapon_attack(&mut self, w: &WeaponAttack, auto: bool) {
-        self.key("attack", |c| {
-            c.attack_ref(&w.attack);
-            if auto {
-                c.never_slows(&w.attack);
+        self.key("bonus", |c| match w.bonus {
+            SubBonus::Pull { distance, ticks } => {
+                c.within(
+                    "distance",
+                    i64::from(distance.0),
+                    0,
+                    i64::from(MAX_PULL_DISTANCE),
+                );
+                c.within("ticks", i64::from(ticks), 1, i64::from(MAX_PULL_TICKS));
             }
         });
-        if let Targeting::Part(id) = &w.targeting {
-            self.key("targeting", |c| c.part("part", id));
-        }
-        self.ticks("cooldown_ticks", w.cooldown_ticks, 0);
     }
 
-    /// The charged skill (ADR-050, core#83). The levels start at 0 and rise strictly, all
-    /// before `max_ticks`; a perfect window ends by the next level (or `max_ticks`), and the
-    /// first level has none, or a tap would be perfect.
+    /// A charged step (ADR-070). Level 0 is the step's own attack; the levels here are 1 and
+    /// up, after 0, rising strictly and all before `max_ticks`; a perfect window ends by the next
+    /// level (or `max_ticks`).
     fn charge(&mut self, c: &Charge) {
         self.within(
             "max_ticks",
@@ -659,7 +701,6 @@ impl<'a> Ctx<'a> {
             1,
             i64::from(MAX_CHARGE_TICKS),
         );
-        self.ticks("cooldown_ticks", c.cooldown_ticks, 0);
         self.within("move_pct", i64::from(c.move_pct), 0, 100);
         if c.levels.is_empty() {
             self.key("levels", |c| c.fail("a charge has at least one level"));
@@ -672,19 +713,16 @@ impl<'a> Ctx<'a> {
             for (i, l) in c.levels.iter().enumerate() {
                 let next = c.levels.get(i + 1).map_or(c.max_ticks, |n| n.at_ticks);
                 ctx.idx(i, |ctx| {
-                    if i == 0 && l.at_ticks != 0 {
-                        ctx.key("at_ticks", |c| c.fail("the first level is at 0"));
+                    if i == 0 && l.at_ticks == 0 {
+                        ctx.key("at_ticks", |c| {
+                            c.fail("level 1 comes after 0 (level 0 is the step's own attack)")
+                        });
                     }
                     if i > 0 && l.at_ticks <= c.levels[i - 1].at_ticks {
                         ctx.key("at_ticks", |c| c.fail("levels rise strictly"));
                     }
                     if l.at_ticks >= c.max_ticks {
                         ctx.key("at_ticks", |c| c.fail("a level comes before max_ticks"));
-                    }
-                    if i == 0 && l.perfect_ticks != 0 {
-                        ctx.key("perfect_ticks", |c| {
-                            c.fail("the first level has no perfect window (a tap would be perfect)")
-                        });
                     }
                     if u64::from(l.at_ticks) + u64::from(l.perfect_ticks) > u64::from(next) {
                         ctx.key("perfect_ticks", |c| {
@@ -704,29 +742,6 @@ impl<'a> Ctx<'a> {
                 });
             }
         });
-    }
-
-    /// A weapon's attack keeps `move_pct` at 100 in every phase: the main character moves at
-    /// full speed while its weapons attack on their own (core#83). A preset is checked taken
-    /// apart, and reported at its ID.
-    fn never_slows(&mut self, attack: &AttackRef) {
-        const MESSAGE: &str = "a weapon's attack never slows the main character (move_pct 100)";
-        match attack {
-            AttackRef::Inline(phases) => self.key("inline", |c| {
-                for (i, p) in phases.iter().enumerate() {
-                    if p.move_pct != 100 {
-                        c.idx(i, |c| c.key("move_pct", |c| c.fail(MESSAGE)));
-                    }
-                }
-            }),
-            AttackRef::Preset { id, args } => {
-                let slows = presets::take_apart(&id.0, args)
-                    .is_some_and(|phases| phases.iter().any(|p| p.move_pct != 100));
-                if slows {
-                    self.key("preset", |c| c.key("id", |c| c.fail(MESSAGE)));
-                }
-            }
-        }
     }
 
     fn evade(&mut self, e: &Evade) {

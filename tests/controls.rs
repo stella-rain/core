@@ -160,10 +160,33 @@ fn an_evade_is_invulnerable_from_its_first_tick() {
 #[test]
 fn the_evade_cooldown_counts_from_its_start() {
     let mut e = running(vec![]);
-    let seen = run_until(&mut e, evading(127, 0), EVADE_COOLDOWN + 1, |_| false);
+    let mut evaded = Vec::new();
+    // Pressed on tick 1, then on every other tick: the press on tick 41 is the first ready one.
+    for tick in 1..=EVADE_COOLDOWN + 3 {
+        e.step(if tick % 2 == 1 {
+            evading(127, 0)
+        } else {
+            idle()
+        });
+        if e.events().contains(&DomainEvent::Evaded) {
+            evaded.push(tick);
+        }
+    }
+    assert_eq!(evaded, [1, EVADE_COOLDOWN + 1]);
+}
+
+#[test]
+fn a_held_button_presses_once() {
+    // ADR-071: buttons are sent held, and only a button held now and not on the tick before is a
+    // press, so holding the evade through its cooldown never evades again.
+    let mut e = running(vec![]);
+    let seen = run_until(&mut e, evading(127, 0), EVADE_COOLDOWN * 3, |_| false);
+    assert_eq!(ticks_of(&seen, |ev| matches!(ev, DomainEvent::Evaded)), [1]);
+    e.step(idle());
+    let seen = run_until(&mut e, evading(127, 0), 1, |_| false);
     assert_eq!(
-        ticks_of(&seen, |ev| matches!(ev, DomainEvent::Evaded)),
-        [1, EVADE_COOLDOWN + 1]
+        ticks_of(&seen, |ev| matches!(ev, DomainEvent::Evaded)).len(),
+        1
     );
 }
 

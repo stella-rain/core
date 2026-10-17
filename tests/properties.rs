@@ -77,8 +77,9 @@ fn input() -> impl Strategy<Value = Input> {
             move_x,
             move_y,
             evade,
-            charge,
+            main: charge,
             sub,
+            ..Input::default()
         })
 }
 
