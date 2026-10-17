@@ -292,7 +292,9 @@ fn a_recorded_clear_verifies() {
 #[test]
 fn recording_stops_on_the_tick_the_run_ends() {
     let stage = stage_bytes();
-    let replay = record(&stage, &vec![idle(); 400]).unwrap();
+    let mut inputs = clearing_inputs();
+    inputs.resize(400, idle());
+    let replay = record(&stage, &inputs).unwrap();
     assert_eq!(replay.ticks, CLEAR_TICK);
     assert_eq!(
         replay.unpack_inputs(600).unwrap().len(),
@@ -380,9 +382,9 @@ fn a_replay_only_verifies_against_its_own_stage() {
             "{bad:?}"
         );
     }
-    // Different inputs reach a different final hash.
+    // Different inputs reach a different final hash: a step up the field still clears.
     let mut inputs = clearing_inputs();
-    inputs[3].move_x = 50;
+    inputs[20].move_y = -50;
     let swapped = Replay {
         inputs: pack_inputs(&inputs),
         ..replay
@@ -421,7 +423,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
         })
         .collect();
     assert!(verify_against(&stage, &bytes, &hashes).is_ok());
-    for bad_index in [0usize, 30, 56] {
+    for bad_index in [0usize, 17, CLEAR_TICK as usize - 1] {
         let mut wrong = hashes.clone();
         wrong[bad_index] ^= 1;
         assert_eq!(

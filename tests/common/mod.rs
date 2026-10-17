@@ -23,26 +23,50 @@ pub fn evade() -> Value {
             "invulnerable_ticks": EVADE_INVULNERABLE, "cooldown_ticks": EVADE_COOLDOWN })
 }
 
-/// A stage whose boss (20 hp, 10 damage a bullet) is beaten on tick 57 by the Main weapon, which
-/// attacks on its own straight up: the `blaster` preset's Main role, the twin shot, both of whose
-/// bullets touch the boss on tick 57. The Sub weapon does nothing.
+/// A stage whose boss (20 hp, 10 damage a hit) waits 100 pixels above the main character, out
+/// of the `blade`'s reach until an evade dashes 48 pixels toward it. The Sub weapon pulls
+/// nothing.
 pub fn clearing_stage_json() -> Value {
     json!({
         "schema_version": 0, "sim_version": 0, "id": "test-stage", "title": "Test Stage",
         "seed": 7, "length_ticks": 600,
         "player": { "base": "pilot_a", "hp": 3, "atk": 10,
-                    "main": { "preset": { "id": "blaster" } },
-                    "sub": sub_ref(quiet_weapon()),
+                    "main": { "preset": { "id": "blade" } },
+                    "sub": quiet_sub(),
                     "evade": evade() },
         "boss": { "base": "golem", "hp": 20, "radius": 8192,
-                  "spawn": { "x": 46080, "y": 25600 }, "phases": [{}] }
+                  "spawn": { "x": START_X, "y": START_Y - 25_600 }, "phases": [{}] }
     })
 }
 
-/// A weapon's attack (core#83): `attack` (a preset or `{"inline": [...]}`) at `targeting`,
-/// every `cooldown_ticks` ticks.
-pub fn weapon(attack: Value, targeting: Value, cooldown_ticks: u32) -> Value {
-    json!({ "attack": attack, "targeting": targeting, "cooldown_ticks": cooldown_ticks })
+/// A combo step whose attack is `attack` (a preset or `{"inline": [...]}`), a leaf.
+pub fn step(attack: Value) -> Value {
+    json!({ "attack": attack })
+}
+
+/// An inline Main weapon (ADR-070) with `combo` as its root branches and no window.
+pub fn main_combo(combo: Value) -> Value {
+    json!({ "inline": { "combo": combo, "window_ticks": 0 } })
+}
+
+/// An inline Main weapon with one step: `attack` on a press of `main`.
+pub fn main_ref(attack: Value) -> Value {
+    main_combo(json!({ "main": step(attack) }))
+}
+
+/// A Main weapon with no steps: presses do nothing.
+pub fn quiet_main() -> Value {
+    main_combo(json!({}))
+}
+
+/// An inline Sub weapon whose combo-part bonus pulls by `distance` over `ticks`.
+pub fn sub_pull(distance: i32, ticks: u32) -> Value {
+    json!({ "inline": { "bonus": { "type": "pull", "distance": distance, "ticks": ticks } } })
+}
+
+/// A Sub weapon whose pull moves nothing.
+pub fn quiet_sub() -> Value {
+    sub_pull(0, 1)
 }
 
 /// An attack that does nothing: one tick of recovery.
@@ -50,48 +74,48 @@ pub fn quiet_attack() -> Value {
     json!({ "inline": [{ "kind": "recovery", "ticks": 1 }] })
 }
 
-/// A weapon attack that does nothing, along the facing.
-pub fn quiet_weapon() -> Value {
-    weapon(quiet_attack(), json!("facing"), 1)
-}
-
-/// A charge that does nothing: one level, whose release is quiet.
-pub fn quiet_charge() -> Value {
-    json!({ "levels": [{ "at_ticks": 0, "attack": quiet_attack() }],
-            "max_ticks": 600, "cooldown_ticks": 0 })
-}
-
-/// An inline Main weapon whose automatic attack is `auto` and whose charge does nothing.
-pub fn main_ref(auto: Value) -> Value {
-    json!({ "inline": { "auto": auto, "charge": quiet_charge() } })
-}
-
-/// An inline Sub weapon whose automatic attack is `auto` and whose skill does nothing.
-pub fn sub_ref(auto: Value) -> Value {
-    json!({ "inline": { "auto": auto, "skill": quiet_weapon() } })
-}
-
-/// `stage` with weapons whose automatic attacks are `main` and `sub` (`weapon` values, with
-/// skills that do nothing), or presets (`{"preset": ...}`).
-pub fn armed(stage: Stage, main: Value, sub: Value) -> Stage {
-    let main = if main.get("preset").is_some() {
-        main
-    } else {
-        main_ref(main)
-    };
-    let sub = if sub.get("preset").is_some() {
-        sub
-    } else {
-        sub_ref(sub)
-    };
-    armed_full(stage, main, sub)
-}
-
 /// `stage` with `main` and `sub` as its weapons, whole references.
-pub fn armed_full(mut stage: Stage, main: Value, sub: Value) -> Stage {
+pub fn armed(mut stage: Stage, main: Value, sub: Value) -> Stage {
     stage.player.main = serde_json::from_value(main).expect("the Main weapon parses");
     stage.player.sub = serde_json::from_value(sub).expect("the Sub weapon parses");
     stage
+}
+
+/// `input` with `main` pressed on the tick after a step at `tick` (the engine's tick before the
+/// step) when `tick` is a multiple of 6, and let go on the others: the test stage's Main weapon
+/// fires every 6 ticks from the first, as its attack did on its own before attacks came by hand
+/// (ADR-070).
+pub fn firing(input: Input, tick: u32) -> Input {
+    Input {
+        main: tick % 6 == 0,
+        ..input
+    }
+}
+
+/// `run_until` with `input` `firing`.
+pub fn fire_until(
+    e: &mut Engine,
+    input: Input,
+    max_ticks: u32,
+    mut stop: impl FnMut(&Engine) -> bool,
+) -> Vec<(u32, DomainEvent)> {
+    let mut seen = Vec::new();
+    for _ in 0..max_ticks {
+        e.step(firing(input, e.tick()));
+        seen.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
+        if stop(e) {
+            break;
+        }
+    }
+    seen
+}
+
+/// An input that holds `main` (and moves nowhere).
+pub fn pressing_main() -> Input {
+    Input {
+        main: true,
+        ..Input::default()
+    }
 }
 
 /// The phases of an attack that spawns `nodes` on the tick it starts: one active phase of one
@@ -104,16 +128,15 @@ pub fn stage_bytes() -> Vec<u8> {
     serde_json::to_vec(&clearing_stage_json()).unwrap()
 }
 
-pub const CLEAR_TICK: u32 = 57;
+pub const CLEAR_TICK: u32 = 35;
 
-/// Inputs that clear `clearing_stage_json` on tick 57: a nudge up the field on tick 1, so that
-/// the first shot goes up and beats the boss, then some movement to the right and an evade.
+/// Inputs that clear `clearing_stage_json`: an evade toward the boss, a dash-strike (the
+/// `blade`'s thrust) during the dash, then, once it has run out, a slash from the root.
 pub fn clearing_inputs() -> Vec<Input> {
     (0..CLEAR_TICK)
         .map(|t| Input {
-            move_x: if (1..10).contains(&t) { 7 } else { 0 },
-            move_y: if t == 0 { -1 } else { 0 },
-            evade: t == 20,
+            evade: t == 0,
+            main: (3..5).contains(&t) || (30..32).contains(&t),
             ..Input::default()
         })
         .collect()
@@ -191,14 +214,12 @@ pub fn stage_full(
         "schema_version": 0, "sim_version": 0, "id": "test", "title": "Test", "seed": 7,
         "length_ticks": length_ticks,
         // The Main weapon: one bullet along the facing (straight up until it moves) at 8 pixels
-        // a tick, every 6 ticks; the Sub weapon does nothing. So the hand-worked numbers of the
-        // tests that are not about weapons stay simple (`tests/shot.rs` and `tests/weapons.rs`
-        // are about them).
+        // a tick on a press of `main`; the Sub weapon pulls nothing. So the hand-worked numbers
+        // of the tests that are not about weapons stay simple (`tests/shot.rs` and
+        // `tests/weapons.rs` are about them).
         "player": { "base": "pilot_a", "hp": 99, "atk": 10,
-                    "main": main_ref(weapon(
-                        json!({ "preset": { "id": "aimed_single", "args": [2048] } }),
-                        json!("facing"), 6)),
-                    "sub": sub_ref(quiet_weapon()),
+                    "main": main_ref(json!({ "preset": { "id": "aimed_single", "args": [2048] } })),
+                    "sub": quiet_sub(),
                     "evade": evade() },
         "companions": companions,
         "waves": waves,
@@ -210,9 +231,9 @@ pub fn stage_full(
 }
 
 /// Both weapons replaced by ones that do nothing, for tests whose hand-worked numbers would be
-/// thrown off by the weapons that attack on their own (ADR-050).
+/// thrown off by an attack.
 pub fn quiet(stage: Stage) -> Stage {
-    armed(stage, quiet_weapon(), quiet_weapon())
+    armed(stage, quiet_main(), quiet_sub())
 }
 
 pub fn engine(stage: &Stage) -> Engine {

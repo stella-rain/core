@@ -101,7 +101,7 @@ fn a_clear_is_verified_and_reported() {
     assert_eq!(
         out(&o),
         format!(
-            "result: cleared\nticks: 57\nfinal_hash: {}\ncontent_hash: {}\n\
+            "result: cleared\nticks: 35\nfinal_hash: {}\ncontent_hash: {}\n\
              parsed_stage_hash: {}\n",
             hash_to_hex(engine.state_hash()),
             to_hex(&content_hash(&c.stage, &c.replay)),
@@ -150,11 +150,11 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
         Some(0)
     );
 
-    lines[40] = hash_to_hex(0);
+    lines[20] = hash_to_hex(0);
     let wrong = c.dir.file("wrong.txt", lines.join("\n").as_bytes());
     let o = run(&[&stage, &replay, "--hashes", &wrong]);
     assert_eq!(o.status.code(), Some(1));
-    assert!(err(&o).contains("on tick 41"), "{}", err(&o));
+    assert!(err(&o).contains("on tick 21"), "{}", err(&o));
 
     let junk = c.dir.file("junk.txt", b"not a hash\n");
     assert_eq!(
@@ -170,7 +170,7 @@ fn a_share_code_is_verified_from_a_file_or_standard_input() {
     let file = c.dir.file("code.txt", format!("  {code}\n").as_bytes());
     let o = run(&["--share-code", &file]);
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
-    assert!(out(&o).starts_with("result: cleared\nticks: 57\n"));
+    assert!(out(&o).starts_with("result: cleared\nticks: 35\n"));
     let o = run_with_stdin(&["--share-code", "-"], code.as_bytes());
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
 
