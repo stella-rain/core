@@ -39,6 +39,9 @@ pub struct MainWeapon {
     /// Ticks after an evade's dash ends in which a press still takes the dash branch.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub dash_strike_ticks: u32,
+    /// How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle
+    /// reaches within this distance of the main character.
+    pub assist_range: Fx,
 }
 
 /// The steps that follow: at most one for a press of each button.

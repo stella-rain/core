@@ -46,7 +46,7 @@ pub fn step(attack: Value) -> Value {
 
 /// An inline Main weapon (ADR-070) with `combo` as its root branches and no window.
 pub fn main_combo(combo: Value) -> Value {
-    json!({ "inline": { "combo": combo, "window_ticks": 0 } })
+    json!({ "inline": { "combo": combo, "window_ticks": 0, "assist_range": 0 } })
 }
 
 /// An inline Main weapon with one step: `attack` on a press of `main`.

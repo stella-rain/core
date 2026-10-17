@@ -65,6 +65,8 @@ pub mod limits {
     pub const MAX_COMBO_DEPTH: u32 = 8;
     pub const MAX_COMBO_WINDOW_TICKS: u32 = 120;
     pub const MAX_DASH_STRIKE_TICKS: u32 = 60;
+    /// Aim assist looks at most 512 pixels away (ADR-072).
+    pub const MAX_ASSIST_RANGE: i32 = 131_072;
     /// The Sub weapon's pull (ADR-070): at most 64 pixels, over at most 1 second.
     pub const MAX_PULL_DISTANCE: i32 = 16_384;
     pub const MAX_PULL_TICKS: u32 = 60;
@@ -654,6 +656,12 @@ impl<'a> Ctx<'a> {
             i64::from(w.dash_strike_ticks),
             0,
             i64::from(MAX_DASH_STRIKE_TICKS),
+        );
+        self.within(
+            "assist_range",
+            i64::from(w.assist_range.0),
+            0,
+            i64::from(MAX_ASSIST_RANGE),
         );
     }
 

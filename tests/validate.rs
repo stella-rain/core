@@ -1038,7 +1038,7 @@ fn charge(edit: impl FnOnce(&mut Value)) -> Value {
 
 /// An inline Main weapon whose root branches are `combo`, with `edit` applied to it.
 fn main_weapon(combo: Value, edit: impl FnOnce(&mut Value)) -> Value {
-    let mut w = json!({ "combo": combo, "window_ticks": 20 });
+    let mut w = json!({ "combo": combo, "window_ticks": 20, "assist_range": 0 });
     edit(&mut w);
     json!({ "inline": w })
 }
