@@ -214,10 +214,14 @@ fn combo(
     }
     let me = s.id_of(Who::Player);
     let busy = attacks::busy(s, me, COMBO_SLOT);
-    let ended = s.player.combo.running && !busy;
-    if ended {
+    if s.player.combo.running && !busy {
         s.player.combo.running = false;
         s.player.combo.window_left = main.window_ticks;
+    }
+    // The window counts the ticks after the step on which a press continues the combo; once
+    // they are used up, the combo is back at the root before this tick's press.
+    if !busy && s.player.combo.depth > 0 && s.player.combo.window_left == 0 {
+        reset(&mut s.player.combo, events);
     }
     let c = s.player.combo;
     match c.buffered {
@@ -229,13 +233,7 @@ fn combo(
             }
         }
         Some(sub) => take_step(stage, s, main, sub, input, events),
-        None if !busy && !ended && c.depth > 0 => {
-            if c.window_left == 0 {
-                reset(&mut s.player.combo, events);
-            } else {
-                s.player.combo.window_left -= 1;
-            }
-        }
+        None if !busy && c.depth > 0 => s.player.combo.window_left -= 1,
         None => {}
     }
 }
