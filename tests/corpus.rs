@@ -26,7 +26,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, hash_from_hex, hash_to_hex};
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
 use stella_rain_core::run_setup::{self, RunSetup};
-use stella_rain_core::snapshot::Snapshot;
+use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::validate::parse_and_validate;
 
 fn corpus_dir() -> PathBuf {
@@ -503,7 +503,8 @@ fn bullets() -> Definition {
     // to level 2, 52 ticks, released inside its perfect window: a slam); `sub` on 100 and 108
     // (thrust, slash); `main` on 133, during the evade of tick 130 (the dash-strike); `main` on
     // 170 and 178, then on 186 held until the evade of tick 230 breaks the charge; and the
-    // switches and the stage skill pressed now and then, which do nothing yet.
+    // switches and the stage skill pressed now and then. The boss stays out of the blade's
+    // assist range, so the switches find no target here (`assist` is the case that does).
     let inputs = (0..300)
         .map(|t| {
             let input = match t {
@@ -659,6 +660,53 @@ fn melee() -> Definition {
     ("melee", bytes(&stage), inputs)
 }
 
+/// Aim assist and auto mode (ADR-072, ADR-073) with the blade, whose assist range is 160
+/// pixels: three bats to the left and an elite to the right, all within it, and a boss far up
+/// the field. Auto mode alone for 100 ticks (the elite first, then the bats as they fall);
+/// combos by hand with assist for 100; then assist on while the main character walks up to the
+/// boss, pressing `main` twice and holding it from the third step's start for a charge (which
+/// halves its speed), with auto mode on again from tick 262, until the boss is the target.
+fn assist() -> Definition {
+    let bat = enemy(30, hold(0, 0), json!([]));
+    let mut elite = enemy(40, hold(0, 0), json!([]));
+    elite["elite"] = json!({ "range": 1 });
+    let at = |e: &Value, x: i32, y: i32| {
+        let mut e = e.clone();
+        e["movement"] = hold(x, y);
+        wave(1, 1, 0, e, x, y)
+    };
+    let waves = vec![
+        at(&bat, 20_000, 140_000),
+        at(&bat, 22_000, 152_000),
+        at(&bat, 26_000, 147_456),
+        at(&elite, 76_000, 147_456),
+    ];
+    let stage = armed(
+        stage_full(600, Some(boss_at(1_000_000, 40_000)), waves, vec![]),
+        json!({ "preset": { "id": "blade" } }),
+        json!({ "preset": { "id": "maul" } }),
+    );
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..100 => Input {
+                auto: true,
+                ..idle()
+            },
+            100..200 => Input {
+                assist: true,
+                ..combos(t, idle())
+            },
+            _ => Input {
+                main: t == 205 || t == 225 || (240..285).contains(&t),
+                assist: true,
+                auto: t >= 262,
+                ..moving(0, -127)
+            },
+        })
+        .collect();
+    ("assist", bytes(&stage), inputs)
+}
+
 /// A landscape map of 2,048 by 1,024 pixels (core#87). The main character starts near the
 /// right edge, walks into the top-right corner (clamped there), then left along the top, shooting
 /// along its facing; enemies cross the middle of the map to the right, shooting at it.
@@ -713,6 +761,7 @@ fn definitions() -> Vec<Definition> {
             common::clearing_inputs(),
         ),
         agents(),
+        assist(),
         bullets(),
         boss(),
         fail(),
@@ -821,6 +870,69 @@ fn the_cases_are_what_their_names_say() {
     let (corner, farthest) = landscape_reach();
     assert!(corner, "the main character reaches the top-right corner");
     assert!(farthest > 92_160 + 16_384, "x {farthest}");
+    // Auto mode plays on its own at the elite first, then at the bats once it falls; the boss
+    // is the target once the main character has walked up to it, and a charge is released.
+    let a = assist_reach();
+    assert_eq!(a.first, Some(EntityKind::Enemy), "the elite comes first");
+    assert!(a.first_elite, "the elite comes first");
+    assert!(a.auto_steps >= 5, "{} steps by auto mode", a.auto_steps);
+    assert!(a.bat_after_elite, "a bat is the target after the elite");
+    assert!(a.boss, "the boss is the target in the end");
+    assert!(a.released, "a charge is released");
+}
+
+/// What the assist case does: the first target's kind and whether it is the elite, the steps
+/// in the first 100 ticks (where nothing is pressed by hand), whether a bat is the target after
+/// the elite and the boss at some point, and whether a charge is released.
+struct AssistReach {
+    first: Option<EntityKind>,
+    first_elite: bool,
+    auto_steps: usize,
+    bat_after_elite: bool,
+    boss: bool,
+    released: bool,
+}
+
+fn assist_reach() -> AssistReach {
+    use stella_rain_core::event::DomainEvent;
+    let case = corpus_dir().join("assist");
+    let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+    let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+    let mut a = AssistReach {
+        first: None,
+        first_elite: false,
+        auto_steps: 0,
+        bat_after_elite: false,
+        boss: false,
+        released: false,
+    };
+    let mut seen_elite = false;
+    for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
+        engine.step(input);
+        let s = engine.snapshot();
+        let target = s
+            .player
+            .target
+            .and_then(|id| s.entities.iter().find(|e| e.id == id));
+        if let Some(t) = target {
+            if a.first.is_none() {
+                a.first = Some(t.kind);
+                a.first_elite = t.elite;
+            }
+            seen_elite |= t.elite;
+            a.bat_after_elite |= seen_elite && t.kind == EntityKind::Enemy && !t.elite;
+            a.boss |= t.kind == EntityKind::Boss;
+        }
+        for ev in engine.events() {
+            match ev {
+                DomainEvent::ComboStep { .. } if s.tick <= 100 => a.auto_steps += 1,
+                DomainEvent::ChargeReleased { .. } => a.released = true,
+                _ => {}
+            }
+        }
+    }
+    a
 }
 
 /// Whether the landscape case's main character stands in the map's top-right corner on some
