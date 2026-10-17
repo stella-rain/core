@@ -1,8 +1,8 @@
 //! The run replay (ADR-066 §5): a run of the launch game recorded as its setup, the SHA-256 of
 //! the game content it ran, the tick count, the final state hash, one input per tick and one
-//! stream of commands between ticks. Anyone can re-simulate it from the file and the run stats
-//! it used: the setup names a mode whose content is bundled in `core`, so no stage file and no
-//! save data is needed.
+//! stream of commands between ticks. Anyone can re-simulate it from the file and the content
+//! files it used (the run stats and the rewards): the setup names a mode whose content is
+//! bundled in `core`, so no stage file and no save data is needed.
 //!
 //! A `.replay` of a run is one JSON object. Its inputs are packed as a stage replay's are (see
 //! `replay`). Its commands are packed in the order they applied, each as the tick (a LEB128
@@ -13,13 +13,15 @@
 //! Replays are untrusted (ADR-020): a size limit before parsing, strict parsing, no more ticks
 //! than the mode is long and no more than `MAX_COMMANDS` commands. Re-simulation steps tick by
 //! tick; before each tick it applies the commands carrying the current tick, in order, and fails
-//! closed on an unknown kind, a command the engine refuses (a choice with no offer open, a spend
-//! after the run ended or with no point left, an index outside the run stats, a stat at its limit), a command left
-//! over at the end, an input after the run ended, and a final hash that differs.
+//! closed on an unknown kind, a command the engine refuses (a choice with no offer open or
+//! outside its options, a spend after the run ended, while an offer is open or with no point
+//! left, an index outside the run stats, a stat at its limit), an input while an offer is open,
+//! a command left over at the end, an input after the run ended, and a final hash that differs.
+//! A replay may end on an open offer: a bug report may stop while the player looks at one.
 //!
 //! The content hash covers the mode's bundled file, every attack and weapon preset's
-//! definition, and the run stats' bytes (ADR-067), so any content update invalidates the replay
-//! rather than letting it drift. What the rules do with the content is the `sim_version`'s,
+//! definition, and the bytes of the run stats and the rewards (ADR-067), so any content update
+//! invalidates the replay rather than letting it drift. What the rules do with the content is the `sim_version`'s,
 //! which the setup carries.
 
 use std::fmt;
@@ -41,8 +43,8 @@ use crate::run_setup::{self, RunSetup};
 use crate::validate;
 
 /// The most commands a run replay holds (a tuning value; ADR-066 decides that a cap exists).
-/// Version 0 gives at most 99 points in a run and opens no offer; the rest is room for the
-/// choices and rerolls of offers to come.
+/// Version 0 gives at most 99 points in a run; the rest is room for the offers' choices, a few
+/// per falling star taken.
 pub const MAX_COMMANDS: u32 = 1000;
 
 /// What the content hash starts with, so that it cannot be mistaken for another SHA-256.
@@ -54,7 +56,8 @@ pub struct RunReplay {
     /// What the run started from (ADR-066 §1).
     pub setup: RunSetup,
     /// The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every
-    /// preset and the run stats (`content_sha256_with`). Other content invalidates the replay.
+    /// preset, the run stats and the rewards (`content_sha256_with`). Other content invalidates
+    /// the replay.
     pub content_sha256: String,
     /// Ticks recorded, at most the mode's length. A run that ended ends on the tick it ended.
     pub ticks: u32,
@@ -125,7 +128,7 @@ pub enum RunReplayError {
     },
     /// The setup is not valid (ADR-020).
     Setup(validate::Error),
-    /// The content hash is not this game's content for the setup's mode and the run stats.
+    /// The content hash is not this game's content for the setup's mode and content files.
     ContentChanged,
     /// More ticks than the mode is long.
     TooManyTicks {
@@ -155,6 +158,10 @@ pub enum RunReplayError {
     /// The run ended on this tick, before the inputs did.
     InputsAfterEnd {
         ended_at: u32,
+    },
+    /// An input came while an offer was open on this tick: a choice answers it first.
+    OfferOpen {
+        tick: u32,
     },
     /// Re-simulation reached a different final hash.
     WrongFinalHash {
@@ -198,10 +205,17 @@ impl fmt::Display for RunReplayError {
             RunReplayError::BadHash => f.write_str("the replay's final hash is not 16 hex digits"),
             RunReplayError::ChoiceRefused { tick, error } => match error {
                 ChoiceError::NoOffer => write!(f, "a choice on tick {tick} has no offer open"),
+                ChoiceError::OutOfRange { index, options } => write!(
+                    f,
+                    "a choice on tick {tick} is option {index} of an offer of {options}"
+                ),
             },
             RunReplayError::SpendRefused { tick, error } => match error {
                 SpendError::RunOver => {
                     write!(f, "a spend on tick {tick} comes after the run ended")
+                }
+                SpendError::OfferOpen => {
+                    write!(f, "a spend on tick {tick} comes while an offer is open")
                 }
                 SpendError::NoPoint => write!(f, "a spend on tick {tick} has no point to spend"),
                 SpendError::OutOfRange { index, stats } => write!(
@@ -218,6 +232,9 @@ impl fmt::Display for RunReplayError {
                     f,
                     "the run ended on tick {ended_at}, before the replay ends"
                 )
+            }
+            RunReplayError::OfferOpen { tick } => {
+                write!(f, "an input comes while the offer of tick {tick} is open")
             }
             RunReplayError::WrongFinalHash { expected, actual } => write!(
                 f,
@@ -253,7 +270,8 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 }
 
 /// The SHA-256 of the game content a run of `mode` uses with `content`: the mode's bundled
-/// file, every preset's definition and the run stats' bytes, tagged and length-prefixed.
+/// file, every preset's definition, and the bytes of the run stats and the rewards, tagged and
+/// length-prefixed.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
     let file = run_setup::mode_stage(mode)?;
@@ -261,6 +279,7 @@ pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]>
         mode,
         file,
         &content.run_stats().sha256(),
+        &content.rewards().sha256(),
         presets::sources(),
     ))
 }
@@ -269,6 +288,7 @@ fn hash_content<'a>(
     mode: &str,
     file: &[u8],
     run_stats_sha256: &[u8; 32],
+    rewards_sha256: &[u8; 32],
     sources: impl Iterator<Item = (u8, &'a str, &'a str)>,
 ) -> [u8; 32] {
     fn part(sha: &mut Sha256, kind: u8, id: &[u8], body: &[u8]) {
@@ -283,6 +303,7 @@ fn hash_content<'a>(
     sha.update(CONTENT_TAG);
     part(&mut sha, b'm', mode.as_bytes(), file);
     part(&mut sha, b's', b"run_stats", run_stats_sha256);
+    part(&mut sha, b'r', b"rewards", rewards_sha256);
     for (kind, id, definition) in sources {
         part(&mut sha, kind, id.as_bytes(), definition.as_bytes());
     }
@@ -411,11 +432,17 @@ impl RunRecorder {
         &self.engine
     }
 
-    /// Runs the next tick with `input`. Refused, recording nothing, after the run ended.
+    /// Runs the next tick with `input`. Refused, recording nothing, after the run ended or
+    /// while an offer is open (ADR-066 §3: a choice answers it first).
     pub fn step(&mut self, input: Input) -> Result<(), RunReplayError> {
         if self.engine.outcome() != Outcome::Running {
             return Err(RunReplayError::InputsAfterEnd {
                 ended_at: self.engine.tick(),
+            });
+        }
+        if self.engine.offer_open() {
+            return Err(RunReplayError::OfferOpen {
+                tick: self.engine.tick(),
             });
         }
         self.engine.step(input);
@@ -473,7 +500,7 @@ impl RunRecorder {
     }
 }
 
-/// Runs `commands` from `setup`, with the bundled run stats, and returns the replay. Recording
+/// Runs `commands` from `setup`, with the bundled content files, and returns the replay. Recording
 /// stops on the tick the run ends, so commands after it are left out; a command the engine
 /// refuses fails closed.
 pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<RunReplay, RunReplayError> {
@@ -491,7 +518,7 @@ pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<RunReplay, R
     Ok(recorder.replay())
 }
 
-/// Re-simulates a run replay from its bytes and the bundled run stats, and checks every
+/// Re-simulates a run replay from its bytes and the bundled content files, and checks every
 /// command and the final hash (ADR-066 §5). The whole file is untrusted.
 pub fn verify_run(replay_bytes: &[u8]) -> Result<RunVerified, RunReplayError> {
     verify_inner(replay_bytes, RunContent::bundled(), None)
@@ -547,6 +574,11 @@ fn verify_inner(
         if engine.outcome() != Outcome::Running {
             return Err(RunReplayError::InputsAfterEnd {
                 ended_at: engine.tick(),
+            });
+        }
+        if engine.offer_open() {
+            return Err(RunReplayError::OfferOpen {
+                tick: engine.tick(),
             });
         }
         engine.step(*input);
@@ -608,21 +640,32 @@ mod tests {
 
     const SOURCES: [(u8, &str, &str); 2] = [(b'a', "shot", "[1]"), (b'w', "gun", "{}")];
     const STATS: [u8; 32] = [7; 32];
+    const REWARDS: [u8; 32] = [9; 32];
 
     fn hash(mode: &str, file: &[u8], sources: &[(u8, &'static str, &'static str)]) -> [u8; 32] {
-        hash_content(mode, file, &STATS, sources.iter().copied())
+        hash_content(mode, file, &STATS, &REWARDS, sources.iter().copied())
     }
 
     #[test]
-    fn the_content_hash_covers_the_mode_the_run_stats_and_every_preset() {
+    fn the_content_hash_covers_the_mode_the_content_files_and_every_preset() {
         let base = hash("trial", b"{}", &SOURCES);
         assert_eq!(base, hash("trial", b"{}", &SOURCES));
         assert_ne!(base, hash("trial", b"{ }", &SOURCES), "the mode's file");
         assert_ne!(base, hash("other", b"{}", &SOURCES), "the mode's ID");
         assert_ne!(
             base,
-            hash_content("trial", b"{}", &[8; 32], SOURCES.iter().copied()),
+            hash_content("trial", b"{}", &[8; 32], &REWARDS, SOURCES.iter().copied()),
             "the run stats"
+        );
+        assert_ne!(
+            base,
+            hash_content("trial", b"{}", &STATS, &[8; 32], SOURCES.iter().copied()),
+            "the rewards"
+        );
+        assert_ne!(
+            base,
+            hash_content("trial", b"{}", &REWARDS, &STATS, SOURCES.iter().copied()),
+            "which file is which"
         );
         let changed = [(b'a', "shot", "[2]"), SOURCES[1]];
         assert_ne!(base, hash("trial", b"{}", &changed), "a definition");

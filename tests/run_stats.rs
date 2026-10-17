@@ -6,6 +6,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::id::ContentId;
+use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
@@ -216,7 +217,10 @@ fn the_content_hash_covers_the_run_stats() {
         content_sha256("trial")
     );
     assert_ne!(
-        content_sha256_with("trial", &RunContent::new(faster())),
+        content_sha256_with(
+            "trial",
+            &RunContent::new(faster(), Rewards::bundled().clone())
+        ),
         content_sha256("trial")
     );
 }
@@ -224,7 +228,7 @@ fn the_content_hash_covers_the_run_stats() {
 #[test]
 fn a_run_with_other_stats_verifies_only_with_those_stats() {
     let stats = faster();
-    let content = RunContent::new(stats.clone());
+    let content = RunContent::new(stats.clone(), Rewards::bundled().clone());
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
     for t in 0..50 {
         recorder.step(run_script(t)).unwrap();
@@ -237,7 +241,11 @@ fn a_run_with_other_stats_verifies_only_with_those_stats() {
 #[test]
 fn an_engine_started_with_other_stats_uses_them() {
     let stats = faster();
-    let e = Engine::start_with(&trial_setup(), &RunContent::new(stats.clone())).unwrap();
+    let e = Engine::start_with(
+        &trial_setup(),
+        &RunContent::new(stats.clone(), Rewards::bundled().clone()),
+    )
+    .unwrap();
     assert_eq!(e.run_stats(), &stats);
     assert_eq!(
         e.snapshot().progress.unwrap().spent.len(),

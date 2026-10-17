@@ -19,6 +19,7 @@ pub mod presets;
 pub mod recording;
 pub mod registry;
 pub mod replay;
+pub mod rewards;
 pub mod rng;
 pub(crate) mod rules_v0;
 pub mod run_content;

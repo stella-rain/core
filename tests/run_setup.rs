@@ -4,9 +4,14 @@
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::registry::{ENTRIES, Entry, Kind};
-use stella_rain_core::run_setup::{self, MAX_EXPERTISE, MAX_SETUP_BYTES, RunSetup};
+use stella_rain_core::run_replay::Command;
+use stella_rain_core::run_setup::{
+    self, MAX_EXPERTISE, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
+};
 use stella_rain_core::validate::{self, Error, Issue};
 use stella_rain_core::weapon::WeaponRef;
+
+mod common;
 
 fn setup() -> RunSetup {
     RunSetup {
@@ -18,6 +23,8 @@ fn setup() -> RunSetup {
         main_expertise: 3,
         sub_expertise: 0,
         seed: 20_261_010,
+        star_pool: None,
+        extra_rerolls: 0,
     }
 }
 
@@ -231,4 +238,114 @@ fn every_mode_has_content_that_validates_and_nothing_else_has() {
         }
     }
     assert_eq!(run_setup::mode_stage("needle"), None);
+}
+
+// --- The star pool and extra rerolls (ADR-066 §1) ---------------------------------------------
+
+fn with_pool(ids: &[&str]) -> RunSetup {
+    RunSetup {
+        star_pool: Some(ids.iter().map(|id| (*id).into()).collect()),
+        ..setup()
+    }
+}
+
+#[test]
+fn a_setup_without_a_pool_or_extra_rerolls_writes_neither() {
+    let text = String::from_utf8(bytes(&setup())).unwrap();
+    assert!(
+        !text.contains("star_pool") && !text.contains("extra_rerolls"),
+        "{text}"
+    );
+    let more = RunSetup {
+        extra_rerolls: 2,
+        ..with_pool(&["max_hp_common"])
+    };
+    assert_eq!(run_setup::parse_and_validate(&bytes(&more)), Ok(more));
+}
+
+#[test]
+fn the_pool_names_each_reward_once_and_at_most_max_star_pool() {
+    let found = issues(run_setup::validate(&with_pool(&["Bad Id", "a", "a"])).unwrap_err());
+    let paths: Vec<&str> = found.iter().map(|i| i.path.as_str()).collect();
+    assert_eq!(paths, ["$.star_pool[0]", "$.star_pool[2]"]);
+    let ids: Vec<String> = (0..=MAX_STAR_POOL).map(|i| format!("r{i}")).collect();
+    let refs: Vec<&str> = ids.iter().map(String::as_str).collect();
+    assert!(run_setup::validate(&with_pool(&refs[..MAX_STAR_POOL])).is_ok());
+    let found = issues(run_setup::validate(&with_pool(&refs)).unwrap_err());
+    assert_eq!(found[0].path, "$.star_pool");
+}
+
+#[test]
+fn extra_rerolls_are_at_most_max_extra_rerolls() {
+    let at = |n| RunSetup {
+        extra_rerolls: n,
+        ..setup()
+    };
+    assert!(run_setup::validate(&at(MAX_EXTRA_REROLLS)).is_ok());
+    assert_eq!(
+        issues(run_setup::validate(&at(MAX_EXTRA_REROLLS + 1)).unwrap_err()),
+        [issue("$.extra_rerolls", "at most 20 (found 21)")]
+    );
+}
+
+#[test]
+fn a_pool_naming_a_reward_the_file_does_not_hold_does_not_start() {
+    let found =
+        issues(Engine::start(&with_pool(&["max_hp_common", "no_such_reward"])).unwrap_err());
+    assert_eq!(
+        found,
+        [issue(
+            "$.star_pool[1]",
+            "no such reward in the run's rewards file"
+        )]
+    );
+}
+
+/// The trial run of `common::run` up to its first offer, from `setup`.
+fn to_first_offer(setup: &RunSetup) -> Engine {
+    let mut engine = Engine::start(setup).unwrap();
+    for c in common::run::play_run(common::run::TRIAL_LENGTH) {
+        match c {
+            Command::Step(input) => engine.step(input),
+            Command::Spend(index) => engine.spend(index).unwrap(),
+            Command::Choose(_) => break,
+        }
+        if engine.offer_open() {
+            return engine;
+        }
+    }
+    panic!("no offer");
+}
+
+#[test]
+fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
+    let pool = ["speed_common", "xp_common", "evade_common"];
+    let narrowed = RunSetup {
+        extra_rerolls: 3,
+        ..with_pool(&pool)
+    };
+    let offer = |s: &RunSetup| {
+        to_first_offer(s)
+            .snapshot()
+            .progress
+            .unwrap()
+            .offer
+            .unwrap()
+    };
+    let wide = offer(&common::run::trial_setup());
+    let narrow = offer(&RunSetup {
+        star_pool: narrowed.star_pool.clone(),
+        extra_rerolls: 3,
+        ..common::run::trial_setup()
+    });
+    let mut ids: Vec<&str> = narrow
+        .candidates
+        .iter()
+        .map(|c| c.reward.0.as_str())
+        .collect();
+    ids.sort_unstable();
+    let mut want = pool.to_vec();
+    want.sort_unstable();
+    assert_eq!(ids, want);
+    assert_eq!(narrow.rerolls_left, wide.rerolls_left + 3);
 }
