@@ -17,7 +17,7 @@
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
 use crate::attack::{HitBox, PhaseKind};
-use crate::engine::{Dir, State};
+use crate::engine::{Dir, Pull, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
@@ -42,6 +42,7 @@ struct Swing {
     damage: u32,
     rehit_ticks: Option<u32>,
     breaks_charge: bool,
+    pull: Option<Pull>,
 }
 
 /// What an arc's test needs, worked out once per swing rather than once per target: the cosine
@@ -111,6 +112,7 @@ fn active_swings(s: &State) -> Vec<Swing> {
             damage: super::attacks::phase_damage(r),
             rehit_ticks: p.rehit_ticks,
             breaks_charge: p.breaks_charge,
+            pull: r.pull,
         });
     }
     swings
@@ -218,6 +220,7 @@ fn shot(w: &Swing) -> Shot {
         friendly: w.friendly,
         damage: w.damage,
         breaks_charge: w.breaks_charge,
+        pull: w.pull,
     }
 }
 
@@ -256,6 +259,9 @@ fn hit_enemy_side(
         let radius = agent_def(stage, e.key).radius.0;
         if hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
             damage(s, shot(w), Who::Enemy(i), events);
+            if let Some(pull) = w.pull {
+                super::pull_enemy(stage, s, i, pull);
+            }
         }
     }
 }
@@ -268,7 +274,7 @@ fn hit_ally_side(stage: &Stage, s: &mut State, w: &Swing, events: &mut Vec<Domai
         && covers(w, p.at, PLAYER_RADIUS)
         && take_hit(s, w, super::PLAYER_ID)
     {
-        hurt_player(stage, s, shot(w), events);
+        hurt_player(s, shot(w), events);
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];

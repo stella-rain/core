@@ -48,8 +48,9 @@ pub enum StatEffect {
     MaxHp,
     /// `step` percent more damage from every attack of the main character.
     AttackPct,
-    /// `step` percent shorter cooldowns for both weapons' automatic attacks (at least 1 tick).
-    HastePct,
+    /// `step` percent faster attacks: a combo step's length divided by `1 + step / 100`
+    /// (ADR-070), each of its phases at least 1 tick.
+    AttackSpeedPct,
     /// A `step` percent shorter evade cooldown (at least 1 tick).
     EvadePct,
     /// `step` percent more movement speed.
@@ -64,7 +65,7 @@ impl StatEffect {
     pub const ALL: [StatEffect; 6] = [
         StatEffect::MaxHp,
         StatEffect::AttackPct,
-        StatEffect::HastePct,
+        StatEffect::AttackSpeedPct,
         StatEffect::EvadePct,
         StatEffect::SpeedPct,
         StatEffect::XpPct,

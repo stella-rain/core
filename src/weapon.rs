@@ -1,10 +1,10 @@
-//! Weapons (ADR-050, core#83): the main character carries a Main and a Sub weapon, and each
-//! attacks on its own, on its own cooldown, at what its targeting picks. The Main weapon brings
-//! the charged skill (skill 2), the Sub weapon the Sub skill (skill 3). A weapon is a preset by
+//! Weapons (ADR-070): the main character carries a Main and a Sub weapon and attacks with them
+//! by hand. The Main weapon owns the combos: a tree of steps reached by presses of `main` (A)
+//! and `sub` (B), each step a phased attack (ADR-069) that may charge. The Sub weapon has no
+//! attack of its own; it adds its bonus to every step reached by `sub`. A weapon is a preset by
 //! ID or an inline definition, as an attack is. A preset is a whole weapon: one ID with a Main
-//! role and a Sub role, which differ (the game design's weapon table); in `player.main` a
-//! preset runs its Main role, in `player.sub` its Sub role. The run's setup will take IDs only
-//! (ADR-051).
+//! role and a Sub role; in `player.main` a preset runs its Main role, in `player.sub` its Sub
+//! role. The run's setup takes IDs only (ADR-066).
 //!
 //! Field names are placeholders until the freeze (ADR-035).
 
@@ -12,7 +12,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::attack::AttackRef;
-use crate::behaviour::Selector;
+use crate::fixed::Fx;
 use crate::id::ContentId;
 
 /// A weapon preset by ID, or an inline weapon in one role (`MainWeapon` or `SubWeapon`).
@@ -23,59 +23,77 @@ pub enum WeaponRef<W> {
     Inline(Box<W>),
 }
 
-/// A weapon as Main: its automatic attack and its charged skill (skill 2, ADR-050).
+/// A weapon as Main (ADR-070): its combo tree and the timings that join its steps.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MainWeapon {
-    pub auto: WeaponAttack,
-    pub charge: Charge,
+    /// The first step for each press, from the root.
+    pub combo: Branches,
+    /// The first step for each press during an evade's dash or within `dash_strike_ticks` after
+    /// it: the dash-strike. A press with no step here starts from `combo`.
+    #[serde(default, skip_serializing_if = "Branches::is_empty")]
+    pub dash: Branches,
+    /// Ticks the combo keeps its place after a step's recovery has run out with no press
+    /// buffered; a press within them takes the next step, after them it starts from the root.
+    pub window_ticks: u32,
+    /// Ticks after an evade's dash ends in which a press still takes the dash branch.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub dash_strike_ticks: u32,
 }
 
-/// A weapon as Sub: its automatic attack and its skill (skill 3, ADR-050), which happens on a
-/// ready press, with no charge.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+/// The steps that follow: at most one for a press of each button.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SubWeapon {
-    pub auto: WeaponAttack,
-    pub skill: WeaponAttack,
+pub struct Branches {
+    /// The step a press of `main` (A) takes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub main: Option<Box<Step>>,
+    /// The step a press of `sub` (B) takes: a combo part, which the Sub weapon's bonus joins.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sub: Option<Box<Step>>,
 }
 
-/// An attack a weapon makes at what its targeting picks: on its own every `cooldown_ticks`
-/// (an automatic attack), or on a ready press (the Sub skill).
+impl Branches {
+    pub fn is_empty(&self) -> bool {
+        self.main.is_none() && self.sub.is_none()
+    }
+
+    /// The step for a press of `main` (`sub` false) or of `sub`.
+    pub fn get(&self, sub: bool) -> Option<&Step> {
+        if sub { &self.sub } else { &self.main }.as_deref()
+    }
+}
+
+/// One step of a combo (ADR-070).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct WeaponAttack {
-    /// An automatic attack never slows the main character: every phase keeps `move_pct` at 100
-    /// (the validator). A skill may.
+pub struct Step {
+    /// The step's own attack: what a tap makes, and level 0 of a charge.
     pub attack: AttackRef,
-    /// The nearest enemy when absent (ADR-050).
-    #[serde(default)]
-    pub targeting: Targeting,
-    /// Ticks from one attack's start to the next one's. If the attack lasts longer, the next
-    /// one waits for it to end.
-    pub cooldown_ticks: u32,
+    /// While the button that reached the step stays held as it starts, it charges instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charge: Option<Charge>,
+    #[serde(default, skip_serializing_if = "Branches::is_empty")]
+    pub next: Branches,
 }
 
-/// The charged Main skill (ADR-050): a ready press starts the charge, the ticks held raise
-/// its level, and the release attacks along the facing at the level reached. Releasing inside
-/// the level's perfect window adds its perfect bonus; at `max_ticks` it releases by itself,
-/// without the bonus. The frontend slows time while charging; the rules do not.
+/// A charged step (ADR-070): the ticks held raise its level, and letting go attacks at the
+/// level reached; inside the level's perfect window it adds its perfect bonus. At `max_ticks`
+/// it releases by itself, without the bonus. Level 0, before the first of `levels`, is the
+/// step's own attack. The frontend slows time from level 1; the rules do not.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Charge {
-    /// In order of `at_ticks`; the first is at 0.
+    /// Level 1 and up, in order of `at_ticks`, the first after 0.
     pub levels: Vec<ChargeLevel>,
     /// The longest hold, in ticks.
     pub max_ticks: u32,
-    /// Ticks from the release to the next ready press. An evade or a hit that breaks the charge
-    /// spends half of it, rounded up.
-    pub cooldown_ticks: u32,
     /// The main character's movement speed while charging, in percent; 100 when absent.
     #[serde(default = "full_speed", skip_serializing_if = "is_full_speed")]
     pub move_pct: u8,
 }
 
-/// One level of a charge.
+/// One level of a charge, from level 1.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ChargeLevel {
@@ -83,8 +101,7 @@ pub struct ChargeLevel {
     pub at_ticks: u32,
     /// The release at this level.
     pub attack: AttackRef,
-    /// The perfect window: the first `perfect_ticks` ticks of the level. 0 for none, which the
-    /// first level must be, or a tap would be perfect.
+    /// The perfect window: the first `perfect_ticks` ticks of the level; 0 for none.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub perfect_ticks: u32,
     /// The perfect bonus: this much more damage, in percent, for every hit of the release.
@@ -107,40 +124,21 @@ fn is_zero_u16(v: &u16) -> bool {
     *v == 0
 }
 
-/// What a weapon attacks: along the main character's facing, or at an enemy one of ADR-036's
-/// selectors picks. Only the selectors that pick an enemy are here, so a weapon cannot aim at
-/// an ally. With a selector and nothing to pick, the weapon does not attack and spends no
-/// cooldown.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum Targeting {
-    /// `aimed` directions point along the facing at the attack's start.
-    Facing,
-    #[default]
-    NearestEnemy,
-    /// The boss while it is alive, else the nearest enemy.
-    BossFirst,
-    /// A boss part, by the part ID the stage gives it, until it breaks.
-    Part(ContentId),
+/// A weapon as Sub (ADR-070): no attack of its own, only its combo-part bonus.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SubWeapon {
+    pub bonus: SubBonus,
 }
 
-impl Targeting {
-    /// The selector this targeting picks with; `None` for `facing`.
-    pub fn selector(&self) -> Option<Selector> {
-        match self {
-            Targeting::Facing => None,
-            Targeting::NearestEnemy => Some(Selector::NearestEnemy),
-            Targeting::BossFirst => Some(Selector::BossFirst),
-            Targeting::Part(id) => Some(Selector::Part(id.clone())),
-        }
-    }
-}
-
-/// Which of the main character's two weapons a reference is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Role {
-    Main,
-    Sub,
+/// What the Sub weapon adds to every hit of a step reached by `sub` (ADR-070): one of a closed
+/// list built into `core`, its numbers in JSON (ADR-067).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SubBonus {
+    /// The enemy hit is drawn toward the main character, at most `distance`, over `ticks`, and
+    /// stops where their circles touch. A boss, its parts and elites resist it.
+    Pull { distance: Fx, ticks: u32 },
 }
 
 /// A weapon preset's definition: both of its roles.

@@ -106,9 +106,9 @@
           "const": "attack_pct"
         },
         {
-          "description": "`step` percent shorter cooldowns for both weapons' automatic attacks (at least 1 tick).",
+          "description": "`step` percent faster attacks: a combo step's length divided by `1 + step / 100`\n(ADR-070), each of its phases at least 1 tick.",
           "type": "string",
-          "const": "haste_pct"
+          "const": "attack_speed_pct"
         },
         {
           "description": "A `step` percent shorter evade cooldown (at least 1 tick).",

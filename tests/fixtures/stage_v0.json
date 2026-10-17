@@ -10,8 +10,8 @@
     "base": "pilot_a",
     "hp": 3,
     "atk": 10,
-    "main": { "preset": { "id": "blaster" } },
-    "sub": { "preset": { "id": "needle" } },
+    "main": { "preset": { "id": "blade" } },
+    "sub": { "preset": { "id": "maul" } },
     "evade": { "distance": 12288, "ticks": 8, "invulnerable_ticks": 10, "cooldown_ticks": 40 }
   },
   "companions": [

@@ -38,10 +38,9 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// move, wherever in that range it started: 19 batches of 200
 /// are in the air when a tick starts, the tick makes the 20th, and 4,000 are alive
 /// (`MAX_BULLETS_ALIVE`) until the 200 that are about to leave go. The main character waits at
-/// the left wall, where no enemy bullet flies. Both its weapons aim at the nearest enemy and
-/// start an attack every tick (core#83), so every tick picks a target among the 500 enemies
-/// twice; their attacks find 256 attacks going and spawn nothing. On the measured tick it also
-/// releases a charge and presses the Sub skill, which picks a target a third time.
+/// the left wall, where no enemy bullet flies, charging its Main weapon's step from tick 81
+/// (ADR-070); on the measured tick it lets go, and the release starts an attack, which finds
+/// 256 attacks going and spawns nothing. The steps that follow are pressed every other tick.
 ///
 /// Hit boxes (ADR-055): the enemies' attack is one active phase of 30 ticks, so every enemy is
 /// always in it, with a 128-pixel arc facing the main character, out of its reach. The four
@@ -90,25 +89,24 @@ pub fn stage() -> Stage {
             0
         )]),
     );
-    let at_nearest = common::weapon(
-        json!({ "preset": { "id": "aimed_single", "args": [2048] } }),
-        json!("nearest_enemy"),
-        1,
-    );
-    common::armed_full(
+    let shot = json!({ "preset": { "id": "aimed_single", "args": [2048] } });
+    let charged = json!({ "attack": shot, "charge": {
+        "levels": [{ "at_ticks": 1, "attack": shot }], "max_ticks": 600 } });
+    common::armed(
         common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4]),
-        json!({ "inline": { "auto": at_nearest.clone(), "charge": common::quiet_charge() } }),
-        json!({ "inline": { "auto": at_nearest.clone(), "skill": at_nearest } }),
+        common::main_combo(json!({ "main": charged, "sub": common::step(shot) })),
+        common::sub_pull(16_384, 60),
     )
 }
 
 /// The input of tick `tick` (from 1): the main character goes to the left wall, then waits,
-/// charging until the tick after the warm-up, when it lets go and presses the Sub skill.
+/// charging until the tick after the warm-up, when it lets go; from then on it presses `sub`
+/// every other tick.
 pub fn input(tick: u32) -> Input {
     let after_warmup = tick > WARMUP_TICKS;
     Input {
-        charge: tick > 80 && !after_warmup,
-        sub: after_warmup,
+        main: tick > 80 && !after_warmup,
+        sub: after_warmup && tick % 2 == 0,
         ..if tick <= 80 {
             common::moving(-127, 0)
         } else {
