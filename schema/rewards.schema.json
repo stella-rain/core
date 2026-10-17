@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RewardsFile",
+  "description": "The rewards file.",
+  "type": "object",
+  "properties": {
+    "rewards": {
+      "description": "The rewards, in the order offers draw them from.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Reward"
+      }
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sim_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "rewards"
+  ],
+  "$defs": {
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    },
+    "Rarity": {
+      "description": "A reward's rarity, from the most common up (ADR-066 §2).",
+      "type": "string",
+      "enum": [
+        "common",
+        "uncommon",
+        "rare",
+        "epic",
+        "legendary",
+        "supernova"
+      ]
+    },
+    "Reward": {
+      "description": "One reward an offer can hold.",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "description": {
+          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
+          "type": "string"
+        },
+        "effect": {
+          "$ref": "#/$defs/StatEffect"
+        },
+        "id": {
+          "description": "The reward's own ID, unique within the file.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "limit": {
+          "description": "The most times one run takes it, from 1 to `MAX_STACK`.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "rarity": {
+          "$ref": "#/$defs/Rarity"
+        },
+        "title": {
+          "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "rarity",
+        "effect",
+        "amount",
+        "limit",
+        "title",
+        "description"
+      ]
+    },
+    "StatEffect": {
+      "description": "What a point in a stat does, `step` times over. The closed list of version 0's effects;\npercentages add up over every stat with the same effect and round down.",
+      "oneOf": [
+        {
+          "description": "`step` more hit points at most, and as many healed.",
+          "type": "string",
+          "const": "max_hp"
+        },
+        {
+          "description": "`step` percent more damage from every attack of the main character.",
+          "type": "string",
+          "const": "attack_pct"
+        },
+        {
+          "description": "`step` percent shorter cooldowns for both weapons' automatic attacks (at least 1 tick).",
+          "type": "string",
+          "const": "haste_pct"
+        },
+        {
+          "description": "A `step` percent shorter evade cooldown (at least 1 tick).",
+          "type": "string",
+          "const": "evade_pct"
+        },
+        {
+          "description": "`step` percent more movement speed.",
+          "type": "string",
+          "const": "speed_pct"
+        },
+        {
+          "description": "`step` percent more experience from every kill, rounded down (ADR-068: the build that\nunlocks rarer stars sooner).",
+          "type": "string",
+          "const": "xp_pct"
+        }
+      ]
+    }
+  }
+}

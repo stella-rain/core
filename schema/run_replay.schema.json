@@ -8,7 +8,7 @@
       "type": "string"
     },
     "content_sha256": {
-      "description": "The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every\npreset and the run stats (`content_sha256_with`). Other content invalidates the replay.",
+      "description": "The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every\npreset, the run stats and the rewards (`content_sha256_with`). Other content invalidates\nthe replay.",
       "type": "string"
     },
     "final_hash": {
@@ -48,6 +48,13 @@
       "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-051).",
       "type": "object",
       "properties": {
+        "extra_rerolls": {
+          "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
         "main": {
           "description": "A weapon preset, used in its Main role.",
           "$ref": "#/$defs/ContentId"
@@ -78,6 +85,16 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "star_pool": {
+          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-066 §1), each at most once. Absent: every reward in the file.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          }
         },
         "sub": {
           "description": "A weapon preset, used in its Sub role.",

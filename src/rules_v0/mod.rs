@@ -17,10 +17,13 @@
 //! 5. bullets move and leave the map;
 //! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
-//! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears.
+//! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears;
+//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
-//! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks.
+//! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks. In
+//! a stage with stars, defeated enemies then drop falling stars, and the main character takes
+//! those it reaches; each opens an offer in step 8, answered between ticks (`stars`).
 //!
 //! Not yet in this version: summons by companions; what the main character's weapons acquire
 //! during a run (`player::shot` is where it would plug in).
@@ -42,21 +45,24 @@ mod hit_boxes;
 mod levels;
 mod player;
 mod push;
+mod stars;
 
 pub(crate) use player::{charge_ready, charge_view, skill_ready};
 mod select;
 
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, Outcome, PartState,
-    PlayerState, Progress, State,
+    PlayerState, Progress, StarField, State,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::hash::StateHasher;
 use crate::id::EntityId;
 use crate::input::Input;
+use crate::rewards::Rewards;
 use crate::rng::SplitMix64;
-use crate::run_stats::{RunStats, StatEffect};
+use crate::run_content::RunContent;
+use crate::run_stats::StatEffect;
 use crate::stage::Stage;
 use crate::trig;
 
@@ -64,6 +70,7 @@ pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
 use grid::Grid;
 pub(crate) use levels::{spend, xp_next};
+pub(crate) use stars::{choose, offer_view, options as offer_options};
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
@@ -99,9 +106,23 @@ pub(crate) fn bullet_radius(friendly: bool) -> i32 {
     }
 }
 
+/// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
+/// and the rerolls its setup adds to the stage's (ADR-066 §1).
+pub(crate) struct RunPool {
+    pub rewards: Vec<u16>,
+    pub extra_rerolls: u8,
+}
+
 /// The state before the first tick, its generator seeded with `seed`: the stage's own for a
 /// stage, the setup's for a run (ADR-051).
-pub(crate) fn initial_state(stage: &Stage, run_stats: &RunStats, seed: u64) -> State {
+pub(crate) fn initial_state(
+    stage: &Stage,
+    content: &RunContent,
+    pool: RunPool,
+    seed: u64,
+) -> State {
+    let run_stats = content.run_stats();
+    let rewards = content.rewards().rewards().len();
     let mut next_id = 1;
     let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
@@ -199,11 +220,23 @@ pub(crate) fn initial_state(stage: &Stage, run_stats: &RunStats, seed: u64) -> S
             spent: vec![0; run_stats.stats().len()],
             totals: [0; StatEffect::ALL.len()],
         }),
+        stars: stage.stars.as_ref().map(|st| StarField {
+            misses: 0,
+            on_map: Vec::new(),
+            due: Vec::new(),
+            offer: None,
+            rerolls_left: u32::from(st.rerolls) + u32::from(pool.extra_rerolls),
+            banishes_left: u32::from(st.banishes),
+            pool: pool.rewards,
+            taken: vec![0; rewards],
+            banished: vec![false; rewards],
+        }),
     }
 }
 
 pub(crate) fn step(
     stage: &Stage,
+    rewards: &Rewards,
     s: &mut State,
     input: Input,
     events: &mut Vec<DomainEvent>,
@@ -234,6 +267,9 @@ pub(crate) fn step(
     move_bullets(stage, s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
+    if s.outcome == Outcome::Running {
+        stars::open_due(rewards, s, events);
+    }
     debug_assert!(
         entity::enemies_in_id_order(s),
         "enemies out of entity-ID order"
@@ -331,7 +367,9 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     s.bullets.retain(|_| !flags.next().unwrap_or(false));
     s.companions.retain(|c| c.hp > 0);
     levels::credit_defeated(stage, s, events);
+    stars::drop_from_defeated(stage, s, events);
     s.enemies.retain(|e| e.hp > 0);
+    stars::pick_up(stage, s, events);
 }
 
 /// The enemies as circles, in index order, for friendly bullets to land on.
@@ -752,6 +790,46 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         }
         for t in p.totals {
             h.write_u32(t);
+        }
+    }
+    // After it, and only in a stage with stars, for the same reason.
+    if let Some(f) = &s.stars {
+        h.write_u32(f.misses);
+        h.write_u32(count(&f.on_map));
+        for star in &f.on_map {
+            h.write_u32(star.id.0);
+            h.write_i32(star.at.x.0);
+            h.write_i32(star.at.y.0);
+            h.write_u32(u32::from(star.rarity.index()));
+        }
+        h.write_u32(count(&f.due));
+        for r in &f.due {
+            h.write_u32(u32::from(r.index()));
+        }
+        match &f.offer {
+            Some(o) => {
+                h.write_bool(true);
+                h.write_u32(u32::from(o.rarity.index()));
+                h.write_u32(count(&o.candidates));
+                for c in &o.candidates {
+                    h.write_u32(u32::from(*c));
+                }
+            }
+            None => h.write_bool(false),
+        }
+        h.write_u32(f.rerolls_left);
+        h.write_u32(f.banishes_left);
+        h.write_u32(count(&f.pool));
+        for i in &f.pool {
+            h.write_u32(u32::from(*i));
+        }
+        h.write_u32(count(&f.taken));
+        for n in &f.taken {
+            h.write_u32(u32::from(*n));
+        }
+        h.write_u32(count(&f.banished));
+        for b in &f.banished {
+            h.write_bool(*b);
         }
     }
     h.finish()

@@ -344,5 +344,36 @@
       4,
       5
     ]
+  },
+  "stars": {
+    "drop_per_mille": 500,
+    "pity": 2,
+    "cap": 16,
+    "pickup_radius": 6144,
+    "rerolls": 2,
+    "banishes": 1,
+    "tiers": [
+      {
+        "from_level": 1,
+        "weights": {
+          "common": 100
+        }
+      },
+      {
+        "from_level": 3,
+        "weights": {
+          "common": 70,
+          "rare": 30
+        }
+      },
+      {
+        "from_level": 5,
+        "weights": {
+          "common": 50,
+          "rare": 35,
+          "legendary": 15
+        }
+      }
+    ]
   }
 }

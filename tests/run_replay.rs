@@ -18,7 +18,9 @@ use stella_rain_core::validate::Error;
 
 mod common;
 
-use common::run::{SPEND_INDEX, TRIAL_LENGTH, first_point_tick, play_run, run_script, trial_setup};
+use common::run::{
+    SPEND_INDEX, TRIAL_LENGTH, first_point_tick, play_run, run_input, run_script, trial_setup,
+};
 
 fn recorded(ticks: u32) -> RunReplay {
     record_run(&trial_setup(), &play_run(ticks)).unwrap()
@@ -112,16 +114,22 @@ fn a_spend_after_the_run_ended_is_refused() {
         .collect();
     let replay = record_run(&trial_setup(), &commands).unwrap();
     let mut engine = Engine::start(&trial_setup()).unwrap();
-    for input in replay.unpack_inputs(TRIAL_LENGTH).unwrap() {
-        engine.step(input);
+    for c in &commands {
+        match *c {
+            Command::Step(input) => engine.step(input),
+            Command::Choose(index) => engine.choose(index).unwrap(),
+            Command::Spend(_) => unreachable!("filtered out"),
+        }
     }
     assert_eq!(engine.outcome(), Outcome::Failed);
     assert!(engine.snapshot().progress.unwrap().points > 0);
     let hash = engine.state_hash();
     assert_eq!(engine.spend(0), Err(SpendError::RunOver));
     assert_eq!(engine.state_hash(), hash);
+    let mut late = commands_of(&replay);
+    late.push(spend(replay.ticks, 0));
     assert_eq!(
-        verify_run(&with_commands(&replay, &[spend(replay.ticks, 0)])),
+        verify_run(&with_commands(&replay, &late)),
         Err(RunReplayError::SpendRefused {
             tick: replay.ticks,
             error: SpendError::RunOver
@@ -222,7 +230,8 @@ fn the_recorder_keeps_only_what_the_engine_took() {
 
     recorder.spend(SPEND_INDEX).unwrap();
     for t in point..point + 100 {
-        recorder.step(run_script(t)).unwrap();
+        let input = run_input(recorder.engine(), t);
+        recorder.step(input).unwrap();
         while recorder
             .engine()
             .snapshot()
@@ -233,6 +242,93 @@ fn the_recorder_keeps_only_what_the_engine_took() {
         }
     }
     assert_eq!(recorder.replay(), recorded(point + 100));
+}
+
+// --- Offers (ADR-066 §3) -------------------------------------------------------------------------
+
+/// The commands of the trial run up to its first offer: the input of the tick that opened it
+/// is the last.
+fn to_first_offer() -> Vec<Command> {
+    let all = play_run(TRIAL_LENGTH);
+    let first = all
+        .iter()
+        .position(|c| matches!(c, Command::Choose(_)))
+        .expect("the trial run opens an offer");
+    all[..first].to_vec()
+}
+
+#[test]
+fn a_run_that_answers_offers_verifies_and_uses_every_kind_of_option() {
+    let commands = play_run(TRIAL_LENGTH);
+    let choices = commands
+        .iter()
+        .filter(|c| matches!(c, Command::Choose(_)))
+        .count();
+    assert!(choices >= 4, "{choices} choices");
+    let replay = record_run(&trial_setup(), &commands).unwrap();
+    let verified = verify_run(&replay.to_bytes()).unwrap();
+    assert_eq!(verified.final_hash, replay_hash(&replay));
+}
+
+fn replay_hash(replay: &RunReplay) -> u64 {
+    stella_rain_core::replay::hash_from_hex(&replay.final_hash).unwrap()
+}
+
+#[test]
+fn the_recorder_refuses_an_input_while_an_offer_is_open() {
+    let mut recorder = RunRecorder::start(&trial_setup()).unwrap();
+    for c in to_first_offer() {
+        match c {
+            Command::Step(input) => recorder.step(input).unwrap(),
+            Command::Choose(index) => recorder.choose(index).unwrap(),
+            Command::Spend(index) => recorder.spend(index).unwrap(),
+        }
+    }
+    assert!(recorder.engine().offer_open());
+    let before = recorder.replay();
+    let tick = recorder.engine().tick();
+    assert_eq!(
+        recorder.step(run_script(0)),
+        Err(RunReplayError::OfferOpen { tick })
+    );
+    assert_eq!(recorder.replay(), before, "the input is not recorded");
+    assert!(matches!(
+        recorder.spend(SPEND_INDEX),
+        Err(RunReplayError::SpendRefused {
+            error: SpendError::OfferOpen,
+            ..
+        })
+    ));
+    recorder.choose(0).unwrap();
+    recorder.step(run_script(0)).unwrap();
+}
+
+#[test]
+fn a_replay_with_an_unanswered_offer_is_refused() {
+    let replay = recorded(TRIAL_LENGTH);
+    let commands = commands_of(&replay);
+    let first = commands
+        .iter()
+        .position(|c| c.kind == CommandKind::Choose)
+        .unwrap();
+    let tick = commands[first].tick;
+    // Without the offer's choices, the next input comes while it is open.
+    let unanswered: Vec<TickCommand> = commands
+        .iter()
+        .filter(|c| !(c.kind == CommandKind::Choose && c.tick == tick))
+        .copied()
+        .collect();
+    assert_eq!(
+        verify_run(&with_commands(&replay, &unanswered)),
+        Err(RunReplayError::OfferOpen { tick })
+    );
+}
+
+#[test]
+fn a_replay_that_ends_on_an_open_offer_verifies() {
+    // A bug report may stop while the player looks at an offer.
+    let replay = record_run(&trial_setup(), &to_first_offer()).unwrap();
+    assert!(verify_run(&replay.to_bytes()).is_ok());
 }
 
 #[test]

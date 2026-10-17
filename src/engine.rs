@@ -15,22 +15,26 @@ use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::input::Input;
+use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
+use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, MapView,
-    PlayerView, ProgressView, SkillView, Snapshot,
+    PlayerView, ProgressView, SkillView, Snapshot, StarView,
 };
 use crate::stage::Stage;
-use crate::validate::{self, Error};
+use crate::validate::{self, Error, Issue};
 
 /// Why `Engine::choose` refused a choice; the run is unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChoiceError {
-    /// No offer is open. Version 0 opens none yet: offers come with falling stars.
+    /// No offer is open.
     NoOffer,
+    /// `index` is not below the number of the open offer's `options`.
+    OutOfRange { index: u32, options: u32 },
 }
 
 /// Why `Engine::spend` refused to spend a stat point; the run is unchanged.
@@ -38,6 +42,8 @@ pub enum ChoiceError {
 pub enum SpendError {
     /// The run has ended: its unspent points are lost.
     RunOver,
+    /// An offer is open: it is answered first (ADR-066 §4).
+    OfferOpen,
     /// No point is left (or the stage has no levels).
     NoPoint,
     /// `index` is not below the number of run `stats`.
@@ -87,8 +93,8 @@ impl Load {
 #[derive(Clone, Debug)]
 pub struct Engine {
     stage: Stage,
-    /// What a stat point can raise (ADR-067), fixed for the run.
-    run_stats: RunStats,
+    /// The content files the run reads (ADR-067), fixed for the run.
+    content: RunContent,
     state: State,
     /// Events of the last tick; cleared when the next one starts.
     events: Vec<DomainEvent>,
@@ -101,47 +107,60 @@ impl Engine {
     /// stages inside the budgets.
     /// A stage with levels spends its points on the bundled run stats.
     pub fn new(stage: &Stage) -> Result<Engine, Error> {
-        Engine::new_with(stage, RunStats::bundled())
+        Engine::new_with(stage, RunContent::bundled())
     }
 
-    /// As `new`, with `run_stats` in place of the bundled ones (ADR-067).
-    pub fn new_with(stage: &Stage, run_stats: &RunStats) -> Result<Engine, Error> {
+    /// As `new`, with `content` in place of the bundled files (ADR-067).
+    pub fn new_with(stage: &Stage, content: &RunContent) -> Result<Engine, Error> {
         validate::validate(stage)?;
+        let pool = rules_v0::RunPool {
+            rewards: pool(None, content.rewards())?,
+            extra_rerolls: 0,
+        };
         Ok(Engine {
-            state: rules_v0::initial_state(stage, run_stats, u64::from(stage.seed)),
+            state: rules_v0::initial_state(stage, content, pool, u64::from(stage.seed)),
             stage: stage.clone(),
-            run_stats: run_stats.clone(),
+            content: content.clone(),
             events: Vec::new(),
             load: Load::default(),
         })
     }
 
     /// Starts a run from a setup alone (ADR-066 §1): the setup is validated, then its mode's
-    /// stage runs with its weapons and seed, and the bundled run stats.
+    /// stage runs with its weapons and seed, and the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<Engine, Error> {
-        Engine::start_with(setup, RunStats::bundled())
+        Engine::start_with(setup, RunContent::bundled())
     }
 
-    /// As `start`, with `run_stats` in place of the bundled ones (ADR-067).
-    pub fn start_with(setup: &RunSetup, run_stats: &RunStats) -> Result<Engine, Error> {
+    /// As `start`, with `content` in place of the bundled files (ADR-067).
+    pub fn start_with(setup: &RunSetup, content: &RunContent) -> Result<Engine, Error> {
         let stage = run_setup::stage(setup)?;
+        let pool = rules_v0::RunPool {
+            rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
+            extra_rerolls: setup.extra_rerolls,
+        };
         Ok(Engine {
-            state: rules_v0::initial_state(&stage, run_stats, setup.seed),
+            state: rules_v0::initial_state(&stage, content, pool, setup.seed),
             stage,
-            run_stats: run_stats.clone(),
+            content: content.clone(),
             events: Vec::new(),
             load: Load::default(),
         })
     }
 
     /// Advances one tick with `input`. Once the run is over this does nothing, so a replay that
-    /// is longer than the run cannot change the final hash.
+    /// is longer than the run cannot change the final hash; nor while an offer is open, when
+    /// the world is stopped (ADR-066 §3).
     pub fn step(&mut self, input: Input) {
         self.events.clear();
         self.load = Load::default();
+        if self.offer_open() {
+            return;
+        }
         match self.stage.sim_version {
             0 => rules_v0::step(
                 &self.stage,
+                self.content.rewards(),
                 &mut self.state,
                 input,
                 &mut self.events,
@@ -152,20 +171,43 @@ impl Engine {
         }
     }
 
-    /// Chooses option `index` of the open offer, between ticks (ADR-066 §3). Version 0 opens
-    /// no offer yet, so every choice is refused and changes nothing.
+    /// Chooses option `index` of the open offer, between ticks (ADR-066 §3): the snapshot's
+    /// `offer.options` lists them. It applies at once, and the events are then this choice's.
+    /// Refused, changing nothing, with no offer open or an index outside its options.
     pub fn choose(&mut self, index: u32) -> Result<(), ChoiceError> {
-        let _ = index;
-        Err(ChoiceError::NoOffer)
+        if !self.offer_open() {
+            return Err(ChoiceError::NoOffer);
+        }
+        let rewards = self.content.rewards();
+        let options = rules_v0::offer_options(rewards, &self.state);
+        let Some(option) = usize::try_from(index)
+            .ok()
+            .and_then(|i| options.get(i))
+            .copied()
+        else {
+            return Err(ChoiceError::OutOfRange {
+                index,
+                options: u32::try_from(options.len()).unwrap_or(u32::MAX),
+            });
+        };
+        self.events.clear();
+        match self.stage.sim_version {
+            0 => rules_v0::choose(rewards, &mut self.state, option, &mut self.events),
+            _ => self.state.outcome = Outcome::Failed,
+        }
+        Ok(())
     }
 
     /// Spends a stat point on the run stat at `index`, between ticks (ADR-066 §4): the stat
     /// rises by its step at once, and the events are then this spend's. Refused, changing
-    /// nothing, once the run has ended, with no point left, an index outside the run stats, or
-    /// the stat at its limit.
+    /// nothing, once the run has ended, while an offer is open, with no point left, an index
+    /// outside the run stats, or the stat at its limit.
     pub fn spend(&mut self, index: u32) -> Result<(), SpendError> {
         if self.state.outcome != Outcome::Running {
             return Err(SpendError::RunOver);
+        }
+        if self.offer_open() {
+            return Err(SpendError::OfferOpen);
         }
         let p = self
             .state
@@ -173,7 +215,7 @@ impl Engine {
             .as_ref()
             .filter(|p| p.points > 0)
             .ok_or(SpendError::NoPoint)?;
-        let stats = self.run_stats.stats();
+        let stats = self.content.run_stats().stats();
         let Some(at) = usize::try_from(index).ok().filter(|i| *i < stats.len()) else {
             return Err(SpendError::OutOfRange {
                 index,
@@ -197,7 +239,12 @@ impl Engine {
 
     /// The run stats this run spends its points on.
     pub fn run_stats(&self) -> &RunStats {
-        &self.run_stats
+        self.content.run_stats()
+    }
+
+    /// The content files this run reads.
+    pub fn content(&self) -> &RunContent {
+        &self.content
     }
 
     pub fn tick(&self) -> u32 {
@@ -206,6 +253,11 @@ impl Engine {
 
     pub fn outcome(&self) -> Outcome {
         self.state.outcome
+    }
+
+    /// An offer is open: `step` does nothing until `choose` closes it (ADR-066 §3).
+    pub fn offer_open(&self) -> bool {
+        self.state.stars.as_ref().is_some_and(|f| f.offer.is_some())
     }
 
     /// FNV-1a 64 over the whole state after the last tick (ADR-019).
@@ -358,14 +410,50 @@ impl Engine {
                     friendly: b.friendly,
                 })
                 .collect(),
+            stars: s.stars.as_ref().map_or_else(Vec::new, |f| {
+                f.on_map
+                    .iter()
+                    .map(|st| StarView {
+                        id: st.id,
+                        at: st.at,
+                        rarity: st.rarity,
+                    })
+                    .collect()
+            }),
             progress: s.progress.as_ref().map(|p| ProgressView {
                 level: p.level,
                 xp: p.xp,
                 xp_next: rules_v0::xp_next(&self.stage, p.level),
                 points: p.points,
                 spent: p.spent.clone(),
+                offer: rules_v0::offer_view(self.content.rewards(), s),
             }),
         }
+    }
+}
+
+/// The run's star pool: the places in `rewards` of the rewards `ids` names, or of every reward
+/// when it names none. A name the file does not hold fails closed, one issue per name.
+fn pool(ids: Option<&[ContentId]>, rewards: &Rewards) -> Result<Vec<u16>, Error> {
+    let place = |i: usize| u16::try_from(i).unwrap_or(u16::MAX);
+    let Some(ids) = ids else {
+        return Ok((0..rewards.rewards().len()).map(place).collect());
+    };
+    let mut issues = Vec::new();
+    let mut out = Vec::with_capacity(ids.len());
+    for (i, id) in ids.iter().enumerate() {
+        match rewards.index_of(id) {
+            Some(at) => out.push(place(at)),
+            None => issues.push(Issue {
+                path: format!("$.star_pool[{i}]"),
+                message: "no such reward in the run's rewards file".into(),
+            }),
+        }
+    }
+    if issues.is_empty() {
+        Ok(out)
+    } else {
+        Err(Error::Invalid(issues))
     }
 }
 
@@ -396,6 +484,43 @@ pub(crate) struct State {
     pub next_id: u32,
     /// Experience and levels; `None` in a stage without levels, which hashes nothing for it.
     pub progress: Option<Progress>,
+    /// Falling stars and offers; `None` in a stage without stars, which hashes nothing for it.
+    pub stars: Option<StarField>,
+}
+
+/// Falling stars, the offers due and the open one, and what the run's offers have used
+/// (ADR-066 §2, §3).
+#[derive(Clone, Debug)]
+pub(crate) struct StarField {
+    /// Kills in a row that dropped no star, for the pity.
+    pub misses: u32,
+    /// The stars waiting on the map, in the order they dropped (entity-ID order).
+    pub on_map: Vec<StarState>,
+    /// The rarities of the stars taken whose offers have not opened yet, in the order taken.
+    pub due: Vec<Rarity>,
+    pub offer: Option<OfferState>,
+    pub rerolls_left: u32,
+    pub banishes_left: u32,
+    /// The run's pool: places in the rewards file, in its order, fixed for the run.
+    pub pool: Vec<u16>,
+    /// For each reward of the file: times taken, and whether it is banished.
+    pub taken: Vec<u8>,
+    pub banished: Vec<bool>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct StarState {
+    pub id: EntityId,
+    pub at: Point,
+    pub rarity: Rarity,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct OfferState {
+    /// The star's rarity: the highest a candidate may have.
+    pub rarity: Rarity,
+    /// Places in the rewards file, in the offer's order.
+    pub candidates: Vec<u16>,
 }
 
 /// Experience, levels and stat points (ADR-066 §2, §4).

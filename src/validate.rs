@@ -20,7 +20,10 @@ use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill
 use crate::id::ContentId;
 use crate::presets;
 use crate::registry::{self, Entry, Kind};
-use crate::stage::{Boss, BossPart, Evade, Levels, Phase, Player, Stage, Step, Transition, Wave};
+use crate::rewards::Rarity;
+use crate::stage::{
+    Boss, BossPart, Evade, Levels, Phase, Player, Stage, Stars, Step, Tier, Transition, Wave,
+};
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 use crate::weapon::{
@@ -69,6 +72,18 @@ pub mod limits {
     pub const MAX_LEVEL_XP: u32 = 1_000_000;
     /// The experience an enemy gives.
     pub const MAX_ENEMY_XP: u32 = 1000;
+    /// Falling stars (ADR-066 §2, ADR-068): the drop chance is in 1000; the pity, the stars on
+    /// the map, the pickup circle (64 pixels), the rerolls and banishes, and the drop table's
+    /// tiers, each starting at most at the highest level, with weights of at most 10,000.
+    pub const MAX_DROP_PER_MILLE: u16 = 1000;
+    pub const MAX_PITY: u16 = 1000;
+    pub const MAX_STARS_ON_MAP: u16 = 64;
+    pub const MAX_PICKUP_RADIUS: i32 = 16_384;
+    pub const MAX_REROLLS: u8 = 20;
+    pub const MAX_BANISHES: u8 = 20;
+    pub const MAX_TIERS: usize = 16;
+    pub const MAX_TIER_LEVEL: u32 = 100;
+    pub const MAX_RARITY_WEIGHT: u16 = 10_000;
     pub const MAX_SUMMON_COUNT: u8 = 8;
 
     pub const MAX_PLAYER_HP: u32 = 99;
@@ -489,6 +504,78 @@ impl<'a> Ctx<'a> {
         if let Some(levels) = &s.levels {
             self.key("levels", |c| c.levels(levels));
         }
+        if let Some(stars) = &s.stars {
+            self.key("stars", |c| {
+                if s.levels.is_none() {
+                    c.fail("needs `levels`: a star's rarity follows the player's level".to_owned());
+                }
+                c.stars(stars);
+            });
+        }
+    }
+
+    fn stars(&mut self, st: &Stars) {
+        self.within(
+            "drop_per_mille",
+            i64::from(st.drop_per_mille),
+            0,
+            i64::from(MAX_DROP_PER_MILLE),
+        );
+        self.within("pity", i64::from(st.pity), 1, i64::from(MAX_PITY));
+        self.within("cap", i64::from(st.cap), 1, i64::from(MAX_STARS_ON_MAP));
+        self.within(
+            "pickup_radius",
+            i64::from(st.pickup_radius.0),
+            1,
+            i64::from(MAX_PICKUP_RADIUS),
+        );
+        self.within("rerolls", i64::from(st.rerolls), 0, i64::from(MAX_REROLLS));
+        self.within(
+            "banishes",
+            i64::from(st.banishes),
+            0,
+            i64::from(MAX_BANISHES),
+        );
+        if st.tiers.is_empty() {
+            self.key("tiers", |c| c.fail("needs at least one tier".to_owned()));
+        } else if self.at_most("tiers", st.tiers.len(), MAX_TIERS, "tiers") {
+            self.key("tiers", |c| {
+                let mut previous = 0;
+                for (i, tier) in st.tiers.iter().enumerate() {
+                    c.idx(i, |c| c.tier(tier, i, previous));
+                    previous = tier.from_level;
+                }
+            });
+        }
+    }
+
+    /// Tier `index` of a drop table, after one that starts at level `previous`.
+    fn tier(&mut self, tier: &Tier, index: usize, previous: u32) {
+        let level = tier.from_level;
+        if index == 0 && level != 1 {
+            self.key("from_level", |c| {
+                c.fail(format!("the first tier starts at level 1 (found {level})"))
+            });
+        } else if index > 0 && !(previous + 1..=MAX_TIER_LEVEL).contains(&level) {
+            self.key("from_level", |c| {
+                c.fail(format!(
+                    "must be above the tier before ({previous}) and at most {MAX_TIER_LEVEL}                      (found {level})"
+                ))
+            });
+        }
+        self.key("weights", |c| {
+            for rarity in Rarity::ALL {
+                let weight = tier.weights.get(rarity);
+                if weight > MAX_RARITY_WEIGHT {
+                    c.fail(format!(
+                        "{rarity:?} weighs at most {MAX_RARITY_WEIGHT} (found {weight})"
+                    ));
+                }
+            }
+            if tier.weights.total() == 0 {
+                c.fail("at least one rarity must weigh more than 0".to_owned());
+            }
+        });
     }
 
     fn levels(&mut self, l: &Levels) {

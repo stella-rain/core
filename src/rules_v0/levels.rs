@@ -6,9 +6,11 @@
 //! step to its effect's total. What a total does: `MaxHp` that many more hit points at most and
 //! as many healed at once; `AttackPct` that percent more damage; `HastePct` and `EvadePct` that
 //! percent shorter automatic-attack and evade cooldowns, at least 1 tick; `SpeedPct` that
-//! percent more speed. Percentages round down.
+//! percent more speed; `XpPct` that percent more experience from each tick's kills. A reward
+//! taken from an offer adds its amount to its effect's total the same way (`add_effect`).
+//! Percentages round down.
 
-use crate::engine::{AgentSource, State};
+use crate::engine::{AgentSource, PlayerState, Progress, State};
 use crate::event::DomainEvent;
 use crate::run_stats::{RunStat, StatEffect};
 use crate::stage::Stage;
@@ -52,6 +54,7 @@ pub(super) fn credit_defeated(stage: &Stage, s: &mut State, events: &mut Vec<Dom
 }
 
 fn gain(stage: &Stage, s: &mut State, xp: u32, events: &mut Vec<DomainEvent>) {
+    let xp = raised(xp, total(s, StatEffect::XpPct));
     let Some(p) = s.progress.as_mut() else {
         return;
     };
@@ -85,17 +88,27 @@ pub(crate) fn spend(s: &mut State, index: usize, stat: &RunStat, events: &mut Ve
     *spent = spent.saturating_add(1);
     let spent = *spent;
     p.points -= 1;
-    let total = &mut p.totals[stat.effect as usize];
-    *total = total.saturating_add(stat.step);
-    if stat.effect == StatEffect::MaxHp {
-        let player = &mut s.player;
-        player.max_hp = player.max_hp.saturating_add(stat.step);
-        player.hp = player.hp.saturating_add(stat.step).min(player.max_hp);
-    }
+    add_effect(p, &mut s.player, stat.effect, stat.step);
     events.push(DomainEvent::StatRaised {
         stat: stat.id.clone(),
         spent,
     });
+}
+
+/// Adds `amount` to the total of `effect`; `MaxHp` also raises the most hit points and heals
+/// as many.
+pub(super) fn add_effect(
+    p: &mut Progress,
+    player: &mut PlayerState,
+    effect: StatEffect,
+    amount: u32,
+) {
+    let total = &mut p.totals[effect as usize];
+    *total = total.saturating_add(amount);
+    if effect == StatEffect::MaxHp {
+        player.max_hp = player.max_hp.saturating_add(amount);
+        player.hp = player.hp.saturating_add(amount).min(player.max_hp);
+    }
 }
 
 fn total(s: &State, effect: StatEffect) -> u32 {
