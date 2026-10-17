@@ -8,7 +8,7 @@
     "radius": 8192,
     "spawn": {
       "x": 46080,
-      "y": 25600
+      "y": 121856
     }
   },
   "id": "test-stage",
@@ -25,34 +25,15 @@
     "hp": 3,
     "main": {
       "preset": {
-        "id": "blaster"
+        "id": "blade"
       }
     },
     "sub": {
       "inline": {
-        "auto": {
-          "attack": {
-            "inline": [
-              {
-                "kind": "recovery",
-                "ticks": 1
-              }
-            ]
-          },
-          "cooldown_ticks": 1,
-          "targeting": "facing"
-        },
-        "skill": {
-          "attack": {
-            "inline": [
-              {
-                "kind": "recovery",
-                "ticks": 1
-              }
-            ]
-          },
-          "cooldown_ticks": 1,
-          "targeting": "facing"
+        "bonus": {
+          "distance": 0,
+          "ticks": 1,
+          "type": "pull"
         }
       }
     }

@@ -12,62 +12,27 @@
     "atk": 10,
     "main": {
       "inline": {
-        "auto": {
-          "attack": {
-            "preset": {
-              "id": "aimed_single",
-              "args": [
-                2048
-              ]
-            }
-          },
-          "targeting": "facing",
-          "cooldown_ticks": 6
-        },
-        "charge": {
-          "levels": [
-            {
-              "at_ticks": 0,
-              "attack": {
-                "inline": [
-                  {
-                    "kind": "recovery",
-                    "ticks": 1
-                  }
+        "combo": {
+          "main": {
+            "attack": {
+              "preset": {
+                "id": "aimed_single",
+                "args": [
+                  2048
                 ]
               }
             }
-          ],
-          "max_ticks": 600,
-          "cooldown_ticks": 0
-        }
+          }
+        },
+        "window_ticks": 0
       }
     },
     "sub": {
       "inline": {
-        "auto": {
-          "attack": {
-            "inline": [
-              {
-                "kind": "recovery",
-                "ticks": 1
-              }
-            ]
-          },
-          "targeting": "facing",
-          "cooldown_ticks": 1
-        },
-        "skill": {
-          "attack": {
-            "inline": [
-              {
-                "kind": "recovery",
-                "ticks": 1
-              }
-            ]
-          },
-          "targeting": "facing",
-          "cooldown_ticks": 1
+        "bonus": {
+          "type": "pull",
+          "distance": 0,
+          "ticks": 1
         }
       }
     },
