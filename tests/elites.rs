@@ -317,6 +317,41 @@ fn an_elite_that_comes_after_the_call_is_called_at_once() {
     assert!(x < SIDE.0, "it follows the main character at once: {x}");
 }
 
+#[test]
+fn the_trial_run_meets_elites_so_the_corpus_covers_them() {
+    // The trial corpus run: an elite fires within its range, one is killed, and the boss
+    // calls the one left. A change to elites then shows in the corpus hashes.
+    use stella_rain_core::run_replay::Command;
+    let mut e = Engine::start(&run::trial_setup()).unwrap();
+    let (mut fired_before_call, mut killed, mut called) = (false, false, 0);
+    for c in run::play_run(run::TRIAL_LENGTH) {
+        let ids: Vec<u32> = e
+            .snapshot()
+            .entities
+            .iter()
+            .filter(|v| v.elite)
+            .map(|v| v.id.0)
+            .collect();
+        match c {
+            Command::Step(input) => e.step(input),
+            Command::Choose(i) => e.choose(i).unwrap(),
+            Command::Spend(i) => e.spend(i).unwrap(),
+        }
+        for ev in e.events() {
+            match ev {
+                DomainEvent::RuleFired { agent, .. } if ids.contains(&agent.0) && called == 0 => {
+                    fired_before_call = true;
+                }
+                DomainEvent::Died { entity } if ids.contains(&entity.0) => killed = true,
+                DomainEvent::ElitesCalled { elites } => called = *elites,
+                _ => {}
+            }
+        }
+    }
+    assert!(fired_before_call && killed, "{fired_before_call} {killed}");
+    assert_eq!(called, 1);
+}
+
 // --- The validator -----------------------------------------------------------------------------
 
 fn issues(stage: &Stage) -> Vec<String> {
