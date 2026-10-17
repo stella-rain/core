@@ -215,6 +215,13 @@
       "description": "Where the main character is in its combos (ADR-070): what the frontend's combo trail draws,\nwith the next possible presses read from the weapon's tree.",
       "type": "object",
       "properties": {
+        "auto": {
+          "description": "The auto combo: the presses auto mode plays from the root (ADR-073).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Press"
+          }
+        },
         "buffered": {
           "description": "The press waiting for the next step.",
           "anyOf": [
@@ -682,6 +689,17 @@
         "radius": {
           "description": "The main character's hurt circle.",
           "$ref": "#/$defs/Fx"
+        },
+        "target": {
+          "description": "The enemy aim assist and auto mode would face, while either is on (ADR-072), so the\nfrontend can mark it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityId"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,

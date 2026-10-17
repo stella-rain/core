@@ -58,11 +58,11 @@ fn every_corpus_stage_keeps_its_hash() {
     for (bytes, expected) in [
         (
             &include_bytes!("corpus/v0/agents/stage.json")[..],
-            "284f4745f05ad5115463e4f404f683968fde671a5235ee9905c3158ea3e09139",
+            "3515eed28cae913d63a01f9b440f2a06a28ee3dcfcfae5367555c4dcfd37f0ad",
         ),
         (
             &include_bytes!("corpus/v0/boss/stage.json")[..],
-            "96b97cd380953f7f9e3ac7707b48e2a012163f72cdb57b4fedf6dcd70c8c70a5",
+            "6502caa1adc0d9fa37d0fbc2b0c1a5b244e83730cb920e2683bc34169042b7e0",
         ),
         (
             &include_bytes!("corpus/v0/bullets/stage.json")[..],
@@ -70,11 +70,11 @@ fn every_corpus_stage_keeps_its_hash() {
         ),
         (
             &include_bytes!("corpus/v0/fail/stage.json")[..],
-            "eb64183001705d029ee31578f6a341b86f7af5b16d70f155ad322d79cc3fe955",
+            "f42d2e14aed125bc90864b5506adef7022e6dccbddac8cba2909c5455c9fdc6d",
         ),
         (
             &include_bytes!("corpus/v0/timeout/stage.json")[..],
-            "743587186a8eb63fc9530e17891fff93985196a2819be42bc7c40ff8850c1107",
+            "262035cc9ad6f4b59208b09697b0ac7d02eba67361502c59a671d8fa110b7249",
         ),
     ] {
         assert_eq!(hash_of(bytes), expected);
