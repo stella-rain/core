@@ -3,10 +3,11 @@
 //!
 //! What a tick does, in this order:
 //! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
-//! 2. the main character turns to its stick, starts a ready evade on a press (cancelling its
-//!    combo step and breaking a charge), walks its combo: a buffered press takes the next step,
-//!    a charge rises or releases (ADR-070, ADR-076; see `player`), then it dashes or moves
-//!    (speed cap, slowing, playfield);
+//! 2. the main character turns to its stick and, while aim assist or auto mode is on, picks a
+//!    target (ADR-072, `select`); it starts a ready evade on a press (cancelling its combo
+//!    step and breaking a charge), walks its combo: a buffered press, or else auto mode's
+//!    (ADR-073), takes the next step, a charge rises or releases (ADR-070, ADR-076; see
+//!    `player`), then it dashes or moves (speed cap, slowing, playfield);
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
 //!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
 //!    a shot skill starts an attack task; then the enemies push apart, all at once (`push`,
@@ -27,8 +28,8 @@
 //! a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in step 8, answered between ticks (`stars`).
 //!
-//! Not yet in this version: summons by companions; the stage skill, aim assist and auto mode
-//! (ADR-072, ADR-073, ADR-075), whose inputs are recorded and do nothing yet.
+//! Not yet in this version: summons by companions; the stage skill (ADR-075), whose input is
+//! recorded and does nothing yet.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
 //! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, the stage's elite cap of
