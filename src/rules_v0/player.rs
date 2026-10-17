@@ -17,6 +17,7 @@ use crate::attack::AttackRef;
 use crate::engine::{ComboState, DashState, Dir, PlayerState, Pull, State};
 use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
+use crate::id::EntityId;
 use crate::input::{self, Input};
 use crate::presets;
 use crate::stage::Stage;
@@ -27,6 +28,7 @@ use super::PLAYER_SPEED;
 use super::attacks;
 use super::entity::{Who, speed_pct};
 use super::levels;
+use super::select;
 
 /// The stick's full deflection on each axis (ADR-071); −128 counts as −127.
 const STICK_MAX: i8 = 127;
@@ -80,6 +82,10 @@ pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Ve
     }
     // The validator lets only defined presets through.
     let main = presets::main_weapon(&stage.player.main);
+    s.player.target = match main {
+        Some(m) if input.assist || input.auto => select::assist_target(stage, s, m.assist_range.0),
+        _ => None,
+    };
     if pressed & input::EVADE != 0 && s.player.evade_ready() {
         let cooldown = levels::evade_cooldown(s, stage.player.evade.cooldown_ticks);
         start_evade(stage, &mut s.player, cooldown, events);
@@ -272,20 +278,27 @@ fn take_step(
     if step.charge.is_some() && held {
         s.player.combo.charge = Some(0);
     } else {
-        strike(stage, s, &step.attack, 0, events);
+        strike(stage, s, &step.attack, 0, input.assist, events);
     }
 }
 
 /// The current step's attack starts in the combo slot along the facing (ADR-069), at the
 /// stage's attack stat, faster by the attack speed, with `bonus_pct` and, for a combo part, the
-/// Sub weapon's pull.
+/// Sub weapon's pull. When it `aim`s and there is a target, the facing first turns to it
+/// (ADR-072).
 fn strike(
     stage: &Stage,
     s: &mut State,
     attack: &AttackRef,
     bonus_pct: u32,
+    aim: bool,
     events: &mut Vec<DomainEvent>,
 ) {
+    if aim {
+        if let Some(dir) = s.player.target.and_then(|t| toward(s, t)) {
+            s.player.facing = dir;
+        }
+    }
     let pull = if last_press_sub(&s.player.combo) {
         presets::sub_weapon(&stage.player.sub).map(|w| match w.bonus {
             SubBonus::Pull { distance, ticks } => Pull {
@@ -305,6 +318,18 @@ fn strike(
     let damage = levels::attack(s, stage.player.atk);
     s.player.combo.running =
         attacks::start_player(s, COMBO_SLOT, facing, attack, damage, strike, events);
+}
+
+/// The direction from the main character to the entity `target`, if it is there and not on
+/// the main character's centre.
+fn toward(s: &State, target: EntityId) -> Option<Dir> {
+    let to = s.at(s.find(target)?);
+    let from = s.player.at;
+    let (dx, dy) = (
+        i64::from(to.x.0) - i64::from(from.x.0),
+        i64::from(to.y.0) - i64::from(from.y.0),
+    );
+    (dx != 0 || dy != 0).then(|| attacks::normalize(dx, dy))
 }
 
 /// The level `held` ticks of charge reach: 0 before the first of its levels.
@@ -371,19 +396,21 @@ fn charging(
         input.main
     };
     if !still {
-        release(stage, s, step, charge, held, true, events);
+        release(stage, s, step, charge, held, true, input.assist, events);
         return;
     }
     let held = held.saturating_add(1);
     if held >= charge.max_ticks {
-        release(stage, s, step, charge, held, false, events);
+        release(stage, s, step, charge, held, false, input.assist, events);
     } else {
         s.player.combo.charge = Some(held);
     }
 }
 
 /// The release: level 0 is the step's own attack; a later level attacks with its attack, or
-/// with its perfect attack and bonus when `judged` inside its window.
+/// with its perfect attack and bonus when `judged` inside its window. It faces the target of
+/// this tick when it `aim`s.
+#[allow(clippy::too_many_arguments)]
 fn release(
     stage: &Stage,
     s: &mut State,
@@ -391,21 +418,22 @@ fn release(
     charge: &Charge,
     held: u32,
     judged: bool,
+    aim: bool,
     events: &mut Vec<DomainEvent>,
 ) {
     s.player.combo.charge = None;
     let level = level_at(charge, held);
     if level == 0 {
-        strike(stage, s, &step.attack, 0, events);
+        strike(stage, s, &step.attack, 0, aim, events);
         return;
     }
     let l = &charge.levels[level - 1];
     let perfect = judged && in_perfect_window(charge, held);
     if perfect {
         let attack = l.perfect_attack.as_ref().unwrap_or(&l.attack);
-        strike(stage, s, attack, u32::from(l.perfect_pct), events);
+        strike(stage, s, attack, u32::from(l.perfect_pct), aim, events);
     } else {
-        strike(stage, s, &l.attack, 0, events);
+        strike(stage, s, &l.attack, 0, aim, events);
     }
     events.push(DomainEvent::ChargeReleased {
         level: u8::try_from(level).unwrap_or(u8::MAX),

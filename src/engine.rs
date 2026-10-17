@@ -390,7 +390,7 @@ impl Engine {
                         perfect,
                     }
                 }),
-                target: None,
+                target: s.player.target,
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -563,6 +563,8 @@ pub(crate) struct PlayerState {
     /// The last non-zero movement direction (ADR-069): where a combo step attacks and where an
     /// evade without movement dashes.
     pub facing: Dir,
+    /// The enemy aim assist and auto mode face, picked each tick while either is on (ADR-072).
+    pub target: Option<EntityId>,
     /// Ticks until the evade is ready again, counted from its press.
     pub evade_cooldown: u32,
     /// The buttons held on the last tick (`input::held_buttons`), so that only a button held now

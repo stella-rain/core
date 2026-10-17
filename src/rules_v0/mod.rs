@@ -198,6 +198,7 @@ pub(crate) fn initial_state(
             invulnerable: 0,
             // Up the map on every map, landscape ones included; a stage cannot set it yet.
             facing: Dir::UP,
+            target: None,
             evade_cooldown: 0,
             held: 0,
             combo: ComboState::default(),
@@ -748,6 +749,13 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_u32(p.invulnerable);
     h.write_i32(p.facing.x);
     h.write_i32(p.facing.y);
+    match p.target {
+        Some(id) => {
+            h.write_bool(true);
+            h.write_u32(id.0);
+        }
+        None => h.write_bool(false),
+    }
     h.write_u32(p.evade_cooldown);
     h.write_u32(u32::from(p.held));
     let c = &p.combo;

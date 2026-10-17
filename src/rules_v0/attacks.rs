@@ -576,7 +576,7 @@ fn rounds(v: i32) -> u32 {
 // --- Directions ------------------------------------------------------------------------------
 
 /// The unit direction of the vector `(x, y)`; straight down if it has no length.
-fn normalize(x: i64, y: i64) -> Dir {
+pub(super) fn normalize(x: i64, y: i64) -> Dir {
     let len = i64::try_from((x * x + y * y).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
     if len == 0 {
         return Dir::DOWN;
