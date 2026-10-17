@@ -1,10 +1,10 @@
 //! A run of the trial mode (ADR-066), shared by the run replay, recording and corpus tests.
-
 use stella_rain_core::engine::{Engine, Outcome};
+use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::RunSetup;
-use stella_rain_core::snapshot::OfferOption;
+use stella_rain_core::snapshot::{EntityKind, OfferOption};
 
 /// The trial mode's length.
 pub const TRIAL_LENGTH: u32 = 5400;
@@ -17,8 +17,8 @@ pub fn trial_setup() -> RunSetup {
         schema_version: 0,
         sim_version: 0,
         mode: "trial".into(),
-        main: "needle".into(),
-        sub: "blaster".into(),
+        main: "blade".into(),
+        sub: "maul".into(),
         main_expertise: 3,
         sub_expertise: 0,
         seed: 20_261_010,
@@ -27,15 +27,18 @@ pub fn trial_setup() -> RunSetup {
     }
 }
 
-/// Side to side, evading, charging and pressing the Sub skill: with `trial_setup` the first
-/// level-up comes near tick 1,000 and the main character falls a few hundred ticks later.
+/// Side to side, and the `blade`'s combos in a 60-tick cycle: `main` on its ticks 0, 8 and 16
+/// (slash, slash, thrust), the thrust held to tick 40 in every other cycle (a charge released at
+/// level 1, inside its perfect window), and `sub` on 44 and 52 (a thrust and a slash, with the
+/// `maul`'s pull).
 pub fn run_script(tick: u32) -> Input {
+    let c = tick % 60;
+    let charging = (tick / 60) % 2 == 1 && (16..40).contains(&c);
     Input {
         move_x: if (tick / 40) % 2 == 0 { 127 } else { -127 },
         move_y: 0,
-        evade: tick % 50 == 25,
-        main: (tick / 45) % 3 == 1,
-        sub: tick % 9 == 0,
+        main: matches!(c, 0 | 8 | 16) || charging,
+        sub: c == 44 || c == 52,
         ..Input::default()
     }
 }
@@ -44,36 +47,109 @@ fn points(engine: &Engine) -> u32 {
     engine.snapshot().progress.map_or(0, |p| p.points)
 }
 
-/// The tick from which `run_input` walks to the stars: after the first point, so the run up to
-/// it is `run_script`'s alone.
-pub const STEER_FROM: u32 = 1000;
+/// The tick from which `run_input` walks to the falling stars and goes for the weaker elite.
+pub const STEER_FROM: u32 = 800;
 
-/// `run_script`, and from `STEER_FROM` on a walk to the nearest falling star while there is one.
+/// The tick from which `run_input` stops getting out of the way of bullets, so that the run
+/// ends before the trial does.
+pub const BRAVE_FROM: u32 = 2400;
+
+/// How near `run_input` walks to the enemy it fights: 32 pixels, inside the `blade`'s reach.
+const NEAR: i64 = 8192;
+
+/// `run_input` steps out of the way of a hostile bullet that would come within `HIT` in the
+/// next `SEE` ticks (`LATE` while it goes for an elite), and evades it when it is `DODGE`
+/// ticks away.
+const SEE: i32 = 30;
+const LATE: i32 = 12;
+const DODGE: i32 = 3;
+const HIT: i64 = 3072;
+
+/// `run_script`'s buttons, walking to within `NEAR` of an enemy (so that the facing, the last
+/// movement, points at it) and standing there: the nearest one that is not an elite, and from
+/// `STEER_FROM` the elite with the fewest hit points first; from `STEER_FROM` a falling star
+/// comes before any enemy. Until `BRAVE_FROM` it gets out of the way of the hostile bullets
+/// about to hit: a step across their path, which overrides the rest (only `LATE` while it goes
+/// for an elite), and an evade at the last moment.
 pub fn run_input(engine: &Engine, tick: u32) -> Input {
     let mut input = run_script(tick);
-    if tick < STEER_FROM {
-        return input;
-    }
     let s = engine.snapshot();
     let me = s.player.at;
-    let d2 = |x: i32, y: i32| i64::from(x) * i64::from(x) + i64::from(y) * i64::from(y);
+    let d2 = |at: Point| {
+        let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
+        x * x + y * y
+    };
     let toward = |d: i32| match d {
         d if d > 256 => 127,
         d if d < -256 => -127,
         _ => 0,
     };
-    if let Some(star) = s
+    let hunting = tick >= STEER_FROM;
+    let star = s
         .stars
         .iter()
-        .min_by_key(|st| d2(st.at.x.0 - me.x.0, st.at.y.0 - me.y.0))
-    {
-        input.move_x = toward(star.at.x.0 - me.x.0);
-        input.move_y = toward(star.at.y.0 - me.y.0);
+        .map(|st| st.at)
+        .filter(|_| hunting)
+        .min_by_key(|at| d2(*at));
+    let enemy = s
+        .entities
+        .iter()
+        .filter(|v| v.kind == EntityKind::Enemy)
+        .min_by_key(|v| {
+            if hunting {
+                (!v.elite, if v.elite { i64::from(v.hp) } else { d2(v.at) })
+            } else {
+                (v.elite, d2(v.at))
+            }
+        });
+    let at_elite = enemy.is_some_and(|v| v.elite) && star.is_none();
+    let enemy = enemy.map(|v| v.at);
+    if let Some(at) = star {
+        input.move_x = toward(at.x.0 - me.x.0);
+        input.move_y = toward(at.y.0 - me.y.0);
+    } else if let Some(at) = enemy {
+        let walk = i8::from(d2(at) > NEAR * NEAR);
+        input.move_x = walk * toward(at.x.0 - me.x.0);
+        input.move_y = walk * toward(at.y.0 - me.y.0);
+    }
+    if tick >= BRAVE_FROM {
+        return input;
+    }
+    // The first hostile bullet that would pass within `HIT` in the next `SEE` ticks.
+    let threat = s
+        .bullets
+        .iter()
+        .filter(|b| !b.friendly)
+        .filter_map(|b| {
+            let k = (1..=SEE).find(|&k| {
+                d2(Point {
+                    x: Fx(b.at.x.0 + b.vx.0 * k),
+                    y: Fx(b.at.y.0 + b.vy.0 * k),
+                }) < HIT * HIT
+            })?;
+            Some((k, b))
+        })
+        .min_by_key(|(k, _)| *k);
+    if let Some((k, b)) = threat {
+        // Across its path, to the side the main character is already on.
+        let (vx, vy) = (i64::from(b.vx.0), i64::from(b.vy.0));
+        let (rx, ry) = (i64::from(me.x.0 - b.at.x.0), i64::from(me.y.0 - b.at.y.0));
+        let side = if rx * vy - ry * vx >= 0 { 1 } else { -1 };
+        let across = |d: i64| match d.signum() * side {
+            1 => 127,
+            -1 => -127,
+            _ => 0,
+        };
+        if !at_elite || k <= LATE {
+            input.move_x = across(vy);
+            input.move_y = across(-vx);
+        }
+        input.evade |= k <= DODGE;
     }
     input
 }
 
-/// Answers the open offer, the `k`-th of the run, from 0, so that a run uses every kind of
+// Answers the open offer, the `k`-th of the run, from 0, so that a run uses every kind of
 /// option: the first with a reroll of candidate 0 and a banish of candidate 1, when they are
 /// offered, then a take of candidate 0; the second with a skip; every later one with a take of
 /// candidate 0.
@@ -127,15 +203,17 @@ pub fn play_run(ticks: u32) -> Vec<Command> {
     out
 }
 
-/// The tick at whose end the run's first point comes.
+/// The tick at whose end the run's first point comes: the one `play_run` spends it after.
+/// Offers may open before it.
 pub fn first_point_tick() -> u32 {
-    let mut engine = Engine::start(&trial_setup()).unwrap();
-    for t in 0..STEER_FROM {
-        engine.step(run_script(t));
-        assert!(!engine.offer_open(), "an offer before the first point");
-        if points(&engine) > 0 {
-            return engine.tick();
-        }
-    }
-    panic!("the script gains no point before tick {STEER_FROM}");
+    let commands = play_run(STEER_FROM);
+    let at = commands
+        .iter()
+        .position(|c| matches!(c, Command::Spend(_)))
+        .unwrap_or_else(|| panic!("the script gains no point before tick {STEER_FROM}"));
+    let steps = commands[..at]
+        .iter()
+        .filter(|c| matches!(c, Command::Step(_)))
+        .count();
+    u32::try_from(steps).unwrap()
 }

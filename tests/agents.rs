@@ -736,7 +736,7 @@ fn atk_up_raises_the_damage_of_shots_fired_after_it() {
         vec![companion(50, hold(0, 0), rules)],
     );
     let mut e = engine(&stage);
-    let events = play(&mut e, 90, |_| idle());
+    let events = play(&mut e, 90, |t| firing(idle(), t - 1));
     let damages = hit_damages(&events, 1);
     assert_eq!(&damages[..4], [10, 15, 15, 15], "{damages:?}");
 }
@@ -779,7 +779,7 @@ fn vulnerable_raises_the_damage_a_target_takes() {
             vec![companion(50, hold(0, 0), rules)],
         );
         let mut e = engine(&stage);
-        hit_damages(&play(&mut e, 120, |_| idle()), 1)
+        hit_damages(&play(&mut e, 120, |t| firing(idle(), t - 1)), 1)
     };
     let plain = hits(json!([]));
     let vulnerable = hits(
@@ -947,7 +947,7 @@ fn damage_dealt_raises_aggro_and_enemies_turn_on_the_ally_with_the_most() {
         vec![companion(50, hold(60_000, 100_000), json!([]))],
     );
     let mut e = engine(&stage);
-    let events = play(&mut e, 100, |_| idle());
+    let events = play(&mut e, 100, |t| firing(idle(), t - 1));
     // Entities: boss 1, K 2, target 3, shooter 4.
     let aimed_at: Vec<(u32, Option<EntityId>)> = rule_firings_of(&events, 4)
         .iter()
@@ -1149,9 +1149,12 @@ fn the_finished_run_still_ends_normally() {
             json!([]),
         )],
     ));
-    play(&mut e, 300, |t| Input {
-        evade: t % 7 == 0,
-        ..idle()
+    play(&mut e, 300, |t| {
+        let evading = Input {
+            evade: t % 7 == 0,
+            ..idle()
+        };
+        firing(evading, t - 1)
     });
     assert_eq!(e.outcome(), Outcome::Cleared);
 }

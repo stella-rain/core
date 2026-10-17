@@ -217,10 +217,10 @@ pub struct Player {
     /// run's setup when the setup exists (ADR-049).
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub defence: u32,
-    /// The Main weapon, which attacks on its own and brings the charged skill (ADR-050,
-    /// core#83). It moves to the run's setup when the setup exists (ADR-049, ADR-051).
+    /// The Main weapon, whose combos the main character makes by hand (ADR-070). It moves to
+    /// the run's setup when the setup exists (ADR-049, ADR-051).
     pub main: WeaponRef<MainWeapon>,
-    /// The Sub weapon, which attacks on its own beside the Main one and brings the Sub skill.
+    /// The Sub weapon, whose bonus joins every combo step reached by `sub` (ADR-070).
     pub sub: WeaponRef<SubWeapon>,
     /// Skill 1 (ADR-050). It moves to the run's setup with the character when the setup exists
     /// (ADR-049).

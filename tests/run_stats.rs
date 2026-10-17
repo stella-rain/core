@@ -68,7 +68,7 @@ fn the_bundled_stats_are_the_five_of_version_0() {
         [
             ("max_hp", StatEffect::MaxHp, 1, 5),
             ("attack", StatEffect::AttackPct, 10, 5),
-            ("haste", StatEffect::HastePct, 8, 5),
+            ("attack_speed", StatEffect::AttackSpeedPct, 8, 5),
             ("evade", StatEffect::EvadePct, 10, 5),
             ("speed", StatEffect::SpeedPct, 8, 5),
         ]

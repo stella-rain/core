@@ -662,7 +662,7 @@ fn a_child_goes_on_after_its_owner_is_gone_and_a_parent_does_not() {
         let mut fired = 0;
         let mut last = 0;
         for _ in 0..120 {
-            e.step(idle());
+            e.step(firing(idle(), e.tick()));
             let now = e.snapshot().bullets.iter().filter(|b| !b.friendly).count();
             if now > last {
                 fired += now - last;
@@ -927,7 +927,7 @@ fn a_bullet_shows_the_movement_it_makes_each_tick() {
     let mut before = e.snapshot().bullets;
     let (mut friendly, mut hostile) = (0, 0);
     for _ in 0..30 {
-        e.step(idle());
+        e.step(firing(idle(), e.tick()));
         let after = e.snapshot().bullets;
         assert!(after.len() >= before.len(), "no bullet is gone");
         for (old, new) in before.iter().zip(&after) {

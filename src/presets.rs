@@ -35,8 +35,6 @@ const DEFINITIONS: &[(&str, &str)] = &[
             {"type":"spread","count":7,"angle":7680,"body":[
             {"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
-    // Forty bullets, one every 3 ticks, each turned 6 degrees from the one before; argument 0
-    // is their speed.
     // A blow all round: a 40-pixel circle after a slow wind-up, rooted to half speed.
     (
         "slam",
@@ -53,6 +51,8 @@ const DEFINITIONS: &[(&str, &str)] = &[
              "hit_box":{"type":"arc","offset":{"forward":2048},"radius":8192,"half_angle":15360}},
             {"kind":"recovery","ticks":10}]"#,
     ),
+    // Forty bullets, one every 3 ticks, each turned 6 degrees from the one before; argument 0
+    // is their speed.
     (
         "spiral",
         r#"[{"kind":"active","ticks":1,"spawn":[

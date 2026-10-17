@@ -292,7 +292,9 @@ fn a_recorded_clear_verifies() {
 #[test]
 fn recording_stops_on_the_tick_the_run_ends() {
     let stage = stage_bytes();
-    let replay = record(&stage, &vec![idle(); 400]).unwrap();
+    let mut inputs = clearing_inputs();
+    inputs.resize(400, idle());
+    let replay = record(&stage, &inputs).unwrap();
     assert_eq!(replay.ticks, CLEAR_TICK);
     assert_eq!(
         replay.unpack_inputs(600).unwrap().len(),
@@ -380,9 +382,9 @@ fn a_replay_only_verifies_against_its_own_stage() {
             "{bad:?}"
         );
     }
-    // Different inputs reach a different final hash.
+    // Different inputs reach a different final hash: a step up the field still clears.
     let mut inputs = clearing_inputs();
-    inputs[3].move_x = 50;
+    inputs[20].move_y = -50;
     let swapped = Replay {
         inputs: pack_inputs(&inputs),
         ..replay
@@ -421,7 +423,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
         })
         .collect();
     assert!(verify_against(&stage, &bytes, &hashes).is_ok());
-    for bad_index in [0usize, 30, 56] {
+    for bad_index in [0usize, 17, CLEAR_TICK as usize - 1] {
         let mut wrong = hashes.clone();
         wrong[bad_index] ^= 1;
         assert_eq!(
@@ -450,24 +452,24 @@ fn the_encoding_is_pinned() {
         String::from_utf8(bytes.clone()).unwrap(),
         concat!(
             r#"{"schema_version":0,"sim_version":0,"seed":7,"#,
-            r#""stage_sha256":"5f1e45e8741de95bd8bca63dcfa449381e720e2229fc33d83a3b0ef8de9576e0","#,
-            r#""ticks":57,"final_hash":"fb88cc279d1db664","#,
-            r#""inputs":"AQAA/wkABwAKAAAAAQEAACQAAAA="}"#,
+            r#""stage_sha256":"2c6d26f2bd4f0620c032def00cba3a9401f8b7219ba8766a98543e4947baad3e","#,
+            r#""ticks":35,"final_hash":"d90043049edbdbfd","#,
+            r#""inputs":"AQEAAAIAAAACAgAAGQAAAAICAAADAAAA"}"#,
             "\n"
         )
     );
-    // The packed inputs, decoded by hand: one tick with the stick at (0, −1) (01 00 00 ff),
-    // nine at (7, 0) (09 00 07 00), ten idle (0a 00 00 00), one evade (01 01 00 00), then 36
-    // idle (24 00 00 00).
+    // The packed inputs, decoded by hand: one tick of evade (01 01 00 00), two idle
+    // (02 00 00 00), two of `main` (02 02 00 00), 25 idle (19 00 00 00), two of `main`, then
+    // three idle (03 00 00 00).
     assert_eq!(
         base64::decode(&replay.inputs).unwrap(),
         [
-            1, 0, 0, 0xff, 9, 0, 7, 0, 10, 0, 0, 0, 1, 1, 0, 0, 36, 0, 0, 0
+            1, 1, 0, 0, 2, 0, 0, 0, 2, 2, 0, 0, 25, 0, 0, 0, 2, 2, 0, 0, 3, 0, 0, 0
         ]
     );
     assert_eq!(
         to_hex(&content_hash(&stage, &bytes)),
-        "51c9281ea9e003e8fac6831be022fea007fc0bb73bfcbc248bd1e15d183cb263"
+        "700a81a6f1bbee39cbe601a59eafb9b58ce70691709bcb340fbf15aca1471140"
     );
 }
 

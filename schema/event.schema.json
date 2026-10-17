@@ -145,7 +145,7 @@
       ]
     },
     {
-      "description": "The main character started an evade (ADR-050).",
+      "description": "The main character started an evade (ADR-074).",
       "type": "object",
       "properties": {
         "type": {
@@ -159,7 +159,55 @@
       ]
     },
     {
-      "description": "The charged Main skill was released at `level` (from 1), `perfect` inside the level's\nperfect window (ADR-050, core#83).",
+      "description": "A press took a combo step (ADR-070): the step `depth` presses from the root.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "depth": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "press": {
+              "$ref": "#/$defs/Press"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "press",
+            "depth"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ComboStep"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The combo went back to the root: its window passed, an evade, a broken charge, or a press\nwith no next step.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "ComboReset"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "A charged step was released at `level` (from 1; a release before level 1 is a plain step\nand says nothing), `perfect` inside the level's perfect window (ADR-070).",
       "type": "object",
       "properties": {
         "data": {
@@ -717,6 +765,14 @@
           "type": "string",
           "const": "boss"
         }
+      ]
+    },
+    "Press": {
+      "description": "Which button's press took a combo step (ADR-070): A or B.",
+      "type": "string",
+      "enum": [
+        "main",
+        "sub"
       ]
     },
     "Rarity": {

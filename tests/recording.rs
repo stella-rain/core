@@ -34,18 +34,25 @@ fn every_tick_has_an_input_its_events_and_a_hash() {
             .map(|l| l["type"].as_str().unwrap())
             .collect()
     };
-    assert_eq!(kinds(1), ["Input", "StateHash"]);
-    // The last tick: both bullets of the shot land, the boss dies, the stage is cleared.
+    assert_eq!(kinds(1), ["Input", "Evaded", "StateHash"]);
+    // The last tick: the slash lands, the boss dies, the stage is cleared.
     assert_eq!(
         kinds(u64::from(CLEAR_TICK)),
-        ["Input", "Hit", "Hit", "Died", "StageCleared", "StateHash"]
+        ["Input", "Hit", "Died", "StageCleared", "StateHash"]
     );
     let directions: Vec<(&str, &str)> = lines
         .iter()
         .filter(|l| l["tick"] == 1)
         .map(|l| (l["type"].as_str().unwrap(), l["dir"].as_str().unwrap()))
         .collect();
-    assert_eq!(directions, [("Input", "fe>be"), ("StateHash", "be>fe")]);
+    assert_eq!(
+        directions,
+        [
+            ("Input", "fe>be"),
+            ("Evaded", "be>fe"),
+            ("StateHash", "be>fe")
+        ]
+    );
     // The lines of the doc example's shape: tick first is not required, but every field is there.
     assert!(
         lines
@@ -177,7 +184,7 @@ fn commands_go_to_a_recording_and_back_unchanged() {
 #[test]
 fn a_choose_line_reads_back_as_a_choice() {
     let text = concat!(
-        r#"{"tick":1,"dir":"fe>be","type":"Input","data":{"move_x":0,"move_y":0,"evade":false,"charge":false,"sub":false}}"#,
+        r#"{"tick":1,"dir":"fe>be","type":"Input","data":{"move_x":0,"move_y":0,"main":false,"sub":false,"evade":false,"skill":false,"assist":false,"auto":false}}"#,
         "\n",
         r#"{"tick":1,"dir":"fe>be","type":"Choose","data":{"index":2}}"#,
         "\n"

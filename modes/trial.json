@@ -20,12 +20,12 @@
     "atk": 10,
     "main": {
       "preset": {
-        "id": "blaster"
+        "id": "blade"
       }
     },
     "sub": {
       "preset": {
-        "id": "blaster"
+        "id": "maul"
       }
     },
     "evade": {

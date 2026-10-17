@@ -368,12 +368,17 @@ fn a_run_case_whose_spend_changed_fails() {
     let path = case.join("run.replay");
     let mut replay = RunReplay::from_bytes(&fs::read(&path).unwrap()).unwrap();
     let mut commands = replay.unpack_commands().unwrap();
-    commands[0].index = 0;
+    let spend = commands
+        .iter()
+        .position(|c| c.kind == CommandKind::Spend)
+        .expect("the run spends a point");
+    assert_ne!(commands[spend].index, 0);
+    commands[spend].index = 0;
     replay.commands = run_replay::pack_commands(&commands);
     fs::write(&path, replay.to_bytes()).unwrap();
     // The tick after the spend differs from the one recorded.
     let message = check_run_case(&case, &diff).unwrap_err();
-    let after_point = commands[0].tick + 1;
+    let after_point = commands[spend].tick + 1;
     assert!(
         message.contains(&format!("tick {after_point}")),
         "{message}"
@@ -404,8 +409,21 @@ fn bytes(stage: &impl serde::Serialize) -> Vec<u8> {
     bytes
 }
 
+/// Standing still for `ticks` ticks, the Main weapon firing every 6.
 fn firing_for(ticks: u32) -> Vec<Input> {
-    (0..ticks).map(|_| common::idle()).collect()
+    (0..ticks).map(|t| firing(idle(), t)).collect()
+}
+
+/// The `blade` played by hand in a 60-tick cycle from tick `t`: `main` on 0, 8 and 16 (slash,
+/// slash, thrust) and `sub` on 40 and 48 (a thrust and a slash, which the Sub weapon's pull
+/// joins).
+fn combos(t: u32, input: Input) -> Input {
+    let c = t % 60;
+    Input {
+        main: matches!(c, 0 | 8 | 16),
+        sub: c == 40 || c == 48,
+        ..input
+    }
 }
 
 /// Agents of every movement type: a companion that orbits the main character and buffs it, a
@@ -440,25 +458,17 @@ fn agents() -> Definition {
         json!({ "type": "straight", "vx": 0, "vy": 96 }),
         json!([shoot("nearest_ally", 5)]),
     );
-    // The Sub weapon is the `needle` preset's: five bullets in a fan along the facing.
-    let stage = armed(
-        stage_full(
-            600,
-            Some(far_boss()),
-            vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
-            vec![k, healer],
-        ),
-        weapon(
-            json!({ "preset": { "id": "aimed_single", "args": [2048] } }),
-            json!("facing"),
-            6,
-        ),
-        json!({ "preset": { "id": "needle" } }),
+    // The test stage's Main weapon: one bullet along the facing, fired every 6 ticks.
+    let stage = stage_full(
+        600,
+        Some(far_boss()),
+        vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
+        vec![k, healer],
     );
     // Standing still for 40 ticks, shooting up at the enemy, then walking right, which turns
     // the Main weapon's shots away from it.
     let inputs = (0..80)
-        .map(|t| if t < 40 { idle() } else { moving(64, 0) })
+        .map(|t| firing(if t < 40 { idle() } else { moving(64, 0) }, t))
         .collect();
     ("agents", bytes(&stage), inputs)
 }
@@ -481,23 +491,24 @@ fn bullets() -> Definition {
             { "type": "wait", "ticks": 90 },
             { "type": "loop" } ] }]
     });
-    // Both weapons are the `blaster` preset's: the twin shot along the facing, and one bullet
-    // at the nearest enemy, the boss; its charge and its Sub skill are used too.
-    let blaster = json!({ "preset": { "id": "blaster" } });
-    let stage = armed_full(
+    // The weapons are the `blade` and the `maul`: the blade's combos by hand, with the maul's
+    // pull on the steps reached by `sub`. The boss stands far out of reach.
+    let stage = armed(
         stage_full(600, Some(boss), vec![], vec![]),
-        blaster.clone(),
-        blaster,
+        json!({ "preset": { "id": "blade" } }),
+        json!({ "preset": { "id": "maul" } }),
     );
-    // Half speed from side to side, turning to face up the field once a second so that the Main
-    // weapon does not only shoot sideways, and evading twice.
-    // Charging from tick 20 for 34 ticks (a perfect release at level 2), from tick 180 until
-    // the evade on tick 230 breaks it, and the Sub skill pressed on ticks 40 and 260.
+    // Half speed from side to side, turning to face up the field once a second, and evading
+    // twice. `main` on ticks 0 and 8 (slash, slash), then on 16 held to 68 (the thrust charged
+    // to level 2, 52 ticks, released inside its perfect window: a slam); `sub` on 100 and 108
+    // (thrust, slash); `main` on 133, during the evade of tick 130 (the dash-strike); `main` on
+    // 170 and 178, then on 186 held until the evade of tick 230 breaks the charge; and the
+    // switches and the stage skill pressed now and then, which do nothing yet.
     let inputs = (0..300)
         .map(|t| {
             let input = match t {
                 _ if t % 60 == 0 => moving(0, -1),
-                100 | 230 => Input {
+                130 | 230 => Input {
                     evade: true,
                     ..moving(50, 0)
                 },
@@ -505,8 +516,13 @@ fn bullets() -> Definition {
                 _ => moving(-50, 0),
             };
             Input {
-                main: (20..54).contains(&t) || (180..240).contains(&t),
-                sub: t == 40 || t == 260,
+                main: matches!(t, 0 | 8 | 133 | 170 | 178)
+                    || (16..68).contains(&t)
+                    || (186..240).contains(&t),
+                sub: t == 100 || t == 108,
+                skill: t % 50 == 7,
+                assist: (t / 70) % 2 == 1,
+                auto: (t / 90) % 2 == 1,
                 ..input
             }
         })
@@ -544,17 +560,8 @@ fn boss() -> Definition {
             }
         ]
     });
-    // The Sub weapon aims at the horn every 12 ticks: a bullet 5 degrees off the line to it,
-    // then one aimed again 3 ticks later. Once the horn breaks it has nothing to aim at and
-    // waits.
-    let at_horn = json!({ "inline": spawned(json!([
-        { "type": "fire", "speed": 2048, "direction": { "type": "relative", "angle": 1280 } },
-        { "type": "wait", "ticks": 3 },
-        { "type": "fire", "speed": 2048, "direction": { "type": "aimed", "offset": 0 } }
-    ])) });
-    let mut stage = stage_full(600, Some(boss), vec![], vec![]);
-    stage.player.sub =
-        serde_json::from_value(sub_ref(weapon(at_horn, json!({ "part": "horn" }), 12))).unwrap();
+    // The Main weapon fires up the field every 6 ticks, through the horn, then at the boss.
+    let stage = stage_full(600, Some(boss), vec![], vec![]);
     ("boss", bytes(&stage), firing_for(600))
 }
 
@@ -586,7 +593,8 @@ fn fail() -> Definition {
 /// Melee (ADR-055): three enemies trail the main character and swing at it, a wind-up, an arc
 /// and a recovery, rooted while they wind up and swing; a companion orbiting it cleaves them
 /// with a wide arc that hits again every 2 ticks, through their defence. The main character
-/// stands still, then walks from side to side. Nobody fires a bullet.
+/// stands still, then walks from side to side, playing the `blade`'s combos, whose steps
+/// reached by `sub` pull what they hit (the `maul`'s pull). Nobody fires a bullet.
 fn melee() -> Definition {
     let phase = |kind: &str, ticks: u32, hit_box: Value, damage: u32, move_pct: u8| {
         json!({ "kind": kind, "ticks": ticks, "hit_box": hit_box, "damage": damage,
@@ -633,13 +641,19 @@ fn melee() -> Definition {
         .into_iter()
         .map(|(at, x)| wave(at, 1, 0, swordsman.clone(), x, 128_000))
         .collect();
-    // The weapons do nothing here, so that no bullet flies.
-    let stage = quiet(stage_full(600, Some(far_boss()), waves, vec![guard]));
+    let stage = armed(
+        stage_full(600, Some(far_boss()), waves, vec![guard]),
+        json!({ "preset": { "id": "blade" } }),
+        json!({ "preset": { "id": "maul" } }),
+    );
     let inputs = (0..300)
-        .map(|t| match t {
-            0..150 => idle(),
-            _ if (t / 40) % 2 == 0 => moving(33, 0),
-            _ => moving(-33, 0),
+        .map(|t| {
+            let input = match t {
+                0..150 => idle(),
+                _ if (t / 40) % 2 == 0 => moving(33, 0),
+                _ => moving(-33, 0),
+            };
+            combos(t, input)
         })
         .collect();
     ("melee", bytes(&stage), inputs)
@@ -668,11 +682,14 @@ fn landscape() -> Definition {
     stage["map"] = json!({ "width": width, "height": height,
                            "start": { "x": width - 30_720, "y": 20_000 } });
     let inputs = (0..300)
-        .map(|t| match t {
-            0..60 => moving(127, 0),
-            60..100 => moving(0, -127),
-            100..220 => moving(-127, 0),
-            _ => moving(-64, 64),
+        .map(|t| {
+            let input = match t {
+                0..60 => moving(127, 0),
+                60..100 => moving(0, -127),
+                100..220 => moving(-127, 0),
+                _ => moving(-64, 64),
+            };
+            firing(input, t)
         })
         .collect();
     ("landscape", bytes(&stage), inputs)

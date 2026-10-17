@@ -82,15 +82,14 @@ pub fn stage() -> Stage {
             "type": "fire", "speed": 512, "direction": { "type": "relative", "angle": 0 }
         }]
     }]))});
-    stage.player.main =
-        serde_json::from_value(common::main_ref(common::weapon(fan, json!("facing"), 6)))
-            .expect("the fan parses");
+    stage.player.main = serde_json::from_value(common::main_ref(fan)).expect("the fan parses");
     stage
 }
 
-/// The main character stays where it starts, its shot attacking on its own (ADR-050).
-pub fn input(_tick: u32) -> Input {
-    common::idle()
+/// The input of tick `tick` (from 1): the main character stays where it starts, firing its
+/// shot every 6 ticks from the first.
+pub fn input(tick: u32) -> Input {
+    common::firing(common::idle(), tick - 1)
 }
 
 /// An engine `WARMUP_TICKS` ticks into the run: the next `step` is the measured tick.

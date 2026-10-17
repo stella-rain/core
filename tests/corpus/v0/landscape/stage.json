@@ -40,62 +40,27 @@
     "hp": 99,
     "main": {
       "inline": {
-        "auto": {
-          "attack": {
-            "preset": {
-              "args": [
-                2048
-              ],
-              "id": "aimed_single"
-            }
-          },
-          "cooldown_ticks": 6,
-          "targeting": "facing"
-        },
-        "charge": {
-          "cooldown_ticks": 0,
-          "levels": [
-            {
-              "at_ticks": 0,
-              "attack": {
-                "inline": [
-                  {
-                    "kind": "recovery",
-                    "ticks": 1
-                  }
-                ]
+        "combo": {
+          "main": {
+            "attack": {
+              "preset": {
+                "args": [
+                  2048
+                ],
+                "id": "aimed_single"
               }
             }
-          ],
-          "max_ticks": 600
-        }
+          }
+        },
+        "window_ticks": 0
       }
     },
     "sub": {
       "inline": {
-        "auto": {
-          "attack": {
-            "inline": [
-              {
-                "kind": "recovery",
-                "ticks": 1
-              }
-            ]
-          },
-          "cooldown_ticks": 1,
-          "targeting": "facing"
-        },
-        "skill": {
-          "attack": {
-            "inline": [
-              {
-                "kind": "recovery",
-                "ticks": 1
-              }
-            ]
-          },
-          "cooldown_ticks": 1,
-          "targeting": "facing"
+        "bonus": {
+          "distance": 0,
+          "ticks": 1,
+          "type": "pull"
         }
       }
     }
