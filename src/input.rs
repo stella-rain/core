@@ -24,9 +24,10 @@ pub struct Input {
     pub evade: bool,
     /// The stage skill button (Y) is held on this tick (ADR-075; it does nothing yet).
     pub skill: bool,
-    /// Aim assist is on for this tick, a switch (ADR-072; it does nothing yet).
+    /// Aim assist is on for this tick, a switch (ADR-072): a combo step faces the target.
     pub assist: bool,
-    /// Auto mode is on for this tick, a switch (ADR-073; it does nothing yet).
+    /// Auto mode is on for this tick, a switch (ADR-073): the simulation plays the auto combo
+    /// at the target. Its presses come from the state, never from this record.
     pub auto: bool,
 }
 

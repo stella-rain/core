@@ -54,8 +54,8 @@ pub(crate) use player::{charge_view, combo_view};
 mod select;
 
 use crate::engine::{
-    AgentKey, AgentSource, BossState, BulletState, ComboState, DashState, Dir, Load, MoveOrder,
-    Outcome, PartState, PlayerState, Progress, Pull, StarField, State,
+    AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
+    PartState, PlayerState, Progress, Pull, StarField, State,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -201,7 +201,7 @@ pub(crate) fn initial_state(
             target: None,
             evade_cooldown: 0,
             held: 0,
-            combo: ComboState::default(),
+            combo: player::initial_combo(stage),
             dash: None,
             aggro: 0,
             statuses: Vec::new(),
@@ -777,6 +777,9 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         }
         None => h.write_bool(false),
     }
+    h.write_bool(c.hand);
+    h.write_u32(c.auto_path);
+    h.write_u32(u32::from(c.auto_depth));
     match p.dash {
         Some(DashState { dir, done, left }) => {
             h.write_bool(true);

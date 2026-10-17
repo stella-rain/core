@@ -12,6 +12,14 @@
 //! with the perfect bonus inside a window; at `max_ticks` it releases by itself. Presses while
 //! charging are not buffered. An evade cancels the running step, breaks a charge and clears the
 //! buffer, and a press during its dash or `dash_strike_ticks` after it takes the dash branch.
+//!
+//! Aim assist (ADR-072): while `assist` or `auto` is on, each tick picks a target; with `assist`
+//! on, a step faces it as its attack starts. Auto mode (ADR-073): while `auto` is on, there is a
+//! target and no press by hand is in the combo, it presses for the player, the next press of
+//! the auto combo, taken as a buffered press would be; after the auto combo's last step, or
+//! anywhere else, it starts again from the root once the step has run out. Its presses never
+//! hold, never take the dash branch and always face the target. A combo with a press by hand
+//! becomes the auto combo when it resets, unless it began in the dash branch.
 
 use crate::attack::AttackRef;
 use crate::engine::{ComboState, DashState, Dir, PlayerState, Pull, State};
@@ -184,11 +192,17 @@ fn last_press_sub(c: &ComboState) -> bool {
     c.depth > 0 && c.path >> (c.depth - 1) & 1 == 1
 }
 
-/// Back to the root, reported if the combo was anywhere else.
+/// Back to the root, reported if the combo was anywhere else. A combo with a press by hand
+/// becomes the auto combo, unless it began in the dash branch (ADR-073).
 fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
     if c.depth > 0 {
         events.push(DomainEvent::ComboReset);
+        if c.hand && !c.dash {
+            c.auto_path = c.path;
+            c.auto_depth = c.depth;
+        }
     }
+    c.hand = false;
     c.path = 0;
     c.depth = 0;
     c.dash = false;
@@ -230,27 +244,82 @@ fn combo(
         reset(&mut s.player.combo, events);
     }
     let c = s.player.combo;
-    match c.buffered {
-        Some(sub) if busy => {
-            let next = step_at(main, &c).and_then(|st| st.next.get(sub)).is_some();
-            if next && attacks::in_end_recovery(s, me, COMBO_SLOT) {
-                attacks::end_run(s, me, COMBO_SLOT);
-                take_step(stage, s, main, sub, input, events);
-            }
+    let (sub, by_hand) = match (c.buffered, auto_press(&c, input, s.player.target.is_some())) {
+        (Some(sub), _) => (sub, true),
+        (None, Some(Auto::Next(sub))) => (sub, false),
+        (None, Some(Auto::Again)) if !busy => {
+            reset(&mut s.player.combo, events);
+            (c.auto_path & 1 == 1, false)
         }
-        Some(sub) => take_step(stage, s, main, sub, input, events),
-        None if !busy && c.depth > 0 => s.player.combo.window_left -= 1,
-        None => {}
+        _ => {
+            if !busy && c.depth > 0 {
+                s.player.combo.window_left -= 1;
+            }
+            return;
+        }
+    };
+    if !busy {
+        take_step(stage, s, main, sub, by_hand, input, events);
+        return;
+    }
+    let next = step_at(main, &c).and_then(|st| st.next.get(sub)).is_some();
+    if next && attacks::in_end_recovery(s, me, COMBO_SLOT) {
+        attacks::end_run(s, me, COMBO_SLOT);
+        take_step(stage, s, main, sub, by_hand, input, events);
     }
 }
 
-/// The buffered press `sub` takes its step: the next one from where the combo is, or else the
-/// first from the root, in the dash branch while a dash-strike may start and it has one.
+/// What auto mode presses this tick (ADR-073).
+enum Auto {
+    /// The next press of the auto combo, `true` for `sub`, taken as a buffered press would be.
+    Next(bool),
+    /// The auto combo again from the root, once the current step has run out.
+    Again,
+}
+
+/// Auto mode's press: none while `auto` is off, with no target, an empty auto combo or a press
+/// by hand in the combo; the next press while the combo is on the auto combo's path short of
+/// its end; otherwise the auto combo again from the root.
+fn auto_press(c: &ComboState, input: Input, target: bool) -> Option<Auto> {
+    if !input.auto || !target || c.hand || c.auto_depth == 0 {
+        return None;
+    }
+    // Both depths are at most the tree's depth (`MAX_COMBO_DEPTH`), well short of 32.
+    let mask = (1u32 << c.depth) - 1;
+    if !c.dash && c.depth < c.auto_depth && c.path & mask == c.auto_path & mask {
+        Some(Auto::Next(c.auto_path >> c.depth & 1 == 1))
+    } else {
+        Some(Auto::Again)
+    }
+}
+
+/// The combo a run starts with: at the root, with the Main weapon's A chain as the auto combo,
+/// `main` pressed from the root until a step has no next step for it (ADR-073).
+pub(super) fn initial_combo(stage: &Stage) -> ComboState {
+    let mut depth = 0u8;
+    if let Some(main) = presets::main_weapon(&stage.player.main) {
+        let mut step = main.combo.main.as_deref();
+        while let Some(st) = step {
+            depth = depth.saturating_add(1);
+            step = st.next.main.as_deref();
+        }
+    }
+    ComboState {
+        auto_depth: depth,
+        ..ComboState::default()
+    }
+}
+
+/// The press `sub`, buffered `by_hand` or auto mode's, takes its step: the next one from where
+/// the combo is, or else the first from the root, in the dash branch while a dash-strike may
+/// start and it has one (by hand only). Auto mode's step never charges and faces the target.
+#[allow(clippy::too_many_arguments)]
 fn take_step(
     stage: &Stage,
     s: &mut State,
     main: &MainWeapon,
     sub: bool,
+    by_hand: bool,
     input: Input,
     events: &mut Vec<DomainEvent>,
 ) {
@@ -259,11 +328,12 @@ fn take_step(
     let onward = step_at(main, c).is_some_and(|st| st.next.get(sub).is_some());
     if !onward {
         reset(c, events);
-        c.dash = c.dash_strike_left > 0 && main.dash.get(sub).is_some();
+        c.dash = by_hand && c.dash_strike_left > 0 && main.dash.get(sub).is_some();
         if !c.dash && main.combo.get(sub).is_none() {
             return;
         }
     }
+    c.hand |= by_hand;
     c.path |= u32::from(sub) << c.depth;
     c.depth += 1;
     c.window_left = 0;
@@ -274,11 +344,11 @@ fn take_step(
     let Some(step) = step_at(main, c) else {
         return;
     };
-    let held = if sub { input.sub } else { input.main };
+    let held = by_hand && if sub { input.sub } else { input.main };
     if step.charge.is_some() && held {
         s.player.combo.charge = Some(0);
     } else {
-        strike(stage, s, &step.attack, 0, input.assist, events);
+        strike(stage, s, &step.attack, 0, input.assist || !by_hand, events);
     }
 }
 
@@ -472,12 +542,20 @@ fn charge_move_pct(stage: &Stage, s: &State) -> i64 {
     current_charge(stage, s).map_or(100, |c| i64::from(c.move_pct))
 }
 
+/// The presses of `path` from the root, `depth` of them.
+fn presses_of(path: u32, depth: u8) -> Vec<Press> {
+    (0..depth).map(|i| press_of(path >> i & 1 == 1)).collect()
+}
+
 /// The combo's view for the snapshot: the presses from the root, whether it began in the dash
-/// branch, the buffered press and the window's ticks left.
-pub(crate) fn combo_view(s: &State) -> (Vec<Press>, bool, Option<Press>, u32) {
+/// branch, the buffered press, the window's ticks left and the auto combo.
+pub(crate) fn combo_view(s: &State) -> (Vec<Press>, bool, Option<Press>, u32, Vec<Press>) {
     let c = &s.player.combo;
-    let presses = (0..c.depth)
-        .map(|i| press_of(c.path >> i & 1 == 1))
-        .collect();
-    (presses, c.dash, c.buffered.map(press_of), c.window_left)
+    (
+        presses_of(c.path, c.depth),
+        c.dash,
+        c.buffered.map(press_of),
+        c.window_left,
+        presses_of(c.auto_path, c.auto_depth),
+    )
 }
