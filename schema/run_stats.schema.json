@@ -103,6 +103,11 @@
           "description": "`step` percent more movement speed.",
           "type": "string",
           "const": "speed_pct"
+        },
+        {
+          "description": "`step` percent more experience from every kill, rounded down (ADR-068: the build that\nunlocks rarer stars sooner).",
+          "type": "string",
+          "const": "xp_pct"
         }
       ]
     }

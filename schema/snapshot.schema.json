@@ -24,7 +24,7 @@
       "$ref": "#/$defs/PlayerView"
     },
     "progress": {
-      "description": "Experience, level, upgrades and the open offer; absent in a stage without levels.",
+      "description": "Experience, level, stat points and the open offer; absent in a stage without levels.",
       "anyOf": [
         {
           "$ref": "#/$defs/ProgressView"
@@ -33,6 +33,13 @@
           "type": "null"
         }
       ]
+    },
+    "stars": {
+      "description": "Falling stars on the map, in the order they dropped (ADR-066 §2).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StarView"
+      }
     },
     "tick": {
       "type": "integer",
@@ -157,6 +164,24 @@
         "friendly"
       ]
     },
+    "CandidateView": {
+      "description": "A reward an offer holds.",
+      "type": "object",
+      "properties": {
+        "rarity": {
+          "$ref": "#/$defs/Rarity"
+        },
+        "reward": {
+          "description": "Its ID in the run's rewards file.",
+          "$ref": "#/$defs/ContentId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "reward",
+        "rarity"
+      ]
+    },
     "ChargeView": {
       "description": "A charge in progress (ADR-050). `core` judges the perfect window on this tick, so what the\nfrontend shows is what a release on the next tick gets.",
       "type": "object",
@@ -224,6 +249,10 @@
               "type": "null"
             }
           ]
+        },
+        "elite": {
+          "description": "An elite enemy (ADR-068), which the minimap shows wherever it is.",
+          "type": "boolean"
         },
         "hp": {
           "type": "integer",
@@ -389,6 +418,149 @@
         "height"
       ]
     },
+    "OfferKind": {
+      "description": "What opened an offer (ADR-066 §2).",
+      "oneOf": [
+        {
+          "description": "A falling star the main character took; it can be skipped.",
+          "type": "string",
+          "const": "star"
+        },
+        {
+          "description": "A boss kill: at the highest rarity of the player's tier, with no skip.",
+          "type": "string",
+          "const": "boss"
+        }
+      ]
+    },
+    "OfferOption": {
+      "description": "One option of an open offer; `candidate` is a place in its candidates, from 0.",
+      "oneOf": [
+        {
+          "description": "Takes the candidate's reward and closes the offer.",
+          "type": "object",
+          "properties": {
+            "candidate": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "take"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "candidate"
+          ]
+        },
+        {
+          "description": "Draws that candidate again, spending a reroll; the offer stays open.",
+          "type": "object",
+          "properties": {
+            "candidate": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "reroll"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "candidate"
+          ]
+        },
+        {
+          "description": "Closes the offer, taking nothing.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "skip"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Takes the candidate's reward out of the run's pool for good, spending a banish, and\ndraws its place again; the offer stays open, or closes when nothing is left to offer.",
+          "type": "object",
+          "properties": {
+            "candidate": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "banish"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "candidate"
+          ]
+        }
+      ]
+    },
+    "OfferView": {
+      "description": "An offer from a falling star (ADR-066 §3).",
+      "type": "object",
+      "properties": {
+        "banishes_left": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CandidateView"
+          }
+        },
+        "kind": {
+          "$ref": "#/$defs/OfferKind"
+        },
+        "options": {
+          "description": "What `Engine::choose` takes, by index: the candidates, then a reroll of each while\nrerolls are left and another reward could come, then the skip (not in a boss offer),\nthen a banish of each while banishes are left.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OfferOption"
+          }
+        },
+        "rarity": {
+          "description": "The star's rarity, or for a boss offer the highest of the player's tier. A candidate is\nof a lower one when the pool has too few left of it.",
+          "$ref": "#/$defs/Rarity"
+        },
+        "rerolls_left": {
+          "description": "Rerolls and banishes left in the run.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "rarity",
+        "candidates",
+        "options",
+        "rerolls_left",
+        "banishes_left"
+      ]
+    },
     "Offset": {
       "type": "object",
       "properties": {
@@ -517,6 +689,17 @@
           "format": "uint32",
           "minimum": 0
         },
+        "offer": {
+          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-066 §3).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OfferView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "points": {
           "description": "Stat points not spent yet.",
           "type": "integer",
@@ -555,6 +738,18 @@
         "spent"
       ]
     },
+    "Rarity": {
+      "description": "A reward's rarity, from the most common up (ADR-066 §2).",
+      "type": "string",
+      "enum": [
+        "common",
+        "uncommon",
+        "rare",
+        "epic",
+        "legendary",
+        "supernova"
+      ]
+    },
     "SkillView": {
       "description": "Skill 2 or 3 (ADR-050).",
       "type": "object",
@@ -574,6 +769,27 @@
       "required": [
         "ready",
         "cooldown_left"
+      ]
+    },
+    "StarView": {
+      "description": "A falling star waiting on the map to be taken.",
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Point"
+        },
+        "id": {
+          "$ref": "#/$defs/EntityId"
+        },
+        "rarity": {
+          "$ref": "#/$defs/Rarity"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "at",
+        "rarity"
       ]
     }
   }

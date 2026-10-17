@@ -6,6 +6,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::id::{ContentId, EntityId};
+use crate::rewards::Rarity;
+use crate::snapshot::OfferKind;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "data", deny_unknown_fields)]
@@ -73,5 +75,42 @@ pub enum DomainEvent {
     StatRaised {
         stat: ContentId,
         spent: u8,
+    },
+    /// A kill dropped the falling star `star` (ADR-066 §2).
+    StarDropped {
+        star: EntityId,
+        rarity: Rarity,
+    },
+    /// The main character took the star `star`; its offer opens at the end of the tick.
+    StarTaken {
+        star: EntityId,
+        rarity: Rarity,
+    },
+    /// The boss called its elites: the `elites` alive leave their places and fight beside it,
+    /// and every elite that comes later is called at once (ADR-068).
+    ElitesCalled {
+        elites: u32,
+    },
+    /// An offer opened, and the world stopped until a choice closes it (ADR-066 §3).
+    OfferOpened {
+        kind: OfferKind,
+        rarity: Rarity,
+        candidates: Vec<ContentId>,
+    },
+    /// The reward was taken: the run now has it `taken` times.
+    RewardTaken {
+        reward: ContentId,
+        taken: u8,
+    },
+    /// The offer was closed with nothing taken.
+    OfferSkipped,
+    /// The reward left the run's pool for good.
+    RewardBanished {
+        reward: ContentId,
+    },
+    /// The candidate at `slot` was drawn again, after a reroll or a banish.
+    CandidateReplaced {
+        slot: u8,
+        reward: ContentId,
     },
 }

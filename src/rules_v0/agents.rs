@@ -4,7 +4,9 @@
 //! each rule list in order.
 
 use crate::behaviour::{Action, Agent, Condition, Movement, Rule};
-use crate::engine::{AgentKey, AgentSource, AgentState, MoveOrder, RuleState, State, UNLIMITED};
+use crate::engine::{
+    AgentKey, AgentSource, AgentState, EliteState, MoveOrder, RuleState, State, UNLIMITED,
+};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
@@ -72,6 +74,10 @@ pub(super) fn new_agent(
         order: None,
         orbit_angle: angle,
         crowded: false,
+        elite: def.elite.map(|_| EliteState {
+            home: at,
+            called: false,
+        }),
     }
 }
 
@@ -118,7 +124,18 @@ fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
         }
     }
     move_agent(stage, s, me, def);
+    if waits(s, me, def) {
+        return;
+    }
     fire_first_rule(stage, s, me, &def.rules, events);
+}
+
+/// An elite not called yet waits while the main character is beyond its range.
+fn waits(s: &State, me: Who, def: &Agent) -> bool {
+    let (Some(elite), Some(st)) = (def.elite, agent(s, me).elite) else {
+        return false;
+    };
+    !st.called && !super::overlaps(agent(s, me).at, elite.range.0, s.player.at, 0)
 }
 
 /// The rule states of `me`: an agent's, or the boss's for the phase it is in.
@@ -278,6 +295,13 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
     // A crowded enemy yields: it does not walk into the neighbours the push just parted it from.
     // Only enemies are ever crowded, and one that flies straight goes to no place, so it flies on.
     let yields = a.crowded;
+    // An elite not called yet holds where it spawned, whatever its movement.
+    if let Some(st) = a.elite.filter(|st| !st.called) {
+        if !yields {
+            a.at = step_toward(a.at, st.home, FOLLOW_SPEED * keep / 100);
+        }
+        return;
+    }
     match def.movement {
         Movement::Hold { at } => {
             a.at = match me {

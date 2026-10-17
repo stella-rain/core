@@ -453,6 +453,244 @@
         "type",
         "data"
       ]
+    },
+    {
+      "description": "A kill dropped the falling star `star` (ADR-066 §2).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "rarity": {
+              "$ref": "#/$defs/Rarity"
+            },
+            "star": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "star",
+            "rarity"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "StarDropped"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The main character took the star `star`; its offer opens at the end of the tick.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "rarity": {
+              "$ref": "#/$defs/Rarity"
+            },
+            "star": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "star",
+            "rarity"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "StarTaken"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The boss called its elites: the `elites` alive leave their places and fight beside it,\nand every elite that comes later is called at once (ADR-068).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "elites": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "elites"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ElitesCalled"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "An offer opened, and the world stopped until a choice closes it (ADR-066 §3).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "candidates": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ContentId"
+              }
+            },
+            "kind": {
+              "$ref": "#/$defs/OfferKind"
+            },
+            "rarity": {
+              "$ref": "#/$defs/Rarity"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "rarity",
+            "candidates"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "OfferOpened"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The reward was taken: the run now has it `taken` times.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "reward": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "taken": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "reward",
+            "taken"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "RewardTaken"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The offer was closed with nothing taken.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "OfferSkipped"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "The reward left the run's pool for good.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "reward": {
+              "$ref": "#/$defs/ContentId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "reward"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "RewardBanished"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The candidate at `slot` was drawn again, after a reroll or a banish.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "reward": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "slot": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "slot",
+            "reward"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "CandidateReplaced"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
     }
   ],
   "$defs": {
@@ -465,6 +703,33 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0
+    },
+    "OfferKind": {
+      "description": "What opened an offer (ADR-066 §2).",
+      "oneOf": [
+        {
+          "description": "A falling star the main character took; it can be skipped.",
+          "type": "string",
+          "const": "star"
+        },
+        {
+          "description": "A boss kill: at the highest rarity of the player's tier, with no skip.",
+          "type": "string",
+          "const": "boss"
+        }
+      ]
+    },
+    "Rarity": {
+      "description": "A reward's rarity, from the most common up (ADR-066 §2).",
+      "type": "string",
+      "enum": [
+        "common",
+        "uncommon",
+        "rare",
+        "epic",
+        "legendary",
+        "supernova"
+      ]
     }
   }
 }

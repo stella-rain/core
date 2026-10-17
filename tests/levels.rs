@@ -7,6 +7,8 @@ use stella_rain_core::engine::{ChoiceError, Engine, Outcome, SpendError};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::ContentId;
 use stella_rain_core::input::Input;
+use stella_rain_core::rewards::Rewards;
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::run_stats::{RunStats, StatEffect};
 use stella_rain_core::stage::Stage;
@@ -340,7 +342,11 @@ fn with_attack_plus() -> RunStats {
 fn a_stat_added_in_the_content_works_with_no_code() {
     let stats = with_attack_plus();
     let plus = u32::try_from(stats.stats().len() - 1).unwrap();
-    let mut e = Engine::new_with(&leveled(&[1], vec![targets(20, None)]), &stats).unwrap();
+    let mut e = Engine::new_with(
+        &leveled(&[1], vec![targets(20, None)]),
+        &RunContent::new(stats.clone(), Rewards::bundled().clone()),
+    )
+    .unwrap();
     run_until(&mut e, idle(), 1200, |e| points(e) >= 3);
     assert_eq!(spent(&e).len(), stats.stats().len());
     e.spend(plus).unwrap();
@@ -378,7 +384,11 @@ fn stats_with_the_same_effect_add_up() {
         );
         let mut stage = leveled(&[1], vec![targets(4, None)]);
         stage.waves.push(serde_json::from_value(tough).unwrap());
-        let mut e = Engine::new_with(&stage, &stats).unwrap();
+        let mut e = Engine::new_with(
+            &stage,
+            &RunContent::new(stats.clone(), Rewards::bundled().clone()),
+        )
+        .unwrap();
         run_until(&mut e, idle(), 199, |e| points(e) >= 3);
         for i in spends {
             e.spend(*i).unwrap();
@@ -410,6 +420,8 @@ fn a_trial_run_levels_up_and_spends_its_points() {
         main_expertise: 0,
         sub_expertise: 0,
         seed: 1,
+        star_pool: None,
+        extra_rerolls: 0,
     };
     // A small bot: line up under the nearest enemy, then face up, where the Main weapon shoots.
     let bot = |e: &Engine| {

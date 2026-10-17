@@ -10,6 +10,7 @@ use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay};
+use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay};
 use stella_rain_core::run_setup;
 use stella_rain_core::run_stats::RunStats;
@@ -27,12 +28,16 @@ const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/v0/clear/stage.jso
 
 /// The stage parser and validator (ADR-020 items 1 to 4). A stage that loads can be saved
 /// again, which is what the editor does, and loads again as the same stage. The same bytes are
-/// also read as run stats (ADR-067), content that may come from outside the app: they parse
-/// without a panic, and stats that load hash the same twice.
+/// also read as run stats and as rewards (ADR-067), content that may come from outside the app:
+/// they parse without a panic, and files that load hash the same twice.
 pub fn stage_parse(data: &[u8]) -> bool {
     if let Ok(stats) = RunStats::parse(data) {
         let again = RunStats::parse(data).expect("run stats that loaded load again");
         assert_eq!(again, stats, "the same bytes loaded as other run stats");
+    }
+    if let Ok(rewards) = Rewards::parse(data) {
+        let again = Rewards::parse(data).expect("rewards that loaded load again");
+        assert_eq!(again, rewards, "the same bytes loaded as other rewards");
     }
     let Ok(stage) = parse_and_validate(data) else {
         return false;
@@ -82,9 +87,10 @@ pub fn run_setup(data: &[u8]) -> bool {
     engine.tick() > 0
 }
 
-/// One tick of `input`, after a choice and two spends between ticks (ADR-066): a choice with
-/// `pick` (refused, no offer opens yet), then a spend of `pick` as it is and one of `pick`
-/// inside the stats. Each may be refused, and must then change nothing.
+/// One tick of `input`, after the commands between ticks (ADR-066): a choice with `pick` as it
+/// is, then a spend of `pick` as it is and one of `pick` inside the stats, each of which may be
+/// refused and must then change nothing; then, while an offer is open, a choice of `pick`
+/// inside its options, which is never refused, so the world goes on.
 fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
     let stats = u32::try_from(engine.run_stats().stats().len()).expect("few run stats");
     for (kind, index) in [
@@ -105,6 +111,20 @@ fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
             );
         }
     }
+    // Each choice spends a reroll or a banish, or closes the offer; a run has few of either.
+    for _ in 0..64 {
+        let Some(offer) = engine.snapshot().progress.and_then(|p| p.offer) else {
+            break;
+        };
+        let options = u32::try_from(offer.options.len()).expect("few options");
+        engine
+            .choose(u32::from(pick) % options)
+            .expect("an option of the open offer is taken");
+    }
+    assert!(
+        !engine.offer_open(),
+        "an offer stayed open after 64 choices"
+    );
     engine.step(input);
 }
 

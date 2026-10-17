@@ -54,16 +54,20 @@ pub enum StatEffect {
     EvadePct,
     /// `step` percent more movement speed.
     SpeedPct,
+    /// `step` percent more experience from every kill, rounded down (ADR-068: the build that
+    /// unlocks rarer stars sooner).
+    XpPct,
 }
 
 impl StatEffect {
     /// Every effect, in the order the state keeps their totals.
-    pub const ALL: [StatEffect; 5] = [
+    pub const ALL: [StatEffect; 6] = [
         StatEffect::MaxHp,
         StatEffect::AttackPct,
         StatEffect::HastePct,
         StatEffect::EvadePct,
         StatEffect::SpeedPct,
+        StatEffect::XpPct,
     ];
 }
 
@@ -199,7 +203,7 @@ pub fn validate(file: &RunStatsFile) -> Result<(), Error> {
 }
 
 /// Why `text` is not `min` to `max` characters of printable text, if it is not.
-fn text_problem(text: &str, min: usize, max: usize) -> Option<String> {
+pub(crate) fn text_problem(text: &str, min: usize, max: usize) -> Option<String> {
     let chars = text.chars().count();
     if !(min..=max).contains(&chars) {
         Some(format!("{min} to {max} characters (found {chars})"))

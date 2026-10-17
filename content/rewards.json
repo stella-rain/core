@@ -1,0 +1,168 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "rewards": [
+    {
+      "id": "max_hp_common",
+      "rarity": "common",
+      "effect": "max_hp",
+      "amount": 2,
+      "limit": 5,
+      "title": "Vigour (Common)",
+      "description": "2 more hit points at most, and as many healed"
+    },
+    {
+      "id": "max_hp_rare",
+      "rarity": "rare",
+      "effect": "max_hp",
+      "amount": 5,
+      "limit": 3,
+      "title": "Vigour (Rare)",
+      "description": "5 more hit points at most, and as many healed"
+    },
+    {
+      "id": "max_hp_legendary",
+      "rarity": "legendary",
+      "effect": "max_hp",
+      "amount": 10,
+      "limit": 1,
+      "title": "Vigour (Legendary)",
+      "description": "10 more hit points at most, and as many healed"
+    },
+    {
+      "id": "attack_common",
+      "rarity": "common",
+      "effect": "attack_pct",
+      "amount": 5,
+      "limit": 5,
+      "title": "Might (Common)",
+      "description": "5 percent more damage"
+    },
+    {
+      "id": "attack_rare",
+      "rarity": "rare",
+      "effect": "attack_pct",
+      "amount": 12,
+      "limit": 3,
+      "title": "Might (Rare)",
+      "description": "12 percent more damage"
+    },
+    {
+      "id": "attack_legendary",
+      "rarity": "legendary",
+      "effect": "attack_pct",
+      "amount": 25,
+      "limit": 1,
+      "title": "Might (Legendary)",
+      "description": "25 percent more damage"
+    },
+    {
+      "id": "haste_common",
+      "rarity": "common",
+      "effect": "haste_pct",
+      "amount": 4,
+      "limit": 5,
+      "title": "Haste (Common)",
+      "description": "4 percent shorter automatic-attack cooldowns"
+    },
+    {
+      "id": "haste_rare",
+      "rarity": "rare",
+      "effect": "haste_pct",
+      "amount": 10,
+      "limit": 3,
+      "title": "Haste (Rare)",
+      "description": "10 percent shorter automatic-attack cooldowns"
+    },
+    {
+      "id": "haste_legendary",
+      "rarity": "legendary",
+      "effect": "haste_pct",
+      "amount": 20,
+      "limit": 1,
+      "title": "Haste (Legendary)",
+      "description": "20 percent shorter automatic-attack cooldowns"
+    },
+    {
+      "id": "evade_common",
+      "rarity": "common",
+      "effect": "evade_pct",
+      "amount": 5,
+      "limit": 5,
+      "title": "Grace (Common)",
+      "description": "5 percent shorter evade cooldown"
+    },
+    {
+      "id": "evade_rare",
+      "rarity": "rare",
+      "effect": "evade_pct",
+      "amount": 12,
+      "limit": 3,
+      "title": "Grace (Rare)",
+      "description": "12 percent shorter evade cooldown"
+    },
+    {
+      "id": "evade_legendary",
+      "rarity": "legendary",
+      "effect": "evade_pct",
+      "amount": 25,
+      "limit": 1,
+      "title": "Grace (Legendary)",
+      "description": "25 percent shorter evade cooldown"
+    },
+    {
+      "id": "speed_common",
+      "rarity": "common",
+      "effect": "speed_pct",
+      "amount": 4,
+      "limit": 5,
+      "title": "Swiftness (Common)",
+      "description": "4 percent more speed"
+    },
+    {
+      "id": "speed_rare",
+      "rarity": "rare",
+      "effect": "speed_pct",
+      "amount": 10,
+      "limit": 3,
+      "title": "Swiftness (Rare)",
+      "description": "10 percent more speed"
+    },
+    {
+      "id": "speed_legendary",
+      "rarity": "legendary",
+      "effect": "speed_pct",
+      "amount": 20,
+      "limit": 1,
+      "title": "Swiftness (Legendary)",
+      "description": "20 percent more speed"
+    },
+    {
+      "id": "xp_common",
+      "rarity": "common",
+      "effect": "xp_pct",
+      "amount": 10,
+      "limit": 5,
+      "title": "Insight (Common)",
+      "description": "10 percent more experience"
+    },
+    {
+      "id": "xp_rare",
+      "rarity": "rare",
+      "effect": "xp_pct",
+      "amount": 25,
+      "limit": 3,
+      "title": "Insight (Rare)",
+      "description": "25 percent more experience"
+    },
+    {
+      "id": "xp_legendary",
+      "rarity": "legendary",
+      "effect": "xp_pct",
+      "amount": 50,
+      "limit": 1,
+      "title": "Insight (Legendary)",
+      "description": "50 percent more experience"
+    }
+  ]
+}

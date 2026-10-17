@@ -3,7 +3,7 @@
   "sim_version": 0,
   "id": "trial",
   "title": "Trial",
-  "description": "The trial mode: one placeholder stage of bats in waves, a fairy that heals, and a golem whose horn breaks. Defeated enemies give experience, and each level gives a stat point to spend. The weapons and the seed come from the run setup.",
+  "description": "The trial mode: one placeholder stage of bats in waves, a fairy that heals, and a golem whose horn breaks. Defeated enemies give experience, and each level gives a stat point to spend. Two elites hold their places until the golem calls them. The weapons and the seed come from the run setup.",
   "seed": 20261010,
   "length_ticks": 5400,
   "map": {
@@ -184,6 +184,92 @@
       "count": 4,
       "every_ticks": 60,
       "xp": 2
+    },
+    {
+      "at_tick": 60,
+      "enemy": {
+        "base": "bat",
+        "hp": 240,
+        "radius": 3072,
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 90,
+            "once": false
+          }
+        ],
+        "elite": {
+          "range": 51200
+        }
+      },
+      "spawn": {
+        "x": 133120,
+        "y": 120320
+      },
+      "count": 1,
+      "every_ticks": 0,
+      "xp": 3
+    },
+    {
+      "at_tick": 60,
+      "enemy": {
+        "base": "bat",
+        "hp": 2000,
+        "radius": 3072,
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 90,
+            "once": false
+          }
+        ],
+        "elite": {
+          "range": 40960
+        }
+      },
+      "spawn": {
+        "x": 266240,
+        "y": 76800
+      },
+      "count": 1,
+      "every_ticks": 0,
+      "xp": 3
     }
   ],
   "boss": {
@@ -336,7 +422,11 @@
         ],
         "rules": []
       }
-    ]
+    ],
+    "call_elites": {
+      "after_ticks": 1800,
+      "below_pct": 70
+    }
   },
   "levels": {
     "xp": [
@@ -344,5 +434,37 @@
       4,
       5
     ]
-  }
+  },
+  "stars": {
+    "drop_per_mille": 500,
+    "pity": 2,
+    "cap": 16,
+    "pickup_radius": 6144,
+    "rerolls": 2,
+    "banishes": 1,
+    "tiers": [
+      {
+        "from_level": 1,
+        "weights": {
+          "common": 100
+        }
+      },
+      {
+        "from_level": 3,
+        "weights": {
+          "common": 70,
+          "rare": 30
+        }
+      },
+      {
+        "from_level": 5,
+        "weights": {
+          "common": 50,
+          "rare": 35,
+          "legendary": 15
+        }
+      }
+    ]
+  },
+  "elite_cap": 4
 }

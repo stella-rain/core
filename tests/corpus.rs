@@ -706,7 +706,7 @@ fn definitions() -> Vec<Definition> {
 }
 
 /// The run cases: the trial mode played until the main character falls, spending its points
-/// on the way.
+/// and answering its offers on the way, with every kind of option.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Vec<Command>)> {
     vec![(
         "trial",
@@ -727,10 +727,38 @@ fn the_run_cases_are_what_their_names_say() {
     let replay = RunReplay::from_bytes(&bytes).unwrap();
     let commands = replay.unpack_commands().unwrap();
     assert!(
-        !commands.is_empty() && commands.iter().all(|c| c.kind == CommandKind::Spend),
+        commands.iter().any(|c| c.kind == CommandKind::Spend),
         "points are spent: {commands:?}"
     );
     assert_eq!(verified.commands, u32::try_from(commands.len()).unwrap());
+    // Re-simulated, the choices take each kind of option at least once.
+    let mut engine = Engine::start(&replay.setup).unwrap();
+    let mut next = commands.iter().peekable();
+    let mut kinds = Vec::new();
+    for input in replay.unpack_inputs(u32::MAX).unwrap() {
+        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
+            if c.kind == CommandKind::Choose {
+                let options = engine.snapshot().progress.unwrap().offer.unwrap().options;
+                kinds.push(std::mem::discriminant(&options[c.index as usize]));
+                engine.choose(c.index).unwrap();
+            } else {
+                engine.spend(c.index).unwrap();
+            }
+        }
+        engine.step(input);
+    }
+    use stella_rain_core::snapshot::OfferOption::{Banish, Reroll, Skip, Take};
+    for kind in [
+        Take { candidate: 0 },
+        Reroll { candidate: 0 },
+        Skip,
+        Banish { candidate: 0 },
+    ] {
+        assert!(
+            kinds.contains(&std::mem::discriminant(&kind)),
+            "no {kind:?} in the run case"
+        );
+    }
 }
 
 /// How a recorded case ends and the most bullets it ever has on screen.

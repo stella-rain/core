@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::attack::{HitBox, PhaseKind};
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
+use crate::rewards::Rarity;
 
 /// An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -50,7 +51,10 @@ pub struct Snapshot {
     /// Companions, enemies, the boss and its parts, in entity-ID order.
     pub entities: Vec<EntityView>,
     pub bullets: Vec<BulletView>,
-    /// Experience, level, upgrades and the open offer; absent in a stage without levels.
+    /// Falling stars on the map, in the order they dropped (ADR-066 §2).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stars: Vec<StarView>,
+    /// Experience, level, stat points and the open offer; absent in a stage without levels.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<ProgressView>,
 }
@@ -69,6 +73,71 @@ pub struct ProgressView {
     pub points: u32,
     /// Points spent on each run stat, in the run stats' order (ADR-067).
     pub spent: Vec<u8>,
+    /// The open offer: while it is open the world is stopped, and `Engine::choose` takes one
+    /// of its options (ADR-066 §3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offer: Option<OfferView>,
+}
+
+/// A falling star waiting on the map to be taken.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StarView {
+    pub id: EntityId,
+    pub at: Point,
+    pub rarity: Rarity,
+}
+
+/// An offer from a falling star (ADR-066 §3).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OfferView {
+    pub kind: OfferKind,
+    /// The star's rarity, or for a boss offer the highest of the player's tier. A candidate is
+    /// of a lower one when the pool has too few left of it.
+    pub rarity: Rarity,
+    pub candidates: Vec<CandidateView>,
+    /// What `Engine::choose` takes, by index: the candidates, then a reroll of each while
+    /// rerolls are left and another reward could come, then the skip (not in a boss offer),
+    /// then a banish of each while banishes are left.
+    pub options: Vec<OfferOption>,
+    /// Rerolls and banishes left in the run.
+    pub rerolls_left: u32,
+    pub banishes_left: u32,
+}
+
+/// What opened an offer (ADR-066 §2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OfferKind {
+    /// A falling star the main character took; it can be skipped.
+    Star,
+    /// A boss kill: at the highest rarity of the player's tier, with no skip.
+    Boss,
+}
+
+/// A reward an offer holds.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CandidateView {
+    /// Its ID in the run's rewards file.
+    pub reward: ContentId,
+    pub rarity: Rarity,
+}
+
+/// One option of an open offer; `candidate` is a place in its candidates, from 0.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum OfferOption {
+    /// Takes the candidate's reward and closes the offer.
+    Take { candidate: u8 },
+    /// Draws that candidate again, spending a reroll; the offer stays open.
+    Reroll { candidate: u8 },
+    /// Closes the offer, taking nothing.
+    Skip,
+    /// Takes the candidate's reward out of the run's pool for good, spending a banish, and
+    /// draws its place again; the offer stays open, or closes when nothing is left to offer.
+    Banish { candidate: u8 },
 }
 
 /// The map's width and height, from its top-left corner.
@@ -153,6 +222,9 @@ pub struct EntityView {
     /// The attack it is making, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attack: Option<AttackView>,
+    /// An elite enemy (ADR-068), which the minimap shows wherever it is.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub elite: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -9,7 +9,8 @@ use crate::attack::AttackRef;
 use crate::behaviour::{Agent, Condition, Rule};
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
-use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W};
+use crate::rewards::Rarity;
+use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W, MAX_ELITES_ALIVE};
 use crate::weapon::{MainWeapon, SubWeapon, WeaponRef};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -39,10 +40,94 @@ pub struct Stage {
     /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map: Option<Map>,
-    /// Experience and levels, each level-up offering upgrades (ADR-051); a mode's stages have
-    /// them. Without them defeated enemies give nothing and nothing is offered.
+    /// Experience and levels, each level-up giving a stat point (ADR-066 §2); a mode's stages
+    /// have them. Without them defeated enemies give nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub levels: Option<Levels>,
+    /// Falling stars and the offers they open (ADR-066 §2, §3, ADR-068); only with `levels`.
+    /// Without them kills drop nothing and nothing is offered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stars: Option<Stars>,
+    /// The most elites alive at once (ADR-068); `MAX_ELITES_ALIVE` when absent. An elite that
+    /// would spawn past it does not, and a wave counts it as spawned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elite_cap: Option<u16>,
+}
+
+/// How kills drop falling stars, what rarity a star has, and what an offer allows.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Stars {
+    /// The chance, in 1000, that a kill drops a star.
+    pub drop_per_mille: u16,
+    /// Kills in a row without a star after which the next kill drops one for sure.
+    pub pity: u16,
+    /// The most stars on the map at once. A kill with the map full drops none, and does not
+    /// count toward the pity.
+    pub cap: u16,
+    /// How near the main character's centre a star must come to be taken.
+    pub pickup_radius: Fx,
+    /// Rerolls of one candidate a run gets, before the setup's extra rerolls.
+    #[serde(default)]
+    pub rerolls: u8,
+    /// Rewards a run may banish.
+    #[serde(default)]
+    pub banishes: u8,
+    /// The drop table: tiers by the player's level, the first from level 1, each later one from
+    /// a higher level (ADR-068). A star draws its rarity from the tier of the level reached.
+    pub tiers: Vec<Tier>,
+}
+
+/// One tier of the drop table.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Tier {
+    /// The level the tier starts at.
+    pub from_level: u32,
+    pub weights: RarityWeights,
+}
+
+/// The weight of each rarity in a draw; a rarity left out weighs 0. A tier's highest rarity is
+/// the highest one that weighs more than 0.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RarityWeights {
+    #[serde(default)]
+    pub common: u16,
+    #[serde(default)]
+    pub uncommon: u16,
+    #[serde(default)]
+    pub rare: u16,
+    #[serde(default)]
+    pub epic: u16,
+    #[serde(default)]
+    pub legendary: u16,
+    #[serde(default)]
+    pub supernova: u16,
+}
+
+impl RarityWeights {
+    /// The weight of `rarity`.
+    pub fn get(&self, rarity: Rarity) -> u16 {
+        match rarity {
+            Rarity::Common => self.common,
+            Rarity::Uncommon => self.uncommon,
+            Rarity::Rare => self.rare,
+            Rarity::Epic => self.epic,
+            Rarity::Legendary => self.legendary,
+            Rarity::Supernova => self.supernova,
+        }
+    }
+
+    /// Every weight added up.
+    pub fn total(&self) -> u32 {
+        Rarity::ALL.iter().map(|r| u32::from(self.get(*r))).sum()
+    }
+
+    /// The highest rarity that weighs more than 0.
+    pub fn highest(&self) -> Option<Rarity> {
+        Rarity::ALL.iter().rev().copied().find(|r| self.get(*r) > 0)
+    }
 }
 
 /// How much experience each level needs.
@@ -55,6 +140,13 @@ pub struct Levels {
 }
 
 impl Stage {
+    /// The most elites alive at once.
+    pub fn elite_cap(&self) -> u16 {
+        self.elite_cap
+            .unwrap_or(MAX_ELITES_ALIVE)
+            .min(MAX_ELITES_ALIVE)
+    }
+
     /// The map the run plays on (core#87).
     pub fn map(&self) -> Map {
         self.map.unwrap_or(Map::PORTRAIT)
@@ -179,6 +271,21 @@ pub struct Boss {
     #[serde(default)]
     pub parts: Vec<BossPart>,
     pub phases: Vec<Phase>,
+    /// When every elite alive joins the boss fight (ADR-068); without it the boss calls none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub call_elites: Option<CallElites>,
+}
+
+/// The boss calls its elites at whichever comes first: `after_ticks` ticks after its first
+/// tick (0 calls on it), or its hit points falling below `below_pct` percent of its maximum.
+/// At least one of the two is given.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CallElites {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_ticks: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub below_pct: Option<u8>,
 }
 
 /// A breakable part with its own HP and hurt circle (ADR-007, ADR-036).
