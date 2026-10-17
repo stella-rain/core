@@ -381,6 +381,7 @@ impl Engine {
                         dash,
                         buffered,
                         window_left,
+                        auto: Vec::new(),
                     }
                 },
                 charge: rules_v0::charge_view(&self.stage, s).map(|(level, held, perfect)| {
