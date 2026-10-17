@@ -1173,6 +1173,19 @@ fn combo_limits_hold_at_the_limit_and_fail_one_past() {
 }
 
 #[test]
+fn an_assist_range_is_0_to_its_limit() {
+    let with_range = |r: i64| with_main(chain(1), |w| w["assist_range"] = json!(r));
+    assert_valid(&with_range(0));
+    assert_valid(&with_range(i64::from(MAX_ASSIST_RANGE)));
+    let at = "$.player.main.inline.assist_range";
+    assert_eq!(first_issue(&with_range(-1)).path, at);
+    assert_eq!(
+        first_issue(&with_range(i64::from(MAX_ASSIST_RANGE) + 1)).path,
+        at
+    );
+}
+
+#[test]
 fn a_pull_is_0_to_its_distance_over_1_to_its_ticks() {
     assert_valid(&with_pull(0, 1));
     assert_valid(&with_pull(MAX_PULL_DISTANCE, MAX_PULL_TICKS));
