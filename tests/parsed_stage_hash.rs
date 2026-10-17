@@ -15,15 +15,11 @@ const CLEAR_INPUT: &str = concat!(
     "stella-rain/parsed-stage/v1\n",
     r#"{"schema_version":0,"sim_version":0,"title":"Test Stage","description":"","seed":7,"#,
     r#""length_ticks":600,"player":{"base":"pilot_a","hp":3,"atk":10,"#,
-    r#""main":{"preset":{"id":"blaster"}},"#,
-    r#""sub":{"inline":{"#,
-    r#""auto":{"attack":{"inline":[{"kind":"recovery","ticks":1}]},"targeting":"facing","#,
-    r#""cooldown_ticks":1},"#,
-    r#""skill":{"attack":{"inline":[{"kind":"recovery","ticks":1}]},"targeting":"facing","#,
-    r#""cooldown_ticks":1}}},"#,
+    r#""main":{"preset":{"id":"blade"}},"#,
+    r#""sub":{"inline":{"bonus":{"type":"pull","distance":0,"ticks":1}}},"#,
     r#""evade":{"distance":12288,"ticks":8,"invulnerable_ticks":10,"cooldown_ticks":40}},"#,
     r#""companions":[],"waves":[],"#,
-    r#""boss":{"base":"golem","hp":20,"radius":8192,"spawn":{"x":46080,"y":25600},"parts":[],"#,
+    r#""boss":{"base":"golem","hp":20,"radius":8192,"spawn":{"x":46080,"y":121856},"parts":[],"#,
     r#""phases":[{"transition":[],"timeline":[],"rules":[]}]}}"#,
 );
 
@@ -51,7 +47,7 @@ fn matches_the_adr_046_vector() {
     // SHA-256 of `CLEAR_INPUT`, computed with `sha256sum`, not with `core`.
     assert_eq!(
         hash_of(CLEAR),
-        "d9d67c41ae9e864dd13f192b11f15964e0196489ffc1dcfb61b4bbfead8e5c91"
+        "347b5f4555fa473aa502173358ce5c525dd2fd1a359799e579750a1406d58f08"
     );
 }
 
@@ -62,23 +58,23 @@ fn every_corpus_stage_keeps_its_hash() {
     for (bytes, expected) in [
         (
             &include_bytes!("corpus/v0/agents/stage.json")[..],
-            "c5e3e04276ba999225c8647babe91891fb78204ba30fa94eddd6a64290819a4b",
+            "3515eed28cae913d63a01f9b440f2a06a28ee3dcfcfae5367555c4dcfd37f0ad",
         ),
         (
             &include_bytes!("corpus/v0/boss/stage.json")[..],
-            "d5a83c726b81c2e4af33fcdb2cc1b8dd28697f5f732b34872d8deb879610778b",
+            "6502caa1adc0d9fa37d0fbc2b0c1a5b244e83730cb920e2683bc34169042b7e0",
         ),
         (
             &include_bytes!("corpus/v0/bullets/stage.json")[..],
-            "8f8d383d2a4c8027159504e613ae92e5eb64bfed3cfc73a25ab9f042ff6bc1dd",
+            "72462c899852572fcd2a33399a9e5a83ffa02a6a951bec64f435c3ab4f0bef1a",
         ),
         (
             &include_bytes!("corpus/v0/fail/stage.json")[..],
-            "e3ac5fbe6592a9f05040db531b514d7cde53b99a40289210fd410f98a2dd1d74",
+            "f42d2e14aed125bc90864b5506adef7022e6dccbddac8cba2909c5455c9fdc6d",
         ),
         (
             &include_bytes!("corpus/v0/timeout/stage.json")[..],
-            "6332d4564546f1dfdb23daeb3bf0a203c89619e1e7a509814435e56c81253544",
+            "262035cc9ad6f4b59208b09697b0ac7d02eba67361502c59a671d8fa110b7249",
         ),
     ] {
         assert_eq!(hash_of(bytes), expected);
@@ -88,13 +84,9 @@ fn every_corpus_stage_keeps_its_hash() {
 #[test]
 fn formatting_and_key_order_do_not_change_the_hash() {
     let reformatted = br#"{"title":"Test Stage",
-        "boss":{"phases":[{}],"spawn":{"y":25600,"x":46080},"radius":8192,"hp":20,"base":"golem"},
-        "player":{"sub":{"inline":{
-                    "skill":{"cooldown_ticks":1,"targeting":"facing",
-                             "attack":{"inline":[{"ticks":1,"kind":"recovery"}]}},
-                    "auto":{"cooldown_ticks":1,"targeting":"facing",
-                            "attack":{"inline":[{"ticks":1,"kind":"recovery"}]}}}},
-                  "main":{"preset":{"id":"blaster"}},"atk":10,"hp":3,"base":"pilot_a",
+        "boss":{"phases":[{}],"spawn":{"y":121856,"x":46080},"radius":8192,"hp":20,"base":"golem"},
+        "player":{"sub":{"inline":{"bonus":{"ticks":1,"distance":0,"type":"pull"}}},
+                  "main":{"preset":{"id":"blade"}},"atk":10,"hp":3,"base":"pilot_a",
                   "evade":{"cooldown_ticks":40,"invulnerable_ticks":10,"ticks":8,"distance":12288}},
         "length_ticks":600,   "seed":7,
         "id":"test-stage","sim_version":0,"schema_version":0}

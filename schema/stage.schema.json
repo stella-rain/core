@@ -513,6 +513,35 @@
         "radius"
       ]
     },
+    "Branches": {
+      "description": "The steps that follow: at most one for a press of each button.",
+      "type": "object",
+      "properties": {
+        "main": {
+          "description": "The step a press of `main` (A) takes.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Step"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sub": {
+          "description": "The step a press of `sub` (B) takes: a combo part, which the Sub weapon's bonus joins.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Step"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "CallElites": {
       "description": "The boss calls its elites at whichever comes first: `after_ticks` ticks after its first\ntick (0 calls on it), or its hit points falling below `below_pct` percent of its maximum.\nAt least one of the two is given.",
       "type": "object",
@@ -538,17 +567,11 @@
       "additionalProperties": false
     },
     "Charge": {
-      "description": "The charged Main skill (ADR-050): a ready press starts the charge, the ticks held raise\nits level, and the release attacks along the facing at the level reached. Releasing inside\nthe level's perfect window adds its perfect bonus; at `max_ticks` it releases by itself,\nwithout the bonus. The frontend slows time while charging; the rules do not.",
+      "description": "A charged step (ADR-070): the ticks held raise its level, and letting go attacks at the\nlevel reached; inside the level's perfect window it adds its perfect bonus. At `max_ticks`\nit releases by itself, without the bonus. Level 0, before the first of `levels`, is the\nstep's own attack. The frontend slows time from level 1; the rules do not.",
       "type": "object",
       "properties": {
-        "cooldown_ticks": {
-          "description": "Ticks from the release to the next ready press. An evade or a hit that breaks the charge\nspends half of it, rounded up.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "levels": {
-          "description": "In order of `at_ticks`; the first is at 0.",
+          "description": "Level 1 and up, in order of `at_ticks`, the first after 0.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/ChargeLevel"
@@ -571,12 +594,11 @@
       "additionalProperties": false,
       "required": [
         "levels",
-        "max_ticks",
-        "cooldown_ticks"
+        "max_ticks"
       ]
     },
     "ChargeLevel": {
-      "description": "One level of a charge.",
+      "description": "One level of a charge, from level 1.",
       "type": "object",
       "properties": {
         "at_ticks": {
@@ -608,7 +630,7 @@
           "minimum": 0
         },
         "perfect_ticks": {
-          "description": "The perfect window: the first `perfect_ticks` ticks of the level. 0 for none, which the\nfirst level must be, or a tap would be perfect.",
+          "description": "The perfect window: the first `perfect_ticks` ticks of the level; 0 for none.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -1362,20 +1384,39 @@
       ]
     },
     "MainWeapon": {
-      "description": "A weapon as Main: its automatic attack and its charged skill (skill 2, ADR-050).",
+      "description": "A weapon as Main (ADR-070): its combo tree and the timings that join its steps.",
       "type": "object",
       "properties": {
-        "auto": {
-          "$ref": "#/$defs/WeaponAttack"
+        "assist_range": {
+          "description": "How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle\nreaches within this distance of the main character.",
+          "$ref": "#/$defs/Fx"
         },
-        "charge": {
-          "$ref": "#/$defs/Charge"
+        "combo": {
+          "description": "The first step for each press, from the root.",
+          "$ref": "#/$defs/Branches"
+        },
+        "dash": {
+          "description": "The first step for each press during an evade's dash or within `dash_strike_ticks` after\nit: the dash-strike. A press with no step here starts from `combo`.",
+          "$ref": "#/$defs/Branches"
+        },
+        "dash_strike_ticks": {
+          "description": "Ticks after an evade's dash ends in which a press still takes the dash branch.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "window_ticks": {
+          "description": "Ticks the combo keeps its place after a step's recovery has run out with no press\nbuffered; a press within them takes the next step, after them it starts from the root.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
-        "auto",
-        "charge"
+        "combo",
+        "window_ticks",
+        "assist_range"
       ]
     },
     "Map": {
@@ -1516,7 +1557,7 @@
           "type": "array",
           "default": [],
           "items": {
-            "$ref": "#/$defs/Step"
+            "$ref": "#/$defs/Step2"
           }
         },
         "transition": {
@@ -1589,11 +1630,11 @@
           "minimum": 0
         },
         "main": {
-          "description": "The Main weapon, which attacks on its own and brings the charged skill (ADR-050,\ncore#83). It moves to the run's setup when the setup exists (ADR-049, ADR-051).",
+          "description": "The Main weapon, whose combos the main character makes by hand (ADR-070). It moves to\nthe run's setup when the setup exists (ADR-049, ADR-051).",
           "$ref": "#/$defs/WeaponRef"
         },
         "sub": {
-          "description": "The Sub weapon, which attacks on its own beside the Main one and brings the Sub skill.",
+          "description": "The Sub weapon, whose bonus joins every combo step reached by `sub` (ADR-070).",
           "$ref": "#/$defs/WeaponRef2"
         }
       },
@@ -1934,6 +1975,34 @@
       ]
     },
     "Step": {
+      "description": "One step of a combo (ADR-070).",
+      "type": "object",
+      "properties": {
+        "attack": {
+          "description": "The step's own attack: what a tap makes, and level 0 of a charge.",
+          "$ref": "#/$defs/AttackRef"
+        },
+        "charge": {
+          "description": "While the button that reached the step stays held as it starts, it charges instead.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Charge"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "next": {
+          "$ref": "#/$defs/Branches"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attack"
+      ]
+    },
+    "Step2": {
       "oneOf": [
         {
           "type": "object",
@@ -2029,55 +2098,46 @@
         }
       ]
     },
-    "SubWeapon": {
-      "description": "A weapon as Sub: its automatic attack and its skill (skill 3, ADR-050), which happens on a\nready press, with no charge.",
-      "type": "object",
-      "properties": {
-        "auto": {
-          "$ref": "#/$defs/WeaponAttack"
-        },
-        "skill": {
-          "$ref": "#/$defs/WeaponAttack"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "auto",
-        "skill"
-      ]
-    },
-    "Targeting": {
-      "description": "What a weapon attacks: along the main character's facing, or at an enemy one of ADR-036's\nselectors picks. Only the selectors that pick an enemy are here, so a weapon cannot aim at\nan ally. With a selector and nothing to pick, the weapon does not attack and spends no\ncooldown.",
+    "SubBonus": {
+      "description": "What the Sub weapon adds to every hit of a step reached by `sub` (ADR-070): one of a closed\nlist built into `core`, its numbers in JSON (ADR-067).",
       "oneOf": [
         {
-          "type": "string",
-          "enum": [
-            "nearest_enemy"
-          ]
-        },
-        {
-          "description": "`aimed` directions point along the facing at the attack's start.",
-          "type": "string",
-          "const": "facing"
-        },
-        {
-          "description": "The boss while it is alive, else the nearest enemy.",
-          "type": "string",
-          "const": "boss_first"
-        },
-        {
-          "description": "A boss part, by the part ID the stage gives it, until it breaks.",
+          "description": "The enemy hit is drawn toward the main character, at most `distance`, over `ticks`, and\nstops where their circles touch. A boss, its parts and elites resist it.",
           "type": "object",
           "properties": {
-            "part": {
-              "$ref": "#/$defs/ContentId"
+            "distance": {
+              "$ref": "#/$defs/Fx"
+            },
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "pull"
             }
           },
           "additionalProperties": false,
           "required": [
-            "part"
+            "type",
+            "distance",
+            "ticks"
           ]
         }
+      ]
+    },
+    "SubWeapon": {
+      "description": "A weapon as Sub (ADR-070): no attack of its own, only its combo-part bonus.",
+      "type": "object",
+      "properties": {
+        "bonus": {
+          "$ref": "#/$defs/SubBonus"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "bonus"
       ]
     },
     "Tier": {
@@ -2179,32 +2239,6 @@
         "enemy",
         "spawn",
         "count"
-      ]
-    },
-    "WeaponAttack": {
-      "description": "An attack a weapon makes at what its targeting picks: on its own every `cooldown_ticks`\n(an automatic attack), or on a ready press (the Sub skill).",
-      "type": "object",
-      "properties": {
-        "attack": {
-          "description": "An automatic attack never slows the main character: every phase keeps `move_pct` at 100\n(the validator). A skill may.",
-          "$ref": "#/$defs/AttackRef"
-        },
-        "cooldown_ticks": {
-          "description": "Ticks from one attack's start to the next one's. If the attack lasts longer, the next\none waits for it to end.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "targeting": {
-          "description": "The nearest enemy when absent (ADR-050).",
-          "$ref": "#/$defs/Targeting",
-          "default": "nearest_enemy"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "attack",
-        "cooldown_ticks"
       ]
     },
     "WeaponRef": {

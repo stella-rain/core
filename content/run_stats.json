@@ -19,12 +19,12 @@
       "description": "More damage from every attack"
     },
     {
-      "id": "haste",
-      "effect": "haste_pct",
+      "id": "attack_speed",
+      "effect": "attack_speed_pct",
       "step": 8,
       "limit": 5,
-      "title": "Haste",
-      "description": "Both weapons attack more often"
+      "title": "Attack Speed",
+      "description": "Every attack is faster"
     },
     {
       "id": "evade",

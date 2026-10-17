@@ -125,14 +125,14 @@ fn enemies_leave_past_the_maps_margin_not_the_portrait_fields() {
 
 #[test]
 fn bullets_leave_past_the_maps_margin_not_the_portrait_fields() {
-    // The Main weapon fires along the facing at 8 pixels a tick; one tick of the stick turns
-    // it to the right.
+    // The Main weapon fires along the facing at 8 pixels a tick, every 6 ticks; one tick of
+    // the stick turns it to the right.
     let stage = wide(stage_with(600, Some(far_boss()), vec![]));
     let mut e = engine(&stage);
     e.step(moving(127, 0));
     let mut most = 0;
     for _ in 0..400 {
-        e.step(idle());
+        e.step(firing(idle(), e.tick()));
         let s = e.snapshot();
         for b in s.bullets.iter().filter(|b| b.friendly) {
             most = most.max(b.at.x.0);

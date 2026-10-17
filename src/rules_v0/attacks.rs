@@ -12,11 +12,10 @@
 //!
 //! What the nodes mean:
 //! - `fire` makes one bullet at the attack's origin. Its direction is a unit vector: `aimed`
-//!   points at the target (a weapon's: along the last direction to it once it is gone) and
-//!   turns by `offset`, `absolute` is an angle from straight down, `relative` turns the
-//!   direction the attack's parent was going (straight down for an attack a rule started; the
-//!   facing, or the direction to the target when the attack started, for a weapon's; the
-//!   bullet's own direction for an `on_bullet` child), and `sequential` turns the last bullet's
+//!   points at the target (along the facing for a combo step's) and turns by `offset`,
+//!   `absolute` is an angle from straight down, `relative` turns the direction the attack's
+//!   parent was going (straight down for an attack a rule started; the facing for a combo
+//!   step's; the bullet's own direction for an `on_bullet` child), and `sequential` turns the last bullet's
 //!   direction by `step`. The first three also turn by every `rotate`, `ring` and `spread`
 //!   round them. Positive angles turn from straight down toward the right.
 //! - `repeat` runs its body `count` times; the next round starts `interval_ticks` ticks after
@@ -38,9 +37,10 @@
 
 use std::sync::Arc;
 
-use crate::attack::{AttackRef, Direction, Emitter, Expr, PhaseKind};
+use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, PhaseKind};
 use crate::engine::{
-    Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, State, StatusKind,
+    Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Pull, State,
+    StatusKind,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -98,10 +98,10 @@ pub(super) fn start_aged(
     events: &mut Vec<DomainEvent>,
 ) -> bool {
     let aim = Aim::Entity(s.id_of(target));
-    start_with(s, owner, slot, aim, attack, base_damage, age, 0, events)
+    start_with(s, owner, slot, aim, attack, base_damage, age, events)
 }
 
-/// As `start_aged`, for any way of aiming: the main character's shot aims along its heading.
+/// As `start_aged`, for any way of aiming.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn start_with(
     s: &mut State,
@@ -111,7 +111,6 @@ pub(super) fn start_with(
     attack: &AttackRef,
     base_damage: u32,
     age: u32,
-    bonus_pct: u32,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
     let id = s.id_of(owner);
@@ -121,23 +120,118 @@ pub(super) fn start_with(
     let Some(phases) = presets::phases(attack).filter(|p| !p.is_empty()) else {
         return false;
     };
+    launch(
+        s,
+        owner,
+        slot,
+        aim,
+        attack,
+        phases,
+        base_damage,
+        age,
+        0,
+        None,
+        events,
+    );
+    true
+}
+
+/// How the main character's combo step attacks (ADR-070): `bonus_pct` more damage (a perfect
+/// release's), `speed_pct` faster (attack speed), and the Sub weapon's pull for a combo part.
+#[derive(Clone, Copy)]
+pub(super) struct Strike {
+    pub bonus_pct: u32,
+    pub speed_pct: u32,
+    pub pull: Option<Pull>,
+}
+
+/// Starts `attack` for the main character in `slot`, along `facing`, with its `strike`. False,
+/// starting nothing, if the slot is busy or the attack has no phases.
+pub(super) fn start_player(
+    s: &mut State,
+    slot: u8,
+    facing: Dir,
+    attack: &AttackRef,
+    base_damage: u32,
+    strike: Strike,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
+    if busy(s, s.id_of(Who::Player), slot) {
+        return false;
+    }
+    let Some(phases) = presets::phases(attack).filter(|p| !p.is_empty()) else {
+        return false;
+    };
+    let phases = if strike.speed_pct == 0 {
+        phases
+    } else {
+        Arc::new(faster(&phases, strike.speed_pct))
+    };
+    let aim = Aim::Fixed(facing);
+    launch(
+        s,
+        Who::Player,
+        slot,
+        aim,
+        attack,
+        phases,
+        base_damage,
+        0,
+        strike.bonus_pct,
+        strike.pull,
+        events,
+    );
+    true
+}
+
+/// `phases` `pct` percent faster: the attack's length divided by `1 + pct / 100`, rounded to
+/// the nearest tick, and shared among the phases in proportion, each at least 1 tick. The ticks
+/// left over after rounding each phase down go to the phases with the largest remainders, the
+/// first of equal ones first.
+pub(super) fn faster(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
+    let per = 100 + u64::from(pct);
+    let total: u64 = phases.iter().map(|p| u64::from(p.ticks)).sum();
+    let target = ((total * 100 + per / 2) / per).max(phases.len() as u64);
+    let mut out: Vec<AttackPhase> = phases.to_vec();
+    let mut rests: Vec<(u64, usize)> = Vec::with_capacity(phases.len());
+    let mut sum = 0u64;
+    for (i, p) in phases.iter().enumerate() {
+        let exact = u64::from(p.ticks) * 100;
+        let ticks = (exact / per).max(1);
+        rests.push((exact.saturating_sub(ticks * per), i));
+        out[i].ticks = u32::try_from(ticks).unwrap_or(u32::MAX);
+        sum += ticks;
+    }
+    rests.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    for &(_, i) in rests.iter().take(target.saturating_sub(sum) as usize) {
+        out[i].ticks = out[i].ticks.saturating_add(1);
+    }
+    out
+}
+
+/// Pushes a run of `phases` and begins its first phase.
+#[allow(clippy::too_many_arguments)]
+fn launch(
+    s: &mut State,
+    owner: Who,
+    slot: u8,
+    aim: Aim,
+    attack: &AttackRef,
+    phases: Arc<Vec<AttackPhase>>,
+    base_damage: u32,
+    age: u32,
+    bonus_pct: u32,
+    pull: Option<Pull>,
+    events: &mut Vec<DomainEvent>,
+) {
+    let id = s.id_of(owner);
     // A bonus (a perfect release's) adds to the atk-up, for every hit of the attack.
     let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp).saturating_add(bonus_pct);
     let preset: Option<ContentId> = match attack {
         AttackRef::Preset { id, .. } => Some(id.clone()),
         AttackRef::Inline(_) => None,
     };
-    let aim = refreshed(s, s.at(owner), aim);
     let facing = self::aim(s, s.at(owner), aim);
-    // A weapon's attack heads where its target was when it started.
-    let aim = match aim {
-        Aim::Target { id, last, .. } => Aim::Target {
-            id,
-            heading: facing,
-            last,
-        },
-        other => other,
-    };
     s.runs.push(AttackRun {
         owner: id,
         slot,
@@ -152,9 +246,9 @@ pub(super) fn start_with(
         atk_up_pct,
         age,
         hits: Vec::new(),
+        pull,
     });
     begin_phase(s, s.runs.len() - 1, events);
-    true
 }
 
 /// Every run goes on by a tick: to its next phase once the current one has lasted its ticks,
@@ -182,6 +276,26 @@ pub(super) fn advance_runs(s: &mut State, events: &mut Vec<DomainEvent>) {
     }
 }
 
+/// Ends `owner`'s run in `slot`, if any: an evade cancels the main character's combo step, and
+/// a follow-up press its recovery (ADR-070, ADR-076). Bullets it spawned fly on.
+pub(super) fn end_run(s: &mut State, owner: EntityId, slot: u8) {
+    s.runs.retain(|r| r.owner != owner || r.slot != slot);
+}
+
+/// Whether `owner`'s run in `slot` is in a `recovery` phase after its last `active` one: where
+/// a follow-up press may cancel it (ADR-076). False with no run, or no active phase.
+pub(super) fn in_end_recovery(s: &State, owner: EntityId, slot: u8) -> bool {
+    s.runs.iter().any(|r| {
+        r.owner == owner
+            && r.slot == slot
+            && r.phases[r.phase as usize].kind == PhaseKind::Recovery
+            && r.phases
+                .iter()
+                .rposition(|p| p.kind == PhaseKind::Active)
+                .is_some_and(|last| (r.phase as usize) > last)
+    })
+}
+
 /// Ends every run of `owner` (a boss leaving the phase that started them).
 pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
     s.runs.retain(|r| r.owner != owner);
@@ -200,9 +314,6 @@ pub(super) fn phase_damage(r: &AttackRun) -> u32 {
 fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
     if s.runs[i].phases[s.runs[i].phase as usize].kind == PhaseKind::Active {
         s.runs[i].hits.clear();
-    }
-    if let Some(owner) = s.find(s.runs[i].owner) {
-        s.runs[i].aim = refreshed(s, s.at(owner), s.runs[i].aim);
     }
     let r = &s.runs[i];
     let p = &r.phases[r.phase as usize];
@@ -228,6 +339,7 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         friendly: r.friendly,
         damage: phase_damage(r),
         breaks_charge: p.breaks_charge,
+        pull: r.pull,
         age: r.age.saturating_add(elapsed),
         wait_left: 0,
         frames: vec![Frame::default()],
@@ -264,6 +376,7 @@ pub(super) fn fire_hooks(s: &mut State) {
             friendly: hook.friendly,
             damage: hook.damage,
             breaks_charge: hook.breaks_charge,
+            pull: hook.pull,
             age: 0,
             wait_left: 0,
             frames: vec![Frame::default()],
@@ -463,7 +576,7 @@ fn rounds(v: i32) -> u32 {
 // --- Directions ------------------------------------------------------------------------------
 
 /// The unit direction of the vector `(x, y)`; straight down if it has no length.
-fn normalize(x: i64, y: i64) -> Dir {
+pub(super) fn normalize(x: i64, y: i64) -> Dir {
     let len = i64::try_from((x * x + y * y).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
     if len == 0 {
         return Dir::DOWN;
@@ -494,27 +607,11 @@ fn toward(s: &State, from: Point, target: EntityId) -> Option<Dir> {
 }
 
 /// The direction an `aimed` bullet takes from `from`: at the entity (straight down if it is
-/// gone), along the fixed direction, or at a weapon's target (along the last direction taken to
-/// it if it is gone).
+/// gone), or along the fixed direction.
 fn aim(s: &State, from: Point, aim: Aim) -> Dir {
     match aim {
         Aim::Entity(target) => toward(s, from, target).unwrap_or(Dir::DOWN),
         Aim::Fixed(d) => d,
-        Aim::Target { id, last, .. } => toward(s, from, id).unwrap_or(last),
-    }
-}
-
-/// `aim` with a weapon target's last direction brought up to date from `from`, while the target
-/// is there. Called when an attack starts, when each of its phases begins and when it fires an
-/// `aimed` bullet, so that once the target is gone the attack carries on where it last aimed.
-fn refreshed(s: &State, from: Point, aim: Aim) -> Aim {
-    match aim {
-        Aim::Target { id, heading, last } => Aim::Target {
-            id,
-            heading,
-            last: toward(s, from, id).unwrap_or(last),
-        },
-        other => other,
     }
 }
 
@@ -699,7 +796,6 @@ fn emit(
     let dir = match direction {
         Direction::Aimed { offset } => {
             let turn = value(s, t, ab, offset).saturating_add(ab.turn);
-            t.aim = refreshed(s, origin, t.aim);
             rotate(aim(s, origin, t.aim), turn)
         }
         Direction::Absolute { angle } => {
@@ -729,6 +825,7 @@ fn emit(
             friendly: t.friendly,
             damage: t.damage,
             breaks_charge: t.breaks_charge,
+            pull: t.pull,
         })
     });
     let scale = i64::from(trig::SCALE);
@@ -745,6 +842,7 @@ fn emit(
             friendly: t.friendly,
             damage: t.damage,
             breaks_charge: t.breaks_charge,
+            pull: t.pull,
             hook,
         },
         spawns_left,

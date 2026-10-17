@@ -5,8 +5,9 @@
 //! freely and no longer depends on the ID. The engine runs a preset by that same expansion, so a preset and
 //! its inline copy run the same program and reach the same state hashes.
 //!
-//! Weapon presets (core#83) are the developer's weapons, each with its Main and its Sub role,
-//! written the same way; a stage uses one by ID, without arguments, or holds an inline weapon.
+//! Weapon presets (ADR-070) are the developer's weapons, each with its Main role (a combo tree)
+//! and its Sub role (a combo-part bonus), written the same way; a stage uses one by ID, without
+//! arguments, or holds an inline weapon.
 //!
 //! Under version 0 (ADR-035) these definitions are placeholders and change in place.
 
@@ -17,8 +18,9 @@ use crate::registry::{self, Kind};
 use crate::weapon::{MainWeapon, SubWeapon, WeaponPreset, WeaponRef};
 
 /// `(id, definition)`: the definitions are JSON, the stage format's own, with `{"arg": n}` for
-/// the preset's arguments. Angles are in 1/256 degree and speeds in 1/256 pixel a tick. Each is
-/// one active phase of one tick that spawns its bullets.
+/// the preset's arguments. Angles are in 1/256 degree, lengths in 1/256 pixel and speeds in 1/256
+/// pixel a tick. The bullet patterns are one active phase of one tick that spawns its bullets;
+/// the melee swings (`slam`, `slash`, `thrust`) are a wind-up, an active hit box and a recovery.
 const DEFINITIONS: &[(&str, &str)] = &[
     // One bullet at the target; argument 0 is its speed.
     (
@@ -32,6 +34,22 @@ const DEFINITIONS: &[(&str, &str)] = &[
         r#"[{"kind":"active","ticks":1,"spawn":[
             {"type":"spread","count":7,"angle":7680,"body":[
             {"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]}]}]"#,
+    ),
+    // A blow all round: a 40-pixel circle after a slow wind-up, rooted to half speed.
+    (
+        "slam",
+        r#"[{"kind":"wind_up","ticks":12,"move_pct":50},
+            {"kind":"active","ticks":4,"move_pct":50,
+             "hit_box":{"type":"circle","radius":10240}},
+            {"kind":"recovery","ticks":20,"move_pct":50}]"#,
+    ),
+    // A quick sweep ahead: a 32-pixel arc, 60 degrees to each side of the facing.
+    (
+        "slash",
+        r#"[{"kind":"wind_up","ticks":4},
+            {"kind":"active","ticks":3,
+             "hit_box":{"type":"arc","offset":{"forward":2048},"radius":8192,"half_angle":15360}},
+            {"kind":"recovery","ticks":10}]"#,
     ),
     // Forty bullets, one every 3 ticks, each turned 6 degrees from the one before; argument 0
     // is their speed.
@@ -48,6 +66,14 @@ const DEFINITIONS: &[(&str, &str)] = &[
             {"type":"spread","count":5,"angle":5120,"body":[
             {"type":"fire","speed":1536,"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
+    // A reach forward: a 12-pixel circle 28 pixels ahead.
+    (
+        "thrust",
+        r#"[{"kind":"wind_up","ticks":6},
+            {"kind":"active","ticks":3,
+             "hit_box":{"type":"circle","offset":{"forward":7168},"radius":3072}},
+            {"kind":"recovery","ticks":12}]"#,
+    ),
     // Two bullets side by side, 5 degrees apart, at the target.
     (
         "twin_shot",
@@ -58,42 +84,43 @@ const DEFINITIONS: &[(&str, &str)] = &[
 ];
 
 /// `(id, definition)` of the weapon presets, in the stage format's own JSON. Placeholders until
-/// the game design's weapons are written (Giant Sword and the others).
+/// the game design's weapons are written (Giant Sword and the others, app#209).
 const WEAPONS: &[(&str, &str)] = &[
-    // Main: the twin shot along the facing every 6 ticks; the charge, at half speed, fans five
-    // bullets, then seven at level 2 and faster seven at level 3, whose perfect release spirals
-    // instead. Sub: one bullet at the nearest enemy every 30 ticks; its skill fans seven at it.
+    // Main: slash, slash, then a thrust that charges (a thrust at level 1, a slam at level 2), or
+    // a thrust after the second slash for B; B from the root thrusts, then slashes; a dash-strike
+    // thrusts; assist looks 160 pixels away. Sub: pulls what a B step hits by up to 24 pixels
+    // over 6 ticks.
     (
-        "blaster",
-        r#"{"main":{"auto":{"attack":{"preset":{"id":"twin_shot"}},"targeting":"facing",
-                            "cooldown_ticks":6},
-                    "charge":{"max_ticks":90,"cooldown_ticks":120,"move_pct":50,"levels":[
-                        {"at_ticks":0,"attack":{"preset":{"id":"spread_5"}}},
-                        {"at_ticks":30,"perfect_ticks":8,"perfect_pct":50,
-                         "attack":{"preset":{"id":"aimed_spread","args":[2048]}}},
-                        {"at_ticks":60,"perfect_ticks":8,"perfect_pct":100,
-                         "attack":{"preset":{"id":"aimed_spread","args":[3072]}},
-                         "perfect_attack":{"preset":{"id":"spiral","args":[2048]}}}]}},
-            "sub":{"auto":{"attack":{"preset":{"id":"aimed_single","args":[2048]}},
-                           "targeting":"nearest_enemy","cooldown_ticks":30},
-                   "skill":{"attack":{"preset":{"id":"aimed_spread","args":[2048]}},
-                            "targeting":"nearest_enemy","cooldown_ticks":180}}}"#,
+        "blade",
+        r#"{"main":{"combo":{
+                "main":{"attack":{"preset":{"id":"slash"}},"next":{
+                    "main":{"attack":{"preset":{"id":"slash"}},"next":{
+                        "main":{"attack":{"preset":{"id":"thrust"}},
+                                "charge":{"max_ticks":90,"move_pct":50,"levels":[
+                                    {"at_ticks":20,"perfect_ticks":6,"perfect_pct":50,
+                                     "attack":{"preset":{"id":"thrust"}}},
+                                    {"at_ticks":50,"perfect_ticks":6,"perfect_pct":100,
+                                     "attack":{"preset":{"id":"slam"}}}]}},
+                        "sub":{"attack":{"preset":{"id":"thrust"}}}}}}},
+                "sub":{"attack":{"preset":{"id":"thrust"}},"next":{
+                    "sub":{"attack":{"preset":{"id":"slash"}}}}}},
+            "dash":{"main":{"attack":{"preset":{"id":"thrust"}}}},
+            "window_ticks":20,"dash_strike_ticks":10,"assist_range":40960},
+            "sub":{"bonus":{"type":"pull","distance":6144,"ticks":6}}}"#,
     ),
-    // Main: one fast bullet at the nearest enemy every 10 ticks; the charge fires one fast
-    // bullet, or seven from level 2, doubled by a perfect release. Sub: five bullets in a fan
-    // along the facing every 45 ticks; its skill spirals.
+    // Main: slam, then a slam that charges, rooted (a slam at level 1); B slashes; assist looks
+    // 128 pixels away. Sub: pulls what a B step hits by up to 40 pixels over 8 ticks.
     (
-        "needle",
-        r#"{"main":{"auto":{"attack":{"preset":{"id":"aimed_single","args":[3072]}},
-                            "targeting":"nearest_enemy","cooldown_ticks":10},
-                    "charge":{"max_ticks":80,"cooldown_ticks":150,"levels":[
-                        {"at_ticks":0,"attack":{"preset":{"id":"aimed_single","args":[3072]}}},
-                        {"at_ticks":40,"perfect_ticks":6,"perfect_pct":100,
-                         "attack":{"preset":{"id":"aimed_spread","args":[3072]}}}]}},
-            "sub":{"auto":{"attack":{"preset":{"id":"spread_5"}},"targeting":"facing",
-                           "cooldown_ticks":45},
-                   "skill":{"attack":{"preset":{"id":"spiral","args":[1536]}},
-                            "targeting":"facing","cooldown_ticks":240}}}"#,
+        "maul",
+        r#"{"main":{"combo":{
+                "main":{"attack":{"preset":{"id":"slam"}},"next":{
+                    "main":{"attack":{"preset":{"id":"slam"}},
+                            "charge":{"max_ticks":120,"move_pct":0,"levels":[
+                                {"at_ticks":30,"perfect_ticks":8,"perfect_pct":100,
+                                 "attack":{"preset":{"id":"slam"}}}]}}}},
+                "sub":{"attack":{"preset":{"id":"slash"}}}},
+            "window_ticks":24,"assist_range":32768},
+            "sub":{"bonus":{"type":"pull","distance":10240,"ticks":8}}}"#,
     ),
 ];
 

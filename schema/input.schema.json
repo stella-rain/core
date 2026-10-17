@@ -3,16 +3,24 @@
   "title": "Input",
   "type": "object",
   "properties": {
-    "charge": {
-      "description": "Skill 2 held on this tick: a press while ready starts the charge, letting go releases it\n(ADR-050).",
+    "assist": {
+      "description": "Aim assist is on for this tick, a switch (ADR-072): a combo step faces the target.",
+      "type": "boolean"
+    },
+    "auto": {
+      "description": "Auto mode is on for this tick, a switch (ADR-073): the simulation plays the auto combo\nat the target. Its presses come from the state, never from this record.",
       "type": "boolean"
     },
     "evade": {
-      "description": "Skill 1 pressed on this tick: a ready evade dashes (ADR-050).",
+      "description": "The evade button (X) is held on this tick: a press dashes when an evade is ready.",
+      "type": "boolean"
+    },
+    "main": {
+      "description": "The Main attack button (A) is held on this tick (ADR-070).",
       "type": "boolean"
     },
     "move_x": {
-      "description": "Movement direction and strength, each −127 to 127 (−128 counts as −127). The simulation\nclamps the vector to length 127 and scales it to the character's speed (ADR-050).",
+      "description": "Movement direction and strength, each −127 to 127 (−128 counts as −127). The simulation\nclamps the vector to length 127 and scales it to the character's speed (ADR-071).",
       "type": "integer",
       "format": "int8",
       "maximum": 127,
@@ -24,8 +32,12 @@
       "maximum": 127,
       "minimum": -128
     },
+    "skill": {
+      "description": "The stage skill button (Y) is held on this tick (ADR-075; it does nothing yet).",
+      "type": "boolean"
+    },
     "sub": {
-      "description": "Skill 3 pressed on this tick: a ready Sub skill happens (ADR-050).",
+      "description": "The Sub attack button (B) is held on this tick (ADR-070).",
       "type": "boolean"
     }
   },
@@ -33,8 +45,11 @@
   "required": [
     "move_x",
     "move_y",
+    "main",
+    "sub",
     "evade",
-    "charge",
-    "sub"
+    "skill",
+    "assist",
+    "auto"
   ]
 }

@@ -148,7 +148,7 @@ fn target(tick: u32, is_elite: bool) -> Value {
 fn drops(e: &mut Engine, ticks: u32) -> (Vec<usize>, Vec<Rarity>) {
     let (mut kills, mut at, mut rarities) = (0, Vec::new(), Vec::new());
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(firing(idle(), e.tick()));
         for ev in e.events() {
             match ev {
                 DomainEvent::Died { .. } => kills += 1,
@@ -279,7 +279,7 @@ fn the_boss_calls_its_elites_once_its_time_is_up_and_they_leave_their_place() {
 fn the_boss_calls_them_once_its_hit_points_fall_below_its_share() {
     // 100 hp and 10 a shot: the boss is below 70% after its 4th hit, and calls on the tick after.
     let mut e = with(&calling(100, Some(json!({ "below_pct": 70 })), 1));
-    let events = run_until(&mut e, idle(), 600, |e| {
+    let events = fire_until(&mut e, idle(), 600, |e| {
         e.events()
             .iter()
             .any(|ev| matches!(ev, DomainEvent::ElitesCalled { .. }))

@@ -5,6 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::attack::{HitBox, PhaseKind};
+use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
@@ -14,8 +15,7 @@ use crate::rewards::Rarity;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttackView {
-    /// 0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its
-    /// Sub weapon, 2 for its charged skill and 3 for its Sub skill (core#83).
+    /// 0 for an agent's or the boss's attacks and the main character's combo (ADR-069).
     pub slot: u8,
     /// The preset it came from; absent for an inline attack.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -160,19 +160,21 @@ pub struct PlayerView {
     /// Ticks of invulnerability left, after a hit or from an evade; the frontend can flash it.
     pub invulnerable: u32,
     pub evade: EvadeView,
-    /// The charge in progress (skill 2), if any (ADR-050).
+    /// Where it is in its Main weapon's combos (ADR-070).
+    pub combo: ComboView,
+    /// The current step charging, if it is (ADR-070).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub charge: Option<ChargeView>,
-    /// Skill 2, the charged Main skill.
-    pub main_skill: SkillView,
-    /// Skill 3, the Sub skill.
-    pub sub_skill: SkillView,
+    /// The enemy aim assist and auto mode would face, while either is on (ADR-072), so the
+    /// frontend can mark it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<EntityId>,
     /// Its attacks in progress, by slot.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
 }
 
-/// Skill 1 (ADR-050).
+/// The evade (ADR-074).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EvadeView {
@@ -184,27 +186,39 @@ pub struct EvadeView {
     pub dash_left: u32,
 }
 
-/// A charge in progress (ADR-050). `core` judges the perfect window on this tick, so what the
+/// Where the main character is in its combos (ADR-070): what the frontend's combo trail draws,
+/// with the next possible presses read from the weapon's tree.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ComboView {
+    /// The presses from the root to the current step; empty at the root.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub presses: Vec<Press>,
+    /// The presses began in the dash branch (a dash-strike).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub dash: bool,
+    /// The press waiting for the next step.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buffered: Option<Press>,
+    /// Ticks left in which a press continues the combo, once a step has run out.
+    pub window_left: u32,
+    /// The auto combo: the presses auto mode plays from the root (ADR-073).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub auto: Vec<Press>,
+}
+
+/// A charge in progress (ADR-070). `core` judges the perfect window on this tick, so what the
 /// frontend shows is what a release on the next tick gets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ChargeView {
-    /// The level reached, from 1.
+    /// The level reached: 0 before level 1, when letting go is a plain step and the frontend
+    /// keeps its clock at full speed (ADR-071).
     pub level: u8,
-    /// Ticks held since the press, 0 on the press's tick.
+    /// Ticks held since the step began to charge, 0 on its first tick.
     pub held: u32,
     /// Inside the level's perfect window: letting go on the next tick is a perfect release.
     pub perfect: bool,
-}
-
-/// Skill 2 or 3 (ADR-050).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillView {
-    /// A press on the next tick would start it (the Sub skill only if it finds a target).
-    pub ready: bool,
-    /// Ticks until it is ready again.
-    pub cooldown_left: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

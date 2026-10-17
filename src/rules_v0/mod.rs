@@ -3,11 +3,11 @@
 //!
 //! What a tick does, in this order:
 //! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
-//! 2. the main character turns to its stick, starts a ready evade on a press (breaking a
-//!    charge), charges or releases its charged skill, then dashes or moves (speed cap, slowing,
-//!    playfield), then its Main and its Sub weapon each start their attack on their own, along
-//!    its facing or at their target, and a ready press starts the Sub skill (ADR-050, ADR-055,
-//!    core#83; see `player`);
+//! 2. the main character turns to its stick and, while aim assist or auto mode is on, picks a
+//!    target (ADR-072, `select`); it starts a ready evade on a press (cancelling its combo
+//!    step and breaking a charge), walks its combo: a buffered press, or else auto mode's
+//!    (ADR-073), takes the next step, a charge rises or releases (ADR-070, ADR-076; see
+//!    `player`), then it dashes or moves (speed cap, slowing, playfield);
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
 //!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
 //!    a shot skill starts an attack task; then the enemies push apart, all at once (`push`,
@@ -28,8 +28,8 @@
 //! a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in step 8, answered between ticks (`stars`).
 //!
-//! Not yet in this version: summons by companions; what the main character's weapons acquire
-//! during a run (`player::shot` is where it would plug in).
+//! Not yet in this version: summons by companions; the stage skill (ADR-075), whose input is
+//! recorded and does nothing yet.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
 //! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, the stage's elite cap of
@@ -51,12 +51,12 @@ mod player;
 mod push;
 mod stars;
 
-pub(crate) use player::{charge_ready, charge_view, skill_ready};
+pub(crate) use player::{charge_view, combo_view};
 mod select;
 
 use crate::engine::{
-    AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, Outcome, PartState,
-    PlayerState, Progress, StarField, State,
+    AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
+    PartState, PlayerState, Progress, Pull, StarField, State,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -199,13 +199,10 @@ pub(crate) fn initial_state(
             invulnerable: 0,
             // Up the map on every map, landscape ones included; a stage cannot set it yet.
             facing: Dir::UP,
-            main_cooldown: 0,
-            charge: None,
-            charge_held: false,
-            charge_cooldown: 0,
-            skill_cooldown: 0,
-            sub_cooldown: 0,
+            target: None,
             evade_cooldown: 0,
+            held: 0,
+            combo: player::initial_combo(stage),
             dash: None,
             aggro: 0,
             statuses: Vec::new(),
@@ -371,6 +368,8 @@ struct Shot {
     friendly: bool,
     damage: u32,
     breaks_charge: bool,
+    /// The Sub weapon's pull, for a combo part's hit (ADR-070).
+    pull: Option<Pull>,
 }
 
 fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
@@ -388,6 +387,7 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
             friendly: b.friendly,
             damage: b.damage,
             breaks_charge: b.breaks_charge,
+            pull: b.pull,
         };
         consumed.push(if shot.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
@@ -455,6 +455,9 @@ fn hit_enemy_side(
 ) -> bool {
     if let Some(i) = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, |i| s.enemies[i].hp > 0) {
         damage(s, b, Who::Enemy(i), events);
+        if let Some(pull) = b.pull {
+            pull_enemy(stage, s, i, pull);
+        }
         return true;
     }
     let Some((def, state)) = stage.boss.as_ref().zip(s.boss.as_ref()) else {
@@ -490,9 +493,40 @@ fn hit_enemy_side(
     false
 }
 
+/// The Sub weapon's pull on enemy `i`, hit by a combo part (ADR-070): it is drawn toward the
+/// main character by at most `distance`, over `ticks`, as a move order that replaces its
+/// movement, and stops where their circles touch. A dead enemy and an elite are not pulled.
+pub(super) fn pull_enemy(stage: &Stage, s: &mut State, i: usize, pull: Pull) {
+    let e = &s.enemies[i];
+    if e.hp == 0 || e.elite.is_some() {
+        return;
+    }
+    let to = s.player.at;
+    let (dx, dy) = (
+        i64::from(e.at.x.0) - i64::from(to.x.0),
+        i64::from(e.at.y.0) - i64::from(to.y.0),
+    );
+    let len = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+    let contact = i64::from(PLAYER_RADIUS) + i64::from(agent_def(stage, e.key).radius.0);
+    let left = (len - i64::from(pull.distance)).max(contact);
+    if left >= len {
+        return;
+    }
+    let at =
+        |from: Fx, d: i64| Fx(i32::try_from(i64::from(from.0) + d * left / len).unwrap_or(from.0));
+    let goal = stage.map().clamp(Point {
+        x: at(to.x, dx),
+        y: at(to.y, dy),
+    });
+    s.enemies[i].order = Some(MoveOrder {
+        to: goal,
+        ticks_left: pull.ticks.max(1),
+    });
+}
+
 /// Damage to the main character, raised by its vulnerability and reduced by its defence; it is
 /// then invulnerable for a while.
-fn hurt_player(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
+fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
     let dealt = scale_damage(b.damage, 0, vulnerable, s.player.defence);
     let p = &mut s.player;
@@ -501,7 +535,7 @@ fn hurt_player(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEve
     events.push(DomainEvent::PlayerHit { hp_left: p.hp });
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
-        player::break_charge(stage, s, events);
+        player::break_charge(s, events);
     }
 }
 
@@ -510,7 +544,7 @@ fn hurt_player(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEve
 fn hit_ally_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
     if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
-        hurt_player(stage, s, b, events);
+        hurt_player(s, b, events);
         return true;
     }
     for i in 0..s.companions.len() {
@@ -619,14 +653,6 @@ fn hash_aim(h: &mut StateHasher, aim: crate::engine::Aim) {
             h.write_i32(d.x);
             h.write_i32(d.y);
         }
-        crate::engine::Aim::Target { id, heading, last } => {
-            h.write_u32(2);
-            h.write_u32(id.0);
-            h.write_i32(heading.x);
-            h.write_i32(heading.y);
-            h.write_i32(last.x);
-            h.write_i32(last.y);
-        }
     }
 }
 
@@ -647,6 +673,7 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
     h.write_bool(t.friendly);
     h.write_u32(t.damage);
     h.write_bool(t.breaks_charge);
+    hash_pull(h, t.pull);
     h.write_u32(t.age);
     h.write_u32(t.wait_left);
     h.write_i32(t.parent_dir.x);
@@ -669,7 +696,12 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
 fn hash_run(h: &mut StateHasher, r: &crate::engine::AttackRun) {
     h.write_u32(r.owner.0);
     h.write_u32(u32::from(r.slot));
+    // A combo step's phases may be shortened by attack speed (ADR-070), so their lengths are
+    // written.
     h.write_u32(count(&r.phases));
+    for p in r.phases.iter() {
+        h.write_u32(p.ticks);
+    }
     h.write_u32(r.phase);
     h.write_u32(r.tick);
     h.write_i32(r.facing.x);
@@ -683,6 +715,18 @@ fn hash_run(h: &mut StateHasher, r: &crate::engine::AttackRun) {
     for (id, tick) in &r.hits {
         h.write_u32(id.0);
         h.write_u32(*tick);
+    }
+    hash_pull(h, r.pull);
+}
+
+fn hash_pull(h: &mut StateHasher, pull: Option<Pull>) {
+    match pull {
+        Some(Pull { distance, ticks }) => {
+            h.write_bool(true);
+            h.write_i32(distance);
+            h.write_u32(ticks);
+        }
+        None => h.write_bool(false),
     }
 }
 
@@ -706,19 +750,37 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_u32(p.invulnerable);
     h.write_i32(p.facing.x);
     h.write_i32(p.facing.y);
-    h.write_u32(p.main_cooldown);
-    h.write_u32(p.sub_cooldown);
+    match p.target {
+        Some(id) => {
+            h.write_bool(true);
+            h.write_u32(id.0);
+        }
+        None => h.write_bool(false),
+    }
     h.write_u32(p.evade_cooldown);
-    match p.charge {
+    h.write_u32(u32::from(p.held));
+    let c = &p.combo;
+    h.write_u32(c.path);
+    h.write_u32(u32::from(c.depth));
+    h.write_bool(c.dash);
+    h.write_u32(match c.buffered {
+        None => 0,
+        Some(false) => 1,
+        Some(true) => 2,
+    });
+    h.write_bool(c.running);
+    h.write_u32(c.window_left);
+    h.write_u32(c.dash_strike_left);
+    match c.charge {
         Some(held) => {
             h.write_bool(true);
             h.write_u32(held);
         }
         None => h.write_bool(false),
     }
-    h.write_bool(p.charge_held);
-    h.write_u32(p.charge_cooldown);
-    h.write_u32(p.skill_cooldown);
+    h.write_bool(c.hand);
+    h.write_u32(c.auto_path);
+    h.write_u32(u32::from(c.auto_depth));
     match p.dash {
         Some(DashState { dir, done, left }) => {
             h.write_bool(true);
@@ -810,6 +872,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_bool(b.friendly);
         h.write_u32(b.damage);
         h.write_bool(b.breaks_charge);
+        hash_pull(&mut h, b.pull);
         match &b.hook {
             Some(hook) => {
                 h.write_bool(true);
@@ -820,6 +883,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 h.write_bool(hook.friendly);
                 h.write_u32(hook.damage);
                 h.write_bool(hook.breaks_charge);
+                hash_pull(&mut h, hook.pull);
             }
             None => h.write_bool(false),
         }

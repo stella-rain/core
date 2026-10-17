@@ -1014,37 +1014,33 @@ fn damaged_files_never_panic() {
     }
 }
 
-// --- Weapons (core#83) -----------------------------------------------------------------------
+// --- Weapons (ADR-070) ----------------------------------------------------------------------
 
-/// A weapon attack firing `attack` (an attack reference) at `targeting`.
-fn weapon_attack(attack: Value, targeting: Value, cooldown_ticks: u32) -> Value {
-    json!({ "attack": attack, "targeting": targeting, "cooldown_ticks": cooldown_ticks })
+/// A combo step making `attack`.
+fn step(attack: Value) -> Value {
+    json!({ "attack": attack })
 }
 
-/// A charge of three levels, at 0, 30 and 60 of 90 ticks, with `edit` applied.
+fn slash() -> Value {
+    json!({ "preset": { "id": "slash" } })
+}
+
+/// A charge of three levels, at 20, 50 and 80 of 90 ticks, with `edit` applied.
 fn charge(edit: impl FnOnce(&mut Value)) -> Value {
     let level = |at: u32, perfect: u32| {
         json!({ "at_ticks": at, "perfect_ticks": perfect, "perfect_pct": 50,
-                "attack": { "preset": { "id": "twin_shot" } } })
+                "attack": { "preset": { "id": "thrust" } } })
     };
-    let mut c = json!({ "levels": [level(0, 0), level(30, 8), level(60, 8)],
-                        "max_ticks": 90, "cooldown_ticks": 120 });
+    let mut c = json!({ "levels": [level(20, 8), level(50, 8), level(80, 8)], "max_ticks": 90 });
     edit(&mut c);
     c
 }
 
-/// An inline weapon in `role` ("main" or "sub") whose automatic attack is `auto`.
-fn inline_weapon(role: &str, auto: Value) -> Value {
-    if role == "main" {
-        json!({ "inline": { "auto": auto, "charge": charge(|_| {}) } })
-    } else {
-        let skill = weapon_attack(
-            json!({ "preset": { "id": "twin_shot" } }),
-            json!("facing"),
-            60,
-        );
-        json!({ "inline": { "auto": auto, "skill": skill } })
-    }
+/// An inline Main weapon whose root branches are `combo`, with `edit` applied to it.
+fn main_weapon(combo: Value, edit: impl FnOnce(&mut Value)) -> Value {
+    let mut w = json!({ "combo": combo, "window_ticks": 20, "assist_range": 0 });
+    edit(&mut w);
+    json!({ "inline": w })
 }
 
 fn with_weapon(role: &str, weapon: Value) -> Value {
@@ -1053,151 +1049,170 @@ fn with_weapon(role: &str, weapon: Value) -> Value {
     v
 }
 
+fn with_main(combo: Value, edit: impl FnOnce(&mut Value)) -> Value {
+    with_weapon("main", main_weapon(combo, edit))
+}
+
 fn with_charge(edit: impl FnOnce(&mut Value)) -> Value {
-    let auto = weapon_attack(
-        json!({ "preset": { "id": "twin_shot" } }),
-        json!("facing"),
-        6,
-    );
+    let mut charged = step(slash());
+    charged["charge"] = charge(edit);
+    with_main(json!({ "main": charged }), |_| {})
+}
+
+fn with_pull(distance: i32, ticks: u32) -> Value {
     with_weapon(
-        "main",
-        json!({ "inline": { "auto": auto, "charge": charge(edit) } }),
+        "sub",
+        json!({ "inline": { "bonus": { "type": "pull", "distance": distance, "ticks": ticks } } }),
     )
 }
 
-const CHARGE: &str = "$.player.main.inline.charge";
+const CHARGE: &str = "$.player.main.inline.combo.main.charge";
 
-#[test]
-fn a_weapons_automatic_attack_never_slows_the_main_character_but_its_skills_may() {
-    let slowing = |move_pct: u8| json!({ "inline": [phase(json!({})), phase(json!({ "move_pct": move_pct }))] });
-    for role in ["main", "sub"] {
-        let auto = |move_pct| {
-            with_weapon(
-                role,
-                inline_weapon(role, weapon_attack(slowing(move_pct), json!("facing"), 6)),
-            )
-        };
-        assert_valid(&auto(100));
-        let issue = first_issue(&auto(99));
-        assert_eq!(
-            issue.path,
-            format!("$.player.{role}.inline.auto.attack.inline[1].move_pct")
-        );
-        assert!(issue.message.contains("never slows"), "{issue:?}");
+/// A tree of `n` slashes, breadth first: step `i` leads to `2i + 1` by `main` and `2i + 2` by
+/// `sub`, so 33 steps are only 6 deep.
+fn tree(n: usize) -> Value {
+    fn node(i: usize, n: usize) -> Value {
+        let mut s = step(slash());
+        for (key, child) in [("main", 2 * i + 1), ("sub", 2 * i + 2)] {
+            if child < n {
+                s["next"][key] = node(child, n);
+            }
+        }
+        s
     }
-    // The Sub skill and the charged release may root the main character.
-    let mut sub = inline_weapon("sub", weapon_attack(slowing(100), json!("facing"), 6));
-    sub["inline"]["skill"]["attack"] = slowing(0);
-    assert_valid(&with_weapon("sub", sub));
-    assert_valid(&with_charge(|c| c["levels"][2]["attack"] = slowing(0)));
+    json!({ "main": node(0, n) })
+}
+
+/// A chain of `n` slashes, each reached by `main`.
+fn chain(n: usize) -> Value {
+    let mut b = json!({});
+    for _ in 0..n {
+        let mut s = step(slash());
+        if b.as_object().is_some_and(|o| !o.is_empty()) {
+            s["next"] = b;
+        }
+        b = json!({ "main": s });
+    }
+    b
 }
 
 #[test]
 fn a_weapon_preset_is_a_weapon_id() {
     let preset = |id: &str| with_weapon("sub", json!({ "preset": { "id": id } }));
-    assert_valid(&preset("blaster"));
-    assert_valid(&preset("needle"));
-    for id in ["twin_shot", "no_such_weapon"] {
+    assert_valid(&preset("blade"));
+    assert_valid(&preset("maul"));
+    for id in ["slash", "no_such_weapon"] {
         assert_eq!(first_issue(&preset(id)).path, "$.player.sub.preset.id");
     }
     // A weapon preset takes no arguments.
-    let args = with_weapon("main", json!({ "preset": { "id": "blaster", "args": [] } }));
+    let args = with_weapon("main", json!({ "preset": { "id": "blade", "args": [] } }));
     assert!(serde_json::from_value::<Stage>(args).is_err());
 }
 
 #[test]
-fn a_weapons_cooldown_is_0_to_max_ticks() {
-    let attack = json!({ "preset": { "id": "twin_shot" } });
-    let with = |ticks| {
-        with_weapon(
-            "main",
-            inline_weapon(
-                "main",
-                weapon_attack(attack.clone(), json!("facing"), ticks),
-            ),
-        )
-    };
-    assert_valid(&with(0));
-    assert_valid(&with(MAX_TICKS));
+fn a_main_weapon_holds_combos_and_a_sub_weapon_a_bonus() {
+    let sub = json!({ "inline": { "bonus": { "type": "pull", "distance": 0, "ticks": 1 } } });
+    let main = main_weapon(chain(1), |_| {});
+    assert_valid(&with_weapon("sub", sub.clone()));
+    assert!(serde_json::from_value::<Stage>(with_weapon("main", sub)).is_err());
+    assert!(serde_json::from_value::<Stage>(with_weapon("sub", main)).is_err());
+    // A Main weapon without steps is valid: its presses do nothing.
+    assert_valid(&with_main(json!({}), |_| {}));
+}
+
+#[test]
+fn a_combo_step_s_attack_is_checked_where_it_is() {
+    let v = with_main(chain(1), |w| {
+        w["combo"]["main"]["next"]["sub"] = step(json!({ "preset": { "id": "no_such_attack" } }))
+    });
     assert_eq!(
-        first_issue(&with(MAX_TICKS + 1)).path,
-        "$.player.main.inline.auto.cooldown_ticks"
+        first_issue(&v).path,
+        "$.player.main.inline.combo.main.next.sub.attack.preset.id"
+    );
+    let dash = with_main(chain(1), |w| {
+        w["dash"] = json!({ "sub": step(json!({ "preset": { "id": "blade" } })) })
+    });
+    assert_eq!(
+        first_issue(&dash).path,
+        "$.player.main.inline.dash.sub.attack.preset.id"
     );
 }
 
 #[test]
-fn a_weapon_aims_at_an_enemy_and_only_at_a_part_the_boss_has() {
-    let attack = json!({ "preset": { "id": "aimed_single", "args": [512] } });
-    let with = |targeting: Value| {
-        with_weapon(
-            "sub",
-            inline_weapon("sub", weapon_attack(attack.clone(), targeting, 30)),
-        )
-    };
-    for ok in [
-        json!("facing"),
-        json!("nearest_enemy"),
-        json!("boss_first"),
-        json!({ "part": "horn_left" }),
-    ] {
-        assert_valid(&with(ok));
-    }
+fn combo_limits_hold_at_the_limit_and_fail_one_past() {
+    at_limit_and_over(MAX_COMBO_STEPS, "$.player.main.inline.combo", |n| {
+        with_main(tree(n), |_| {})
+    });
+    // The dash branch counts toward the same total.
+    let with_dash = |n: usize| with_main(tree(n), |w| w["dash"] = chain(1));
+    assert_valid(&with_dash(MAX_COMBO_STEPS - 1));
     assert_eq!(
-        first_issue(&with(json!({ "part": "horn_right" }))).path,
-        "$.player.sub.inline.auto.targeting.part"
+        first_issue(&with_dash(MAX_COMBO_STEPS)).path,
+        "$.player.main.inline.combo"
     );
-    // Selectors that pick an ally are not targeting.
-    for ally in [
-        "self",
-        "player",
-        "nearest_ally",
-        "lowest_hp_ally",
-        "highest_aggro_ally",
+    let depth = MAX_COMBO_DEPTH as usize;
+    assert_valid(&with_main(chain(depth), |_| {}));
+    let deepest = format!(
+        "$.player.main.inline.combo{}.main",
+        ".main.next".repeat(depth)
+    );
+    assert_eq!(
+        first_issue(&with_main(chain(depth + 1), |_| {})).path,
+        deepest
+    );
+    for (key, max) in [
+        ("window_ticks", MAX_COMBO_WINDOW_TICKS),
+        ("dash_strike_ticks", MAX_DASH_STRIKE_TICKS),
     ] {
-        assert!(
-            serde_json::from_value::<Stage>(with(json!(ally))).is_err(),
-            "{ally}"
+        assert_valid(&with_main(chain(1), |w| w[key] = json!(max)));
+        assert_eq!(
+            first_issue(&with_main(chain(1), |w| w[key] = json!(max + 1))).path,
+            format!("$.player.main.inline.{key}")
         );
     }
 }
 
 #[test]
-fn targeting_is_the_nearest_enemy_when_absent() {
-    let auto = json!({ "attack": { "preset": { "id": "twin_shot" } }, "cooldown_ticks": 30 });
-    let stage: Stage =
-        serde_json::from_value(with_weapon("sub", inline_weapon("sub", auto))).unwrap();
-    let stella_rain_core::weapon::WeaponRef::Inline(w) = &stage.player.sub else {
-        panic!("an inline weapon");
-    };
+fn an_assist_range_is_0_to_its_limit() {
+    let with_range = |r: i64| with_main(chain(1), |w| w["assist_range"] = json!(r));
+    assert_valid(&with_range(0));
+    assert_valid(&with_range(i64::from(MAX_ASSIST_RANGE)));
+    let at = "$.player.main.inline.assist_range";
+    assert_eq!(first_issue(&with_range(-1)).path, at);
     assert_eq!(
-        w.auto.targeting,
-        stella_rain_core::weapon::Targeting::NearestEnemy
+        first_issue(&with_range(i64::from(MAX_ASSIST_RANGE) + 1)).path,
+        at
     );
 }
 
 #[test]
-fn a_main_weapon_needs_a_charge_and_a_sub_weapon_a_skill() {
-    let auto = weapon_attack(
-        json!({ "preset": { "id": "twin_shot" } }),
-        json!("facing"),
-        6,
+fn a_pull_is_0_to_its_distance_over_1_to_its_ticks() {
+    assert_valid(&with_pull(0, 1));
+    assert_valid(&with_pull(MAX_PULL_DISTANCE, MAX_PULL_TICKS));
+    let at = |key: &str| format!("$.player.sub.inline.bonus.{key}");
+    assert_eq!(first_issue(&with_pull(-1, 1)).path, at("distance"));
+    assert_eq!(
+        first_issue(&with_pull(MAX_PULL_DISTANCE + 1, 1)).path,
+        at("distance")
     );
-    let sub_as_main = with_weapon("main", inline_weapon("sub", auto.clone()));
-    assert!(serde_json::from_value::<Stage>(sub_as_main).is_err());
-    let main_as_sub = with_weapon("sub", inline_weapon("main", auto));
-    assert!(serde_json::from_value::<Stage>(main_as_sub).is_err());
+    assert_eq!(first_issue(&with_pull(0, 0)).path, at("ticks"));
+    assert_eq!(
+        first_issue(&with_pull(0, MAX_PULL_TICKS + 1)).path,
+        at("ticks")
+    );
 }
 
 #[test]
-fn charge_levels_start_at_0_rise_strictly_and_come_before_max_ticks() {
+fn charge_levels_start_after_0_rise_strictly_and_come_before_max_ticks() {
     assert_valid(&with_charge(|_| {}));
     let at = |key: &str| format!("{CHARGE}.{key}");
-    let first_at_5 = with_charge(|c| c["levels"][0]["at_ticks"] = json!(5));
-    assert_eq!(first_issue(&first_at_5).path, at("levels[0].at_ticks"));
+    // Level 0 is the step's own attack, so level 1 comes after it.
+    let first_at_0 = with_charge(|c| c["levels"][0]["at_ticks"] = json!(0));
+    assert_eq!(first_issue(&first_at_0).path, at("levels[0].at_ticks"));
     // Level 2's window is emptied, so only the level order is wrong.
     let not_rising = with_charge(|c| {
         c["levels"][1]["perfect_ticks"] = json!(0);
-        c["levels"][2]["at_ticks"] = json!(30);
+        c["levels"][2]["at_ticks"] = json!(50);
     });
     assert_eq!(first_issue(&not_rising).path, at("levels[2].at_ticks"));
     let at_max = with_charge(|c| {
@@ -1210,33 +1225,30 @@ fn charge_levels_start_at_0_rise_strictly_and_come_before_max_ticks() {
 }
 
 #[test]
-fn a_perfect_window_ends_by_the_next_level_and_the_first_level_has_none() {
+fn a_perfect_window_ends_by_the_next_level_or_max_ticks() {
     let at = |key: &str| format!("{CHARGE}.{key}");
-    // Level 2 is at 30 and level 3 at 60: a window of 30 ends exactly at the next level.
+    // Level 1 is at 20 and level 2 at 50: a window of 30 ends exactly at the next level.
     assert_valid(&with_charge(|c| {
-        c["levels"][1]["perfect_ticks"] = json!(30)
+        c["levels"][0]["perfect_ticks"] = json!(30)
     }));
     assert_eq!(
-        first_issue(&with_charge(|c| c["levels"][1]["perfect_ticks"] = json!(31))).path,
-        at("levels[1].perfect_ticks")
+        first_issue(&with_charge(|c| c["levels"][0]["perfect_ticks"] = json!(31))).path,
+        at("levels[0].perfect_ticks")
     );
-    // The last ends by max_ticks, 90.
+    // The last, at 80, ends by max_ticks, 90.
     assert_valid(&with_charge(|c| {
-        c["levels"][2]["perfect_ticks"] = json!(30)
+        c["levels"][2]["perfect_ticks"] = json!(10)
     }));
     assert_eq!(
-        first_issue(&with_charge(|c| c["levels"][2]["perfect_ticks"] = json!(31))).path,
+        first_issue(&with_charge(|c| c["levels"][2]["perfect_ticks"] = json!(11))).path,
         at("levels[2].perfect_ticks")
     );
-    let issue = first_issue(&with_charge(|c| c["levels"][0]["perfect_ticks"] = json!(1)));
-    assert_eq!(issue.path, at("levels[0].perfect_ticks"));
-    assert!(issue.message.contains("tap"), "{issue:?}");
 }
 
 #[test]
 fn charge_limits_hold_at_the_limit_and_fail_one_past() {
     let at = |key: &str| format!("{CHARGE}.{key}");
-    let level = |i: u32| json!({ "at_ticks": i, "attack": { "preset": { "id": "twin_shot" } } });
+    let level = |i: u32| json!({ "at_ticks": i + 1, "attack": { "preset": { "id": "thrust" } } });
     at_limit_and_over(MAX_CHARGE_LEVELS, &at("levels"), |n| {
         with_charge(|c| c["levels"] = Value::Array((0..n as u32).map(level).collect()))
     });
@@ -1263,9 +1275,15 @@ fn charge_limits_hold_at_the_limit_and_fail_one_past() {
         first_issue(&with_charge(|c| c["move_pct"] = json!(101))).path,
         at("move_pct")
     );
+    // A charge has no cooldown (ADR-070).
+    let cooldown = with_charge(|c| c["cooldown_ticks"] = json!(1));
+    assert!(serde_json::from_value::<Stage>(cooldown).is_err());
+    let perfect_attack = with_charge(|c| {
+        c["levels"][0]["perfect_attack"] = json!({ "preset": { "id": "no_such_attack" } })
+    });
     assert_eq!(
-        first_issue(&with_charge(|c| c["cooldown_ticks"] = json!(MAX_TICKS + 1))).path,
-        at("cooldown_ticks")
+        first_issue(&perfect_attack).path,
+        at("levels[0].perfect_attack.preset.id")
     );
 }
 

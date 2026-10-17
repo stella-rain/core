@@ -17,7 +17,7 @@ pub enum Kind {
     Preset,
     /// A buff or debuff (ADR-036).
     Status,
-    /// A weapon preset, with its Main and Sub roles (core#83).
+    /// A weapon preset, with its Main and Sub roles (ADR-070).
     Weapon,
     /// A game mode: the content a run plays (ADR-051), bundled in `core` (`modes/`).
     Mode,
@@ -62,14 +62,17 @@ pub const ENTRIES: &[Entry] = &[
     entry("orb_small", Kind::Bullet, 0),
     entry("aimed_single", Kind::Preset, 1),
     entry("aimed_spread", Kind::Preset, 1),
+    entry("slam", Kind::Preset, 0),
+    entry("slash", Kind::Preset, 0),
     entry("spiral", Kind::Preset, 1),
     entry("spread_5", Kind::Preset, 0),
+    entry("thrust", Kind::Preset, 0),
     entry("twin_shot", Kind::Preset, 0),
     entry("atk_up", Kind::Status, 0),
     entry("slow", Kind::Status, 0),
     entry("vulnerable", Kind::Status, 0),
-    entry("blaster", Kind::Weapon, 0),
-    entry("needle", Kind::Weapon, 0),
+    entry("blade", Kind::Weapon, 0),
+    entry("maul", Kind::Weapon, 0),
     entry("trial", Kind::Mode, 0),
 ];
 

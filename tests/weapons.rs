@@ -1,279 +1,434 @@
-//! The Main and Sub weapons (ADR-050, core#83): each attacks on its own, on its own cooldown,
-//! along the facing or at the enemy its targeting picks. Small stages whose every tick can be
-//! worked out by hand: the main character stands at (46080, 147456), facing up the field.
+//! The Main weapon's combos and the Sub weapon's pull (ADR-070, ADR-076), made by hand. Small
+//! stages whose every tick can be worked out by hand: the main character stands at (46080,
+//! 147456), facing up the field.
+//!
+//! The test weapon's steps are all the same swing: a wind-up of 2 ticks, an active phase of 2
+//! that fires one bullet up the field on its first tick, and a recovery of 6, 10 ticks in all;
+//! each step's bullet has its own speed, so the bullets say which steps ran. A step pressed on
+//! tick t winds up on t and t + 1, fires on t + 2 and recovers from t + 4 to t + 9.
 
 mod common;
 
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::event::{DomainEvent, Press};
 use stella_rain_core::input::Input;
 use stella_rain_core::presets;
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::validate_weapon_preset;
+use stella_rain_core::weapon::WeaponRef;
 
 // --- Builders --------------------------------------------------------------------------------
 
-fn fire(speed: i32, direction: Value) -> Value {
-    json!({ "type": "fire", "speed": speed, "direction": direction })
+/// The steps, by the speed of their bullet: A, then AA, then AAA (a leaf); AB after A; B from
+/// the root; D, the dash-strike.
+const A: i32 = 256;
+const AA: i32 = 512;
+const AAA: i32 = 768;
+const AB: i32 = 1024;
+const B: i32 = 1280;
+const D: i32 = 1536;
+
+const WINDOW: u32 = 10;
+const DASH_STRIKE: u32 = 5;
+
+fn swing(speed: i32) -> Value {
+    json!({ "inline": [
+        { "kind": "wind_up", "ticks": 2 },
+        { "kind": "active", "ticks": 2, "spawn": [{ "type": "fire", "speed": speed,
+            "direction": { "type": "aimed", "offset": 0 } }] },
+        { "kind": "recovery", "ticks": 6 }
+    ] })
 }
 
-fn aimed() -> Value {
-    json!({ "type": "aimed", "offset": 0 })
+/// The test weapon with a window of `window` ticks.
+fn test_weapon(window: u32) -> Value {
+    json!({ "inline": {
+        "combo": {
+            "main": { "attack": swing(A), "next": {
+                "main": { "attack": swing(AA), "next": { "main": step(swing(AAA)) } },
+                "sub": step(swing(AB)) } },
+            "sub": step(swing(B))
+        },
+        "dash": { "main": step(swing(D)) },
+        "window_ticks": window, "dash_strike_ticks": DASH_STRIKE,
+        "assist_range": 0
+    } })
 }
 
-/// An attack that fires one bullet at `speed` on the tick it starts.
-fn one_bullet(speed: i32) -> Value {
-    json!({ "inline": spawned(json!([fire(speed, aimed())])) })
+fn far() -> Stage {
+    stage_with(600, Some(far_boss()), vec![])
 }
 
-/// An enemy that stands at `(x, y)` from the main character and does nothing.
-fn target_at(hp: u32, dx: i32, dy: i32) -> Value {
-    wave(
-        1,
-        1,
-        0,
-        enemy(hp, hold(START_X + dx, START_Y + dy), json!([])),
-        START_X + dx,
-        START_Y + dy,
-    )
+fn combo_stage(window: u32) -> Stage {
+    armed(far(), test_weapon(window), quiet_sub())
 }
 
-fn friendly(e: &Engine) -> Vec<(i32, i32)> {
-    e.snapshot()
-        .bullets
-        .iter()
-        .filter(|b| b.friendly)
-        .map(|b| (b.vx.0, b.vy.0))
+/// The inputs of ticks 1 to `ticks`: on each tick of `presses` the buttons its letters name
+/// are held, for that tick only: `a` (`main`), `b` (`sub`), `x` (`evade`).
+fn presses(presses: &[(u32, &str)], ticks: u32) -> Vec<Input> {
+    (1..=ticks)
+        .map(|t| {
+            let held = presses
+                .iter()
+                .find(|(at, _)| *at == t)
+                .map_or("", |(_, keys)| *keys);
+            Input {
+                main: held.contains('a'),
+                sub: held.contains('b'),
+                evade: held.contains('x'),
+                ..idle()
+            }
+        })
         .collect()
 }
 
-/// The velocities of the friendly bullets made on the first tick.
-fn first_tick(stage: &Stage) -> Vec<(i32, i32)> {
-    let mut e = engine(stage);
+/// What a run of `inputs` did: every event with its tick, and the speed of every friendly
+/// bullet with the tick it was made.
+struct Played {
+    events: Vec<(u32, DomainEvent)>,
+    shots: Vec<(u32, i32)>,
+}
+
+fn play(e: &mut Engine, inputs: &[Input]) -> Played {
+    let mut played = Played {
+        events: Vec::new(),
+        shots: Vec::new(),
+    };
+    let mut seen = 0;
+    for input in inputs {
+        e.step(*input);
+        played
+            .events
+            .extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
+        let bullets: Vec<i32> = e
+            .snapshot()
+            .bullets
+            .iter()
+            .filter(|b| b.friendly)
+            .map(|b| -b.vy.0)
+            .collect();
+        played
+            .shots
+            .extend(bullets[seen..].iter().map(|v| (e.tick(), *v)));
+        seen = bullets.len();
+    }
+    played
+}
+
+impl Played {
+    /// The steps taken: the tick, the press and the depth reached.
+    fn steps(&self) -> Vec<(u32, Press, u8)> {
+        self.events
+            .iter()
+            .filter_map(|(t, ev)| match ev {
+                DomainEvent::ComboStep { press, depth } => Some((*t, *press, *depth)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn resets(&self) -> Vec<u32> {
+        ticks_of(&self.events, |ev| *ev == DomainEvent::ComboReset)
+    }
+}
+
+fn played(stage: &Stage, inputs: &[Input]) -> Played {
+    play(&mut engine(stage), inputs)
+}
+
+// --- Steps and presses -----------------------------------------------------------------------
+
+#[test]
+fn a_press_takes_a_step_and_a_held_button_presses_once() {
+    let held = vec![pressing_main(); 40];
+    let p = played(&combo_stage(WINDOW), &held);
+    assert_eq!(p.steps(), [(1, Press::Main, 1)]);
+    assert_eq!(p.shots, [(3, A)]);
+}
+
+#[test]
+fn a_buffered_press_starts_the_next_step_where_the_recovery_would_begin() {
+    // Pressed again while A winds up: AA starts on tick 5 instead of A's recovery.
+    let p = played(&combo_stage(WINDOW), &presses(&[(1, "a"), (3, "a")], 30));
+    assert_eq!(p.steps(), [(1, Press::Main, 1), (5, Press::Main, 2)]);
+    assert_eq!(p.shots, [(3, A), (7, AA)]);
+}
+
+#[test]
+fn with_nothing_buffered_the_recovery_plays_and_a_press_during_it_is_taken_at_once() {
+    let mut e = engine(&combo_stage(WINDOW));
+    play(&mut e, &presses(&[(1, "a")], 10));
+    assert_eq!(
+        e.snapshot().player.attacks.len(),
+        1,
+        "A recovers to tick 10"
+    );
     e.step(idle());
-    friendly(&e)
+    assert!(e.snapshot().player.attacks.is_empty());
+
+    let p = played(&combo_stage(WINDOW), &presses(&[(1, "a"), (8, "a")], 20));
+    assert_eq!(p.steps(), [(1, Press::Main, 1), (8, Press::Main, 2)]);
 }
 
-/// The ticks, of the first `ticks`, on which friendly bullets with velocity `v` were made.
-fn ticks_firing(stage: &Stage, ticks: u32, v: (i32, i32)) -> Vec<u32> {
-    let mut e = engine(stage);
-    let mut before = 0;
-    let mut fired = Vec::new();
-    for _ in 0..ticks {
-        e.step(idle());
-        let now = friendly(&e).iter().filter(|b| **b == v).count();
-        if now > before {
-            fired.push(e.tick());
-        }
-        before = now;
+#[test]
+fn one_press_is_buffered_and_the_latest_wins() {
+    let p = played(
+        &combo_stage(WINDOW),
+        &presses(&[(1, "a"), (3, "a"), (4, "b")], 20),
+    );
+    assert_eq!(p.steps(), [(1, Press::Main, 1), (5, Press::Sub, 2)]);
+    assert_eq!(p.shots, [(3, A), (7, AB)]);
+}
+
+#[test]
+fn a_and_b_on_one_tick_count_as_a() {
+    let p = played(&combo_stage(WINDOW), &presses(&[(1, "a"), (3, "ab")], 20));
+    assert_eq!(p.steps(), [(1, Press::Main, 1), (5, Press::Main, 2)]);
+    let p = played(&combo_stage(WINDOW), &presses(&[(1, "ab")], 20));
+    assert_eq!(p.steps(), [(1, Press::Main, 1)]);
+}
+
+#[test]
+fn b_takes_its_own_branch_from_the_root() {
+    let p = played(&combo_stage(WINDOW), &presses(&[(1, "b")], 20));
+    assert_eq!(p.steps(), [(1, Press::Sub, 1)]);
+    assert_eq!(p.shots, [(3, B)]);
+}
+
+#[test]
+fn a_leaf_runs_to_its_end_before_a_press_starts_again_from_the_root() {
+    // AAA starts on tick 9 and recovers to tick 18; the press on tick 11 waits for it.
+    let p = played(
+        &combo_stage(WINDOW),
+        &presses(&[(1, "a"), (3, "a"), (7, "a"), (11, "a")], 30),
+    );
+    assert_eq!(
+        p.steps(),
+        [
+            (1, Press::Main, 1),
+            (5, Press::Main, 2),
+            (9, Press::Main, 3),
+            (19, Press::Main, 1)
+        ]
+    );
+    assert_eq!(p.resets(), [19]);
+    assert_eq!(p.shots, [(3, A), (7, AA), (11, AAA), (21, A)]);
+}
+
+#[test]
+fn the_window_keeps_the_place_for_its_ticks_after_the_step() {
+    // A ends after tick 10: a press on ticks 11 to 20 takes AA; from tick 21 the combo is back
+    // at the root.
+    let p = played(&combo_stage(WINDOW), &presses(&[(1, "a"), (20, "a")], 30));
+    assert_eq!(p.steps(), [(1, Press::Main, 1), (20, Press::Main, 2)]);
+    assert!(p.resets().is_empty());
+
+    let p = played(&combo_stage(WINDOW), &presses(&[(1, "a"), (21, "a")], 30));
+    assert_eq!(p.steps(), [(1, Press::Main, 1), (21, Press::Main, 1)]);
+    assert_eq!(p.resets(), [21]);
+
+    // The snapshot counts the window down: the ticks left after this one.
+    let mut e = engine(&combo_stage(WINDOW));
+    play(&mut e, &presses(&[(1, "a")], 11));
+    assert_eq!(e.snapshot().player.combo.window_left, WINDOW - 1);
+    play(&mut e, &presses(&[], 9));
+    assert_eq!(e.snapshot().player.combo.window_left, 0);
+    assert_eq!(e.snapshot().player.combo.presses, [Press::Main]);
+    let p = play(&mut e, &presses(&[], 1));
+    assert_eq!(p.resets(), [21]);
+    assert!(e.snapshot().player.combo.presses.is_empty());
+}
+
+#[test]
+fn with_a_window_of_0_the_next_press_after_the_step_starts_from_the_root() {
+    // A ends after tick 10, so the press on tick 11 starts A again; that one ends after tick
+    // 20, and the combo is back at the root on tick 21.
+    let p = played(&combo_stage(0), &presses(&[(1, "a"), (11, "a")], 30));
+    assert_eq!(p.steps(), [(1, Press::Main, 1), (11, Press::Main, 1)]);
+    assert_eq!(p.resets(), [11, 21]);
+}
+
+#[test]
+fn the_snapshot_shows_the_combo_and_the_buffered_press() {
+    let mut e = engine(&combo_stage(WINDOW));
+    play(&mut e, &presses(&[(1, "a"), (3, "b")], 3));
+    let combo = e.snapshot().player.combo;
+    assert_eq!(
+        (combo.presses, combo.dash, combo.buffered),
+        (vec![Press::Main], false, Some(Press::Sub))
+    );
+}
+
+// --- The evade and the dash-strike -----------------------------------------------------------
+
+#[test]
+fn an_evade_cancels_the_step_and_clears_the_buffer() {
+    // A fires on tick 3; B is buffered on tick 3; the evade on tick 4 ends A and drops B.
+    let p = played(
+        &combo_stage(WINDOW),
+        &presses(&[(1, "a"), (3, "b"), (4, "x")], 30),
+    );
+    assert_eq!(p.steps(), [(1, Press::Main, 1)]);
+    assert_eq!(p.resets(), [4]);
+    assert_eq!(p.shots, [(3, A)]);
+}
+
+#[test]
+fn a_press_during_the_dash_or_its_dash_strike_ticks_takes_the_dash_branch() {
+    // The dash moves on ticks 1 to 8 (its 8 ticks); the dash-strike may start until tick 13.
+    for (at, speed, dash) in [(1, D, true), (4, D, true), (13, D, true), (14, A, false)] {
+        let keys: &[(u32, &str)] = if at == 1 {
+            &[(1, "xa")]
+        } else {
+            &[(1, "x"), (at, "a")]
+        };
+        let mut e = engine(&combo_stage(WINDOW));
+        let p = play(&mut e, &presses(keys, at + 2));
+        assert_eq!(p.shots, [(at + 2, speed)], "a press on tick {at}");
+        assert_eq!(e.snapshot().player.combo.dash, dash, "a press on tick {at}");
     }
-    fired
+    // A press with no dash step starts from the root.
+    let p = played(&combo_stage(WINDOW), &presses(&[(1, "x"), (3, "b")], 10));
+    assert_eq!(p.shots, [(5, B)]);
 }
 
-fn far(waves: Vec<Value>) -> Stage {
-    stage_with(600, Some(far_boss()), waves)
+// --- The Sub weapon's pull -------------------------------------------------------------------
+
+/// A blow all round, 48 pixels across, for one tick.
+fn blow() -> Value {
+    json!({ "inline": [{ "kind": "active", "ticks": 1,
+                         "hit_box": { "type": "circle", "radius": 12_288 } }] })
 }
 
-// --- Two weapons, each on its own ----------------------------------------------------------
-
-#[test]
-fn main_and_sub_attack_side_by_side_each_on_its_own_cooldown() {
-    let stage = armed(
-        far(vec![]),
-        weapon(one_bullet(2048), json!("facing"), 6),
-        weapon(one_bullet(1024), json!("facing"), 10),
-    );
-    assert_eq!(first_tick(&stage), [(0, -2048), (0, -1024)]);
-    assert_eq!(ticks_firing(&stage, 30, (0, -2048)), [1, 7, 13, 19, 25]);
-    assert_eq!(ticks_firing(&stage, 30, (0, -1024)), [1, 11, 21]);
-}
-
-#[test]
-fn the_cooldown_counts_from_the_attacks_start_and_a_longer_attack_waits() {
-    // One tick that fires, then 10 of recovery: the attack lasts 11 ticks.
-    let long = json!({ "inline": [
-        { "kind": "active", "ticks": 1, "spawn": [fire(1024, aimed())] },
-        { "kind": "recovery", "ticks": 10 }
-    ] });
-    let with = |cooldown| {
-        armed(
-            far(vec![]),
-            quiet_weapon(),
-            weapon(long.clone(), json!("facing"), cooldown),
-        )
-    };
-    // A cooldown of 6 is over on tick 7, but the attack runs until tick 11.
-    assert_eq!(ticks_firing(&with(6), 40, (0, -1024)), [1, 12, 23, 34]);
-    // A cooldown of 20 outlasts the attack.
-    assert_eq!(ticks_firing(&with(20), 60, (0, -1024)), [1, 21, 41]);
-}
-
-// --- Targeting -------------------------------------------------------------------------------
-
-#[test]
-fn the_nearest_enemy_is_the_default_target() {
-    // 160 pixels to the right and 168 to the left; the boss is far up and to the left.
-    let waves = vec![target_at(1000, 40_960, 0), target_at(1000, -43_000, 0)];
-    let sub = json!({ "attack": one_bullet(1024), "cooldown_ticks": 600 });
-    let stage = armed(far(waves), quiet_weapon(), sub);
-    assert_eq!(first_tick(&stage), [(1024, 0)]);
-}
-
-#[test]
-fn with_no_target_the_weapon_waits_without_spending_its_cooldown() {
-    // No boss, and the only enemy arrives on tick 5.
-    let arrives = wave(
-        5,
-        1,
-        0,
-        enemy(1000, hold(START_X + 40_960, START_Y), json!([])),
-        START_X + 40_960,
-        START_Y,
-    );
-    let stage = armed(
-        stage_with(600, None, vec![arrives]),
-        quiet_weapon(),
-        weapon(one_bullet(1024), json!("nearest_enemy"), 30),
-    );
-    assert_eq!(ticks_firing(&stage, 40, (1024, 0)), [5, 35]);
-}
-
-#[test]
-fn boss_first_and_part_aim_where_they_say() {
-    // The boss stands 80 pixels to the left, its part 80 pixels to the right; an enemy is
-    // nearer, 40 pixels above.
-    let boss = json!({ "base": "golem", "hp": 1_000_000, "radius": 8192,
-                       "spawn": { "x": START_X - 20_480, "y": START_Y },
-                       "parts": [{ "id": "horn", "asset": "horns_2", "hp": 30,
-                                   "offset": { "x": 40_960, "y": 0 }, "radius": 2048 }],
-                       "phases": [{}] });
-    let near = target_at(1000, 0, -10_240);
-    let with = |targeting: Value| {
-        armed(
-            stage_with(600, Some(boss.clone()), vec![near.clone()]),
-            quiet_weapon(),
-            weapon(one_bullet(1024), targeting, 600),
-        )
-    };
-    assert_eq!(first_tick(&with(json!("nearest_enemy"))), [(0, -1024)]);
-    assert_eq!(first_tick(&with(json!("boss_first"))), [(-1024, 0)]);
-    assert_eq!(first_tick(&with(json!({ "part": "horn" }))), [(1024, 0)]);
-    assert_eq!(first_tick(&with(json!("facing"))), [(0, -1024)]);
-}
-
-#[test]
-fn an_attack_at_a_target_starts_its_relative_directions_toward_it() {
-    let relative = json!({ "inline": spawned(json!([
-        fire(1024, json!({ "type": "relative", "angle": 0 }))
-    ])) });
-    let stage = armed(
-        far(vec![target_at(1000, 40_960, 0)]),
-        quiet_weapon(),
-        weapon(relative, json!("nearest_enemy"), 600),
-    );
-    assert_eq!(first_tick(&stage), [(1024, 0)]);
-}
-
-#[test]
-fn a_later_phase_still_heads_where_the_target_was_when_the_attack_started() {
-    // The enemy starts 160 pixels to the right and drifts down 1 pixel a tick; the bullet comes
-    // from the second phase, 10 ticks into the attack, and still goes straight right.
-    let drifting = wave(
-        1,
-        1,
-        0,
-        enemy(
-            1000,
-            json!({ "type": "straight", "vx": 0, "vy": 256 }),
-            json!([]),
+/// A stage whose Main weapon has the blow on both buttons, whose Sub weapon pulls 24 pixels
+/// over 6 ticks, with `target` (an enemy that stands still) `dy` above the main character.
+fn pulling(target: Value, dy: i32, levels: bool) -> Stage {
+    let mut stage = armed(
+        stage_full(
+            600,
+            Some(far_boss()),
+            vec![wave(1, 1, 0, target, START_X, START_Y - dy)],
+            vec![],
         ),
-        START_X + 40_960,
-        START_Y,
+        main_combo(json!({ "main": step(blow()), "sub": step(blow()) })),
+        sub_pull(6_144, 6),
     );
-    let later = json!({ "inline": [
-        { "kind": "recovery", "ticks": 10 },
-        { "kind": "active", "ticks": 1,
-          "spawn": [fire(1024, json!({ "type": "relative", "angle": 0 }))] }
-    ] });
-    let stage = armed(
-        far(vec![drifting]),
-        quiet_weapon(),
-        weapon(later, json!("nearest_enemy"), 600),
-    );
-    let mut e = engine(&stage);
-    for _ in 0..11 {
-        e.step(idle());
+    if levels {
+        stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
     }
-    assert_eq!(friendly(&e), [(1024, 0)]);
+    stage
+}
+
+fn still(hp: u32) -> Value {
+    enemy(
+        hp,
+        json!({ "type": "straight", "vx": 0, "vy": 0 }),
+        json!([]),
+    )
+}
+
+/// How far above the main character the enemy stands 30 ticks after `keys` on tick 2.
+fn after_blow(stage: &Stage, keys: &str) -> i32 {
+    let mut e = engine(stage);
+    play(&mut e, &presses(&[(2, keys)], 32));
+    let s = e.snapshot();
+    let target = s.entities.iter().find(|v| v.hp > 0 && v.id.0 > 1).unwrap();
+    START_Y - target.at.y.0
 }
 
 #[test]
-fn aimed_bullets_keep_the_last_direction_to_a_target_that_is_gone() {
-    // Two bullets, 20 ticks apart, at an enemy of 10 hp 80 pixels to the right. The first, at 16
-    // pixels a tick, reaches it on tick 5 and kills it; the second still goes right.
-    let twice = json!({ "inline": spawned(json!([
-        { "type": "repeat", "count": 2, "interval_ticks": 20, "body": [fire(4096, aimed())] }
-    ])) });
-    let stage = armed(
-        far(vec![target_at(10, 20_480, 0)]),
-        quiet_weapon(),
-        weapon(twice, json!("nearest_enemy"), 600),
+fn a_step_reached_by_sub_pulls_what_it_hits_by_its_distance() {
+    // 40 pixels above, pulled 24: it stops 16 pixels above. A step reached by `main` pulls
+    // nothing.
+    let stage = pulling(still(1000), 10_240, false);
+    assert_eq!(after_blow(&stage, "b"), 4_096);
+    assert_eq!(after_blow(&stage, "a"), 10_240);
+}
+
+#[test]
+fn the_pull_takes_its_ticks_and_stops_where_the_circles_touch() {
+    // 20 pixels above: the pull would end 4 pixels past it, so it stops where the circles
+    // touch, the enemy's 8 pixels and the main character's 2.
+    let stage = pulling(still(1000), 5_120, false);
+    assert_eq!(after_blow(&stage, "b"), 2_048 + 512);
+    // Halfway through its 6 ticks it is on its way.
+    let mut e = engine(&pulling(still(1000), 10_240, false));
+    play(&mut e, &presses(&[(2, "b")], 5));
+    let y = START_Y - e.snapshot().entities[1].at.y.0;
+    assert!(4_096 < y && y < 10_240, "{y}");
+}
+
+#[test]
+fn an_elite_and_the_boss_resist_the_pull() {
+    let mut elite = still(1000);
+    elite["elite"] = json!({ "range": 65_536 });
+    assert_eq!(after_blow(&pulling(elite, 10_240, true), "b"), 10_240);
+    let mut stage = armed(
+        stage_full(600, Some(boss_at(1000, START_Y - 10_240)), vec![], vec![]),
+        main_combo(json!({ "sub": step(blow()) })),
+        sub_pull(6_144, 6),
     );
+    stage.player.hp = 99;
     let mut e = engine(&stage);
-    for _ in 0..21 {
-        e.step(idle());
-    }
-    assert_eq!(enemies(&e.snapshot()), 0, "the first bullet killed it");
-    assert_eq!(friendly(&e), [(4096, 0)]);
+    play(&mut e, &presses(&[(2, "b")], 12));
+    let boss = &e.snapshot().entities[0];
+    assert!(boss.hp < 1000, "the blow lands");
+    assert_eq!(START_Y - boss.at.y.0, 10_240);
 }
 
 // --- Presets ---------------------------------------------------------------------------------
 
+fn preset(id: &str) -> Value {
+    json!({ "preset": { "id": id } })
+}
+
 #[test]
 fn a_preset_runs_its_main_role_as_main_and_its_sub_role_as_sub() {
-    let preset = |id: &str| json!({ "preset": { "id": id } });
-    let waves = || vec![target_at(1000, 40_960, 0)];
-    // blaster: Main is the twin shot along the facing, Sub one bullet at the nearest enemy.
-    let blaster = first_tick(&armed(far(waves()), preset("blaster"), preset("blaster")));
-    assert_eq!(blaster.len(), 3, "{blaster:?}");
-    assert!(
-        blaster[..2].iter().all(|(_, vy)| *vy < -2000),
-        "{blaster:?}"
-    );
-    assert_eq!(blaster[2], (2048, 0));
-    // needle: Main is one fast bullet at the nearest enemy, Sub five along the facing.
-    let needle = first_tick(&armed(far(waves()), preset("needle"), preset("needle")));
-    assert_eq!(needle.len(), 6, "{needle:?}");
-    assert_eq!(needle[0], (3072, 0));
+    // The maul as Main slams; the blade as Main slashes.
+    let first = |main: &str| {
+        let mut e = engine(&armed(far(), preset(main), preset("blade")));
+        e.step(pressing_main());
+        e.snapshot().player.attacks[0].preset.clone().unwrap().0
+    };
+    assert_eq!(first("maul"), "slam");
+    assert_eq!(first("blade"), "slash");
+    // As Sub, the blade pulls 24 pixels and the maul 40: an enemy 36 pixels above, hit by the
+    // maul's B step (a slash) or the blade's (a thrust), stops 12 pixels above, or touching.
+    let pulled = |main: &str, sub: &str| {
+        let mut stage = pulling(still(1000), 9_216, false);
+        stage = armed(stage, preset(main), preset(sub));
+        after_blow(&stage, "b")
+    };
+    assert_eq!(pulled("maul", "blade"), 3_072);
+    assert_eq!(pulled("blade", "maul"), 2_048 + 512);
 }
 
 #[test]
 fn a_preset_and_its_inline_copy_run_the_same() {
-    let preset = |id: &str| json!({ "preset": { "id": id } });
     let preset_of = |id: &str| presets::weapon_preset(id).expect("a weapon preset");
     let copy = |w: Value| json!({ "inline": w });
-    let waves = || {
-        vec![
-            target_at(1000, 40_960, -20_000),
-            target_at(30, -30_000, -40_000),
-        ]
-    };
-    let by_id = armed(far(waves()), preset("needle"), preset("blaster"));
-    let inline = armed_full(
-        far(waves()),
-        copy(serde_json::to_value(&preset_of("needle").main).unwrap()),
-        copy(serde_json::to_value(&preset_of("blaster").sub).unwrap()),
+    let waves = || vec![wave(1, 3, 20, still(40), START_X, START_Y - 9_216)];
+    let by_id = armed(
+        stage_with(600, Some(far_boss()), waves()),
+        preset("blade"),
+        preset("maul"),
+    );
+    let inline = armed(
+        stage_with(600, Some(far_boss()), waves()),
+        copy(serde_json::to_value(&preset_of("blade").main).unwrap()),
+        copy(serde_json::to_value(&preset_of("maul").sub).unwrap()),
     );
     let (mut a, mut b) = (engine(&by_id), engine(&inline));
-    // Charging for 45 ticks (a perfect release at level 2 of needle's charge), and the Sub
-    // skill pressed on tick 50.
-    for t in 0..120 {
+    // Slash, slash and the thrust charged to level 2; B, B; an evade and its dash-strike.
+    for t in 0..160 {
         let input = Input {
-            charge: (5..50).contains(&t),
-            sub: t == 50,
-            ..if t < 60 { idle() } else { moving(40, -20) }
+            main: matches!(t, 0 | 8 | 120) || (16..70).contains(&t),
+            sub: t == 90 || t == 98,
+            evade: t == 118,
+            ..if t < 130 { idle() } else { moving(40, -20) }
         };
         a.step(input);
         b.step(input);
@@ -293,5 +448,13 @@ fn every_weapon_preset_is_registered_and_both_roles_are_valid() {
     for id in defined {
         let w = presets::weapon_preset(id).expect("a definition");
         assert_eq!(validate_weapon_preset(w, registry::ENTRIES), Ok(()), "{id}");
+        assert_eq!(
+            presets::main_weapon(&WeaponRef::Preset { id: id.into() }),
+            Some(&w.main)
+        );
+        assert_eq!(
+            presets::sub_weapon(&WeaponRef::Preset { id: id.into() }),
+            Some(&w.sub)
+        );
     }
 }

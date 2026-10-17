@@ -99,10 +99,10 @@ fn the_snapshot_gives_each_circle_the_radius_hits_use() {
 }
 
 #[test]
-fn the_main_shot_attacks_every_six_ticks_and_its_shots_leave_the_field() {
+fn the_main_shot_fired_every_six_ticks_leaves_the_field() {
     let mut e = running(vec![]);
     for _ in 0..60 {
-        e.step(idle());
+        e.step(firing(idle(), e.tick()));
     }
     // Shots on ticks 1, 7, ..., 55; none has left the field yet.
     let s = e.snapshot();
@@ -110,7 +110,7 @@ fn the_main_shot_attacks_every_six_ticks_and_its_shots_leave_the_field() {
     assert!(s.bullets.iter().all(|b| b.friendly));
     // A shot is gone 80 ticks after it starts, so 14 are ever in the air at once.
     for _ in 0..200 {
-        e.step(idle());
+        e.step(firing(idle(), e.tick()));
     }
     assert_eq!(e.snapshot().bullets.len(), 14);
 }
@@ -132,7 +132,7 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
         )],
     );
     let mut e = engine(&stage);
-    let events = run_until(&mut e, idle(), 200, |e| {
+    let events = fire_until(&mut e, idle(), 200, |e| {
         e.outcome() != Outcome::Running || {
             e.snapshot()
                 .entities
@@ -215,8 +215,9 @@ fn a_finished_run_ignores_further_ticks() {
 #[test]
 fn beating_the_boss_clears_the_stage() {
     let mut e = engine(&stage_with(18_000, Some(boss_at(20, 25_600)), vec![]));
-    let events = run_until(&mut e, idle(), 300, |e| e.outcome() != Outcome::Running);
-    // The first shot touches the boss on tick 56, the second (fired on tick 7) on tick 62.
+    let events = fire_until(&mut e, idle(), 300, |e| e.outcome() != Outcome::Running);
+    // The first shot touches the boss on tick 56, the second (fired on tick 7) on tick 62. The
+    // step that fired on tick 61 has run out, and with no window the combo is back at the root.
     assert_eq!((e.tick(), e.outcome()), (62, Outcome::Cleared));
     let last: Vec<_> = events
         .iter()
@@ -226,6 +227,7 @@ fn beating_the_boss_clears_the_stage() {
     assert_eq!(
         last,
         [
+            &DomainEvent::ComboReset,
             &DomainEvent::Hit {
                 source: EntityId(0),
                 target: EntityId(1),
@@ -478,7 +480,9 @@ fn fixture() -> Stage {
     serde_json::from_str(FIXTURE).expect("the fixture parses")
 }
 
-/// A fixed, varied script: drift about at different strengths, and evade now and then.
+/// A fixed, varied script: drift about at different strengths, evade now and then, and play
+/// the fixture's `blade` every 200 ticks: slash, slash and the thrust held for 56 ticks (a
+/// charge to level 2), then B, B (a thrust and a slash, with the `maul`'s pull).
 fn script(tick: u32) -> Input {
     let (move_x, move_y) = match (tick / 45) % 4 {
         0 => (64, 0),
@@ -490,9 +494,9 @@ fn script(tick: u32) -> Input {
         move_x,
         move_y,
         evade: tick % 120 == 60,
-        // A charge held for 40 ticks every 200, and the Sub skill pressed every 150.
-        charge: (100..140).contains(&(tick % 200)),
-        sub: tick % 150 == 75,
+        main: matches!(tick % 200, 0 | 8) || (16..72).contains(&(tick % 200)),
+        sub: matches!(tick % 200, 100 | 108),
+        ..Input::default()
     }
 }
 
@@ -511,7 +515,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x345d_d242_347f_dcca;
+const GOLDEN_HASH: u64 = 0xd86e_f13a_085e_115c;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {
@@ -591,8 +595,9 @@ fn random_inputs_keep_every_invariant() {
                 move_x: any(&mut rng),
                 move_y: any(&mut rng),
                 evade: rng.below(8) == 0,
-                charge: rng.below(2) == 0,
+                main: rng.below(2) == 0,
                 sub: rng.below(16) == 0,
+                ..Input::default()
             };
             e.step(input);
             let s = e.snapshot();

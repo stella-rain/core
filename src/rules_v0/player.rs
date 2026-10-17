@@ -1,24 +1,44 @@
-//! The main character (ADR-050): movement from the input's stick, the persistent facing
-//! (ADR-055), the Main and Sub weapons that attack on their own, the evade, the charged Main
-//! skill and the Sub skill (ADR-050, core#83).
+//! The main character (ADR-071): movement from the input's stick, the persistent facing
+//! (ADR-069), the evade, and the combos of its Main weapon, made by hand (ADR-070, ADR-076).
+//!
+//! The combo: a press of `main` or `sub` is buffered (one, the latest; `main` when both come
+//! on one tick). With no step running it takes the next step from where the combo is, or from
+//! the root when there is none; a running step is cancelled for it once it reaches the
+//! recovery after its last hits, if there is a next step for the press; a leaf runs to its end
+//! first. When a step has run out with nothing buffered, the combo keeps its place for the
+//! weapon's `window_ticks`. A step reached by `sub` is a combo part, which carries the Sub
+//! weapon's pull. A step with a charge charges while the button that reached it is still held
+//! as it starts: let go before level 1, it attacks as a tap would; later, at the level reached,
+//! with the perfect bonus inside a window; at `max_ticks` it releases by itself. Presses while
+//! charging are not buffered. An evade cancels the running step, breaks a charge and clears the
+//! buffer, and a press during its dash or `dash_strike_ticks` after it takes the dash branch.
+//!
+//! Aim assist (ADR-072): while `assist` or `auto` is on, each tick picks a target; with `assist`
+//! on, a step faces it as its attack starts. Auto mode (ADR-073): while `auto` is on, there is a
+//! target and no press by hand is in the combo, it presses for the player, the next press of
+//! the auto combo, taken as a buffered press would be; after the auto combo's last step, or
+//! anywhere else, it starts again from the root once the step has run out. Its presses never
+//! hold, never take the dash branch and always face the target. A combo with a press by hand
+//! becomes the auto combo when it resets, unless it began in the dash branch.
 
 use crate::attack::AttackRef;
-use crate::engine::{Aim, DashState, Dir, PlayerState, State};
-use crate::event::DomainEvent;
+use crate::engine::{ComboState, DashState, Dir, PlayerState, Pull, State};
+use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
-use crate::input::Input;
+use crate::id::EntityId;
+use crate::input::{self, Input};
 use crate::presets;
 use crate::stage::Stage;
 use crate::trig::SCALE;
-use crate::weapon::{Charge, ChargeLevel, Targeting, WeaponAttack};
+use crate::weapon::{Charge, MainWeapon, Step, SubBonus};
 
 use super::PLAYER_SPEED;
 use super::attacks;
 use super::entity::{Who, speed_pct};
 use super::levels;
-use super::select::select;
+use super::select;
 
-/// The stick's full deflection on each axis (ADR-050); −128 counts as −127.
+/// The stick's full deflection on each axis (ADR-071); −128 counts as −127.
 const STICK_MAX: i8 = 127;
 
 /// `⌈√n⌉`.
@@ -29,7 +49,7 @@ fn ceil_sqrt(n: u64) -> u64 {
 
 /// The move of a stick at `(x, y)` under a speed cap of `cap` units: the vector clamped to
 /// length 127, then scaled so that 127 is the cap. Its length is rounded up, so a diagonal is
-/// never faster than a straight line (ADR-050).
+/// never faster than a straight line (ADR-071).
 fn stick_move(x: i8, y: i8, cap: i64) -> (i64, i64) {
     let (x, y) = (i64::from(x), i64::from(y));
     let len = ceil_sqrt((x * x + y * y).unsigned_abs()).max(STICK_MAX as u64);
@@ -54,32 +74,41 @@ fn stick_direction(x: i8, y: i8) -> Option<Dir> {
     })
 }
 
-/// One tick of the main character: cooldowns run down, it turns to its stick, evades on a
-/// ready press (which breaks a charge), charges or releases (skill 2), dashes or moves, then its
-/// weapons attack on their own and a ready press of skill 3 starts the Sub skill.
+/// One tick of the main character: timers run down, it turns to its stick, evades on a ready
+/// press (cancelling its combo step), walks its combo, then dashes or moves.
 pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
+    let held = input::held_buttons(input);
+    let pressed = held & !s.player.held;
+    s.player.held = held;
     let p = &mut s.player;
     p.invulnerable = p.invulnerable.saturating_sub(1);
     p.evade_cooldown = p.evade_cooldown.saturating_sub(1);
-    p.charge_cooldown = p.charge_cooldown.saturating_sub(1);
-    p.skill_cooldown = p.skill_cooldown.saturating_sub(1);
+    p.combo.dash_strike_left = p.combo.dash_strike_left.saturating_sub(1);
     let (x, y) = (input.move_x.max(-STICK_MAX), input.move_y.max(-STICK_MAX));
     if let Some(dir) = stick_direction(x, y) {
         p.facing = dir;
     }
-    if input.evade && p.evade_ready() {
+    // The validator lets only defined presets through.
+    let main = presets::main_weapon(&stage.player.main);
+    s.player.target = match main {
+        Some(m) if input.assist || input.auto => select::assist_target(stage, s, m.assist_range.0),
+        _ => None,
+    };
+    if pressed & input::EVADE != 0 && s.player.evade_ready() {
         let cooldown = levels::evade_cooldown(s, stage.player.evade.cooldown_ticks);
         start_evade(stage, &mut s.player, cooldown, events);
-        break_charge(stage, s, events);
+        cancel(s, events);
+        let strike = main.map_or(0, |m| m.dash_strike_ticks);
+        s.player.combo.dash_strike_left = stage.player.evade.ticks.saturating_add(strike);
     }
-    charge(stage, s, input, events);
+    if let Some(main) = main {
+        combo(stage, s, main, input, pressed, events);
+    }
     if s.player.dash.is_some() {
         dash(stage, &mut s.player);
     } else {
         move_player(stage, s, x, y);
     }
-    shoot(stage, s, events);
-    sub_skill(stage, s, input, events);
 }
 
 fn move_by(stage: &Stage, p: &mut PlayerState, dx: i64, dy: i64) {
@@ -100,7 +129,7 @@ fn move_player(stage: &Stage, s: &mut State, x: i8, y: i8) {
 }
 
 /// A ready press dashes along the facing, which is the stick's direction when it is not
-/// centred (ADR-050). Invulnerability and the cooldown count from the press.
+/// centred (ADR-071). Invulnerability and the cooldown count from the press.
 fn start_evade(stage: &Stage, p: &mut PlayerState, cooldown: u32, events: &mut Vec<DomainEvent>) {
     let evade = &stage.player.evade;
     p.dash = Some(DashState {
@@ -138,265 +167,395 @@ fn dash(stage: &Stage, p: &mut PlayerState) {
     });
 }
 
-/// The attack slots of the main character (core#83): each runs one attack at a time (ADR-055),
-/// beside the others, so a skill never waits behind an automatic attack.
-const MAIN_SLOT: u8 = 0;
-const SUB_SLOT: u8 = 1;
-const CHARGE_SLOT: u8 = 2;
-const SKILL_SLOT: u8 = 3;
+/// The main character's attack slots (ADR-069): the combo; the stage skill and the effects
+/// that attack on their own come with their own.
+const COMBO_SLOT: u8 = 0;
 
-/// What a weapon attacks with, and how, right now. This is the one place that says so, so that
-/// what the main character acquires during a run (a different attack, homing, a faster rhythm,
-/// more damage) changes what this returns and nothing else: the attack runs as any other, with
-/// the aim and the damage given here.
-struct Shot<'a> {
-    attack: &'a AttackRef,
-    /// Where `aimed` directions point: along the facing, or at the target.
-    aim: Aim,
-    /// Hit points a bullet takes before the attack-up status.
-    damage: u32,
-    /// Ticks from this attack's start to the next one's.
-    cooldown: u32,
+fn press_of(sub: bool) -> Press {
+    if sub { Press::Sub } else { Press::Main }
 }
 
-/// Where a weapon's attack aims, as its targeting says: `None` when its selector finds nothing.
-fn aim_for(stage: &Stage, s: &State, targeting: &Targeting) -> Option<Aim> {
-    Some(match targeting.selector() {
-        None => Aim::Fixed(s.player.facing),
-        Some(selector) => {
-            let target = select(stage, s, Who::Player, &selector)?;
-            // Both are set to the direction to the target as the attack starts.
-            Aim::Target {
-                id: s.id_of(target),
-                heading: s.player.facing,
-                last: s.player.facing,
-            }
-        }
-    })
+/// The step the combo is at: `None` at the root.
+fn step_at<'a>(main: &'a MainWeapon, c: &ComboState) -> Option<&'a Step> {
+    let mut branches = if c.dash { &main.dash } else { &main.combo };
+    let mut step = None;
+    for i in 0..c.depth {
+        let next = branches.get(c.path >> i & 1 == 1)?;
+        branches = &next.next;
+        step = Some(next);
+    }
+    step
 }
 
-/// Today the stage's weapon attack, at the stage's attack stat, aimed as its targeting says:
-/// `None` when its selector finds nothing to aim at.
-fn shot<'a>(stage: &Stage, s: &State, weapon: &'a WeaponAttack) -> Option<Shot<'a>> {
-    Some(Shot {
-        attack: &weapon.attack,
-        aim: aim_for(stage, s, &weapon.targeting)?,
-        damage: levels::attack(s, stage.player.atk),
-        cooldown: weapon.cooldown_ticks,
-    })
+/// Whether the press that reached the current step was `sub`.
+fn last_press_sub(c: &ComboState) -> bool {
+    c.depth > 0 && c.path >> (c.depth - 1) & 1 == 1
 }
 
-/// The Main weapon, then the Sub weapon (ADR-050, core#83). The Main weapon's automatic attack
-/// pauses while the main character charges; the Sub weapon's goes on.
-fn shoot(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
-    // The validator lets only defined presets through.
-    if let Some(main) = presets::main_weapon(&stage.player.main) {
-        if s.player.charge.is_none() {
-            attack_with(stage, s, &main.auto, MAIN_SLOT, events);
+/// Back to the root, reported if the combo was anywhere else. A combo with a press by hand
+/// becomes the auto combo, unless it began in the dash branch (ADR-073).
+fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
+    if c.depth > 0 {
+        events.push(DomainEvent::ComboReset);
+        if c.hand && !c.dash {
+            c.auto_path = c.path;
+            c.auto_depth = c.depth;
         }
     }
-    if let Some(sub) = presets::sub_weapon(&stage.player.sub) {
-        attack_with(stage, s, &sub.auto, SUB_SLOT, events);
-    }
+    c.hand = false;
+    c.path = 0;
+    c.depth = 0;
+    c.dash = false;
+    c.window_left = 0;
 }
 
-/// The cooldown counter of an automatic attack's slot.
-fn auto_cooldown(p: &mut PlayerState, slot: u8) -> &mut u32 {
-    if slot == MAIN_SLOT {
-        &mut p.main_cooldown
-    } else {
-        &mut p.sub_cooldown
-    }
-}
-
-/// A weapon attacks on its own once its cooldown, counted from its last attack's start, is
-/// over and that attack has ended (ADR-055: one attack at a time). With nothing to aim at it
-/// does not attack and spends no cooldown, so it attacks on the first tick it finds a target.
-/// The attack is a task like any other: once started it runs to its end, follows the main
-/// character and counts against the attack and bullet budgets.
-fn attack_with(
+/// One tick of the combo (ADR-070, ADR-076): see the module's description.
+fn combo(
     stage: &Stage,
     s: &mut State,
-    weapon: &WeaponAttack,
-    slot: u8,
+    main: &MainWeapon,
+    input: Input,
+    pressed: u8,
     events: &mut Vec<DomainEvent>,
 ) {
-    let cooldown = auto_cooldown(&mut s.player, slot);
-    *cooldown = cooldown.saturating_sub(1);
-    if *cooldown > 0 || attacks::busy(s, s.id_of(Who::Player), slot) {
+    if let Some(ticks) = s.player.combo.charge {
+        charging(stage, s, main, input, ticks, events);
         return;
     }
-    let Some(shot) = shot(stage, s, weapon) else {
-        return;
+    let press = if pressed & input::MAIN != 0 {
+        Some(false)
+    } else if pressed & input::SUB != 0 {
+        Some(true)
+    } else {
+        None
     };
-    let started = attacks::start_with(
-        s,
-        Who::Player,
-        slot,
-        shot.aim,
-        shot.attack,
-        shot.damage,
-        0,
-        0,
-        events,
-    );
-    if started {
-        *auto_cooldown(&mut s.player, slot) = levels::auto_cooldown(s, shot.cooldown);
+    if press.is_some() {
+        s.player.combo.buffered = press;
+    }
+    let me = s.id_of(Who::Player);
+    let busy = attacks::busy(s, me, COMBO_SLOT);
+    if s.player.combo.running && !busy {
+        s.player.combo.running = false;
+        s.player.combo.window_left = main.window_ticks;
+    }
+    // The window counts the ticks after the step on which a press continues the combo; once
+    // they are used up, the combo is back at the root before this tick's press.
+    if !busy && s.player.combo.depth > 0 && s.player.combo.window_left == 0 {
+        reset(&mut s.player.combo, events);
+    }
+    let c = s.player.combo;
+    let (sub, by_hand) = match (c.buffered, auto_press(&c, input, s.player.target.is_some())) {
+        (Some(sub), _) => (sub, true),
+        (None, Some(Auto::Next(sub))) => (sub, false),
+        (None, Some(Auto::Again)) if !busy => {
+            reset(&mut s.player.combo, events);
+            (c.auto_path & 1 == 1, false)
+        }
+        _ => {
+            if !busy && c.depth > 0 {
+                s.player.combo.window_left -= 1;
+            }
+            return;
+        }
+    };
+    if !busy {
+        take_step(stage, s, main, sub, by_hand, input, events);
+        return;
+    }
+    let next = step_at(main, &c).and_then(|st| st.next.get(sub)).is_some();
+    if next && attacks::in_end_recovery(s, me, COMBO_SLOT) {
+        attacks::end_run(s, me, COMBO_SLOT);
+        take_step(stage, s, main, sub, by_hand, input, events);
     }
 }
 
-/// Skill 3 (ADR-050): a ready press starts the Sub weapon's skill on that tick, at what its
-/// targeting picks. With nothing to aim at nothing happens and no cooldown is spent.
-fn sub_skill(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
-    if !input.sub
-        || s.player.skill_cooldown > 0
-        || attacks::busy(s, s.id_of(Who::Player), SKILL_SLOT)
-    {
-        return;
+/// What auto mode presses this tick (ADR-073).
+enum Auto {
+    /// The next press of the auto combo, `true` for `sub`, taken as a buffered press would be.
+    Next(bool),
+    /// The auto combo again from the root, once the current step has run out.
+    Again,
+}
+
+/// Auto mode's press: none while `auto` is off, with no target, an empty auto combo or a press
+/// by hand in the combo; the next press while the combo is on the auto combo's path short of
+/// its end; otherwise the auto combo again from the root.
+fn auto_press(c: &ComboState, input: Input, target: bool) -> Option<Auto> {
+    if !input.auto || !target || c.hand || c.auto_depth == 0 {
+        return None;
     }
-    let Some(sub) = presets::sub_weapon(&stage.player.sub) else {
-        return;
-    };
-    let Some(shot) = shot(stage, s, &sub.skill) else {
-        return;
-    };
-    let started = attacks::start_with(
-        s,
-        Who::Player,
-        SKILL_SLOT,
-        shot.aim,
-        shot.attack,
-        shot.damage,
-        0,
-        0,
-        events,
-    );
-    if started {
-        s.player.skill_cooldown = shot.cooldown;
+    // Both depths are at most the tree's depth (`MAX_COMBO_DEPTH`), well short of 32.
+    let mask = (1u32 << c.depth) - 1;
+    if !c.dash && c.depth < c.auto_depth && c.path & mask == c.auto_path & mask {
+        Some(Auto::Next(c.auto_path >> c.depth & 1 == 1))
+    } else {
+        Some(Auto::Again)
     }
 }
 
-/// The level `held` ticks of charge reach: the last whose `at_ticks` is at most `held`, with
-/// its index. `None` only for a charge without levels, which the validator refuses.
-fn level_at(charge: &Charge, held: u32) -> Option<(usize, &ChargeLevel)> {
+/// The combo a run starts with: at the root, with the Main weapon's A chain as the auto combo,
+/// `main` pressed from the root until a step has no next step for it (ADR-073).
+pub(super) fn initial_combo(stage: &Stage) -> ComboState {
+    let mut depth = 0u8;
+    if let Some(main) = presets::main_weapon(&stage.player.main) {
+        let mut step = main.combo.main.as_deref();
+        while let Some(st) = step {
+            depth = depth.saturating_add(1);
+            step = st.next.main.as_deref();
+        }
+    }
+    ComboState {
+        auto_depth: depth,
+        ..ComboState::default()
+    }
+}
+
+/// The press `sub`, buffered `by_hand` or auto mode's, takes its step: the next one from where
+/// the combo is, or else the first from the root, in the dash branch while a dash-strike may
+/// start and it has one (by hand only). Auto mode's step never charges and faces the target.
+#[allow(clippy::too_many_arguments)]
+fn take_step(
+    stage: &Stage,
+    s: &mut State,
+    main: &MainWeapon,
+    sub: bool,
+    by_hand: bool,
+    input: Input,
+    events: &mut Vec<DomainEvent>,
+) {
+    let c = &mut s.player.combo;
+    c.buffered = None;
+    let onward = step_at(main, c).is_some_and(|st| st.next.get(sub).is_some());
+    if !onward {
+        reset(c, events);
+        c.dash = by_hand && c.dash_strike_left > 0 && main.dash.get(sub).is_some();
+        if !c.dash && main.combo.get(sub).is_none() {
+            return;
+        }
+    }
+    c.hand |= by_hand;
+    c.path |= u32::from(sub) << c.depth;
+    c.depth += 1;
+    c.window_left = 0;
+    events.push(DomainEvent::ComboStep {
+        press: press_of(sub),
+        depth: c.depth,
+    });
+    let Some(step) = step_at(main, c) else {
+        return;
+    };
+    let held = by_hand && if sub { input.sub } else { input.main };
+    if step.charge.is_some() && held {
+        s.player.combo.charge = Some(0);
+    } else {
+        strike(stage, s, &step.attack, 0, input.assist || !by_hand, events);
+    }
+}
+
+/// The current step's attack starts in the combo slot along the facing (ADR-069), at the
+/// stage's attack stat, faster by the attack speed, with `bonus_pct` and, for a combo part, the
+/// Sub weapon's pull. When it `aim`s and there is a target, the facing first turns to it
+/// (ADR-072).
+fn strike(
+    stage: &Stage,
+    s: &mut State,
+    attack: &AttackRef,
+    bonus_pct: u32,
+    aim: bool,
+    events: &mut Vec<DomainEvent>,
+) {
+    if aim {
+        if let Some(dir) = s.player.target.and_then(|t| toward(s, t)) {
+            s.player.facing = dir;
+        }
+    }
+    let pull = if last_press_sub(&s.player.combo) {
+        presets::sub_weapon(&stage.player.sub).map(|w| match w.bonus {
+            SubBonus::Pull { distance, ticks } => Pull {
+                distance: distance.0,
+                ticks,
+            },
+        })
+    } else {
+        None
+    };
+    let strike = attacks::Strike {
+        bonus_pct,
+        speed_pct: levels::attack_speed(s),
+        pull,
+    };
+    let facing = s.player.facing;
+    let damage = levels::attack(s, stage.player.atk);
+    s.player.combo.running =
+        attacks::start_player(s, COMBO_SLOT, facing, attack, damage, strike, events);
+}
+
+/// The direction from the main character to the entity `target`, if it is there and not on
+/// the main character's centre.
+fn toward(s: &State, target: EntityId) -> Option<Dir> {
+    let to = s.at(s.find(target)?);
+    let from = s.player.at;
+    let (dx, dy) = (
+        i64::from(to.x.0) - i64::from(from.x.0),
+        i64::from(to.y.0) - i64::from(from.y.0),
+    );
+    (dx != 0 || dy != 0).then(|| attacks::normalize(dx, dy))
+}
+
+/// The level `held` ticks of charge reach: 0 before the first of its levels.
+fn level_at(charge: &Charge, held: u32) -> usize {
     charge
         .levels
         .iter()
-        .enumerate()
-        .take_while(|(_, l)| l.at_ticks <= held)
-        .last()
+        .take_while(|l| l.at_ticks <= held)
+        .count()
 }
 
 /// Whether `held` ticks of charge are inside the perfect window of the level they reach.
-pub(crate) fn in_perfect_window(charge: &Charge, held: u32) -> bool {
-    level_at(charge, held).is_some_and(|(_, l)| held < l.at_ticks.saturating_add(l.perfect_ticks))
+fn in_perfect_window(charge: &Charge, held: u32) -> bool {
+    match level_at(charge, held) {
+        0 => false,
+        n => {
+            let l = &charge.levels[n - 1];
+            held < l.at_ticks.saturating_add(l.perfect_ticks)
+        }
+    }
 }
 
-/// The charged Main skill's view for the snapshot: its 1-based level and whether this tick
-/// is inside a perfect window, while charging.
-pub(crate) fn charge_view(stage: &Stage, held: u32) -> Option<(u8, bool)> {
-    let charge = &presets::main_weapon(&stage.player.main)?.charge;
-    let (i, _) = level_at(charge, held)?;
+/// The current step's charge, if it is charging.
+fn current_charge<'a>(stage: &'a Stage, s: &State) -> Option<&'a Charge> {
+    s.player.combo.charge?;
+    let main = presets::main_weapon(&stage.player.main)?;
+    step_at(main, &s.player.combo)?.charge.as_ref()
+}
+
+/// The charge's view for the snapshot: its level (0 before level 1), ticks held and whether
+/// this tick is inside a perfect window.
+pub(crate) fn charge_view(stage: &Stage, s: &State) -> Option<(u8, u32, bool)> {
+    let held = s.player.combo.charge?;
+    let charge = current_charge(stage, s)?;
     Some((
-        u8::try_from(i + 1).unwrap_or(u8::MAX),
+        u8::try_from(level_at(charge, held)).unwrap_or(u8::MAX),
+        held,
         in_perfect_window(charge, held),
     ))
 }
 
-/// Whether a press of skill 2 would start a charge.
-pub(crate) fn charge_ready(s: &State) -> bool {
-    s.player.charge.is_none()
-        && s.player.charge_cooldown == 0
-        && !attacks::busy(s, s.id_of(Who::Player), CHARGE_SLOT)
-}
-
-/// Whether a press of skill 3 would start the Sub skill (if it finds a target).
-pub(crate) fn skill_ready(s: &State) -> bool {
-    s.player.skill_cooldown == 0 && !attacks::busy(s, s.id_of(Who::Player), SKILL_SLOT)
-}
-
-/// Skill 2 (ADR-050). A press while ready starts the charge: `held` is 0 on that tick and
-/// rises by 1 every tick it stays held. Letting go releases it, judged on the last held tick,
-/// the one whose snapshot the player saw; reaching `max_ticks` releases it without the bonus.
-fn charge(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
-    let pressed = input.charge && !s.player.charge_held;
-    s.player.charge_held = input.charge;
-    let Some(main) = presets::main_weapon(&stage.player.main) else {
+/// A charge held rises a tick; let go, judged on the last held tick (the one whose snapshot
+/// the player saw, ADR-005), or at `max_ticks` without the bonus, it releases.
+fn charging(
+    stage: &Stage,
+    s: &mut State,
+    main: &MainWeapon,
+    input: Input,
+    held: u32,
+    events: &mut Vec<DomainEvent>,
+) {
+    let c = s.player.combo;
+    let Some(step) = step_at(main, &c) else {
+        s.player.combo.charge = None;
         return;
     };
-    let c = &main.charge;
-    match s.player.charge {
-        Some(held) if !input.charge => release(stage, s, c, held, true, events),
-        Some(held) => {
-            let held = held.saturating_add(1);
-            if held >= c.max_ticks {
-                release(stage, s, c, held, false, events);
-            } else {
-                s.player.charge = Some(held);
-            }
-        }
-        None if pressed && charge_ready(s) => s.player.charge = Some(0),
-        None => {}
+    let Some(charge) = &step.charge else {
+        s.player.combo.charge = None;
+        return;
+    };
+    let still = if last_press_sub(&c) {
+        input.sub
+    } else {
+        input.main
+    };
+    if !still {
+        release(stage, s, step, charge, held, true, input.assist, events);
+        return;
+    }
+    let held = held.saturating_add(1);
+    if held >= charge.max_ticks {
+        release(stage, s, step, charge, held, false, input.assist, events);
+    } else {
+        s.player.combo.charge = Some(held);
     }
 }
 
-/// The release: the level `held` reaches attacks along the facing, with the perfect bonus
-/// when `judged` and inside its window. The cooldown counts from here.
+/// The release: level 0 is the step's own attack; a later level attacks with its attack, or
+/// with its perfect attack and bonus when `judged` inside its window. It faces the target of
+/// this tick when it `aim`s.
+#[allow(clippy::too_many_arguments)]
 fn release(
     stage: &Stage,
     s: &mut State,
-    c: &Charge,
+    step: &Step,
+    charge: &Charge,
     held: u32,
     judged: bool,
+    aim: bool,
     events: &mut Vec<DomainEvent>,
 ) {
-    s.player.charge = None;
-    s.player.charge_cooldown = c.cooldown_ticks;
-    let Some((i, level)) = level_at(c, held) else {
+    s.player.combo.charge = None;
+    let level = level_at(charge, held);
+    if level == 0 {
+        strike(stage, s, &step.attack, 0, aim, events);
         return;
-    };
-    let perfect = judged && in_perfect_window(c, held);
-    let (attack, bonus) = if perfect {
-        (
-            level.perfect_attack.as_ref().unwrap_or(&level.attack),
-            u32::from(level.perfect_pct),
-        )
+    }
+    let l = &charge.levels[level - 1];
+    let perfect = judged && in_perfect_window(charge, held);
+    if perfect {
+        let attack = l.perfect_attack.as_ref().unwrap_or(&l.attack);
+        strike(stage, s, attack, u32::from(l.perfect_pct), aim, events);
     } else {
-        (&level.attack, 0)
-    };
-    attacks::start_with(
-        s,
-        Who::Player,
-        CHARGE_SLOT,
-        Aim::Fixed(s.player.facing),
-        attack,
-        levels::attack(s, stage.player.atk),
-        0,
-        bonus,
-        events,
-    );
+        strike(stage, s, &l.attack, 0, aim, events);
+    }
     events.push(DomainEvent::ChargeReleased {
-        level: u8::try_from(i + 1).unwrap_or(u8::MAX),
+        level: u8::try_from(level).unwrap_or(u8::MAX),
         perfect,
     });
 }
 
-/// An evade, or a hit from an attack that breaks charges, ends a charge in progress without
-/// an attack; the charged skill then waits half its cooldown, rounded up.
-pub(super) fn break_charge(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
-    if s.player.charge.take().is_none() {
-        return;
+/// An evade cancels the running step, breaks a charge and clears the buffer (ADR-070).
+fn cancel(s: &mut State, events: &mut Vec<DomainEvent>) {
+    let me = s.id_of(Who::Player);
+    attacks::end_run(s, me, COMBO_SLOT);
+    let c = &mut s.player.combo;
+    if c.charge.take().is_some() {
+        events.push(DomainEvent::ChargeBroken);
     }
-    let cooldown = presets::main_weapon(&stage.player.main).map_or(0, |m| m.charge.cooldown_ticks);
-    s.player.charge_cooldown = cooldown - cooldown / 2;
-    events.push(DomainEvent::ChargeBroken);
+    c.buffered = None;
+    c.running = false;
+    reset(c, events);
 }
 
-/// The movement speed, in percent, the charge leaves the main character: its `move_pct`, 100
+/// A hit from a phase that breaks charges ends a charge in progress without an attack, and the
+/// combo starts again from the root (ADR-070).
+pub(super) fn break_charge(s: &mut State, events: &mut Vec<DomainEvent>) {
+    let c = &mut s.player.combo;
+    if c.charge.take().is_none() {
+        return;
+    }
+    events.push(DomainEvent::ChargeBroken);
+    c.buffered = None;
+    reset(c, events);
+}
+
+/// The movement speed, in percent, a charge leaves the main character: its `move_pct`, 100
 /// when not charging.
 fn charge_move_pct(stage: &Stage, s: &State) -> i64 {
-    match (s.player.charge, presets::main_weapon(&stage.player.main)) {
-        (Some(_), Some(main)) => i64::from(main.charge.move_pct),
-        _ => 100,
-    }
+    current_charge(stage, s).map_or(100, |c| i64::from(c.move_pct))
+}
+
+/// The presses of `path` from the root, `depth` of them.
+fn presses_of(path: u32, depth: u8) -> Vec<Press> {
+    (0..depth).map(|i| press_of(path >> i & 1 == 1)).collect()
+}
+
+/// The combo's view for the snapshot: the presses from the root, whether it began in the dash
+/// branch, the buffered press, the window's ticks left and the auto combo.
+pub(crate) fn combo_view(s: &State) -> (Vec<Press>, bool, Option<Press>, u32, Vec<Press>) {
+    let c = &s.player.combo;
+    (
+        presses_of(c.path, c.depth),
+        c.dash,
+        c.buffered.map(press_of),
+        c.window_left,
+        presses_of(c.auto_path, c.auto_depth),
+    )
 }

@@ -96,7 +96,7 @@
           ]
         },
         "slot": {
-          "description": "0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its\nSub weapon, 2 for its charged skill and 3 for its Sub skill (core#83).",
+          "description": "0 for an agent's or the boss's attacks and the main character's combo (ADR-069).",
           "type": "integer",
           "format": "uint8",
           "maximum": 255,
@@ -183,17 +183,17 @@
       ]
     },
     "ChargeView": {
-      "description": "A charge in progress (ADR-050). `core` judges the perfect window on this tick, so what the\nfrontend shows is what a release on the next tick gets.",
+      "description": "A charge in progress (ADR-070). `core` judges the perfect window on this tick, so what the\nfrontend shows is what a release on the next tick gets.",
       "type": "object",
       "properties": {
         "held": {
-          "description": "Ticks held since the press, 0 on the press's tick.",
+          "description": "Ticks held since the step began to charge, 0 on its first tick.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
         "level": {
-          "description": "The level reached, from 1.",
+          "description": "The level reached: 0 before level 1, when letting go is a plain step and the frontend\nkeeps its clock at full speed (ADR-071).",
           "type": "integer",
           "format": "uint8",
           "maximum": 255,
@@ -209,6 +209,51 @@
         "level",
         "held",
         "perfect"
+      ]
+    },
+    "ComboView": {
+      "description": "Where the main character is in its combos (ADR-070): what the frontend's combo trail draws,\nwith the next possible presses read from the weapon's tree.",
+      "type": "object",
+      "properties": {
+        "auto": {
+          "description": "The auto combo: the presses auto mode plays from the root (ADR-073).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Press"
+          }
+        },
+        "buffered": {
+          "description": "The press waiting for the next step.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Press"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dash": {
+          "description": "The presses began in the dash branch (a dash-strike).",
+          "type": "boolean"
+        },
+        "presses": {
+          "description": "The presses from the root to the current step; empty at the root.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Press"
+          }
+        },
+        "window_left": {
+          "description": "Ticks left in which a press continues the combo, once a step has run out.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "window_left"
       ]
     },
     "ContentId": {
@@ -291,7 +336,7 @@
       ]
     },
     "EvadeView": {
-      "description": "Skill 1 (ADR-050).",
+      "description": "The evade (ADR-074).",
       "type": "object",
       "properties": {
         "cooldown_left": {
@@ -609,7 +654,7 @@
           }
         },
         "charge": {
-          "description": "The charge in progress (skill 2), if any (ADR-050).",
+          "description": "The current step charging, if it is (ADR-070).",
           "anyOf": [
             {
               "$ref": "#/$defs/ChargeView"
@@ -618,6 +663,10 @@
               "type": "null"
             }
           ]
+        },
+        "combo": {
+          "description": "Where it is in its Main weapon's combos (ADR-070).",
+          "$ref": "#/$defs/ComboView"
         },
         "evade": {
           "$ref": "#/$defs/EvadeView"
@@ -637,17 +686,20 @@
           "format": "uint32",
           "minimum": 0
         },
-        "main_skill": {
-          "description": "Skill 2, the charged Main skill.",
-          "$ref": "#/$defs/SkillView"
-        },
         "radius": {
           "description": "The main character's hurt circle.",
           "$ref": "#/$defs/Fx"
         },
-        "sub_skill": {
-          "description": "Skill 3, the Sub skill.",
-          "$ref": "#/$defs/SkillView"
+        "target": {
+          "description": "The enemy aim assist and auto mode would face, while either is on (ADR-072), so the\nfrontend can mark it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityId"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -658,8 +710,7 @@
         "facing",
         "invulnerable",
         "evade",
-        "main_skill",
-        "sub_skill"
+        "combo"
       ]
     },
     "Point": {
@@ -677,6 +728,14 @@
       "required": [
         "x",
         "y"
+      ]
+    },
+    "Press": {
+      "description": "Which button's press took a combo step (ADR-070): A or B.",
+      "type": "string",
+      "enum": [
+        "main",
+        "sub"
       ]
     },
     "ProgressView": {
@@ -748,27 +807,6 @@
         "epic",
         "legendary",
         "supernova"
-      ]
-    },
-    "SkillView": {
-      "description": "Skill 2 or 3 (ADR-050).",
-      "type": "object",
-      "properties": {
-        "cooldown_left": {
-          "description": "Ticks until it is ready again.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "ready": {
-          "description": "A press on the next tick would start it (the Sub skill only if it finds a target).",
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "ready",
-        "cooldown_left"
       ]
     },
     "StarView": {

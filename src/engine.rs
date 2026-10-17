@@ -22,8 +22,8 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
-    AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, MapView,
-    OfferKind, PlayerView, ProgressView, SkillView, Snapshot, StarView,
+    AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView, Facing,
+    MapView, OfferKind, PlayerView, ProgressView, Snapshot, StarView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -374,22 +374,24 @@ impl Engine {
                     cooldown_left: s.player.evade_cooldown,
                     dash_left: s.player.dash.map_or(0, |d| d.left),
                 },
-                charge: s.player.charge.and_then(|held| {
-                    let (level, perfect) = rules_v0::charge_view(&self.stage, held)?;
-                    Some(ChargeView {
+                combo: {
+                    let (presses, dash, buffered, window_left, auto) = rules_v0::combo_view(s);
+                    ComboView {
+                        presses,
+                        dash,
+                        buffered,
+                        window_left,
+                        auto,
+                    }
+                },
+                charge: rules_v0::charge_view(&self.stage, s).map(|(level, held, perfect)| {
+                    ChargeView {
                         level,
                         held,
                         perfect,
-                    })
+                    }
                 }),
-                main_skill: SkillView {
-                    ready: rules_v0::charge_ready(s),
-                    cooldown_left: s.player.charge_cooldown,
-                },
-                sub_skill: SkillView {
-                    ready: rules_v0::skill_ready(s),
-                    cooldown_left: s.player.skill_cooldown,
-                },
+                target: s.player.target,
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -559,23 +561,18 @@ pub(crate) struct PlayerState {
     pub defence: u32,
     /// Ticks of invulnerability left, after a hit or from an evade.
     pub invulnerable: u32,
-    /// The last non-zero movement direction (ADR-055): where a weapon aimed along the facing
-    /// attacks and where an evade without movement dashes.
+    /// The last non-zero movement direction (ADR-069): where a combo step attacks and where an
+    /// evade without movement dashes.
     pub facing: Dir,
-    /// Ticks until the Main weapon may attack again, counted from its last attack's start.
-    pub main_cooldown: u32,
-    /// The same for the Sub weapon.
-    pub sub_cooldown: u32,
+    /// The enemy aim assist and auto mode face, picked each tick while either is on (ADR-072).
+    pub target: Option<EntityId>,
     /// Ticks until the evade is ready again, counted from its press.
     pub evade_cooldown: u32,
-    /// The charge in progress (skill 2): ticks held since the press, 0 on the press's tick.
-    pub charge: Option<u32>,
-    /// Skill 2 was held on the last tick, so that only a press starts a charge.
-    pub charge_held: bool,
-    /// Ticks until the charged skill is ready again, counted from its release.
-    pub charge_cooldown: u32,
-    /// Ticks until the Sub skill is ready again, counted from its start.
-    pub skill_cooldown: u32,
+    /// The buttons held on the last tick (`input::held_buttons`), so that only a button held now
+    /// and not then is a press (ADR-071).
+    pub held: u8,
+    /// Where it is in its Main weapon's combos (ADR-070).
+    pub combo: ComboState,
     /// The dash in progress, if any.
     pub dash: Option<DashState>,
     pub aggro: u32,
@@ -586,6 +583,42 @@ impl PlayerState {
     pub fn evade_ready(&self) -> bool {
         self.evade_cooldown == 0 && self.dash.is_none()
     }
+}
+
+/// Where the main character is in its Main weapon's combo tree (ADR-070, ADR-076).
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ComboState {
+    /// The presses from the root to the current step, the first in bit 0: 1 for `sub`.
+    pub path: u32,
+    /// How many presses `path` holds: 0 at the root.
+    pub depth: u8,
+    /// The path began in the dash branch.
+    pub dash: bool,
+    /// The press waiting for the next step: `Some(true)` for `sub`.
+    pub buffered: Option<bool>,
+    /// The current step's attack is running.
+    pub running: bool,
+    /// Ticks left in which a press continues the combo, once a step has run out.
+    pub window_left: u32,
+    /// Ticks left in which a press from the root takes the dash branch.
+    pub dash_strike_left: u32,
+    /// The current step charging: ticks held, 0 on the tick it began.
+    pub charge: Option<u32>,
+    /// A press by hand took a step in this combo (ADR-073): auto mode waits, and the combo
+    /// becomes the auto combo when it resets, unless it began in the dash branch.
+    pub hand: bool,
+    /// The auto combo auto mode plays: its presses from the root, the first in bit 0 (1 for
+    /// `sub`), and how many; at most the tree's depth.
+    pub auto_path: u32,
+    pub auto_depth: u8,
+}
+
+/// The Sub weapon's pull on what a combo part hits (ADR-070), carried by the attack and the
+/// bullets it spawns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Pull {
+    pub distance: i32,
+    pub ticks: u32,
 }
 
 /// An evade's dash: locked to its direction, `done` of its ticks moved, `left` to go.
@@ -764,22 +797,15 @@ impl Dir {
 
 /// What an attack's `aimed` directions point at, and which way it faces. This is where the
 /// ways of aiming meet: enemies, companions and the boss aim at an entity; the main
-/// character's weapons aim along its facing or at the target their targeting picked. A new way
-/// of aiming (a homing shot the main character acquires) is a new variant, read in
-/// `attacks::aim`, hashed in `hash_aim` and given its heading here.
+/// character's combo steps aim along its facing (ADR-069). A new way of aiming (an effect's
+/// target, ADR-069) is a new variant, read in `attacks::aim`, hashed in `hash_aim` and given its
+/// heading here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Aim {
     /// At the entity with this ID; straight down if it is gone.
     Entity(EntityId),
     /// Along a fixed direction.
     Fixed(Dir),
-    /// At a weapon's target (core#83); when it is gone, along `last`, the last direction taken
-    /// to it. `heading` is the direction to it when the attack started.
-    Target {
-        id: EntityId,
-        heading: Dir,
-        last: Dir,
-    },
 }
 
 impl Aim {
@@ -788,7 +814,7 @@ impl Aim {
     pub fn heading(self) -> Dir {
         match self {
             Aim::Entity(_) => Dir::DOWN,
-            Aim::Fixed(d) | Aim::Target { heading: d, .. } => d,
+            Aim::Fixed(d) => d,
         }
     }
 }
@@ -809,6 +835,8 @@ pub(crate) struct BulletState {
     pub damage: u32,
     /// Its hit breaks the main character's charge (core#83).
     pub breaks_charge: bool,
+    /// The Sub weapon's pull, for a combo part's hits (ADR-070).
+    pub pull: Option<Pull>,
     /// Starts an attack of its own after a while (`on_bullet`).
     pub hook: Option<Box<Hook>>,
 }
@@ -826,6 +854,8 @@ pub(crate) struct Hook {
     pub friendly: bool,
     pub damage: u32,
     pub breaks_charge: bool,
+    /// The Sub weapon's pull, for a combo part's hits (ADR-070).
+    pub pull: Option<Pull>,
 }
 
 /// One step down a program: the node at `node` in the current list, then its `body` list, or
@@ -866,8 +896,7 @@ pub(crate) struct Frame {
 #[derive(Clone, Debug)]
 pub(crate) struct AttackRun {
     pub owner: EntityId,
-    /// 0 for an agent's or the boss's attacks and the main character's Main weapon; 1 for its
-    /// Sub weapon, 2 for its charged skill and 3 for its Sub skill (core#83).
+    /// 0 for an agent's or the boss's attacks and the main character's combo (ADR-069).
     pub slot: u8,
     /// The preset it came from, for the frontend to pick its animation.
     pub preset: Option<ContentId>,
@@ -889,6 +918,8 @@ pub(crate) struct AttackRun {
     /// Who the current active phase has hit, and on which tick last, sorted by entity ID;
     /// emptied when an active phase begins.
     pub hits: Vec<(EntityId, u32)>,
+    /// The Sub weapon's pull, when the attack is a combo part (ADR-070).
+    pub pull: Option<Pull>,
 }
 
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it
@@ -907,6 +938,8 @@ pub(crate) struct AttackTask {
     pub damage: u32,
     /// The bullets it fires break the main character's charge (core#83).
     pub breaks_charge: bool,
+    /// The Sub weapon's pull, for a combo part's hits (ADR-070).
+    pub pull: Option<Pull>,
     /// Ticks since it started.
     pub age: u32,
     /// Ticks to wait before going on.

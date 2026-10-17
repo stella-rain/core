@@ -73,8 +73,9 @@ fn stage_of(boss: Value) -> Stage {
     stage_full(18_000, Some(boss), vec![], vec![])
 }
 
+/// `ticks` ticks of `input`, the Main weapon firing every 6 ticks.
 fn play(e: &mut Engine, ticks: u32, input: Input) -> Vec<(u32, DomainEvent)> {
-    run_until(e, input, ticks, |_| false)
+    fire_until(e, input, ticks, |_| false)
 }
 
 fn phase_changes(events: &[(u32, DomainEvent)]) -> Vec<(u32, u8)> {
