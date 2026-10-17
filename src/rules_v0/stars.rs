@@ -4,24 +4,30 @@
 //! order may drop a star where it fell. With the map full of stars it drops none, and the pity
 //! does not count it. Otherwise it drops one for sure once `pity` kills in a row have dropped
 //! none, and on a draw of the drop chance before that. A dropped star's rarity is drawn from the
-//! weights of the drop table's tier for the player's level, after this tick's experience. Then
-//! the main character takes every star inside its pickup circle, in the order they dropped.
+//! weights of the drop table's tier for the player's level, after this tick's experience. An
+//! elite (ADR-068) drops one for sure, without a draw and leaving the pity as it was, from the
+//! next tier up, or from the last tier. Then the main character takes every star inside its
+//! pickup circle, in the order they dropped.
+//!
+//! A boss kill makes the boss offer due, ahead of the stars taken that tick, at the highest
+//! rarity of the drop table's tier for the player's level after this tick's experience. It
+//! opens even though the kill clears the stage; the stars' offers due then never open.
 //!
 //! At the end of a tick the run survives, the first offer due opens. It draws `OFFER_SIZE`
 //! candidates from the run's pool at the star's rarity, then from the rarities below while too
 //! few are left. It leaves out banished rewards, rewards at their limit and rewards it already
 //! holds. An offer with no candidate does not open, and the next one due is tried. While an
-//! offer is open the world stops. A choice (`choose`) takes a candidate, rerolls one, skips, or
-//! banishes one; when it closes the offer, the next one due opens at once. Every draw is from
-//! the run's generator, in this order.
+//! offer is open the world stops. A choice (`choose`) takes a candidate, rerolls one, skips (a
+//! star's offer only), or banishes one; when it closes the offer, the next one due opens at
+//! once. Every draw is from the run's generator, in this order.
 
-use crate::engine::{OfferState, StarField, StarState, State};
+use crate::engine::{Due, OfferState, StarField, StarState, State};
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
-use crate::snapshot::{CandidateView, OfferOption, OfferView};
-use crate::stage::{RarityWeights, Stage};
+use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
+use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
 use super::{levels, overlaps};
@@ -36,22 +42,22 @@ pub(super) fn drop_from_defeated(stage: &Stage, s: &mut State, events: &mut Vec<
     let Some(cfg) = &stage.stars else {
         return;
     };
-    let level = s.progress.as_ref().map_or(1, |p| p.level);
-    let Some(tier) = cfg
-        .tiers
-        .iter()
-        .rev()
-        .find(|t| t.from_level <= level)
-        .or(cfg.tiers.first())
-    else {
+    let Some(tier) = tier_of(cfg, s) else {
         return;
     };
     let cap = usize::from(cfg.cap.min(MAX_STARS_ON_MAP));
+    // An elite's star draws from the next tier up, or from the last.
+    let up = cfg
+        .tiers
+        .iter()
+        .position(|t| std::ptr::eq(t, tier))
+        .and_then(|i| cfg.tiers.get(i + 1))
+        .unwrap_or(tier);
     let fallen: Vec<_> = s
         .enemies
         .iter()
         .filter(|e| e.hp == 0)
-        .map(|e| e.at)
+        .map(|e| (e.at, e.elite.is_some()))
         .collect();
     let State {
         rng,
@@ -62,22 +68,58 @@ pub(super) fn drop_from_defeated(stage: &Stage, s: &mut State, events: &mut Vec<
     let Some(f) = stars.as_mut() else {
         return;
     };
-    for at in fallen {
+    for (at, elite) in fallen {
         if f.on_map.len() >= cap {
             continue;
         }
-        let drops =
-            f.misses >= u32::from(cfg.pity) || rng.below(PER_MILLE) < u32::from(cfg.drop_per_mille);
-        if !drops {
-            f.misses = f.misses.saturating_add(1);
-            continue;
+        // An elite drops its star for sure, and leaves the pity as it was.
+        if !elite {
+            let drops = f.misses >= u32::from(cfg.pity)
+                || rng.below(PER_MILLE) < u32::from(cfg.drop_per_mille);
+            if !drops {
+                f.misses = f.misses.saturating_add(1);
+                continue;
+            }
+            f.misses = 0;
         }
-        f.misses = 0;
-        let rarity = draw_rarity(rng, &tier.weights);
+        let rarity = draw_rarity(rng, &if elite { up } else { tier }.weights);
         let id = EntityId(*next_id);
         *next_id += 1;
         f.on_map.push(StarState { id, at, rarity });
         events.push(DomainEvent::StarDropped { star: id, rarity });
+    }
+}
+
+/// The drop table's tier for the player's level.
+fn tier_of<'a>(cfg: &'a Stars, s: &State) -> Option<&'a Tier> {
+    let level = s.progress.as_ref().map_or(1, |p| p.level);
+    cfg.tiers
+        .iter()
+        .rev()
+        .find(|t| t.from_level <= level)
+        .or(cfg.tiers.first())
+}
+
+/// The boss died this tick: its offer is due first, at the highest rarity of the player's tier.
+pub(super) fn boss_killed(stage: &Stage, s: &mut State) {
+    let Some(rarity) = stage
+        .stars
+        .as_ref()
+        .and_then(|cfg| tier_of(cfg, s))
+        .and_then(|t| t.weights.highest())
+    else {
+        return;
+    };
+    if let Some(f) = s.stars.as_mut() {
+        let kind = OfferKind::Boss;
+        f.due.insert(0, Due { kind, rarity });
+    }
+}
+
+/// The run is over: only a boss offer still opens.
+pub(super) fn run_over(s: &mut State) {
+    if let Some(f) = s.stars.as_mut() {
+        f.due.retain(|d| d.kind == OfferKind::Boss);
     }
 }
 
@@ -108,7 +150,10 @@ pub(super) fn pick_up(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent
     let stars = std::mem::take(&mut f.on_map);
     for star in stars {
         if overlaps(at, cfg.pickup_radius.0, star.at, 0) {
-            f.due.push(star.rarity);
+            f.due.push(Due {
+                kind: OfferKind::Star,
+                rarity: star.rarity,
+            });
             events.push(DomainEvent::StarTaken {
                 star: star.id,
                 rarity: star.rarity,
@@ -126,7 +171,7 @@ pub(crate) fn open_due(rewards: &Rewards, s: &mut State, events: &mut Vec<Domain
         return;
     };
     while f.offer.is_none() && !f.due.is_empty() {
-        let rarity = f.due.remove(0);
+        let Due { kind, rarity } = f.due.remove(0);
         let mut candidates = Vec::with_capacity(OFFER_SIZE);
         while candidates.len() < OFFER_SIZE {
             match draw(rewards, f, rng, rarity, &candidates) {
@@ -138,10 +183,15 @@ pub(crate) fn open_due(rewards: &Rewards, s: &mut State, events: &mut Vec<Domain
             continue;
         }
         events.push(DomainEvent::OfferOpened {
+            kind,
             rarity,
             candidates: candidates.iter().map(|i| id(rewards, *i)).collect(),
         });
-        f.offer = Some(OfferState { rarity, candidates });
+        f.offer = Some(OfferState {
+            kind,
+            rarity,
+            candidates,
+        });
     }
 }
 
@@ -199,7 +249,9 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
     if f.rerolls_left > 0 && first_rarity(rewards, f, o.rarity, &o.candidates).is_some() {
         out.extend((0..n).map(|candidate| OfferOption::Reroll { candidate }));
     }
-    out.push(OfferOption::Skip);
+    if o.kind == OfferKind::Star {
+        out.push(OfferOption::Skip);
+    }
     if f.banishes_left > 0 {
         out.extend((0..n).map(|candidate| OfferOption::Banish { candidate }));
     }
@@ -296,6 +348,7 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
     let f = s.stars.as_ref()?;
     let o = f.offer.as_ref()?;
     Some(OfferView {
+        kind: o.kind,
         rarity: o.rarity,
         candidates: o
             .candidates

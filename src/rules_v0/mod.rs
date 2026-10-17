@@ -11,14 +11,17 @@
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
 //!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
 //!    a shot skill starts an attack task; then the enemies push apart, all at once (`push`,
-//!    ADR-058), and one found crowded does not step to its place on the next tick;
+//!    ADR-058), and one found crowded does not step to its place on the next tick. An elite
+//!    (ADR-068) holds where it spawned instead of its movement, and its rules fire only while
+//!    the main character is within its range;
 //! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
 //!    is carried out up to its next wait (`attacks`), making bullets;
 //! 5. bullets move and leave the map;
 //! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears;
-//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered.
+//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered;
+//!    a clear opens only the boss offer of the boss kill that made it.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks. In
@@ -29,7 +32,8 @@
 //! during a run (`player::shot` is where it would plug in).
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
-//! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, `MAX_BULLETS_ALIVE` bullets,
+//! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, the stage's elite cap of
+//! them elites (at most `MAX_ELITES_ALIVE`), `MAX_BULLETS_ALIVE` bullets,
 //! `MAX_BULLET_SPAWNS_PER_TICK` new bullets per tick, `MAX_ATTACK_TASKS` attacks at once and
 //! `MAX_EMITTER_STEPS_PER_TICK` steps of them per tick. A spawn past a cap is dropped, in
 //! spawn order, and a wave spawn that is dropped still counts as spawned; attacks past the
@@ -163,6 +167,7 @@ pub(crate) fn initial_state(
         order: None,
         // The first phase begins on the first tick (see `boss::act`).
         rules: Vec::new(),
+        elites_called: b.call_elites.map(|_| false),
         parts: b
             .parts
             .iter()
@@ -253,6 +258,7 @@ pub(crate) fn step(
     attacks::advance_runs(s, events);
     player::update(stage, s, input, events);
     boss::act(stage, s, events);
+    boss::call_elites(stage, s, events);
     agents::act(stage, s, events);
     push::apply(stage, s);
     attacks::fire_hooks(s);
@@ -267,8 +273,13 @@ pub(crate) fn step(
     move_bullets(stage, s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
-    if s.outcome == Outcome::Running {
-        stars::open_due(rewards, s, events);
+    match s.outcome {
+        Outcome::Running => stars::open_due(rewards, s, events),
+        Outcome::Cleared => {
+            stars::run_over(s);
+            stars::open_due(rewards, s, events);
+        }
+        Outcome::Failed => {}
     }
     debug_assert!(
         entity::enemies_in_id_order(s),
@@ -291,19 +302,40 @@ fn spawn_waves(stage: &Stage, s: &mut State) {
             continue;
         }
         s.spawned[i] = spawned + 1;
-        if count(&s.enemies) >= MAX_ENEMIES_ALIVE {
-            continue;
-        }
-        let id = EntityId(s.next_id);
-        s.next_id += 1;
         let key = AgentKey {
             source: AgentSource::Wave,
             index: u32::try_from(i).unwrap_or(u32::MAX),
             rule: 0,
         };
-        s.enemies
-            .push(agents::new_agent(id, key, &wave.enemy, wave.spawn, 0));
+        spawn_enemy(stage, s, key, &wave.enemy, wave.spawn);
     }
+}
+
+/// Spawns an enemy of `def` at `at`, unless the cap on enemies alive is reached, or for an
+/// elite the stage's cap on elites; an elite that comes after the boss's call is called at
+/// once. Returns whether it spawned.
+pub(super) fn spawn_enemy(
+    stage: &Stage,
+    s: &mut State,
+    key: AgentKey,
+    def: &crate::behaviour::Agent,
+    at: Point,
+) -> bool {
+    let room = count(&s.enemies) < MAX_ENEMIES_ALIVE
+        && (def.elite.is_none()
+            || s.enemies.iter().filter(|e| e.elite.is_some()).count()
+                < usize::from(stage.elite_cap()));
+    if !room {
+        return false;
+    }
+    let id = EntityId(s.next_id);
+    s.next_id += 1;
+    let mut enemy = agents::new_agent(id, key, def, at, 0);
+    if let Some(el) = enemy.elite.as_mut() {
+        el.called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
+    }
+    s.enemies.push(enemy);
+    true
 }
 
 fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
@@ -345,6 +377,7 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     // The enemies do not move while hit boxes and bullets land, so one grid, built for the first
     // friendly hit box or bullet, serves all of them; a tick without either never builds it.
     let mut grid: Option<Grid> = None;
+    let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
     hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = Vec::with_capacity(s.bullets.len());
     for i in 0..s.bullets.len() {
@@ -369,6 +402,9 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     levels::credit_defeated(stage, s, events);
     stars::drop_from_defeated(stage, s, events);
     s.enemies.retain(|e| e.hp > 0);
+    if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
+        stars::boss_killed(stage, s);
+    }
     stars::pick_up(stage, s, events);
 }
 
@@ -540,6 +576,12 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
     h.write_u32(a.aggro);
     h.write_i32(a.orbit_angle);
     h.write_bool(a.crowded);
+    // Only for an elite, which its key already tells apart, so other agents hash as before.
+    if let Some(el) = a.elite {
+        h.write_i32(el.home.x.0);
+        h.write_i32(el.home.y.0);
+        h.write_bool(el.called);
+    }
     match a.order {
         Some(o) => {
             h.write_bool(true);
@@ -727,6 +769,10 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 h.write_u32(part.defence);
                 hash_statuses(&mut h, &part.statuses);
             }
+            // Only for a boss that calls its elites, so other bosses hash as before.
+            if let Some(called) = b.elites_called {
+                h.write_bool(called);
+            }
         }
         None => h.write_bool(false),
     }
@@ -803,12 +849,14 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_u32(u32::from(star.rarity.index()));
         }
         h.write_u32(count(&f.due));
-        for r in &f.due {
-            h.write_u32(u32::from(r.index()));
+        for d in &f.due {
+            h.write_u32(d.kind as u32);
+            h.write_u32(u32::from(d.rarity.index()));
         }
         match &f.offer {
             Some(o) => {
                 h.write_bool(true);
+                h.write_u32(o.kind as u32);
                 h.write_u32(u32::from(o.rarity.index()));
                 h.write_u32(count(&o.candidates));
                 for c in &o.candidates {

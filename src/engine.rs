@@ -23,7 +23,7 @@ use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, MapView,
-    PlayerView, ProgressView, SkillView, Snapshot, StarView,
+    OfferKind, PlayerView, ProgressView, SkillView, Snapshot, StarView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -307,6 +307,7 @@ impl Engine {
                     radius: boss.radius,
                     hp: b.hp,
                     attack: attack_of(b.id),
+                    elite: false,
                 });
             }
         }
@@ -324,6 +325,7 @@ impl Engine {
                         radius: def.radius,
                         hp: a.hp,
                         attack: attack_of(a.id),
+                        elite: a.elite.is_some(),
                     });
                 }
             };
@@ -345,6 +347,7 @@ impl Engine {
                         radius: Fx(part.radius),
                         hp: part.hp,
                         attack: None,
+                        elite: false,
                     });
                 }
             }
@@ -496,8 +499,9 @@ pub(crate) struct StarField {
     pub misses: u32,
     /// The stars waiting on the map, in the order they dropped (entity-ID order).
     pub on_map: Vec<StarState>,
-    /// The rarities of the stars taken whose offers have not opened yet, in the order taken.
-    pub due: Vec<Rarity>,
+    /// The offers due that have not opened yet: a boss kill's first, then the stars taken, in
+    /// the order taken.
+    pub due: Vec<Due>,
     pub offer: Option<OfferState>,
     pub rerolls_left: u32,
     pub banishes_left: u32,
@@ -515,9 +519,17 @@ pub(crate) struct StarState {
     pub rarity: Rarity,
 }
 
+/// An offer due: what opens it, and the highest rarity a candidate may have.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Due {
+    pub kind: OfferKind,
+    pub rarity: Rarity,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct OfferState {
-    /// The star's rarity: the highest a candidate may have.
+    pub kind: OfferKind,
+    /// The highest rarity a candidate may have: the star's, or the top of the boss offer's tier.
     pub rarity: Rarity,
     /// Places in the rewards file, in the offer's order.
     pub candidates: Vec<u16>,
@@ -608,6 +620,9 @@ pub(crate) struct BossState {
     pub rules: Vec<RuleState>,
     /// One per part of the stage's boss, in order.
     pub parts: Vec<PartState>,
+    /// Whether it has called its elites; `None` for a boss that calls none, which hashes
+    /// nothing for it.
+    pub elites_called: Option<bool>,
 }
 
 /// A breakable part of the boss, with its own hit points (ADR-007).
@@ -669,6 +684,15 @@ pub(crate) struct AgentState {
     /// Enemies only: the last push-apart found it overlapping its neighbours by more than a
     /// pixel, so it does not take its own step to its place this tick (ADR-058).
     pub crowded: bool,
+    /// An elite's own state; `None` for every other agent, which hashes nothing for it.
+    pub elite: Option<EliteState>,
+}
+
+/// An elite holds `home`, where it spawned, until a boss calls it (ADR-068).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct EliteState {
+    pub home: Point,
+    pub called: bool,
 }
 
 #[derive(Clone, Copy, Debug)]

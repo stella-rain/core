@@ -517,6 +517,35 @@
       ]
     },
     {
+      "description": "The boss called its elites: the `elites` alive leave their places and fight beside it,\nand every elite that comes later is called at once (ADR-068).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "elites": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "elites"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ElitesCalled"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
       "description": "An offer opened, and the world stopped until a choice closes it (ADR-066 §3).",
       "type": "object",
       "properties": {
@@ -529,12 +558,16 @@
                 "$ref": "#/$defs/ContentId"
               }
             },
+            "kind": {
+              "$ref": "#/$defs/OfferKind"
+            },
             "rarity": {
               "$ref": "#/$defs/Rarity"
             }
           },
           "additionalProperties": false,
           "required": [
+            "kind",
             "rarity",
             "candidates"
           ]
@@ -670,6 +703,21 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0
+    },
+    "OfferKind": {
+      "description": "What opened an offer (ADR-066 §2).",
+      "oneOf": [
+        {
+          "description": "A falling star the main character took; it can be skipped.",
+          "type": "string",
+          "const": "star"
+        },
+        {
+          "description": "A boss kill: at the highest rarity of the player's tier, with no skip.",
+          "type": "string",
+          "const": "boss"
+        }
+      ]
     },
     "Rarity": {
       "description": "A reward's rarity, from the most common up (ADR-066 §2).",

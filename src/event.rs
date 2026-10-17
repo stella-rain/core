@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
+use crate::snapshot::OfferKind;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "data", deny_unknown_fields)]
@@ -85,8 +86,14 @@ pub enum DomainEvent {
         star: EntityId,
         rarity: Rarity,
     },
+    /// The boss called its elites: the `elites` alive leave their places and fight beside it,
+    /// and every elite that comes later is called at once (ADR-068).
+    ElitesCalled {
+        elites: u32,
+    },
     /// An offer opened, and the world stopped until a choice closes it (ADR-066 §3).
     OfferOpened {
+        kind: OfferKind,
         rarity: Rarity,
         candidates: Vec<ContentId>,
     },

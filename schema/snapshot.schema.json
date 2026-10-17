@@ -250,6 +250,10 @@
             }
           ]
         },
+        "elite": {
+          "description": "An elite enemy (ADR-068), which the minimap shows wherever it is.",
+          "type": "boolean"
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
@@ -414,6 +418,21 @@
         "height"
       ]
     },
+    "OfferKind": {
+      "description": "What opened an offer (ADR-066 §2).",
+      "oneOf": [
+        {
+          "description": "A falling star the main character took; it can be skipped.",
+          "type": "string",
+          "const": "star"
+        },
+        {
+          "description": "A boss kill: at the highest rarity of the player's tier, with no skip.",
+          "type": "string",
+          "const": "boss"
+        }
+      ]
+    },
     "OfferOption": {
       "description": "One option of an open offer; `candidate` is a place in its candidates, from 0.",
       "oneOf": [
@@ -511,15 +530,18 @@
             "$ref": "#/$defs/CandidateView"
           }
         },
+        "kind": {
+          "$ref": "#/$defs/OfferKind"
+        },
         "options": {
-          "description": "What `Engine::choose` takes, by index: the candidates, then a reroll of each while\nrerolls are left and another reward could come, then the skip, then a banish of each\nwhile banishes are left.",
+          "description": "What `Engine::choose` takes, by index: the candidates, then a reroll of each while\nrerolls are left and another reward could come, then the skip (not in a boss offer),\nthen a banish of each while banishes are left.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/OfferOption"
           }
         },
         "rarity": {
-          "description": "The star's rarity. A candidate is of a lower one when the pool has too few left of it.",
+          "description": "The star's rarity, or for a boss offer the highest of the player's tier. A candidate is\nof a lower one when the pool has too few left of it.",
           "$ref": "#/$defs/Rarity"
         },
         "rerolls_left": {
@@ -531,6 +553,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "kind",
         "rarity",
         "candidates",
         "options",

@@ -18,6 +18,11 @@
 //!   wait for does not hang the tick. A timeline that runs out is done; the rules go on.
 //! - **Time** for the phase's conditions and attacks (`time_above`, `phase_time`) is the ticks
 //!   since the phase began.
+//!
+//! After that, a boss with `call_elites` that is still alive and has not called yet calls its
+//! elites (ADR-068) once its time is up or its hit points are below its share: every elite
+//! alive is called, and so is every one that spawns later (`spawn_enemy`). A called elite
+//! leaves its place and acts at any distance, by its own movement and rules.
 
 use crate::attack::AttackRef;
 use crate::engine::{MoveOrder, Origin, State};
@@ -66,6 +71,36 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     if let Some(p) = def.phases.get(phase) {
         fire_first_rule(stage, s, Who::Boss, &p.rules, events);
     }
+}
+
+/// Calls the elites, once, when the boss's call is due.
+pub(super) fn call_elites(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let Some(call) = stage.boss.as_ref().and_then(|b| b.call_elites) else {
+        return;
+    };
+    let Some(b) = s.boss.as_mut() else {
+        return;
+    };
+    if b.hp == 0 || b.elites_called != Some(false) {
+        return;
+    }
+    // The boss's first tick is tick 1, so its time is up on tick `after_ticks + 1`.
+    let time_up = call
+        .after_ticks
+        .is_some_and(|t| s.tick.saturating_sub(1) >= t);
+    let low = call
+        .below_pct
+        .is_some_and(|pct| u64::from(b.hp) * 100 < u64::from(pct) * u64::from(b.max_hp));
+    if !(time_up || low) {
+        return;
+    }
+    b.elites_called = Some(true);
+    let mut elites = 0u32;
+    for el in s.enemies.iter_mut().filter_map(|e| e.elite.as_mut()) {
+        el.called = true;
+        elites = elites.saturating_add(1);
+    }
+    events.push(DomainEvent::ElitesCalled { elites });
 }
 
 /// Ends the phase if its `until` holds and there is a phase to go on to.

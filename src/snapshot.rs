@@ -92,16 +92,28 @@ pub struct StarView {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OfferView {
-    /// The star's rarity. A candidate is of a lower one when the pool has too few left of it.
+    pub kind: OfferKind,
+    /// The star's rarity, or for a boss offer the highest of the player's tier. A candidate is
+    /// of a lower one when the pool has too few left of it.
     pub rarity: Rarity,
     pub candidates: Vec<CandidateView>,
     /// What `Engine::choose` takes, by index: the candidates, then a reroll of each while
-    /// rerolls are left and another reward could come, then the skip, then a banish of each
-    /// while banishes are left.
+    /// rerolls are left and another reward could come, then the skip (not in a boss offer),
+    /// then a banish of each while banishes are left.
     pub options: Vec<OfferOption>,
     /// Rerolls and banishes left in the run.
     pub rerolls_left: u32,
     pub banishes_left: u32,
+}
+
+/// What opened an offer (ADR-066 §2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OfferKind {
+    /// A falling star the main character took; it can be skipped.
+    Star,
+    /// A boss kill: at the highest rarity of the player's tier, with no skip.
+    Boss,
 }
 
 /// A reward an offer holds.
@@ -210,6 +222,9 @@ pub struct EntityView {
     /// The attack it is making, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attack: Option<AttackView>,
+    /// An elite enemy (ADR-068), which the minimap shows wherever it is.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub elite: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

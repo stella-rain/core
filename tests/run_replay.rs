@@ -108,11 +108,10 @@ fn a_run_that_ends_is_recorded_to_the_tick_it_ends() {
 fn a_spend_after_the_run_ended_is_refused() {
     // The run ends with its points unspent; they are lost, so a spend after the end is refused
     // like a step, and a replay holding one does not verify (recording would leave it out).
-    let commands: Vec<Command> = play_run(TRIAL_LENGTH)
+    let mut commands: Vec<Command> = play_run(TRIAL_LENGTH)
         .into_iter()
         .filter(|c| !matches!(c, Command::Spend(_)))
         .collect();
-    let replay = record_run(&trial_setup(), &commands).unwrap();
     let mut engine = Engine::start(&trial_setup()).unwrap();
     for c in &commands {
         match *c {
@@ -121,7 +120,20 @@ fn a_spend_after_the_run_ended_is_refused() {
             Command::Spend(_) => unreachable!("filtered out"),
         }
     }
-    assert_eq!(engine.outcome(), Outcome::Failed);
+    // Without the spends the run may outlast `play_run`'s commands: play it to its end,
+    // taking candidate 0 of every offer.
+    while engine.outcome() == Outcome::Running {
+        if engine.offer_open() {
+            engine.choose(0).unwrap();
+            commands.push(Command::Choose(0));
+            continue;
+        }
+        let input = run_input(&engine, engine.tick());
+        engine.step(input);
+        commands.push(Command::Step(input));
+    }
+    let replay = record_run(&trial_setup(), &commands).unwrap();
+    assert_ne!(engine.outcome(), Outcome::Running);
     assert!(engine.snapshot().progress.unwrap().points > 0);
     let hash = engine.state_hash();
     assert_eq!(engine.spend(0), Err(SpendError::RunOver));

@@ -10,7 +10,7 @@ use crate::behaviour::{Agent, Condition, Rule};
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 use crate::rewards::Rarity;
-use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W};
+use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W, MAX_ELITES_ALIVE};
 use crate::weapon::{MainWeapon, SubWeapon, WeaponRef};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -48,6 +48,10 @@ pub struct Stage {
     /// Without them kills drop nothing and nothing is offered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stars: Option<Stars>,
+    /// The most elites alive at once (ADR-068); `MAX_ELITES_ALIVE` when absent. An elite that
+    /// would spawn past it does not, and a wave counts it as spawned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elite_cap: Option<u16>,
 }
 
 /// How kills drop falling stars, what rarity a star has, and what an offer allows.
@@ -136,6 +140,13 @@ pub struct Levels {
 }
 
 impl Stage {
+    /// The most elites alive at once.
+    pub fn elite_cap(&self) -> u16 {
+        self.elite_cap
+            .unwrap_or(MAX_ELITES_ALIVE)
+            .min(MAX_ELITES_ALIVE)
+    }
+
     /// The map the run plays on (core#87).
     pub fn map(&self) -> Map {
         self.map.unwrap_or(Map::PORTRAIT)
@@ -260,6 +271,21 @@ pub struct Boss {
     #[serde(default)]
     pub parts: Vec<BossPart>,
     pub phases: Vec<Phase>,
+    /// When every elite alive joins the boss fight (ADR-068); without it the boss calls none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub call_elites: Option<CallElites>,
+}
+
+/// The boss calls its elites at whichever comes first: `after_ticks` ticks after its first
+/// tick (0 calls on it), or its hit points falling below `below_pct` percent of its maximum.
+/// At least one of the two is given.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CallElites {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_ticks: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub below_pct: Option<u8>,
 }
 
 /// A breakable part with its own HP and hurt circle (ADR-007, ADR-036).

@@ -24,6 +24,16 @@
       "type": "string",
       "default": ""
     },
+    "elite_cap": {
+      "description": "The most elites alive at once (ADR-068); `MAX_ELITES_ALIVE` when absent. An elite that\nwould spawn past it does not, and a wave counts it as spawned.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
     "id": {
       "description": "The stage ID: the file name and the first half of the version tag.",
       "type": "string"
@@ -228,6 +238,17 @@
           "format": "uint32",
           "minimum": 0
         },
+        "elite": {
+          "description": "An enemy that holds where it spawned and acts only while the main character is within\nits range, until a boss calls it; its star is a tier higher (ADR-068). Not a companion.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Elite"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
@@ -391,6 +412,17 @@
         "base": {
           "$ref": "#/$defs/ContentId"
         },
+        "call_elites": {
+          "description": "When every elite alive joins the boss fight (ADR-068); without it the boss calls none.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CallElites"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "defence": {
           "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
           "type": "integer",
@@ -480,6 +512,30 @@
         "offset",
         "radius"
       ]
+    },
+    "CallElites": {
+      "description": "The boss calls its elites at whichever comes first: `after_ticks` ticks after its first\ntick (0 calls on it), or its hit points falling below `below_pct` percent of its maximum.\nAt least one of the two is given.",
+      "type": "object",
+      "properties": {
+        "after_ticks": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "below_pct": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
     },
     "Charge": {
       "description": "The charged Main skill (ADR-050): a ready press starts the charge, the ticks held raise\nits level, and the release attacks along the facing at the level reached. Releasing inside\nthe level's perfect window adds its perfect bonus; at `max_ticks` it releases by itself,\nwithout the bonus. The frontend slows time while charging; the rules do not.",
@@ -764,6 +820,20 @@
             "step"
           ]
         }
+      ]
+    },
+    "Elite": {
+      "description": "What makes an enemy an elite.",
+      "type": "object",
+      "properties": {
+        "range": {
+          "description": "How near the main character's centre must come to its centre for its rules to fire.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "range"
       ]
     },
     "Emitter": {

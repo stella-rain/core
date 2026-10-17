@@ -36,6 +36,8 @@ struct Hashed<'a> {
     levels: &'a Option<Levels>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stars: &'a Option<Stars>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    elite_cap: &'a Option<u16>,
 }
 
 /// The bytes the parsed-stage hash is taken over. `stage` must have passed the validator.
@@ -56,6 +58,7 @@ pub fn parsed_stage_hash_input(stage: &Stage) -> Vec<u8> {
         map,
         levels,
         stars,
+        elite_cap,
     } = stage;
     let hashed = Hashed {
         schema_version: *schema_version,
@@ -71,6 +74,7 @@ pub fn parsed_stage_hash_input(stage: &Stage) -> Vec<u8> {
         map,
         levels,
         stars,
+        elite_cap,
     };
     let mut bytes = TAG.to_vec();
     // Writing these types to a `Vec` cannot fail: no maps with non-string keys, no I/O.

@@ -30,6 +30,18 @@ pub struct Agent {
     /// Evaluated in order each tick; the first rule that can fire, fires (ADR-036).
     #[serde(default)]
     pub rules: Vec<Rule>,
+    /// An enemy that holds where it spawned and acts only while the main character is within
+    /// its range, until a boss calls it; its star is a tier higher (ADR-068). Not a companion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elite: Option<Elite>,
+}
+
+/// What makes an enemy an elite.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Elite {
+    /// How near the main character's centre must come to its centre for its rules to fire.
+    pub range: Fx,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
