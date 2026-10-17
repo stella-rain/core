@@ -64,7 +64,7 @@ fn a_companion_buffs_is_shot_at_and_is_healed() {
     // 80 ticks: 40 standing still, shooting up at the enemy (the buff changes the shots'
     // damage), then 40 walking right, which turns the shots away from it.
     let inputs: Vec<Input> = (0..80)
-        .map(|t| if t < 40 { idle() } else { moving(64, 0) })
+        .map(|t| firing(if t < 40 { idle() } else { moving(64, 0) }, t))
         .collect();
     check("companion", &recording::record(&stage, &inputs).unwrap());
 }
@@ -89,7 +89,7 @@ fn an_enemy_waits_telegraphs_shoots_and_summons() {
         vec![wave(1, 1, 0, boss_in_the_way, 46_080, 60_000)],
         vec![],
     );
-    let inputs: Vec<Input> = (0..90).map(|_| idle()).collect();
+    let inputs: Vec<Input> = (0..90).map(|t| firing(idle(), t)).collect();
     check("enemy", &recording::record(&stage, &inputs).unwrap());
 }
 
@@ -126,7 +126,7 @@ fn a_boss_breaks_a_part_and_changes_phase() {
         ]
     });
     let stage = stage_full(600, Some(boss), vec![], vec![]);
-    let inputs: Vec<Input> = (0..160).map(|_| idle()).collect();
+    let inputs: Vec<Input> = (0..160).map(|t| firing(idle(), t)).collect();
     check("boss", &recording::record(&stage, &inputs).unwrap());
 }
 
@@ -136,22 +136,21 @@ fn a_boss_breaks_a_part_and_changes_phase() {
 #[test]
 fn the_main_shot_is_the_stages_attack() {
     let mut stage = stage_full(600, Some(boss_at(100, 80_000)), vec![], vec![]);
-    stage.player.main = serde_json::from_value(main_ref(weapon(
-        json!({
-            "inline": spawned(json!([
-                { "type": "spread", "count": 2, "angle": 1280, "body": [
-                    { "type": "fire", "speed": 2048,
-                      "direction": { "type": "aimed", "offset": 0 } } ] },
-                { "type": "wait", "ticks": 4 },
-                { "type": "fire", "speed": 2048, "direction": { "type": "aimed", "offset": 0 } }
-            ]))
-        }),
-        json!("facing"),
-        6,
-    )))
+    stage.player.main = serde_json::from_value(main_ref(json!({
+        "inline": spawned(json!([
+            { "type": "spread", "count": 2, "angle": 1280, "body": [
+                { "type": "fire", "speed": 2048,
+                  "direction": { "type": "aimed", "offset": 0 } } ] },
+            { "type": "wait", "ticks": 4 },
+            { "type": "fire", "speed": 2048, "direction": { "type": "aimed", "offset": 0 } }
+        ]))
+    })))
     .unwrap();
     let inputs: Vec<Input> = (0..40)
-        .map(|t| if t < 7 { idle() } else { moving(1, 0) })
+        .map(|t| Input {
+            main: t == 0 || t == 12,
+            ..if t < 7 { idle() } else { moving(1, 0) }
+        })
         .collect();
     check("shot", &recording::record(&stage, &inputs).unwrap());
 }

@@ -112,9 +112,9 @@ fn index_of(e: &Engine, option: OfferOption) -> u32 {
     u32::try_from(i).unwrap()
 }
 
-/// Steps with `input` until an offer is open, returning the events of the ticks run.
+/// Steps with `input`, firing, until an offer is open, returning the events of the ticks run.
 fn until_offer(e: &mut Engine, input: stella_rain_core::input::Input) -> Vec<(u32, DomainEvent)> {
-    let events = run_until(e, input, 1200, Engine::offer_open);
+    let events = fire_until(e, input, 1200, Engine::offer_open);
     assert!(e.offer_open(), "no offer within 1200 ticks");
     events
 }
@@ -134,7 +134,7 @@ fn a_kill_drops_a_star_where_the_enemy_fell() {
         &starry(&[1000], stars(json!({})), vec![targets(1, 1, FAR_Y)]),
         commons(3),
     );
-    let events = run_until(&mut e, idle(), 600, |e| !e.snapshot().stars.is_empty());
+    let events = fire_until(&mut e, idle(), 600, |e| !e.snapshot().stars.is_empty());
     let s = e.snapshot();
     assert_eq!(s.stars.len(), 1);
     let star = s.stars[0];
@@ -156,7 +156,7 @@ fn a_stage_without_stars_drops_none() {
     let mut stage = starry(&[1000], stars(json!({})), vec![targets(1, 3, FAR_Y)]);
     stage.stars = None;
     let mut e = with(&stage, commons(3));
-    let events = run_until(&mut e, idle(), 600, |_| false);
+    let events = fire_until(&mut e, idle(), 600, |_| false);
     assert_eq!(deaths(&events), 3);
     assert!(e.snapshot().stars.is_empty());
 }
@@ -166,7 +166,7 @@ fn dropping_kills(e: &mut Engine, ticks: u32, input: stella_rain_core::input::In
     let mut kills = 0;
     let mut out = Vec::new();
     for _ in 0..ticks {
-        e.step(input);
+        e.step(firing(input, e.tick()));
         for ev in e.events() {
             match ev {
                 DomainEvent::Died { .. } => kills += 1,
@@ -215,7 +215,7 @@ fn a_star_s_rarity_follows_the_player_s_level() {
         { "from_level": 1, "weights": { "common": 1 } },
         { "from_level": 2, "weights": { "legendary": 1 } } ] }));
     let mut e = with(&starry(&[3], st, vec![targets(1, 4, FAR_Y)]), commons(3));
-    run_until(&mut e, idle(), 600, |e| e.snapshot().stars.len() == 4);
+    fire_until(&mut e, idle(), 600, |e| e.snapshot().stars.len() == 4);
     let rarities: Vec<Rarity> = e.snapshot().stars.iter().map(|s| s.rarity).collect();
     use Rarity::{Common, Legendary};
     assert_eq!(rarities, [Common, Common, Legendary, Legendary]);
@@ -229,7 +229,7 @@ fn rarities_are_drawn_by_their_weights() {
         &starry(&[1000], st, vec![targets(1, 60, FAR_Y)]),
         commons(3),
     );
-    run_until(&mut e, idle(), 1200, |e| e.snapshot().stars.len() == 60);
+    fire_until(&mut e, idle(), 1200, |e| e.snapshot().stars.len() == 60);
     let rare = e
         .snapshot()
         .stars
@@ -271,7 +271,7 @@ fn taking_a_star_opens_its_offer_at_the_end_of_the_tick_and_stops_the_world() {
     assert!(e.snapshot().stars.is_empty(), "the star was taken");
     let hash = e.state_hash();
     for _ in 0..10 {
-        e.step(idle());
+        e.step(firing(idle(), e.tick()));
         assert_eq!(
             (e.tick(), e.state_hash()),
             (tick, hash),
@@ -340,7 +340,7 @@ fn taking_a_candidate_applies_its_reward_and_the_run_goes_on() {
     assert_eq!(e.snapshot().player.hp, hp + 5);
     assert!(!e.offer_open());
     assert_eq!(e.tick(), tick, "a choice is between ticks");
-    e.step(idle());
+    e.step(firing(idle(), e.tick()));
     assert_eq!(e.tick(), tick + 1);
 }
 
@@ -433,7 +433,7 @@ fn a_banished_reward_leaves_the_pool_for_the_rest_of_the_run() {
     for _ in 0..8 {
         seen.extend(candidates(&e));
         e.choose(0).unwrap();
-        if run_until(&mut e, idle(), 600, Engine::offer_open).is_empty() || !e.offer_open() {
+        if fire_until(&mut e, idle(), 600, Engine::offer_open).is_empty() || !e.offer_open() {
             break;
         }
     }
@@ -460,7 +460,7 @@ fn banishing_the_last_reward_closes_the_offer_and_an_empty_pool_opens_none() {
     );
     assert!(!e.offer_open());
     // The second star is taken, but nothing is left to offer.
-    let events = run_until(&mut e, idle(), 600, |_| false);
+    let events = fire_until(&mut e, idle(), 600, |_| false);
     assert!(
         events
             .iter()
@@ -482,7 +482,7 @@ fn a_reward_at_its_stack_limit_is_offered_no_more() {
     let mut taken = false;
     let mut after = Vec::new();
     for _ in 0..12 {
-        if run_until(&mut e, idle(), 600, Engine::offer_open).is_empty() && !e.offer_open() {
+        if fire_until(&mut e, idle(), 600, Engine::offer_open).is_empty() && !e.offer_open() {
             break;
         }
         let c = candidates(&e);
@@ -527,7 +527,7 @@ fn two_stars_taken_on_one_tick_open_two_offers_one_after_another() {
         ),
         commons(4),
     );
-    run_until(&mut e, idle(), 600, |e| e.snapshot().stars.len() == 2);
+    fire_until(&mut e, idle(), 600, |e| e.snapshot().stars.len() == 2);
     let events = until_offer(&mut e, moving(0, -127));
     let tick = e.tick();
     let taken = events
@@ -572,7 +572,7 @@ fn experience_rewards_raise_the_experience_of_every_kill() {
     e.choose(u32::try_from(pick).unwrap()).unwrap();
     let xp = e.snapshot().progress.unwrap().xp;
     assert_eq!(xp, 2);
-    run_until(&mut e, idle(), 900, |e| {
+    fire_until(&mut e, idle(), 900, |e| {
         e.snapshot().progress.unwrap().xp > 2
     });
     assert_eq!(e.snapshot().progress.unwrap().xp, 2 + 3);
@@ -655,7 +655,7 @@ fn the_boss_offer_is_answered_after_the_clear_and_the_run_stays_over() {
     assert!(matches!(e.events(), [DomainEvent::RewardTaken { .. }]));
     assert!(!e.offer_open());
     assert_eq!(e.snapshot().player.hp, hp + 1);
-    e.step(idle());
+    e.step(firing(idle(), e.tick()));
     assert_eq!((e.tick(), e.outcome()), (tick, Outcome::Cleared));
 }
 
@@ -666,7 +666,7 @@ fn a_star_offer_still_due_when_the_stage_ends_does_not_open() {
     let mut stage = starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
     stage.boss = None;
     let mut e = with(&stage, commons(4));
-    let events = run_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
+    let events = fire_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
     assert_eq!(e.outcome(), Outcome::Cleared);
     assert!(
         events
@@ -681,7 +681,7 @@ fn a_boss_kill_in_a_stage_without_stars_opens_nothing() {
     let mut stage = boss_stage(10);
     stage.stars = None;
     let mut e = with(&stage, mixed());
-    run_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
+    fire_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
     assert_eq!(e.outcome(), Outcome::Cleared);
     assert!(!e.offer_open());
 }

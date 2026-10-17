@@ -1,6 +1,6 @@
-//! The controls of ADR-050 as far as they run so far: the input record's movement, the
-//! persistent facing (ADR-055), the main shot that attacks on its own along the facing, and
-//! the evade. Every number here is worked out by hand from the rules' constants.
+//! The controls of ADR-071 as far as they run so far: the input record's movement, the
+//! persistent facing (ADR-069), the Main weapon's attack on a press of `main`, along the facing,
+//! and the evade. Every number here is worked out by hand from the rules' constants.
 
 mod common;
 
@@ -94,27 +94,30 @@ fn the_facing_starts_up_the_field_and_follows_the_last_movement() {
 // --- The main shot ---------------------------------------------------------------------------
 
 #[test]
-fn the_main_shot_attacks_on_its_own_every_six_ticks() {
+fn the_main_shot_attacks_on_each_press_of_main() {
+    // The test stage's Main weapon: one bullet at 8 pixels a tick, a one-tick step. Held, it
+    // fires once; let go and pressed again, it fires again.
     let mut e = running(vec![]);
     e.step(idle());
-    assert_eq!(shots(&e), [(0, -2048)]);
-    for _ in 2..=6 {
-        e.step(idle());
+    assert!(shots(&e).is_empty(), "nothing without a press");
+    for _ in 0..5 {
+        e.step(pressing_main());
     }
-    assert_eq!(shots(&e).len(), 1);
+    assert_eq!(shots(&e), [(0, -2048)]);
     e.step(idle());
-    assert_eq!(shots(&e).len(), 2, "tick 7");
+    e.step(pressing_main());
+    assert_eq!(shots(&e).len(), 2);
 }
 
 #[test]
 fn the_main_shot_goes_along_the_facing() {
     let mut e = running(vec![]);
-    for _ in 0..6 {
-        e.step(idle());
-    }
-    // Tick 7: the next shot, after turning left.
-    e.step(moving(-127, 0));
-    assert_eq!(shots(&e).last(), Some(&(-2048, 0)));
+    // Turning left on the tick of the press.
+    e.step(Input {
+        main: true,
+        ..moving(-127, 0)
+    });
+    assert_eq!(shots(&e), [(-2048, 0)]);
 }
 
 // --- Evade -----------------------------------------------------------------------------------

@@ -63,8 +63,9 @@ fn corpus_stages() -> &'static [Stage] {
 }
 
 /// Any stick position, −128 included, because the engine is also called directly; the evade
-/// and the Sub skill pressed now and then (held over a run, they start again whenever they are
-/// ready), and the charge held half the time.
+/// and `sub` pressed now and then, `main` held half the time (a run of one input presses a
+/// button once, and a charged step charges while it is held), and the buttons and switches
+/// that do nothing yet set at random.
 fn input() -> impl Strategy<Value = Input> {
     (
         any::<i8>(),
@@ -72,15 +73,20 @@ fn input() -> impl Strategy<Value = Input> {
         prop::bool::weighted(0.25),
         any::<bool>(),
         prop::bool::weighted(0.25),
+        any::<(bool, bool, bool)>(),
     )
-        .prop_map(|(move_x, move_y, evade, charge, sub)| Input {
-            move_x,
-            move_y,
-            evade,
-            main: charge,
-            sub,
-            ..Input::default()
-        })
+        .prop_map(
+            |(move_x, move_y, evade, main, sub, (skill, assist, auto))| Input {
+                move_x,
+                move_y,
+                main,
+                sub,
+                evade,
+                skill,
+                assist,
+                auto,
+            },
+        )
 }
 
 /// Runs of one input held for a while, up to 300 ticks in all: crossing the field at the main

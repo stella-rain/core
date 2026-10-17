@@ -54,10 +54,10 @@ fn spent(e: &Engine) -> Vec<u8> {
     e.snapshot().progress.expect("a stage with levels").spent
 }
 
-/// Steps idle until a point is unspent, returning the events of that tick.
+/// Steps idle, firing, until a point is unspent, returning the events of that tick.
 fn until_point(e: &mut Engine, max_ticks: u32) -> Vec<DomainEvent> {
     for _ in 0..max_ticks {
-        e.step(idle());
+        e.step(firing(idle(), e.tick()));
         if points(e) > 0 {
             return e.events().to_vec();
         }
@@ -141,9 +141,9 @@ fn two_levels_in_one_tick_give_two_points() {
 #[test]
 fn unspent_points_stay_for_the_rest_of_the_run() {
     let mut e = engine(&leveled(&[1], vec![targets(3, None)]));
-    run_until(&mut e, idle(), 600, |e| points(e) == 3);
+    fire_until(&mut e, idle(), 600, |e| points(e) == 3);
     for _ in 0..300 {
-        e.step(idle());
+        e.step(firing(idle(), e.tick()));
     }
     assert_eq!(points(&e), 3);
 }
@@ -196,7 +196,7 @@ fn spend_is_refused_for_an_index_outside_the_stats_and_changes_nothing() {
 fn spend_is_refused_for_a_stat_at_its_limit_and_changes_nothing() {
     let limit = RunStats::bundled().stats()[0].limit;
     let mut e = engine(&leveled(&[1], vec![targets(20, None)]));
-    run_until(&mut e, idle(), 1200, |e| points(e) > u32::from(limit));
+    fire_until(&mut e, idle(), 1200, |e| points(e) > u32::from(limit));
     for _ in 0..limit {
         e.spend(0).unwrap();
     }
@@ -236,7 +236,7 @@ fn attack_raises_the_damage_of_the_main_character_s_attacks() {
     let hit_after = |mut e: Engine| {
         let mut damages = Vec::new();
         for _ in 0..120 {
-            e.step(idle());
+            e.step(firing(idle(), e.tick()));
             damages.extend(e.events().iter().filter_map(|ev| match ev {
                 DomainEvent::Hit { damage, .. } => Some(*damage),
                 _ => None,
@@ -296,28 +296,40 @@ fn evade_shortens_the_evade_s_cooldown() {
 }
 
 #[test]
-fn haste_shortens_the_weapons_automatic_attack_cooldowns() {
-    // The Main weapon attacks every 6 ticks; with one step of haste every 5.
-    let starts = |mut e: Engine| {
-        let mut n = 0;
-        for _ in 0..60 {
+fn attack_speed_shortens_a_combo_step_spread_over_its_phases() {
+    // A step of 36 ticks: a wind-up of 12, an active phase of 4 that fires on its first tick, a
+    // recovery of 20. One step of attack speed, 8%: 36 / 1.08 = 33.3, so 33 ticks; each phase
+    // rounded down (11, 3, 18) and the tick left over to the largest remainder, the active
+    // phase's (0.70 against 0.11 and 0.52).
+    let step = json!({ "inline": [
+        { "kind": "wind_up", "ticks": 12 },
+        { "kind": "active", "ticks": 4, "spawn": [{ "type": "fire", "speed": 2048,
+            "direction": { "type": "aimed", "offset": 0 } }] },
+        { "kind": "recovery", "ticks": 20 }
+    ] });
+    let stage = armed(effect_stage(), main_ref(step), quiet_sub());
+    let phases = |mut e: Engine| {
+        while !e.snapshot().player.attacks.is_empty() {
             e.step(idle());
-            n += e
-                .snapshot()
-                .player
-                .attacks
-                .iter()
-                .filter(|a| a.slot == 0 && a.phase == 0 && a.tick == 0)
-                .count();
         }
-        n
+        let mut seen: Vec<(u8, u32)> = Vec::new();
+        e.step(pressing_main());
+        while let Some(a) = e.snapshot().player.attacks.first().cloned() {
+            if seen.last().is_none_or(|p| p.0 != a.phase) {
+                seen.push((a.phase, a.ticks));
+            }
+            e.step(idle());
+        }
+        seen
     };
-    let stage = effect_stage();
     assert_eq!(
-        starts(after_spending(&stage, Some(StatEffect::HastePct))),
-        12
+        phases(after_spending(&stage, Some(StatEffect::AttackSpeedPct))),
+        [(0, 11), (1, 4), (2, 18)]
     );
-    assert_eq!(starts(after_spending(&stage, None)), 10);
+    assert_eq!(
+        phases(after_spending(&stage, None)),
+        [(0, 12), (1, 4), (2, 20)]
+    );
 }
 
 // --- Stats are content: a new one needs no code ------------------------------------------------
@@ -347,7 +359,7 @@ fn a_stat_added_in_the_content_works_with_no_code() {
         &RunContent::new(stats.clone(), Rewards::bundled().clone()),
     )
     .unwrap();
-    run_until(&mut e, idle(), 1200, |e| points(e) >= 3);
+    fire_until(&mut e, idle(), 1200, |e| points(e) >= 3);
     assert_eq!(spent(&e).len(), stats.stats().len());
     e.spend(plus).unwrap();
     assert_eq!(
@@ -389,13 +401,13 @@ fn stats_with_the_same_effect_add_up() {
             &RunContent::new(stats.clone(), Rewards::bundled().clone()),
         )
         .unwrap();
-        run_until(&mut e, idle(), 199, |e| points(e) >= 3);
+        fire_until(&mut e, idle(), 199, |e| points(e) >= 3);
         for i in spends {
             e.spend(*i).unwrap();
         }
         let mut seen = Vec::new();
         for _ in 0..200 {
-            e.step(idle());
+            e.step(firing(idle(), e.tick()));
             seen.extend(e.events().iter().filter_map(|ev| match ev {
                 DomainEvent::Hit { damage, .. } => Some(*damage),
                 _ => None,
@@ -415,36 +427,24 @@ fn a_trial_run_levels_up_and_spends_its_points() {
         schema_version: SCHEMA_VERSION,
         sim_version: SIM_VERSION,
         mode: "trial".into(),
-        main: "blaster".into(),
-        sub: "blaster".into(),
+        main: "blade".into(),
+        sub: "maul".into(),
         main_expertise: 0,
         sub_expertise: 0,
         seed: 1,
         star_pool: None,
         extra_rerolls: 0,
     };
-    // A small bot: line up under the nearest enemy, then face up, where the Main weapon shoots.
-    let bot = |e: &Engine| {
-        let s = e.snapshot();
-        let x = s.player.at.x.0;
-        let nearest = s
-            .entities
-            .iter()
-            .filter(|en| en.kind == stella_rain_core::snapshot::EntityKind::Enemy)
-            .min_by_key(|en| (en.at.x.0 - x).abs());
-        match nearest {
-            Some(en) if (en.at.x.0 - x).abs() > 1024 => {
-                moving(if en.at.x.0 > x { 127 } else { -127 }, 0)
-            }
-            _ => moving(0, -1),
-        }
-    };
+    // The trial run's script plays it, taking candidate 0 of every offer.
     let mut e = Engine::start(&setup).unwrap();
     assert_eq!(e.snapshot().progress.unwrap().level, 1);
     let mut spends = 0;
     while e.outcome() == Outcome::Running && e.tick() < 5400 {
-        let input = bot(&e);
-        e.step(input);
+        if e.offer_open() {
+            e.choose(0).unwrap();
+            continue;
+        }
+        e.step(common::run::run_input(&e, e.tick()));
         while points(&e) > 0 {
             e.spend(spends % 5).unwrap();
             spends += 1;
