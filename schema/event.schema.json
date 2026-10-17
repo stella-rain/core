@@ -529,12 +529,16 @@
                 "$ref": "#/$defs/ContentId"
               }
             },
+            "kind": {
+              "$ref": "#/$defs/OfferKind"
+            },
             "rarity": {
               "$ref": "#/$defs/Rarity"
             }
           },
           "additionalProperties": false,
           "required": [
+            "kind",
             "rarity",
             "candidates"
           ]
@@ -670,6 +674,21 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0
+    },
+    "OfferKind": {
+      "description": "What opened an offer (ADR-066 §2).",
+      "oneOf": [
+        {
+          "description": "A falling star the main character took; it can be skipped.",
+          "type": "string",
+          "const": "star"
+        },
+        {
+          "description": "A boss kill: at the highest rarity of the player's tier, with no skip.",
+          "type": "string",
+          "const": "boss"
+        }
+      ]
     },
     "Rarity": {
       "description": "A reward's rarity, from the most common up (ADR-066 §2).",

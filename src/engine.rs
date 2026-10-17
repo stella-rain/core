@@ -23,7 +23,7 @@ use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, EntityKind, EntityView, EvadeView, Facing, MapView,
-    PlayerView, ProgressView, SkillView, Snapshot, StarView,
+    OfferKind, PlayerView, ProgressView, SkillView, Snapshot, StarView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -496,8 +496,9 @@ pub(crate) struct StarField {
     pub misses: u32,
     /// The stars waiting on the map, in the order they dropped (entity-ID order).
     pub on_map: Vec<StarState>,
-    /// The rarities of the stars taken whose offers have not opened yet, in the order taken.
-    pub due: Vec<Rarity>,
+    /// The offers due that have not opened yet: a boss kill's first, then the stars taken, in
+    /// the order taken.
+    pub due: Vec<Due>,
     pub offer: Option<OfferState>,
     pub rerolls_left: u32,
     pub banishes_left: u32,
@@ -515,9 +516,17 @@ pub(crate) struct StarState {
     pub rarity: Rarity,
 }
 
+/// An offer due: what opens it, and the highest rarity a candidate may have.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Due {
+    pub kind: OfferKind,
+    pub rarity: Rarity,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct OfferState {
-    /// The star's rarity: the highest a candidate may have.
+    pub kind: OfferKind,
+    /// The highest rarity a candidate may have: the star's, or the top of the boss offer's tier.
     pub rarity: Rarity,
     /// Places in the rewards file, in the offer's order.
     pub candidates: Vec<u16>,

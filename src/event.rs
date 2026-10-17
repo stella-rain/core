@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
+use crate::snapshot::OfferKind;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "data", deny_unknown_fields)]
@@ -87,6 +88,7 @@ pub enum DomainEvent {
     },
     /// An offer opened, and the world stopped until a choice closes it (ADR-066 §3).
     OfferOpened {
+        kind: OfferKind,
         rarity: Rarity,
         candidates: Vec<ContentId>,
     },

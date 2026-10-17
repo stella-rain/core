@@ -4,13 +4,13 @@
 //! rarity follows the player's level. Only a stage with `levels` and `stars` has them.
 
 use serde_json::{Value, json};
-use stella_rain_core::engine::{ChoiceError, Engine, SpendError};
+use stella_rain_core::engine::{ChoiceError, Engine, Outcome, SpendError};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::ContentId;
 use stella_rain_core::rewards::{Rarity, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::{OfferOption, OfferView};
+use stella_rain_core::snapshot::{OfferKind, OfferOption, OfferView};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
 
@@ -576,6 +576,114 @@ fn experience_rewards_raise_the_experience_of_every_kill() {
         e.snapshot().progress.unwrap().xp > 2
     });
     assert_eq!(e.snapshot().progress.unwrap().xp, 2 + 3);
+}
+
+// --- The boss offer ----------------------------------------------------------------------------
+
+/// A stage with stars whose boss, of `hp`, waits straight above the main character, in the line
+/// of its Main weapon's shots; the drop table's one tier weighs common and rare.
+fn boss_stage(hp: u32) -> Stage {
+    let st =
+        stars(json!({ "tiers": [{ "from_level": 1, "weights": { "common": 5, "rare": 1 } }] }));
+    let mut stage = starry(&[1000], st, vec![]);
+    stage.boss = Some(serde_json::from_value(boss_at(hp, FAR_Y)).expect("boss parses"));
+    stage
+}
+
+/// Three common rewards and three rare ones.
+fn mixed() -> Rewards {
+    rewards(&[
+        ("c0", "common", "max_hp", 1, 5),
+        ("c1", "common", "max_hp", 1, 5),
+        ("c2", "common", "max_hp", 1, 5),
+        ("r0", "rare", "max_hp", 1, 5),
+        ("r1", "rare", "max_hp", 1, 5),
+        ("r2", "rare", "max_hp", 1, 5),
+    ])
+}
+
+#[test]
+fn a_boss_kill_opens_the_boss_offer_at_the_tier_s_highest_rarity_and_without_a_skip() {
+    let mut e = with(&boss_stage(10), mixed());
+    let events = until_offer(&mut e, idle());
+    let tick = e.tick();
+    let this_tick: Vec<&DomainEvent> = events
+        .iter()
+        .filter(|(t, _)| *t == tick)
+        .map(|(_, ev)| ev)
+        .collect();
+    assert!(
+        matches!(
+            this_tick[..],
+            [
+                ..,
+                DomainEvent::StageCleared,
+                DomainEvent::OfferOpened {
+                    rarity: Rarity::Rare,
+                    kind: OfferKind::Boss,
+                    ..
+                }
+            ]
+        ),
+        "{this_tick:?}"
+    );
+    assert_eq!(
+        e.outcome(),
+        Outcome::Cleared,
+        "the boss kill clears the stage"
+    );
+    let o = offer(&e);
+    assert_eq!((o.kind, o.rarity), (OfferKind::Boss, Rarity::Rare));
+    let rarities: Vec<Rarity> = o.candidates.iter().map(|c| c.rarity).collect();
+    assert_eq!(rarities, [Rarity::Rare; 3]);
+    assert!(!o.options.contains(&OfferOption::Skip), "{:?}", o.options);
+    assert_eq!(
+        e.choose(u32::try_from(o.options.len()).unwrap()),
+        Err(ChoiceError::OutOfRange {
+            index: u32::try_from(o.options.len()).unwrap(),
+            options: u32::try_from(o.options.len()).unwrap()
+        })
+    );
+}
+
+#[test]
+fn the_boss_offer_is_answered_after_the_clear_and_the_run_stays_over() {
+    let mut e = with(&boss_stage(10), mixed());
+    until_offer(&mut e, idle());
+    let (tick, hp) = (e.tick(), e.snapshot().player.hp);
+    assert_eq!(e.choose(0), Ok(()));
+    assert!(matches!(e.events(), [DomainEvent::RewardTaken { .. }]));
+    assert!(!e.offer_open());
+    assert_eq!(e.snapshot().player.hp, hp + 1);
+    e.step(idle());
+    assert_eq!((e.tick(), e.outcome()), (tick, Outcome::Cleared));
+}
+
+#[test]
+fn a_star_offer_still_due_when_the_stage_ends_does_not_open() {
+    // The kill of the last enemy clears a stage without a boss, and its star is taken on that
+    // same tick: the run is over, so its offer never opens.
+    let mut stage = starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
+    stage.boss = None;
+    let mut e = with(&stage, commons(4));
+    let events = run_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
+    assert_eq!(e.outcome(), Outcome::Cleared);
+    assert!(
+        events
+            .iter()
+            .any(|(_, ev)| matches!(ev, DomainEvent::StarTaken { .. }))
+    );
+    assert!(!e.offer_open());
+}
+
+#[test]
+fn a_boss_kill_in_a_stage_without_stars_opens_nothing() {
+    let mut stage = boss_stage(10);
+    stage.stars = None;
+    let mut e = with(&stage, mixed());
+    run_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
+    assert_eq!(e.outcome(), Outcome::Cleared);
+    assert!(!e.offer_open());
 }
 
 // --- Refusals ----------------------------------------------------------------------------------

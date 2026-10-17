@@ -18,7 +18,8 @@
 //! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears;
-//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered.
+//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered;
+//!    a clear opens only the boss offer of the boss kill that made it.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks. In
@@ -267,8 +268,13 @@ pub(crate) fn step(
     move_bullets(stage, s);
     collide(stage, s, events);
     decide_outcome(stage, s, events);
-    if s.outcome == Outcome::Running {
-        stars::open_due(rewards, s, events);
+    match s.outcome {
+        Outcome::Running => stars::open_due(rewards, s, events),
+        Outcome::Cleared => {
+            stars::run_over(s);
+            stars::open_due(rewards, s, events);
+        }
+        Outcome::Failed => {}
     }
     debug_assert!(
         entity::enemies_in_id_order(s),
@@ -345,6 +351,7 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     // The enemies do not move while hit boxes and bullets land, so one grid, built for the first
     // friendly hit box or bullet, serves all of them; a tick without either never builds it.
     let mut grid: Option<Grid> = None;
+    let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
     hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = Vec::with_capacity(s.bullets.len());
     for i in 0..s.bullets.len() {
@@ -369,6 +376,9 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     levels::credit_defeated(stage, s, events);
     stars::drop_from_defeated(stage, s, events);
     s.enemies.retain(|e| e.hp > 0);
+    if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
+        stars::boss_killed(stage, s);
+    }
     stars::pick_up(stage, s, events);
 }
 
@@ -803,12 +813,14 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_u32(u32::from(star.rarity.index()));
         }
         h.write_u32(count(&f.due));
-        for r in &f.due {
-            h.write_u32(u32::from(r.index()));
+        for d in &f.due {
+            h.write_u32(d.kind as u32);
+            h.write_u32(u32::from(d.rarity.index()));
         }
         match &f.offer {
             Some(o) => {
                 h.write_bool(true);
+                h.write_u32(o.kind as u32);
                 h.write_u32(u32::from(o.rarity.index()));
                 h.write_u32(count(&o.candidates));
                 for c in &o.candidates {
