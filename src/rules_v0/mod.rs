@@ -11,7 +11,9 @@
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
 //!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
 //!    a shot skill starts an attack task; then the enemies push apart, all at once (`push`,
-//!    ADR-058), and one found crowded does not step to its place on the next tick;
+//!    ADR-058), and one found crowded does not step to its place on the next tick. An elite
+//!    (ADR-068) holds where it spawned instead of its movement, and its rules fire only while
+//!    the main character is within its range;
 //! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
 //!    is carried out up to its next wait (`attacks`), making bullets;
 //! 5. bullets move and leave the map;
@@ -30,7 +32,8 @@
 //! during a run (`player::shot` is where it would plug in).
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
-//! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, `MAX_BULLETS_ALIVE` bullets,
+//! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, the stage's elite cap of
+//! them elites (at most `MAX_ELITES_ALIVE`), `MAX_BULLETS_ALIVE` bullets,
 //! `MAX_BULLET_SPAWNS_PER_TICK` new bullets per tick, `MAX_ATTACK_TASKS` attacks at once and
 //! `MAX_EMITTER_STEPS_PER_TICK` steps of them per tick. A spawn past a cap is dropped, in
 //! spawn order, and a wave spawn that is dropped still counts as spawned; attacks past the
@@ -297,7 +300,7 @@ fn spawn_waves(stage: &Stage, s: &mut State) {
             continue;
         }
         s.spawned[i] = spawned + 1;
-        if count(&s.enemies) >= MAX_ENEMIES_ALIVE {
+        if !room_for(stage, s, &wave.enemy) {
             continue;
         }
         let id = EntityId(s.next_id);
@@ -310,6 +313,15 @@ fn spawn_waves(stage: &Stage, s: &mut State) {
         s.enemies
             .push(agents::new_agent(id, key, &wave.enemy, wave.spawn, 0));
     }
+}
+
+/// Whether an enemy of `def` may spawn: under the cap on enemies alive, and for an elite under
+/// the stage's cap on elites too.
+pub(super) fn room_for(stage: &Stage, s: &State, def: &crate::behaviour::Agent) -> bool {
+    count(&s.enemies) < MAX_ENEMIES_ALIVE
+        && (def.elite.is_none()
+            || s.enemies.iter().filter(|e| e.elite.is_some()).count()
+                < usize::from(stage.elite_cap()))
 }
 
 fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
@@ -550,6 +562,12 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
     h.write_u32(a.aggro);
     h.write_i32(a.orbit_angle);
     h.write_bool(a.crowded);
+    // Only for an elite, which its key already tells apart, so other agents hash as before.
+    if let Some(el) = a.elite {
+        h.write_i32(el.home.x.0);
+        h.write_i32(el.home.y.0);
+        h.write_bool(el.called);
+    }
     match a.order {
         Some(o) => {
             h.write_bool(true);

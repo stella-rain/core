@@ -4,8 +4,10 @@
 //! order may drop a star where it fell. With the map full of stars it drops none, and the pity
 //! does not count it. Otherwise it drops one for sure once `pity` kills in a row have dropped
 //! none, and on a draw of the drop chance before that. A dropped star's rarity is drawn from the
-//! weights of the drop table's tier for the player's level, after this tick's experience. Then
-//! the main character takes every star inside its pickup circle, in the order they dropped.
+//! weights of the drop table's tier for the player's level, after this tick's experience. An
+//! elite (ADR-068) drops one for sure, without a draw and leaving the pity as it was, from the
+//! next tier up, or from the last tier. Then the main character takes every star inside its
+//! pickup circle, in the order they dropped.
 //!
 //! A boss kill makes the boss offer due, ahead of the stars taken that tick, at the highest
 //! rarity of the drop table's tier for the player's level after this tick's experience. It
@@ -44,11 +46,18 @@ pub(super) fn drop_from_defeated(stage: &Stage, s: &mut State, events: &mut Vec<
         return;
     };
     let cap = usize::from(cfg.cap.min(MAX_STARS_ON_MAP));
+    // An elite's star draws from the next tier up, or from the last.
+    let up = cfg
+        .tiers
+        .iter()
+        .position(|t| std::ptr::eq(t, tier))
+        .and_then(|i| cfg.tiers.get(i + 1))
+        .unwrap_or(tier);
     let fallen: Vec<_> = s
         .enemies
         .iter()
         .filter(|e| e.hp == 0)
-        .map(|e| e.at)
+        .map(|e| (e.at, e.elite.is_some()))
         .collect();
     let State {
         rng,
@@ -59,18 +68,21 @@ pub(super) fn drop_from_defeated(stage: &Stage, s: &mut State, events: &mut Vec<
     let Some(f) = stars.as_mut() else {
         return;
     };
-    for at in fallen {
+    for (at, elite) in fallen {
         if f.on_map.len() >= cap {
             continue;
         }
-        let drops =
-            f.misses >= u32::from(cfg.pity) || rng.below(PER_MILLE) < u32::from(cfg.drop_per_mille);
-        if !drops {
-            f.misses = f.misses.saturating_add(1);
-            continue;
+        // An elite drops its star for sure, and leaves the pity as it was.
+        if !elite {
+            let drops = f.misses >= u32::from(cfg.pity)
+                || rng.below(PER_MILLE) < u32::from(cfg.drop_per_mille);
+            if !drops {
+                f.misses = f.misses.saturating_add(1);
+                continue;
+            }
+            f.misses = 0;
         }
-        f.misses = 0;
-        let rarity = draw_rarity(rng, &tier.weights);
+        let rarity = draw_rarity(rng, &if elite { up } else { tier }.weights);
         let id = EntityId(*next_id);
         *next_id += 1;
         f.on_map.push(StarState { id, at, rarity });

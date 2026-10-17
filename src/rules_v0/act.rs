@@ -9,7 +9,7 @@ use crate::stage::Stage;
 use super::agents::{agent_def, agent_mut, new_agent};
 use super::attacks;
 use super::entity::Who;
-use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, MAX_ENEMIES_ALIVE, count};
+use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, room_for};
 
 /// Does the action for rule `rule_index` of `me`, aimed at `target`. False if this version
 /// cannot do it, in which case the rule does not fire and the next one gets its turn.
@@ -143,7 +143,7 @@ fn summon(stage: &Stage, s: &mut State, me: Who, rule_index: usize, n: u8) -> bo
     };
     let def = agent_def(stage, key);
     for _ in 0..n {
-        if count(&s.enemies) >= MAX_ENEMIES_ALIVE {
+        if !room_for(stage, s, def) {
             break;
         }
         let id = EntityId(s.next_id);

@@ -250,6 +250,10 @@
             }
           ]
         },
+        "elite": {
+          "description": "An elite enemy (ADR-068), which the minimap shows wherever it is.",
+          "type": "boolean"
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",

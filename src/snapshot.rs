@@ -222,6 +222,9 @@ pub struct EntityView {
     /// The attack it is making, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attack: Option<AttackView>,
+    /// An elite enemy (ADR-068), which the minimap shows wherever it is.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub elite: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

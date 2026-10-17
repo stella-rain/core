@@ -85,6 +85,8 @@ pub mod limits {
     pub const MAX_TIER_LEVEL: u32 = 100;
     pub const MAX_RARITY_WEIGHT: u16 = 10_000;
     pub const MAX_SUMMON_COUNT: u8 = 8;
+    /// Elites alive at once (ADR-068), among the enemies.
+    pub const MAX_ELITES_ALIVE: u16 = 32;
 
     pub const MAX_PLAYER_HP: u32 = 99;
     pub const MAX_PLAYER_ATK: u32 = 999;
@@ -487,7 +489,12 @@ impl<'a> Ctx<'a> {
         ) {
             self.key("companions", |c| {
                 for (i, a) in s.companions.iter().enumerate() {
-                    c.idx(i, |c| c.agent(a, true));
+                    c.idx(i, |c| {
+                        c.agent(a, true);
+                        if a.elite.is_some() {
+                            c.key("elite", |c| c.fail("a companion cannot be an elite"));
+                        }
+                    });
                 }
             });
         }
@@ -503,6 +510,9 @@ impl<'a> Ctx<'a> {
         }
         if let Some(levels) = &s.levels {
             self.key("levels", |c| c.levels(levels));
+        }
+        if let Some(cap) = s.elite_cap {
+            self.within("elite_cap", i64::from(cap), 1, i64::from(MAX_ELITES_ALIVE));
         }
         if let Some(stars) = &s.stars {
             self.key("stars", |c| {
@@ -752,6 +762,11 @@ impl<'a> Ctx<'a> {
         self.within("radius", i64::from(a.radius.0), 1, i64::from(MAX_RADIUS));
         self.key("movement", |c| c.movement(&a.movement));
         self.rules("rules", &a.rules, summon_ok);
+        if let Some(elite) = &a.elite {
+            self.key("elite", |c| {
+                c.within("range", i64::from(elite.range.0), 1, i64::from(MAX_LEN));
+            });
+        }
     }
 
     fn movement(&mut self, m: &Movement) {

@@ -307,6 +307,7 @@ impl Engine {
                     radius: boss.radius,
                     hp: b.hp,
                     attack: attack_of(b.id),
+                    elite: false,
                 });
             }
         }
@@ -324,6 +325,7 @@ impl Engine {
                         radius: def.radius,
                         hp: a.hp,
                         attack: attack_of(a.id),
+                        elite: a.elite.is_some(),
                     });
                 }
             };
@@ -345,6 +347,7 @@ impl Engine {
                         radius: Fx(part.radius),
                         hp: part.hp,
                         attack: None,
+                        elite: false,
                     });
                 }
             }
@@ -678,6 +681,15 @@ pub(crate) struct AgentState {
     /// Enemies only: the last push-apart found it overlapping its neighbours by more than a
     /// pixel, so it does not take its own step to its place this tick (ADR-058).
     pub crowded: bool,
+    /// An elite's own state; `None` for every other agent, which hashes nothing for it.
+    pub elite: Option<EliteState>,
+}
+
+/// An elite holds `home`, where it spawned, until a boss calls it (ADR-068).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct EliteState {
+    pub home: Point,
+    pub called: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
