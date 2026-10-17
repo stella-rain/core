@@ -620,6 +620,9 @@ pub(crate) struct BossState {
     pub rules: Vec<RuleState>,
     /// One per part of the stage's boss, in order.
     pub parts: Vec<PartState>,
+    /// Whether it has called its elites; `None` for a boss that calls none, which hashes
+    /// nothing for it.
+    pub elites_called: Option<bool>,
 }
 
 /// A breakable part of the boss, with its own hit points (ADR-007).

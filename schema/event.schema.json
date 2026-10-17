@@ -517,6 +517,35 @@
       ]
     },
     {
+      "description": "The boss called its elites: the `elites` alive leave their places and fight beside it,\nand every elite that comes later is called at once (ADR-068).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "elites": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "elites"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ElitesCalled"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
       "description": "An offer opened, and the world stopped until a choice closes it (ADR-066 §3).",
       "type": "object",
       "properties": {

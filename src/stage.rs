@@ -271,6 +271,21 @@ pub struct Boss {
     #[serde(default)]
     pub parts: Vec<BossPart>,
     pub phases: Vec<Phase>,
+    /// When every elite alive joins the boss fight (ADR-068); without it the boss calls none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub call_elites: Option<CallElites>,
+}
+
+/// The boss calls its elites at whichever comes first: `after_ticks` ticks after its first
+/// tick (0 calls on it), or its hit points falling below `below_pct` percent of its maximum.
+/// At least one of the two is given.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CallElites {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_ticks: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub below_pct: Option<u8>,
 }
 
 /// A breakable part with its own HP and hurt circle (ADR-007, ADR-036).

@@ -167,6 +167,7 @@ pub(crate) fn initial_state(
         order: None,
         // The first phase begins on the first tick (see `boss::act`).
         rules: Vec::new(),
+        elites_called: b.call_elites.map(|_| false),
         parts: b
             .parts
             .iter()
@@ -257,6 +258,7 @@ pub(crate) fn step(
     attacks::advance_runs(s, events);
     player::update(stage, s, input, events);
     boss::act(stage, s, events);
+    boss::call_elites(stage, s, events);
     agents::act(stage, s, events);
     push::apply(stage, s);
     attacks::fire_hooks(s);
@@ -300,28 +302,40 @@ fn spawn_waves(stage: &Stage, s: &mut State) {
             continue;
         }
         s.spawned[i] = spawned + 1;
-        if !room_for(stage, s, &wave.enemy) {
-            continue;
-        }
-        let id = EntityId(s.next_id);
-        s.next_id += 1;
         let key = AgentKey {
             source: AgentSource::Wave,
             index: u32::try_from(i).unwrap_or(u32::MAX),
             rule: 0,
         };
-        s.enemies
-            .push(agents::new_agent(id, key, &wave.enemy, wave.spawn, 0));
+        spawn_enemy(stage, s, key, &wave.enemy, wave.spawn);
     }
 }
 
-/// Whether an enemy of `def` may spawn: under the cap on enemies alive, and for an elite under
-/// the stage's cap on elites too.
-pub(super) fn room_for(stage: &Stage, s: &State, def: &crate::behaviour::Agent) -> bool {
-    count(&s.enemies) < MAX_ENEMIES_ALIVE
+/// Spawns an enemy of `def` at `at`, unless the cap on enemies alive is reached, or for an
+/// elite the stage's cap on elites; an elite that comes after the boss's call is called at
+/// once. Returns whether it spawned.
+pub(super) fn spawn_enemy(
+    stage: &Stage,
+    s: &mut State,
+    key: AgentKey,
+    def: &crate::behaviour::Agent,
+    at: Point,
+) -> bool {
+    let room = count(&s.enemies) < MAX_ENEMIES_ALIVE
         && (def.elite.is_none()
             || s.enemies.iter().filter(|e| e.elite.is_some()).count()
-                < usize::from(stage.elite_cap()))
+                < usize::from(stage.elite_cap()));
+    if !room {
+        return false;
+    }
+    let id = EntityId(s.next_id);
+    s.next_id += 1;
+    let mut enemy = agents::new_agent(id, key, def, at, 0);
+    if let Some(el) = enemy.elite.as_mut() {
+        el.called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
+    }
+    s.enemies.push(enemy);
+    true
 }
 
 fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
@@ -754,6 +768,10 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 h.write_u32(part.max_hp);
                 h.write_u32(part.defence);
                 hash_statuses(&mut h, &part.statuses);
+            }
+            // Only for a boss that calls its elites, so other bosses hash as before.
+            if let Some(called) = b.elites_called {
+                h.write_bool(called);
             }
         }
         None => h.write_bool(false),

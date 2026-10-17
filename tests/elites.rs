@@ -225,6 +225,98 @@ fn summoned_elites_hold_where_they_spawn_and_count_toward_the_cap() {
     }
 }
 
+// --- The boss calls them ----------------------------------------------------------------------
+
+/// 100 pixels to the side of the main character: out of its line of fire and of `RANGE`.
+const SIDE: (i32, i32) = (START_X + 25_600, START_Y);
+
+/// A stage whose boss, of `hp` straight above the main character in its line of fire, calls
+/// its elites by `call`; one elite at `SIDE` from `tick`.
+fn calling(hp: u32, call: Option<Value>, tick: u32) -> Stage {
+    let mut boss = boss_at(hp, FAR_Y);
+    if let Some(call) = call {
+        boss["call_elites"] = call;
+    }
+    let mut st = stage(
+        vec![wave(tick, 1, 0, elite(10, RANGE), SIDE.0, SIDE.1)],
+        None,
+    );
+    st.boss = Some(serde_json::from_value(boss).expect("boss parses"));
+    st
+}
+
+/// The ticks on which the boss called its elites.
+fn calls(events: &[(u32, DomainEvent)]) -> Vec<u32> {
+    ticks_of(events, |ev| matches!(ev, DomainEvent::ElitesCalled { .. }))
+}
+
+#[test]
+fn the_boss_calls_its_elites_once_its_time_is_up_and_they_leave_their_place() {
+    let mut e = with(&calling(1_000_000, Some(json!({ "after_ticks": 60 })), 1));
+    let events = run_until(&mut e, idle(), 60, |_| false);
+    assert_eq!(calls(&events), Vec::<u32>::new());
+    assert_eq!(fired(&events), 0, "out of range before the call");
+    assert_eq!(elites(&e), [SIDE]);
+    // Ten ticks: soon after, it walks into the main character's line of fire.
+    let events = run_until(&mut e, idle(), 10, |_| false);
+    assert_eq!(
+        calls(&events),
+        [61],
+        "the boss's 60 ticks are up on tick 61"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|(_, ev)| *ev == DomainEvent::ElitesCalled { elites: 1 }),
+        "{events:?}"
+    );
+    assert!(fired(&events) > 0, "called, it acts at any distance");
+    let (x, _) = elites(&e)[0];
+    assert!(x < SIDE.0, "called, it follows the main character: {x}");
+}
+
+#[test]
+fn the_boss_calls_them_once_its_hit_points_fall_below_its_share() {
+    // 100 hp and 10 a shot: the boss is below 70% after its 4th hit, and calls on the tick after.
+    let mut e = with(&calling(100, Some(json!({ "below_pct": 70 })), 1));
+    let events = run_until(&mut e, idle(), 600, |e| {
+        e.events()
+            .iter()
+            .any(|ev| matches!(ev, DomainEvent::ElitesCalled { .. }))
+    });
+    let hits: Vec<u32> = events
+        .iter()
+        .filter(|(_, ev)| matches!(ev, DomainEvent::Hit { damage: 10, .. }))
+        .map(|(t, _)| *t)
+        .collect();
+    assert!(hits.len() >= 4, "{hits:?}");
+    assert_eq!(calls(&events), [hits[3] + 1]);
+}
+
+#[test]
+fn whichever_comes_first_calls_and_0_ticks_calls_at_once() {
+    let call = json!({ "after_ticks": 0, "below_pct": 70 });
+    let mut e = with(&calling(1_000_000, Some(call), 1));
+    assert_eq!(calls(&run_until(&mut e, idle(), 30, |_| false)), [1]);
+}
+
+#[test]
+fn a_boss_without_a_call_never_calls() {
+    let mut e = with(&calling(1_000_000, None, 1));
+    let events = run_until(&mut e, idle(), 600, |_| false);
+    assert_eq!(calls(&events), Vec::<u32>::new());
+    assert_eq!(elites(&e), [SIDE]);
+}
+
+#[test]
+fn an_elite_that_comes_after_the_call_is_called_at_once() {
+    let mut e = with(&calling(1_000_000, Some(json!({ "after_ticks": 0 })), 100));
+    let events = run_until(&mut e, idle(), 110, |_| false);
+    assert_eq!(calls(&events), [1], "one call, before the elite came");
+    let (x, _) = elites(&e)[0];
+    assert!(x < SIDE.0, "it follows the main character at once: {x}");
+}
+
 // --- The validator -----------------------------------------------------------------------------
 
 fn issues(stage: &Stage) -> Vec<String> {
@@ -272,4 +364,31 @@ fn the_elite_cap_is_bounded() {
         let expected: &[&str] = if ok { &[] } else { &["$.elite_cap"] };
         assert_eq!(issues(&st), expected, "cap {cap}");
     }
+}
+
+#[test]
+fn a_boss_s_call_is_bounded_and_needs_a_time_or_a_share() {
+    let cases: [(Value, &[&str]); 6] = [
+        (json!({ "after_ticks": 0 }), &[]),
+        (json!({ "after_ticks": limits::MAX_TICKS }), &[]),
+        (
+            json!({ "after_ticks": limits::MAX_TICKS + 1 }),
+            &["$.boss.call_elites.after_ticks"],
+        ),
+        (json!({ "below_pct": 100 }), &[]),
+        (json!({ "below_pct": 0 }), &["$.boss.call_elites.below_pct"]),
+        (json!({}), &["$.boss.call_elites"]),
+    ];
+    for (call, expected) in cases {
+        assert_eq!(
+            issues(&calling(100, Some(call.clone()), 1)),
+            expected,
+            "{call}"
+        );
+    }
+    let over = json!({ "below_pct": 101 });
+    assert_eq!(
+        issues(&calling(100, Some(over), 1)),
+        ["$.boss.call_elites.below_pct"]
+    );
 }

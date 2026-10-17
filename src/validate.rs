@@ -922,6 +922,19 @@ impl<'a> Ctx<'a> {
                 }
             });
         }
+        if let Some(call) = &b.call_elites {
+            self.key("call_elites", |c| {
+                if call.after_ticks.is_none() && call.below_pct.is_none() {
+                    c.fail("needs `after_ticks`, `below_pct` or both");
+                }
+                if let Some(t) = call.after_ticks {
+                    c.ticks("after_ticks", t, 0);
+                }
+                if let Some(pct) = call.below_pct {
+                    c.within("below_pct", i64::from(pct), 1, 100);
+                }
+            });
+        }
         if b.phases.is_empty() {
             self.key("phases", |c| c.fail("the boss needs at least one phase"));
         } else if self.at_most("phases", b.phases.len(), MAX_PHASES, "phases") {
