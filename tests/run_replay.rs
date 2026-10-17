@@ -49,6 +49,37 @@ fn spend(tick: u32, index: u32) -> TickCommand {
     }
 }
 
+/// The replay's own commands with its first spend left out and `by` in its place by tick: the
+/// answers to the offers that open before the first point stay.
+fn with_first_spend(replay: &RunReplay, by: TickCommand) -> Vec<u8> {
+    let mut commands = commands_of(replay);
+    let first = commands
+        .iter()
+        .position(|c| c.kind == CommandKind::Spend)
+        .expect("the replay spends a point");
+    commands.remove(first);
+    let at = commands
+        .iter()
+        .position(|c| c.tick > by.tick)
+        .unwrap_or(commands.len());
+    commands.insert(at, by);
+    with_commands(replay, &commands)
+}
+
+fn first_spend(replay: &RunReplay) -> Option<TickCommand> {
+    commands_of(replay)
+        .into_iter()
+        .find(|c| c.kind == CommandKind::Spend)
+}
+
+fn apply(engine: &mut Engine, c: Command) {
+    match c {
+        Command::Step(input) => engine.step(input),
+        Command::Choose(index) => engine.choose(index).unwrap(),
+        Command::Spend(index) => engine.spend(index).unwrap(),
+    }
+}
+
 fn choose(tick: u32, index: u32) -> TickCommand {
     TickCommand {
         tick,
@@ -65,7 +96,7 @@ fn a_recorded_run_that_spends_points_verifies_from_its_bytes_alone() {
     let replay = recorded(point + 100);
     assert_eq!(replay.ticks, point + 100);
     let commands = commands_of(&replay);
-    assert_eq!(commands.first(), Some(&spend(point, SPEND_INDEX)));
+    assert_eq!(first_spend(&replay), Some(spend(point, SPEND_INDEX)));
 
     let verified = verify_run(&replay.to_bytes()).unwrap();
     assert_eq!(verified.ticks, point + 100);
@@ -108,20 +139,9 @@ fn a_run_that_ends_is_recorded_to_the_tick_it_ends() {
 fn a_spend_after_the_run_ended_is_refused() {
     // The run ends with its points unspent; they are lost, so a spend after the end is refused
     // like a step, and a replay holding one does not verify (recording would leave it out).
-    let mut commands: Vec<Command> = play_run(TRIAL_LENGTH)
-        .into_iter()
-        .filter(|c| !matches!(c, Command::Spend(_)))
-        .collect();
+    // The script's run without the spends, to its end, taking candidate 0 of every offer.
+    let mut commands = Vec::new();
     let mut engine = Engine::start(&trial_setup()).unwrap();
-    for c in &commands {
-        match *c {
-            Command::Step(input) => engine.step(input),
-            Command::Choose(index) => engine.choose(index).unwrap(),
-            Command::Spend(_) => unreachable!("filtered out"),
-        }
-    }
-    // Without the spends the run may outlast `play_run`'s commands: play it to its end,
-    // taking candidate 0 of every offer.
     while engine.outcome() == Outcome::Running {
         if engine.offer_open() {
             engine.choose(0).unwrap();
@@ -153,12 +173,15 @@ fn a_spend_after_the_run_ended_is_refused() {
 fn the_final_hash_is_the_one_after_the_last_spend() {
     let point = first_point_tick();
     let replay = recorded(point);
-    assert_eq!(commands_of(&replay), vec![spend(point, SPEND_INDEX)]);
+    assert_eq!(
+        commands_of(&replay).last(),
+        Some(&spend(point, SPEND_INDEX))
+    );
 
+    let mut commands = play_run(point);
+    assert_eq!(commands.pop(), Some(Command::Spend(SPEND_INDEX)));
     let mut engine = Engine::start(&trial_setup()).unwrap();
-    for t in 0..point {
-        engine.step(run_script(t));
-    }
+    commands.into_iter().for_each(|c| apply(&mut engine, c));
     let before = engine.state_hash();
     engine.spend(SPEND_INDEX).unwrap();
     assert_ne!(engine.state_hash(), before, "a spend changes the state");
@@ -173,9 +196,16 @@ fn a_run_with_unspent_points_verifies() {
         .filter(|c| !matches!(c, Command::Spend(_)))
         .collect();
     let replay = record_run(&trial_setup(), &commands).unwrap();
-    assert!(commands_of(&replay).is_empty());
+    let left = commands_of(&replay);
+    assert!(
+        left.iter().all(|c| c.kind == CommandKind::Choose),
+        "{left:?}"
+    );
     let verified = verify_run(&replay.to_bytes()).unwrap();
-    assert_eq!((verified.ticks, verified.commands), (point + 50, 0));
+    assert_eq!(
+        (verified.ticks, verified.commands),
+        (point + 50, u32::try_from(left.len()).unwrap())
+    );
 }
 
 #[test]
@@ -220,10 +250,18 @@ fn recording_fails_closed_on_a_refused_command() {
 #[test]
 fn the_recorder_keeps_only_what_the_engine_took() {
     let point = first_point_tick();
+    let commands = play_run(point + 100);
+    let at = commands
+        .iter()
+        .position(|c| matches!(c, Command::Spend(_)))
+        .unwrap();
     let mut recorder = RunRecorder::start(&trial_setup()).unwrap();
-    for t in 0..point {
-        recorder.step(run_script(t)).unwrap();
-    }
+    let take = |recorder: &mut RunRecorder, c: &Command| match *c {
+        Command::Step(input) => recorder.step(input).unwrap(),
+        Command::Choose(index) => recorder.choose(index).unwrap(),
+        Command::Spend(index) => recorder.spend(index).unwrap(),
+    };
+    commands[..at].iter().for_each(|c| take(&mut recorder, c));
     let before = recorder.replay();
 
     assert!(matches!(
@@ -240,19 +278,7 @@ fn the_recorder_keeps_only_what_the_engine_took() {
         "refused commands are not recorded"
     );
 
-    recorder.spend(SPEND_INDEX).unwrap();
-    for t in point..point + 100 {
-        let input = run_input(recorder.engine(), t);
-        recorder.step(input).unwrap();
-        while recorder
-            .engine()
-            .snapshot()
-            .progress
-            .is_some_and(|p| p.points > 0)
-        {
-            recorder.spend(SPEND_INDEX).unwrap();
-        }
-    }
+    commands[at..].iter().for_each(|c| take(&mut recorder, c));
     assert_eq!(recorder.replay(), recorded(point + 100));
 }
 
@@ -362,14 +388,14 @@ fn a_spend_before_its_point_is_refused() {
     let point = first_point_tick();
     let replay = recorded(point + 50);
     assert_eq!(
-        verify_run(&with_commands(&replay, &[spend(point - 1, SPEND_INDEX)])),
+        verify_run(&with_first_spend(&replay, spend(point - 1, SPEND_INDEX))),
         Err(RunReplayError::SpendRefused {
             tick: point - 1,
             error: SpendError::NoPoint
         })
     );
     assert_eq!(
-        verify_run(&with_commands(&replay, &[spend(0, SPEND_INDEX)])),
+        verify_run(&with_first_spend(&replay, spend(0, SPEND_INDEX))),
         Err(RunReplayError::SpendRefused {
             tick: 0,
             error: SpendError::NoPoint
@@ -422,7 +448,7 @@ fn an_index_outside_the_stats_is_refused() {
     let stats = u32::try_from(RunStats::bundled().stats().len()).unwrap();
     for index in [stats, u32::MAX] {
         assert_eq!(
-            verify_run(&with_commands(&replay, &[spend(point, index)])),
+            verify_run(&with_first_spend(&replay, spend(point, index))),
             Err(RunReplayError::SpendRefused {
                 tick: point,
                 error: SpendError::OutOfRange { index, stats }
@@ -508,10 +534,10 @@ fn a_changed_input_or_seed_reaches_another_final_hash() {
 fn a_changed_spend_reaches_another_final_hash() {
     let point = first_point_tick();
     let replay = recorded(point + 100);
-    let mut commands = commands_of(&replay);
-    commands[0].index = 0;
+    let changed = spend(point, 0);
+    assert_ne!(first_spend(&replay), Some(changed));
     assert!(matches!(
-        verify_run(&with_commands(&replay, &commands)),
+        verify_run(&with_first_spend(&replay, changed)),
         Err(RunReplayError::WrongFinalHash { .. })
     ));
 }
@@ -552,7 +578,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
     let mut engine = Engine::start(&trial_setup()).unwrap();
     let mut hashes: Vec<u64> = (0..100)
         .map(|t| {
-            engine.step(run_script(t));
+            engine.step(run_input(&engine, t));
             engine.state_hash()
         })
         .collect();
@@ -723,8 +749,9 @@ fn at_most_max_commands_unpack() {
 
 #[test]
 fn the_fuzz_regression_of_a_split_input_run_is_refused() {
-    // `fuzz/regressions/replay_load/`: the trial corpus run with its first run of inputs split
-    // in two. It verified before inputs had one encoding, and recorded as another replay.
+    // `fuzz/regressions/replay_load/`: the trial corpus run with its first run of inputs longer
+    // than a tick split in two. It verified before inputs had one encoding, and recorded as
+    // another replay.
     let bytes = include_bytes!("../fuzz/regressions/replay_load/split-input-run.replay");
     assert!(RunReplay::from_bytes(bytes).is_ok(), "it is a run replay");
     assert_eq!(

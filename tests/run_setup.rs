@@ -18,8 +18,8 @@ fn setup() -> RunSetup {
         schema_version: 0,
         sim_version: 0,
         mode: "trial".into(),
-        main: "needle".into(),
-        sub: "blaster".into(),
+        main: "blade".into(),
+        sub: "maul".into(),
         main_expertise: 3,
         sub_expertise: 0,
         seed: 20_261_010,
@@ -77,12 +77,8 @@ fn a_setup_file_reads_back_as_the_setup() {
 fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
     let mut by_hand =
         validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
-    by_hand.player.main = WeaponRef::Preset {
-        id: "needle".into(),
-    };
-    by_hand.player.sub = WeaponRef::Preset {
-        id: "blaster".into(),
-    };
+    by_hand.player.main = WeaponRef::Preset { id: "blade".into() };
+    by_hand.player.sub = WeaponRef::Preset { id: "maul".into() };
     by_hand.seed = 20_261_010;
     assert_eq!(run_setup::stage(&setup()), Ok(by_hand.clone()));
     let started = hashes(Engine::start(&setup()).unwrap(), 600);
@@ -115,7 +111,7 @@ fn the_setup_s_weapons_arm_the_run() {
             300,
         )
     };
-    assert_ne!(run("needle"), run("blaster"));
+    assert_ne!(run("blade"), run("maul"));
 }
 
 #[test]
@@ -210,7 +206,7 @@ fn an_id_newer_than_the_setup_s_sim_version_is_refused() {
     let newer: Vec<Entry> = ENTRIES
         .iter()
         .map(|e| Entry {
-            introduced: if e.id == "needle" { 1 } else { e.introduced },
+            introduced: if e.id == "blade" { 1 } else { e.introduced },
             ..*e
         })
         .collect();
@@ -238,7 +234,7 @@ fn every_mode_has_content_that_validates_and_nothing_else_has() {
             panic!("mode {id}: {e}");
         }
     }
-    assert_eq!(run_setup::mode_stage("needle"), None);
+    assert_eq!(run_setup::mode_stage("blade"), None);
 }
 
 // --- The star pool and extra rerolls (ADR-066 §1) ---------------------------------------------
