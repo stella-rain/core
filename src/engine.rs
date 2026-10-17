@@ -390,6 +390,7 @@ impl Engine {
                         perfect,
                     }
                 }),
+                target: None,
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
