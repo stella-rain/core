@@ -9,7 +9,6 @@ use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
-pub use crate::stage_skill::SkillKind;
 
 /// An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -173,9 +172,9 @@ pub struct PlayerView {
     /// The stage skill in its slot, if a reward has filled it (ADR-075).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skill: Option<SkillView>,
-    /// The stage skill's black hole while it pulls.
+    /// The stage skill's pull while it pulls.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub black_hole: Option<BlackHoleView>,
+    pub pull: Option<PullView>,
     /// The stage skill's shield while it holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shield: Option<ShieldView>,
@@ -188,9 +187,10 @@ pub struct PlayerView {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SkillView {
-    /// Its ID in the rewards file's `stage_skills`, for its icon and name.
+    /// Its ID in the stage skills file, for its name.
     pub skill: ContentId,
-    pub kind: SkillKind,
+    /// The asset the button draws (ADR-098).
+    pub icon: ContentId,
     /// From 1.
     pub level: u8,
     /// A press on the next tick would use it.
@@ -199,10 +199,10 @@ pub struct SkillView {
     pub cooldown_left: u32,
 }
 
-/// A black hole pulling.
+/// A stage skill's pull pulling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct BlackHoleView {
+pub struct PullView {
     pub at: Point,
     pub radius: Fx,
     /// Ticks it still pulls, this one included.

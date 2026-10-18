@@ -13,6 +13,7 @@ use crate::run_setup::RunSetup;
 use crate::run_stats::RunStatsFile;
 use crate::snapshot::Snapshot;
 use crate::stage::Stage;
+use crate::stage_skill::StageSkillsFile;
 
 /// Each schema's file name in `schema/` and its pretty-printed JSON, ending in a newline.
 pub fn all() -> Vec<(&'static str, String)> {
@@ -31,5 +32,9 @@ pub fn all() -> Vec<(&'static str, String)> {
         ("run_replay.schema.json", pretty(schema_for!(RunReplay))),
         ("run_stats.schema.json", pretty(schema_for!(RunStatsFile))),
         ("rewards.schema.json", pretty(schema_for!(RewardsFile))),
+        (
+            "stage_skills.schema.json",
+            pretty(schema_for!(StageSkillsFile)),
+        ),
     ]
 }

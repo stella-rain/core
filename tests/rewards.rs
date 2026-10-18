@@ -13,10 +13,7 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, RunStats, StatEffect};
-use stella_rain_core::stage_skill::{
-    MAX_PULL, MAX_SHIELD, MAX_SKILL_AHEAD, MAX_SKILL_COOLDOWN_TICKS, MAX_SKILL_DURATION_TICKS,
-    MAX_SKILL_LEVELS, MAX_SKILL_PCT, MAX_SKILL_RADIUS, MAX_STAGE_SKILLS, SkillKind,
-};
+use stella_rain_core::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use stella_rain_core::validate::Error;
 
 mod common;
@@ -82,14 +79,10 @@ fn the_bundled_rewards_hold_every_effect_at_three_rarities() {
 }
 
 #[test]
-fn the_bundled_rewards_offer_a_stage_skill_of_every_kind() {
+fn the_bundled_rewards_offer_every_bundled_stage_skill() {
     let bundled = Rewards::bundled();
-    for kind in SkillKind::ALL {
-        let skill = bundled
-            .stage_skills()
-            .iter()
-            .find(|k| k.kind() == kind)
-            .unwrap_or_else(|| panic!("no {kind:?} skill"));
+    assert_eq!(bundled.stage_skills(), StageSkills::bundled());
+    for skill in StageSkills::bundled().skills() {
         let gives = |r: &stella_rain_core::rewards::Reward| {
             r.effect == RewardEffect::StageSkill && r.skill.as_ref() == Some(&skill.id)
         };
@@ -101,179 +94,76 @@ fn the_bundled_rewards_offer_a_stage_skill_of_every_kind() {
     }
 }
 
-// --- Stage skills (ADR-075) ------------------------------------------------------------------
+// --- Stage skills (ADR-075, ADR-098) ---------------------------------------------------------
 
-fn buff_level(cooldown: u32) -> Value {
-    json!({ "cooldown_ticks": cooldown,
-            "effect": { "type": "buff", "atk_pct": 20, "duration_ticks": 120 } })
+/// A stage skills file of `aura` and `ward`.
+fn skills() -> StageSkills {
+    let skill = |id: &str| {
+        json!({ "id": id, "icon": "icon_war_cry", "title": "Aura", "description": "",
+                "levels": [{ "cooldown_ticks": 600, "effects": [
+                    { "type": "shield", "amount": 5, "duration_ticks": 60 }
+                ] }] })
+    };
+    let file = json!({ "schema_version": 0, "sim_version": 0,
+                       "stage_skills": [skill("aura"), skill("ward")] });
+    StageSkills::parse(file.to_string().as_bytes()).unwrap()
 }
 
-fn stage_skill(id: &str) -> Value {
-    json!({ "id": id, "levels": [buff_level(600)] })
-}
-
-/// A file of one stage skill, `aura`, and a reward that gives it.
+/// A file of one reward that gives `ward`.
 fn with_skill() -> Value {
-    let mut r = reward("aura_reward");
+    let mut r = reward("ward_reward");
     r["effect"] = json!("stage_skill");
-    r["skill"] = json!("aura");
+    r["skill"] = json!("ward");
     r["amount"] = json!(1);
-    let mut v = file(vec![r]);
-    v["stage_skills"] = json!([stage_skill("aura")]);
-    v
+    file(vec![r])
 }
 
-/// `with_skill` with its one level's effect replaced.
-fn effect_with(effect: Value) -> Value {
-    let mut v = with_skill();
-    v["stage_skills"][0]["levels"][0]["effect"] = effect;
-    v
+fn parse_with_skills(v: &Value) -> Result<Rewards, Error> {
+    Rewards::parse_with(v.to_string().as_bytes(), &skills())
 }
 
-fn effect_at(field: &str) -> String {
-    format!("$.stage_skills[0].levels[0].effect.{field}")
+fn invalid_with_skills_at(v: &Value, path: &str) {
+    match parse_with_skills(v) {
+        Err(Error::Invalid(issues)) => {
+            assert!(issues.iter().any(|i| i.path == path), "{path}: {issues:?}")
+        }
+        other => panic!("{path}: expected invalid, got {other:?}"),
+    }
 }
 
 #[test]
-fn a_stage_skill_reward_names_a_skill_of_the_file() {
-    let rewards = parse(&with_skill()).unwrap();
-    assert_eq!(rewards.stage_skills().len(), 1);
-    assert_eq!(rewards.skill_index(&ContentId("aura".into())), Some(0));
+fn a_stage_skill_reward_names_a_skill_of_the_stage_skills_file() {
+    let rewards = parse_with_skills(&with_skill()).unwrap();
+    assert_eq!(rewards.stage_skills(), &skills());
+    assert_eq!(
+        rewards.stage_skills().index_of(&ContentId("ward".into())),
+        Some(1)
+    );
+    // Not in the bundled skills.
+    invalid_at(&with_skill(), "$.rewards[0].skill");
     let mut v = with_skill();
     v["rewards"][0]["skill"] = json!("other");
-    invalid_at(&v, "$.rewards[0].skill");
+    invalid_with_skills_at(&v, "$.rewards[0].skill");
     let mut v = with_skill();
     v["rewards"][0].as_object_mut().unwrap().remove("skill");
-    invalid_at(&v, "$.rewards[0].skill");
+    invalid_with_skills_at(&v, "$.rewards[0].skill");
     // A stat reward names no skill.
     let mut v = with_skill();
     v["rewards"][0]["effect"] = json!("max_hp");
-    invalid_at(&v, "$.rewards[0].skill");
+    invalid_with_skills_at(&v, "$.rewards[0].skill");
     // Its amount is the levels it gives: 1 up to the most a skill has.
     let mut v = with_skill();
     v["rewards"][0]["amount"] = json!(MAX_SKILL_LEVELS);
-    assert!(parse(&v).is_ok());
+    assert!(parse_with_skills(&v).is_ok());
     v["rewards"][0]["amount"] = json!(MAX_SKILL_LEVELS + 1);
-    invalid_at(&v, "$.rewards[0].amount");
+    invalid_with_skills_at(&v, "$.rewards[0].amount");
 }
 
 #[test]
-fn stage_skill_ids_are_well_formed_and_unique_and_the_list_is_bounded() {
+fn the_rewards_file_no_longer_holds_the_skills() {
     let mut v = with_skill();
-    v["stage_skills"] = json!([stage_skill("aura"), stage_skill("aura")]);
-    invalid_at(&v, "$.stage_skills[1].id");
-    v["stage_skills"] = json!([stage_skill("aura"), stage_skill("Bad")]);
-    invalid_at(&v, "$.stage_skills[1].id");
-    let many = |n: usize| {
-        let mut v = with_skill();
-        let mut skills = vec![stage_skill("aura")];
-        skills.extend((1..n).map(|i| stage_skill(&format!("s{i}"))));
-        v["stage_skills"] = json!(skills);
-        v
-    };
-    assert!(parse(&many(MAX_STAGE_SKILLS)).is_ok());
-    invalid_at(&many(MAX_STAGE_SKILLS + 1), "$.stage_skills");
-}
-
-#[test]
-fn a_stage_skill_has_one_to_max_levels_of_one_kind() {
-    let levels = |n: usize| {
-        let mut v = with_skill();
-        v["stage_skills"][0]["levels"] = json!(vec![buff_level(600); n]);
-        v
-    };
-    assert!(parse(&levels(MAX_SKILL_LEVELS)).is_ok());
-    invalid_at(&levels(0), "$.stage_skills[0].levels");
-    invalid_at(&levels(MAX_SKILL_LEVELS + 1), "$.stage_skills[0].levels");
-    let mut v = levels(2);
-    v["stage_skills"][0]["levels"][1]["effect"] =
-        json!({ "type": "shield", "amount": 5, "duration_ticks": 60 });
-    invalid_at(&v, "$.stage_skills[0].levels[1].effect");
-}
-
-#[test]
-fn a_black_hole_s_numbers_are_bounded() {
-    let black_hole = |radius: i64, pull: i64, ticks: i64| {
-        effect_with(
-            json!({ "type": "black_hole", "radius": radius, "pull": pull, "duration_ticks": ticks }),
-        )
-    };
-    let (r, p, d) = (
-        i64::from(MAX_SKILL_RADIUS),
-        i64::from(MAX_PULL),
-        i64::from(MAX_SKILL_DURATION_TICKS),
-    );
-    assert!(parse(&black_hole(0, 0, 1)).is_ok());
-    assert!(parse(&black_hole(r, p, d)).is_ok());
-    invalid_at(&black_hole(-1, p, d), &effect_at("radius"));
-    invalid_at(&black_hole(r + 1, p, d), &effect_at("radius"));
-    invalid_at(&black_hole(r, -1, d), &effect_at("pull"));
-    invalid_at(&black_hole(r, p + 1, d), &effect_at("pull"));
-    invalid_at(&black_hole(r, p, 0), &effect_at("duration_ticks"));
-    invalid_at(&black_hole(r, p, d + 1), &effect_at("duration_ticks"));
-}
-
-#[test]
-fn percentages_and_shields_are_bounded() {
-    let pct = i64::from(MAX_SKILL_PCT);
-    let buff =
-        |pct: i64| effect_with(json!({ "type": "buff", "atk_pct": pct, "duration_ticks": 60 }));
-    assert!(parse(&buff(pct)).is_ok());
-    invalid_at(&buff(0), &effect_at("atk_pct"));
-    invalid_at(&buff(pct + 1), &effect_at("atk_pct"));
-    let debuff = |pct: i64| {
-        effect_with(
-            json!({ "type": "debuff_area", "radius": 4096, "vulnerable_pct": pct,
-                            "duration_ticks": 60 }),
-        )
-    };
-    assert!(parse(&debuff(pct)).is_ok());
-    invalid_at(&debuff(0), &effect_at("vulnerable_pct"));
-    invalid_at(&debuff(pct + 1), &effect_at("vulnerable_pct"));
-    let shield = |amount: i64| {
-        effect_with(json!({ "type": "shield", "amount": amount, "duration_ticks": 60 }))
-    };
-    assert!(parse(&shield(i64::from(MAX_SHIELD))).is_ok());
-    invalid_at(&shield(0), &effect_at("amount"));
-    invalid_at(&shield(i64::from(MAX_SHIELD) + 1), &effect_at("amount"));
-}
-
-#[test]
-fn a_damage_area_s_attack_is_held_to_an_attack_s_budgets() {
-    let area = |attack: Value| effect_with(json!({ "type": "damage_area", "attack": attack }));
-    let circle = json!([{ "kind": "active", "ticks": 10,
-                          "hit_box": { "type": "circle", "radius": 8192 } }]);
-    assert!(parse(&area(json!({ "inline": circle }))).is_ok());
-    assert!(parse(&area(json!({ "preset": { "id": "slam" } }))).is_ok());
-    invalid_at(&area(json!({ "inline": [] })), &effect_at("attack.inline"));
-    invalid_at(
-        &area(json!({ "preset": { "id": "no_such_attack" } })),
-        &effect_at("attack.preset.id"),
-    );
-}
-
-#[test]
-fn the_cooldown_and_the_distance_ahead_are_bounded() {
-    let c = i64::from(MAX_SKILL_COOLDOWN_TICKS);
-    for (cooldown, ok) in [(1, true), (c, true), (0, false), (c + 1, false)] {
-        let mut v = with_skill();
-        v["stage_skills"][0]["levels"][0]["cooldown_ticks"] = json!(cooldown);
-        if ok {
-            assert!(parse(&v).is_ok(), "cooldown {cooldown}");
-        } else {
-            invalid_at(&v, "$.stage_skills[0].levels[0].cooldown_ticks");
-        }
-    }
-    let a = i64::from(MAX_SKILL_AHEAD);
-    for (ahead, ok) in [(0, true), (a, true), (-1, false), (a + 1, false)] {
-        let mut v = with_skill();
-        v["stage_skills"][0]["ahead"] = json!(ahead);
-        if ok {
-            assert!(parse(&v).is_ok(), "ahead {ahead}");
-        } else {
-            invalid_at(&v, "$.stage_skills[0].ahead");
-        }
-    }
+    v["stage_skills"] = json!([]);
+    assert!(matches!(parse_with_skills(&v), Err(Error::Parse { .. })));
 }
 
 #[test]
@@ -400,6 +290,29 @@ fn the_content_hash_covers_the_rewards() {
         content_sha256_with("trial", RunContent::bundled()),
         content_sha256("trial")
     );
+    assert_ne!(
+        content_sha256_with("trial", &other),
+        content_sha256("trial")
+    );
+}
+
+/// The bundled stage skills with the first skill's first cooldown a tick shorter.
+fn quicker_skills() -> StageSkills {
+    let mut v: Value = serde_json::from_slice(StageSkills::BUNDLED).unwrap();
+    let c = v["stage_skills"][0]["levels"][0]["cooldown_ticks"]
+        .as_u64()
+        .unwrap();
+    v["stage_skills"][0]["levels"][0]["cooldown_ticks"] = json!(c - 1);
+    StageSkills::parse(v.to_string().as_bytes()).unwrap()
+}
+
+#[test]
+fn the_content_hash_covers_the_stage_skills() {
+    let rewards = Rewards::parse_with(Rewards::BUNDLED, &quicker_skills()).unwrap();
+    assert_eq!(rewards.rewards(), Rewards::bundled().rewards());
+    assert_eq!(rewards.sha256(), Rewards::bundled().sha256());
+    let other = RunContent::new(RunStats::bundled().clone(), rewards);
+    assert_eq!(other.stage_skills(), &quicker_skills());
     assert_ne!(
         content_sha256_with("trial", &other),
         content_sha256("trial")

@@ -8,7 +8,8 @@
 /// What an ID names. An ID is only valid where its kind is expected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
-    /// A sprite: the main character, an agent, a boss or a boss part.
+    /// A sprite: the main character, an agent, a boss or a boss part, or a stage skill's icon
+    /// (ADR-098).
     Asset,
     Palette,
     /// A bullet sprite.
@@ -57,6 +58,11 @@ pub const ENTRIES: &[Entry] = &[
     entry("fairy_a", Kind::Asset, 0),
     entry("golem", Kind::Asset, 0),
     entry("horns_2", Kind::Asset, 0),
+    entry("icon_aegis", Kind::Asset, 0),
+    entry("icon_black_hole", Kind::Asset, 0),
+    entry("icon_hex", Kind::Asset, 0),
+    entry("icon_nova", Kind::Asset, 0),
+    entry("icon_war_cry", Kind::Asset, 0),
     entry("pilot_a", Kind::Asset, 0),
     entry("ice", Kind::Palette, 0),
     entry("orb_small", Kind::Bullet, 0),

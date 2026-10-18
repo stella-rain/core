@@ -22,9 +22,9 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
-    AttackView, BlackHoleView, BulletView, ChargeView, ComboView, EntityKind, EntityView,
-    EvadeView, Facing, MapView, OfferKind, PlayerView, ProgressView, ShieldView, SkillView,
-    Snapshot, StarView,
+    AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView, Facing,
+    MapView, OfferKind, PlayerView, ProgressView, PullView, ShieldView, SkillView, Snapshot,
+    StarView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -395,20 +395,16 @@ impl Engine {
                 }),
                 target: s.player.target,
                 skill: s.player.skill.and_then(|slot| {
-                    let def = self
-                        .content
-                        .rewards()
-                        .stage_skills()
-                        .get(usize::from(slot.index))?;
+                    let def = self.content.stage_skills().get(usize::from(slot.index))?;
                     Some(SkillView {
                         skill: def.id.clone(),
-                        kind: def.kind(),
+                        icon: def.icon.clone(),
                         level: slot.level,
                         ready: slot.cooldown_left == 0,
                         cooldown_left: slot.cooldown_left,
                     })
                 }),
-                black_hole: s.player.black_hole.map(|b| BlackHoleView {
+                pull: s.player.pull.map(|b| PullView {
                     at: b.at,
                     radius: Fx(b.radius),
                     ticks_left: b.ticks_left,
@@ -605,8 +601,8 @@ pub(crate) struct PlayerState {
     pub dash: Option<DashState>,
     /// The stage skill slot (ADR-075): empty until a reward fills it.
     pub skill: Option<SkillSlot>,
-    /// The stage skill's black hole while it pulls, and its shield while it holds.
-    pub black_hole: Option<BlackHoleState>,
+    /// The stage skill's pull while it pulls, and its shield while it holds.
+    pub pull: Option<PullState>,
     pub shield: Option<ShieldState>,
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
@@ -657,8 +653,8 @@ pub(crate) struct Pull {
     pub ticks: u32,
 }
 
-/// The stage skill held (ADR-075): its place in the rewards file's `stage_skills`, its level
-/// from 1, and the ticks until it is ready again.
+/// The stage skill held (ADR-075): its place in the stage skills file, its level from 1, and
+/// the ticks until it is ready again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SkillSlot {
     pub index: u16,
@@ -666,13 +662,13 @@ pub(crate) struct SkillSlot {
     pub cooldown_left: u32,
 }
 
-/// A black hole pulling: its point, radius and pull (fixed-point units), and the ticks left,
-/// at least 1.
+/// A pull pulling: its point, radius and strength (fixed-point units), and the ticks left, at
+/// least 1.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct BlackHoleState {
+pub(crate) struct PullState {
     pub at: Point,
     pub radius: i32,
-    pub pull: i32,
+    pub strength: i32,
     pub ticks_left: u32,
 }
 
@@ -817,6 +813,13 @@ pub(crate) enum StatusKind {
 }
 
 impl StatusKind {
+    pub const ALL: [StatusKind; 3] = [StatusKind::AtkUp, StatusKind::Vulnerable, StatusKind::Slow];
+
+    /// The status whose registry ID is `name`.
+    pub fn from_name(name: &str) -> Option<StatusKind> {
+        StatusKind::ALL.into_iter().find(|k| k.name() == name)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             StatusKind::AtkUp => "atk_up",
