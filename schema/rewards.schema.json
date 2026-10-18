@@ -50,7 +50,7 @@
       "type": "object",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`.",
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -104,7 +104,7 @@
       ]
     },
     "RewardEffect": {
-      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, or a\nstage skill.",
+      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, a stage\nskill, or more evade charges.",
       "oneOf": [
         {
           "type": "string",
@@ -121,6 +121,11 @@
           "description": "The stage skill the reward's `skill` names, `amount` levels of it (ADR-075).",
           "type": "string",
           "const": "stage_skill"
+        },
+        {
+          "description": "`amount` more evade charges, never beyond the stage's `max_charges`; each arrives ready\n(ADR-074).",
+          "type": "string",
+          "const": "evade_charge"
         }
       ]
     }
