@@ -1,10 +1,12 @@
 //! The match-up table (ADR-100, ADR-067): weak, strong and resisted percents, read from JSON as
-//! untrusted bytes (ADR-020), each at most `MAX_MATCH_UP_PCT`. The bundled file is the default;
-//! other bytes run the same way and change the run's content hash.
+//! untrusted bytes (ADR-020), each at most `MAX_MATCH_UP_PCT`, and the most the type bonuses
+//! add to one attack, 1 to `MAX_TYPE_BONUS_PCT` (ADR-100 point 7). The bundled file is the
+//! default; other bytes run the same way and change the run's content hash.
 
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
 use stella_rain_core::match_ups::{MAX_MATCH_UP_PCT, MAX_MATCH_UPS_BYTES, MatchUps};
+use stella_rain_core::rewards::MAX_TYPE_BONUS_PCT;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
@@ -17,7 +19,8 @@ use common::run::{run_script, trial_setup};
 
 fn file(weak: Value, strong: Value, resisted: Value) -> Value {
     json!({ "schema_version": 0, "sim_version": 0,
-            "weak_pct": weak, "strong_pct": strong, "resisted_pct": resisted })
+            "weak_pct": weak, "strong_pct": strong, "resisted_pct": resisted,
+            "max_type_bonus_pct": 1000 })
 }
 
 fn parse(v: &Value) -> Result<MatchUps, Error> {
@@ -38,6 +41,35 @@ fn the_bundled_table_is_20_percent_each_way() {
     assert_eq!(t.pct(MatchUp::Strong), -20);
     assert_eq!(t.pct(MatchUp::Resisted), -20);
     assert_eq!(t.pct(MatchUp::None), 0);
+}
+
+#[test]
+fn the_bundled_type_bonus_limit_is_the_hard_cap() {
+    assert_eq!(MatchUps::bundled().max_type_bonus_pct(), MAX_TYPE_BONUS_PCT);
+}
+
+#[test]
+fn the_type_bonus_limit_is_1_to_the_hard_cap() {
+    let with = |pct: Value| {
+        let mut v = file(json!(20), json!(20), json!(20));
+        v["max_type_bonus_pct"] = pct;
+        v
+    };
+    assert_eq!(parse(&with(json!(1))).unwrap().max_type_bonus_pct(), 1);
+    assert_eq!(parse(&with(json!(250))).unwrap().max_type_bonus_pct(), 250);
+    assert_eq!(
+        paths(parse(&with(json!(0))).unwrap_err()),
+        ["$.max_type_bonus_pct"]
+    );
+    let over = parse(&with(json!(MAX_TYPE_BONUS_PCT + 1))).unwrap_err();
+    assert_eq!(paths(over), ["$.max_type_bonus_pct"]);
+    assert!(parse(&with(json!(-1))).is_err());
+    let mut missing = file(json!(20), json!(20), json!(20));
+    missing
+        .as_object_mut()
+        .unwrap()
+        .remove("max_type_bonus_pct");
+    assert!(matches!(parse(&missing), Err(Error::Parse { .. })));
 }
 
 #[test]

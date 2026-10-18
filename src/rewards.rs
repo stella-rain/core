@@ -5,8 +5,9 @@
 //! `amount` to that effect's total, as a stat point adds its step, a stage skill (ADR-075,
 //! ADR-098): one of the stage skills file's skills, `amount` levels of it, `amount` more
 //! evade charges, up to the stage's `max_charges` (ADR-074), an orbit of `amount` orbs that
-//! attack on their own (ADR-069), or `amount` percent more range for every combo step of the
-//! Main weapon (ADR-099).
+//! attack on their own (ADR-069), `amount` percent more range for every combo step of the
+//! Main weapon (ADR-099), or a type bonus: `amount` percent more damage for the main
+//! character's attacks of one damage type, of every attack type or of every element (ADR-100).
 //!
 //! The file is untrusted (ADR-020), as the run stats are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. Reward IDs are the file's own,
@@ -20,7 +21,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::attack::AttackRef;
+use crate::attack::{AttackRef, DamageType};
 use crate::id::ContentId;
 use crate::registry;
 use crate::run_stats::{self, StatEffect};
@@ -50,6 +51,10 @@ pub const MAX_ORBIT_COOLDOWN_TICKS: u32 = 3_600;
 /// reward's amount and holds what the range rewards and the expertise range options add up to
 /// (ADR-099, ADR-020).
 pub const MAX_RANGE_PCT: u32 = 100;
+/// The most the type bonuses add to one attack's damage, in percent: eleven times as much. It
+/// bounds the match-up file's `max_type_bonus_pct`, where the bonuses that apply to an
+/// attack's type saturate (ADR-100, ADR-020).
+pub const MAX_TYPE_BONUS_PCT: u32 = 1_000;
 
 /// A reward's rarity, from the most common up (ADR-079 §2).
 #[derive(
@@ -83,7 +88,7 @@ impl Rarity {
 }
 
 /// What taking a reward does: one of the run stats' effect kinds, under the same names, a stage
-/// skill, more evade charges, an orbit, or range.
+/// skill, more evade charges, an orbit, range, or a type bonus.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
@@ -105,6 +110,12 @@ pub enum RewardEffect {
     /// Every combo step of the Main weapon `amount` percent wider, as the expertise range
     /// option widens it, adding up over the picks (ADR-099).
     RangePct,
+    /// The main character's attacks of the reward's `type` `amount` percent stronger (ADR-100).
+    TypeBonusPct,
+    /// Its attacks of every attack type (Slash, Pierce, Strike) `amount` percent stronger.
+    AttackTypeBonusPct,
+    /// Its attacks of every element `amount` percent stronger.
+    ElementBonusPct,
 }
 
 impl RewardEffect {
@@ -120,7 +131,10 @@ impl RewardEffect {
             RewardEffect::StageSkill
             | RewardEffect::EvadeCharge
             | RewardEffect::Orbit
-            | RewardEffect::RangePct => return None,
+            | RewardEffect::RangePct
+            | RewardEffect::TypeBonusPct
+            | RewardEffect::AttackTypeBonusPct
+            | RewardEffect::ElementBonusPct => return None,
         })
     }
 }
@@ -140,10 +154,15 @@ pub struct Reward {
     /// The orbit it gives: with the `orbit` effect only, and required by it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub orbit: Option<Orbit>,
+    /// The damage type its bonus raises: with the `type_bonus_pct` effect only, and required
+    /// by it.
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub damage_type: Option<DamageType>,
     /// What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,
     /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it
     /// adds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to
-    /// `MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent.
+    /// `MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for a type
+    /// bonus, the percent, from 1 to `MAX_AMOUNT`.
     pub amount: u32,
     /// The most times one run takes it, from 1 to `MAX_STACK`.
     pub limit: u8,
@@ -354,6 +373,13 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
             }
             (_, Some(_)) => issue(at("orbit"), "only an orbit reward holds an orbit".into()),
             (_, None) => {}
+        }
+        match (reward.effect, reward.damage_type) {
+            (RewardEffect::TypeBonusPct, None) => {
+                issue(at("type"), "a type bonus reward names its type".into())
+            }
+            (RewardEffect::TypeBonusPct, Some(_)) | (_, None) => {}
+            (_, Some(_)) => issue(at("type"), "only a type bonus reward names a type".into()),
         }
         if !(1..=MAX_STACK).contains(&reward.limit) {
             issue(

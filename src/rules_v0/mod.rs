@@ -47,6 +47,12 @@
 //! Range rewards (ADR-099) widen the hit boxes of the combo steps started after they are taken,
 //! adding up over the picks (`player`).
 //!
+//! Type bonus rewards (ADR-100) add up for each damage type, a group's to each type of its
+//! group (`stars`). An attack the main character starts fixes those sums, each held to the
+//! match-up file's `max_type_bonus_pct`; each of its phases of a type raises its damage by
+//! that type's, after atk-up (`attacks::phase_damage`), and the match-up multiplies it at the
+//! hit.
+//!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
@@ -241,6 +247,7 @@ pub(crate) fn initial_state(
             shield: None,
             orbits: Vec::new(),
             range_pct: 0,
+            type_bonus_pct: [0; DamageType::ALL.len()],
             aggro: 0,
             statuses: Vec::new(),
         },
@@ -528,6 +535,7 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     let dealt = scale_damage(
         b.damage,
         0,
+        0,
         vulnerable,
         s.match_ups.pct(match_up),
         s.defence(target),
@@ -653,7 +661,7 @@ pub(super) fn pull_enemy(stage: &Stage, s: &mut State, i: usize, pull: Pull) {
 fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
     // The main character has no profile (ADR-100): every hit on it is neutral.
-    let dealt = scale_damage(b.damage, 0, vulnerable, 0, s.player.defence);
+    let dealt = scale_damage(b.damage, 0, 0, vulnerable, 0, s.player.defence);
     let dealt = skill::absorb(s, dealt);
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
@@ -1173,6 +1181,24 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         for b in &s.bullets {
             h.write_u32(type_code(b.damage_type));
             h.write_u32(b.hook.as_ref().map_or(0, |k| type_code(k.damage_type)));
+        }
+    }
+    // Last, and only while the main character holds a type bonus (ADR-100), so that the hashes
+    // of runs without one stay as they were: its bonus for each type, then each run's, fixed at
+    // its start. A run can hold one only once the main character does: bonuses never go.
+    if s.player.type_bonus_pct.iter().any(|pct| *pct > 0) {
+        for pct in s.player.type_bonus_pct {
+            h.write_u32(pct);
+        }
+        h.write_u32(count(&s.runs));
+        for r in &s.runs {
+            for pct in r
+                .type_bonus_pct
+                .as_deref()
+                .unwrap_or(&[0; DamageType::ALL.len()])
+            {
+                h.write_u32(*pct);
+            }
         }
     }
     h.finish()

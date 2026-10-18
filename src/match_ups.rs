@@ -2,9 +2,12 @@
 //! table for every target. A weak hit deals `weak_pct` percent more, a strong or resisted hit
 //! `strong_pct` or `resisted_pct` percent less; a hit with no match-up is unchanged. Which
 //! match-up a hit gets is code (`attack::Profile::match_up`); the percents are tuning values.
+//! The same rules hold the most the type bonuses add to one attack, `max_type_bonus_pct`
+//! (ADR-100 point 7).
 //!
 //! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
-//! strict parsing, the current versions only, and each percent at most `MAX_MATCH_UP_PCT`.
+//! strict parsing, the current versions only, each percent at most `MAX_MATCH_UP_PCT` and the
+//! type bonus limit 1 to `MAX_TYPE_BONUS_PCT`.
 //! The bundled file, `content/match_ups.json`, is the default; the SHA-256 of whatever bytes a
 //! run used is part of its content hash, so a run replay verifies only with the same file.
 
@@ -15,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::attack::MatchUp;
+use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -36,6 +40,9 @@ pub struct MatchUpsFile {
     pub strong_pct: u8,
     /// Percent less damage from a resisted hit, 0 to `MAX_MATCH_UP_PCT`.
     pub resisted_pct: u8,
+    /// The most the type bonuses that apply to an attack add to its damage, in percent, 1 to
+    /// `MAX_TYPE_BONUS_PCT`: their sum saturates here.
+    pub max_type_bonus_pct: u32,
 }
 
 /// A match-up table that passed validation, and the SHA-256 of the bytes it came from.
@@ -44,6 +51,7 @@ pub struct MatchUps {
     weak_pct: u8,
     strong_pct: u8,
     resisted_pct: u8,
+    max_type_bonus_pct: u32,
     sha256: [u8; 32],
 }
 
@@ -88,6 +96,7 @@ impl MatchUps {
             weak_pct: file.weak_pct,
             strong_pct: file.strong_pct,
             resisted_pct: file.resisted_pct,
+            max_type_bonus_pct: file.max_type_bonus_pct,
             sha256: Sha256::digest(bytes).into(),
         })
     }
@@ -102,6 +111,11 @@ impl MatchUps {
         }
     }
 
+    /// The most the type bonuses add to one attack, in percent.
+    pub fn max_type_bonus_pct(&self) -> u32 {
+        self.max_type_bonus_pct
+    }
+
     /// The SHA-256 of the bytes it was parsed from.
     pub fn sha256(&self) -> [u8; 32] {
         self.sha256
@@ -110,7 +124,7 @@ impl MatchUps {
 
 /// Validates a parsed file: one issue per problem, with its path, never text from the file.
 pub fn validate(file: &MatchUpsFile) -> Result<(), Error> {
-    let issues: Vec<Issue> = [
+    let mut issues: Vec<Issue> = [
         ("weak_pct", file.weak_pct),
         ("strong_pct", file.strong_pct),
         ("resisted_pct", file.resisted_pct),
@@ -122,6 +136,15 @@ pub fn validate(file: &MatchUpsFile) -> Result<(), Error> {
         message: format!("0 to {MAX_MATCH_UP_PCT} (found {pct})"),
     })
     .collect();
+    if !(1..=MAX_TYPE_BONUS_PCT).contains(&file.max_type_bonus_pct) {
+        issues.push(Issue {
+            path: "$.max_type_bonus_pct".into(),
+            message: format!(
+                "1 to {MAX_TYPE_BONUS_PCT} (found {})",
+                file.max_type_bonus_pct
+            ),
+        });
+    }
     if issues.is_empty() {
         Ok(())
     } else {

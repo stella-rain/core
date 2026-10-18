@@ -132,6 +132,9 @@ pub(super) fn offsets(bodies: &[Body]) -> Vec<(i32, i32, bool)> {
 /// The pass: every enemy moves by its sum. A push never carries an enemy from the map off it;
 /// one already off the map is pushed freely, and is gone once it is past the map's margin, as
 /// an enemy that walks there is.
+// Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
+// (ADR-058).
+#[inline(never)]
 pub(super) fn apply(stage: &Stage, s: &mut State) {
     if s.enemies.len() < 2 {
         for e in &mut s.enemies {

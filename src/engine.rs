@@ -25,7 +25,7 @@ use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView,
     ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView, PlayerView,
-    ProgressView, PullView, ShieldView, SkillView, Snapshot, StarView, WeaponRole,
+    ProgressView, PullView, ShieldView, SkillView, Snapshot, StarView, TypeBonusView, WeaponRole,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -441,6 +441,15 @@ impl Engine {
                     })
                     .collect(),
                 range_pct: s.player.range_pct,
+                type_bonuses: DamageType::ALL
+                    .iter()
+                    .zip(s.player.type_bonus_pct)
+                    .filter(|(_, pct)| *pct > 0)
+                    .map(|(ty, pct)| TypeBonusView {
+                        damage_type: *ty,
+                        pct,
+                    })
+                    .collect(),
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -696,6 +705,10 @@ pub(crate) struct PlayerState {
     pub orbits: Vec<OrbitState>,
     /// What the range rewards taken add up to, in percent, saturating (ADR-099).
     pub range_pct: u32,
+    /// What the type bonus rewards taken add up to for each damage type, by its place in
+    /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
+    /// type of its group.
+    pub type_bonus_pct: [u32; DamageType::ALL.len()],
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
 }
@@ -1089,6 +1102,11 @@ pub(crate) struct AttackRun {
     pub base: u32,
     /// The attacker's atk-up, in percent, fixed when the attack starts (ADR-056).
     pub atk_up_pct: u32,
+    /// The attacker's type bonus for each damage type, by its place in `DamageType::ALL`, in
+    /// percent, each at most the match-up file's `max_type_bonus_pct`, fixed when the attack
+    /// starts (ADR-100): the main character's, once it holds any; none for every other
+    /// attacker. Boxed, so that a run without one stays as small as it was.
+    pub type_bonus_pct: Option<Box<[u32; DamageType::ALL.len()]>>,
     /// `phase_time` of the attack's first tick, for the nodes its phases spawn.
     pub age: u32,
     /// Who the current active phase has hit, and on which tick last, sorted by entity ID;

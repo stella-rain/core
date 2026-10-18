@@ -102,6 +102,11 @@ impl DamageType {
         DamageType::Dendro,
     ];
 
+    /// The type's place in `ALL`, from 0.
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
     /// An attack type (Slash, Pierce, Strike) rather than an element.
     pub fn is_physical(self) -> bool {
         matches!(

@@ -4,7 +4,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::attack::{HitBox, PhaseKind};
+use crate::attack::{DamageType, HitBox, PhaseKind};
 use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
@@ -278,10 +278,25 @@ pub struct PlayerView {
     /// `MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub range_pct: u32,
+    /// What the type bonus rewards taken add up to, for each damage type that has any, in the
+    /// order of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`
+    /// (ADR-100).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub type_bonuses: Vec<TypeBonusView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
     /// one for each orb, in the order the orbits came (ADR-069).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
+}
+
+/// The type bonus the main character holds for one damage type (ADR-100): the one-type
+/// bonuses of that type and its group's bonus, added up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TypeBonusView {
+    #[serde(rename = "type")]
+    pub damage_type: DamageType,
+    pub pct: u32,
 }
 
 /// An orbit held (ADR-069). Its orbs' attacks are in the main character's `attacks`, in slots

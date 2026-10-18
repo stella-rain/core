@@ -806,7 +806,7 @@
       "type": "object",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent.",
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for a type\nbonus, the percent, from 1 to `MAX_AMOUNT`.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -857,6 +857,17 @@
         "title": {
           "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
           "type": "string"
+        },
+        "type": {
+          "description": "The damage type its bonus raises: with the `type_bonus_pct` effect only, and required\nby it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DamageType"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -871,7 +882,7 @@
       ]
     },
     "RewardEffect": {
-      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, a stage\nskill, more evade charges, an orbit, or range.",
+      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, a stage\nskill, more evade charges, an orbit, range, or a type bonus.",
       "oneOf": [
         {
           "type": "string",
@@ -903,6 +914,21 @@
           "description": "Every combo step of the Main weapon `amount` percent wider, as the expertise range\noption widens it, adding up over the picks (ADR-099).",
           "type": "string",
           "const": "range_pct"
+        },
+        {
+          "description": "The main character's attacks of the reward's `type` `amount` percent stronger (ADR-100).",
+          "type": "string",
+          "const": "type_bonus_pct"
+        },
+        {
+          "description": "Its attacks of every attack type (Slash, Pierce, Strike) `amount` percent stronger.",
+          "type": "string",
+          "const": "attack_type_bonus_pct"
+        },
+        {
+          "description": "Its attacks of every element `amount` percent stronger.",
+          "type": "string",
+          "const": "element_bonus_pct"
         }
       ]
     }
