@@ -1,8 +1,8 @@
 //! Runes (ADR-099 points 1, 2, 4, 7, 8): a closed list built into `core`, held by the Main
 //! weapon each at most once, and the random rune, a star reward that shows as a hidden
 //! candidate and draws its rune from the run's generator only when it is picked, among the
-//! runes not held. Once every rune is held it leaves the pool. What explosion does is
-//! `explosion.rs`'s.
+//! runes not held. Once every rune is held it leaves the pool. What explosion and thunder do
+//! is `explosion.rs`'s and `thunder.rs`'s.
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -150,24 +150,19 @@ fn take(e: &mut Engine, reward: &str) {
     pick(e, OfferOption::Take { candidate });
 }
 
-fn explosion() -> RuneView {
-    RuneView {
-        rune: Rune::Explosion,
-        cooldown_left: 0,
-    }
-}
-
-/// The runes held, whatever their cooldowns: explosion fires on the combo steps that kill.
+/// The runes held, whatever their cooldowns: they fire on the combo steps that kill.
 fn held(e: &Engine) -> Vec<Rune> {
     e.snapshot().player.runes.iter().map(|r| r.rune).collect()
 }
 
 #[test]
 fn the_runes_are_a_closed_list_of_two_kinds() {
-    assert_eq!(Rune::ALL, [Rune::Explosion]);
+    assert_eq!(Rune::ALL, [Rune::Explosion, Rune::Thunder]);
     assert_eq!(MAX_RUNES, Rune::ALL.len());
     assert_eq!(Rune::Explosion.kind(), RuneKind::OnHit);
+    assert_eq!(Rune::Thunder.kind(), RuneKind::OnHit);
     assert_eq!(serde_json::to_value(Rune::Explosion).unwrap(), "explosion");
+    assert_eq!(serde_json::to_value(Rune::Thunder).unwrap(), "thunder");
 }
 
 #[test]
@@ -211,7 +206,9 @@ fn the_hidden_candidate_names_no_rune() {
     assert!(snapshot.player.runes.is_empty(), "nothing drawn yet");
     let text = serde_json::to_string(&snapshot).unwrap();
     assert!(text.contains("\"hidden\":true"));
-    assert!(!text.contains("explosion"), "no rune in the snapshot");
+    for rune in ["explosion", "thunder"] {
+        assert!(!text.contains(rune), "no rune in the snapshot");
+    }
 }
 
 #[test]
@@ -219,15 +216,54 @@ fn the_pick_draws_a_rune_not_held_and_the_event_carries_it() {
     let mut e = with(&targets(1, 0, 0), vec![random_rune(), inert("dash")]);
     next_offer(&mut e);
     take(&mut e, "random_rune");
-    assert_eq!(
-        e.events(),
-        [DomainEvent::RewardTaken {
-            reward: ContentId("random_rune".into()),
+    let [
+        DomainEvent::RewardTaken {
+            reward,
             taken: 1,
-            rune: Some(Rune::Explosion),
+            rune: Some(rune),
+        },
+    ] = e.events()
+    else {
+        panic!("{:?}", e.events());
+    };
+    assert_eq!(reward, &ContentId("random_rune".into()));
+    assert_eq!(
+        e.snapshot().player.runes,
+        [RuneView {
+            rune: *rune,
+            cooldown_left: 0
         }]
     );
-    assert_eq!(e.snapshot().player.runes, [explosion()]);
+}
+
+/// The rune each of the first two random runes draws, in the stage of `seed`.
+fn draws(seed: u32) -> Vec<Rune> {
+    let mut stage = targets(2, 0, 0);
+    stage.seed = seed;
+    let mut e = with(&stage, vec![random_rune(), inert("dash")]);
+    for _ in 0..2 {
+        next_offer(&mut e);
+        take(&mut e, "random_rune");
+    }
+    held(&e)
+}
+
+#[test]
+fn the_random_rune_draws_either_rune_from_the_run_s_generator_then_the_other() {
+    let mut first = Vec::new();
+    for seed in 0..16 {
+        let drawn = draws(seed);
+        assert_eq!(drawn, draws(seed), "the same seed draws the same");
+        assert_eq!(drawn.len(), 2, "seed {seed}: {drawn:?}");
+        assert_ne!(drawn[0], drawn[1], "the second draw is the rune not held");
+        first.push(drawn[0]);
+    }
+    for rune in Rune::ALL {
+        assert!(
+            first.contains(&rune),
+            "{rune:?} never drawn first: {first:?}"
+        );
+    }
 }
 
 #[test]
@@ -244,24 +280,30 @@ fn a_reward_without_a_rune_carries_none_in_its_event() {
 
 #[test]
 fn with_every_rune_held_the_random_rune_leaves_the_pool() {
-    // One rune in the list: after the first pick the Main holds them all.
-    let mut e = with(&targets(3, 0, 0), vec![random_rune(), inert("dash")]);
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["dash", "random_rune"]);
-    take(&mut e, "random_rune");
+    // Two runes in the list: after the second pick the Main holds them all.
+    let mut e = with(&targets(4, 0, 0), vec![random_rune(), inert("dash")]);
+    for _ in 0..2 {
+        next_offer(&mut e);
+        assert_eq!(offered(&e), ["dash", "random_rune"]);
+        take(&mut e, "random_rune");
+    }
     next_offer(&mut e);
     assert_eq!(offered(&e), ["dash"]);
     take(&mut e, "dash");
     next_offer(&mut e);
     assert_eq!(offered(&e), ["dash"]);
-    assert_eq!(held(&e), [Rune::Explosion], "held once");
+    let mut runes = held(&e);
+    runes.sort();
+    assert_eq!(runes, Rune::ALL, "each held once");
 }
 
 #[test]
 fn a_random_rune_alone_with_every_rune_held_opens_no_offer() {
-    let mut e = with(&targets(2, 0, 0), vec![random_rune()]);
-    next_offer(&mut e);
-    take(&mut e, "random_rune");
+    let mut e = with(&targets(3, 0, 0), vec![random_rune()]);
+    for _ in 0..2 {
+        next_offer(&mut e);
+        take(&mut e, "random_rune");
+    }
     fire_until(&mut e, idle(), 120, Engine::offer_open);
     assert!(!e.offer_open(), "nothing left to offer");
 }
@@ -375,11 +417,9 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
             break;
         }
     }
-    assert_eq!(
-        held(recorder.engine()),
-        [Rune::Explosion],
-        "the random rune was picked"
-    );
+    let mut runes = held(recorder.engine());
+    runes.sort();
+    assert_eq!(runes, Rune::ALL, "the random rune was picked twice");
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());
 }

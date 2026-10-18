@@ -1,5 +1,5 @@
 //! The on-hit rune tests' shared stage: a Main weapon of one step, small enemies whose stars
-//! give the runes, and a tough target to hit once they are taken (`explosion.rs`).
+//! give the runes, and a tough target to hit once they are taken (`explosion.rs`, `thunder.rs`).
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -9,6 +9,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
+use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::OfferOption;
 use stella_rain_core::stage::Stage;
@@ -24,6 +25,8 @@ pub const TARGET_TICK: u32 = 300;
 /// The slot of the first on-hit rune's attack: after the combo (0), the stage skill (1) and
 /// the orbits' orbs (2 to 33).
 pub const RUNE_SLOT: u8 = 34;
+/// The slot of the second, thunder's.
+pub const THUNDER_SLOT: u8 = 35;
 
 /// A Main weapon of one step: a circle of 32 pixels 4 pixels ahead, one active tick of 10
 /// damage, neutral, and 4 ticks of recovery.
@@ -125,6 +128,50 @@ pub fn take(e: &mut Engine, reward: &str) {
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
     e.choose(u32::try_from(index).unwrap()).unwrap();
+}
+
+/// Takes the random rune from the next two offers: the Main holds both runes, in the order
+/// drawn.
+pub fn take_both(e: &mut Engine) {
+    take(e, "random_rune");
+    take(e, "random_rune");
+    let mut held: Vec<Rune> = e.snapshot().player.runes.iter().map(|r| r.rune).collect();
+    held.sort();
+    assert_eq!(held, Rune::ALL, "both runes held");
+}
+
+/// The cooldown left of `rune`, held.
+pub fn cooldown_of(e: &Engine, rune: Rune) -> u32 {
+    let runes = e.snapshot().player.runes;
+    runes
+        .iter()
+        .find(|r| r.rune == rune)
+        .unwrap_or_else(|| panic!("{rune:?} held"))
+        .cooldown_left
+}
+
+/// An on-hit rune's entry in a runes file.
+pub fn entry(rune: &str, cooldown: u32, damage: u32, attack: Value) -> Value {
+    json!({ "rune": rune, "cooldown_ticks": cooldown, "damage": damage, "attack": attack })
+}
+
+/// An entry for `rune` whose attack lands 256 pixels ahead of the point hit, beyond every
+/// target of these stages: held, it fires on every hit it may but never hits anything.
+pub fn far(rune: &str) -> Value {
+    entry(
+        rune,
+        30,
+        1,
+        json!([{ "kind": "active", "ticks": 2,
+                 "hit_box": { "type": "circle", "offset": { "forward": 65_536 },
+                              "radius": 1_024 } }]),
+    )
+}
+
+/// The runes file of `on_hit`'s entries.
+pub fn runes_of(on_hit: Vec<Value>) -> Runes {
+    let file = json!({ "schema_version": 0, "sim_version": 0, "on_hit": on_hit });
+    Runes::parse(file.to_string().as_bytes()).expect("the test runes validate")
 }
 
 /// Steps idle until the tough target is on the map, and returns its ID.

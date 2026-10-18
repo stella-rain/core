@@ -4,7 +4,8 @@
 //! damage is the main character's without a combo step: its base damage through atk-up and the
 //! type bonus, fixed when it fires, then the target's match-up and defence. Its hits give no
 //! expertise and fire no rune; orbits and the stage skill fire none either. Every number here
-//! is worked out by hand.
+//! is worked out by hand. Thunder is held too, as the random rune draws both, but its attack
+//! lands far from every target (`far`).
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -14,7 +15,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
-use stella_rain_core::snapshot::{OfferOption, RuneView};
+use stella_rain_core::snapshot::OfferOption;
 
 mod common;
 
@@ -26,39 +27,31 @@ use common::*;
 const BLAST: u32 = 3;
 
 /// A runes file whose explosion has `cooldown`, `damage` and one active phase of `ticks`, a
-/// circle of 16 pixels of type `ty` (or neutral).
+/// circle of 16 pixels of type `ty` (or neutral); thunder never hits.
 fn runes(cooldown: u32, damage: u32, ticks: u32, ty: Option<&str>) -> Runes {
     let mut phase = json!({ "kind": "active", "ticks": ticks,
                             "hit_box": { "type": "circle", "radius": 4_096 } });
     if let Some(ty) = ty {
         phase["type"] = json!(ty);
     }
-    let file = json!({ "schema_version": 0, "sim_version": 0, "on_hit": [
-        { "rune": "explosion", "cooldown_ticks": cooldown, "damage": damage, "attack": [phase] }
-    ] });
-    Runes::parse(file.to_string().as_bytes()).expect("the test runes validate")
+    runes_of(vec![
+        entry("explosion", cooldown, damage, json!([phase])),
+        far("thunder"),
+    ])
 }
 
 fn cooldown(e: &Engine) -> u32 {
-    let runes = e.snapshot().player.runes;
-    assert_eq!(runes.len(), 1, "explosion held");
-    runes[0].cooldown_left
+    cooldown_of(e, Rune::Explosion)
 }
 
-/// The stage with one small enemy and the tough target, the explosion taken from its star.
+/// The stage with two small enemies and the tough target, both runes taken from their stars.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(1, target),
+        &stage(2, target),
         &content(vec![random_rune()], None, runes),
     );
-    take(&mut e, "random_rune");
-    assert_eq!(
-        e.snapshot().player.runes,
-        [RuneView {
-            rune: Rune::Explosion,
-            cooldown_left: 0
-        }]
-    );
+    take_both(&mut e);
+    assert_eq!(cooldown(&e), 0);
     e
 }
 
@@ -108,13 +101,13 @@ fn the_explosion_hits_everything_around_the_point() {
         START_X,
         NEAR_Y - 5_120,
     );
-    let mut s = stage(1, tough(0, None, None));
+    let mut s = stage(2, tough(0, None, None));
     s.waves.push(serde_json::from_value(behind).unwrap());
     let mut e = with(
         &s,
         &content(vec![random_rune()], None, runes(30, BLAST, 2, None)),
     );
-    take(&mut e, "random_rune");
+    take_both(&mut e);
     while e.tick() < TARGET_TICK {
         e.step(idle());
     }
@@ -250,10 +243,10 @@ fn an_orbit_s_hits_fire_no_explosion() {
         START_Y
     ));
     let mut e = with(
-        &stage(2, target),
+        &stage(3, target),
         &content(vec![random_rune(), orbit], None, runes(30, BLAST, 2, None)),
     );
-    take(&mut e, "random_rune");
+    take_both(&mut e);
     take(&mut e, "orbit");
     let target = wait_for_target(&mut e);
     let seen = hits(&mut e, target, 240, |_| idle());
@@ -288,14 +281,14 @@ fn a_stage_skill_s_hits_fire_no_explosion() {
         START_Y - ahead
     ));
     let mut e = with(
-        &stage(2, target),
+        &stage(3, target),
         &content(
             vec![random_rune(), reward],
             Some(json!([nova])),
             runes(30, BLAST, 2, None),
         ),
     );
-    take(&mut e, "random_rune");
+    take_both(&mut e);
     take(&mut e, "nova_r");
     let target = wait_for_target(&mut e);
     let start = e.tick();
@@ -327,10 +320,10 @@ fn boosted(ty: Option<&str>) -> (u32, u32) {
     ];
     let weak = json!({ "weak": ["pyro"] });
     let mut e = with(
-        &stage(3, tough(0, Some(weak), None)),
+        &stage(4, tough(0, Some(weak), None)),
         &content(rewards, Some(json!([war_cry])), runes(30, 10, 2, ty)),
     );
-    take(&mut e, "random_rune");
+    take_both(&mut e);
     take(&mut e, "war_cry_r");
     take(&mut e, "pyro");
     let target = wait_for_target(&mut e);
