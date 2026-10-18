@@ -80,6 +80,7 @@ fn view(level: u32, points: u32, next: u32) -> ExpertiseView {
         level,
         points,
         next,
+        ..ExpertiseView::default()
     }
 }
 

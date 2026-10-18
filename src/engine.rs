@@ -497,10 +497,13 @@ impl Engine {
                 spent: p.spent.clone(),
                 offer: rules_v0::offer_view(self.content.rewards(), s),
             }),
-            expertise: s.expertise.map(|g| ExpertiseView {
+            expertise: s.expertise.as_ref().map(|g| ExpertiseView {
                 level: g.level,
                 points: g.points,
                 next: g.next,
+                main_taken: Vec::new(),
+                sub_taken: Vec::new(),
+                offer: None,
             }),
         }
     }
