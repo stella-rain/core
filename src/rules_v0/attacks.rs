@@ -341,6 +341,11 @@ pub(super) fn phase_damage(r: &AttackRun) -> u32 {
     scale_damage(p.damage.unwrap_or(r.base), r.atk_up_pct, 0, 0)
 }
 
+/// Whether run `r` is the main character's combo step, A or B (ADR-078 §2).
+pub(super) fn is_combo(r: &AttackRun) -> bool {
+    r.owner == super::PLAYER_ID && r.slot == super::player::COMBO_SLOT
+}
+
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase
 /// starts a new hit list, and the phase's nodes start as a task (unless too many attacks are
 /// going already).
@@ -373,6 +378,7 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         damage: phase_damage(r),
         breaks_charge: p.breaks_charge,
         pull: r.pull,
+        combo: is_combo(r),
         age: r.age.saturating_add(elapsed),
         wait_left: 0,
         frames: vec![Frame::default()],
@@ -410,6 +416,7 @@ pub(super) fn fire_hooks(s: &mut State) {
             damage: hook.damage,
             breaks_charge: hook.breaks_charge,
             pull: hook.pull,
+            combo: hook.combo,
             age: 0,
             wait_left: 0,
             frames: vec![Frame::default()],
@@ -859,6 +866,7 @@ fn emit(
             damage: t.damage,
             breaks_charge: t.breaks_charge,
             pull: t.pull,
+            combo: t.combo,
         })
     });
     let scale = i64::from(trig::SCALE);
@@ -876,6 +884,7 @@ fn emit(
             damage: t.damage,
             breaks_charge: t.breaks_charge,
             pull: t.pull,
+            combo: t.combo,
             hook,
         },
         spawns_left,

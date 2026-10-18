@@ -43,6 +43,7 @@ struct Swing {
     rehit_ticks: Option<u32>,
     breaks_charge: bool,
     pull: Option<Pull>,
+    combo: bool,
 }
 
 /// What an arc's test needs, worked out once per swing rather than once per target: the cosine
@@ -113,6 +114,7 @@ fn active_swings(s: &State) -> Vec<Swing> {
             rehit_ticks: p.rehit_ticks,
             breaks_charge: p.breaks_charge,
             pull: r.pull,
+            combo: super::attacks::is_combo(r),
         });
     }
     swings
@@ -221,6 +223,7 @@ fn shot(w: &Swing) -> Shot {
         damage: w.damage,
         breaks_charge: w.breaks_charge,
         pull: w.pull,
+        combo: w.combo,
     }
 }
 
@@ -238,7 +241,7 @@ fn hit_enemy_side(
         if boss.invulnerable == 0 {
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-                damage(s, shot(w), Who::Boss, events);
+                damage(stage, s, shot(w), Who::Boss, events);
             }
             let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
             for i in 0..parts {
@@ -247,7 +250,7 @@ fn hit_enemy_side(
                 };
                 let (id, hp, radius) = (part.id, part.hp, part.radius);
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
-                    damage(s, shot(w), Who::BossPart(i), events);
+                    damage(stage, s, shot(w), Who::BossPart(i), events);
                 }
             }
         }
@@ -258,7 +261,7 @@ fn hit_enemy_side(
         let (id, at, hp) = (e.id, e.at, e.hp);
         let radius = agent_def(stage, e.key).radius.0;
         if hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-            damage(s, shot(w), Who::Enemy(i), events);
+            damage(stage, s, shot(w), Who::Enemy(i), events);
             if let Some(pull) = w.pull {
                 super::pull_enemy(stage, s, i, pull);
             }
@@ -281,7 +284,7 @@ fn hit_ally_side(stage: &Stage, s: &mut State, w: &Swing, events: &mut Vec<Domai
         let (id, at, hp) = (c.id, c.at, c.hp);
         let radius = agent_def(stage, c.key).radius.0;
         if hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-            damage(s, shot(w), Who::Companion(i), events);
+            damage(stage, s, shot(w), Who::Companion(i), events);
         }
     }
 }

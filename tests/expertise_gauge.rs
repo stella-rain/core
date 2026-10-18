@@ -36,7 +36,14 @@ fn weapon() -> Value {
 
 /// One still enemy of `hp` at `NEAR_Y` that never attacks, giving `hit` and `kill` points.
 fn target(hp: u32, hit: u32, kill: u32) -> Value {
-    let mut w = wave(1, 1, 0, enemy(hp, hold(START_X, NEAR_Y), json!([])), START_X, NEAR_Y);
+    let mut w = wave(
+        1,
+        1,
+        0,
+        enemy(hp, hold(START_X, NEAR_Y), json!([])),
+        START_X,
+        NEAR_Y,
+    );
     w["expertise"] = json!({ "hit": hit, "kill": kill });
     w
 }
@@ -62,7 +69,9 @@ fn with(stage: &Stage, content: &RunContent) -> Engine {
 }
 
 fn gauge(e: &Engine) -> ExpertiseView {
-    e.snapshot().expertise.expect("a stage that gives points has the gauge")
+    e.snapshot()
+        .expertise
+        .expect("a stage that gives points has the gauge")
 }
 
 fn view(level: u32, points: u32, next: u32) -> ExpertiseView {
@@ -97,23 +106,37 @@ const TABLE: [u32; 10] = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
 #[test]
 fn hits_by_a_and_b_steps_fill_the_one_gauge_to_a_level() {
-    let mut e = with(&stage(vec![target(1_000, 4, 50)], vec![]), &content(TABLE, 150, 1_000));
+    let mut e = with(
+        &stage(vec![target(1_000, 4, 50)], vec![]),
+        &content(TABLE, 150, 1_000),
+    );
     e.step(idle());
     assert_eq!(gauge(&e), view(0, 0, 10), "every run starts at level 0");
 
     press(&mut e, false);
     assert_eq!(gauge(&e), view(0, 4, 10), "the A step's bullet hit");
     press(&mut e, true);
-    assert_eq!(gauge(&e), view(0, 8, 10), "the B step's hit box, into the same gauge");
+    assert_eq!(
+        gauge(&e),
+        view(0, 8, 10),
+        "the B step's hit box, into the same gauge"
+    );
     press(&mut e, false);
-    assert_eq!(gauge(&e), view(1, 2, 20), "12 points: level 1 and 2 toward level 2");
+    assert_eq!(
+        gauge(&e),
+        view(1, 2, 20),
+        "12 points: level 1 and 2 toward level 2"
+    );
     press(&mut e, true);
     assert_eq!(gauge(&e), view(1, 6, 20));
 }
 
 #[test]
 fn a_kill_adds_its_points_to_the_hit_s() {
-    let mut e = with(&stage(vec![target(10, 4, 50)], vec![]), &content(TABLE, 150, 1_000));
+    let mut e = with(
+        &stage(vec![target(10, 4, 50)], vec![]),
+        &content(TABLE, 150, 1_000),
+    );
     press(&mut e, true);
     // 54 points: level 1 (10), level 2 (20), and 24 toward level 3's 30.
     assert_eq!(gauge(&e), view(2, 24, 30));
@@ -124,7 +147,7 @@ fn a_companion_s_hits_give_no_points() {
     let strikes = json!([{ "when": always(), "target": "nearest_enemy", "cooldown_ticks": 0,
         "do": { "type": "attack", "attack": { "inline": [
             { "kind": "active", "ticks": 1, "damage": 1,
-              "hit_box": { "type": "circle", "radius": 1_000_000 } },
+              "hit_box": { "type": "circle", "radius": 16_384 } },
             { "kind": "recovery", "ticks": 4 }
         ] } } }]);
     let fighter = companion(50, hold(START_X + 4_096, START_Y), strikes);
@@ -147,7 +170,10 @@ fn levels_go_past_10_by_the_growth_factor_and_saturate_at_the_maximum() {
     // level after. One kill of 159 points: 55 + 15 + 22 + 30 + 30 = 152 reach level 14, and 7
     // are left toward level 15's 30.
     let table = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    let mut e = with(&stage(vec![target(10, 0, 159)], vec![]), &content(table, 150, 30));
+    let mut e = with(
+        &stage(vec![target(10, 0, 159)], vec![]),
+        &content(table, 150, 30),
+    );
     press(&mut e, true);
     assert_eq!(gauge(&e), view(14, 7, 30));
 }
@@ -156,7 +182,10 @@ fn levels_go_past_10_by_the_growth_factor_and_saturate_at_the_maximum() {
 fn the_growth_from_level_10_is_its_own_threshold_times_the_factor() {
     // 55 + 15 = 70 points reach level 11 exactly; level 12 needs 22.
     let table = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    let mut e = with(&stage(vec![target(10, 0, 70)], vec![]), &content(table, 150, 30));
+    let mut e = with(
+        &stage(vec![target(10, 0, 70)], vec![]),
+        &content(table, 150, 30),
+    );
     press(&mut e, true);
     assert_eq!(gauge(&e), view(11, 0, 22));
 }
@@ -165,7 +194,10 @@ fn the_growth_from_level_10_is_its_own_threshold_times_the_factor() {
 fn a_saturated_gauge_takes_many_levels_in_one_tick() {
     // The table's 55 points, then 400 percent of the level before held to 100 points a level.
     let table = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    let mut e = with(&stage(vec![target(10, 0, 100_000)], vec![]), &content(table, 400, 100));
+    let mut e = with(
+        &stage(vec![target(10, 0, 100_000)], vec![]),
+        &content(table, 400, 100),
+    );
     press(&mut e, true);
     // Level 11 needs 40, 12 needs 100 (160 held to 100): 55 + 40 = 95, then 99_905 = 999 x 100
     // + 5.
