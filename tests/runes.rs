@@ -1,7 +1,8 @@
 //! Runes (ADR-099 points 1, 2, 4, 7, 8): a closed list built into `core`, held by the Main
 //! weapon each at most once, and the random rune, a star reward that shows as a hidden
 //! candidate and draws its rune from the run's generator only when it is picked, among the
-//! runes not held. Once every rune is held it leaves the pool. No rune does anything yet.
+//! runes not held. Once every rune is held it leaves the pool. What explosion does is
+//! `explosion.rs`'s.
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -156,6 +157,11 @@ fn explosion() -> RuneView {
     }
 }
 
+/// The runes held, whatever their cooldowns: explosion fires on the combo steps that kill.
+fn held(e: &Engine) -> Vec<Rune> {
+    e.snapshot().player.runes.iter().map(|r| r.rune).collect()
+}
+
 #[test]
 fn the_runes_are_a_closed_list_of_two_kinds() {
     assert_eq!(Rune::ALL, [Rune::Explosion]);
@@ -248,7 +254,7 @@ fn with_every_rune_held_the_random_rune_leaves_the_pool() {
     take(&mut e, "dash");
     next_offer(&mut e);
     assert_eq!(offered(&e), ["dash"]);
-    assert_eq!(e.snapshot().player.runes, [explosion()], "held once");
+    assert_eq!(held(&e), [Rune::Explosion], "held once");
 }
 
 #[test]
@@ -370,8 +376,8 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
         }
     }
     assert_eq!(
-        recorder.engine().snapshot().player.runes,
-        [explosion()],
+        held(recorder.engine()),
+        [Rune::Explosion],
         "the random rune was picked"
     );
     let bytes = recorder.replay().to_bytes();

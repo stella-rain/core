@@ -71,6 +71,17 @@
       "description": "An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the\nsame tick that `core` judges them.",
       "type": "object",
       "properties": {
+        "at": {
+          "description": "Where its hit box is centred, offset along `facing`, when that is not its attacker: an\non-hit rune's attack, at the point the combo step hit (ADR-099).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Point"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "facing": {
           "description": "The facing locked when the attack started; an orbit's orb's turns every tick, and its hit\nbox with it.",
           "$ref": "#/$defs/Facing"
@@ -900,7 +911,7 @@
           "$ref": "#/$defs/Point"
         },
         "attacks": {
-          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,\none for each orb, in the order the orbits came (ADR-069).",
+          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,\none for each orb, in the order the orbits came (ADR-069), then from 34 one for each\non-hit rune, by its place in `Rune::ALL` (ADR-099).",
           "type": "array",
           "items": {
             "$ref": "#/$defs/AttackView"

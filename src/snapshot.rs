@@ -33,6 +33,10 @@ pub struct AttackView {
     /// The facing locked when the attack started; an orbit's orb's turns every tick, and its hit
     /// box with it.
     pub facing: Facing,
+    /// Where its hit box is centred, offset along `facing`, when that is not its attacker: an
+    /// on-hit rune's attack, at the point the combo step hit (ADR-099).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<Point>,
 }
 
 /// A direction as a unit vector times `trig::SCALE`; `y` grows down the screen.
@@ -292,7 +296,8 @@ pub struct PlayerView {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub runes: Vec<RuneView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
-    /// one for each orb, in the order the orbits came (ADR-069).
+    /// one for each orb, in the order the orbits came (ADR-069), then from 34 one for each
+    /// on-hit rune, by its place in `Rune::ALL` (ADR-099).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
 }
