@@ -47,6 +47,11 @@
 //! Range rewards (ADR-099) widen the hit boxes of the combo steps started after they are taken,
 //! adding up over the picks (`player`).
 //!
+//! Type bonus rewards (ADR-100) add up for each damage type, a group's to each type of its
+//! group (`stars`). An attack the main character starts fixes those sums, each held to
+//! `MAX_TYPE_BONUS_PCT`; each of its phases of a type raises its damage by that type's, after
+//! atk-up (`attacks::phase_damage`), and the match-up multiplies it at the hit.
+//!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
