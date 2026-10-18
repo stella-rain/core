@@ -773,6 +773,118 @@
         "type",
         "data"
       ]
+    },
+    {
+      "description": "An expertise offer opened for the level `level`, from `weapon`'s common pool, and the\nworld stopped until a choice closes it (ADR-079 §2, §3).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "candidates": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ContentId"
+              }
+            },
+            "level": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "weapon": {
+              "$ref": "#/$defs/WeaponRole"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "weapon",
+            "candidates"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ExpertiseOfferOpened"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The expertise option was taken: the run now has it `taken` times for that weapon.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "option": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "taken": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "weapon": {
+              "$ref": "#/$defs/WeaponRole"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "weapon",
+            "option",
+            "taken"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ExpertiseOptionTaken"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The expertise candidate at `slot` was drawn again, after a reroll.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "option": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "slot": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "slot",
+            "option"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ExpertiseCandidateReplaced"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
     }
   ],
   "$defs": {
@@ -819,6 +931,14 @@
         "epic",
         "legendary",
         "supernova"
+      ]
+    },
+    "WeaponRole": {
+      "description": "Which of the main character's two weapons (ADR-070).",
+      "type": "string",
+      "enum": [
+        "main",
+        "sub"
       ]
     }
   }
