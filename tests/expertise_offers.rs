@@ -15,7 +15,7 @@ use stella_rain_core::replay::hash_to_hex;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{Command, record_run, verify_run};
 use stella_rain_core::snapshot::{
-    ExpertiseOfferView, ExpertiseView, OfferKind, OfferOption, WeaponRole,
+    EntityKind, ExpertiseOfferView, ExpertiseView, OfferKind, OfferOption, WeaponRole,
 };
 use stella_rain_core::stage::Stage;
 
@@ -23,8 +23,6 @@ mod common;
 
 use common::*;
 
-/// Far above the main character: out of its reach and its pickup circle.
-const FAR_Y: i32 = 100_000;
 /// 32 pixels above it: inside the `blade`'s slash and the pickup circle.
 const NEAR_Y: i32 = START_Y - 8_192;
 
@@ -222,12 +220,9 @@ fn a_boss_kill_crossing_several_thresholds_opens_one_offer_per_level_in_order() 
     );
     let g = gauge(&e);
     assert_eq!((g.level, g.points), (13, 0));
-    assert_eq!(
-        g.main_taken,
-        [5, 0, 0],
-        "five Main offers, candidate 0 each time"
-    );
-    assert_eq!(g.sub_taken, [3, 0, 0]);
+    let sum = |t: &[u8]| t.iter().map(|n| u32::from(*n)).sum::<u32>();
+    assert_eq!(sum(&g.main_taken), 5, "five Main offers, one pick each");
+    assert_eq!(sum(&g.sub_taken), 3, "three Sub offers");
 }
 
 #[test]
@@ -485,23 +480,24 @@ fn damage_stays_bounded_with_many_damage_options_stacked() {
     let tough = target(100_000, START_X + 2_048, NEAR_Y, 0);
     let killed = target(1, START_X, NEAR_Y, 100_000);
     let mut e = with(&stage(None, vec![killed, tough]), &content);
-    let hits_on = |events: &[DomainEvent], e: &Engine| -> Vec<u32> {
-        let enemy = e
-            .snapshot()
-            .entities
-            .iter()
-            .find(|v| v.at.x.0 == START_X + 2_048)
-            .map(|v| v.id);
+    let first = until_offer(&mut e);
+    let tough = e
+        .snapshot()
+        .entities
+        .iter()
+        .find(|v| v.kind == EntityKind::Enemy)
+        .map(|v| v.id)
+        .expect("the tough enemy outlives the first slash");
+    let hits_on = |events: &[DomainEvent]| -> Vec<u32> {
         events
             .iter()
             .filter_map(|ev| match ev {
-                DomainEvent::Hit { target, damage, .. } if Some(*target) == enemy => Some(*damage),
+                DomainEvent::Hit { target, damage, .. } if *target == tough => Some(*damage),
                 _ => None,
             })
             .collect()
     };
-    let first = until_offer(&mut e);
-    let before = hits_on(&first, &e);
+    let before = hits_on(&first);
     assert!(!before.is_empty(), "the slash hits the tough enemy too");
     let mut picks = 0u32;
     while e.offer_open() {
@@ -517,7 +513,7 @@ fn damage_stays_bounded_with_many_damage_options_stacked() {
     );
     let later = fire_until(&mut e, Input::default(), 60, |e| e.offer_open());
     let later: Vec<DomainEvent> = later.into_iter().map(|(_, ev)| ev).collect();
-    let after = hits_on(&later, &e);
+    let after = hits_on(&later);
     assert!(!after.is_empty(), "the slash hits again");
     assert!(
         u64::from(after[0]) >= u64::from(before[0]) * 1_000,

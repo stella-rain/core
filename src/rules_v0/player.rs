@@ -411,7 +411,8 @@ fn take_step(
 }
 
 /// The current step's attack starts in the combo slot along the facing (ADR-069), at the
-/// stage's attack stat, faster by the attack speed, wider by a range enchantment, with
+/// stage's attack stat, faster by the attack speed, wider by a range enchantment and the
+/// expertise range options taken (at most `MAX_RANGE_PCT` in all), with
 /// `bonus_pct` and, for a combo part, the Sub weapon's pull. When it `aim`s and there is a target, the facing first turns to it
 /// (ADR-072).
 fn strike(
@@ -440,7 +441,8 @@ fn strike(
     let strike = attacks::Strike {
         bonus_pct,
         speed_pct: levels::attack_speed(s),
-        range_pct: range_pct(&s.player),
+        range_pct: range_pct(&s.player)
+            .saturating_add(s.expertise.as_ref().map_or(0, |g| g.range_pct)),
         pull,
     };
     let facing = s.player.facing;

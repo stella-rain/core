@@ -13,13 +13,14 @@
 //! rarity of the drop table's tier for the player's level after this tick's experience. It
 //! opens even though the kill clears the stage; the stars' offers due then never open.
 //!
-//! At the end of a tick the run survives, the first offer due opens. It draws `OFFER_SIZE`
+//! At the end of a tick the run survives, the first offer due opens, after the boss offer and
+//! the expertise levels' (`expertise`). It draws `OFFER_SIZE`
 //! candidates from the run's pool at the star's rarity, then from the rarities below while too
 //! few are left. It leaves out banished rewards, rewards at their limit, enchantments of a kind
 //! already taken (ADR-078) and rewards it already holds. An offer with no candidate does not open, and the next one due is tried. While an
 //! offer is open the world stops. A choice (`choose`) takes a candidate, rerolls one, skips (a
 //! star's offer only), or banishes one; when it closes the offer, the next one due opens at
-//! once. Every draw is from the run's generator, in this order.
+//! once (`super::choose`). Every draw is from the run's generator, in this order.
 
 use crate::engine::{Due, OfferState, StarField, StarState, State};
 use crate::event::DomainEvent;
@@ -164,13 +165,26 @@ pub(super) fn pick_up(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent
     }
 }
 
-/// Opens the first offer due that has a candidate, unless one is open.
-pub(crate) fn open_due(rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
+/// Opens the first offer due that has a candidate, unless an offer is open; with `boss_only`,
+/// only while the first due is the boss offer.
+pub(super) fn open_due(
+    rewards: &Rewards,
+    s: &mut State,
+    events: &mut Vec<DomainEvent>,
+    boss_only: bool,
+) {
+    if super::offer_open(s) {
+        return;
+    }
     let State { rng, stars, .. } = s;
     let Some(f) = stars.as_mut() else {
         return;
     };
-    while f.offer.is_none() && !f.due.is_empty() {
+    while f.offer.is_none()
+        && f.due
+            .first()
+            .is_some_and(|d| !boss_only || d.kind == OfferKind::Boss)
+    {
         let Due { kind, rarity } = f.due.remove(0);
         let mut candidates = Vec::with_capacity(OFFER_SIZE);
         while candidates.len() < OFFER_SIZE {
@@ -273,7 +287,7 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
 }
 
 /// Carries out `option`, one of `options`, on the open offer.
-pub(crate) fn choose(
+pub(super) fn choose(
     stage: &Stage,
     rewards: &Rewards,
     s: &mut State,
@@ -375,8 +389,6 @@ pub(crate) fn choose(
     };
     if open {
         f.offer = Some(o);
-    } else {
-        open_due(rewards, s, events);
     }
 }
 

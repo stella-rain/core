@@ -152,14 +152,14 @@ pub fn run_input(engine: &Engine, tick: u32) -> Input {
     input
 }
 
-// Answers the open offer, the `k`-th of the run, from 0, so that a run uses every kind of
-/// option: the first with a reroll of candidate 0 and a banish of candidate 1, when they are
-/// offered, then a take of candidate 0; the second with a skip; every later one with a take of
-/// candidate 0.
+/// Answers the open star or boss offer, the `k`-th of the run, from 0, so that a run uses every
+/// kind of option: the first with a reroll of candidate 0 and a banish of candidate 1, when
+/// they are offered, then a take of candidate 0; the second with a skip; every later one with a
+/// take of candidate 0. It stops when an expertise offer opens after it.
 fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
     let mut step = 0;
-    while engine.offer_open() {
-        let options = engine.snapshot().progress.unwrap().offer.unwrap().options;
+    while let Some(offer) = engine.snapshot().progress.and_then(|p| p.offer) {
+        let options = offer.options;
         let find = |o: OfferOption| options.iter().position(|x| *x == o);
         let pick = match (k, step) {
             (0, 0) => find(OfferOption::Reroll { candidate: 0 }),
@@ -177,9 +177,23 @@ fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
     }
 }
 
+/// Answers the open offers: an expertise offer with a take of candidate 0, a star or boss offer
+/// as `answer` does, counting those in `offers`.
+fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command>) {
+    while engine.offer_open() {
+        if engine.snapshot().expertise.and_then(|g| g.offer).is_some() {
+            engine.choose(0).unwrap();
+            out.push(Command::Choose(0));
+        } else {
+            answer(engine, *offers, out);
+            *offers += 1;
+        }
+    }
+}
+
 /// The commands of a run of `run_input` for up to `ticks` ticks, spending every point on
 /// `SPEND_INDEX` as it comes, between that tick and the next (and after the last), until the
-/// stat is at its limit, and answering every offer as `answer` does.
+/// stat is at its limit, and answering every offer as `answer_all` does.
 pub fn play_run(ticks: u32) -> Vec<Command> {
     play_run_from(&trial_setup(), ticks)
 }
@@ -190,10 +204,7 @@ pub fn play_run_from(setup: &RunSetup, ticks: u32) -> Vec<Command> {
     let mut out = Vec::new();
     let mut offers = 0;
     let between = |engine: &mut Engine, out: &mut Vec<Command>, offers: &mut usize| {
-        if engine.offer_open() {
-            answer(engine, *offers, out);
-            *offers += 1;
-        }
+        answer_all(engine, offers, out);
         while points(engine) > 0 && engine.spend(SPEND_INDEX).is_ok() {
             out.push(Command::Spend(SPEND_INDEX));
         }
