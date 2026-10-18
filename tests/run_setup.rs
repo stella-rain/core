@@ -146,6 +146,21 @@ fn only_the_setup_format_parses() {
 }
 
 #[test]
+fn a_setup_holds_no_expertise_level() {
+    // Every run starts the expertise gauge at level 0 (ADR-079 §1): the setup carries none.
+    let without = r#"{"schema_version":0,"sim_version":0,"mode":"trial","main":"blade","sub":"maul","seed":20261010}"#;
+    assert!(run_setup::parse_and_validate(without.as_bytes()).is_ok());
+    for field in ["\"main_expertise\":0,", "\"sub_expertise\":0,"] {
+        let with = without.replace("\"seed\"", &format!("{field}\"seed\""));
+        let result = run_setup::parse_and_validate(with.as_bytes());
+        assert!(
+            matches!(result, Err(Error::Parse { .. })),
+            "{with}: {result:?}"
+        );
+    }
+}
+
+#[test]
 fn a_setup_from_a_newer_game_is_refused() {
     let newer = RunSetup {
         sim_version: 1,
