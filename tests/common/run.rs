@@ -14,7 +14,7 @@ pub const SPEND_INDEX: u32 = 1;
 
 /// The seed of the `stage_skill` run case: with it, the run kills an elite whose rare star
 /// offers the black hole, and takes it.
-pub const STAGE_SKILL_SEED: u64 = 2;
+pub const STAGE_SKILL_SEED: u64 = 74;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {
