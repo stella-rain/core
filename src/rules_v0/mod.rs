@@ -49,8 +49,9 @@
 //!
 //! Type bonus rewards (ADR-100) add up for each damage type, a group's to each type of its
 //! group (`stars`). An attack the main character starts fixes those sums, each held to the
-//! match-up file's `max_type_bonus_pct`; each of its phases of a type raises its damage by that type's, after
-//! atk-up (`attacks::phase_damage`), and the match-up multiplies it at the hit.
+//! match-up file's `max_type_bonus_pct`; each of its phases of a type raises its damage by
+//! that type's, after atk-up (`attacks::phase_damage`), and the match-up multiplies it at the
+//! hit.
 //!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
@@ -1191,8 +1192,12 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         }
         h.write_u32(count(&s.runs));
         for r in &s.runs {
-            for pct in r.type_bonus_pct {
-                h.write_u32(pct);
+            for pct in r
+                .type_bonus_pct
+                .as_deref()
+                .unwrap_or(&[0; DamageType::ALL.len()])
+            {
+                h.write_u32(*pct);
             }
         }
     }

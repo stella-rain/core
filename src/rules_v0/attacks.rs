@@ -37,9 +37,7 @@
 
 use std::sync::Arc;
 
-use crate::attack::{
-    AttackPhase, AttackRef, DamageType, Direction, Emitter, Expr, HitBox, PhaseKind,
-};
+use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::engine::{
     Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Pull, State,
     StatusKind,
@@ -266,11 +264,9 @@ fn launch(
     // The main character's type bonuses, each held to the content's limit, which the validator
     // holds to the hard cap; the clamp keeps an unvalidated table there (ADR-100).
     let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
-    let type_bonus_pct = if owner == Who::Player {
-        s.player.type_bonus_pct.map(|pct| pct.min(limit))
-    } else {
-        [0; DamageType::ALL.len()]
-    };
+    let held = &s.player.type_bonus_pct;
+    let type_bonus_pct = (owner == Who::Player && held.iter().any(|pct| *pct > 0))
+        .then(|| Box::new(held.map(|pct| pct.min(limit))));
     let preset: Option<ContentId> = match attack {
         AttackRef::Preset { id, .. } => Some(id.clone()),
         AttackRef::Inline(_) => None,
@@ -351,7 +347,10 @@ pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
 /// phase's damage type (none for a neutral phase), both fixed at the attack's start.
 pub(super) fn phase_damage(r: &AttackRun) -> u32 {
     let p = &r.phases[r.phase as usize];
-    let type_bonus = p.damage_type.map_or(0, |ty| r.type_bonus_pct[ty.index()]);
+    let type_bonus = match (p.damage_type, &r.type_bonus_pct) {
+        (Some(ty), Some(pct)) => pct[ty.index()],
+        _ => 0,
+    };
     scale_damage(
         p.damage.unwrap_or(r.base),
         r.atk_up_pct,
