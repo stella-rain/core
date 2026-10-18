@@ -14,6 +14,7 @@ pub mod fixed;
 pub mod hash;
 pub mod id;
 pub mod input;
+pub mod match_ups;
 pub mod parsed_stage_hash;
 pub mod presets;
 #[cfg(feature = "record")]

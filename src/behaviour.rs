@@ -8,7 +8,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::attack::AttackRef;
+use crate::attack::{AttackRef, Profile};
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 
@@ -26,6 +26,10 @@ pub struct Agent {
     /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub defence: u32,
+    /// What it is weak and strong against (ADR-100); without one, every type is neutral against
+    /// it. An enemy's or an elite's only: a companion has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<Profile>,
     pub movement: Movement,
     /// Evaluated in order each tick; the first rule that can fire, fires (ADR-036).
     #[serde(default)]

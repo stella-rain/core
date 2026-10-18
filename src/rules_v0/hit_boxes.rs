@@ -16,7 +16,7 @@
 //! - Attackers resolve in entity-ID order, and every hit box active at the start of the step
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
-use crate::attack::{HitBox, PhaseKind};
+use crate::attack::{DamageType, HitBox, PhaseKind};
 use crate::engine::{Dir, Pull, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -40,6 +40,7 @@ struct Swing {
     /// `None` for a circle, or an arc of 180 degrees or more to each side, which is one.
     arc: Option<Sector>,
     damage: u32,
+    damage_type: Option<DamageType>,
     rehit_ticks: Option<u32>,
     breaks_charge: bool,
     pull: Option<Pull>,
@@ -111,6 +112,7 @@ fn active_swings(s: &State) -> Vec<Swing> {
             radius: radius.0,
             arc,
             damage: super::attacks::phase_damage(r),
+            damage_type: p.damage_type,
             rehit_ticks: p.rehit_ticks,
             breaks_charge: p.breaks_charge,
             pull: r.pull,
@@ -221,6 +223,7 @@ fn shot(w: &Swing) -> Shot {
         owner: w.owner,
         friendly: w.friendly,
         damage: w.damage,
+        damage_type: w.damage_type,
         breaks_charge: w.breaks_charge,
         pull: w.pull,
         combo: w.combo,

@@ -107,6 +107,7 @@ fn hits(events: &[(u32, DomainEvent)]) -> Vec<(u32, EntityId, u32)> {
                 source,
                 target,
                 damage,
+                ..
             } if *source == EntityId(0) => Some((*t, *target, *damage)),
             _ => None,
         })

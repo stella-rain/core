@@ -259,13 +259,22 @@ pub(super) fn speed_pct(statuses: &[StatusState]) -> i64 {
 const DEFENCE_K: u64 = 100;
 
 /// `base` damage, raised by the attacker's atk-up and by the target's vulnerability (percent
-/// each), then reduced to `K / (K + defence)` of it (ADR-056), in that order, truncating at each
-/// step in 64 bits. A hit with any damage at all does at least 1.
-pub(super) fn scale_damage(base: u32, atk_up_pct: u32, vulnerable_pct: u32, defence: u32) -> u32 {
-    let scaled =
-        u64::from(base) * u64::from(100 + atk_up_pct) / 100 * u64::from(100 + vulnerable_pct) / 100
-            * DEFENCE_K
-            / (DEFENCE_K + u64::from(defence));
+/// each), changed by the hit's match-up (`match_up_pct`, -100 to 100; ADR-100), then reduced
+/// to `K / (K + defence)` of it (ADR-056), in that order, truncating toward zero at each step
+/// in 64 bits. A hit with any damage at all does at least 1.
+pub(super) fn scale_damage(
+    base: u32,
+    atk_up_pct: u32,
+    vulnerable_pct: u32,
+    match_up_pct: i64,
+    defence: u32,
+) -> u32 {
+    let raised =
+        u64::from(base) * u64::from(100 + atk_up_pct) / 100 * u64::from(100 + vulnerable_pct) / 100;
+    // The table holds the percent to -100 and 100 (`MAX_MATCH_UP_PCT`); the clamp keeps the
+    // factor from 0 to 200 whatever reaches here.
+    let factor = (100 + match_up_pct.clamp(-100, 100)).unsigned_abs();
+    let scaled = raised * factor / 100 * DEFENCE_K / (DEFENCE_K + u64::from(defence));
     u32::try_from(scaled)
         .unwrap_or(u32::MAX)
         .max(u32::from(base > 0))
@@ -293,5 +302,29 @@ pub(super) fn tick_statuses_and_aggro(s: &mut State) {
     }
     for e in &mut s.enemies {
         age(&mut e.statuses);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scale_damage;
+
+    #[test]
+    fn a_match_up_scales_after_vulnerability_and_before_defence() {
+        assert_eq!(scale_damage(10, 0, 0, 20, 0), 12);
+        assert_eq!(scale_damage(10, 0, 0, -20, 0), 8);
+        assert_eq!(scale_damage(10, 0, 50, 20, 100), 9);
+        assert_eq!(scale_damage(10, 0, 0, 0, 0), 10);
+    }
+
+    #[test]
+    fn damage_saturates_and_never_falls_below_1() {
+        // Every multiplier at its cap, weak at the table's cap: saturated to 32 bits.
+        assert_eq!(scale_damage(u32::MAX, 1000, 1000, 100, 0), u32::MAX);
+        // A match-up past the table's cap is held to it.
+        assert_eq!(scale_damage(10, 0, 0, i64::MAX, 0), 20);
+        assert_eq!(scale_damage(10, 0, 0, i64::MIN, 0), 1);
+        assert_eq!(scale_damage(10, 0, 0, -100, 0), 1);
+        assert_eq!(scale_damage(0, 0, 0, 100, 0), 0);
     }
 }

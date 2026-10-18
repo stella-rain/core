@@ -42,6 +42,10 @@ pub struct AttackPhase {
     /// `damage`, or 1 for an enemy or the boss.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub damage: Option<u32>,
+    /// The damage type of the phase's hits and of the bullets it spawns (ADR-100); absent, they
+    /// are neutral and never get a match-up.
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub damage_type: Option<DamageType>,
     /// An active phase only: a target already hit may be hit again after this many ticks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rehit_ticks: Option<u32>,
@@ -64,6 +68,115 @@ fn full_speed() -> u8 {
 
 fn is_full_speed(v: &u8) -> bool {
     *v == 100
+}
+
+/// The damage types, a closed list (ADR-100): three attack types, which are physical, and the
+/// elements. A list for the prototype; changing it is a schema change in version 0.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DamageType {
+    Slash,
+    Pierce,
+    Strike,
+    Pyro,
+    Hydro,
+    Electro,
+    Cryo,
+    Anemo,
+    Geo,
+    Dendro,
+}
+
+impl DamageType {
+    /// Every type, attack types first.
+    pub const ALL: [DamageType; 10] = [
+        DamageType::Slash,
+        DamageType::Pierce,
+        DamageType::Strike,
+        DamageType::Pyro,
+        DamageType::Hydro,
+        DamageType::Electro,
+        DamageType::Cryo,
+        DamageType::Anemo,
+        DamageType::Geo,
+        DamageType::Dendro,
+    ];
+
+    /// An attack type (Slash, Pierce, Strike) rather than an element.
+    pub fn is_physical(self) -> bool {
+        matches!(
+            self,
+            DamageType::Slash | DamageType::Pierce | DamageType::Strike
+        )
+    }
+}
+
+/// A blanket resist: every attack type, or every element (ADR-100).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Blanket {
+    Physical,
+    Elements,
+}
+
+impl Blanket {
+    /// Whether the blanket covers `ty`.
+    pub fn covers(self, ty: DamageType) -> bool {
+        match self {
+            Blanket::Physical => ty.is_physical(),
+            Blanket::Elements => !ty.is_physical(),
+        }
+    }
+}
+
+/// What an enemy, an elite, a boss or a boss part is weak and strong against (ADR-100). The
+/// validator holds each type at most once in each list, and never in both.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Profile {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub weak: Vec<DamageType>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub strong: Vec<DamageType>,
+    /// At most one blanket resist.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resist: Option<Blanket>,
+}
+
+impl Profile {
+    /// The one match-up a hit of `ty` gets: a listed weakness, else a listed strength, else the
+    /// blanket, else none. A neutral hit gets none.
+    pub fn match_up(&self, ty: Option<DamageType>) -> MatchUp {
+        let Some(ty) = ty else {
+            return MatchUp::None;
+        };
+        if self.weak.contains(&ty) {
+            MatchUp::Weak
+        } else if self.strong.contains(&ty) {
+            MatchUp::Strong
+        } else if self.resist.is_some_and(|b| b.covers(ty)) {
+            MatchUp::Resisted
+        } else {
+            MatchUp::None
+        }
+    }
+}
+
+/// The match-up a hit got (ADR-100), which the `Hit` event reports.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MatchUp {
+    Weak,
+    Strong,
+    Resisted,
+    #[default]
+    None,
+}
+
+impl MatchUp {
+    pub fn is_none(&self) -> bool {
+        *self == MatchUp::None
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

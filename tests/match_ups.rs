@@ -66,10 +66,7 @@ fn the_file_is_strict_and_size_limited() {
     ));
     let mut big = MatchUps::BUNDLED.to_vec();
     big.resize(MAX_MATCH_UPS_BYTES + 1, b' ');
-    assert!(matches!(
-        MatchUps::parse(&big),
-        Err(Error::TooLarge { .. })
-    ));
+    assert!(matches!(MatchUps::parse(&big), Err(Error::TooLarge { .. })));
 }
 
 fn other() -> MatchUps {

@@ -3,6 +3,7 @@
 //! stage pins the hash every platform must reproduce (ADR-019).
 
 use serde_json::{Value, json};
+use stella_rain_core::attack::MatchUp;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
@@ -155,7 +156,8 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
             DomainEvent::Hit {
                 source: EntityId(0),
                 target: EntityId(2),
-                damage: 10
+                damage: 10,
+                match_up: MatchUp::None,
             }
         ))
     ));
@@ -231,7 +233,8 @@ fn beating_the_boss_clears_the_stage() {
             &DomainEvent::Hit {
                 source: EntityId(0),
                 target: EntityId(1),
-                damage: 10
+                damage: 10,
+                match_up: MatchUp::None,
             },
             &DomainEvent::Died {
                 entity: EntityId(1)

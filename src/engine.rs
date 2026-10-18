@@ -10,11 +10,12 @@
 
 use std::sync::Arc;
 
-use crate::attack::{AttackPhase, Emitter};
+use crate::attack::{AttackPhase, DamageType, Emitter};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::input::Input;
+use crate::match_ups::MatchUps;
 use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
@@ -557,6 +558,9 @@ pub(crate) struct State {
     /// The expertise gauge; `None` in a stage whose enemies and boss give no expertise points,
     /// which hashes nothing for it.
     pub expertise: Option<ExpertiseGauge>,
+    /// What each match-up does to a hit (ADR-100): content, fixed for the run and covered by
+    /// the content hash, so the state hash writes nothing for it.
+    pub match_ups: MatchUps,
 }
 
 /// The one expertise gauge of both weapons (ADR-078 §1 to §3), and its offers (ADR-079 §2, §3).
@@ -998,6 +1002,8 @@ pub(crate) struct BulletState {
     /// Fired by an ally rather than an enemy.
     pub friendly: bool,
     pub damage: u32,
+    /// The type of the phase that fired it (ADR-100); `None` is neutral.
+    pub damage_type: Option<DamageType>,
     /// Its hit breaks the main character's charge (core#83).
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
@@ -1020,6 +1026,7 @@ pub(crate) struct Hook {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
+    pub damage_type: Option<DamageType>,
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
     pub pull: Option<Pull>,
@@ -1105,6 +1112,8 @@ pub(crate) struct AttackTask {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
+    /// The type of the phase that started it, which its bullets carry (ADR-100).
+    pub damage_type: Option<DamageType>,
     /// The bullets it fires break the main character's charge (core#83).
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).

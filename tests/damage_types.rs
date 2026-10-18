@@ -89,7 +89,10 @@ fn against(profile: Value, ty: Option<&str>) -> Vec<(u32, MatchUp)> {
 #[test]
 fn a_listed_weakness_adds_20_percent() {
     let profile = json!({ "weak": ["pyro", "slash"] });
-    assert_eq!(against(profile.clone(), Some("pyro")), [(12, MatchUp::Weak)]);
+    assert_eq!(
+        against(profile.clone(), Some("pyro")),
+        [(12, MatchUp::Weak)]
+    );
     assert_eq!(against(profile, Some("slash")), [(12, MatchUp::Weak)]);
 }
 
@@ -103,14 +106,18 @@ fn a_listed_strength_takes_20_percent() {
 fn a_blanket_resist_covers_its_group_only() {
     let physical = json!({ "resist": "physical" });
     for ty in ["slash", "pierce", "strike"] {
-        assert_eq!(against(physical.clone(), Some(ty)), [(8, MatchUp::Resisted)]);
+        assert_eq!(
+            against(physical.clone(), Some(ty)),
+            [(8, MatchUp::Resisted)]
+        );
     }
     assert_eq!(against(physical, Some("cryo")), [(10, MatchUp::None)]);
     let elements = json!({ "resist": "elements" });
-    for ty in [
-        "pyro", "hydro", "electro", "cryo", "anemo", "geo", "dendro",
-    ] {
-        assert_eq!(against(elements.clone(), Some(ty)), [(8, MatchUp::Resisted)]);
+    for ty in ["pyro", "hydro", "electro", "cryo", "anemo", "geo", "dendro"] {
+        assert_eq!(
+            against(elements.clone(), Some(ty)),
+            [(8, MatchUp::Resisted)]
+        );
     }
     assert_eq!(against(elements, Some("pierce")), [(10, MatchUp::None)]);
 }
@@ -124,10 +131,19 @@ fn a_type_the_profile_does_not_name_is_none() {
 #[test]
 fn a_listed_type_wins_over_the_blanket() {
     let profile = json!({ "weak": ["pyro"], "strong": ["slash"], "resist": "elements" });
-    assert_eq!(against(profile.clone(), Some("pyro")), [(12, MatchUp::Weak)]);
-    assert_eq!(against(profile.clone(), Some("cryo")), [(8, MatchUp::Resisted)]);
+    assert_eq!(
+        against(profile.clone(), Some("pyro")),
+        [(12, MatchUp::Weak)]
+    );
+    assert_eq!(
+        against(profile.clone(), Some("cryo")),
+        [(8, MatchUp::Resisted)]
+    );
     let physical = json!({ "weak": ["strike"], "resist": "physical" });
-    assert_eq!(against(physical.clone(), Some("strike")), [(12, MatchUp::Weak)]);
+    assert_eq!(
+        against(physical.clone(), Some("strike")),
+        [(12, MatchUp::Weak)]
+    );
     assert_eq!(against(physical, Some("pierce")), [(8, MatchUp::Resisted)]);
 }
 
@@ -182,24 +198,44 @@ fn a_bullet_carries_its_phases_type() {
 }
 
 #[test]
+fn a_bullets_type_is_part_of_the_state_hash() {
+    // The same shot, typed or not, at an enemy with no profile: the hit deals the same, but
+    // while the bullet flies the states differ by its type.
+    let hash_after = |ty: Option<&str>, ticks: u32| {
+        let mut shot = shoot(10, "pyro");
+        match ty {
+            Some(ty) => shot["attack"]["inline"][0]["type"] = json!(ty),
+            None => {
+                shot["attack"]["inline"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("type");
+            }
+        }
+        // 100 pixels away, so that the bullet flies for a while.
+        let far = enemy(100_000, hold(CX + 25_600, CY), json!([]));
+        let mut e = engine(&striker(once(shot), wave(1, 1, 0, far, CX + 25_600, CY)));
+        for _ in 0..ticks {
+            e.step(idle());
+        }
+        e.state_hash()
+    };
+    assert_ne!(hash_after(Some("pyro"), 5), hash_after(None, 5));
+    assert_ne!(hash_after(Some("pyro"), 5), hash_after(Some("cryo"), 5));
+    // Once the bullet has hit, nothing typed is left.
+    assert_eq!(hash_after(Some("pyro"), 100), hash_after(None, 100));
+}
+
+#[test]
 fn damage_stays_bounded() {
-    // The largest base damage, weak: the 64-bit product saturates to 32 bits.
+    // The largest base damage a stage may give, weak: 12 000 dealt, in 64 bits. Past the
+    // validator's bounds the arithmetic saturates (`rules_v0::entity`'s own tests).
+    let max = validate::limits::MAX_DAMAGE;
     let st = striker(
-        once(strike(u32::MAX, Some("pyro"))),
+        once(strike(max, Some("pyro"))),
         target(Some(json!({ "weak": ["pyro"] })), 0),
     );
-    let mut e = engine(&st);
-    let seen = run_until(&mut e, idle(), 3, |_| false);
-    let dealt: Vec<_> = seen
-        .into_iter()
-        .filter_map(|(_, ev)| match ev {
-            DomainEvent::Hit {
-                damage, match_up, ..
-            } => Some((damage, match_up)),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(dealt, [(u32::MAX, MatchUp::Weak)]);
+    assert_eq!(hits(&st, COMPANION, 3), [(max / 100 * 120, MatchUp::Weak)]);
 }
 
 #[test]
@@ -229,7 +265,7 @@ fn bosses_their_parts_and_elites_have_their_own_profiles() {
 
     // An elite uses its own profile.
     let mut elite = enemy(100_000, hold(CX + 2_560, CY), json!([]));
-    elite["elite"] = json!({ "range": 0 });
+    elite["elite"] = json!({ "range": 25_600 });
     elite["profile"] = json!({ "resist": "physical" });
     let st = striker(
         once(strike(10, Some("slash"))),
@@ -334,7 +370,10 @@ fn the_validator_checks_boss_and_part_profiles() {
     let paths: Vec<_> = found.into_iter().map(|i| i.path).collect();
     assert_eq!(
         paths,
-        ["$.boss.profile.weak[1]", "$.boss.parts[0].profile.strong[0]"]
+        [
+            "$.boss.profile.weak[1]",
+            "$.boss.parts[0].profile.strong[0]"
+        ]
     );
 }
 

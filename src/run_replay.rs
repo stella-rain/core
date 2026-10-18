@@ -1,7 +1,8 @@
 //! The run replay (ADR-079 §5): a run of the launch game recorded as its setup, the SHA-256 of
 //! the game content it ran, the tick count, the final state hash, one input per tick and one
 //! stream of commands between ticks. Anyone can re-simulate it from the file and the content
-//! files it used (the run stats, the rewards and the stage skills): the setup names a mode
+//! files it used (the run stats, the rewards, the stage skills, the expertise and the
+//! match-ups): the setup names a mode
 //! whose content is bundled in `core`, so no stage file and no save data is needed.
 //!
 //! A `.replay` of a run is one JSON object. Its inputs are packed as a stage replay's are (see
@@ -20,8 +21,8 @@
 //! A replay may end on an open offer: a bug report may stop while the player looks at one.
 //!
 //! The content hash covers the mode's bundled file, every attack and weapon preset's
-//! definition, and the bytes of the run stats, the rewards and the stage skills (ADR-067,
-//! ADR-098), so any content update invalidates the replay rather than letting it drift. What
+//! definition, and the bytes of the run stats, the rewards, the stage skills, the expertise and
+//! the match-ups (ADR-067, ADR-098, ADR-100), so any content update invalidates the replay rather than letting it drift. What
 //! the rules do with the content is the `sim_version`'s, which the setup carries.
 
 use std::fmt;
@@ -56,7 +57,7 @@ pub struct RunReplay {
     /// What the run started from (ADR-079 §1).
     pub setup: RunSetup,
     /// The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every
-    /// preset, the run stats, the rewards, the stage skills and the expertise
+    /// preset, the run stats, the rewards, the stage skills, the expertise and the match-ups
     /// (`content_sha256_with`). Other content invalidates
     /// the replay.
     pub content_sha256: String,
@@ -272,7 +273,7 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 
 /// The SHA-256 of the game content a run of `mode` uses with `content`: the mode's bundled
 /// file, every preset's definition, and the bytes of the run stats, the rewards, the stage
-/// skills and the expertise, tagged and length-prefixed.
+/// skills, the expertise and the match-ups, tagged and length-prefixed.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
     let file = run_setup::mode_stage(mode)?;
@@ -283,10 +284,12 @@ pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]>
         &content.rewards().sha256(),
         &content.stage_skills().sha256(),
         &content.expertise().sha256(),
+        &content.match_ups().sha256(),
         presets::sources(),
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn hash_content<'a>(
     mode: &str,
     file: &[u8],
@@ -294,6 +297,7 @@ fn hash_content<'a>(
     rewards_sha256: &[u8; 32],
     stage_skills_sha256: &[u8; 32],
     expertise_sha256: &[u8; 32],
+    match_ups_sha256: &[u8; 32],
     sources: impl Iterator<Item = (u8, &'a str, &'a str)>,
 ) -> [u8; 32] {
     fn part(sha: &mut Sha256, kind: u8, id: &[u8], body: &[u8]) {
@@ -311,6 +315,7 @@ fn hash_content<'a>(
     part(&mut sha, b'r', b"rewards", rewards_sha256);
     part(&mut sha, b'k', b"stage_skills", stage_skills_sha256);
     part(&mut sha, b'e', b"expertise", expertise_sha256);
+    part(&mut sha, b'u', b"match_ups", match_ups_sha256);
     for (kind, id, definition) in sources {
         part(&mut sha, kind, id.as_bytes(), definition.as_bytes());
     }
@@ -650,6 +655,7 @@ mod tests {
     const REWARDS: [u8; 32] = [9; 32];
     const SKILLS: [u8; 32] = [5; 32];
     const EXPERTISE: [u8; 32] = [3; 32];
+    const MATCH_UPS: [u8; 32] = [1; 32];
 
     fn hash(mode: &str, file: &[u8], sources: &[(u8, &'static str, &'static str)]) -> [u8; 32] {
         hash_content(
@@ -659,6 +665,7 @@ mod tests {
             &REWARDS,
             &SKILLS,
             &EXPERTISE,
+            &MATCH_UPS,
             sources.iter().copied(),
         )
     }
@@ -676,6 +683,7 @@ mod tests {
             rewards,
             skills,
             expertise,
+            &MATCH_UPS,
             SOURCES.iter().copied(),
         )
     }
@@ -706,6 +714,20 @@ mod tests {
             base,
             files(&STATS, &REWARDS, &SKILLS, &[8; 32]),
             "the expertise"
+        );
+        assert_ne!(
+            base,
+            hash_content(
+                "trial",
+                b"{}",
+                &STATS,
+                &REWARDS,
+                &SKILLS,
+                &EXPERTISE,
+                &[8; 32],
+                SOURCES.iter().copied(),
+            ),
+            "the match-ups"
         );
         assert_ne!(
             base,

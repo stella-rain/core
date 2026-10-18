@@ -75,6 +75,7 @@ mod stars;
 pub(crate) use player::{charge_view, combo_view};
 mod select;
 
+use crate::attack::{DamageType, MatchUp, Profile};
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
     PartState, PlayerState, Progress, Pull, StarField, State,
@@ -270,6 +271,7 @@ pub(crate) fn initial_state(
             banished: vec![false; rewards],
         }),
         expertise: expertise::initial(stage, content.expertise()),
+        match_ups: *content.match_ups(),
     }
 }
 
@@ -460,6 +462,8 @@ struct Shot {
     owner: EntityId,
     friendly: bool,
     damage: u32,
+    /// Its type (ADR-100); `None` is neutral.
+    damage_type: Option<DamageType>,
     breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hit (ADR-070).
     pull: Option<Pull>,
@@ -481,6 +485,7 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
             owner: b.owner,
             friendly: b.friendly,
             damage: b.damage,
+            damage_type: b.damage_type,
             breaks_charge: b.breaks_charge,
             pull: b.pull,
             combo: b.combo,
@@ -514,12 +519,19 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
     Grid::new(circles, PLAYER_BULLET_RADIUS)
 }
 
-/// Damage to an enemy, a companion or the boss: raised by its vulnerability, reduced by its
-/// defence, reported, and credited to the shooter's aggro. Death is reported too. A combo
-/// step's hit adds expertise points (`expertise`).
+/// Damage to an enemy, a companion or the boss: raised by its vulnerability, changed by its
+/// match-up, reduced by its defence, reported, and credited to the shooter's aggro. Death is
+/// reported too. A combo step's hit adds expertise points (`expertise`).
 fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
-    let dealt = scale_damage(b.damage, 0, vulnerable, s.defence(target));
+    let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
+    let dealt = scale_damage(
+        b.damage,
+        0,
+        vulnerable,
+        s.match_ups.pct(match_up),
+        s.defence(target),
+    );
     let id = s.id_of(target);
     let hp = s.hp_mut(target);
     *hp = hp.saturating_sub(dealt);
@@ -528,6 +540,7 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         source: b.owner,
         target: id,
         damage: dealt,
+        match_up,
     });
     if dead {
         // A part breaks; everything else dies.
@@ -541,6 +554,17 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
     if b.combo {
         expertise::credit(stage, s, target, dead);
+    }
+}
+
+/// The profile of a target (ADR-100): an enemy's or an elite's own, the boss's, or a part's own.
+/// The main character and the companions have none.
+fn profile<'a>(stage: &'a Stage, s: &State, target: Who) -> Option<&'a Profile> {
+    match target {
+        Who::Enemy(i) => agent_def(stage, s.enemies[i].key).profile.as_ref(),
+        Who::Boss => stage.boss.as_ref()?.profile.as_ref(),
+        Who::BossPart(i) => stage.boss.as_ref()?.parts.get(i)?.profile.as_ref(),
+        Who::Player | Who::Companion(_) => None,
     }
 }
 
@@ -628,7 +652,8 @@ pub(super) fn pull_enemy(stage: &Stage, s: &mut State, i: usize, pull: Pull) {
 /// then invulnerable for a while.
 fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
-    let dealt = scale_damage(b.damage, 0, vulnerable, s.player.defence);
+    // The main character has no profile (ADR-100): every hit on it is neutral.
+    let dealt = scale_damage(b.damage, 0, vulnerable, 0, s.player.defence);
     let dealt = skill::absorb(s, dealt);
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
@@ -1132,5 +1157,29 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_bool(b.hook.as_ref().is_some_and(|hook| hook.combo));
         }
     }
+    // Last, and only while an attack or a bullet carries a damage type (ADR-100), so that the
+    // hashes of runs without types stay as they were: each one's type, 0 for neutral. A run's
+    // phases are content, which the content hash covers.
+    let typed = s.tasks.iter().any(|t| t.damage_type.is_some())
+        || s.bullets.iter().any(|b| {
+            b.damage_type.is_some() || b.hook.as_ref().is_some_and(|k| k.damage_type.is_some())
+        });
+    if typed {
+        h.write_u32(count(&s.tasks));
+        for t in &s.tasks {
+            h.write_u32(type_code(t.damage_type));
+        }
+        h.write_u32(count(&s.bullets));
+        for b in &s.bullets {
+            h.write_u32(type_code(b.damage_type));
+            h.write_u32(b.hook.as_ref().map_or(0, |k| type_code(k.damage_type)));
+        }
+    }
     h.finish()
+}
+
+/// A damage type in the state hash: its place in `DamageType::ALL` plus 1, or 0 for neutral.
+fn type_code(ty: Option<DamageType>) -> u32 {
+    ty.and_then(|ty| DamageType::ALL.iter().position(|t| *t == ty))
+        .map_or(0, |i| u32::try_from(i + 1).unwrap_or(u32::MAX))
 }
