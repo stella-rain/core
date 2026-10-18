@@ -14,9 +14,8 @@
 //! opens even though the kill clears the stage; the stars' offers due then never open.
 //!
 //! At the end of a tick the run survives, the first offer due opens, after the boss offer and
-//! the expertise levels' (`expertise`). It draws `OFFER_SIZE`
-//! candidates from the run's pool at the star's rarity, then from the rarities below while too
-//! few are left. It leaves out banished rewards, rewards at their limit, enchantments of a kind
+//! the expertise levels' (`expertise`). It draws `OFFER_SIZE` candidates from the run's pool
+//! at the star's rarity, then from the rarities below while too few are left. It leaves out banished rewards, rewards at their limit, enchantments of a kind
 //! already taken (ADR-078) and rewards it already holds. An offer with no candidate does not open, and the next one due is tried. While an
 //! offer is open the world stops. A choice (`choose`) takes a candidate, rerolls one, skips (a
 //! star's offer only), or banishes one; when it closes the offer, the next one due opens at
