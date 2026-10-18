@@ -307,3 +307,20 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
     // 20 + 30 percent: radius and offset half again.
     assert_eq!(swing(&mut e), arc(3_072, 12_288));
 }
+
+#[test]
+fn the_enchantment_effect_is_gone() {
+    // Range was the only enchantment; it is the `range_pct` effect now, and an `enchantment`
+    // reward no longer parses, nor a reward holding an `enchantment` field.
+    let file = |reward: Value| {
+        json!({ "schema_version": 0, "sim_version": 0, "rewards": [reward] }).to_string()
+    };
+    let old = json!({
+        "id": "reach", "rarity": "common", "effect": "enchantment", "amount": 20, "limit": 1,
+        "title": "Reach", "description": "", "enchantment": { "type": "range" }
+    });
+    assert!(Rewards::parse(file(old).as_bytes()).is_err());
+    let mut field = range("reach", 20, 1);
+    field["enchantment"] = json!({ "type": "range" });
+    assert!(Rewards::parse(file(field).as_bytes()).is_err());
+}
