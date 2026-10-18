@@ -15,6 +15,7 @@ use stella_rain_core::run_replay::{
 use stella_rain_core::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, RunStats, StatEffect};
 use stella_rain_core::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use stella_rain_core::validate::Error;
+use stella_rain_core::validate::limits::MAX_EVADE_CHARGES;
 
 mod common;
 
@@ -275,6 +276,27 @@ fn amounts_limits_and_texts_are_bounded() {
         &one_with("description", json!("a\u{7}b")),
         "$.rewards[0].description",
     );
+}
+
+#[test]
+fn an_extra_charge_reward_adds_one_to_the_most_charges_and_names_no_skill() {
+    let charge = |amount: u32| {
+        let mut v = one_with("effect", json!("evade_charge"));
+        v["rewards"][0]["amount"] = json!(amount);
+        v
+    };
+    let rewards = parse(&charge(1)).expect("one charge");
+    assert_eq!(rewards.rewards()[0].effect, RewardEffect::EvadeCharge);
+    assert_eq!(RewardEffect::EvadeCharge.stat(), None);
+    assert!(parse(&charge(u32::from(MAX_EVADE_CHARGES))).is_ok());
+    invalid_at(&charge(0), "$.rewards[0].amount");
+    invalid_at(
+        &charge(u32::from(MAX_EVADE_CHARGES) + 1),
+        "$.rewards[0].amount",
+    );
+    let mut named = charge(1);
+    named["rewards"][0]["skill"] = json!("black_hole");
+    invalid_at(&named, "$.rewards[0].skill");
 }
 
 fn stronger() -> Rewards {
