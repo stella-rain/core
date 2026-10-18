@@ -13,6 +13,7 @@ use crate::rewards::RewardsFile;
 use crate::run_replay::RunReplay;
 use crate::run_setup::RunSetup;
 use crate::run_stats::RunStatsFile;
+use crate::runes::RunesFile;
 use crate::snapshot::Snapshot;
 use crate::stage::Stage;
 use crate::stage_skill::StageSkillsFile;
@@ -40,5 +41,6 @@ pub fn all() -> Vec<(&'static str, String)> {
         ),
         ("expertise.schema.json", pretty(schema_for!(ExpertiseFile))),
         ("match_ups.schema.json", pretty(schema_for!(MatchUpsFile))),
+        ("runes.schema.json", pretty(schema_for!(RunesFile))),
     ]
 }
