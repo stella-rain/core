@@ -45,8 +45,7 @@
 //! hit boxes land in step 6. A run holds at most `MAX_ORBITS` orbits of `MAX_ORBS` orbs.
 //!
 //! Range rewards (ADR-099) widen the hit boxes of the combo steps started after they are taken,
-//! adding up over the picks (`player`). Enchantments (ADR-070, ADR-078) change those steps too:
-//! a range enchantment widens them the same way. A run holds at most one of each kind.
+//! adding up over the picks (`player`).
 //!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
@@ -241,7 +240,6 @@ pub(crate) fn initial_state(
             shield: None,
             orbits: Vec::new(),
             range_pct: 0,
-            enchantments: Vec::new(),
             aggro: 0,
             statuses: Vec::new(),
         },
@@ -904,12 +902,6 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_i32(o.angle);
     }
     h.write_u32(p.range_pct);
-    h.write_u32(count(&p.enchantments));
-    for e in &p.enchantments {
-        h.write_u32(u32::from(e.reward));
-        h.write_u32(u32::from(e.enchantment.index()));
-        h.write_u32(e.amount);
-    }
     let c = &p.combo;
     h.write_u32(c.path);
     h.write_u32(u32::from(c.depth));

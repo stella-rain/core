@@ -8,7 +8,7 @@ use crate::attack::{HitBox, PhaseKind};
 use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
-use crate::rewards::{Enchantment, Rarity};
+use crate::rewards::Rarity;
 
 /// An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -278,10 +278,6 @@ pub struct PlayerView {
     /// `MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub range_pct: u32,
-    /// The enchantments rewards gave, in the order they came (ADR-070, ADR-078): what changes
-    /// its combo steps. A range enchantment's wider hit boxes are already in `attacks`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub enchantments: Vec<EnchantmentView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
     /// one for each orb, in the order the orbits came (ADR-069).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -300,17 +296,6 @@ pub struct OrbitView {
     /// Ticks until the next round may start, counted from the last one's start; 0 while a
     /// round that outlasts it goes on.
     pub cooldown_left: u32,
-}
-
-/// An enchantment held (ADR-070, ADR-078).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct EnchantmentView {
-    /// The reward that gave it, for its name.
-    pub reward: ContentId,
-    pub enchantment: Enchantment,
-    /// Its strength: for range, how much wider, in percent.
-    pub amount: u32,
 }
 
 /// The stage skill held (ADR-075): what the skill button draws.

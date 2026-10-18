@@ -15,16 +15,16 @@ use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::input::Input;
-use crate::rewards::{Enchantment, Rarity, Rewards};
+use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
-    AttackView, BulletView, ChargeView, ComboView, EnchantmentView, EntityKind, EntityView,
-    EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView,
-    PlayerView, ProgressView, PullView, ShieldView, SkillView, Snapshot, StarView, WeaponRole,
+    AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView,
+    ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView, PlayerView,
+    ProgressView, PullView, ShieldView, SkillView, Snapshot, StarView, WeaponRole,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -440,24 +440,6 @@ impl Engine {
                     })
                     .collect(),
                 range_pct: s.player.range_pct,
-                enchantments: s
-                    .player
-                    .enchantments
-                    .iter()
-                    .filter_map(|h| {
-                        Some(EnchantmentView {
-                            reward: self
-                                .content
-                                .rewards()
-                                .rewards()
-                                .get(usize::from(h.reward))?
-                                .id
-                                .clone(),
-                            enchantment: h.enchantment,
-                            amount: h.amount,
-                        })
-                    })
-                    .collect(),
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -595,7 +577,7 @@ pub(crate) struct ExpertiseGauge {
     pub main_taken: Vec<u8>,
     pub sub_taken: Vec<u8>,
     /// What the range options taken add up to: every combo step's hit box that much wider,
-    /// with the range rewards' and a range enchantment's (ADR-070, ADR-099).
+    /// with the range rewards' (ADR-070, ADR-099).
     pub range_pct: u32,
     /// The Main and the Sub weapon's style, a place among its three, once chosen at level 3
     /// or 5; held for the run (ADR-078 §5).
@@ -710,9 +692,6 @@ pub(crate) struct PlayerState {
     pub orbits: Vec<OrbitState>,
     /// What the range rewards taken add up to, in percent, saturating (ADR-099).
     pub range_pct: u32,
-    /// The enchantments rewards gave (ADR-070, ADR-078), in the order they came, at most one of
-    /// each kind.
-    pub enchantments: Vec<EnchantmentState>,
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
 }
@@ -781,14 +760,6 @@ pub(crate) struct OrbitState {
     pub round: u8,
     pub cooldown_left: u32,
     pub angle: i32,
-}
-
-/// An enchantment held: its reward's place in the rewards file, its kind and its strength.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct EnchantmentState {
-    pub reward: u16,
-    pub enchantment: Enchantment,
-    pub amount: u32,
 }
 
 /// A pull pulling: its point, radius and strength (fixed-point units), and the ticks left, at

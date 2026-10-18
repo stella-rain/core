@@ -172,7 +172,6 @@ fn swing(e: &mut Engine) -> HitBox {
 fn a_range_reward_is_a_stat_like_effect_bounded_like_the_others() {
     let parsed = rewards(vec![range("reach", MAX_RANGE_PCT, 20)]);
     assert_eq!(parsed.rewards()[0].effect, RewardEffect::RangePct);
-    assert_eq!(parsed.rewards()[0].enchantment, None);
     let bad = |pct: u32, limit: u8| {
         let file = json!({ "schema_version": 0, "sim_version": 0,
                            "rewards": [range("reach", pct, limit)] });
@@ -182,7 +181,7 @@ fn a_range_reward_is_a_stat_like_effect_bounded_like_the_others() {
     assert!(bad(MAX_RANGE_PCT + 1, 1), "an amount past MAX_RANGE_PCT");
     assert!(bad(10, 0), "a limit of 0");
     assert!(bad(10, 21), "a limit past MAX_STACK");
-    assert!(!bad(10, 5), "a limit above 1, unlike an enchantment's");
+    assert!(!bad(10, 5), "a limit above 1");
 }
 
 #[test]
@@ -194,7 +193,6 @@ fn a_range_reward_taken_several_times_sums_up_to_the_clamp() {
     next_offer(&mut e);
     take(&mut e, "reach");
     assert_eq!(e.snapshot().player.range_pct, 40);
-    assert!(e.snapshot().player.enchantments.is_empty());
 
     // 40 percent: radius and offset 1.4 times.
     assert_eq!(swing(&mut e), hit_box(circle(1_433, 11_468)));

@@ -12,8 +12,8 @@
 //! with the perfect bonus inside a window; at `max_ticks` it releases by itself. Presses while
 //! charging are not buffered. An evade cancels the running step, breaks a charge and clears the
 //! buffer, and a press during its dash or `dash_strike_ticks` after it takes the dash branch.
-//! Every step's attack is wider by the range rewards taken, a range enchantment held and the
-//! expertise range options (ADR-070, ADR-078, ADR-099), at most `MAX_RANGE_PCT` in all.
+//! Every step's attack is wider by the range rewards and the expertise range options taken
+//! (ADR-078, ADR-099), at most `MAX_RANGE_PCT` in all.
 //!
 //! Aim assist (ADR-072): while `assist` or `auto` is on, each tick picks a target; with `assist`
 //! on, a step faces it as its attack starts. Auto mode (ADR-073): while `auto` is on, there is a
@@ -24,13 +24,13 @@
 //! becomes the auto combo when it resets, unless it began in the dash branch.
 
 use crate::attack::AttackRef;
-use crate::engine::{ComboState, DashState, Dir, EnchantmentState, PlayerState, Pull, State};
+use crate::engine::{ComboState, DashState, Dir, PlayerState, Pull, State};
 use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
 use crate::presets;
-use crate::rewards::{Enchantment, Rewards};
+use crate::rewards::Rewards;
 use crate::stage::Stage;
 use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
@@ -177,28 +177,6 @@ pub(super) fn add_evade_charges(stage: &Stage, p: &mut PlayerState, amount: u32)
         .max(p.evade_charges);
     let more = u8::try_from(amount).unwrap_or(u8::MAX);
     p.evade_charges = p.evade_charges.saturating_add(more).min(most);
-}
-
-/// A taken reward, at `reward` in the rewards file, gives its enchantment of `amount`, unless one
-/// of its kind is held: offers leave such rewards out, and the check keeps an unvalidated file
-/// to one of each kind too.
-pub(super) fn enchant(p: &mut PlayerState, reward: u16, enchantment: Enchantment, amount: u32) {
-    if p.enchantments.iter().any(|e| e.enchantment == enchantment) {
-        return;
-    }
-    p.enchantments.push(EnchantmentState {
-        reward,
-        enchantment,
-        amount,
-    });
-}
-
-/// How much wider a range enchantment held makes a combo step, in percent; 0 without one.
-fn range_pct(p: &PlayerState) -> u32 {
-    p.enchantments
-        .iter()
-        .find(|e| e.enchantment == Enchantment::Range)
-        .map_or(0, |e| e.amount)
 }
 
 /// One tick of the dash: the `k`th tick moves from `distance × (k − 1) / ticks` to
@@ -412,8 +390,8 @@ fn take_step(
 }
 
 /// The current step's attack starts in the combo slot along the facing (ADR-069), at the
-/// stage's attack stat, faster by the attack speed, wider by a range enchantment, the range
-/// rewards and the expertise range options taken (at most `MAX_RANGE_PCT` in all), with
+/// stage's attack stat, faster by the attack speed, wider by the range rewards and the
+/// expertise range options taken (at most `MAX_RANGE_PCT` in all), with
 /// `bonus_pct` and, for a combo part, the Sub weapon's pull. When it `aim`s and there is a target, the facing first turns to it
 /// (ADR-072).
 fn strike(
@@ -442,8 +420,9 @@ fn strike(
     let strike = attacks::Strike {
         bonus_pct,
         speed_pct: levels::attack_speed(s),
-        range_pct: range_pct(&s.player)
-            .saturating_add(s.player.range_pct)
+        range_pct: s
+            .player
+            .range_pct
             .saturating_add(s.expertise.as_ref().map_or(0, |g| g.range_pct)),
         pull,
     };
