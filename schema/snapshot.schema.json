@@ -16,6 +16,17 @@
         "$ref": "#/$defs/EntityView"
       }
     },
+    "expertise": {
+      "description": "The expertise gauge (ADR-078); absent in a stage whose enemies and boss give no\nexpertise points.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExpertiseView"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "map": {
       "description": "The map's size, so the frontend can bound its camera (core#87).",
       "$ref": "#/$defs/MapView"
@@ -418,6 +429,36 @@
         "charges",
         "ready",
         "dash_left"
+      ]
+    },
+    "ExpertiseView": {
+      "description": "The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, and its\npoints toward the next. A level opens nothing yet.",
+      "type": "object",
+      "properties": {
+        "level": {
+          "description": "From 0, with no highest level.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "next": {
+          "description": "Points the next level needs.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "points": {
+          "description": "Points gained toward the next level.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "points",
+        "next"
       ]
     },
     "Facing": {
