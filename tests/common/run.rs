@@ -30,7 +30,7 @@ pub fn trial_setup() -> RunSetup {
 /// Side to side, and the `blade`'s combos in a 60-tick cycle: `main` on its ticks 0, 8 and 16
 /// (slash, slash, thrust), the thrust held to tick 40 in every other cycle (a charge released at
 /// level 1, inside its perfect window), and `sub` on 44 and 52 (a thrust and a slash, with the
-/// `maul`'s pull).
+/// `maul`'s pull); the stage skill pressed on tick 30 of every cycle.
 pub fn run_script(tick: u32) -> Input {
     let c = tick % 60;
     let charging = (tick / 60) % 2 == 1 && (16..40).contains(&c);
@@ -39,6 +39,7 @@ pub fn run_script(tick: u32) -> Input {
         move_y: 0,
         main: matches!(c, 0 | 8 | 16) || charging,
         sub: c == 44 || c == 52,
+        skill: c == 30,
         ..Input::default()
     }
 }

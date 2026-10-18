@@ -838,6 +838,7 @@ fn the_run_cases_are_what_their_names_say() {
     let mut engine = Engine::start(&replay.setup).unwrap();
     let mut next = commands.iter().peekable();
     let mut kinds = Vec::new();
+    let mut skill_used = false;
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             if c.kind == CommandKind::Choose {
@@ -849,7 +850,14 @@ fn the_run_cases_are_what_their_names_say() {
             }
         }
         engine.step(input);
+        skill_used |= engine.events().iter().any(|e| {
+            matches!(
+                e,
+                stella_rain_core::event::DomainEvent::StageSkillUsed { .. }
+            )
+        });
     }
+    assert!(skill_used, "a stage skill from a star is used");
     use stella_rain_core::snapshot::OfferOption::{Banish, Reroll, Skip, Take};
     for kind in [
         Take { candidate: 0 },
