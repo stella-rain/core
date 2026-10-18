@@ -58,6 +58,23 @@ pub struct Snapshot {
     /// Experience, level, stat points and the open offer; absent in a stage without levels.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<ProgressView>,
+    /// The expertise gauge (ADR-078); absent in a stage whose enemies and boss give no
+    /// expertise points.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expertise: Option<ExpertiseView>,
+}
+
+/// The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, and its
+/// points toward the next. A level opens nothing yet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExpertiseView {
+    /// From 0, with no highest level.
+    pub level: u32,
+    /// Points gained toward the next level.
+    pub points: u32,
+    /// Points the next level needs.
+    pub next: u32,
 }
 
 /// Where the run stands in experience, levels and stat points (ADR-079 §2, §4).

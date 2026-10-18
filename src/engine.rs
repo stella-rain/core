@@ -496,6 +496,7 @@ impl Engine {
                 spent: p.spent.clone(),
                 offer: rules_v0::offer_view(self.content.rewards(), s),
             }),
+            expertise: None,
         }
     }
 }
