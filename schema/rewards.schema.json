@@ -806,8 +806,11 @@
       "type": "object",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for a type\nbonus, the percent, from 1 to `MAX_AMOUNT`.",
-          "type": "integer",
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for a type\nbonus, the percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random\nrune, which has none.",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint32",
           "minimum": 0
         },
@@ -823,8 +826,11 @@
           "$ref": "#/$defs/ContentId"
         },
         "limit": {
-          "description": "The most times one run takes it, from 1 to `MAX_STACK`.",
-          "type": "integer",
+          "description": "The most times one run takes it, from 1 to `MAX_STACK`. Required by every effect but\nthe random rune, which has none of its own.",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint8",
           "maximum": 255,
           "minimum": 0
@@ -875,14 +881,12 @@
         "id",
         "rarity",
         "effect",
-        "amount",
-        "limit",
         "title",
         "description"
       ]
     },
     "RewardEffect": {
-      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, a stage\nskill, more evade charges, an orbit, range, or a type bonus.",
+      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, a stage\nskill, more evade charges, an orbit, range, a type bonus, or a random rune.",
       "oneOf": [
         {
           "type": "string",
@@ -929,6 +933,11 @@
           "description": "Its attacks of every element `amount` percent stronger.",
           "type": "string",
           "const": "element_bonus_pct"
+        },
+        {
+          "description": "One rune the Main weapon does not hold, drawn from the run's generator when the reward\nis picked, never before: an offer shows it hidden (ADR-099). It is offered only while\nthe Main lacks a rune.",
+          "type": "string",
+          "const": "random_rune"
         }
       ]
     }
