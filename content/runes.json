@@ -1,0 +1,19 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "on_hit": [
+    {
+      "rune": "explosion",
+      "cooldown_ticks": 120,
+      "damage": 15,
+      "attack": [
+        {
+          "kind": "active",
+          "ticks": 6,
+          "type": "pyro",
+          "hit_box": { "type": "circle", "radius": 10240 }
+        }
+      ]
+    }
+  ]
+}

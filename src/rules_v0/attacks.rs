@@ -132,6 +132,7 @@ pub(super) fn start_with(
         age,
         0,
         None,
+        None,
         events,
     );
     true
@@ -188,6 +189,40 @@ pub(super) fn start_player(
         0,
         strike.bonus_pct,
         strike.pull,
+        None,
+        events,
+    );
+    true
+}
+
+/// Starts an on-hit rune's attack `phases` for the main character in `slot`, its hit boxes
+/// centred on `at` and facing `facing`, at `base_damage` (ADR-099): raised by its atk-up and type
+/// bonuses as they are now, as any of its attacks, but no combo step's. False, starting
+/// nothing, if the slot is busy.
+pub(super) fn start_rune(
+    s: &mut State,
+    slot: u8,
+    at: Point,
+    facing: Dir,
+    phases: Arc<Vec<AttackPhase>>,
+    base_damage: u32,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
+    if busy(s, s.id_of(Who::Player), slot) || phases.is_empty() {
+        return false;
+    }
+    launch(
+        s,
+        Who::Player,
+        slot,
+        Aim::Fixed(facing),
+        &AttackRef::Inline(Vec::new()),
+        phases,
+        base_damage,
+        0,
+        0,
+        None,
+        Some(at),
         events,
     );
     true
@@ -256,6 +291,7 @@ fn launch(
     age: u32,
     bonus_pct: u32,
     pull: Option<Pull>,
+    at: Option<Point>,
     events: &mut Vec<DomainEvent>,
 ) {
     let id = s.id_of(owner);
@@ -288,6 +324,7 @@ fn launch(
         age,
         hits: Vec::new(),
         pull,
+        at,
     });
     begin_phase(s, s.runs.len() - 1, events);
 }
@@ -392,7 +429,7 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         owner: r.owner,
         program: Arc::new(p.spawn.clone()),
         base: Vec::new(),
-        origin: Origin::Owner,
+        origin: r.at.map_or(Origin::Owner, Origin::At),
         aim: r.aim,
         friendly: r.friendly,
         damage: phase_damage(r),

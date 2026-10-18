@@ -1,7 +1,8 @@
 //! Hit boxes (ADR-055): every active phase with a hit box hurts the targets inside it, in the
 //! collision step, before bullets.
 //!
-//! - A hit box follows its attacker and faces the way the attack faced when it started. Its
+//! - A hit box follows its attacker, or stays on the point an on-hit rune's attack fired at
+//!   (ADR-099), and faces the way the attack faced when it started. Its
 //!   offset is forward along that facing and to the attacker's right as seen from above: a
 //!   quarter turn clockwise on the screen, so facing down the screen its right is the screen's
 //!   left.
@@ -110,7 +111,12 @@ fn active_swings(s: &State) -> Vec<Swing> {
             owner: r.owner,
             slot: r.slot,
             friendly: r.friendly,
-            centre: centre(s.at(owner), r.facing, offset.forward.0, offset.right.0),
+            centre: centre(
+                r.at.unwrap_or_else(|| s.at(owner)),
+                r.facing,
+                offset.forward.0,
+                offset.right.0,
+            ),
             facing: r.facing,
             radius: radius.0,
             arc,

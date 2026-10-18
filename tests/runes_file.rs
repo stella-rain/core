@@ -12,9 +12,7 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::rune::Rune;
-use stella_rain_core::runes::{
-    MAX_RUNE_COOLDOWN_TICKS, MAX_RUNE_PHASES, MAX_RUNES_BYTES, Runes,
-};
+use stella_rain_core::runes::{MAX_RUNE_COOLDOWN_TICKS, MAX_RUNE_PHASES, MAX_RUNES_BYTES, Runes};
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::MAX_DAMAGE;
 
@@ -54,7 +52,9 @@ fn paths(e: Error) -> Vec<String> {
 #[test]
 fn the_bundled_explosion_is_a_pyro_circle_on_its_own_cooldown() {
     // Placeholder numbers: Kade tunes them.
-    let explosion = Runes::bundled().on_hit(Rune::Explosion).expect("explosion's entry");
+    let explosion = Runes::bundled()
+        .on_hit(Rune::Explosion)
+        .expect("explosion's entry");
     assert_eq!(explosion.cooldown_ticks, 120);
     assert_eq!(explosion.damage, 15);
     assert_eq!(explosion.attack.len(), 1);
@@ -71,10 +71,19 @@ fn a_file_parses_with_its_numbers() {
 
 #[test]
 fn the_cooldown_is_1_to_the_hard_cap() {
-    let with = |cooldown: u32| file(vec![explosion(json!(cooldown), json!(5), json!([active(2)]))]);
+    let with = |cooldown: u32| {
+        file(vec![explosion(
+            json!(cooldown),
+            json!(5),
+            json!([active(2)]),
+        )])
+    };
     assert!(parse(&with(2)).is_ok());
     assert!(parse(&with(MAX_RUNE_COOLDOWN_TICKS)).is_ok());
-    assert_eq!(paths(parse(&with(0)).unwrap_err()), ["$.on_hit[0].cooldown_ticks"]);
+    assert_eq!(
+        paths(parse(&with(0)).unwrap_err()),
+        ["$.on_hit[0].cooldown_ticks"]
+    );
     assert_eq!(
         paths(parse(&with(MAX_RUNE_COOLDOWN_TICKS + 1)).unwrap_err()),
         ["$.on_hit[0].cooldown_ticks"]
@@ -83,7 +92,13 @@ fn the_cooldown_is_1_to_the_hard_cap() {
 
 #[test]
 fn the_damage_is_1_to_the_hard_cap() {
-    let with = |damage: u32| file(vec![explosion(json!(30), json!(damage), json!([active(4)]))]);
+    let with = |damage: u32| {
+        file(vec![explosion(
+            json!(30),
+            json!(damage),
+            json!([active(4)]),
+        )])
+    };
     assert!(parse(&with(1)).is_ok());
     assert!(parse(&with(MAX_DAMAGE)).is_ok());
     assert_eq!(paths(parse(&with(0)).unwrap_err()), ["$.on_hit[0].damage"]);
@@ -125,7 +140,10 @@ fn the_attack_lands_somewhere_and_from_the_tick_after_it_fires() {
     // Its first phase counts the tick it fires on, after that tick's hits: one tick of it
     // would never land.
     let v = file(vec![explosion(json!(30), json!(5), json!([active(1)]))]);
-    assert_eq!(paths(parse(&v).unwrap_err()), ["$.on_hit[0].attack[0].ticks"]);
+    assert_eq!(
+        paths(parse(&v).unwrap_err()),
+        ["$.on_hit[0].attack[0].ticks"]
+    );
 }
 
 #[test]

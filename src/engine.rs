@@ -23,6 +23,7 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::rune::Rune;
+use crate::runes::Runes;
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView,
     ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView, PlayerView,
@@ -304,6 +305,7 @@ impl Engine {
                     x: r.facing.x,
                     y: r.facing.y,
                 },
+                at: r.at,
             }
         };
         let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
@@ -581,6 +583,8 @@ pub(crate) struct State {
     /// What each match-up does to a hit (ADR-100): content, fixed for the run and covered by
     /// the content hash, so the state hash writes nothing for it.
     pub match_ups: MatchUps,
+    /// What each on-hit rune does when it fires (ADR-099): content, as the match-ups are.
+    pub runes: Runes,
 }
 
 /// The one expertise gauge of both weapons (ADR-078 §1 to §3), and its offers (ADR-079 §2, §3).
@@ -793,8 +797,8 @@ pub(crate) struct OrbitState {
     pub angle: i32,
 }
 
-/// A rune the Main weapon holds, and for an on-hit rune the ticks until it may fire again: 0,
-/// as no rune fires yet; always 0 for a damage-over-time rune.
+/// A rune the Main weapon holds, and for an on-hit rune the ticks until it may fire again;
+/// always 0 for a damage-over-time rune.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct HeldRune {
     pub rune: Rune,
@@ -1136,6 +1140,9 @@ pub(crate) struct AttackRun {
     pub hits: Vec<(EntityId, u32)>,
     /// The Sub weapon's pull, when the attack is a combo part (ADR-070).
     pub pull: Option<Pull>,
+    /// Where its hit boxes are centred instead of on its attacker: an on-hit rune's attack, at
+    /// the point the combo step hit (ADR-099).
+    pub at: Option<Point>,
 }
 
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it

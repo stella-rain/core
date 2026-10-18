@@ -209,7 +209,10 @@ fn cooldown(e: &Engine) -> u32 {
 
 /// The stage with one small enemy and the tough target, the explosion taken from its star.
 fn holding(runes: Runes, target: Value) -> Engine {
-    let mut e = with(&stage(1, target), &content(vec![random_rune()], None, runes));
+    let mut e = with(
+        &stage(1, target),
+        &content(vec![random_rune()], None, runes),
+    );
     take(&mut e, "random_rune");
     assert_eq!(
         e.snapshot().player.runes,
@@ -269,7 +272,10 @@ fn the_explosion_hits_everything_around_the_point() {
     );
     let mut s = stage(1, tough(0, None, None));
     s.waves.push(serde_json::from_value(behind).unwrap());
-    let mut e = with(&s, &content(vec![random_rune()], None, runes(30, BLAST, 2, None)));
+    let mut e = with(
+        &s,
+        &content(vec![random_rune()], None, runes(30, BLAST, 2, None)),
+    );
     take(&mut e, "random_rune");
     while e.tick() < TARGET_TICK {
         e.step(idle());
@@ -345,7 +351,13 @@ fn without_the_rune_a_step_fires_nothing() {
     let target = wait_for_target(&mut e);
     let seen = hits(&mut e, target, 100, |t| firing(idle(), t));
     assert!(of(&seen, BLAST).is_empty());
-    assert!(e.snapshot().player.attacks.iter().all(|a| a.slot != RUNE_SLOT));
+    assert!(
+        e.snapshot()
+            .player
+            .attacks
+            .iter()
+            .all(|a| a.slot != RUNE_SLOT)
+    );
 }
 
 #[test]
@@ -391,7 +403,11 @@ fn an_orbit_s_hits_fire_no_explosion() {
         TARGET_TICK,
         1,
         0,
-        enemy(100_000, json!({ "type": "straight", "vx": 0, "vy": 0 }), json!([])),
+        enemy(
+            100_000,
+            json!({ "type": "straight", "vx": 0, "vy": 0 }),
+            json!([])
+        ),
         START_X + 10_240,
         START_Y
     ));
@@ -425,7 +441,11 @@ fn a_stage_skill_s_hits_fire_no_explosion() {
         TARGET_TICK,
         1,
         0,
-        enemy(100_000, json!({ "type": "straight", "vx": 0, "vy": 0 }), json!([])),
+        enemy(
+            100_000,
+            json!({ "type": "straight", "vx": 0, "vy": 0 }),
+            json!([])
+        ),
         START_X,
         START_Y - ahead
     ));
@@ -457,7 +477,7 @@ fn boosted(ty: Option<&str>) -> (u32, u32) {
         "description": "",
         "levels": [{ "cooldown_ticks": 1_000, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
-              "duration_ticks": 1_000 }
+              "duration_ticks": 600 }
         ] }] });
     let rewards = vec![
         random_rune(),

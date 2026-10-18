@@ -29,6 +29,7 @@ pub mod run_replay;
 pub mod run_setup;
 pub mod run_stats;
 pub mod rune;
+pub mod runes;
 pub mod schema;
 pub mod share;
 pub mod snapshot;

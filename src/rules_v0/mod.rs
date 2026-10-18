@@ -53,6 +53,10 @@
 //! that type's, after atk-up (`attacks::phase_damage`), and the match-up multiplies it at the
 //! hit.
 //!
+//! On-hit runes (ADR-099, `runes`): each cooldown counts down in step 1; a combo step's hit in
+//! step 6 fires each one held and ready, an attack in its own slot whose hit boxes stay on the
+//! point hit and land from the next tick, and sets its cooldown. Its hits are no combo step's.
+//!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
@@ -281,6 +285,7 @@ pub(crate) fn initial_state(
         }),
         expertise: expertise::initial(stage, content.expertise()),
         match_ups: *content.match_ups(),
+        runes: content.runes().clone(),
     }
 }
 
@@ -301,6 +306,7 @@ pub(crate) fn step(
 
     spawn_waves(stage, s);
     entity::tick_statuses_and_aggro(s);
+    runes::tick(s);
     attacks::advance_runs(s, events);
     player::update(stage, rewards, s, input, events);
     orbit::act(stage, rewards, s, events);
@@ -530,7 +536,8 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
 
 /// Damage to an enemy, a companion or the boss: raised by its vulnerability, changed by its
 /// match-up, reduced by its defence, reported, and credited to the shooter's aggro. Death is
-/// reported too. A combo step's hit adds expertise points (`expertise`).
+/// reported too. A combo step's hit adds expertise points (`expertise`) and fires the on-hit
+/// runes that are ready (`runes`).
 fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
@@ -564,6 +571,10 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
     if b.combo {
         expertise::credit(stage, s, target, dead);
+        if !s.player.runes.is_empty() {
+            let at = s.at(target);
+            runes::on_hit(s, at, events);
+        }
     }
 }
 
@@ -1204,12 +1215,25 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         }
     }
     // Last, and only while the Main weapon holds a rune (ADR-099), so that the hashes of runs
-    // without one stay as they were: each rune held and its cooldown left. Runes never go.
+    // without one stay as they were: each rune held and its cooldown left, then where each
+    // on-hit rune's attack in progress is centred, by its place in `runs`. Runes never go.
     if !s.player.runes.is_empty() {
         h.write_u32(count(&s.player.runes));
         for r in &s.player.runes {
             h.write_u32(u32::from(r.rune.index()));
             h.write_u32(r.cooldown_left);
+        }
+        let centred = || {
+            s.runs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, r)| Some((i, r.at?)))
+        };
+        h.write_u32(u32::try_from(centred().count()).unwrap_or(u32::MAX));
+        for (i, at) in centred() {
+            h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
+            h.write_i32(at.x.0);
+            h.write_i32(at.y.0);
         }
     }
     h.finish()
