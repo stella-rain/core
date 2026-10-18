@@ -165,7 +165,11 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
         seeds.extend(run_replays());
     }
     if target == "stage_parse" {
-        for file in ["content/rewards.json", "content/run_stats.json"] {
+        for file in [
+            "content/rewards.json",
+            "content/run_stats.json",
+            "content/stage_skills.json",
+        ] {
             seeds.push(fs::read(root().join(file)).expect("bundled content"));
         }
     }
