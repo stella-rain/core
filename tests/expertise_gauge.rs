@@ -1,8 +1,9 @@
 //! The expertise gauge (ADR-078 §2, §3): one gauge for both weapons. A hit and a kill by an A
 //! or a B step of the combo add the enemy's points to it; other damage gives none. Content
 //! thresholds take it through levels 1 to 10, then each level needs the one before's points
-//! times the growth factor, saturating at the content maximum. A level reached raises the
-//! level and opens nothing yet. Every number here is worked out by hand.
+//! times the growth factor, saturating at the content maximum. The weapons here are inline,
+//! with no expertise content, so a level opens no offer (`expertise_offers.rs` tests those).
+//! Every number here is worked out by hand.
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -80,6 +81,7 @@ fn view(level: u32, points: u32, next: u32) -> ExpertiseView {
         level,
         points,
         next,
+        ..ExpertiseView::default()
     }
 }
 

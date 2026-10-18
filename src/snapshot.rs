@@ -64,9 +64,9 @@ pub struct Snapshot {
     pub expertise: Option<ExpertiseView>,
 }
 
-/// The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, and its
-/// points toward the next. A level opens nothing yet.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+/// The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, its points
+/// toward the next, the common options taken, and the open expertise offer (ADR-079 §3).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExpertiseView {
     /// From 0, with no highest level.
@@ -75,6 +75,53 @@ pub struct ExpertiseView {
     pub points: u32,
     /// Points the next level needs.
     pub next: u32,
+    /// Times each option of the Main weapon's common pool was taken, in the pool's order; empty
+    /// for a weapon with no expertise content.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub main_taken: Vec<u8>,
+    /// The same for the Sub weapon's common pool.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sub_taken: Vec<u8>,
+    /// The open expertise offer: while it is open the world is stopped, and `Engine::choose`
+    /// takes one of its options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offer: Option<ExpertiseOfferView>,
+}
+
+/// Which of the main character's two weapons (ADR-070).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum WeaponRole {
+    Main,
+    Sub,
+}
+
+/// An expertise offer of common options (ADR-078 §4, §6; ADR-079 §3): drawn from one weapon's
+/// common pool, with a reroll of each candidate and no skip or banish.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExpertiseOfferView {
+    /// The expertise level that opened it.
+    pub level: u32,
+    /// The weapon whose pool it draws from.
+    pub weapon: WeaponRole,
+    pub candidates: Vec<ExpertiseCandidateView>,
+    /// What `Engine::choose` takes, by index: the candidates, then a reroll of each while
+    /// rerolls are left and another option could come.
+    pub options: Vec<OfferOption>,
+    /// Rerolls left in the run, shared with the stars' offers.
+    pub rerolls_left: u32,
+}
+
+/// An option an expertise offer holds.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExpertiseCandidateView {
+    /// Its ID in the weapon's common pool.
+    pub option: ContentId,
+    /// Taking it brings it to its stack limit, after which it is offered no more.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reaches_limit: bool,
 }
 
 /// Where the run stands in experience, levels and stat points (ADR-079 §2, §4).

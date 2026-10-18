@@ -21,12 +21,15 @@
 //! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears;
-//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered;
-//!    a clear opens only the boss offer of the boss kill that made it.
+//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered:
+//!    the boss offer, then the expertise levels' in level order, then the stars' in the order
+//!    taken; a clear opens only the boss offer and the expertise levels' offers, not the
+//!    stars'.
 //!
 //! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
 //! step 6 adds them to the one expertise gauge, and its levels are reached at the end of step 6
-//! (`expertise`); a level opens nothing yet.
+//! (`expertise`). Each level reached is due an offer of its weapon's common options; the style
+//! levels open nothing yet.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks. In
@@ -86,14 +89,16 @@ use crate::rewards::Rewards;
 use crate::rng::SplitMix64;
 use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
+use crate::snapshot::OfferOption;
 use crate::stage::Stage;
 use crate::trig;
 
 pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
+pub(crate) use expertise::offer_view as expertise_offer_view;
 use grid::Grid;
 pub(crate) use levels::{spend, xp_next};
-pub(crate) use stars::{choose, offer_view, options as offer_options};
+pub(crate) use stars::offer_view;
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
@@ -306,10 +311,10 @@ pub(crate) fn step(
     expertise::level_up(expertise, s);
     decide_outcome(stage, s, events);
     match s.outcome {
-        Outcome::Running => stars::open_due(rewards, s, events),
+        Outcome::Running => open_offers(stage, rewards, expertise, s, events),
         Outcome::Cleared => {
             stars::run_over(s);
-            stars::open_due(rewards, s, events);
+            open_offers(stage, rewards, expertise, s, events);
         }
         Outcome::Failed => {}
     }
@@ -317,6 +322,58 @@ pub(crate) fn step(
         entity::enemies_in_id_order(s),
         "enemies out of entity-ID order"
     );
+}
+
+/// An offer is open, a star's, a boss's or an expertise level's: the world is stopped.
+pub(crate) fn offer_open(s: &State) -> bool {
+    s.stars.as_ref().is_some_and(|f| f.offer.is_some())
+        || s.expertise.as_ref().is_some_and(|g| g.offer.is_some())
+}
+
+/// Opens the first offer due, unless one is open: the boss offer, then the expertise levels'
+/// in level order, then the stars' in the order taken (ADR-079 §2).
+fn open_offers(
+    stage: &Stage,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    events: &mut Vec<DomainEvent>,
+) {
+    stars::open_due(rewards, s, events, true);
+    expertise::open_due(stage, expertise, s, events);
+    stars::open_due(rewards, s, events, false);
+}
+
+/// The options of the open offer, in index order; empty without one.
+pub(crate) fn offer_options(
+    stage: &Stage,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &State,
+) -> Vec<OfferOption> {
+    if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
+        expertise::options(stage, expertise, s)
+    } else {
+        stars::options(rewards, s)
+    }
+}
+
+/// Carries out `option`, one of `offer_options`, on the open offer; when that closes it, the
+/// next offer due opens.
+pub(crate) fn choose(
+    stage: &Stage,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    option: OfferOption,
+    events: &mut Vec<DomainEvent>,
+) {
+    if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
+        expertise::choose(stage, expertise, s, option, events);
+    } else {
+        stars::choose(stage, rewards, s, option, events);
+    }
+    open_offers(stage, rewards, expertise, s, events);
 }
 
 fn count<T>(items: &[T]) -> u32 {
@@ -1040,6 +1097,26 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(g.level);
         h.write_u32(g.points);
         h.write_u32(g.next);
+        h.write_u32(g.offered);
+        match &g.offer {
+            Some(o) => {
+                h.write_bool(true);
+                h.write_u32(o.level);
+                h.write_u32(o.weapon as u32);
+                h.write_u32(count(&o.candidates));
+                for c in &o.candidates {
+                    h.write_u32(u32::from(*c));
+                }
+            }
+            None => h.write_bool(false),
+        }
+        for taken in [&g.main_taken, &g.sub_taken] {
+            h.write_u32(count(taken));
+            for n in taken.iter() {
+                h.write_u32(u32::from(*n));
+            }
+        }
+        h.write_u32(g.range_pct);
         h.write_u32(count(&s.tasks));
         for t in &s.tasks {
             h.write_bool(t.combo);

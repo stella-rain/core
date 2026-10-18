@@ -24,7 +24,7 @@ use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, EnchantmentView, EntityKind, EntityView,
     EvadeView, ExpertiseView, Facing, MapView, OfferKind, OrbitView, PlayerView, ProgressView,
-    PullView, ShieldView, SkillView, Snapshot, StarView,
+    PullView, ShieldView, SkillView, Snapshot, StarView, WeaponRole,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -180,8 +180,8 @@ impl Engine {
         if !self.offer_open() {
             return Err(ChoiceError::NoOffer);
         }
-        let rewards = self.content.rewards();
-        let options = rules_v0::offer_options(rewards, &self.state);
+        let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
+        let options = rules_v0::offer_options(&self.stage, rewards, expertise, &self.state);
         let Some(option) = usize::try_from(index)
             .ok()
             .and_then(|i| options.get(i))
@@ -197,6 +197,7 @@ impl Engine {
             0 => rules_v0::choose(
                 &self.stage,
                 rewards,
+                expertise,
                 &mut self.state,
                 option,
                 &mut self.events,
@@ -265,7 +266,7 @@ impl Engine {
 
     /// An offer is open: `step` does nothing until `choose` closes it (ADR-079 §3).
     pub fn offer_open(&self) -> bool {
-        self.state.stars.as_ref().is_some_and(|f| f.offer.is_some())
+        rules_v0::offer_open(&self.state)
     }
 
     /// FNV-1a 64 over the whole state after the last tick (ADR-019).
@@ -497,10 +498,13 @@ impl Engine {
                 spent: p.spent.clone(),
                 offer: rules_v0::offer_view(self.content.rewards(), s),
             }),
-            expertise: s.expertise.map(|g| ExpertiseView {
+            expertise: s.expertise.as_ref().map(|g| ExpertiseView {
                 level: g.level,
                 points: g.points,
                 next: g.next,
+                main_taken: g.main_taken.clone(),
+                sub_taken: g.sub_taken.clone(),
+                offer: rules_v0::expertise_offer_view(&self.stage, self.content.expertise(), s),
             }),
         }
     }
@@ -565,8 +569,8 @@ pub(crate) struct State {
     pub expertise: Option<ExpertiseGauge>,
 }
 
-/// The one expertise gauge of both weapons (ADR-078 §1 to §3).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The one expertise gauge of both weapons (ADR-078 §1 to §3), and its offers (ADR-079 §2, §3).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExpertiseGauge {
     /// From 0.
     pub level: u32,
@@ -574,6 +578,27 @@ pub(crate) struct ExpertiseGauge {
     pub points: u32,
     /// The points the next level needs.
     pub next: u32,
+    /// The levels whose offers have opened or were passed over: those above it, up to `level`,
+    /// are due, in level order.
+    pub offered: u32,
+    pub offer: Option<ExpertiseOffer>,
+    /// For each option of the Main and of the Sub weapon's common pool, in the pool's order:
+    /// times taken. Empty for a weapon with no expertise content.
+    pub main_taken: Vec<u8>,
+    pub sub_taken: Vec<u8>,
+    /// What the range options taken add up to: every combo step's hit box that much wider,
+    /// with a range enchantment's (ADR-070).
+    pub range_pct: u32,
+}
+
+/// An open expertise offer of common options.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExpertiseOffer {
+    /// The level that opened it.
+    pub level: u32,
+    pub weapon: WeaponRole,
+    /// Places in the weapon's common pool, in the offer's order.
+    pub candidates: Vec<u8>,
 }
 
 /// Falling stars, the offers due and the open one, and what the run's offers have used

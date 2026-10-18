@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
-use crate::snapshot::OfferKind;
+use crate::snapshot::{OfferKind, WeaponRole};
 
 /// Which button's press took a combo step (ADR-070): A or B.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -133,5 +133,23 @@ pub enum DomainEvent {
     CandidateReplaced {
         slot: u8,
         reward: ContentId,
+    },
+    /// An expertise offer opened for the level `level`, from `weapon`'s common pool, and the
+    /// world stopped until a choice closes it (ADR-079 §2, §3).
+    ExpertiseOfferOpened {
+        level: u32,
+        weapon: WeaponRole,
+        candidates: Vec<ContentId>,
+    },
+    /// The expertise option was taken: the run now has it `taken` times for that weapon.
+    ExpertiseOptionTaken {
+        weapon: WeaponRole,
+        option: ContentId,
+        taken: u8,
+    },
+    /// The expertise candidate at `slot` was drawn again, after a reroll.
+    ExpertiseCandidateReplaced {
+        slot: u8,
+        option: ContentId,
     },
 }

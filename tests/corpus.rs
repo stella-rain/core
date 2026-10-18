@@ -848,7 +848,11 @@ fn replay_run_case(name: &str) -> (Vec<std::mem::Discriminant<OfferOption>>, Vec
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             if c.kind == CommandKind::Choose {
-                let options = engine.snapshot().progress.unwrap().offer.unwrap().options;
+                let s = engine.snapshot();
+                let options = match s.expertise.and_then(|g| g.offer) {
+                    Some(offer) => offer.options,
+                    None => s.progress.unwrap().offer.unwrap().options,
+                };
                 kinds.push(std::mem::discriminant(&options[c.index as usize]));
                 engine.choose(c.index).unwrap();
             } else {
