@@ -51,8 +51,9 @@ pub const MAX_ORBIT_COOLDOWN_TICKS: u32 = 3_600;
 /// reward's amount and holds what the range rewards and the expertise range options add up to
 /// (ADR-099, ADR-020).
 pub const MAX_RANGE_PCT: u32 = 100;
-/// The most the type bonuses add to one attack's damage, in percent: eleven times as much. The
-/// bonuses that apply to an attack's type add up to it and saturate there (ADR-100, ADR-020).
+/// The most the type bonuses add to one attack's damage, in percent: eleven times as much. It
+/// bounds the match-up file's `max_type_bonus_pct`, where the bonuses that apply to an
+/// attack's type saturate (ADR-100, ADR-020).
 pub const MAX_TYPE_BONUS_PCT: u32 = 1_000;
 
 /// A reward's rarity, from the most common up (ADR-079 §2).

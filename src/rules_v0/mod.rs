@@ -48,8 +48,8 @@
 //! adding up over the picks (`player`).
 //!
 //! Type bonus rewards (ADR-100) add up for each damage type, a group's to each type of its
-//! group (`stars`). An attack the main character starts fixes those sums, each held to
-//! `MAX_TYPE_BONUS_PCT`; each of its phases of a type raises its damage by that type's, after
+//! group (`stars`). An attack the main character starts fixes those sums, each held to the
+//! match-up file's `max_type_bonus_pct`; each of its phases of a type raises its damage by that type's, after
 //! atk-up (`attacks::phase_damage`), and the match-up multiplies it at the hit.
 //!
 //! Not yet in this version: summons by companions.

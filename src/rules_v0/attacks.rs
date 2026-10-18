@@ -263,11 +263,11 @@ fn launch(
     let id = s.id_of(owner);
     // A bonus (a perfect release's) adds to the atk-up, for every hit of the attack.
     let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp).saturating_add(bonus_pct);
-    // The main character's type bonuses, each held to the cap (ADR-100).
+    // The main character's type bonuses, each held to the content's limit, which the validator
+    // holds to the hard cap; the clamp keeps an unvalidated table there (ADR-100).
+    let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
     let type_bonus_pct = if owner == Who::Player {
-        s.player
-            .type_bonus_pct
-            .map(|pct| pct.min(MAX_TYPE_BONUS_PCT))
+        s.player.type_bonus_pct.map(|pct| pct.min(limit))
     } else {
         [0; DamageType::ALL.len()]
     };

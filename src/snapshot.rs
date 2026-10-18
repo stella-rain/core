@@ -279,7 +279,8 @@ pub struct PlayerView {
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub range_pct: u32,
     /// What the type bonus rewards taken add up to, for each damage type that has any, in the
-    /// order of `DamageType::ALL`, before the clamp at `MAX_TYPE_BONUS_PCT` (ADR-100).
+    /// order of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`
+    /// (ADR-100).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub type_bonuses: Vec<TypeBonusView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,

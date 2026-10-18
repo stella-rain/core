@@ -1103,7 +1103,8 @@ pub(crate) struct AttackRun {
     /// The attacker's atk-up, in percent, fixed when the attack starts (ADR-056).
     pub atk_up_pct: u32,
     /// The attacker's type bonus for each damage type, by its place in `DamageType::ALL`, in
-    /// percent, each at most `MAX_TYPE_BONUS_PCT`, fixed when the attack starts (ADR-100): the
+    /// percent, each at most the match-up file's `max_type_bonus_pct`, fixed when the attack
+    /// starts (ADR-100): the
     /// main character's; 0 for every other attacker.
     pub type_bonus_pct: [u32; DamageType::ALL.len()],
     /// `phase_time` of the attack's first tick, for the nodes its phases spawn.
