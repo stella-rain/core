@@ -6,7 +6,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::registry::{ENTRIES, Entry, Kind};
 use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{
-    self, MAX_EXPERTISE, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
+    self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
 };
 use stella_rain_core::validate::{self, Error, Issue};
 use stella_rain_core::weapon::WeaponRef;
@@ -20,8 +20,6 @@ fn setup() -> RunSetup {
         mode: "trial".into(),
         main: "blade".into(),
         sub: "maul".into(),
-        main_expertise: 3,
-        sub_expertise: 0,
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,
@@ -132,9 +130,8 @@ fn only_the_setup_format_parses() {
     for bad in [
         "not json".to_owned(),
         text.replace("\"seed\"", "\"secret\":1,\"seed\""),
-        text.replace(",\"sub_expertise\":0", ""),
+        text.replace(",\"sub\":\"maul\"", ""),
         text.replace("20261010", "-1"),
-        text.replace("\"main_expertise\":3", "\"main_expertise\":256"),
         text.replace("20261010", "18446744073709551616"),
     ] {
         let result = run_setup::parse_and_validate(bad.as_bytes());
@@ -185,8 +182,6 @@ fn every_problem_is_named_with_its_path() {
         mode: "no_such_mode".into(),
         main: "bat".into(),
         sub: "Not-An-Id".into(),
-        main_expertise: MAX_EXPERTISE + 1,
-        sub_expertise: u8::MAX,
         ..setup()
     };
     let found = issues(run_setup::parse_and_validate(&bytes(&bad)).unwrap_err());
@@ -199,21 +194,9 @@ fn every_problem_is_named_with_its_path() {
                 "$.sub",
                 "not a valid content ID (lowercase snake_case, at most 32 characters)"
             ),
-            issue("$.main_expertise", "at most 10 (found 11)"),
-            issue("$.sub_expertise", "at most 10 (found 255)"),
         ]
     );
     assert_eq!(issues(Engine::start(&bad).unwrap_err()), found);
-}
-
-#[test]
-fn the_highest_expertise_is_valid() {
-    let top = RunSetup {
-        main_expertise: MAX_EXPERTISE,
-        sub_expertise: MAX_EXPERTISE,
-        ..setup()
-    };
-    assert_eq!(run_setup::validate(&top), Ok(()));
 }
 
 #[test]

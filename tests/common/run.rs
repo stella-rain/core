@@ -23,8 +23,6 @@ pub fn trial_setup() -> RunSetup {
         mode: "trial".into(),
         main: "blade".into(),
         sub: "maul".into(),
-        main_expertise: 3,
-        sub_expertise: 0,
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,

@@ -1,15 +1,13 @@
 //! The run setup (ADR-051 §1): what a run of the launch game starts from, and all it starts
-//! from. The mode, the Main and the Sub weapon (content IDs, ADR-026), each weapon's expertise
-//! level, and the seed of the run's SplitMix64 (ADR-033). The mode's content is bundled in
-//! `core` (`modes/`), so replaying a run never needs the player's save data or a stage file.
+//! from. The mode, the Main and the Sub weapon (content IDs, ADR-026), and the seed of the
+//! run's SplitMix64 (ADR-033). No expertise level: every run starts at level 0 (ADR-079 §1).
+//! The mode's content is bundled in `core` (`modes/`), so replaying a run never needs the
+//! player's save data or a stage file.
 //!
 //! A setup is untrusted (ADR-020): a size limit before parsing, strict parsing, the current
-//! versions only, IDs that exist with the right kind and no newer than the setup's
-//! `sim_version`, and expertise levels within the maximum. Anything else fails closed, with one
-//! message per problem and its path, never text from the file.
-//!
-//! Expertise levels are validated but grant nothing yet: what a level grants is content of a
-//! `sim_version`, and version 0 has none so far.
+//! versions only, and IDs that exist with the right kind and no newer than the setup's
+//! `sim_version`. Anything else fails closed, with one message per problem and its path, never
+//! text from the file.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -23,8 +21,6 @@ use crate::weapon::WeaponRef;
 
 /// The largest setup file read; a setup is a few hundred bytes.
 pub const MAX_SETUP_BYTES: usize = 4096;
-/// The highest expertise level of a weapon (a tuning value; its existence is the decision).
-pub const MAX_EXPERTISE: u8 = 10;
 /// The most rewards a star pool names: as many as a rewards file holds.
 pub const MAX_STAR_POOL: usize = crate::rewards::MAX_REWARDS;
 /// The most extra rerolls a setup brings.
@@ -43,10 +39,6 @@ pub struct RunSetup {
     pub main: ContentId,
     /// A weapon preset, used in its Sub role.
     pub sub: ContentId,
-    /// The Main weapon's expertise level, at most `MAX_EXPERTISE` (10); grants nothing yet.
-    pub main_expertise: u8,
-    /// The Sub weapon's expertise level, at most `MAX_EXPERTISE` (10); grants nothing yet.
-    pub sub_expertise: u8,
     /// Seeds the run's SplitMix64 (ADR-033), all 64 bits.
     pub seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
@@ -119,17 +111,6 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
     id("mode", &setup.mode, Kind::Mode);
     id("main", &setup.main, Kind::Weapon);
     id("sub", &setup.sub, Kind::Weapon);
-    for (key, level) in [
-        ("main_expertise", setup.main_expertise),
-        ("sub_expertise", setup.sub_expertise),
-    ] {
-        if level > MAX_EXPERTISE {
-            issues.push(Issue {
-                path: format!("$.{key}"),
-                message: format!("at most {MAX_EXPERTISE} (found {level})"),
-            });
-        }
-    }
     if let Some(pool) = &setup.star_pool {
         if pool.len() > MAX_STAR_POOL {
             issues.push(Issue {

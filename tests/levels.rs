@@ -429,8 +429,6 @@ fn a_trial_run_levels_up_and_spends_its_points() {
         mode: "trial".into(),
         main: "blade".into(),
         sub: "maul".into(),
-        main_expertise: 0,
-        sub_expertise: 0,
         seed: 1,
         star_pool: None,
         extra_rerolls: 0,
