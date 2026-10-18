@@ -410,6 +410,9 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
 }
 
 /// Bullets whose `on_bullet` wait is over start their attacks, to be carried out this tick.
+// Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
+// (ADR-058).
+#[inline(never)]
 pub(super) fn fire_hooks(s: &mut State) {
     let mut starts = Vec::new();
     for b in &mut s.bullets {
