@@ -169,19 +169,70 @@ pub struct PlayerView {
     /// frontend can mark it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<EntityId>,
-    /// Its attacks in progress, by slot.
+    /// The stage skill in its slot, if a reward has filled it (ADR-075).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill: Option<SkillView>,
+    /// The stage skill's pull while it pulls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pull: Option<PullView>,
+    /// The stage skill's shield while it holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shield: Option<ShieldView>,
+    /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill (ADR-069).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
 }
 
-/// The evade (ADR-074).
+/// The stage skill held (ADR-075): what the skill button draws.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SkillView {
+    /// Its ID in the stage skills file, for its name.
+    pub skill: ContentId,
+    /// The asset the button draws (ADR-098).
+    pub icon: ContentId,
+    /// From 1.
+    pub level: u8,
+    /// A press on the next tick would use it.
+    pub ready: bool,
+    /// Ticks until it is ready again, counted from its use.
+    pub cooldown_left: u32,
+}
+
+/// A stage skill's pull pulling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct PullView {
+    pub at: Point,
+    pub radius: Fx,
+    /// Ticks it still pulls, this one included.
+    pub ticks_left: u32,
+}
+
+/// A shield held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ShieldView {
+    /// The damage it still absorbs.
+    pub amount: u32,
+    /// Ticks it still holds, this one included.
+    pub ticks_left: u32,
+}
+
+/// The evade and its charges (ADR-074).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EvadeView {
-    /// A press on the next tick would dash.
-    pub ready: bool,
-    /// Ticks until it is ready again, counted from the press.
-    pub cooldown_left: u32,
+    /// The charges held, ready or recovering: from the stage's `charges`, raised by rewards up
+    /// to its `max_charges`.
+    pub charges: u8,
+    /// The charges ready: a press on the next tick dashes when it is more than 0, even during a
+    /// dash.
+    pub ready: u8,
+    /// Ticks left on each spent charge, in the order they were spent; each counts from the
+    /// press that spent it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recovering: Vec<u32>,
     /// Ticks of the dash still to move: 0 when not dashing.
     pub dash_left: u32,
 }

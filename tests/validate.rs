@@ -20,6 +20,14 @@ fn set(v: &mut Value, pointer: &str, new: Value) {
         .unwrap_or_else(|| panic!("{pointer} exists in the fixture")) = new;
 }
 
+/// Adds `key` to the object at `pointer`.
+fn set_new(v: &mut Value, pointer: &str, key: &str, new: Value) {
+    v.pointer_mut(pointer)
+        .and_then(Value::as_object_mut)
+        .unwrap_or_else(|| panic!("{pointer} is an object in the fixture"))
+        .insert(key.to_owned(), new);
+}
+
 fn stage(v: &Value) -> Stage {
     serde_json::from_value(v.clone()).expect("the test stage parses")
 }
@@ -490,6 +498,36 @@ fn an_evade_is_bounded_and_required() {
         parse_and_validate(none.to_string().as_bytes()),
         Err(Error::Parse { .. })
     ));
+}
+
+#[test]
+fn evade_charges_are_one_to_three_and_the_most_is_not_below_the_start() {
+    let with = |charges: Option<u8>, max: Option<u8>| {
+        let mut v = base();
+        if let Some(n) = charges {
+            set_new(&mut v, "/player/evade", "charges", json!(n));
+        }
+        if let Some(n) = max {
+            set_new(&mut v, "/player/evade", "max_charges", json!(n));
+        }
+        v
+    };
+    assert_valid(&with(None, None));
+    assert_valid(&with(Some(1), None));
+    assert_valid(&with(Some(MAX_EVADE_CHARGES), None));
+    assert_valid(&with(Some(1), Some(MAX_EVADE_CHARGES)));
+    assert_valid(&with(None, Some(2)));
+    let path = |v: &Value| first_issue(v).path;
+    assert_eq!(path(&with(Some(0), None)), "$.player.evade.charges");
+    assert_eq!(
+        path(&with(Some(MAX_EVADE_CHARGES + 1), None)),
+        "$.player.evade.charges"
+    );
+    assert_eq!(
+        path(&with(Some(1), Some(MAX_EVADE_CHARGES + 1))),
+        "$.player.evade.max_charges"
+    );
+    assert_eq!(path(&with(Some(2), Some(1))), "$.player.evade.max_charges");
 }
 
 #[test]

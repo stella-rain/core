@@ -4,8 +4,9 @@
 //! What a tick does, in this order:
 //! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
 //! 2. the main character turns to its stick and, while aim assist or auto mode is on, picks a
-//!    target (ADR-072, `select`); it starts a ready evade on a press (cancelling its combo
-//!    step and breaking a charge), walks its combo: a buffered press, or else auto mode's
+//!    target (ADR-072, `select`); its spent evade charges recover, and a press with a charge
+//!    ready starts an evade, during a dash too (ADR-074; cancelling its combo step and breaking
+//!    a charge), walks its combo: a buffered press, or else auto mode's
 //!    (ADR-073), takes the next step, a charge rises or releases (ADR-070, ADR-076; see
 //!    `player`), then it dashes or moves (speed cap, slowing, playfield);
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
@@ -28,8 +29,11 @@
 //! a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in step 8, answered between ticks (`stars`).
 //!
-//! Not yet in this version: summons by companions; the stage skill (ADR-075), whose input is
-//! recorded and does nothing yet.
+//! The stage skill (ADR-075, `skill`) acts in step 2 on a press, after the evade and before the
+//! combo; its black hole pulls after the push-apart of step 3, and its shield takes from the
+//! main character's damage in step 6.
+//!
+//! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
 //! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, the stage's elite cap of
@@ -49,6 +53,7 @@ mod hit_boxes;
 mod levels;
 mod player;
 mod push;
+mod skill;
 mod stars;
 
 pub(crate) use player::{charge_view, combo_view};
@@ -200,10 +205,19 @@ pub(crate) fn initial_state(
             // Up the map on every map, landscape ones included; a stage cannot set it yet.
             facing: Dir::UP,
             target: None,
-            evade_cooldown: 0,
+            // The validator holds it to 1..=3; the clamp keeps an unvalidated stage there too.
+            evade_charges: stage
+                .player
+                .evade
+                .charges
+                .clamp(1, crate::validate::limits::MAX_EVADE_CHARGES),
+            evade_recovering: Vec::new(),
             held: 0,
             combo: player::initial_combo(stage),
             dash: None,
+            skill: None,
+            pull: None,
+            shield: None,
             aggro: 0,
             statuses: Vec::new(),
         },
@@ -253,11 +267,12 @@ pub(crate) fn step(
     spawn_waves(stage, s);
     entity::tick_statuses_and_aggro(s);
     attacks::advance_runs(s, events);
-    player::update(stage, s, input, events);
+    player::update(stage, rewards, s, input, events);
     boss::act(stage, s, events);
     boss::call_elites(stage, s, events);
     agents::act(stage, s, events);
     push::apply(stage, s);
+    skill::pull(stage, s);
     attacks::fire_hooks(s);
     let (tasks, emitter_steps) = attacks::run(s, &mut spawns_left);
     *load = Load {
@@ -529,6 +544,7 @@ pub(super) fn pull_enemy(stage: &Stage, s: &mut State, i: usize, pull: Pull) {
 fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
     let dealt = scale_damage(b.damage, 0, vulnerable, s.player.defence);
+    let dealt = skill::absorb(s, dealt);
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = HIT_INVULNERABLE_TICKS;
@@ -757,8 +773,41 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         }
         None => h.write_bool(false),
     }
-    h.write_u32(p.evade_cooldown);
+    h.write_u32(u32::from(p.evade_charges));
+    // At most the charges held, so at most 3.
+    h.write_u32(p.evade_recovering.len() as u32);
+    for &t in &p.evade_recovering {
+        h.write_u32(t);
+    }
     h.write_u32(u32::from(p.held));
+    match p.skill {
+        Some(slot) => {
+            h.write_bool(true);
+            h.write_u32(u32::from(slot.index));
+            h.write_u32(u32::from(slot.level));
+            h.write_u32(slot.cooldown_left);
+        }
+        None => h.write_bool(false),
+    }
+    match p.pull {
+        Some(b) => {
+            h.write_bool(true);
+            h.write_i32(b.at.x.0);
+            h.write_i32(b.at.y.0);
+            h.write_i32(b.radius);
+            h.write_i32(b.strength);
+            h.write_u32(b.ticks_left);
+        }
+        None => h.write_bool(false),
+    }
+    match p.shield {
+        Some(sh) => {
+            h.write_bool(true);
+            h.write_u32(sh.amount);
+            h.write_u32(sh.ticks_left);
+        }
+        None => h.write_bool(false),
+    }
     let c = &p.combo;
     h.write_u32(c.path);
     h.write_u32(u32::from(c.depth));

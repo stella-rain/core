@@ -43,6 +43,11 @@ pub enum DomainEvent {
     },
     /// The main character started an evade (ADR-074).
     Evaded,
+    /// The main character used its stage skill, at `level` (ADR-075).
+    StageSkillUsed {
+        skill: ContentId,
+        level: u8,
+    },
     /// A press took a combo step (ADR-070): the step `depth` presses from the root.
     ComboStep {
         press: Press,

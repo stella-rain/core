@@ -336,13 +336,14 @@
       ]
     },
     "EvadeView": {
-      "description": "The evade (ADR-074).",
+      "description": "The evade and its charges (ADR-074).",
       "type": "object",
       "properties": {
-        "cooldown_left": {
-          "description": "Ticks until it is ready again, counted from the press.",
+        "charges": {
+          "description": "The charges held, ready or recovering: from the stage's `charges`, raised by rewards up\nto its `max_charges`.",
           "type": "integer",
-          "format": "uint32",
+          "format": "uint8",
+          "maximum": 255,
           "minimum": 0
         },
         "dash_left": {
@@ -352,14 +353,26 @@
           "minimum": 0
         },
         "ready": {
-          "description": "A press on the next tick would dash.",
-          "type": "boolean"
+          "description": "The charges ready: a press on the next tick dashes when it is more than 0, even during a\ndash.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "recovering": {
+          "description": "Ticks left on each spent charge, in the order they were spent; each counts from the\npress that spent it.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
         }
       },
       "additionalProperties": false,
       "required": [
+        "charges",
         "ready",
-        "cooldown_left",
         "dash_left"
       ]
     },
@@ -647,7 +660,7 @@
           "$ref": "#/$defs/Point"
         },
         "attacks": {
-          "description": "Its attacks in progress, by slot.",
+          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill (ADR-069).",
           "type": "array",
           "items": {
             "$ref": "#/$defs/AttackView"
@@ -686,9 +699,42 @@
           "format": "uint32",
           "minimum": 0
         },
+        "pull": {
+          "description": "The stage skill's pull while it pulls.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PullView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "radius": {
           "description": "The main character's hurt circle.",
           "$ref": "#/$defs/Fx"
+        },
+        "shield": {
+          "description": "The stage skill's shield while it holds.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShieldView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "skill": {
+          "description": "The stage skill in its slot, if a reward has filled it (ADR-075).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkillView"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "target": {
           "description": "The enemy aim assist and auto mode would face, while either is on (ADR-072), so the\nfrontend can mark it.",
@@ -797,6 +843,30 @@
         "spent"
       ]
     },
+    "PullView": {
+      "description": "A stage skill's pull pulling.",
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Point"
+        },
+        "radius": {
+          "$ref": "#/$defs/Fx"
+        },
+        "ticks_left": {
+          "description": "Ticks it still pulls, this one included.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "radius",
+        "ticks_left"
+      ]
+    },
     "Rarity": {
       "description": "A reward's rarity, from the most common up (ADR-066 §2).",
       "type": "string",
@@ -807,6 +877,68 @@
         "epic",
         "legendary",
         "supernova"
+      ]
+    },
+    "ShieldView": {
+      "description": "A shield held.",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "description": "The damage it still absorbs.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ticks_left": {
+          "description": "Ticks it still holds, this one included.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "amount",
+        "ticks_left"
+      ]
+    },
+    "SkillView": {
+      "description": "The stage skill held (ADR-075): what the skill button draws.",
+      "type": "object",
+      "properties": {
+        "cooldown_left": {
+          "description": "Ticks until it is ready again, counted from its use.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "icon": {
+          "description": "The asset the button draws (ADR-098).",
+          "$ref": "#/$defs/ContentId"
+        },
+        "level": {
+          "description": "From 1.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "ready": {
+          "description": "A press on the next tick would use it.",
+          "type": "boolean"
+        },
+        "skill": {
+          "description": "Its ID in the stage skills file, for its name.",
+          "$ref": "#/$defs/ContentId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "skill",
+        "icon",
+        "level",
+        "ready",
+        "cooldown_left"
       ]
     },
     "StarView": {

@@ -22,11 +22,12 @@ use std::path::{Path, PathBuf};
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
+use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, hash_from_hex, hash_to_hex};
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
 use stella_rain_core::run_setup::{self, RunSetup};
-use stella_rain_core::snapshot::{EntityKind, Snapshot};
+use stella_rain_core::snapshot::{EntityKind, OfferOption, Snapshot};
 use stella_rain_core::validate::parse_and_validate;
 
 fn corpus_dir() -> PathBuf {
@@ -707,6 +708,42 @@ fn assist() -> Definition {
     ("assist", bytes(&stage), inputs)
 }
 
+/// The evade on three charges (ADR-074): a shooter fires at the main character, who walks from
+/// side to side and presses the evade four times in a row, each during the dash before it. The
+/// first three dash, the fourth finds no charge ready; the charges come back one by one before
+/// the next cycle, which does it again.
+fn evade_charges() -> Definition {
+    let shooter = enemy(
+        1000,
+        hold(46_080, 100_000),
+        json!([rule(
+            always(),
+            json!("player"),
+            json!({ "type": "attack",
+                    "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+            10
+        )]),
+    );
+    let stage = stage_full(
+        300,
+        Some(far_boss()),
+        vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
+        vec![],
+    );
+    let mut v = serde_json::to_value(stage).unwrap();
+    v["player"]["evade"]["charges"] = json!(3);
+    let inputs = (0..300)
+        .map(|t| {
+            let c = t % 100;
+            Input {
+                evade: matches!(c, 10 | 13 | 16 | 19),
+                ..moving(if c < 50 { 127 } else { -127 }, 0)
+            }
+        })
+        .collect();
+    ("evade", bytes(&v), inputs)
+}
+
 /// A landscape map of 2,048 by 1,024 pixels (core#87). The main character starts near the
 /// right edge, walks into the top-right corner (clamped there), then left along the top, shooting
 /// along its facing; enemies cross the middle of the map to the right, shooting at it.
@@ -764,6 +801,7 @@ fn definitions() -> Vec<Definition> {
         assist(),
         bullets(),
         boss(),
+        evade_charges(),
         fail(),
         landscape(),
         melee(),
@@ -772,35 +810,41 @@ fn definitions() -> Vec<Definition> {
 }
 
 /// The run cases: the trial mode played until the main character falls, spending its points
-/// and answering its offers on the way, with every kind of option.
+/// and answering its offers on the way, with every kind of option; and the same from another
+/// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Vec<Command>)> {
-    vec![(
-        "trial",
-        common::run::trial_setup(),
-        common::run::play_run(common::run::TRIAL_LENGTH),
-    )]
+    use common::run::{STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, trial_setup};
+    let stage_skill = RunSetup {
+        seed: STAGE_SKILL_SEED,
+        ..trial_setup()
+    };
+    let stage_skill_commands = play_run_from(&stage_skill, TRIAL_LENGTH);
+    vec![
+        ("trial", trial_setup(), play_run(TRIAL_LENGTH)),
+        ("stage_skill", stage_skill, stage_skill_commands),
+    ]
 }
 
-#[test]
-fn the_run_cases_are_what_their_names_say() {
-    let bytes = fs::read(runs_dir().join("trial/run.replay")).unwrap();
+/// A run case re-simulated from its file: the kinds of option its choices take, and the stage
+/// skills it uses, each with the level it is used at.
+fn replay_run_case(name: &str) -> (Vec<std::mem::Discriminant<OfferOption>>, Vec<(String, u8)>) {
+    let bytes = fs::read(runs_dir().join(name).join("run.replay")).unwrap();
     let verified = run_replay::verify_run(&bytes).unwrap();
     assert_eq!(
         verified.outcome,
         Outcome::Failed,
-        "the main character falls"
+        "the main character falls in `{name}`"
     );
     let replay = RunReplay::from_bytes(&bytes).unwrap();
     let commands = replay.unpack_commands().unwrap();
     assert!(
         commands.iter().any(|c| c.kind == CommandKind::Spend),
-        "points are spent: {commands:?}"
+        "points are spent in `{name}`: {commands:?}"
     );
     assert_eq!(verified.commands, u32::try_from(commands.len()).unwrap());
-    // Re-simulated, the choices take each kind of option at least once.
     let mut engine = Engine::start(&replay.setup).unwrap();
     let mut next = commands.iter().peekable();
-    let mut kinds = Vec::new();
+    let (mut kinds, mut used) = (Vec::new(), Vec::new());
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             if c.kind == CommandKind::Choose {
@@ -812,8 +856,20 @@ fn the_run_cases_are_what_their_names_say() {
             }
         }
         engine.step(input);
+        for e in engine.events() {
+            if let DomainEvent::StageSkillUsed { skill, level } = e {
+                used.push((skill.0.clone(), *level));
+            }
+        }
     }
-    use stella_rain_core::snapshot::OfferOption::{Banish, Reroll, Skip, Take};
+    (kinds, used)
+}
+
+#[test]
+fn the_run_cases_are_what_their_names_say() {
+    // Re-simulated, the trial's choices take each kind of option at least once.
+    let (kinds, _) = replay_run_case("trial");
+    use OfferOption::{Banish, Reroll, Skip, Take};
     for kind in [
         Take { candidate: 0 },
         Reroll { candidate: 0 },
@@ -825,6 +881,12 @@ fn the_run_cases_are_what_their_names_say() {
             "no {kind:?} in the run case"
         );
     }
+    // An elite's rare star offers the black hole, taken, then used each time it is ready.
+    let (_, used) = replay_run_case("stage_skill");
+    assert!(
+        used.len() >= 2 && used.iter().all(|u| *u == ("black_hole".into(), 1)),
+        "the black hole is used more than once: {used:?}"
+    );
 }
 
 /// How a recorded case ends and the most bullets it ever has on screen.
@@ -879,6 +941,49 @@ fn the_cases_are_what_their_names_say() {
     assert!(a.bat_after_elite, "a bat is the target after the elite");
     assert!(a.boss, "the boss is the target in the end");
     assert!(a.released, "a charge is released");
+    // Three dashes a cycle, two of them started during the dash before; a fourth press finds no
+    // charge ready, and all three are back by the next cycle.
+    let e = evade_reach();
+    assert_eq!((e.evades, e.chained), (9, 6), "evades, of them chained");
+    assert_eq!(e.refused, 3, "a press with no charge ready, each cycle");
+    assert!(e.all_back_after_spending, "the charges come back");
+}
+
+/// What the evade case does: its evades, those started during a dash, the presses with no
+/// charge ready, and whether all three charges were ready again after being spent.
+struct EvadeReach {
+    evades: usize,
+    chained: usize,
+    refused: usize,
+    all_back_after_spending: bool,
+}
+
+fn evade_reach() -> EvadeReach {
+    let case = corpus_dir().join("evade");
+    let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+    let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+    let mut e = EvadeReach {
+        evades: 0,
+        chained: 0,
+        refused: 0,
+        all_back_after_spending: false,
+    };
+    let (mut was_held, mut spent_all) = (false, false);
+    for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
+        let before = engine.snapshot().player.evade;
+        engine.step(input);
+        let evaded = engine.events().contains(&DomainEvent::Evaded);
+        let pressed = input.evade && !was_held;
+        was_held = input.evade;
+        e.evades += usize::from(evaded);
+        e.chained += usize::from(evaded && before.dash_left > 0);
+        e.refused += usize::from(pressed && !evaded && before.ready == 0);
+        let after = engine.snapshot().player.evade;
+        spent_all |= after.ready == 0;
+        e.all_back_after_spending |= spent_all && after.ready == after.charges;
+    }
+    e
 }
 
 /// What the assist case does: the first target's kind and whether it is the elite, the steps
@@ -894,7 +999,6 @@ struct AssistReach {
 }
 
 fn assist_reach() -> AssistReach {
-    use stella_rain_core::event::DomainEvent;
     let case = corpus_dir().join("assist");
     let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
     let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();

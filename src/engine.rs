@@ -23,7 +23,8 @@ use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView, Facing,
-    MapView, OfferKind, PlayerView, ProgressView, Snapshot, StarView,
+    MapView, OfferKind, PlayerView, ProgressView, PullView, ShieldView, SkillView, Snapshot,
+    StarView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -370,8 +371,9 @@ impl Engine {
                 },
                 invulnerable: s.player.invulnerable,
                 evade: EvadeView {
+                    charges: s.player.evade_charges,
                     ready: s.player.evade_ready(),
-                    cooldown_left: s.player.evade_cooldown,
+                    recovering: s.player.evade_recovering.clone(),
                     dash_left: s.player.dash.map_or(0, |d| d.left),
                 },
                 combo: {
@@ -392,6 +394,25 @@ impl Engine {
                     }
                 }),
                 target: s.player.target,
+                skill: s.player.skill.and_then(|slot| {
+                    let def = self.content.stage_skills().get(usize::from(slot.index))?;
+                    Some(SkillView {
+                        skill: def.id.clone(),
+                        icon: def.icon.clone(),
+                        level: slot.level,
+                        ready: slot.cooldown_left == 0,
+                        cooldown_left: slot.cooldown_left,
+                    })
+                }),
+                pull: s.player.pull.map(|b| PullView {
+                    at: b.at,
+                    radius: Fx(b.radius),
+                    ticks_left: b.ticks_left,
+                }),
+                shield: s.player.shield.map(|sh| ShieldView {
+                    amount: sh.amount,
+                    ticks_left: sh.ticks_left,
+                }),
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -566,8 +587,11 @@ pub(crate) struct PlayerState {
     pub facing: Dir,
     /// The enemy aim assist and auto mode face, picked each tick while either is on (ADR-072).
     pub target: Option<EntityId>,
-    /// Ticks until the evade is ready again, counted from its press.
-    pub evade_cooldown: u32,
+    /// The evade's charges held, ready or recovering (ADR-074).
+    pub evade_charges: u8,
+    /// Ticks left on each spent charge, in the order they were spent; none is 0 and there are
+    /// never more than `evade_charges`.
+    pub evade_recovering: Vec<u32>,
     /// The buttons held on the last tick (`input::held_buttons`), so that only a button held now
     /// and not then is a press (ADR-071).
     pub held: u8,
@@ -575,13 +599,21 @@ pub(crate) struct PlayerState {
     pub combo: ComboState,
     /// The dash in progress, if any.
     pub dash: Option<DashState>,
+    /// The stage skill slot (ADR-075): empty until a reward fills it.
+    pub skill: Option<SkillSlot>,
+    /// The stage skill's pull while it pulls, and its shield while it holds.
+    pub pull: Option<PullState>,
+    pub shield: Option<ShieldState>,
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
 }
 
 impl PlayerState {
-    pub fn evade_ready(&self) -> bool {
-        self.evade_cooldown == 0 && self.dash.is_none()
+    /// The evade's charges ready: held and not recovering.
+    pub fn evade_ready(&self) -> u8 {
+        // There are never more timers than charges, and charges are at most 3.
+        self.evade_charges
+            .saturating_sub(self.evade_recovering.len() as u8)
     }
 }
 
@@ -619,6 +651,32 @@ pub(crate) struct ComboState {
 pub(crate) struct Pull {
     pub distance: i32,
     pub ticks: u32,
+}
+
+/// The stage skill held (ADR-075): its place in the stage skills file, its level from 1, and
+/// the ticks until it is ready again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SkillSlot {
+    pub index: u16,
+    pub level: u8,
+    pub cooldown_left: u32,
+}
+
+/// A pull pulling: its point, radius and strength (fixed-point units), and the ticks left, at
+/// least 1.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PullState {
+    pub at: Point,
+    pub radius: i32,
+    pub strength: i32,
+    pub ticks_left: u32,
+}
+
+/// A shield: the damage it still absorbs, at least 1, and the ticks left, at least 1.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ShieldState {
+    pub amount: u32,
+    pub ticks_left: u32,
 }
 
 /// An evade's dash: locked to its direction, `done` of its ticks moved, `left` to go.
@@ -755,6 +813,13 @@ pub(crate) enum StatusKind {
 }
 
 impl StatusKind {
+    pub const ALL: [StatusKind; 3] = [StatusKind::AtkUp, StatusKind::Vulnerable, StatusKind::Slow];
+
+    /// The status whose registry ID is `name`.
+    pub fn from_name(name: &str) -> Option<StatusKind> {
+        StatusKind::ALL.into_iter().find(|k| k.name() == name)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             StatusKind::AtkUp => "atk_up",

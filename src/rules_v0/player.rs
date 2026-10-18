@@ -1,5 +1,5 @@
 //! The main character (ADR-071): movement from the input's stick, the persistent facing
-//! (ADR-069), the evade, and the combos of its Main weapon, made by hand (ADR-070, ADR-076).
+//! (ADR-069), the evade on its charges (ADR-074), and the combos of its Main weapon, made by hand (ADR-070, ADR-076).
 //!
 //! The combo: a press of `main` or `sub` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
@@ -28,6 +28,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
 use crate::presets;
+use crate::rewards::Rewards;
 use crate::stage::Stage;
 use crate::trig::SCALE;
 use crate::weapon::{Charge, MainWeapon, Step, SubBonus};
@@ -37,6 +38,7 @@ use super::attacks;
 use super::entity::{Who, speed_pct};
 use super::levels;
 use super::select;
+use super::skill;
 
 /// The stick's full deflection on each axis (ADR-071); −128 counts as −127.
 const STICK_MAX: i8 = 127;
@@ -76,14 +78,25 @@ fn stick_direction(x: i8, y: i8) -> Option<Dir> {
 
 /// One tick of the main character: timers run down, it turns to its stick, evades on a ready
 /// press (cancelling its combo step), walks its combo, then dashes or moves.
-pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
+pub(super) fn update(
+    stage: &Stage,
+    rewards: &Rewards,
+    s: &mut State,
+    input: Input,
+    events: &mut Vec<DomainEvent>,
+) {
     let held = input::held_buttons(input);
     let pressed = held & !s.player.held;
     s.player.held = held;
     let p = &mut s.player;
     p.invulnerable = p.invulnerable.saturating_sub(1);
-    p.evade_cooldown = p.evade_cooldown.saturating_sub(1);
+    for t in &mut p.evade_recovering {
+        *t -= 1;
+    }
+    p.evade_recovering.retain(|&t| t > 0);
     p.combo.dash_strike_left = p.combo.dash_strike_left.saturating_sub(1);
+    skill::tick(s);
+    let p = &mut s.player;
     let (x, y) = (input.move_x.max(-STICK_MAX), input.move_y.max(-STICK_MAX));
     if let Some(dir) = stick_direction(x, y) {
         p.facing = dir;
@@ -94,12 +107,15 @@ pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Ve
         Some(m) if input.assist || input.auto => select::assist_target(stage, s, m.assist_range.0),
         _ => None,
     };
-    if pressed & input::EVADE != 0 && s.player.evade_ready() {
+    if pressed & input::EVADE != 0 && s.player.evade_ready() > 0 {
         let cooldown = levels::evade_cooldown(s, stage.player.evade.cooldown_ticks);
         start_evade(stage, &mut s.player, cooldown, events);
         cancel(s, events);
         let strike = main.map_or(0, |m| m.dash_strike_ticks);
         s.player.combo.dash_strike_left = stage.player.evade.ticks.saturating_add(strike);
+    }
+    if pressed & input::SKILL != 0 {
+        skill::press(stage, rewards, s, input, events);
     }
     if let Some(main) = main {
         combo(stage, s, main, input, pressed, events);
@@ -128,8 +144,9 @@ fn move_player(stage: &Stage, s: &mut State, x: i8, y: i8) {
     move_by(stage, &mut s.player, dx, dy);
 }
 
-/// A ready press dashes along the facing, which is the stick's direction when it is not
-/// centred (ADR-071). Invulnerability and the cooldown count from the press.
+/// A press with a charge ready dashes along the facing, which is the stick's direction when it
+/// is not centred (ADR-071), from where the main character is, a dash in progress or not
+/// (ADR-074). Invulnerability and the spent charge's `cooldown` count from the press.
 fn start_evade(stage: &Stage, p: &mut PlayerState, cooldown: u32, events: &mut Vec<DomainEvent>) {
     let evade = &stage.player.evade;
     p.dash = Some(DashState {
@@ -137,7 +154,9 @@ fn start_evade(stage: &Stage, p: &mut PlayerState, cooldown: u32, events: &mut V
         done: 0,
         left: evade.ticks,
     });
-    p.evade_cooldown = cooldown;
+    if cooldown > 0 {
+        p.evade_recovering.push(cooldown);
+    }
     p.invulnerable = p.invulnerable.max(evade.invulnerable_ticks);
     events.push(DomainEvent::Evaded);
 }
@@ -392,7 +411,7 @@ fn strike(
 
 /// The direction from the main character to the entity `target`, if it is there and not on
 /// the main character's centre.
-fn toward(s: &State, target: EntityId) -> Option<Dir> {
+pub(super) fn toward(s: &State, target: EntityId) -> Option<Dir> {
     let to = s.at(s.find(target)?);
     let from = s.player.at;
     let (dx, dy) = (

@@ -55,6 +55,8 @@ pub mod limits {
     /// invulnerability (ADR-050).
     pub const MAX_EVADE_DISTANCE: i32 = 65_536;
     pub const MAX_EVADE_TICKS: u32 = 60;
+    /// An evade holds at most 3 charges (ADR-074).
+    pub const MAX_EVADE_CHARGES: u8 = 3;
     /// A charge (core#83): at most 8 levels over at most 10 seconds of game time, and a perfect
     /// bonus of at most +1000%.
     pub const MAX_CHARGE_LEVELS: usize = 8;
@@ -230,6 +232,28 @@ pub fn validate_attack(
         arity,
     };
     ctx.phases(phases);
+    if ctx.issues.is_empty() {
+        Ok(())
+    } else {
+        Err(ctx.issues)
+    }
+}
+
+/// Checks an attack outside a stage, a preset by ID with its arguments or an inline one, against
+/// the same budgets as a stage's: a damage-area stage skill's (ADR-075). The problems are
+/// reported at paths from the attack: `$.preset.id`, `$.inline[0].ticks`.
+pub fn validate_attack_ref(attack: &AttackRef, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+    let mut ctx = Ctx {
+        registry,
+        sim_version: crate::version::SIM_VERSION,
+        map: crate::stage::Map::PORTRAIT,
+        parts: Vec::new(),
+        path: Vec::new(),
+        issues: Vec::new(),
+        left_out: false,
+        arity: 0,
+    };
+    ctx.attack_ref(attack);
     if ctx.issues.is_empty() {
         Ok(())
     } else {
@@ -767,6 +791,16 @@ impl<'a> Ctx<'a> {
             i64::from(MAX_EVADE_TICKS),
         );
         self.ticks("cooldown_ticks", e.cooldown_ticks, 0);
+        let most = i64::from(MAX_EVADE_CHARGES);
+        self.within("charges", i64::from(e.charges), 1, most);
+        if let Some(max) = e.max_charges {
+            self.within(
+                "max_charges",
+                i64::from(max),
+                i64::from(e.charges).max(1),
+                most,
+            );
+        }
     }
 
     fn charges(&mut self, charges: Option<u16>) {

@@ -197,13 +197,14 @@ fn a_held_button_presses_once() {
 fn the_snapshot_shows_the_evade() {
     let mut e = running(vec![]);
     let view = e.snapshot().player.evade;
-    assert!(view.ready);
-    assert_eq!((view.cooldown_left, view.dash_left), (0, 0));
+    assert_eq!(
+        (view.ready, view.recovering, view.dash_left),
+        (1, vec![], 0)
+    );
     e.step(evading(127, 0));
     let view = e.snapshot().player.evade;
-    assert!(!view.ready);
     assert_eq!(
-        (view.cooldown_left, view.dash_left),
-        (EVADE_COOLDOWN, EVADE_TICKS - 1)
+        (view.ready, view.recovering, view.dash_left),
+        (0, vec![EVADE_COOLDOWN], EVADE_TICKS - 1)
     );
 }

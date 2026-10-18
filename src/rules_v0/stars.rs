@@ -30,7 +30,7 @@ use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
-use super::{levels, overlaps};
+use super::{levels, overlaps, skill};
 
 /// The candidates an offer holds (a tuning value, ADR-066 §3).
 pub(crate) const OFFER_SIZE: usize = 3;
@@ -286,8 +286,21 @@ pub(crate) fn choose(
             let at = usize::from(i);
             f.taken[at] = f.taken[at].saturating_add(1);
             let reward = &rewards.rewards()[at];
-            if let Some(p) = progress.as_mut() {
-                levels::add_effect(p, player, reward.effect, reward.amount);
+            match reward.effect.stat() {
+                Some(effect) => {
+                    if let Some(p) = progress.as_mut() {
+                        levels::add_effect(p, player, effect, reward.amount);
+                    }
+                }
+                None => {
+                    let index = reward
+                        .skill
+                        .as_ref()
+                        .and_then(|id| rewards.stage_skills().index_of(id));
+                    if let Some(index) = index {
+                        skill::take(rewards, player, index, reward.amount);
+                    }
+                }
             }
             events.push(DomainEvent::RewardTaken {
                 reward: reward.id.clone(),

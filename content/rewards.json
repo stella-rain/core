@@ -163,6 +163,56 @@
       "limit": 1,
       "title": "Insight (Legendary)",
       "description": "50 percent more experience"
+    },
+    {
+      "id": "black_hole_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "black_hole",
+      "amount": 1,
+      "limit": 3,
+      "title": "Black Hole",
+      "description": "Pulls the enemies ahead into one point and holds them there"
+    },
+    {
+      "id": "war_cry_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "war_cry",
+      "amount": 1,
+      "limit": 3,
+      "title": "War Cry",
+      "description": "Your attacks hit harder for 5 seconds"
+    },
+    {
+      "id": "hex_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "hex",
+      "amount": 1,
+      "limit": 3,
+      "title": "Hex",
+      "description": "The enemies ahead take more damage for 5 seconds"
+    },
+    {
+      "id": "nova_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "nova",
+      "amount": 1,
+      "limit": 3,
+      "title": "Nova",
+      "description": "A burst of starlight strikes the area ahead"
+    },
+    {
+      "id": "aegis_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "aegis",
+      "amount": 1,
+      "limit": 3,
+      "title": "Aegis",
+      "description": "A shield absorbs the next hits for a while"
     }
   ]
 }
