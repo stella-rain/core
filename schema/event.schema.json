@@ -474,7 +474,7 @@
       ]
     },
     {
-      "description": "The main character reached `level`, and gained a stat point (ADR-066 §2).",
+      "description": "The main character reached `level`, and gained a stat point (ADR-079 §2).",
       "type": "object",
       "properties": {
         "data": {
@@ -503,7 +503,7 @@
       ]
     },
     {
-      "description": "A stat point was spent on the run stat `stat`, between ticks: it now has `spent`\npoints (ADR-066 §4).",
+      "description": "A stat point was spent on the run stat `stat`, between ticks: it now has `spent`\npoints (ADR-079 §4).",
       "type": "object",
       "properties": {
         "data": {
@@ -537,7 +537,7 @@
       ]
     },
     {
-      "description": "A kill dropped the falling star `star` (ADR-066 §2).",
+      "description": "A kill dropped the falling star `star` (ADR-079 §2).",
       "type": "object",
       "properties": {
         "data": {
@@ -628,7 +628,7 @@
       ]
     },
     {
-      "description": "An offer opened, and the world stopped until a choice closes it (ADR-066 §3).",
+      "description": "An offer opened, and the world stopped until a choice closes it (ADR-079 §3).",
       "type": "object",
       "properties": {
         "data": {
@@ -787,7 +787,7 @@
       "minimum": 0
     },
     "OfferKind": {
-      "description": "What opened an offer (ADR-066 §2).",
+      "description": "What opened an offer (ADR-079 §2).",
       "oneOf": [
         {
           "description": "A falling star the main character took; it can be skipped.",
@@ -810,7 +810,7 @@
       ]
     },
     "Rarity": {
-      "description": "A reward's rarity, from the most common up (ADR-066 §2).",
+      "description": "A reward's rarity, from the most common up (ADR-079 §2).",
       "type": "string",
       "enum": [
         "common",

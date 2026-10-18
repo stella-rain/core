@@ -1,4 +1,4 @@
-//! A run of the trial mode (ADR-066), shared by the run replay, recording and corpus tests.
+//! A run of the trial mode (ADR-079), shared by the run replay, recording and corpus tests.
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
@@ -23,8 +23,6 @@ pub fn trial_setup() -> RunSetup {
         mode: "trial".into(),
         main: "blade".into(),
         sub: "maul".into(),
-        main_expertise: 3,
-        sub_expertise: 0,
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,

@@ -1,6 +1,6 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
 //! (ADR-004, ADR-015). The only external influence is one `Input` per tick and the commands
-//! between ticks (ADR-066: `choose` and `spend`); everything else comes from the stage and its
+//! between ticks (ADR-079: `choose` and `spend`); everything else comes from the stage and its
 //! seed, or from a run setup, and from the run stats (ADR-067), so the state hash after each
 //! tick is the same on every platform (ADR-019).
 //!
@@ -43,7 +43,7 @@ pub enum ChoiceError {
 pub enum SpendError {
     /// The run has ended: its unspent points are lost.
     RunOver,
-    /// An offer is open: it is answered first (ADR-066 §4).
+    /// An offer is open: it is answered first (ADR-079 §4).
     OfferOpen,
     /// No point is left (or the stage has no levels).
     NoPoint,
@@ -127,7 +127,7 @@ impl Engine {
         })
     }
 
-    /// Starts a run from a setup alone (ADR-066 §1): the setup is validated, then its mode's
+    /// Starts a run from a setup alone (ADR-079 §1): the setup is validated, then its mode's
     /// stage runs with its weapons and seed, and the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<Engine, Error> {
         Engine::start_with(setup, RunContent::bundled())
@@ -151,7 +151,7 @@ impl Engine {
 
     /// Advances one tick with `input`. Once the run is over this does nothing, so a replay that
     /// is longer than the run cannot change the final hash; nor while an offer is open, when
-    /// the world is stopped (ADR-066 §3).
+    /// the world is stopped (ADR-079 §3).
     pub fn step(&mut self, input: Input) {
         self.events.clear();
         self.load = Load::default();
@@ -172,7 +172,7 @@ impl Engine {
         }
     }
 
-    /// Chooses option `index` of the open offer, between ticks (ADR-066 §3): the snapshot's
+    /// Chooses option `index` of the open offer, between ticks (ADR-079 §3): the snapshot's
     /// `offer.options` lists them. It applies at once, and the events are then this choice's.
     /// Refused, changing nothing, with no offer open or an index outside its options.
     pub fn choose(&mut self, index: u32) -> Result<(), ChoiceError> {
@@ -205,7 +205,7 @@ impl Engine {
         Ok(())
     }
 
-    /// Spends a stat point on the run stat at `index`, between ticks (ADR-066 §4): the stat
+    /// Spends a stat point on the run stat at `index`, between ticks (ADR-079 §4): the stat
     /// rises by its step at once, and the events are then this spend's. Refused, changing
     /// nothing, once the run has ended, while an offer is open, with no point left, an index
     /// outside the run stats, or the stat at its limit.
@@ -262,7 +262,7 @@ impl Engine {
         self.state.outcome
     }
 
-    /// An offer is open: `step` does nothing until `choose` closes it (ADR-066 §3).
+    /// An offer is open: `step` does nothing until `choose` closes it (ADR-079 §3).
     pub fn offer_open(&self) -> bool {
         self.state.stars.as_ref().is_some_and(|f| f.offer.is_some())
     }
@@ -557,7 +557,7 @@ pub(crate) struct State {
 }
 
 /// Falling stars, the offers due and the open one, and what the run's offers have used
-/// (ADR-066 §2, §3).
+/// (ADR-079 §2, §3).
 #[derive(Clone, Debug)]
 pub(crate) struct StarField {
     /// Kills in a row that dropped no star, for the pity.
@@ -600,7 +600,7 @@ pub(crate) struct OfferState {
     pub candidates: Vec<u16>,
 }
 
-/// Experience, levels and stat points (ADR-066 §2, §4).
+/// Experience, levels and stat points (ADR-079 §2, §4).
 #[derive(Clone, Debug)]
 pub(crate) struct Progress {
     /// From 1.

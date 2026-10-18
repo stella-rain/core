@@ -1,4 +1,4 @@
-//! Falling stars and their offers (ADR-066 §2, §3, ADR-068): a kill may drop a star, with pity;
+//! Falling stars and their offers (ADR-079 §2, §3, ADR-068): a kill may drop a star, with pity;
 //! taking it opens an offer at the end of the tick and stops the world; the offer holds three
 //! candidates at the star's rarity, a reroll of each, a skip and a banish of each. A star's
 //! rarity follows the player's level. Only a stage with `levels` and `stars` has them.

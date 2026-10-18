@@ -45,7 +45,7 @@
       "minimum": 0
     },
     "levels": {
-      "description": "Experience and levels, each level-up giving a stat point (ADR-066 §2); a mode's stages\nhave them. Without them defeated enemies give nothing.",
+      "description": "Experience and levels, each level-up giving a stat point (ADR-079 §2); a mode's stages\nhave them. Without them defeated enemies give nothing.",
       "anyOf": [
         {
           "$ref": "#/$defs/Levels"
@@ -88,7 +88,7 @@
       "minimum": 0
     },
     "stars": {
-      "description": "Falling stars and the offers they open (ADR-066 §2, §3, ADR-068); only with `levels`.\nWithout them kills drop nothing and nothing is offered.",
+      "description": "Falling stars and the offers they open (ADR-079 §2, §3, ADR-068); only with `levels`.\nWithout them kills drop nothing and nothing is offered.",
       "anyOf": [
         {
           "$ref": "#/$defs/Stars"

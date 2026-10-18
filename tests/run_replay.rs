@@ -1,4 +1,4 @@
-//! The run replay (ADR-066 §5): a run recorded as its setup, the content hash, one input per
+//! The run replay (ADR-079 §5): a run recorded as its setup, the content hash, one input per
 //! tick and one stream of commands between ticks (`choose` and `spend`), re-simulated from the
 //! file alone and refused, failing closed, whenever the file and the run disagree (ADR-020).
 
@@ -282,7 +282,7 @@ fn the_recorder_keeps_only_what_the_engine_took() {
     assert_eq!(recorder.replay(), recorded(point + 100));
 }
 
-// --- Offers (ADR-066 §3) -------------------------------------------------------------------------
+// --- Offers (ADR-079 §3) -------------------------------------------------------------------------
 
 /// The commands of the trial run up to its first offer: the input of the tick that opened it
 /// is the last.

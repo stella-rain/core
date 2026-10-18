@@ -4,7 +4,7 @@
 //! attack of its own; it adds its bonus to every step reached by `sub`. A weapon is a preset by
 //! ID or an inline definition, as an attack is. A preset is a whole weapon: one ID with a Main
 //! role and a Sub role; in `player.main` a preset runs its Main role, in `player.sub` its Sub
-//! role. The run's setup takes IDs only (ADR-066).
+//! role. The run's setup takes IDs only (ADR-079).
 //!
 //! Field names are placeholders until the freeze (ADR-035).
 

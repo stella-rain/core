@@ -9,7 +9,7 @@
 //! architecture. After an intended change, run `UPDATE_CORPUS=1 cargo test --test corpus` and
 //! say `Corpus regenerated: <why>` in the PR (ADR-035).
 //!
-//! Runs of the launch game (ADR-066) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
+//! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
 //! `run.replay` (a run replay: setup, content hash, inputs and commands) and `hashes.txt` (the
 //! hash after every tick, before the commands between it and the next). They need no stage file, because the
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
@@ -115,7 +115,7 @@ fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> {
     }
 }
 
-/// Re-simulates one run case (ADR-066), taking its commands between the ticks, and compares
+/// Re-simulates one run case (ADR-079), taking its commands between the ticks, and compares
 /// every tick's hash; then the run replay must verify against the same hashes.
 fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let name = case.file_name().unwrap().to_string_lossy().into_owned();
@@ -328,7 +328,7 @@ fn a_replay_that_is_not_the_stages_fails() {
     assert!(message.contains("stage file has changed"), "{message}");
 }
 
-// --- Run cases (ADR-066) -----------------------------------------------------------------------
+// --- Run cases (ADR-079) -----------------------------------------------------------------------
 
 fn changed_run_case(name: &str) -> (PathBuf, PathBuf) {
     let dir = scratch(&format!("run-{name}"));

@@ -1,4 +1,4 @@
-//! Rewards (ADR-066 §3, ADR-067): what an offer holds is content, read from JSON as untrusted
+//! Rewards (ADR-079 §3, ADR-067): what an offer holds is content, read from JSON as untrusted
 //! bytes (ADR-020): a size limit before parsing, strict parsing, the current versions only and
 //! every field bounded. The bundled file is the default; other bytes run the same way and
 //! change the run's content hash.

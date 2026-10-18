@@ -87,17 +87,17 @@ pub enum DomainEvent {
     },
     StageCleared,
     StageFailed,
-    /// The main character reached `level`, and gained a stat point (ADR-066 §2).
+    /// The main character reached `level`, and gained a stat point (ADR-079 §2).
     LeveledUp {
         level: u32,
     },
     /// A stat point was spent on the run stat `stat`, between ticks: it now has `spent`
-    /// points (ADR-066 §4).
+    /// points (ADR-079 §4).
     StatRaised {
         stat: ContentId,
         spent: u8,
     },
-    /// A kill dropped the falling star `star` (ADR-066 §2).
+    /// A kill dropped the falling star `star` (ADR-079 §2).
     StarDropped {
         star: EntityId,
         rarity: Rarity,
@@ -112,7 +112,7 @@ pub enum DomainEvent {
     ElitesCalled {
         elites: u32,
     },
-    /// An offer opened, and the world stopped until a choice closes it (ADR-066 §3).
+    /// An offer opened, and the world stopped until a choice closes it (ADR-079 §3).
     OfferOpened {
         kind: OfferKind,
         rarity: Rarity,

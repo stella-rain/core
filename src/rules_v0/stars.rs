@@ -1,4 +1,4 @@
-//! Falling stars and their offers (ADR-066 §2, §3, ADR-068), in a stage with `stars`.
+//! Falling stars and their offers (ADR-079 §2, §3, ADR-068), in a stage with `stars`.
 //!
 //! In the collisions, after the defeated enemies' experience, each defeated enemy in entity-ID
 //! order may drop a star where it fell. With the map full of stars it drops none, and the pity
@@ -32,7 +32,7 @@ use crate::validate::limits::MAX_STARS_ON_MAP;
 
 use super::{levels, orbit, overlaps, player, skill};
 
-/// The candidates an offer holds (a tuning value, ADR-066 §3).
+/// The candidates an offer holds (a tuning value, ADR-079 §3).
 pub(crate) const OFFER_SIZE: usize = 3;
 /// The drop chance is out of this.
 const PER_MILLE: u32 = 1000;

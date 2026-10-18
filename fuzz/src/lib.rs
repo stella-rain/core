@@ -93,7 +93,7 @@ pub fn run_setup(data: &[u8]) -> bool {
     engine.tick() > 0
 }
 
-/// One tick of `input`, after the commands between ticks (ADR-066): a choice with `pick` as it
+/// One tick of `input`, after the commands between ticks (ADR-079): a choice with `pick` as it
 /// is, then a spend of `pick` as it is and one of `pick` inside the stats, each of which may be
 /// refused and must then change nothing; then, while an offer is open, a choice of `pick`
 /// inside its options, which is never refused, so the world goes on.

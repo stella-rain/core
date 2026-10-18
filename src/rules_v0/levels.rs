@@ -1,4 +1,4 @@
-//! Experience, levels and stat points (ADR-066 §2, §4), in a stage with `levels`.
+//! Experience, levels and stat points (ADR-079 §2, §4), in a stage with `levels`.
 //!
 //! Defeated enemies give their wave's experience as they are removed in the collisions. Each
 //! level reached gives one stat point and opens no offer; points wait, unspent, until the run

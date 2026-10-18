@@ -1,7 +1,7 @@
 //! The game content a run reads besides its mode's stage (ADR-067): the run stats a point
 //! raises, the rewards an offer holds and the stage skills those name (ADR-098). One value, so
 //! that a run's engine, its recorder and its verification read the same files, and the replay's
-//! content hash covers each of them (ADR-066 §5).
+//! content hash covers each of them (ADR-079 §5).
 
 use std::sync::OnceLock;
 

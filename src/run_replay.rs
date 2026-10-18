@@ -1,4 +1,4 @@
-//! The run replay (ADR-066 §5): a run of the launch game recorded as its setup, the SHA-256 of
+//! The run replay (ADR-079 §5): a run of the launch game recorded as its setup, the SHA-256 of
 //! the game content it ran, the tick count, the final state hash, one input per tick and one
 //! stream of commands between ticks. Anyone can re-simulate it from the file and the content
 //! files it used (the run stats, the rewards and the stage skills): the setup names a mode
@@ -42,7 +42,7 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::validate;
 
-/// The most commands a run replay holds (a tuning value; ADR-066 decides that a cap exists).
+/// The most commands a run replay holds (a tuning value; ADR-079 decides that a cap exists).
 /// Version 0 gives at most 99 points in a run; the rest is room for the offers' choices, a few
 /// per falling star taken.
 pub const MAX_COMMANDS: u32 = 1000;
@@ -53,7 +53,7 @@ const CONTENT_TAG: &[u8] = b"stella-rain run content v0\0";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunReplay {
-    /// What the run started from (ADR-066 §1).
+    /// What the run started from (ADR-079 §1).
     pub setup: RunSetup,
     /// The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every
     /// preset, the run stats and the rewards (`content_sha256_with`). Other content invalidates
@@ -74,9 +74,9 @@ pub struct RunReplay {
 /// The kind of a command between ticks, and its byte in the packed stream.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
-    /// Option `index` of the open offer (ADR-066 §3).
+    /// Option `index` of the open offer (ADR-079 §3).
     Choose,
-    /// A stat point on the run stat at `index` (ADR-066 §4).
+    /// A stat point on the run stat at `index` (ADR-079 §4).
     Spend,
 }
 
@@ -105,7 +105,7 @@ pub struct TickCommand {
     pub index: u32,
 }
 
-/// A command of the run's stream (ADR-016, ADR-066): one input for the next tick, or a command
+/// A command of the run's stream (ADR-016, ADR-079): one input for the next tick, or a command
 /// between ticks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
@@ -408,7 +408,7 @@ pub struct RunRecorder {
 }
 
 impl RunRecorder {
-    /// Starts a run from `setup` (ADR-066 §1) with the bundled content files.
+    /// Starts a run from `setup` (ADR-079 §1) with the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<RunRecorder, RunReplayError> {
         RunRecorder::start_with(setup, RunContent::bundled())
     }
@@ -436,7 +436,7 @@ impl RunRecorder {
     }
 
     /// Runs the next tick with `input`. Refused, recording nothing, after the run ended or
-    /// while an offer is open (ADR-066 §3: a choice answers it first).
+    /// while an offer is open (ADR-079 §3: a choice answers it first).
     pub fn step(&mut self, input: Input) -> Result<(), RunReplayError> {
         if self.engine.outcome() != Outcome::Running {
             return Err(RunReplayError::InputsAfterEnd {
@@ -522,7 +522,7 @@ pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<RunReplay, R
 }
 
 /// Re-simulates a run replay from its bytes and the bundled content files, and checks every
-/// command and the final hash (ADR-066 §5). The whole file is untrusted.
+/// command and the final hash (ADR-079 §5). The whole file is untrusted.
 pub fn verify_run(replay_bytes: &[u8]) -> Result<RunVerified, RunReplayError> {
     verify_inner(replay_bytes, RunContent::bundled(), None)
 }

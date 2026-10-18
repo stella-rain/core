@@ -782,7 +782,7 @@
       ]
     },
     "Rarity": {
-      "description": "A reward's rarity, from the most common up (ADR-066 §2).",
+      "description": "A reward's rarity, from the most common up (ADR-079 §2).",
       "type": "string",
       "enum": [
         "common",
