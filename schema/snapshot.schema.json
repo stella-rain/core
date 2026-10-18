@@ -992,6 +992,12 @@
           "description": "The main character's hurt circle.",
           "$ref": "#/$defs/Fx"
         },
+        "range_pct": {
+          "description": "What the range rewards taken add up to, in percent, before the clamp at\n`MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "shield": {
           "description": "The stage skill's shield while it holds.",
           "anyOf": [

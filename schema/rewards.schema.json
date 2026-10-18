@@ -798,7 +798,7 @@
       "type": "object",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for a range enchantment, how much wider, from 1 to `MAX_RANGE_PCT` percent.",
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range or a range enchantment, how much wider, from 1 to `MAX_RANGE_PCT`\npercent.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -874,7 +874,7 @@
       ]
     },
     "RewardEffect": {
-      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, a stage\nskill, more evade charges, an orbit, or an enchantment.",
+      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, a stage\nskill, more evade charges, an orbit, range, or an enchantment.",
       "oneOf": [
         {
           "type": "string",
@@ -901,6 +901,11 @@
           "description": "The reward's `orbit`, with `amount` more orbs, never beyond `MAX_ORBS` (ADR-069).",
           "type": "string",
           "const": "orbit"
+        },
+        {
+          "description": "Every combo step of the Main weapon `amount` percent wider, as the expertise range\noption widens it, adding up over the picks (ADR-099).",
+          "type": "string",
+          "const": "range_pct"
         },
         {
           "description": "The reward's `enchantment` of the Main weapon's combo, `amount` its strength; taken once,\nand never offered again, nor another of its kind, once one of its kind is held (ADR-070,\nADR-078).",
