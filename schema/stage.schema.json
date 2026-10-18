@@ -429,6 +429,17 @@
           "format": "uint32",
           "minimum": 0
         },
+        "expertise": {
+          "description": "The expertise points the boss gives (ADR-078 §2); none when absent.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExpertisePoints"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "hp": {
           "type": "integer",
           "format": "uint32",
@@ -1098,6 +1109,29 @@
         "ticks",
         "invulnerable_ticks",
         "cooldown_ticks"
+      ]
+    },
+    "ExpertisePoints": {
+      "description": "What a hit and a kill by an A or a B step of a combo add to the one expertise gauge\n(ADR-078 §2): elites, bosses and the Star-Hunter give far more. Other damage gives none.\nNothing reads them yet.",
+      "type": "object",
+      "properties": {
+        "hit": {
+          "description": "Points per hit, at most `MAX_EXPERTISE_PER_HIT`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "kill": {
+          "description": "Points for the kill, at most `MAX_EXPERTISE_PER_KILL`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "hit",
+        "kill"
       ]
     },
     "Expr": {
@@ -2236,6 +2270,17 @@
           "format": "uint32",
           "default": 0,
           "minimum": 0
+        },
+        "expertise": {
+          "description": "The expertise points each enemy of the wave gives (ADR-078 §2); none when absent.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExpertisePoints"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "spawn": {
           "$ref": "#/$defs/Point"
