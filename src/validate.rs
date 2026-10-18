@@ -239,6 +239,28 @@ pub fn validate_attack(
     }
 }
 
+/// Checks an attack outside a stage, a preset by ID with its arguments or an inline one, against
+/// the same budgets as a stage's: a damage-area stage skill's (ADR-075). The problems are
+/// reported at paths from the attack: `$.preset.id`, `$.inline[0].ticks`.
+pub fn validate_attack_ref(attack: &AttackRef, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+    let mut ctx = Ctx {
+        registry,
+        sim_version: crate::version::SIM_VERSION,
+        map: crate::stage::Map::PORTRAIT,
+        parts: Vec::new(),
+        path: Vec::new(),
+        issues: Vec::new(),
+        left_out: false,
+        arity: 0,
+    };
+    ctx.attack_ref(attack);
+    if ctx.issues.is_empty() {
+        Ok(())
+    } else {
+        Err(ctx.issues)
+    }
+}
+
 /// Checks a weapon preset's two roles, as a stage's inline weapons are checked, without a boss
 /// (so a part to aim at is never found): the developer's weapon presets. Paths are from the
 /// preset: `$.main.charge.levels[0].at_ticks`.

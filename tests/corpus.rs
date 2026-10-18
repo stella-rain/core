@@ -22,11 +22,12 @@ use std::path::{Path, PathBuf};
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
+use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, hash_from_hex, hash_to_hex};
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
 use stella_rain_core::run_setup::{self, RunSetup};
-use stella_rain_core::snapshot::{EntityKind, Snapshot};
+use stella_rain_core::snapshot::{EntityKind, OfferOption, Snapshot};
 use stella_rain_core::validate::parse_and_validate;
 
 fn corpus_dir() -> PathBuf {
@@ -809,35 +810,41 @@ fn definitions() -> Vec<Definition> {
 }
 
 /// The run cases: the trial mode played until the main character falls, spending its points
-/// and answering its offers on the way, with every kind of option.
+/// and answering its offers on the way, with every kind of option; and the same from another
+/// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Vec<Command>)> {
-    vec![(
-        "trial",
-        common::run::trial_setup(),
-        common::run::play_run(common::run::TRIAL_LENGTH),
-    )]
+    use common::run::{STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, trial_setup};
+    let stage_skill = RunSetup {
+        seed: STAGE_SKILL_SEED,
+        ..trial_setup()
+    };
+    let stage_skill_commands = play_run_from(&stage_skill, TRIAL_LENGTH);
+    vec![
+        ("trial", trial_setup(), play_run(TRIAL_LENGTH)),
+        ("stage_skill", stage_skill, stage_skill_commands),
+    ]
 }
 
-#[test]
-fn the_run_cases_are_what_their_names_say() {
-    let bytes = fs::read(runs_dir().join("trial/run.replay")).unwrap();
+/// A run case re-simulated from its file: the kinds of option its choices take, and the stage
+/// skills it uses, each with the level it is used at.
+fn replay_run_case(name: &str) -> (Vec<std::mem::Discriminant<OfferOption>>, Vec<(String, u8)>) {
+    let bytes = fs::read(runs_dir().join(name).join("run.replay")).unwrap();
     let verified = run_replay::verify_run(&bytes).unwrap();
     assert_eq!(
         verified.outcome,
         Outcome::Failed,
-        "the main character falls"
+        "the main character falls in `{name}`"
     );
     let replay = RunReplay::from_bytes(&bytes).unwrap();
     let commands = replay.unpack_commands().unwrap();
     assert!(
         commands.iter().any(|c| c.kind == CommandKind::Spend),
-        "points are spent: {commands:?}"
+        "points are spent in `{name}`: {commands:?}"
     );
     assert_eq!(verified.commands, u32::try_from(commands.len()).unwrap());
-    // Re-simulated, the choices take each kind of option at least once.
     let mut engine = Engine::start(&replay.setup).unwrap();
     let mut next = commands.iter().peekable();
-    let mut kinds = Vec::new();
+    let (mut kinds, mut used) = (Vec::new(), Vec::new());
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             if c.kind == CommandKind::Choose {
@@ -849,8 +856,20 @@ fn the_run_cases_are_what_their_names_say() {
             }
         }
         engine.step(input);
+        for e in engine.events() {
+            if let DomainEvent::StageSkillUsed { skill, level } = e {
+                used.push((skill.0.clone(), *level));
+            }
+        }
     }
-    use stella_rain_core::snapshot::OfferOption::{Banish, Reroll, Skip, Take};
+    (kinds, used)
+}
+
+#[test]
+fn the_run_cases_are_what_their_names_say() {
+    // Re-simulated, the trial's choices take each kind of option at least once.
+    let (kinds, _) = replay_run_case("trial");
+    use OfferOption::{Banish, Reroll, Skip, Take};
     for kind in [
         Take { candidate: 0 },
         Reroll { candidate: 0 },
@@ -862,6 +881,12 @@ fn the_run_cases_are_what_their_names_say() {
             "no {kind:?} in the run case"
         );
     }
+    // An elite's rare star offers the black hole, taken, then used each time it is ready.
+    let (_, used) = replay_run_case("stage_skill");
+    assert!(
+        used.len() >= 2 && used.iter().all(|u| *u == ("black_hole".into(), 1)),
+        "the black hole is used more than once: {used:?}"
+    );
 }
 
 /// How a recorded case ends and the most bullets it ever has on screen.
@@ -934,7 +959,6 @@ struct EvadeReach {
 }
 
 fn evade_reach() -> EvadeReach {
-    use stella_rain_core::event::DomainEvent;
     let case = corpus_dir().join("evade");
     let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
     let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
@@ -975,7 +999,6 @@ struct AssistReach {
 }
 
 fn assist_reach() -> AssistReach {
-    use stella_rain_core::event::DomainEvent;
     let case = corpus_dir().join("assist");
     let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
     let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();

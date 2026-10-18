@@ -163,6 +163,298 @@
       "limit": 1,
       "title": "Insight (Legendary)",
       "description": "50 percent more experience"
+    },
+    {
+      "id": "black_hole_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "black_hole",
+      "amount": 1,
+      "limit": 3,
+      "title": "Black Hole",
+      "description": "Pulls the enemies ahead into one point and holds them there"
+    },
+    {
+      "id": "war_cry_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "war_cry",
+      "amount": 1,
+      "limit": 3,
+      "title": "War Cry",
+      "description": "Your attacks hit harder for 5 seconds"
+    },
+    {
+      "id": "hex_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "hex",
+      "amount": 1,
+      "limit": 3,
+      "title": "Hex",
+      "description": "The enemies ahead take more damage for 5 seconds"
+    },
+    {
+      "id": "nova_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "nova",
+      "amount": 1,
+      "limit": 3,
+      "title": "Nova",
+      "description": "A burst of starlight strikes the area ahead"
+    },
+    {
+      "id": "aegis_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "aegis",
+      "amount": 1,
+      "limit": 3,
+      "title": "Aegis",
+      "description": "A shield absorbs the next hits for a while"
+    }
+  ],
+  "stage_skills": [
+    {
+      "id": "black_hole",
+      "ahead": 24576,
+      "levels": [
+        {
+          "cooldown_ticks": 900,
+          "effect": {
+            "type": "black_hole",
+            "radius": 16384,
+            "pull": 512,
+            "duration_ticks": 120
+          }
+        },
+        {
+          "cooldown_ticks": 840,
+          "effect": {
+            "type": "black_hole",
+            "radius": 18432,
+            "pull": 640,
+            "duration_ticks": 150
+          }
+        },
+        {
+          "cooldown_ticks": 780,
+          "effect": {
+            "type": "black_hole",
+            "radius": 20480,
+            "pull": 768,
+            "duration_ticks": 180
+          }
+        }
+      ]
+    },
+    {
+      "id": "war_cry",
+      "levels": [
+        {
+          "cooldown_ticks": 1200,
+          "effect": {
+            "type": "buff",
+            "atk_pct": 30,
+            "duration_ticks": 300
+          }
+        },
+        {
+          "cooldown_ticks": 1100,
+          "effect": {
+            "type": "buff",
+            "atk_pct": 45,
+            "duration_ticks": 300
+          }
+        },
+        {
+          "cooldown_ticks": 1000,
+          "effect": {
+            "type": "buff",
+            "atk_pct": 60,
+            "duration_ticks": 300
+          }
+        }
+      ]
+    },
+    {
+      "id": "hex",
+      "ahead": 24576,
+      "levels": [
+        {
+          "cooldown_ticks": 900,
+          "effect": {
+            "type": "debuff_area",
+            "radius": 16384,
+            "vulnerable_pct": 25,
+            "duration_ticks": 300
+          }
+        },
+        {
+          "cooldown_ticks": 840,
+          "effect": {
+            "type": "debuff_area",
+            "radius": 20480,
+            "vulnerable_pct": 35,
+            "duration_ticks": 300
+          }
+        },
+        {
+          "cooldown_ticks": 780,
+          "effect": {
+            "type": "debuff_area",
+            "radius": 24576,
+            "vulnerable_pct": 50,
+            "duration_ticks": 300
+          }
+        }
+      ]
+    },
+    {
+      "id": "nova",
+      "levels": [
+        {
+          "cooldown_ticks": 600,
+          "effect": {
+            "type": "damage_area",
+            "attack": {
+              "inline": [
+                {
+                  "kind": "wind_up",
+                  "ticks": 10,
+                  "hit_box": {
+                    "type": "circle",
+                    "offset": {
+                      "forward": 24576
+                    },
+                    "radius": 12288
+                  }
+                },
+                {
+                  "kind": "active",
+                  "ticks": 4,
+                  "damage": 20,
+                  "hit_box": {
+                    "type": "circle",
+                    "offset": {
+                      "forward": 24576
+                    },
+                    "radius": 12288
+                  }
+                },
+                {
+                  "kind": "recovery",
+                  "ticks": 6
+                }
+              ]
+            }
+          }
+        },
+        {
+          "cooldown_ticks": 540,
+          "effect": {
+            "type": "damage_area",
+            "attack": {
+              "inline": [
+                {
+                  "kind": "wind_up",
+                  "ticks": 10,
+                  "hit_box": {
+                    "type": "circle",
+                    "offset": {
+                      "forward": 24576
+                    },
+                    "radius": 14336
+                  }
+                },
+                {
+                  "kind": "active",
+                  "ticks": 4,
+                  "damage": 30,
+                  "hit_box": {
+                    "type": "circle",
+                    "offset": {
+                      "forward": 24576
+                    },
+                    "radius": 14336
+                  }
+                },
+                {
+                  "kind": "recovery",
+                  "ticks": 6
+                }
+              ]
+            }
+          }
+        },
+        {
+          "cooldown_ticks": 480,
+          "effect": {
+            "type": "damage_area",
+            "attack": {
+              "inline": [
+                {
+                  "kind": "wind_up",
+                  "ticks": 10,
+                  "hit_box": {
+                    "type": "circle",
+                    "offset": {
+                      "forward": 24576
+                    },
+                    "radius": 16384
+                  }
+                },
+                {
+                  "kind": "active",
+                  "ticks": 4,
+                  "damage": 40,
+                  "hit_box": {
+                    "type": "circle",
+                    "offset": {
+                      "forward": 24576
+                    },
+                    "radius": 16384
+                  }
+                },
+                {
+                  "kind": "recovery",
+                  "ticks": 6
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "aegis",
+      "levels": [
+        {
+          "cooldown_ticks": 1200,
+          "effect": {
+            "type": "shield",
+            "amount": 3,
+            "duration_ticks": 300
+          }
+        },
+        {
+          "cooldown_ticks": 1100,
+          "effect": {
+            "type": "shield",
+            "amount": 5,
+            "duration_ticks": 360
+          }
+        },
+        {
+          "cooldown_ticks": 1000,
+          "effect": {
+            "type": "shield",
+            "amount": 8,
+            "duration_ticks": 420
+          }
+        }
+      ]
     }
   ]
 }

@@ -28,6 +28,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
 use crate::presets;
+use crate::rewards::Rewards;
 use crate::stage::Stage;
 use crate::trig::SCALE;
 use crate::weapon::{Charge, MainWeapon, Step, SubBonus};
@@ -37,6 +38,7 @@ use super::attacks;
 use super::entity::{Who, speed_pct};
 use super::levels;
 use super::select;
+use super::skill;
 
 /// The stick's full deflection on each axis (ADR-071); −128 counts as −127.
 const STICK_MAX: i8 = 127;
@@ -76,7 +78,13 @@ fn stick_direction(x: i8, y: i8) -> Option<Dir> {
 
 /// One tick of the main character: timers run down, it turns to its stick, evades on a ready
 /// press (cancelling its combo step), walks its combo, then dashes or moves.
-pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Vec<DomainEvent>) {
+pub(super) fn update(
+    stage: &Stage,
+    rewards: &Rewards,
+    s: &mut State,
+    input: Input,
+    events: &mut Vec<DomainEvent>,
+) {
     let held = input::held_buttons(input);
     let pressed = held & !s.player.held;
     s.player.held = held;
@@ -87,6 +95,8 @@ pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Ve
     }
     p.evade_recovering.retain(|&t| t > 0);
     p.combo.dash_strike_left = p.combo.dash_strike_left.saturating_sub(1);
+    skill::tick(s);
+    let p = &mut s.player;
     let (x, y) = (input.move_x.max(-STICK_MAX), input.move_y.max(-STICK_MAX));
     if let Some(dir) = stick_direction(x, y) {
         p.facing = dir;
@@ -103,6 +113,9 @@ pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Ve
         cancel(s, events);
         let strike = main.map_or(0, |m| m.dash_strike_ticks);
         s.player.combo.dash_strike_left = stage.player.evade.ticks.saturating_add(strike);
+    }
+    if pressed & input::SKILL != 0 {
+        skill::press(stage, rewards, s, input, events);
     }
     if let Some(main) = main {
         combo(stage, s, main, input, pressed, events);
@@ -398,7 +411,7 @@ fn strike(
 
 /// The direction from the main character to the entity `target`, if it is there and not on
 /// the main character's centre.
-fn toward(s: &State, target: EntityId) -> Option<Dir> {
+pub(super) fn toward(s: &State, target: EntityId) -> Option<Dir> {
     let to = s.at(s.find(target)?);
     let from = s.player.at;
     let (dx, dy) = (

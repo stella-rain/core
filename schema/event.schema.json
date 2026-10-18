@@ -159,6 +159,40 @@
       ]
     },
     {
+      "description": "The main character used its stage skill, at `level` (ADR-075).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "skill": {
+              "$ref": "#/$defs/ContentId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "skill",
+            "level"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "StageSkillUsed"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
       "description": "A press took a combo step (ADR-070): the step `depth` presses from the root.",
       "type": "object",
       "properties": {

@@ -29,8 +29,11 @@
 //! a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in step 8, answered between ticks (`stars`).
 //!
-//! Not yet in this version: summons by companions; the stage skill (ADR-075), whose input is
-//! recorded and does nothing yet.
+//! The stage skill (ADR-075, `skill`) acts in step 2 on a press, after the evade and before the
+//! combo; its black hole pulls after the push-apart of step 3, and its shield takes from the
+//! main character's damage in step 6.
+//!
+//! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
 //! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, the stage's elite cap of
@@ -50,6 +53,7 @@ mod hit_boxes;
 mod levels;
 mod player;
 mod push;
+mod skill;
 mod stars;
 
 pub(crate) use player::{charge_view, combo_view};
@@ -211,6 +215,9 @@ pub(crate) fn initial_state(
             held: 0,
             combo: player::initial_combo(stage),
             dash: None,
+            skill: None,
+            black_hole: None,
+            shield: None,
             aggro: 0,
             statuses: Vec::new(),
         },
@@ -260,11 +267,12 @@ pub(crate) fn step(
     spawn_waves(stage, s);
     entity::tick_statuses_and_aggro(s);
     attacks::advance_runs(s, events);
-    player::update(stage, s, input, events);
+    player::update(stage, rewards, s, input, events);
     boss::act(stage, s, events);
     boss::call_elites(stage, s, events);
     agents::act(stage, s, events);
     push::apply(stage, s);
+    skill::pull(stage, s);
     attacks::fire_hooks(s);
     let (tasks, emitter_steps) = attacks::run(s, &mut spawns_left);
     *load = Load {
@@ -536,6 +544,7 @@ pub(super) fn pull_enemy(stage: &Stage, s: &mut State, i: usize, pull: Pull) {
 fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
     let dealt = scale_damage(b.damage, 0, vulnerable, s.player.defence);
+    let dealt = skill::absorb(s, dealt);
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = HIT_INVULNERABLE_TICKS;
@@ -771,6 +780,34 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(t);
     }
     h.write_u32(u32::from(p.held));
+    match p.skill {
+        Some(slot) => {
+            h.write_bool(true);
+            h.write_u32(u32::from(slot.index));
+            h.write_u32(u32::from(slot.level));
+            h.write_u32(slot.cooldown_left);
+        }
+        None => h.write_bool(false),
+    }
+    match p.black_hole {
+        Some(b) => {
+            h.write_bool(true);
+            h.write_i32(b.at.x.0);
+            h.write_i32(b.at.y.0);
+            h.write_i32(b.radius);
+            h.write_i32(b.pull);
+            h.write_u32(b.ticks_left);
+        }
+        None => h.write_bool(false),
+    }
+    match p.shield {
+        Some(sh) => {
+            h.write_bool(true);
+            h.write_u32(sh.amount);
+            h.write_u32(sh.ticks_left);
+        }
+        None => h.write_bool(false),
+    }
     let c = &p.combo;
     h.write_u32(c.path);
     h.write_u32(u32::from(c.depth));

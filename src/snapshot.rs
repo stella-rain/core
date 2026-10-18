@@ -9,6 +9,7 @@ use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
+pub use crate::stage_skill::SkillKind;
 
 /// An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -169,9 +170,53 @@ pub struct PlayerView {
     /// frontend can mark it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<EntityId>,
-    /// Its attacks in progress, by slot.
+    /// The stage skill in its slot, if a reward has filled it (ADR-075).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill: Option<SkillView>,
+    /// The stage skill's black hole while it pulls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub black_hole: Option<BlackHoleView>,
+    /// The stage skill's shield while it holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shield: Option<ShieldView>,
+    /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill (ADR-069).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
+}
+
+/// The stage skill held (ADR-075): what the skill button draws.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SkillView {
+    /// Its ID in the rewards file's `stage_skills`, for its icon and name.
+    pub skill: ContentId,
+    pub kind: SkillKind,
+    /// From 1.
+    pub level: u8,
+    /// A press on the next tick would use it.
+    pub ready: bool,
+    /// Ticks until it is ready again, counted from its use.
+    pub cooldown_left: u32,
+}
+
+/// A black hole pulling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BlackHoleView {
+    pub at: Point,
+    pub radius: Fx,
+    /// Ticks it still pulls, this one included.
+    pub ticks_left: u32,
+}
+
+/// A shield held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ShieldView {
+    /// The damage it still absorbs.
+    pub amount: u32,
+    /// Ticks it still holds, this one included.
+    pub ticks_left: u32,
 }
 
 /// The evade and its charges (ADR-074).
