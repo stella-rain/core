@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::attack::MatchUp;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
+use crate::rune::Rune;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind, WeaponRole};
 
 /// Which button's press took a combo step (ADR-070): A or B.
@@ -122,10 +123,13 @@ pub enum DomainEvent {
         rarity: Rarity,
         candidates: Vec<ContentId>,
     },
-    /// The reward was taken: the run now has it `taken` times.
+    /// The reward was taken: the run now has it `taken` times. For a random rune, `rune` is
+    /// the rune it drew, now on the Main weapon (ADR-099).
     RewardTaken {
         reward: ContentId,
         taken: u8,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        rune: Option<Rune>,
     },
     /// The offer was closed with nothing taken.
     OfferSkipped,

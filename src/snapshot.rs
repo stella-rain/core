@@ -9,6 +9,7 @@ use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
+use crate::rune::Rune;
 
 /// An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -216,6 +217,10 @@ pub struct CandidateView {
     /// Its ID in the run's rewards file.
     pub reward: ContentId,
     pub rarity: Rarity,
+    /// A random rune (ADR-099): which rune it gives is drawn only when it is taken, so the
+    /// frontend shows it face down.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
 }
 
 /// One option of an open offer; `candidate` is a place in its candidates, from 0.
@@ -283,6 +288,9 @@ pub struct PlayerView {
     /// (ADR-100).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub type_bonuses: Vec<TypeBonusView>,
+    /// The runes its Main weapon holds, in the order drawn (ADR-099).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runes: Vec<RuneView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
     /// one for each orb, in the order the orbits came (ADR-069).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -297,6 +305,15 @@ pub struct TypeBonusView {
     #[serde(rename = "type")]
     pub damage_type: DamageType,
     pub pct: u32,
+}
+
+/// A rune the Main weapon holds (ADR-099).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RuneView {
+    pub rune: Rune,
+    /// For an on-hit rune, ticks until it may fire again; 0 for a damage-over-time rune.
+    pub cooldown_left: u32,
 }
 
 /// An orbit held (ADR-069). Its orbs' attacks are in the main character's `attacks`, in slots

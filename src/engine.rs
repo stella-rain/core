@@ -22,10 +22,12 @@ use crate::rules_v0;
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
+use crate::rune::Rune;
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView,
     ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView, PlayerView,
-    ProgressView, PullView, ShieldView, SkillView, Snapshot, StarView, TypeBonusView, WeaponRole,
+    ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView, TypeBonusView,
+    WeaponRole,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -450,6 +452,15 @@ impl Engine {
                         pct,
                     })
                     .collect(),
+                runes: s
+                    .player
+                    .runes
+                    .iter()
+                    .map(|r| RuneView {
+                        rune: r.rune,
+                        cooldown_left: r.cooldown_left,
+                    })
+                    .collect(),
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -709,6 +720,9 @@ pub(crate) struct PlayerState {
     /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
     /// type of its group.
     pub type_bonus_pct: [u32; DamageType::ALL.len()],
+    /// The runes the Main weapon holds, in the order drawn, each once, at most `MAX_RUNES`
+    /// (ADR-099).
+    pub runes: Vec<HeldRune>,
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
 }
@@ -777,6 +791,14 @@ pub(crate) struct OrbitState {
     pub round: u8,
     pub cooldown_left: u32,
     pub angle: i32,
+}
+
+/// A rune the Main weapon holds, and for an on-hit rune the ticks until it may fire again: 0,
+/// as no rune fires yet; always 0 for a damage-over-time rune.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct HeldRune {
+    pub rune: Rune,
+    pub cooldown_left: u32,
 }
 
 /// A pull pulling: its point, radius and strength (fixed-point units), and the ticks left, at

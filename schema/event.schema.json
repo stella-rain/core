@@ -670,7 +670,7 @@
       ]
     },
     {
-      "description": "The reward was taken: the run now has it `taken` times.",
+      "description": "The reward was taken: the run now has it `taken` times. For a random rune, `rune` is\nthe rune it drew, now on the Main weapon (ADR-099).",
       "type": "object",
       "properties": {
         "data": {
@@ -678,6 +678,16 @@
           "properties": {
             "reward": {
               "$ref": "#/$defs/ContentId"
+            },
+            "rune": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Rune"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "taken": {
               "type": "integer",
@@ -974,6 +984,16 @@
         "epic",
         "legendary",
         "supernova"
+      ]
+    },
+    "Rune": {
+      "description": "A rune, one of the closed list.",
+      "oneOf": [
+        {
+          "description": "On-hit: an explosion where a combo step hits. It does nothing yet.",
+          "type": "string",
+          "const": "explosion"
+        }
       ]
     },
     "WeaponRole": {

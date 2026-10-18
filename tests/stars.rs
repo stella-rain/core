@@ -334,7 +334,8 @@ fn taking_a_candidate_applies_its_reward_and_the_run_goes_on() {
         e.events(),
         [DomainEvent::RewardTaken {
             reward: ContentId(first),
-            taken: 1
+            taken: 1,
+            rune: None,
         }]
     );
     assert_eq!(e.snapshot().player.hp, hp + 5);

@@ -179,6 +179,10 @@
       "description": "A reward an offer holds.",
       "type": "object",
       "properties": {
+        "hidden": {
+          "description": "A random rune (ADR-099): which rune it gives is drawn only when it is taken, so the\nfrontend shows it face down.",
+          "type": "boolean"
+        },
         "rarity": {
           "$ref": "#/$defs/Rarity"
         },
@@ -963,6 +967,13 @@
           "format": "uint32",
           "minimum": 0
         },
+        "runes": {
+          "description": "The runes its Main weapon holds, in the order drawn (ADR-099).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuneView"
+          }
+        },
         "shield": {
           "description": "The stage skill's shield while it holds.",
           "anyOf": [
@@ -1133,6 +1144,36 @@
         "epic",
         "legendary",
         "supernova"
+      ]
+    },
+    "Rune": {
+      "description": "A rune, one of the closed list.",
+      "oneOf": [
+        {
+          "description": "On-hit: an explosion where a combo step hits. It does nothing yet.",
+          "type": "string",
+          "const": "explosion"
+        }
+      ]
+    },
+    "RuneView": {
+      "description": "A rune the Main weapon holds (ADR-099).",
+      "type": "object",
+      "properties": {
+        "cooldown_left": {
+          "description": "For an on-hit rune, ticks until it may fire again; 0 for a damage-over-time rune.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "rune": {
+          "$ref": "#/$defs/Rune"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rune",
+        "cooldown_left"
       ]
     },
     "ShieldView": {
