@@ -125,30 +125,6 @@
         "facing"
       ]
     },
-    "BlackHoleView": {
-      "description": "A black hole pulling.",
-      "type": "object",
-      "properties": {
-        "at": {
-          "$ref": "#/$defs/Point"
-        },
-        "radius": {
-          "$ref": "#/$defs/Fx"
-        },
-        "ticks_left": {
-          "description": "Ticks it still pulls, this one included.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "at",
-        "radius",
-        "ticks_left"
-      ]
-    },
     "BulletView": {
       "description": "Bullets carry no ID or asset name: thousands are drawn per tick, batched by `style`.",
       "type": "object",
@@ -690,17 +666,6 @@
             "$ref": "#/$defs/AttackView"
           }
         },
-        "black_hole": {
-          "description": "The stage skill's black hole while it pulls.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BlackHoleView"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "charge": {
           "description": "The current step charging, if it is (ADR-070).",
           "anyOf": [
@@ -733,6 +698,17 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "pull": {
+          "description": "The stage skill's pull while it pulls.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PullView"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "radius": {
           "description": "The main character's hurt circle.",
@@ -867,6 +843,30 @@
         "spent"
       ]
     },
+    "PullView": {
+      "description": "A stage skill's pull pulling.",
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Point"
+        },
+        "radius": {
+          "$ref": "#/$defs/Fx"
+        },
+        "ticks_left": {
+          "description": "Ticks it still pulls, this one included.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "radius",
+        "ticks_left"
+      ]
+    },
     "Rarity": {
       "description": "A reward's rarity, from the most common up (ADR-066 §2).",
       "type": "string",
@@ -902,17 +902,6 @@
         "ticks_left"
       ]
     },
-    "SkillKind": {
-      "description": "The kinds of stage skill, for the frontend's icon and the validator.",
-      "type": "string",
-      "enum": [
-        "black_hole",
-        "buff",
-        "debuff_area",
-        "damage_area",
-        "shield"
-      ]
-    },
     "SkillView": {
       "description": "The stage skill held (ADR-075): what the skill button draws.",
       "type": "object",
@@ -923,8 +912,9 @@
           "format": "uint32",
           "minimum": 0
         },
-        "kind": {
-          "$ref": "#/$defs/SkillKind"
+        "icon": {
+          "description": "The asset the button draws (ADR-098).",
+          "$ref": "#/$defs/ContentId"
         },
         "level": {
           "description": "From 1.",
@@ -938,14 +928,14 @@
           "type": "boolean"
         },
         "skill": {
-          "description": "Its ID in the rewards file's `stage_skills`, for its icon and name.",
+          "description": "Its ID in the stage skills file, for its name.",
           "$ref": "#/$defs/ContentId"
         }
       },
       "additionalProperties": false,
       "required": [
         "skill",
-        "kind",
+        "icon",
         "level",
         "ready",
         "cooldown_left"
