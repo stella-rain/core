@@ -31,6 +31,7 @@ use crate::presets;
 use crate::rewards::Rewards;
 use crate::stage::Stage;
 use crate::trig::SCALE;
+use crate::validate::limits::MAX_EVADE_CHARGES;
 use crate::weapon::{Charge, MainWeapon, Step, SubBonus};
 
 use super::PLAYER_SPEED;
@@ -159,6 +160,21 @@ fn start_evade(stage: &Stage, p: &mut PlayerState, cooldown: u32, events: &mut V
     }
     p.invulnerable = p.invulnerable.max(evade.invulnerable_ticks);
     events.push(DomainEvent::Evaded);
+}
+
+/// A reward's `amount` more evade charges, never beyond the stage's `max_charges` (ADR-074 §5).
+/// The new ones are ready: the spent ones keep their timers.
+pub(super) fn add_evade_charges(stage: &Stage, p: &mut PlayerState, amount: u32) {
+    // The validator holds `max_charges` to `charges..=3`; the clamp keeps an unvalidated stage
+    // there too, and never takes a charge away.
+    let most = stage
+        .player
+        .evade
+        .most_charges()
+        .min(MAX_EVADE_CHARGES)
+        .max(p.evade_charges);
+    let more = u8::try_from(amount).unwrap_or(u8::MAX);
+    p.evade_charges = p.evade_charges.saturating_add(more).min(most);
 }
 
 /// One tick of the dash: the `k`th tick moves from `distance × (k − 1) / ticks` to

@@ -2,8 +2,9 @@
 //! rarity, a stack limit (how many times one run takes it) and an effect. They are content, not
 //! code: a JSON list of any length up to `MAX_REWARDS`, read in its order. Data picks, code
 //! acts: a reward's effect is one of the run stats' effect kinds (`StatEffect`), adding
-//! `amount` to that effect's total, as a stat point adds its step, or a stage skill
-//! (ADR-075, ADR-098): one of the stage skills file's skills, `amount` levels of it.
+//! `amount` to that effect's total, as a stat point adds its step, a stage skill (ADR-075,
+//! ADR-098): one of the stage skills file's skills, `amount` levels of it, or `amount` more
+//! evade charges, up to the stage's `max_charges` (ADR-074).
 //!
 //! The file is untrusted (ADR-020), as the run stats are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. Reward IDs are the file's own,
@@ -21,6 +22,7 @@ use crate::id::ContentId;
 use crate::registry;
 use crate::run_stats::{self, StatEffect};
 use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
+use crate::validate::limits::MAX_EVADE_CHARGES;
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -64,8 +66,8 @@ impl Rarity {
     }
 }
 
-/// What taking a reward does: one of the run stats' effect kinds, under the same names, or a
-/// stage skill.
+/// What taking a reward does: one of the run stats' effect kinds, under the same names, a stage
+/// skill, or more evade charges.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
@@ -79,6 +81,9 @@ pub enum RewardEffect {
     XpPct,
     /// The stage skill the reward's `skill` names, `amount` levels of it (ADR-075).
     StageSkill,
+    /// `amount` more evade charges, never beyond the stage's `max_charges`; each arrives ready
+    /// (ADR-074).
+    EvadeCharge,
 }
 
 impl RewardEffect {
@@ -91,7 +96,7 @@ impl RewardEffect {
             RewardEffect::EvadePct => StatEffect::EvadePct,
             RewardEffect::SpeedPct => StatEffect::SpeedPct,
             RewardEffect::XpPct => StatEffect::XpPct,
-            RewardEffect::StageSkill => return None,
+            RewardEffect::StageSkill | RewardEffect::EvadeCharge => return None,
         })
     }
 }
@@ -109,7 +114,8 @@ pub struct Reward {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skill: Option<ContentId>,
     /// What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,
-    /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`.
+    /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it
+    /// adds, from 1 to `MAX_EVADE_CHARGES`.
     pub amount: u32,
     /// The most times one run takes it, from 1 to `MAX_STACK`.
     pub limit: u8,
@@ -230,10 +236,10 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
         } else if file.rewards[..i].iter().any(|r| r.id == reward.id) {
             issue(at("id"), "the same ID as an earlier reward".into());
         }
-        let most = if reward.effect == RewardEffect::StageSkill {
-            MAX_SKILL_LEVELS as u32
-        } else {
-            MAX_AMOUNT
+        let most = match reward.effect {
+            RewardEffect::StageSkill => MAX_SKILL_LEVELS as u32,
+            RewardEffect::EvadeCharge => u32::from(MAX_EVADE_CHARGES),
+            _ => MAX_AMOUNT,
         };
         if !(1..=most).contains(&reward.amount) {
             issue(

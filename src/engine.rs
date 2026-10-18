@@ -193,7 +193,13 @@ impl Engine {
         };
         self.events.clear();
         match self.stage.sim_version {
-            0 => rules_v0::choose(rewards, &mut self.state, option, &mut self.events),
+            0 => rules_v0::choose(
+                &self.stage,
+                rewards,
+                &mut self.state,
+                option,
+                &mut self.events,
+            ),
             _ => self.state.outcome = Outcome::Failed,
         }
         Ok(())
