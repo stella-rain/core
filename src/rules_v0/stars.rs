@@ -24,13 +24,13 @@
 use crate::engine::{Due, OfferState, StarField, StarState, State};
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
-use crate::rewards::{Rarity, Rewards};
+use crate::rewards::{Rarity, RewardEffect, Rewards};
 use crate::rng::SplitMix64;
 use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
-use super::{levels, overlaps, skill};
+use super::{levels, overlaps, player, skill};
 
 /// The candidates an offer holds (a tuning value, ADR-066 §3).
 pub(crate) const OFFER_SIZE: usize = 3;
@@ -260,6 +260,7 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
 
 /// Carries out `option`, one of `options`, on the open offer.
 pub(crate) fn choose(
+    stage: &Stage,
     rewards: &Rewards,
     s: &mut State,
     option: OfferOption,
@@ -286,19 +287,22 @@ pub(crate) fn choose(
             let at = usize::from(i);
             f.taken[at] = f.taken[at].saturating_add(1);
             let reward = &rewards.rewards()[at];
-            match reward.effect.stat() {
-                Some(effect) => {
-                    if let Some(p) = progress.as_mut() {
-                        levels::add_effect(p, player, effect, reward.amount);
-                    }
-                }
-                None => {
+            match reward.effect {
+                RewardEffect::StageSkill => {
                     let index = reward
                         .skill
                         .as_ref()
                         .and_then(|id| rewards.stage_skills().index_of(id));
                     if let Some(index) = index {
                         skill::take(rewards, player, index, reward.amount);
+                    }
+                }
+                RewardEffect::EvadeCharge => {
+                    player::add_evade_charges(stage, player, reward.amount)
+                }
+                effect => {
+                    if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
+                        levels::add_effect(p, player, effect, reward.amount);
                     }
                 }
             }
