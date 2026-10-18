@@ -88,6 +88,17 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "type": {
+          "description": "The damage type of the phase's hits and of the bullets it spawns (ADR-100); absent, they\nare neutral and never get a match-up.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DamageType"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -149,6 +160,22 @@
     "ContentId": {
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
+    },
+    "DamageType": {
+      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
+      "type": "string",
+      "enum": [
+        "slash",
+        "pierce",
+        "strike",
+        "pyro",
+        "hydro",
+        "electro",
+        "cryo",
+        "anemo",
+        "geo",
+        "dendro"
+      ]
     },
     "Direction": {
       "oneOf": [

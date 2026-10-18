@@ -339,7 +339,7 @@ pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
 /// phase's own, or else the starter's, raised by the atk-up fixed at the attack's start.
 pub(super) fn phase_damage(r: &AttackRun) -> u32 {
     let p = &r.phases[r.phase as usize];
-    scale_damage(p.damage.unwrap_or(r.base), r.atk_up_pct, 0, 0)
+    scale_damage(p.damage.unwrap_or(r.base), r.atk_up_pct, 0, 0, 0)
 }
 
 /// Whether run `r` is the main character's combo step, A or B (ADR-078 §2).
@@ -377,6 +377,7 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         aim: r.aim,
         friendly: r.friendly,
         damage: phase_damage(r),
+        damage_type: p.damage_type,
         breaks_charge: p.breaks_charge,
         pull: r.pull,
         combo: is_combo(r),
@@ -415,6 +416,7 @@ pub(super) fn fire_hooks(s: &mut State) {
             aim: hook.aim,
             friendly: hook.friendly,
             damage: hook.damage,
+            damage_type: hook.damage_type,
             breaks_charge: hook.breaks_charge,
             pull: hook.pull,
             combo: hook.combo,
@@ -865,6 +867,7 @@ fn emit(
             aim: t.aim,
             friendly: t.friendly,
             damage: t.damage,
+            damage_type: t.damage_type,
             breaks_charge: t.breaks_charge,
             pull: t.pull,
             combo: t.combo,
@@ -883,6 +886,7 @@ fn emit(
             owner: t.owner,
             friendly: t.friendly,
             damage: t.damage,
+            damage_type: t.damage_type,
             breaks_charge: t.breaks_charge,
             pull: t.pull,
             combo: t.combo,

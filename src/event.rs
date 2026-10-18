@@ -5,6 +5,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::attack::MatchUp;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind, WeaponRole};
@@ -25,6 +26,9 @@ pub enum DomainEvent {
         source: EntityId,
         target: EntityId,
         damage: u32,
+        /// The match-up the hit got (ADR-100); left out when none.
+        #[serde(default, skip_serializing_if = "MatchUp::is_none")]
+        match_up: MatchUp,
     },
     /// The main character was hit.
     PlayerHit {

@@ -15,7 +15,9 @@ use std::fmt;
 
 use serde::Deserialize;
 
-use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
+use crate::attack::{
+    AttackPhase, AttackRef, DamageType, Direction, Emitter, Expr, HitBox, PhaseKind, Profile,
+};
 use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill};
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
@@ -530,6 +532,11 @@ impl<'a> Ctx<'a> {
                         if a.elite.is_some() {
                             c.key("elite", |c| c.fail("a companion cannot be an elite"));
                         }
+                        if a.profile.is_some() {
+                            c.key("profile", |c| {
+                                c.fail("a companion has no match-up profile (ADR-100)")
+                            });
+                        }
                     });
                 }
             });
@@ -820,6 +827,9 @@ impl<'a> Ctx<'a> {
         }
         self.within("hp", i64::from(a.hp), 1, i64::from(MAX_AGENT_HP));
         self.within("defence", i64::from(a.defence), 0, i64::from(MAX_DEFENCE));
+        if let Some(p) = &a.profile {
+            self.key("profile", |c| c.profile(p));
+        }
         self.within("radius", i64::from(a.radius.0), 1, i64::from(MAX_RADIUS));
         self.key("movement", |c| c.movement(&a.movement));
         self.rules("rules", &a.rules, summon_ok);
@@ -993,6 +1003,9 @@ impl<'a> Ctx<'a> {
         }
         self.within("hp", i64::from(b.hp), 1, i64::from(MAX_BOSS_HP));
         self.within("defence", i64::from(b.defence), 0, i64::from(MAX_DEFENCE));
+        if let Some(p) = &b.profile {
+            self.key("profile", |c| c.profile(p));
+        }
         self.within("radius", i64::from(b.radius.0), 1, i64::from(MAX_RADIUS));
         self.point("spawn", &b.spawn);
         if self.at_most("parts", b.parts.len(), MAX_BOSS_PARTS, "boss parts") {
@@ -1047,6 +1060,29 @@ impl<'a> Ctx<'a> {
             c.within("x", i64::from(p.offset.x.0), -max, max);
             c.within("y", i64::from(p.offset.y.0), -max, max);
         });
+        if let Some(profile) = &p.profile {
+            self.key("profile", |c| c.profile(profile));
+        }
+    }
+
+    /// A match-up profile (ADR-100 point 7): each type at most once in each list, and never in
+    /// both. The one blanket resist is the parser's: `resist` holds a single value.
+    fn profile(&mut self, p: &Profile) {
+        let types = DamageType::ALL.len();
+        for (key, list) in [("weak", &p.weak), ("strong", &p.strong)] {
+            if !self.at_most(key, list.len(), types, "types") {
+                continue;
+            }
+            self.key(key, |c| {
+                for (i, ty) in list.iter().enumerate() {
+                    if list[..i].contains(ty) {
+                        c.idx(i, |c| c.fail("this type is already in the list"));
+                    } else if key == "strong" && p.weak.contains(ty) {
+                        c.idx(i, |c| c.fail("this type is also in `weak`"));
+                    }
+                }
+            });
+        }
     }
 
     fn phase(&mut self, p: &Phase, last: bool) {

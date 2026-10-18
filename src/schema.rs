@@ -7,6 +7,7 @@ use schemars::schema_for;
 use crate::event::DomainEvent;
 use crate::expertise::ExpertiseFile;
 use crate::input::Input;
+use crate::match_ups::MatchUpsFile;
 use crate::replay::Replay;
 use crate::rewards::RewardsFile;
 use crate::run_replay::RunReplay;
@@ -38,5 +39,6 @@ pub fn all() -> Vec<(&'static str, String)> {
             pretty(schema_for!(StageSkillsFile)),
         ),
         ("expertise.schema.json", pretty(schema_for!(ExpertiseFile))),
+        ("match_ups.schema.json", pretty(schema_for!(MatchUpsFile))),
     ]
 }
