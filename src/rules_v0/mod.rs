@@ -37,6 +37,9 @@
 //! attacks when its cooldown has run out and the round before has ended, and turns them; their
 //! hit boxes land in step 6. A run holds at most `MAX_ORBITS` orbits of `MAX_ORBS` orbs.
 //!
+//! Enchantments (ADR-070, ADR-078) change the combo steps started after they are taken: a range
+//! enchantment widens their hit boxes (`player`). A run holds at most one of each kind.
+//!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
@@ -224,6 +227,7 @@ pub(crate) fn initial_state(
             pull: None,
             shield: None,
             orbits: Vec::new(),
+            enchantments: Vec::new(),
             aggro: 0,
             statuses: Vec::new(),
         },
@@ -822,6 +826,12 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(u32::from(o.round));
         h.write_u32(o.cooldown_left);
         h.write_i32(o.angle);
+    }
+    h.write_u32(count(&p.enchantments));
+    for e in &p.enchantments {
+        h.write_u32(u32::from(e.reward));
+        h.write_u32(u32::from(e.enchantment.index()));
+        h.write_u32(e.amount);
     }
     let c = &p.combo;
     h.write_u32(c.path);

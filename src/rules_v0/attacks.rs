@@ -37,7 +37,7 @@
 
 use std::sync::Arc;
 
-use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, PhaseKind};
+use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::engine::{
     Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Pull, State,
     StatusKind,
@@ -47,6 +47,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::presets;
 use crate::registry;
+use crate::rewards::MAX_RANGE_PCT;
 use crate::rng::SplitMix64;
 use crate::trig;
 use crate::validate::limits::{MAX_LEN, MAX_REPEAT, MAX_TICKS};
@@ -137,11 +138,13 @@ pub(super) fn start_with(
 }
 
 /// How the main character's combo step attacks (ADR-070): `bonus_pct` more damage (a perfect
-/// release's), `speed_pct` faster (attack speed), and the Sub weapon's pull for a combo part.
+/// release's), `speed_pct` faster (attack speed), `range_pct` wider (a range enchantment,
+/// ADR-078), and the Sub weapon's pull for a combo part.
 #[derive(Clone, Copy)]
 pub(super) struct Strike {
     pub bonus_pct: u32,
     pub speed_pct: u32,
+    pub range_pct: u32,
     pub pull: Option<Pull>,
 }
 
@@ -166,6 +169,11 @@ pub(super) fn start_player(
         phases
     } else {
         Arc::new(faster(&phases, strike.speed_pct))
+    };
+    let phases = if strike.range_pct == 0 {
+        phases
+    } else {
+        Arc::new(wider(&phases, strike.range_pct))
     };
     let aim = Aim::Fixed(facing);
     launch(
@@ -205,6 +213,31 @@ pub(super) fn faster(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
     rests.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
     for &(_, i) in rests.iter().take(target.saturating_sub(sum) as usize) {
         out[i].ticks = out[i].ticks.saturating_add(1);
+    }
+    out
+}
+
+/// `phases` with every hit box `pct` percent larger, at most `MAX_RANGE_PCT`: its radius and
+/// its offset, each rounded toward zero and held within `i32`; an arc's angle stays.
+pub(super) fn wider(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
+    // The validator holds the amount to `MAX_RANGE_PCT`; the clamp keeps an unvalidated file there.
+    let per = 100 + i64::from(pct.min(MAX_RANGE_PCT));
+    let grow = |v: &mut Fx| {
+        v.0 = i32::try_from(i64::from(v.0) * per / 100).unwrap_or(if v.0 < 0 {
+            i32::MIN
+        } else {
+            i32::MAX
+        });
+    };
+    let mut out = phases.to_vec();
+    for p in &mut out {
+        if let Some(HitBox::Circle { offset, radius } | HitBox::Arc { offset, radius, .. }) =
+            &mut p.hit_box
+        {
+            grow(radius);
+            grow(&mut offset.forward);
+            grow(&mut offset.right);
+        }
     }
     out
 }

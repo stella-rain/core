@@ -195,6 +195,7 @@ fn apply(
             let strike = attacks::Strike {
                 bonus_pct: 0,
                 speed_pct: 0,
+                range_pct: 0,
                 pull: None,
             };
             let damage = levels::attack(s, stage.player.atk);

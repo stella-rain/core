@@ -15,8 +15,8 @@
 //!
 //! At the end of a tick the run survives, the first offer due opens. It draws `OFFER_SIZE`
 //! candidates from the run's pool at the star's rarity, then from the rarities below while too
-//! few are left. It leaves out banished rewards, rewards at their limit and rewards it already
-//! holds. An offer with no candidate does not open, and the next one due is tried. While an
+//! few are left. It leaves out banished rewards, rewards at their limit, enchantments of a kind
+//! already taken (ADR-078) and rewards it already holds. An offer with no candidate does not open, and the next one due is tried. While an
 //! offer is open the world stops. A choice (`choose`) takes a candidate, rerolls one, skips (a
 //! star's offer only), or banishes one; when it closes the offer, the next one due opens at
 //! once. Every draw is from the run's generator, in this order.
@@ -24,7 +24,7 @@
 use crate::engine::{Due, OfferState, StarField, StarState, State};
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
-use crate::rewards::{Rarity, RewardEffect, Rewards};
+use crate::rewards::{Enchantment, Rarity, RewardEffect, Rewards};
 use crate::rng::SplitMix64;
 use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
@@ -195,12 +195,26 @@ pub(crate) fn open_due(rewards: &Rewards, s: &mut State, events: &mut Vec<Domain
     }
 }
 
-/// Whether the reward at `i` may be offered: not banished, not at its limit, not in `held`.
+/// Whether the reward at `i` may be offered: not banished, not at its limit, not an enchantment
+/// of a kind taken, not in `held`.
 fn eligible(rewards: &Rewards, f: &StarField, i: u16, rarity: Rarity, held: &[u16]) -> bool {
     let at = usize::from(i);
     rewards.rewards().get(at).is_some_and(|r| {
-        r.rarity == rarity && !f.banished[at] && f.taken[at] < r.limit && !held.contains(&i)
+        r.rarity == rarity
+            && !f.banished[at]
+            && f.taken[at] < r.limit
+            && !held.contains(&i)
+            && !r.enchantment.is_some_and(|k| enchanted(rewards, f, k))
     })
+}
+
+/// Whether an enchantment of kind `k` has been taken.
+fn enchanted(rewards: &Rewards, f: &StarField, k: Enchantment) -> bool {
+    rewards
+        .rewards()
+        .iter()
+        .zip(&f.taken)
+        .any(|(r, taken)| *taken > 0 && r.enchantment == Some(k))
 }
 
 /// The rarest rarity from `top` down that has a reward to offer besides `held`.
@@ -301,6 +315,11 @@ pub(crate) fn choose(
                     player::add_evade_charges(stage, player, reward.amount)
                 }
                 RewardEffect::Orbit => orbit::take(player, i, reward.amount),
+                RewardEffect::Enchantment => {
+                    if let Some(k) = reward.enchantment {
+                        player::enchant(player, i, k, reward.amount);
+                    }
+                }
                 effect => {
                     if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
                         levels::add_effect(p, player, effect, reward.amount);
