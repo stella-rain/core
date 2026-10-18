@@ -271,50 +271,6 @@
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
-    "Enchantment": {
-      "description": "An enchantment of the Main weapon's combo (ADR-070, ADR-078): one of a closed list built into\n`core`, its strength the reward's `amount`. It changes every combo step started after it is\ntaken: A and B steps, the dash-strike and charged releases alike; the stage skill and orbits\nare not combo steps.",
-      "oneOf": [
-        {
-          "description": "Every hit box of the step is `amount` percent larger: its radius and its offset, rounded\ntoward zero; an arc's angle stays. The bullets a step spawns are not changed.",
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "range"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type"
-          ]
-        }
-      ]
-    },
-    "EnchantmentView": {
-      "description": "An enchantment held (ADR-070, ADR-078).",
-      "type": "object",
-      "properties": {
-        "amount": {
-          "description": "Its strength: for range, how much wider, in percent.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "enchantment": {
-          "$ref": "#/$defs/Enchantment"
-        },
-        "reward": {
-          "description": "The reward that gave it, for its name.",
-          "$ref": "#/$defs/ContentId"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "reward",
-        "enchantment",
-        "amount"
-      ]
-    },
     "EntityId": {
       "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).",
       "type": "integer",
@@ -945,13 +901,6 @@
           "description": "Where it is in its Main weapon's combos (ADR-070).",
           "$ref": "#/$defs/ComboView"
         },
-        "enchantments": {
-          "description": "The enchantments rewards gave, in the order they came (ADR-070, ADR-078): what changes\nits combo steps. A range enchantment's wider hit boxes are already in `attacks`.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/EnchantmentView"
-          }
-        },
         "evade": {
           "$ref": "#/$defs/EvadeView"
         },
@@ -991,6 +940,12 @@
         "radius": {
           "description": "The main character's hurt circle.",
           "$ref": "#/$defs/Fx"
+        },
+        "range_pct": {
+          "description": "What the range rewards taken add up to, in percent, before the clamp at\n`MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         },
         "shield": {
           "description": "The stage skill's shield while it holds.",

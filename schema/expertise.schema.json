@@ -73,7 +73,7 @@
           ]
         },
         {
-          "description": "Every combo step's hit box `amount` percent larger, as the range enchantment widens it\n(ADR-070), at most `MAX_RANGE_PCT`.",
+          "description": "Every combo step's hit box `amount` percent larger, as the range reward widens it\n(ADR-070, ADR-099), at most `MAX_RANGE_PCT`.",
           "type": "string",
           "const": "range_pct"
         }

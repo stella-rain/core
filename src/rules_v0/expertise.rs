@@ -23,7 +23,7 @@
 //! with none it does not open. Its options are the candidates, then a reroll of each while the
 //! run has rerolls (shared with the stars' offers) and another option could come; never a skip
 //! or a banish. Taking an option adds its effect as a reward of that kind does, a range option
-//! widening the combo steps as a range enchantment does, and counts it for its weapon.
+//! widening the combo steps as a range reward does, and counts it for its weapon.
 //!
 //! A style, upgrade or capstone offer is not drawn: it shows its fixed choices in the content's
 //! order, takes nothing from the generator, and its options are the choices alone: no reroll,

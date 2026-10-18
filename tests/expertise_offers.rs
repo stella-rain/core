@@ -463,7 +463,6 @@ fn a_boss_kill_no_longer_upgrades_a_weapon_its_points_are_its_weapon_progress() 
         "nothing is taken before a choice: {events:?}"
     );
     let s = e.snapshot();
-    assert!(s.player.enchantments.is_empty());
     let g = s.expertise.unwrap();
     assert_eq!(g.level, 1, "the kill's points are its weapon progress");
     assert_eq!(g.main_taken, [0, 0, 0]);

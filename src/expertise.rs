@@ -8,8 +8,8 @@
 //! (`stage::ExpertisePoints`).
 //!
 //! Data picks, code acts: an option's effect is one of the run stats' effect kinds
-//! (`StatEffect`), under the same names, or `range_pct`, the range enchantment's widening
-//! (ADR-070). The gauge reads the thresholds, the growth and the maximum, the common offers
+//! (`StatEffect`), under the same names, or `range_pct`, the range reward's widening
+//! (ADR-070, ADR-099). The gauge reads the thresholds, the growth and the maximum, the common offers
 //! draw from the common pools, and the style offers show the styles and the chosen Main
 //! style's upgrades and capstones (`rules_v0`).
 //!
@@ -63,8 +63,8 @@ pub enum ExpertiseEffect {
     EvadePct,
     SpeedPct,
     XpPct,
-    /// Every combo step's hit box `amount` percent larger, as the range enchantment widens it
-    /// (ADR-070), at most `MAX_RANGE_PCT`.
+    /// Every combo step's hit box `amount` percent larger, as the range reward widens it
+    /// (ADR-070, ADR-099), at most `MAX_RANGE_PCT`.
     RangePct,
 }
 

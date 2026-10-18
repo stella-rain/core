@@ -6,8 +6,8 @@
 use serde_json::{Value, json};
 use stella_rain_core::id::ContentId;
 use stella_rain_core::rewards::{
-    Enchantment, MAX_AMOUNT, MAX_ORBIT_COOLDOWN_TICKS, MAX_ORBIT_TURN, MAX_ORBITS, MAX_ORBS,
-    MAX_RANGE_PCT, MAX_REWARDS, MAX_REWARDS_BYTES, MAX_STACK, Rarity, RewardEffect, Rewards,
+    MAX_AMOUNT, MAX_ORBIT_COOLDOWN_TICKS, MAX_ORBIT_TURN, MAX_ORBITS, MAX_ORBS, MAX_RANGE_PCT,
+    MAX_REWARDS, MAX_REWARDS_BYTES, MAX_STACK, Rarity, RewardEffect, Rewards,
 };
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
@@ -300,43 +300,33 @@ fn an_extra_charge_reward_adds_one_to_the_most_charges_and_names_no_skill() {
     invalid_at(&named, "$.rewards[0].skill");
 }
 
-/// A range enchantment reward `id`, `amount` percent wider, taken once.
+/// A range reward `id`, `amount` percent wider, taken at most 5 times.
 fn range(id: &str, amount: u32) -> Value {
     json!({
-        "id": id, "rarity": "rare", "effect": "enchantment", "amount": amount, "limit": 1,
-        "title": "Reach", "description": "Every combo step reaches further",
-        "enchantment": { "type": "range" }
+        "id": id, "rarity": "rare", "effect": "range_pct", "amount": amount, "limit": 5,
+        "title": "Reach", "description": "Every combo step reaches further"
     })
 }
 
 #[test]
-fn an_enchantment_reward_names_its_kind_is_taken_once_and_widens_within_bounds() {
+fn a_range_reward_is_no_stat_and_widens_within_bounds() {
     let one = |amount: u32| file(vec![range("reach", amount)]);
-    let rewards = parse(&one(25)).expect("a range enchantment");
-    assert_eq!(rewards.rewards()[0].effect, RewardEffect::Enchantment);
-    assert_eq!(rewards.rewards()[0].enchantment, Some(Enchantment::Range));
-    assert_eq!(RewardEffect::Enchantment.stat(), None);
+    let rewards = parse(&one(25)).expect("a range reward");
+    assert_eq!(rewards.rewards()[0].effect, RewardEffect::RangePct);
+    assert_eq!(RewardEffect::RangePct.stat(), None);
     assert!(parse(&one(MAX_RANGE_PCT)).is_ok());
     invalid_at(&one(0), "$.rewards[0].amount");
     invalid_at(&one(MAX_RANGE_PCT + 1), "$.rewards[0].amount");
 
-    let mut twice = one(25);
-    twice["rewards"][0]["limit"] = json!(2);
-    invalid_at(&twice, "$.rewards[0].limit");
-    let mut bare = one(25);
-    bare["rewards"][0]
-        .as_object_mut()
-        .unwrap()
-        .remove("enchantment");
-    invalid_at(&bare, "$.rewards[0].enchantment");
-    let stray = one_with("enchantment", json!({ "type": "range" }));
-    invalid_at(&stray, "$.rewards[0].enchantment");
+    let mut most = one(25);
+    most["rewards"][0]["limit"] = json!(MAX_STACK);
+    assert!(parse(&most).is_ok());
     let mut named = one(25);
     named["rewards"][0]["skill"] = json!("black_hole");
     invalid_at(&named, "$.rewards[0].skill");
-    let mut unknown = one(25);
-    unknown["rewards"][0]["enchantment"] = json!({ "type": "reach" });
-    assert!(matches!(parse(&unknown), Err(Error::Parse { .. })));
+    let mut old = one(25);
+    old["rewards"][0]["enchantment"] = json!({ "type": "range" });
+    assert!(matches!(parse(&old), Err(Error::Parse { .. })));
 }
 
 /// An orbit reward `id`: `amount` orbs of a one-phase attack 40 pixels out, a quarter turn a
