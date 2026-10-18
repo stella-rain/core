@@ -504,6 +504,9 @@ impl Engine {
                 next: g.next,
                 main_taken: g.main_taken.clone(),
                 sub_taken: g.sub_taken.clone(),
+                main_style: None,
+                sub_style: None,
+                main_path: Vec::new(),
                 offer: rules_v0::expertise_offer_view(&self.stage, self.content.expertise(), s),
             }),
         }

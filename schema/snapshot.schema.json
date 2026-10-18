@@ -436,7 +436,7 @@
       "type": "object",
       "properties": {
         "option": {
-          "description": "Its ID in the weapon's common pool.",
+          "description": "Its ID in the weapon's expertise content: a common option, a style, or a choice of the\nchosen style's path.",
           "$ref": "#/$defs/ContentId"
         },
         "reaches_limit": {
@@ -449,8 +449,33 @@
         "option"
       ]
     },
+    "ExpertiseOfferKind": {
+      "description": "What an expertise level offers (ADR-078 §4, §5).",
+      "oneOf": [
+        {
+          "description": "Options drawn from the weapon's common pool, with a reroll of each.",
+          "type": "string",
+          "const": "common"
+        },
+        {
+          "description": "The weapon's three styles, at level 3 (Main) or 5 (Sub): fixed, no reroll.",
+          "type": "string",
+          "const": "style"
+        },
+        {
+          "description": "The fixed upgrades of the chosen Main style, at level 6 or 9: no reroll.",
+          "type": "string",
+          "const": "upgrade"
+        },
+        {
+          "description": "The fixed capstones of the chosen Main style, at level 10: no reroll.",
+          "type": "string",
+          "const": "capstone"
+        }
+      ]
+    },
     "ExpertiseOfferView": {
-      "description": "An expertise offer of common options (ADR-078 §4, §6; ADR-079 §3): drawn from one weapon's\ncommon pool, with a reroll of each candidate and no skip or banish.",
+      "description": "An expertise offer (ADR-078 §4 to §6; ADR-079 §3). A common one is drawn from one weapon's\ncommon pool, with a reroll of each candidate; a style, upgrade or capstone one shows its\nfixed choices, with no reroll. None has a skip or a banish.",
       "type": "object",
       "properties": {
         "candidates": {
@@ -459,6 +484,9 @@
             "$ref": "#/$defs/ExpertiseCandidateView"
           }
         },
+        "kind": {
+          "$ref": "#/$defs/ExpertiseOfferKind"
+        },
         "level": {
           "description": "The expertise level that opened it.",
           "type": "integer",
@@ -466,7 +494,7 @@
           "minimum": 0
         },
         "options": {
-          "description": "What `Engine::choose` takes, by index: the candidates, then a reroll of each while\nrerolls are left and another option could come.",
+          "description": "What `Engine::choose` takes, by index: the candidates, then, in a common offer, a reroll\nof each while rerolls are left and another option could come.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/OfferOption"
@@ -479,7 +507,7 @@
           "minimum": 0
         },
         "weapon": {
-          "description": "The weapon whose pool it draws from.",
+          "description": "The weapon it is for.",
           "$ref": "#/$defs/WeaponRole"
         }
       },
@@ -487,13 +515,14 @@
       "required": [
         "level",
         "weapon",
+        "kind",
         "candidates",
         "options",
         "rerolls_left"
       ]
     },
     "ExpertiseView": {
-      "description": "The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, its points\ntoward the next, the common options taken, and the open expertise offer (ADR-079 §3).",
+      "description": "The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, its points\ntoward the next, the common options taken, the styles chosen and the Main style's path\ntaken (ADR-078 §5), and the open expertise offer (ADR-079 §3).",
       "type": "object",
       "properties": {
         "level": {
@@ -501,6 +530,24 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "main_path": {
+          "description": "The choices taken from the Main style's path, in level order: its upgrades at 6 and 9,\nthen its capstone at 10.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          }
+        },
+        "main_style": {
+          "description": "The Main weapon's style, chosen at level 3 and held for the run.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "main_taken": {
           "description": "Times each option of the Main weapon's common pool was taken, in the pool's order; empty\nfor a weapon with no expertise content.",
@@ -534,6 +581,17 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "sub_style": {
+          "description": "The Sub weapon's style, chosen at level 5 and held for the run.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sub_taken": {
           "description": "The same for the Sub weapon's common pool.",

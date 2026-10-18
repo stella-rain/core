@@ -65,7 +65,8 @@ pub struct Snapshot {
 }
 
 /// The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, its points
-/// toward the next, the common options taken, and the open expertise offer (ADR-079 §3).
+/// toward the next, the common options taken, the styles chosen and the Main style's path
+/// taken (ADR-078 §5), and the open expertise offer (ADR-079 §3).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExpertiseView {
@@ -82,6 +83,16 @@ pub struct ExpertiseView {
     /// The same for the Sub weapon's common pool.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sub_taken: Vec<u8>,
+    /// The Main weapon's style, chosen at level 3 and held for the run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub main_style: Option<ContentId>,
+    /// The Sub weapon's style, chosen at level 5 and held for the run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sub_style: Option<ContentId>,
+    /// The choices taken from the Main style's path, in level order: its upgrades at 6 and 9,
+    /// then its capstone at 10.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub main_path: Vec<ContentId>,
     /// The open expertise offer: while it is open the world is stopped, and `Engine::choose`
     /// takes one of its options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -96,18 +107,34 @@ pub enum WeaponRole {
     Sub,
 }
 
-/// An expertise offer of common options (ADR-078 §4, §6; ADR-079 §3): drawn from one weapon's
-/// common pool, with a reroll of each candidate and no skip or banish.
+/// What an expertise level offers (ADR-078 §4, §5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ExpertiseOfferKind {
+    /// Options drawn from the weapon's common pool, with a reroll of each.
+    Common,
+    /// The weapon's three styles, at level 3 (Main) or 5 (Sub): fixed, no reroll.
+    Style,
+    /// The fixed upgrades of the chosen Main style, at level 6 or 9: no reroll.
+    Upgrade,
+    /// The fixed capstones of the chosen Main style, at level 10: no reroll.
+    Capstone,
+}
+
+/// An expertise offer (ADR-078 §4 to §6; ADR-079 §3). A common one is drawn from one weapon's
+/// common pool, with a reroll of each candidate; a style, upgrade or capstone one shows its
+/// fixed choices, with no reroll. None has a skip or a banish.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExpertiseOfferView {
     /// The expertise level that opened it.
     pub level: u32,
-    /// The weapon whose pool it draws from.
+    /// The weapon it is for.
     pub weapon: WeaponRole,
+    pub kind: ExpertiseOfferKind,
     pub candidates: Vec<ExpertiseCandidateView>,
-    /// What `Engine::choose` takes, by index: the candidates, then a reroll of each while
-    /// rerolls are left and another option could come.
+    /// What `Engine::choose` takes, by index: the candidates, then, in a common offer, a reroll
+    /// of each while rerolls are left and another option could come.
     pub options: Vec<OfferOption>,
     /// Rerolls left in the run, shared with the stars' offers.
     pub rerolls_left: u32,
@@ -117,7 +144,8 @@ pub struct ExpertiseOfferView {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExpertiseCandidateView {
-    /// Its ID in the weapon's common pool.
+    /// Its ID in the weapon's expertise content: a common option, a style, or a choice of the
+    /// chosen style's path.
     pub option: ContentId,
     /// Taking it brings it to its stack limit, after which it is offered no more.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]

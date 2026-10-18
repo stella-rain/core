@@ -30,7 +30,9 @@ use crate::engine::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
 use crate::event::DomainEvent;
 use crate::expertise::{Expertise, ExpertiseEffect, ExpertiseOption, TABLE_LEVELS};
 use crate::rng::SplitMix64;
-use crate::snapshot::{ExpertiseCandidateView, ExpertiseOfferView, OfferOption, WeaponRole};
+use crate::snapshot::{
+    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption, WeaponRole,
+};
 use crate::stage::{ExpertisePoints, Stage};
 use crate::weapon::WeaponRef;
 
@@ -238,6 +240,7 @@ pub(super) fn open_due(
         events.push(DomainEvent::ExpertiseOfferOpened {
             level,
             weapon,
+            kind: ExpertiseOfferKind::Common,
             candidates: candidates
                 .iter()
                 .map(|i| pool[usize::from(*i)].id.clone())
@@ -365,6 +368,7 @@ pub(crate) fn offer_view(
     Some(ExpertiseOfferView {
         level: o.level,
         weapon: o.weapon,
+        kind: ExpertiseOfferKind::Common,
         candidates: o
             .candidates
             .iter()
