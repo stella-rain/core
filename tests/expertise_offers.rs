@@ -1,0 +1,579 @@
+//! The expertise offers (ADR-078 §4, §6; ADR-079 §2, §3): each level reached opens one offer
+//! at the end of the tick, for the weapon ADR-078's table gives, in level order. Common levels
+//! (1, 4, 7 Main; 2, 8 Sub; 11 and up Main, Sub, Main) draw from that weapon's common pool;
+//! style levels (3, 5, 6, 9, 10) open nothing yet. A common offer has a reroll of each
+//! candidate and no skip or banish. Attack speed options have a stack limit: a candidate whose
+//! pick reaches it is marked, and an option at it leaves the pool. On one tick the boss offer
+//! opens first, then the expertise offers in level order, then the stars'.
+
+use serde_json::{Value, json};
+use stella_rain_core::engine::Engine;
+use stella_rain_core::event::DomainEvent;
+use stella_rain_core::expertise::Expertise;
+use stella_rain_core::input::Input;
+use stella_rain_core::replay::hash_to_hex;
+use stella_rain_core::run_content::RunContent;
+use stella_rain_core::run_replay::{Command, record_run, verify_run};
+use stella_rain_core::snapshot::{
+    ExpertiseOfferView, ExpertiseView, OfferKind, OfferOption, WeaponRole,
+};
+use stella_rain_core::stage::Stage;
+
+mod common;
+
+use common::*;
+
+/// Far above the main character: out of its reach and its pickup circle.
+const FAR_Y: i32 = 100_000;
+/// 32 pixels above it: inside the `blade`'s slash and the pickup circle.
+const NEAR_Y: i32 = START_Y - 8_192;
+
+/// Level 1 needs 10 points, level 2 20 more, and so on to 100 for level 10; 150, 225 and 337
+/// for levels 11, 12 and 13.
+const TABLE: [u32; 10] = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+/// The points that take the gauge from 0 to level `n`.
+fn to_level(n: usize) -> u32 {
+    let mut total: u32 = TABLE.iter().take(n).sum();
+    let mut need = TABLE[9];
+    for _ in 10..n {
+        need = need * 150 / 100;
+        total += need;
+    }
+    total
+}
+
+/// A common option `id` of `effect` and `amount`, with `limit` when it has one.
+fn option(id: &str, effect: &str, amount: u32, limit: Option<u8>) -> Value {
+    let mut v = json!({ "id": id, "effect": effect, "amount": amount,
+                        "title": "Option", "description": "" });
+    if let Some(l) = limit {
+        v["limit"] = json!(l);
+    }
+    v
+}
+
+/// The damage options `prefix0`, `prefix1`, ...: `n` of them, 10 percent each.
+fn damages(prefix: &str, n: usize) -> Vec<Value> {
+    (0..n)
+        .map(|i| option(&format!("{prefix}{i}"), "attack_pct", 10, None))
+        .collect()
+}
+
+/// The bundled content, its expertise with `TABLE` (growth 150 percent, at most 100_000), and
+/// the `blade`'s and the `maul`'s common pools replaced by `main` and `sub`.
+fn content(main: Vec<Value>, sub: Vec<Value>) -> RunContent {
+    content_with(TABLE, 150, 100_000, main, sub)
+}
+
+fn content_with(
+    thresholds: [u32; 10],
+    growth_pct: u16,
+    max_points: u32,
+    main: Vec<Value>,
+    sub: Vec<Value>,
+) -> RunContent {
+    let mut file: Value = serde_json::from_slice(Expertise::BUNDLED).unwrap();
+    file["thresholds"] = json!(thresholds);
+    file["growth_pct"] = json!(growth_pct);
+    file["max_points"] = json!(max_points);
+    for w in file["weapons"].as_array_mut().unwrap() {
+        let pool = match w["weapon"].as_str().unwrap() {
+            "blade" => main.clone(),
+            "maul" => sub.clone(),
+            other => panic!("no pool for {other}"),
+        };
+        w["common"] = json!(pool);
+    }
+    let expertise =
+        Expertise::parse(file.to_string().as_bytes()).expect("the test expertise validates");
+    RunContent::bundled().clone().with_expertise(expertise)
+}
+
+/// An enemy of `hp` that never attacks, holding at `(x, y)`, giving `kill` points for its kill.
+fn target(hp: u32, x: i32, y: i32, kill: u32) -> Value {
+    let mut w = wave(1, 1, 0, enemy(hp, hold(x, y), json!([])), x, y);
+    w["expertise"] = json!({ "hit": 0, "kill": kill });
+    w
+}
+
+/// The `blade` as Main and the `maul` as Sub, levels of 1000 experience, stars that every kill
+/// drops (taken at once within 48 pixels), one reroll and one banish; a boss of `boss_hp` 32
+/// pixels ahead giving `boss_kill` points, or none; and `waves`.
+fn stage(boss: Option<(u32, u32)>, waves: Vec<Value>) -> Stage {
+    let boss = boss.map(|(hp, kill)| {
+        let mut b = boss_at(hp, NEAR_Y);
+        b["expertise"] = json!({ "hit": 0, "kill": kill });
+        b
+    });
+    let mut stage = stage_full(18_000, boss.or(Some(far_boss())), waves, vec![]);
+    stage = armed(
+        stage,
+        json!({ "preset": { "id": "blade" } }),
+        json!({ "preset": { "id": "maul" } }),
+    );
+    stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
+    stage.stars = Some(
+        serde_json::from_value(json!({
+            "drop_per_mille": 1000, "pity": 1, "cap": 8, "pickup_radius": 12_288,
+            "rerolls": 1, "banishes": 1,
+            "tiers": [{ "from_level": 1, "weights": { "common": 1 } }],
+        }))
+        .unwrap(),
+    );
+    stage
+}
+
+fn with(stage: &Stage, content: &RunContent) -> Engine {
+    Engine::new_with(stage, content).expect("the test stage is valid")
+}
+
+fn gauge(e: &Engine) -> ExpertiseView {
+    e.snapshot().expertise.expect("the stage has the gauge")
+}
+
+fn expertise_offer(e: &Engine) -> ExpertiseOfferView {
+    gauge(e).offer.expect("an open expertise offer")
+}
+
+fn candidates(e: &Engine) -> Vec<String> {
+    expertise_offer(e)
+        .candidates
+        .into_iter()
+        .map(|c| c.option.0)
+        .collect()
+}
+
+/// Presses `main` every 6 ticks until an offer opens, returning the events of the ticks run.
+fn until_offer(e: &mut Engine) -> Vec<DomainEvent> {
+    let seen = fire_until(e, Input::default(), 600, Engine::offer_open);
+    assert!(e.offer_open(), "no offer within 600 ticks");
+    seen.into_iter().map(|(_, ev)| ev).collect()
+}
+
+/// What each offer opening in `events` is: `boss`, `star`, or the weapon and the level.
+fn openings(events: &[DomainEvent]) -> Vec<String> {
+    events
+        .iter()
+        .filter_map(|ev| match ev {
+            DomainEvent::OfferOpened { kind, .. } => Some(match kind {
+                OfferKind::Boss => "boss".to_string(),
+                OfferKind::Star => "star".to_string(),
+            }),
+            DomainEvent::ExpertiseOfferOpened { level, weapon, .. } => Some(format!(
+                "{} {level}",
+                match weapon {
+                    WeaponRole::Main => "main",
+                    WeaponRole::Sub => "sub",
+                }
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Takes candidate 0 of every offer as it opens, until none is open; returns the openings,
+/// the first one included when it is in `first`.
+fn take_all(e: &mut Engine, first: &[DomainEvent]) -> Vec<String> {
+    let mut seen = openings(first);
+    while e.offer_open() {
+        e.choose(0).unwrap();
+        seen.extend(openings(e.events()));
+    }
+    seen
+}
+
+fn index_of(e: &Engine, option: OfferOption) -> u32 {
+    let options = expertise_offer(e).options;
+    let i = options
+        .iter()
+        .position(|o| *o == option)
+        .unwrap_or_else(|| panic!("{option:?} is not offered: {options:?}"));
+    u32::try_from(i).unwrap()
+}
+
+/// The index of the candidate whose option is `id`.
+fn take_index(e: &Engine, id: &str) -> u32 {
+    let at = candidates(e)
+        .iter()
+        .position(|c| c == id)
+        .unwrap_or_else(|| panic!("{id} is not a candidate: {:?}", candidates(e)));
+    index_of(
+        e,
+        OfferOption::Take {
+            candidate: u8::try_from(at).unwrap(),
+        },
+    )
+}
+
+#[test]
+fn a_boss_kill_crossing_several_thresholds_opens_one_offer_per_level_in_order() {
+    let mut e = with(
+        &stage(Some((1, to_level(13))), vec![]),
+        &content(damages("m", 3), damages("s", 3)),
+    );
+    let first = until_offer(&mut e);
+    let seen = take_all(&mut e, &first);
+    // Styles (3, 5, 6, 9, 10) open nothing yet; 11 and up go Main, Sub, Main.
+    assert_eq!(
+        seen,
+        [
+            "boss", "main 1", "sub 2", "main 4", "main 7", "sub 8", "main 11", "sub 12", "main 13"
+        ]
+    );
+    let g = gauge(&e);
+    assert_eq!((g.level, g.points), (13, 0));
+    assert_eq!(
+        g.main_taken,
+        [5, 0, 0],
+        "five Main offers, candidate 0 each time"
+    );
+    assert_eq!(g.sub_taken, [3, 0, 0]);
+}
+
+#[test]
+fn an_expertise_offer_opens_at_the_end_of_the_tick_and_stops_the_world() {
+    let mut e = with(
+        &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
+        &content(damages("m", 3), damages("s", 3)),
+    );
+    let events = until_offer(&mut e);
+    assert_eq!(
+        openings(&events),
+        ["main 1"],
+        "the kill's tick opens level 1's offer"
+    );
+    let tick = e.tick();
+    e.step(Input::default());
+    assert_eq!(e.tick(), tick, "the world is stopped");
+    assert!(e.events().is_empty());
+}
+
+#[test]
+fn a_kill_s_level_opens_before_the_star_it_drops() {
+    let mut e = with(
+        &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
+        &content(damages("m", 3), damages("s", 3)),
+    );
+    let first = until_offer(&mut e);
+    assert_eq!(take_all(&mut e, &first), ["main 1", "star"]);
+}
+
+#[test]
+fn a_common_offer_holds_three_candidates_and_a_reroll_of_each_and_no_skip_or_banish() {
+    use OfferOption::{Reroll, Take};
+    let mut e = with(
+        &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
+        &content(damages("m", 4), damages("s", 4)),
+    );
+    until_offer(&mut e);
+    let offer = expertise_offer(&e);
+    assert_eq!((offer.level, offer.weapon), (1, WeaponRole::Main));
+    assert_eq!(offer.candidates.len(), 3);
+    assert_eq!(
+        offer.options,
+        [
+            Take { candidate: 0 },
+            Take { candidate: 1 },
+            Take { candidate: 2 },
+            Reroll { candidate: 0 },
+            Reroll { candidate: 1 },
+            Reroll { candidate: 2 },
+        ],
+        "a banish is left in the run, and neither it nor a skip is offered"
+    );
+    assert_eq!(offer.rerolls_left, 1);
+}
+
+#[test]
+fn a_reroll_draws_that_candidate_alone_again_and_spends_a_reroll() {
+    let mut e = with(
+        &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
+        &content(damages("m", 4), damages("s", 4)),
+    );
+    until_offer(&mut e);
+    let before = candidates(&e);
+    let missing = ["m0", "m1", "m2", "m3"]
+        .into_iter()
+        .find(|id| !before.iter().any(|c| c == id))
+        .unwrap();
+    e.choose(index_of(&e, OfferOption::Reroll { candidate: 1 }))
+        .unwrap();
+    assert!(e.offer_open(), "a reroll leaves the offer open");
+    let after = candidates(&e);
+    assert_eq!(
+        after,
+        [before[0].as_str(), missing, before[2].as_str()],
+        "only candidate 1 is drawn again, from what the offer does not hold"
+    );
+    assert_eq!(
+        e.events(),
+        [DomainEvent::ExpertiseCandidateReplaced {
+            slot: 1,
+            option: missing.into(),
+        }]
+    );
+    let offer = expertise_offer(&e);
+    assert_eq!(offer.rerolls_left, 0);
+    assert_eq!(offer.options.len(), 3, "no reroll is left: only the takes");
+}
+
+#[test]
+fn no_reroll_is_offered_when_no_other_option_could_come() {
+    let mut e = with(
+        &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
+        &content(damages("m", 3), damages("s", 3)),
+    );
+    until_offer(&mut e);
+    assert_eq!(expertise_offer(&e).options.len(), 3);
+}
+
+#[test]
+fn with_fewer_options_left_the_offer_holds_those() {
+    let mut e = with(
+        &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
+        &content(damages("m", 2), damages("s", 2)),
+    );
+    until_offer(&mut e);
+    let mut c = candidates(&e);
+    c.sort();
+    assert_eq!(c, ["m0", "m1"]);
+    assert_eq!(expertise_offer(&e).options.len(), 2);
+}
+
+#[test]
+fn taking_an_option_applies_it_and_counts_it_for_its_weapon() {
+    let mut e = with(
+        &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
+        &content(vec![option("tough", "max_hp", 5, None)], damages("s", 1)),
+    );
+    until_offer(&mut e);
+    let hp = e.snapshot().player.hp;
+    e.choose(0).unwrap();
+    assert_eq!(
+        e.events().first(),
+        Some(&DomainEvent::ExpertiseOptionTaken {
+            weapon: WeaponRole::Main,
+            option: "tough".into(),
+            taken: 1,
+        })
+    );
+    assert_eq!(e.snapshot().player.hp, hp + 5, "five more hit points");
+    assert_eq!(gauge(&e).main_taken, [1]);
+    assert_eq!(gauge(&e).sub_taken, [0]);
+}
+
+#[test]
+fn an_attack_speed_option_reaching_its_limit_is_marked_then_leaves_the_pool() {
+    let main = vec![
+        option("quick", "attack_speed_pct", 10, Some(2)),
+        option("hard", "attack_pct", 10, None),
+    ];
+    let mut e = with(
+        &stage(Some((1, to_level(7))), vec![]),
+        &content(main, damages("s", 1)),
+    );
+    until_offer(&mut e);
+    e.choose(0).unwrap(); // The boss offer.
+    let mut main_offers = Vec::new();
+    while e.offer_open() {
+        let offer = expertise_offer(&e);
+        if offer.weapon == WeaponRole::Sub {
+            e.choose(0).unwrap();
+            continue;
+        }
+        let marked: Vec<(String, bool)> = offer
+            .candidates
+            .iter()
+            .map(|c| (c.option.0.clone(), c.reaches_limit))
+            .collect();
+        main_offers.push((offer.level, marked));
+        let pick = if candidates(&e).iter().any(|c| c == "quick") {
+            take_index(&e, "quick")
+        } else {
+            0
+        };
+        e.choose(pick).unwrap();
+    }
+    let has = |level: u32, id: &str, mark: bool| {
+        main_offers
+            .iter()
+            .any(|(l, c)| *l == level && c.contains(&(id.to_string(), mark)))
+    };
+    assert!(has(1, "quick", false), "{main_offers:?}");
+    assert!(
+        has(4, "quick", true),
+        "the pick reaches its limit: {main_offers:?}"
+    );
+    assert_eq!(
+        main_offers.last(),
+        Some(&(7, vec![("hard".to_string(), false)])),
+        "at its limit, it leaves the pool"
+    );
+    assert_eq!(gauge(&e).main_taken, [2, 1]);
+}
+
+#[test]
+fn a_weapon_with_nothing_left_to_offer_opens_none_and_the_other_still_does() {
+    let mut e = with(
+        &stage(Some((1, to_level(4))), vec![]),
+        &content(
+            vec![option("quick", "attack_speed_pct", 10, Some(1))],
+            damages("s", 1),
+        ),
+    );
+    let first = until_offer(&mut e);
+    assert_eq!(
+        take_all(&mut e, &first),
+        ["boss", "main 1", "sub 2"],
+        "level 4's Main offer has nothing to hold and does not open"
+    );
+    assert_eq!(gauge(&e).level, 4);
+}
+
+#[test]
+fn a_boss_kill_no_longer_upgrades_a_weapon_its_points_are_its_weapon_progress() {
+    let mut e = with(
+        &stage(Some((1, to_level(1))), vec![]),
+        &content(damages("m", 3), damages("s", 3)),
+    );
+    let events = until_offer(&mut e);
+    assert!(
+        !events.iter().any(|ev| matches!(
+            ev,
+            DomainEvent::RewardTaken { .. } | DomainEvent::ExpertiseOptionTaken { .. }
+        )),
+        "nothing is taken before a choice: {events:?}"
+    );
+    let s = e.snapshot();
+    assert!(s.player.enchantments.is_empty());
+    let g = s.expertise.unwrap();
+    assert_eq!(g.level, 1, "the kill's points are its weapon progress");
+    assert_eq!(g.main_taken, [0, 0, 0]);
+    assert_eq!(g.sub_taken, [0, 0, 0]);
+    assert_eq!(take_all(&mut e, &events), ["boss", "main 1"]);
+}
+
+#[test]
+fn a_boss_kill_s_clear_opens_its_offer_then_its_levels_and_no_star() {
+    // One slash kills the boss and an enemy beside it, whose star is taken at once. The kill
+    // clears the stage: the boss offer opens, then the levels it reached, and the star's never.
+    let mut e = with(
+        &stage(
+            Some((1, to_level(2))),
+            vec![target(1, START_X + 2_048, NEAR_Y, 0)],
+        ),
+        &content(damages("m", 3), damages("s", 3)),
+    );
+    let first = until_offer(&mut e);
+    assert!(first.contains(&DomainEvent::StageCleared));
+    assert!(
+        first
+            .iter()
+            .any(|ev| matches!(ev, DomainEvent::StarTaken { .. }))
+    );
+    assert_eq!(take_all(&mut e, &first), ["boss", "main 1", "sub 2"]);
+    assert_eq!(gauge(&e).level, 2);
+}
+
+#[test]
+fn damage_stays_bounded_with_many_damage_options_stacked() {
+    // Every level after the table needs 10 points: a kill's 100_000 points cross about 10_000
+    // levels, each a pick of 100 percent more damage, which the arithmetic of ADR-056
+    // holds without overflowing.
+    let big = |p: &str| vec![option(p, "attack_pct", 100, None)];
+    let content = content_with([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 101, 10, big("m"), big("s"));
+    let tough = target(100_000, START_X + 2_048, NEAR_Y, 0);
+    let killed = target(1, START_X, NEAR_Y, 100_000);
+    let mut e = with(&stage(None, vec![killed, tough]), &content);
+    let hits_on = |events: &[DomainEvent], e: &Engine| -> Vec<u32> {
+        let enemy = e
+            .snapshot()
+            .entities
+            .iter()
+            .find(|v| v.at.x.0 == START_X + 2_048)
+            .map(|v| v.id);
+        events
+            .iter()
+            .filter_map(|ev| match ev {
+                DomainEvent::Hit { target, damage, .. } if Some(*target) == enemy => Some(*damage),
+                _ => None,
+            })
+            .collect()
+    };
+    let first = until_offer(&mut e);
+    let before = hits_on(&first, &e);
+    assert!(!before.is_empty(), "the slash hits the tough enemy too");
+    let mut picks = 0u32;
+    while e.offer_open() {
+        e.choose(0).unwrap();
+        picks += 1;
+    }
+    assert!(picks > 9_000, "{picks} offers");
+    let g = gauge(&e);
+    assert_eq!(
+        g.main_taken,
+        [u8::MAX],
+        "the count stops at its most; the picks go on"
+    );
+    let later = fire_until(&mut e, Input::default(), 60, |e| e.offer_open());
+    let later: Vec<DomainEvent> = later.into_iter().map(|(_, ev)| ev).collect();
+    let after = hits_on(&later, &e);
+    assert!(!after.is_empty(), "the slash hits again");
+    assert!(
+        u64::from(after[0]) >= u64::from(before[0]) * 1_000,
+        "{} then {}",
+        before[0],
+        after[0]
+    );
+}
+
+#[test]
+fn the_offer_and_the_picks_are_in_the_state_hash() {
+    let make = || {
+        with(
+            &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
+            &content(damages("m", 4), damages("s", 4)),
+        )
+    };
+    let (mut a, mut b) = (make(), make());
+    until_offer(&mut a);
+    until_offer(&mut b);
+    assert_eq!(a.state_hash(), b.state_hash());
+    b.choose(index_of(&b, OfferOption::Reroll { candidate: 0 }))
+        .unwrap();
+    assert_ne!(a.state_hash(), b.state_hash(), "the candidates are hashed");
+    let (mut c, mut d) = (make(), make());
+    until_offer(&mut c);
+    until_offer(&mut d);
+    c.choose(0).unwrap();
+    d.choose(1).unwrap();
+    // Each takes 10 percent more damage, so only the pick's place tells them apart.
+    assert_ne!(c.state_hash(), d.state_hash(), "the picks are hashed");
+}
+
+#[test]
+fn a_run_with_expertise_choices_replays_and_verifies() {
+    use common::run::{TRIAL_LENGTH, play_run, trial_setup};
+    let commands = play_run(TRIAL_LENGTH);
+    let mut e = Engine::start(&trial_setup()).unwrap();
+    let mut expertise_choices = 0;
+    for c in &commands {
+        match c {
+            Command::Step(input) => e.step(*input),
+            Command::Choose(i) => {
+                if e.snapshot().expertise.and_then(|g| g.offer).is_some() {
+                    expertise_choices += 1;
+                }
+                e.choose(*i).unwrap();
+            }
+            Command::Spend(i) => e.spend(*i).unwrap(),
+        }
+    }
+    assert!(
+        expertise_choices >= 3,
+        "the trial run answers expertise offers: {expertise_choices}"
+    );
+    let replay = record_run(&trial_setup(), &commands).unwrap();
+    let verified = verify_run(&replay.to_bytes()).unwrap();
+    assert_eq!(hash_to_hex(verified.final_hash), replay.final_hash);
+}
