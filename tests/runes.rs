@@ -78,8 +78,13 @@ fn random_rune() -> Value {
 /// A common reward `id` that changes nothing in the test stages: an evade charge, while the
 /// stage's evade has no more charges to give.
 fn inert(id: &str) -> Value {
+    inert_limited(id, 20)
+}
+
+/// `inert`, taken at most `limit` times.
+fn inert_limited(id: &str, limit: u8) -> Value {
     json!({
-        "id": id, "rarity": "common", "effect": "evade_charge", "amount": 1, "limit": 20,
+        "id": id, "rarity": "common", "effect": "evade_charge", "amount": 1, "limit": limit,
         "title": "Nothing", "description": ""
     })
 }
@@ -257,7 +262,8 @@ fn a_random_rune_alone_with_every_rune_held_opens_no_offer() {
 
 #[test]
 fn a_random_rune_candidate_is_rerolled_like_any_reward() {
-    let list = vec![random_rune(), inert("a"), inert("b"), inert("c")];
+    // `a` taken once is at its limit, so the next offer holds the three others.
+    let list = vec![random_rune(), inert_limited("a", 1), inert("b"), inert("c")];
     let mut e = with(&targets(2, 1, 0), list);
     next_offer(&mut e);
     let candidate = slot(&e, "random_rune");
@@ -268,7 +274,7 @@ fn a_random_rune_candidate_is_rerolled_like_any_reward() {
     // It stays in the pool.
     take(&mut e, "a");
     next_offer(&mut e);
-    assert!(offered(&e).contains(&"random_rune".to_string()));
+    assert_eq!(offered(&e), ["b", "c", "random_rune"]);
 }
 
 #[test]
@@ -351,8 +357,9 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
     for t in 0..1_200 {
         while recorder.engine().offer_open() {
-            let offer = recorder.engine().snapshot().progress.unwrap().offer.unwrap();
-            let rune = offer.candidates.iter().position(|c| c.hidden);
+            // A star's offer or an expertise level's: the hidden candidate if there is one.
+            let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
+            let rune = offer.and_then(|o| o.candidates.iter().position(|c| c.hidden));
             recorder
                 .choose(u32::try_from(rune.unwrap_or(0)).unwrap())
                 .unwrap();

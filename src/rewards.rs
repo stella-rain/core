@@ -7,7 +7,10 @@
 //! evade charges, up to the stage's `max_charges` (ADR-074), an orbit of `amount` orbs that
 //! attack on their own (ADR-069), `amount` percent more range for every combo step of the
 //! Main weapon (ADR-099), or a type bonus: `amount` percent more damage for the main
-//! character's attacks of one damage type, of every attack type or of every element (ADR-100).
+//! character's attacks of one damage type, of every attack type or of every element (ADR-100),
+//! or a random rune: one of the runes the Main weapon does not hold, drawn when it is picked
+//! (ADR-099). A random rune has no amount and no stack limit of its own: it leaves the offers
+//! once the Main holds every rune.
 //!
 //! The file is untrusted (ADR-020), as the run stats are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. Reward IDs are the file's own,
@@ -88,7 +91,7 @@ impl Rarity {
 }
 
 /// What taking a reward does: one of the run stats' effect kinds, under the same names, a stage
-/// skill, more evade charges, an orbit, range, or a type bonus.
+/// skill, more evade charges, an orbit, range, a type bonus, or a random rune.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
@@ -116,6 +119,10 @@ pub enum RewardEffect {
     AttackTypeBonusPct,
     /// Its attacks of every element `amount` percent stronger.
     ElementBonusPct,
+    /// One rune the Main weapon does not hold, drawn from the run's generator when the reward
+    /// is picked, never before: an offer shows it hidden (ADR-099). It is offered only while
+    /// the Main lacks a rune.
+    RandomRune,
 }
 
 impl RewardEffect {
@@ -134,7 +141,8 @@ impl RewardEffect {
             | RewardEffect::RangePct
             | RewardEffect::TypeBonusPct
             | RewardEffect::AttackTypeBonusPct
-            | RewardEffect::ElementBonusPct => return None,
+            | RewardEffect::ElementBonusPct
+            | RewardEffect::RandomRune => return None,
         })
     }
 }
@@ -162,10 +170,14 @@ pub struct Reward {
     /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it
     /// adds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to
     /// `MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for a type
-    /// bonus, the percent, from 1 to `MAX_AMOUNT`.
-    pub amount: u32,
-    /// The most times one run takes it, from 1 to `MAX_STACK`.
-    pub limit: u8,
+    /// bonus, the percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random
+    /// rune, which has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amount: Option<u32>,
+    /// The most times one run takes it, from 1 to `MAX_STACK`. Required by every effect but
+    /// the random rune, which has none of its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u8>,
     /// The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.
     pub title: String,
     /// What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.
@@ -307,11 +319,17 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
             RewardEffect::RangePct => MAX_RANGE_PCT,
             _ => MAX_AMOUNT,
         };
-        if !(1..=most).contains(&reward.amount) {
-            issue(
-                at("amount"),
-                format!("1 to {most} (found {})", reward.amount),
-            );
+        match (reward.effect, reward.amount) {
+            (RewardEffect::RandomRune, None) => {}
+            (RewardEffect::RandomRune, Some(_)) => {
+                issue(at("amount"), "a random rune has no amount".into())
+            }
+            (_, None) => issue(at("amount"), format!("1 to {most} (missing)")),
+            (_, Some(amount)) => {
+                if !(1..=most).contains(&amount) {
+                    issue(at("amount"), format!("1 to {most} (found {amount})"));
+                }
+            }
         }
         match (reward.effect, &reward.skill) {
             (RewardEffect::StageSkill, None) => {
@@ -381,11 +399,18 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
             (RewardEffect::TypeBonusPct, Some(_)) | (_, None) => {}
             (_, Some(_)) => issue(at("type"), "only a type bonus reward names a type".into()),
         }
-        if !(1..=MAX_STACK).contains(&reward.limit) {
-            issue(
+        match (reward.effect, reward.limit) {
+            (RewardEffect::RandomRune, None) => {}
+            (RewardEffect::RandomRune, Some(_)) => issue(
                 at("limit"),
-                format!("1 to {MAX_STACK} (found {})", reward.limit),
-            );
+                "a random rune has no limit: it leaves the offers once every rune is held".into(),
+            ),
+            (_, None) => issue(at("limit"), format!("1 to {MAX_STACK} (missing)")),
+            (_, Some(limit)) => {
+                if !(1..=MAX_STACK).contains(&limit) {
+                    issue(at("limit"), format!("1 to {MAX_STACK} (found {limit})"));
+                }
+            }
         }
         if let Some(problem) = run_stats::text_problem(&reward.title, 1, run_stats::MAX_TITLE_CHARS)
         {

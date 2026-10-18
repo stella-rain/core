@@ -75,6 +75,7 @@ mod levels;
 mod orbit;
 mod player;
 mod push;
+mod runes;
 mod skill;
 mod stars;
 
@@ -248,6 +249,7 @@ pub(crate) fn initial_state(
             orbits: Vec::new(),
             range_pct: 0,
             type_bonus_pct: [0; DamageType::ALL.len()],
+            runes: Vec::new(),
             aggro: 0,
             statuses: Vec::new(),
         },
@@ -1199,6 +1201,15 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             {
                 h.write_u32(*pct);
             }
+        }
+    }
+    // Last, and only while the Main weapon holds a rune (ADR-099), so that the hashes of runs
+    // without one stay as they were: each rune held and its cooldown left. Runes never go.
+    if !s.player.runes.is_empty() {
+        h.write_u32(count(&s.player.runes));
+        for r in &s.player.runes {
+            h.write_u32(u32::from(r.rune.index()));
+            h.write_u32(r.cooldown_left);
         }
     }
     h.finish()
