@@ -420,25 +420,6 @@
         }
       ]
     },
-    "Enchantment": {
-      "description": "An enchantment of the Main weapon's combo (ADR-070, ADR-078): one of a closed list built into\n`core`, its strength the reward's `amount`. It changes every combo step started after it is\ntaken: A and B steps, the dash-strike and charged releases alike; the stage skill and orbits\nare not combo steps.",
-      "oneOf": [
-        {
-          "description": "Every hit box of the step is `amount` percent larger: its radius and its offset, rounded\ntoward zero; an arc's angle stays. The bullets a step spawns are not changed.",
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "range"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type"
-          ]
-        }
-      ]
-    },
     "Expr": {
       "description": "A fixed-point expression (ADR-036): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself.",
       "anyOf": [
@@ -798,7 +779,7 @@
       "type": "object",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range or a range enchantment, how much wider, from 1 to `MAX_RANGE_PCT`\npercent.",
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -810,23 +791,12 @@
         "effect": {
           "$ref": "#/$defs/RewardEffect"
         },
-        "enchantment": {
-          "description": "The enchantment it gives: with the `enchantment` effect only, and required by it.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Enchantment"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "id": {
           "description": "The reward's own ID, unique within the file.",
           "$ref": "#/$defs/ContentId"
         },
         "limit": {
-          "description": "The most times one run takes it, from 1 to `MAX_STACK`; exactly 1 for an enchantment.",
+          "description": "The most times one run takes it, from 1 to `MAX_STACK`.",
           "type": "integer",
           "format": "uint8",
           "maximum": 255,
@@ -874,7 +844,7 @@
       ]
     },
     "RewardEffect": {
-      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, a stage\nskill, more evade charges, an orbit, range, or an enchantment.",
+      "description": "What taking a reward does: one of the run stats' effect kinds, under the same names, a stage\nskill, more evade charges, an orbit, or range.",
       "oneOf": [
         {
           "type": "string",
@@ -906,11 +876,6 @@
           "description": "Every combo step of the Main weapon `amount` percent wider, as the expertise range\noption widens it, adding up over the picks (ADR-099).",
           "type": "string",
           "const": "range_pct"
-        },
-        {
-          "description": "The reward's `enchantment` of the Main weapon's combo, `amount` its strength; taken once,\nand never offered again, nor another of its kind, once one of its kind is held (ADR-070,\nADR-078).",
-          "type": "string",
-          "const": "enchantment"
         }
       ]
     }
