@@ -21,7 +21,8 @@ use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::Rarity;
 use crate::stage::{
-    Boss, BossPart, Evade, Levels, Phase, Player, Stage, Stars, Step, Tier, Transition, Wave,
+    Boss, BossPart, Evade, ExpertisePoints, Levels, Phase, Player, Stage, Stars, Step, Tier,
+    Transition, Wave,
 };
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -82,6 +83,9 @@ pub mod limits {
     pub const MAX_LEVEL_XP: u32 = 1_000_000;
     /// The experience an enemy gives.
     pub const MAX_ENEMY_XP: u32 = 1000;
+    /// The expertise points an enemy or the boss gives for a hit and for a kill (ADR-078 §7).
+    pub const MAX_EXPERTISE_PER_HIT: u32 = 1000;
+    pub const MAX_EXPERTISE_PER_KILL: u32 = 100_000;
     /// Falling stars (ADR-079 §2, ADR-068): the drop chance is in 1000; the pity, the stars on
     /// the map, the pickup circle (64 pixels), the rerolls and banishes, and the drop table's
     /// tiers, each starting at most at the highest level, with weights of at most 10,000.
@@ -960,6 +964,26 @@ impl<'a> Ctx<'a> {
         if let Some(xp) = w.xp {
             self.within("xp", i64::from(xp), 0, i64::from(MAX_ENEMY_XP));
         }
+        if let Some(points) = &w.expertise {
+            self.expertise_points(points);
+        }
+    }
+
+    fn expertise_points(&mut self, points: &ExpertisePoints) {
+        self.key("expertise", |c| {
+            c.within(
+                "hit",
+                i64::from(points.hit),
+                0,
+                i64::from(MAX_EXPERTISE_PER_HIT),
+            );
+            c.within(
+                "kill",
+                i64::from(points.kill),
+                0,
+                i64::from(MAX_EXPERTISE_PER_KILL),
+            );
+        });
     }
 
     fn boss(&mut self, b: &Boss) {
@@ -978,6 +1002,9 @@ impl<'a> Ctx<'a> {
                     c.idx(i, |c| c.boss_part(p, repeated));
                 }
             });
+        }
+        if let Some(points) = &b.expertise {
+            self.expertise_points(points);
         }
         if let Some(call) = &b.call_elites {
             self.key("call_elites", |c| {

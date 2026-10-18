@@ -276,6 +276,21 @@ pub struct Wave {
     /// 1 when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xp: Option<u32>,
+    /// The expertise points each enemy of the wave gives (ADR-078 §2); none when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expertise: Option<ExpertisePoints>,
+}
+
+/// What a hit and a kill by an A or a B step of a combo add to the one expertise gauge
+/// (ADR-078 §2): elites, bosses and the Star-Hunter give far more. Other damage gives none.
+/// Nothing reads them yet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExpertisePoints {
+    /// Points per hit, at most `MAX_EXPERTISE_PER_HIT`.
+    pub hit: u32,
+    /// Points for the kill, at most `MAX_EXPERTISE_PER_KILL`.
+    pub kill: u32,
 }
 
 /// Tier 2 (ADR-036): body parts and an ordered list of phases that only move forward.
@@ -297,6 +312,9 @@ pub struct Boss {
     /// When every elite alive joins the boss fight (ADR-068); without it the boss calls none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call_elites: Option<CallElites>,
+    /// The expertise points the boss gives (ADR-078 §2); none when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expertise: Option<ExpertisePoints>,
 }
 
 /// The boss calls its elites at whichever comes first: `after_ticks` ticks after its first
