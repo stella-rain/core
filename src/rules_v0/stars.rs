@@ -293,7 +293,10 @@ pub(crate) fn choose(
                     }
                 }
                 None => {
-                    let index = reward.skill.as_ref().and_then(|id| rewards.skill_index(id));
+                    let index = reward
+                        .skill
+                        .as_ref()
+                        .and_then(|id| rewards.stage_skills().index_of(id));
                     if let Some(index) = index {
                         skill::take(rewards, player, index, reward.amount);
                     }

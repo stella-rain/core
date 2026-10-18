@@ -216,7 +216,7 @@ pub(crate) fn initial_state(
             combo: player::initial_combo(stage),
             dash: None,
             skill: None,
-            black_hole: None,
+            pull: None,
             shield: None,
             aggro: 0,
             statuses: Vec::new(),
@@ -789,13 +789,13 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         }
         None => h.write_bool(false),
     }
-    match p.black_hole {
+    match p.pull {
         Some(b) => {
             h.write_bool(true);
             h.write_i32(b.at.x.0);
             h.write_i32(b.at.y.0);
             h.write_i32(b.radius);
-            h.write_i32(b.pull);
+            h.write_i32(b.strength);
             h.write_u32(b.ticks_left);
         }
         None => h.write_bool(false),

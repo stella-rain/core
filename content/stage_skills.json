@@ -1,0 +1,297 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "stage_skills": [
+    {
+      "id": "black_hole",
+      "icon": "icon_black_hole",
+      "title": "Black Hole",
+      "description": "Pulls the enemies ahead into one point and holds them there",
+      "ahead": 24576,
+      "levels": [
+        {
+          "cooldown_ticks": 900,
+          "effects": [
+            {
+              "type": "pull",
+              "radius": 16384,
+              "strength": 512,
+              "duration_ticks": 120
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 840,
+          "effects": [
+            {
+              "type": "pull",
+              "radius": 18432,
+              "strength": 640,
+              "duration_ticks": 150
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 780,
+          "effects": [
+            {
+              "type": "pull",
+              "radius": 20480,
+              "strength": 768,
+              "duration_ticks": 180
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "war_cry",
+      "icon": "icon_war_cry",
+      "title": "War Cry",
+      "description": "Your attacks hit harder for 5 seconds",
+      "levels": [
+        {
+          "cooldown_ticks": 1200,
+          "effects": [
+            {
+              "type": "self_status",
+              "status": "atk_up",
+              "value_pct": 30,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 1100,
+          "effects": [
+            {
+              "type": "self_status",
+              "status": "atk_up",
+              "value_pct": 45,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 1000,
+          "effects": [
+            {
+              "type": "self_status",
+              "status": "atk_up",
+              "value_pct": 60,
+              "duration_ticks": 300
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hex",
+      "icon": "icon_hex",
+      "title": "Hex",
+      "description": "The enemies ahead take more damage for 5 seconds",
+      "ahead": 24576,
+      "levels": [
+        {
+          "cooldown_ticks": 900,
+          "effects": [
+            {
+              "type": "area_status",
+              "status": "vulnerable",
+              "radius": 16384,
+              "value_pct": 25,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 840,
+          "effects": [
+            {
+              "type": "area_status",
+              "status": "vulnerable",
+              "radius": 20480,
+              "value_pct": 35,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 780,
+          "effects": [
+            {
+              "type": "area_status",
+              "status": "vulnerable",
+              "radius": 24576,
+              "value_pct": 50,
+              "duration_ticks": 300
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nova",
+      "icon": "icon_nova",
+      "title": "Nova",
+      "description": "A burst of starlight strikes the area ahead",
+      "levels": [
+        {
+          "cooldown_ticks": 600,
+          "effects": [
+            {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 10,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 12288
+                    }
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 4,
+                    "damage": 20,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 12288
+                    }
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 6
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 540,
+          "effects": [
+            {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 10,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 14336
+                    }
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 4,
+                    "damage": 30,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 14336
+                    }
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 6
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 480,
+          "effects": [
+            {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 10,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 16384
+                    }
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 4,
+                    "damage": 40,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 16384
+                    }
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 6
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "aegis",
+      "icon": "icon_aegis",
+      "title": "Aegis",
+      "description": "A shield absorbs the next hits for a while",
+      "levels": [
+        {
+          "cooldown_ticks": 1200,
+          "effects": [
+            {
+              "type": "shield",
+              "amount": 3,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 1100,
+          "effects": [
+            {
+              "type": "shield",
+              "amount": 5,
+              "duration_ticks": 360
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 1000,
+          "effects": [
+            {
+              "type": "shield",
+              "amount": 8,
+              "duration_ticks": 420
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

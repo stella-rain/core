@@ -1,28 +1,29 @@
-//! The stage skill (ADR-075): the slot a falling star's reward fills, the use on a press of
-//! `skill`, and what each kind does. A use needs a skill in the slot and its cooldown run out;
-//! it then acts at its point (`ahead` along the facing, or toward the aim assist's target
-//! while `assist` is on) and its level's cooldown starts. Each kind:
+//! The stage skill (ADR-075, ADR-098): the slot a falling star's reward fills, the use on a
+//! press of `skill`, and what each building block does. A use needs a skill in the slot and its
+//! cooldown run out; it then acts at its point (`ahead` along the facing, or toward the aim
+//! assist's target while `assist` is on), its level's cooldown starts, and its level's effects
+//! apply in their order, at most `MAX_SKILL_EFFECTS` of them. Each block:
 //!
-//! - **black hole:** kept in the state for its time; every tick after the enemies have moved
-//!   and pushed apart, it pulls each enemy whose circle reaches within its radius toward its
-//!   point, `pull` at most, never past it. The boss and its parts stay where they are.
-//! - **buff:** `atk_up` on the main character.
-//! - **debuff area:** `vulnerable` on every enemy, the boss and each unbroken part whose circle
+//! - **pull:** kept in the state for its time; every tick after the enemies have moved and
+//!   pushed apart, it pulls each enemy whose circle reaches within its radius toward its point,
+//!   `strength` at most, never past it. The boss and its parts stay where they are.
+//! - **self status:** its status on the main character.
+//! - **area status:** its status on every enemy, the boss and each unbroken part whose circle
 //!   reaches within its radius of the point, once, at the use.
-//! - **damage area:** its attack in the stage skill's slot, along the aim; a use ends the one
-//!   still running there.
+//! - **attack:** its attack in the stage skill's slot, along the aim; a use ends the one still
+//!   running there.
 //! - **shield:** kept in the state for its time; damage to the main character takes from it
 //!   first.
 //!
-//! A new black hole or shield replaces the one there.
+//! A new pull or shield replaces the one there; statuses refresh as any status does (ADR-036).
 
-use crate::engine::{BlackHoleState, Dir, PlayerState, ShieldState, SkillSlot, State, StatusKind};
+use crate::engine::{Dir, PlayerState, PullState, ShieldState, SkillSlot, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::input::Input;
 use crate::rewards::Rewards;
 use crate::stage::Stage;
-use crate::stage_skill::{MAX_SKILL_LEVELS, SkillEffect};
+use crate::stage_skill::{MAX_SKILL_EFFECTS, MAX_SKILL_LEVELS, SkillEffect};
 use crate::trig::SCALE;
 
 use super::agent_def;
@@ -35,17 +36,17 @@ use super::{PLAYER_ID, overlaps};
 /// The main character's attack slot for a stage skill's attack (ADR-069); the combo is 0.
 pub(super) const SKILL_SLOT: u8 = 1;
 
-/// The timers of the slot, the black hole and the shield run down a tick; the black hole and
-/// the shield end when theirs reach 0.
+/// The timers of the slot, the pull and the shield run down a tick; the pull and the shield end
+/// when theirs reach 0.
 pub(super) fn tick(s: &mut State) {
     let p = &mut s.player;
     if let Some(slot) = &mut p.skill {
         slot.cooldown_left = slot.cooldown_left.saturating_sub(1);
     }
-    if let Some(b) = &mut p.black_hole {
+    if let Some(b) = &mut p.pull {
         b.ticks_left -= 1;
         if b.ticks_left == 0 {
-            p.black_hole = None;
+            p.pull = None;
         }
     }
     if let Some(sh) = &mut p.shield {
@@ -56,7 +57,7 @@ pub(super) fn tick(s: &mut State) {
     }
 }
 
-/// A taken reward gives `levels` of the skill at `index` in the rewards file: another skill
+/// A taken reward gives `levels` of the skill at `index` in the stage skills: another skill
 /// replaces the one held and arrives ready; the same one rises, up to its highest level.
 pub(super) fn take(rewards: &Rewards, p: &mut PlayerState, index: usize, levels: u32) {
     let Some(def) = rewards.stage_skills().get(index) else {
@@ -131,49 +132,65 @@ pub(super) fn press(
         skill: def.id.clone(),
         level: slot.level,
     });
-    match &level.effect {
-        SkillEffect::BlackHole {
+    // The validator holds a level to `MAX_SKILL_EFFECTS`.
+    for effect in level.effects.iter().take(MAX_SKILL_EFFECTS) {
+        apply(stage, s, effect, point, dir, events);
+    }
+}
+
+/// One effect of a use, at `point`, along the aim `dir`.
+fn apply(
+    stage: &Stage,
+    s: &mut State,
+    effect: &SkillEffect,
+    point: Point,
+    dir: Dir,
+    events: &mut Vec<DomainEvent>,
+) {
+    match effect {
+        SkillEffect::Pull {
             radius,
-            pull,
+            strength,
             duration_ticks,
         } => {
-            s.player.black_hole = Some(BlackHoleState {
+            s.player.pull = Some(PullState {
                 at: point,
                 radius: radius.0,
-                pull: pull.0,
+                strength: strength.0,
                 ticks_left: *duration_ticks,
             });
         }
-        SkillEffect::Buff {
-            atk_pct,
+        SkillEffect::SelfStatus {
+            status,
+            value_pct,
             duration_ticks,
         } => {
-            s.add_status(
-                Who::Player,
-                StatusKind::AtkUp,
-                PLAYER_ID,
-                *atk_pct,
-                *duration_ticks,
-                events,
-            );
-        }
-        SkillEffect::DebuffArea {
-            radius,
-            vulnerable_pct,
-            duration_ticks,
-        } => {
-            for who in within(stage, s, point, radius.0) {
+            // The validator holds the status to the registry's, which are `StatusKind`'s.
+            if let Some(kind) = StatusKind::from_name(&status.0) {
                 s.add_status(
-                    who,
-                    StatusKind::Vulnerable,
+                    Who::Player,
+                    kind,
                     PLAYER_ID,
-                    *vulnerable_pct,
+                    *value_pct,
                     *duration_ticks,
                     events,
                 );
             }
         }
-        SkillEffect::DamageArea { attack } => {
+        SkillEffect::AreaStatus {
+            status,
+            radius,
+            value_pct,
+            duration_ticks,
+        } => {
+            let Some(kind) = StatusKind::from_name(&status.0) else {
+                return;
+            };
+            for who in within(stage, s, point, radius.0) {
+                s.add_status(who, kind, PLAYER_ID, *value_pct, *duration_ticks, events);
+            }
+        }
+        SkillEffect::Attack { attack } => {
             attacks::end_run(s, PLAYER_ID, SKILL_SLOT);
             let strike = attacks::Strike {
                 bonus_pct: 0,
@@ -218,9 +235,9 @@ fn within(stage: &Stage, s: &State, at: Point, radius: i32) -> Vec<Who> {
     out
 }
 
-/// The black hole's pull for this tick, after the enemies have moved and pushed apart.
+/// The pull's step for this tick, after the enemies have moved and pushed apart.
 pub(super) fn pull(stage: &Stage, s: &mut State) {
-    let Some(b) = s.player.black_hole else {
+    let Some(b) = s.player.pull else {
         return;
     };
     let map = stage.map();
@@ -235,7 +252,7 @@ pub(super) fn pull(stage: &Stage, s: &mut State) {
         if dist == 0 {
             continue;
         }
-        let step = dist.min(i64::from(b.pull));
+        let step = dist.min(i64::from(b.strength));
         e.at = map.clamp(Point {
             x: e.at.x.saturating_add(Fx((dx * step / dist) as i32)),
             y: e.at.y.saturating_add(Fx((dy * step / dist) as i32)),
