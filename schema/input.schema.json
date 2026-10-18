@@ -33,7 +33,7 @@
       "minimum": -128
     },
     "skill": {
-      "description": "The stage skill button (Y) is held on this tick (ADR-075; it does nothing yet).",
+      "description": "The stage skill button (Y) is held on this tick: a press uses the skill in the slot when\nit is ready (ADR-075).",
       "type": "boolean"
     },
     "sub": {
