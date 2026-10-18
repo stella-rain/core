@@ -4,8 +4,9 @@
 //! acts: a reward's effect is one of the run stats' effect kinds (`StatEffect`), adding
 //! `amount` to that effect's total, as a stat point adds its step, a stage skill (ADR-075,
 //! ADR-098): one of the stage skills file's skills, `amount` levels of it, `amount` more
-//! evade charges, up to the stage's `max_charges` (ADR-074), or an orbit of `amount` orbs that
-//! attack on their own (ADR-069).
+//! evade charges, up to the stage's `max_charges` (ADR-074), an orbit of `amount` orbs that
+//! attack on their own (ADR-069), or an enchantment of the Main weapon's combo (ADR-070,
+//! ADR-078), taken once.
 //!
 //! The file is untrusted (ADR-020), as the run stats are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. Reward IDs are the file's own,
@@ -45,6 +46,8 @@ pub const MAX_ORBITS: usize = 4;
 pub const MAX_ORBIT_TURN: i32 = 15 * PER_DEGREE;
 /// The longest cooldown of an orbit: one minute.
 pub const MAX_ORBIT_COOLDOWN_TICKS: u32 = 3_600;
+/// The most a range enchantment widens a combo step's hit box, in percent: twice as large.
+pub const MAX_RANGE_PCT: u32 = 100;
 
 /// A reward's rarity, from the most common up (ADR-066 §2).
 #[derive(
@@ -78,7 +81,7 @@ impl Rarity {
 }
 
 /// What taking a reward does: one of the run stats' effect kinds, under the same names, a stage
-/// skill, more evade charges, or an orbit.
+/// skill, more evade charges, an orbit, or an enchantment.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
@@ -97,6 +100,10 @@ pub enum RewardEffect {
     EvadeCharge,
     /// The reward's `orbit`, with `amount` more orbs, never beyond `MAX_ORBS` (ADR-069).
     Orbit,
+    /// The reward's `enchantment` of the Main weapon's combo, `amount` its strength; taken once,
+    /// and never offered again, nor another of its kind, once one of its kind is held (ADR-070,
+    /// ADR-078).
+    Enchantment,
 }
 
 impl RewardEffect {
@@ -109,9 +116,10 @@ impl RewardEffect {
             RewardEffect::EvadePct => StatEffect::EvadePct,
             RewardEffect::SpeedPct => StatEffect::SpeedPct,
             RewardEffect::XpPct => StatEffect::XpPct,
-            RewardEffect::StageSkill | RewardEffect::EvadeCharge | RewardEffect::Orbit => {
-                return None;
-            }
+            RewardEffect::StageSkill
+            | RewardEffect::EvadeCharge
+            | RewardEffect::Orbit
+            | RewardEffect::Enchantment => return None,
         })
     }
 }
@@ -131,12 +139,15 @@ pub struct Reward {
     /// The orbit it gives: with the `orbit` effect only, and required by it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub orbit: Option<Orbit>,
+    /// The enchantment it gives: with the `enchantment` effect only, and required by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enchantment: Option<Enchantment>,
     /// What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,
     /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it
     /// adds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to
-    /// `MAX_ORBS`.
+    /// `MAX_ORBS`; for a range enchantment, how much wider, from 1 to `MAX_RANGE_PCT` percent.
     pub amount: u32,
-    /// The most times one run takes it, from 1 to `MAX_STACK`.
+    /// The most times one run takes it, from 1 to `MAX_STACK`; exactly 1 for an enchantment.
     pub limit: u8,
     /// The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.
     pub title: String,
@@ -159,6 +170,29 @@ pub struct Orbit {
     pub turn_per_tick: i32,
     /// Ticks from a round's start to the next one's, from 1 to `MAX_ORBIT_COOLDOWN_TICKS`.
     pub cooldown_ticks: u32,
+}
+
+/// An enchantment of the Main weapon's combo (ADR-070, ADR-078): one of a closed list built into
+/// `core`, its strength the reward's `amount`. It changes every combo step started after it is
+/// taken: A and B steps, the dash-strike and charged releases alike; the stage skill and orbits
+/// are not combo steps.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Enchantment {
+    /// Every hit box of the step is `amount` percent larger: its radius and its offset, rounded
+    /// toward zero; an arc's angle stays. The bullets a step spawns are not changed.
+    Range,
+}
+
+impl Enchantment {
+    /// The kind's place in the list, from 0: what the state hash writes.
+    pub fn index(self) -> u8 {
+        match self {
+            Enchantment::Range => 0,
+        }
+    }
 }
 
 /// The rewards file.
@@ -276,6 +310,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
             RewardEffect::StageSkill => MAX_SKILL_LEVELS as u32,
             RewardEffect::EvadeCharge => u32::from(MAX_EVADE_CHARGES),
             RewardEffect::Orbit => u32::from(MAX_ORBS),
+            RewardEffect::Enchantment => MAX_RANGE_PCT,
             _ => MAX_AMOUNT,
         };
         if !(1..=most).contains(&reward.amount) {
@@ -343,6 +378,25 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
                 }
             }
             (_, Some(_)) => issue(at("orbit"), "only an orbit reward holds an orbit".into()),
+            (_, None) => {}
+        }
+        match (reward.effect, &reward.enchantment) {
+            (RewardEffect::Enchantment, None) => issue(
+                at("enchantment"),
+                "an enchantment reward holds its enchantment".into(),
+            ),
+            (RewardEffect::Enchantment, Some(_)) => {
+                if reward.limit != 1 {
+                    issue(
+                        at("limit"),
+                        format!("an enchantment is taken once: 1 (found {})", reward.limit),
+                    );
+                }
+            }
+            (_, Some(_)) => issue(
+                at("enchantment"),
+                "only an enchantment reward holds an enchantment".into(),
+            ),
             (_, None) => {}
         }
         if !(1..=MAX_STACK).contains(&reward.limit) {

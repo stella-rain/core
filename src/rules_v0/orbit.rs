@@ -79,6 +79,7 @@ pub(super) fn act(stage: &Stage, rewards: &Rewards, s: &mut State, events: &mut 
             let strike = attacks::Strike {
                 bonus_pct: 0,
                 speed_pct: 0,
+                range_pct: 0,
                 pull: None,
             };
             for j in 0..o.orbs {
