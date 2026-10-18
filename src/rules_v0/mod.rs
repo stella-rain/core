@@ -200,7 +200,13 @@ pub(crate) fn initial_state(
             // Up the map on every map, landscape ones included; a stage cannot set it yet.
             facing: Dir::UP,
             target: None,
-            evade_cooldown: 0,
+            // The validator holds it to 1..=3; the clamp keeps an unvalidated stage there too.
+            evade_charges: stage
+                .player
+                .evade
+                .charges
+                .clamp(1, crate::validate::limits::MAX_EVADE_CHARGES),
+            evade_recovering: Vec::new(),
             held: 0,
             combo: player::initial_combo(stage),
             dash: None,
@@ -757,7 +763,12 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         }
         None => h.write_bool(false),
     }
-    h.write_u32(p.evade_cooldown);
+    h.write_u32(u32::from(p.evade_charges));
+    // At most the charges held, so at most 3.
+    h.write_u32(p.evade_recovering.len() as u32);
+    for &t in &p.evade_recovering {
+        h.write_u32(t);
+    }
     h.write_u32(u32::from(p.held));
     let c = &p.combo;
     h.write_u32(c.path);

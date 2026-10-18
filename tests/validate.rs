@@ -527,10 +527,7 @@ fn evade_charges_are_one_to_three_and_the_most_is_not_below_the_start() {
         path(&with(Some(1), Some(MAX_EVADE_CHARGES + 1))),
         "$.player.evade.max_charges"
     );
-    assert_eq!(
-        path(&with(Some(2), Some(1))),
-        "$.player.evade.max_charges"
-    );
+    assert_eq!(path(&with(Some(2), Some(1))), "$.player.evade.max_charges");
 }
 
 #[test]

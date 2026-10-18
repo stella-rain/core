@@ -82,7 +82,10 @@ pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Ve
     s.player.held = held;
     let p = &mut s.player;
     p.invulnerable = p.invulnerable.saturating_sub(1);
-    p.evade_cooldown = p.evade_cooldown.saturating_sub(1);
+    for t in &mut p.evade_recovering {
+        *t -= 1;
+    }
+    p.evade_recovering.retain(|&t| t > 0);
     p.combo.dash_strike_left = p.combo.dash_strike_left.saturating_sub(1);
     let (x, y) = (input.move_x.max(-STICK_MAX), input.move_y.max(-STICK_MAX));
     if let Some(dir) = stick_direction(x, y) {
@@ -94,7 +97,7 @@ pub(super) fn update(stage: &Stage, s: &mut State, input: Input, events: &mut Ve
         Some(m) if input.assist || input.auto => select::assist_target(stage, s, m.assist_range.0),
         _ => None,
     };
-    if pressed & input::EVADE != 0 && s.player.evade_ready() {
+    if pressed & input::EVADE != 0 && s.player.evade_ready() > 0 {
         let cooldown = levels::evade_cooldown(s, stage.player.evade.cooldown_ticks);
         start_evade(stage, &mut s.player, cooldown, events);
         cancel(s, events);
@@ -128,8 +131,9 @@ fn move_player(stage: &Stage, s: &mut State, x: i8, y: i8) {
     move_by(stage, &mut s.player, dx, dy);
 }
 
-/// A ready press dashes along the facing, which is the stick's direction when it is not
-/// centred (ADR-071). Invulnerability and the cooldown count from the press.
+/// A press with a charge ready dashes along the facing, which is the stick's direction when it
+/// is not centred (ADR-071), from where the main character is, a dash in progress or not
+/// (ADR-074). Invulnerability and the spent charge's `cooldown` count from the press.
 fn start_evade(stage: &Stage, p: &mut PlayerState, cooldown: u32, events: &mut Vec<DomainEvent>) {
     let evade = &stage.player.evade;
     p.dash = Some(DashState {
@@ -137,7 +141,9 @@ fn start_evade(stage: &Stage, p: &mut PlayerState, cooldown: u32, events: &mut V
         done: 0,
         left: evade.ticks,
     });
-    p.evade_cooldown = cooldown;
+    if cooldown > 0 {
+        p.evade_recovering.push(cooldown);
+    }
     p.invulnerable = p.invulnerable.max(evade.invulnerable_ticks);
     events.push(DomainEvent::Evaded);
 }
