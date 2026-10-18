@@ -707,6 +707,42 @@ fn assist() -> Definition {
     ("assist", bytes(&stage), inputs)
 }
 
+/// The evade on three charges (ADR-074): a shooter fires at the main character, who walks from
+/// side to side and presses the evade four times in a row, each during the dash before it. The
+/// first three dash, the fourth finds no charge ready; the charges come back one by one before
+/// the next cycle, which does it again.
+fn evade_charges() -> Definition {
+    let shooter = enemy(
+        1000,
+        hold(46_080, 100_000),
+        json!([rule(
+            always(),
+            json!("player"),
+            json!({ "type": "attack",
+                    "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+            10
+        )]),
+    );
+    let stage = stage_full(
+        300,
+        Some(far_boss()),
+        vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
+        vec![],
+    );
+    let mut v = serde_json::to_value(stage).unwrap();
+    v["player"]["evade"]["charges"] = json!(3);
+    let inputs = (0..300)
+        .map(|t| {
+            let c = t % 100;
+            Input {
+                evade: matches!(c, 10 | 13 | 16 | 19),
+                ..moving(if c < 50 { 127 } else { -127 }, 0)
+            }
+        })
+        .collect();
+    ("evade", bytes(&v), inputs)
+}
+
 /// A landscape map of 2,048 by 1,024 pixels (core#87). The main character starts near the
 /// right edge, walks into the top-right corner (clamped there), then left along the top, shooting
 /// along its facing; enemies cross the middle of the map to the right, shooting at it.
@@ -764,6 +800,7 @@ fn definitions() -> Vec<Definition> {
         assist(),
         bullets(),
         boss(),
+        evade_charges(),
         fail(),
         landscape(),
         melee(),
@@ -879,6 +916,50 @@ fn the_cases_are_what_their_names_say() {
     assert!(a.bat_after_elite, "a bat is the target after the elite");
     assert!(a.boss, "the boss is the target in the end");
     assert!(a.released, "a charge is released");
+    // Three dashes a cycle, two of them started during the dash before; a fourth press finds no
+    // charge ready, and all three are back by the next cycle.
+    let e = evade_reach();
+    assert_eq!((e.evades, e.chained), (9, 6), "evades, of them chained");
+    assert_eq!(e.refused, 3, "a press with no charge ready, each cycle");
+    assert!(e.all_back_after_spending, "the charges come back");
+}
+
+/// What the evade case does: its evades, those started during a dash, the presses with no
+/// charge ready, and whether all three charges were ready again after being spent.
+struct EvadeReach {
+    evades: usize,
+    chained: usize,
+    refused: usize,
+    all_back_after_spending: bool,
+}
+
+fn evade_reach() -> EvadeReach {
+    use stella_rain_core::event::DomainEvent;
+    let case = corpus_dir().join("evade");
+    let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+    let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+    let mut e = EvadeReach {
+        evades: 0,
+        chained: 0,
+        refused: 0,
+        all_back_after_spending: false,
+    };
+    let (mut was_held, mut spent_all) = (false, false);
+    for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
+        let before = engine.snapshot().player.evade;
+        engine.step(input);
+        let evaded = engine.events().contains(&DomainEvent::Evaded);
+        let pressed = input.evade && !was_held;
+        was_held = input.evade;
+        e.evades += usize::from(evaded);
+        e.chained += usize::from(evaded && before.dash_left > 0);
+        e.refused += usize::from(pressed && !evaded && before.ready == 0);
+        let after = engine.snapshot().player.evade;
+        spent_all |= after.ready == 0;
+        e.all_back_after_spending |= spent_all && after.ready == after.charges;
+    }
+    e
 }
 
 /// What the assist case does: the first target's kind and whether it is the elite, the steps

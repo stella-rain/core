@@ -174,14 +174,20 @@ pub struct PlayerView {
     pub attacks: Vec<AttackView>,
 }
 
-/// The evade (ADR-074).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+/// The evade and its charges (ADR-074).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EvadeView {
-    /// A press on the next tick would dash.
-    pub ready: bool,
-    /// Ticks until it is ready again, counted from the press.
-    pub cooldown_left: u32,
+    /// The charges held, ready or recovering: from the stage's `charges`, raised by rewards up
+    /// to its `max_charges`.
+    pub charges: u8,
+    /// The charges ready: a press on the next tick dashes when it is more than 0, even during a
+    /// dash.
+    pub ready: u8,
+    /// Ticks left on each spent charge, in the order they were spent; each counts from the
+    /// press that spent it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recovering: Vec<u32>,
     /// Ticks of the dash still to move: 0 when not dashing.
     pub dash_left: u32,
 }

@@ -285,7 +285,7 @@ fn evade_shortens_the_evade_s_cooldown() {
             evade: true,
             ..idle()
         });
-        e.snapshot().player.evade.cooldown_left
+        e.snapshot().player.evade.recovering[0]
     };
     let stage = effect_stage();
     assert_eq!(

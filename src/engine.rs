@@ -370,8 +370,9 @@ impl Engine {
                 },
                 invulnerable: s.player.invulnerable,
                 evade: EvadeView {
+                    charges: s.player.evade_charges,
                     ready: s.player.evade_ready(),
-                    cooldown_left: s.player.evade_cooldown,
+                    recovering: s.player.evade_recovering.clone(),
                     dash_left: s.player.dash.map_or(0, |d| d.left),
                 },
                 combo: {
@@ -566,8 +567,11 @@ pub(crate) struct PlayerState {
     pub facing: Dir,
     /// The enemy aim assist and auto mode face, picked each tick while either is on (ADR-072).
     pub target: Option<EntityId>,
-    /// Ticks until the evade is ready again, counted from its press.
-    pub evade_cooldown: u32,
+    /// The evade's charges held, ready or recovering (ADR-074).
+    pub evade_charges: u8,
+    /// Ticks left on each spent charge, in the order they were spent; none is 0 and there are
+    /// never more than `evade_charges`.
+    pub evade_recovering: Vec<u32>,
     /// The buttons held on the last tick (`input::held_buttons`), so that only a button held now
     /// and not then is a press (ADR-071).
     pub held: u8,
@@ -580,8 +584,11 @@ pub(crate) struct PlayerState {
 }
 
 impl PlayerState {
-    pub fn evade_ready(&self) -> bool {
-        self.evade_cooldown == 0 && self.dash.is_none()
+    /// The evade's charges ready: held and not recovering.
+    pub fn evade_ready(&self) -> u8 {
+        // There are never more timers than charges, and charges are at most 3.
+        self.evade_charges
+            .saturating_sub(self.evade_recovering.len() as u8)
     }
 }
 

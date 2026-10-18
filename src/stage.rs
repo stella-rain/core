@@ -227,9 +227,11 @@ pub struct Player {
     pub evade: Evade,
 }
 
-/// A dash with invulnerability (ADR-050). A ready press dashes `distance` over `ticks`, along
-/// the movement direction, or along the facing when the stick is centred; the stick is ignored
-/// until the dash ends. Invulnerability and the cooldown count from the press.
+/// A dash with invulnerability (ADR-050), on charges (ADR-074). A press with a charge ready
+/// dashes `distance` over `ticks`, along the movement direction, or along the facing when the
+/// stick is centred; the stick is ignored until the dash ends, and a press during it with a
+/// charge ready starts the next dash at once. Invulnerability counts from the press, and so
+/// does the cooldown of the charge it spent: each spent charge recovers on its own timer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Evade {
@@ -237,6 +239,27 @@ pub struct Evade {
     pub ticks: u32,
     pub invulnerable_ticks: u32,
     pub cooldown_ticks: u32,
+    /// The charges a run starts with: 1 when absent.
+    #[serde(default = "one_charge", skip_serializing_if = "is_one_charge")]
+    pub charges: u8,
+    /// The most charges rewards can raise it to (ADR-074): `charges` when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_charges: Option<u8>,
+}
+
+impl Evade {
+    /// The most charges it can hold: `max_charges`, or `charges` when absent.
+    pub fn most_charges(&self) -> u8 {
+        self.max_charges.unwrap_or(self.charges)
+    }
+}
+
+fn one_charge() -> u8 {
+    1
+}
+
+fn is_one_charge(n: &u8) -> bool {
+    *n == 1
 }
 
 /// `count` copies of `enemy`, the first at `at_tick`, then one every `every_ticks`.
