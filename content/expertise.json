@@ -1,0 +1,282 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "thresholds": [
+    30,
+    45,
+    65,
+    90,
+    120,
+    155,
+    195,
+    240,
+    290,
+    345
+  ],
+  "growth_pct": 115,
+  "max_points": 50000,
+  "weapons": [
+    {
+      "weapon": "blade",
+      "styles": [
+        {
+          "id": "edge",
+          "effect": "attack_pct",
+          "amount": 10,
+          "title": "Edge",
+          "description": "10 percent more damage",
+          "upgrade_6": [
+            {
+              "id": "edge_6",
+              "effect": "attack_pct",
+              "amount": 15,
+              "title": "Keen Edge",
+              "description": "15 percent more damage"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "edge_9",
+              "effect": "range_pct",
+              "amount": 15,
+              "title": "Long Edge",
+              "description": "Every combo step's hit box 15 percent larger"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "edge_10",
+              "effect": "attack_pct",
+              "amount": 30,
+              "title": "Master Edge",
+              "description": "30 percent more damage"
+            }
+          ]
+        },
+        {
+          "id": "tempo",
+          "effect": "attack_speed_pct",
+          "amount": 8,
+          "title": "Tempo",
+          "description": "Attacks 8 percent faster",
+          "upgrade_6": [
+            {
+              "id": "tempo_6",
+              "effect": "speed_pct",
+              "amount": 10,
+              "title": "Light Step",
+              "description": "10 percent more speed"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "tempo_9",
+              "effect": "attack_speed_pct",
+              "amount": 10,
+              "title": "Quick Hands",
+              "description": "Attacks 10 percent faster"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "tempo_10",
+              "effect": "evade_pct",
+              "amount": 25,
+              "title": "Flow",
+              "description": "25 percent shorter evade cooldown"
+            }
+          ]
+        },
+        {
+          "id": "reach",
+          "effect": "range_pct",
+          "amount": 15,
+          "title": "Reach",
+          "description": "Every combo step's hit box 15 percent larger",
+          "upgrade_6": [
+            {
+              "id": "reach_6",
+              "effect": "range_pct",
+              "amount": 15,
+              "title": "Wide Arc",
+              "description": "Every combo step's hit box 15 percent larger"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "reach_9",
+              "effect": "attack_pct",
+              "amount": 15,
+              "title": "Sure Strike",
+              "description": "15 percent more damage"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "reach_10",
+              "effect": "range_pct",
+              "amount": 30,
+              "title": "Far Reach",
+              "description": "Every combo step's hit box 30 percent larger"
+            }
+          ]
+        }
+      ],
+      "common": [
+        {
+          "id": "damage",
+          "effect": "attack_pct",
+          "amount": 10,
+          "title": "Damage",
+          "description": "10 percent more damage"
+        },
+        {
+          "id": "attack_speed",
+          "effect": "attack_speed_pct",
+          "amount": 10,
+          "limit": 5,
+          "title": "Attack Speed",
+          "description": "Attacks 10 percent faster"
+        },
+        {
+          "id": "hit_box",
+          "effect": "range_pct",
+          "amount": 10,
+          "title": "Hit Box",
+          "description": "Every combo step's hit box 10 percent larger"
+        }
+      ]
+    },
+    {
+      "weapon": "maul",
+      "styles": [
+        {
+          "id": "crush",
+          "effect": "attack_pct",
+          "amount": 15,
+          "title": "Crush",
+          "description": "15 percent more damage",
+          "upgrade_6": [
+            {
+              "id": "crush_6",
+              "effect": "attack_pct",
+              "amount": 20,
+              "title": "Heavy Head",
+              "description": "20 percent more damage"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "crush_9",
+              "effect": "max_hp",
+              "amount": 2,
+              "title": "Iron Grip",
+              "description": "2 more hit points at most, and as many healed"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "crush_10",
+              "effect": "attack_pct",
+              "amount": 40,
+              "title": "Shatter",
+              "description": "40 percent more damage"
+            }
+          ]
+        },
+        {
+          "id": "quake",
+          "effect": "range_pct",
+          "amount": 20,
+          "title": "Quake",
+          "description": "Every combo step's hit box 20 percent larger",
+          "upgrade_6": [
+            {
+              "id": "quake_6",
+              "effect": "range_pct",
+              "amount": 20,
+              "title": "Tremor",
+              "description": "Every combo step's hit box 20 percent larger"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "quake_9",
+              "effect": "attack_pct",
+              "amount": 15,
+              "title": "Aftershock",
+              "description": "15 percent more damage"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "quake_10",
+              "effect": "range_pct",
+              "amount": 40,
+              "title": "Earthshaker",
+              "description": "Every combo step's hit box 40 percent larger"
+            }
+          ]
+        },
+        {
+          "id": "bulwark",
+          "effect": "max_hp",
+          "amount": 2,
+          "title": "Bulwark",
+          "description": "2 more hit points at most, and as many healed",
+          "upgrade_6": [
+            {
+              "id": "bulwark_6",
+              "effect": "evade_pct",
+              "amount": 15,
+              "title": "Brace",
+              "description": "15 percent shorter evade cooldown"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "bulwark_9",
+              "effect": "max_hp",
+              "amount": 3,
+              "title": "Stone Skin",
+              "description": "3 more hit points at most, and as many healed"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "bulwark_10",
+              "effect": "evade_pct",
+              "amount": 30,
+              "title": "Fortress",
+              "description": "30 percent shorter evade cooldown"
+            }
+          ]
+        }
+      ],
+      "common": [
+        {
+          "id": "damage",
+          "effect": "attack_pct",
+          "amount": 10,
+          "title": "Damage",
+          "description": "10 percent more damage"
+        },
+        {
+          "id": "attack_speed",
+          "effect": "attack_speed_pct",
+          "amount": 10,
+          "limit": 5,
+          "title": "Attack Speed",
+          "description": "Attacks 10 percent faster"
+        },
+        {
+          "id": "hit_box",
+          "effect": "range_pct",
+          "amount": 10,
+          "title": "Hit Box",
+          "description": "Every combo step's hit box 10 percent larger"
+        }
+      ]
+    }
+  ]
+}

@@ -161,15 +161,20 @@ fn a_file_over_the_limit_is_not_parsed() {
 
 #[test]
 fn only_the_expertise_format_parses() {
-    let mut extra = file();
-    extra["extra"] = json!(1);
+    // An unknown field at the top, in a weapon, a style and an option.
+    let extra = |pointer: &str| {
+        let mut v = file();
+        v.pointer_mut(pointer).unwrap()["extra"] = json!(1);
+        v
+    };
     for bad in [
         json!("not an object"),
         json!({ "schema_version": 0, "sim_version": 0 }),
-        extra,
-        with("/weapons/0/extra", json!(1)),
+        extra(""),
+        extra("/weapons/0"),
+        extra("/weapons/0/styles/0"),
+        extra("/weapons/0/styles/0/capstone/0"),
         with("/weapons/0/common/0/effect", json!("no_such_effect")),
-        with("/weapons/0/styles/0/extra", json!(1)),
         with("/growth_pct", json!(-1)),
     ] {
         assert!(
