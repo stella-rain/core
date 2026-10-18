@@ -31,6 +31,7 @@ pub mod share;
 pub mod snapshot;
 pub mod spike;
 pub mod stage;
+pub mod stage_skill;
 pub mod trig;
 pub mod validate;
 pub mod version;

@@ -22,7 +22,8 @@ pub struct Input {
     pub sub: bool,
     /// The evade button (X) is held on this tick: a press dashes when an evade is ready.
     pub evade: bool,
-    /// The stage skill button (Y) is held on this tick (ADR-075; it does nothing yet).
+    /// The stage skill button (Y) is held on this tick: a press uses the skill in the slot when
+    /// it is ready (ADR-075).
     pub skill: bool,
     /// Aim assist is on for this tick, a switch (ADR-072): a combo step faces the target.
     pub assist: bool,
@@ -43,3 +44,4 @@ pub(crate) fn held_buttons(input: Input) -> u8 {
 pub(crate) const MAIN: u8 = 0b1;
 pub(crate) const SUB: u8 = 0b10;
 pub(crate) const EVADE: u8 = 0b100;
+pub(crate) const SKILL: u8 = 0b1000;

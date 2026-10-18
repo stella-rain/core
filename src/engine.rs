@@ -22,8 +22,9 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
-    AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView, Facing,
-    MapView, OfferKind, PlayerView, ProgressView, Snapshot, StarView,
+    AttackView, BlackHoleView, BulletView, ChargeView, ComboView, EntityKind, EntityView,
+    EvadeView, Facing, MapView, OfferKind, PlayerView, ProgressView, ShieldView, SkillView,
+    Snapshot, StarView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -393,6 +394,29 @@ impl Engine {
                     }
                 }),
                 target: s.player.target,
+                skill: s.player.skill.and_then(|slot| {
+                    let def = self
+                        .content
+                        .rewards()
+                        .stage_skills()
+                        .get(usize::from(slot.index))?;
+                    Some(SkillView {
+                        skill: def.id.clone(),
+                        kind: def.kind(),
+                        level: slot.level,
+                        ready: slot.cooldown_left == 0,
+                        cooldown_left: slot.cooldown_left,
+                    })
+                }),
+                black_hole: s.player.black_hole.map(|b| BlackHoleView {
+                    at: b.at,
+                    radius: Fx(b.radius),
+                    ticks_left: b.ticks_left,
+                }),
+                shield: s.player.shield.map(|sh| ShieldView {
+                    amount: sh.amount,
+                    ticks_left: sh.ticks_left,
+                }),
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -579,6 +603,11 @@ pub(crate) struct PlayerState {
     pub combo: ComboState,
     /// The dash in progress, if any.
     pub dash: Option<DashState>,
+    /// The stage skill slot (ADR-075): empty until a reward fills it.
+    pub skill: Option<SkillSlot>,
+    /// The stage skill's black hole while it pulls, and its shield while it holds.
+    pub black_hole: Option<BlackHoleState>,
+    pub shield: Option<ShieldState>,
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
 }
@@ -626,6 +655,32 @@ pub(crate) struct ComboState {
 pub(crate) struct Pull {
     pub distance: i32,
     pub ticks: u32,
+}
+
+/// The stage skill held (ADR-075): its place in the rewards file's `stage_skills`, its level
+/// from 1, and the ticks until it is ready again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SkillSlot {
+    pub index: u16,
+    pub level: u8,
+    pub cooldown_left: u32,
+}
+
+/// A black hole pulling: its point, radius and pull (fixed-point units), and the ticks left,
+/// at least 1.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BlackHoleState {
+    pub at: Point,
+    pub radius: i32,
+    pub pull: i32,
+    pub ticks_left: u32,
+}
+
+/// A shield: the damage it still absorbs, at least 1, and the ticks left, at least 1.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ShieldState {
+    pub amount: u32,
+    pub ticks_left: u32,
 }
 
 /// An evade's dash: locked to its direction, `done` of its ticks moved, `left` to go.
