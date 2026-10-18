@@ -104,7 +104,11 @@
         "y": 0
       },
       "count": 5,
-      "every_ticks": 40
+      "every_ticks": 40,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
     },
     {
       "at_tick": 600,
@@ -144,7 +148,11 @@
         "y": 0
       },
       "count": 5,
-      "every_ticks": 40
+      "every_ticks": 40,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
     },
     {
       "at_tick": 1200,
@@ -183,7 +191,11 @@
       },
       "count": 4,
       "every_ticks": 60,
-      "xp": 2
+      "xp": 2,
+      "expertise": {
+        "hit": 1,
+        "kill": 6
+      }
     },
     {
       "at_tick": 60,
@@ -226,7 +238,11 @@
       },
       "count": 1,
       "every_ticks": 0,
-      "xp": 3
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
     },
     {
       "at_tick": 60,
@@ -269,7 +285,11 @@
       },
       "count": 1,
       "every_ticks": 0,
-      "xp": 3
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
     }
   ],
   "boss": {
@@ -426,6 +446,10 @@
     "call_elites": {
       "after_ticks": 1800,
       "below_pct": 70
+    },
+    "expertise": {
+      "hit": 5,
+      "kill": 500
     }
   },
   "levels": {

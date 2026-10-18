@@ -283,7 +283,7 @@ pub struct Wave {
 
 /// What a hit and a kill by an A or a B step of a combo add to the one expertise gauge
 /// (ADR-078 §2): elites, bosses and the Star-Hunter give far more. Other damage gives none.
-/// Nothing reads them yet.
+/// A hit on a boss part gives the boss's points per hit; its break is not a kill.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExpertisePoints {

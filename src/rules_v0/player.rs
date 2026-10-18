@@ -227,7 +227,7 @@ fn dash(stage: &Stage, p: &mut PlayerState) {
 
 /// The main character's attack slots (ADR-069): the combo; the stage skill and the effects
 /// that attack on their own come with their own.
-const COMBO_SLOT: u8 = 0;
+pub(super) const COMBO_SLOT: u8 = 0;
 
 fn press_of(sub: bool) -> Press {
     if sub { Press::Sub } else { Press::Main }

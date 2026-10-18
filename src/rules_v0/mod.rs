@@ -24,6 +24,10 @@
 //! 8. if the run goes on, the first offer due opens, and the world stops until it is answered;
 //!    a clear opens only the boss offer of the boss kill that made it.
 //!
+//! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
+//! step 6 adds them to the one expertise gauge, and its levels are reached at the end of step 6
+//! (`expertise`); a level opens nothing yet.
+//!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks. In
 //! a stage with stars, defeated enemies then drop falling stars, and the main character takes
@@ -55,6 +59,7 @@ mod agents;
 mod attacks;
 mod boss;
 mod entity;
+mod expertise;
 mod grid;
 mod hit_boxes;
 mod levels;
@@ -72,6 +77,7 @@ use crate::engine::{
     PartState, PlayerState, Progress, Pull, StarField, State,
 };
 use crate::event::DomainEvent;
+use crate::expertise::Expertise;
 use crate::fixed::{Fx, Point};
 use crate::hash::StateHasher;
 use crate::id::EntityId;
@@ -257,12 +263,14 @@ pub(crate) fn initial_state(
             taken: vec![0; rewards],
             banished: vec![false; rewards],
         }),
+        expertise: expertise::initial(stage, content.expertise()),
     }
 }
 
 pub(crate) fn step(
     stage: &Stage,
     rewards: &Rewards,
+    expertise: &Expertise,
     s: &mut State,
     input: Input,
     events: &mut Vec<DomainEvent>,
@@ -295,6 +303,7 @@ pub(crate) fn step(
     };
     move_bullets(stage, s);
     collide(stage, s, events);
+    expertise::level_up(expertise, s);
     decide_outcome(stage, s, events);
     match s.outcome {
         Outcome::Running => stars::open_due(rewards, s, events),
@@ -396,6 +405,8 @@ struct Shot {
     breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hit (ADR-070).
     pull: Option<Pull>,
+    /// A combo step's hit, which adds expertise points (ADR-078 §2).
+    combo: bool,
 }
 
 fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
@@ -414,6 +425,7 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
             damage: b.damage,
             breaks_charge: b.breaks_charge,
             pull: b.pull,
+            combo: b.combo,
         };
         consumed.push(if shot.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
@@ -445,8 +457,9 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
 }
 
 /// Damage to an enemy, a companion or the boss: raised by its vulnerability, reduced by its
-/// defence, reported, and credited to the shooter's aggro. Death is reported too.
-fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
+/// defence, reported, and credited to the shooter's aggro. Death is reported too. A combo
+/// step's hit adds expertise points (`expertise`).
+fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
     let dealt = scale_damage(b.damage, 0, vulnerable, s.defence(target));
     let id = s.id_of(target);
@@ -468,6 +481,9 @@ fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
         });
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
+    if b.combo {
+        expertise::credit(stage, s, target, dead);
+    }
 }
 
 /// An ally's shot against the enemies in ID order, then the boss. Returns whether it was used up.
@@ -480,7 +496,7 @@ fn hit_enemy_side(
     events: &mut Vec<DomainEvent>,
 ) -> bool {
     if let Some(i) = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, |i| s.enemies[i].hp > 0) {
-        damage(s, b, Who::Enemy(i), events);
+        damage(stage, s, b, Who::Enemy(i), events);
         if let Some(pull) = b.pull {
             pull_enemy(stage, s, i, pull);
         }
@@ -505,14 +521,14 @@ fn hit_enemy_side(
             )
         {
             if !absorbed {
-                damage(s, b, Who::BossPart(i), events);
+                damage(stage, s, b, Who::BossPart(i), events);
             }
             return true;
         }
     }
     if overlaps(b.at, PLAYER_BULLET_RADIUS, state.at, def.radius.0) {
         if !absorbed {
-            damage(s, b, Who::Boss, events);
+            damage(stage, s, b, Who::Boss, events);
         }
         return true;
     }
@@ -578,7 +594,7 @@ fn hit_ally_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainE
         let c = &s.companions[i];
         let radius = agent_def(stage, c.key).radius.0;
         if c.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, c.at, radius) {
-            damage(s, b, Who::Companion(i), events);
+            damage(stage, s, b, Who::Companion(i), events);
             return true;
         }
     }
@@ -1016,6 +1032,22 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(count(&f.banished));
         for b in &f.banished {
             h.write_bool(*b);
+        }
+    }
+    // After it, and only in a stage that gives expertise points, for the same reason: the
+    // gauge, then which attacks and bullets are a combo step's, which matters only here.
+    if let Some(g) = &s.expertise {
+        h.write_u32(g.level);
+        h.write_u32(g.points);
+        h.write_u32(g.next);
+        h.write_u32(count(&s.tasks));
+        for t in &s.tasks {
+            h.write_bool(t.combo);
+        }
+        h.write_u32(count(&s.bullets));
+        for b in &s.bullets {
+            h.write_bool(b.combo);
+            h.write_bool(b.hook.as_ref().is_some_and(|hook| hook.combo));
         }
     }
     h.finish()

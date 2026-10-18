@@ -23,8 +23,8 @@ use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, EnchantmentView, EntityKind, EntityView,
-    EvadeView, Facing, MapView, OfferKind, OrbitView, PlayerView, ProgressView, PullView,
-    ShieldView, SkillView, Snapshot, StarView,
+    EvadeView, ExpertiseView, Facing, MapView, OfferKind, OrbitView, PlayerView, ProgressView,
+    PullView, ShieldView, SkillView, Snapshot, StarView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -162,6 +162,7 @@ impl Engine {
             0 => rules_v0::step(
                 &self.stage,
                 self.content.rewards(),
+                self.content.expertise(),
                 &mut self.state,
                 input,
                 &mut self.events,
@@ -496,6 +497,11 @@ impl Engine {
                 spent: p.spent.clone(),
                 offer: rules_v0::offer_view(self.content.rewards(), s),
             }),
+            expertise: s.expertise.map(|g| ExpertiseView {
+                level: g.level,
+                points: g.points,
+                next: g.next,
+            }),
         }
     }
 }
@@ -554,6 +560,20 @@ pub(crate) struct State {
     pub progress: Option<Progress>,
     /// Falling stars and offers; `None` in a stage without stars, which hashes nothing for it.
     pub stars: Option<StarField>,
+    /// The expertise gauge; `None` in a stage whose enemies and boss give no expertise points,
+    /// which hashes nothing for it.
+    pub expertise: Option<ExpertiseGauge>,
+}
+
+/// The one expertise gauge of both weapons (ADR-078 §1 to §3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ExpertiseGauge {
+    /// From 0.
+    pub level: u32,
+    /// Points toward the next level; at most `next - 1` between ticks.
+    pub points: u32,
+    /// The points the next level needs.
+    pub next: u32,
 }
 
 /// Falling stars, the offers due and the open one, and what the run's offers have used
@@ -969,6 +989,8 @@ pub(crate) struct BulletState {
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
     pub pull: Option<Pull>,
+    /// Fired by a combo step, A or B: its hit adds expertise points (ADR-078 §2).
+    pub combo: bool,
     /// Starts an attack of its own after a while (`on_bullet`).
     pub hook: Option<Box<Hook>>,
 }
@@ -988,6 +1010,8 @@ pub(crate) struct Hook {
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
     pub pull: Option<Pull>,
+    /// Of a combo step, A or B (ADR-078 §2).
+    pub combo: bool,
 }
 
 /// One step down a program: the node at `node` in the current list, then its `body` list, or
@@ -1072,6 +1096,8 @@ pub(crate) struct AttackTask {
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
     pub pull: Option<Pull>,
+    /// Started by a combo step, A or B: its hits add expertise points (ADR-078 §2).
+    pub combo: bool,
     /// Ticks since it started.
     pub age: u32,
     /// Ticks to wait before going on.
