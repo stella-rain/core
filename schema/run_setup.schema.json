@@ -36,7 +36,7 @@
       "minimum": 0
     },
     "star_pool": {
-      "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-066 §1), each at most once. Absent: every reward in the file.",
+      "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-079 §1), each at most once. Absent: every reward in the file.",
       "type": [
         "array",
         "null"

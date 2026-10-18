@@ -35,7 +35,7 @@
       ]
     },
     "stars": {
-      "description": "Falling stars on the map, in the order they dropped (ADR-066 §2).",
+      "description": "Falling stars on the map, in the order they dropped (ADR-079 §2).",
       "type": "array",
       "items": {
         "$ref": "#/$defs/StarView"
@@ -521,7 +521,7 @@
       ]
     },
     "OfferKind": {
-      "description": "What opened an offer (ADR-066 §2).",
+      "description": "What opened an offer (ADR-079 §2).",
       "oneOf": [
         {
           "description": "A falling star the main character took; it can be skipped.",
@@ -618,7 +618,7 @@
       ]
     },
     "OfferView": {
-      "description": "An offer from a falling star (ADR-066 §3).",
+      "description": "An offer from a falling star (ADR-079 §3).",
       "type": "object",
       "properties": {
         "banishes_left": {
@@ -872,7 +872,7 @@
       ]
     },
     "ProgressView": {
-      "description": "Where the run stands in experience, levels and stat points (ADR-066 §2, §4).",
+      "description": "Where the run stands in experience, levels and stat points (ADR-079 §2, §4).",
       "type": "object",
       "properties": {
         "level": {
@@ -882,7 +882,7 @@
           "minimum": 0
         },
         "offer": {
-          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-066 §3).",
+          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-079 §3).",
           "anyOf": [
             {
               "$ref": "#/$defs/OfferView"
@@ -955,7 +955,7 @@
       ]
     },
     "Rarity": {
-      "description": "A reward's rarity, from the most common up (ADR-066 §2).",
+      "description": "A reward's rarity, from the most common up (ADR-079 §2).",
       "type": "string",
       "enum": [
         "common",
