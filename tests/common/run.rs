@@ -12,6 +12,10 @@ pub const TRIAL_LENGTH: u32 = 5400;
 /// The run stat `play_run` spends every point on.
 pub const SPEND_INDEX: u32 = 1;
 
+/// The seed of the `stage_skill` run case: with it, the run kills an elite whose rare star
+/// offers the black hole, and takes it.
+pub const STAGE_SKILL_SEED: u64 = 9;
+
 pub fn trial_setup() -> RunSetup {
     RunSetup {
         schema_version: 0,
@@ -179,7 +183,12 @@ fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
 /// `SPEND_INDEX` as it comes, between that tick and the next (and after the last), until the
 /// stat is at its limit, and answering every offer as `answer` does.
 pub fn play_run(ticks: u32) -> Vec<Command> {
-    let mut engine = Engine::start(&trial_setup()).unwrap();
+    play_run_from(&trial_setup(), ticks)
+}
+
+/// `play_run` from `setup` instead of the trial's.
+pub fn play_run_from(setup: &RunSetup, ticks: u32) -> Vec<Command> {
+    let mut engine = Engine::start(setup).unwrap();
     let mut out = Vec::new();
     let mut offers = 0;
     let between = |engine: &mut Engine, out: &mut Vec<Command>, offers: &mut usize| {

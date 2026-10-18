@@ -810,13 +810,19 @@ fn definitions() -> Vec<Definition> {
 }
 
 /// The run cases: the trial mode played until the main character falls, spending its points
-/// and answering its offers on the way, with every kind of option.
+/// and answering its offers on the way, with every kind of option; and the same from another
+/// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Vec<Command>)> {
-    vec![(
-        "trial",
-        common::run::trial_setup(),
-        common::run::play_run(common::run::TRIAL_LENGTH),
-    )]
+    use common::run::{STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, trial_setup};
+    let stage_skill = RunSetup {
+        seed: STAGE_SKILL_SEED,
+        ..trial_setup()
+    };
+    let stage_skill_commands = play_run_from(&stage_skill, TRIAL_LENGTH);
+    vec![
+        ("trial", trial_setup(), play_run(TRIAL_LENGTH)),
+        ("stage_skill", stage_skill, stage_skill_commands),
+    ]
 }
 
 /// A run case re-simulated from its file: the kinds of option its choices take, and the stage
