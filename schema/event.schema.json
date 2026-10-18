@@ -775,7 +775,7 @@
       ]
     },
     {
-      "description": "An expertise offer opened for the level `level`, from `weapon`'s common pool, and the\nworld stopped until a choice closes it (ADR-079 §2, §3).",
+      "description": "An expertise offer of `kind` opened for the level `level` and `weapon`, and the world\nstopped until a choice closes it (ADR-078 §4, §5; ADR-079 §2, §3).",
       "type": "object",
       "properties": {
         "data": {
@@ -786,6 +786,9 @@
               "items": {
                 "$ref": "#/$defs/ContentId"
               }
+            },
+            "kind": {
+              "$ref": "#/$defs/ExpertiseOfferKind"
             },
             "level": {
               "type": "integer",
@@ -800,6 +803,7 @@
           "required": [
             "level",
             "weapon",
+            "kind",
             "candidates"
           ]
         },
@@ -815,7 +819,7 @@
       ]
     },
     {
-      "description": "The expertise option was taken: the run now has it `taken` times for that weapon.",
+      "description": "The expertise option was taken: the run now has it `taken` times for that weapon. A\nstyle, an upgrade or a capstone is taken once.",
       "type": "object",
       "properties": {
         "data": {
@@ -897,6 +901,31 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0
+    },
+    "ExpertiseOfferKind": {
+      "description": "What an expertise level offers (ADR-078 §4, §5).",
+      "oneOf": [
+        {
+          "description": "Options drawn from the weapon's common pool, with a reroll of each.",
+          "type": "string",
+          "const": "common"
+        },
+        {
+          "description": "The weapon's three styles, at level 3 (Main) or 5 (Sub): fixed, no reroll.",
+          "type": "string",
+          "const": "style"
+        },
+        {
+          "description": "The fixed upgrades of the chosen Main style, at level 6 or 9: no reroll.",
+          "type": "string",
+          "const": "upgrade"
+        },
+        {
+          "description": "The fixed capstones of the chosen Main style, at level 10: no reroll.",
+          "type": "string",
+          "const": "capstone"
+        }
+      ]
     },
     "OfferKind": {
       "description": "What opened an offer (ADR-079 §2).",

@@ -28,8 +28,8 @@
 //!
 //! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
 //! step 6 adds them to the one expertise gauge, and its levels are reached at the end of step 6
-//! (`expertise`). Each level reached is due an offer of its weapon's common options; the style
-//! levels open nothing yet.
+//! (`expertise`). Each level reached is due an offer for the weapon ADR-078's table gives: its
+//! common options, its three styles, or the chosen Main style's upgrades or capstones.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks. In
@@ -96,6 +96,7 @@ use crate::trig;
 pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
 pub(crate) use expertise::offer_view as expertise_offer_view;
+pub(crate) use expertise::styles_view as expertise_styles_view;
 use grid::Grid;
 pub(crate) use levels::{spend, xp_next};
 pub(crate) use stars::offer_view;
@@ -1103,6 +1104,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 h.write_bool(true);
                 h.write_u32(o.level);
                 h.write_u32(o.weapon as u32);
+                h.write_u32(o.kind as u32);
                 h.write_u32(count(&o.candidates));
                 for c in &o.candidates {
                     h.write_u32(u32::from(*c));
@@ -1117,6 +1119,14 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             }
         }
         h.write_u32(g.range_pct);
+        for style in [g.main_style, g.sub_style] {
+            h.write_bool(style.is_some());
+            h.write_u32(style.map_or(0, u32::from));
+        }
+        h.write_u32(count(&g.main_path));
+        for i in &g.main_path {
+            h.write_u32(u32::from(*i));
+        }
         h.write_u32(count(&s.tasks));
         for t in &s.tasks {
             h.write_bool(t.combo);
