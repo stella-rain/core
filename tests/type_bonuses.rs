@@ -12,6 +12,7 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
+use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::rewards::{MAX_TYPE_BONUS_PCT, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{RunRecorder, RunReplayError, verify_run, verify_run_with};
@@ -370,6 +371,33 @@ fn the_summed_bonus_saturates_at_the_cap_and_damage_stays_bounded() {
     let weak = Some(json!({ "weak": ["pyro"] }));
     let dealt = first_hit(MAX_DAMAGE, Some("pyro"), weak, vec![pyro(100)], &taken);
     assert_eq!(dealt, MAX_DAMAGE * 11 * 6 / 5);
+}
+
+#[test]
+fn the_summed_bonus_saturates_at_the_content_value_under_the_cap() {
+    // The match-up file's `max_type_bonus_pct` of 250: three takes of 100 apply 250 percent.
+    let mut table: Value = serde_json::from_slice(MatchUps::BUNDLED).unwrap();
+    table["max_type_bonus_pct"] = json!(250);
+    let table = MatchUps::parse(table.to_string().as_bytes()).expect("the test table");
+    let stage = targets(100, Some("pyro"), 3, None);
+    let mut e = Engine::new_with(&stage, &content(vec![pyro(100)]).with_match_ups(table))
+        .expect("the test stage is valid");
+    for _ in 0..3 {
+        take_next(&mut e, "pyro");
+    }
+    assert_eq!(
+        e.snapshot().player.type_bonuses,
+        [TypeBonusView {
+            damage_type: DamageType::Pyro,
+            pct: 300
+        }],
+        "the sum as taken"
+    );
+    let wait = TARGET_TICK - e.tick();
+    run_until(&mut e, idle(), wait, |_| false);
+    let target = tough_id(&e);
+    let events = fire_until(&mut e, idle(), 12, |_| false);
+    assert_eq!(damage_on(&events, target).first(), Some(&350));
 }
 
 #[test]
