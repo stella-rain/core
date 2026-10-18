@@ -9,6 +9,7 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
+use stella_rain_core::run_replay::{content_sha256, content_sha256_with};
 use stella_rain_core::snapshot::ExpertiseView;
 use stella_rain_core::stage::Stage;
 
@@ -225,4 +226,16 @@ fn a_stage_that_gives_no_points_has_no_gauge() {
     let mut e = with(&stage(vec![plain], vec![]), RunContent::bundled());
     press(&mut e, true);
     assert_eq!(e.snapshot().expertise, None);
+}
+
+#[test]
+fn a_run_s_content_hash_covers_the_expertise() {
+    assert_eq!(
+        content_sha256_with("trial", &content(TABLE, 115, 50_000)),
+        content_sha256_with("trial", &content(TABLE, 115, 50_000)),
+    );
+    assert_ne!(
+        content_sha256_with("trial", &content(TABLE, 115, 50_000)),
+        content_sha256("trial")
+    );
 }
