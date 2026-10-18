@@ -1053,9 +1053,16 @@
       ]
     },
     "Evade": {
-      "description": "A dash with invulnerability (ADR-050). A ready press dashes `distance` over `ticks`, along\nthe movement direction, or along the facing when the stick is centred; the stick is ignored\nuntil the dash ends. Invulnerability and the cooldown count from the press.",
+      "description": "A dash with invulnerability (ADR-050), on charges (ADR-074). A press with a charge ready\ndashes `distance` over `ticks`, along the movement direction, or along the facing when the\nstick is centred; the stick is ignored until the dash ends, and a press during it with a\ncharge ready starts the next dash at once. Invulnerability counts from the press, and so\ndoes the cooldown of the charge it spent: each spent charge recovers on its own timer.",
       "type": "object",
       "properties": {
+        "charges": {
+          "description": "The charges a run starts with: 1 when absent.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
         "cooldown_ticks": {
           "type": "integer",
           "format": "uint32",
@@ -1067,6 +1074,16 @@
         "invulnerable_ticks": {
           "type": "integer",
           "format": "uint32",
+          "minimum": 0
+        },
+        "max_charges": {
+          "description": "The most charges rewards can raise it to (ADR-074): `charges` when absent.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
           "minimum": 0
         },
         "ticks": {
