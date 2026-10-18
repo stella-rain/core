@@ -9,6 +9,7 @@ pub mod behaviour;
 pub mod content_hash;
 pub mod engine;
 pub mod event;
+pub mod expertise;
 pub mod fixed;
 pub mod hash;
 pub mod id;

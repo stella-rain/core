@@ -143,9 +143,9 @@ fn garbage_is_rejected_without_a_panic() {
 }
 
 /// The files each target is given: stages for the stage targets, and for `stage_parse` also the
-/// bundled rewards (with their stage skills) and run stats, which it reads too; stage and run
-/// replays for the replay target, share codes (of the corpus pairs) for the share target and
-/// run setups for the setup target.
+/// bundled rewards (with their stage skills), run stats and expertise, which it reads too; stage
+/// and run replays for the replay target, share codes (of the corpus pairs) for the share target
+/// and run setups for the setup target.
 fn seeds(target: &str) -> Vec<Vec<u8>> {
     if target == "run_setup" {
         return setups();
@@ -169,6 +169,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
             "content/rewards.json",
             "content/run_stats.json",
             "content/stage_skills.json",
+            "content/expertise.json",
         ] {
             seeds.push(fs::read(root().join(file)).expect("bundled content"));
         }

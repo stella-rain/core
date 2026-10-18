@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExpertiseFile",
+  "description": "The expertise file.",
+  "type": "object",
+  "properties": {
+    "growth_pct": {
+      "description": "Each level after 10 needs the level before's points times `growth_pct / 100`: above 100,\nat most `MAX_GROWTH_PCT`.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
+    "max_points": {
+      "description": "The most points any level needs, where the growth saturates: at least the last\nthreshold, at most `MAX_LEVEL_POINTS`.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sim_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "thresholds": {
+      "description": "The points each of levels 1 to 10 needs from the level before, the first from 0:\nexactly `TABLE_LEVELS`, rising strictly, each from 1 to `max_points`.",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      }
+    },
+    "weapons": {
+      "description": "Every weapon preset of the registry, each once.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/WeaponExpertise"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "thresholds",
+    "growth_pct",
+    "max_points",
+    "weapons"
+  ],
+  "$defs": {
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    },
+    "ExpertiseEffect": {
+      "description": "What taking an option or a style does: one of the run stats' effect kinds, under the same\nnames, or a wider combo.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "max_hp",
+            "attack_pct",
+            "attack_speed_pct",
+            "evade_pct",
+            "speed_pct",
+            "xp_pct"
+          ]
+        },
+        {
+          "description": "Every combo step's hit box `amount` percent larger, as the range enchantment widens it\n(ADR-070), at most `MAX_RANGE_PCT`.",
+          "type": "string",
+          "const": "range_pct"
+        }
+      ]
+    },
+    "ExpertiseOption": {
+      "description": "One option: a candidate of a common offer, or a fixed choice of a style.",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "description": "What taking it adds to the effect's total, from 1 to the effect's most.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "description": {
+          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
+          "type": "string"
+        },
+        "effect": {
+          "$ref": "#/$defs/ExpertiseEffect"
+        },
+        "id": {
+          "description": "The option's own ID, unique within its weapon.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "limit": {
+          "description": "The most times one run takes it, from 1 to `MAX_STACK_LIMIT`: on a common option of a\nstack-limited kind, and only there.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "title": {
+          "description": "The name the choice panel shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "effect",
+        "amount",
+        "title",
+        "description"
+      ]
+    },
+    "Style": {
+      "description": "A style (ADR-078 §5): a path chosen at level 3 for the Main or 5 for the Sub, held for the\nrun. Its own effect applies when it is chosen; the Main's then offers the fixed choices of\n`upgrade_6` at level 6, `upgrade_9` at 9 and `capstone` at 10.",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "description": "What choosing it adds to the effect's total, from 1 to the effect's most.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "capstone": {
+          "description": "Level 10's choices, 1 to `MAX_STYLE_CHOICES`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExpertiseOption"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "effect": {
+          "$ref": "#/$defs/ExpertiseEffect"
+        },
+        "id": {
+          "description": "The style's own ID, unique within its weapon.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "title": {
+          "type": "string"
+        },
+        "upgrade_6": {
+          "description": "Level 6's choices, 1 to `MAX_STYLE_CHOICES`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExpertiseOption"
+          }
+        },
+        "upgrade_9": {
+          "description": "Level 9's choices, 1 to `MAX_STYLE_CHOICES`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExpertiseOption"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "effect",
+        "amount",
+        "title",
+        "description",
+        "upgrade_6",
+        "upgrade_9",
+        "capstone"
+      ]
+    },
+    "WeaponExpertise": {
+      "description": "One weapon's expertise, in either role.",
+      "type": "object",
+      "properties": {
+        "common": {
+          "description": "The common pool, 1 to `MAX_COMMON_OPTIONS` options, in the order offers draw from.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExpertiseOption"
+          }
+        },
+        "styles": {
+          "description": "Exactly `STYLES` styles, in the order the style offer shows them.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Style"
+          }
+        },
+        "weapon": {
+          "description": "A weapon preset of the registry.",
+          "$ref": "#/$defs/ContentId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "weapon",
+        "styles",
+        "common"
+      ]
+    }
+  }
+}
