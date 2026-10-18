@@ -3,8 +3,9 @@
 //! code: a JSON list of any length up to `MAX_REWARDS`, read in its order. Data picks, code
 //! acts: a reward's effect is one of the run stats' effect kinds (`StatEffect`), adding
 //! `amount` to that effect's total, as a stat point adds its step, a stage skill (ADR-075,
-//! ADR-098): one of the stage skills file's skills, `amount` levels of it, or `amount` more
-//! evade charges, up to the stage's `max_charges` (ADR-074).
+//! ADR-098): one of the stage skills file's skills, `amount` levels of it, `amount` more
+//! evade charges, up to the stage's `max_charges` (ADR-074), or an orbit of `amount` orbs that
+//! attack on their own (ADR-069).
 //!
 //! The file is untrusted (ADR-020), as the run stats are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. Reward IDs are the file's own,
@@ -18,10 +19,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::attack::AttackRef;
 use crate::id::ContentId;
 use crate::registry;
 use crate::run_stats::{self, StatEffect};
 use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
+use crate::trig::PER_DEGREE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -34,6 +37,14 @@ pub const MAX_REWARDS: usize = 64;
 pub const MAX_AMOUNT: u32 = 100;
 /// The most times one run takes one reward.
 pub const MAX_STACK: u8 = 20;
+/// The most orbs one orbit holds, however often its reward is taken.
+pub const MAX_ORBS: u8 = 8;
+/// The most orbit rewards a file lists, and so the most orbits a run holds.
+pub const MAX_ORBITS: usize = 4;
+/// The fastest an orbit turns: 15 degrees a tick, either way.
+pub const MAX_ORBIT_TURN: i32 = 15 * PER_DEGREE;
+/// The longest cooldown of an orbit: one minute.
+pub const MAX_ORBIT_COOLDOWN_TICKS: u32 = 3_600;
 
 /// A reward's rarity, from the most common up (ADR-066 §2).
 #[derive(
@@ -67,7 +78,7 @@ impl Rarity {
 }
 
 /// What taking a reward does: one of the run stats' effect kinds, under the same names, a stage
-/// skill, or more evade charges.
+/// skill, more evade charges, or an orbit.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
@@ -84,6 +95,8 @@ pub enum RewardEffect {
     /// `amount` more evade charges, never beyond the stage's `max_charges`; each arrives ready
     /// (ADR-074).
     EvadeCharge,
+    /// The reward's `orbit`, with `amount` more orbs, never beyond `MAX_ORBS` (ADR-069).
+    Orbit,
 }
 
 impl RewardEffect {
@@ -96,7 +109,9 @@ impl RewardEffect {
             RewardEffect::EvadePct => StatEffect::EvadePct,
             RewardEffect::SpeedPct => StatEffect::SpeedPct,
             RewardEffect::XpPct => StatEffect::XpPct,
-            RewardEffect::StageSkill | RewardEffect::EvadeCharge => return None,
+            RewardEffect::StageSkill | RewardEffect::EvadeCharge | RewardEffect::Orbit => {
+                return None;
+            }
         })
     }
 }
@@ -113,9 +128,13 @@ pub struct Reward {
     /// only, and required by it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skill: Option<ContentId>,
+    /// The orbit it gives: with the `orbit` effect only, and required by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub orbit: Option<Orbit>,
     /// What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,
     /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it
-    /// adds, from 1 to `MAX_EVADE_CHARGES`.
+    /// adds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to
+    /// `MAX_ORBS`.
     pub amount: u32,
     /// The most times one run takes it, from 1 to `MAX_STACK`.
     pub limit: u8,
@@ -123,6 +142,23 @@ pub struct Reward {
     pub title: String,
     /// What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.
     pub description: String,
+}
+
+/// Orbs that turn round the main character and attack on their own (ADR-069). Each orb runs
+/// `attack` in an attack slot of its own, at the main character's attack stat, its facing
+/// turned `turn_per_tick` further every tick and the orbs spaced evenly round the turn: the
+/// attack's hit box offset is how far out an orb is. A round of attacks starts when the orbit
+/// arrives and again `cooldown_ticks` after a round's start, once the round before has ended.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Orbit {
+    /// The attack each orb runs, validated as any attack is.
+    pub attack: AttackRef,
+    /// How far the orbs turn a tick, in 1/256 degree, toward the right for positive angles,
+    /// at most `MAX_ORBIT_TURN` either way.
+    pub turn_per_tick: i32,
+    /// Ticks from a round's start to the next one's, from 1 to `MAX_ORBIT_COOLDOWN_TICKS`.
+    pub cooldown_ticks: u32,
 }
 
 /// The rewards file.
@@ -239,6 +275,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
         let most = match reward.effect {
             RewardEffect::StageSkill => MAX_SKILL_LEVELS as u32,
             RewardEffect::EvadeCharge => u32::from(MAX_EVADE_CHARGES),
+            RewardEffect::Orbit => u32::from(MAX_ORBS),
             _ => MAX_AMOUNT,
         };
         if !(1..=most).contains(&reward.amount) {
@@ -260,6 +297,52 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
                 at("skill"),
                 "only a stage skill reward names a skill".into(),
             ),
+            (_, None) => {}
+        }
+        match (reward.effect, &reward.orbit) {
+            (RewardEffect::Orbit, None) => {
+                issue(at("orbit"), "an orbit reward holds its orbit".into())
+            }
+            (RewardEffect::Orbit, Some(orbit)) => {
+                if file.rewards[..i]
+                    .iter()
+                    .filter(|r| r.effect == RewardEffect::Orbit)
+                    .count()
+                    >= MAX_ORBITS
+                {
+                    issue(
+                        at("effect"),
+                        format!("at most {MAX_ORBITS} orbit rewards in a file"),
+                    );
+                }
+                if !(-MAX_ORBIT_TURN..=MAX_ORBIT_TURN).contains(&orbit.turn_per_tick) {
+                    issue(
+                        at("orbit.turn_per_tick"),
+                        format!(
+                            "-{MAX_ORBIT_TURN} to {MAX_ORBIT_TURN} (found {})",
+                            orbit.turn_per_tick
+                        ),
+                    );
+                }
+                if !(1..=MAX_ORBIT_COOLDOWN_TICKS).contains(&orbit.cooldown_ticks) {
+                    issue(
+                        at("orbit.cooldown_ticks"),
+                        format!(
+                            "1 to {MAX_ORBIT_COOLDOWN_TICKS} (found {})",
+                            orbit.cooldown_ticks
+                        ),
+                    );
+                }
+                if let Err(found) =
+                    crate::validate::validate_attack_ref(&orbit.attack, registry::ENTRIES)
+                {
+                    // The attack's paths start at `$`.
+                    for f in found {
+                        issue(format!("{}{}", at("orbit.attack"), &f.path[1..]), f.message);
+                    }
+                }
+            }
+            (_, Some(_)) => issue(at("orbit"), "only an orbit reward holds an orbit".into()),
             (_, None) => {}
         }
         if !(1..=MAX_STACK).contains(&reward.limit) {

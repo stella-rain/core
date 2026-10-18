@@ -61,7 +61,7 @@
       "type": "object",
       "properties": {
         "facing": {
-          "description": "The facing locked when the attack started.",
+          "description": "The facing locked when the attack started; an orbit's orb's turns every tick, and its hit\nbox with it.",
           "$ref": "#/$defs/Facing"
         },
         "hit_box": {
@@ -633,6 +633,35 @@
       },
       "additionalProperties": false
     },
+    "OrbitView": {
+      "description": "An orbit held (ADR-069). Its orbs' attacks are in the main character's `attacks`, in slots\n`2 + 8 × its place in orbits` and on.",
+      "type": "object",
+      "properties": {
+        "cooldown_left": {
+          "description": "Ticks until the next round may start, counted from the last one's start; 0 while a\nround that outlasts it goes on.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "orbs": {
+          "description": "Its orbs: those of the next round.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "reward": {
+          "description": "The reward that gave it, for its name.",
+          "$ref": "#/$defs/ContentId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "reward",
+        "orbs",
+        "cooldown_left"
+      ]
+    },
     "PhaseKind": {
       "oneOf": [
         {
@@ -660,7 +689,7 @@
           "$ref": "#/$defs/Point"
         },
         "attacks": {
-          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill (ADR-069).",
+          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,\none for each orb, in the order the orbits came (ADR-069).",
           "type": "array",
           "items": {
             "$ref": "#/$defs/AttackView"
@@ -698,6 +727,13 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "orbits": {
+          "description": "The orbits rewards gave, in the order they came (ADR-069).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OrbitView"
+          }
         },
         "pull": {
           "description": "The stage skill's pull while it pulls.",

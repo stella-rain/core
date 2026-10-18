@@ -23,8 +23,8 @@ use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView, Facing,
-    MapView, OfferKind, PlayerView, ProgressView, PullView, ShieldView, SkillView, Snapshot,
-    StarView,
+    MapView, OfferKind, OrbitView, PlayerView, ProgressView, PullView, ShieldView, SkillView,
+    Snapshot, StarView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -419,6 +419,24 @@ impl Engine {
                     amount: sh.amount,
                     ticks_left: sh.ticks_left,
                 }),
+                orbits: s
+                    .player
+                    .orbits
+                    .iter()
+                    .filter_map(|o| {
+                        Some(OrbitView {
+                            reward: self
+                                .content
+                                .rewards()
+                                .rewards()
+                                .get(usize::from(o.reward))?
+                                .id
+                                .clone(),
+                            orbs: o.orbs,
+                            cooldown_left: o.cooldown_left,
+                        })
+                    })
+                    .collect(),
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -610,6 +628,8 @@ pub(crate) struct PlayerState {
     /// The stage skill's pull while it pulls, and its shield while it holds.
     pub pull: Option<PullState>,
     pub shield: Option<ShieldState>,
+    /// The orbits rewards gave (ADR-069), in the order they came, at most `MAX_ORBITS`.
+    pub orbits: Vec<OrbitState>,
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
 }
@@ -666,6 +686,18 @@ pub(crate) struct SkillSlot {
     pub index: u16,
     pub level: u8,
     pub cooldown_left: u32,
+}
+
+/// An orbit held: its reward's place in the rewards file, its orbs, the orbs of the round going
+/// on, the ticks until the next round may start, and where orb 0 is round the turn (1/256
+/// degree from straight down the screen, in `0..PER_TURN`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct OrbitState {
+    pub reward: u16,
+    pub orbs: u8,
+    pub round: u8,
+    pub cooldown_left: u32,
+    pub angle: i32,
 }
 
 /// A pull pulling: its point, radius and strength (fixed-point units), and the ticks left, at

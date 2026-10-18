@@ -6,7 +6,8 @@
 use serde_json::{Value, json};
 use stella_rain_core::id::ContentId;
 use stella_rain_core::rewards::{
-    MAX_AMOUNT, MAX_REWARDS, MAX_REWARDS_BYTES, MAX_STACK, Rarity, RewardEffect, Rewards,
+    MAX_AMOUNT, MAX_ORBIT_COOLDOWN_TICKS, MAX_ORBIT_TURN, MAX_ORBITS, MAX_ORBS, MAX_REWARDS,
+    MAX_REWARDS_BYTES, MAX_STACK, Rarity, RewardEffect, Rewards,
 };
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
@@ -297,6 +298,95 @@ fn an_extra_charge_reward_adds_one_to_the_most_charges_and_names_no_skill() {
     let mut named = charge(1);
     named["rewards"][0]["skill"] = json!("black_hole");
     invalid_at(&named, "$.rewards[0].skill");
+}
+
+/// An orbit reward `id`: `amount` orbs of a one-phase attack 40 pixels out, a quarter turn a
+/// second, every 2 seconds.
+fn orbit(id: &str, amount: u32) -> Value {
+    json!({
+        "id": id, "rarity": "rare", "effect": "orbit", "amount": amount, "limit": 3,
+        "title": "Orbit", "description": "Orbs turn around you",
+        "orbit": {
+            "attack": { "inline": [
+                { "kind": "active", "ticks": 60, "damage": 5,
+                  "hit_box": { "type": "circle", "offset": { "forward": 10_240 }, "radius": 1_024 } }
+            ] },
+            "turn_per_tick": 384,
+            "cooldown_ticks": 120
+        }
+    })
+}
+
+#[test]
+fn an_orbit_reward_names_its_orbit_and_adds_one_to_the_most_orbs() {
+    let one = |amount: u32| file(vec![orbit("ring", amount)]);
+    let rewards = parse(&one(1)).expect("one orb");
+    assert_eq!(rewards.rewards()[0].effect, RewardEffect::Orbit);
+    assert_eq!(RewardEffect::Orbit.stat(), None);
+    let held = rewards.rewards()[0].orbit.as_ref().expect("its orbit");
+    assert_eq!((held.turn_per_tick, held.cooldown_ticks), (384, 120));
+    assert!(parse(&one(u32::from(MAX_ORBS))).is_ok());
+    invalid_at(&one(0), "$.rewards[0].amount");
+    invalid_at(&one(u32::from(MAX_ORBS) + 1), "$.rewards[0].amount");
+
+    let mut bare = one(1);
+    bare["rewards"][0].as_object_mut().unwrap().remove("orbit");
+    invalid_at(&bare, "$.rewards[0].orbit");
+    let mut stray = one_with("orbit", orbit("x", 1)["orbit"].clone());
+    stray["rewards"][0]["effect"] = json!("attack_pct");
+    invalid_at(&stray, "$.rewards[0].orbit");
+    let mut named = one(1);
+    named["rewards"][0]["skill"] = json!("black_hole");
+    invalid_at(&named, "$.rewards[0].skill");
+}
+
+#[test]
+fn an_orbit_s_turn_cooldown_and_attack_are_bounded() {
+    let with = |field: &str, value: Value| {
+        let mut r = orbit("ring", 1);
+        r["orbit"][field] = value;
+        file(vec![r])
+    };
+    for turn in [-MAX_ORBIT_TURN, 0, MAX_ORBIT_TURN] {
+        assert!(parse(&with("turn_per_tick", json!(turn))).is_ok(), "{turn}");
+    }
+    for turn in [-MAX_ORBIT_TURN - 1, MAX_ORBIT_TURN + 1] {
+        invalid_at(
+            &with("turn_per_tick", json!(turn)),
+            "$.rewards[0].orbit.turn_per_tick",
+        );
+    }
+    assert!(parse(&with("cooldown_ticks", json!(1))).is_ok());
+    assert!(parse(&with("cooldown_ticks", json!(MAX_ORBIT_COOLDOWN_TICKS))).is_ok());
+    for ticks in [0, MAX_ORBIT_COOLDOWN_TICKS + 1] {
+        invalid_at(
+            &with("cooldown_ticks", json!(ticks)),
+            "$.rewards[0].orbit.cooldown_ticks",
+        );
+    }
+    let unknown = with(
+        "attack",
+        json!({ "preset": { "id": "no_such_attack", "args": [] } }),
+    );
+    match parse(&unknown) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path.starts_with("$.rewards[0].orbit.attack")),
+            "{issues:?}"
+        ),
+        other => panic!("expected invalid, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_rewards_file_holds_at_most_four_orbits() {
+    let orbits = |n: usize| file((0..n).map(|i| orbit(&format!("ring_{i}"), 1)).collect());
+    assert!(parse(&orbits(MAX_ORBITS)).is_ok());
+    invalid_at(
+        &orbits(MAX_ORBITS + 1),
+        &format!("$.rewards[{MAX_ORBITS}].effect"),
+    );
 }
 
 fn stronger() -> Rewards {
