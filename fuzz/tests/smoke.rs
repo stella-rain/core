@@ -171,6 +171,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
             "content/stage_skills.json",
             "content/expertise.json",
             "content/match_ups.json",
+            "content/runes.json",
         ] {
             seeds.push(fs::read(root().join(file)).expect("bundled content"));
         }

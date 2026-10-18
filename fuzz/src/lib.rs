@@ -16,6 +16,7 @@ use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay};
 use stella_rain_core::run_setup;
 use stella_rain_core::run_stats::RunStats;
+use stella_rain_core::runes::Runes;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::validate::limits::MAX_TICKS;
@@ -31,8 +32,8 @@ const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/v0/clear/stage.jso
 
 /// The stage parser and validator (ADR-020 items 1 to 4). A stage that loads can be saved
 /// again, which is what the editor does, and loads again as the same stage. The same bytes are
-/// also read as run stats, as rewards, as stage skills, as expertise and as the match-up table
-/// (ADR-067, ADR-078, ADR-098, ADR-100), content that may come from outside the app: they parse without a panic, and files
+/// also read as run stats, as rewards, as stage skills, as expertise, as the match-up table and
+/// as runes (ADR-067, ADR-078, ADR-098, ADR-099, ADR-100), content that may come from outside the app: they parse without a panic, and files
 /// that load hash the same twice.
 pub fn stage_parse(data: &[u8]) -> bool {
     if let Ok(stats) = RunStats::parse(data) {
@@ -54,6 +55,10 @@ pub fn stage_parse(data: &[u8]) -> bool {
     if let Ok(match_ups) = MatchUps::parse(data) {
         let again = MatchUps::parse(data).expect("match-ups that loaded load again");
         assert_eq!(again, match_ups, "the same bytes loaded as other match-ups");
+    }
+    if let Ok(runes) = Runes::parse(data) {
+        let again = Runes::parse(data).expect("runes that loaded load again");
+        assert_eq!(again, runes, "the same bytes loaded as other runes");
     }
     let Ok(stage) = parse_and_validate(data) else {
         return false;
