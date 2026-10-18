@@ -16,8 +16,10 @@ pub const MAX_RUNES: usize = Rune::ALL.len();
 )]
 #[serde(rename_all = "snake_case")]
 pub enum Rune {
-    /// On-hit: an explosion where a combo step hits. It does nothing yet.
+    /// On-hit: an explosion around the point a combo step hits.
     Explosion,
+    /// On-hit: a strike called down on the point a combo step hits, after a wind-up.
+    Thunder,
 }
 
 /// What sets a rune off (ADR-099 point 2).
@@ -32,7 +34,7 @@ pub enum RuneKind {
 
 impl Rune {
     /// Every rune, in the order the random rune draws among them.
-    pub const ALL: [Rune; 1] = [Rune::Explosion];
+    pub const ALL: [Rune; 2] = [Rune::Explosion, Rune::Thunder];
 
     /// The rune's place in `ALL`, from 0: what the state hash writes.
     pub fn index(self) -> u8 {
@@ -41,7 +43,7 @@ impl Rune {
 
     pub fn kind(self) -> RuneKind {
         match self {
-            Rune::Explosion => RuneKind::OnHit,
+            Rune::Explosion | Rune::Thunder => RuneKind::OnHit,
         }
     }
 }

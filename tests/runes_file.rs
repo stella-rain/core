@@ -250,7 +250,7 @@ fn every_on_hit_rune_has_one_entry() {
         "explosion missing"
     );
     assert_eq!(
-        paths(parse(&file(vec![one.clone(), thunder(), one])).unwrap_err()),
+        paths(parse(&file(vec![one.clone(), thunder(), one.clone()])).unwrap_err()),
         ["$.on_hit[2].rune"]
     );
     assert_eq!(

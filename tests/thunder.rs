@@ -128,6 +128,7 @@ fn held_with_explosion_each_fires_on_its_own_cooldown() {
     let target = wait_for_target(&mut e);
     let start = e.tick();
     e.step(once(start)(start));
+    let step_hit = e.tick();
     assert_eq!(
         (cooldown_of(&e, Rune::Explosion), cooldown(&e)),
         (30, 60),
@@ -135,8 +136,8 @@ fn held_with_explosion_each_fires_on_its_own_cooldown() {
     );
     let seen = hits(&mut e, target, 299, |t| firing(idle(), t));
     let (blasts, strikes) = (of(&seen, BLAST), of(&seen, STRIKE));
-    assert_eq!(blasts[0], start + 1);
-    assert_eq!(strikes[0], start + WIND_UP);
+    assert_eq!(blasts[0], step_hit + 1);
+    assert_eq!(strikes[0], step_hit + WIND_UP);
     for pair in blasts.windows(2) {
         assert!((30..36).contains(&(pair[1] - pair[0])), "{blasts:?}");
     }
