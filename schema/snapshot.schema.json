@@ -997,7 +997,7 @@
           ]
         },
         "type_bonuses": {
-          "description": "What the type bonus rewards taken add up to, for each damage type that has any, in the\norder of `DamageType::ALL`, before the clamp at `MAX_TYPE_BONUS_PCT` (ADR-100).",
+          "description": "What the type bonus rewards taken add up to, for each damage type that has any, in the\norder of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`\n(ADR-100).",
           "type": "array",
           "items": {
             "$ref": "#/$defs/TypeBonusView"

@@ -4,6 +4,12 @@
   "description": "The match-up file.",
   "type": "object",
   "properties": {
+    "max_type_bonus_pct": {
+      "description": "The most the type bonuses that apply to an attack add to its damage, in percent, 1 to\n`MAX_TYPE_BONUS_PCT`: their sum saturates here.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
     "resisted_pct": {
       "description": "Percent less damage from a resisted hit, 0 to `MAX_MATCH_UP_PCT`.",
       "type": "integer",
@@ -42,6 +48,7 @@
     "sim_version",
     "weak_pct",
     "strong_pct",
-    "resisted_pct"
+    "resisted_pct",
+    "max_type_bonus_pct"
   ]
 }
