@@ -1,5 +1,5 @@
 //! The main character (ADR-071): movement from the input's stick, the persistent facing
-//! (ADR-069), the evade, and the combos of its Main weapon, made by hand (ADR-070, ADR-076).
+//! (ADR-069), the evade on its charges (ADR-074), and the combos of its Main weapon, made by hand (ADR-070, ADR-076).
 //!
 //! The combo: a press of `main` or `sub` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from

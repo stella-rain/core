@@ -4,8 +4,9 @@
 //! What a tick does, in this order:
 //! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
 //! 2. the main character turns to its stick and, while aim assist or auto mode is on, picks a
-//!    target (ADR-072, `select`); it starts a ready evade on a press (cancelling its combo
-//!    step and breaking a charge), walks its combo: a buffered press, or else auto mode's
+//!    target (ADR-072, `select`); its spent evade charges recover, and a press with a charge
+//!    ready starts an evade, during a dash too (ADR-074; cancelling its combo step and breaking
+//!    a charge), walks its combo: a buffered press, or else auto mode's
 //!    (ADR-073), takes the next step, a charge rises or releases (ADR-070, ADR-076; see
 //!    `player`), then it dashes or moves (speed cap, slowing, playfield);
 //! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
