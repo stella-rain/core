@@ -796,7 +796,8 @@ fn levels_6_and_9_offer_the_chosen_main_style_s_upgrades_and_10_its_capstone() {
             1,
         ),
     ] {
-        let events = next_offer_of(&mut e, level, Vec::new());
+        let before = e.events().to_vec();
+        let events = next_offer_of(&mut e, level, before);
         let offer = expertise_offer(&e);
         assert_eq!((offer.weapon, offer.kind), (WeaponRole::Main, kind));
         assert_eq!(candidates(&e), choices, "the chosen style's, fixed");

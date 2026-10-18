@@ -9,8 +9,9 @@
 //!
 //! Data picks, code acts: an option's effect is one of the run stats' effect kinds
 //! (`StatEffect`), under the same names, or `range_pct`, the range enchantment's widening
-//! (ADR-070). The gauge reads the thresholds, the growth and the maximum, and the common offers
-//! draw from the common pools (`rules_v0`); the styles in play are a later task.
+//! (ADR-070). The gauge reads the thresholds, the growth and the maximum, the common offers
+//! draw from the common pools, and the style offers show the styles and the chosen Main
+//! style's upgrades and capstones (`rules_v0`).
 //!
 //! The file is untrusted (ADR-020), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. The thresholds rise strictly,
