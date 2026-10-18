@@ -29,7 +29,8 @@ pub struct AttackView {
     pub ticks: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hit_box: Option<HitBox>,
-    /// The facing locked when the attack started.
+    /// The facing locked when the attack started; an orbit's orb's turns every tick, and its hit
+    /// box with it.
     pub facing: Facing,
 }
 
@@ -178,9 +179,27 @@ pub struct PlayerView {
     /// The stage skill's shield while it holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shield: Option<ShieldView>,
-    /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill (ADR-069).
+    /// The orbits rewards gave, in the order they came (ADR-069).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub orbits: Vec<OrbitView>,
+    /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
+    /// one for each orb, in the order the orbits came (ADR-069).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
+}
+
+/// An orbit held (ADR-069). Its orbs' attacks are in the main character's `attacks`, in slots
+/// `2 + 8 × its place in orbits` and on.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OrbitView {
+    /// The reward that gave it, for its name.
+    pub reward: ContentId,
+    /// Its orbs: those of the next round.
+    pub orbs: u8,
+    /// Ticks until the next round may start, counted from the last one's start; 0 while a
+    /// round that outlasts it goes on.
+    pub cooldown_left: u32,
 }
 
 /// The stage skill held (ADR-075): what the skill button draws.

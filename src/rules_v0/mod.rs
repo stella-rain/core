@@ -33,6 +33,10 @@
 //! combo; its black hole pulls after the push-apart of step 3, and its shield takes from the
 //! main character's damage in step 6.
 //!
+//! Orbits (ADR-069, `orbit`) act at the end of step 2: each starts a round of its orbs'
+//! attacks when its cooldown has run out and the round before has ended, and turns them; their
+//! hit boxes land in step 6. A run holds at most `MAX_ORBITS` orbits of `MAX_ORBS` orbs.
+//!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
@@ -51,6 +55,7 @@ mod entity;
 mod grid;
 mod hit_boxes;
 mod levels;
+mod orbit;
 mod player;
 mod push;
 mod skill;
@@ -218,6 +223,7 @@ pub(crate) fn initial_state(
             skill: None,
             pull: None,
             shield: None,
+            orbits: Vec::new(),
             aggro: 0,
             statuses: Vec::new(),
         },
@@ -268,6 +274,7 @@ pub(crate) fn step(
     entity::tick_statuses_and_aggro(s);
     attacks::advance_runs(s, events);
     player::update(stage, rewards, s, input, events);
+    orbit::act(stage, rewards, s, events);
     boss::act(stage, s, events);
     boss::call_elites(stage, s, events);
     agents::act(stage, s, events);
@@ -807,6 +814,14 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_u32(sh.ticks_left);
         }
         None => h.write_bool(false),
+    }
+    h.write_u32(count(&p.orbits));
+    for o in &p.orbits {
+        h.write_u32(u32::from(o.reward));
+        h.write_u32(u32::from(o.orbs));
+        h.write_u32(u32::from(o.round));
+        h.write_u32(o.cooldown_left);
+        h.write_i32(o.angle);
     }
     let c = &p.combo;
     h.write_u32(c.path);

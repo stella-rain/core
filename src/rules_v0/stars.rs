@@ -30,7 +30,7 @@ use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
-use super::{levels, overlaps, player, skill};
+use super::{levels, orbit, overlaps, player, skill};
 
 /// The candidates an offer holds (a tuning value, ADR-066 §3).
 pub(crate) const OFFER_SIZE: usize = 3;
@@ -300,6 +300,7 @@ pub(crate) fn choose(
                 RewardEffect::EvadeCharge => {
                     player::add_evade_charges(stage, player, reward.amount)
                 }
+                RewardEffect::Orbit => orbit::take(player, i, reward.amount),
                 effect => {
                     if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
                         levels::add_effect(p, player, effect, reward.amount);
