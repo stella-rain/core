@@ -274,6 +274,10 @@ pub struct PlayerView {
     /// The orbits rewards gave, in the order they came (ADR-069).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub orbits: Vec<OrbitView>,
+    /// What the range rewards taken add up to, in percent, before the clamp at
+    /// `MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub range_pct: u32,
     /// The enchantments rewards gave, in the order they came (ADR-070, ADR-078): what changes
     /// its combo steps. A range enchantment's wider hit boxes are already in `attacks`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

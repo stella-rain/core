@@ -239,6 +239,7 @@ pub(crate) fn initial_state(
             pull: None,
             shield: None,
             orbits: Vec::new(),
+            range_pct: 0,
             enchantments: Vec::new(),
             aggro: 0,
             statuses: Vec::new(),
@@ -901,6 +902,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(o.cooldown_left);
         h.write_i32(o.angle);
     }
+    h.write_u32(p.range_pct);
     h.write_u32(count(&p.enchantments));
     for e in &p.enchantments {
         h.write_u32(u32::from(e.reward));

@@ -439,6 +439,7 @@ impl Engine {
                         })
                     })
                     .collect(),
+                range_pct: s.player.range_pct,
                 enchantments: s
                     .player
                     .enchantments
@@ -707,6 +708,8 @@ pub(crate) struct PlayerState {
     pub shield: Option<ShieldState>,
     /// The orbits rewards gave (ADR-069), in the order they came, at most `MAX_ORBITS`.
     pub orbits: Vec<OrbitState>,
+    /// What the range rewards taken add up to, in percent, saturating (ADR-099).
+    pub range_pct: u32,
     /// The enchantments rewards gave (ADR-070, ADR-078), in the order they came, at most one of
     /// each kind.
     pub enchantments: Vec<EnchantmentState>,

@@ -328,6 +328,9 @@ pub(super) fn choose(
                     player::add_evade_charges(stage, player, reward.amount)
                 }
                 RewardEffect::Orbit => orbit::take(player, i, reward.amount),
+                RewardEffect::RangePct => {
+                    player.range_pct = player.range_pct.saturating_add(reward.amount)
+                }
                 RewardEffect::Enchantment => {
                     if let Some(k) = reward.enchantment {
                         player::enchant(player, i, k, reward.amount);

@@ -25,12 +25,12 @@ use common::*;
 /// taken at once, and inside the first step's hit box.
 const NEAR_Y: i32 = START_Y - 8_192;
 
-/// A Main weapon of one step: a circle of 8 pixels 32 pixels ahead, one active tick of 10
+/// A Main weapon of one step: a circle of 32 pixels 4 pixels ahead, one active tick of 10
 /// damage and 4 ticks of recovery.
 fn weapon() -> Value {
     json!({ "inline": {
         "combo": { "main": { "attack": { "inline": [
-            { "kind": "active", "ticks": 1, "damage": 10, "hit_box": circle(8_192, 2_048) },
+            { "kind": "active", "ticks": 1, "damage": 10, "hit_box": circle(1_024, 8_192) },
             { "kind": "recovery", "ticks": 4 }
         ] } } },
         "window_ticks": 30,
@@ -190,26 +190,26 @@ fn a_range_reward_taken_several_times_sums_up_to_the_clamp() {
     let mut e = with(&targets(3), vec![range("reach", 40, 3)]);
     e.step(idle());
     e.step(idle());
-    assert_eq!(swing(&mut e), hit_box(circle(8_192, 2_048)));
-    assert!(e.offer_open());
+    assert_eq!(swing(&mut e), hit_box(circle(1_024, 8_192)));
+    next_offer(&mut e);
     take(&mut e, "reach");
     assert_eq!(e.snapshot().player.range_pct, 40);
     assert!(e.snapshot().player.enchantments.is_empty());
 
     // 40 percent: radius and offset 1.4 times.
-    assert_eq!(swing(&mut e), hit_box(circle(11_468, 2_867)));
-    assert!(e.offer_open());
+    assert_eq!(swing(&mut e), hit_box(circle(1_433, 11_468)));
+    next_offer(&mut e);
     take(&mut e, "reach");
     assert_eq!(e.snapshot().player.range_pct, 80);
 
     // 80 percent.
-    assert_eq!(swing(&mut e), hit_box(circle(14_745, 3_686)));
-    assert!(e.offer_open());
+    assert_eq!(swing(&mut e), hit_box(circle(1_843, 14_745)));
+    next_offer(&mut e);
     take(&mut e, "reach");
     assert_eq!(e.snapshot().player.range_pct, 120, "the sum as taken");
 
     // 120 percent taken, 100 applied: twice as large.
-    assert_eq!(swing(&mut e), hit_box(circle(16_384, 4_096)));
+    assert_eq!(swing(&mut e), hit_box(circle(2_048, 16_384)));
 }
 
 #[test]
