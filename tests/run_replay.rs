@@ -765,11 +765,17 @@ fn the_fuzz_regression_of_a_split_input_run_is_refused() {
 #[test]
 fn the_trial_s_enemies_and_boss_give_expertise_points() {
     let mut engine = Engine::start(&trial_setup()).unwrap();
-    let start = engine.snapshot().expertise.expect("the trial has the gauge");
+    let start = engine
+        .snapshot()
+        .expertise
+        .expect("the trial has the gauge");
     assert_eq!((start.level, start.points), (0, 0));
     for c in play_run(TRIAL_LENGTH) {
         apply(&mut engine, c);
     }
     let end = engine.snapshot().expertise.unwrap();
-    assert!(end.level >= 1, "the run's combo steps reach a level: {end:?}");
+    assert!(
+        end.level >= 1,
+        "the run's combo steps reach a level: {end:?}"
+    );
 }
