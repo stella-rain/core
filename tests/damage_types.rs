@@ -355,6 +355,18 @@ fn a_full_profile_is_valid() {
 }
 
 #[test]
+fn a_companion_has_no_profile() {
+    let mut ally = companion(50, hold(CX, CY), json!([]));
+    ally["profile"] = json!({ "weak": ["pyro"] });
+    let st = stage_full(18_000, Some(far_boss()), vec![], vec![ally]);
+    let Err(validate::Error::Invalid(found)) = validate::validate(&st) else {
+        panic!("the profile is refused");
+    };
+    let paths: Vec<_> = found.into_iter().map(|i| i.path).collect();
+    assert_eq!(paths, ["$.companions[0].profile"]);
+}
+
+#[test]
 fn the_validator_checks_boss_and_part_profiles() {
     let boss = json!({ "base": "golem", "hp": 1_000, "radius": 8_192,
                        "profile": { "weak": ["geo", "geo"] },
