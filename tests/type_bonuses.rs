@@ -70,9 +70,9 @@ fn starry(stage: Stage) -> Stage {
     stage
 }
 
-/// The tough target: an enemy of a million hit points with `profile`, holding still at `y`.
+/// The tough target: an enemy of 100 000 hit points with `profile`, holding still at `y`.
 fn tough(at_tick: u32, y: i32, profile: Option<Value>) -> Value {
-    let mut e = enemy(1_000_000, hold(START_X, y), json!([]));
+    let mut e = enemy(100_000, hold(START_X, y), json!([]));
     if let Some(p) = profile {
         e["profile"] = p;
     }

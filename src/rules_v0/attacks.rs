@@ -37,7 +37,9 @@
 
 use std::sync::Arc;
 
-use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
+use crate::attack::{
+    AttackPhase, AttackRef, DamageType, Direction, Emitter, Expr, HitBox, PhaseKind,
+};
 use crate::engine::{
     Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Pull, State,
     StatusKind,
@@ -47,7 +49,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::presets;
 use crate::registry;
-use crate::rewards::MAX_RANGE_PCT;
+use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
 use crate::trig;
 use crate::validate::limits::{MAX_LEN, MAX_REPEAT, MAX_TICKS};
@@ -261,6 +263,14 @@ fn launch(
     let id = s.id_of(owner);
     // A bonus (a perfect release's) adds to the atk-up, for every hit of the attack.
     let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp).saturating_add(bonus_pct);
+    // The main character's type bonuses, each held to the cap (ADR-100).
+    let type_bonus_pct = if owner == Who::Player {
+        s.player
+            .type_bonus_pct
+            .map(|pct| pct.min(MAX_TYPE_BONUS_PCT))
+    } else {
+        [0; DamageType::ALL.len()]
+    };
     let preset: Option<ContentId> = match attack {
         AttackRef::Preset { id, .. } => Some(id.clone()),
         AttackRef::Inline(_) => None,
@@ -278,6 +288,7 @@ fn launch(
         friendly: State::is_ally(owner),
         base: base_damage,
         atk_up_pct,
+        type_bonus_pct,
         age,
         hits: Vec::new(),
         pull,
@@ -336,10 +347,19 @@ pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
 }
 
 /// The damage of run `r`'s current phase, for its hit box and the bullets it spawns: the
-/// phase's own, or else the starter's, raised by the atk-up fixed at the attack's start.
+/// phase's own, or else the starter's, raised by the atk-up and by the type bonus of the
+/// phase's damage type (none for a neutral phase), both fixed at the attack's start.
 pub(super) fn phase_damage(r: &AttackRun) -> u32 {
     let p = &r.phases[r.phase as usize];
-    scale_damage(p.damage.unwrap_or(r.base), r.atk_up_pct, 0, 0, 0)
+    let type_bonus = p.damage_type.map_or(0, |ty| r.type_bonus_pct[ty.index()]);
+    scale_damage(
+        p.damage.unwrap_or(r.base),
+        r.atk_up_pct,
+        type_bonus,
+        0,
+        0,
+        0,
+    )
 }
 
 /// Whether run `r` is the main character's combo step, A or B (ADR-078 §2).

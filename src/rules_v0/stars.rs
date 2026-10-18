@@ -21,6 +21,7 @@
 //! star's offer only), or banishes one; when it closes the offer, the next one due opens at
 //! once (`super::choose`). Every draw is from the run's generator, in this order.
 
+use crate::attack::DamageType;
 use crate::engine::{Due, OfferState, StarField, StarState, State};
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
@@ -316,6 +317,20 @@ pub(super) fn choose(
                 RewardEffect::Orbit => orbit::take(player, i, reward.amount),
                 RewardEffect::RangePct => {
                     player.range_pct = player.range_pct.saturating_add(reward.amount)
+                }
+                RewardEffect::TypeBonusPct
+                | RewardEffect::AttackTypeBonusPct
+                | RewardEffect::ElementBonusPct => {
+                    for (ty, pct) in DamageType::ALL.iter().zip(&mut player.type_bonus_pct) {
+                        let applies = match reward.effect {
+                            RewardEffect::AttackTypeBonusPct => ty.is_physical(),
+                            RewardEffect::ElementBonusPct => !ty.is_physical(),
+                            _ => reward.damage_type == Some(*ty),
+                        };
+                        if applies {
+                            *pct = pct.saturating_add(reward.amount);
+                        }
+                    }
                 }
                 effect => {
                     if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {

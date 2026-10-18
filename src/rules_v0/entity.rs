@@ -6,6 +6,7 @@ use crate::engine::{State, StatusKind, StatusState};
 use crate::event::DomainEvent;
 use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
+use crate::rewards::MAX_TYPE_BONUS_PCT;
 
 use super::{MAX_AGGRO, PLAYER_ID};
 
@@ -258,19 +259,24 @@ pub(super) fn speed_pct(statuses: &[StatusState]) -> i64 {
 /// `K` of ADR-056: a defence of `K` halves a hit. A tuning value.
 const DEFENCE_K: u64 = 100;
 
-/// `base` damage, raised by the attacker's atk-up and by the target's vulnerability (percent
-/// each), changed by the hit's match-up (`match_up_pct`, -100 to 100; ADR-100), then reduced
-/// to `K / (K + defence)` of it (ADR-056), in that order, truncating toward zero at each step
-/// in 64 bits. A hit with any damage at all does at least 1.
+/// `base` damage, raised by the attacker's atk-up and type bonus (ADR-100) and by the target's
+/// vulnerability (percent each), changed by the hit's match-up (`match_up_pct`, -100 to 100;
+/// ADR-100), then reduced to `K / (K + defence)` of it (ADR-056), in that order, truncating
+/// toward zero at each step in 64 bits. A hit with any damage at all does at least 1.
 pub(super) fn scale_damage(
     base: u32,
     atk_up_pct: u32,
+    type_bonus_pct: u32,
     vulnerable_pct: u32,
     match_up_pct: i64,
     defence: u32,
 ) -> u32 {
-    let raised =
-        u64::from(base) * u64::from(100 + atk_up_pct) / 100 * u64::from(100 + vulnerable_pct) / 100;
+    // Callers hold atk-up and vulnerability to `MAX_BONUS_PCT` and the type bonus to
+    // `MAX_TYPE_BONUS_PCT`; the clamp keeps 64 bits enough whatever reaches here.
+    let type_bonus = u64::from(type_bonus_pct.min(MAX_TYPE_BONUS_PCT));
+    let raised = u64::from(base) * u64::from(100 + atk_up_pct) / 100 * (100 + type_bonus) / 100
+        * u64::from(100 + vulnerable_pct)
+        / 100;
     // The table holds the percent to -100 and 100 (`MAX_MATCH_UP_PCT`); the clamp keeps the
     // factor from 0 to 200 whatever reaches here.
     let factor = (100 + match_up_pct.clamp(-100, 100)).unsigned_abs();
@@ -311,20 +317,32 @@ mod tests {
 
     #[test]
     fn a_match_up_scales_after_vulnerability_and_before_defence() {
-        assert_eq!(scale_damage(10, 0, 0, 20, 0), 12);
-        assert_eq!(scale_damage(10, 0, 0, -20, 0), 8);
-        assert_eq!(scale_damage(10, 0, 50, 20, 100), 9);
-        assert_eq!(scale_damage(10, 0, 0, 0, 0), 10);
+        assert_eq!(scale_damage(10, 0, 0, 0, 20, 0), 12);
+        assert_eq!(scale_damage(10, 0, 0, 0, -20, 0), 8);
+        assert_eq!(scale_damage(10, 0, 0, 50, 20, 100), 9);
+        assert_eq!(scale_damage(10, 0, 0, 0, 0, 0), 10);
     }
 
     #[test]
     fn damage_saturates_and_never_falls_below_1() {
         // Every multiplier at its cap, weak at the table's cap: saturated to 32 bits.
-        assert_eq!(scale_damage(u32::MAX, 1000, 1000, 100, 0), u32::MAX);
+        assert_eq!(scale_damage(u32::MAX, 1000, 0, 1000, 100, 0), u32::MAX);
         // A match-up past the table's cap is held to it.
-        assert_eq!(scale_damage(10, 0, 0, i64::MAX, 0), 20);
-        assert_eq!(scale_damage(10, 0, 0, i64::MIN, 0), 1);
-        assert_eq!(scale_damage(10, 0, 0, -100, 0), 1);
-        assert_eq!(scale_damage(0, 0, 0, 100, 0), 0);
+        assert_eq!(scale_damage(10, 0, 0, 0, i64::MAX, 0), 20);
+        assert_eq!(scale_damage(10, 0, 0, 0, i64::MIN, 0), 1);
+        assert_eq!(scale_damage(10, 0, 0, 0, -100, 0), 1);
+        assert_eq!(scale_damage(0, 0, 0, 0, 100, 0), 0);
+        // The type bonus at its cap and past it, with everything else at its cap too.
+        assert_eq!(scale_damage(u32::MAX, 1000, 1000, 1000, 100, 0), u32::MAX);
+        assert_eq!(scale_damage(10, 0, u32::MAX, 0, 0, 0), 110);
+    }
+
+    #[test]
+    fn a_type_bonus_raises_with_the_atk_up_and_multiplies_with_the_match_up() {
+        // ADR-100's example: Pyro +50 against a target strong against Pyro, 1.5 × 0.8.
+        assert_eq!(scale_damage(100, 0, 50, 0, -20, 0), 120);
+        // After the atk-up, truncated at each step: 7 × 1.5 = 10, × 1.5 = 15.
+        assert_eq!(scale_damage(7, 50, 50, 0, 0, 0), 15);
+        assert_eq!(scale_damage(10, 0, 0, 0, 0, 0), 10);
     }
 }
