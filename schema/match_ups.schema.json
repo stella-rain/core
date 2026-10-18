@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MatchUpsFile",
+  "description": "The match-up file.",
+  "type": "object",
+  "properties": {
+    "resisted_pct": {
+      "description": "Percent less damage from a resisted hit, 0 to `MAX_MATCH_UP_PCT`.",
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sim_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "strong_pct": {
+      "description": "Percent less damage from a strong hit, 0 to `MAX_MATCH_UP_PCT`.",
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    },
+    "weak_pct": {
+      "description": "Percent more damage from a weak hit, 0 to `MAX_MATCH_UP_PCT`.",
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "weak_pct",
+    "strong_pct",
+    "resisted_pct"
+  ]
+}

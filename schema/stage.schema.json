@@ -267,6 +267,17 @@
             }
           ]
         },
+        "profile": {
+          "description": "What it is weak and strong against (ADR-100); without one, every type is neutral against\nit. An enemy's or an elite's only: a companion has none.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Profile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "radius": {
           "description": "Radius of the hurt circle.",
           "$ref": "#/$defs/Fx"
@@ -347,6 +358,17 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "type": {
+          "description": "The damage type of the phase's hits and of the bullets it spawns (ADR-100); absent, they\nare neutral and never get a match-up.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DamageType"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -403,6 +425,14 @@
             "inline"
           ]
         }
+      ]
+    },
+    "Blanket": {
+      "description": "A blanket resist: every attack type, or every element (ADR-100).",
+      "type": "string",
+      "enum": [
+        "physical",
+        "elements"
       ]
     },
     "Boss": {
@@ -468,6 +498,17 @@
             "$ref": "#/$defs/Phase"
           }
         },
+        "profile": {
+          "description": "What it is weak and strong against (ADR-100); without one, every type is neutral against\nit.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Profile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "radius": {
           "$ref": "#/$defs/Fx"
         },
@@ -510,6 +551,17 @@
         "offset": {
           "description": "Offset from the boss's centre.",
           "$ref": "#/$defs/Point"
+        },
+        "profile": {
+          "description": "Its own profile (ADR-100), not the boss's; without one, every type is neutral against it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Profile"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "radius": {
           "$ref": "#/$defs/Fx"
@@ -778,6 +830,22 @@
     "ContentId": {
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
+    },
+    "DamageType": {
+      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
+      "type": "string",
+      "enum": [
+        "slash",
+        "pierce",
+        "strike",
+        "pyro",
+        "hydro",
+        "electro",
+        "cryo",
+        "anemo",
+        "geo",
+        "dendro"
+      ]
     },
     "Direction": {
       "oneOf": [
@@ -1715,6 +1783,36 @@
         "x",
         "y"
       ]
+    },
+    "Profile": {
+      "description": "What an enemy, an elite, a boss or a boss part is weak and strong against (ADR-100). The\nvalidator holds each type at most once in each list, and never in both.",
+      "type": "object",
+      "properties": {
+        "resist": {
+          "description": "At most one blanket resist.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Blanket"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "strong": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DamageType"
+          }
+        },
+        "weak": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DamageType"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "RarityWeights": {
       "description": "The weight of each rarity in a draw; a rarity left out weighs 0. A tier's highest rarity is\nthe highest one that weighs more than 0.",
