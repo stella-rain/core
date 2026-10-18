@@ -42,7 +42,7 @@ pub struct RunSetup {
     /// Seeds the run's SplitMix64 (ADR-033), all 64 bits.
     pub seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
-    /// in the Star Chart (ADR-066 §1), each at most once. Absent: every reward in the file.
+    /// in the Star Chart (ADR-079 §1), each at most once. Absent: every reward in the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub star_pool: Option<Vec<ContentId>>,
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.

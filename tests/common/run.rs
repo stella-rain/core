@@ -1,4 +1,4 @@
-//! A run of the trial mode (ADR-066), shared by the run replay, recording and corpus tests.
+//! A run of the trial mode (ADR-079), shared by the run replay, recording and corpus tests.
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;

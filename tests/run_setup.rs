@@ -235,7 +235,7 @@ fn every_mode_has_content_that_validates_and_nothing_else_has() {
     assert_eq!(run_setup::mode_stage("blade"), None);
 }
 
-// --- The star pool and extra rerolls (ADR-066 §1) ---------------------------------------------
+// --- The star pool and extra rerolls (ADR-079 §1) ---------------------------------------------
 
 fn with_pool(ids: &[&str]) -> RunSetup {
     RunSetup {

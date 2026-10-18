@@ -40,11 +40,11 @@ pub struct Stage {
     /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map: Option<Map>,
-    /// Experience and levels, each level-up giving a stat point (ADR-066 §2); a mode's stages
+    /// Experience and levels, each level-up giving a stat point (ADR-079 §2); a mode's stages
     /// have them. Without them defeated enemies give nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub levels: Option<Levels>,
-    /// Falling stars and the offers they open (ADR-066 §2, §3, ADR-068); only with `levels`.
+    /// Falling stars and the offers they open (ADR-079 §2, §3, ADR-068); only with `levels`.
     /// Without them kills drop nothing and nothing is offered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stars: Option<Stars>,

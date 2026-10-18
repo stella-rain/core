@@ -1,4 +1,4 @@
-//! Rewards (ADR-066 §3, ADR-067, ADR-068): what an offer from a falling star holds. Each has a
+//! Rewards (ADR-079 §3, ADR-067, ADR-068): what an offer from a falling star holds. Each has a
 //! rarity, a stack limit (how many times one run takes it) and an effect. They are content, not
 //! code: a JSON list of any length up to `MAX_REWARDS`, read in its order. Data picks, code
 //! acts: a reward's effect is one of the run stats' effect kinds (`StatEffect`), adding
@@ -49,7 +49,7 @@ pub const MAX_ORBIT_COOLDOWN_TICKS: u32 = 3_600;
 /// The most a range enchantment widens a combo step's hit box, in percent: twice as large.
 pub const MAX_RANGE_PCT: u32 = 100;
 
-/// A reward's rarity, from the most common up (ADR-066 §2).
+/// A reward's rarity, from the most common up (ADR-079 §2).
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]

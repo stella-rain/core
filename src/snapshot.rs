@@ -52,7 +52,7 @@ pub struct Snapshot {
     /// Companions, enemies, the boss and its parts, in entity-ID order.
     pub entities: Vec<EntityView>,
     pub bullets: Vec<BulletView>,
-    /// Falling stars on the map, in the order they dropped (ADR-066 §2).
+    /// Falling stars on the map, in the order they dropped (ADR-079 §2).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stars: Vec<StarView>,
     /// Experience, level, stat points and the open offer; absent in a stage without levels.
@@ -60,7 +60,7 @@ pub struct Snapshot {
     pub progress: Option<ProgressView>,
 }
 
-/// Where the run stands in experience, levels and stat points (ADR-066 §2, §4).
+/// Where the run stands in experience, levels and stat points (ADR-079 §2, §4).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProgressView {
@@ -75,7 +75,7 @@ pub struct ProgressView {
     /// Points spent on each run stat, in the run stats' order (ADR-067).
     pub spent: Vec<u8>,
     /// The open offer: while it is open the world is stopped, and `Engine::choose` takes one
-    /// of its options (ADR-066 §3).
+    /// of its options (ADR-079 §3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offer: Option<OfferView>,
 }
@@ -89,7 +89,7 @@ pub struct StarView {
     pub rarity: Rarity,
 }
 
-/// An offer from a falling star (ADR-066 §3).
+/// An offer from a falling star (ADR-079 §3).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OfferView {
@@ -107,7 +107,7 @@ pub struct OfferView {
     pub banishes_left: u32,
 }
 
-/// What opened an offer (ADR-066 §2).
+/// What opened an offer (ADR-079 §2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OfferKind {

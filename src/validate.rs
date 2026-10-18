@@ -82,7 +82,7 @@ pub mod limits {
     pub const MAX_LEVEL_XP: u32 = 1_000_000;
     /// The experience an enemy gives.
     pub const MAX_ENEMY_XP: u32 = 1000;
-    /// Falling stars (ADR-066 §2, ADR-068): the drop chance is in 1000; the pity, the stars on
+    /// Falling stars (ADR-079 §2, ADR-068): the drop chance is in 1000; the pity, the stars on
     /// the map, the pickup circle (64 pixels), the rerolls and banishes, and the drop table's
     /// tiers, each starting at most at the highest level, with weights of at most 10,000.
     pub const MAX_DROP_PER_MILLE: u16 = 1000;

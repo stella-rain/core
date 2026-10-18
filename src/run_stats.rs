@@ -1,4 +1,4 @@
-//! Run stats (ADR-066 §4, ADR-067): the stats a stat point can raise during a run, each with
+//! Run stats (ADR-079 §4, ADR-067): the stats a stat point can raise during a run, each with
 //! its step and its limit. They are content, not code: a JSON list of any length up to
 //! `MAX_STATS`, read in its order, so a stat is added, removed or retuned by editing the file.
 //! Data picks, code acts: each stat names one of the effect kinds built in here

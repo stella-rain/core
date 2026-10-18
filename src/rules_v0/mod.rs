@@ -124,7 +124,7 @@ pub(crate) fn bullet_radius(friendly: bool) -> i32 {
 }
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
-/// and the rerolls its setup adds to the stage's (ADR-066 §1).
+/// and the rerolls its setup adds to the stage's (ADR-079 §1).
 pub(crate) struct RunPool {
     pub rewards: Vec<u16>,
     pub extra_rerolls: u8,
