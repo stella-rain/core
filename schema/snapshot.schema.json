@@ -271,6 +271,22 @@
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
+    "DamageType": {
+      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
+      "type": "string",
+      "enum": [
+        "slash",
+        "pierce",
+        "strike",
+        "pyro",
+        "hydro",
+        "electro",
+        "cryo",
+        "anemo",
+        "geo",
+        "dendro"
+      ]
+    },
     "EntityId": {
       "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).",
       "type": "integer",
@@ -979,6 +995,13 @@
               "type": "null"
             }
           ]
+        },
+        "type_bonuses": {
+          "description": "What the type bonus rewards taken add up to, for each damage type that has any, in the\norder of `DamageType::ALL`, before the clamp at `MAX_TYPE_BONUS_PCT` (ADR-100).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TypeBonusView"
+          }
         }
       },
       "additionalProperties": false,
@@ -1193,6 +1216,25 @@
         "id",
         "at",
         "rarity"
+      ]
+    },
+    "TypeBonusView": {
+      "description": "The type bonus the main character holds for one damage type (ADR-100): the one-type\nbonuses of that type and its group's bonus, added up.",
+      "type": "object",
+      "properties": {
+        "pct": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "type": {
+          "$ref": "#/$defs/DamageType"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "pct"
       ]
     },
     "WeaponRole": {
