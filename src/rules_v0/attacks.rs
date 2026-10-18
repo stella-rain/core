@@ -138,8 +138,9 @@ pub(super) fn start_with(
 }
 
 /// How the main character's combo step attacks (ADR-070): `bonus_pct` more damage (a perfect
-/// release's), `speed_pct` faster (attack speed), `range_pct` wider (a range enchantment,
-/// ADR-078), and the Sub weapon's pull for a combo part.
+/// release's), `speed_pct` faster (attack speed), `range_pct` wider (the range rewards and
+/// options, and a range enchantment; ADR-078, ADR-099), and the Sub weapon's pull for a combo
+/// part.
 #[derive(Clone, Copy)]
 pub(super) struct Strike {
     pub bonus_pct: u32,

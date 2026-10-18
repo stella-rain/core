@@ -12,7 +12,8 @@
 //! with the perfect bonus inside a window; at `max_ticks` it releases by itself. Presses while
 //! charging are not buffered. An evade cancels the running step, breaks a charge and clears the
 //! buffer, and a press during its dash or `dash_strike_ticks` after it takes the dash branch.
-//! Every step's attack is wider by a range enchantment held (ADR-070, ADR-078).
+//! Every step's attack is wider by the range rewards taken, a range enchantment held and the
+//! expertise range options (ADR-070, ADR-078, ADR-099), at most `MAX_RANGE_PCT` in all.
 //!
 //! Aim assist (ADR-072): while `assist` or `auto` is on, each tick picks a target; with `assist`
 //! on, a step faces it as its attack starts. Auto mode (ADR-073): while `auto` is on, there is a

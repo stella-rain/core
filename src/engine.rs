@@ -595,7 +595,7 @@ pub(crate) struct ExpertiseGauge {
     pub main_taken: Vec<u8>,
     pub sub_taken: Vec<u8>,
     /// What the range options taken add up to: every combo step's hit box that much wider,
-    /// with a range enchantment's (ADR-070).
+    /// with the range rewards' and a range enchantment's (ADR-070, ADR-099).
     pub range_pct: u32,
     /// The Main and the Sub weapon's style, a place among its three, once chosen at level 3
     /// or 5; held for the run (ADR-078 §5).

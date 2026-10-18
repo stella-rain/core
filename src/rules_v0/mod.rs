@@ -44,8 +44,9 @@
 //! attacks when its cooldown has run out and the round before has ended, and turns them; their
 //! hit boxes land in step 6. A run holds at most `MAX_ORBITS` orbits of `MAX_ORBS` orbs.
 //!
-//! Enchantments (ADR-070, ADR-078) change the combo steps started after they are taken: a range
-//! enchantment widens their hit boxes (`player`). A run holds at most one of each kind.
+//! Range rewards (ADR-099) widen the hit boxes of the combo steps started after they are taken,
+//! adding up over the picks (`player`). Enchantments (ADR-070, ADR-078) change those steps too:
+//! a range enchantment widens them the same way. A run holds at most one of each kind.
 //!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
