@@ -3,6 +3,9 @@
 //! rune has a cooldown, a base damage and its own attack: phases as any attack's, whose hit
 //! boxes are centred on the point the combo step hit instead of on the main character.
 //!
+//! Boomerang's attack is its throw (`rules_v0`'s runes): exactly two phases, out and back, each
+//! active with a hit box.
+//!
 //! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, every on-hit rune of the closed list once, and
 //! bounds under hard caps (ADR-099 point 7): a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS`, a
@@ -162,6 +165,27 @@ pub fn validate(file: &RunesFile) -> Result<(), Error> {
     }
 }
 
+/// A thrown rune's attack, at `path`: two legs, out and back, each active with a hit box.
+fn throw(phases: &[AttackPhase], path: &str, fail: &mut impl FnMut(String, String)) {
+    if phases.len() != 2 {
+        fail(
+            path.into(),
+            format!("2 phases, out and back (found {})", phases.len()),
+        );
+        return;
+    }
+    for (j, p) in phases.iter().enumerate() {
+        if p.kind != PhaseKind::Active {
+            fail(format!("{path}[{j}].kind"), "an active leg".into());
+        } else if p.hit_box.is_none() {
+            fail(
+                format!("{path}[{j}].hit_box"),
+                "a leg with a hit box".into(),
+            );
+        }
+    }
+}
+
 /// An on-hit rune's attack, at `path`.
 fn attack(r: &OnHitRune, cooldown_ok: bool, path: &str, fail: &mut impl FnMut(String, String)) {
     let phases = &r.attack;
@@ -200,7 +224,9 @@ fn attack(r: &OnHitRune, cooldown_ok: bool, path: &str, fail: &mut impl FnMut(St
             format!("at least 2 (found {})", phases[0].ticks),
         );
     }
-    if !phases
+    if r.rune == Rune::Boomerang {
+        throw(phases, path, fail);
+    } else if !phases
         .iter()
         .any(|p| p.kind == PhaseKind::Active && p.hit_box.is_some())
     {

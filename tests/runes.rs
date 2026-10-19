@@ -1,8 +1,8 @@
 //! Runes (ADR-099 points 1, 2, 4, 7, 8): a closed list built into `core`, held by the Main
 //! weapon each at most once, and the random rune, a star reward that shows as a hidden
 //! candidate and draws its rune from the run's generator only when it is picked, among the
-//! runes not held. Once every rune is held it leaves the pool. What explosion and thunder do
-//! is `explosion.rs`'s and `thunder.rs`'s.
+//! runes not held. Once every rune is held it leaves the pool. What explosion, thunder and
+//! boomerang do is `explosion.rs`'s, `thunder.rs`'s and `boomerang.rs`'s.
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -19,7 +19,7 @@ use stella_rain_core::stage::Stage;
 
 mod common;
 
-use common::run::{run_input, trial_setup};
+use common::run::{TRIAL_LENGTH, run_input, trial_setup};
 use common::*;
 
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
@@ -157,12 +157,14 @@ fn held(e: &Engine) -> Vec<Rune> {
 
 #[test]
 fn the_runes_are_a_closed_list_of_two_kinds() {
-    assert_eq!(Rune::ALL, [Rune::Explosion, Rune::Thunder]);
+    assert_eq!(Rune::ALL, [Rune::Explosion, Rune::Thunder, Rune::Boomerang]);
     assert_eq!(MAX_RUNES, Rune::ALL.len());
     assert_eq!(Rune::Explosion.kind(), RuneKind::OnHit);
     assert_eq!(Rune::Thunder.kind(), RuneKind::OnHit);
+    assert_eq!(Rune::Boomerang.kind(), RuneKind::OnHit);
     assert_eq!(serde_json::to_value(Rune::Explosion).unwrap(), "explosion");
     assert_eq!(serde_json::to_value(Rune::Thunder).unwrap(), "thunder");
+    assert_eq!(serde_json::to_value(Rune::Boomerang).unwrap(), "boomerang");
 }
 
 #[test]
@@ -206,7 +208,7 @@ fn the_hidden_candidate_names_no_rune() {
     assert!(snapshot.player.runes.is_empty(), "nothing drawn yet");
     let text = serde_json::to_string(&snapshot).unwrap();
     assert!(text.contains("\"hidden\":true"));
-    for rune in ["explosion", "thunder"] {
+    for rune in ["explosion", "thunder", "boomerang"] {
         assert!(!text.contains(rune), "no rune in the snapshot");
     }
 }
@@ -236,12 +238,12 @@ fn the_pick_draws_a_rune_not_held_and_the_event_carries_it() {
     );
 }
 
-/// The rune each of the first two random runes draws, in the stage of `seed`.
+/// The rune each of the first three random runes draws, in the stage of `seed`.
 fn draws(seed: u32) -> Vec<Rune> {
-    let mut stage = targets(2, 0, 0);
+    let mut stage = targets(3, 0, 0);
     stage.seed = seed;
     let mut e = with(&stage, vec![random_rune(), inert("dash")]);
-    for _ in 0..2 {
+    for _ in 0..3 {
         next_offer(&mut e);
         take(&mut e, "random_rune");
     }
@@ -249,19 +251,25 @@ fn draws(seed: u32) -> Vec<Rune> {
 }
 
 #[test]
-fn the_random_rune_draws_either_rune_from_the_run_s_generator_then_the_other() {
-    let mut first = Vec::new();
-    for seed in 0..16 {
+fn the_random_rune_draws_among_the_runes_not_held_from_the_run_s_generator() {
+    let (mut first, mut second) = (Vec::new(), Vec::new());
+    for seed in 0..24 {
         let drawn = draws(seed);
         assert_eq!(drawn, draws(seed), "the same seed draws the same");
-        assert_eq!(drawn.len(), 2, "seed {seed}: {drawn:?}");
-        assert_ne!(drawn[0], drawn[1], "the second draw is the rune not held");
+        let mut sorted = drawn.clone();
+        sorted.sort();
+        assert_eq!(sorted, Rune::ALL, "seed {seed}: each draw a rune not held");
         first.push(drawn[0]);
+        second.push(drawn[1]);
     }
     for rune in Rune::ALL {
         assert!(
             first.contains(&rune),
             "{rune:?} never drawn first: {first:?}"
+        );
+        assert!(
+            second.contains(&rune),
+            "{rune:?} never drawn second: {second:?}"
         );
     }
 }
@@ -280,9 +288,9 @@ fn a_reward_without_a_rune_carries_none_in_its_event() {
 
 #[test]
 fn with_every_rune_held_the_random_rune_leaves_the_pool() {
-    // Two runes in the list: after the second pick the Main holds them all.
-    let mut e = with(&targets(4, 0, 0), vec![random_rune(), inert("dash")]);
-    for _ in 0..2 {
+    // Three runes in the list: after the third pick the Main holds them all.
+    let mut e = with(&targets(5, 0, 0), vec![random_rune(), inert("dash")]);
+    for _ in 0..3 {
         next_offer(&mut e);
         assert_eq!(offered(&e), ["dash", "random_rune"]);
         take(&mut e, "random_rune");
@@ -299,8 +307,8 @@ fn with_every_rune_held_the_random_rune_leaves_the_pool() {
 
 #[test]
 fn a_random_rune_alone_with_every_rune_held_opens_no_offer() {
-    let mut e = with(&targets(3, 0, 0), vec![random_rune()]);
-    for _ in 0..2 {
+    let mut e = with(&targets(4, 0, 0), vec![random_rune()]);
+    for _ in 0..3 {
         next_offer(&mut e);
         take(&mut e, "random_rune");
     }
@@ -394,7 +402,8 @@ fn the_state_hash_holds_the_runes() {
 
 #[test]
 fn a_run_with_a_random_rune_picked_records_and_verifies() {
-    // The trial with a random rune and one stat reward: the first offer holds the rune.
+    // The trial with a random rune and one stat reward: the first offer holds the rune. The
+    // third is drawn near tick 1 330, so the whole trial is played.
     let content = content(vec![
         random_rune(),
         json!({
@@ -403,7 +412,7 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
         }),
     ]);
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
-    for t in 0..1_200 {
+    for t in 0..TRIAL_LENGTH {
         while recorder.engine().offer_open() {
             // A star's offer or an expertise level's: the hidden candidate if there is one.
             let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
@@ -419,7 +428,7 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
     }
     let mut runes = held(recorder.engine());
     runes.sort();
-    assert_eq!(runes, Rune::ALL, "the random rune was picked twice");
+    assert_eq!(runes, Rune::ALL, "the random rune was picked three times");
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());
 }

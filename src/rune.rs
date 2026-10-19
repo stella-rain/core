@@ -20,6 +20,8 @@ pub enum Rune {
     Explosion,
     /// On-hit: a strike called down on the point a combo step hits, after a wind-up.
     Thunder,
+    /// On-hit: thrown from the main character to the point a combo step hits, and back.
+    Boomerang,
 }
 
 /// What sets a rune off (ADR-099 point 2).
@@ -34,7 +36,7 @@ pub enum RuneKind {
 
 impl Rune {
     /// Every rune, in the order the random rune draws among them.
-    pub const ALL: [Rune; 2] = [Rune::Explosion, Rune::Thunder];
+    pub const ALL: [Rune; 3] = [Rune::Explosion, Rune::Thunder, Rune::Boomerang];
 
     /// The rune's place in `ALL`, from 0: what the state hash writes.
     pub fn index(self) -> u8 {
@@ -43,7 +45,7 @@ impl Rune {
 
     pub fn kind(self) -> RuneKind {
         match self {
-            Rune::Explosion | Rune::Thunder => RuneKind::OnHit,
+            Rune::Explosion | Rune::Thunder | Rune::Boomerang => RuneKind::OnHit,
         }
     }
 }

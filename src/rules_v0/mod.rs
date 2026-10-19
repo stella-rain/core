@@ -56,6 +56,8 @@
 //! On-hit runes (ADR-099, `runes`): each cooldown counts down in step 1; a combo step's hit in
 //! step 6 fires each one held and ready, an attack in its own slot whose hit boxes stay on the
 //! point hit and land from the next tick, and sets its cooldown. Its hits are no combo step's.
+//! A thrown rune's hit boxes (boomerang) fly a step at the end of step 2, after the main
+//! character has moved: out to the point hit, then back to the main character.
 //!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
@@ -309,6 +311,9 @@ pub(crate) fn step(
     runes::tick(s);
     attacks::advance_runs(s, events);
     player::update(stage, rewards, s, input, events);
+    if !s.player.runes.is_empty() {
+        runes::fly(s);
+    }
     orbit::act(stage, rewards, s, events);
     boss::act(stage, s, events);
     boss::call_elites(stage, s, events);
@@ -1216,7 +1221,8 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     }
     // Last, and only while the Main weapon holds a rune (ADR-099), so that the hashes of runs
     // without one stay as they were: each rune held and its cooldown left, then where each
-    // on-hit rune's attack in progress is centred, by its place in `runs`. Runes never go.
+    // on-hit rune's attack in progress is centred, by its place in `runs`, and where each thrown
+    // one turns. Runes never go.
     if !s.player.runes.is_empty() {
         h.write_u32(count(&s.player.runes));
         for r in &s.player.runes {
@@ -1234,6 +1240,19 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
             h.write_i32(at.x.0);
             h.write_i32(at.y.0);
+        }
+        // Then each thrown rune's turn point, by its place in `runs`.
+        let thrown = || {
+            s.runs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, r)| Some((i, r.throw?)))
+        };
+        h.write_u32(u32::try_from(thrown().count()).unwrap_or(u32::MAX));
+        for (i, to) in thrown() {
+            h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
+            h.write_i32(to.x.0);
+            h.write_i32(to.y.0);
         }
     }
     h.finish()
