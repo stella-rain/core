@@ -18,6 +18,17 @@
               "description": "The match-up the hit got (ADR-100); left out when none.",
               "$ref": "#/$defs/MatchUp"
             },
+            "rune": {
+              "description": "The rune that dealt the hit (ADR-099): the on-hit rune whose attack landed, or the\ndamage-over-time rune whose status ticked; left out for every other hit.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Rune"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "source": {
               "$ref": "#/$defs/EntityId"
             },
