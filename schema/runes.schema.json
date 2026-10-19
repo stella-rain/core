@@ -759,6 +759,11 @@
           "description": "On-hit: a strike called down on the point a combo step hits, after a wind-up.",
           "type": "string",
           "const": "thunder"
+        },
+        {
+          "description": "On-hit: thrown from the main character to the point a combo step hits, and back.",
+          "type": "string",
+          "const": "boomerang"
         }
       ]
     }
