@@ -18,25 +18,43 @@
 //! bullet. Each phase is active and keeps its own hit list, so an enemy on the way is hit once
 //! out and once back. The path is a placeholder.
 //!
+//! Homing missiles launch `missiles` hit boxes from the main character, missile k in slot
+//! `MISSILE_SLOT + k`. Missile k's target is the k-th of aim assist's order (ADR-072) within the
+//! rune's range of the main character, starting over when there are fewer, or the enemy the
+//! step hit when there are none: nothing drawn from the generator. Each tick, after everyone
+//! has moved (`steer`), its goal is where its target is now, or was last once it is gone, and
+//! its centre goes the distance left over the flight's ticks left, as a thrown rune's does, so
+//! that it is on its target on the flight's last tick. It hits the first enemy it covers, once,
+//! and is gone (`hit_boxes`). The flight is a placeholder.
+//!
 //! Bounds (ADR-099 point 7): one attack at a time per rune, in its slot, the file holding each
 //! attack to its cooldown; a rune whose slot is still busy does not fire and keeps its cooldown
 //! at 0. A cooldown is held to `MAX_RUNE_COOLDOWN_TICKS`. No rune fires a bullet, a thrown one
-//! included: the bullets alive from runes stay at 0.
+//! included: the bullets alive from runes stay at 0. Homing missiles launch at most
+//! `MAX_HOMING_MISSILES`, all in their slots and the file holding each flight to the cooldown,
+//! so no more fly at once.
 
 use std::sync::Arc;
 
+use crate::attack::AttackPhase;
 use crate::engine::{HeldRune, PlayerState, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
+use crate::id::EntityId;
 use crate::rng::SplitMix64;
 use crate::rune::{MAX_RUNES, Rune};
-use crate::runes::MAX_RUNE_COOLDOWN_TICKS;
+use crate::runes::{MAX_HOMING_MISSILES, MAX_RUNE_COOLDOWN_TICKS};
+use crate::stage::Stage;
+use crate::validate::limits::MAX_ASSIST_RANGE;
 
-use super::attacks;
+use super::entity::Who;
+use super::{attacks, select};
 
 /// The first on-hit rune's slot: after the combo (0), the stage skill (1) and the orbits' orbs
 /// (2 to 33); each rune's is this plus its place in `Rune::ALL`.
 pub(super) const FIRST_SLOT: u8 = 34;
+/// Homing missiles' first missile's slot; missile k's is this plus k, past every rune's.
+pub(super) const MISSILE_SLOT: u8 = 64;
 
 /// Every on-hit rune's cooldown counts down by a tick.
 pub(super) fn tick(s: &mut State) {
@@ -45,9 +63,15 @@ pub(super) fn tick(s: &mut State) {
     }
 }
 
-/// A combo step hit at `at`: each on-hit rune held and ready fires its attack there, at its
-/// base damage, and waits out its cooldown.
-pub(super) fn on_hit(s: &mut State, at: Point, events: &mut Vec<DomainEvent>) {
+/// A combo step hit `hit` at `at`: each on-hit rune held and ready fires its attack there, at
+/// its base damage, and waits out its cooldown.
+pub(super) fn on_hit(
+    stage: &Stage,
+    s: &mut State,
+    hit: EntityId,
+    at: Point,
+    events: &mut Vec<DomainEvent>,
+) {
     for i in 0..s.player.runes.len() {
         let HeldRune {
             rune,
@@ -63,6 +87,13 @@ pub(super) fn on_hit(s: &mut State, at: Point, events: &mut Vec<DomainEvent>) {
         let phases = Arc::new(entry.attack.clone());
         let slot = FIRST_SLOT.saturating_add(rune.index());
         let facing = s.player.facing;
+        if rune == Rune::HomingMissiles {
+            let (missiles, range) = (entry.missiles.unwrap_or(1), entry.range.unwrap_or(Fx(0)));
+            if launch(stage, s, hit, at, missiles, range, phases, damage, events) {
+                s.player.runes[i].cooldown_left = cooldown.min(MAX_RUNE_COOLDOWN_TICKS);
+            }
+            continue;
+        }
         let thrown = rune == Rune::Boomerang;
         let from = if thrown { s.player.at } else { at };
         if attacks::start_rune(s, slot, from, facing, phases, damage, events) {
@@ -82,13 +113,70 @@ pub(super) fn on_hit(s: &mut State, at: Point, events: &mut Vec<DomainEvent>) {
     }
 }
 
+/// Launches homing missiles' `missiles` from the main character, each toward its target, at
+/// `damage`. False, launching none, if a missile's slot is busy.
+#[allow(clippy::too_many_arguments)]
+fn launch(
+    stage: &Stage,
+    s: &mut State,
+    hit: EntityId,
+    at: Point,
+    missiles: u32,
+    range: Fx,
+    phases: Arc<Vec<AttackPhase>>,
+    damage: u32,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
+    // The validator holds both to their caps; the clamps keep an unvalidated file there.
+    let n = missiles.clamp(1, MAX_HOMING_MISSILES) as u8;
+    let range = range.0.clamp(0, MAX_ASSIST_RANGE);
+    let player = s.id_of(Who::Player);
+    if (0..n).any(|k| attacks::busy(s, player, MISSILE_SLOT.saturating_add(k))) {
+        return false;
+    }
+    let targets = select::assist_targets(stage, s, range, usize::from(n));
+    let (from, facing) = (s.player.at, s.player.facing);
+    for k in 0..n {
+        let target = match targets.len() {
+            0 => hit,
+            len => targets[usize::from(k) % len],
+        };
+        let goal = s.find(target).map_or(at, |w| s.at(w));
+        let slot = MISSILE_SLOT.saturating_add(k);
+        if attacks::start_rune(s, slot, from, facing, phases.clone(), damage, events) {
+            // It was pushed last; its first step counts the tick it launches on.
+            if let Some(r) = s.runs.last_mut() {
+                r.throw = Some(goal);
+                r.homing = Some(target);
+            }
+            if let Some(r) = s.runs.len().checked_sub(1) {
+                fly_one(s, r);
+            }
+        }
+    }
+    true
+}
+
 /// Every thrown rune's hit boxes go a step: out to its turn point in its first phase, back to
-/// the main character in the others.
+/// the main character in the others. Homing missiles steer later (`steer`).
 pub(super) fn fly(s: &mut State) {
     for i in 0..s.runs.len() {
-        if s.runs[i].throw.is_some() {
+        if s.runs[i].throw.is_some() && s.runs[i].homing.is_none() {
             fly_one(s, i);
         }
+    }
+}
+
+/// Every homing missile goes a step toward where its target is now, or was last.
+pub(super) fn steer(s: &mut State) {
+    for i in 0..s.runs.len() {
+        let Some(target) = s.runs[i].homing else {
+            continue;
+        };
+        if let Some(w) = s.find(target).filter(|w| s.is_alive(*w)) {
+            s.runs[i].throw = Some(s.at(w));
+        }
+        fly_one(s, i);
     }
 }
 

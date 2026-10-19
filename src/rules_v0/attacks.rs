@@ -326,6 +326,7 @@ fn launch(
         pull,
         at,
         throw: None,
+        homing: None,
     });
     begin_phase(s, s.runs.len() - 1, events);
 }

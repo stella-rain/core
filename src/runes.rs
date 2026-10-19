@@ -4,7 +4,10 @@
 //! boxes are centred on the point the combo step hit instead of on the main character.
 //!
 //! Boomerang's attack is its throw (`rules_v0`'s runes): exactly two phases, out and back, each
-//! active with a hit box.
+//! active with a hit box. Homing missiles' is one missile's flight: exactly one phase, active
+//! with a hit box. Only its entry has `missiles`, 1 to `MAX_HOMING_MISSILES` launched together,
+//! and `range`, 1 to `MAX_ASSIST_RANGE`, within which they pick their targets; both are
+//! required on it and refused on every other rune.
 //!
 //! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, every on-hit rune of the closed list once, and
@@ -24,9 +27,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::attack::{AttackPhase, AttackRef, PhaseKind};
+use crate::fixed::Fx;
 use crate::registry;
 use crate::rune::{Rune, RuneKind};
-use crate::validate::limits::MAX_DAMAGE;
+use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -36,6 +40,9 @@ pub const MAX_RUNES_BYTES: usize = 8 * 1024;
 pub const MAX_RUNE_COOLDOWN_TICKS: u32 = 3_600;
 /// The most phases an on-hit rune's attack has.
 pub const MAX_RUNE_PHASES: usize = 4;
+/// The most missiles homing missiles launch at once (a tuning value; ADR-099 point 7 decides
+/// that one exists).
+pub const MAX_HOMING_MISSILES: u32 = 4;
 
 /// The runes file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -60,6 +67,14 @@ pub struct OnHitRune {
     /// Its attack's phases, 1 to `MAX_RUNE_PHASES`: hit boxes centred on the point hit, facing
     /// the way the main character faces as it fires; a phase's `type` is its hits' damage type.
     pub attack: Vec<AttackPhase>,
+    /// Homing missiles only: how many it launches, 1 to `MAX_HOMING_MISSILES`, each running
+    /// `attack` as its flight.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub missiles: Option<u32>,
+    /// Homing missiles only: how far from the main character its targets may be, 1 to
+    /// `MAX_ASSIST_RANGE`, as aim assist's range (ADR-072).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<Fx>,
 }
 
 /// A runes file that passed validation, and the SHA-256 of the bytes it came from.
@@ -151,6 +166,7 @@ pub fn validate(file: &RunesFile) -> Result<(), Error> {
             );
         }
         attack(r, cooldown_ok, &at("attack"), &mut fail);
+        homing(r, &at, &mut fail);
     }
     if Rune::ALL
         .iter()
@@ -183,6 +199,48 @@ fn throw(phases: &[AttackPhase], path: &str, fail: &mut impl FnMut(String, Strin
                 "a leg with a hit box".into(),
             );
         }
+    }
+}
+
+/// Homing missiles' own numbers, `missiles` and `range`: required on it, refused on the others.
+fn homing(r: &OnHitRune, at: &impl Fn(&str) -> String, fail: &mut impl FnMut(String, String)) {
+    let own = r.rune == Rune::HomingMissiles;
+    match r.missiles {
+        None if own => fail(at("missiles"), "the missiles it launches".into()),
+        Some(_) if !own => fail(at("missiles"), "homing missiles' own".into()),
+        Some(n) if !(1..=MAX_HOMING_MISSILES).contains(&n) => fail(
+            at("missiles"),
+            format!("1 to {MAX_HOMING_MISSILES} (found {n})"),
+        ),
+        _ => {}
+    }
+    match r.range {
+        None if own => fail(at("range"), "the range of its targets".into()),
+        Some(_) if !own => fail(at("range"), "homing missiles' own".into()),
+        Some(Fx(range)) if !(1..=MAX_ASSIST_RANGE).contains(&range) => fail(
+            at("range"),
+            format!("1 to {MAX_ASSIST_RANGE} (found {range})"),
+        ),
+        _ => {}
+    }
+}
+
+/// Homing missiles' attack, at `path`: one flight, active with a hit box.
+fn flight(phases: &[AttackPhase], path: &str, fail: &mut impl FnMut(String, String)) {
+    let [p] = phases else {
+        fail(
+            path.into(),
+            format!("1 phase, the flight (found {})", phases.len()),
+        );
+        return;
+    };
+    if p.kind != PhaseKind::Active {
+        fail(format!("{path}[0].kind"), "an active flight".into());
+    } else if p.hit_box.is_none() {
+        fail(
+            format!("{path}[0].hit_box"),
+            "a flight with a hit box".into(),
+        );
     }
 }
 
@@ -226,6 +284,8 @@ fn attack(r: &OnHitRune, cooldown_ok: bool, path: &str, fail: &mut impl FnMut(St
     }
     if r.rune == Rune::Boomerang {
         throw(phases, path, fail);
+    } else if r.rune == Rune::HomingMissiles {
+        flight(phases, path, fail);
     } else if !phases
         .iter()
         .any(|p| p.kind == PhaseKind::Active && p.hit_box.is_some())

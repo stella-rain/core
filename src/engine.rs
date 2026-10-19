@@ -1144,8 +1144,12 @@ pub(crate) struct AttackRun {
     /// the point the combo step hit (ADR-099), or where a thrown one has flown to.
     pub at: Option<Point>,
     /// A thrown rune's turn point, the point the combo step hit: its first phase flies `at`
-    /// there from the main character, its second back to the main character (boomerang).
+    /// there from the main character, its second back to the main character (boomerang). A
+    /// homing missile's goal: where its target is, or was last.
     pub throw: Option<Point>,
+    /// A homing missile's target (ADR-099): `throw` follows it while it is alive, and the
+    /// missile is gone once it hits anything.
+    pub homing: Option<EntityId>,
 }
 
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it

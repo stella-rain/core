@@ -57,7 +57,10 @@
 //! step 6 fires each one held and ready, an attack in its own slot whose hit boxes stay on the
 //! point hit and land from the next tick, and sets its cooldown. Its hits are no combo step's.
 //! A thrown rune's hit boxes (boomerang) fly a step at the end of step 2, after the main
-//! character has moved: out to the point hit, then back to the main character.
+//! character has moved: out to the point hit, then back to the main character. Homing
+//! missiles' hit boxes steer a step at the end of step 3, after the push-apart and the pull,
+//! toward where their targets are now; one that hits anything in step 6 is gone once the hit
+//! boxes have landed.
 //!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
@@ -320,6 +323,9 @@ pub(crate) fn step(
     agents::act(stage, s, events);
     push::apply(stage, s);
     skill::pull(stage, s);
+    if !s.player.runes.is_empty() {
+        runes::steer(s);
+    }
     attacks::fire_hooks(s);
     let (tasks, emitter_steps) = attacks::run(s, &mut spawns_left);
     *load = Load {
@@ -578,7 +584,7 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         expertise::credit(stage, s, target, dead);
         if !s.player.runes.is_empty() {
             let at = s.at(target);
-            runes::on_hit(s, at, events);
+            runes::on_hit(stage, s, id, at, events);
         }
     }
 }
@@ -1221,8 +1227,8 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     }
     // Last, and only while the Main weapon holds a rune (ADR-099), so that the hashes of runs
     // without one stay as they were: each rune held and its cooldown left, then where each
-    // on-hit rune's attack in progress is centred, by its place in `runs`, and where each thrown
-    // one turns. Runes never go.
+    // on-hit rune's attack in progress is centred, by its place in `runs`, where each thrown
+    // one turns and each homing missile's target. Runes never go.
     if !s.player.runes.is_empty() {
         h.write_u32(count(&s.player.runes));
         for r in &s.player.runes {
@@ -1253,6 +1259,18 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
             h.write_i32(to.x.0);
             h.write_i32(to.y.0);
+        }
+        // Then each homing missile's target, by its place in `runs`.
+        let homing = || {
+            s.runs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, r)| Some((i, r.homing?)))
+        };
+        h.write_u32(u32::try_from(homing().count()).unwrap_or(u32::MAX));
+        for (i, target) in homing() {
+            h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
+            h.write_u32(target.0);
         }
     }
     h.finish()
