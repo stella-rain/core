@@ -6,8 +6,11 @@
 //! missiles are the four; boomerang's attack is its throw, out and back, two active phases;
 //! homing missiles' is one missile's flight, one active phase, and only its entry has the
 //! missiles it launches, 1 to `MAX_HOMING_MISSILES`, and the range it picks targets within, 1
-//! to `MAX_ASSIST_RANGE`. The bundled file is the default; other bytes change the run's content
-//! hash.
+//! to `MAX_ASSIST_RANGE`. Every damage-over-time rune has its entry too, once: bleed, the one so
+//! far, with a tick interval of 1 to `MAX_DOT_INTERVAL_TICKS` and no longer than its duration,
+//! a duration of 1 to `MAX_DOT_DURATION_TICKS`, a damage a stack of 1 to `MAX_DAMAGE`, a stack
+//! maximum of 1 to `MAX_DOT_STACKS`, and a damage type or none. The bundled file is the
+//! default; other bytes change the run's content hash.
 
 use serde_json::{Value, json};
 use stella_rain_core::attack::{AttackPhase, DamageType, HitBox, PhaseKind};
@@ -17,7 +20,8 @@ use stella_rain_core::run_replay::{
 };
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::{
-    MAX_HOMING_MISSILES, MAX_RUNE_COOLDOWN_TICKS, MAX_RUNE_PHASES, MAX_RUNES_BYTES, Runes,
+    MAX_DOT_DURATION_TICKS, MAX_DOT_INTERVAL_TICKS, MAX_DOT_STACKS, MAX_HOMING_MISSILES,
+    MAX_RUNE_COOLDOWN_TICKS, MAX_RUNE_PHASES, MAX_RUNES_BYTES, Runes,
 };
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
@@ -66,8 +70,30 @@ fn with_thunder(explosion: Value) -> Value {
     file(vec![explosion, thunder(), boomerang(), homing()])
 }
 
+/// A valid bleed entry.
+fn bleed() -> Value {
+    bleed_of(json!(30), json!(180), json!(3), json!(5))
+}
+
+fn bleed_of(interval: Value, duration: Value, damage: Value, max_stacks: Value) -> Value {
+    json!({ "rune": "bleed", "interval_ticks": interval, "duration_ticks": duration,
+            "damage": damage, "max_stacks": max_stacks, "type": "slash" })
+}
+
+/// A file of the on-hit entries `on_hit` and a valid bleed.
 fn file(on_hit: Vec<Value>) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0, "on_hit": on_hit })
+    file_with(on_hit, vec![bleed()])
+}
+
+fn file_with(on_hit: Vec<Value>, damage_over_time: Vec<Value>) -> Value {
+    json!({ "schema_version": 0, "sim_version": 0, "on_hit": on_hit,
+            "damage_over_time": damage_over_time })
+}
+
+/// Valid on-hit entries, and `damage_over_time`.
+fn with_bleed(damage_over_time: Vec<Value>) -> Value {
+    let one = explosion(json!(30), json!(5), json!([active(4)]));
+    file_with(vec![one, thunder(), boomerang(), homing()], damage_over_time)
 }
 
 fn plain() -> Value {
@@ -320,6 +346,132 @@ fn homing_missiles_attack_is_one_flight_an_active_phase_with_a_hit_box() {
         ["$.on_hit[3].attack"],
         "61 ticks outlast the cooldown"
     );
+}
+
+#[test]
+fn the_bundled_bleed_is_slash_damage_over_time_in_stacks() {
+    // PLACEHOLDER numbers, Kade's to set: the game design document's bleed, 3 damage a stack
+    // every 30 ticks for 180 ticks, up to 5 stacks, Slash.
+    let bleed = Runes::bundled()
+        .damage_over_time(Rune::Bleed)
+        .expect("bleed's entry");
+    assert_eq!(
+        (
+            bleed.interval_ticks,
+            bleed.duration_ticks,
+            bleed.damage,
+            bleed.max_stacks
+        ),
+        (30, 180, 3, 5)
+    );
+    assert_eq!(bleed.damage_type, Some(DamageType::Slash));
+    assert!(Runes::bundled().on_hit(Rune::Bleed).is_none());
+    assert!(Runes::bundled().damage_over_time(Rune::Explosion).is_none());
+}
+
+#[test]
+fn bleed_s_numbers_are_1_to_their_hard_caps() {
+    let at = |field: &str| format!("$.damage_over_time[0].{field}");
+    let check = |interval: u32, duration: u32, damage: u32, max: u32| {
+        parse(&with_bleed(vec![bleed_of(
+            json!(interval),
+            json!(duration),
+            json!(damage),
+            json!(max),
+        )]))
+        .map(|_| ())
+        .map_err(paths)
+    };
+    assert_eq!(check(1, 1, 1, 1), Ok(()));
+    assert_eq!(
+        check(
+            MAX_DOT_INTERVAL_TICKS,
+            MAX_DOT_DURATION_TICKS,
+            MAX_DAMAGE,
+            MAX_DOT_STACKS
+        ),
+        Ok(())
+    );
+    assert_eq!(check(0, 180, 3, 5), Err(vec![at("interval_ticks")]));
+    assert_eq!(
+        check(MAX_DOT_INTERVAL_TICKS + 1, MAX_DOT_DURATION_TICKS, 3, 5),
+        Err(vec![at("interval_ticks")])
+    );
+    assert_eq!(check(30, 0, 3, 5), Err(vec![at("duration_ticks")]));
+    assert_eq!(
+        check(30, MAX_DOT_DURATION_TICKS + 1, 3, 5),
+        Err(vec![at("duration_ticks")])
+    );
+    assert_eq!(check(30, 180, 0, 5), Err(vec![at("damage")]));
+    assert_eq!(
+        check(30, 180, MAX_DAMAGE + 1, 5),
+        Err(vec![at("damage")])
+    );
+    assert_eq!(check(30, 180, 3, 0), Err(vec![at("max_stacks")]));
+    assert_eq!(
+        check(30, 180, 3, MAX_DOT_STACKS + 1),
+        Err(vec![at("max_stacks")])
+    );
+}
+
+#[test]
+fn bleed_ticks_at_least_once_in_its_duration() {
+    let check = |interval: u32, duration: u32| {
+        parse(&with_bleed(vec![bleed_of(
+            json!(interval),
+            json!(duration),
+            json!(3),
+            json!(5),
+        )]))
+        .map(|_| ())
+        .map_err(paths)
+    };
+    assert_eq!(check(30, 30), Ok(()));
+    assert_eq!(
+        check(31, 30),
+        Err(vec!["$.damage_over_time[0].interval_ticks".to_owned()])
+    );
+}
+
+#[test]
+fn bleed_may_be_neutral() {
+    let mut neutral = bleed();
+    neutral.as_object_mut().unwrap().remove("type");
+    let runes = parse(&with_bleed(vec![neutral])).unwrap();
+    assert_eq!(
+        runes.damage_over_time(Rune::Bleed).unwrap().damage_type,
+        None
+    );
+}
+
+#[test]
+fn every_damage_over_time_rune_has_one_entry_and_only_those() {
+    assert_eq!(
+        paths(parse(&with_bleed(vec![])).unwrap_err()),
+        ["$.damage_over_time"]
+    );
+    assert_eq!(
+        paths(parse(&with_bleed(vec![bleed(), bleed()])).unwrap_err()),
+        ["$.damage_over_time[1].rune"]
+    );
+    let mut on_hit = bleed();
+    on_hit["rune"] = json!("explosion");
+    assert_eq!(
+        paths(parse(&with_bleed(vec![bleed(), on_hit])).unwrap_err()),
+        ["$.damage_over_time[1].rune"]
+    );
+    // Bleed among the on-hit runes: a valid entry but for its rune.
+    let mut v = plain();
+    let mut as_on_hit = thunder();
+    as_on_hit["rune"] = json!("bleed");
+    v["on_hit"].as_array_mut().unwrap().push(as_on_hit);
+    assert_eq!(paths(parse(&v).unwrap_err()), ["$.on_hit[4].rune"]);
+    let mut missing = plain();
+    missing.as_object_mut().unwrap().remove("damage_over_time");
+    assert!(matches!(parse(&missing), Err(Error::Parse { .. })));
+    let mut extra = plain();
+    extra["damage_over_time"][0]["extra"] = json!(1);
+    assert!(matches!(parse(&extra), Err(Error::Parse { .. })));
 }
 
 #[test]

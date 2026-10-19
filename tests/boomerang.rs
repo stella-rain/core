@@ -49,10 +49,10 @@ fn runes(cooldown: u32, damage: u32, right: i32) -> Runes {
     ])
 }
 
-/// The stage with four small enemies and the tough target, every rune taken from its star.
+/// The stage with five small enemies and the tough target, every rune taken from its star.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(4, target),
+        &stage(5, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
@@ -134,7 +134,7 @@ fn it_hits_an_enemy_on_its_way_once_out_and_once_back() {
         START_X + right,
         START_Y - 4_096,
     );
-    let mut s = stage(4, tough(0, None, None));
+    let mut s = stage(5, tough(0, None, None));
     s.waves.push(serde_json::from_value(beside).unwrap());
     let mut e = with(
         &s,
@@ -310,7 +310,7 @@ fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
                 "description": "" }),
     ];
     let mut e = with(
-        &stage(6, tough(0, Some(profile), None)),
+        &stage(7, tough(0, Some(profile), None)),
         &content(rewards, Some(json!([war_cry])), runes(60, 10, 0)),
     );
     take_all(&mut e);

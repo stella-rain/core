@@ -1,6 +1,6 @@
-//! The on-hit rune tests' shared stage: a Main weapon of one step, small enemies whose stars
-//! give the runes, and a tough target to hit once they are taken (`explosion.rs`, `thunder.rs`,
-//! `boomerang.rs`, `homing_missiles.rs`).
+//! The rune tests' shared stage: a Main weapon of one step, small enemies whose stars give the
+//! runes, and a tough target to hit once they are taken (`explosion.rs`, `thunder.rs`,
+//! `boomerang.rs`, `homing_missiles.rs`, `bleed.rs`).
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -135,7 +135,7 @@ pub fn take(e: &mut Engine, reward: &str) {
     e.choose(u32::try_from(index).unwrap()).unwrap();
 }
 
-/// Takes the random rune from the next three offers: the Main holds every rune, in the order
+/// Takes the random rune from the next five offers: the Main holds every rune, in the order
 /// drawn.
 pub fn take_all(e: &mut Engine) {
     for _ in Rune::ALL {
@@ -178,9 +178,27 @@ pub fn far(rune: &str) -> Value {
     entry(rune, 30, 1, json!([phase.clone(), phase]))
 }
 
-/// The runes file of `on_hit`'s entries.
+/// A damage-over-time rune's entry in a runes file, Slash.
+pub fn dot(rune: &str, interval: u32, duration: u32, damage: u32, max_stacks: u32) -> Value {
+    json!({ "rune": rune, "interval_ticks": interval, "duration_ticks": duration,
+            "damage": damage, "max_stacks": max_stacks, "type": "slash" })
+}
+
+/// A bleed whose first tick is a minute after it is applied, beyond every on-hit rune test:
+/// held, it is applied on every step's hit but never deals damage there.
+pub fn far_bleed() -> Value {
+    dot("bleed", 3_600, 3_600, 1, 1)
+}
+
+/// The runes file of `on_hit`'s entries and a bleed that never ticks (`far_bleed`).
 pub fn runes_of(on_hit: Vec<Value>) -> Runes {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "on_hit": on_hit });
+    runes_with(on_hit, vec![far_bleed()])
+}
+
+/// The runes file of `on_hit`'s and `damage_over_time`'s entries.
+pub fn runes_with(on_hit: Vec<Value>, damage_over_time: Vec<Value>) -> Runes {
+    let file = json!({ "schema_version": 0, "sim_version": 0, "on_hit": on_hit,
+                       "damage_over_time": damage_over_time });
     Runes::parse(file.to_string().as_bytes()).expect("the test runes validate")
 }
 
