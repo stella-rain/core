@@ -21,7 +21,7 @@ use stella_rain_core::runes::Runes;
 mod common;
 
 use common::on_hit::*;
-use common::run::{run_input, trial_setup};
+use common::run::{TRIAL_LENGTH, run_input, trial_setup};
 use common::*;
 
 /// What the test boomerang does: 4 base damage, against the step's 10 and the blast's 3.
@@ -348,10 +348,15 @@ fn no_bullet_comes_from_it() {
 
 #[test]
 fn the_state_hash_holds_its_flight() {
-    // The same cooldown, but thrown 8 pixels to the side: the throws differ only in where
-    // they fly.
+    // The same cooldown and damage, but legs of 4 and of 8 ticks: the throws differ only in
+    // how far they fly on the tick thrown.
+    let mut slower = boomerang(60, THROW, 0);
+    slower["attack"][0]["ticks"] = json!(8);
     let mut a = holding(runes(60, THROW, 0), tough(0, None, None));
-    let mut b = holding(runes(60, THROW, 2_048), tough(0, None, None));
+    let mut b = holding(
+        runes_of(vec![far("explosion"), far("thunder"), slower]),
+        tough(0, None, None),
+    );
     wait_for_target(&mut a);
     wait_for_target(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
@@ -364,7 +369,7 @@ fn the_state_hash_holds_its_flight() {
 #[test]
 fn a_run_holding_boomerang_records_and_verifies() {
     // The trial with a random rune and one stat reward, the hidden candidate always taken, and
-    // the bundled runes.
+    // the bundled runes: boomerang is drawn last with this seed, so the whole trial is played.
     let content = content(
         vec![
             random_rune(),
@@ -378,7 +383,7 @@ fn a_run_holding_boomerang_records_and_verifies() {
     );
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
     let mut fired = false;
-    for t in 0..1_800 {
+    for t in 0..TRIAL_LENGTH {
         while recorder.engine().offer_open() {
             let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
             let rune = offer.and_then(|o| o.candidates.iter().position(|c| c.hidden));
