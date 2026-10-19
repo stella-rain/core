@@ -68,3 +68,32 @@ mod types;
 mod validate;
 mod weapons;
 mod worst_case;
+
+/// With `autotests = false`, a new file in `tests/` builds and runs only once it is a module
+/// here; a missing `mod` line would leave its tests out silently.
+#[test]
+fn every_test_file_is_a_module_here() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let declared: Vec<&str> = include_str!("integration.rs")
+        .lines()
+        .filter_map(|line| line.strip_prefix("mod ")?.strip_suffix(';'))
+        .collect();
+    let mut missing = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
+        let path = entry.expect("a tests/ entry").path();
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if path.extension().is_some_and(|e| e == "rs")
+            && stem != "integration"
+            && !declared.contains(&stem)
+        {
+            missing.push(stem.to_owned());
+        }
+    }
+    missing.sort();
+    assert!(
+        missing.is_empty(),
+        "tests/ files without `mod` here: {missing:?}"
+    );
+}
