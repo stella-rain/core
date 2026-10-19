@@ -467,10 +467,6 @@
         "option": {
           "description": "Its ID in the weapon's expertise content: a common option, a style, or a choice of the\nchosen style's path.",
           "$ref": "#/$defs/ContentId"
-        },
-        "reaches_limit": {
-          "description": "Taking it brings it to its stack limit, after which it is offered no more.",
-          "type": "boolean"
         }
       },
       "additionalProperties": false,
