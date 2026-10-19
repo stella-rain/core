@@ -2349,6 +2349,17 @@
       "description": "`count` copies of `enemy`, the first at `at_tick`, then one every `every_ticks`.",
       "type": "object",
       "properties": {
+        "around": {
+          "description": "A distance, `1` to `MAX_LEN`: each enemy of the wave spawns that far from the main\ncharacter, at an angle the run's generator draws, kept on the map; `spawn` is then not\nused. Absent, every enemy spawns at `spawn`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fx"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "at_tick": {
           "type": "integer",
           "format": "uint32",
