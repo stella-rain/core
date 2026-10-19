@@ -1008,6 +1008,11 @@
           "description": "On-hit: missiles launched from the main character that steer to aim assist's targets,\neach hitting once.",
           "type": "string",
           "const": "homing_missiles"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
+          "type": "string",
+          "const": "bleed"
         }
       ]
     },

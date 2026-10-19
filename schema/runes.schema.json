@@ -4,6 +4,13 @@
   "description": "The runes file.",
   "type": "object",
   "properties": {
+    "damage_over_time": {
+      "description": "Every damage-over-time rune's numbers, each rune once.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DamageOverTimeRune"
+      }
+    },
     "on_hit": {
       "description": "Every on-hit rune's numbers, each rune once.",
       "type": "array",
@@ -26,7 +33,8 @@
   "required": [
     "schema_version",
     "sim_version",
-    "on_hit"
+    "on_hit",
+    "damage_over_time"
   ],
   "$defs": {
     "AttackPhase": {
@@ -110,6 +118,58 @@
     "ContentId": {
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
+    },
+    "DamageOverTimeRune": {
+      "description": "A damage-over-time rune's numbers (ADR-099 point 2): the status a combo step's hit puts on\nthe enemy hit.",
+      "type": "object",
+      "properties": {
+        "damage": {
+          "description": "The base damage of a tick for each stack, 1 to `MAX_DAMAGE` (ADR-056).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "duration_ticks": {
+          "description": "Ticks it lasts after it was last applied, 1 to `MAX_DOT_DURATION_TICKS`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "interval_ticks": {
+          "description": "Ticks between two of its damage ticks, 1 to `MAX_DOT_INTERVAL_TICKS`, at most the\nduration.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_stacks": {
+          "description": "The most stacks it reaches, 1 to `MAX_DOT_STACKS`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "rune": {
+          "$ref": "#/$defs/Rune"
+        },
+        "type": {
+          "description": "Its ticks' damage type (ADR-100); absent, they are neutral.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DamageType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rune",
+        "interval_ticks",
+        "duration_ticks",
+        "damage",
+        "max_stacks"
+      ]
     },
     "DamageType": {
       "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
@@ -789,6 +849,11 @@
           "description": "On-hit: missiles launched from the main character that steer to aim assist's targets,\neach hitting once.",
           "type": "string",
           "const": "homing_missiles"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
+          "type": "string",
+          "const": "bleed"
         }
       ]
     }

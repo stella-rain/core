@@ -286,6 +286,41 @@
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
+    "DamageOverTimeView": {
+      "description": "A damage-over-time status on an entity (ADR-099), such as bleed.",
+      "type": "object",
+      "properties": {
+        "next_tick_in": {
+          "description": "Ticks until it next deals its damage, at least 1.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "stacks": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "status": {
+          "description": "The status's ID: `bleed`.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "ticks_left": {
+          "description": "Ticks until it runs out, unless it is applied again.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "stacks",
+        "ticks_left",
+        "next_tick_in"
+      ]
+    },
     "DamageType": {
       "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
       "type": "string",
@@ -336,6 +371,13 @@
               "type": "null"
             }
           ]
+        },
+        "damage_over_time": {
+          "description": "Its damage-over-time statuses (ADR-099), one of a kind at most.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DamageOverTimeView"
+          }
         },
         "elite": {
           "description": "An elite enemy (ADR-068), which the minimap shows wherever it is.",
@@ -1179,6 +1221,11 @@
           "description": "On-hit: missiles launched from the main character that steer to aim assist's targets,\neach hitting once.",
           "type": "string",
           "const": "homing_missiles"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
+          "type": "string",
+          "const": "bleed"
         }
       ]
     },
