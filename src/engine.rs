@@ -1141,8 +1141,11 @@ pub(crate) struct AttackRun {
     /// The Sub weapon's pull, when the attack is a combo part (ADR-070).
     pub pull: Option<Pull>,
     /// Where its hit boxes are centred instead of on its attacker: an on-hit rune's attack, at
-    /// the point the combo step hit (ADR-099).
+    /// the point the combo step hit (ADR-099), or where a thrown one has flown to.
     pub at: Option<Point>,
+    /// A thrown rune's turn point, the point the combo step hit: its first phase flies `at`
+    /// there from the main character, its second back to the main character (boomerang).
+    pub throw: Option<Point>,
 }
 
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it

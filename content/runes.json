@@ -32,6 +32,23 @@
           "hit_box": { "type": "circle", "radius": 6144 }
         }
       ]
+    },
+    {
+      "rune": "boomerang",
+      "cooldown_ticks": 150,
+      "damage": 12,
+      "attack": [
+        {
+          "kind": "active",
+          "ticks": 15,
+          "hit_box": { "type": "circle", "radius": 4096 }
+        },
+        {
+          "kind": "active",
+          "ticks": 15,
+          "hit_box": { "type": "circle", "radius": 4096 }
+        }
+      ]
     }
   ]
 }

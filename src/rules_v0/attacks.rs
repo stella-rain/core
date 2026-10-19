@@ -325,6 +325,7 @@ fn launch(
         hits: Vec::new(),
         pull,
         at,
+        throw: None,
     });
     begin_phase(s, s.runs.len() - 1, events);
 }
