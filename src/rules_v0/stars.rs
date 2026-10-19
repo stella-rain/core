@@ -11,9 +11,9 @@
 //!
 //! A boss kill makes the boss offer due, ahead of the stars taken that tick, at the highest
 //! rarity of the drop table's tier for the player's level after this tick's experience. It
-//! opens even though the kill clears the stage; the stars' offers due then never open.
+//! opens even though the kill clears the stage, and the stars' offers due then open after it.
 //!
-//! At the end of a tick the run survives, the first offer due opens, after the boss offer and
+//! At the end of a tick the run survives or clears, the first offer due opens, after the boss offer and
 //! the expertise levels' (`expertise`). It draws `OFFER_SIZE` candidates from the run's pool
 //! at the star's rarity, then from the rarities below while too few are left. It leaves out banished rewards, rewards at their limit and rewards it already
 //! holds, and the random rune once the Main weapon holds every rune (ADR-099), whose rune is
@@ -115,13 +115,6 @@ pub(super) fn boss_killed(stage: &Stage, s: &mut State) {
     if let Some(f) = s.stars.as_mut() {
         let kind = OfferKind::Boss;
         f.due.insert(0, Due { kind, rarity });
-    }
-}
-
-/// The run is over: only a boss offer still opens.
-pub(super) fn run_over(s: &mut State) {
-    if let Some(f) = s.stars.as_mut() {
-        f.due.retain(|d| d.kind == OfferKind::Boss);
     }
 }
 

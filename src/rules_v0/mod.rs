@@ -21,10 +21,9 @@
 //! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears;
-//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered:
-//!    the boss offer, then the expertise levels' in level order, then the stars' in the order
-//!    taken; a clear opens only the boss offer and the expertise levels' offers, not the
-//!    stars'.
+//! 8. if the run goes on or is cleared, the first offer due opens, and the world stops until it
+//!    is answered: the boss offer, then the expertise levels' in level order, then the stars' in
+//!    the order taken; a fail opens none.
 //!
 //! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
 //! step 6 adds them to the one expertise gauge, and its levels are reached at the end of step 6
@@ -350,11 +349,7 @@ pub(crate) fn step(
     expertise::level_up(expertise, s);
     decide_outcome(stage, s, events);
     match s.outcome {
-        Outcome::Running => open_offers(stage, rewards, expertise, s, events),
-        Outcome::Cleared => {
-            stars::run_over(s);
-            open_offers(stage, rewards, expertise, s, events);
-        }
+        Outcome::Running | Outcome::Cleared => open_offers(stage, rewards, expertise, s, events),
         Outcome::Failed => {}
     }
     debug_assert!(
