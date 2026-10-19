@@ -1161,9 +1161,14 @@
       "description": "A rune, one of the closed list.",
       "oneOf": [
         {
-          "description": "On-hit: an explosion where a combo step hits. It does nothing yet.",
+          "description": "On-hit: an explosion around the point a combo step hits.",
           "type": "string",
           "const": "explosion"
+        },
+        {
+          "description": "On-hit: a strike called down on the point a combo step hits, after a wind-up.",
+          "type": "string",
+          "const": "thunder"
         }
       ]
     },

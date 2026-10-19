@@ -2,11 +2,11 @@
 //! JSON as untrusted bytes (ADR-020). Every on-hit rune of the closed list has its entry, once:
 //! a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS` ticks, a base damage of 1 to `MAX_DAMAGE`, and
 //! its attack, at most `MAX_RUNE_PHASES` phases whose hit boxes land around the hit point,
-//! over before the cooldown is, spawning no bullets. The bundled file is the default; other
+//! over before the cooldown is, spawning no bullets. Explosion and thunder are the two. The bundled file is the default; other
 //! bytes change the run's content hash.
 
 use serde_json::{Value, json};
-use stella_rain_core::attack::DamageType;
+use stella_rain_core::attack::{AttackPhase, DamageType, HitBox, PhaseKind};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
@@ -30,12 +30,23 @@ fn explosion(cooldown: Value, damage: Value, attack: Value) -> Value {
             "attack": attack })
 }
 
+/// A valid thunder entry, after explosion's in every file whose explosion is under test.
+fn thunder() -> Value {
+    json!({ "rune": "thunder", "cooldown_ticks": 60, "damage": 5,
+            "attack": [{ "kind": "wind_up", "ticks": 4 }, active(2)] })
+}
+
+/// A file of explosion's entry `explosion` and a valid thunder.
+fn with_thunder(explosion: Value) -> Value {
+    file(vec![explosion, thunder()])
+}
+
 fn file(on_hit: Vec<Value>) -> Value {
     json!({ "schema_version": 0, "sim_version": 0, "on_hit": on_hit })
 }
 
 fn plain() -> Value {
-    file(vec![explosion(json!(30), json!(5), json!([active(4)]))])
+    with_thunder(explosion(json!(30), json!(5), json!([active(4)])))
 }
 
 fn parse(v: &Value) -> Result<Runes, Error> {
@@ -63,21 +74,71 @@ fn the_bundled_explosion_is_a_pyro_circle_on_its_own_cooldown() {
 }
 
 #[test]
+fn the_bundled_thunder_is_an_electro_strike_after_a_wind_up_on_its_own_cooldown() {
+    // PLACEHOLDER shape and numbers, Kade's to set: the game design document gives thunder no
+    // shape beyond on-hit and Electro.
+    let thunder = Runes::bundled()
+        .on_hit(Rune::Thunder)
+        .expect("thunder's entry");
+    assert_eq!(thunder.cooldown_ticks, 90);
+    assert_eq!(thunder.damage, 20);
+    let kinds: Vec<PhaseKind> = thunder.attack.iter().map(|p| p.kind).collect();
+    assert_eq!(kinds, [PhaseKind::WindUp, PhaseKind::Active]);
+    assert_eq!(thunder.attack[0].ticks, 12);
+    assert_eq!(thunder.attack[1].damage_type, Some(DamageType::Electro));
+    let explosion = Runes::bundled().on_hit(Rune::Explosion).unwrap();
+    let radius = |p: &AttackPhase| match p.hit_box {
+        Some(HitBox::Circle { radius, .. }) => radius,
+        ref other => panic!("{other:?}"),
+    };
+    assert!(
+        radius(&thunder.attack[1]) < radius(&explosion.attack[0]),
+        "narrower than explosion"
+    );
+}
+
+#[test]
 fn a_file_parses_with_its_numbers() {
     let runes = parse(&plain()).unwrap();
     let explosion = runes.on_hit(Rune::Explosion).unwrap();
     assert_eq!((explosion.cooldown_ticks, explosion.damage), (30, 5));
+    let thunder = runes.on_hit(Rune::Thunder).unwrap();
+    assert_eq!((thunder.cooldown_ticks, thunder.damage), (60, 5));
+}
+
+#[test]
+fn thunder_s_entry_is_checked_as_explosion_s() {
+    let with = |field: &str, value: Value| {
+        let mut v = plain();
+        v["on_hit"][1][field] = value;
+        v
+    };
+    assert_eq!(
+        paths(parse(&with("cooldown_ticks", json!(0))).unwrap_err()),
+        ["$.on_hit[1].cooldown_ticks"]
+    );
+    assert_eq!(
+        paths(parse(&with("cooldown_ticks", json!(5))).unwrap_err()),
+        ["$.on_hit[1].attack"],
+        "its 6 ticks of attack outlast the cooldown"
+    );
+    assert_eq!(
+        paths(parse(&with("damage", json!(MAX_DAMAGE + 1))).unwrap_err()),
+        ["$.on_hit[1].damage"]
+    );
+    // A wind-up alone never lands.
+    let wind_up = json!([{ "kind": "wind_up", "ticks": 4,
+                           "hit_box": { "type": "circle", "radius": 4_096 } }]);
+    assert_eq!(
+        paths(parse(&with("attack", wind_up)).unwrap_err()),
+        ["$.on_hit[1].attack"]
+    );
 }
 
 #[test]
 fn the_cooldown_is_1_to_the_hard_cap() {
-    let with = |cooldown: u32| {
-        file(vec![explosion(
-            json!(cooldown),
-            json!(5),
-            json!([active(2)]),
-        )])
-    };
+    let with =
+        |cooldown: u32| with_thunder(explosion(json!(cooldown), json!(5), json!([active(2)])));
     assert!(parse(&with(2)).is_ok());
     assert!(parse(&with(MAX_RUNE_COOLDOWN_TICKS)).is_ok());
     assert_eq!(
@@ -92,13 +153,7 @@ fn the_cooldown_is_1_to_the_hard_cap() {
 
 #[test]
 fn the_damage_is_1_to_the_hard_cap() {
-    let with = |damage: u32| {
-        file(vec![explosion(
-            json!(30),
-            json!(damage),
-            json!([active(4)]),
-        )])
-    };
+    let with = |damage: u32| with_thunder(explosion(json!(30), json!(damage), json!([active(4)])));
     assert!(parse(&with(1)).is_ok());
     assert!(parse(&with(MAX_DAMAGE)).is_ok());
     assert_eq!(paths(parse(&with(0)).unwrap_err()), ["$.on_hit[0].damage"]);
@@ -112,7 +167,7 @@ fn the_damage_is_1_to_the_hard_cap() {
 fn the_attack_is_over_before_the_cooldown_is() {
     // Two phases of 4 and 6 ticks: 10 in all.
     let attack = json!([active(4), { "kind": "recovery", "ticks": 6 }]);
-    let with = |cooldown: u32| file(vec![explosion(json!(cooldown), json!(5), attack.clone())]);
+    let with = |cooldown: u32| with_thunder(explosion(json!(cooldown), json!(5), attack.clone()));
     assert!(parse(&with(10)).is_ok());
     assert_eq!(paths(parse(&with(9)).unwrap_err()), ["$.on_hit[0].attack"]);
 }
@@ -121,7 +176,7 @@ fn the_attack_is_over_before_the_cooldown_is() {
 fn the_attack_has_at_most_the_phase_cap() {
     let with = |n: usize| {
         let attack: Vec<Value> = (0..n).map(|_| active(2)).collect();
-        file(vec![explosion(json!(1_000), json!(5), json!(attack))])
+        with_thunder(explosion(json!(1_000), json!(5), json!(attack)))
     };
     assert!(parse(&with(MAX_RUNE_PHASES)).is_ok());
     assert_eq!(
@@ -135,11 +190,11 @@ fn the_attack_has_at_most_the_phase_cap() {
 fn the_attack_lands_somewhere_and_from_the_tick_after_it_fires() {
     // No hit box at all.
     let none = json!([{ "kind": "active", "ticks": 4 }]);
-    let v = file(vec![explosion(json!(30), json!(5), none)]);
+    let v = with_thunder(explosion(json!(30), json!(5), none));
     assert_eq!(paths(parse(&v).unwrap_err()), ["$.on_hit[0].attack"]);
     // Its first phase counts the tick it fires on, after that tick's hits: one tick of it
     // would never land.
-    let v = file(vec![explosion(json!(30), json!(5), json!([active(1)]))]);
+    let v = with_thunder(explosion(json!(30), json!(5), json!([active(1)])));
     assert_eq!(
         paths(parse(&v).unwrap_err()),
         ["$.on_hit[0].attack[0].ticks"]
@@ -161,7 +216,7 @@ fn the_attack_fires_no_bullets_sets_no_damage_and_never_slows_the_main_character
         (own_damage, "damage"),
         (rooting, "move_pct"),
     ] {
-        let v = file(vec![explosion(json!(30), json!(5), json!([phase]))]);
+        let v = with_thunder(explosion(json!(30), json!(5), json!([phase])));
         assert_eq!(
             paths(parse(&v).unwrap_err()),
             [format!("$.on_hit[0].attack[0].{field}")]
@@ -173,7 +228,7 @@ fn the_attack_fires_no_bullets_sets_no_damage_and_never_slows_the_main_character
 fn the_attack_is_checked_as_any_attack() {
     let bad = json!([{ "kind": "active", "ticks": 4,
                        "hit_box": { "type": "circle", "radius": 0 } }]);
-    let v = file(vec![explosion(json!(30), json!(5), bad)]);
+    let v = with_thunder(explosion(json!(30), json!(5), bad));
     assert_eq!(
         paths(parse(&v).unwrap_err()),
         ["$.on_hit[0].attack[0].hit_box.radius"]
@@ -185,11 +240,25 @@ fn every_on_hit_rune_has_one_entry() {
     assert_eq!(paths(parse(&file(vec![])).unwrap_err()), ["$.on_hit"]);
     let one = explosion(json!(30), json!(5), json!([active(4)]));
     assert_eq!(
-        paths(parse(&file(vec![one.clone(), one])).unwrap_err()),
-        ["$.on_hit[1].rune"]
+        paths(parse(&file(vec![one.clone()])).unwrap_err()),
+        ["$.on_hit"],
+        "thunder missing"
+    );
+    assert_eq!(
+        paths(parse(&file(vec![thunder()])).unwrap_err()),
+        ["$.on_hit"],
+        "explosion missing"
+    );
+    assert_eq!(
+        paths(parse(&file(vec![one.clone(), thunder(), one.clone()])).unwrap_err()),
+        ["$.on_hit[2].rune"]
+    );
+    assert_eq!(
+        paths(parse(&file(vec![thunder(), one, thunder()])).unwrap_err()),
+        ["$.on_hit[2].rune"]
     );
     let mut unknown = plain();
-    unknown["on_hit"][0]["rune"] = json!("thunder");
+    unknown["on_hit"][1]["rune"] = json!("lightning");
     assert!(matches!(parse(&unknown), Err(Error::Parse { .. })));
 }
 
