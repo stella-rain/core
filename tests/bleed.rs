@@ -14,6 +14,7 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::DamageOverTimeView;
 
@@ -128,10 +129,10 @@ fn bleed_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
                 } if *id == target => seen.push((e.tick() - start - 1, *damage)),
                 DomainEvent::StatusApplied {
                     target: id,
+                    status,
                     stacks: n,
                     duration_ticks,
-                    ..
-                } if *id == target => {
+                } if *id == target && status.0 == "bleed" => {
                     assert_eq!(*duration_ticks, 180);
                     stacks.push(*n);
                 }
@@ -185,8 +186,10 @@ fn each_enemy_has_its_own_bleed() {
         .snapshot()
         .entities
         .iter()
-        .filter(|en| !en.damage_over_time.is_empty())
-        .map(|en| (en.id, en.damage_over_time[0].stacks))
+        .filter_map(|en| {
+            let bleed = en.damage_over_time.iter().find(|d| d.status.0 == "bleed");
+            bleed.map(|d| (en.id, d.stacks))
+        })
         .collect();
     assert_eq!(bleeding.len(), 2, "{bleeding:?}");
     assert!(bleeding.iter().all(|b| b.1 == 2), "{bleeding:?}");
@@ -339,7 +342,7 @@ fn the_boss_bleeds_too() {
     // enemies; it is the only target once their stars are taken.
     let waves = vec![wave(
         1,
-        5,
+        7,
         6,
         enemy(1, hold(START_X, NEAR_Y), json!([])),
         START_X,
@@ -404,9 +407,14 @@ fn a_run_holding_bleed_records_and_verifies() {
         None,
         Runes::bundled().clone(),
     );
-    let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
+    // A seed whose run draws bleed among the seven runes: the trial has stars for about four.
+    let setup = RunSetup {
+        seed: 20_261_011,
+        ..trial_setup()
+    };
+    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
     let mut bled = false;
-    for t in 0..1_800 {
+    for t in 0..5_400 {
         while recorder.engine().offer_open() {
             let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
             let rune = offer.and_then(|o| o.candidates.iter().position(|c| c.hidden));

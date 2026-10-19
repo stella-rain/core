@@ -15,6 +15,7 @@ use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 
@@ -397,7 +398,12 @@ fn a_run_holding_boomerang_records_and_verifies() {
         None,
         Runes::bundled().clone(),
     );
-    let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
+    // A seed whose run draws boomerang among the seven runes: the trial has stars for about four.
+    let setup = RunSetup {
+        seed: 20_261_012,
+        ..trial_setup()
+    };
+    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
     let mut fired = false;
     for t in 0..TRIAL_LENGTH {
         while recorder.engine().offer_open() {

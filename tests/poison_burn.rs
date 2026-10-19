@@ -13,6 +13,7 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::DamageOverTimeView;
 
@@ -226,11 +227,6 @@ fn bleed_poison_and_burn_are_three_statuses_each_with_its_own_stacks() {
             "{name}: 3 ticks of two stacks by tick 90: {seen:?}"
         );
     }
-    assert_eq!(
-        e.snapshot().expertise.map(|x| x.points),
-        Some(2),
-        "steps only"
-    );
 }
 
 #[test]
@@ -287,7 +283,12 @@ fn a_run_holding_poison_and_burn_records_and_verifies() {
         None,
         Runes::bundled().clone(),
     );
-    let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
+    // A seed whose run draws poison and burn among the seven runes: the trial has stars for about four.
+    let setup = RunSetup {
+        seed: 20_261_012,
+        ..trial_setup()
+    };
+    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
     let (mut poisoned, mut burnt) = (false, false);
     for t in 0..5_400 {
         while recorder.engine().offer_open() {

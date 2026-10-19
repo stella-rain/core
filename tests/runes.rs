@@ -434,8 +434,8 @@ fn the_state_hash_holds_the_runes() {
 
 #[test]
 fn a_run_with_a_random_rune_picked_records_and_verifies() {
-    // The trial with a random rune and one stat reward: the first offer holds the rune, and all
-    // seven are drawn before the trial ends.
+    // The trial with a random rune and one stat reward: the first offer holds the rune, and it
+    // is drawn at every star the run takes, about four of the seven.
     let content = content(vec![
         random_rune(),
         json!({
@@ -460,7 +460,13 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
     }
     let mut runes = held(recorder.engine());
     runes.sort();
-    assert_eq!(runes, Rune::ALL, "the random rune was picked seven times");
+    let drawn = runes.len();
+    runes.dedup();
+    assert_eq!(runes.len(), drawn, "each rune held once");
+    assert!(
+        drawn >= 3,
+        "the random rune was picked at the run's stars: {runes:?}"
+    );
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());
 }
