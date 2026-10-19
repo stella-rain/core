@@ -1,0 +1,8 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "weak_pct": 20,
+  "strong_pct": 20,
+  "resisted_pct": 20,
+  "max_type_bonus_pct": 1000
+}

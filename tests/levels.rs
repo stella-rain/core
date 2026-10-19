@@ -1,4 +1,4 @@
-//! Experience, levels and stat points (ADR-066 §2, §4): defeated enemies give experience, a
+//! Experience, levels and stat points (ADR-079 §2, §4): defeated enemies give experience, a
 //! level-up gives one stat point and opens no offer, and `spend` raises a run stat (ADR-067) by
 //! its step between ticks. Only a stage with `levels` (a mode's) has them.
 
@@ -429,8 +429,6 @@ fn a_trial_run_levels_up_and_spends_its_points() {
         mode: "trial".into(),
         main: "blade".into(),
         sub: "maul".into(),
-        main_expertise: 0,
-        sub_expertise: 0,
         seed: 1,
         star_pool: None,
         extra_rerolls: 0,

@@ -16,6 +16,17 @@
         "$ref": "#/$defs/EntityView"
       }
     },
+    "expertise": {
+      "description": "The expertise gauge (ADR-078); absent in a stage whose enemies and boss give no\nexpertise points.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExpertiseView"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "map": {
       "description": "The map's size, so the frontend can bound its camera (core#87).",
       "$ref": "#/$defs/MapView"
@@ -35,7 +46,7 @@
       ]
     },
     "stars": {
-      "description": "Falling stars on the map, in the order they dropped (ADR-066 §2).",
+      "description": "Falling stars on the map, in the order they dropped (ADR-079 §2).",
       "type": "array",
       "items": {
         "$ref": "#/$defs/StarView"
@@ -60,8 +71,19 @@
       "description": "An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the\nsame tick that `core` judges them.",
       "type": "object",
       "properties": {
+        "at": {
+          "description": "Where its hit box is centred, offset along `facing`, when that is not its attacker: an\non-hit rune's attack, at the point the combo step hit (ADR-099).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Point"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "facing": {
-          "description": "The facing locked when the attack started.",
+          "description": "The facing locked when the attack started; an orbit's orb's turns every tick, and its hit\nbox with it.",
           "$ref": "#/$defs/Facing"
         },
         "hit_box": {
@@ -168,6 +190,10 @@
       "description": "A reward an offer holds.",
       "type": "object",
       "properties": {
+        "hidden": {
+          "description": "A random rune (ADR-099): which rune it gives is drawn only when it is taken, so the\nfrontend shows it face down.",
+          "type": "boolean"
+        },
         "rarity": {
           "$ref": "#/$defs/Rarity"
         },
@@ -260,6 +286,57 @@
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
+    "DamageOverTimeView": {
+      "description": "A damage-over-time status on an entity (ADR-099), such as bleed.",
+      "type": "object",
+      "properties": {
+        "next_tick_in": {
+          "description": "Ticks until it next deals its damage, at least 1.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "stacks": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "status": {
+          "description": "The status's ID: `bleed`.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "ticks_left": {
+          "description": "Ticks until it runs out, unless it is applied again.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "stacks",
+        "ticks_left",
+        "next_tick_in"
+      ]
+    },
+    "DamageType": {
+      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
+      "type": "string",
+      "enum": [
+        "slash",
+        "pierce",
+        "strike",
+        "pyro",
+        "hydro",
+        "electro",
+        "cryo",
+        "anemo",
+        "geo",
+        "dendro"
+      ]
+    },
     "EntityId": {
       "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).",
       "type": "integer",
@@ -294,6 +371,13 @@
               "type": "null"
             }
           ]
+        },
+        "damage_over_time": {
+          "description": "Its damage-over-time statuses (ADR-099), one of a kind at most.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DamageOverTimeView"
+          }
         },
         "elite": {
           "description": "An elite enemy (ADR-068), which the minimap shows wherever it is.",
@@ -374,6 +458,186 @@
         "charges",
         "ready",
         "dash_left"
+      ]
+    },
+    "ExpertiseCandidateView": {
+      "description": "An option an expertise offer holds.",
+      "type": "object",
+      "properties": {
+        "option": {
+          "description": "Its ID in the weapon's expertise content: a common option, a style, or a choice of the\nchosen style's path.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "reaches_limit": {
+          "description": "Taking it brings it to its stack limit, after which it is offered no more.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "option"
+      ]
+    },
+    "ExpertiseOfferKind": {
+      "description": "What an expertise level offers (ADR-078 §4, §5).",
+      "oneOf": [
+        {
+          "description": "Options drawn from the weapon's common pool, with a reroll of each.",
+          "type": "string",
+          "const": "common"
+        },
+        {
+          "description": "The weapon's three styles, at level 3 (Main) or 5 (Sub): fixed, no reroll.",
+          "type": "string",
+          "const": "style"
+        },
+        {
+          "description": "The fixed upgrades of the chosen Main style, at level 6 or 9: no reroll.",
+          "type": "string",
+          "const": "upgrade"
+        },
+        {
+          "description": "The fixed capstones of the chosen Main style, at level 10: no reroll.",
+          "type": "string",
+          "const": "capstone"
+        }
+      ]
+    },
+    "ExpertiseOfferView": {
+      "description": "An expertise offer (ADR-078 §4 to §6; ADR-079 §3). A common one is drawn from one weapon's\ncommon pool, with a reroll of each candidate; a style, upgrade or capstone one shows its\nfixed choices, with no reroll. None has a skip or a banish.",
+      "type": "object",
+      "properties": {
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExpertiseCandidateView"
+          }
+        },
+        "kind": {
+          "$ref": "#/$defs/ExpertiseOfferKind"
+        },
+        "level": {
+          "description": "The expertise level that opened it.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "options": {
+          "description": "What `Engine::choose` takes, by index: the candidates, then, in a common offer, a reroll\nof each while rerolls are left and another option could come.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OfferOption"
+          }
+        },
+        "rerolls_left": {
+          "description": "Rerolls left in the run, shared with the stars' offers.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "weapon": {
+          "description": "The weapon it is for.",
+          "$ref": "#/$defs/WeaponRole"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "weapon",
+        "kind",
+        "candidates",
+        "options",
+        "rerolls_left"
+      ]
+    },
+    "ExpertiseView": {
+      "description": "The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, its points\ntoward the next, the common options taken, the styles chosen and the Main style's path\ntaken (ADR-078 §5), and the open expertise offer (ADR-079 §3).",
+      "type": "object",
+      "properties": {
+        "level": {
+          "description": "From 0, with no highest level.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "main_path": {
+          "description": "The choices taken from the Main style's path, in level order: its upgrades at 6 and 9,\nthen its capstone at 10.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          }
+        },
+        "main_style": {
+          "description": "The Main weapon's style, chosen at level 3 and held for the run.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "main_taken": {
+          "description": "Times each option of the Main weapon's common pool was taken, in the pool's order; empty\nfor a weapon with no expertise content.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          }
+        },
+        "next": {
+          "description": "Points the next level needs.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "offer": {
+          "description": "The open expertise offer: while it is open the world is stopped, and `Engine::choose`\ntakes one of its options.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExpertiseOfferView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "points": {
+          "description": "Points gained toward the next level.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sub_style": {
+          "description": "The Sub weapon's style, chosen at level 5 and held for the run.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sub_taken": {
+          "description": "The same for the Sub weapon's common pool.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "points",
+        "next"
       ]
     },
     "Facing": {
@@ -477,7 +741,7 @@
       ]
     },
     "OfferKind": {
-      "description": "What opened an offer (ADR-066 §2).",
+      "description": "What opened an offer (ADR-079 §2).",
       "oneOf": [
         {
           "description": "A falling star the main character took; it can be skipped.",
@@ -574,7 +838,7 @@
       ]
     },
     "OfferView": {
-      "description": "An offer from a falling star (ADR-066 §3).",
+      "description": "An offer from a falling star (ADR-079 §3).",
       "type": "object",
       "properties": {
         "banishes_left": {
@@ -633,6 +897,35 @@
       },
       "additionalProperties": false
     },
+    "OrbitView": {
+      "description": "An orbit held (ADR-069). Its orbs' attacks are in the main character's `attacks`, in slots\n`2 + 8 × its place in orbits` and on.",
+      "type": "object",
+      "properties": {
+        "cooldown_left": {
+          "description": "Ticks until the next round may start, counted from the last one's start; 0 while a\nround that outlasts it goes on.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "orbs": {
+          "description": "Its orbs: those of the next round.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "reward": {
+          "description": "The reward that gave it, for its name.",
+          "$ref": "#/$defs/ContentId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "reward",
+        "orbs",
+        "cooldown_left"
+      ]
+    },
     "PhaseKind": {
       "oneOf": [
         {
@@ -660,7 +953,7 @@
           "$ref": "#/$defs/Point"
         },
         "attacks": {
-          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill (ADR-069).",
+          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,\none for each orb, in the order the orbits came (ADR-069), then from 34 one for each\non-hit rune, by its place in `Rune::ALL` (ADR-099).",
           "type": "array",
           "items": {
             "$ref": "#/$defs/AttackView"
@@ -699,6 +992,13 @@
           "format": "uint32",
           "minimum": 0
         },
+        "orbits": {
+          "description": "The orbits rewards gave, in the order they came (ADR-069).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OrbitView"
+          }
+        },
         "pull": {
           "description": "The stage skill's pull while it pulls.",
           "anyOf": [
@@ -713,6 +1013,19 @@
         "radius": {
           "description": "The main character's hurt circle.",
           "$ref": "#/$defs/Fx"
+        },
+        "range_pct": {
+          "description": "What the range rewards taken add up to, in percent, before the clamp at\n`MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "runes": {
+          "description": "The runes its Main weapon holds, in the order drawn (ADR-099).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuneView"
+          }
         },
         "shield": {
           "description": "The stage skill's shield while it holds.",
@@ -746,6 +1059,13 @@
               "type": "null"
             }
           ]
+        },
+        "type_bonuses": {
+          "description": "What the type bonus rewards taken add up to, for each damage type that has any, in the\norder of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`\n(ADR-100).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TypeBonusView"
+          }
         }
       },
       "additionalProperties": false,
@@ -785,7 +1105,7 @@
       ]
     },
     "ProgressView": {
-      "description": "Where the run stands in experience, levels and stat points (ADR-066 §2, §4).",
+      "description": "Where the run stands in experience, levels and stat points (ADR-079 §2, §4).",
       "type": "object",
       "properties": {
         "level": {
@@ -795,7 +1115,7 @@
           "minimum": 0
         },
         "offer": {
-          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-066 §3).",
+          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-079 §3).",
           "anyOf": [
             {
               "$ref": "#/$defs/OfferView"
@@ -868,7 +1188,7 @@
       ]
     },
     "Rarity": {
-      "description": "A reward's rarity, from the most common up (ADR-066 §2).",
+      "description": "A reward's rarity, from the most common up (ADR-079 §2).",
       "type": "string",
       "enum": [
         "common",
@@ -877,6 +1197,56 @@
         "epic",
         "legendary",
         "supernova"
+      ]
+    },
+    "Rune": {
+      "description": "A rune, one of the closed list.",
+      "oneOf": [
+        {
+          "description": "On-hit: an explosion around the point a combo step hits.",
+          "type": "string",
+          "const": "explosion"
+        },
+        {
+          "description": "On-hit: a strike called down on the point a combo step hits, after a wind-up.",
+          "type": "string",
+          "const": "thunder"
+        },
+        {
+          "description": "On-hit: thrown from the main character to the point a combo step hits, and back.",
+          "type": "string",
+          "const": "boomerang"
+        },
+        {
+          "description": "On-hit: missiles launched from the main character that steer to aim assist's targets,\neach hitting once.",
+          "type": "string",
+          "const": "homing_missiles"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
+          "type": "string",
+          "const": "bleed"
+        }
+      ]
+    },
+    "RuneView": {
+      "description": "A rune the Main weapon holds (ADR-099).",
+      "type": "object",
+      "properties": {
+        "cooldown_left": {
+          "description": "For an on-hit rune, ticks until it may fire again; 0 for a damage-over-time rune.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "rune": {
+          "$ref": "#/$defs/Rune"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rune",
+        "cooldown_left"
       ]
     },
     "ShieldView": {
@@ -960,6 +1330,33 @@
         "id",
         "at",
         "rarity"
+      ]
+    },
+    "TypeBonusView": {
+      "description": "The type bonus the main character holds for one damage type (ADR-100): the one-type\nbonuses of that type and its group's bonus, added up.",
+      "type": "object",
+      "properties": {
+        "pct": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "type": {
+          "$ref": "#/$defs/DamageType"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "pct"
+      ]
+    },
+    "WeaponRole": {
+      "description": "Which of the main character's two weapons (ADR-070).",
+      "type": "string",
+      "enum": [
+        "main",
+        "sub"
       ]
     }
   }

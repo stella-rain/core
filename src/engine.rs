@@ -1,6 +1,6 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
 //! (ADR-004, ADR-015). The only external influence is one `Input` per tick and the commands
-//! between ticks (ADR-066: `choose` and `spend`); everything else comes from the stage and its
+//! between ticks (ADR-079: `choose` and `spend`); everything else comes from the stage and its
 //! seed, or from a run setup, and from the run stats (ADR-067), so the state hash after each
 //! tick is the same on every platform (ADR-019).
 //!
@@ -10,21 +10,25 @@
 
 use std::sync::Arc;
 
-use crate::attack::{AttackPhase, Emitter};
+use crate::attack::{AttackPhase, DamageType, Emitter};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::input::Input;
+use crate::match_ups::MatchUps;
 use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
+use crate::rune::Rune;
+use crate::runes::Runes;
 use crate::snapshot::{
-    AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView, Facing,
-    MapView, OfferKind, PlayerView, ProgressView, PullView, ShieldView, SkillView, Snapshot,
-    StarView,
+    AttackView, BulletView, ChargeView, ComboView, DamageOverTimeView, EntityKind, EntityView,
+    EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView,
+    PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
+    TypeBonusView, WeaponRole,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -43,7 +47,7 @@ pub enum ChoiceError {
 pub enum SpendError {
     /// The run has ended: its unspent points are lost.
     RunOver,
-    /// An offer is open: it is answered first (ADR-066 §4).
+    /// An offer is open: it is answered first (ADR-079 §4).
     OfferOpen,
     /// No point is left (or the stage has no levels).
     NoPoint,
@@ -127,7 +131,7 @@ impl Engine {
         })
     }
 
-    /// Starts a run from a setup alone (ADR-066 §1): the setup is validated, then its mode's
+    /// Starts a run from a setup alone (ADR-079 §1): the setup is validated, then its mode's
     /// stage runs with its weapons and seed, and the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<Engine, Error> {
         Engine::start_with(setup, RunContent::bundled())
@@ -151,7 +155,7 @@ impl Engine {
 
     /// Advances one tick with `input`. Once the run is over this does nothing, so a replay that
     /// is longer than the run cannot change the final hash; nor while an offer is open, when
-    /// the world is stopped (ADR-066 §3).
+    /// the world is stopped (ADR-079 §3).
     pub fn step(&mut self, input: Input) {
         self.events.clear();
         self.load = Load::default();
@@ -162,6 +166,7 @@ impl Engine {
             0 => rules_v0::step(
                 &self.stage,
                 self.content.rewards(),
+                self.content.expertise(),
                 &mut self.state,
                 input,
                 &mut self.events,
@@ -172,15 +177,15 @@ impl Engine {
         }
     }
 
-    /// Chooses option `index` of the open offer, between ticks (ADR-066 §3): the snapshot's
+    /// Chooses option `index` of the open offer, between ticks (ADR-079 §3): the snapshot's
     /// `offer.options` lists them. It applies at once, and the events are then this choice's.
     /// Refused, changing nothing, with no offer open or an index outside its options.
     pub fn choose(&mut self, index: u32) -> Result<(), ChoiceError> {
         if !self.offer_open() {
             return Err(ChoiceError::NoOffer);
         }
-        let rewards = self.content.rewards();
-        let options = rules_v0::offer_options(rewards, &self.state);
+        let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
+        let options = rules_v0::offer_options(&self.stage, rewards, expertise, &self.state);
         let Some(option) = usize::try_from(index)
             .ok()
             .and_then(|i| options.get(i))
@@ -193,13 +198,20 @@ impl Engine {
         };
         self.events.clear();
         match self.stage.sim_version {
-            0 => rules_v0::choose(rewards, &mut self.state, option, &mut self.events),
+            0 => rules_v0::choose(
+                &self.stage,
+                rewards,
+                expertise,
+                &mut self.state,
+                option,
+                &mut self.events,
+            ),
             _ => self.state.outcome = Outcome::Failed,
         }
         Ok(())
     }
 
-    /// Spends a stat point on the run stat at `index`, between ticks (ADR-066 §4): the stat
+    /// Spends a stat point on the run stat at `index`, between ticks (ADR-079 §4): the stat
     /// rises by its step at once, and the events are then this spend's. Refused, changing
     /// nothing, once the run has ended, while an offer is open, with no point left, an index
     /// outside the run stats, or the stat at its limit.
@@ -256,9 +268,9 @@ impl Engine {
         self.state.outcome
     }
 
-    /// An offer is open: `step` does nothing until `choose` closes it (ADR-066 §3).
+    /// An offer is open: `step` does nothing until `choose` closes it (ADR-079 §3).
     pub fn offer_open(&self) -> bool {
-        self.state.stars.as_ref().is_some_and(|f| f.offer.is_some())
+        rules_v0::offer_open(&self.state)
     }
 
     /// FNV-1a 64 over the whole state after the last tick (ADR-019).
@@ -293,6 +305,7 @@ impl Engine {
                     x: r.facing.x,
                     y: r.facing.y,
                 },
+                at: r.at,
             }
         };
         let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
@@ -309,6 +322,7 @@ impl Engine {
                     hp: b.hp,
                     attack: attack_of(b.id),
                     elite: false,
+                    damage_over_time: dot_views(&b.statuses),
                 });
             }
         }
@@ -327,6 +341,7 @@ impl Engine {
                         hp: a.hp,
                         attack: attack_of(a.id),
                         elite: a.elite.is_some(),
+                        damage_over_time: dot_views(&a.statuses),
                     });
                 }
             };
@@ -349,6 +364,7 @@ impl Engine {
                         hp: part.hp,
                         attack: None,
                         elite: false,
+                        damage_over_time: dot_views(&part.statuses),
                     });
                 }
             }
@@ -413,6 +429,43 @@ impl Engine {
                     amount: sh.amount,
                     ticks_left: sh.ticks_left,
                 }),
+                orbits: s
+                    .player
+                    .orbits
+                    .iter()
+                    .filter_map(|o| {
+                        Some(OrbitView {
+                            reward: self
+                                .content
+                                .rewards()
+                                .rewards()
+                                .get(usize::from(o.reward))?
+                                .id
+                                .clone(),
+                            orbs: o.orbs,
+                            cooldown_left: o.cooldown_left,
+                        })
+                    })
+                    .collect(),
+                range_pct: s.player.range_pct,
+                type_bonuses: DamageType::ALL
+                    .iter()
+                    .zip(s.player.type_bonus_pct)
+                    .filter(|(_, pct)| *pct > 0)
+                    .map(|(ty, pct)| TypeBonusView {
+                        damage_type: *ty,
+                        pct,
+                    })
+                    .collect(),
+                runes: s
+                    .player
+                    .runes
+                    .iter()
+                    .map(|r| RuneView {
+                        rune: r.rune,
+                        cooldown_left: r.cooldown_left,
+                    })
+                    .collect(),
                 attacks: {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
@@ -453,6 +506,21 @@ impl Engine {
                 points: p.points,
                 spent: p.spent.clone(),
                 offer: rules_v0::offer_view(self.content.rewards(), s),
+            }),
+            expertise: s.expertise.as_ref().map(|g| {
+                let (main_style, sub_style, main_path) =
+                    rules_v0::expertise_styles_view(&self.stage, self.content.expertise(), g);
+                ExpertiseView {
+                    level: g.level,
+                    points: g.points,
+                    next: g.next,
+                    main_taken: g.main_taken.clone(),
+                    sub_taken: g.sub_taken.clone(),
+                    main_style,
+                    sub_style,
+                    main_path,
+                    offer: rules_v0::expertise_offer_view(&self.stage, self.content.expertise(), s),
+                }
             }),
         }
     }
@@ -512,10 +580,57 @@ pub(crate) struct State {
     pub progress: Option<Progress>,
     /// Falling stars and offers; `None` in a stage without stars, which hashes nothing for it.
     pub stars: Option<StarField>,
+    /// The expertise gauge; `None` in a stage whose enemies and boss give no expertise points,
+    /// which hashes nothing for it.
+    pub expertise: Option<ExpertiseGauge>,
+    /// What each match-up does to a hit (ADR-100): content, fixed for the run and covered by
+    /// the content hash, so the state hash writes nothing for it.
+    pub match_ups: MatchUps,
+    /// What each on-hit rune does when it fires (ADR-099): content, as the match-ups are.
+    pub runes: Runes,
+}
+
+/// The one expertise gauge of both weapons (ADR-078 §1 to §3), and its offers (ADR-079 §2, §3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExpertiseGauge {
+    /// From 0.
+    pub level: u32,
+    /// Points toward the next level; at most `next - 1` between ticks.
+    pub points: u32,
+    /// The points the next level needs.
+    pub next: u32,
+    /// The levels whose offers have opened or were passed over: those above it, up to `level`,
+    /// are due, in level order.
+    pub offered: u32,
+    pub offer: Option<ExpertiseOffer>,
+    /// For each option of the Main and of the Sub weapon's common pool, in the pool's order:
+    /// times taken. Empty for a weapon with no expertise content.
+    pub main_taken: Vec<u8>,
+    pub sub_taken: Vec<u8>,
+    /// What the range options taken add up to: every combo step's hit box that much wider,
+    /// with the range rewards' (ADR-070, ADR-099).
+    pub range_pct: u32,
+    /// The Main and the Sub weapon's style, a place among its three, once chosen at level 3
+    /// or 5; held for the run (ADR-078 §5).
+    pub main_style: Option<u8>,
+    pub sub_style: Option<u8>,
+    /// The places of the Main style's choices taken at 6, 9 and 10, in level order.
+    pub main_path: Vec<u8>,
+}
+
+/// An open expertise offer: common options, or a style's fixed choices.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExpertiseOffer {
+    /// The level that opened it.
+    pub level: u32,
+    pub weapon: WeaponRole,
+    pub kind: ExpertiseOfferKind,
+    /// Places in the weapon's common pool, or among the fixed choices, in the offer's order.
+    pub candidates: Vec<u8>,
 }
 
 /// Falling stars, the offers due and the open one, and what the run's offers have used
-/// (ADR-066 §2, §3).
+/// (ADR-079 §2, §3).
 #[derive(Clone, Debug)]
 pub(crate) struct StarField {
     /// Kills in a row that dropped no star, for the pity.
@@ -558,7 +673,7 @@ pub(crate) struct OfferState {
     pub candidates: Vec<u16>,
 }
 
-/// Experience, levels and stat points (ADR-066 §2, §4).
+/// Experience, levels and stat points (ADR-079 §2, §4).
 #[derive(Clone, Debug)]
 pub(crate) struct Progress {
     /// From 1.
@@ -604,6 +719,17 @@ pub(crate) struct PlayerState {
     /// The stage skill's pull while it pulls, and its shield while it holds.
     pub pull: Option<PullState>,
     pub shield: Option<ShieldState>,
+    /// The orbits rewards gave (ADR-069), in the order they came, at most `MAX_ORBITS`.
+    pub orbits: Vec<OrbitState>,
+    /// What the range rewards taken add up to, in percent, saturating (ADR-099).
+    pub range_pct: u32,
+    /// What the type bonus rewards taken add up to for each damage type, by its place in
+    /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
+    /// type of its group.
+    pub type_bonus_pct: [u32; DamageType::ALL.len()],
+    /// The runes the Main weapon holds, in the order drawn, each once, at most `MAX_RUNES`
+    /// (ADR-099).
+    pub runes: Vec<HeldRune>,
     pub aggro: u32,
     pub statuses: Vec<StatusState>,
 }
@@ -659,6 +785,26 @@ pub(crate) struct Pull {
 pub(crate) struct SkillSlot {
     pub index: u16,
     pub level: u8,
+    pub cooldown_left: u32,
+}
+
+/// An orbit held: its reward's place in the rewards file, its orbs, the orbs of the round going
+/// on, the ticks until the next round may start, and where orb 0 is round the turn (1/256
+/// degree from straight down the screen, in `0..PER_TURN`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct OrbitState {
+    pub reward: u16,
+    pub orbs: u8,
+    pub round: u8,
+    pub cooldown_left: u32,
+    pub angle: i32,
+}
+
+/// A rune the Main weapon holds, and for an on-hit rune the ticks until it may fire again;
+/// always 0 for a damage-over-time rune.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct HeldRune {
+    pub rune: Rune,
     pub cooldown_left: u32,
 }
 
@@ -800,8 +946,8 @@ pub(crate) struct RuleState {
     pub fired: bool,
 }
 
-/// The statuses a skill can apply in this version (ADR-036). The IDs in the registry are the
-/// names below.
+/// The statuses of this version (ADR-036): the three a skill can apply, and bleed, which only
+/// the bleed rune applies (ADR-099). The IDs in the registry are the names of the first three.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StatusKind {
     /// More damage dealt.
@@ -810,14 +956,20 @@ pub(crate) enum StatusKind {
     Vulnerable,
     /// Slower movement.
     Slow,
+    /// Damage over time, in stacks (ADR-099, ADR-084 point 8).
+    Bleed,
 }
 
 impl StatusKind {
-    pub const ALL: [StatusKind; 3] = [StatusKind::AtkUp, StatusKind::Vulnerable, StatusKind::Slow];
+    /// The statuses a skill can apply: bleed is not one of them.
+    pub const FROM_SKILLS: [StatusKind; 3] =
+        [StatusKind::AtkUp, StatusKind::Vulnerable, StatusKind::Slow];
 
-    /// The status whose registry ID is `name`.
+    /// The status a skill can apply whose registry ID is `name`.
     pub fn from_name(name: &str) -> Option<StatusKind> {
-        StatusKind::ALL.into_iter().find(|k| k.name() == name)
+        StatusKind::FROM_SKILLS
+            .into_iter()
+            .find(|k| k.name() == name)
     }
 
     pub fn name(self) -> &'static str {
@@ -825,6 +977,7 @@ impl StatusKind {
             StatusKind::AtkUp => "atk_up",
             StatusKind::Vulnerable => "vulnerable",
             StatusKind::Slow => "slow",
+            StatusKind::Bleed => "bleed",
         }
     }
 }
@@ -839,6 +992,38 @@ pub(crate) struct StatusState {
     pub stacks: u16,
     /// Percent per stack.
     pub value_pct: u16,
+    /// A damage-over-time status's own state; `None` for every other status, which hashes
+    /// nothing for it.
+    pub dot: Option<DotState>,
+}
+
+/// The damage-over-time statuses of `statuses`, for the snapshot.
+fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
+    statuses
+        .iter()
+        .filter_map(|st| {
+            st.dot.map(|d| DamageOverTimeView {
+                status: ContentId(st.kind.name().to_owned()),
+                stacks: st.stacks,
+                ticks_left: st.remaining,
+                next_tick_in: d.next_in,
+            })
+        })
+        .collect()
+}
+
+/// What a damage-over-time status deals and when (ADR-099 points 2 and 3): its damage a stack
+/// and its type, from the content that applied it; the atk-up and type bonus of its source,
+/// fixed when it was last applied, as an attack's are when it starts (ADR-056); its interval,
+/// and the ticks to its next tick, at least 1.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DotState {
+    pub damage: u32,
+    pub damage_type: Option<DamageType>,
+    pub atk_up_pct: u32,
+    pub type_bonus_pct: u32,
+    pub interval: u32,
+    pub next_in: u32,
 }
 
 /// A direction as a vector of length about `trig::SCALE`. Angle 0 is straight down the screen
@@ -898,10 +1083,14 @@ pub(crate) struct BulletState {
     /// Fired by an ally rather than an enemy.
     pub friendly: bool,
     pub damage: u32,
+    /// The type of the phase that fired it (ADR-100); `None` is neutral.
+    pub damage_type: Option<DamageType>,
     /// Its hit breaks the main character's charge (core#83).
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
     pub pull: Option<Pull>,
+    /// Fired by a combo step, A or B: its hit adds expertise points (ADR-078 §2).
+    pub combo: bool,
     /// Starts an attack of its own after a while (`on_bullet`).
     pub hook: Option<Box<Hook>>,
 }
@@ -918,9 +1107,12 @@ pub(crate) struct Hook {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
+    pub damage_type: Option<DamageType>,
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
     pub pull: Option<Pull>,
+    /// Of a combo step, A or B (ADR-078 §2).
+    pub combo: bool,
 }
 
 /// One step down a program: the node at `node` in the current list, then its `body` list, or
@@ -978,6 +1170,11 @@ pub(crate) struct AttackRun {
     pub base: u32,
     /// The attacker's atk-up, in percent, fixed when the attack starts (ADR-056).
     pub atk_up_pct: u32,
+    /// The attacker's type bonus for each damage type, by its place in `DamageType::ALL`, in
+    /// percent, each at most the match-up file's `max_type_bonus_pct`, fixed when the attack
+    /// starts (ADR-100): the main character's, once it holds any; none for every other
+    /// attacker. Boxed, so that a run without one stays as small as it was.
+    pub type_bonus_pct: Option<Box<[u32; DamageType::ALL.len()]>>,
     /// `phase_time` of the attack's first tick, for the nodes its phases spawn.
     pub age: u32,
     /// Who the current active phase has hit, and on which tick last, sorted by entity ID;
@@ -985,6 +1182,16 @@ pub(crate) struct AttackRun {
     pub hits: Vec<(EntityId, u32)>,
     /// The Sub weapon's pull, when the attack is a combo part (ADR-070).
     pub pull: Option<Pull>,
+    /// Where its hit boxes are centred instead of on its attacker: an on-hit rune's attack, at
+    /// the point the combo step hit (ADR-099), or where a thrown one has flown to.
+    pub at: Option<Point>,
+    /// A thrown rune's turn point, the point the combo step hit: its first phase flies `at`
+    /// there from the main character, its second back to the main character (boomerang). A
+    /// homing missile's goal: where its target is, or was last.
+    pub throw: Option<Point>,
+    /// A homing missile's target (ADR-099): `throw` follows it while it is alive, and the
+    /// missile is gone once it hits anything.
+    pub homing: Option<EntityId>,
 }
 
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it
@@ -1001,10 +1208,14 @@ pub(crate) struct AttackTask {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
+    /// The type of the phase that started it, which its bullets carry (ADR-100).
+    pub damage_type: Option<DamageType>,
     /// The bullets it fires break the main character's charge (core#83).
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
     pub pull: Option<Pull>,
+    /// Started by a combo step, A or B: its hits add expertise points (ADR-078 §2).
+    pub combo: bool,
     /// Ticks since it started.
     pub age: u32,
     /// Ticks to wait before going on.

@@ -1,7 +1,8 @@
-//! The run replay (ADR-066 §5): a run of the launch game recorded as its setup, the SHA-256 of
+//! The run replay (ADR-079 §5): a run of the launch game recorded as its setup, the SHA-256 of
 //! the game content it ran, the tick count, the final state hash, one input per tick and one
 //! stream of commands between ticks. Anyone can re-simulate it from the file and the content
-//! files it used (the run stats, the rewards and the stage skills): the setup names a mode
+//! files it used (the run stats, the rewards, the stage skills, the expertise and the
+//! match-ups): the setup names a mode
 //! whose content is bundled in `core`, so no stage file and no save data is needed.
 //!
 //! A `.replay` of a run is one JSON object. Its inputs are packed as a stage replay's are (see
@@ -20,8 +21,8 @@
 //! A replay may end on an open offer: a bug report may stop while the player looks at one.
 //!
 //! The content hash covers the mode's bundled file, every attack and weapon preset's
-//! definition, and the bytes of the run stats, the rewards and the stage skills (ADR-067,
-//! ADR-098), so any content update invalidates the replay rather than letting it drift. What
+//! definition, and the bytes of the run stats, the rewards, the stage skills, the expertise and
+//! the match-ups (ADR-067, ADR-098, ADR-100), so any content update invalidates the replay rather than letting it drift. What
 //! the rules do with the content is the `sim_version`'s, which the setup carries.
 
 use std::fmt;
@@ -42,7 +43,7 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::validate;
 
-/// The most commands a run replay holds (a tuning value; ADR-066 decides that a cap exists).
+/// The most commands a run replay holds (a tuning value; ADR-079 decides that a cap exists).
 /// Version 0 gives at most 99 points in a run; the rest is room for the offers' choices, a few
 /// per falling star taken.
 pub const MAX_COMMANDS: u32 = 1000;
@@ -53,10 +54,11 @@ const CONTENT_TAG: &[u8] = b"stella-rain run content v0\0";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunReplay {
-    /// What the run started from (ADR-066 §1).
+    /// What the run started from (ADR-079 §1).
     pub setup: RunSetup,
     /// The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every
-    /// preset, the run stats and the rewards (`content_sha256_with`). Other content invalidates
+    /// preset, the run stats, the rewards, the stage skills, the expertise and the match-ups
+    /// (`content_sha256_with`). Other content invalidates
     /// the replay.
     pub content_sha256: String,
     /// Ticks recorded, at most the mode's length. A run that ended ends on the tick it ended.
@@ -74,9 +76,9 @@ pub struct RunReplay {
 /// The kind of a command between ticks, and its byte in the packed stream.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
-    /// Option `index` of the open offer (ADR-066 §3).
+    /// Option `index` of the open offer (ADR-079 §3).
     Choose,
-    /// A stat point on the run stat at `index` (ADR-066 §4).
+    /// A stat point on the run stat at `index` (ADR-079 §4).
     Spend,
 }
 
@@ -105,7 +107,7 @@ pub struct TickCommand {
     pub index: u32,
 }
 
-/// A command of the run's stream (ADR-016, ADR-066): one input for the next tick, or a command
+/// A command of the run's stream (ADR-016, ADR-079): one input for the next tick, or a command
 /// between ticks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
@@ -270,8 +272,8 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 }
 
 /// The SHA-256 of the game content a run of `mode` uses with `content`: the mode's bundled
-/// file, every preset's definition, and the bytes of the run stats, the rewards and the stage
-/// skills, tagged and length-prefixed.
+/// file, every preset's definition, and the bytes of the run stats, the rewards, the stage
+/// skills, the expertise, the match-ups and the runes, tagged and length-prefixed.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
     let file = run_setup::mode_stage(mode)?;
@@ -281,16 +283,23 @@ pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]>
         &content.run_stats().sha256(),
         &content.rewards().sha256(),
         &content.stage_skills().sha256(),
+        &content.expertise().sha256(),
+        &content.match_ups().sha256(),
+        &content.runes().sha256(),
         presets::sources(),
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn hash_content<'a>(
     mode: &str,
     file: &[u8],
     run_stats_sha256: &[u8; 32],
     rewards_sha256: &[u8; 32],
     stage_skills_sha256: &[u8; 32],
+    expertise_sha256: &[u8; 32],
+    match_ups_sha256: &[u8; 32],
+    runes_sha256: &[u8; 32],
     sources: impl Iterator<Item = (u8, &'a str, &'a str)>,
 ) -> [u8; 32] {
     fn part(sha: &mut Sha256, kind: u8, id: &[u8], body: &[u8]) {
@@ -307,6 +316,9 @@ fn hash_content<'a>(
     part(&mut sha, b's', b"run_stats", run_stats_sha256);
     part(&mut sha, b'r', b"rewards", rewards_sha256);
     part(&mut sha, b'k', b"stage_skills", stage_skills_sha256);
+    part(&mut sha, b'e', b"expertise", expertise_sha256);
+    part(&mut sha, b'u', b"match_ups", match_ups_sha256);
+    part(&mut sha, b'n', b"runes", runes_sha256);
     for (kind, id, definition) in sources {
         part(&mut sha, kind, id.as_bytes(), definition.as_bytes());
     }
@@ -408,7 +420,7 @@ pub struct RunRecorder {
 }
 
 impl RunRecorder {
-    /// Starts a run from `setup` (ADR-066 §1) with the bundled content files.
+    /// Starts a run from `setup` (ADR-079 §1) with the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<RunRecorder, RunReplayError> {
         RunRecorder::start_with(setup, RunContent::bundled())
     }
@@ -436,7 +448,7 @@ impl RunRecorder {
     }
 
     /// Runs the next tick with `input`. Refused, recording nothing, after the run ended or
-    /// while an offer is open (ADR-066 §3: a choice answers it first).
+    /// while an offer is open (ADR-079 §3: a choice answers it first).
     pub fn step(&mut self, input: Input) -> Result<(), RunReplayError> {
         if self.engine.outcome() != Outcome::Running {
             return Err(RunReplayError::InputsAfterEnd {
@@ -522,7 +534,7 @@ pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<RunReplay, R
 }
 
 /// Re-simulates a run replay from its bytes and the bundled content files, and checks every
-/// command and the final hash (ADR-066 §5). The whole file is untrusted.
+/// command and the final hash (ADR-079 §5). The whole file is untrusted.
 pub fn verify_run(replay_bytes: &[u8]) -> Result<RunVerified, RunReplayError> {
     verify_inner(replay_bytes, RunContent::bundled(), None)
 }
@@ -645,6 +657,9 @@ mod tests {
     const STATS: [u8; 32] = [7; 32];
     const REWARDS: [u8; 32] = [9; 32];
     const SKILLS: [u8; 32] = [5; 32];
+    const EXPERTISE: [u8; 32] = [3; 32];
+    const MATCH_UPS: [u8; 32] = [1; 32];
+    const RUNES: [u8; 32] = [2; 32];
 
     fn hash(mode: &str, file: &[u8], sources: &[(u8, &'static str, &'static str)]) -> [u8; 32] {
         hash_content(
@@ -653,17 +668,28 @@ mod tests {
             &STATS,
             &REWARDS,
             &SKILLS,
+            &EXPERTISE,
+            &MATCH_UPS,
+            &RUNES,
             sources.iter().copied(),
         )
     }
 
-    fn files(stats: &[u8; 32], rewards: &[u8; 32], skills: &[u8; 32]) -> [u8; 32] {
+    fn files(
+        stats: &[u8; 32],
+        rewards: &[u8; 32],
+        skills: &[u8; 32],
+        expertise: &[u8; 32],
+    ) -> [u8; 32] {
         hash_content(
             "trial",
             b"{}",
             stats,
             rewards,
             skills,
+            expertise,
+            &MATCH_UPS,
+            &RUNES,
             SOURCES.iter().copied(),
         )
     }
@@ -674,18 +700,70 @@ mod tests {
         assert_eq!(base, hash("trial", b"{}", &SOURCES));
         assert_ne!(base, hash("trial", b"{ }", &SOURCES), "the mode's file");
         assert_ne!(base, hash("other", b"{}", &SOURCES), "the mode's ID");
-        assert_eq!(base, files(&STATS, &REWARDS, &SKILLS));
-        assert_ne!(base, files(&[8; 32], &REWARDS, &SKILLS), "the run stats");
-        assert_ne!(base, files(&STATS, &[8; 32], &SKILLS), "the rewards");
-        assert_ne!(base, files(&STATS, &REWARDS, &[8; 32]), "the stage skills");
+        assert_eq!(base, files(&STATS, &REWARDS, &SKILLS, &EXPERTISE));
         assert_ne!(
             base,
-            files(&REWARDS, &STATS, &SKILLS),
+            files(&[8; 32], &REWARDS, &SKILLS, &EXPERTISE),
+            "the run stats"
+        );
+        assert_ne!(
+            base,
+            files(&STATS, &[8; 32], &SKILLS, &EXPERTISE),
+            "the rewards"
+        );
+        assert_ne!(
+            base,
+            files(&STATS, &REWARDS, &[8; 32], &EXPERTISE),
+            "the stage skills"
+        );
+        assert_ne!(
+            base,
+            files(&STATS, &REWARDS, &SKILLS, &[8; 32]),
+            "the expertise"
+        );
+        assert_ne!(
+            base,
+            hash_content(
+                "trial",
+                b"{}",
+                &STATS,
+                &REWARDS,
+                &SKILLS,
+                &EXPERTISE,
+                &[8; 32],
+                &RUNES,
+                SOURCES.iter().copied(),
+            ),
+            "the match-ups"
+        );
+        assert_ne!(
+            base,
+            hash_content(
+                "trial",
+                b"{}",
+                &STATS,
+                &REWARDS,
+                &SKILLS,
+                &EXPERTISE,
+                &MATCH_UPS,
+                &[8; 32],
+                SOURCES.iter().copied(),
+            ),
+            "the runes"
+        );
+        assert_ne!(
+            base,
+            files(&REWARDS, &STATS, &SKILLS, &EXPERTISE),
             "which file is which"
         );
         assert_ne!(
             base,
-            files(&STATS, &SKILLS, &REWARDS),
+            files(&STATS, &SKILLS, &REWARDS, &EXPERTISE),
+            "which file is which"
+        );
+        assert_ne!(
+            base,
+            files(&STATS, &REWARDS, &EXPERTISE, &SKILLS),
             "which file is which"
         );
         let changed = [(b'a', "shot", "[2]"), SOURCES[1]];

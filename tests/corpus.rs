@@ -9,7 +9,7 @@
 //! architecture. After an intended change, run `UPDATE_CORPUS=1 cargo test --test corpus` and
 //! say `Corpus regenerated: <why>` in the PR (ADR-035).
 //!
-//! Runs of the launch game (ADR-066) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
+//! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
 //! `run.replay` (a run replay: setup, content hash, inputs and commands) and `hashes.txt` (the
 //! hash after every tick, before the commands between it and the next). They need no stage file, because the
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 
 use common::*;
 use serde_json::{Value, json};
+use stella_rain_core::attack::MatchUp;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
@@ -115,7 +116,7 @@ fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> {
     }
 }
 
-/// Re-simulates one run case (ADR-066), taking its commands between the ticks, and compares
+/// Re-simulates one run case (ADR-079), taking its commands between the ticks, and compares
 /// every tick's hash; then the run replay must verify against the same hashes.
 fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let name = case.file_name().unwrap().to_string_lossy().into_owned();
@@ -328,7 +329,7 @@ fn a_replay_that_is_not_the_stages_fails() {
     assert!(message.contains("stage file has changed"), "{message}");
 }
 
-// --- Run cases (ADR-066) -----------------------------------------------------------------------
+// --- Run cases (ADR-079) -----------------------------------------------------------------------
 
 fn changed_run_case(name: &str) -> (PathBuf, PathBuf) {
     let dir = scratch(&format!("run-{name}"));
@@ -825,9 +826,18 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Vec<Command>)> {
     ]
 }
 
-/// A run case re-simulated from its file: the kinds of option its choices take, and the stage
-/// skills it uses, each with the level it is used at.
-fn replay_run_case(name: &str) -> (Vec<std::mem::Discriminant<OfferOption>>, Vec<(String, u8)>) {
+/// What a run case does, re-simulated from its file.
+struct RunCase {
+    /// The kind of option each choice takes.
+    kinds: Vec<std::mem::Discriminant<OfferOption>>,
+    /// Each stage skill used, with the level it is used at.
+    used: Vec<(String, u8)>,
+    /// How many hits got each match-up: weak, strong, resisted, none (ADR-100).
+    match_ups: [u32; 4],
+}
+
+/// A run case re-simulated from its file, which must verify.
+fn replay_run_case(name: &str) -> RunCase {
     let bytes = fs::read(runs_dir().join(name).join("run.replay")).unwrap();
     let verified = run_replay::verify_run(&bytes).unwrap();
     assert_eq!(
@@ -844,11 +854,15 @@ fn replay_run_case(name: &str) -> (Vec<std::mem::Discriminant<OfferOption>>, Vec
     assert_eq!(verified.commands, u32::try_from(commands.len()).unwrap());
     let mut engine = Engine::start(&replay.setup).unwrap();
     let mut next = commands.iter().peekable();
-    let (mut kinds, mut used) = (Vec::new(), Vec::new());
+    let (mut kinds, mut used, mut match_ups) = (Vec::new(), Vec::new(), [0; 4]);
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             if c.kind == CommandKind::Choose {
-                let options = engine.snapshot().progress.unwrap().offer.unwrap().options;
+                let s = engine.snapshot();
+                let options = match s.expertise.and_then(|g| g.offer) {
+                    Some(offer) => offer.options,
+                    None => s.progress.unwrap().offer.unwrap().options,
+                };
                 kinds.push(std::mem::discriminant(&options[c.index as usize]));
                 engine.choose(c.index).unwrap();
             } else {
@@ -857,18 +871,34 @@ fn replay_run_case(name: &str) -> (Vec<std::mem::Discriminant<OfferOption>>, Vec
         }
         engine.step(input);
         for e in engine.events() {
-            if let DomainEvent::StageSkillUsed { skill, level } = e {
-                used.push((skill.0.clone(), *level));
+            match e {
+                DomainEvent::StageSkillUsed { skill, level } => {
+                    used.push((skill.0.clone(), *level));
+                }
+                DomainEvent::Hit { match_up, .. } => {
+                    let i = match match_up {
+                        MatchUp::Weak => 0,
+                        MatchUp::Strong => 1,
+                        MatchUp::Resisted => 2,
+                        MatchUp::None => 3,
+                    };
+                    match_ups[i] += 1;
+                }
+                _ => {}
             }
         }
     }
-    (kinds, used)
+    RunCase {
+        kinds,
+        used,
+        match_ups,
+    }
 }
 
 #[test]
 fn the_run_cases_are_what_their_names_say() {
     // Re-simulated, the trial's choices take each kind of option at least once.
-    let (kinds, _) = replay_run_case("trial");
+    let kinds = replay_run_case("trial").kinds;
     use OfferOption::{Banish, Reroll, Skip, Take};
     for kind in [
         Take { candidate: 0 },
@@ -882,10 +912,21 @@ fn the_run_cases_are_what_their_names_say() {
         );
     }
     // An elite's rare star offers the black hole, taken, then used each time it is ready.
-    let (_, used) = replay_run_case("stage_skill");
+    let used = replay_run_case("stage_skill").used;
     assert!(
         used.len() >= 2 && used.iter().all(|u| *u == ("black_hole".into(), 1)),
         "the black hole is used more than once: {used:?}"
+    );
+}
+
+#[test]
+fn the_trial_run_case_hits_every_match_up() {
+    // The trial's weapons have damage types and its enemies placeholder profiles (ADR-100), so
+    // the recorded run lands weak, strong, resisted and neutral hits.
+    let [weak, strong, resisted, none] = replay_run_case("trial").match_ups;
+    assert!(
+        weak > 0 && strong > 0 && resisted > 0 && none > 0,
+        "hits by match-up: weak {weak}, strong {strong}, resisted {resisted}, none {none}"
     );
 }
 

@@ -14,6 +14,10 @@
               "format": "uint32",
               "minimum": 0
             },
+            "match_up": {
+              "description": "The match-up the hit got (ADR-100); left out when none.",
+              "$ref": "#/$defs/MatchUp"
+            },
             "source": {
               "$ref": "#/$defs/EntityId"
             },
@@ -474,7 +478,7 @@
       ]
     },
     {
-      "description": "The main character reached `level`, and gained a stat point (ADR-066 §2).",
+      "description": "The main character reached `level`, and gained a stat point (ADR-079 §2).",
       "type": "object",
       "properties": {
         "data": {
@@ -503,7 +507,7 @@
       ]
     },
     {
-      "description": "A stat point was spent on the run stat `stat`, between ticks: it now has `spent`\npoints (ADR-066 §4).",
+      "description": "A stat point was spent on the run stat `stat`, between ticks: it now has `spent`\npoints (ADR-079 §4).",
       "type": "object",
       "properties": {
         "data": {
@@ -537,7 +541,7 @@
       ]
     },
     {
-      "description": "A kill dropped the falling star `star` (ADR-066 §2).",
+      "description": "A kill dropped the falling star `star` (ADR-079 §2).",
       "type": "object",
       "properties": {
         "data": {
@@ -628,7 +632,7 @@
       ]
     },
     {
-      "description": "An offer opened, and the world stopped until a choice closes it (ADR-066 §3).",
+      "description": "An offer opened, and the world stopped until a choice closes it (ADR-079 §3).",
       "type": "object",
       "properties": {
         "data": {
@@ -666,7 +670,7 @@
       ]
     },
     {
-      "description": "The reward was taken: the run now has it `taken` times.",
+      "description": "The reward was taken: the run now has it `taken` times. For a random rune, `rune` is\nthe rune it drew, now on the Main weapon (ADR-099).",
       "type": "object",
       "properties": {
         "data": {
@@ -674,6 +678,16 @@
           "properties": {
             "reward": {
               "$ref": "#/$defs/ContentId"
+            },
+            "rune": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Rune"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "taken": {
               "type": "integer",
@@ -773,6 +787,122 @@
         "type",
         "data"
       ]
+    },
+    {
+      "description": "An expertise offer of `kind` opened for the level `level` and `weapon`, and the world\nstopped until a choice closes it (ADR-078 §4, §5; ADR-079 §2, §3).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "candidates": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ContentId"
+              }
+            },
+            "kind": {
+              "$ref": "#/$defs/ExpertiseOfferKind"
+            },
+            "level": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "weapon": {
+              "$ref": "#/$defs/WeaponRole"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "weapon",
+            "kind",
+            "candidates"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ExpertiseOfferOpened"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The expertise option was taken: the run now has it `taken` times for that weapon. A\nstyle, an upgrade or a capstone is taken once.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "option": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "taken": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "weapon": {
+              "$ref": "#/$defs/WeaponRole"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "weapon",
+            "option",
+            "taken"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ExpertiseOptionTaken"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The expertise candidate at `slot` was drawn again, after a reroll.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "option": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "slot": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "slot",
+            "option"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ExpertiseCandidateReplaced"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
     }
   ],
   "$defs": {
@@ -786,8 +916,43 @@
       "format": "uint32",
       "minimum": 0
     },
+    "ExpertiseOfferKind": {
+      "description": "What an expertise level offers (ADR-078 §4, §5).",
+      "oneOf": [
+        {
+          "description": "Options drawn from the weapon's common pool, with a reroll of each.",
+          "type": "string",
+          "const": "common"
+        },
+        {
+          "description": "The weapon's three styles, at level 3 (Main) or 5 (Sub): fixed, no reroll.",
+          "type": "string",
+          "const": "style"
+        },
+        {
+          "description": "The fixed upgrades of the chosen Main style, at level 6 or 9: no reroll.",
+          "type": "string",
+          "const": "upgrade"
+        },
+        {
+          "description": "The fixed capstones of the chosen Main style, at level 10: no reroll.",
+          "type": "string",
+          "const": "capstone"
+        }
+      ]
+    },
+    "MatchUp": {
+      "description": "The match-up a hit got (ADR-100), which the `Hit` event reports.",
+      "type": "string",
+      "enum": [
+        "weak",
+        "strong",
+        "resisted",
+        "none"
+      ]
+    },
     "OfferKind": {
-      "description": "What opened an offer (ADR-066 §2).",
+      "description": "What opened an offer (ADR-079 §2).",
       "oneOf": [
         {
           "description": "A falling star the main character took; it can be skipped.",
@@ -810,7 +975,7 @@
       ]
     },
     "Rarity": {
-      "description": "A reward's rarity, from the most common up (ADR-066 §2).",
+      "description": "A reward's rarity, from the most common up (ADR-079 §2).",
       "type": "string",
       "enum": [
         "common",
@@ -819,6 +984,44 @@
         "epic",
         "legendary",
         "supernova"
+      ]
+    },
+    "Rune": {
+      "description": "A rune, one of the closed list.",
+      "oneOf": [
+        {
+          "description": "On-hit: an explosion around the point a combo step hits.",
+          "type": "string",
+          "const": "explosion"
+        },
+        {
+          "description": "On-hit: a strike called down on the point a combo step hits, after a wind-up.",
+          "type": "string",
+          "const": "thunder"
+        },
+        {
+          "description": "On-hit: thrown from the main character to the point a combo step hits, and back.",
+          "type": "string",
+          "const": "boomerang"
+        },
+        {
+          "description": "On-hit: missiles launched from the main character that steer to aim assist's targets,\neach hitting once.",
+          "type": "string",
+          "const": "homing_missiles"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
+          "type": "string",
+          "const": "bleed"
+        }
+      ]
+    },
+    "WeaponRole": {
+      "description": "Which of the main character's two weapons (ADR-070).",
+      "type": "string",
+      "enum": [
+        "main",
+        "sub"
       ]
     }
   }

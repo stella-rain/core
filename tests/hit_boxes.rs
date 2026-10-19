@@ -70,6 +70,7 @@ fn hits_by(
                 source: s,
                 target,
                 damage,
+                ..
             } if s == source => Some((t, target, damage)),
             _ => None,
         })

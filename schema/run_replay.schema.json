@@ -8,7 +8,7 @@
       "type": "string"
     },
     "content_sha256": {
-      "description": "The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every\npreset, the run stats and the rewards (`content_sha256_with`). Other content invalidates\nthe replay.",
+      "description": "The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every\npreset, the run stats, the rewards, the stage skills, the expertise and the match-ups\n(`content_sha256_with`). Other content invalidates\nthe replay.",
       "type": "string"
     },
     "final_hash": {
@@ -20,7 +20,7 @@
       "type": "string"
     },
     "setup": {
-      "description": "What the run started from (ADR-066 §1).",
+      "description": "What the run started from (ADR-079 §1).",
       "$ref": "#/$defs/RunSetup"
     },
     "ticks": {
@@ -59,13 +59,6 @@
           "description": "A weapon preset, used in its Main role.",
           "$ref": "#/$defs/ContentId"
         },
-        "main_expertise": {
-          "description": "The Main weapon's expertise level, at most `MAX_EXPERTISE` (10); grants nothing yet.",
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
-        },
         "mode": {
           "description": "A mode ID: the content the run plays.",
           "$ref": "#/$defs/ContentId"
@@ -87,7 +80,7 @@
           "minimum": 0
         },
         "star_pool": {
-          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-066 §1), each at most once. Absent: every reward in the file.",
+          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-079 §1), each at most once. Absent: every reward in the file.",
           "type": [
             "array",
             "null"
@@ -99,13 +92,6 @@
         "sub": {
           "description": "A weapon preset, used in its Sub role.",
           "$ref": "#/$defs/ContentId"
-        },
-        "sub_expertise": {
-          "description": "The Sub weapon's expertise level, at most `MAX_EXPERTISE` (10); grants nothing yet.",
-          "type": "integer",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
         }
       },
       "additionalProperties": false,
@@ -115,8 +101,6 @@
         "mode",
         "main",
         "sub",
-        "main_expertise",
-        "sub_expertise",
         "seed"
       ]
     }

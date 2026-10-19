@@ -35,19 +35,19 @@ const DEFINITIONS: &[(&str, &str)] = &[
             {"type":"spread","count":7,"angle":7680,"body":[
             {"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
-    // A blow all round: a 40-pixel circle after a slow wind-up, rooted to half speed.
+    // A blow all round: a 40-pixel circle after a slow wind-up, rooted to half speed; Strike.
     (
         "slam",
         r#"[{"kind":"wind_up","ticks":12,"move_pct":50},
-            {"kind":"active","ticks":4,"move_pct":50,
+            {"kind":"active","ticks":4,"move_pct":50,"type":"strike",
              "hit_box":{"type":"circle","radius":10240}},
             {"kind":"recovery","ticks":20,"move_pct":50}]"#,
     ),
-    // A quick sweep ahead: a 32-pixel arc, 60 degrees to each side of the facing.
+    // A quick sweep ahead: a 32-pixel arc, 60 degrees to each side of the facing; Slash.
     (
         "slash",
         r#"[{"kind":"wind_up","ticks":4},
-            {"kind":"active","ticks":3,
+            {"kind":"active","ticks":3,"type":"slash",
              "hit_box":{"type":"arc","offset":{"forward":2048},"radius":8192,"half_angle":15360}},
             {"kind":"recovery","ticks":10}]"#,
     ),
@@ -66,11 +66,11 @@ const DEFINITIONS: &[(&str, &str)] = &[
             {"type":"spread","count":5,"angle":5120,"body":[
             {"type":"fire","speed":1536,"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
-    // A reach forward: a 12-pixel circle 28 pixels ahead.
+    // A reach forward: a 12-pixel circle 28 pixels ahead; Pierce.
     (
         "thrust",
         r#"[{"kind":"wind_up","ticks":6},
-            {"kind":"active","ticks":3,
+            {"kind":"active","ticks":3,"type":"pierce",
              "hit_box":{"type":"circle","offset":{"forward":7168},"radius":3072}},
             {"kind":"recovery","ticks":12}]"#,
     ),
@@ -86,9 +86,10 @@ const DEFINITIONS: &[(&str, &str)] = &[
 /// `(id, definition)` of the weapon presets, in the stage format's own JSON. Placeholders until
 /// the game design's weapons are written (Giant Sword and the others, app#209).
 const WEAPONS: &[(&str, &str)] = &[
-    // Main: slash, slash, then a thrust that charges (a thrust at level 1, a slam at level 2), or
-    // a thrust after the second slash for B; B from the root thrusts, then slashes; a dash-strike
-    // thrusts; assist looks 160 pixels away. Sub: pulls what a B step hits by up to 24 pixels
+    // Main: slash, slash, then a thrust that charges (a thrust at level 1, at level 2 a blow all
+    // round, `slam`'s, but a Slash: the charged slash), or a thrust after the second slash for B;
+    // B from the root thrusts, then slashes; a dash-strike thrusts; assist looks 160 pixels away.
+    // Slashes are Slash and thrusts Pierce (ADR-100). Sub: pulls what a B step hits by up to 24 pixels
     // over 6 ticks.
     (
         "blade",
@@ -100,7 +101,11 @@ const WEAPONS: &[(&str, &str)] = &[
                                     {"at_ticks":20,"perfect_ticks":6,"perfect_pct":50,
                                      "attack":{"preset":{"id":"thrust"}}},
                                     {"at_ticks":50,"perfect_ticks":6,"perfect_pct":100,
-                                     "attack":{"preset":{"id":"slam"}}}]}},
+                                     "attack":{"inline":[
+                                        {"kind":"wind_up","ticks":12,"move_pct":50},
+                                        {"kind":"active","ticks":4,"move_pct":50,"type":"slash",
+                                         "hit_box":{"type":"circle","radius":10240}},
+                                        {"kind":"recovery","ticks":20,"move_pct":50}]}}]}},
                         "sub":{"attack":{"preset":{"id":"thrust"}}}}}}},
                 "sub":{"attack":{"preset":{"id":"thrust"}},"next":{
                     "sub":{"attack":{"preset":{"id":"slash"}}}}}},
@@ -108,8 +113,8 @@ const WEAPONS: &[(&str, &str)] = &[
             "window_ticks":20,"dash_strike_ticks":10,"assist_range":40960},
             "sub":{"bonus":{"type":"pull","distance":6144,"ticks":6}}}"#,
     ),
-    // Main: slam, then a slam that charges, rooted (a slam at level 1); B slashes; assist looks
-    // 128 pixels away. Sub: pulls what a B step hits by up to 40 pixels over 8 ticks.
+    // Main: slam, then a slam that charges, rooted (a slam at level 1); B swings `slash`'s arc,
+    // but a Strike: every Hammer step is Strike (ADR-100); assist looks 128 pixels away. Sub: pulls what a B step hits by up to 40 pixels over 8 ticks.
     (
         "maul",
         r#"{"main":{"combo":{
@@ -118,7 +123,12 @@ const WEAPONS: &[(&str, &str)] = &[
                             "charge":{"max_ticks":120,"move_pct":0,"levels":[
                                 {"at_ticks":30,"perfect_ticks":8,"perfect_pct":100,
                                  "attack":{"preset":{"id":"slam"}}}]}}}},
-                "sub":{"attack":{"preset":{"id":"slash"}}}},
+                "sub":{"attack":{"inline":[
+                    {"kind":"wind_up","ticks":4},
+                    {"kind":"active","ticks":3,"type":"strike",
+                     "hit_box":{"type":"arc","offset":{"forward":2048},"radius":8192,
+                                "half_angle":15360}},
+                    {"kind":"recovery","ticks":10}]}}},
             "window_ticks":24,"assist_range":32768},
             "sub":{"bonus":{"type":"pull","distance":10240,"ticks":8}}}"#,
     ),

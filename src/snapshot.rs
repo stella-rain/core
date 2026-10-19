@@ -4,11 +4,12 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::attack::{HitBox, PhaseKind};
+use crate::attack::{DamageType, HitBox, PhaseKind};
 use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
+use crate::rune::Rune;
 
 /// An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -29,8 +30,13 @@ pub struct AttackView {
     pub ticks: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hit_box: Option<HitBox>,
-    /// The facing locked when the attack started.
+    /// The facing locked when the attack started; an orbit's orb's turns every tick, and its hit
+    /// box with it.
     pub facing: Facing,
+    /// Where its hit box is centred, offset along `facing`, when that is not its attacker: an
+    /// on-hit rune's attack, at the point the combo step hit (ADR-099).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<Point>,
 }
 
 /// A direction as a unit vector times `trig::SCALE`; `y` grows down the screen.
@@ -51,15 +57,107 @@ pub struct Snapshot {
     /// Companions, enemies, the boss and its parts, in entity-ID order.
     pub entities: Vec<EntityView>,
     pub bullets: Vec<BulletView>,
-    /// Falling stars on the map, in the order they dropped (ADR-066 §2).
+    /// Falling stars on the map, in the order they dropped (ADR-079 §2).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stars: Vec<StarView>,
     /// Experience, level, stat points and the open offer; absent in a stage without levels.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<ProgressView>,
+    /// The expertise gauge (ADR-078); absent in a stage whose enemies and boss give no
+    /// expertise points.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expertise: Option<ExpertiseView>,
 }
 
-/// Where the run stands in experience, levels and stat points (ADR-066 §2, §4).
+/// The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, its points
+/// toward the next, the common options taken, the styles chosen and the Main style's path
+/// taken (ADR-078 §5), and the open expertise offer (ADR-079 §3).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExpertiseView {
+    /// From 0, with no highest level.
+    pub level: u32,
+    /// Points gained toward the next level.
+    pub points: u32,
+    /// Points the next level needs.
+    pub next: u32,
+    /// Times each option of the Main weapon's common pool was taken, in the pool's order; empty
+    /// for a weapon with no expertise content.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub main_taken: Vec<u8>,
+    /// The same for the Sub weapon's common pool.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sub_taken: Vec<u8>,
+    /// The Main weapon's style, chosen at level 3 and held for the run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub main_style: Option<ContentId>,
+    /// The Sub weapon's style, chosen at level 5 and held for the run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sub_style: Option<ContentId>,
+    /// The choices taken from the Main style's path, in level order: its upgrades at 6 and 9,
+    /// then its capstone at 10.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub main_path: Vec<ContentId>,
+    /// The open expertise offer: while it is open the world is stopped, and `Engine::choose`
+    /// takes one of its options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offer: Option<ExpertiseOfferView>,
+}
+
+/// Which of the main character's two weapons (ADR-070).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum WeaponRole {
+    Main,
+    Sub,
+}
+
+/// What an expertise level offers (ADR-078 §4, §5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ExpertiseOfferKind {
+    /// Options drawn from the weapon's common pool, with a reroll of each.
+    Common,
+    /// The weapon's three styles, at level 3 (Main) or 5 (Sub): fixed, no reroll.
+    Style,
+    /// The fixed upgrades of the chosen Main style, at level 6 or 9: no reroll.
+    Upgrade,
+    /// The fixed capstones of the chosen Main style, at level 10: no reroll.
+    Capstone,
+}
+
+/// An expertise offer (ADR-078 §4 to §6; ADR-079 §3). A common one is drawn from one weapon's
+/// common pool, with a reroll of each candidate; a style, upgrade or capstone one shows its
+/// fixed choices, with no reroll. None has a skip or a banish.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExpertiseOfferView {
+    /// The expertise level that opened it.
+    pub level: u32,
+    /// The weapon it is for.
+    pub weapon: WeaponRole,
+    pub kind: ExpertiseOfferKind,
+    pub candidates: Vec<ExpertiseCandidateView>,
+    /// What `Engine::choose` takes, by index: the candidates, then, in a common offer, a reroll
+    /// of each while rerolls are left and another option could come.
+    pub options: Vec<OfferOption>,
+    /// Rerolls left in the run, shared with the stars' offers.
+    pub rerolls_left: u32,
+}
+
+/// An option an expertise offer holds.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExpertiseCandidateView {
+    /// Its ID in the weapon's expertise content: a common option, a style, or a choice of the
+    /// chosen style's path.
+    pub option: ContentId,
+    /// Taking it brings it to its stack limit, after which it is offered no more.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reaches_limit: bool,
+}
+
+/// Where the run stands in experience, levels and stat points (ADR-079 §2, §4).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProgressView {
@@ -74,7 +172,7 @@ pub struct ProgressView {
     /// Points spent on each run stat, in the run stats' order (ADR-067).
     pub spent: Vec<u8>,
     /// The open offer: while it is open the world is stopped, and `Engine::choose` takes one
-    /// of its options (ADR-066 §3).
+    /// of its options (ADR-079 §3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offer: Option<OfferView>,
 }
@@ -88,7 +186,7 @@ pub struct StarView {
     pub rarity: Rarity,
 }
 
-/// An offer from a falling star (ADR-066 §3).
+/// An offer from a falling star (ADR-079 §3).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OfferView {
@@ -106,7 +204,7 @@ pub struct OfferView {
     pub banishes_left: u32,
 }
 
-/// What opened an offer (ADR-066 §2).
+/// What opened an offer (ADR-079 §2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OfferKind {
@@ -123,6 +221,10 @@ pub struct CandidateView {
     /// Its ID in the run's rewards file.
     pub reward: ContentId,
     pub rarity: Rarity,
+    /// A random rune (ADR-099): which rune it gives is drawn only when it is taken, so the
+    /// frontend shows it face down.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
 }
 
 /// One option of an open offer; `candidate` is a place in its candidates, from 0.
@@ -178,9 +280,59 @@ pub struct PlayerView {
     /// The stage skill's shield while it holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shield: Option<ShieldView>,
-    /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill (ADR-069).
+    /// The orbits rewards gave, in the order they came (ADR-069).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub orbits: Vec<OrbitView>,
+    /// What the range rewards taken add up to, in percent, before the clamp at
+    /// `MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub range_pct: u32,
+    /// What the type bonus rewards taken add up to, for each damage type that has any, in the
+    /// order of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`
+    /// (ADR-100).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub type_bonuses: Vec<TypeBonusView>,
+    /// The runes its Main weapon holds, in the order drawn (ADR-099).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runes: Vec<RuneView>,
+    /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
+    /// one for each orb, in the order the orbits came (ADR-069), then from 34 one for each
+    /// on-hit rune, by its place in `Rune::ALL` (ADR-099).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
+}
+
+/// The type bonus the main character holds for one damage type (ADR-100): the one-type
+/// bonuses of that type and its group's bonus, added up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TypeBonusView {
+    #[serde(rename = "type")]
+    pub damage_type: DamageType,
+    pub pct: u32,
+}
+
+/// A rune the Main weapon holds (ADR-099).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RuneView {
+    pub rune: Rune,
+    /// For an on-hit rune, ticks until it may fire again; 0 for a damage-over-time rune.
+    pub cooldown_left: u32,
+}
+
+/// An orbit held (ADR-069). Its orbs' attacks are in the main character's `attacks`, in slots
+/// `2 + 8 × its place in orbits` and on.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OrbitView {
+    /// The reward that gave it, for its name.
+    pub reward: ContentId,
+    /// Its orbs: those of the next round.
+    pub orbs: u8,
+    /// Ticks until the next round may start, counted from the last one's start; 0 while a
+    /// round that outlasts it goes on.
+    pub cooldown_left: u32,
 }
 
 /// The stage skill held (ADR-075): what the skill button draws.
@@ -290,6 +442,22 @@ pub struct EntityView {
     /// An elite enemy (ADR-068), which the minimap shows wherever it is.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub elite: bool,
+    /// Its damage-over-time statuses (ADR-099), one of a kind at most.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub damage_over_time: Vec<DamageOverTimeView>,
+}
+
+/// A damage-over-time status on an entity (ADR-099), such as bleed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DamageOverTimeView {
+    /// The status's ID: `bleed`.
+    pub status: ContentId,
+    pub stacks: u16,
+    /// Ticks until it runs out, unless it is applied again.
+    pub ticks_left: u32,
+    /// Ticks until it next deals its damage, at least 1.
+    pub next_tick_in: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -12,6 +12,8 @@
 //! with the perfect bonus inside a window; at `max_ticks` it releases by itself. Presses while
 //! charging are not buffered. An evade cancels the running step, breaks a charge and clears the
 //! buffer, and a press during its dash or `dash_strike_ticks` after it takes the dash branch.
+//! Every step's attack is wider by the range rewards and the expertise range options taken
+//! (ADR-078, ADR-099), at most `MAX_RANGE_PCT` in all.
 //!
 //! Aim assist (ADR-072): while `assist` or `auto` is on, each tick picks a target; with `assist`
 //! on, a step faces it as its attack starts. Auto mode (ADR-073): while `auto` is on, there is a
@@ -31,6 +33,7 @@ use crate::presets;
 use crate::rewards::Rewards;
 use crate::stage::Stage;
 use crate::trig::SCALE;
+use crate::validate::limits::MAX_EVADE_CHARGES;
 use crate::weapon::{Charge, MainWeapon, Step, SubBonus};
 
 use super::PLAYER_SPEED;
@@ -161,6 +164,21 @@ fn start_evade(stage: &Stage, p: &mut PlayerState, cooldown: u32, events: &mut V
     events.push(DomainEvent::Evaded);
 }
 
+/// A reward's `amount` more evade charges, never beyond the stage's `max_charges` (ADR-074 §5).
+/// The new ones are ready: the spent ones keep their timers.
+pub(super) fn add_evade_charges(stage: &Stage, p: &mut PlayerState, amount: u32) {
+    // The validator holds `max_charges` to `charges..=3`; the clamp keeps an unvalidated stage
+    // there too, and never takes a charge away.
+    let most = stage
+        .player
+        .evade
+        .most_charges()
+        .min(MAX_EVADE_CHARGES)
+        .max(p.evade_charges);
+    let more = u8::try_from(amount).unwrap_or(u8::MAX);
+    p.evade_charges = p.evade_charges.saturating_add(more).min(most);
+}
+
 /// One tick of the dash: the `k`th tick moves from `distance × (k − 1) / ticks` to
 /// `distance × k / ticks` along its direction, so the whole dash covers exactly its distance.
 /// Slowing and attacks do not slow it, and the stick does not steer it.
@@ -188,7 +206,7 @@ fn dash(stage: &Stage, p: &mut PlayerState) {
 
 /// The main character's attack slots (ADR-069): the combo; the stage skill and the effects
 /// that attack on their own come with their own.
-const COMBO_SLOT: u8 = 0;
+pub(super) const COMBO_SLOT: u8 = 0;
 
 fn press_of(sub: bool) -> Press {
     if sub { Press::Sub } else { Press::Main }
@@ -372,8 +390,9 @@ fn take_step(
 }
 
 /// The current step's attack starts in the combo slot along the facing (ADR-069), at the
-/// stage's attack stat, faster by the attack speed, with `bonus_pct` and, for a combo part, the
-/// Sub weapon's pull. When it `aim`s and there is a target, the facing first turns to it
+/// stage's attack stat, faster by the attack speed, wider by the range rewards and the
+/// expertise range options taken (at most `MAX_RANGE_PCT` in all), with
+/// `bonus_pct` and, for a combo part, the Sub weapon's pull. When it `aim`s and there is a target, the facing first turns to it
 /// (ADR-072).
 fn strike(
     stage: &Stage,
@@ -401,6 +420,10 @@ fn strike(
     let strike = attacks::Strike {
         bonus_pct,
         speed_pct: levels::attack_speed(s),
+        range_pct: s
+            .player
+            .range_pct
+            .saturating_add(s.expertise.as_ref().map_or(0, |g| g.range_pct)),
         pull,
     };
     let facing = s.player.facing;

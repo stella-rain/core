@@ -5,7 +5,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::attack::AttackRef;
+use crate::attack::{AttackRef, Profile};
 use crate::behaviour::{Agent, Condition, Rule};
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
@@ -40,11 +40,11 @@ pub struct Stage {
     /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map: Option<Map>,
-    /// Experience and levels, each level-up giving a stat point (ADR-066 §2); a mode's stages
+    /// Experience and levels, each level-up giving a stat point (ADR-079 §2); a mode's stages
     /// have them. Without them defeated enemies give nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub levels: Option<Levels>,
-    /// Falling stars and the offers they open (ADR-066 §2, §3, ADR-068); only with `levels`.
+    /// Falling stars and the offers they open (ADR-079 §2, §3, ADR-068); only with `levels`.
     /// Without them kills drop nothing and nothing is offered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stars: Option<Stars>,
@@ -276,6 +276,21 @@ pub struct Wave {
     /// 1 when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xp: Option<u32>,
+    /// The expertise points each enemy of the wave gives (ADR-078 §2); none when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expertise: Option<ExpertisePoints>,
+}
+
+/// What a hit and a kill by an A or a B step of a combo add to the one expertise gauge
+/// (ADR-078 §2): elites, bosses and the Star-Hunter give far more. Other damage gives none.
+/// A hit on a boss part gives the boss's points per hit; its break is not a kill.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExpertisePoints {
+    /// Points per hit, at most `MAX_EXPERTISE_PER_HIT`.
+    pub hit: u32,
+    /// Points for the kill, at most `MAX_EXPERTISE_PER_KILL`.
+    pub kill: u32,
 }
 
 /// Tier 2 (ADR-036): body parts and an ordered list of phases that only move forward.
@@ -290,6 +305,10 @@ pub struct Boss {
     /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub defence: u32,
+    /// What it is weak and strong against (ADR-100); without one, every type is neutral against
+    /// it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<Profile>,
     pub spawn: Point,
     #[serde(default)]
     pub parts: Vec<BossPart>,
@@ -297,6 +316,9 @@ pub struct Boss {
     /// When every elite alive joins the boss fight (ADR-068); without it the boss calls none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call_elites: Option<CallElites>,
+    /// The expertise points the boss gives (ADR-078 §2); none when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expertise: Option<ExpertisePoints>,
 }
 
 /// The boss calls its elites at whichever comes first: `after_ticks` ticks after its first
@@ -326,6 +348,9 @@ pub struct BossPart {
     /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub defence: u32,
+    /// Its own profile (ADR-100), not the boss's; without one, every type is neutral against it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<Profile>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

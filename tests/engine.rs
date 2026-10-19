@@ -3,6 +3,7 @@
 //! stage pins the hash every platform must reproduce (ADR-019).
 
 use serde_json::{Value, json};
+use stella_rain_core::attack::MatchUp;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
@@ -155,7 +156,8 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
             DomainEvent::Hit {
                 source: EntityId(0),
                 target: EntityId(2),
-                damage: 10
+                damage: 10,
+                match_up: MatchUp::None,
             }
         ))
     ));
@@ -231,7 +233,8 @@ fn beating_the_boss_clears_the_stage() {
             &DomainEvent::Hit {
                 source: EntityId(0),
                 target: EntityId(1),
-                damage: 10
+                damage: 10,
+                match_up: MatchUp::None,
             },
             &DomainEvent::Died {
                 entity: EntityId(1)
@@ -515,7 +518,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x3a87_5656_5556_0387;
+const GOLDEN_HASH: u64 = 0xe6fa_7369_4ee4_abe7;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {

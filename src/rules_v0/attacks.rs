@@ -37,7 +37,7 @@
 
 use std::sync::Arc;
 
-use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, PhaseKind};
+use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::engine::{
     Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Pull, State,
     StatusKind,
@@ -47,6 +47,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::presets;
 use crate::registry;
+use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
 use crate::trig;
 use crate::validate::limits::{MAX_LEN, MAX_REPEAT, MAX_TICKS};
@@ -131,17 +132,21 @@ pub(super) fn start_with(
         age,
         0,
         None,
+        None,
         events,
     );
     true
 }
 
 /// How the main character's combo step attacks (ADR-070): `bonus_pct` more damage (a perfect
-/// release's), `speed_pct` faster (attack speed), and the Sub weapon's pull for a combo part.
+/// release's), `speed_pct` faster (attack speed), `range_pct` wider (the range rewards and
+/// options; ADR-078, ADR-099), and the Sub weapon's pull for a combo
+/// part.
 #[derive(Clone, Copy)]
 pub(super) struct Strike {
     pub bonus_pct: u32,
     pub speed_pct: u32,
+    pub range_pct: u32,
     pub pull: Option<Pull>,
 }
 
@@ -167,6 +172,11 @@ pub(super) fn start_player(
     } else {
         Arc::new(faster(&phases, strike.speed_pct))
     };
+    let phases = if strike.range_pct == 0 {
+        phases
+    } else {
+        Arc::new(wider(&phases, strike.range_pct))
+    };
     let aim = Aim::Fixed(facing);
     launch(
         s,
@@ -179,6 +189,40 @@ pub(super) fn start_player(
         0,
         strike.bonus_pct,
         strike.pull,
+        None,
+        events,
+    );
+    true
+}
+
+/// Starts an on-hit rune's attack `phases` for the main character in `slot`, its hit boxes
+/// centred on `at` and facing `facing`, at `base_damage` (ADR-099): raised by its atk-up and type
+/// bonuses as they are now, as any of its attacks, but no combo step's. False, starting
+/// nothing, if the slot is busy.
+pub(super) fn start_rune(
+    s: &mut State,
+    slot: u8,
+    at: Point,
+    facing: Dir,
+    phases: Arc<Vec<AttackPhase>>,
+    base_damage: u32,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
+    if busy(s, s.id_of(Who::Player), slot) || phases.is_empty() {
+        return false;
+    }
+    launch(
+        s,
+        Who::Player,
+        slot,
+        Aim::Fixed(facing),
+        &AttackRef::Inline(Vec::new()),
+        phases,
+        base_damage,
+        0,
+        0,
+        None,
+        Some(at),
         events,
     );
     true
@@ -209,6 +253,31 @@ pub(super) fn faster(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
     out
 }
 
+/// `phases` with every hit box `pct` percent larger, at most `MAX_RANGE_PCT`: its radius and
+/// its offset, each rounded toward zero and held within `i32`; an arc's angle stays.
+pub(super) fn wider(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
+    // The validator holds the amount to `MAX_RANGE_PCT`; the clamp keeps an unvalidated file there.
+    let per = 100 + i64::from(pct.min(MAX_RANGE_PCT));
+    let grow = |v: &mut Fx| {
+        v.0 = i32::try_from(i64::from(v.0) * per / 100).unwrap_or(if v.0 < 0 {
+            i32::MIN
+        } else {
+            i32::MAX
+        });
+    };
+    let mut out = phases.to_vec();
+    for p in &mut out {
+        if let Some(HitBox::Circle { offset, radius } | HitBox::Arc { offset, radius, .. }) =
+            &mut p.hit_box
+        {
+            grow(radius);
+            grow(&mut offset.forward);
+            grow(&mut offset.right);
+        }
+    }
+    out
+}
+
 /// Pushes a run of `phases` and begins its first phase.
 #[allow(clippy::too_many_arguments)]
 fn launch(
@@ -222,11 +291,18 @@ fn launch(
     age: u32,
     bonus_pct: u32,
     pull: Option<Pull>,
+    at: Option<Point>,
     events: &mut Vec<DomainEvent>,
 ) {
     let id = s.id_of(owner);
     // A bonus (a perfect release's) adds to the atk-up, for every hit of the attack.
     let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp).saturating_add(bonus_pct);
+    // The main character's type bonuses, each held to the content's limit, which the validator
+    // holds to the hard cap; the clamp keeps an unvalidated table there (ADR-100).
+    let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
+    let held = &s.player.type_bonus_pct;
+    let type_bonus_pct = (owner == Who::Player && held.iter().any(|pct| *pct > 0))
+        .then(|| Box::new(held.map(|pct| pct.min(limit))));
     let preset: Option<ContentId> = match attack {
         AttackRef::Preset { id, .. } => Some(id.clone()),
         AttackRef::Inline(_) => None,
@@ -244,9 +320,13 @@ fn launch(
         friendly: State::is_ally(owner),
         base: base_damage,
         atk_up_pct,
+        type_bonus_pct,
         age,
         hits: Vec::new(),
         pull,
+        at,
+        throw: None,
+        homing: None,
     });
     begin_phase(s, s.runs.len() - 1, events);
 }
@@ -302,10 +382,27 @@ pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
 }
 
 /// The damage of run `r`'s current phase, for its hit box and the bullets it spawns: the
-/// phase's own, or else the starter's, raised by the atk-up fixed at the attack's start.
+/// phase's own, or else the starter's, raised by the atk-up and by the type bonus of the
+/// phase's damage type (none for a neutral phase), both fixed at the attack's start.
 pub(super) fn phase_damage(r: &AttackRun) -> u32 {
     let p = &r.phases[r.phase as usize];
-    scale_damage(p.damage.unwrap_or(r.base), r.atk_up_pct, 0, 0)
+    let type_bonus = match (p.damage_type, &r.type_bonus_pct) {
+        (Some(ty), Some(pct)) => pct[ty.index()],
+        _ => 0,
+    };
+    scale_damage(
+        p.damage.unwrap_or(r.base),
+        r.atk_up_pct,
+        type_bonus,
+        0,
+        0,
+        0,
+    )
+}
+
+/// Whether run `r` is the main character's combo step, A or B (ADR-078 §2).
+pub(super) fn is_combo(r: &AttackRun) -> bool {
+    r.owner == super::PLAYER_ID && r.slot == super::player::COMBO_SLOT
 }
 
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase
@@ -334,12 +431,14 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         owner: r.owner,
         program: Arc::new(p.spawn.clone()),
         base: Vec::new(),
-        origin: Origin::Owner,
+        origin: r.at.map_or(Origin::Owner, Origin::At),
         aim: r.aim,
         friendly: r.friendly,
         damage: phase_damage(r),
+        damage_type: p.damage_type,
         breaks_charge: p.breaks_charge,
         pull: r.pull,
+        combo: is_combo(r),
         age: r.age.saturating_add(elapsed),
         wait_left: 0,
         frames: vec![Frame::default()],
@@ -350,6 +449,9 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
 }
 
 /// Bullets whose `on_bullet` wait is over start their attacks, to be carried out this tick.
+// Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
+// (ADR-058).
+#[inline(never)]
 pub(super) fn fire_hooks(s: &mut State) {
     let mut starts = Vec::new();
     for b in &mut s.bullets {
@@ -375,8 +477,10 @@ pub(super) fn fire_hooks(s: &mut State) {
             aim: hook.aim,
             friendly: hook.friendly,
             damage: hook.damage,
+            damage_type: hook.damage_type,
             breaks_charge: hook.breaks_charge,
             pull: hook.pull,
+            combo: hook.combo,
             age: 0,
             wait_left: 0,
             frames: vec![Frame::default()],
@@ -824,8 +928,10 @@ fn emit(
             aim: t.aim,
             friendly: t.friendly,
             damage: t.damage,
+            damage_type: t.damage_type,
             breaks_charge: t.breaks_charge,
             pull: t.pull,
+            combo: t.combo,
         })
     });
     let scale = i64::from(trig::SCALE);
@@ -841,8 +947,10 @@ fn emit(
             owner: t.owner,
             friendly: t.friendly,
             damage: t.damage,
+            damage_type: t.damage_type,
             breaks_charge: t.breaks_charge,
             pull: t.pull,
+            combo: t.combo,
             hook,
         },
         spawns_left,

@@ -1,0 +1,861 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RunesFile",
+  "description": "The runes file.",
+  "type": "object",
+  "properties": {
+    "damage_over_time": {
+      "description": "Every damage-over-time rune's numbers, each rune once.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DamageOverTimeRune"
+      }
+    },
+    "on_hit": {
+      "description": "Every on-hit rune's numbers, each rune once.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/OnHitRune"
+      }
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sim_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "on_hit",
+    "damage_over_time"
+  ],
+  "$defs": {
+    "AttackPhase": {
+      "description": "One phase of an attack (ADR-055).",
+      "type": "object",
+      "properties": {
+        "breaks_charge": {
+          "description": "A powerful attack: its hits on the main character, by hit box or by the bullets the phase\nspawns, break a charge in progress (core#83).",
+          "type": "boolean"
+        },
+        "damage": {
+          "description": "Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 1 for an enemy or the boss.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "hit_box": {
+          "description": "The area the phase covers, attached to the attacker.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HitBox"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/PhaseKind"
+        },
+        "move_pct": {
+          "description": "The attacker's movement speed during the phase, in percent; 0 roots it.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "rehit_ticks": {
+          "description": "An active phase only: a target already hit may be hit again after this many ticks.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "spawn": {
+          "description": "Emitter nodes started on the phase's first tick, carried out in order (see `rules_v0`'s\nattacks for what each one does).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Emitter"
+          }
+        },
+        "ticks": {
+          "description": "How long the phase lasts: a constant, never an expression, so that an attack's length\nand its telegraph are known before it runs.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "type": {
+          "description": "The damage type of the phase's hits and of the bullets it spawns (ADR-100); absent, they\nare neutral and never get a match-up.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DamageType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "ticks"
+      ]
+    },
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    },
+    "DamageOverTimeRune": {
+      "description": "A damage-over-time rune's numbers (ADR-099 point 2): the status a combo step's hit puts on\nthe enemy hit.",
+      "type": "object",
+      "properties": {
+        "damage": {
+          "description": "The base damage of a tick for each stack, 1 to `MAX_DAMAGE` (ADR-056).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "duration_ticks": {
+          "description": "Ticks it lasts after it was last applied, 1 to `MAX_DOT_DURATION_TICKS`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "interval_ticks": {
+          "description": "Ticks between two of its damage ticks, 1 to `MAX_DOT_INTERVAL_TICKS`, at most the\nduration.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_stacks": {
+          "description": "The most stacks it reaches, 1 to `MAX_DOT_STACKS`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "rune": {
+          "$ref": "#/$defs/Rune"
+        },
+        "type": {
+          "description": "Its ticks' damage type (ADR-100); absent, they are neutral.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DamageType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rune",
+        "interval_ticks",
+        "duration_ticks",
+        "damage",
+        "max_stacks"
+      ]
+    },
+    "DamageType": {
+      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
+      "type": "string",
+      "enum": [
+        "slash",
+        "pierce",
+        "strike",
+        "pyro",
+        "hydro",
+        "electro",
+        "cryo",
+        "anemo",
+        "geo",
+        "dendro"
+      ]
+    },
+    "Direction": {
+      "oneOf": [
+        {
+          "description": "At the target, turned by `offset`.",
+          "type": "object",
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "aimed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "offset"
+          ]
+        },
+        {
+          "description": "A fixed angle: 0 points down the screen, and positive angles turn toward the right.",
+          "type": "object",
+          "properties": {
+            "angle": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "absolute"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "angle"
+          ]
+        },
+        {
+          "description": "Turned by `angle` from the parent's direction: straight down for an attack that a rule\nstarted, the direction of the bullet for a `then` list of `on_bullet`.",
+          "type": "object",
+          "properties": {
+            "angle": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "relative"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "angle"
+          ]
+        },
+        {
+          "description": "Turned by `step` from the previous bullet's direction; not affected by the turns of\n`rotate`, `ring` and `spread`.",
+          "type": "object",
+          "properties": {
+            "step": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "sequential"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "step"
+          ]
+        }
+      ]
+    },
+    "Emitter": {
+      "oneOf": [
+        {
+          "description": "One bullet.",
+          "type": "object",
+          "properties": {
+            "bullet": {
+              "description": "Bullet asset; absent means the default bullet.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ContentId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "direction": {
+              "$ref": "#/$defs/Direction"
+            },
+            "speed": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "fire"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "speed",
+            "direction"
+          ]
+        },
+        {
+          "description": "Runs `body` `count` times (at most 100). The next round starts `interval_ticks` ticks\nafter the body of the last one ends.",
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "count": {
+              "$ref": "#/$defs/Expr"
+            },
+            "interval_ticks": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "repeat"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "count",
+            "interval_ticks",
+            "body"
+          ]
+        },
+        {
+          "description": "Runs `body` `count` times at once, each round turned a full turn / `count` further than\nthe one before.",
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "count": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "ring"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "count",
+            "body"
+          ]
+        },
+        {
+          "description": "Runs `body` `count` times at once, fanned evenly across `angle` and centred on the\ndirection of the bullets.",
+          "type": "object",
+          "properties": {
+            "angle": {
+              "$ref": "#/$defs/Expr"
+            },
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "count": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "spread"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "count",
+            "angle",
+            "body"
+          ]
+        },
+        {
+          "description": "Turns the direction of everything in `body` by `angle`.",
+          "type": "object",
+          "properties": {
+            "angle": {
+              "$ref": "#/$defs/Expr"
+            },
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "rotate"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "angle",
+            "body"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "wait"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "ticks"
+          ]
+        },
+        {
+          "description": "Each bullet fired by `body` starts `then` as an attack of its own, from where the bullet\nis, `after_ticks` ticks later (at the next tick if 0), if it is still flying.",
+          "type": "object",
+          "properties": {
+            "after_ticks": {
+              "$ref": "#/$defs/Expr"
+            },
+            "body": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "then": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "on_bullet"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "after_ticks",
+            "body",
+            "then"
+          ]
+        }
+      ]
+    },
+    "Expr": {
+      "description": "A fixed-point expression (ADR-036): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself.",
+      "anyOf": [
+        {
+          "description": "The attack's argument at this index.",
+          "type": "object",
+          "properties": {
+            "arg": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "arg"
+          ]
+        },
+        {
+          "description": "Index of the innermost `repeat`, `ring` or `spread`.",
+          "type": "string",
+          "const": "loop_index"
+        },
+        {
+          "description": "Ticks since the attack started: 0 on its first tick.",
+          "type": "string",
+          "const": "phase_time"
+        },
+        {
+          "description": "A draw from the run's SplitMix64 (ADR-033), from `lo` to `hi` inclusive; `lo` if the\nrange is empty. Expressions are evaluated left to right, so the order of draws is fixed.",
+          "type": "object",
+          "properties": {
+            "rand": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "rand"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "add": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "add"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sub": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "sub"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mul": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "mul"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "div": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "div"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "min"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "max": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "max"
+          ]
+        },
+        {
+          "description": "`[value, lo, hi]`.",
+          "type": "object",
+          "properties": {
+            "clamp": {
+              "type": "array",
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "$ref": "#/$defs/Expr"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "clamp"
+          ]
+        },
+        {
+          "description": "A literal; written as a plain integer.",
+          "type": "integer",
+          "format": "int32"
+        }
+      ]
+    },
+    "Fx": {
+      "description": "A length in 1/256 pixel units. In files it is the plain integer.",
+      "type": "integer",
+      "format": "int32"
+    },
+    "HitBox": {
+      "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "circle"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius"
+          ]
+        },
+        {
+          "description": "A circle sector centred on the facing, `half_angle` to each side.",
+          "type": "object",
+          "properties": {
+            "half_angle": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "arc"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius",
+            "half_angle"
+          ]
+        }
+      ]
+    },
+    "Offset": {
+      "type": "object",
+      "properties": {
+        "forward": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        },
+        "right": {
+          "$ref": "#/$defs/Fx",
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "OnHitRune": {
+      "description": "An on-hit rune's numbers (ADR-099 point 2).",
+      "type": "object",
+      "properties": {
+        "attack": {
+          "description": "Its attack's phases, 1 to `MAX_RUNE_PHASES`: hit boxes centred on the point hit, facing\nthe way the main character faces as it fires; a phase's `type` is its hits' damage type.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttackPhase"
+          }
+        },
+        "cooldown_ticks": {
+          "description": "Ticks it waits after it fires, 1 to `MAX_RUNE_COOLDOWN_TICKS`, at least its attack's\nlength.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "damage": {
+          "description": "The base damage of its attack's hits, 1 to `MAX_DAMAGE` (ADR-056).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "missiles": {
+          "description": "Homing missiles only: how many it launches, 1 to `MAX_HOMING_MISSILES`, each running\n`attack` as its flight.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "range": {
+          "description": "Homing missiles only: how far from the main character its targets may be, 1 to\n`MAX_ASSIST_RANGE`, as aim assist's range (ADR-072).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fx"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rune": {
+          "$ref": "#/$defs/Rune"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rune",
+        "cooldown_ticks",
+        "damage",
+        "attack"
+      ]
+    },
+    "PhaseKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "recovery"
+          ]
+        },
+        {
+          "description": "The telegraph: its hit box is the warned area, and it deals no damage.",
+          "type": "string",
+          "const": "wind_up"
+        },
+        {
+          "description": "Its hit box deals damage.",
+          "type": "string",
+          "const": "active"
+        }
+      ]
+    },
+    "Rune": {
+      "description": "A rune, one of the closed list.",
+      "oneOf": [
+        {
+          "description": "On-hit: an explosion around the point a combo step hits.",
+          "type": "string",
+          "const": "explosion"
+        },
+        {
+          "description": "On-hit: a strike called down on the point a combo step hits, after a wind-up.",
+          "type": "string",
+          "const": "thunder"
+        },
+        {
+          "description": "On-hit: thrown from the main character to the point a combo step hits, and back.",
+          "type": "string",
+          "const": "boomerang"
+        },
+        {
+          "description": "On-hit: missiles launched from the main character that steer to aim assist's targets,\neach hitting once.",
+          "type": "string",
+          "const": "homing_missiles"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
+          "type": "string",
+          "const": "bleed"
+        }
+      ]
+    }
+  }
+}

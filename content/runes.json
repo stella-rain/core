@@ -1,0 +1,78 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "on_hit": [
+    {
+      "rune": "explosion",
+      "cooldown_ticks": 120,
+      "damage": 15,
+      "attack": [
+        {
+          "kind": "active",
+          "ticks": 6,
+          "type": "pyro",
+          "hit_box": { "type": "circle", "radius": 10240 }
+        }
+      ]
+    },
+    {
+      "rune": "thunder",
+      "cooldown_ticks": 90,
+      "damage": 20,
+      "attack": [
+        {
+          "kind": "wind_up",
+          "ticks": 12,
+          "hit_box": { "type": "circle", "radius": 6144 }
+        },
+        {
+          "kind": "active",
+          "ticks": 2,
+          "type": "electro",
+          "hit_box": { "type": "circle", "radius": 6144 }
+        }
+      ]
+    },
+    {
+      "rune": "boomerang",
+      "cooldown_ticks": 150,
+      "damage": 12,
+      "attack": [
+        {
+          "kind": "active",
+          "ticks": 15,
+          "hit_box": { "type": "circle", "radius": 4096 }
+        },
+        {
+          "kind": "active",
+          "ticks": 15,
+          "hit_box": { "type": "circle", "radius": 4096 }
+        }
+      ]
+    },
+    {
+      "rune": "homing_missiles",
+      "cooldown_ticks": 180,
+      "damage": 8,
+      "missiles": 3,
+      "range": 40960,
+      "attack": [
+        {
+          "kind": "active",
+          "ticks": 30,
+          "hit_box": { "type": "circle", "radius": 3072 }
+        }
+      ]
+    }
+  ],
+  "damage_over_time": [
+    {
+      "rune": "bleed",
+      "interval_ticks": 30,
+      "duration_ticks": 180,
+      "damage": 3,
+      "max_stacks": 5,
+      "type": "slash"
+    }
+  ]
+}

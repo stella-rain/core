@@ -5,9 +5,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::attack::MatchUp;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
-use crate::snapshot::OfferKind;
+use crate::rune::Rune;
+use crate::snapshot::{ExpertiseOfferKind, OfferKind, WeaponRole};
 
 /// Which button's press took a combo step (ADR-070): A or B.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -25,6 +27,9 @@ pub enum DomainEvent {
         source: EntityId,
         target: EntityId,
         damage: u32,
+        /// The match-up the hit got (ADR-100); left out when none.
+        #[serde(default, skip_serializing_if = "MatchUp::is_none")]
+        match_up: MatchUp,
     },
     /// The main character was hit.
     PlayerHit {
@@ -87,17 +92,17 @@ pub enum DomainEvent {
     },
     StageCleared,
     StageFailed,
-    /// The main character reached `level`, and gained a stat point (ADR-066 §2).
+    /// The main character reached `level`, and gained a stat point (ADR-079 §2).
     LeveledUp {
         level: u32,
     },
     /// A stat point was spent on the run stat `stat`, between ticks: it now has `spent`
-    /// points (ADR-066 §4).
+    /// points (ADR-079 §4).
     StatRaised {
         stat: ContentId,
         spent: u8,
     },
-    /// A kill dropped the falling star `star` (ADR-066 §2).
+    /// A kill dropped the falling star `star` (ADR-079 §2).
     StarDropped {
         star: EntityId,
         rarity: Rarity,
@@ -112,16 +117,19 @@ pub enum DomainEvent {
     ElitesCalled {
         elites: u32,
     },
-    /// An offer opened, and the world stopped until a choice closes it (ADR-066 §3).
+    /// An offer opened, and the world stopped until a choice closes it (ADR-079 §3).
     OfferOpened {
         kind: OfferKind,
         rarity: Rarity,
         candidates: Vec<ContentId>,
     },
-    /// The reward was taken: the run now has it `taken` times.
+    /// The reward was taken: the run now has it `taken` times. For a random rune, `rune` is
+    /// the rune it drew, now on the Main weapon (ADR-099).
     RewardTaken {
         reward: ContentId,
         taken: u8,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        rune: Option<Rune>,
     },
     /// The offer was closed with nothing taken.
     OfferSkipped,
@@ -133,5 +141,25 @@ pub enum DomainEvent {
     CandidateReplaced {
         slot: u8,
         reward: ContentId,
+    },
+    /// An expertise offer of `kind` opened for the level `level` and `weapon`, and the world
+    /// stopped until a choice closes it (ADR-078 §4, §5; ADR-079 §2, §3).
+    ExpertiseOfferOpened {
+        level: u32,
+        weapon: WeaponRole,
+        kind: ExpertiseOfferKind,
+        candidates: Vec<ContentId>,
+    },
+    /// The expertise option was taken: the run now has it `taken` times for that weapon. A
+    /// style, an upgrade or a capstone is taken once.
+    ExpertiseOptionTaken {
+        weapon: WeaponRole,
+        option: ContentId,
+        taken: u8,
+    },
+    /// The expertise candidate at `slot` was drawn again, after a reroll.
+    ExpertiseCandidateReplaced {
+        slot: u8,
+        option: ContentId,
     },
 }

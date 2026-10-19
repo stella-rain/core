@@ -1,12 +1,16 @@
 //! The game content a run reads besides its mode's stage (ADR-067): the run stats a point
-//! raises, the rewards an offer holds and the stage skills those name (ADR-098). One value, so
+//! raises, the rewards an offer holds and the stage skills those name (ADR-098), the
+//! expertise levels (ADR-078), the match-up table (ADR-100) and the runes (ADR-099). One value, so
 //! that a run's engine, its recorder and its verification read the same files, and the replay's
-//! content hash covers each of them (ADR-066 §5).
+//! content hash covers each of them (ADR-079 §5).
 
 use std::sync::OnceLock;
 
+use crate::expertise::Expertise;
+use crate::match_ups::MatchUps;
 use crate::rewards::Rewards;
 use crate::run_stats::RunStats;
+use crate::runes::Runes;
 use crate::stage_skill::StageSkills;
 
 /// Content files that passed validation, each with the SHA-256 of its bytes.
@@ -14,11 +18,36 @@ use crate::stage_skill::StageSkills;
 pub struct RunContent {
     run_stats: RunStats,
     rewards: Rewards,
+    expertise: Expertise,
+    match_ups: MatchUps,
+    runes: Runes,
 }
 
 impl RunContent {
+    /// The run stats and rewards given, with the bundled expertise, match-ups and runes.
     pub fn new(run_stats: RunStats, rewards: Rewards) -> RunContent {
-        RunContent { run_stats, rewards }
+        RunContent {
+            run_stats,
+            rewards,
+            expertise: Expertise::bundled().clone(),
+            match_ups: *MatchUps::bundled(),
+            runes: Runes::bundled().clone(),
+        }
+    }
+
+    /// The same content with `expertise` in place of its expertise.
+    pub fn with_expertise(self, expertise: Expertise) -> RunContent {
+        RunContent { expertise, ..self }
+    }
+
+    /// The same content with `match_ups` in place of its match-up table.
+    pub fn with_match_ups(self, match_ups: MatchUps) -> RunContent {
+        RunContent { match_ups, ..self }
+    }
+
+    /// The same content with `runes` in place of its runes.
+    pub fn with_runes(self, runes: Runes) -> RunContent {
+        RunContent { runes, ..self }
     }
 
     /// The bundled files, the content of every run.
@@ -37,6 +66,21 @@ impl RunContent {
     /// What an offer can hold.
     pub fn rewards(&self) -> &Rewards {
         &self.rewards
+    }
+
+    /// The thresholds the expertise gauge rises by.
+    pub fn expertise(&self) -> &Expertise {
+        &self.expertise
+    }
+
+    /// What each match-up does to a hit.
+    pub fn match_ups(&self) -> &MatchUps {
+        &self.match_ups
+    }
+
+    /// What each on-hit rune does when it fires.
+    pub fn runes(&self) -> &Runes {
+        &self.runes
     }
 
     /// The stage skills the rewards give: those the rewards were read with.

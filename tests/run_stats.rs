@@ -1,4 +1,4 @@
-//! Run stats (ADR-066 §4, ADR-067): the stats a stat point raises are content, read from JSON
+//! Run stats (ADR-079 §4, ADR-067): the stats a stat point raises are content, read from JSON
 //! as untrusted bytes (ADR-020): a size limit before parsing, strict parsing, the current
 //! versions only and every field bounded. The bundled file is the default; other bytes (a
 //! server's, later) run the same way and change the run's content hash.

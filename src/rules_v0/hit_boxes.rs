@@ -1,7 +1,8 @@
 //! Hit boxes (ADR-055): every active phase with a hit box hurts the targets inside it, in the
 //! collision step, before bullets.
 //!
-//! - A hit box follows its attacker and faces the way the attack faced when it started. Its
+//! - A hit box follows its attacker, or stays on the point an on-hit rune's attack fired at
+//!   (ADR-099), and faces the way the attack faced when it started. Its
 //!   offset is forward along that facing and to the attacker's right as seen from above: a
 //!   quarter turn clockwise on the screen, so facing down the screen its right is the screen's
 //!   left.
@@ -11,12 +12,13 @@
 //! - Friendly hit boxes hit the boss, its parts and the enemies (found through the enemy grid),
 //!   in entity-ID order; enemy hit boxes hit the main character, then the companions. A hit box
 //!   hits every target inside it (cleave), each once per active phase, or again `rehit_ticks`
-//!   after its last hit. A target that cannot be hurt (invulnerable, dead) is not hit and not
+//!   after its last hit. A homing missile's (ADR-099) hits only the first, once, and the
+//!   missile is gone once every hit box has landed. A target that cannot be hurt (invulnerable, dead) is not hit and not
 //!   counted as hit.
 //! - Attackers resolve in entity-ID order, and every hit box active at the start of the step
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
-use crate::attack::{HitBox, PhaseKind};
+use crate::attack::{DamageType, HitBox, PhaseKind};
 use crate::engine::{Dir, Pull, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -40,9 +42,13 @@ struct Swing {
     /// `None` for a circle, or an arc of 180 degrees or more to each side, which is one.
     arc: Option<Sector>,
     damage: u32,
+    damage_type: Option<DamageType>,
     rehit_ticks: Option<u32>,
     breaks_charge: bool,
     pull: Option<Pull>,
+    combo: bool,
+    /// A homing missile's: one hit, then nothing.
+    once: bool,
 }
 
 /// What an arc's test needs, worked out once per swing rather than once per target: the cosine
@@ -63,6 +69,9 @@ impl Sector {
 
 /// Every active hit box hurts what it covers. `grid` is the enemy grid, built here if a
 /// friendly hit box needs it and left for the bullets after.
+// Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
+// (ADR-058).
+#[inline(never)]
 pub(super) fn resolve(
     stage: &Stage,
     s: &mut State,
@@ -82,6 +91,9 @@ pub(super) fn resolve(
         } else {
             hit_ally_side(stage, s, w, events);
         }
+    }
+    if swings.iter().any(|w| w.once) {
+        s.runs.retain(|r| r.homing.is_none() || r.hits.is_empty());
     }
 }
 
@@ -105,14 +117,22 @@ fn active_swings(s: &State) -> Vec<Swing> {
             owner: r.owner,
             slot: r.slot,
             friendly: r.friendly,
-            centre: centre(s.at(owner), r.facing, offset.forward.0, offset.right.0),
+            centre: centre(
+                r.at.unwrap_or_else(|| s.at(owner)),
+                r.facing,
+                offset.forward.0,
+                offset.right.0,
+            ),
             facing: r.facing,
             radius: radius.0,
             arc,
             damage: super::attacks::phase_damage(r),
+            damage_type: p.damage_type,
             rehit_ticks: p.rehit_ticks,
             breaks_charge: p.breaks_charge,
             pull: r.pull,
+            combo: super::attacks::is_combo(r),
+            once: r.homing.is_some(),
         });
     }
     swings
@@ -196,6 +216,9 @@ fn touches_edge(d: (i128, i128), edge: Dir, length: i32, radius: i32) -> bool {
 fn take_hit(s: &mut State, w: &Swing, target: EntityId) -> bool {
     let tick = s.tick;
     let hits = &mut s.runs[w.run].hits;
+    if w.once && !hits.is_empty() {
+        return false;
+    }
     match hits.binary_search_by_key(&target.0, |h| h.0.0) {
         Ok(i) => {
             let again = w
@@ -219,8 +242,10 @@ fn shot(w: &Swing) -> Shot {
         owner: w.owner,
         friendly: w.friendly,
         damage: w.damage,
+        damage_type: w.damage_type,
         breaks_charge: w.breaks_charge,
         pull: w.pull,
+        combo: w.combo,
     }
 }
 
@@ -238,7 +263,7 @@ fn hit_enemy_side(
         if boss.invulnerable == 0 {
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-                damage(s, shot(w), Who::Boss, events);
+                damage(stage, s, shot(w), Who::Boss, events);
             }
             let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
             for i in 0..parts {
@@ -247,7 +272,7 @@ fn hit_enemy_side(
                 };
                 let (id, hp, radius) = (part.id, part.hp, part.radius);
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
-                    damage(s, shot(w), Who::BossPart(i), events);
+                    damage(stage, s, shot(w), Who::BossPart(i), events);
                 }
             }
         }
@@ -258,7 +283,7 @@ fn hit_enemy_side(
         let (id, at, hp) = (e.id, e.at, e.hp);
         let radius = agent_def(stage, e.key).radius.0;
         if hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-            damage(s, shot(w), Who::Enemy(i), events);
+            damage(stage, s, shot(w), Who::Enemy(i), events);
             if let Some(pull) = w.pull {
                 super::pull_enemy(stage, s, i, pull);
             }
@@ -281,7 +306,7 @@ fn hit_ally_side(stage: &Stage, s: &mut State, w: &Swing, events: &mut Vec<Domai
         let (id, at, hp) = (c.id, c.at, c.hp);
         let radius = agent_def(stage, c.key).radius.0;
         if hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-            damage(s, shot(w), Who::Companion(i), events);
+            damage(stage, s, shot(w), Who::Companion(i), events);
         }
     }
 }

@@ -21,8 +21,15 @@
 //! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears;
-//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered;
-//!    a clear opens only the boss offer of the boss kill that made it.
+//! 8. if the run goes on, the first offer due opens, and the world stops until it is answered:
+//!    the boss offer, then the expertise levels' in level order, then the stars' in the order
+//!    taken; a clear opens only the boss offer and the expertise levels' offers, not the
+//!    stars'.
+//!
+//! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
+//! step 6 adds them to the one expertise gauge, and its levels are reached at the end of step 6
+//! (`expertise`). Each level reached is due an offer for the weapon ADR-078's table gives: its
+//! common options, its three styles, or the chosen Main style's upgrades or capstones.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks. In
@@ -32,6 +39,35 @@
 //! The stage skill (ADR-075, `skill`) acts in step 2 on a press, after the evade and before the
 //! combo; its black hole pulls after the push-apart of step 3, and its shield takes from the
 //! main character's damage in step 6.
+//!
+//! Orbits (ADR-069, `orbit`) act at the end of step 2: each starts a round of its orbs'
+//! attacks when its cooldown has run out and the round before has ended, and turns them; their
+//! hit boxes land in step 6. A run holds at most `MAX_ORBITS` orbits of `MAX_ORBS` orbs.
+//!
+//! Range rewards (ADR-099) widen the hit boxes of the combo steps started after they are taken,
+//! adding up over the picks (`player`).
+//!
+//! Type bonus rewards (ADR-100) add up for each damage type, a group's to each type of its
+//! group (`stars`). An attack the main character starts fixes those sums, each held to the
+//! match-up file's `max_type_bonus_pct`; each of its phases of a type raises its damage by
+//! that type's, after atk-up (`attacks::phase_damage`), and the match-up multiplies it at the
+//! hit.
+//!
+//! On-hit runes (ADR-099, `runes`): each cooldown counts down in step 1; a combo step's hit in
+//! step 6 fires each one held and ready, an attack in its own slot whose hit boxes stay on the
+//! point hit and land from the next tick, and sets its cooldown. Its hits are no combo step's.
+//! A thrown rune's hit boxes (boomerang) fly a step at the end of step 2, after the main
+//! character has moved: out to the point hit, then back to the main character. Homing
+//! missiles' hit boxes steer a step at the end of step 3, after the push-apart and the pull,
+//! toward where their targets are now; one that hits anything in step 6 is gone once the hit
+//! boxes have landed.
+//!
+//! Damage-over-time runes (ADR-099, `runes`): a combo step's hit in step 6 that leaves its
+//! target standing puts each one's status on it, bleed's `bleed`, or a stack more up to its
+//! maximum, its duration starting again. Statuses of that kind do not run out in step 1: at
+//! the start of step 6, before any hit lands, each counts down to its next tick and deals its
+//! damage on it, then its duration runs down (`entity::tick_dots`); a tick without one on
+//! anyone skips that pass.
 //!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
@@ -48,22 +84,27 @@ mod agents;
 mod attacks;
 mod boss;
 mod entity;
+mod expertise;
 mod grid;
 mod hit_boxes;
 mod levels;
+mod orbit;
 mod player;
 mod push;
+mod runes;
 mod skill;
 mod stars;
 
 pub(crate) use player::{charge_view, combo_view};
 mod select;
 
+use crate::attack::{DamageType, MatchUp, Profile};
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
     PartState, PlayerState, Progress, Pull, StarField, State,
 };
 use crate::event::DomainEvent;
+use crate::expertise::Expertise;
 use crate::fixed::{Fx, Point};
 use crate::hash::StateHasher;
 use crate::id::EntityId;
@@ -72,14 +113,17 @@ use crate::rewards::Rewards;
 use crate::rng::SplitMix64;
 use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
+use crate::snapshot::OfferOption;
 use crate::stage::Stage;
 use crate::trig;
 
 pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
+pub(crate) use expertise::offer_view as expertise_offer_view;
+pub(crate) use expertise::styles_view as expertise_styles_view;
 use grid::Grid;
 pub(crate) use levels::{spend, xp_next};
-pub(crate) use stars::{choose, offer_view, options as offer_options};
+pub(crate) use stars::offer_view;
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
@@ -116,7 +160,7 @@ pub(crate) fn bullet_radius(friendly: bool) -> i32 {
 }
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
-/// and the rerolls its setup adds to the stage's (ADR-066 §1).
+/// and the rerolls its setup adds to the stage's (ADR-079 §1).
 pub(crate) struct RunPool {
     pub rewards: Vec<u16>,
     pub extra_rerolls: u8,
@@ -218,6 +262,10 @@ pub(crate) fn initial_state(
             skill: None,
             pull: None,
             shield: None,
+            orbits: Vec::new(),
+            range_pct: 0,
+            type_bonus_pct: [0; DamageType::ALL.len()],
+            runes: Vec::new(),
             aggro: 0,
             statuses: Vec::new(),
         },
@@ -247,12 +295,16 @@ pub(crate) fn initial_state(
             taken: vec![0; rewards],
             banished: vec![false; rewards],
         }),
+        expertise: expertise::initial(stage, content.expertise()),
+        match_ups: *content.match_ups(),
+        runes: content.runes().clone(),
     }
 }
 
 pub(crate) fn step(
     stage: &Stage,
     rewards: &Rewards,
+    expertise: &Expertise,
     s: &mut State,
     input: Input,
     events: &mut Vec<DomainEvent>,
@@ -265,14 +317,22 @@ pub(crate) fn step(
     let mut spawns_left = MAX_BULLET_SPAWNS_PER_TICK;
 
     spawn_waves(stage, s);
-    entity::tick_statuses_and_aggro(s);
+    let dots = entity::tick_statuses_and_aggro(s);
+    runes::tick(s);
     attacks::advance_runs(s, events);
     player::update(stage, rewards, s, input, events);
+    if !s.player.runes.is_empty() {
+        runes::fly(s);
+    }
+    orbit::act(stage, rewards, s, events);
     boss::act(stage, s, events);
     boss::call_elites(stage, s, events);
     agents::act(stage, s, events);
     push::apply(stage, s);
     skill::pull(stage, s);
+    if !s.player.runes.is_empty() {
+        runes::steer(s);
+    }
     attacks::fire_hooks(s);
     let (tasks, emitter_steps) = attacks::run(s, &mut spawns_left);
     *load = Load {
@@ -283,13 +343,14 @@ pub(crate) fn step(
         emitter_steps,
     };
     move_bullets(stage, s);
-    collide(stage, s, events);
+    collide(stage, s, dots, events);
+    expertise::level_up(expertise, s);
     decide_outcome(stage, s, events);
     match s.outcome {
-        Outcome::Running => stars::open_due(rewards, s, events),
+        Outcome::Running => open_offers(stage, rewards, expertise, s, events),
         Outcome::Cleared => {
             stars::run_over(s);
-            stars::open_due(rewards, s, events);
+            open_offers(stage, rewards, expertise, s, events);
         }
         Outcome::Failed => {}
     }
@@ -297,6 +358,58 @@ pub(crate) fn step(
         entity::enemies_in_id_order(s),
         "enemies out of entity-ID order"
     );
+}
+
+/// An offer is open, a star's, a boss's or an expertise level's: the world is stopped.
+pub(crate) fn offer_open(s: &State) -> bool {
+    s.stars.as_ref().is_some_and(|f| f.offer.is_some())
+        || s.expertise.as_ref().is_some_and(|g| g.offer.is_some())
+}
+
+/// Opens the first offer due, unless one is open: the boss offer, then the expertise levels'
+/// in level order, then the stars' in the order taken (ADR-079 §2).
+fn open_offers(
+    stage: &Stage,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    events: &mut Vec<DomainEvent>,
+) {
+    stars::open_due(rewards, s, events, true);
+    expertise::open_due(stage, expertise, s, events);
+    stars::open_due(rewards, s, events, false);
+}
+
+/// The options of the open offer, in index order; empty without one.
+pub(crate) fn offer_options(
+    stage: &Stage,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &State,
+) -> Vec<OfferOption> {
+    if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
+        expertise::options(stage, expertise, s)
+    } else {
+        stars::options(rewards, s)
+    }
+}
+
+/// Carries out `option`, one of `offer_options`, on the open offer; when that closes it, the
+/// next offer due opens.
+pub(crate) fn choose(
+    stage: &Stage,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    option: OfferOption,
+    events: &mut Vec<DomainEvent>,
+) {
+    if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
+        expertise::choose(stage, expertise, s, option, events);
+    } else {
+        stars::choose(stage, rewards, s, option, events);
+    }
+    open_offers(stage, rewards, expertise, s, events);
 }
 
 fn count<T>(items: &[T]) -> u32 {
@@ -382,12 +495,19 @@ struct Shot {
     owner: EntityId,
     friendly: bool,
     damage: u32,
+    /// Its type (ADR-100); `None` is neutral.
+    damage_type: Option<DamageType>,
     breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hit (ADR-070).
     pull: Option<Pull>,
+    /// A combo step's hit, which adds expertise points (ADR-078 §2).
+    combo: bool,
 }
 
-fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEvent>) {
+    if dots {
+        entity::tick_dots(stage, s, events);
+    }
     // The enemies do not move while hit boxes and bullets land, so one grid, built for the first
     // friendly hit box or bullet, serves all of them; a tick without either never builds it.
     let mut grid: Option<Grid> = None;
@@ -401,8 +521,10 @@ fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
             owner: b.owner,
             friendly: b.friendly,
             damage: b.damage,
+            damage_type: b.damage_type,
             breaks_charge: b.breaks_charge,
             pull: b.pull,
+            combo: b.combo,
         };
         consumed.push(if shot.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
@@ -433,11 +555,22 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
     Grid::new(circles, PLAYER_BULLET_RADIUS)
 }
 
-/// Damage to an enemy, a companion or the boss: raised by its vulnerability, reduced by its
-/// defence, reported, and credited to the shooter's aggro. Death is reported too.
-fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
+/// Damage to an enemy, a companion or the boss: raised by its vulnerability, changed by its
+/// match-up, reduced by its defence, reported, and credited to the shooter's aggro. Death is
+/// reported too. A combo step's hit adds expertise points (`expertise`), puts the
+/// damage-over-time runes' statuses on a target it leaves standing, and fires the on-hit runes
+/// that are ready (`runes`).
+fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
-    let dealt = scale_damage(b.damage, 0, vulnerable, s.defence(target));
+    let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
+    let dealt = scale_damage(
+        b.damage,
+        0,
+        0,
+        vulnerable,
+        s.match_ups.pct(match_up),
+        s.defence(target),
+    );
     let id = s.id_of(target);
     let hp = s.hp_mut(target);
     *hp = hp.saturating_sub(dealt);
@@ -446,6 +579,7 @@ fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
         source: b.owner,
         target: id,
         damage: dealt,
+        match_up,
     });
     if dead {
         // A part breaks; everything else dies.
@@ -457,6 +591,27 @@ fn damage(s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
         });
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
+    if b.combo {
+        expertise::credit(stage, s, target, dead);
+        if !s.player.runes.is_empty() {
+            if !dead {
+                runes::apply_dots(s, target, events);
+            }
+            let at = s.at(target);
+            runes::on_hit(stage, s, id, at, events);
+        }
+    }
+}
+
+/// The profile of a target (ADR-100): an enemy's or an elite's own, the boss's, or a part's own.
+/// The main character and the companions have none.
+fn profile<'a>(stage: &'a Stage, s: &State, target: Who) -> Option<&'a Profile> {
+    match target {
+        Who::Enemy(i) => agent_def(stage, s.enemies[i].key).profile.as_ref(),
+        Who::Boss => stage.boss.as_ref()?.profile.as_ref(),
+        Who::BossPart(i) => stage.boss.as_ref()?.parts.get(i)?.profile.as_ref(),
+        Who::Player | Who::Companion(_) => None,
+    }
 }
 
 /// An ally's shot against the enemies in ID order, then the boss. Returns whether it was used up.
@@ -469,7 +624,7 @@ fn hit_enemy_side(
     events: &mut Vec<DomainEvent>,
 ) -> bool {
     if let Some(i) = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, |i| s.enemies[i].hp > 0) {
-        damage(s, b, Who::Enemy(i), events);
+        damage(stage, s, b, Who::Enemy(i), events);
         if let Some(pull) = b.pull {
             pull_enemy(stage, s, i, pull);
         }
@@ -494,14 +649,14 @@ fn hit_enemy_side(
             )
         {
             if !absorbed {
-                damage(s, b, Who::BossPart(i), events);
+                damage(stage, s, b, Who::BossPart(i), events);
             }
             return true;
         }
     }
     if overlaps(b.at, PLAYER_BULLET_RADIUS, state.at, def.radius.0) {
         if !absorbed {
-            damage(s, b, Who::Boss, events);
+            damage(stage, s, b, Who::Boss, events);
         }
         return true;
     }
@@ -543,7 +698,8 @@ pub(super) fn pull_enemy(stage: &Stage, s: &mut State, i: usize, pull: Pull) {
 /// then invulnerable for a while.
 fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
-    let dealt = scale_damage(b.damage, 0, vulnerable, s.player.defence);
+    // The main character has no profile (ADR-100): every hit on it is neutral.
+    let dealt = scale_damage(b.damage, 0, 0, vulnerable, 0, s.player.defence);
     let dealt = skill::absorb(s, dealt);
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
@@ -567,7 +723,7 @@ fn hit_ally_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainE
         let c = &s.companions[i];
         let radius = agent_def(stage, c.key).radius.0;
         if c.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, c.at, radius) {
-            damage(s, b, Who::Companion(i), events);
+            damage(stage, s, b, Who::Companion(i), events);
             return true;
         }
     }
@@ -609,6 +765,16 @@ fn hash_statuses(h: &mut StateHasher, statuses: &[crate::engine::StatusState]) {
         h.write_u32(st.remaining);
         h.write_u32(u32::from(st.stacks));
         h.write_u32(u32::from(st.value_pct));
+        // Only for a damage-over-time status, which its kind already tells apart, so other
+        // statuses hash as before.
+        if let Some(d) = st.dot {
+            h.write_u32(d.damage);
+            h.write_u32(type_code(d.damage_type));
+            h.write_u32(d.atk_up_pct);
+            h.write_u32(d.type_bonus_pct);
+            h.write_u32(d.interval);
+            h.write_u32(d.next_in);
+        }
     }
 }
 
@@ -808,6 +974,15 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         }
         None => h.write_bool(false),
     }
+    h.write_u32(count(&p.orbits));
+    for o in &p.orbits {
+        h.write_u32(u32::from(o.reward));
+        h.write_u32(u32::from(o.orbs));
+        h.write_u32(u32::from(o.round));
+        h.write_u32(o.cooldown_left);
+        h.write_i32(o.angle);
+    }
+    h.write_u32(p.range_pct);
     let c = &p.combo;
     h.write_u32(c.path);
     h.write_u32(u32::from(c.depth));
@@ -993,5 +1168,140 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_bool(*b);
         }
     }
+    // After it, and only in a stage that gives expertise points, for the same reason: the
+    // gauge, then which attacks and bullets are a combo step's, which matters only here.
+    if let Some(g) = &s.expertise {
+        h.write_u32(g.level);
+        h.write_u32(g.points);
+        h.write_u32(g.next);
+        h.write_u32(g.offered);
+        match &g.offer {
+            Some(o) => {
+                h.write_bool(true);
+                h.write_u32(o.level);
+                h.write_u32(o.weapon as u32);
+                h.write_u32(o.kind as u32);
+                h.write_u32(count(&o.candidates));
+                for c in &o.candidates {
+                    h.write_u32(u32::from(*c));
+                }
+            }
+            None => h.write_bool(false),
+        }
+        for taken in [&g.main_taken, &g.sub_taken] {
+            h.write_u32(count(taken));
+            for n in taken.iter() {
+                h.write_u32(u32::from(*n));
+            }
+        }
+        h.write_u32(g.range_pct);
+        for style in [g.main_style, g.sub_style] {
+            h.write_bool(style.is_some());
+            h.write_u32(style.map_or(0, u32::from));
+        }
+        h.write_u32(count(&g.main_path));
+        for i in &g.main_path {
+            h.write_u32(u32::from(*i));
+        }
+        h.write_u32(count(&s.tasks));
+        for t in &s.tasks {
+            h.write_bool(t.combo);
+        }
+        h.write_u32(count(&s.bullets));
+        for b in &s.bullets {
+            h.write_bool(b.combo);
+            h.write_bool(b.hook.as_ref().is_some_and(|hook| hook.combo));
+        }
+    }
+    // Last, and only while an attack or a bullet carries a damage type (ADR-100), so that the
+    // hashes of runs without types stay as they were: each one's type, 0 for neutral. A run's
+    // phases are content, which the content hash covers.
+    let typed = s.tasks.iter().any(|t| t.damage_type.is_some())
+        || s.bullets.iter().any(|b| {
+            b.damage_type.is_some() || b.hook.as_ref().is_some_and(|k| k.damage_type.is_some())
+        });
+    if typed {
+        h.write_u32(count(&s.tasks));
+        for t in &s.tasks {
+            h.write_u32(type_code(t.damage_type));
+        }
+        h.write_u32(count(&s.bullets));
+        for b in &s.bullets {
+            h.write_u32(type_code(b.damage_type));
+            h.write_u32(b.hook.as_ref().map_or(0, |k| type_code(k.damage_type)));
+        }
+    }
+    // Last, and only while the main character holds a type bonus (ADR-100), so that the hashes
+    // of runs without one stay as they were: its bonus for each type, then each run's, fixed at
+    // its start. A run can hold one only once the main character does: bonuses never go.
+    if s.player.type_bonus_pct.iter().any(|pct| *pct > 0) {
+        for pct in s.player.type_bonus_pct {
+            h.write_u32(pct);
+        }
+        h.write_u32(count(&s.runs));
+        for r in &s.runs {
+            for pct in r
+                .type_bonus_pct
+                .as_deref()
+                .unwrap_or(&[0; DamageType::ALL.len()])
+            {
+                h.write_u32(*pct);
+            }
+        }
+    }
+    // Last, and only while the Main weapon holds a rune (ADR-099), so that the hashes of runs
+    // without one stay as they were: each rune held and its cooldown left, then where each
+    // on-hit rune's attack in progress is centred, by its place in `runs`, where each thrown
+    // one turns and each homing missile's target. Runes never go.
+    if !s.player.runes.is_empty() {
+        h.write_u32(count(&s.player.runes));
+        for r in &s.player.runes {
+            h.write_u32(u32::from(r.rune.index()));
+            h.write_u32(r.cooldown_left);
+        }
+        let centred = || {
+            s.runs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, r)| Some((i, r.at?)))
+        };
+        h.write_u32(u32::try_from(centred().count()).unwrap_or(u32::MAX));
+        for (i, at) in centred() {
+            h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
+            h.write_i32(at.x.0);
+            h.write_i32(at.y.0);
+        }
+        // Then each thrown rune's turn point, by its place in `runs`.
+        let thrown = || {
+            s.runs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, r)| Some((i, r.throw?)))
+        };
+        h.write_u32(u32::try_from(thrown().count()).unwrap_or(u32::MAX));
+        for (i, to) in thrown() {
+            h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
+            h.write_i32(to.x.0);
+            h.write_i32(to.y.0);
+        }
+        // Then each homing missile's target, by its place in `runs`.
+        let homing = || {
+            s.runs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, r)| Some((i, r.homing?)))
+        };
+        h.write_u32(u32::try_from(homing().count()).unwrap_or(u32::MAX));
+        for (i, target) in homing() {
+            h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
+            h.write_u32(target.0);
+        }
+    }
     h.finish()
+}
+
+/// A damage type in the state hash: its place in `DamageType::ALL` plus 1, or 0 for neutral.
+fn type_code(ty: Option<DamageType>) -> u32 {
+    ty.and_then(|ty| DamageType::ALL.iter().position(|t| *t == ty))
+        .map_or(0, |i| u32::try_from(i + 1).unwrap_or(u32::MAX))
 }

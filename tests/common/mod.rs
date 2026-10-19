@@ -2,6 +2,7 @@
 //! replay tests.
 #![allow(dead_code)]
 
+pub mod on_hit;
 pub mod run;
 
 use serde_json::{Value, json};

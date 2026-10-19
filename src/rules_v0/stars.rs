@@ -1,4 +1,4 @@
-//! Falling stars and their offers (ADR-066 §2, §3, ADR-068), in a stage with `stars`.
+//! Falling stars and their offers (ADR-079 §2, §3, ADR-068), in a stage with `stars`.
 //!
 //! In the collisions, after the defeated enemies' experience, each defeated enemy in entity-ID
 //! order may drop a star where it fell. With the map full of stars it drops none, and the pity
@@ -13,26 +13,28 @@
 //! rarity of the drop table's tier for the player's level after this tick's experience. It
 //! opens even though the kill clears the stage; the stars' offers due then never open.
 //!
-//! At the end of a tick the run survives, the first offer due opens. It draws `OFFER_SIZE`
-//! candidates from the run's pool at the star's rarity, then from the rarities below while too
-//! few are left. It leaves out banished rewards, rewards at their limit and rewards it already
-//! holds. An offer with no candidate does not open, and the next one due is tried. While an
+//! At the end of a tick the run survives, the first offer due opens, after the boss offer and
+//! the expertise levels' (`expertise`). It draws `OFFER_SIZE` candidates from the run's pool
+//! at the star's rarity, then from the rarities below while too few are left. It leaves out banished rewards, rewards at their limit and rewards it already
+//! holds, and the random rune once the Main weapon holds every rune (ADR-099), whose rune is
+//! drawn only when it is taken. An offer with no candidate does not open, and the next one due is tried. While an
 //! offer is open the world stops. A choice (`choose`) takes a candidate, rerolls one, skips (a
 //! star's offer only), or banishes one; when it closes the offer, the next one due opens at
-//! once. Every draw is from the run's generator, in this order.
+//! once (`super::choose`). Every draw is from the run's generator, in this order.
 
-use crate::engine::{Due, OfferState, StarField, StarState, State};
+use crate::attack::DamageType;
+use crate::engine::{Due, HeldRune, OfferState, StarField, StarState, State};
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
-use crate::rewards::{Rarity, Rewards};
+use crate::rewards::{Rarity, RewardEffect, Rewards};
 use crate::rng::SplitMix64;
 use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
-use super::{levels, overlaps, skill};
+use super::{levels, orbit, overlaps, player, runes, skill};
 
-/// The candidates an offer holds (a tuning value, ADR-066 §3).
+/// The candidates an offer holds (a tuning value, ADR-079 §3).
 pub(crate) const OFFER_SIZE: usize = 3;
 /// The drop chance is out of this.
 const PER_MILLE: u32 = 1000;
@@ -164,17 +166,33 @@ pub(super) fn pick_up(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent
     }
 }
 
-/// Opens the first offer due that has a candidate, unless one is open.
-pub(crate) fn open_due(rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let State { rng, stars, .. } = s;
+/// Opens the first offer due that has a candidate, unless an offer is open; with `boss_only`,
+/// only while the first due is the boss offer.
+pub(super) fn open_due(
+    rewards: &Rewards,
+    s: &mut State,
+    events: &mut Vec<DomainEvent>,
+    boss_only: bool,
+) {
+    if super::offer_open(s) {
+        return;
+    }
+    let State {
+        rng, stars, player, ..
+    } = s;
     let Some(f) = stars.as_mut() else {
         return;
     };
-    while f.offer.is_none() && !f.due.is_empty() {
+    let held_runes = &player.runes;
+    while f.offer.is_none()
+        && f.due
+            .first()
+            .is_some_and(|d| !boss_only || d.kind == OfferKind::Boss)
+    {
         let Due { kind, rarity } = f.due.remove(0);
         let mut candidates = Vec::with_capacity(OFFER_SIZE);
         while candidates.len() < OFFER_SIZE {
-            match draw(rewards, f, rng, rarity, &candidates) {
+            match draw(rewards, f, held_runes, rng, rarity, &candidates) {
                 Some(i) => candidates.push(i),
                 None => break,
             }
@@ -195,22 +213,45 @@ pub(crate) fn open_due(rewards: &Rewards, s: &mut State, events: &mut Vec<Domain
     }
 }
 
-/// Whether the reward at `i` may be offered: not banished, not at its limit, not in `held`.
-fn eligible(rewards: &Rewards, f: &StarField, i: u16, rarity: Rarity, held: &[u16]) -> bool {
+/// Whether the reward at `i` may be offered: not banished, not in `held`, and not at its limit,
+/// or for a random rune, while the Main weapon lacks a rune of `runes`.
+fn eligible(
+    rewards: &Rewards,
+    f: &StarField,
+    runes: &[HeldRune],
+    i: u16,
+    rarity: Rarity,
+    held: &[u16],
+) -> bool {
     let at = usize::from(i);
     rewards.rewards().get(at).is_some_and(|r| {
-        r.rarity == rarity && !f.banished[at] && f.taken[at] < r.limit && !held.contains(&i)
+        let room = match (r.effect, r.limit) {
+            (RewardEffect::RandomRune, _) => !runes::all_held(runes),
+            (_, Some(limit)) => f.taken[at] < limit,
+            (_, None) => false,
+        };
+        r.rarity == rarity && !f.banished[at] && room && !held.contains(&i)
     })
 }
 
 /// The rarest rarity from `top` down that has a reward to offer besides `held`.
-fn first_rarity(rewards: &Rewards, f: &StarField, top: Rarity, held: &[u16]) -> Option<Rarity> {
+fn first_rarity(
+    rewards: &Rewards,
+    f: &StarField,
+    runes: &[HeldRune],
+    top: Rarity,
+    held: &[u16],
+) -> Option<Rarity> {
     Rarity::ALL
         .iter()
         .rev()
         .copied()
         .filter(|r| *r <= top)
-        .find(|r| f.pool.iter().any(|i| eligible(rewards, f, *i, *r, held)))
+        .find(|r| {
+            f.pool
+                .iter()
+                .any(|i| eligible(rewards, f, runes, *i, *r, held))
+        })
 }
 
 /// Draws one reward from the pool at `top`, or the rarest rarity below it with one left,
@@ -218,16 +259,17 @@ fn first_rarity(rewards: &Rewards, f: &StarField, top: Rarity, held: &[u16]) -> 
 fn draw(
     rewards: &Rewards,
     f: &StarField,
+    runes: &[HeldRune],
     rng: &mut SplitMix64,
     top: Rarity,
     held: &[u16],
 ) -> Option<u16> {
-    let rarity = first_rarity(rewards, f, top, held)?;
+    let rarity = first_rarity(rewards, f, runes, top, held)?;
     let list: Vec<u16> = f
         .pool
         .iter()
         .copied()
-        .filter(|i| eligible(rewards, f, *i, rarity, held))
+        .filter(|i| eligible(rewards, f, runes, *i, rarity, held))
         .collect();
     let at = rng.below(u32::try_from(list.len()).unwrap_or(u32::MAX));
     list.get(usize::try_from(at).unwrap_or(usize::MAX)).copied()
@@ -246,7 +288,8 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
     let mut out: Vec<OfferOption> = (0..n)
         .map(|candidate| OfferOption::Take { candidate })
         .collect();
-    if f.rerolls_left > 0 && first_rarity(rewards, f, o.rarity, &o.candidates).is_some() {
+    let runes = &s.player.runes;
+    if f.rerolls_left > 0 && first_rarity(rewards, f, runes, o.rarity, &o.candidates).is_some() {
         out.extend((0..n).map(|candidate| OfferOption::Reroll { candidate }));
     }
     if o.kind == OfferKind::Star {
@@ -259,7 +302,8 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
 }
 
 /// Carries out `option`, one of `options`, on the open offer.
-pub(crate) fn choose(
+pub(super) fn choose(
+    stage: &Stage,
     rewards: &Rewards,
     s: &mut State,
     option: OfferOption,
@@ -286,31 +330,55 @@ pub(crate) fn choose(
             let at = usize::from(i);
             f.taken[at] = f.taken[at].saturating_add(1);
             let reward = &rewards.rewards()[at];
-            match reward.effect.stat() {
-                Some(effect) => {
-                    if let Some(p) = progress.as_mut() {
-                        levels::add_effect(p, player, effect, reward.amount);
-                    }
-                }
-                None => {
+            // Every effect but the random rune's has an amount (`rewards::validate`).
+            let amount = reward.amount.unwrap_or(0);
+            let mut rune = None;
+            match reward.effect {
+                RewardEffect::StageSkill => {
                     let index = reward
                         .skill
                         .as_ref()
                         .and_then(|id| rewards.stage_skills().index_of(id));
                     if let Some(index) = index {
-                        skill::take(rewards, player, index, reward.amount);
+                        skill::take(rewards, player, index, amount);
+                    }
+                }
+                RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
+                RewardEffect::Orbit => orbit::take(player, i, amount),
+                RewardEffect::RangePct => {
+                    player.range_pct = player.range_pct.saturating_add(amount)
+                }
+                RewardEffect::RandomRune => rune = runes::draw(rng, player),
+                RewardEffect::TypeBonusPct
+                | RewardEffect::AttackTypeBonusPct
+                | RewardEffect::ElementBonusPct => {
+                    for (ty, pct) in DamageType::ALL.iter().zip(&mut player.type_bonus_pct) {
+                        let applies = match reward.effect {
+                            RewardEffect::AttackTypeBonusPct => ty.is_physical(),
+                            RewardEffect::ElementBonusPct => !ty.is_physical(),
+                            _ => reward.damage_type == Some(*ty),
+                        };
+                        if applies {
+                            *pct = pct.saturating_add(amount);
+                        }
+                    }
+                }
+                effect => {
+                    if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
+                        levels::add_effect(p, player, effect, amount);
                     }
                 }
             }
             events.push(DomainEvent::RewardTaken {
                 reward: reward.id.clone(),
                 taken: f.taken[at],
+                rune,
             });
             false
         }
         OfferOption::Reroll { candidate } => {
             let slot = usize::from(candidate);
-            if let Some(new) = draw(rewards, f, rng, o.rarity, &o.candidates) {
+            if let Some(new) = draw(rewards, f, &player.runes, rng, o.rarity, &o.candidates) {
                 f.rerolls_left = f.rerolls_left.saturating_sub(1);
                 o.candidates[slot] = new;
                 events.push(DomainEvent::CandidateReplaced {
@@ -334,7 +402,7 @@ pub(crate) fn choose(
             events.push(DomainEvent::RewardBanished {
                 reward: id(rewards, i),
             });
-            match draw(rewards, f, rng, o.rarity, &o.candidates) {
+            match draw(rewards, f, &player.runes, rng, o.rarity, &o.candidates) {
                 Some(new) => {
                     o.candidates[slot] = new;
                     events.push(DomainEvent::CandidateReplaced {
@@ -351,8 +419,6 @@ pub(crate) fn choose(
     };
     if open {
         f.offer = Some(o);
-    } else {
-        open_due(rewards, s, events);
     }
 }
 
@@ -371,6 +437,7 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                 CandidateView {
                     reward: r.id.clone(),
                     rarity: r.rarity,
+                    hidden: r.effect == RewardEffect::RandomRune,
                 }
             })
             .collect(),

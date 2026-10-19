@@ -1331,3 +1331,40 @@ fn a_phase_may_break_charges() {
     *enemy_attack(&mut v) = json!({ "inline": [phase(json!({ "breaks_charge": true }))] });
     assert_valid(&v);
 }
+
+#[test]
+fn an_enemy_s_and_the_boss_s_expertise_points_are_capped() {
+    for at in ["/waves/0", "/boss"] {
+        let path = format!(
+            "${}",
+            at.replace("/waves/0", ".waves[0]")
+                .replace("/boss", ".boss")
+        );
+        let mut v = base();
+        set_new(
+            &mut v,
+            at,
+            "expertise",
+            json!({ "hit": MAX_EXPERTISE_PER_HIT, "kill": MAX_EXPERTISE_PER_KILL }),
+        );
+        assert_valid(&v);
+        let mut over = v.clone();
+        set(
+            &mut over,
+            &format!("{at}/expertise/hit"),
+            json!(MAX_EXPERTISE_PER_HIT + 1),
+        );
+        assert_eq!(first_issue(&over).path, format!("{path}.expertise.hit"));
+        let mut over = v.clone();
+        set(
+            &mut over,
+            &format!("{at}/expertise/kill"),
+            json!(MAX_EXPERTISE_PER_KILL + 1),
+        );
+        assert_eq!(first_issue(&over).path, format!("{path}.expertise.kill"));
+        // Both numbers are given, and nothing else.
+        let mut partial = base();
+        set_new(&mut partial, at, "expertise", json!({ "hit": 1 }));
+        assert!(serde_json::from_value::<Stage>(partial).is_err());
+    }
+}

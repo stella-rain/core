@@ -1,4 +1,4 @@
-//! Rewards (ADR-066 §3, ADR-067): what an offer holds is content, read from JSON as untrusted
+//! Rewards (ADR-079 §3, ADR-067): what an offer holds is content, read from JSON as untrusted
 //! bytes (ADR-020): a size limit before parsing, strict parsing, the current versions only and
 //! every field bounded. The bundled file is the default; other bytes run the same way and
 //! change the run's content hash.
@@ -6,7 +6,8 @@
 use serde_json::{Value, json};
 use stella_rain_core::id::ContentId;
 use stella_rain_core::rewards::{
-    MAX_AMOUNT, MAX_REWARDS, MAX_REWARDS_BYTES, MAX_STACK, Rarity, RewardEffect, Rewards,
+    MAX_AMOUNT, MAX_ORBIT_COOLDOWN_TICKS, MAX_ORBIT_TURN, MAX_ORBITS, MAX_ORBS, MAX_RANGE_PCT,
+    MAX_REWARDS, MAX_REWARDS_BYTES, MAX_STACK, Rarity, RewardEffect, Rewards,
 };
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
@@ -15,6 +16,7 @@ use stella_rain_core::run_replay::{
 use stella_rain_core::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, RunStats, StatEffect};
 use stella_rain_core::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use stella_rain_core::validate::Error;
+use stella_rain_core::validate::limits::MAX_EVADE_CHARGES;
 
 mod common;
 
@@ -274,6 +276,145 @@ fn amounts_limits_and_texts_are_bounded() {
     invalid_at(
         &one_with("description", json!("a\u{7}b")),
         "$.rewards[0].description",
+    );
+}
+
+#[test]
+fn an_extra_charge_reward_adds_one_to_the_most_charges_and_names_no_skill() {
+    let charge = |amount: u32| {
+        let mut v = one_with("effect", json!("evade_charge"));
+        v["rewards"][0]["amount"] = json!(amount);
+        v
+    };
+    let rewards = parse(&charge(1)).expect("one charge");
+    assert_eq!(rewards.rewards()[0].effect, RewardEffect::EvadeCharge);
+    assert_eq!(RewardEffect::EvadeCharge.stat(), None);
+    assert!(parse(&charge(u32::from(MAX_EVADE_CHARGES))).is_ok());
+    invalid_at(&charge(0), "$.rewards[0].amount");
+    invalid_at(
+        &charge(u32::from(MAX_EVADE_CHARGES) + 1),
+        "$.rewards[0].amount",
+    );
+    let mut named = charge(1);
+    named["rewards"][0]["skill"] = json!("black_hole");
+    invalid_at(&named, "$.rewards[0].skill");
+}
+
+/// A range reward `id`, `amount` percent wider, taken at most 5 times.
+fn range(id: &str, amount: u32) -> Value {
+    json!({
+        "id": id, "rarity": "rare", "effect": "range_pct", "amount": amount, "limit": 5,
+        "title": "Reach", "description": "Every combo step reaches further"
+    })
+}
+
+#[test]
+fn a_range_reward_is_no_stat_and_widens_within_bounds() {
+    let one = |amount: u32| file(vec![range("reach", amount)]);
+    let rewards = parse(&one(25)).expect("a range reward");
+    assert_eq!(rewards.rewards()[0].effect, RewardEffect::RangePct);
+    assert_eq!(RewardEffect::RangePct.stat(), None);
+    assert!(parse(&one(MAX_RANGE_PCT)).is_ok());
+    invalid_at(&one(0), "$.rewards[0].amount");
+    invalid_at(&one(MAX_RANGE_PCT + 1), "$.rewards[0].amount");
+
+    let mut most = one(25);
+    most["rewards"][0]["limit"] = json!(MAX_STACK);
+    assert!(parse(&most).is_ok());
+    let mut named = one(25);
+    named["rewards"][0]["skill"] = json!("black_hole");
+    invalid_at(&named, "$.rewards[0].skill");
+    let mut old = one(25);
+    old["rewards"][0]["enchantment"] = json!({ "type": "range" });
+    assert!(matches!(parse(&old), Err(Error::Parse { .. })));
+}
+
+/// An orbit reward `id`: `amount` orbs of a one-phase attack 40 pixels out, a quarter turn a
+/// second, every 2 seconds.
+fn orbit(id: &str, amount: u32) -> Value {
+    json!({
+        "id": id, "rarity": "rare", "effect": "orbit", "amount": amount, "limit": 3,
+        "title": "Orbit", "description": "Orbs turn around you",
+        "orbit": {
+            "attack": { "inline": [
+                { "kind": "active", "ticks": 60, "damage": 5,
+                  "hit_box": { "type": "circle", "offset": { "forward": 10_240 }, "radius": 1_024 } }
+            ] },
+            "turn_per_tick": 384,
+            "cooldown_ticks": 120
+        }
+    })
+}
+
+#[test]
+fn an_orbit_reward_names_its_orbit_and_adds_one_to_the_most_orbs() {
+    let one = |amount: u32| file(vec![orbit("ring", amount)]);
+    let rewards = parse(&one(1)).expect("one orb");
+    assert_eq!(rewards.rewards()[0].effect, RewardEffect::Orbit);
+    assert_eq!(RewardEffect::Orbit.stat(), None);
+    let held = rewards.rewards()[0].orbit.as_ref().expect("its orbit");
+    assert_eq!((held.turn_per_tick, held.cooldown_ticks), (384, 120));
+    assert!(parse(&one(u32::from(MAX_ORBS))).is_ok());
+    invalid_at(&one(0), "$.rewards[0].amount");
+    invalid_at(&one(u32::from(MAX_ORBS) + 1), "$.rewards[0].amount");
+
+    let mut bare = one(1);
+    bare["rewards"][0].as_object_mut().unwrap().remove("orbit");
+    invalid_at(&bare, "$.rewards[0].orbit");
+    let mut stray = one_with("orbit", orbit("x", 1)["orbit"].clone());
+    stray["rewards"][0]["effect"] = json!("attack_pct");
+    invalid_at(&stray, "$.rewards[0].orbit");
+    let mut named = one(1);
+    named["rewards"][0]["skill"] = json!("black_hole");
+    invalid_at(&named, "$.rewards[0].skill");
+}
+
+#[test]
+fn an_orbit_s_turn_cooldown_and_attack_are_bounded() {
+    let with = |field: &str, value: Value| {
+        let mut r = orbit("ring", 1);
+        r["orbit"][field] = value;
+        file(vec![r])
+    };
+    for turn in [-MAX_ORBIT_TURN, 0, MAX_ORBIT_TURN] {
+        assert!(parse(&with("turn_per_tick", json!(turn))).is_ok(), "{turn}");
+    }
+    for turn in [-MAX_ORBIT_TURN - 1, MAX_ORBIT_TURN + 1] {
+        invalid_at(
+            &with("turn_per_tick", json!(turn)),
+            "$.rewards[0].orbit.turn_per_tick",
+        );
+    }
+    assert!(parse(&with("cooldown_ticks", json!(1))).is_ok());
+    assert!(parse(&with("cooldown_ticks", json!(MAX_ORBIT_COOLDOWN_TICKS))).is_ok());
+    for ticks in [0, MAX_ORBIT_COOLDOWN_TICKS + 1] {
+        invalid_at(
+            &with("cooldown_ticks", json!(ticks)),
+            "$.rewards[0].orbit.cooldown_ticks",
+        );
+    }
+    let unknown = with(
+        "attack",
+        json!({ "preset": { "id": "no_such_attack", "args": [] } }),
+    );
+    match parse(&unknown) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path.starts_with("$.rewards[0].orbit.attack")),
+            "{issues:?}"
+        ),
+        other => panic!("expected invalid, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_rewards_file_holds_at_most_four_orbits() {
+    let orbits = |n: usize| file((0..n).map(|i| orbit(&format!("ring_{i}"), 1)).collect());
+    assert!(parse(&orbits(MAX_ORBITS)).is_ok());
+    invalid_at(
+        &orbits(MAX_ORBITS + 1),
+        &format!("$.rewards[{MAX_ORBITS}].effect"),
     );
 }
 

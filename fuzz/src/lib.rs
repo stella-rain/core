@@ -8,12 +8,15 @@
 
 use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::engine::Engine;
+use stella_rain_core::expertise::Expertise;
 use stella_rain_core::input::Input;
+use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::replay::{self, Replay};
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay};
 use stella_rain_core::run_setup;
 use stella_rain_core::run_stats::RunStats;
+use stella_rain_core::runes::Runes;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::validate::limits::MAX_TICKS;
@@ -29,9 +32,9 @@ const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/v0/clear/stage.jso
 
 /// The stage parser and validator (ADR-020 items 1 to 4). A stage that loads can be saved
 /// again, which is what the editor does, and loads again as the same stage. The same bytes are
-/// also read as run stats, as rewards and as stage skills (ADR-067, ADR-098), content that may
-/// come from outside the app: they parse without a panic, and files that load hash the same
-/// twice.
+/// also read as run stats, as rewards, as stage skills, as expertise, as the match-up table and
+/// as runes (ADR-067, ADR-078, ADR-098, ADR-099, ADR-100), content that may come from outside the app: they parse without a panic, and files
+/// that load hash the same twice.
 pub fn stage_parse(data: &[u8]) -> bool {
     if let Ok(stats) = RunStats::parse(data) {
         let again = RunStats::parse(data).expect("run stats that loaded load again");
@@ -44,6 +47,18 @@ pub fn stage_parse(data: &[u8]) -> bool {
     if let Ok(skills) = StageSkills::parse(data) {
         let again = StageSkills::parse(data).expect("stage skills that loaded load again");
         assert_eq!(again, skills, "the same bytes loaded as other stage skills");
+    }
+    if let Ok(expertise) = Expertise::parse(data) {
+        let again = Expertise::parse(data).expect("expertise that loaded loads again");
+        assert_eq!(again, expertise, "the same bytes loaded as other expertise");
+    }
+    if let Ok(match_ups) = MatchUps::parse(data) {
+        let again = MatchUps::parse(data).expect("match-ups that loaded load again");
+        assert_eq!(again, match_ups, "the same bytes loaded as other match-ups");
+    }
+    if let Ok(runes) = Runes::parse(data) {
+        let again = Runes::parse(data).expect("runes that loaded load again");
+        assert_eq!(again, runes, "the same bytes loaded as other runes");
     }
     let Ok(stage) = parse_and_validate(data) else {
         return false;
@@ -93,7 +108,7 @@ pub fn run_setup(data: &[u8]) -> bool {
     engine.tick() > 0
 }
 
-/// One tick of `input`, after the commands between ticks (ADR-066): a choice with `pick` as it
+/// One tick of `input`, after the commands between ticks (ADR-079): a choice with `pick` as it
 /// is, then a spend of `pick` as it is and one of `pick` inside the stats, each of which may be
 /// refused and must then change nothing; then, while an offer is open, a choice of `pick`
 /// inside its options, which is never refused, so the world goes on.

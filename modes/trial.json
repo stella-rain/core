@@ -3,7 +3,7 @@
   "sim_version": 0,
   "id": "trial",
   "title": "Trial",
-  "description": "The trial mode: one placeholder stage of bats in waves, a fairy that heals, and a golem whose horn breaks. Defeated enemies give experience, and each level gives a stat point to spend. Two elites hold their places until the golem calls them. The weapons and the seed come from the run setup.",
+  "description": "The trial mode: one placeholder stage of bats in waves, a fairy that heals, and a golem whose horn breaks. Defeated enemies give experience, and each level gives a stat point to spend. Two elites hold their places until the golem calls them. Placeholder match-ups: the bats are weak to Slash, the elites strong against Pierce and resist every other attack type, the golem weak to Strike and resists every other attack type; its horn has none. The weapons and the seed come from the run setup.",
   "seed": 20261010,
   "length_ticks": 5400,
   "map": {
@@ -72,6 +72,11 @@
         "base": "bat",
         "hp": 30,
         "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
         "movement": {
           "type": "straight",
           "vx": 0,
@@ -104,7 +109,11 @@
         "y": 0
       },
       "count": 5,
-      "every_ticks": 40
+      "every_ticks": 40,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
     },
     {
       "at_tick": 600,
@@ -112,6 +121,11 @@
         "base": "bat",
         "hp": 30,
         "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
         "movement": {
           "type": "straight",
           "vx": 0,
@@ -144,7 +158,11 @@
         "y": 0
       },
       "count": 5,
-      "every_ticks": 40
+      "every_ticks": 40,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
     },
     {
       "at_tick": 1200,
@@ -152,6 +170,11 @@
         "base": "bat",
         "hp": 60,
         "radius": 2560,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
         "movement": {
           "type": "straight",
           "vx": 64,
@@ -183,7 +206,11 @@
       },
       "count": 4,
       "every_ticks": 60,
-      "xp": 2
+      "xp": 2,
+      "expertise": {
+        "hit": 1,
+        "kill": 6
+      }
     },
     {
       "at_tick": 60,
@@ -191,6 +218,12 @@
         "base": "bat",
         "hp": 240,
         "radius": 3072,
+        "profile": {
+          "strong": [
+            "pierce"
+          ],
+          "resist": "physical"
+        },
         "movement": {
           "type": "follow",
           "distance": 12288
@@ -226,7 +259,11 @@
       },
       "count": 1,
       "every_ticks": 0,
-      "xp": 3
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
     },
     {
       "at_tick": 60,
@@ -234,6 +271,12 @@
         "base": "bat",
         "hp": 2000,
         "radius": 3072,
+        "profile": {
+          "strong": [
+            "pierce"
+          ],
+          "resist": "physical"
+        },
         "movement": {
           "type": "follow",
           "distance": 12288
@@ -269,13 +312,23 @@
       },
       "count": 1,
       "every_ticks": 0,
-      "xp": 3
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
     }
   ],
   "boss": {
     "base": "golem",
     "hp": 3000,
     "radius": 8192,
+    "profile": {
+      "weak": [
+        "strike"
+      ],
+      "resist": "physical"
+    },
     "spawn": {
       "x": 163840,
       "y": 35840
@@ -426,6 +479,10 @@
     "call_elites": {
       "after_ticks": 1800,
       "below_pct": 70
+    },
+    "expertise": {
+      "hit": 5,
+      "kill": 500
     }
   },
   "levels": {
