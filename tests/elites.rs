@@ -11,7 +11,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
 
-mod common;
+use crate::common;
 
 use common::*;
 

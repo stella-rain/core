@@ -17,7 +17,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::{AttackView, OfferOption, WeaponRole};
 use stella_rain_core::stage::Stage;
 
-mod common;
+use crate::common;
 
 use common::*;
 

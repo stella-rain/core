@@ -13,7 +13,7 @@ use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::Error;
 
-mod common;
+use crate::common;
 
 use common::*;
 

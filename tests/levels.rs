@@ -15,7 +15,7 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 
-mod common;
+use crate::common;
 
 use common::*;
 

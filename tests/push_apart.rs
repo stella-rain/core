@@ -3,7 +3,7 @@
 //! centre to its own; the sum is clamped to 4 pixels (1,024 units) and every enemy moves at once.
 //! Hurt circles overlap, each radius counted as at least 8 pixels (2,048 units).
 
-mod common;
+use crate::common;
 
 use common::*;
 use proptest::prelude::*;

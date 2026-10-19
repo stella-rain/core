@@ -26,7 +26,7 @@ use stella_rain_core::runes::{
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 
-mod common;
+use crate::common;
 
 use common::run::{run_script, trial_setup};
 

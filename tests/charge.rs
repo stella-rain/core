@@ -6,7 +6,7 @@
 //! 2048); level 2 at 60 (perfect for 8 ticks, +100%, a bullet at 3072, or at 4096 when perfect);
 //! released by itself at 90; half speed while charging. No cooldown.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

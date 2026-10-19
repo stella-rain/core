@@ -2,7 +2,7 @@
 //! times the attacker's and the target's multipliers, times `K / (K + defence)` with K = 100,
 //! truncated at each step and at least 1. The `Hit` event reports what is dealt.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

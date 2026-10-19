@@ -11,7 +11,7 @@ use stella_rain_core::run_setup::{
 use stella_rain_core::validate::{self, Error, Issue};
 use stella_rain_core::weapon::WeaponRef;
 
-mod common;
+use crate::common;
 
 fn setup() -> RunSetup {
     RunSetup {

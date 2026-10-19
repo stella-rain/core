@@ -14,7 +14,7 @@ use stella_rain_core::snapshot::{OfferKind, OfferOption, OfferView};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
 
-mod common;
+use crate::common;
 
 use common::*;
 

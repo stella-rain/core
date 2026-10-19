@@ -22,7 +22,7 @@ use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::stage::Stage;
 
-mod common;
+use crate::common;
 
 use common::on_hit::*;
 use common::run::{TRIAL_LENGTH, run_input, trial_setup};

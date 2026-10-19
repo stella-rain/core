@@ -2,11 +2,11 @@
 //! enemy, a boss and the main shot, kept as `insta` snapshots in `tests/golden/` (ADR-021).
 //! They read like a story of what each agent did and why the hash moved, and any change to the
 //! rules shows up as a diff in review. After an intended change, run
-//! `cargo insta test --features record --test golden --review` (or set `INSTA_UPDATE=always`)
+//! `cargo insta test --features record --test integration --review` (or set `INSTA_UPDATE=always`)
 //! and say `Corpus regenerated: <why>` in the PR (ADR-035). In CI a difference always fails.
 #![cfg(feature = "record")]
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};
