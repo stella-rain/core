@@ -75,40 +75,15 @@ pub(super) fn select(stage: &Stage, s: &State, me: Who, selector: &Selector) -> 
 /// elite, then any other enemy; within a class the nearest, then the lower entity ID. One pass
 /// over the enemies, at most the enemy cap (ADR-020).
 pub(super) fn assist_target(stage: &Stage, s: &State, range: i32) -> Option<EntityId> {
-    let mut best: Option<Key> = None;
-    candidates(stage, s, range, |key| {
-        if best.is_none_or(|b| key < b) {
-            best = Some(key);
-        }
-    });
-    best.map(|(_, _, id)| id)
-}
-
-/// Aim assist's first `n` targets, in its order (`assist_target` first): homing missiles'
-/// (ADR-099). One pass over the enemies, each set against at most `n` kept.
-pub(super) fn assist_targets(stage: &Stage, s: &State, range: i32, n: usize) -> Vec<EntityId> {
-    let mut kept: Vec<Key> = Vec::with_capacity(n.saturating_add(1));
-    candidates(stage, s, range, |key| {
-        if kept.len() == n && kept.last().is_none_or(|last| key >= *last) {
+    let from = s.player.at;
+    let mut best: Option<(u8, u64, EntityId)> = None;
+    let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
+        if !overlaps(from, range, at, radius) {
             return;
         }
-        let at = kept.partition_point(|k| *k < key);
-        kept.insert(at, key);
-        kept.truncate(n);
-    });
-    kept.into_iter().map(|(_, _, id)| id).collect()
-}
-
-/// Aim assist's order: the class (the boss or a part 0, an elite 1, any other enemy 2), the
-/// squared distance, the entity ID.
-type Key = (u8, u64, EntityId);
-
-/// Every live target whose circle reaches within `range` of the main character, as its key.
-fn candidates(stage: &Stage, s: &State, range: i32, mut found: impl FnMut(Key)) {
-    let from = s.player.at;
-    let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
-        if overlaps(from, range, at, radius) {
-            found((class, dist2(from, at), id));
+        let key = (class, dist2(from, at), id);
+        if best.is_none_or(|b| key < b) {
+            best = Some(key);
         }
     };
     if let Some((def, boss)) = stage.boss.as_ref().zip(s.boss.as_ref()) {
@@ -127,4 +102,42 @@ fn candidates(stage: &Stage, s: &State, range: i32, mut found: impl FnMut(Key)) 
             consider(class, e.at, agent_def(stage, e.key).radius.0, e.id);
         }
     }
+    best.map(|(_, _, id)| id)
+}
+
+/// Aim assist's first `n` targets, in its order (`assist_target`'s first): homing missiles'
+/// (ADR-099). One pass over the enemies, each set against at most `n` kept. Its own walk, so
+/// that aim assist's stays as the tick-cost gate measures it (ADR-058).
+pub(super) fn assist_targets(stage: &Stage, s: &State, range: i32, n: usize) -> Vec<EntityId> {
+    let from = s.player.at;
+    let mut kept: Vec<(u8, u64, EntityId)> = Vec::with_capacity(n.saturating_add(1));
+    let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
+        if !overlaps(from, range, at, radius) {
+            return;
+        }
+        let key = (class, dist2(from, at), id);
+        if kept.len() == n && kept.last().is_none_or(|last| key >= *last) {
+            return;
+        }
+        let at = kept.partition_point(|k| *k < key);
+        kept.insert(at, key);
+        kept.truncate(n);
+    };
+    if let Some((def, boss)) = stage.boss.as_ref().zip(s.boss.as_ref()) {
+        if boss.hp > 0 {
+            consider(0, boss.at, def.radius.0, boss.id);
+        }
+        for (i, part) in boss.parts.iter().enumerate() {
+            if part.hp > 0 {
+                consider(0, s.at(Who::BossPart(i)), part.radius, part.id);
+            }
+        }
+    }
+    for e in &s.enemies {
+        if e.hp > 0 {
+            let class = if e.elite.is_some() { 1 } else { 2 };
+            consider(class, e.at, agent_def(stage, e.key).radius.0, e.id);
+        }
+    }
+    kept.into_iter().map(|(_, _, id)| id).collect()
 }
