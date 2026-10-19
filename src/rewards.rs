@@ -54,10 +54,23 @@ pub const MAX_ORBIT_COOLDOWN_TICKS: u32 = 3_600;
 /// reward's amount and holds what the range rewards and the expertise range options add up to
 /// (ADR-099, ADR-020).
 pub const MAX_RANGE_PCT: u32 = 100;
+/// The most Rune Haste one reward gives, in percent, and the most the picks add up to: a
+/// cooldown or tick interval is then a quarter as long, and never less than a tick
+/// (ADR-099 point 5, ADR-020).
+pub const MAX_RUNE_HASTE_PCT: u32 = 300;
 /// The most the type bonuses add to one attack's damage, in percent: eleven times as much. It
 /// bounds the match-up file's `max_type_bonus_pct`, where the bonuses that apply to an
 /// attack's type saturate (ADR-100, ADR-020).
 pub const MAX_TYPE_BONUS_PCT: u32 = 1_000;
+
+/// `ticks` shortened by `haste_pct` percent of Rune Haste (ADR-099 point 5): `ticks × 100 /
+/// (100 + h)` rounded up, at least 1. The haste is held to `MAX_RUNE_HASTE_PCT`, so an
+/// unvalidated sum cannot pass it.
+pub fn rune_haste_ticks(ticks: u32, haste_pct: u32) -> u32 {
+    let h = u64::from(haste_pct.min(MAX_RUNE_HASTE_PCT));
+    let shortened = (u64::from(ticks) * 100).div_ceil(100 + h);
+    u32::try_from(shortened).unwrap_or(u32::MAX).max(1)
+}
 
 /// A reward's rarity, from the most common up (ADR-079 §2).
 #[derive(
@@ -119,6 +132,10 @@ pub enum RewardEffect {
     AttackTypeBonusPct,
     /// Its attacks of every element `amount` percent stronger.
     ElementBonusPct,
+    /// Every on-hit rune's cooldown and every damage-over-time tick interval the main character
+    /// applies `amount` percent of haste shorter, adding up over the picks (ADR-099): see
+    /// `rune_haste_ticks`.
+    RuneHaste,
     /// One rune the Main weapon does not hold, drawn from the run's generator when the reward
     /// is picked, never before: an offer shows it hidden (ADR-099). It is offered only while
     /// the Main lacks a rune.
@@ -139,6 +156,7 @@ impl RewardEffect {
             | RewardEffect::EvadeCharge
             | RewardEffect::Orbit
             | RewardEffect::RangePct
+            | RewardEffect::RuneHaste
             | RewardEffect::TypeBonusPct
             | RewardEffect::AttackTypeBonusPct
             | RewardEffect::ElementBonusPct
@@ -169,9 +187,10 @@ pub struct Reward {
     /// What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,
     /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it
     /// adds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to
-    /// `MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for a type
-    /// bonus, the percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random
-    /// rune, which has none.
+    /// `MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune
+    /// Haste, the percent of haste, from 1 to `MAX_RUNE_HASTE_PCT`; for a type bonus, the
+    /// percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which
+    /// has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub amount: Option<u32>,
     /// The most times one run takes it, from 1 to `MAX_STACK`. Required by every effect but
@@ -317,6 +336,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
             RewardEffect::EvadeCharge => u32::from(MAX_EVADE_CHARGES),
             RewardEffect::Orbit => u32::from(MAX_ORBS),
             RewardEffect::RangePct => MAX_RANGE_PCT,
+            RewardEffect::RuneHaste => MAX_RUNE_HASTE_PCT,
             _ => MAX_AMOUNT,
         };
         match (reward.effect, reward.amount) {

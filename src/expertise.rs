@@ -3,8 +3,8 @@
 //! for every level after and the most a level needs, and for each weapon its three styles (a
 //! path: the style at level 3 for the Main or 5 for the Sub, then the Main's upgrades at 6 and
 //! 9 and its capstone at 10) and its common pool, drawn at the other levels. Only attack speed
-//! options carry a stack limit; cooldown reduction, the other limited kind, waits for an effect
-//! kind in `core`. Each enemy's points per hit and per kill are in the stage
+//! options carry a stack limit; cooldown reduction is no expertise option but Rune Haste, a
+//! star reward (ADR-099). Each enemy's points per hit and per kill are in the stage
 //! (`stage::ExpertisePoints`).
 //!
 //! Data picks, code acts: an option's effect is one of the run stats' effect kinds
@@ -82,8 +82,8 @@ impl ExpertiseEffect {
         })
     }
 
-    /// Whether a common option of this kind has a stack limit (ADR-078 §6): attack speed only,
-    /// until `core` has a cooldown reduction kind.
+    /// Whether a common option of this kind has a stack limit (ADR-078 §6): attack speed only;
+    /// Rune Haste is a star reward (ADR-099).
     pub fn is_stack_limited(self) -> bool {
         self == ExpertiseEffect::AttackSpeedPct
     }
