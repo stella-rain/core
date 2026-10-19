@@ -523,7 +523,16 @@ impl RunRecorder {
 /// stops on the tick the run ends, so commands after it are left out; a command the engine
 /// refuses fails closed.
 pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<RunReplay, RunReplayError> {
-    let mut recorder = RunRecorder::start(setup)?;
+    record_run_with(setup, RunContent::bundled(), commands)
+}
+
+/// As `record_run`, with the content files `content` in place of the bundled ones.
+pub fn record_run_with(
+    setup: &RunSetup,
+    content: &RunContent,
+    commands: &[Command],
+) -> Result<RunReplay, RunReplayError> {
+    let mut recorder = RunRecorder::start_with(setup, content)?;
     for command in commands {
         if recorder.engine.outcome() != Outcome::Running {
             break;
@@ -559,6 +568,15 @@ pub fn verify_run_against(
     expected: &[u64],
 ) -> Result<RunVerified, RunReplayError> {
     verify_inner(replay_bytes, RunContent::bundled(), Some(expected))
+}
+
+/// As `verify_run_against`, with the content files the run used in place of the bundled ones.
+pub fn verify_run_against_with(
+    replay_bytes: &[u8],
+    content: &RunContent,
+    expected: &[u64],
+) -> Result<RunVerified, RunReplayError> {
+    verify_inner(replay_bytes, content, Some(expected))
 }
 
 fn verify_inner(

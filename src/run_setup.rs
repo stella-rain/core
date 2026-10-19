@@ -158,9 +158,7 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
 pub fn mode_file(id: &str) -> Option<&'static [u8]> {
     static TIME_LIMIT: OnceLock<Vec<u8>> = OnceLock::new();
     match id {
-        "time_limit" => {
-            Some(TIME_LIMIT.get_or_init(|| time_limit_file(TimeLimit::bundled())))
-        }
+        "time_limit" => Some(TIME_LIMIT.get_or_init(|| time_limit_file(TimeLimit::bundled()))),
         _ => mode_stage(id),
     }
 }
