@@ -43,12 +43,15 @@ fn corpus() -> Vec<(String, Vec<u8>, Vec<u8>)> {
         .collect()
 }
 
-/// The `run.replay` of every run case of the corpus (ADR-051), which `replay_load` also loads.
+/// The `run.replay` of every run case of the corpus (ADR-051) that plays with the bundled
+/// files, which `replay_load` also loads. A case with its own `mode.json` verifies only with
+/// that file, so it is left out here (CI still seeds the fuzz targets with it).
 fn run_replays() -> Vec<Vec<u8>> {
     let dir = root().join("tests/corpus/runs/v0");
     let mut cases: Vec<_> = fs::read_dir(&dir)
         .expect("the run corpus directory")
         .map(|e| e.expect("a run case").path())
+        .filter(|case| !case.join("mode.json").exists())
         .collect();
     cases.sort();
     assert!(!cases.is_empty(), "the corpus has no run cases");
