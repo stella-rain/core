@@ -56,11 +56,11 @@ fn runes(cooldown: u32, damage: u32, ty: Option<&str>) -> Runes {
     ])
 }
 
-/// The stage with five small enemies and the tough target, every rune taken from their
+/// The stage with seven small enemies and the tough target, every rune taken from their
 /// stars.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(5, target),
+        &stage(7, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
@@ -201,7 +201,7 @@ fn boosted(ty: Option<&str>, profile: Value) -> (u32, u32) {
                 "description": "" }),
     ];
     let mut e = with(
-        &stage(7, tough(0, Some(profile), None)),
+        &stage(9, tough(0, Some(profile), None)),
         &content(rewards, Some(json!([war_cry])), runes(60, 10, ty)),
     );
     take_all(&mut e);

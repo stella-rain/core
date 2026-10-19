@@ -6,8 +6,8 @@
 //! missiles are the four; boomerang's attack is its throw, out and back, two active phases;
 //! homing missiles' is one missile's flight, one active phase, and only its entry has the
 //! missiles it launches, 1 to `MAX_HOMING_MISSILES`, and the range it picks targets within, 1
-//! to `MAX_ASSIST_RANGE`. Every damage-over-time rune has its entry too, once: bleed, the one so
-//! far, with a tick interval of 1 to `MAX_DOT_INTERVAL_TICKS` and no longer than its duration,
+//! to `MAX_ASSIST_RANGE`. Every damage-over-time rune has its entry too, once: bleed, poison and
+//! burn, with a tick interval of 1 to `MAX_DOT_INTERVAL_TICKS` and no longer than its duration,
 //! a duration of 1 to `MAX_DOT_DURATION_TICKS`, a damage a stack of 1 to `MAX_DAMAGE`, a stack
 //! maximum of 1 to `MAX_DOT_STACKS`, and a damage type or none. The bundled file is the
 //! default; other bytes change the run's content hash.
@@ -80,9 +80,21 @@ fn bleed_of(interval: Value, duration: Value, damage: Value, max_stacks: Value) 
             "damage": damage, "max_stacks": max_stacks, "type": "slash" })
 }
 
-/// A file of the on-hit entries `on_hit` and a valid bleed.
+/// A valid poison entry: Dendro.
+fn poison() -> Value {
+    json!({ "rune": "poison", "interval_ticks": 30, "duration_ticks": 180, "damage": 3,
+            "max_stacks": 5, "type": "dendro" })
+}
+
+/// A valid burn entry: Pyro.
+fn burn() -> Value {
+    json!({ "rune": "burn", "interval_ticks": 30, "duration_ticks": 180, "damage": 3,
+            "max_stacks": 5, "type": "pyro" })
+}
+
+/// A file of the on-hit entries `on_hit` and a valid bleed, poison and burn.
 fn file(on_hit: Vec<Value>) -> Value {
-    file_with(on_hit, vec![bleed()])
+    file_with(on_hit, vec![bleed(), poison(), burn()])
 }
 
 fn file_with(on_hit: Vec<Value>, damage_over_time: Vec<Value>) -> Value {
@@ -90,8 +102,9 @@ fn file_with(on_hit: Vec<Value>, damage_over_time: Vec<Value>) -> Value {
             "damage_over_time": damage_over_time })
 }
 
-/// Valid on-hit entries, and `damage_over_time`.
-fn with_bleed(damage_over_time: Vec<Value>) -> Value {
+/// Valid on-hit entries, and `damage_over_time` followed by a valid poison and burn.
+fn with_bleed(mut damage_over_time: Vec<Value>) -> Value {
+    damage_over_time.extend([poison(), burn()]);
     let one = explosion(json!(30), json!(5), json!([active(4)]));
     file_with(
         vec![one, thunder(), boomerang(), homing()],
@@ -370,6 +383,112 @@ fn the_bundled_bleed_is_slash_damage_over_time_in_stacks() {
     assert_eq!(bleed.damage_type, Some(DamageType::Slash));
     assert!(Runes::bundled().on_hit(Rune::Bleed).is_none());
     assert!(Runes::bundled().damage_over_time(Rune::Explosion).is_none());
+}
+
+#[test]
+fn the_bundled_poison_is_dendro_and_burn_pyro_damage_over_time_in_stacks() {
+    // PLACEHOLDER numbers, Kade's to set: bleed's, 3 damage a stack every 30 ticks for 180
+    // ticks, up to 5 stacks; only the types differ.
+    for (rune, ty) in [
+        (Rune::Poison, DamageType::Dendro),
+        (Rune::Burn, DamageType::Pyro),
+    ] {
+        let entry = Runes::bundled()
+            .damage_over_time(rune)
+            .unwrap_or_else(|| panic!("{rune:?}'s entry"));
+        assert_eq!(
+            (
+                entry.interval_ticks,
+                entry.duration_ticks,
+                entry.damage,
+                entry.max_stacks
+            ),
+            (30, 180, 3, 5),
+            "{rune:?}"
+        );
+        assert_eq!(entry.damage_type, Some(ty), "{rune:?}");
+        assert!(Runes::bundled().on_hit(rune).is_none());
+    }
+}
+
+#[test]
+fn poison_and_burn_numbers_are_held_to_bleed_s_caps() {
+    for name in ["poison", "burn"] {
+        let entry = |interval: u32, duration: u32, damage: u32, max: u32| {
+            let mut v = if name == "poison" { poison() } else { burn() };
+            v["interval_ticks"] = json!(interval);
+            v["duration_ticks"] = json!(duration);
+            v["damage"] = json!(damage);
+            v["max_stacks"] = json!(max);
+            let mut file = plain();
+            let other = if name == "poison" { burn() } else { poison() };
+            file["damage_over_time"] = json!(if name == "poison" {
+                [bleed(), v, other]
+            } else {
+                [bleed(), other, v]
+            });
+            parse(&file).map(|_| ()).map_err(paths)
+        };
+        let at = |field: &str| {
+            let i = if name == "poison" { 1 } else { 2 };
+            vec![format!("$.damage_over_time[{i}].{field}")]
+        };
+        assert_eq!(entry(1, 1, 1, 1), Ok(()), "{name}");
+        assert_eq!(
+            entry(
+                MAX_DOT_INTERVAL_TICKS,
+                MAX_DOT_DURATION_TICKS,
+                MAX_DAMAGE,
+                MAX_DOT_STACKS
+            ),
+            Ok(()),
+            "{name}"
+        );
+        assert_eq!(entry(0, 180, 3, 5), Err(at("interval_ticks")), "{name}");
+        assert_eq!(entry(181, 180, 3, 5), Err(at("interval_ticks")), "{name}");
+        assert_eq!(entry(30, 0, 3, 5), Err(at("duration_ticks")), "{name}");
+        assert_eq!(
+            entry(30, MAX_DOT_DURATION_TICKS + 1, 3, 5),
+            Err(at("duration_ticks")),
+            "{name}"
+        );
+        assert_eq!(entry(30, 180, 0, 5), Err(at("damage")), "{name}");
+        assert_eq!(
+            entry(30, 180, MAX_DAMAGE + 1, 5),
+            Err(at("damage")),
+            "{name}"
+        );
+        assert_eq!(entry(30, 180, 3, 0), Err(at("max_stacks")), "{name}");
+        assert_eq!(
+            entry(30, 180, 3, MAX_DOT_STACKS + 1),
+            Err(at("max_stacks")),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn poison_and_burn_each_need_their_entry_once_and_are_not_on_hit_runes() {
+    let mut missing = plain();
+    missing["damage_over_time"] = json!([bleed(), burn()]);
+    assert_eq!(paths(parse(&missing).unwrap_err()), ["$.damage_over_time"]);
+    let mut twice = plain();
+    twice["damage_over_time"] = json!([bleed(), poison(), burn(), burn()]);
+    assert_eq!(
+        paths(parse(&twice).unwrap_err()),
+        ["$.damage_over_time[3].rune"]
+    );
+    for name in ["poison", "burn"] {
+        let mut v = plain();
+        let mut as_on_hit = thunder();
+        as_on_hit["rune"] = json!(name);
+        v["on_hit"].as_array_mut().unwrap().push(as_on_hit);
+        assert_eq!(
+            paths(parse(&v).unwrap_err()),
+            ["$.on_hit[4].rune"],
+            "{name}"
+        );
+    }
 }
 
 #[test]
