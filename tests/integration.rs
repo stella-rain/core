@@ -16,6 +16,7 @@ mod boss;
 mod charge;
 mod collide_case;
 mod content_hash;
+mod content_pack;
 mod controls;
 mod corpus;
 mod damage_types;
