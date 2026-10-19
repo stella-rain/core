@@ -276,7 +276,7 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 /// skills, the expertise, the match-ups and the runes, tagged and length-prefixed.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
-    let file = run_setup::mode_stage(mode)?;
+    let file = run_setup::mode_file(mode)?;
     Some(hash_content(
         mode,
         file,

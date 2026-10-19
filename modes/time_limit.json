@@ -1,0 +1,19 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "time_limit",
+  "length_ticks": 72000,
+  "boss_ticks": [18000, 36000, 54000, 72000],
+  "mid_boss_pool": ["golem", "golem", "golem"],
+  "final_boss": "golem",
+  "overtime_ticks": 18000,
+  "star_hunter_extra_ticks": 3600,
+  "map": {
+    "width": 1048576,
+    "height": 1048576,
+    "start": {
+      "x": 524288,
+      "y": 524288
+    }
+  }
+}

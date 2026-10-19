@@ -19,6 +19,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
+use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::{self, parse_and_validate};
 use stella_rain_core::{base64, share};
@@ -55,6 +56,10 @@ pub fn stage_parse(data: &[u8]) -> bool {
     if let Ok(match_ups) = MatchUps::parse(data) {
         let again = MatchUps::parse(data).expect("match-ups that loaded load again");
         assert_eq!(again, match_ups, "the same bytes loaded as other match-ups");
+    }
+    if let Ok(mode) = TimeLimit::parse(data) {
+        let again = TimeLimit::parse(data).expect("a mode that loaded loads again");
+        assert_eq!(again, mode, "the same bytes loaded as another mode");
     }
     if let Ok(runes) = Runes::parse(data) {
         let again = Runes::parse(data).expect("runes that loaded load again");
