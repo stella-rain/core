@@ -23,6 +23,7 @@ use crate::engine::{Dir, Pull, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::rune::Rune;
 use crate::stage::Stage;
 use crate::trig;
 
@@ -47,6 +48,7 @@ struct Swing {
     breaks_charge: bool,
     pull: Option<Pull>,
     combo: bool,
+    rune: Option<Rune>,
     /// A homing missile's: one hit, then nothing.
     once: bool,
 }
@@ -132,6 +134,7 @@ fn active_swings(s: &State) -> Vec<Swing> {
             breaks_charge: p.breaks_charge,
             pull: r.pull,
             combo: super::attacks::is_combo(r),
+            rune: super::runes::of_run(r),
             once: r.homing.is_some(),
         });
     }
@@ -246,6 +249,7 @@ fn shot(w: &Swing) -> Shot {
         breaks_charge: w.breaks_charge,
         pull: w.pull,
         combo: w.combo,
+        rune: w.rune,
     }
 }
 

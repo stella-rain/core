@@ -55,7 +55,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::rewards::{MAX_TYPE_BONUS_PCT, rune_haste_ticks};
 use crate::rng::SplitMix64;
-use crate::rune::{MAX_RUNES, Rune};
+use crate::rune::{MAX_RUNES, Rune, RuneKind};
 use crate::runes::{
     MAX_DOT_DURATION_TICKS, MAX_DOT_INTERVAL_TICKS, MAX_DOT_STACKS, MAX_HOMING_MISSILES,
     MAX_RUNE_COOLDOWN_TICKS,
@@ -71,6 +71,21 @@ use super::{attacks, select};
 pub(super) const FIRST_SLOT: u8 = 34;
 /// Homing missiles' first missile's slot; missile k's is this plus k, past every rune's.
 pub(super) const MISSILE_SLOT: u8 = 64;
+
+/// The on-hit rune whose attack run `r` is, by its slot (`FIRST_SLOT` plus the rune's place, or
+/// a missile's); `None` for every other run.
+pub(super) fn of_run(r: &crate::engine::AttackRun) -> Option<Rune> {
+    if r.owner != super::PLAYER_ID {
+        return None;
+    }
+    match r.slot {
+        s if s >= MISSILE_SLOT => Some(Rune::HomingMissiles),
+        s => Rune::ALL
+            .get(usize::from(s.checked_sub(FIRST_SLOT)?))
+            .copied()
+            .filter(|r| r.kind() == RuneKind::OnHit),
+    }
+}
 
 /// Every on-hit rune's cooldown counts down by a tick.
 pub(super) fn tick(s: &mut State) {

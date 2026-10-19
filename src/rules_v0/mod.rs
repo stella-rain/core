@@ -114,6 +114,7 @@ use crate::rewards::Rewards;
 use crate::rng::SplitMix64;
 use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
+use crate::rune::Rune;
 use crate::snapshot::OfferOption;
 use crate::stage::Stage;
 use crate::trig;
@@ -504,6 +505,8 @@ struct Shot {
     pull: Option<Pull>,
     /// A combo step's hit, which adds expertise points (ADR-078 §2).
     combo: bool,
+    /// The rune that dealt it (ADR-099), which the `Hit` event reports.
+    rune: Option<Rune>,
 }
 
 fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEvent>) {
@@ -527,6 +530,7 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             breaks_charge: b.breaks_charge,
             pull: b.pull,
             combo: b.combo,
+            rune: None,
         };
         consumed.push(if shot.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
@@ -582,6 +586,7 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         target: id,
         damage: dealt,
         match_up,
+        rune: b.rune,
     });
     if dead {
         // A part breaks; everything else dies.

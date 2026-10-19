@@ -10,18 +10,19 @@ use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 
 use crate::common::on_hit::*;
-use crate::common::*;
 
 /// An entry whose one attack is a circle of 16 pixels round the point it starts at, active for
-/// 90 ticks; the cooldown is long, so each fires once.
+/// 30 ticks a phase; the cooldown is over before the target arrives, and the one press fires each once.
 fn near(rune: &str, damage: u32) -> Value {
-    let mut e = entry(
-        rune,
-        600,
-        damage,
-        json!([{ "kind": "active", "ticks": 90,
-                 "hit_box": { "type": "circle", "radius": 4_096 } }]),
-    );
+    let phase = json!({ "kind": "active", "ticks": 30,
+                        "hit_box": { "type": "circle", "radius": 4_096 } });
+    // A boomerang flies out and back, in two phases.
+    let phases = if rune == "boomerang" {
+        json!([phase.clone(), phase])
+    } else {
+        json!([phase])
+    };
+    let mut e = entry(rune, 100, damage, phases);
     if rune == "homing_missiles" {
         e["missiles"] = json!(1);
         e["range"] = json!(40_960);
