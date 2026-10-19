@@ -448,6 +448,7 @@ impl Engine {
                     })
                     .collect(),
                 range_pct: s.player.range_pct,
+                rune_haste_pct: s.player.rune_haste_pct,
                 type_bonuses: DamageType::ALL
                     .iter()
                     .zip(s.player.type_bonus_pct)
@@ -723,6 +724,8 @@ pub(crate) struct PlayerState {
     pub orbits: Vec<OrbitState>,
     /// What the range rewards taken add up to, in percent, saturating (ADR-099).
     pub range_pct: u32,
+    /// What the Rune Haste rewards taken add up to, in percent, saturating (ADR-099).
+    pub rune_haste_pct: u32,
     /// What the type bonus rewards taken add up to for each damage type, by its place in
     /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
     /// type of its group.

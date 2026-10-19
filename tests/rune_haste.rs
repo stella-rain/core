@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
-use stella_rain_core::rewards::Rewards;
+use stella_rain_core::rewards::{Rewards, rune_haste_ticks};
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::rune::Rune;
@@ -135,9 +135,26 @@ fn haste_shortens_each_on_hit_rune_s_cooldown_to_ticks_times_100_over_100_plus_h
 }
 
 #[test]
+fn the_formula_rounds_up_and_floors_at_one_tick() {
+    assert_eq!(rune_haste_ticks(100, 0), 100);
+    assert_eq!(rune_haste_ticks(100, 100), 50);
+    assert_eq!(rune_haste_ticks(7, 100), 4, "3.5 up");
+    assert_eq!(rune_haste_ticks(10, 1), 10, "9.9 up");
+    assert_eq!(rune_haste_ticks(1, MAX_HASTE), 1, "0.25 up");
+    assert_eq!(rune_haste_ticks(0, 50), 1, "never zero");
+    assert_eq!(rune_haste_ticks(3_600, MAX_HASTE), 900);
+    assert_eq!(
+        rune_haste_ticks(3_600, MAX_HASTE + 1),
+        900,
+        "held to the cap"
+    );
+    assert_eq!(rune_haste_ticks(u32::MAX, 0), u32::MAX, "no overflow");
+}
+
+#[test]
 fn a_cooldown_never_reaches_zero() {
-    // 2 × 100 / 400 = 0.5, up to 1.
-    let mut e = holding(runes(2, 30), vec![haste("h1", MAX_HASTE, 1)], &["h1"]);
+    // The shortest cooldown a file allows here, its attack's 4 ticks: 4 × 100 / 400 = 1.
+    let mut e = holding(runes(4, 30), vec![haste("h1", MAX_HASTE, 1)], &["h1"]);
     assert_eq!(cooldowns_after_a_hit(&mut e), [1; 4]);
 }
 
@@ -176,7 +193,7 @@ fn every_damage_over_time_kind_is_shortened() {
 
 #[test]
 fn haste_taken_several_times_sums_up_to_the_cap() {
-    // Two of 200 add up to 400, held to 300 where it applies: 120 × 100 / 400 = 30.
+    // Two of 200 add up to 400, held to 300 where it applies: 120 × 100 / 400 would be 30.
     let rewards = vec![haste("h1", 200, 3), haste("h2", 100, 1)];
     let mut e = holding(runes(120, 30), rewards.clone(), &["h1"]);
     assert_eq!(e.snapshot().player.rune_haste_pct, 200);

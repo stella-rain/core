@@ -265,6 +265,7 @@ pub(crate) fn initial_state(
             shield: None,
             orbits: Vec::new(),
             range_pct: 0,
+            rune_haste_pct: 0,
             type_bonus_pct: [0; DamageType::ALL.len()],
             runes: Vec::new(),
             aggro: 0,
@@ -1297,6 +1298,11 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
             h.write_u32(target.0);
         }
+    }
+    // Last, and only while the main character holds Rune Haste (ADR-099), so that the hashes of
+    // runs without it stay as they were: what the picks add up to. Haste never goes.
+    if s.player.rune_haste_pct > 0 {
+        h.write_u32(s.player.rune_haste_pct);
     }
     h.finish()
 }

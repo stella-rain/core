@@ -53,7 +53,7 @@ use crate::engine::{DotState, HeldRune, PlayerState, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
-use crate::rewards::MAX_TYPE_BONUS_PCT;
+use crate::rewards::{MAX_TYPE_BONUS_PCT, rune_haste_ticks};
 use crate::rng::SplitMix64;
 use crate::rune::{MAX_RUNES, Rune};
 use crate::runes::{
@@ -99,14 +99,20 @@ pub(super) fn on_hit(
         let Some(entry) = s.runes.on_hit(rune) else {
             continue;
         };
-        let (cooldown, damage) = (entry.cooldown_ticks, entry.damage);
+        // The validator holds the cooldown to the cap; the clamp keeps an unvalidated file
+        // there. Rune Haste shortens it as it is set.
+        let cooldown = rune_haste_ticks(
+            entry.cooldown_ticks.min(MAX_RUNE_COOLDOWN_TICKS),
+            s.player.rune_haste_pct,
+        );
+        let damage = entry.damage;
         let phases = Arc::new(entry.attack.clone());
         let slot = FIRST_SLOT.saturating_add(rune.index());
         let facing = s.player.facing;
         if rune == Rune::HomingMissiles {
             let (missiles, range) = (entry.missiles.unwrap_or(1), entry.range.unwrap_or(Fx(0)));
             if launch(stage, s, hit, at, missiles, range, phases, damage, events) {
-                s.player.runes[i].cooldown_left = cooldown.min(MAX_RUNE_COOLDOWN_TICKS);
+                s.player.runes[i].cooldown_left = cooldown;
             }
             continue;
         }
@@ -122,9 +128,7 @@ pub(super) fn on_hit(
                     fly_one(s, r);
                 }
             }
-            // The validator holds the cooldown to the cap; the clamp keeps an unvalidated file
-            // there.
-            s.player.runes[i].cooldown_left = cooldown.min(MAX_RUNE_COOLDOWN_TICKS);
+            s.player.runes[i].cooldown_left = cooldown;
         }
     }
 }
@@ -144,7 +148,10 @@ pub(super) fn apply_dots(s: &mut State, target: Who, events: &mut Vec<DomainEven
             continue;
         };
         // The validator holds every number to its cap; the clamps keep an unvalidated file there.
-        let interval = entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS);
+        let interval = rune_haste_ticks(
+            entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS),
+            s.player.rune_haste_pct,
+        );
         let duration = entry.duration_ticks.clamp(1, MAX_DOT_DURATION_TICKS);
         let max_stacks = u16::try_from(entry.max_stacks.clamp(1, MAX_DOT_STACKS)).unwrap_or(1);
         let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);

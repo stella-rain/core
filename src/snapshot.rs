@@ -287,6 +287,11 @@ pub struct PlayerView {
     /// `MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub range_pct: u32,
+    /// What the Rune Haste rewards taken add up to, in percent, before the clamp at
+    /// `MAX_RUNE_HASTE_PCT` (ADR-099). The shorter cooldowns and intervals are already in the
+    /// runes' cooldowns and the statuses' timers.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub rune_haste_pct: u32,
     /// What the type bonus rewards taken add up to, for each damage type that has any, in the
     /// order of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`
     /// (ADR-100).

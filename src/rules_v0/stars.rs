@@ -348,6 +348,9 @@ pub(super) fn choose(
                 RewardEffect::RangePct => {
                     player.range_pct = player.range_pct.saturating_add(amount)
                 }
+                RewardEffect::RuneHaste => {
+                    player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
+                }
                 RewardEffect::RandomRune => rune = runes::draw(rng, player),
                 RewardEffect::TypeBonusPct
                 | RewardEffect::AttackTypeBonusPct
