@@ -140,11 +140,7 @@ impl Engine {
     /// As `start`, with `content` in place of the bundled files (ADR-067).
     pub fn start_with(setup: &RunSetup, content: &RunContent) -> Result<Engine, Error> {
         if setup.mode.0 == "time_limit" {
-            return Engine::start_time_limit(
-                setup,
-                content,
-                crate::time_limit::TimeLimit::bundled(),
-            );
+            return Engine::start_time_limit(setup, content, content.time_limit());
         }
         let stage = run_setup::stage(setup)?;
         let pool = rules_v0::RunPool {
@@ -1336,6 +1332,19 @@ mod horde_tests {
         e.state.boss.as_mut().unwrap().hp = 0;
         e.step(Input::default());
         assert_eq!(e.outcome(), Outcome::Cleared);
+        assert!(e.events().contains(&DomainEvent::StageCleared));
+    }
+
+    #[test]
+    fn the_main_character_s_death_fails_the_run_and_wins_over_the_final_boss_s() {
+        let mut e = engine(&[50, 100]);
+        run_to(&mut e, 100);
+        e.state.boss.as_mut().unwrap().hp = 0;
+        e.state.player.hp = 0;
+        e.step(Input::default());
+        assert_eq!(e.outcome(), Outcome::Failed);
+        assert!(e.events().contains(&DomainEvent::StageFailed));
+        assert!(!e.events().contains(&DomainEvent::StageCleared));
     }
 
     #[test]
@@ -1351,7 +1360,10 @@ mod horde_tests {
         let mut e = engine(&[50, 100]);
         e.state.player.hp = u32::MAX;
         e.state.player.max_hp = u32::MAX;
-        run_to(&mut e, 100 + 18_000);
+        run_to(&mut e, 100 + 18_000 - 1);
+        assert_eq!(e.outcome(), Outcome::Running);
+        e.step(Input::default());
         assert_eq!(e.outcome(), Outcome::Failed);
+        assert!(e.events().contains(&DomainEvent::StageFailed));
     }
 }

@@ -61,7 +61,7 @@ pub struct RunReplay {
     /// (`content_sha256_with`). Other content invalidates
     /// the replay.
     pub content_sha256: String,
-    /// Ticks recorded, at most the mode's length. A run that ended ends on the tick it ended.
+    /// Ticks recorded, at most the mode's length (a `time_limit` run's: its length, overtime and the Star-Hunter's extra time). A run that ended ends on the tick it ended.
     pub ticks: u32,
     /// The FNV-1a 64 state hash after the last tick and the commands after it (ADR-019), 16
     /// lowercase hex digits.
@@ -276,10 +276,14 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 /// skills, the expertise, the match-ups and the runes, tagged and length-prefixed.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
-    let file = run_setup::mode_file(mode)?;
+    let file = if mode == "time_limit" {
+        run_setup::time_limit_file(content.time_limit())
+    } else {
+        run_setup::mode_file(mode)?.to_vec()
+    };
     Some(hash_content(
         mode,
-        file,
+        &file,
         &content.run_stats().sha256(),
         &content.rewards().sha256(),
         &content.stage_skills().sha256(),
@@ -563,14 +567,19 @@ fn verify_inner(
     expected: Option<&[u64]>,
 ) -> Result<RunVerified, RunReplayError> {
     let replay = RunReplay::from_bytes(replay_bytes)?;
-    let stage = run_setup::stage(&replay.setup).map_err(RunReplayError::Setup)?;
+    let stage = run_setup::stage_with(&replay.setup, run_content.time_limit())
+        .map_err(RunReplayError::Setup)?;
     let content = content_sha256_with(&replay.setup.mode.0, run_content)
         .ok_or(RunReplayError::ContentChanged)?;
     if replay.content_sha256 != to_hex(&content) {
         return Err(RunReplayError::ContentChanged);
     }
     let final_hash = hash_from_hex(&replay.final_hash).ok_or(RunReplayError::BadHash)?;
-    let inputs = replay.unpack_inputs(stage.length_ticks)?;
+    let inputs = replay.unpack_inputs(run_setup::max_replay_ticks(
+        &replay.setup,
+        &stage,
+        run_content.time_limit(),
+    ))?;
     let commands = replay.unpack_commands()?;
     if let Some(expected) = expected {
         if expected.len() != inputs.len() {
