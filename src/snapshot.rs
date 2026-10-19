@@ -442,6 +442,22 @@ pub struct EntityView {
     /// An elite enemy (ADR-068), which the minimap shows wherever it is.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub elite: bool,
+    /// Its damage-over-time statuses (ADR-099), one of a kind at most.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub damage_over_time: Vec<DamageOverTimeView>,
+}
+
+/// A damage-over-time status on an entity (ADR-099), such as bleed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DamageOverTimeView {
+    /// The status's ID: `bleed`.
+    pub status: ContentId,
+    pub stacks: u16,
+    /// Ticks until it runs out, unless it is applied again.
+    pub ticks_left: u32,
+    /// Ticks until it next deals its damage, at least 1.
+    pub next_tick_in: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

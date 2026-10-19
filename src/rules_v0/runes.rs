@@ -8,7 +8,15 @@
 //! combo step's: its hits give no expertise and fire no rune, so a rune never feeds itself or
 //! another (point 3). It starts in the collision step, after that tick's hit boxes have
 //! landed, so its first phase counts that tick and its hit boxes land from the next. Nothing
-//! here draws from the generator. Damage-over-time runes do nothing yet.
+//! here draws from the generator.
+//!
+//! Damage-over-time runes (`apply_dots`): a combo step's hit that leaves its target standing
+//! puts each one's status on it, bleed's `bleed`, or a stack more of it up to the runes file's
+//! maximum, starting its duration again (`State::add_dot`). Its damage is the main
+//! character's without a combo step (point 3): the runes file's damage a stack, raised by the
+//! main character's atk-up and its type bonus for the rune's type as they are when it is
+//! applied, as an attack's are when it starts (ADR-056), and by the target's multipliers at
+//! each tick (`entity::tick_dots`). The step's own bonuses (a perfect release's) are not its.
 //!
 //! Boomerang is thrown (`fly`): its attack starts on the main character, and its hit boxes fly
 //! out over its first phase to the point hit and back over its second toward where the main
@@ -32,22 +40,29 @@
 //! at 0. A cooldown is held to `MAX_RUNE_COOLDOWN_TICKS`. No rune fires a bullet, a thrown one
 //! included: the bullets alive from runes stay at 0. Homing missiles launch at most
 //! `MAX_HOMING_MISSILES`, all in their slots and the file holding each flight to the cooldown,
-//! so no more fly at once.
+//! so no more fly at once. A damage-over-time status is one per kind on an entity, its stacks,
+//! interval, duration and damage held to `MAX_DOT_STACKS`, `MAX_DOT_INTERVAL_TICKS`,
+//! `MAX_DOT_DURATION_TICKS` and `MAX_DAMAGE`; so an entity carries at most one status of each
+//! of `StatusKind`'s kinds, and the enemies at most `MAX_ENEMIES_ALIVE` bleeds.
 
 use std::sync::Arc;
 
 use crate::attack::AttackPhase;
-use crate::engine::{HeldRune, PlayerState, State};
+use crate::engine::{DotState, HeldRune, PlayerState, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::rng::SplitMix64;
 use crate::rune::{MAX_RUNES, Rune};
-use crate::runes::{MAX_HOMING_MISSILES, MAX_RUNE_COOLDOWN_TICKS};
+use crate::runes::{
+    MAX_DOT_DURATION_TICKS, MAX_DOT_INTERVAL_TICKS, MAX_DOT_STACKS, MAX_HOMING_MISSILES,
+    MAX_RUNE_COOLDOWN_TICKS,
+};
 use crate::stage::Stage;
-use crate::validate::limits::MAX_ASSIST_RANGE;
+use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 
-use super::entity::Who;
+use super::entity::{Who, status_pct};
 use super::{attacks, select};
 
 /// The first on-hit rune's slot: after the combo (0), the stage skill (1) and the orbits' orbs
@@ -110,6 +125,38 @@ pub(super) fn on_hit(
             // there.
             s.player.runes[i].cooldown_left = cooldown.min(MAX_RUNE_COOLDOWN_TICKS);
         }
+    }
+}
+
+/// A combo step hit `target`, which still stands: each damage-over-time rune held puts its
+/// status on it, in the order held.
+pub(super) fn apply_dots(s: &mut State, target: Who, events: &mut Vec<DomainEvent>) {
+    for i in 0..s.player.runes.len() {
+        let rune = s.player.runes[i].rune;
+        let kind = match rune {
+            Rune::Bleed => StatusKind::Bleed,
+            Rune::Explosion | Rune::Thunder | Rune::Boomerang | Rune::HomingMissiles => continue,
+        };
+        let Some(entry) = s.runes.damage_over_time(rune) else {
+            continue;
+        };
+        // The validator holds every number to its cap; the clamps keep an unvalidated file there.
+        let interval = entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS);
+        let duration = entry.duration_ticks.clamp(1, MAX_DOT_DURATION_TICKS);
+        let max_stacks = u16::try_from(entry.max_stacks.clamp(1, MAX_DOT_STACKS)).unwrap_or(1);
+        let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
+        let dot = DotState {
+            damage: entry.damage.min(MAX_DAMAGE),
+            damage_type: entry.damage_type,
+            atk_up_pct: status_pct(&s.player.statuses, StatusKind::AtkUp),
+            type_bonus_pct: entry
+                .damage_type
+                .map_or(0, |ty| s.player.type_bonus_pct[ty.index()].min(limit)),
+            interval,
+            next_in: interval,
+        };
+        let source = s.id_of(Who::Player);
+        s.add_dot(target, kind, source, dot, duration, max_stacks, events);
     }
 }
 

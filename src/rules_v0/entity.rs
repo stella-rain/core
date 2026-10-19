@@ -2,13 +2,14 @@
 //! companion or an enemy. Statuses and aggro live here too, since every kind of entity has
 //! them.
 
-use crate::engine::{State, StatusKind, StatusState};
+use crate::engine::{DotState, State, StatusKind, StatusState};
 use crate::event::DomainEvent;
 use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::MAX_TYPE_BONUS_PCT;
+use crate::stage::Stage;
 
-use super::{MAX_AGGRO, PLAYER_ID};
+use super::{MAX_AGGRO, PLAYER_ID, Shot};
 
 /// An entity of the run, by place. Indexes are into `State::companions`, `State::enemies` and
 /// the boss's parts, and stay valid within a tick: nothing is removed until the collision step
@@ -218,6 +219,7 @@ impl State {
                     remaining: duration,
                     stacks: 1,
                     value_pct,
+                    dot: None,
                 });
                 1
             }
@@ -228,6 +230,123 @@ impl State {
             stacks,
             duration_ticks: duration,
         });
+    }
+}
+
+impl State {
+    /// Applies a damage-over-time status of `kind` (ADR-099), or adds a stack to the one there,
+    /// up to `max_stacks`: one status of a kind per entity, its stacks shared. Either way its
+    /// duration starts again and `dot`, with the multipliers of its source fixed now, replaces
+    /// what was there; but its tick timer runs on, so reapplying never puts a tick off.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn add_dot(
+        &mut self,
+        target: Who,
+        kind: StatusKind,
+        source: EntityId,
+        mut dot: DotState,
+        duration: u32,
+        max_stacks: u16,
+        events: &mut Vec<DomainEvent>,
+    ) {
+        let list = self.statuses_mut(target);
+        let stacks = match list.iter_mut().find(|s| s.kind == kind) {
+            Some(s) => {
+                if let Some(old) = s.dot {
+                    dot.next_in = old.next_in;
+                }
+                s.stacks = s.stacks.saturating_add(1).min(max_stacks);
+                s.remaining = duration;
+                s.source = source;
+                s.dot = Some(dot);
+                s.stacks
+            }
+            None => {
+                list.push(StatusState {
+                    kind,
+                    source,
+                    remaining: duration,
+                    stacks: 1,
+                    value_pct: 0,
+                    dot: Some(dot),
+                });
+                1
+            }
+        };
+        events.push(DomainEvent::StatusApplied {
+            target: self.id_of(target),
+            status: ContentId(kind.name().to_owned()),
+            stacks,
+            duration_ticks: duration,
+        });
+    }
+}
+
+/// The damage-over-time statuses tick (ADR-099), in step 6 before any hit lands: on the boss,
+/// its unbroken parts, then the enemies in entity-ID order. Each counts down to its next tick,
+/// and on it deals its damage a stack times its stacks, raised by the multipliers fixed when it
+/// was last applied, then as a hit by its source of its type (`damage`): the target's
+/// vulnerability, match-up and defence at the tick, no combo step's, so it gives no expertise,
+/// fires no rune and applies no status. While the boss is invulnerable, the tick does it and
+/// its parts no harm. Then its duration runs down, and at 0 it is gone. One that ends the
+/// entity, or finds it already at 0 hit points (a broken part), goes with it.
+pub(super) fn tick_dots(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+    if s.boss.as_ref().is_some_and(|b| b.hp > 0) {
+        tick_dots_of(stage, s, Who::Boss, events);
+        let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
+        for i in 0..parts {
+            tick_dots_of(stage, s, Who::BossPart(i), events);
+        }
+    }
+    for i in 0..s.enemies.len() {
+        tick_dots_of(stage, s, Who::Enemy(i), events);
+    }
+}
+
+fn tick_dots_of(stage: &Stage, s: &mut State, who: Who, events: &mut Vec<DomainEvent>) {
+    if s.statuses(who).iter().all(|st| st.dot.is_none()) {
+        return;
+    }
+    let absorbed = matches!(who, Who::Boss | Who::BossPart(_))
+        && s.boss.as_ref().is_some_and(|b| b.invulnerable > 0);
+    let mut i = 0;
+    while i < s.statuses(who).len() && s.is_alive(who) {
+        let st = s.statuses(who)[i];
+        let Some(mut dot) = st.dot else {
+            i += 1;
+            continue;
+        };
+        dot.next_in = dot.next_in.saturating_sub(1);
+        let due = dot.next_in == 0;
+        if due {
+            dot.next_in = dot.interval.max(1);
+        }
+        let remaining = st.remaining.saturating_sub(1);
+        let list = s.statuses_mut(who);
+        list[i].dot = Some(dot);
+        list[i].remaining = remaining;
+        if due && !absorbed {
+            let base = dot.damage.saturating_mul(u32::from(st.stacks));
+            let shot = Shot {
+                at: s.at(who),
+                owner: st.source,
+                friendly: true,
+                damage: scale_damage(base, dot.atk_up_pct, dot.type_bonus_pct, 0, 0, 0),
+                damage_type: dot.damage_type,
+                breaks_charge: false,
+                pull: None,
+                combo: false,
+            };
+            super::damage(stage, s, shot, who, events);
+        }
+        if remaining == 0 {
+            s.statuses_mut(who).remove(i);
+        } else {
+            i += 1;
+        }
+    }
+    if !s.is_alive(who) {
+        s.statuses_mut(who).retain(|st| st.dot.is_none());
     }
 }
 
@@ -286,29 +405,38 @@ pub(super) fn scale_damage(
         .max(u32::from(base > 0))
 }
 
-/// Statuses run out and aggro fades, once per tick.
-pub(super) fn tick_statuses_and_aggro(s: &mut State) {
-    fn age(list: &mut Vec<StatusState>) {
+/// Statuses run out and aggro fades, once per tick. Damage-over-time statuses run out as they
+/// tick instead (`tick_dots`); whether there is one on anyone is returned, so a tick without
+/// one skips that pass.
+pub(super) fn tick_statuses_and_aggro(s: &mut State) -> bool {
+    fn age(list: &mut Vec<StatusState>) -> bool {
+        let mut dots = false;
         for st in list.iter_mut() {
-            st.remaining = st.remaining.saturating_sub(1);
+            if st.dot.is_some() {
+                dots = true;
+            } else {
+                st.remaining = st.remaining.saturating_sub(1);
+            }
         }
-        list.retain(|st| st.remaining > 0);
+        list.retain(|st| st.dot.is_some() || st.remaining > 0);
+        dots
     }
-    age(&mut s.player.statuses);
+    let mut dots = age(&mut s.player.statuses);
     s.player.aggro = s.player.aggro.saturating_sub(super::AGGRO_DECAY);
     if let Some(b) = &mut s.boss {
-        age(&mut b.statuses);
+        dots |= age(&mut b.statuses);
         for part in &mut b.parts {
-            age(&mut part.statuses);
+            dots |= age(&mut part.statuses);
         }
     }
     for c in &mut s.companions {
-        age(&mut c.statuses);
+        dots |= age(&mut c.statuses);
         c.aggro = c.aggro.saturating_sub(super::AGGRO_DECAY);
     }
     for e in &mut s.enemies {
-        age(&mut e.statuses);
+        dots |= age(&mut e.statuses);
     }
+    dots
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
-//! The runes file (ADR-099, ADR-067: data picks, code acts): each on-hit rune's numbers. What a
-//! rune does is code (`rules_v0`'s runes); when it fires and how hard is this file's. An on-hit
+//! The runes file (ADR-099, ADR-067: data picks, code acts): each rune's numbers. What a rune
+//! does is code (`rules_v0`'s runes); when it fires and how hard is this file's. An on-hit
 //! rune has a cooldown, a base damage and its own attack: phases as any attack's, whose hit
 //! boxes are centred on the point the combo step hit instead of on the main character.
 //!
@@ -17,6 +17,11 @@
 //! It spawns no bullets, so no bullet comes from a rune; it sets no damage of its own, the
 //! rune's `damage` being its base; and it never slows the main character. Its first phase lasts
 //! at least 2 ticks: it counts the tick the rune fires on, whose hits have landed already.
+//!
+//! A damage-over-time rune (`damage_over_time`, each of the closed list once) has a tick
+//! interval of 1 to `MAX_DOT_INTERVAL_TICKS`, no longer than its duration, so it ticks at least
+//! once; a duration of 1 to `MAX_DOT_DURATION_TICKS`; a damage a stack of 1 to `MAX_DAMAGE`; a
+//! stack maximum of 1 to `MAX_DOT_STACKS`; and a damage type, or none for neutral (ADR-100).
 //! The bundled file, `content/runes.json`, is the default; the SHA-256 of whatever bytes a
 //! run used is part of its content hash, so a run replay verifies only with the same file.
 
@@ -26,7 +31,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::attack::{AttackPhase, AttackRef, PhaseKind};
+use crate::attack::{AttackPhase, AttackRef, DamageType, PhaseKind};
 use crate::fixed::Fx;
 use crate::registry;
 use crate::rune::{Rune, RuneKind};
@@ -43,6 +48,14 @@ pub const MAX_RUNE_PHASES: usize = 4;
 /// The most missiles homing missiles launch at once (a tuning value; ADR-099 point 7 decides
 /// that one exists).
 pub const MAX_HOMING_MISSILES: u32 = 4;
+/// The longest tick interval of a damage-over-time rune: 10 seconds (a tuning value; ADR-099
+/// point 7 decides that one exists).
+pub const MAX_DOT_INTERVAL_TICKS: u32 = 600;
+/// The longest duration of a damage-over-time status: a minute.
+pub const MAX_DOT_DURATION_TICKS: u32 = 3_600;
+/// The most stacks of a damage-over-time status: room for the game design document's 5 and an
+/// upgrade's +3.
+pub const MAX_DOT_STACKS: u32 = 10;
 
 /// The runes file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -52,6 +65,28 @@ pub struct RunesFile {
     pub sim_version: u32,
     /// Every on-hit rune's numbers, each rune once.
     pub on_hit: Vec<OnHitRune>,
+    /// Every damage-over-time rune's numbers, each rune once.
+    pub damage_over_time: Vec<DamageOverTimeRune>,
+}
+
+/// A damage-over-time rune's numbers (ADR-099 point 2): the status a combo step's hit puts on
+/// the enemy hit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DamageOverTimeRune {
+    pub rune: Rune,
+    /// Ticks between two of its damage ticks, 1 to `MAX_DOT_INTERVAL_TICKS`, at most the
+    /// duration.
+    pub interval_ticks: u32,
+    /// Ticks it lasts after it was last applied, 1 to `MAX_DOT_DURATION_TICKS`.
+    pub duration_ticks: u32,
+    /// The base damage of a tick for each stack, 1 to `MAX_DAMAGE` (ADR-056).
+    pub damage: u32,
+    /// The most stacks it reaches, 1 to `MAX_DOT_STACKS`.
+    pub max_stacks: u32,
+    /// Its ticks' damage type (ADR-100); absent, they are neutral.
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub damage_type: Option<DamageType>,
 }
 
 /// An on-hit rune's numbers (ADR-099 point 2).
@@ -81,6 +116,7 @@ pub struct OnHitRune {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Runes {
     on_hit: Vec<OnHitRune>,
+    damage_over_time: Vec<DamageOverTimeRune>,
     sha256: [u8; 32],
 }
 
@@ -123,6 +159,7 @@ impl Runes {
         validate(&file)?;
         Ok(Runes {
             on_hit: file.on_hit,
+            damage_over_time: file.damage_over_time,
             sha256: Sha256::digest(bytes).into(),
         })
     }
@@ -130,6 +167,11 @@ impl Runes {
     /// The numbers of on-hit rune `rune`; none for a damage-over-time rune.
     pub fn on_hit(&self, rune: Rune) -> Option<&OnHitRune> {
         self.on_hit.iter().find(|r| r.rune == rune)
+    }
+
+    /// The numbers of damage-over-time rune `rune`; none for an on-hit rune.
+    pub fn damage_over_time(&self, rune: Rune) -> Option<&DamageOverTimeRune> {
+        self.damage_over_time.iter().find(|r| r.rune == rune)
     }
 
     /// The SHA-256 of the bytes it was parsed from.
@@ -174,10 +216,56 @@ pub fn validate(file: &RunesFile) -> Result<(), Error> {
     {
         fail("$.on_hit".into(), "every on-hit rune once".into());
     }
+    for (i, r) in file.damage_over_time.iter().enumerate() {
+        damage_over_time(r, i, &file.damage_over_time[..i], &mut fail);
+    }
+    if Rune::ALL.iter().any(|r| {
+        r.kind() == RuneKind::DamageOverTime && !file.damage_over_time.iter().any(|d| d.rune == *r)
+    }) {
+        fail(
+            "$.damage_over_time".into(),
+            "every damage-over-time rune once".into(),
+        );
+    }
     if issues.is_empty() {
         Ok(())
     } else {
         Err(Error::Invalid(issues))
+    }
+}
+
+/// Damage-over-time entry `i`, after the entries `before` it.
+fn damage_over_time(
+    r: &DamageOverTimeRune,
+    i: usize,
+    before: &[DamageOverTimeRune],
+    fail: &mut impl FnMut(String, String),
+) {
+    let at = |field: &str| format!("$.damage_over_time[{i}].{field}");
+    if r.rune.kind() != RuneKind::DamageOverTime {
+        fail(at("rune"), "a damage-over-time rune".into());
+    } else if before.iter().any(|d| d.rune == r.rune) {
+        fail(at("rune"), "each rune once".into());
+    }
+    let mut within = |field: &str, value: u32, max: u32| {
+        let ok = (1..=max).contains(&value);
+        if !ok {
+            fail(at(field), format!("1 to {max} (found {value})"));
+        }
+        ok
+    };
+    let interval_ok = within("interval_ticks", r.interval_ticks, MAX_DOT_INTERVAL_TICKS);
+    let duration_ok = within("duration_ticks", r.duration_ticks, MAX_DOT_DURATION_TICKS);
+    within("damage", r.damage, MAX_DAMAGE);
+    within("max_stacks", r.max_stacks, MAX_DOT_STACKS);
+    if interval_ok && duration_ok && r.interval_ticks > r.duration_ticks {
+        fail(
+            at("interval_ticks"),
+            format!(
+                "at most the duration, {} ticks (found {})",
+                r.duration_ticks, r.interval_ticks
+            ),
+        );
     }
 }
 
