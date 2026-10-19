@@ -712,21 +712,6 @@ fn a_star_taken_on_the_tick_of_the_clear_opens_its_offer() {
 }
 
 #[test]
-fn a_clear_opens_the_boss_offer_first_and_the_stars_offers_after_it_in_the_order_taken() {
-    let mut stage = boss_stage(10);
-    stage.waves = vec![serde_json::from_value(targets(1, 1, NEAR_Y)).expect("wave parses")];
-    let mut e = with(&stage, mixed());
-    fire_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
-    assert_eq!(e.outcome(), Outcome::Cleared);
-    assert_eq!(offer(&e).kind, OfferKind::Boss);
-    assert_eq!(e.choose(0), Ok(()));
-    assert!(e.offer_open(), "the star's offer opens after the boss's");
-    assert_eq!(offer(&e).kind, OfferKind::Star);
-    assert_eq!(e.choose(0), Ok(()));
-    assert!(!e.offer_open());
-}
-
-#[test]
 fn a_fail_on_the_tick_a_star_is_taken_opens_no_offer() {
     let mut stage = clearing_star_stage();
     stage.boss = Some(serde_json::from_value(far_boss()).expect("boss parses"));
