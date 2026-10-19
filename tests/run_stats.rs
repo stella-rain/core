@@ -12,8 +12,8 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::run_stats::{
-    MAX_DESCRIPTION_CHARS, MAX_LIMIT, MAX_RUN_STATS_BYTES, MAX_STATS, MAX_STEP, MAX_TITLE_CHARS,
-    RunStats, StatEffect,
+    MAX_ATTACK_SPEED_PCT, MAX_DESCRIPTION_CHARS, MAX_LIMIT, MAX_RUN_STATS_BYTES, MAX_STATS, MAX_STEP, MAX_TITLE_CHARS,
+    RunStats, StatEffect, capped_attack_speed_pct,
 };
 use stella_rain_core::validate::Error;
 
@@ -251,4 +251,19 @@ fn an_engine_started_with_other_stats_uses_them() {
         e.snapshot().progress.unwrap().spent.len(),
         stats.stats().len()
     );
+}
+
+#[test]
+fn the_attack_speed_total_saturates_at_its_cap() {
+    // Expertise options have no stack limit, so the total is bounded here instead.
+    assert_eq!(capped_attack_speed_pct(0), 0);
+    assert_eq!(
+        capped_attack_speed_pct(MAX_ATTACK_SPEED_PCT),
+        MAX_ATTACK_SPEED_PCT
+    );
+    assert_eq!(
+        capped_attack_speed_pct(MAX_ATTACK_SPEED_PCT + 1),
+        MAX_ATTACK_SPEED_PCT
+    );
+    assert_eq!(capped_attack_speed_pct(u32::MAX), MAX_ATTACK_SPEED_PCT);
 }
