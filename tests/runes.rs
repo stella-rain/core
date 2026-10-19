@@ -3,7 +3,8 @@
 //! candidate and draws its rune from the run's generator only when it is picked, among the
 //! runes not held. Once every rune is held it leaves the pool. What explosion, thunder,
 //! boomerang, homing missiles and bleed do is `explosion.rs`'s, `thunder.rs`'s,
-//! `boomerang.rs`'s, `homing_missiles.rs`'s and `bleed.rs`'s.
+//! `boomerang.rs`'s, `homing_missiles.rs`'s and `bleed.rs`'s; poison and burn are bleed's kind,
+//! `poison_burn.rs`'s.
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -165,7 +166,9 @@ fn the_runes_are_a_closed_list_of_two_kinds() {
             Rune::Thunder,
             Rune::Boomerang,
             Rune::HomingMissiles,
-            Rune::Bleed
+            Rune::Bleed,
+            Rune::Poison,
+            Rune::Burn
         ]
     );
     assert_eq!(MAX_RUNES, Rune::ALL.len());
@@ -174,6 +177,8 @@ fn the_runes_are_a_closed_list_of_two_kinds() {
     assert_eq!(Rune::Boomerang.kind(), RuneKind::OnHit);
     assert_eq!(Rune::HomingMissiles.kind(), RuneKind::OnHit);
     assert_eq!(Rune::Bleed.kind(), RuneKind::DamageOverTime);
+    assert_eq!(Rune::Poison.kind(), RuneKind::DamageOverTime);
+    assert_eq!(Rune::Burn.kind(), RuneKind::DamageOverTime);
     assert_eq!(serde_json::to_value(Rune::Explosion).unwrap(), "explosion");
     assert_eq!(serde_json::to_value(Rune::Thunder).unwrap(), "thunder");
     assert_eq!(serde_json::to_value(Rune::Boomerang).unwrap(), "boomerang");
@@ -182,6 +187,8 @@ fn the_runes_are_a_closed_list_of_two_kinds() {
         "homing_missiles"
     );
     assert_eq!(serde_json::to_value(Rune::Bleed).unwrap(), "bleed");
+    assert_eq!(serde_json::to_value(Rune::Poison).unwrap(), "poison");
+    assert_eq!(serde_json::to_value(Rune::Burn).unwrap(), "burn");
 }
 
 #[test]
@@ -231,6 +238,8 @@ fn the_hidden_candidate_names_no_rune() {
         "boomerang",
         "homing_missiles",
         "bleed",
+        "poison",
+        "burn",
     ] {
         assert!(!text.contains(rune), "no rune in the snapshot");
     }
@@ -261,12 +270,12 @@ fn the_pick_draws_a_rune_not_held_and_the_event_carries_it() {
     );
 }
 
-/// The rune each of the first five random runes draws, in the stage of `seed`.
+/// The rune each of the first seven random runes draws, in the stage of `seed`.
 fn draws(seed: u32) -> Vec<Rune> {
-    let mut stage = targets(5, 0, 0);
+    let mut stage = targets(7, 0, 0);
     stage.seed = seed;
     let mut e = with(&stage, vec![random_rune(), inert("dash")]);
-    for _ in 0..5 {
+    for _ in 0..7 {
         next_offer(&mut e);
         take(&mut e, "random_rune");
     }
@@ -276,7 +285,7 @@ fn draws(seed: u32) -> Vec<Rune> {
 #[test]
 fn the_random_rune_draws_among_the_runes_not_held_from_the_run_s_generator() {
     let (mut first, mut second) = (Vec::new(), Vec::new());
-    for seed in 0..40 {
+    for seed in 0..100 {
         let drawn = draws(seed);
         assert_eq!(drawn, draws(seed), "the same seed draws the same");
         let mut sorted = drawn.clone();
@@ -311,9 +320,9 @@ fn a_reward_without_a_rune_carries_none_in_its_event() {
 
 #[test]
 fn with_every_rune_held_the_random_rune_leaves_the_pool() {
-    // Five runes in the list: after the fifth pick the Main holds them all.
-    let mut e = with(&targets(7, 0, 0), vec![random_rune(), inert("dash")]);
-    for _ in 0..5 {
+    // Seven runes in the list: after the seventh pick the Main holds them all.
+    let mut e = with(&targets(9, 0, 0), vec![random_rune(), inert("dash")]);
+    for _ in 0..7 {
         next_offer(&mut e);
         assert_eq!(offered(&e), ["dash", "random_rune"]);
         take(&mut e, "random_rune");
@@ -330,8 +339,8 @@ fn with_every_rune_held_the_random_rune_leaves_the_pool() {
 
 #[test]
 fn a_random_rune_alone_with_every_rune_held_opens_no_offer() {
-    let mut e = with(&targets(6, 0, 0), vec![random_rune()]);
-    for _ in 0..5 {
+    let mut e = with(&targets(8, 0, 0), vec![random_rune()]);
+    for _ in 0..7 {
         next_offer(&mut e);
         take(&mut e, "random_rune");
     }
@@ -425,8 +434,8 @@ fn the_state_hash_holds_the_runes() {
 
 #[test]
 fn a_run_with_a_random_rune_picked_records_and_verifies() {
-    // The trial with a random rune and one stat reward: the first offer holds the rune, and all
-    // five are drawn before the trial ends.
+    // The trial with a random rune and one stat reward: the first offer holds the rune, and it
+    // is drawn at every star the run takes, about four of the seven.
     let content = content(vec![
         random_rune(),
         json!({
@@ -451,7 +460,13 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
     }
     let mut runes = held(recorder.engine());
     runes.sort();
-    assert_eq!(runes, Rune::ALL, "the random rune was picked five times");
+    let drawn = runes.len();
+    runes.dedup();
+    assert_eq!(runes.len(), drawn, "each rune held once");
+    assert!(
+        drawn >= 3,
+        "the random rune was picked at the run's stars: {runes:?}"
+    );
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());
 }

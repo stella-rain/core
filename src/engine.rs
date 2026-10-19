@@ -946,8 +946,9 @@ pub(crate) struct RuleState {
     pub fired: bool,
 }
 
-/// The statuses of this version (ADR-036): the three a skill can apply, and bleed, which only
-/// the bleed rune applies (ADR-099). The IDs in the registry are the names of the first three.
+/// The statuses of this version (ADR-036): the three a skill can apply, and bleed, poison and
+/// burn, which only their runes apply (ADR-099). The IDs in the registry are the names of the
+/// first three.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StatusKind {
     /// More damage dealt.
@@ -958,10 +959,14 @@ pub(crate) enum StatusKind {
     Slow,
     /// Damage over time, in stacks (ADR-099, ADR-084 point 8).
     Bleed,
+    /// Damage over time, in stacks, of its own beside bleed's (ADR-099).
+    Poison,
+    /// Damage over time, in stacks, of its own beside bleed's (ADR-099).
+    Burn,
 }
 
 impl StatusKind {
-    /// The statuses a skill can apply: bleed is not one of them.
+    /// The statuses a skill can apply: the damage-over-time ones are not among them.
     pub const FROM_SKILLS: [StatusKind; 3] =
         [StatusKind::AtkUp, StatusKind::Vulnerable, StatusKind::Slow];
 
@@ -978,6 +983,8 @@ impl StatusKind {
             StatusKind::Vulnerable => "vulnerable",
             StatusKind::Slow => "slow",
             StatusKind::Bleed => "bleed",
+            StatusKind::Poison => "poison",
+            StatusKind::Burn => "burn",
         }
     }
 }

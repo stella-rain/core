@@ -5,8 +5,8 @@
 //! the main character's damage without a combo step, through the atk-up and the Slash bonus
 //! fixed when it was last applied, then the target's match-up and defence at the tick. Its
 //! damage gives no expertise, fires no rune and applies no bleed. Every number here is worked
-//! out by hand. The on-hit runes are held too, as the random rune draws all five, but their
-//! attacks land far from every target (`far`).
+//! out by hand. The on-hit runes are held too, as the random rune draws all seven, but their
+//! attacks land far from every target (`far`), and poison and burn never tick (`far_dots`).
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -14,6 +14,7 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::DamageOverTimeView;
 
@@ -33,21 +34,21 @@ fn runes(interval: u32, duration: u32, damage: u32, max: u32) -> Runes {
             far("boomerang"),
             far("homing_missiles"),
         ],
-        vec![dot("bleed", interval, duration, damage, max)],
+        far_dots_but(dot("bleed", interval, duration, damage, max)),
     )
 }
 
-/// The stage with five small enemies and the tough target, every rune taken from their stars.
+/// The stage with seven small enemies and the tough target, every rune taken from their stars.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(5, target),
+        &stage(7, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
     e
 }
 
-/// The damage-over-time statuses on `id`.
+/// The bleed statuses on `id`; poison and burn, held too, are beside them.
 fn statuses(e: &Engine, id: EntityId) -> Vec<DamageOverTimeView> {
     e.snapshot()
         .entities
@@ -55,6 +56,9 @@ fn statuses(e: &Engine, id: EntityId) -> Vec<DamageOverTimeView> {
         .find(|en| en.id == id)
         .map(|en| en.damage_over_time)
         .unwrap_or_default()
+        .into_iter()
+        .filter(|d| d.status.0 == "bleed")
+        .collect()
 }
 
 /// Presses of `main` on the ticks `start + d` for each `d` in `at`; each hits on the tick
@@ -125,10 +129,10 @@ fn bleed_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
                 } if *id == target => seen.push((e.tick() - start - 1, *damage)),
                 DomainEvent::StatusApplied {
                     target: id,
+                    status,
                     stacks: n,
                     duration_ticks,
-                    ..
-                } if *id == target => {
+                } if *id == target && status.0 == "bleed" => {
                     assert_eq!(*duration_ticks, 180);
                     stacks.push(*n);
                 }
@@ -164,7 +168,7 @@ fn each_enemy_has_its_own_bleed() {
         START_X + 2_048,
         NEAR_Y,
     );
-    let mut s = stage(5, tough(0, None, None));
+    let mut s = stage(7, tough(0, None, None));
     s.waves.push(serde_json::from_value(beside).unwrap());
     let mut e = with(
         &s,
@@ -182,8 +186,10 @@ fn each_enemy_has_its_own_bleed() {
         .snapshot()
         .entities
         .iter()
-        .filter(|en| !en.damage_over_time.is_empty())
-        .map(|en| (en.id, en.damage_over_time[0].stacks))
+        .filter_map(|en| {
+            let bleed = en.damage_over_time.iter().find(|d| d.status.0 == "bleed");
+            bleed.map(|d| (en.id, d.stacks))
+        })
         .collect();
     assert_eq!(bleeding.len(), 2, "{bleeding:?}");
     assert!(bleeding.iter().all(|b| b.1 == 2), "{bleeding:?}");
@@ -219,7 +225,7 @@ fn an_orbit_s_hits_apply_no_bleed() {
         START_Y
     ));
     let mut e = with(
-        &stage(6, target),
+        &stage(8, target),
         &content(vec![random_rune(), orbit], None, runes(30, 180, 3, 5)),
     );
     take_all(&mut e);
@@ -244,7 +250,7 @@ fn an_on_hit_rune_s_hits_apply_no_bleed_and_bleed_fires_no_rune() {
             far("boomerang"),
             far("homing_missiles"),
         ],
-        vec![dot("bleed", 30, 180, 3, 5)],
+        far_dots_but(dot("bleed", 30, 180, 3, 5)),
     );
     let mut e = holding(runes, tough(0, None, None));
     let target = wait_for_target(&mut e);
@@ -293,7 +299,7 @@ fn boosted(ty: &str) -> Vec<(u32, u32)> {
     let mut target = tough(0, Some(json!({ "weak": ["slash"] })), None);
     target["enemy"]["defence"] = json!(100);
     let mut e = with(
-        &stage(7, target),
+        &stage(9, target),
         &content(rewards, Some(json!([war_cry])), runes(30, 180, 10, 1)),
     );
     take_all(&mut e);
@@ -336,7 +342,7 @@ fn the_boss_bleeds_too() {
     // enemies; it is the only target once their stars are taken.
     let waves = vec![wave(
         1,
-        5,
+        7,
         6,
         enemy(1, hold(START_X, NEAR_Y), json!([])),
         START_X,
@@ -347,7 +353,7 @@ fn the_boss_bleeds_too() {
         weapon(),
         quiet_sub(),
     );
-    let star_stage = stage(5, tough(0, None, None));
+    let star_stage = stage(7, tough(0, None, None));
     s.levels = star_stage.levels;
     s.stars = star_stage.stars;
     let mut e = with(
@@ -401,9 +407,14 @@ fn a_run_holding_bleed_records_and_verifies() {
         None,
         Runes::bundled().clone(),
     );
-    let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
+    // A seed whose run draws bleed among the seven runes: the trial has stars for about four.
+    let setup = RunSetup {
+        seed: 20_261_011,
+        ..trial_setup()
+    };
+    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
     let mut bled = false;
-    for t in 0..1_800 {
+    for t in 0..5_400 {
         while recorder.engine().offer_open() {
             let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
             let rune = offer.and_then(|o| o.candidates.iter().position(|c| c.hidden));

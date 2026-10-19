@@ -287,7 +287,7 @@
       "type": "string"
     },
     "DamageOverTimeView": {
-      "description": "A damage-over-time status on an entity (ADR-099), such as bleed.",
+      "description": "A damage-over-time status on an entity (ADR-099): bleed, poison or burn.",
       "type": "object",
       "properties": {
         "next_tick_in": {
@@ -303,7 +303,7 @@
           "minimum": 0
         },
         "status": {
-          "description": "The status's ID: `bleed`.",
+          "description": "The status's ID: `bleed`, `poison` or `burn`.",
           "$ref": "#/$defs/ContentId"
         },
         "ticks_left": {
@@ -1226,6 +1226,16 @@
           "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
           "type": "string",
           "const": "bleed"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `poison` status, Dendro, on the enemy hit,\nor a stack more of it.",
+          "type": "string",
+          "const": "poison"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `burn` status, Pyro, on the enemy hit, or\na stack more of it.",
+          "type": "string",
+          "const": "burn"
         }
       ]
     },

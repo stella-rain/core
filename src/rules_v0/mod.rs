@@ -63,7 +63,8 @@
 //! boxes have landed.
 //!
 //! Damage-over-time runes (ADR-099, `runes`): a combo step's hit in step 6 that leaves its
-//! target standing puts each one's status on it, bleed's `bleed`, or a stack more up to its
+//! target standing puts each one's status on it, bleed's `bleed`, poison's `poison`, burn's `burn`, or a stack
+//! more up to its
 //! maximum, its duration starting again. Statuses of that kind do not run out in step 1: at
 //! the start of step 6, before any hit lands, each counts down to its next tick and deals its
 //! damage on it, then its duration runs down (`entity::tick_dots`); a tick without one on

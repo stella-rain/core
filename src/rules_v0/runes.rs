@@ -11,7 +11,8 @@
 //! here draws from the generator.
 //!
 //! Damage-over-time runes (`apply_dots`): a combo step's hit that leaves its target standing
-//! puts each one's status on it, bleed's `bleed`, or a stack more of it up to the runes file's
+//! puts each one's status on it, bleed's `bleed`, poison's `poison`, burn's `burn`, or a stack
+//! more of it up to the runes file's
 //! maximum, starting its duration again (`State::add_dot`). Its damage is the main
 //! character's without a combo step (point 3): the runes file's damage a stack, raised by the
 //! main character's atk-up and its type bonus for the rune's type as they are when it is
@@ -43,7 +44,7 @@
 //! so no more fly at once. A damage-over-time status is one per kind on an entity, its stacks,
 //! interval, duration and damage held to `MAX_DOT_STACKS`, `MAX_DOT_INTERVAL_TICKS`,
 //! `MAX_DOT_DURATION_TICKS` and `MAX_DAMAGE`; so an entity carries at most one status of each
-//! of `StatusKind`'s kinds, and the enemies at most `MAX_ENEMIES_ALIVE` bleeds.
+//! of `StatusKind`'s kinds, and the enemies at most `MAX_ENEMIES_ALIVE` of each.
 
 use std::sync::Arc;
 
@@ -135,6 +136,8 @@ pub(super) fn apply_dots(s: &mut State, target: Who, events: &mut Vec<DomainEven
         let rune = s.player.runes[i].rune;
         let kind = match rune {
             Rune::Bleed => StatusKind::Bleed,
+            Rune::Poison => StatusKind::Poison,
+            Rune::Burn => StatusKind::Burn,
             Rune::Explosion | Rune::Thunder | Rune::Boomerang | Rune::HomingMissiles => continue,
         };
         let Some(entry) = s.runes.damage_over_time(rune) else {
