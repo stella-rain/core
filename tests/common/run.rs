@@ -29,6 +29,14 @@ pub fn trial_setup() -> RunSetup {
     }
 }
 
+/// A run of the `time_limit` mode with the trial's weapons and seed.
+pub fn time_limit_setup() -> RunSetup {
+    RunSetup {
+        mode: "time_limit".into(),
+        ..trial_setup()
+    }
+}
+
 /// Side to side, and the `blade`'s combos in a 60-tick cycle: `main` on its ticks 0, 8 and 16
 /// (slash, slash, thrust), the thrust held to tick 40 in every other cycle (a charge released at
 /// level 1, inside its perfect window), and `sub` on 44 and 52 (a thrust and a slash, with the
