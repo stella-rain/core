@@ -19,6 +19,10 @@ name = "stella_rain_core"
 name = "stage-verify"
 path = "src/bin/stage_verify.rs"
 
+[[bin]]
+name = "content-pack"
+path = "src/bin/content_pack.rs"
+
 [features]
 # The JSON Lines recorder of ADR-016: commands, domain events and state hashes, for tests and
 # debugging. Not in release builds; a bug report is a stage and a replay instead.
