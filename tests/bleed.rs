@@ -147,7 +147,10 @@ fn bleed_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
     assert_eq!(steps, [0, 10, 20, 40]);
     let bleeds: Vec<u32> = seen.iter().filter(|h| h.1 != 10).map(|h| h.0).collect();
     assert_eq!(bleeds, [30, 60, 90, 120, 150, 180, 210], "{seen:?}");
-    assert!(seen.iter().all(|h| h.1 == 10 || h.1 == 9), "3 × 3: {seen:?}");
+    assert!(
+        seen.iter().all(|h| h.1 == 10 || h.1 == 9),
+        "3 × 3: {seen:?}"
+    );
 }
 
 #[test]
@@ -251,7 +254,10 @@ fn an_on_hit_rune_s_hits_apply_no_bleed_and_bleed_fires_no_rune() {
     assert_eq!(statuses(&e, target)[0].stacks, 1);
     let later = hits(&mut e, target, 200, |_| idle());
     assert_eq!(of(&later, 3).len(), 6, "{later:?}");
-    assert!(of(&later, 7).is_empty(), "no blast from a bleed tick: {later:?}");
+    assert!(
+        of(&later, 7).is_empty(),
+        "no blast from a bleed tick: {later:?}"
+    );
 }
 
 #[test]
@@ -288,11 +294,7 @@ fn boosted(ty: &str) -> Vec<(u32, u32)> {
     target["enemy"]["defence"] = json!(100);
     let mut e = with(
         &stage(7, target),
-        &content(
-            rewards,
-            Some(json!([war_cry])),
-            runes(30, 180, 10, 1),
-        ),
+        &content(rewards, Some(json!([war_cry])), runes(30, 180, 10, 1)),
     );
     take_all(&mut e);
     take(&mut e, "war_cry_r");
@@ -353,7 +355,12 @@ fn the_boss_bleeds_too() {
         &content(vec![random_rune()], None, runes(30, 180, 3, 1)),
     );
     take_all(&mut e);
+    // The button let go, the last step over and any bleed from the steps that took the stars
+    // run out.
     let boss = EntityId(1);
+    for _ in 0..10 {
+        e.step(idle());
+    }
     while !statuses(&e, boss).is_empty() {
         e.step(idle());
     }
@@ -408,9 +415,9 @@ fn a_run_holding_bleed_records_and_verifies() {
         if recorder.step(input).is_err() {
             break;
         }
-        bled |= recorder.engine().events().iter().any(|ev| {
-            matches!(ev, DomainEvent::StatusApplied { status, .. } if status.0 == "bleed")
-        });
+        bled |= recorder.engine().events().iter().any(
+            |ev| matches!(ev, DomainEvent::StatusApplied { status, .. } if status.0 == "bleed"),
+        );
     }
     assert!(bled, "bleed was applied in the run");
     let bytes = recorder.replay().to_bytes();

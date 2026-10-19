@@ -225,7 +225,13 @@ fn the_hidden_candidate_names_no_rune() {
     assert!(snapshot.player.runes.is_empty(), "nothing drawn yet");
     let text = serde_json::to_string(&snapshot).unwrap();
     assert!(text.contains("\"hidden\":true"));
-    for rune in ["explosion", "thunder", "boomerang", "homing_missiles", "bleed"] {
+    for rune in [
+        "explosion",
+        "thunder",
+        "boomerang",
+        "homing_missiles",
+        "bleed",
+    ] {
         assert!(!text.contains(rune), "no rune in the snapshot");
     }
 }

@@ -184,10 +184,10 @@ pub fn dot(rune: &str, interval: u32, duration: u32, damage: u32, max_stacks: u3
             "damage": damage, "max_stacks": max_stacks, "type": "slash" })
 }
 
-/// A bleed whose first tick is a minute after it is applied, beyond every on-hit rune test:
-/// held, it is applied on every step's hit but never deals damage there.
+/// A bleed whose first tick is 10 seconds after it is first applied, beyond every on-hit rune
+/// test: held, it is applied on every step's hit but never deals damage there.
 pub fn far_bleed() -> Value {
-    dot("bleed", 3_600, 3_600, 1, 1)
+    dot("bleed", 600, 600, 1, 1)
 }
 
 /// The runes file of `on_hit`'s entries and a bleed that never ticks (`far_bleed`).

@@ -93,7 +93,10 @@ fn file_with(on_hit: Vec<Value>, damage_over_time: Vec<Value>) -> Value {
 /// Valid on-hit entries, and `damage_over_time`.
 fn with_bleed(damage_over_time: Vec<Value>) -> Value {
     let one = explosion(json!(30), json!(5), json!([active(4)]));
-    file_with(vec![one, thunder(), boomerang(), homing()], damage_over_time)
+    file_with(
+        vec![one, thunder(), boomerang(), homing()],
+        damage_over_time,
+    )
 }
 
 fn plain() -> Value {
@@ -403,10 +406,7 @@ fn bleed_s_numbers_are_1_to_their_hard_caps() {
         Err(vec![at("duration_ticks")])
     );
     assert_eq!(check(30, 180, 0, 5), Err(vec![at("damage")]));
-    assert_eq!(
-        check(30, 180, MAX_DAMAGE + 1, 5),
-        Err(vec![at("damage")])
-    );
+    assert_eq!(check(30, 180, MAX_DAMAGE + 1, 5), Err(vec![at("damage")]));
     assert_eq!(check(30, 180, 3, 0), Err(vec![at("max_stacks")]));
     assert_eq!(
         check(30, 180, 3, MAX_DOT_STACKS + 1),
