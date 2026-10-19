@@ -1013,6 +1013,16 @@
           "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
           "type": "string",
           "const": "bleed"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `poison` status, Dendro, on the enemy hit,\nor a stack more of it.",
+          "type": "string",
+          "const": "poison"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `burn` status, Pyro, on the enemy hit, or\na stack more of it.",
+          "type": "string",
+          "const": "burn"
         }
       ]
     },
