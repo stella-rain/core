@@ -187,10 +187,10 @@ pub struct Reward {
     /// What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,
     /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it
     /// adds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to
-    /// `MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune Haste, the percent
-    /// of haste, from 1 to `MAX_RUNE_HASTE_PCT`; for a type
-    /// bonus, the percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random
-    /// rune, which has none.
+    /// `MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune
+    /// Haste, the percent of haste, from 1 to `MAX_RUNE_HASTE_PCT`; for a type bonus, the
+    /// percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which
+    /// has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub amount: Option<u32>,
     /// The most times one run takes it, from 1 to `MAX_STACK`. Required by every effect but
