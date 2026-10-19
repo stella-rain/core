@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TimeLimitFile",
+  "description": "The `time_limit` mode file.",
+  "type": "object",
+  "properties": {
+    "boss_ticks": {
+      "description": "When a boss comes, in ticks from the start: 1 to `MAX_BOSS_TIMES` times that rise\nstrictly, inside the length, the last at the length. All but the last are mid-bosses;\nthe last is the final boss.",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      }
+    },
+    "final_boss": {
+      "description": "The final boss (a sprite ID).",
+      "$ref": "#/$defs/ContentId"
+    },
+    "id": {
+      "description": "The mode's ID, `time_limit`.",
+      "$ref": "#/$defs/ContentId"
+    },
+    "length_ticks": {
+      "description": "The run's length in ticks, 1 to `MAX_LENGTH_TICKS`.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "map": {
+      "$ref": "#/$defs/TimeLimitMap"
+    },
+    "mid_boss_pool": {
+      "description": "The bosses a mid-boss is drawn from (sprite IDs): at least one for each mid-boss time,\nat most `MAX_POOL`.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentId"
+      }
+    },
+    "overtime_ticks": {
+      "description": "How long the run goes on past the length while the final boss lives, in ticks, 1 to\n`MAX_OVERTIME_TICKS`.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sim_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "star_hunter_extra_ticks": {
+      "description": "The time the Star-Hunter adds, in ticks, 1 to `MAX_EXTRA_TICKS`. Read and checked now;\na later step uses it.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "id",
+    "length_ticks",
+    "boss_ticks",
+    "mid_boss_pool",
+    "final_boss",
+    "overtime_ticks",
+    "star_hunter_extra_ticks",
+    "map"
+  ],
+  "$defs": {
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    },
+    "Fx": {
+      "description": "A length in 1/256 pixel units. In files it is the plain integer.",
+      "type": "integer",
+      "format": "int32"
+    },
+    "Point": {
+      "description": "A point on the playfield, from its top-left corner.",
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/Fx"
+        },
+        "y": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "TimeLimitMap": {
+      "description": "An open field: its sides in 1/256 pixels and where the player starts.",
+      "type": "object",
+      "properties": {
+        "height": {
+          "description": "`MIN_MAP_SIDE` to `MAX_MAP_SIDE`.",
+          "$ref": "#/$defs/Fx"
+        },
+        "start": {
+          "description": "On the map.",
+          "$ref": "#/$defs/Point"
+        },
+        "width": {
+          "description": "`MIN_MAP_SIDE` to `MAX_MAP_SIDE`.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height",
+        "start"
+      ]
+    }
+  }
+}
