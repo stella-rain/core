@@ -92,6 +92,12 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      # The dependencies' build, per job and runner (this crate's own is dropped before saving).
+      # Only runs on main save it (push and the weekly run): a PR reads main's, and the
+      # repository's 10 GB of cache holds main's rather than one copy per PR.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
@@ -125,6 +131,9 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: uname -m && rustc -vV
       - run: cargo test --locked
       - run: cargo test --locked --release
@@ -157,6 +166,9 @@ jobs:
           rustup toolchain install stable --profile minimal \
             --target aarch64-apple-ios,aarch64-linux-android,x86_64-linux-android
           rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: |
           for t in aarch64-apple-ios aarch64-linux-android x86_64-linux-android; do
             cargo check --locked --all-targets --target "$t"
@@ -175,6 +187,10 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo fmt --manifest-path fuzz/Cargo.toml --check
       - run: cargo clippy --manifest-path fuzz/Cargo.toml --all-targets --locked -- -D warnings
       # Every target on the corpus files, every prefix and flipped byte of them, and the
@@ -194,7 +210,22 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
-      - run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
+      # The cache's key holds the stable rustc; `key` adds the nightly the fuzz build uses.
+      # cargo-fuzz has its own cache below, so this one leaves ~/.cargo/bin alone.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+          key: ${{ env.FUZZ_NIGHTLY }}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # cargo-fuzz built once per version and runner, from source as before.
+      - id: cargo-fuzz
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-fuzz
+          key: cargo-fuzz-${{ env.CARGO_FUZZ_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - if: steps.cargo-fuzz.outputs.cache-hit != 'true'
+        run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
       - run: cargo "+$FUZZ_NIGHTLY" fuzz build
 
   fuzz-changes:
@@ -241,7 +272,22 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
-      - run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
+      # The cache's key holds the stable rustc; `key` adds the nightly the fuzz build uses.
+      # cargo-fuzz has its own cache below, so this one leaves ~/.cargo/bin alone.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+          key: ${{ env.FUZZ_NIGHTLY }}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # cargo-fuzz built once per version and runner, from source as before.
+      - id: cargo-fuzz
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-fuzz
+          key: cargo-fuzz-${{ env.CARGO_FUZZ_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - if: steps.cargo-fuzz.outputs.cache-hit != 'true'
+        run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
       # The corpus stages and replays, the run setups of tests/fixtures/run_setup/ and the bundled
       # content/ files are the seeds; nothing generated is committed. stage_parse also reads its
       # bytes as rewards and run stats, so the content files seed the stage targets too.
@@ -304,7 +350,12 @@ jobs:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal && rustup default stable
       - run: sudo apt-get update && sudo apt-get install -y valgrind
-      - run: cargo install iai-callgrind-runner --version "$IAI_CALLGRIND_RUNNER_VERSION" --locked
+      # The release binary, checked against the checksum pinned in install-action's manifest;
+      # never a build from another source (`fallback: none`).
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: iai-callgrind-runner@${{ env.IAI_CALLGRIND_RUNNER_VERSION }}
+          fallback: none
       # The base commit and the PR build in separate target directories. In one, cargo takes the
       # PR's crate for the base's (same name, same path in the workspace), finds it newer than the
       # PR's sources and counts the base twice. iai-callgrind keeps its baselines in one home that
