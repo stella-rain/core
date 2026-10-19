@@ -6,7 +6,7 @@
 //! and say `Corpus regenerated: <why>` in the PR (ADR-035). In CI a difference always fails.
 #![cfg(feature = "record")]
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

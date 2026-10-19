@@ -3,7 +3,7 @@
 //! end; a wind-up announces itself; `move_pct` scales the attacker's movement; a boss timeline
 //! step waits for its attack; the snapshot shows the phase.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

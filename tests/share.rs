@@ -1,7 +1,7 @@
 //! Share codes (ADR-010, ADR-018): exact bytes in, exact bytes out, and nothing a hostile code
 //! can do to blow up memory (ADR-020).
 
-mod common;
+use crate::common;
 
 use common::{clearing_inputs, stage_bytes};
 use miniz_oxide::deflate::compress_to_vec_zlib;

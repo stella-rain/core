@@ -2,7 +2,7 @@
 //! the portrait field. The main character and companions are clamped to the map, and enemies
 //! and bullets leave once they are more than `FIELD_MARGIN` outside it.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

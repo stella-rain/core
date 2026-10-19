@@ -7,7 +7,7 @@
 //! each step's bullet has its own speed, so the bullets say which steps ran. A step pressed on
 //! tick t winds up on t and t + 1, fires on t + 2 and recovers from t + 4 to t + 9.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

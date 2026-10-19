@@ -18,7 +18,7 @@ use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::DamageOverTimeView;
 
-mod common;
+use crate::common;
 
 use common::on_hit::*;
 use common::run::{run_input, trial_setup};

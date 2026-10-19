@@ -4,7 +4,7 @@
 //! come out are read from the snapshot, and their velocities from where they first appear (one
 //! move after they were fired).
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

@@ -5,7 +5,7 @@
 // cannot start one, and the library the binary calls is covered by the other tests.
 #![cfg(not(target_os = "ios"))]
 
-mod common;
+use crate::common;
 
 use std::io::Write;
 use std::path::PathBuf;

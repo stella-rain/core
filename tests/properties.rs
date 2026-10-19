@@ -4,7 +4,7 @@
 //!
 //! Each property runs 64 cases; `PROPTEST_CASES=2000 cargo test --test properties` runs more.
 
-mod common;
+use crate::common;
 
 use std::collections::BTreeMap;
 use std::fs;

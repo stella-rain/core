@@ -16,7 +16,7 @@ use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::validate::Error;
 
-mod common;
+use crate::common;
 
 use common::run::{
     SPEND_INDEX, TRIAL_LENGTH, first_point_tick, play_run, run_input, run_script, trial_setup,

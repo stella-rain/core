@@ -1,0 +1,70 @@
+//! The integration tests, built as one binary (`autotests = false` in Cargo.toml): every other
+//! file in `tests/` is a module here, so the engine is compiled and linked once for all of them
+//! instead of once per file. Run one file's tests with a filter on its module:
+//! `cargo test --test integration corpus::`.
+
+mod common;
+
+mod agents;
+mod assist;
+mod attacks;
+mod auto;
+mod base64;
+mod bleed;
+mod boomerang;
+mod boss;
+mod charge;
+mod collide_case;
+mod content_hash;
+mod controls;
+mod corpus;
+mod damage_types;
+mod defence;
+mod elites;
+mod engine;
+mod evade;
+mod expertise;
+mod expertise_gauge;
+mod expertise_offers;
+mod explosion;
+mod extremes;
+mod golden;
+mod hash;
+mod hit_boxes;
+mod homing_missiles;
+mod levels;
+mod map;
+mod match_ups;
+mod orbit;
+mod overflow;
+mod parsed_stage_hash;
+mod phases;
+mod poison_burn;
+mod properties;
+mod push_apart;
+mod range_reward;
+mod recording;
+mod registry;
+mod replay;
+mod rewards;
+mod rng;
+mod run_replay;
+mod run_setup;
+mod run_stats;
+mod runes;
+mod runes_file;
+mod schema;
+mod share;
+mod shot;
+mod spike;
+mod stage_skill;
+mod stage_skill_file;
+mod stage_verify;
+mod stars;
+mod thunder;
+mod trig;
+mod type_bonuses;
+mod types;
+mod validate;
+mod weapons;
+mod worst_case;

@@ -21,7 +21,7 @@ use stella_rain_core::snapshot::{
 };
 use stella_rain_core::stage::Stage;
 
-mod common;
+use crate::common;
 
 use common::*;
 

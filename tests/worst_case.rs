@@ -3,7 +3,10 @@
 //! tick that does not would pass without measuring the worst case. Every attacker also holds an
 //! active hit box (ADR-055).
 
+// The benchmark's own module, which brings its own copy of `tests/common`; in the one test
+// binary that copy sits beside `crate::common`, as it did when this file was a binary of its own.
 #[path = "../benches/worst_case/mod.rs"]
+#[allow(clippy::duplicate_mod, clippy::module_inception)]
 mod worst_case;
 
 use stella_rain_core::attack::PhaseKind;

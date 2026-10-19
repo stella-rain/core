@@ -17,7 +17,7 @@ use stella_rain_core::run_stats::{
 };
 use stella_rain_core::validate::Error;
 
-mod common;
+use crate::common;
 
 use common::run::{run_script, trial_setup};
 

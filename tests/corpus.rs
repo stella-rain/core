@@ -14,7 +14,7 @@
 //! hash after every tick, before the commands between it and the next). They need no stage file, because the
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
 
-mod common;
+use crate::common;
 
 use std::fs;
 use std::path::{Path, PathBuf};

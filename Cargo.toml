@@ -7,6 +7,10 @@ license = "MIT OR Apache-2.0"
 description = "Deterministic simulation for Stella Rain"
 repository = "https://github.com/stella-rain/core"
 publish = false
+# The integration tests build as one binary, `tests/integration.rs`, not one per file: each
+# binary re-optimises and links the engine on its own, which made a release test build spend
+# 85% of its time on 62 copies of the same work.
+autotests = false
 
 [lib]
 name = "stella_rain_core"
@@ -46,6 +50,10 @@ proptest = { version = "1.11", default-features = false, features = ["std"] }
 # of a build, so a CI runner's load does not move it. Tests only; never in the library or the
 # simulation path. Needs the `iai-callgrind-runner` binary of the same version and `valgrind`.
 iai-callgrind = "0.16.1"
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
 
 [[bench]]
 name = "worst_tick"

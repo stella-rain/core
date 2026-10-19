@@ -17,7 +17,7 @@ use stella_rain_core::snapshot::{EntityKind, OfferOption};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
 
-mod common;
+use crate::common;
 
 use common::*;
 

@@ -1,7 +1,7 @@
 //! The JSON Lines recording (ADR-016), behind the `record` feature.
 #![cfg(feature = "record")]
 
-mod common;
+use crate::common;
 
 use common::run::{SPEND_INDEX, first_point_tick, play_run, trial_setup};
 use common::{CLEAR_TICK, clearing_inputs, stage_bytes};

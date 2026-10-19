@@ -19,7 +19,7 @@ use stella_rain_core::rune::{MAX_RUNES, Rune, RuneKind};
 use stella_rain_core::snapshot::{OfferOption, RuneView};
 use stella_rain_core::stage::Stage;
 
-mod common;
+use crate::common;
 
 use common::run::{TRIAL_LENGTH, run_input, trial_setup};
 use common::*;

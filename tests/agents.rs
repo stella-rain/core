@@ -2,7 +2,7 @@
 //! summons and the skills they cast. Small stages whose every tick can be
 //! worked out by hand; the expected numbers come from the constants in `rules_v0`.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

@@ -4,7 +4,7 @@
 //! `max_charges`. Every number here is worked out by hand from the rules' constants and
 //! `common::evade()`.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::json;
