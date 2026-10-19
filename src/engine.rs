@@ -25,10 +25,10 @@ use crate::run_stats::{RunStats, StatEffect};
 use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::snapshot::{
-    AttackView, BulletView, ChargeView, ComboView, EntityKind, EntityView, EvadeView,
-    ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView, PlayerView,
-    ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView, TypeBonusView,
-    WeaponRole,
+    AttackView, BulletView, ChargeView, ComboView, DamageOverTimeView, EntityKind, EntityView,
+    EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView,
+    PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
+    TypeBonusView, WeaponRole,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -322,6 +322,7 @@ impl Engine {
                     hp: b.hp,
                     attack: attack_of(b.id),
                     elite: false,
+                    damage_over_time: dot_views(&b.statuses),
                 });
             }
         }
@@ -340,6 +341,7 @@ impl Engine {
                         hp: a.hp,
                         attack: attack_of(a.id),
                         elite: a.elite.is_some(),
+                        damage_over_time: dot_views(&a.statuses),
                     });
                 }
             };
@@ -362,6 +364,7 @@ impl Engine {
                         hp: part.hp,
                         attack: None,
                         elite: false,
+                        damage_over_time: dot_views(&part.statuses),
                     });
                 }
             }
@@ -943,8 +946,8 @@ pub(crate) struct RuleState {
     pub fired: bool,
 }
 
-/// The statuses a skill can apply in this version (ADR-036). The IDs in the registry are the
-/// names below.
+/// The statuses of this version (ADR-036): the three a skill can apply, and bleed, which only
+/// the bleed rune applies (ADR-099). The IDs in the registry are the names of the first three.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StatusKind {
     /// More damage dealt.
@@ -953,14 +956,20 @@ pub(crate) enum StatusKind {
     Vulnerable,
     /// Slower movement.
     Slow,
+    /// Damage over time, in stacks (ADR-099, ADR-084 point 8).
+    Bleed,
 }
 
 impl StatusKind {
-    pub const ALL: [StatusKind; 3] = [StatusKind::AtkUp, StatusKind::Vulnerable, StatusKind::Slow];
+    /// The statuses a skill can apply: bleed is not one of them.
+    pub const FROM_SKILLS: [StatusKind; 3] =
+        [StatusKind::AtkUp, StatusKind::Vulnerable, StatusKind::Slow];
 
-    /// The status whose registry ID is `name`.
+    /// The status a skill can apply whose registry ID is `name`.
     pub fn from_name(name: &str) -> Option<StatusKind> {
-        StatusKind::ALL.into_iter().find(|k| k.name() == name)
+        StatusKind::FROM_SKILLS
+            .into_iter()
+            .find(|k| k.name() == name)
     }
 
     pub fn name(self) -> &'static str {
@@ -968,6 +977,7 @@ impl StatusKind {
             StatusKind::AtkUp => "atk_up",
             StatusKind::Vulnerable => "vulnerable",
             StatusKind::Slow => "slow",
+            StatusKind::Bleed => "bleed",
         }
     }
 }
@@ -982,6 +992,38 @@ pub(crate) struct StatusState {
     pub stacks: u16,
     /// Percent per stack.
     pub value_pct: u16,
+    /// A damage-over-time status's own state; `None` for every other status, which hashes
+    /// nothing for it.
+    pub dot: Option<DotState>,
+}
+
+/// The damage-over-time statuses of `statuses`, for the snapshot.
+fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
+    statuses
+        .iter()
+        .filter_map(|st| {
+            st.dot.map(|d| DamageOverTimeView {
+                status: ContentId(st.kind.name().to_owned()),
+                stacks: st.stacks,
+                ticks_left: st.remaining,
+                next_tick_in: d.next_in,
+            })
+        })
+        .collect()
+}
+
+/// What a damage-over-time status deals and when (ADR-099 points 2 and 3): its damage a stack
+/// and its type, from the content that applied it; the atk-up and type bonus of its source,
+/// fixed when it was last applied, as an attack's are when it starts (ADR-056); its interval,
+/// and the ticks to its next tick, at least 1.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DotState {
+    pub damage: u32,
+    pub damage_type: Option<DamageType>,
+    pub atk_up_pct: u32,
+    pub type_bonus_pct: u32,
+    pub interval: u32,
+    pub next_in: u32,
 }
 
 /// A direction as a vector of length about `trig::SCALE`. Angle 0 is straight down the screen

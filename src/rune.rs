@@ -25,6 +25,9 @@ pub enum Rune {
     /// On-hit: missiles launched from the main character that steer to aim assist's targets,
     /// each hitting once.
     HomingMissiles,
+    /// Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack
+    /// more of it.
+    Bleed,
 }
 
 /// What sets a rune off (ADR-099 point 2).
@@ -39,11 +42,12 @@ pub enum RuneKind {
 
 impl Rune {
     /// Every rune, in the order the random rune draws among them.
-    pub const ALL: [Rune; 4] = [
+    pub const ALL: [Rune; 5] = [
         Rune::Explosion,
         Rune::Thunder,
         Rune::Boomerang,
         Rune::HomingMissiles,
+        Rune::Bleed,
     ];
 
     /// The rune's place in `ALL`, from 0: what the state hash writes.
@@ -56,6 +60,7 @@ impl Rune {
             Rune::Explosion | Rune::Thunder | Rune::Boomerang | Rune::HomingMissiles => {
                 RuneKind::OnHit
             }
+            Rune::Bleed => RuneKind::DamageOverTime,
         }
     }
 }

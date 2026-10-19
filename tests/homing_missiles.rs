@@ -78,9 +78,9 @@ fn other(dx: i32, dy: i32) -> Value {
     )
 }
 
-/// The stage with four small enemies, the tough target 32 pixels above and `others`.
+/// The stage with five small enemies, the tough target 32 pixels above and `others`.
 fn arena(others: Vec<Value>) -> Stage {
-    let mut s = stage(4, tough(0, None, None));
+    let mut s = stage(5, tough(0, None, None));
     for w in others {
         s.waves.push(serde_json::from_value(w).unwrap());
     }
@@ -190,7 +190,7 @@ fn the_missiles_fly_toward_where_the_target_is_now() {
         json!({ "type": "straight", "vx": 256, "vy": 0 }),
         json!([]),
     );
-    let s = stage(4, wave(TARGET_TICK, 1, 0, walker, START_X, NEAR_Y));
+    let s = stage(5, wave(TARGET_TICK, 1, 0, walker, START_X, NEAR_Y));
     let mut e = with(
         &s,
         &content(
@@ -386,7 +386,7 @@ fn its_hits_fire_no_rune() {
 fn its_hits_give_no_expertise() {
     // The target gives 1 point a hit: the step's, not the missiles' two.
     let mut e = with(
-        &stage(4, tough(0, None, Some(1))),
+        &stage(5, tough(0, None, Some(1))),
         &content(vec![random_rune()], None, runes(2, RANGE)),
     );
     take_all(&mut e);
@@ -417,7 +417,7 @@ fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
     ];
     let runes = with_homing(homing(60, 10, 1, RANGE, 0));
     let mut e = with(
-        &stage(6, tough(0, Some(profile), None)),
+        &stage(7, tough(0, Some(profile), None)),
         &content(rewards, Some(json!([war_cry])), runes),
     );
     take_all(&mut e);

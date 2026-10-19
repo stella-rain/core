@@ -62,6 +62,13 @@
 //! toward where their targets are now; one that hits anything in step 6 is gone once the hit
 //! boxes have landed.
 //!
+//! Damage-over-time runes (ADR-099, `runes`): a combo step's hit in step 6 that leaves its
+//! target standing puts each one's status on it, bleed's `bleed`, or a stack more up to its
+//! maximum, its duration starting again. Statuses of that kind do not run out in step 1: at
+//! the start of step 6, before any hit lands, each counts down to its next tick and deals its
+//! damage on it, then its duration runs down (`entity::tick_dots`); a tick without one on
+//! anyone skips that pass.
+//!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
@@ -310,7 +317,7 @@ pub(crate) fn step(
     let mut spawns_left = MAX_BULLET_SPAWNS_PER_TICK;
 
     spawn_waves(stage, s);
-    entity::tick_statuses_and_aggro(s);
+    let dots = entity::tick_statuses_and_aggro(s);
     runes::tick(s);
     attacks::advance_runs(s, events);
     player::update(stage, rewards, s, input, events);
@@ -336,7 +343,7 @@ pub(crate) fn step(
         emitter_steps,
     };
     move_bullets(stage, s);
-    collide(stage, s, events);
+    collide(stage, s, dots, events);
     expertise::level_up(expertise, s);
     decide_outcome(stage, s, events);
     match s.outcome {
@@ -497,7 +504,10 @@ struct Shot {
     combo: bool,
 }
 
-fn collide(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEvent>) {
+    if dots {
+        entity::tick_dots(stage, s, events);
+    }
     // The enemies do not move while hit boxes and bullets land, so one grid, built for the first
     // friendly hit box or bullet, serves all of them; a tick without either never builds it.
     let mut grid: Option<Grid> = None;
@@ -547,8 +557,9 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
 
 /// Damage to an enemy, a companion or the boss: raised by its vulnerability, changed by its
 /// match-up, reduced by its defence, reported, and credited to the shooter's aggro. Death is
-/// reported too. A combo step's hit adds expertise points (`expertise`) and fires the on-hit
-/// runes that are ready (`runes`).
+/// reported too. A combo step's hit adds expertise points (`expertise`), puts the
+/// damage-over-time runes' statuses on a target it leaves standing, and fires the on-hit runes
+/// that are ready (`runes`).
 fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
@@ -583,6 +594,9 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     if b.combo {
         expertise::credit(stage, s, target, dead);
         if !s.player.runes.is_empty() {
+            if !dead {
+                runes::apply_dots(s, target, events);
+            }
             let at = s.at(target);
             runes::on_hit(stage, s, id, at, events);
         }
@@ -751,6 +765,16 @@ fn hash_statuses(h: &mut StateHasher, statuses: &[crate::engine::StatusState]) {
         h.write_u32(st.remaining);
         h.write_u32(u32::from(st.stacks));
         h.write_u32(u32::from(st.value_pct));
+        // Only for a damage-over-time status, which its kind already tells apart, so other
+        // statuses hash as before.
+        if let Some(d) = st.dot {
+            h.write_u32(d.damage);
+            h.write_u32(type_code(d.damage_type));
+            h.write_u32(d.atk_up_pct);
+            h.write_u32(d.type_bonus_pct);
+            h.write_u32(d.interval);
+            h.write_u32(d.next_in);
+        }
     }
 }
 

@@ -64,5 +64,15 @@
         }
       ]
     }
+  ],
+  "damage_over_time": [
+    {
+      "rune": "bleed",
+      "interval_ticks": 30,
+      "duration_ticks": 180,
+      "damage": 3,
+      "max_stacks": 5,
+      "type": "slash"
+    }
   ]
 }
