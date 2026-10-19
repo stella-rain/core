@@ -1,7 +1,7 @@
 # Fuzz targets for the untrusted inputs of `core` (ADR-020): stage files, replay files, share
-# codes and run setups. A separate workspace, so `cargo` in the repository root never builds it;
-# `cargo fuzz` needs a nightly toolchain, and the root crate stays on the pinned stable one
-# (ADR-039).
+# codes, run setups and content packs. A separate workspace, so `cargo` in the repository root
+# never builds it; `cargo fuzz` needs a nightly toolchain, and the root crate stays on the pinned
+# stable one (ADR-039).
 [package]
 name = "stella-rain-core-fuzz"
 version = "0.0.0"
@@ -58,6 +58,13 @@ bench = false
 [[bin]]
 name = "run_setup"
 path = "fuzz_targets/run_setup.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pack_load"
+path = "fuzz_targets/pack_load.rs"
 test = false
 doc = false
 bench = false

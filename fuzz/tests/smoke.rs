@@ -1,13 +1,14 @@
 //! The fuzz targets on stable (ADR-020), every PR: each target reaches the code behind its first
 //! gate on a real stage, replay, run replay, share code, run setup and content pack, rejects
-//! garbage, and survives a deterministic sweep over those files: every prefix, and a flipped byte at a regular step. Crashes that a
-//! real fuzz run found are kept in `regressions/<target>/` and replayed here.
+//! garbage, and survives a deterministic sweep over those files: every prefix, and a flipped
+//! byte at a regular step. Crashes that a real fuzz run found are kept in
+//! `regressions/<target>/` and replayed here.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use stella_rain_core::share;
 use stella_rain_core::pack;
+use stella_rain_core::share;
 use stella_rain_core_fuzz::{
     pack_load, replay_load, run_setup, share_decode, stage_parse, stage_run,
 };
