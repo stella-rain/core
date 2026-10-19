@@ -45,14 +45,15 @@ fn cooldown(e: &Engine) -> u32 {
     cooldown_of(e, Rune::Explosion)
 }
 
-/// The stage with two small enemies and the tough target, all three runes taken from their stars.
+/// The stage with three small enemies and the tough target, all three runes taken from their
+/// stars. The last small enemy's kill may fire explosion, whose cooldown is over long before
+/// the target arrives.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
         &stage(3, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
-    assert_eq!(cooldown(&e), 0);
     e
 }
 

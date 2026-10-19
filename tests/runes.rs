@@ -19,7 +19,7 @@ use stella_rain_core::stage::Stage;
 
 mod common;
 
-use common::run::{run_input, trial_setup};
+use common::run::{TRIAL_LENGTH, run_input, trial_setup};
 use common::*;
 
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
@@ -402,7 +402,8 @@ fn the_state_hash_holds_the_runes() {
 
 #[test]
 fn a_run_with_a_random_rune_picked_records_and_verifies() {
-    // The trial with a random rune and one stat reward: the first offer holds the rune.
+    // The trial with a random rune and one stat reward: the first offer holds the rune. The
+    // third is drawn near tick 1 330, so the whole trial is played.
     let content = content(vec![
         random_rune(),
         json!({
@@ -411,7 +412,7 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
         }),
     ]);
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
-    for t in 0..1_200 {
+    for t in 0..TRIAL_LENGTH {
         while recorder.engine().offer_open() {
             // A star's offer or an expertise level's: the hidden candidate if there is one.
             let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);

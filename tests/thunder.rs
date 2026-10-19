@@ -55,7 +55,8 @@ fn runes(cooldown: u32, damage: u32, ty: Option<&str>) -> Runes {
     ])
 }
 
-/// The stage with two small enemies and the tough target, all three runes taken from their stars.
+/// The stage with three small enemies and the tough target, all three runes taken from their
+/// stars.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
         &stage(3, target),
