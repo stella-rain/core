@@ -471,9 +471,9 @@ fn a_boss_kill_no_longer_upgrades_a_weapon_its_points_are_its_weapon_progress() 
 }
 
 #[test]
-fn a_boss_kill_s_clear_opens_its_offer_then_its_levels_and_no_star() {
+fn a_boss_kill_s_clear_opens_its_offer_then_its_levels_then_the_star_s() {
     // One slash kills the boss and an enemy beside it, whose star is taken at once. The kill
-    // clears the stage: the boss offer opens, then the levels it reached, and the star's never.
+    // clears the stage: the boss offer opens, then the levels it reached, then the star's.
     let mut e = with(
         &stage(
             Some((1, to_level(2))),
@@ -488,7 +488,10 @@ fn a_boss_kill_s_clear_opens_its_offer_then_its_levels_and_no_star() {
             .iter()
             .any(|ev| matches!(ev, DomainEvent::StarTaken { .. }))
     );
-    assert_eq!(take_all(&mut e, &first), ["boss", "main 1", "sub 2"]);
+    assert_eq!(
+        take_all(&mut e, &first),
+        ["boss", "main 1", "sub 2", "star"]
+    );
     assert_eq!(gauge(&e).level, 2);
 }
 
