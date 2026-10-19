@@ -416,8 +416,8 @@ fn the_state_hash_holds_the_runes() {
 
 #[test]
 fn a_run_with_a_random_rune_picked_records_and_verifies() {
-    // The trial with a random rune and one stat reward: the first offer holds the rune. The
-    // third is drawn near tick 1 330, so the whole trial is played.
+    // The trial with a random rune and one stat reward: the first offer holds the rune, and all
+    // four are drawn before the trial ends.
     let content = content(vec![
         random_rune(),
         json!({

@@ -249,12 +249,15 @@ fn each_missile_takes_the_next_target_in_aim_assist_order() {
 
 #[test]
 fn the_boss_comes_before_a_nearer_enemy() {
-    // A boss 112 pixels above, its circle 32: within range, beyond the step's reach.
+    // A boss 112 pixels right and 32 up, its circle 32: within range, beyond the step's reach,
+    // and its missile's path 30 pixels from the tough target.
     let mut s = arena(vec![]);
-    s.boss = Some(serde_json::from_value(boss_at(100_000, START_Y - 28_672)).unwrap());
+    let mut boss = boss_at(100_000, START_Y - 8_192);
+    boss["spawn"]["x"] = json!(START_X + 28_672);
+    s.boss = Some(serde_json::from_value(boss).unwrap());
     let mut e = holding(&s, runes(2, RANGE));
     let tough = at(&e, 0, NEAR_Y - START_Y);
-    let boss = at(&e, 0, -28_672);
+    let boss = at(&e, 28_672, -8_192);
     let start = e.tick();
     let seen = every_hit(&mut e, 30, once(start));
     let mut hit = missile_targets(&seen);
