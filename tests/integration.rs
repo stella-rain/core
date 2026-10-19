@@ -51,6 +51,7 @@ mod rng;
 mod run_replay;
 mod run_setup;
 mod run_stats;
+mod rune_haste;
 mod runes;
 mod runes_file;
 mod schema;
