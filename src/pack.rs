@@ -9,6 +9,12 @@
 //! (ADR-067). Anything else fails closed, with one message per problem and its path, never text
 //! from the pack.
 //!
+//! A content ID a pack introduces, the file's own ID of a run stat, a reward, a stage skill, or
+//! a style or option of a weapon's expertise, records the `sim_version` that introduced it in
+//! the pack's `introduced` table, each exactly once, and is refused when that is newer than the
+//! pack's own (ADR-080, as the registry's IDs are for a stage, ADR-017). The registry's IDs a
+//! file names are checked against the registry by the file's own parser.
+//!
 //! Each file sits in the pack as a JSON object, and is read from the exact bytes it has there,
 //! followed by a newline: the bytes of the same file on its own. A pack exported from the
 //! bundled files (`export_bundled`) so gives each file the bundled file's SHA-256, and a run of
@@ -20,7 +26,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use sha2::{Digest, Sha256};
 
-use crate::expertise::{Expertise, ExpertiseFile};
+use crate::expertise::{Expertise, ExpertiseFile, WeaponExpertise};
+use crate::id::ContentId;
 use crate::match_ups::{MatchUps, MatchUpsFile};
 use crate::rewards::{Rewards, RewardsFile};
 use crate::run_content::RunContent;
@@ -30,7 +37,7 @@ use crate::runes::{Runes, RunesFile};
 use crate::stage::Stage;
 use crate::stage_skill::{StageSkills, StageSkillsFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
-use crate::validate::{self, Error};
+use crate::validate::{self, Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
 // The count budgets: about four times today's counts, rounded up to a multiple of 8 and held
@@ -58,6 +65,9 @@ pub const MAX_BOSS_TICKS: usize = crate::time_limit::MAX_BOSS_TIMES;
 /// The most bosses in the `time_limit` mode's mid-boss pool (3 today; held to the file's own
 /// cap).
 pub const MAX_MID_BOSS_POOL: usize = crate::time_limit::MAX_POOL;
+/// The most IDs one weapon's expertise introduces: its styles, their choices and its common
+/// options (15 today).
+pub const MAX_EXPERTISE_IDS: usize = 64;
 
 /// The pack file. Each content file is the JSON object its own schema describes.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -66,6 +76,7 @@ pub struct PackFile {
     pub schema_version: u32,
     /// The `sim_version` the pack needs: every file has the same.
     pub sim_version: u32,
+    pub introduced: Introduced,
     #[schemars(with = "RunStatsFile")]
     pub run_stats: Box<RawValue>,
     /// Checked against the pack's own stage skills.
@@ -80,6 +91,36 @@ pub struct PackFile {
     #[schemars(with = "RunesFile")]
     pub runes: Box<RawValue>,
     pub modes: PackModes,
+}
+
+/// The `sim_version` of every ID the pack's files introduce, per file. Each list names each of
+/// its file's IDs once, in any order, and nothing else; the run stats', rewards' and stage
+/// skills' lists share their file's count budget.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Introduced {
+    pub run_stats: Vec<IntroducedId>,
+    pub rewards: Vec<IntroducedId>,
+    pub stage_skills: Vec<IntroducedId>,
+    /// One entry for each weapon of the expertise.
+    pub expertise: Vec<WeaponIds>,
+}
+
+/// An ID and the `sim_version` that introduced it: at most the pack's.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct IntroducedId {
+    pub id: ContentId,
+    pub sim_version: u32,
+}
+
+/// The IDs one weapon's expertise introduces: its styles', their choices' and its common
+/// options', at most `MAX_EXPERTISE_IDS`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WeaponIds {
+    pub weapon: ContentId,
+    pub ids: Vec<IntroducedId>,
 }
 
 /// The modes' files.
@@ -113,6 +154,8 @@ pub enum PackError {
     },
     /// A content file the pack holds was refused by its own parser.
     File { file: &'static str, error: Error },
+    /// The `introduced` table does not match the files, or names an ID newer than the pack.
+    Introduced(Vec<Issue>),
 }
 
 impl PackError {
@@ -146,6 +189,15 @@ impl std::fmt::Display for PackError {
                 "the pack needs a newer version of the game (schema_version {schema_version}, \
                  sim_version {sim_version})"
             ),
+            PackError::Introduced(issues) => {
+                for (i, issue) in issues.iter().enumerate() {
+                    if i > 0 {
+                        writeln!(f)?;
+                    }
+                    write!(f, "{}: {}", issue.path, issue.message)?;
+                }
+                Ok(())
+            }
             PackError::Budget { path, limit, found } => {
                 write!(f, "{path}: at most {limit} entries (found {found})")
             }
@@ -245,6 +297,15 @@ impl Pack {
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit))
             .map_err(PackError::in_file("time_limit"))?;
 
+        check_introduced(
+            &pack.introduced,
+            pack.sim_version,
+            &run_stats,
+            &rewards,
+            &stage_skills,
+            &expertise,
+        )?;
+
         let content = RunContent::new(run_stats, rewards)
             .with_expertise(expertise)
             .with_match_ups(match_ups)
@@ -342,6 +403,34 @@ fn budget(path: impl Into<String>, found: usize, limit: usize) -> Result<(), Pac
 }
 
 fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
+    let introduced = &pack.introduced;
+    budget(
+        "$.introduced.run_stats",
+        introduced.run_stats.len(),
+        MAX_RUN_STATS,
+    )?;
+    budget(
+        "$.introduced.rewards",
+        introduced.rewards.len(),
+        MAX_REWARDS,
+    )?;
+    budget(
+        "$.introduced.stage_skills",
+        introduced.stage_skills.len(),
+        MAX_STAGE_SKILLS,
+    )?;
+    budget(
+        "$.introduced.expertise",
+        introduced.expertise.len(),
+        MAX_EXPERTISE_WEAPONS,
+    )?;
+    for (w, weapon) in introduced.expertise.iter().enumerate() {
+        budget(
+            format!("$.introduced.expertise[{w}].ids"),
+            weapon.ids.len(),
+            MAX_EXPERTISE_IDS,
+        )?;
+    }
     if let Some(l) = counts::<Lists>(&pack.run_stats) {
         budget("$.run_stats.stats", l.stats.len(), MAX_RUN_STATS)?;
     }
@@ -397,6 +486,193 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
     Ok(())
 }
 
+/// Every ID one weapon's expertise introduces, with its path in the expertise file, in the
+/// file's order.
+fn expertise_ids(w: usize, weapon: &WeaponExpertise) -> Vec<(String, &ContentId)> {
+    let mut ids = Vec::new();
+    for (s, style) in weapon.styles.iter().enumerate() {
+        let base = format!("$.expertise.weapons[{w}].styles[{s}]");
+        ids.push((format!("{base}.id"), &style.id));
+        for (field, choices) in [
+            ("upgrade_6", &style.upgrade_6),
+            ("upgrade_9", &style.upgrade_9),
+            ("capstone", &style.capstone),
+        ] {
+            for (c, choice) in choices.iter().enumerate() {
+                ids.push((format!("{base}.{field}[{c}].id"), &choice.id));
+            }
+        }
+    }
+    for (c, option) in weapon.common.iter().enumerate() {
+        ids.push((
+            format!("$.expertise.weapons[{w}].common[{c}].id"),
+            &option.id,
+        ));
+    }
+    ids
+}
+
+/// Checks one list of the table, at `at`, against the IDs of its file with their paths.
+fn check_ids(
+    issues: &mut Vec<Issue>,
+    at: &str,
+    listed: &[IntroducedId],
+    ids: &[(String, &ContentId)],
+    sim_version: u32,
+) {
+    for (i, entry) in listed.iter().enumerate() {
+        if !ids.iter().any(|(_, id)| **id == entry.id) {
+            issues.push(Issue {
+                path: format!("{at}[{i}].id"),
+                message: "not an ID of the file".into(),
+            });
+        } else if listed[..i].iter().any(|e| e.id == entry.id) {
+            issues.push(Issue {
+                path: format!("{at}[{i}].id"),
+                message: "the same ID as an earlier entry".into(),
+            });
+        }
+        if entry.sim_version > sim_version {
+            issues.push(Issue {
+                path: format!("{at}[{i}].sim_version"),
+                message: format!(
+                    "introduced in sim_version {}, newer than the pack's {sim_version}",
+                    entry.sim_version
+                ),
+            });
+        }
+    }
+    for (path, id) in ids {
+        if !listed.iter().any(|e| e.id == **id) {
+            issues.push(Issue {
+                path: path.clone(),
+                message: format!("not listed in {at}"),
+            });
+        }
+    }
+}
+
+/// `ids` with their paths, the `i`th at `$.{list}[i].id`.
+fn paths<'a>(list: &str, ids: impl Iterator<Item = &'a ContentId>) -> Vec<(String, &'a ContentId)> {
+    ids.enumerate()
+        .map(|(i, id)| (format!("$.{list}[{i}].id"), id))
+        .collect()
+}
+
+fn check_introduced(
+    introduced: &Introduced,
+    sim_version: u32,
+    run_stats: &RunStats,
+    rewards: &Rewards,
+    stage_skills: &StageSkills,
+    expertise: &Expertise,
+) -> Result<(), PackError> {
+    let mut issues = Vec::new();
+    let stats = paths("run_stats.stats", run_stats.stats().iter().map(|s| &s.id));
+    let reward_ids = paths("rewards.rewards", rewards.rewards().iter().map(|r| &r.id));
+    let skills = paths(
+        "stage_skills.stage_skills",
+        stage_skills.skills().iter().map(|s| &s.id),
+    );
+    for (at, listed, ids) in [
+        ("$.introduced.run_stats", &introduced.run_stats, &stats),
+        ("$.introduced.rewards", &introduced.rewards, &reward_ids),
+        (
+            "$.introduced.stage_skills",
+            &introduced.stage_skills,
+            &skills,
+        ),
+    ] {
+        check_ids(&mut issues, at, listed, ids, sim_version);
+    }
+    for (k, entry) in introduced.expertise.iter().enumerate() {
+        let at = format!("$.introduced.expertise[{k}]");
+        let found = expertise
+            .weapons()
+            .iter()
+            .position(|w| w.weapon == entry.weapon);
+        if introduced.expertise[..k]
+            .iter()
+            .any(|e| e.weapon == entry.weapon)
+        {
+            issues.push(Issue {
+                path: format!("{at}.weapon"),
+                message: "the same weapon as an earlier entry".into(),
+            });
+        } else if let Some(w) = found {
+            let ids = expertise_ids(w, &expertise.weapons()[w]);
+            check_ids(
+                &mut issues,
+                &format!("{at}.ids"),
+                &entry.ids,
+                &ids,
+                sim_version,
+            );
+        } else {
+            issues.push(Issue {
+                path: format!("{at}.weapon"),
+                message: "not a weapon of the expertise".into(),
+            });
+        }
+    }
+    for (w, weapon) in expertise.weapons().iter().enumerate() {
+        if !introduced
+            .expertise
+            .iter()
+            .any(|e| e.weapon == weapon.weapon)
+        {
+            issues.push(Issue {
+                path: format!("$.expertise.weapons[{w}].weapon"),
+                message: "not listed in $.introduced.expertise".into(),
+            });
+        }
+    }
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(PackError::Introduced(issues))
+    }
+}
+
+/// The table of `content`'s IDs, each introduced in `sim_version`.
+fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
+    let list = |ids: Vec<&ContentId>| -> Vec<IntroducedId> {
+        ids.into_iter()
+            .map(|id| IntroducedId {
+                id: id.clone(),
+                sim_version,
+            })
+            .collect()
+    };
+    Introduced {
+        run_stats: list(content.run_stats().stats().iter().map(|s| &s.id).collect()),
+        rewards: list(content.rewards().rewards().iter().map(|r| &r.id).collect()),
+        stage_skills: list(
+            content
+                .stage_skills()
+                .skills()
+                .iter()
+                .map(|s| &s.id)
+                .collect(),
+        ),
+        expertise: content
+            .expertise()
+            .weapons()
+            .iter()
+            .enumerate()
+            .map(|(w, weapon)| WeaponIds {
+                weapon: weapon.weapon.clone(),
+                ids: list(
+                    expertise_ids(w, weapon)
+                        .into_iter()
+                        .map(|(_, id)| id)
+                        .collect(),
+                ),
+            })
+            .collect(),
+    }
+}
+
 /// The bundled content files as a pack: what the content repository's first pack is made
 /// from. Each file is written as it is, without its final newline, so that the pack gives the
 /// bundled files' hashes (see the module's documentation).
@@ -406,6 +682,13 @@ pub fn export_bundled() -> Vec<u8> {
     let mut out = String::new();
     out.push_str(&format!(
         "{{\n  \"schema_version\": {SCHEMA_VERSION},\n  \"sim_version\": {SIM_VERSION},\n"
+    ));
+    // Every bundled ID is version 0's (ADR-035).
+    let introduced = introduced_at(RunContent::bundled(), SIM_VERSION);
+    let table = serde_json::to_string_pretty(&introduced).expect("the table serialises");
+    out.push_str(&format!(
+        "  \"introduced\": {},\n",
+        table.replace('\n', "\n  ")
     ));
     for (name, bytes) in [
         ("run_stats", RunStats::BUNDLED),
