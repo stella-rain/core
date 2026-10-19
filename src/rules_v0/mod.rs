@@ -311,7 +311,9 @@ pub(crate) fn step(
     runes::tick(s);
     attacks::advance_runs(s, events);
     player::update(stage, rewards, s, input, events);
-    runes::fly(s);
+    if !s.player.runes.is_empty() {
+        runes::fly(s);
+    }
     orbit::act(stage, rewards, s, events);
     boss::act(stage, s, events);
     boss::call_elites(stage, s, events);
