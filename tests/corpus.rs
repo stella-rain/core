@@ -815,15 +815,22 @@ fn definitions() -> Vec<Definition> {
 /// and answering its offers on the way, with every kind of option; and the same from another
 /// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Vec<Command>)> {
-    use common::run::{STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, trial_setup};
+    use common::run::{
+        STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, time_limit_setup, trial_setup,
+    };
     let stage_skill = RunSetup {
         seed: STAGE_SKILL_SEED,
         ..trial_setup()
     };
     let stage_skill_commands = play_run_from(&stage_skill, TRIAL_LENGTH);
+    // The time_limit mode's waves around the main character, played until it falls (it does
+    // before the first boss time; the bosses are in `tests/time_limit_run.rs`).
+    let time_limit = time_limit_setup();
+    let time_limit_commands = play_run_from(&time_limit, 25_000);
     vec![
         ("trial", trial_setup(), play_run(TRIAL_LENGTH)),
         ("stage_skill", stage_skill, stage_skill_commands),
+        ("time_limit", time_limit, time_limit_commands),
     ]
 }
 
@@ -912,6 +919,8 @@ fn the_run_cases_are_what_their_names_say() {
             "no {kind:?} in the run case"
         );
     }
+    // The time_limit run ends with the main character falling, after spends.
+    replay_run_case("time_limit");
     // An elite's rare star offers the black hole, taken, then used each time it is ready.
     let used = replay_run_case("stage_skill").used;
     assert!(

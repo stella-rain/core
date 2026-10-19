@@ -14,7 +14,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
-use crate::stage::Stage;
+use std::sync::OnceLock;
+
+use crate::engine::Horde;
+use crate::stage::{Map, Stage};
+use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 use crate::weapon::WeaponRef;
@@ -149,28 +153,40 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
 }
 
 /// The bundled file of mode `id`: what the run's content hash covers. Every mode in the
-/// registry has one (`tests/run_setup.rs`).
+/// registry has one (`tests/run_setup.rs`). For `time_limit` it is the mode file followed by the
+/// stage it takes its placeholder content from (`mode_stage("trial")`).
 pub fn mode_file(id: &str) -> Option<&'static [u8]> {
+    static TIME_LIMIT: OnceLock<Vec<u8>> = OnceLock::new();
     match id {
-        "time_limit" => Some(crate::time_limit::TimeLimit::BUNDLED),
+        "time_limit" => {
+            Some(TIME_LIMIT.get_or_init(|| [TimeLimit::BUNDLED, TIME_LIMIT_BASE].concat()))
+        }
         _ => mode_stage(id),
     }
 }
 
+/// The stage the `time_limit` run takes its main character, companions, levels, stars and boss
+/// from: placeholders until the mode has its own.
+const TIME_LIMIT_BASE: &[u8] = include_bytes!("../modes/trial.json");
+
 /// The bundled content of mode `id` when it is a stage file; `time_limit` is not one (its run
-/// comes in a later step).
+/// is built from its mode file, `time_limit_run`).
 pub fn mode_stage(id: &str) -> Option<&'static [u8]> {
     match id {
-        "trial" => Some(include_bytes!("../modes/trial.json")),
+        "trial" => Some(TIME_LIMIT_BASE),
         _ => None,
     }
 }
 
 /// The stage a setup plays: its mode's stage, validated, with the setup's weapon presets in
 /// the Main and Sub roles, validated again. The stage's own `seed` is left as it is:
-/// `Engine::start` seeds the run with the setup's.
+/// `Engine::start` seeds the run with the setup's. For `time_limit`, the stage of its run
+/// (`time_limit_run`).
 pub fn stage(setup: &RunSetup) -> Result<Stage, Error> {
     validate(setup)?;
+    if setup.mode.0 == "time_limit" {
+        return Ok(time_limit_run(setup, TimeLimit::bundled())?.0);
+    }
     let content = mode_stage(&setup.mode.0).ok_or_else(|| {
         Error::Invalid(vec![Issue {
             path: "$.mode".into(),
@@ -186,6 +202,53 @@ pub fn stage(setup: &RunSetup) -> Result<Stage, Error> {
     };
     validate::validate(&stage)?;
     Ok(stage)
+}
+
+/// The stage and the bosses of a `time_limit` run of `mode` (core#212): the placeholder stage
+/// with the setup's weapons, its map, schedule of waves and length from the mode file, the
+/// length being the run and its overtime (a clear is the final boss's death; running out of
+/// ticks fails), and no boss until their times (`Horde`). Only the base is validated as a
+/// stage: the mode file validated its own waves, which a stage's caps would refuse.
+pub(crate) fn time_limit_run(setup: &RunSetup, mode: &TimeLimit) -> Result<(Stage, Horde), Error> {
+    if setup.mode.0 != "time_limit" {
+        return Err(Error::Invalid(vec![Issue {
+            path: "$.mode".into(),
+            message: "not the time_limit mode".into(),
+        }]));
+    }
+    let mut stage = validate::parse_and_validate(TIME_LIMIT_BASE)?;
+    stage.player.main = WeaponRef::Preset {
+        id: setup.main.clone(),
+    };
+    stage.player.sub = WeaponRef::Preset {
+        id: setup.sub.clone(),
+    };
+    validate::validate(&stage)?;
+    let template = stage.boss.take().ok_or_else(|| {
+        Error::Invalid(vec![Issue {
+            path: "$.boss".into(),
+            message: "the placeholder stage has no boss".into(),
+        }])
+    })?;
+    stage.id = "time-limit".into();
+    stage.title = "Time Limit".into();
+    stage.description = String::new();
+    stage.length_ticks = mode.length_ticks().saturating_add(mode.overtime_ticks());
+    stage.map = Some(Map {
+        width: mode.map().width,
+        height: mode.map().height,
+        start: Some(mode.map().start),
+    });
+    stage.waves = mode.waves().to_vec();
+    let horde = Horde {
+        boss_ticks: mode.boss_ticks().to_vec(),
+        pool: mode.mid_boss_pool().to_vec(),
+        final_boss: mode.final_boss().clone(),
+        template,
+        spawned: 0,
+        used: vec![false; mode.mid_boss_pool().len()],
+    };
+    Ok((stage, horde))
 }
 
 fn check_versions(schema_version: u32, sim_version: u32) -> Result<(), Error> {

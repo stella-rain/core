@@ -8,7 +8,7 @@ use stella_rain_core::run_replay::content_sha256;
 use stella_rain_core::run_setup;
 use stella_rain_core::time_limit::{
     MAX_BOSS_TIMES, MAX_EXTRA_TICKS, MAX_LENGTH_TICKS, MAX_OVERTIME_TICKS, MAX_POOL,
-    MAX_TIME_LIMIT_BYTES, TimeLimit,
+    MAX_SPAWN_COUNT, MAX_TIME_LIMIT_BYTES, MAX_TOTAL_SPAWNS, MAX_WAVES, TimeLimit,
 };
 use stella_rain_core::validate::{Error, limits::MAX_MAP_SIDE};
 
@@ -58,10 +58,13 @@ fn the_mode_is_registered_and_its_file_is_part_of_the_content_hash() {
             .iter()
             .any(|e| e.kind == Kind::Mode && e.id == "time_limit")
     );
-    assert_eq!(run_setup::mode_file("time_limit"), Some(TimeLimit::BUNDLED));
+    // The mode file, then the trial stage whose placeholder content the run takes.
+    let file = run_setup::mode_file("time_limit").unwrap();
+    assert!(file.starts_with(TimeLimit::BUNDLED));
+    assert!(file.ends_with(run_setup::mode_stage("trial").unwrap()));
     assert_ne!(content_sha256("time_limit"), None);
     assert_ne!(content_sha256("time_limit"), content_sha256("trial"));
-    // Not a stage: the run itself is a later step.
+    // Not a stage file: its run is built from the mode file.
     assert_eq!(run_setup::mode_stage("time_limit"), None);
 }
 
@@ -152,6 +155,7 @@ fn each_number_is_under_its_hard_cap() {
     let mut v = with("boss_ticks", json!(times));
     v["length_ticks"] = json!(MAX_BOSS_TIMES as u32 + 1);
     v["mid_boss_pool"] = json!(vec!["golem"; MAX_BOSS_TIMES]);
+    v["waves"] = json!([]);
     assert_eq!(paths(&v), ["$.boss_ticks"]);
     let pool = vec!["golem"; MAX_POOL + 1];
     assert_eq!(
@@ -163,14 +167,101 @@ fn each_number_is_under_its_hard_cap() {
 #[test]
 fn the_map_is_within_the_map_bounds_and_the_player_starts_on_it() {
     let map = |w: i32, h: i32, x: i32, y: i32| {
-        with(
+        let mut v = with(
             "map",
             json!({ "width": w, "height": h, "start": { "x": x, "y": y } }),
-        )
+        );
+        v["waves"] = json!([]);
+        v
     };
     assert!(parse(&map(256, 256, 0, 256)).is_ok());
     assert_eq!(paths(&map(255, 1000, 0, 0)), ["$.map.width"]);
     assert_eq!(paths(&map(1000, MAX_MAP_SIDE + 1, 0, 0)), ["$.map.height"]);
     assert_eq!(paths(&map(1000, 1000, 1001, 0)), ["$.map.start.x"]);
     assert_eq!(paths(&map(1000, 1000, 0, -1)), ["$.map.start.y"]);
+}
+
+// --- The schedule (core#212 step b) ------------------------------------------------------------
+
+fn wave() -> Value {
+    good()["waves"][0].clone()
+}
+
+fn waves(list: Vec<Value>) -> Value {
+    with("waves", json!(list))
+}
+
+#[test]
+fn the_bundled_schedule_spawns_about_a_hundred_a_minute_and_is_within_its_caps() {
+    let m = TimeLimit::bundled();
+    let total: u32 = m.waves().iter().map(|w| u32::from(w.count)).sum();
+    assert!(total <= MAX_TOTAL_SPAWNS && m.waves().len() <= MAX_WAVES);
+    let a_minute: u32 = m.waves().iter().map(|w| 3600 / w.every_ticks).sum();
+    assert_eq!(a_minute, 100);
+    assert!(m.waves().iter().all(|w| w.enemy.elite.is_none()));
+    // The last spawn comes before the run ends.
+    for w in m.waves() {
+        let last = w.at_tick + u32::from(w.count - 1) * w.every_ticks;
+        assert!(last < m.length_ticks(), "{last}");
+    }
+}
+
+#[test]
+fn a_schedule_may_be_empty_but_is_part_of_the_file() {
+    assert!(parse(&waves(vec![])).is_ok());
+    let mut v = good();
+    v.as_object_mut().unwrap().remove("waves");
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
+}
+
+#[test]
+fn a_wave_is_checked_as_a_stage_s_is_with_the_mode_s_caps() {
+    let mut w = wave();
+    w["count"] = json!(MAX_SPAWN_COUNT);
+    assert!(parse(&waves(vec![w.clone()])).is_ok());
+    w["count"] = json!(MAX_SPAWN_COUNT + 1);
+    assert_eq!(paths(&waves(vec![w])), ["$.waves[0].count"]);
+    let mut w = wave();
+    w["at_tick"] = json!(20 * MINUTE);
+    assert_eq!(paths(&waves(vec![w])), ["$.waves[0].at_tick"]);
+    let mut w = wave();
+    w["enemy"]["hp"] = json!(0);
+    assert_eq!(paths(&waves(vec![w])), ["$.waves[0].enemy.hp"]);
+    let mut w = wave();
+    w["enemy"]["base"] = json!("no_such_sprite");
+    assert_eq!(paths(&waves(vec![w])), ["$.waves[0].enemy.base"]);
+    let mut w = wave();
+    w["around"] = json!(0);
+    assert_eq!(paths(&waves(vec![w])), ["$.waves[0].around"]);
+    let mut w = wave();
+    w["spawn"] = json!({ "x": -1_000_000, "y": 0 });
+    assert_eq!(paths(&waves(vec![w])), ["$.waves[0].spawn.x"]);
+    let mut w = wave();
+    w["surprise"] = json!(1);
+    assert!(matches!(parse(&waves(vec![w])), Err(Error::Parse { .. })));
+}
+
+#[test]
+fn the_schedule_has_at_most_so_many_waves_and_so_many_enemies_in_all() {
+    let mut w = wave();
+    w["count"] = json!(1);
+    w["every_ticks"] = json!(0);
+    assert!(parse(&waves(vec![w.clone(); MAX_WAVES])).is_ok());
+    assert_eq!(
+        paths(&waves(vec![w; MAX_WAVES + 1])),
+        ["$.waves"],
+        "one wave too many"
+    );
+    let mut w = wave();
+    w["count"] = json!(MAX_SPAWN_COUNT);
+    let fits = (MAX_TOTAL_SPAWNS / u32::from(MAX_SPAWN_COUNT)) as usize;
+    assert!(parse(&waves(vec![w.clone(); fits])).is_ok());
+    assert_eq!(paths(&waves(vec![w; fits + 1])), ["$.waves"]);
+}
+
+#[test]
+fn the_schedule_has_no_elites_yet() {
+    let mut w = wave();
+    w["enemy"]["elite"] = json!({ "range": 40960 });
+    assert_eq!(paths(&waves(vec![w])), ["$.waves[0].enemy.elite"]);
 }

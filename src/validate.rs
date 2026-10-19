@@ -245,6 +245,36 @@ pub fn validate_attack(
     }
 }
 
+/// Checks the waves of a run whose mode file holds its own schedule (`time_limit`): each as a
+/// stage's wave is checked, on `map`, starting before `length_ticks`, with up to `max_count`
+/// enemies. How many waves and how many enemies in all is the mode's to bound. Paths are from
+/// the list: `$[0].enemy.hp`.
+pub fn validate_waves(
+    waves: &[Wave],
+    map: crate::stage::Map,
+    length_ticks: u32,
+    max_count: u16,
+) -> Result<(), Vec<Issue>> {
+    let mut ctx = Ctx {
+        registry: registry::ENTRIES,
+        sim_version: crate::version::SIM_VERSION,
+        map,
+        parts: Vec::new(),
+        path: Vec::new(),
+        issues: Vec::new(),
+        left_out: false,
+        arity: 0,
+    };
+    for (i, w) in waves.iter().enumerate() {
+        ctx.idx(i, |c| c.wave(w, length_ticks, max_count));
+    }
+    if ctx.issues.is_empty() {
+        Ok(())
+    } else {
+        Err(ctx.issues)
+    }
+}
+
 /// Checks an attack outside a stage, a preset by ID with its arguments or an inline one, against
 /// the same budgets as a stage's: a damage-area stage skill's (ADR-075). The problems are
 /// reported at paths from the attack: `$.preset.id`, `$.inline[0].ticks`.
@@ -544,7 +574,7 @@ impl<'a> Ctx<'a> {
         if self.at_most("waves", s.waves.len(), MAX_WAVES, "waves") {
             self.key("waves", |c| {
                 for (i, w) in s.waves.iter().enumerate() {
-                    c.idx(i, |c| c.wave(w, s.length_ticks));
+                    c.idx(i, |c| c.wave(w, s.length_ticks, MAX_WAVE_COUNT));
                 }
             });
         }
@@ -963,13 +993,16 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    fn wave(&mut self, w: &Wave, length_ticks: u32) {
+    fn wave(&mut self, w: &Wave, length_ticks: u32, max_count: u16) {
         if w.at_tick >= length_ticks {
             self.key("at_tick", |c| c.fail("must be before the stage ends"));
         }
         self.key("enemy", |c| c.agent(&w.enemy, true));
         self.point("spawn", &w.spawn);
-        self.within("count", i64::from(w.count), 1, i64::from(MAX_WAVE_COUNT));
+        if let Some(around) = w.around {
+            self.within("around", i64::from(around.0), 1, i64::from(MAX_LEN));
+        }
+        self.within("count", i64::from(w.count), 1, i64::from(max_count));
         self.ticks("every_ticks", w.every_ticks, u32::from(w.count > 1));
         if let Some(xp) = w.xp {
             self.within("xp", i64::from(xp), 0, i64::from(MAX_ENEMY_XP));
