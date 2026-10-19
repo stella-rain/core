@@ -1003,6 +1003,11 @@
           "description": "On-hit: thrown from the main character to the point a combo step hits, and back.",
           "type": "string",
           "const": "boomerang"
+        },
+        {
+          "description": "On-hit: missiles launched from the main character that steer to aim assist's targets,\neach hitting once.",
+          "type": "string",
+          "const": "homing_missiles"
         }
       ]
     },
