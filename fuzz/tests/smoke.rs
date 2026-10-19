@@ -1,22 +1,26 @@
 //! The fuzz targets on stable (ADR-020), every PR: each target reaches the code behind its first
-//! gate on a real stage, replay, run replay, share code and run setup, rejects garbage, and survives a deterministic
-//! sweep over those files: every prefix, and a flipped byte at a regular step. Crashes that a
+//! gate on a real stage, replay, run replay, share code, run setup and content pack, rejects
+//! garbage, and survives a deterministic sweep over those files: every prefix, and a flipped byte at a regular step. Crashes that a
 //! real fuzz run found are kept in `regressions/<target>/` and replayed here.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use stella_rain_core::share;
-use stella_rain_core_fuzz::{replay_load, run_setup, share_decode, stage_parse, stage_run};
+use stella_rain_core::pack;
+use stella_rain_core_fuzz::{
+    pack_load, replay_load, run_setup, share_decode, stage_parse, stage_run,
+};
 
 type Target = fn(&[u8]) -> bool;
 
-const TARGETS: [(&str, Target); 5] = [
+const TARGETS: [(&str, Target); 6] = [
     ("stage_parse", stage_parse),
     ("stage_run", stage_run),
     ("replay_load", replay_load),
     ("share_decode", share_decode),
     ("run_setup", run_setup),
+    ("pack_load", pack_load),
 ];
 
 fn root() -> PathBuf {
@@ -122,6 +126,14 @@ fn a_real_setup_gets_past_the_parser_and_runs() {
 }
 
 #[test]
+fn a_real_pack_gets_past_the_loader_and_runs() {
+    assert!(
+        pack_load(&pack::export_bundled()),
+        "pack_load rejects the bundled pack"
+    );
+}
+
+#[test]
 fn garbage_is_rejected_without_a_panic() {
     let long_run = [b'{'; 5000];
     let garbage: [&[u8]; 8] = [
@@ -152,6 +164,9 @@ fn garbage_is_rejected_without_a_panic() {
 fn seeds(target: &str) -> Vec<Vec<u8>> {
     if target == "run_setup" {
         return setups();
+    }
+    if target == "pack_load" {
+        return vec![pack::export_bundled()];
     }
     let mut seeds: Vec<Vec<u8>> = corpus()
         .into_iter()
