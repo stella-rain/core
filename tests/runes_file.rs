@@ -2,8 +2,9 @@
 //! JSON as untrusted bytes (ADR-020). Every on-hit rune of the closed list has its entry, once:
 //! a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS` ticks, a base damage of 1 to `MAX_DAMAGE`, and
 //! its attack, at most `MAX_RUNE_PHASES` phases whose hit boxes land around the hit point,
-//! over before the cooldown is, spawning no bullets. Explosion and thunder are the two. The bundled file is the default; other
-//! bytes change the run's content hash.
+//! over before the cooldown is, spawning no bullets. Explosion, thunder and boomerang are the
+//! three; boomerang's attack is its throw, out and back, two active phases. The bundled file is
+//! the default; other bytes change the run's content hash.
 
 use serde_json::{Value, json};
 use stella_rain_core::attack::{AttackPhase, DamageType, HitBox, PhaseKind};
@@ -36,9 +37,18 @@ fn thunder() -> Value {
             "attack": [{ "kind": "wind_up", "ticks": 4 }, active(2)] })
 }
 
-/// A file of explosion's entry `explosion` and a valid thunder.
+/// A valid boomerang entry: its throw out and back, after thunder's.
+fn boomerang() -> Value {
+    boomerang_of(json!([active(4), active(4)]))
+}
+
+fn boomerang_of(attack: Value) -> Value {
+    json!({ "rune": "boomerang", "cooldown_ticks": 60, "damage": 5, "attack": attack })
+}
+
+/// A file of explosion's entry `explosion`, a valid thunder and a valid boomerang.
 fn with_thunder(explosion: Value) -> Value {
-    file(vec![explosion, thunder()])
+    file(vec![explosion, thunder(), boomerang()])
 }
 
 fn file(on_hit: Vec<Value>) -> Value {
@@ -94,6 +104,95 @@ fn the_bundled_thunder_is_an_electro_strike_after_a_wind_up_on_its_own_cooldown(
     assert!(
         radius(&thunder.attack[1]) < radius(&explosion.attack[0]),
         "narrower than explosion"
+    );
+}
+
+#[test]
+fn the_bundled_boomerang_is_a_neutral_throw_out_and_back_on_its_own_cooldown() {
+    // PLACEHOLDER numbers, Kade's to set: the game design document gives boomerang no shape
+    // beyond on-hit and neutral.
+    let boomerang = Runes::bundled()
+        .on_hit(Rune::Boomerang)
+        .expect("boomerang's entry");
+    assert_eq!(boomerang.cooldown_ticks, 150);
+    assert_eq!(boomerang.damage, 12);
+    let kinds: Vec<PhaseKind> = boomerang.attack.iter().map(|p| p.kind).collect();
+    assert_eq!(
+        kinds,
+        [PhaseKind::Active, PhaseKind::Active],
+        "out, then back"
+    );
+    assert_eq!(
+        boomerang.attack.iter().map(|p| p.ticks).collect::<Vec<_>>(),
+        [15, 15]
+    );
+    for p in &boomerang.attack {
+        assert_eq!(p.damage_type, None, "neutral");
+        assert!(p.hit_box.is_some());
+    }
+}
+
+#[test]
+fn boomerang_s_attack_is_its_throw_two_active_phases() {
+    let with = |attack: Value| {
+        file(vec![
+            explosion(json!(30), json!(5), json!([active(4)])),
+            thunder(),
+            boomerang_of(attack),
+        ])
+    };
+    assert!(parse(&with(json!([active(2), active(1)]))).is_ok());
+    let at = |v: Value| paths(parse(&v).unwrap_err());
+    assert_eq!(
+        at(with(json!([active(4)]))),
+        ["$.on_hit[2].attack"],
+        "no way back"
+    );
+    assert_eq!(
+        at(with(json!([active(4), active(4), active(4)]))),
+        ["$.on_hit[2].attack"],
+        "a third leg"
+    );
+    let wind_up = json!({ "kind": "wind_up", "ticks": 4,
+                          "hit_box": { "type": "circle", "radius": 4_096 } });
+    assert_eq!(
+        at(with(json!([wind_up, active(4)]))),
+        ["$.on_hit[2].attack[0].kind"]
+    );
+    let recovery = json!({ "kind": "recovery", "ticks": 4 });
+    assert_eq!(
+        at(with(json!([active(4), recovery]))),
+        ["$.on_hit[2].attack[1].kind"]
+    );
+    // Each leg has its hit box.
+    assert_eq!(
+        at(with(json!([active(4), { "kind": "active", "ticks": 4 }]))),
+        ["$.on_hit[2].attack[1].hit_box"]
+    );
+    // It is checked as the others are: bullets, its first leg's ticks, the cooldown.
+    let mut spawning = active(4);
+    spawning["spawn"] = json!([
+        { "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }
+    ]);
+    assert_eq!(
+        at(with(json!([active(4), spawning]))),
+        ["$.on_hit[2].attack[1].spawn"]
+    );
+    assert_eq!(
+        at(with(json!([active(1), active(4)]))),
+        ["$.on_hit[2].attack[0].ticks"]
+    );
+    let mut slow = boomerang_of(json!([active(40), active(40)]));
+    slow["cooldown_ticks"] = json!(79);
+    let v = file(vec![
+        explosion(json!(30), json!(5), json!([active(4)])),
+        thunder(),
+        slow,
+    ]);
+    assert_eq!(
+        at(v),
+        ["$.on_hit[2].attack"],
+        "80 ticks outlast the cooldown"
     );
 }
 
@@ -250,12 +349,29 @@ fn every_on_hit_rune_has_one_entry() {
         "explosion missing"
     );
     assert_eq!(
-        paths(parse(&file(vec![one.clone(), thunder(), one.clone()])).unwrap_err()),
+        paths(parse(&file(vec![one.clone(), thunder()])).unwrap_err()),
+        ["$.on_hit"],
+        "boomerang missing"
+    );
+    assert_eq!(
+        paths(
+            parse(&file(vec![
+                one.clone(),
+                thunder(),
+                one.clone(),
+                boomerang()
+            ]))
+            .unwrap_err()
+        ),
         ["$.on_hit[2].rune"]
     );
     assert_eq!(
-        paths(parse(&file(vec![thunder(), one, thunder()])).unwrap_err()),
-        ["$.on_hit[2].rune"]
+        paths(parse(&file(vec![thunder(), one, boomerang(), thunder()])).unwrap_err()),
+        ["$.on_hit[3].rune"]
+    );
+    assert_eq!(
+        paths(parse(&file(vec![boomerang(), boomerang(), thunder()])).unwrap_err()),
+        ["$.on_hit[1].rune", "$.on_hit"]
     );
     let mut unknown = plain();
     unknown["on_hit"][1]["rune"] = json!("lightning");
