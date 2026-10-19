@@ -660,15 +660,80 @@ fn the_boss_offer_is_answered_after_the_clear_and_the_run_stays_over() {
     assert_eq!((e.tick(), e.outcome()), (tick, Outcome::Cleared));
 }
 
-#[test]
-fn a_star_offer_still_due_when_the_stage_ends_does_not_open() {
-    // The kill of the last enemy clears a stage without a boss, and its star is taken on that
-    // same tick: the run is over, so its offer never opens.
+/// A stage without a boss whose one enemy's kill drops a star that is taken at once.
+fn clearing_star_stage() -> Stage {
     let mut stage = starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
     stage.boss = None;
-    let mut e = with(&stage, commons(4));
+    stage
+}
+
+/// The tick on which the star of `clearing_star_stage` is taken, which is also its clear.
+fn clearing_star_tick() -> u32 {
+    let mut e = with(&clearing_star_stage(), commons(4));
     let events = fire_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
     assert_eq!(e.outcome(), Outcome::Cleared);
+    let taken = events
+        .iter()
+        .find(|(_, ev)| matches!(ev, DomainEvent::StarTaken { .. }))
+        .expect("the star is taken");
+    assert_eq!(taken.0, e.tick(), "taken on the tick of the clear");
+    taken.0
+}
+
+#[test]
+fn a_star_taken_on_the_tick_of_the_clear_opens_its_offer() {
+    let mut e = with(&clearing_star_stage(), commons(4));
+    let events = fire_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
+    assert_eq!(e.outcome(), Outcome::Cleared);
+    assert!(e.offer_open());
+    let tick = e.tick();
+    let this_tick: Vec<&DomainEvent> = events
+        .iter()
+        .filter(|(t, _)| *t == tick)
+        .map(|(_, ev)| ev)
+        .collect();
+    assert!(
+        matches!(
+            this_tick[..],
+            [
+                ..,
+                DomainEvent::StageCleared,
+                DomainEvent::OfferOpened {
+                    kind: OfferKind::Star,
+                    ..
+                }
+            ]
+        ),
+        "{this_tick:?}"
+    );
+    assert_eq!(e.choose(0), Ok(()));
+    assert!(!e.offer_open());
+    assert_eq!(e.outcome(), Outcome::Cleared);
+}
+
+#[test]
+fn a_clear_opens_the_boss_offer_first_and_the_stars_offers_after_it_in_the_order_taken() {
+    let mut stage = boss_stage(10);
+    stage.waves = vec![serde_json::from_value(targets(1, 1, NEAR_Y)).expect("wave parses")];
+    let mut e = with(&stage, mixed());
+    fire_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
+    assert_eq!(e.outcome(), Outcome::Cleared);
+    assert_eq!(offer(&e).kind, OfferKind::Boss);
+    assert_eq!(e.choose(0), Ok(()));
+    assert!(e.offer_open(), "the star's offer opens after the boss's");
+    assert_eq!(offer(&e).kind, OfferKind::Star);
+    assert_eq!(e.choose(0), Ok(()));
+    assert!(!e.offer_open());
+}
+
+#[test]
+fn a_fail_on_the_tick_a_star_is_taken_opens_no_offer() {
+    let mut stage = clearing_star_stage();
+    stage.boss = Some(serde_json::from_value(far_boss()).expect("boss parses"));
+    stage.length_ticks = clearing_star_tick();
+    let mut e = with(&stage, commons(4));
+    let events = fire_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
+    assert_eq!(e.outcome(), Outcome::Failed);
     assert!(
         events
             .iter()
