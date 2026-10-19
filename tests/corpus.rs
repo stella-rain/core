@@ -6,8 +6,9 @@
 //!
 //! On a mismatch the failure names the first diverging tick and writes the snapshots of that
 //! tick and the one before to `target/corpus-diff/<name>.json`; CI uploads that folder per
-//! architecture. After an intended change, run `UPDATE_CORPUS=1 cargo test --test corpus` and
-//! say `Corpus regenerated: <why>` in the PR (ADR-035).
+//! architecture. After an intended change, run
+//! `UPDATE_CORPUS=1 cargo test --test integration corpus::` and say `Corpus regenerated: <why>`
+//! in the PR (ADR-035).
 //!
 //! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
 //! `run.replay` (a run replay: setup, content hash, inputs and commands) and `hashes.txt` (the

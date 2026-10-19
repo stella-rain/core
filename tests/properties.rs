@@ -2,7 +2,8 @@
 //! the stages of the replay corpus. `proptest` shrinks a failure to the shortest inputs that
 //! still fail and saves the seed in `proptest-regressions/`; commit that file with the fix.
 //!
-//! Each property runs 64 cases; `PROPTEST_CASES=2000 cargo test --test properties` runs more.
+//! Each property runs 64 cases; `PROPTEST_CASES=2000 cargo test --test integration properties::`
+//! runs more.
 
 use crate::common;
 
