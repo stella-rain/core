@@ -59,6 +59,13 @@ fn assert_runes_and_statuses(engine: &Engine) {
     held.sort();
     assert_eq!(held, Rune::ALL, "every rune held");
     assert_eq!(snapshot.player.rune_haste_pct, FULL_HASTE);
+    assert!(
+        !engine
+            .events()
+            .iter()
+            .any(|ev| matches!(ev, DomainEvent::PlayerHit { .. })),
+        "nothing hurts the main character"
+    );
     let enemies: Vec<_> = snapshot
         .entities
         .iter()
@@ -98,7 +105,12 @@ fn assert_steps_and_ticks_land(engine: &Engine) {
             }
         }
     }
-    let on_enemies = hit.values().filter(|n| **n >= 4).count();
+    let on_enemies = engine
+        .snapshot()
+        .entities
+        .iter()
+        .filter(|e| e.kind == EntityKind::Enemy && hit.get(&e.id).is_some_and(|n| *n >= 4))
+        .count();
     assert_eq!(
         on_enemies, 500,
         "enemies hit by the step and three statuses"
