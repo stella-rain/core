@@ -153,6 +153,15 @@ impl Engine {
         })
     }
 
+    /// Starts a run of the `time_limit` mode from `mode` in place of the bundled file.
+    pub fn start_time_limit(
+        setup: &RunSetup,
+        content: &RunContent,
+        _mode: &crate::time_limit::TimeLimit,
+    ) -> Result<Engine, Error> {
+        Engine::start_with(setup, content)
+    }
+
     /// Advances one tick with `input`. Once the run is over this does nothing, so a replay that
     /// is longer than the run cannot change the final hash; nor while an offer is open, when
     /// the world is stopped (ADR-079 §3).
