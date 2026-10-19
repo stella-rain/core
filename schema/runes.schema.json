@@ -715,6 +715,26 @@
           "format": "uint32",
           "minimum": 0
         },
+        "missiles": {
+          "description": "Homing missiles only: how many it launches, 1 to `MAX_HOMING_MISSILES`, each running\n`attack` as its flight.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "range": {
+          "description": "Homing missiles only: how far from the main character its targets may be, 1 to\n`MAX_ASSIST_RANGE`, as aim assist's range (ADR-072).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fx"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "rune": {
           "$ref": "#/$defs/Rune"
         }
@@ -764,6 +784,11 @@
           "description": "On-hit: thrown from the main character to the point a combo step hits, and back.",
           "type": "string",
           "const": "boomerang"
+        },
+        {
+          "description": "On-hit: missiles launched from the main character that steer to aim assist's targets,\neach hitting once.",
+          "type": "string",
+          "const": "homing_missiles"
         }
       ]
     }

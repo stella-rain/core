@@ -12,7 +12,8 @@
 //! - Friendly hit boxes hit the boss, its parts and the enemies (found through the enemy grid),
 //!   in entity-ID order; enemy hit boxes hit the main character, then the companions. A hit box
 //!   hits every target inside it (cleave), each once per active phase, or again `rehit_ticks`
-//!   after its last hit. A target that cannot be hurt (invulnerable, dead) is not hit and not
+//!   after its last hit. A homing missile's (ADR-099) hits only the first, once, and the
+//!   missile is gone once every hit box has landed. A target that cannot be hurt (invulnerable, dead) is not hit and not
 //!   counted as hit.
 //! - Attackers resolve in entity-ID order, and every hit box active at the start of the step
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
@@ -46,6 +47,8 @@ struct Swing {
     breaks_charge: bool,
     pull: Option<Pull>,
     combo: bool,
+    /// A homing missile's: one hit, then nothing.
+    once: bool,
 }
 
 /// What an arc's test needs, worked out once per swing rather than once per target: the cosine
@@ -89,6 +92,9 @@ pub(super) fn resolve(
             hit_ally_side(stage, s, w, events);
         }
     }
+    if swings.iter().any(|w| w.once) {
+        s.runs.retain(|r| r.homing.is_none() || r.hits.is_empty());
+    }
 }
 
 fn active_swings(s: &State) -> Vec<Swing> {
@@ -126,6 +132,7 @@ fn active_swings(s: &State) -> Vec<Swing> {
             breaks_charge: p.breaks_charge,
             pull: r.pull,
             combo: super::attacks::is_combo(r),
+            once: r.homing.is_some(),
         });
     }
     swings
@@ -209,6 +216,9 @@ fn touches_edge(d: (i128, i128), edge: Dir, length: i32, radius: i32) -> bool {
 fn take_hit(s: &mut State, w: &Swing, target: EntityId) -> bool {
     let tick = s.tick;
     let hits = &mut s.runs[w.run].hits;
+    if w.once && !hits.is_empty() {
+        return false;
+    }
     match hits.binary_search_by_key(&target.0, |h| h.0.0) {
         Ok(i) => {
             let again = w
