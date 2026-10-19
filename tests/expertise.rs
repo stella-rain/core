@@ -304,32 +304,23 @@ fn no_common_pool_is_empty_or_past_its_budget() {
 
 #[test]
 fn no_expertise_option_has_a_stack_limit() {
-    let at = "$.weapons[0].common[1].limit";
     valid(&with(
         "/weapons/0/common/1",
         option("x", "attack_speed_pct", 10),
     ));
-    for limit in [0, 1, 5, 20, 21] {
-        invalid_at(
-            &with(
-                "/weapons/0/common/1",
-                limited("x", "attack_speed_pct", limit),
-            ),
-            at,
+    // The strict parse refuses the field, wherever it appears.
+    for (at, effect, limit) in [
+        ("/weapons/0/common/1", "attack_speed_pct", 0),
+        ("/weapons/0/common/1", "attack_speed_pct", 5),
+        ("/weapons/0/common/1", "attack_speed_pct", 21),
+        ("/weapons/0/common/1", "attack_pct", 3),
+        ("/weapons/0/styles/0/upgrade_6/0", "attack_speed_pct", 3),
+    ] {
+        assert!(
+            parse(&with(at, limited("x", effect, limit))).is_err(),
+            "{at}: limit {limit}"
         );
     }
-    invalid_at(
-        &with("/weapons/0/common/1", limited("x", "attack_pct", 3)),
-        at,
-    );
-    // A style's choices are fixed, never drawn: no limit there either.
-    invalid_at(
-        &with(
-            "/weapons/0/styles/0/upgrade_6/0",
-            limited("x", "attack_speed_pct", 3),
-        ),
-        "$.weapons[0].styles[0].upgrade_6[0].limit",
-    );
 }
 
 #[test]

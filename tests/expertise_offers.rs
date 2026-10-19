@@ -203,20 +203,6 @@ fn index_of(e: &Engine, option: OfferOption) -> u32 {
     u32::try_from(i).unwrap()
 }
 
-/// The index of the candidate whose option is `id`.
-fn take_index(e: &Engine, id: &str) -> u32 {
-    let at = candidates(e)
-        .iter()
-        .position(|c| c == id)
-        .unwrap_or_else(|| panic!("{id} is not a candidate: {:?}", candidates(e)));
-    index_of(
-        e,
-        OfferOption::Take {
-            candidate: u8::try_from(at).unwrap(),
-        },
-    )
-}
-
 #[test]
 fn a_boss_kill_crossing_several_thresholds_opens_one_offer_per_level_in_order() {
     let mut e = with(
@@ -378,10 +364,10 @@ fn taking_an_option_applies_it_and_counts_it_for_its_weapon() {
 
 #[test]
 fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
-    // One option in the Main pool: levels 1, 4, 7 and 11 to 13 offer it, six picks in all.
+    // One option in the Main pool: levels 1, 4, 7, 11, 13, 14 and 16 offer it.
     let main = vec![option("quick", "attack_speed_pct", 10)];
     let mut e = with(
-        &stage(Some((1, to_level(13))), vec![]),
+        &stage(Some((1, to_level(16))), vec![]),
         &content(main, damages("s", 1)),
     );
     until_offer(&mut e);
@@ -398,24 +384,6 @@ fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
     }
     assert!(quick_offers > 5, "offered {quick_offers} times");
     assert_eq!(gauge(&e).main_taken, [u8::try_from(quick_offers).unwrap()]);
-}
-
-#[test]
-fn a_weapon_with_nothing_left_to_offer_opens_none_and_the_other_still_does() {
-    let mut e = with(
-        &stage(Some((1, to_level(4))), vec![]),
-        &content(
-            vec![option("quick", "attack_speed_pct", 10)],
-            damages("s", 1),
-        ),
-    );
-    let first = until_offer(&mut e);
-    assert_eq!(
-        take_all(&mut e, &first),
-        ["boss", "main 1", "sub 2", "main 3"],
-        "level 4's Main offer has nothing to hold and does not open; level 3's styles do"
-    );
-    assert_eq!(gauge(&e).level, 4);
 }
 
 #[test]
@@ -844,29 +812,4 @@ fn an_inline_main_weapon_opens_no_style_upgrade_or_capstone_and_the_sub_still_do
     assert_eq!(g.level, 13);
     assert_eq!((g.main_style, g.sub_style), (None, Some("crush".into())));
     assert!(g.main_path.is_empty());
-}
-
-#[test]
-fn with_both_common_pools_spent_the_style_path_still_opens_and_the_levels_after_pass_over() {
-    let mut e = with(
-        &stage(Some((1, to_level(13))), vec![]),
-        &content(
-            vec![option("quick", "attack_speed_pct", 10)],
-            vec![option("squick", "attack_speed_pct", 10)],
-        ),
-    );
-    let first = until_offer(&mut e);
-    assert_eq!(
-        take_all(&mut e, &first),
-        [
-            "boss", "main 1", "sub 2", "main 3", "sub 5", "main 6", "main 9", "main 10"
-        ]
-    );
-    let g = gauge(&e);
-    assert_eq!(g.level, 13);
-    assert_eq!(
-        g.main_path,
-        ids(&["edge_6", "edge_9", "edge_10"]),
-        "the bundled `blade`'s first style"
-    );
 }

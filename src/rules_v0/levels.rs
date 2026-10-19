@@ -13,7 +13,7 @@
 
 use crate::engine::{AgentSource, PlayerState, Progress, State};
 use crate::event::DomainEvent;
-use crate::run_stats::{RunStat, StatEffect};
+use crate::run_stats::{self, RunStat, StatEffect};
 use crate::stage::Stage;
 
 /// The highest level; past it experience is no longer counted (ADR-020: it bounds the points).
@@ -133,7 +133,7 @@ pub(super) fn attack(s: &State, atk: u32) -> u32 {
 
 /// The main character's attack speed, in percent, with the points spent on it.
 pub(super) fn attack_speed(s: &State) -> u32 {
-    total(s, StatEffect::AttackSpeedPct)
+    run_stats::capped_attack_speed_pct(total(s, StatEffect::AttackSpeedPct))
 }
 
 /// The evade's cooldown with the points spent on evading.

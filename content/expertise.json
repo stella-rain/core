@@ -134,7 +134,6 @@
           "id": "attack_speed",
           "effect": "attack_speed_pct",
           "amount": 10,
-          "limit": 5,
           "title": "Attack Speed",
           "description": "Attacks 10 percent faster"
         },
@@ -265,7 +264,6 @@
           "id": "attack_speed",
           "effect": "attack_speed_pct",
           "amount": 10,
-          "limit": 5,
           "title": "Attack Speed",
           "description": "Attacks 10 percent faster"
         },

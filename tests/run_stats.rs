@@ -12,8 +12,8 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::run_stats::{
-    MAX_ATTACK_SPEED_PCT, MAX_DESCRIPTION_CHARS, MAX_LIMIT, MAX_RUN_STATS_BYTES, MAX_STATS, MAX_STEP, MAX_TITLE_CHARS,
-    RunStats, StatEffect, capped_attack_speed_pct,
+    MAX_ATTACK_SPEED_PCT, MAX_DESCRIPTION_CHARS, MAX_LIMIT, MAX_RUN_STATS_BYTES, MAX_STATS,
+    MAX_STEP, MAX_TITLE_CHARS, RunStats, StatEffect, capped_attack_speed_pct,
 };
 use stella_rain_core::validate::Error;
 

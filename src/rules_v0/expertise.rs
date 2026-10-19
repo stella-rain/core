@@ -18,8 +18,7 @@
 //! ADR-078's table gives: common options at 1, 4 and 7 (Main), 2 and 8 (Sub), and from 11 on
 //! Main, Sub, Main in turn; the weapon's three styles at 3 (Main) and 5 (Sub); the chosen Main
 //! style's upgrades at 6 and 9 and its capstones at 10. A common offer draws `OFFER_SIZE`
-//! candidates from that weapon's common pool, from the run's generator, leaving out options at
-//! their stack limit and the candidates it already holds; with fewer left it holds those, and
+//! candidates from that weapon's common pool, from the run's generator, leaving out the candidates it already holds; with fewer left it holds those, and
 //! with none it does not open. Its options are the candidates, then a reroll of each while the
 //! run has rerolls (shared with the stars' offers) and another option could come; never a skip
 //! or a banish. Taking an option adds its effect as a reward of that kind does, a range option
@@ -187,7 +186,6 @@ struct Choice<'a> {
     id: &'a ContentId,
     effect: ExpertiseEffect,
     amount: u32,
-    limit: Option<u8>,
 }
 
 impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
@@ -196,7 +194,6 @@ impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
             id: &o.id,
             effect: o.effect,
             amount: o.amount,
-            limit: o.limit,
         }
     }
 }
@@ -230,7 +227,6 @@ fn fixed<'a>(
                 id: &st.id,
                 effect: st.effect,
                 amount: st.amount,
-                limit: None,
             })
             .collect(),
         Some((WeaponRole::Main, ExpertiseOfferKind::Upgrade)) if level == 6 => {
@@ -260,32 +256,19 @@ fn choice_of<'a>(
     }
 }
 
-fn taken(g: &ExpertiseGauge, role: WeaponRole) -> &[u8] {
-    match role {
-        WeaponRole::Main => &g.main_taken,
-        WeaponRole::Sub => &g.sub_taken,
-    }
-}
-
-/// Whether the option at `i` may be offered: not at its stack limit, and not in `held`.
-fn eligible(pool: &[ExpertiseOption], taken: &[u8], i: u8, held: &[u8]) -> bool {
-    let at = usize::from(i);
-    pool.get(at).is_some_and(|o| {
-        !held.contains(&i)
-            && o.limit
-                .is_none_or(|l| taken.get(at).copied().unwrap_or(0) < l)
-    })
+/// Whether the option at `i` may be offered: in the pool and not in `held`. No option has a
+/// stack limit, so one taken before is still offered (ADR-099).
+fn eligible(pool: &[ExpertiseOption], i: u8, held: &[u8]) -> bool {
+    usize::from(i) < pool.len() && !held.contains(&i)
 }
 
 fn places(pool: &[ExpertiseOption]) -> impl Iterator<Item = u8> {
     (0..pool.len()).map_while(|i| u8::try_from(i).ok())
 }
 
-/// Draws one option from `pool`, leaving out `held` and those at their limit.
-fn draw(pool: &[ExpertiseOption], taken: &[u8], rng: &mut SplitMix64, held: &[u8]) -> Option<u8> {
-    let list: Vec<u8> = places(pool)
-        .filter(|i| eligible(pool, taken, *i, held))
-        .collect();
+/// Draws one option from `pool`, leaving out `held`.
+fn draw(pool: &[ExpertiseOption], rng: &mut SplitMix64, held: &[u8]) -> Option<u8> {
+    let list: Vec<u8> = places(pool).filter(|i| eligible(pool, *i, held)).collect();
     if list.is_empty() {
         return None;
     }
@@ -294,15 +277,9 @@ fn draw(pool: &[ExpertiseOption], taken: &[u8], rng: &mut SplitMix64, held: &[u8
 }
 
 /// Whether some option besides `held` could still be offered from the weapon in `role`.
-fn any_left(
-    stage: &Stage,
-    expertise: &Expertise,
-    g: &ExpertiseGauge,
-    role: WeaponRole,
-    held: &[u8],
-) -> bool {
+fn any_left(stage: &Stage, expertise: &Expertise, role: WeaponRole, held: &[u8]) -> bool {
     let pool = pool(stage, expertise, role);
-    places(pool).any(|i| eligible(pool, taken(g, role), i, held))
+    places(pool).any(|i| eligible(pool, i, held))
 }
 
 /// Opens the offer of the first level due that has a candidate, unless an offer is open.
@@ -323,8 +300,8 @@ pub(super) fn open_due(
     };
     while g.offer.is_none() && g.offered < g.level {
         if g.offered >= TABLE_LEVELS as u32
-            && !any_left(stage, expertise, g, WeaponRole::Main, &[])
-            && !any_left(stage, expertise, g, WeaponRole::Sub, &[])
+            && !any_left(stage, expertise, WeaponRole::Main, &[])
+            && !any_left(stage, expertise, WeaponRole::Sub, &[])
         {
             // Past the style path, nothing can ever be offered again: every level due is
             // passed over.
@@ -340,7 +317,7 @@ pub(super) fn open_due(
             let pool = pool(stage, expertise, weapon);
             let mut candidates = Vec::with_capacity(OFFER_SIZE);
             while candidates.len() < OFFER_SIZE {
-                match draw(pool, taken(g, weapon), rng, &candidates) {
+                match draw(pool, rng, &candidates) {
                     Some(i) => candidates.push(i),
                     None => break,
                 }
@@ -381,7 +358,7 @@ fn rerolls_left(s: &State) -> u32 {
 
 /// The options of the open expertise offer, in index order; empty without one.
 pub(crate) fn options(stage: &Stage, expertise: &Expertise, s: &State) -> Vec<OfferOption> {
-    let Some((g, o)) = s
+    let Some((_, o)) = s
         .expertise
         .as_ref()
         .and_then(|g| Some((g, g.offer.as_ref()?)))
@@ -394,7 +371,7 @@ pub(crate) fn options(stage: &Stage, expertise: &Expertise, s: &State) -> Vec<Of
         .collect();
     if o.kind == ExpertiseOfferKind::Common
         && rerolls_left(s) > 0
-        && any_left(stage, expertise, g, o.weapon, &o.candidates)
+        && any_left(stage, expertise, o.weapon, &o.candidates)
     {
         out.extend((0..n).map(|candidate| OfferOption::Reroll { candidate }));
     }
@@ -477,7 +454,7 @@ pub(super) fn choose(
             let slot = usize::from(candidate);
             let left = stars.as_ref().is_some_and(|f| f.rerolls_left > 0);
             let new = if left {
-                draw(pool, taken(g, o.weapon), rng, &o.candidates)
+                draw(pool, rng, &o.candidates)
             } else {
                 None
             };
@@ -553,7 +530,6 @@ pub(crate) fn offer_view(
 ) -> Option<ExpertiseOfferView> {
     let g = s.expertise.as_ref()?;
     let o = g.offer.as_ref()?;
-    let taken = taken(g, o.weapon);
     Some(ExpertiseOfferView {
         level: o.level,
         weapon: o.weapon,
@@ -563,10 +539,8 @@ pub(crate) fn offer_view(
             .iter()
             .filter_map(|i| {
                 let c = choice_of(stage, expertise, g, o, *i)?;
-                let n = taken.get(usize::from(*i)).copied().unwrap_or(0);
                 Some(ExpertiseCandidateView {
                     option: c.id.clone(),
-                    reaches_limit: c.limit.is_some_and(|l| n.saturating_add(1) >= l),
                 })
             })
             .collect(),
