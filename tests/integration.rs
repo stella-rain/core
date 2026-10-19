@@ -64,6 +64,7 @@ mod stage_skill_file;
 mod stage_verify;
 mod stars;
 mod thunder;
+mod time_limit;
 mod trig;
 mod type_bonuses;
 mod types;
