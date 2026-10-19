@@ -2,9 +2,12 @@
 //! JSON as untrusted bytes (ADR-020). Every on-hit rune of the closed list has its entry, once:
 //! a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS` ticks, a base damage of 1 to `MAX_DAMAGE`, and
 //! its attack, at most `MAX_RUNE_PHASES` phases whose hit boxes land around the hit point,
-//! over before the cooldown is, spawning no bullets. Explosion, thunder and boomerang are the
-//! three; boomerang's attack is its throw, out and back, two active phases. The bundled file is
-//! the default; other bytes change the run's content hash.
+//! over before the cooldown is, spawning no bullets. Explosion, thunder, boomerang and homing
+//! missiles are the four; boomerang's attack is its throw, out and back, two active phases;
+//! homing missiles' is one missile's flight, one active phase, and only its entry has the
+//! missiles it launches, 1 to `MAX_HOMING_MISSILES`, and the range it picks targets within, 1
+//! to `MAX_ASSIST_RANGE`. The bundled file is the default; other bytes change the run's content
+//! hash.
 
 use serde_json::{Value, json};
 use stella_rain_core::attack::{AttackPhase, DamageType, HitBox, PhaseKind};
@@ -13,9 +16,11 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::rune::Rune;
-use stella_rain_core::runes::{MAX_RUNE_COOLDOWN_TICKS, MAX_RUNE_PHASES, MAX_RUNES_BYTES, Runes};
+use stella_rain_core::runes::{
+    MAX_HOMING_MISSILES, MAX_RUNE_COOLDOWN_TICKS, MAX_RUNE_PHASES, MAX_RUNES_BYTES, Runes,
+};
 use stella_rain_core::validate::Error;
-use stella_rain_core::validate::limits::MAX_DAMAGE;
+use stella_rain_core::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 
 mod common;
 
@@ -46,9 +51,19 @@ fn boomerang_of(attack: Value) -> Value {
     json!({ "rune": "boomerang", "cooldown_ticks": 60, "damage": 5, "attack": attack })
 }
 
-/// A file of explosion's entry `explosion`, a valid thunder and a valid boomerang.
+/// A valid homing missiles entry: two missiles of one active phase, after boomerang's.
+fn homing() -> Value {
+    homing_of(json!([active(4)]))
+}
+
+fn homing_of(attack: Value) -> Value {
+    json!({ "rune": "homing_missiles", "cooldown_ticks": 60, "damage": 5, "missiles": 2,
+            "range": 40_960, "attack": attack })
+}
+
+/// A file of explosion's entry `explosion`, and a valid thunder, boomerang and homing missiles.
 fn with_thunder(explosion: Value) -> Value {
-    file(vec![explosion, thunder(), boomerang()])
+    file(vec![explosion, thunder(), boomerang(), homing()])
 }
 
 fn file(on_hit: Vec<Value>) -> Value {
@@ -139,6 +154,7 @@ fn boomerang_s_attack_is_its_throw_two_active_phases() {
             explosion(json!(30), json!(5), json!([active(4)])),
             thunder(),
             boomerang_of(attack),
+            homing(),
         ])
     };
     assert!(parse(&with(json!([active(2), active(1)]))).is_ok());
@@ -188,11 +204,121 @@ fn boomerang_s_attack_is_its_throw_two_active_phases() {
         explosion(json!(30), json!(5), json!([active(4)])),
         thunder(),
         slow,
+        homing(),
     ]);
     assert_eq!(
         at(v),
         ["$.on_hit[2].attack"],
         "80 ticks outlast the cooldown"
+    );
+}
+
+#[test]
+fn the_bundled_homing_missiles_are_neutral_missiles_on_their_own_cooldown() {
+    // PLACEHOLDER numbers, Kade's to set: the game design document gives homing missiles no
+    // shape beyond on-hit and neutral.
+    let homing = Runes::bundled()
+        .on_hit(Rune::HomingMissiles)
+        .expect("homing missiles' entry");
+    assert_eq!(homing.cooldown_ticks, 180);
+    assert_eq!(homing.damage, 8);
+    assert_eq!(homing.missiles, Some(3));
+    assert_eq!(
+        homing.range.map(|r| r.0),
+        Some(40_960),
+        "aim assist's Sword range"
+    );
+    assert_eq!(homing.attack.len(), 1, "one flight");
+    let flight = &homing.attack[0];
+    assert_eq!((flight.kind, flight.ticks), (PhaseKind::Active, 30));
+    assert_eq!(flight.damage_type, None, "neutral");
+    assert!(matches!(flight.hit_box, Some(HitBox::Circle { .. })));
+    for other in [Rune::Explosion, Rune::Thunder, Rune::Boomerang] {
+        let entry = Runes::bundled().on_hit(other).unwrap();
+        assert_eq!((entry.missiles, entry.range), (None, None), "{other:?}");
+    }
+}
+
+#[test]
+fn homing_missiles_launch_1_to_the_hard_cap_within_a_bounded_range() {
+    let with = |field: &str, value: Value| {
+        let mut v = plain();
+        v["on_hit"][3][field] = value;
+        v
+    };
+    let at = |v: Value| paths(parse(&v).unwrap_err());
+    assert_eq!(MAX_HOMING_MISSILES, 4);
+    assert!(parse(&with("missiles", json!(1))).is_ok());
+    assert!(parse(&with("missiles", json!(MAX_HOMING_MISSILES))).is_ok());
+    assert_eq!(at(with("missiles", json!(0))), ["$.on_hit[3].missiles"]);
+    assert_eq!(
+        at(with("missiles", json!(MAX_HOMING_MISSILES + 1))),
+        ["$.on_hit[3].missiles"]
+    );
+    assert!(parse(&with("range", json!(1))).is_ok());
+    assert!(parse(&with("range", json!(MAX_ASSIST_RANGE))).is_ok());
+    assert_eq!(at(with("range", json!(0))), ["$.on_hit[3].range"]);
+    assert_eq!(
+        at(with("range", json!(MAX_ASSIST_RANGE + 1))),
+        ["$.on_hit[3].range"]
+    );
+    // Both are homing missiles' own: required on it, refused on any other rune.
+    for field in ["missiles", "range"] {
+        let mut v = plain();
+        v["on_hit"][3].as_object_mut().unwrap().remove(field);
+        assert_eq!(at(v), [format!("$.on_hit[3].{field}")]);
+    }
+    let mut v = plain();
+    v["on_hit"][0]["missiles"] = json!(2);
+    v["on_hit"][2]["range"] = json!(4_096);
+    assert_eq!(at(v), ["$.on_hit[0].missiles", "$.on_hit[2].range"]);
+}
+
+#[test]
+fn homing_missiles_attack_is_one_flight_an_active_phase_with_a_hit_box() {
+    let with = |attack: Value| {
+        file(vec![
+            explosion(json!(30), json!(5), json!([active(4)])),
+            thunder(),
+            boomerang(),
+            homing_of(attack),
+        ])
+    };
+    let at = |v: Value| paths(parse(&v).unwrap_err());
+    assert_eq!(
+        at(with(json!([active(4), active(4)]))),
+        ["$.on_hit[3].attack"],
+        "one flight"
+    );
+    let wind_up = json!({ "kind": "wind_up", "ticks": 4,
+                          "hit_box": { "type": "circle", "radius": 4_096 } });
+    assert_eq!(at(with(json!([wind_up]))), ["$.on_hit[3].attack[0].kind"]);
+    assert_eq!(
+        at(with(json!([{ "kind": "active", "ticks": 4 }]))),
+        ["$.on_hit[3].attack[0].hit_box"]
+    );
+    // It is checked as the others are: bullets, its first phase's ticks, the cooldown.
+    let mut spawning = active(4);
+    spawning["spawn"] = json!([
+        { "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }
+    ]);
+    assert_eq!(at(with(json!([spawning]))), ["$.on_hit[3].attack[0].spawn"]);
+    assert_eq!(
+        at(with(json!([active(1)]))),
+        ["$.on_hit[3].attack[0].ticks"]
+    );
+    let mut slow = homing_of(json!([active(61)]));
+    slow["cooldown_ticks"] = json!(60);
+    let v = file(vec![
+        explosion(json!(30), json!(5), json!([active(4)])),
+        thunder(),
+        boomerang(),
+        slow,
+    ]);
+    assert_eq!(
+        at(v),
+        ["$.on_hit[3].attack"],
+        "61 ticks outlast the cooldown"
     );
 }
 
@@ -344,14 +470,19 @@ fn every_on_hit_rune_has_one_entry() {
         "thunder missing"
     );
     assert_eq!(
-        paths(parse(&file(vec![thunder()])).unwrap_err()),
+        paths(parse(&file(vec![thunder(), boomerang(), homing()])).unwrap_err()),
         ["$.on_hit"],
         "explosion missing"
     );
     assert_eq!(
-        paths(parse(&file(vec![one.clone(), thunder()])).unwrap_err()),
+        paths(parse(&file(vec![one.clone(), thunder(), homing()])).unwrap_err()),
         ["$.on_hit"],
         "boomerang missing"
+    );
+    assert_eq!(
+        paths(parse(&file(vec![one.clone(), thunder(), boomerang()])).unwrap_err()),
+        ["$.on_hit"],
+        "homing missiles missing"
     );
     assert_eq!(
         paths(
@@ -359,18 +490,28 @@ fn every_on_hit_rune_has_one_entry() {
                 one.clone(),
                 thunder(),
                 one.clone(),
-                boomerang()
+                boomerang(),
+                homing()
             ]))
             .unwrap_err()
         ),
         ["$.on_hit[2].rune"]
     );
     assert_eq!(
-        paths(parse(&file(vec![thunder(), one, boomerang(), thunder()])).unwrap_err()),
-        ["$.on_hit[3].rune"]
+        paths(
+            parse(&file(vec![
+                thunder(),
+                one.clone(),
+                homing(),
+                boomerang(),
+                homing()
+            ]))
+            .unwrap_err()
+        ),
+        ["$.on_hit[4].rune"]
     );
     assert_eq!(
-        paths(parse(&file(vec![boomerang(), boomerang(), thunder()])).unwrap_err()),
+        paths(parse(&file(vec![boomerang(), boomerang(), thunder(), homing()])).unwrap_err()),
         ["$.on_hit[1].rune", "$.on_hit"]
     );
     let mut unknown = plain();

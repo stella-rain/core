@@ -46,20 +46,21 @@ fn thunder(cooldown: u32, damage: u32, ty: Option<&str>) -> Value {
     )
 }
 
-/// Thunder of `cooldown`, `damage` and type `ty`; explosion and boomerang never hit.
+/// Thunder of `cooldown`, `damage` and type `ty`; explosion, boomerang and homing missiles never hit.
 fn runes(cooldown: u32, damage: u32, ty: Option<&str>) -> Runes {
     runes_of(vec![
         far("explosion"),
         thunder(cooldown, damage, ty),
         far("boomerang"),
+        far("homing_missiles"),
     ])
 }
 
-/// The stage with three small enemies and the tough target, all three runes taken from their
+/// The stage with four small enemies and the tough target, every rune taken from their
 /// stars.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(3, target),
+        &stage(4, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
@@ -128,7 +129,12 @@ fn held_with_explosion_each_fires_on_its_own_cooldown() {
         json!([{ "kind": "active", "ticks": 2,
                  "hit_box": { "type": "circle", "radius": 4_096 } }]),
     );
-    let runes = runes_of(vec![explosion, thunder(60, STRIKE, None), far("boomerang")]);
+    let runes = runes_of(vec![
+        explosion,
+        thunder(60, STRIKE, None),
+        far("boomerang"),
+        far("homing_missiles"),
+    ]);
     let mut e = holding(runes, tough(0, None, None));
     let target = wait_for_target(&mut e);
     let start = e.tick();
@@ -195,7 +201,7 @@ fn boosted(ty: Option<&str>, profile: Value) -> (u32, u32) {
                 "description": "" }),
     ];
     let mut e = with(
-        &stage(5, tough(0, Some(profile), None)),
+        &stage(6, tough(0, Some(profile), None)),
         &content(rewards, Some(json!([war_cry])), runes(60, 10, ty)),
     );
     take_all(&mut e);

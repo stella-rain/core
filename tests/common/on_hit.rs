@@ -1,6 +1,6 @@
 //! The on-hit rune tests' shared stage: a Main weapon of one step, small enemies whose stars
 //! give the runes, and a tough target to hit once they are taken (`explosion.rs`, `thunder.rs`,
-//! `boomerang.rs`).
+//! `boomerang.rs`, `homing_missiles.rs`).
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -30,6 +30,8 @@ pub const RUNE_SLOT: u8 = 34;
 pub const THUNDER_SLOT: u8 = 35;
 /// The slot of the third, boomerang's.
 pub const BOOMERANG_SLOT: u8 = 36;
+/// The slot of homing missiles' first missile; the others follow it.
+pub const MISSILE_SLOT: u8 = 64;
 
 /// A Main weapon of one step: a circle of 32 pixels 4 pixels ahead, one active tick of 10
 /// damage, neutral, and 4 ticks of recovery.
@@ -161,11 +163,18 @@ pub fn entry(rune: &str, cooldown: u32, damage: u32, attack: Value) -> Value {
 
 /// An entry for `rune` whose attack lands 256 pixels ahead of where it is centred, beyond
 /// every target of these stages: held, it fires on every hit it may but never hits anything.
-/// Two active phases, as a boomerang's out and back.
+/// Two active phases, as a boomerang's out and back; homing missiles' one missile has one, and
+/// lands as far ahead of where it flies.
 pub fn far(rune: &str) -> Value {
     let phase = json!({ "kind": "active", "ticks": 2,
                         "hit_box": { "type": "circle", "offset": { "forward": 65_536 },
                                      "radius": 1_024 } });
+    if rune == "homing_missiles" {
+        let mut e = entry(rune, 30, 1, json!([phase]));
+        e["missiles"] = json!(1);
+        e["range"] = json!(40_960);
+        return e;
+    }
     entry(rune, 30, 1, json!([phase.clone(), phase]))
 }
 

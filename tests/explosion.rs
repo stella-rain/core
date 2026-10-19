@@ -4,8 +4,8 @@
 //! damage is the main character's without a combo step: its base damage through atk-up and the
 //! type bonus, fixed when it fires, then the target's match-up and defence. Its hits give no
 //! expertise and fire no rune; orbits and the stage skill fire none either. Every number here
-//! is worked out by hand. Thunder and boomerang are held too, as the random rune draws all
-//! three, but their attacks land far from every target (`far`).
+//! is worked out by hand. Thunder, boomerang and homing missiles are held too, as the random rune
+//! draws all four, but their attacks land far from every target (`far`).
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -38,6 +38,7 @@ fn runes(cooldown: u32, damage: u32, ticks: u32, ty: Option<&str>) -> Runes {
         entry("explosion", cooldown, damage, json!([phase])),
         far("thunder"),
         far("boomerang"),
+        far("homing_missiles"),
     ])
 }
 
@@ -45,12 +46,12 @@ fn cooldown(e: &Engine) -> u32 {
     cooldown_of(e, Rune::Explosion)
 }
 
-/// The stage with three small enemies and the tough target, all three runes taken from their
+/// The stage with four small enemies and the tough target, every rune taken from their
 /// stars. The last small enemy's kill may fire explosion, whose cooldown is over long before
 /// the target arrives.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(3, target),
+        &stage(4, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
@@ -103,7 +104,7 @@ fn the_explosion_hits_everything_around_the_point() {
         START_X,
         NEAR_Y - 5_120,
     );
-    let mut s = stage(3, tough(0, None, None));
+    let mut s = stage(4, tough(0, None, None));
     s.waves.push(serde_json::from_value(behind).unwrap());
     let mut e = with(
         &s,
@@ -165,7 +166,7 @@ fn the_cooldown_counts_down_each_tick() {
 #[test]
 fn without_the_rune_a_step_fires_nothing() {
     let mut e = with(
-        &stage(2, tough(0, None, None)),
+        &stage(3, tough(0, None, None)),
         &content(vec![random_rune()], None, runes(30, BLAST, 2, None)),
     );
     // The star's offer is skipped.
@@ -245,7 +246,7 @@ fn an_orbit_s_hits_fire_no_explosion() {
         START_Y
     ));
     let mut e = with(
-        &stage(4, target),
+        &stage(5, target),
         &content(vec![random_rune(), orbit], None, runes(30, BLAST, 2, None)),
     );
     take_all(&mut e);
@@ -283,7 +284,7 @@ fn a_stage_skill_s_hits_fire_no_explosion() {
         START_Y - ahead
     ));
     let mut e = with(
-        &stage(4, target),
+        &stage(5, target),
         &content(
             vec![random_rune(), reward],
             Some(json!([nova])),
@@ -322,7 +323,7 @@ fn boosted(ty: Option<&str>) -> (u32, u32) {
     ];
     let weak = json!({ "weak": ["pyro"] });
     let mut e = with(
-        &stage(5, tough(0, Some(weak), None)),
+        &stage(6, tough(0, Some(weak), None)),
         &content(rewards, Some(json!([war_cry])), runes(30, 10, 2, ty)),
     );
     take_all(&mut e);

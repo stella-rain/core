@@ -39,19 +39,20 @@ fn boomerang(cooldown: u32, damage: u32, right: i32) -> Value {
     entry("boomerang", cooldown, damage, json!([leg.clone(), leg]))
 }
 
-/// Boomerang of `cooldown`, `damage` and `right`; explosion and thunder never hit.
+/// Boomerang of `cooldown`, `damage` and `right`; explosion, thunder and homing missiles never hit.
 fn runes(cooldown: u32, damage: u32, right: i32) -> Runes {
     runes_of(vec![
         far("explosion"),
         far("thunder"),
         boomerang(cooldown, damage, right),
+        far("homing_missiles"),
     ])
 }
 
-/// The stage with three small enemies and the tough target, every rune taken from its star.
+/// The stage with four small enemies and the tough target, every rune taken from its star.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(3, target),
+        &stage(4, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
@@ -133,7 +134,7 @@ fn it_hits_an_enemy_on_its_way_once_out_and_once_back() {
         START_X + right,
         START_Y - 4_096,
     );
-    let mut s = stage(3, tough(0, None, None));
+    let mut s = stage(4, tough(0, None, None));
     s.waves.push(serde_json::from_value(beside).unwrap());
     let mut e = with(
         &s,
@@ -223,7 +224,12 @@ fn held_with_explosion_and_thunder_each_fires_on_its_own_cooldown() {
     );
     let mut thunder = far("thunder");
     thunder["cooldown_ticks"] = json!(45);
-    let runes = runes_of(vec![explosion, thunder, boomerang(60, THROW, 0)]);
+    let runes = runes_of(vec![
+        explosion,
+        thunder,
+        boomerang(60, THROW, 0),
+        far("homing_missiles"),
+    ]);
     let mut e = holding(runes, tough(0, None, None));
     let target = wait_for_target(&mut e);
     let start = e.tick();
@@ -259,7 +265,12 @@ fn its_hits_fire_no_rune() {
         json!([{ "kind": "active", "ticks": 2,
                  "hit_box": { "type": "circle", "radius": 4_096 } }]),
     );
-    let runes = runes_of(vec![explosion, far("thunder"), boomerang(60, THROW, 0)]);
+    let runes = runes_of(vec![
+        explosion,
+        far("thunder"),
+        boomerang(60, THROW, 0),
+        far("homing_missiles"),
+    ]);
     let mut e = holding(runes, tough(0, None, None));
     let target = wait_for_target(&mut e);
     let start = e.tick();
@@ -299,7 +310,7 @@ fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
                 "description": "" }),
     ];
     let mut e = with(
-        &stage(5, tough(0, Some(profile), None)),
+        &stage(6, tough(0, Some(profile), None)),
         &content(rewards, Some(json!([war_cry])), runes(60, 10, 0)),
     );
     take_all(&mut e);
@@ -354,7 +365,12 @@ fn the_state_hash_holds_its_flight() {
     slower["attack"][0]["ticks"] = json!(8);
     let mut a = holding(runes(60, THROW, 0), tough(0, None, None));
     let mut b = holding(
-        runes_of(vec![far("explosion"), far("thunder"), slower]),
+        runes_of(vec![
+            far("explosion"),
+            far("thunder"),
+            slower,
+            far("homing_missiles"),
+        ]),
         tough(0, None, None),
     );
     wait_for_target(&mut a);
