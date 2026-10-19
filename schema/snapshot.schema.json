@@ -1020,6 +1020,12 @@
           "format": "uint32",
           "minimum": 0
         },
+        "rune_haste_pct": {
+          "description": "What the Rune Haste rewards taken add up to, in percent, before the clamp at\n`MAX_RUNE_HASTE_PCT` (ADR-099). The shorter cooldowns and intervals are already in the\nrunes' cooldowns and the statuses' timers.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "runes": {
           "description": "The runes its Main weapon holds, in the order drawn (ADR-099).",
           "type": "array",

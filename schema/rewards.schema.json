@@ -806,7 +806,7 @@
       "type": "object",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for a type\nbonus, the percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random\nrune, which has none.",
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune Haste, the percent\nof haste, from 1 to `MAX_RUNE_HASTE_PCT`; for a type\nbonus, the percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random\nrune, which has none.",
           "type": [
             "integer",
             "null"
@@ -933,6 +933,11 @@
           "description": "Its attacks of every element `amount` percent stronger.",
           "type": "string",
           "const": "element_bonus_pct"
+        },
+        {
+          "description": "Every on-hit rune's cooldown and every damage-over-time tick interval the main character\napplies `amount` percent of haste shorter, adding up over the picks (ADR-099): see\n`rune_haste_ticks`.",
+          "type": "string",
+          "const": "rune_haste"
         },
         {
           "description": "One rune the Main weapon does not hold, drawn from the run's generator when the reward\nis picked, never before: an offer shows it hidden (ADR-099). It is offered only while\nthe Main lacks a rune.",
