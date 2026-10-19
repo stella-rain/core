@@ -93,6 +93,7 @@ pub struct TimeLimitMap {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TimeLimit {
     file: TimeLimitFile,
+    bytes: Vec<u8>,
     sha256: [u8; 32],
 }
 
@@ -135,6 +136,7 @@ impl TimeLimit {
         validate(&file)?;
         Ok(TimeLimit {
             file,
+            bytes: bytes.to_vec(),
             sha256: Sha256::digest(bytes).into(),
         })
     }
@@ -177,6 +179,11 @@ impl TimeLimit {
     /// The map and the player's start.
     pub fn map(&self) -> &TimeLimitMap {
         &self.file.map
+    }
+
+    /// The bytes it was parsed from.
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
     }
 
     /// The SHA-256 of the bytes it was parsed from.

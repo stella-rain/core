@@ -24,7 +24,7 @@
       "$ref": "#/$defs/RunSetup"
     },
     "ticks": {
-      "description": "Ticks recorded, at most the mode's length. A run that ended ends on the tick it ended.",
+      "description": "Ticks recorded, at most the mode's length (a `time_limit` run's: its length, overtime and the Star-Hunter's extra time). A run that ended ends on the tick it ended.",
       "type": "integer",
       "format": "uint32",
       "minimum": 0

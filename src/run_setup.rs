@@ -158,11 +158,15 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
 pub fn mode_file(id: &str) -> Option<&'static [u8]> {
     static TIME_LIMIT: OnceLock<Vec<u8>> = OnceLock::new();
     match id {
-        "time_limit" => {
-            Some(TIME_LIMIT.get_or_init(|| [TimeLimit::BUNDLED, TIME_LIMIT_BASE].concat()))
-        }
+        "time_limit" => Some(TIME_LIMIT.get_or_init(|| time_limit_file(TimeLimit::bundled()))),
         _ => mode_stage(id),
     }
+}
+
+/// The bytes the content hash covers for a `time_limit` mode file `mode`: the file, then the
+/// stage its placeholder content comes from.
+pub fn time_limit_file(mode: &TimeLimit) -> Vec<u8> {
+    [mode.bytes(), TIME_LIMIT_BASE].concat()
 }
 
 /// The stage the `time_limit` run takes its main character, companions, levels, stars and boss
@@ -183,9 +187,14 @@ pub fn mode_stage(id: &str) -> Option<&'static [u8]> {
 /// `Engine::start` seeds the run with the setup's. For `time_limit`, the stage of its run
 /// (`time_limit_run`).
 pub fn stage(setup: &RunSetup) -> Result<Stage, Error> {
+    stage_with(setup, TimeLimit::bundled())
+}
+
+/// As `stage`, with `time_limit` in place of the bundled `time_limit` mode file.
+pub fn stage_with(setup: &RunSetup, time_limit: &TimeLimit) -> Result<Stage, Error> {
     validate(setup)?;
     if setup.mode.0 == "time_limit" {
-        return Ok(time_limit_run(setup, TimeLimit::bundled())?.0);
+        return Ok(time_limit_run(setup, time_limit)?.0);
     }
     let content = mode_stage(&setup.mode.0).ok_or_else(|| {
         Error::Invalid(vec![Issue {
@@ -249,6 +258,18 @@ pub(crate) fn time_limit_run(setup: &RunSetup, mode: &TimeLimit) -> Result<(Stag
         used: vec![false; mode.mid_boss_pool().len()],
     };
     Ok((stage, horde))
+}
+
+/// The most ticks a replay of `stage` may hold. A `time_limit` run's stage ends at the length
+/// and the overtime; its replay may also hold the Star-Hunter's extra time (ADR-079).
+pub fn max_replay_ticks(setup: &RunSetup, stage: &Stage, time_limit: &TimeLimit) -> u32 {
+    if setup.mode.0 == "time_limit" {
+        stage
+            .length_ticks
+            .saturating_add(time_limit.star_hunter_extra_ticks())
+    } else {
+        stage.length_ticks
+    }
 }
 
 fn check_versions(schema_version: u32, sim_version: u32) -> Result<(), Error> {

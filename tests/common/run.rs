@@ -2,6 +2,7 @@
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{EntityKind, OfferOption};
@@ -83,6 +84,12 @@ const HIT: i64 = 3072;
 /// about to hit: a step across their path, which overrides the rest (only `LATE` while it goes
 /// for an elite), and an evade at the last moment.
 pub fn run_input(engine: &Engine, tick: u32) -> Input {
+    run_input_for(engine, tick, &[EntityKind::Enemy], BRAVE_FROM)
+}
+
+/// `run_input` going for the entities of `kinds` and getting out of the way of bullets until
+/// tick `brave_from`.
+pub fn run_input_for(engine: &Engine, tick: u32, kinds: &[EntityKind], brave_from: u32) -> Input {
     let mut input = run_script(tick);
     let s = engine.snapshot();
     let me = s.player.at;
@@ -105,7 +112,7 @@ pub fn run_input(engine: &Engine, tick: u32) -> Input {
     let enemy = s
         .entities
         .iter()
-        .filter(|v| v.kind == EntityKind::Enemy)
+        .filter(|v| kinds.contains(&v.kind))
         .min_by_key(|v| {
             if hunting {
                 (!v.elite, if v.elite { i64::from(v.hp) } else { d2(v.at) })
@@ -123,7 +130,7 @@ pub fn run_input(engine: &Engine, tick: u32) -> Input {
         input.move_x = walk * toward(at.x.0 - me.x.0);
         input.move_y = walk * toward(at.y.0 - me.y.0);
     }
-    if tick >= BRAVE_FROM {
+    if tick >= brave_from {
         return input;
     }
     // The first hostile bullet that would pass within `HIT` in the next `SEE` ticks.
@@ -208,7 +215,22 @@ pub fn play_run(ticks: u32) -> Vec<Command> {
 
 /// `play_run` from `setup` instead of the trial's.
 pub fn play_run_from(setup: &RunSetup, ticks: u32) -> Vec<Command> {
-    let mut engine = Engine::start(setup).unwrap();
+    play_run_in(setup, RunContent::bundled(), ticks)
+}
+
+/// `play_run_from` with `content` in place of the bundled files.
+pub fn play_run_in(setup: &RunSetup, content: &RunContent, ticks: u32) -> Vec<Command> {
+    play_run_with(setup, content, ticks, run_input)
+}
+
+/// `play_run_in` with `input` choosing each tick's buttons.
+pub fn play_run_with(
+    setup: &RunSetup,
+    content: &RunContent,
+    ticks: u32,
+    input: impl Fn(&Engine, u32) -> Input,
+) -> Vec<Command> {
+    let mut engine = Engine::start_with(setup, content).unwrap();
     let mut out = Vec::new();
     let mut offers = 0;
     let between = |engine: &mut Engine, out: &mut Vec<Command>, offers: &mut usize| {
@@ -222,7 +244,7 @@ pub fn play_run_from(setup: &RunSetup, ticks: u32) -> Vec<Command> {
             break;
         }
         between(&mut engine, &mut out, &mut offers);
-        let input = run_input(&engine, t);
+        let input = input(&engine, t);
         engine.step(input);
         out.push(Command::Step(input));
     }
