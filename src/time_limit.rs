@@ -3,7 +3,10 @@
 //! the map. Read from `modes/time_limit.json` as untrusted bytes (ADR-020), like the other
 //! content files: a size limit before parsing, strict parsing, the current versions only, every
 //! content ID in the registry, and each number under a named cap. Only the file is read here;
-//! the run, its end and its horde come in later steps.
+//! its end and the elites come in later steps.
+//!
+//! Step b (core#212) adds the schedule: `waves`, the enemies that spawn over the run, as a stage's
+//! waves do (`stage::Wave`), checked as a stage's are with larger caps and without elites.
 //!
 //! Every time is in ticks (60 a second), as `length_ticks` of a stage is. The SHA-256 of the
 //! bytes read is part of the run's content hash with the other mode files (`run_setup::mode_file`).
@@ -17,12 +20,13 @@ use sha2::{Digest, Sha256};
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 use crate::registry::{self, Kind};
+use crate::stage::{Map, Wave};
 use crate::validate::limits::{MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
-/// The largest mode file read; the bundled one is under 600 bytes.
-pub const MAX_TIME_LIMIT_BYTES: usize = 4096;
+/// The largest mode file read; the bundled one is about 3 KB.
+pub const MAX_TIME_LIMIT_BYTES: usize = 16 * 1024;
 /// The longest run: 30 minutes.
 pub const MAX_LENGTH_TICKS: u32 = 30 * 60 * 60;
 /// The most boss times: the mid-bosses and the final boss.
@@ -33,6 +37,12 @@ pub const MAX_POOL: usize = 16;
 pub const MAX_OVERTIME_TICKS: u32 = 10 * 60 * 60;
 /// The longest extra time for the Star-Hunter: 3 minutes.
 pub const MAX_EXTRA_TICKS: u32 = 3 * 60 * 60;
+/// The most waves in the schedule.
+pub const MAX_WAVES: usize = 8;
+/// The most enemies one wave spawns.
+pub const MAX_SPAWN_COUNT: u16 = 2000;
+/// The most enemies the whole schedule spawns: 100 a minute for the longest run is 3000.
+pub const MAX_TOTAL_SPAWNS: u32 = 6000;
 
 /// The `time_limit` mode file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -60,6 +70,11 @@ pub struct TimeLimitFile {
     /// a later step uses it.
     pub star_hunter_extra_ticks: u32,
     pub map: TimeLimitMap,
+    /// The enemies that spawn over the run, 0 to `MAX_WAVES` waves of up to `MAX_SPAWN_COUNT`
+    /// enemies, `MAX_TOTAL_SPAWNS` in all, none an elite, each starting before the length. A
+    /// wave with `around` spawns that far from the main character; the placeholder content is
+    /// the trial's enemies.
+    pub waves: Vec<Wave>,
 }
 
 /// An open field: its sides in 1/256 pixels and where the player starts.
@@ -152,6 +167,11 @@ impl TimeLimit {
     /// The Star-Hunter's extra time in ticks.
     pub fn star_hunter_extra_ticks(&self) -> u32 {
         self.file.star_hunter_extra_ticks
+    }
+
+    /// The enemy schedule.
+    pub fn waves(&self) -> &[Wave] {
+        &self.file.waves
     }
 
     /// The map and the player's start.
@@ -264,6 +284,45 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
             issue(
                 format!("$.map.start.{key}"),
                 format!("on the map, 0 to {} (found {})", side.0, at.0),
+            );
+        }
+    }
+
+    let waves = &file.waves;
+    if waves.len() > MAX_WAVES {
+        issue(
+            "$.waves".into(),
+            format!("at most {MAX_WAVES} waves (found {})", waves.len()),
+        );
+    } else {
+        let field = Map {
+            width: map.width,
+            height: map.height,
+            start: Some(map.start),
+        };
+        if let Err(found) =
+            crate::validate::validate_waves(waves, field, file.length_ticks, MAX_SPAWN_COUNT)
+        {
+            for i in found {
+                issue(
+                    format!("$.waves{}", i.path.trim_start_matches('$')),
+                    i.message,
+                );
+            }
+        }
+        for (i, w) in waves.iter().enumerate() {
+            if w.enemy.elite.is_some() {
+                issue(
+                    format!("$.waves[{i}].enemy.elite"),
+                    "no elites in the schedule".into(),
+                );
+            }
+        }
+        let total: u32 = waves.iter().map(|w| u32::from(w.count)).sum();
+        if total > MAX_TOTAL_SPAWNS {
+            issue(
+                "$.waves".into(),
+                format!("at most {MAX_TOTAL_SPAWNS} enemies in all (found {total})"),
             );
         }
     }

@@ -116,10 +116,11 @@ fn enemies_spawn_on_the_schedule_around_the_main_character() {
     let s = e.snapshot();
     let me = s.player.at;
     for v in s.entities.iter().filter(|v| v.kind == EntityKind::Enemy) {
-        let (dx, dy) = (f64::from(v.at.x.0 - me.x.0), f64::from(v.at.y.0 - me.y.0));
-        let d = dx.hypot(dy);
+        let (dx, dy) = (i64::from(v.at.x.0 - me.x.0), i64::from(v.at.y.0 - me.y.0));
+        let d = (dx * dx + dy * dy).isqrt();
+        let ring = i64::from(ring);
         assert!(
-            (d - f64::from(ring)).abs() < f64::from(ring) / 20.0,
+            (d - ring).abs() < ring / 20,
             "an enemy {d} away, not about {ring}"
         );
     }

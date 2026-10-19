@@ -269,6 +269,11 @@ pub struct Wave {
     pub at_tick: u32,
     pub enemy: Agent,
     pub spawn: Point,
+    /// A distance, `1` to `MAX_LEN`: each enemy of the wave spawns that far from the main
+    /// character, at an angle the run's generator draws, kept on the map; `spawn` is then not
+    /// used. Absent, every enemy spawns at `spawn`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub around: Option<Fx>,
     pub count: u16,
     #[serde(default)]
     pub every_ticks: u32,

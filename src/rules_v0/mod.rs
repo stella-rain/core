@@ -87,6 +87,7 @@ mod entity;
 mod expertise;
 mod grid;
 mod hit_boxes;
+mod horde;
 mod levels;
 mod orbit;
 mod player;
@@ -123,6 +124,7 @@ use entity::{Who, scale_damage, status_pct};
 pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
 use grid::Grid;
+pub(crate) use horde::spawn_boss;
 pub(crate) use levels::{spend, xp_next};
 pub(crate) use stars::offer_view;
 
@@ -202,41 +204,11 @@ pub(crate) fn initial_state(
         })
         .collect();
     // The boss's parts come after the companions in the order of entity IDs.
-    let boss = stage.boss.as_ref().zip(boss_id).map(|(b, id)| BossState {
-        id,
-        at: b.spawn,
-        hp: b.hp,
-        max_hp: b.hp,
-        defence: b.defence,
-        statuses: Vec::new(),
-        phase: 0,
-        phase_age: 0,
-        invulnerable: 0,
-        step: 0,
-        wait_left: 0,
-        order: None,
-        // The first phase begins on the first tick (see `boss::act`).
-        rules: Vec::new(),
-        elites_called: b.call_elites.map(|_| false),
-        parts: b
-            .parts
-            .iter()
-            .map(|p| {
-                let part_id = EntityId(next_id);
-                next_id += 1;
-                PartState {
-                    id: part_id,
-                    name: p.id.clone(),
-                    hp: p.hp,
-                    max_hp: p.hp,
-                    defence: p.defence,
-                    offset: p.offset,
-                    radius: p.radius.0,
-                    statuses: Vec::new(),
-                }
-            })
-            .collect(),
-    });
+    let boss = stage
+        .boss
+        .as_ref()
+        .zip(boss_id)
+        .map(|(b, id)| boss_state(b, id, &mut next_id));
     State {
         tick: 0,
         rng: SplitMix64::new(seed),
@@ -300,6 +272,46 @@ pub(crate) fn initial_state(
         expertise: expertise::initial(stage, content.expertise()),
         match_ups: *content.match_ups(),
         runes: content.runes().clone(),
+        horde: None,
+    }
+}
+
+/// The boss before its first tick, its parts taking the entity IDs from `next_id` on. The
+/// first phase begins on the first tick (see `boss::act`).
+pub(crate) fn boss_state(b: &crate::stage::Boss, id: EntityId, next_id: &mut u32) -> BossState {
+    BossState {
+        id,
+        at: b.spawn,
+        hp: b.hp,
+        max_hp: b.hp,
+        defence: b.defence,
+        statuses: Vec::new(),
+        phase: 0,
+        phase_age: 0,
+        invulnerable: 0,
+        step: 0,
+        wait_left: 0,
+        order: None,
+        rules: Vec::new(),
+        elites_called: b.call_elites.map(|_| false),
+        parts: b
+            .parts
+            .iter()
+            .map(|p| {
+                let part_id = EntityId(*next_id);
+                *next_id += 1;
+                PartState {
+                    id: part_id,
+                    name: p.id.clone(),
+                    hp: p.hp,
+                    max_hp: p.hp,
+                    defence: p.defence,
+                    offset: p.offset,
+                    radius: p.radius.0,
+                    statuses: Vec::new(),
+                }
+            })
+            .collect(),
     }
 }
 
@@ -430,8 +442,26 @@ fn spawn_waves(stage: &Stage, s: &mut State) {
             index: u32::try_from(i).unwrap_or(u32::MAX),
             rule: 0,
         };
-        spawn_enemy(stage, s, key, &wave.enemy, wave.spawn);
+        let at = match wave.around {
+            Some(ring) => around_player(stage, s, ring),
+            None => wave.spawn,
+        };
+        spawn_enemy(stage, s, key, &wave.enemy, at);
     }
+}
+
+/// A point `ring` from the main character, at an angle drawn from the run's generator, moved
+/// onto the map.
+fn around_player(stage: &Stage, s: &mut State, ring: Fx) -> Point {
+    let angle = i32::try_from(s.rng.below(360)).unwrap_or(0) * trig::PER_DEGREE;
+    let (sin, cos) = trig::sin_cos(angle);
+    let offset = |unit: i32| {
+        i32::try_from(i64::from(ring.0) * i64::from(unit) / i64::from(trig::SCALE)).unwrap_or(0)
+    };
+    stage.map().clamp(Point {
+        x: s.player.at.x.saturating_add(Fx(offset(cos))),
+        y: s.player.at.y.saturating_add(Fx(offset(sin))),
+    })
 }
 
 /// Spawns an enemy of `def` at `at`, unless the cap on enemies alive is reached, or for an
@@ -740,6 +770,9 @@ fn decide_outcome(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
         return;
     }
     let cleared = match &s.boss {
+        // A run with a horde ends in a clear only by the final boss's death: a mid-boss's is
+        // not the end, and neither is an empty field.
+        _ if s.horde.is_some() => horde::final_boss_dead(s),
         Some(b) => b.hp == 0,
         None => {
             s.enemies.is_empty()
@@ -1303,6 +1336,15 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     // runs without it stay as they were: what the picks add up to. Haste never goes.
     if s.player.rune_haste_pct > 0 {
         h.write_u32(s.player.rune_haste_pct);
+    }
+    // Last of all, and only in a run with a horde: the bosses come so far, and which pool
+    // entries are drawn.
+    if let Some(horde) = &s.horde {
+        h.write_u32(horde.spawned);
+        h.write_u32(count(&horde.used));
+        for used in &horde.used {
+            h.write_bool(*used);
+        }
     }
     h.finish()
 }

@@ -139,6 +139,13 @@ impl Engine {
 
     /// As `start`, with `content` in place of the bundled files (ADR-067).
     pub fn start_with(setup: &RunSetup, content: &RunContent) -> Result<Engine, Error> {
+        if setup.mode.0 == "time_limit" {
+            return Engine::start_time_limit(
+                setup,
+                content,
+                crate::time_limit::TimeLimit::bundled(),
+            );
+        }
         let stage = run_setup::stage(setup)?;
         let pool = rules_v0::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
@@ -153,13 +160,27 @@ impl Engine {
         })
     }
 
-    /// Starts a run of the `time_limit` mode from `mode` in place of the bundled file.
+    /// Starts a run of the `time_limit` mode from `mode` in place of the bundled file: its
+    /// waves, and its bosses as they come (`rules_v0::spawn_boss`).
     pub fn start_time_limit(
         setup: &RunSetup,
         content: &RunContent,
-        _mode: &crate::time_limit::TimeLimit,
+        mode: &crate::time_limit::TimeLimit,
     ) -> Result<Engine, Error> {
-        Engine::start_with(setup, content)
+        let (stage, horde) = run_setup::time_limit_run(setup, mode)?;
+        let pool = rules_v0::RunPool {
+            rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
+            extra_rerolls: setup.extra_rerolls,
+        };
+        let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed);
+        state.horde = Some(horde);
+        Ok(Engine {
+            state,
+            stage,
+            content: content.clone(),
+            events: Vec::new(),
+            load: Load::default(),
+        })
     }
 
     /// Advances one tick with `input`. Once the run is over this does nothing, so a replay that
@@ -172,15 +193,18 @@ impl Engine {
             return;
         }
         match self.stage.sim_version {
-            0 => rules_v0::step(
-                &self.stage,
-                self.content.rewards(),
-                self.content.expertise(),
-                &mut self.state,
-                input,
-                &mut self.events,
-                &mut self.load,
-            ),
+            0 => {
+                rules_v0::spawn_boss(&mut self.stage, &mut self.state);
+                rules_v0::step(
+                    &self.stage,
+                    self.content.rewards(),
+                    self.content.expertise(),
+                    &mut self.state,
+                    input,
+                    &mut self.events,
+                    &mut self.load,
+                );
+            }
             // `new` validated the version; fail closed if that ever stops being true.
             _ => self.state.outcome = Outcome::Failed,
         }
@@ -598,6 +622,25 @@ pub(crate) struct State {
     pub match_ups: MatchUps,
     /// What each on-hit rune does when it fires (ADR-099): content, as the match-ups are.
     pub runes: Runes,
+    /// The bosses of a `time_limit` run, as they come; `None` in any other run, which hashes
+    /// nothing for it.
+    pub horde: Option<Horde>,
+}
+
+/// What a `time_limit` run brings to its bosses (core#212): the times, the pool they are drawn
+/// from and the boss they are drawn as, all content fixed for the run (covered by the content
+/// hash); what changes is how many have come and which pool entries are used up.
+#[derive(Clone, Debug)]
+pub(crate) struct Horde {
+    pub boss_ticks: Vec<u32>,
+    pub pool: Vec<ContentId>,
+    pub final_boss: ContentId,
+    /// The boss every one is made from, with its sprite replaced: a placeholder.
+    pub template: crate::stage::Boss,
+    /// Bosses that have come, mid-bosses and the final one.
+    pub spawned: u32,
+    /// One per pool entry: drawn already.
+    pub used: Vec<bool>,
 }
 
 /// The one expertise gauge of both weapons (ADR-078 §1 to §3), and its offers (ADR-079 §2, §3).
@@ -1245,4 +1288,70 @@ pub(crate) struct AttackTask {
     pub parent_dir: Dir,
     /// The direction of the last bullet, which `sequential` directions turn from.
     pub last_dir: Dir,
+}
+
+#[cfg(test)]
+mod horde_tests {
+    use super::*;
+    use crate::run_content::RunContent;
+    use crate::time_limit::TimeLimit;
+
+    fn engine(boss_ticks: &[u32]) -> Engine {
+        let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+        v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
+        v["boss_ticks"] = serde_json::json!(boss_ticks);
+        v["waves"] = serde_json::json!([]);
+        let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap();
+        let setup = RunSetup {
+            schema_version: 0,
+            sim_version: 0,
+            mode: "time_limit".into(),
+            main: "blade".into(),
+            sub: "maul".into(),
+            seed: 1,
+            star_pool: None,
+            extra_rerolls: 0,
+        };
+        Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
+    }
+
+    fn run_to(e: &mut Engine, tick: u32) {
+        while e.tick() < tick {
+            e.step(Input::default());
+        }
+    }
+
+    #[test]
+    fn a_mid_boss_s_death_does_not_clear_the_run_and_the_final_boss_s_does() {
+        let mut e = engine(&[50, 100]);
+        run_to(&mut e, 50);
+        assert!(e.state.boss.as_ref().is_some_and(|b| b.hp > 0));
+        // The mid-boss falls; the stage's own rule would clear the run here.
+        e.state.boss.as_mut().unwrap().hp = 0;
+        run_to(&mut e, 99);
+        assert_eq!(e.outcome(), Outcome::Running);
+        run_to(&mut e, 100);
+        let final_boss = e.state.boss.as_ref().unwrap();
+        assert!(final_boss.hp > 0, "a new boss at the last time");
+        e.state.boss.as_mut().unwrap().hp = 0;
+        e.step(Input::default());
+        assert_eq!(e.outcome(), Outcome::Cleared);
+    }
+
+    #[test]
+    fn the_run_lasts_its_length_and_its_overtime_and_an_empty_field_does_not_clear_it() {
+        let mut e = engine(&[50, 100]);
+        run_to(&mut e, 99);
+        assert_eq!(e.outcome(), Outcome::Running);
+        assert_eq!(e.stage.length_ticks, 100 + 18_000, "the run's overtime");
+    }
+
+    #[test]
+    fn the_run_fails_when_the_overtime_runs_out_with_the_final_boss_alive() {
+        let mut e = engine(&[50, 100]);
+        e.state.player.hp = u32::MAX;
+        e.state.player.max_hp = u32::MAX;
+        run_to(&mut e, 100 + 18_000);
+        assert_eq!(e.outcome(), Outcome::Failed);
+    }
 }
