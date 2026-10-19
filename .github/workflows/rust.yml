@@ -4,7 +4,8 @@
 # for the mobile targets (ADR-039: arm64-v8a and x86_64 Android, iOS kept buildable); and the
 # fuzz targets (ADR-020): tested and linted on stable, built on a pinned nightly, and run for a
 # minute each when a PR touches parsing; and the instruction counts of the worst-case tick and of
-# the friendly-bullet collision tick (ADR-021, ADR-058), each compared with the base commit's on
+# the friendly-bullet collision tick and the heaviest tick of a time_limit run (ADR-021, ADR-058),
+# each compared with the base commit's on
 # both architectures. They are jobs of this workflow because
 # auto-merge.yml waits for the workflows it names.
 # A PR into main whose files are all `*.md` runs none of them: `what changed` says so, and every
@@ -376,7 +377,8 @@ jobs:
         run: |
           set -eu
           if ! git cat-file -e "$BASE:benches/worst_tick.rs" 2>/dev/null \
-            || ! git cat-file -e "$BASE:benches/collide_tick.rs" 2>/dev/null; then
+            || ! git cat-file -e "$BASE:benches/collide_tick.rs" 2>/dev/null \
+            || ! git cat-file -e "$BASE:benches/time_limit_tick.rs" 2>/dev/null; then
             echo "The base commit lacks a benchmark: nothing to compare with."
             echo "compare=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -388,12 +390,12 @@ jobs:
           fi
           git worktree add "$RUNNER_TEMP/base" "$BASE"
           (cd "$RUNNER_TEMP/base" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-base" \
-            cargo bench --bench worst_tick --bench collide_tick -- --save-baseline=main)
+            cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick -- --save-baseline=main)
           echo "compare=true" >> "$GITHUB_OUTPUT"
-      # A rise of more than 2% in instructions on either tick fails the job. The count is the same
+      # A rise of more than 2% in instructions on any of the three ticks fails the job. The count is the same
       # on every run of a build, so the limit is for a real change: one more pass over 4,000
       # bullets is 1.8%.
-      - name: Count the worst-case and collision ticks
+      - name: Count the worst-case, collision and time_limit ticks
         env:
           COMPARE: ${{ steps.base.outputs.compare }}
         run: |
@@ -403,9 +405,9 @@ jobs:
             limits="--baseline=main --callgrind-limits=ir=2%"
           fi
           # shellcheck disable=SC2086
-          cargo bench --bench worst_tick --bench collide_tick -- $limits | tee "$RUNNER_TEMP/bench.txt"
+          cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick -- $limits | tee "$RUNNER_TEMP/bench.txt"
           {
-            echo "### Worst-case and collision ticks on ${{ matrix.arch }}"
+            echo "### Worst-case, collision and time_limit ticks on ${{ matrix.arch }}"
             grep -E '^[a-z_]+::|Instructions' "$RUNNER_TEMP/bench.txt" | sed 's/^ */    /'
           } >> "$GITHUB_STEP_SUMMARY"
 

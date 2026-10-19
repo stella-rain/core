@@ -102,3 +102,4 @@ fn every_test_file_is_a_module_here() {
         "tests/ files without `mod` here: {missing:?}"
     );
 }
+mod time_limit_case;
