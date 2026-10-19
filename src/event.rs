@@ -30,6 +30,10 @@ pub enum DomainEvent {
         /// The match-up the hit got (ADR-100); left out when none.
         #[serde(default, skip_serializing_if = "MatchUp::is_none")]
         match_up: MatchUp,
+        /// The rune that dealt the hit (ADR-099): the on-hit rune whose attack landed, or the
+        /// damage-over-time rune whose status ticked; left out for every other hit.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        rune: Option<Rune>,
     },
     /// The main character was hit.
     PlayerHit {

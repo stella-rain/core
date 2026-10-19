@@ -31,6 +31,7 @@ mod extremes;
 mod golden;
 mod hash;
 mod hit_boxes;
+mod hit_marks;
 mod homing_missiles;
 mod levels;
 mod map;
