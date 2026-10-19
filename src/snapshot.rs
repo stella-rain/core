@@ -447,11 +447,11 @@ pub struct EntityView {
     pub damage_over_time: Vec<DamageOverTimeView>,
 }
 
-/// A damage-over-time status on an entity (ADR-099), such as bleed.
+/// A damage-over-time status on an entity (ADR-099): bleed, poison or burn.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DamageOverTimeView {
-    /// The status's ID: `bleed`.
+    /// The status's ID: `bleed`, `poison` or `burn`.
     pub status: ContentId,
     pub stacks: u16,
     /// Ticks until it runs out, unless it is applied again.
