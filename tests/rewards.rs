@@ -18,7 +18,7 @@ use stella_rain_core::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::MAX_EVADE_CHARGES;
 
-mod common;
+use crate::common;
 
 use common::run::{run_script, trial_setup};
 

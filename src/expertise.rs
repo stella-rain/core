@@ -3,8 +3,9 @@
 //! for every level after and the most a level needs, and for each weapon its three styles (a
 //! path: the style at level 3 for the Main or 5 for the Sub, then the Main's upgrades at 6 and
 //! 9 and its capstone at 10) and its common pool, drawn at the other levels. Only attack speed
-//! options carry a stack limit; cooldown reduction, the other limited kind, waits for an effect
-//! kind in `core`. Each enemy's points per hit and per kill are in the stage
+//! options have no stack limit and none leaves its pool by being taken (the attack speed total
+//! is held at `run_stats::MAX_ATTACK_SPEED_PCT`); cooldown reduction is no expertise option
+//! but Rune Haste, a star reward (ADR-099). Each enemy's points per hit and per kill are in the stage
 //! (`stage::ExpertisePoints`).
 //!
 //! Data picks, code acts: an option's effect is one of the run stats' effect kinds
@@ -47,8 +48,6 @@ pub const STYLES: usize = 3;
 pub const MAX_STYLE_CHOICES: usize = 3;
 /// The most options in a weapon's common pool.
 pub const MAX_COMMON_OPTIONS: usize = 32;
-/// The most times one run takes a stack-limited option.
-pub const MAX_STACK_LIMIT: u8 = 20;
 
 /// What taking an option or a style does: one of the run stats' effect kinds, under the same
 /// names, or a wider combo.
@@ -82,12 +81,6 @@ impl ExpertiseEffect {
         })
     }
 
-    /// Whether a common option of this kind has a stack limit (ADR-078 §6): attack speed only,
-    /// until `core` has a cooldown reduction kind.
-    pub fn is_stack_limited(self) -> bool {
-        self == ExpertiseEffect::AttackSpeedPct
-    }
-
     /// The largest amount of this kind.
     pub fn max_amount(self) -> u32 {
         match self {
@@ -106,10 +99,6 @@ pub struct ExpertiseOption {
     pub effect: ExpertiseEffect,
     /// What taking it adds to the effect's total, from 1 to the effect's most.
     pub amount: u32,
-    /// The most times one run takes it, from 1 to `MAX_STACK_LIMIT`: on a common option of a
-    /// stack-limited kind, and only there.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub limit: Option<u8>,
     /// The name the choice panel shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.
     pub title: String,
     /// What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.
@@ -359,33 +348,12 @@ pub fn validate(file: &ExpertiseFile) -> Result<(), Error> {
                 for (c, choice) in choices.iter().enumerate() {
                     let path = format!("{path}[{c}]");
                     check_option(&mut issue, &mut seen, &path, choice);
-                    if choice.limit.is_some() {
-                        issue(
-                            format!("{path}.limit"),
-                            "a style's choices are fixed: no stack limit".into(),
-                        );
-                    }
                 }
             }
         }
         for (c, option) in weapon.common.iter().enumerate() {
             let path = at(&format!("common[{c}]"));
             check_option(&mut issue, &mut seen, &path, option);
-            match (option.effect.is_stack_limited(), option.limit) {
-                (true, None) => issue(
-                    format!("{path}.limit"),
-                    "an attack speed option has a stack limit".into(),
-                ),
-                (true, Some(limit)) if !(1..=MAX_STACK_LIMIT).contains(&limit) => issue(
-                    format!("{path}.limit"),
-                    format!("1 to {MAX_STACK_LIMIT} (found {limit})"),
-                ),
-                (false, Some(_)) => issue(
-                    format!("{path}.limit"),
-                    "only attack speed options have a stack limit".into(),
-                ),
-                _ => {}
-            }
         }
     }
     if issues.is_empty() {

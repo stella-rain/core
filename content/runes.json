@@ -73,6 +73,22 @@
       "damage": 3,
       "max_stacks": 5,
       "type": "slash"
+    },
+    {
+      "rune": "poison",
+      "interval_ticks": 30,
+      "duration_ticks": 180,
+      "damage": 3,
+      "max_stacks": 5,
+      "type": "dendro"
+    },
+    {
+      "rune": "burn",
+      "interval_ticks": 30,
+      "duration_ticks": 180,
+      "damage": 3,
+      "max_stacks": 5,
+      "type": "pyro"
     }
   ]
 }

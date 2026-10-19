@@ -21,7 +21,7 @@ use stella_rain_core::snapshot::{EntityKind, OfferOption, TypeBonusView};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::limits::MAX_DAMAGE;
 
-mod common;
+use crate::common;
 
 use common::run::{run_input, trial_setup};
 use common::*;

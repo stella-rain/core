@@ -287,7 +287,7 @@
       "type": "string"
     },
     "DamageOverTimeView": {
-      "description": "A damage-over-time status on an entity (ADR-099), such as bleed.",
+      "description": "A damage-over-time status on an entity (ADR-099): bleed, poison or burn.",
       "type": "object",
       "properties": {
         "next_tick_in": {
@@ -303,7 +303,7 @@
           "minimum": 0
         },
         "status": {
-          "description": "The status's ID: `bleed`.",
+          "description": "The status's ID: `bleed`, `poison` or `burn`.",
           "$ref": "#/$defs/ContentId"
         },
         "ticks_left": {
@@ -467,10 +467,6 @@
         "option": {
           "description": "Its ID in the weapon's expertise content: a common option, a style, or a choice of the\nchosen style's path.",
           "$ref": "#/$defs/ContentId"
-        },
-        "reaches_limit": {
-          "description": "Taking it brings it to its stack limit, after which it is offered no more.",
-          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -1020,6 +1016,12 @@
           "format": "uint32",
           "minimum": 0
         },
+        "rune_haste_pct": {
+          "description": "What the Rune Haste rewards taken add up to, in percent, before the clamp at\n`MAX_RUNE_HASTE_PCT` (ADR-099). The shorter cooldowns and intervals are already in the\nrunes' cooldowns and the statuses' timers.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "runes": {
           "description": "The runes its Main weapon holds, in the order drawn (ADR-099).",
           "type": "array",
@@ -1226,6 +1228,16 @@
           "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
           "type": "string",
           "const": "bleed"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `poison` status, Dendro, on the enemy hit,\nor a stack more of it.",
+          "type": "string",
+          "const": "poison"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `burn` status, Pyro, on the enemy hit, or\na stack more of it.",
+          "type": "string",
+          "const": "burn"
         }
       ]
     },

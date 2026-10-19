@@ -18,6 +18,17 @@
               "description": "The match-up the hit got (ADR-100); left out when none.",
               "$ref": "#/$defs/MatchUp"
             },
+            "rune": {
+              "description": "The rune that dealt the hit (ADR-099): the on-hit rune whose attack landed, or the\ndamage-over-time rune whose status ticked; left out for every other hit.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Rune"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "source": {
               "$ref": "#/$defs/EntityId"
             },
@@ -1013,6 +1024,16 @@
           "description": "Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack\nmore of it.",
           "type": "string",
           "const": "bleed"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `poison` status, Dendro, on the enemy hit,\nor a stack more of it.",
+          "type": "string",
+          "const": "poison"
+        },
+        {
+          "description": "Damage over time: a combo step's hit puts the `burn` status, Pyro, on the enemy hit, or\na stack more of it.",
+          "type": "string",
+          "const": "burn"
         }
       ]
     },

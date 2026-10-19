@@ -135,7 +135,7 @@ pub fn take(e: &mut Engine, reward: &str) {
     e.choose(u32::try_from(index).unwrap()).unwrap();
 }
 
-/// Takes the random rune from the next five offers: the Main holds every rune, in the order
+/// Takes the random rune from the next seven offers: the Main holds every rune, in the order
 /// drawn.
 pub fn take_all(e: &mut Engine) {
     for _ in Rune::ALL {
@@ -178,21 +178,47 @@ pub fn far(rune: &str) -> Value {
     entry(rune, 30, 1, json!([phase.clone(), phase]))
 }
 
-/// A damage-over-time rune's entry in a runes file, Slash.
+/// A damage-over-time rune's entry in a runes file, of its own type: bleed Slash, poison
+/// Dendro, burn Pyro.
 pub fn dot(rune: &str, interval: u32, duration: u32, damage: u32, max_stacks: u32) -> Value {
+    let ty = match rune {
+        "bleed" => "slash",
+        "poison" => "dendro",
+        "burn" => "pyro",
+        other => panic!("{other} is not a damage-over-time rune"),
+    };
     json!({ "rune": rune, "interval_ticks": interval, "duration_ticks": duration,
-            "damage": damage, "max_stacks": max_stacks, "type": "slash" })
+            "damage": damage, "max_stacks": max_stacks, "type": ty })
 }
 
-/// A bleed whose first tick is 10 seconds after it is first applied, beyond every on-hit rune
-/// test: held, it is applied on every step's hit but never deals damage there.
-pub fn far_bleed() -> Value {
-    dot("bleed", 600, 600, 1, 1)
+/// Every damage-over-time rune with a first tick 10 seconds after it is first applied, beyond
+/// every on-hit rune test: held, each is applied on every step's hit but never deals damage
+/// there.
+pub fn far_dots() -> Vec<Value> {
+    ["bleed", "poison", "burn"]
+        .into_iter()
+        .map(|r| dot(r, 600, 600, 1, 1))
+        .collect()
 }
 
-/// The runes file of `on_hit`'s entries and a bleed that never ticks (`far_bleed`).
+/// `far_dots` with `entry`'s rune set to `entry`.
+pub fn far_dots_but(entry: Value) -> Vec<Value> {
+    far_dots()
+        .into_iter()
+        .map(|d| {
+            if d["rune"] == entry["rune"] {
+                entry.clone()
+            } else {
+                d
+            }
+        })
+        .collect()
+}
+
+/// The runes file of `on_hit`'s entries and damage-over-time runes that never tick
+/// (`far_dots`).
 pub fn runes_of(on_hit: Vec<Value>) -> Runes {
-    runes_with(on_hit, vec![far_bleed()])
+    runes_with(on_hit, far_dots())
 }
 
 /// The runes file of `on_hit`'s and `damage_over_time`'s entries.

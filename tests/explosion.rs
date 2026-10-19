@@ -4,9 +4,9 @@
 //! damage is the main character's without a combo step: its base damage through atk-up and the
 //! type bonus, fixed when it fires, then the target's match-up and defence. Its hits give no
 //! expertise and fire no rune; orbits and the stage skill fire none either. Every number here
-//! is worked out by hand. Thunder, boomerang, homing missiles and bleed are held too, as the
-//! random rune draws all five, but their attacks land far from every target (`far`) and bleed
-//! never ticks (`far_bleed`).
+//! is worked out by hand. Thunder, boomerang, homing missiles, bleed, poison and burn are held
+//! too, as the random rune draws all seven, but the on-hit attacks land far from every target
+//! (`far`) and the damage-over-time runes never tick (`far_dots`).
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -18,7 +18,7 @@ use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::OfferOption;
 
-mod common;
+use crate::common;
 
 use common::on_hit::*;
 use common::run::{run_input, trial_setup};
@@ -47,12 +47,12 @@ fn cooldown(e: &Engine) -> u32 {
     cooldown_of(e, Rune::Explosion)
 }
 
-/// The stage with five small enemies and the tough target, every rune taken from their
+/// The stage with seven small enemies and the tough target, every rune taken from their
 /// stars. The last small enemy's kill may fire explosion, whose cooldown is over long before
 /// the target arrives.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(5, target),
+        &stage(7, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
@@ -105,7 +105,7 @@ fn the_explosion_hits_everything_around_the_point() {
         START_X,
         NEAR_Y - 5_120,
     );
-    let mut s = stage(5, tough(0, None, None));
+    let mut s = stage(7, tough(0, None, None));
     s.waves.push(serde_json::from_value(behind).unwrap());
     let mut e = with(
         &s,
@@ -247,7 +247,7 @@ fn an_orbit_s_hits_fire_no_explosion() {
         START_Y
     ));
     let mut e = with(
-        &stage(6, target),
+        &stage(8, target),
         &content(vec![random_rune(), orbit], None, runes(30, BLAST, 2, None)),
     );
     take_all(&mut e);
@@ -285,7 +285,7 @@ fn a_stage_skill_s_hits_fire_no_explosion() {
         START_Y - ahead
     ));
     let mut e = with(
-        &stage(6, target),
+        &stage(8, target),
         &content(
             vec![random_rune(), reward],
             Some(json!([nova])),
@@ -324,7 +324,7 @@ fn boosted(ty: Option<&str>) -> (u32, u32) {
     ];
     let weak = json!({ "weak": ["pyro"] });
     let mut e = with(
-        &stage(7, tough(0, Some(weak), None)),
+        &stage(9, tough(0, Some(weak), None)),
         &content(rewards, Some(json!([war_cry])), runes(30, 10, 2, ty)),
     );
     take_all(&mut e);

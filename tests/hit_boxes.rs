@@ -4,7 +4,7 @@
 //! still lands its hit (a trade); invulnerability stops a hit without using it up. A phase's
 //! `damage` is the base damage of its hit box and of the bullets it spawns.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

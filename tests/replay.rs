@@ -1,7 +1,7 @@
 //! Replays (ADR-009, ADR-016): the packed input encoding, recording, verification and the
 //! checks on untrusted replay files (ADR-020).
 
-mod common;
+use crate::common;
 
 use common::{CLEAR_TICK, clearing_inputs, idle, stage_bytes};
 use serde_json::{Value, json};

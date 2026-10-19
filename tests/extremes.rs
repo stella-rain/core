@@ -4,7 +4,7 @@
 //! must not be able to crash a verified stage. The constants stay within the validator's
 //! limits (±1,000,000, at most 16 nodes in an expression); the arithmetic on them does not.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

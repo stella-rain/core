@@ -2,7 +2,7 @@
 //! persistent facing (ADR-069), the Main weapon's attack on a press of `main`, along the facing,
 //! and the evade. Every number here is worked out by hand from the rules' constants.
 
-mod common;
+use crate::common;
 
 use common::*;
 use stella_rain_core::event::DomainEvent;

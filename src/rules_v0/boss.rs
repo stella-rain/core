@@ -62,7 +62,12 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
             (b.at, b.order) = step_order(b.at, order);
         }
     }
-    if s.tick == 1 {
+    // The first phase begins on the boss's first tick: tick 1 of a stage's boss, the tick it
+    // comes of a horde's (`horde::spawn_boss`); phase 0 is at age 1 on no other tick.
+    if s.boss
+        .as_ref()
+        .is_some_and(|b| b.phase == 0 && b.phase_age == 1)
+    {
         begin_phase(def, s, 0, events);
     }
     maybe_end_phase(stage, s, events);

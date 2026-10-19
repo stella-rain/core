@@ -28,6 +28,12 @@ pub enum Rune {
     /// Damage over time: a combo step's hit puts the `bleed` status on the enemy hit, or a stack
     /// more of it.
     Bleed,
+    /// Damage over time: a combo step's hit puts the `poison` status, Dendro, on the enemy hit,
+    /// or a stack more of it.
+    Poison,
+    /// Damage over time: a combo step's hit puts the `burn` status, Pyro, on the enemy hit, or
+    /// a stack more of it.
+    Burn,
 }
 
 /// What sets a rune off (ADR-099 point 2).
@@ -42,12 +48,14 @@ pub enum RuneKind {
 
 impl Rune {
     /// Every rune, in the order the random rune draws among them.
-    pub const ALL: [Rune; 5] = [
+    pub const ALL: [Rune; 7] = [
         Rune::Explosion,
         Rune::Thunder,
         Rune::Boomerang,
         Rune::HomingMissiles,
         Rune::Bleed,
+        Rune::Poison,
+        Rune::Burn,
     ];
 
     /// The rune's place in `ALL`, from 0: what the state hash writes.
@@ -55,12 +63,23 @@ impl Rune {
         self as u8
     }
 
+    /// The damage-over-time rune whose status is `kind`; `None` for every other status.
+    pub(crate) fn of_dot(kind: crate::engine::StatusKind) -> Option<Rune> {
+        use crate::engine::StatusKind;
+        match kind {
+            StatusKind::Bleed => Some(Rune::Bleed),
+            StatusKind::Poison => Some(Rune::Poison),
+            StatusKind::Burn => Some(Rune::Burn),
+            StatusKind::AtkUp | StatusKind::Vulnerable | StatusKind::Slow => None,
+        }
+    }
+
     pub fn kind(self) -> RuneKind {
         match self {
             Rune::Explosion | Rune::Thunder | Rune::Boomerang | Rune::HomingMissiles => {
                 RuneKind::OnHit
             }
-            Rune::Bleed => RuneKind::DamageOverTime,
+            Rune::Bleed | Rune::Poison | Rune::Burn => RuneKind::DamageOverTime,
         }
     }
 }

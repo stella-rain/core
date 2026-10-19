@@ -6,19 +6,21 @@
 //!
 //! On a mismatch the failure names the first diverging tick and writes the snapshots of that
 //! tick and the one before to `target/corpus-diff/<name>.json`; CI uploads that folder per
-//! architecture. After an intended change, run `UPDATE_CORPUS=1 cargo test --test corpus` and
-//! say `Corpus regenerated: <why>` in the PR (ADR-035).
+//! architecture. After an intended change, run
+//! `UPDATE_CORPUS=1 cargo test --test integration corpus::` and say `Corpus regenerated: <why>`
+//! in the PR (ADR-035).
 //!
 //! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
 //! `run.replay` (a run replay: setup, content hash, inputs and commands) and `hashes.txt` (the
 //! hash after every tick, before the commands between it and the next). They need no stage file, because the
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
 
-mod common;
+use crate::common;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use common::run::play_run_with;
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
@@ -26,9 +28,11 @@ use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, hash_from_hex, hash_to_hex};
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::snapshot::{EntityKind, OfferOption, Snapshot};
+use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::parse_and_validate;
 
 fn corpus_dir() -> PathBuf {
@@ -124,9 +128,15 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let replay_bytes = fs::read(case.join("run.replay")).map_err(|e| fail(&e))?;
     let hashes = read_hashes(case, &name)?;
     let recorded = RunReplay::from_bytes(&replay_bytes).map_err(|e| fail(&e))?;
-    let stage = run_setup::stage(&recorded.setup).map_err(|e| fail(&e))?;
+    let content = case_content(case).map_err(|e| fail(&e))?;
+    let stage =
+        run_setup::stage_with(&recorded.setup, content.time_limit()).map_err(|e| fail(&e))?;
     let inputs = recorded
-        .unpack_inputs(stage.length_ticks)
+        .unpack_inputs(run_setup::max_replay_ticks(
+            &recorded.setup,
+            &stage,
+            content.time_limit(),
+        ))
         .map_err(|e| fail(&e))?;
     let commands = recorded.unpack_commands().map_err(|e| fail(&e))?;
     if hashes.len() != inputs.len() {
@@ -137,7 +147,7 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
         )));
     }
 
-    let mut engine = Engine::start(&recorded.setup).map_err(|e| fail(&e))?;
+    let mut engine = Engine::start_with(&recorded.setup, &content).map_err(|e| fail(&e))?;
     let mut next = commands.iter().peekable();
     for (input, expected) in inputs.iter().zip(&hashes) {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
@@ -149,13 +159,26 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
             return Err(divergence(&name, *expected, &engine, &previous, diff_dir));
         }
     }
-    run_replay::verify_run_against(&replay_bytes, &hashes).map_err(|e| fail(&e))?;
+    run_replay::verify_run_against_with(&replay_bytes, &content, &hashes).map_err(|e| fail(&e))?;
     Ok(())
 }
 
+/// The content a run case plays with: the bundled files, and the `time_limit` mode file of its
+/// own when the case has a `mode.json` (a short mode, so that a run ends by the final boss's
+/// kill or by the overtime without 20 minutes of play).
+fn case_content(case: &Path) -> Result<RunContent, String> {
+    match fs::read(case.join("mode.json")) {
+        Ok(bytes) => {
+            let mode = TimeLimit::parse(&bytes).map_err(|e| e.to_string())?;
+            Ok(RunContent::bundled().clone().with_time_limit(mode))
+        }
+        Err(_) => Ok(RunContent::bundled().clone()),
+    }
+}
+
 /// The hash after every tick of a run replay, before the commands that follow it.
-fn run_hashes(replay: &RunReplay) -> Vec<u64> {
-    let mut engine = Engine::start(&replay.setup).unwrap();
+fn run_hashes(replay: &RunReplay, content: &RunContent) -> Vec<u64> {
+    let mut engine = Engine::start_with(&replay.setup, content).unwrap();
     let commands = replay.unpack_commands().unwrap();
     let mut next = commands.iter().peekable();
     let mut hashes = Vec::new();
@@ -169,14 +192,22 @@ fn run_hashes(replay: &RunReplay) -> Vec<u64> {
     hashes
 }
 
-/// Writes a run case's two files from a setup and the commands to run.
-fn write_run_case(dir: &Path, setup: &RunSetup, commands: &[Command]) {
-    let recorded = run_replay::record_run(setup, commands).unwrap();
-    let hashes: String = run_hashes(&recorded)
+/// Writes a run case's files from a setup and the commands to run, and the mode file it plays
+/// with if it has one.
+fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[Command]) {
+    fs::create_dir_all(dir).unwrap();
+    let content = match mode {
+        Some(json) => {
+            fs::write(dir.join("mode.json"), json).unwrap();
+            case_content(dir).unwrap()
+        }
+        None => RunContent::bundled().clone(),
+    };
+    let recorded = run_replay::record_run_with(setup, &content, commands).unwrap();
+    let hashes: String = run_hashes(&recorded, &content)
         .into_iter()
         .map(|h| hash_to_hex(h) + "\n")
         .collect();
-    fs::create_dir_all(dir).unwrap();
     fs::write(dir.join("run.replay"), recorded.to_bytes()).unwrap();
     fs::write(dir.join("hashes.txt"), hashes).unwrap();
 }
@@ -338,6 +369,7 @@ fn changed_run_case(name: &str) -> (PathBuf, PathBuf) {
     write_run_case(
         &case,
         &common::run::trial_setup(),
+        None,
         &common::run::play_run(point + 20),
     );
     (case, dir.join("diff"))
@@ -813,17 +845,71 @@ fn definitions() -> Vec<Definition> {
 /// The run cases: the trial mode played until the main character falls, spending its points
 /// and answering its offers on the way, with every kind of option; and the same from another
 /// seed, whose run takes a stage skill from an elite's star and uses it.
-fn run_definitions() -> Vec<(&'static str, RunSetup, Vec<Command>)> {
-    use common::run::{STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, trial_setup};
+fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command>)> {
+    use common::run::{
+        STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, time_limit_setup, trial_setup,
+    };
     let stage_skill = RunSetup {
         seed: STAGE_SKILL_SEED,
         ..trial_setup()
     };
     let stage_skill_commands = play_run_from(&stage_skill, TRIAL_LENGTH);
+    // The time_limit mode's waves around the main character, played until it falls (it does
+    // before the first boss time; the bosses are in `tests/time_limit_run.rs`).
+    let time_limit = time_limit_setup();
+    let time_limit_commands = play_run_from(&time_limit, 25_000);
+    // Two short modes with no waves and the final boss at tick 60, the only boss: in the first
+    // the overtime is long enough for the main character to kill it (it does, at tick 8098);
+    // in the second it ends at tick 600 with the boss alive.
+    let (kill_mode, kill_content) = short_time_limit(12_000);
+    let kill_setup = time_limit_setup();
+    let kill_commands = play_run_with(&kill_setup, &kill_content, 12_060, boss_input);
+    let (overtime_mode, overtime_content) = short_time_limit(540);
+    let kill_setup_2 = time_limit_setup();
+    let overtime_commands = play_run_with(&kill_setup_2, &overtime_content, 600, boss_input);
     vec![
-        ("trial", trial_setup(), play_run(TRIAL_LENGTH)),
-        ("stage_skill", stage_skill, stage_skill_commands),
+        ("trial", trial_setup(), None, play_run(TRIAL_LENGTH)),
+        ("stage_skill", stage_skill, None, stage_skill_commands),
+        ("time_limit", time_limit, None, time_limit_commands),
+        (
+            "time_limit_kill",
+            kill_setup,
+            Some(kill_mode),
+            kill_commands,
+        ),
+        (
+            "time_limit_overtime",
+            kill_setup_2,
+            Some(overtime_mode),
+            overtime_commands,
+        ),
     ]
+}
+
+/// A `time_limit` mode with no waves, the final boss at tick 60 and `overtime` ticks of overtime,
+/// as its file and as the content a run reads it with.
+fn short_time_limit(overtime: u32) -> (String, RunContent) {
+    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    v["length_ticks"] = json!(60);
+    v["boss_ticks"] = json!([60]);
+    v["overtime_ticks"] = json!(overtime);
+    v["waves"] = json!([]);
+    let json = serde_json::to_string_pretty(&v).unwrap() + "\n";
+    let content = RunContent::bundled()
+        .clone()
+        .with_time_limit(TimeLimit::parse(json.as_bytes()).unwrap());
+    (json, content)
+}
+
+/// The run's buttons going for the boss as well as the enemies, getting out of the way of
+/// bullets throughout.
+fn boss_input(engine: &Engine, tick: u32) -> Input {
+    common::run::run_input_for(
+        engine,
+        tick,
+        &[EntityKind::Enemy, EntityKind::Boss],
+        u32::MAX,
+    )
 }
 
 /// What a run case does, re-simulated from its file.
@@ -910,6 +996,52 @@ fn the_run_cases_are_what_their_names_say() {
             kinds.contains(&std::mem::discriminant(&kind)),
             "no {kind:?} in the run case"
         );
+    }
+    // The time_limit run ends with the main character falling, after spends.
+    replay_run_case("time_limit");
+    // The short time_limit runs end by the final boss's kill and by the overtime limit.
+    for (name, outcome, ticks, boss_alive) in [
+        ("time_limit_kill", Outcome::Cleared, None, false),
+        ("time_limit_overtime", Outcome::Failed, Some(600), true),
+    ] {
+        let case = runs_dir().join(name);
+        let content = case_content(&case).unwrap();
+        let bytes = fs::read(case.join("run.replay")).unwrap();
+        let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
+        assert_eq!(verified.outcome, outcome, "`{name}` ends");
+        if let Some(ticks) = ticks {
+            assert_eq!(
+                verified.ticks, ticks,
+                "`{name}` ends at the length and the overtime"
+            );
+        }
+        let replay = RunReplay::from_bytes(&bytes).unwrap();
+        let mut engine = Engine::start_with(&replay.setup, &content).unwrap();
+        let commands = replay.unpack_commands().unwrap();
+        let mut next = commands.iter().peekable();
+        for input in replay.unpack_inputs(u32::MAX).unwrap() {
+            while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
+                apply(&mut engine, c).unwrap();
+            }
+            engine.step(input);
+        }
+        let boss = engine
+            .snapshot()
+            .entities
+            .into_iter()
+            .find(|v| v.kind == EntityKind::Boss);
+        assert_eq!(
+            boss.is_some_and(|b| b.hp > 0),
+            boss_alive,
+            "`{name}`: the final boss"
+        );
+        let last = engine.events();
+        let ended = if outcome == Outcome::Cleared {
+            DomainEvent::StageCleared
+        } else {
+            DomainEvent::StageFailed
+        };
+        assert!(last.contains(&ended), "`{name}` reports {ended:?}");
     }
     // An elite's rare star offers the black hole, taken, then used each time it is ready.
     let used = replay_run_case("stage_skill").used;
@@ -1124,8 +1256,8 @@ fn the_corpus_matches() {
         for (name, stage_bytes, inputs) in definitions() {
             write_case(&corpus_dir().join(name), &stage_bytes, &inputs);
         }
-        for (name, setup, commands) in run_definitions() {
-            write_run_case(&runs_dir().join(name), &setup, &commands);
+        for (name, setup, mode, commands) in run_definitions() {
+            write_run_case(&runs_dir().join(name), &setup, mode.as_deref(), &commands);
         }
     }
     let mut cases: Vec<PathBuf> = fs::read_dir(corpus_dir())

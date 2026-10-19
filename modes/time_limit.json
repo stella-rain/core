@@ -1,0 +1,129 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "time_limit",
+  "length_ticks": 72000,
+  "boss_ticks": [
+    18000,
+    36000,
+    54000,
+    72000
+  ],
+  "mid_boss_pool": [
+    "golem",
+    "golem",
+    "golem"
+  ],
+  "final_boss": "golem",
+  "overtime_ticks": 18000,
+  "star_hunter_extra_ticks": 3600,
+  "map": {
+    "width": 1048576,
+    "height": 1048576,
+    "start": {
+      "x": 524288,
+      "y": 524288
+    }
+  },
+  "waves": [
+    {
+      "at_tick": 60,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 192
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 70,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 102400,
+      "count": 1199,
+      "every_ticks": 60,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
+    },
+    {
+      "at_tick": 90,
+      "enemy": {
+        "base": "bat",
+        "hp": 60,
+        "radius": 3072,
+        "profile": {
+          "weak": [
+            "strike"
+          ]
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 90,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 115200,
+      "count": 798,
+      "every_ticks": 90,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
+    }
+  ]
+}

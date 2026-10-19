@@ -37,6 +37,15 @@ pub const MAX_TITLE_CHARS: usize = 32;
 /// The longest description, in characters.
 pub const MAX_DESCRIPTION_CHARS: usize = 160;
 
+/// The most the attack speed total can reach, in percent: a placeholder (expertise options have
+/// no stack limit, so the total is held here, ADR-099). The total saturates at it.
+pub const MAX_ATTACK_SPEED_PCT: u32 = 500;
+
+/// The attack speed total `total` held to `MAX_ATTACK_SPEED_PCT`.
+pub fn capped_attack_speed_pct(total: u32) -> u32 {
+    total.min(MAX_ATTACK_SPEED_PCT)
+}
+
 /// What a point in a stat does, `step` times over. The closed list of version 0's effects;
 /// percentages add up over every stat with the same effect and round down.
 #[derive(

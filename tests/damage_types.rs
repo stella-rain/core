@@ -3,7 +3,7 @@
 //! profile. Each hit gets exactly one match-up, weak (+20), strong (−20), resisted (−20) or
 //! none, applied as a target's multiplier after vulnerability and before defence (ADR-056).
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

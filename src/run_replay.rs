@@ -61,7 +61,7 @@ pub struct RunReplay {
     /// (`content_sha256_with`). Other content invalidates
     /// the replay.
     pub content_sha256: String,
-    /// Ticks recorded, at most the mode's length. A run that ended ends on the tick it ended.
+    /// Ticks recorded, at most the mode's length (a `time_limit` run's: its length, overtime and the Star-Hunter's extra time). A run that ended ends on the tick it ended.
     pub ticks: u32,
     /// The FNV-1a 64 state hash after the last tick and the commands after it (ADR-019), 16
     /// lowercase hex digits.
@@ -276,10 +276,14 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 /// skills, the expertise, the match-ups and the runes, tagged and length-prefixed.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
-    let file = run_setup::mode_stage(mode)?;
+    let file = if mode == "time_limit" {
+        run_setup::time_limit_file(content.time_limit())
+    } else {
+        run_setup::mode_file(mode)?.to_vec()
+    };
     Some(hash_content(
         mode,
-        file,
+        &file,
         &content.run_stats().sha256(),
         &content.rewards().sha256(),
         &content.stage_skills().sha256(),
@@ -519,7 +523,16 @@ impl RunRecorder {
 /// stops on the tick the run ends, so commands after it are left out; a command the engine
 /// refuses fails closed.
 pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<RunReplay, RunReplayError> {
-    let mut recorder = RunRecorder::start(setup)?;
+    record_run_with(setup, RunContent::bundled(), commands)
+}
+
+/// As `record_run`, with the content files `content` in place of the bundled ones.
+pub fn record_run_with(
+    setup: &RunSetup,
+    content: &RunContent,
+    commands: &[Command],
+) -> Result<RunReplay, RunReplayError> {
+    let mut recorder = RunRecorder::start_with(setup, content)?;
     for command in commands {
         if recorder.engine.outcome() != Outcome::Running {
             break;
@@ -557,20 +570,34 @@ pub fn verify_run_against(
     verify_inner(replay_bytes, RunContent::bundled(), Some(expected))
 }
 
+/// As `verify_run_against`, with the content files the run used in place of the bundled ones.
+pub fn verify_run_against_with(
+    replay_bytes: &[u8],
+    content: &RunContent,
+    expected: &[u64],
+) -> Result<RunVerified, RunReplayError> {
+    verify_inner(replay_bytes, content, Some(expected))
+}
+
 fn verify_inner(
     replay_bytes: &[u8],
     run_content: &RunContent,
     expected: Option<&[u64]>,
 ) -> Result<RunVerified, RunReplayError> {
     let replay = RunReplay::from_bytes(replay_bytes)?;
-    let stage = run_setup::stage(&replay.setup).map_err(RunReplayError::Setup)?;
+    let stage = run_setup::stage_with(&replay.setup, run_content.time_limit())
+        .map_err(RunReplayError::Setup)?;
     let content = content_sha256_with(&replay.setup.mode.0, run_content)
         .ok_or(RunReplayError::ContentChanged)?;
     if replay.content_sha256 != to_hex(&content) {
         return Err(RunReplayError::ContentChanged);
     }
     let final_hash = hash_from_hex(&replay.final_hash).ok_or(RunReplayError::BadHash)?;
-    let inputs = replay.unpack_inputs(stage.length_ticks)?;
+    let inputs = replay.unpack_inputs(run_setup::max_replay_ticks(
+        &replay.setup,
+        &stage,
+        run_content.time_limit(),
+    ))?;
     let commands = replay.unpack_commands()?;
     if let Some(expected) = expected {
         if expected.len() != inputs.len() {

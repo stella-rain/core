@@ -12,6 +12,7 @@ use crate::rewards::Rewards;
 use crate::run_stats::RunStats;
 use crate::runes::Runes;
 use crate::stage_skill::StageSkills;
+use crate::time_limit::TimeLimit;
 
 /// Content files that passed validation, each with the SHA-256 of its bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -21,6 +22,7 @@ pub struct RunContent {
     expertise: Expertise,
     match_ups: MatchUps,
     runes: Runes,
+    time_limit: TimeLimit,
 }
 
 impl RunContent {
@@ -32,6 +34,7 @@ impl RunContent {
             expertise: Expertise::bundled().clone(),
             match_ups: *MatchUps::bundled(),
             runes: Runes::bundled().clone(),
+            time_limit: TimeLimit::bundled().clone(),
         }
     }
 
@@ -48,6 +51,12 @@ impl RunContent {
     /// The same content with `runes` in place of its runes.
     pub fn with_runes(self, runes: Runes) -> RunContent {
         RunContent { runes, ..self }
+    }
+
+    /// The same content with `time_limit` in place of the `time_limit` mode's file: what its
+    /// runs and its replays' bounds are read from, and part of their content hash.
+    pub fn with_time_limit(self, time_limit: TimeLimit) -> RunContent {
+        RunContent { time_limit, ..self }
     }
 
     /// The bundled files, the content of every run.
@@ -81,6 +90,11 @@ impl RunContent {
     /// What each on-hit rune does when it fires.
     pub fn runes(&self) -> &Runes {
         &self.runes
+    }
+
+    /// The `time_limit` mode's file.
+    pub fn time_limit(&self) -> &TimeLimit {
+        &self.time_limit
     }
 
     /// The stage skills the rewards give: those the rewards were read with.

@@ -13,7 +13,7 @@ use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::Error;
 
-mod common;
+use crate::common;
 
 use common::*;
 
@@ -158,6 +158,7 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
                 target: EntityId(2),
                 damage: 10,
                 match_up: MatchUp::None,
+                rune: None,
             }
         ))
     ));
@@ -235,6 +236,7 @@ fn beating_the_boss_clears_the_stage() {
                 target: EntityId(1),
                 damage: 10,
                 match_up: MatchUp::None,
+                rune: None,
             },
             &DomainEvent::Died {
                 entity: EntityId(1)

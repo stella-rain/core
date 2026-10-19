@@ -1,0 +1,105 @@
+//! The integration tests, built as one binary (`autotests = false` in Cargo.toml): every other
+//! file in `tests/` is a module here, so the engine is compiled and linked once for all of them
+//! instead of once per file. Run one file's tests with a filter on its module:
+//! `cargo test --test integration corpus::`.
+
+mod common;
+
+mod agents;
+mod assist;
+mod attacks;
+mod auto;
+mod base64;
+mod bleed;
+mod boomerang;
+mod boss;
+mod charge;
+mod collide_case;
+mod content_hash;
+mod controls;
+mod corpus;
+mod damage_types;
+mod defence;
+mod elites;
+mod engine;
+mod evade;
+mod expertise;
+mod expertise_gauge;
+mod expertise_offers;
+mod explosion;
+mod extremes;
+mod golden;
+mod hash;
+mod hit_boxes;
+mod hit_marks;
+mod homing_missiles;
+mod levels;
+mod map;
+mod match_ups;
+mod orbit;
+mod overflow;
+mod parsed_stage_hash;
+mod phases;
+mod poison_burn;
+mod properties;
+mod push_apart;
+mod range_reward;
+mod recording;
+mod registry;
+mod replay;
+mod rewards;
+mod rng;
+mod run_replay;
+mod run_setup;
+mod run_stats;
+mod rune_haste;
+mod runes;
+mod runes_file;
+mod schema;
+mod share;
+mod shot;
+mod spike;
+mod stage_skill;
+mod stage_skill_file;
+mod stage_verify;
+mod stars;
+mod thunder;
+mod time_limit;
+mod time_limit_end;
+mod time_limit_run;
+mod trig;
+mod type_bonuses;
+mod types;
+mod validate;
+mod weapons;
+mod worst_case;
+
+/// With `autotests = false`, a new file in `tests/` builds and runs only once it is a module
+/// here; a missing `mod` line would leave its tests out silently.
+#[test]
+fn every_test_file_is_a_module_here() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let declared: Vec<&str> = include_str!("integration.rs")
+        .lines()
+        .filter_map(|line| line.strip_prefix("mod ")?.strip_suffix(';'))
+        .collect();
+    let mut missing = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
+        let path = entry.expect("a tests/ entry").path();
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if path.extension().is_some_and(|e| e == "rs")
+            && stem != "integration"
+            && !declared.contains(&stem)
+        {
+            missing.push(stem.to_owned());
+        }
+    }
+    missing.sort();
+    assert!(
+        missing.is_empty(),
+        "tests/ files without `mod` here: {missing:?}"
+    );
+}
+mod time_limit_case;

@@ -15,10 +15,11 @@ use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 
-mod common;
+use crate::common;
 
 use common::on_hit::*;
 use common::run::{TRIAL_LENGTH, run_input, trial_setup};
@@ -49,10 +50,10 @@ fn runes(cooldown: u32, damage: u32, right: i32) -> Runes {
     ])
 }
 
-/// The stage with five small enemies and the tough target, every rune taken from its star.
+/// The stage with seven small enemies and the tough target, every rune taken from its star.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(5, target),
+        &stage(7, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
@@ -134,7 +135,7 @@ fn it_hits_an_enemy_on_its_way_once_out_and_once_back() {
         START_X + right,
         START_Y - 4_096,
     );
-    let mut s = stage(5, tough(0, None, None));
+    let mut s = stage(7, tough(0, None, None));
     s.waves.push(serde_json::from_value(beside).unwrap());
     let mut e = with(
         &s,
@@ -310,7 +311,7 @@ fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
                 "description": "" }),
     ];
     let mut e = with(
-        &stage(7, tough(0, Some(profile), None)),
+        &stage(9, tough(0, Some(profile), None)),
         &content(rewards, Some(json!([war_cry])), runes(60, 10, 0)),
     );
     take_all(&mut e);
@@ -397,7 +398,12 @@ fn a_run_holding_boomerang_records_and_verifies() {
         None,
         Runes::bundled().clone(),
     );
-    let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
+    // A seed whose run draws boomerang among the seven runes: the trial has stars for about four.
+    let setup = RunSetup {
+        seed: 20_261_012,
+        ..trial_setup()
+    };
+    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
     let mut fired = false;
     for t in 0..TRIAL_LENGTH {
         while recorder.engine().offer_open() {

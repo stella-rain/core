@@ -11,10 +11,11 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 
-mod common;
+use crate::common;
 
 use common::on_hit::*;
 use common::run::{run_input, trial_setup};
@@ -56,11 +57,11 @@ fn runes(cooldown: u32, damage: u32, ty: Option<&str>) -> Runes {
     ])
 }
 
-/// The stage with five small enemies and the tough target, every rune taken from their
+/// The stage with seven small enemies and the tough target, every rune taken from their
 /// stars.
 fn holding(runes: Runes, target: Value) -> Engine {
     let mut e = with(
-        &stage(5, target),
+        &stage(7, target),
         &content(vec![random_rune()], None, runes),
     );
     take_all(&mut e);
@@ -201,7 +202,7 @@ fn boosted(ty: Option<&str>, profile: Value) -> (u32, u32) {
                 "description": "" }),
     ];
     let mut e = with(
-        &stage(7, tough(0, Some(profile), None)),
+        &stage(9, tough(0, Some(profile), None)),
         &content(rewards, Some(json!([war_cry])), runes(60, 10, ty)),
     );
     take_all(&mut e);
@@ -263,7 +264,12 @@ fn a_run_holding_thunder_records_and_verifies() {
         None,
         Runes::bundled().clone(),
     );
-    let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
+    // A seed whose run draws thunder among the seven runes: the trial has stars for about four.
+    let setup = RunSetup {
+        seed: 20_261_011,
+        ..trial_setup()
+    };
+    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
     let mut fired = false;
     for t in 0..1_800 {
         while recorder.engine().offer_open() {

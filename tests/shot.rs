@@ -4,7 +4,7 @@
 //! field (0 is down). Small stages whose every tick can be worked out by hand:
 //! the main character stands at (46080, 147456) unless a test moves it.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

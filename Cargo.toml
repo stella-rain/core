@@ -1,12 +1,16 @@
 [package]
 name = "stella-rain-core"
-version = "0.0.10"
+version = "0.0.11"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 description = "Deterministic simulation for Stella Rain"
 repository = "https://github.com/stella-rain/core"
 publish = false
+# The integration tests build as one binary, `tests/integration.rs`, not one per file: each
+# binary re-optimises and links the engine on its own, which made a release test build spend
+# 85% of its time on 62 copies of the same work.
+autotests = false
 
 [lib]
 name = "stella_rain_core"
@@ -47,12 +51,20 @@ proptest = { version = "1.11", default-features = false, features = ["std"] }
 # simulation path. Needs the `iai-callgrind-runner` binary of the same version and `valgrind`.
 iai-callgrind = "0.16.1"
 
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
 [[bench]]
 name = "worst_tick"
 harness = false
 
 [[bench]]
 name = "collide_tick"
+harness = false
+
+[[bench]]
+name = "time_limit_tick"
 harness = false
 
 # Overflow behaves the same in every profile (ADR-019): it panics unless the code says

@@ -1,5 +1,5 @@
 //! The checked-in JSON Schema matches the types (ADR-018). After changing a type, regenerate:
-//! `UPDATE_SCHEMA=1 cargo test --test schema`, and commit the diff with the change.
+//! `UPDATE_SCHEMA=1 cargo test --test integration schema::`, and commit the diff with the change.
 
 use std::path::Path;
 
@@ -30,6 +30,6 @@ fn checked_in_schema_is_current() {
     }
     assert!(
         stale.is_empty(),
-        "stale schema files {stale:?}: run `UPDATE_SCHEMA=1 cargo test --test schema`"
+        "stale schema files {stale:?}: run `UPDATE_SCHEMA=1 cargo test --test integration schema::`"
     );
 }

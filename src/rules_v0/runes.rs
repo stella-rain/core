@@ -11,7 +11,8 @@
 //! here draws from the generator.
 //!
 //! Damage-over-time runes (`apply_dots`): a combo step's hit that leaves its target standing
-//! puts each one's status on it, bleed's `bleed`, or a stack more of it up to the runes file's
+//! puts each one's status on it, bleed's `bleed`, poison's `poison`, burn's `burn`, or a stack
+//! more of it up to the runes file's
 //! maximum, starting its duration again (`State::add_dot`). Its damage is the main
 //! character's without a combo step (point 3): the runes file's damage a stack, raised by the
 //! main character's atk-up and its type bonus for the rune's type as they are when it is
@@ -43,7 +44,7 @@
 //! so no more fly at once. A damage-over-time status is one per kind on an entity, its stacks,
 //! interval, duration and damage held to `MAX_DOT_STACKS`, `MAX_DOT_INTERVAL_TICKS`,
 //! `MAX_DOT_DURATION_TICKS` and `MAX_DAMAGE`; so an entity carries at most one status of each
-//! of `StatusKind`'s kinds, and the enemies at most `MAX_ENEMIES_ALIVE` bleeds.
+//! of `StatusKind`'s kinds, and the enemies at most `MAX_ENEMIES_ALIVE` of each.
 
 use std::sync::Arc;
 
@@ -52,9 +53,9 @@ use crate::engine::{DotState, HeldRune, PlayerState, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
-use crate::rewards::MAX_TYPE_BONUS_PCT;
+use crate::rewards::{MAX_TYPE_BONUS_PCT, rune_haste_ticks};
 use crate::rng::SplitMix64;
-use crate::rune::{MAX_RUNES, Rune};
+use crate::rune::{MAX_RUNES, Rune, RuneKind};
 use crate::runes::{
     MAX_DOT_DURATION_TICKS, MAX_DOT_INTERVAL_TICKS, MAX_DOT_STACKS, MAX_HOMING_MISSILES,
     MAX_RUNE_COOLDOWN_TICKS,
@@ -70,6 +71,21 @@ use super::{attacks, select};
 pub(super) const FIRST_SLOT: u8 = 34;
 /// Homing missiles' first missile's slot; missile k's is this plus k, past every rune's.
 pub(super) const MISSILE_SLOT: u8 = 64;
+
+/// The on-hit rune whose attack run `r` is, by its slot (`FIRST_SLOT` plus the rune's place, or
+/// a missile's); `None` for every other run.
+pub(super) fn of_run(r: &crate::engine::AttackRun) -> Option<Rune> {
+    if r.owner != super::PLAYER_ID {
+        return None;
+    }
+    match r.slot {
+        s if s >= MISSILE_SLOT => Some(Rune::HomingMissiles),
+        s => Rune::ALL
+            .get(usize::from(s.checked_sub(FIRST_SLOT)?))
+            .copied()
+            .filter(|r| r.kind() == RuneKind::OnHit),
+    }
+}
 
 /// Every on-hit rune's cooldown counts down by a tick.
 pub(super) fn tick(s: &mut State) {
@@ -98,14 +114,20 @@ pub(super) fn on_hit(
         let Some(entry) = s.runes.on_hit(rune) else {
             continue;
         };
-        let (cooldown, damage) = (entry.cooldown_ticks, entry.damage);
+        // The validator holds the cooldown to the cap; the clamp keeps an unvalidated file
+        // there. Rune Haste shortens it as it is set.
+        let cooldown = rune_haste_ticks(
+            entry.cooldown_ticks.min(MAX_RUNE_COOLDOWN_TICKS),
+            s.player.rune_haste_pct,
+        );
+        let damage = entry.damage;
         let phases = Arc::new(entry.attack.clone());
         let slot = FIRST_SLOT.saturating_add(rune.index());
         let facing = s.player.facing;
         if rune == Rune::HomingMissiles {
             let (missiles, range) = (entry.missiles.unwrap_or(1), entry.range.unwrap_or(Fx(0)));
             if launch(stage, s, hit, at, missiles, range, phases, damage, events) {
-                s.player.runes[i].cooldown_left = cooldown.min(MAX_RUNE_COOLDOWN_TICKS);
+                s.player.runes[i].cooldown_left = cooldown;
             }
             continue;
         }
@@ -121,9 +143,7 @@ pub(super) fn on_hit(
                     fly_one(s, r);
                 }
             }
-            // The validator holds the cooldown to the cap; the clamp keeps an unvalidated file
-            // there.
-            s.player.runes[i].cooldown_left = cooldown.min(MAX_RUNE_COOLDOWN_TICKS);
+            s.player.runes[i].cooldown_left = cooldown;
         }
     }
 }
@@ -135,13 +155,18 @@ pub(super) fn apply_dots(s: &mut State, target: Who, events: &mut Vec<DomainEven
         let rune = s.player.runes[i].rune;
         let kind = match rune {
             Rune::Bleed => StatusKind::Bleed,
+            Rune::Poison => StatusKind::Poison,
+            Rune::Burn => StatusKind::Burn,
             Rune::Explosion | Rune::Thunder | Rune::Boomerang | Rune::HomingMissiles => continue,
         };
         let Some(entry) = s.runes.damage_over_time(rune) else {
             continue;
         };
         // The validator holds every number to its cap; the clamps keep an unvalidated file there.
-        let interval = entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS);
+        let interval = rune_haste_ticks(
+            entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS),
+            s.player.rune_haste_pct,
+        );
         let duration = entry.duration_ticks.clamp(1, MAX_DOT_DURATION_TICKS);
         let max_stacks = u16::try_from(entry.max_stacks.clamp(1, MAX_DOT_STACKS)).unwrap_or(1);
         let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);

@@ -3,7 +3,7 @@
 //! boss stands at (46080, 60000), straight above the main character, with a hurt circle of
 //! radius 8192, and the main character is at (46080, 147456).
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

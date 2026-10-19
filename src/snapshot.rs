@@ -152,9 +152,6 @@ pub struct ExpertiseCandidateView {
     /// Its ID in the weapon's expertise content: a common option, a style, or a choice of the
     /// chosen style's path.
     pub option: ContentId,
-    /// Taking it brings it to its stack limit, after which it is offered no more.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub reaches_limit: bool,
 }
 
 /// Where the run stands in experience, levels and stat points (ADR-079 §2, §4).
@@ -287,6 +284,11 @@ pub struct PlayerView {
     /// `MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub range_pct: u32,
+    /// What the Rune Haste rewards taken add up to, in percent, before the clamp at
+    /// `MAX_RUNE_HASTE_PCT` (ADR-099). The shorter cooldowns and intervals are already in the
+    /// runes' cooldowns and the statuses' timers.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub rune_haste_pct: u32,
     /// What the type bonus rewards taken add up to, for each damage type that has any, in the
     /// order of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`
     /// (ADR-100).
@@ -447,11 +449,11 @@ pub struct EntityView {
     pub damage_over_time: Vec<DamageOverTimeView>,
 }
 
-/// A damage-over-time status on an entity (ADR-099), such as bleed.
+/// A damage-over-time status on an entity (ADR-099): bleed, poison or burn.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DamageOverTimeView {
-    /// The status's ID: `bleed`.
+    /// The status's ID: `bleed`, `poison` or `burn`.
     pub status: ContentId,
     pub stacks: u16,
     /// Ticks until it runs out, unless it is applied again.

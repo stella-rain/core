@@ -14,7 +14,7 @@ use stella_rain_core::run_replay::{content_sha256, content_sha256_with};
 use stella_rain_core::snapshot::ExpertiseView;
 use stella_rain_core::stage::Stage;
 
-mod common;
+use crate::common;
 
 use common::*;
 

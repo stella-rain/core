@@ -11,7 +11,7 @@ use stella_rain_core::run_setup::{
 use stella_rain_core::validate::{self, Error, Issue};
 use stella_rain_core::weapon::WeaponRef;
 
-mod common;
+use crate::common;
 
 fn setup() -> RunSetup {
     RunSetup {
@@ -226,13 +226,17 @@ fn every_mode_has_content_that_validates_and_nothing_else_has() {
         .map(|e| e.id)
         .collect();
     assert!(modes.contains(&"trial"));
-    for id in &modes {
+    for id in modes.iter().filter(|id| **id != "time_limit") {
         let content = run_setup::mode_stage(id).unwrap_or_else(|| panic!("{id} has no content"));
         if let Err(e) = validate::parse_and_validate(content) {
             panic!("mode {id}: {e}");
         }
     }
+    for id in &modes {
+        assert!(run_setup::mode_file(id).is_some(), "{id} has no file");
+    }
     assert_eq!(run_setup::mode_stage("blade"), None);
+    assert_eq!(run_setup::mode_file("blade"), None);
 }
 
 // --- The star pool and extra rerolls (ADR-079 §1) ---------------------------------------------

@@ -7,6 +7,7 @@ use crate::event::DomainEvent;
 use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::MAX_TYPE_BONUS_PCT;
+use crate::rune::Rune;
 use crate::stage::Stage;
 
 use super::{MAX_AGGRO, PLAYER_ID, Shot};
@@ -336,6 +337,7 @@ fn tick_dots_of(stage: &Stage, s: &mut State, who: Who, events: &mut Vec<DomainE
                 breaks_charge: false,
                 pull: None,
                 combo: false,
+                rune: Rune::of_dot(st.kind),
             };
             super::damage(stage, s, shot, who, events);
         }

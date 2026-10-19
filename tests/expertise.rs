@@ -1,5 +1,5 @@
 //! Expertise content (ADR-078 §7, ADR-067): the thresholds of levels 1 to 10, the growth factor
-//! and its maximum, each weapon's three styles and common pool, and the stack limits, read from
+//! and its maximum, each weapon's three styles and common pool, read from
 //! JSON as untrusted bytes (ADR-020). Nothing reads it yet; these tests hold its bounds: the
 //! thresholds rise strictly, the factor is above 1, no pool is empty, every weapon has three
 //! complete styles, and every number is capped.
@@ -7,7 +7,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::expertise::{
     Expertise, ExpertiseEffect, MAX_COMMON_OPTIONS, MAX_EXPERTISE_BYTES, MAX_GROWTH_PCT,
-    MAX_LEVEL_POINTS, MAX_STACK_LIMIT, MAX_STYLE_CHOICES, STYLES, TABLE_LEVELS,
+    MAX_LEVEL_POINTS, MAX_STYLE_CHOICES, STYLES, TABLE_LEVELS,
 };
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::rewards::{MAX_AMOUNT, MAX_RANGE_PCT};
@@ -36,8 +36,8 @@ fn style(id: &str) -> Value {
     })
 }
 
-fn limited(id: &str, limit: u8) -> Value {
-    let mut o = option(id, "attack_speed_pct", 10);
+fn limited(id: &str, effect: &str, limit: u8) -> Value {
+    let mut o = option(id, effect, 10);
     o["limit"] = json!(limit);
     o
 }
@@ -46,7 +46,7 @@ fn weapon(id: &str) -> Value {
     json!({
         "weapon": id,
         "styles": [style("one"), style("two"), style("three")],
-        "common": [option("damage", "attack_pct", 10), limited("attack_speed", 5)]
+        "common": [option("damage", "attack_pct", 10), option("attack_speed", "attack_speed_pct", 10)]
     })
 }
 
@@ -118,15 +118,14 @@ fn the_bundled_file_covers_every_weapon_with_three_complete_styles() {
             assert!(!s.upgrade_6.is_empty() && !s.upgrade_9.is_empty() && !s.capstone.is_empty());
         }
         assert!(!w.common.is_empty(), "{}", w.weapon.0);
-        // Only attack speed carries a stack limit (cooldown reduction has no kind in core yet).
-        for o in &w.common {
-            assert_eq!(
-                o.limit.is_some(),
-                o.effect == ExpertiseEffect::AttackSpeedPct,
-                "{}",
-                o.id.0
-            );
-        }
+        // No option has a stack limit, attack speed included (ADR-099).
+        assert!(
+            w.common
+                .iter()
+                .any(|o| o.effect == ExpertiseEffect::AttackSpeedPct),
+            "{}",
+            w.weapon.0
+        );
         assert_eq!(bundled.weapon(&w.weapon), Some(w));
     }
 }
@@ -304,26 +303,24 @@ fn no_common_pool_is_empty_or_past_its_budget() {
 }
 
 #[test]
-fn only_attack_speed_carries_a_stack_limit_and_it_is_bounded() {
-    let at = "$.weapons[0].common[1].limit";
-    invalid_at(
-        &with("/weapons/0/common/1", option("x", "attack_speed_pct", 10)),
-        at,
-    );
-    invalid_at(&with("/weapons/0/common/1", limited("x", 0)), at);
-    valid(&with("/weapons/0/common/1", limited("x", MAX_STACK_LIMIT)));
-    invalid_at(
-        &with("/weapons/0/common/1", limited("x", MAX_STACK_LIMIT + 1)),
-        at,
-    );
-    let mut damage = option("x", "attack_pct", 10);
-    damage["limit"] = json!(3);
-    invalid_at(&with("/weapons/0/common/1", damage), at);
-    // A style's choices are fixed, never drawn: no limit there either.
-    invalid_at(
-        &with("/weapons/0/styles/0/upgrade_6/0", limited("x", 3)),
-        "$.weapons[0].styles[0].upgrade_6[0].limit",
-    );
+fn no_expertise_option_has_a_stack_limit() {
+    valid(&with(
+        "/weapons/0/common/1",
+        option("x", "attack_speed_pct", 10),
+    ));
+    // The strict parse refuses the field, wherever it appears.
+    for (at, effect, limit) in [
+        ("/weapons/0/common/1", "attack_speed_pct", 0),
+        ("/weapons/0/common/1", "attack_speed_pct", 5),
+        ("/weapons/0/common/1", "attack_speed_pct", 21),
+        ("/weapons/0/common/1", "attack_pct", 3),
+        ("/weapons/0/styles/0/upgrade_6/0", "attack_speed_pct", 3),
+    ] {
+        assert!(
+            parse(&with(at, limited("x", effect, limit))).is_err(),
+            "{at}: limit {limit}"
+        );
+    }
 }
 
 #[test]

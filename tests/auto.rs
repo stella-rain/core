@@ -8,7 +8,7 @@
 //! recovers for 6, so a step taken on tick t can be followed from t + 4 and ends after t + 9.
 //! The main character stands at (46080, 147456), facing up the field.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

@@ -5,7 +5,7 @@
 //! step: as it is released) and the facing turns to it; with no target it attacks along the
 //! facing. The main character stands at (46080, 147456), facing up the field.
 
-mod common;
+use crate::common;
 
 use common::*;
 use serde_json::{Value, json};

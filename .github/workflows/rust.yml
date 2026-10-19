@@ -4,7 +4,8 @@
 # for the mobile targets (ADR-039: arm64-v8a and x86_64 Android, iOS kept buildable); and the
 # fuzz targets (ADR-020): tested and linted on stable, built on a pinned nightly, and run for a
 # minute each when a PR touches parsing; and the instruction counts of the worst-case tick and of
-# the friendly-bullet collision tick (ADR-021, ADR-058), each compared with the base commit's on
+# the friendly-bullet collision tick and the heaviest tick of a time_limit run (ADR-021, ADR-058),
+# each compared with the base commit's on
 # both architectures. They are jobs of this workflow because
 # auto-merge.yml waits for the workflows it names.
 # A PR into main whose files are all `*.md` runs none of them: `what changed` says so, and every
@@ -92,6 +93,12 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      # The dependencies' build, per job and runner (this crate's own is dropped before saving).
+      # Only runs on main save it (push and the weekly run): a PR reads main's, and the
+      # repository's 10 GB of cache holds main's rather than one copy per PR.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
@@ -125,6 +132,9 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: uname -m && rustc -vV
       - run: cargo test --locked
       - run: cargo test --locked --release
@@ -157,6 +167,9 @@ jobs:
           rustup toolchain install stable --profile minimal \
             --target aarch64-apple-ios,aarch64-linux-android,x86_64-linux-android
           rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: |
           for t in aarch64-apple-ios aarch64-linux-android x86_64-linux-android; do
             cargo check --locked --all-targets --target "$t"
@@ -175,6 +188,10 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo fmt --manifest-path fuzz/Cargo.toml --check
       - run: cargo clippy --manifest-path fuzz/Cargo.toml --all-targets --locked -- -D warnings
       # Every target on the corpus files, every prefix and flipped byte of them, and the
@@ -194,7 +211,22 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
-      - run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
+      # The cache's key holds the stable rustc; `key` adds the nightly the fuzz build uses.
+      # cargo-fuzz has its own cache below, so this one leaves ~/.cargo/bin alone.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+          key: ${{ env.FUZZ_NIGHTLY }}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # cargo-fuzz built once per version and runner, from source as before.
+      - id: cargo-fuzz
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-fuzz
+          key: cargo-fuzz-${{ env.CARGO_FUZZ_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - if: steps.cargo-fuzz.outputs.cache-hit != 'true'
+        run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
       - run: cargo "+$FUZZ_NIGHTLY" fuzz build
 
   fuzz-changes:
@@ -220,6 +252,9 @@ jobs:
             src/validate.rs src/stage.rs src/behaviour.rs src/attack.rs src/input.rs \
             src/replay.rs src/share.rs src/base64.rs src/registry.rs src/presets.rs \
             src/id.rs src/fixed.rs src/version.rs src/run_setup.rs modes \
+            src/rewards.rs src/run_stats.rs src/expertise.rs src/stage_skill.rs \
+            src/run_replay.rs src/run_content.rs src/weapon.rs src/match_ups.rs \
+            src/runes.rs src/rune.rs src/time_limit.rs content \
             tests/fixtures/run_setup fuzz .github/workflows/rust.yml)
           if [ -n "$changed" ]; then
             echo "parsing=true" >> "$GITHUB_OUTPUT"
@@ -241,7 +276,22 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
-      - run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
+      # The cache's key holds the stable rustc; `key` adds the nightly the fuzz build uses.
+      # cargo-fuzz has its own cache below, so this one leaves ~/.cargo/bin alone.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+          key: ${{ env.FUZZ_NIGHTLY }}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # cargo-fuzz built once per version and runner, from source as before.
+      - id: cargo-fuzz
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-fuzz
+          key: cargo-fuzz-${{ env.CARGO_FUZZ_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - if: steps.cargo-fuzz.outputs.cache-hit != 'true'
+        run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
       # The corpus stages and replays, the run setups of tests/fixtures/run_setup/ and the bundled
       # content/ files are the seeds; nothing generated is committed. stage_parse also reads its
       # bytes as rewards and run stats, so the content files seed the stage targets too.
@@ -304,7 +354,12 @@ jobs:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal && rustup default stable
       - run: sudo apt-get update && sudo apt-get install -y valgrind
-      - run: cargo install iai-callgrind-runner --version "$IAI_CALLGRIND_RUNNER_VERSION" --locked
+      # The release binary, checked against the checksum pinned in install-action's manifest;
+      # never a build from another source (`fallback: none`).
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: iai-callgrind-runner@${{ env.IAI_CALLGRIND_RUNNER_VERSION }}
+          fallback: none
       # The base commit and the PR build in separate target directories. In one, cargo takes the
       # PR's crate for the base's (same name, same path in the workspace), finds it newer than the
       # PR's sources and counts the base twice. iai-callgrind keeps its baselines in one home that
@@ -322,7 +377,8 @@ jobs:
         run: |
           set -eu
           if ! git cat-file -e "$BASE:benches/worst_tick.rs" 2>/dev/null \
-            || ! git cat-file -e "$BASE:benches/collide_tick.rs" 2>/dev/null; then
+            || ! git cat-file -e "$BASE:benches/collide_tick.rs" 2>/dev/null \
+            || ! git cat-file -e "$BASE:benches/time_limit_tick.rs" 2>/dev/null; then
             echo "The base commit lacks a benchmark: nothing to compare with."
             echo "compare=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -334,12 +390,12 @@ jobs:
           fi
           git worktree add "$RUNNER_TEMP/base" "$BASE"
           (cd "$RUNNER_TEMP/base" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-base" \
-            cargo bench --bench worst_tick --bench collide_tick -- --save-baseline=main)
+            cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick -- --save-baseline=main)
           echo "compare=true" >> "$GITHUB_OUTPUT"
-      # A rise of more than 2% in instructions on either tick fails the job. The count is the same
+      # A rise of more than 2% in instructions on any of the three ticks fails the job. The count is the same
       # on every run of a build, so the limit is for a real change: one more pass over 4,000
       # bullets is 1.8%.
-      - name: Count the worst-case and collision ticks
+      - name: Count the worst-case, collision and time_limit ticks
         env:
           COMPARE: ${{ steps.base.outputs.compare }}
         run: |
@@ -349,9 +405,9 @@ jobs:
             limits="--baseline=main --callgrind-limits=ir=2%"
           fi
           # shellcheck disable=SC2086
-          cargo bench --bench worst_tick --bench collide_tick -- $limits | tee "$RUNNER_TEMP/bench.txt"
+          cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick -- $limits | tee "$RUNNER_TEMP/bench.txt"
           {
-            echo "### Worst-case and collision ticks on ${{ matrix.arch }}"
+            echo "### Worst-case, collision and time_limit ticks on ${{ matrix.arch }}"
             grep -E '^[a-z_]+::|Instructions' "$RUNNER_TEMP/bench.txt" | sed 's/^ */    /'
           } >> "$GITHUB_STEP_SUMMARY"
 
