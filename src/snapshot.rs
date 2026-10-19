@@ -152,9 +152,6 @@ pub struct ExpertiseCandidateView {
     /// Its ID in the weapon's expertise content: a common option, a style, or a choice of the
     /// chosen style's path.
     pub option: ContentId,
-    /// Taking it brings it to its stack limit, after which it is offered no more.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub reaches_limit: bool,
 }
 
 /// Where the run stands in experience, levels and stat points (ADR-079 §2, §4).

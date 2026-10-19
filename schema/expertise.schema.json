@@ -100,16 +100,6 @@
           "description": "The option's own ID, unique within its weapon.",
           "$ref": "#/$defs/ContentId"
         },
-        "limit": {
-          "description": "The most times one run takes it, from 1 to `MAX_STACK_LIMIT`: on a common option of a\nstack-limited kind, and only there.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
-        },
         "title": {
           "description": "The name the choice panel shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
           "type": "string"

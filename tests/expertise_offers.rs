@@ -3,8 +3,8 @@
 //! (1, 4, 7 Main; 2, 8 Sub; 11 and up Main, Sub, Main) draw from that weapon's common pool.
 //! Level 3 (Main) and 5 (Sub) show that weapon's three styles; 6 and 9 the chosen Main style's
 //! upgrades, 10 its capstone: fixed choices, no draw and no reroll. A common offer has a
-//! reroll of each candidate; no expertise offer has a skip or a banish. Attack speed options have a stack limit: a candidate whose
-//! pick reaches it is marked, and an option at it leaves the pool. On one tick the boss offer
+//! reroll of each candidate; no expertise offer has a skip or a banish. No option has a stack limit: one taken
+//! any number of times is still offered. On one tick the boss offer
 //! opens first, then the expertise offers in level order, then the stars'.
 
 use serde_json::{Value, json};
@@ -42,20 +42,16 @@ fn to_level(n: usize) -> u32 {
     total
 }
 
-/// A common option `id` of `effect` and `amount`, with `limit` when it has one.
-fn option(id: &str, effect: &str, amount: u32, limit: Option<u8>) -> Value {
-    let mut v = json!({ "id": id, "effect": effect, "amount": amount,
-                        "title": "Option", "description": "" });
-    if let Some(l) = limit {
-        v["limit"] = json!(l);
-    }
-    v
+/// A common option `id` of `effect` and `amount`.
+fn option(id: &str, effect: &str, amount: u32) -> Value {
+    json!({ "id": id, "effect": effect, "amount": amount,
+            "title": "Option", "description": "" })
 }
 
 /// The damage options `prefix0`, `prefix1`, ...: `n` of them, 10 percent each.
 fn damages(prefix: &str, n: usize) -> Vec<Value> {
     (0..n)
-        .map(|i| option(&format!("{prefix}{i}"), "attack_pct", 10, None))
+        .map(|i| option(&format!("{prefix}{i}"), "attack_pct", 10))
         .collect()
 }
 
@@ -207,20 +203,6 @@ fn index_of(e: &Engine, option: OfferOption) -> u32 {
     u32::try_from(i).unwrap()
 }
 
-/// The index of the candidate whose option is `id`.
-fn take_index(e: &Engine, id: &str) -> u32 {
-    let at = candidates(e)
-        .iter()
-        .position(|c| c == id)
-        .unwrap_or_else(|| panic!("{id} is not a candidate: {:?}", candidates(e)));
-    index_of(
-        e,
-        OfferOption::Take {
-            candidate: u8::try_from(at).unwrap(),
-        },
-    )
-}
-
 #[test]
 fn a_boss_kill_crossing_several_thresholds_opens_one_offer_per_level_in_order() {
     let mut e = with(
@@ -362,7 +344,7 @@ fn with_fewer_options_left_the_offer_holds_those() {
 fn taking_an_option_applies_it_and_counts_it_for_its_weapon() {
     let mut e = with(
         &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
-        &content(vec![option("tough", "max_hp", 5, None)], damages("s", 1)),
+        &content(vec![option("tough", "max_hp", 5)], damages("s", 1)),
     );
     until_offer(&mut e);
     let hp = e.snapshot().player.hp;
@@ -381,71 +363,27 @@ fn taking_an_option_applies_it_and_counts_it_for_its_weapon() {
 }
 
 #[test]
-fn an_attack_speed_option_reaching_its_limit_is_marked_then_leaves_the_pool() {
-    let main = vec![
-        option("quick", "attack_speed_pct", 10, Some(2)),
-        option("hard", "attack_pct", 10, None),
-    ];
+fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
+    // One option in the Main pool: levels 1, 4, 7, 11, 13, 14 and 16 offer it.
+    let main = vec![option("quick", "attack_speed_pct", 10)];
     let mut e = with(
-        &stage(Some((1, to_level(7))), vec![]),
+        &stage(Some((1, to_level(16))), vec![]),
         &content(main, damages("s", 1)),
     );
     until_offer(&mut e);
     e.choose(0).unwrap(); // The boss offer.
-    let mut main_offers = Vec::new();
+    let mut quick_offers = 0;
     while e.offer_open() {
         let offer = expertise_offer(&e);
-        if offer.weapon == WeaponRole::Sub {
-            e.choose(0).unwrap();
-            continue;
+        if offer.weapon == WeaponRole::Main
+            && offer.candidates.iter().any(|c| c.option.0 == "quick")
+        {
+            quick_offers += 1;
         }
-        let marked: Vec<(String, bool)> = offer
-            .candidates
-            .iter()
-            .map(|c| (c.option.0.clone(), c.reaches_limit))
-            .collect();
-        main_offers.push((offer.level, marked));
-        let pick = if candidates(&e).iter().any(|c| c == "quick") {
-            take_index(&e, "quick")
-        } else {
-            0
-        };
-        e.choose(pick).unwrap();
+        e.choose(0).unwrap();
     }
-    let has = |level: u32, id: &str, mark: bool| {
-        main_offers
-            .iter()
-            .any(|(l, c)| *l == level && c.contains(&(id.to_string(), mark)))
-    };
-    assert!(has(1, "quick", false), "{main_offers:?}");
-    assert!(
-        has(4, "quick", true),
-        "the pick reaches its limit: {main_offers:?}"
-    );
-    assert_eq!(
-        main_offers.last(),
-        Some(&(7, vec![("hard".to_string(), false)])),
-        "at its limit, it leaves the pool"
-    );
-    assert_eq!(gauge(&e).main_taken, [2, 1]);
-}
-
-#[test]
-fn a_weapon_with_nothing_left_to_offer_opens_none_and_the_other_still_does() {
-    let mut e = with(
-        &stage(Some((1, to_level(4))), vec![]),
-        &content(
-            vec![option("quick", "attack_speed_pct", 10, Some(1))],
-            damages("s", 1),
-        ),
-    );
-    let first = until_offer(&mut e);
-    assert_eq!(
-        take_all(&mut e, &first),
-        ["boss", "main 1", "sub 2", "main 3"],
-        "level 4's Main offer has nothing to hold and does not open; level 3's styles do"
-    );
-    assert_eq!(gauge(&e).level, 4);
+    assert!(quick_offers > 5, "offered {quick_offers} times");
+    assert_eq!(gauge(&e).main_taken, [u8::try_from(quick_offers).unwrap()]);
 }
 
 #[test]
@@ -500,7 +438,7 @@ fn damage_stays_bounded_with_many_damage_options_stacked() {
     // Every level after the table needs 10 points: a kill's 100_000 points cross about 10_000
     // levels, each a pick of 100 percent more damage, which the arithmetic of ADR-056
     // holds without overflowing.
-    let big = |p: &str| vec![option(p, "attack_pct", 100, None)];
+    let big = |p: &str| vec![option(p, "attack_pct", 100)];
     let content = content_with([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 101, 10, big("m"), big("s"));
     let tough = target(100_000, START_X + 2_048, NEAR_Y, 0);
     let killed = target(1, START_X, NEAR_Y, 100_000);
@@ -612,8 +550,8 @@ fn a_run_with_expertise_choices_replays_and_verifies() {
 fn style(id: &str, effect: &str, amount: u32) -> Value {
     let two = |level: u32| {
         vec![
-            option(&format!("{id}_{level}a"), "max_hp", 1, None),
-            option(&format!("{id}_{level}b"), "max_hp", 1, None),
+            option(&format!("{id}_{level}a"), "max_hp", 1),
+            option(&format!("{id}_{level}b"), "max_hp", 1),
         ]
     };
     json!({ "id": id, "effect": effect, "amount": amount, "title": "Style", "description": "",
@@ -690,10 +628,6 @@ fn level_3_offers_the_main_s_three_styles_fixed_with_no_reroll_skip_or_banish() 
         "a reroll and a banish are left in the run, and none is offered"
     );
     assert_eq!(offer.rerolls_left, 1);
-    assert!(
-        offer.candidates.iter().all(|c| !c.reaches_limit),
-        "a style has no stack limit"
-    );
     assert!(
         events.contains(&DomainEvent::ExpertiseOfferOpened {
             level: 3,
@@ -878,29 +812,4 @@ fn an_inline_main_weapon_opens_no_style_upgrade_or_capstone_and_the_sub_still_do
     assert_eq!(g.level, 13);
     assert_eq!((g.main_style, g.sub_style), (None, Some("crush".into())));
     assert!(g.main_path.is_empty());
-}
-
-#[test]
-fn with_both_common_pools_spent_the_style_path_still_opens_and_the_levels_after_pass_over() {
-    let mut e = with(
-        &stage(Some((1, to_level(13))), vec![]),
-        &content(
-            vec![option("quick", "attack_speed_pct", 10, Some(1))],
-            vec![option("squick", "attack_speed_pct", 10, Some(1))],
-        ),
-    );
-    let first = until_offer(&mut e);
-    assert_eq!(
-        take_all(&mut e, &first),
-        [
-            "boss", "main 1", "sub 2", "main 3", "sub 5", "main 6", "main 9", "main 10"
-        ]
-    );
-    let g = gauge(&e);
-    assert_eq!(g.level, 13);
-    assert_eq!(
-        g.main_path,
-        ids(&["edge_6", "edge_9", "edge_10"]),
-        "the bundled `blade`'s first style"
-    );
 }
