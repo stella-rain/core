@@ -79,6 +79,7 @@ pub const ENTRIES: &[Entry] = &[
     entry("vulnerable", Kind::Status, 0),
     entry("blade", Kind::Weapon, 0),
     entry("maul", Kind::Weapon, 0),
+    entry("time_limit", Kind::Mode, 0),
     entry("trial", Kind::Mode, 0),
 ];
 

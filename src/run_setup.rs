@@ -148,8 +148,17 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
     }
 }
 
-/// The bundled content of mode `id`: a stage file. Every mode in the registry has one
-/// (`tests/run_setup.rs`).
+/// The bundled file of mode `id`: what the run's content hash covers. Every mode in the
+/// registry has one (`tests/run_setup.rs`).
+pub fn mode_file(id: &str) -> Option<&'static [u8]> {
+    match id {
+        "time_limit" => Some(crate::time_limit::TimeLimit::BUNDLED),
+        _ => mode_stage(id),
+    }
+}
+
+/// The bundled content of mode `id` when it is a stage file; `time_limit` is not one (its run
+/// comes in a later step).
 pub fn mode_stage(id: &str) -> Option<&'static [u8]> {
     match id {
         "trial" => Some(include_bytes!("../modes/trial.json")),
@@ -165,7 +174,7 @@ pub fn stage(setup: &RunSetup) -> Result<Stage, Error> {
     let content = mode_stage(&setup.mode.0).ok_or_else(|| {
         Error::Invalid(vec![Issue {
             path: "$.mode".into(),
-            message: "the mode has no content".into(),
+            message: "the mode has no stage".into(),
         }])
     })?;
     let mut stage = validate::parse_and_validate(content)?;
