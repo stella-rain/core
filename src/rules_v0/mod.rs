@@ -777,7 +777,7 @@ fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
 /// the enemies counts, in index order, so a leader killed in this tick's collisions still gives
 /// its aura through the rest of the tick, and none from the next, when the dead are removed.
 /// An enemy that has since left the map or died earlier gets none. No random number is drawn.
-fn aided(s: &State, b: Shot) -> Shot {
+fn aided(stage: &Stage, s: &State, b: Shot) -> Shot {
     let Ok(at) = s.enemies.binary_search_by_key(&b.owner, |e| e.id) else {
         return b;
     };
@@ -788,7 +788,14 @@ fn aided(s: &State, b: Shot) -> Shot {
     let percent = s
         .enemies
         .iter()
-        .filter_map(|l| l.elite.as_ref()?.aura.map(|aura| (l.at, aura)))
+        .filter(|l| l.elite.is_some())
+        .filter_map(|l| {
+            agent_def(stage, l.key)
+                .elite
+                .as_ref()?
+                .aura
+                .map(|aura| (l.at, aura))
+        })
         .filter(|(from, aura)| {
             let dx = i64::from(from.x.0) - i64::from(owner.at.x.0);
             let dy = i64::from(from.y.0) - i64::from(owner.at.y.0);
@@ -809,14 +816,14 @@ fn aided(s: &State, b: Shot) -> Shot {
 fn hit_ally_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
     if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
-        hurt_player(s, aided(s, b), events);
+        hurt_player(s, aided(stage, s, b), events);
         return true;
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = agent_def(stage, c.key).radius.0;
         if c.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, c.at, radius) {
-            damage(stage, s, aided(s, b), Who::Companion(i), events);
+            damage(stage, s, aided(stage, s, b), Who::Companion(i), events);
             return true;
         }
     }

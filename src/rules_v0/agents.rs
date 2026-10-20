@@ -90,7 +90,6 @@ pub(super) fn new_agent(
             home: at,
             called: false,
             boss_call: elite.boss_call,
-            aura: elite.aura,
         }),
         leave: (matches!(def.movement, Movement::FleeWhenDisturbed { .. })
             || def

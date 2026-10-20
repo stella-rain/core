@@ -1027,8 +1027,6 @@ pub(crate) struct EliteState {
     pub called: bool,
     /// What the boss's call does to it; its definition's, so not part of the hash.
     pub boss_call: BossCall,
-    /// A pack leader's aura; its definition's, so not part of the hash.
-    pub aura: Option<crate::behaviour::Aura>,
 }
 
 #[derive(Clone, Copy, Debug)]

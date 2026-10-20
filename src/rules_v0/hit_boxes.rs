@@ -304,7 +304,7 @@ fn hit_ally_side(stage: &Stage, s: &mut State, w: &Swing, events: &mut Vec<Domai
         && covers(w, p.at, PLAYER_RADIUS)
         && take_hit(s, w, super::PLAYER_ID)
     {
-        hurt_player(s, super::aided(s, shot(w)), events);
+        hurt_player(s, super::aided(stage, s, shot(w)), events);
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
@@ -314,7 +314,7 @@ fn hit_ally_side(stage: &Stage, s: &mut State, w: &Swing, events: &mut Vec<Domai
             damage(
                 stage,
                 s,
-                super::aided(s, shot(w)),
+                super::aided(stage, s, shot(w)),
                 Who::Companion(i),
                 events,
             );
