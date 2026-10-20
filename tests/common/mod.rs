@@ -25,15 +25,13 @@ pub fn evade() -> Value {
 }
 
 /// A stage whose boss (20 hp, 10 damage a hit) waits 100 pixels above the main character, out
-/// of the `blade`'s reach until an evade dashes 48 pixels toward it. The Sub weapon pulls
-/// nothing.
+/// of the `blade`'s reach until an evade dashes 48 pixels toward it.
 pub fn clearing_stage_json() -> Value {
     json!({
         "schema_version": 0, "sim_version": 0, "id": "test-stage", "title": "Test Stage",
         "seed": 7, "length_ticks": 600,
         "player": { "base": "pilot_a", "hp": 3, "atk": 10,
-                    "main": { "preset": { "id": "blade" } },
-                    "sub": quiet_sub(),
+                    "weapon": { "preset": { "id": "blade" } },
                     "evade": evade() },
         "boss": { "base": "golem", "hp": 20, "radius": 8192,
                   "spawn": { "x": START_X, "y": START_Y - 25_600 }, "phases": [{}] }
@@ -45,29 +43,25 @@ pub fn step(attack: Value) -> Value {
     json!({ "attack": attack })
 }
 
-/// An inline Main weapon (ADR-070) with `combo` as its root branches and no window.
-pub fn main_combo(combo: Value) -> Value {
+/// An inline weapon (ADR-084) with `combo` as its root branches and no window.
+pub fn weapon_combo(combo: Value) -> Value {
     json!({ "inline": { "combo": combo, "window_ticks": 0, "assist_range": 0 } })
 }
 
-/// An inline Main weapon with one step: `attack` on a press of `main`.
-pub fn main_ref(attack: Value) -> Value {
-    main_combo(json!({ "main": step(attack) }))
+/// An inline weapon with one step: `attack` on a press of `main`.
+pub fn weapon_ref(attack: Value) -> Value {
+    weapon_combo(json!({ "main": step(attack) }))
 }
 
-/// A Main weapon with no steps: presses do nothing.
-pub fn quiet_main() -> Value {
-    main_combo(json!({}))
+/// A weapon with no steps: presses do nothing.
+pub fn quiet_weapon() -> Value {
+    weapon_combo(json!({}))
 }
 
-/// An inline Sub weapon whose combo-part bonus pulls by `distance` over `ticks`.
-pub fn sub_pull(distance: i32, ticks: u32) -> Value {
-    json!({ "inline": { "bonus": { "type": "pull", "distance": distance, "ticks": ticks } } })
-}
-
-/// A Sub weapon whose pull moves nothing.
-pub fn quiet_sub() -> Value {
-    sub_pull(0, 1)
+/// `weapon` (an inline weapon) with a smash that pulls what it hits by `distance` over `ticks`.
+pub fn with_smash(mut weapon: Value, distance: i32, ticks: u32) -> Value {
+    weapon["inline"]["smash"] = json!({ "type": "pull", "distance": distance, "ticks": ticks });
+    weapon
 }
 
 /// An attack that does nothing: one tick of recovery.
@@ -75,10 +69,9 @@ pub fn quiet_attack() -> Value {
     json!({ "inline": [{ "kind": "recovery", "ticks": 1 }] })
 }
 
-/// `stage` with `main` and `sub` as its weapons, whole references.
-pub fn armed(mut stage: Stage, main: Value, sub: Value) -> Stage {
-    stage.player.main = serde_json::from_value(main).expect("the Main weapon parses");
-    stage.player.sub = serde_json::from_value(sub).expect("the Sub weapon parses");
+/// `stage` with `weapon` as its weapon, a whole reference.
+pub fn armed(mut stage: Stage, weapon: Value) -> Stage {
+    stage.player.weapon = serde_json::from_value(weapon).expect("the weapon parses");
     stage
 }
 
@@ -214,13 +207,12 @@ pub fn stage_full(
     let mut v = json!({
         "schema_version": 0, "sim_version": 0, "id": "test", "title": "Test", "seed": 7,
         "length_ticks": length_ticks,
-        // The Main weapon: one bullet along the facing (straight up until it moves) at 8 pixels
-        // a tick on a press of `main`; the Sub weapon pulls nothing. So the hand-worked numbers
-        // of the tests that are not about weapons stay simple (`tests/shot.rs` and
-        // `tests/weapons.rs` are about them).
+        // The weapon: one bullet along the facing (straight up until it moves) at 8 pixels a
+        // tick on a press of `main`, and no smash. So the hand-worked numbers of the tests that
+        // are not about weapons stay simple (`tests/shot.rs` and `tests/weapons.rs` are about
+        // them).
         "player": { "base": "pilot_a", "hp": 99, "atk": 10,
-                    "main": main_ref(json!({ "preset": { "id": "aimed_single", "args": [2048] } })),
-                    "sub": quiet_sub(),
+                    "weapon": weapon_ref(json!({ "preset": { "id": "aimed_single", "args": [2048] } })),
                     "evade": evade() },
         "companions": companions,
         "waves": waves,
@@ -231,10 +223,10 @@ pub fn stage_full(
     serde_json::from_value(v).expect("the test stage parses")
 }
 
-/// Both weapons replaced by ones that do nothing, for tests whose hand-worked numbers would be
+/// The weapon replaced by one that does nothing, for tests whose hand-worked numbers would be
 /// thrown off by an attack.
 pub fn quiet(stage: Stage) -> Stage {
-    armed(stage, quiet_main(), quiet_sub())
+    armed(stage, quiet_weapon())
 }
 
 pub fn engine(stage: &Stage) -> Engine {

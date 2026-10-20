@@ -11,7 +11,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 use crate::rewards::Rarity;
 use crate::validate::limits::{FIELD_H, FIELD_MARGIN, FIELD_W, MAX_ELITES_ALIVE};
-use crate::weapon::{MainWeapon, SubWeapon, WeaponRef};
+use crate::weapon::{Weapon, WeaponRef};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -223,11 +223,9 @@ pub struct Player {
     /// run's setup when the setup exists (ADR-049).
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub defence: u32,
-    /// The Main weapon, whose combos the main character makes by hand (ADR-070). It moves to
-    /// the run's setup when the setup exists (ADR-049, ADR-051).
-    pub main: WeaponRef<MainWeapon>,
-    /// The Sub weapon, whose bonus joins every combo step reached by `sub` (ADR-070).
-    pub sub: WeaponRef<SubWeapon>,
+    /// The one weapon, whose combos the main character makes by hand with both buttons
+    /// (ADR-084). It moves to the run's setup when the setup exists (ADR-049, ADR-051, ADR-107).
+    pub weapon: WeaponRef<Weapon>,
     /// Skill 1 (ADR-050). It moves to the run's setup with the character when the setup exists
     /// (ADR-049).
     pub evade: Evade,

@@ -78,7 +78,6 @@ pub fn stage(small: u16, target: Value) -> Stage {
     let mut stage = armed(
         stage_full(18_000, Some(far_boss()), waves, vec![]),
         weapon(),
-        quiet_sub(),
     );
     stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
     stage.stars = Some(

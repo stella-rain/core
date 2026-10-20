@@ -30,7 +30,7 @@ use crate::stage::{
 };
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
-use crate::weapon::{Branches, Charge, MainWeapon, SubBonus, SubWeapon, WeaponPreset, WeaponRef};
+use crate::weapon::{Branches, Charge, SmashEffect, Weapon, WeaponRef};
 
 /// Limits a stage must keep. The first block is ADR-020, the second ADR-036, the rest the
 /// loadout and numeric ranges that ADR-012 and ADR-019 ask for.
@@ -315,10 +315,10 @@ pub fn validate_attack_ref(attack: &AttackRef, registry: &[Entry]) -> Result<(),
     }
 }
 
-/// Checks a weapon preset's two roles, as a stage's inline weapons are checked, without a boss
-/// (so a part to aim at is never found): the developer's weapon presets. Paths are from the
-/// preset: `$.main.charge.levels[0].at_ticks`.
-pub fn validate_weapon_preset(preset: &WeaponPreset, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+/// Checks a weapon preset as a stage's inline weapon is checked, without a boss (so a part to
+/// aim at is never found): the developer's weapon presets. Paths are from the preset:
+/// `$.combo.main.charge.levels[0].at_ticks`.
+pub fn validate_weapon_preset(preset: &Weapon, registry: &[Entry]) -> Result<(), Vec<Issue>> {
     let mut ctx = Ctx {
         registry,
         sim_version: crate::version::SIM_VERSION,
@@ -329,8 +329,7 @@ pub fn validate_weapon_preset(preset: &WeaponPreset, registry: &[Entry]) -> Resu
         left_out: false,
         arity: 0,
     };
-    ctx.key("main", |c| c.main_weapon(&preset.main));
-    ctx.key("sub", |c| c.sub_weapon(&preset.sub));
+    ctx.weapon(preset);
     if ctx.issues.is_empty() {
         Ok(())
     } else {
@@ -708,8 +707,7 @@ impl<'a> Ctx<'a> {
         self.within("hp", i64::from(p.hp), 1, i64::from(MAX_PLAYER_HP));
         self.within("atk", i64::from(p.atk), 1, i64::from(MAX_PLAYER_ATK));
         self.within("defence", i64::from(p.defence), 0, i64::from(MAX_DEFENCE));
-        self.key("main", |c| c.weapon_ref(&p.main, Self::main_weapon));
-        self.key("sub", |c| c.weapon_ref(&p.sub, Self::sub_weapon));
+        self.key("weapon", |c| c.weapon_ref(&p.weapon, Self::weapon));
         self.key("evade", |c| c.evade(&p.evade));
     }
 
@@ -723,9 +721,9 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// The Main weapon's combo tree (ADR-070): at most `MAX_COMBO_STEPS` steps in all, none
-    /// deeper than `MAX_COMBO_DEPTH`, each attack and charge checked.
-    fn main_weapon(&mut self, w: &MainWeapon) {
+    /// The weapon's combo tree (ADR-084): at most `MAX_COMBO_STEPS` steps in all, none deeper
+    /// than `MAX_COMBO_DEPTH`, each attack and charge checked, and its smash effect.
+    fn weapon(&mut self, w: &Weapon) {
         let mut steps = 0;
         self.key("combo", |c| c.branches(&w.combo, 1, &mut steps));
         self.key("dash", |c| c.branches(&w.dash, 1, &mut steps));
@@ -754,6 +752,9 @@ impl<'a> Ctx<'a> {
             0,
             i64::from(MAX_ASSIST_RANGE),
         );
+        if let Some(effect) = &w.smash {
+            self.key("smash", |c| c.smash(effect));
+        }
     }
 
     fn branches(&mut self, b: &Branches, depth: u32, steps: &mut usize) {
@@ -776,18 +777,18 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    fn sub_weapon(&mut self, w: &SubWeapon) {
-        self.key("bonus", |c| match w.bonus {
-            SubBonus::Pull { distance, ticks } => {
-                c.within(
+    fn smash(&mut self, effect: &SmashEffect) {
+        match *effect {
+            SmashEffect::Pull { distance, ticks } => {
+                self.within(
                     "distance",
                     i64::from(distance.0),
                     0,
                     i64::from(MAX_PULL_DISTANCE),
                 );
-                c.within("ticks", i64::from(ticks), 1, i64::from(MAX_PULL_TICKS));
+                self.within("ticks", i64::from(ticks), 1, i64::from(MAX_PULL_TICKS));
             }
-        });
+        }
     }
 
     /// A charged step (ADR-070). Level 0 is the step's own attack; the levels here are 1 and

@@ -400,7 +400,7 @@ fn typed_stage(weak: bool) -> Vec<u8> {
     if weak {
         v["boss"]["profile"] = json!({ "weak": ["pyro"], "resist": "physical" });
     }
-    v["player"]["main"] = main_ref(json!({ "inline": [
+    v["player"]["weapon"] = weapon_ref(json!({ "inline": [
         { "kind": "active", "ticks": 2, "type": "pyro",
           "hit_box": { "type": "circle", "radius": 8_192 } },
         { "kind": "recovery", "ticks": 2 }] }));

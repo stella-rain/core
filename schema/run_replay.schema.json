@@ -55,10 +55,6 @@
           "maximum": 255,
           "minimum": 0
         },
-        "main": {
-          "description": "A weapon preset, used in its Main role.",
-          "$ref": "#/$defs/ContentId"
-        },
         "mode": {
           "description": "A mode ID: the content the run plays.",
           "$ref": "#/$defs/ContentId"
@@ -89,8 +85,8 @@
             "$ref": "#/$defs/ContentId"
           }
         },
-        "sub": {
-          "description": "A weapon preset, used in its Sub role.",
+        "weapon": {
+          "description": "A weapon preset: the one weapon the run's main character carries (ADR-107).",
           "$ref": "#/$defs/ContentId"
         }
       },
@@ -99,8 +95,7 @@
         "schema_version",
         "sim_version",
         "mode",
-        "main",
-        "sub",
+        "weapon",
         "seed"
       ]
     }

@@ -1120,30 +1120,29 @@ fn main_weapon(combo: Value, edit: impl FnOnce(&mut Value)) -> Value {
     json!({ "inline": w })
 }
 
-fn with_weapon(role: &str, weapon: Value) -> Value {
+fn with_weapon(weapon: Value) -> Value {
     let mut v = base();
-    v["player"][role] = weapon;
+    v["player"]["weapon"] = weapon;
     v
 }
 
-fn with_main(combo: Value, edit: impl FnOnce(&mut Value)) -> Value {
-    with_weapon("main", main_weapon(combo, edit))
+fn with_combo(combo: Value, edit: impl FnOnce(&mut Value)) -> Value {
+    with_weapon(main_weapon(combo, edit))
 }
 
 fn with_charge(edit: impl FnOnce(&mut Value)) -> Value {
     let mut charged = step(slash());
     charged["charge"] = charge(edit);
-    with_main(json!({ "main": charged }), |_| {})
+    with_combo(json!({ "main": charged }), |_| {})
 }
 
-fn with_pull(distance: i32, ticks: u32) -> Value {
-    with_weapon(
-        "sub",
-        json!({ "inline": { "bonus": { "type": "pull", "distance": distance, "ticks": ticks } } }),
-    )
+fn with_smash(distance: i32, ticks: u32) -> Value {
+    with_weapon(main_weapon(chain(1), |w| {
+        w["smash"] = json!({ "type": "pull", "distance": distance, "ticks": ticks })
+    }))
 }
 
-const CHARGE: &str = "$.player.main.inline.combo.main.charge";
+const CHARGE: &str = "$.player.weapon.inline.combo.main.charge";
 
 /// A tree of `n` slashes, breadth first: step `i` leads to `2i + 1` by `main` and `2i + 2` by
 /// `sub`, so 33 steps are only 6 deep.
@@ -1175,86 +1174,90 @@ fn chain(n: usize) -> Value {
 
 #[test]
 fn a_weapon_preset_is_a_weapon_id() {
-    let preset = |id: &str| with_weapon("sub", json!({ "preset": { "id": id } }));
+    let preset = |id: &str| with_weapon(json!({ "preset": { "id": id } }));
     assert_valid(&preset("blade"));
     assert_valid(&preset("maul"));
     for id in ["slash", "no_such_weapon"] {
-        assert_eq!(first_issue(&preset(id)).path, "$.player.sub.preset.id");
+        assert_eq!(first_issue(&preset(id)).path, "$.player.weapon.preset.id");
     }
     // A weapon preset takes no arguments.
-    let args = with_weapon("main", json!({ "preset": { "id": "blade", "args": [] } }));
+    let args = with_weapon(json!({ "preset": { "id": "blade", "args": [] } }));
     assert!(serde_json::from_value::<Stage>(args).is_err());
 }
 
 #[test]
-fn a_main_weapon_holds_combos_and_a_sub_weapon_a_bonus() {
-    let sub = json!({ "inline": { "bonus": { "type": "pull", "distance": 0, "ticks": 1 } } });
-    let main = main_weapon(chain(1), |_| {});
-    assert_valid(&with_weapon("sub", sub.clone()));
-    assert!(serde_json::from_value::<Stage>(with_weapon("main", sub)).is_err());
-    assert!(serde_json::from_value::<Stage>(with_weapon("sub", main)).is_err());
-    // A Main weapon without steps is valid: its presses do nothing.
-    assert_valid(&with_main(json!({}), |_| {}));
+fn a_weapon_without_steps_is_valid_and_its_smash_is_optional() {
+    // Its presses do nothing; a weapon with no smash has none.
+    assert_valid(&with_combo(json!({}), |_| {}));
+    assert_valid(&with_combo(chain(1), |_| {}));
+    assert_valid(&with_smash(0, 1));
+}
+
+#[test]
+fn a_smash_is_the_weapon_s_field_not_a_step_s() {
+    // A step has no `smash` field: the smash belongs to the weapon.
+    let stray = with_combo(chain(1), |w| w["combo"]["main"]["smash"] = json!({}));
+    assert!(serde_json::from_value::<Stage>(stray).is_err());
 }
 
 #[test]
 fn a_combo_step_s_attack_is_checked_where_it_is() {
-    let v = with_main(chain(1), |w| {
+    let v = with_combo(chain(1), |w| {
         w["combo"]["main"]["next"]["sub"] = step(json!({ "preset": { "id": "no_such_attack" } }))
     });
     assert_eq!(
         first_issue(&v).path,
-        "$.player.main.inline.combo.main.next.sub.attack.preset.id"
+        "$.player.weapon.inline.combo.main.next.sub.attack.preset.id"
     );
-    let dash = with_main(chain(1), |w| {
+    let dash = with_combo(chain(1), |w| {
         w["dash"] = json!({ "sub": step(json!({ "preset": { "id": "blade" } })) })
     });
     assert_eq!(
         first_issue(&dash).path,
-        "$.player.main.inline.dash.sub.attack.preset.id"
+        "$.player.weapon.inline.dash.sub.attack.preset.id"
     );
 }
 
 #[test]
 fn combo_limits_hold_at_the_limit_and_fail_one_past() {
-    at_limit_and_over(MAX_COMBO_STEPS, "$.player.main.inline.combo", |n| {
-        with_main(tree(n), |_| {})
+    at_limit_and_over(MAX_COMBO_STEPS, "$.player.weapon.inline.combo", |n| {
+        with_combo(tree(n), |_| {})
     });
     // The dash branch counts toward the same total.
-    let with_dash = |n: usize| with_main(tree(n), |w| w["dash"] = chain(1));
+    let with_dash = |n: usize| with_combo(tree(n), |w| w["dash"] = chain(1));
     assert_valid(&with_dash(MAX_COMBO_STEPS - 1));
     assert_eq!(
         first_issue(&with_dash(MAX_COMBO_STEPS)).path,
-        "$.player.main.inline.combo"
+        "$.player.weapon.inline.combo"
     );
     let depth = MAX_COMBO_DEPTH as usize;
-    assert_valid(&with_main(chain(depth), |_| {}));
+    assert_valid(&with_combo(chain(depth), |_| {}));
     let deepest = format!(
-        "$.player.main.inline.combo{}.main",
+        "$.player.weapon.inline.combo{}.main",
         ".main.next".repeat(depth)
     );
     assert_eq!(
-        first_issue(&with_main(chain(depth + 1), |_| {})).path,
+        first_issue(&with_combo(chain(depth + 1), |_| {})).path,
         deepest
     );
     for (key, max) in [
         ("window_ticks", MAX_COMBO_WINDOW_TICKS),
         ("dash_strike_ticks", MAX_DASH_STRIKE_TICKS),
     ] {
-        assert_valid(&with_main(chain(1), |w| w[key] = json!(max)));
+        assert_valid(&with_combo(chain(1), |w| w[key] = json!(max)));
         assert_eq!(
-            first_issue(&with_main(chain(1), |w| w[key] = json!(max + 1))).path,
-            format!("$.player.main.inline.{key}")
+            first_issue(&with_combo(chain(1), |w| w[key] = json!(max + 1))).path,
+            format!("$.player.weapon.inline.{key}")
         );
     }
 }
 
 #[test]
 fn an_assist_range_is_0_to_its_limit() {
-    let with_range = |r: i64| with_main(chain(1), |w| w["assist_range"] = json!(r));
+    let with_range = |r: i64| with_combo(chain(1), |w| w["assist_range"] = json!(r));
     assert_valid(&with_range(0));
     assert_valid(&with_range(i64::from(MAX_ASSIST_RANGE)));
-    let at = "$.player.main.inline.assist_range";
+    let at = "$.player.weapon.inline.assist_range";
     assert_eq!(first_issue(&with_range(-1)).path, at);
     assert_eq!(
         first_issue(&with_range(i64::from(MAX_ASSIST_RANGE) + 1)).path,
@@ -1264,17 +1267,17 @@ fn an_assist_range_is_0_to_its_limit() {
 
 #[test]
 fn a_pull_is_0_to_its_distance_over_1_to_its_ticks() {
-    assert_valid(&with_pull(0, 1));
-    assert_valid(&with_pull(MAX_PULL_DISTANCE, MAX_PULL_TICKS));
-    let at = |key: &str| format!("$.player.sub.inline.bonus.{key}");
-    assert_eq!(first_issue(&with_pull(-1, 1)).path, at("distance"));
+    assert_valid(&with_smash(0, 1));
+    assert_valid(&with_smash(MAX_PULL_DISTANCE, MAX_PULL_TICKS));
+    let at = |key: &str| format!("$.player.weapon.inline.smash.{key}");
+    assert_eq!(first_issue(&with_smash(-1, 1)).path, at("distance"));
     assert_eq!(
-        first_issue(&with_pull(MAX_PULL_DISTANCE + 1, 1)).path,
+        first_issue(&with_smash(MAX_PULL_DISTANCE + 1, 1)).path,
         at("distance")
     );
-    assert_eq!(first_issue(&with_pull(0, 0)).path, at("ticks"));
+    assert_eq!(first_issue(&with_smash(0, 0)).path, at("ticks"));
     assert_eq!(
-        first_issue(&with_pull(0, MAX_PULL_TICKS + 1)).path,
+        first_issue(&with_smash(0, MAX_PULL_TICKS + 1)).path,
         at("ticks")
     );
 }

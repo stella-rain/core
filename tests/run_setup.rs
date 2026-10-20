@@ -18,8 +18,7 @@ fn setup() -> RunSetup {
         schema_version: 0,
         sim_version: 0,
         mode: "trial".into(),
-        main: "blade".into(),
-        sub: "maul".into(),
+        weapon: "blade".into(),
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,
@@ -75,8 +74,7 @@ fn a_setup_file_reads_back_as_the_setup() {
 fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
     let mut by_hand =
         validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
-    by_hand.player.main = WeaponRef::Preset { id: "blade".into() };
-    by_hand.player.sub = WeaponRef::Preset { id: "maul".into() };
+    by_hand.player.weapon = WeaponRef::Preset { id: "blade".into() };
     by_hand.seed = 20_261_010;
     assert_eq!(run_setup::stage(&setup()), Ok(by_hand.clone()));
     let started = hashes(Engine::start(&setup()).unwrap(), 600);
@@ -99,10 +97,10 @@ fn the_setup_s_seed_seeds_the_run_all_64_bits_of_it() {
 
 #[test]
 fn the_setup_s_weapons_arm_the_run() {
-    let run = |main: &str| {
+    let run = |weapon: &str| {
         hashes(
             Engine::start(&RunSetup {
-                main: main.into(),
+                weapon: weapon.into(),
                 ..setup()
             })
             .unwrap(),
@@ -130,7 +128,7 @@ fn only_the_setup_format_parses() {
     for bad in [
         "not json".to_owned(),
         text.replace("\"seed\"", "\"secret\":1,\"seed\""),
-        text.replace(",\"sub\":\"maul\"", ""),
+        text.replace(",\"weapon\":\"blade\"", ""),
         text.replace("20261010", "-1"),
         text.replace("20261010", "18446744073709551616"),
     ] {
@@ -145,7 +143,8 @@ fn only_the_setup_format_parses() {
 #[test]
 fn a_setup_holds_no_expertise_level() {
     // Every run starts the expertise gauge at level 0 (ADR-079 §1): the setup carries none.
-    let without = r#"{"schema_version":0,"sim_version":0,"mode":"trial","main":"blade","sub":"maul","seed":20261010}"#;
+    let without =
+        r#"{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"blade","seed":20261010}"#;
     assert!(run_setup::parse_and_validate(without.as_bytes()).is_ok());
     for field in ["\"main_expertise\":0,", "\"sub_expertise\":0,"] {
         let with = without.replace("\"seed\"", &format!("{field}\"seed\""));
@@ -180,8 +179,7 @@ fn a_setup_from_a_newer_game_is_refused() {
 fn every_problem_is_named_with_its_path() {
     let bad = RunSetup {
         mode: "no_such_mode".into(),
-        main: "bat".into(),
-        sub: "Not-An-Id".into(),
+        weapon: "Not-An-Id".into(),
         ..setup()
     };
     let found = issues(run_setup::parse_and_validate(&bytes(&bad)).unwrap_err());
@@ -189,9 +187,8 @@ fn every_problem_is_named_with_its_path() {
         found,
         vec![
             issue("$.mode", "no such Mode ID in the registry"),
-            issue("$.main", "no such Weapon ID in the registry"),
             issue(
-                "$.sub",
+                "$.weapon",
                 "not a valid content ID (lowercase snake_case, at most 32 characters)"
             ),
         ]
@@ -212,7 +209,7 @@ fn an_id_newer_than_the_setup_s_sim_version_is_refused() {
     assert_eq!(
         found,
         vec![issue(
-            "$.main",
+            "$.weapon",
             "introduced in sim_version 1, newer than this setup's 0"
         )]
     );

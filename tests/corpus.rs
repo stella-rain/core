@@ -531,7 +531,6 @@ fn bullets() -> Definition {
     let stage = armed(
         stage_full(600, Some(boss), vec![], vec![]),
         json!({ "preset": { "id": "blade" } }),
-        json!({ "preset": { "id": "maul" } }),
     );
     // Half speed from side to side, turning to face up the field once a second, and evading
     // twice. `main` on ticks 0 and 8 (slash, slash), then on 16 held to 68 (the thrust charged
@@ -680,7 +679,6 @@ fn melee() -> Definition {
     let stage = armed(
         stage_full(600, Some(far_boss()), waves, vec![guard]),
         json!({ "preset": { "id": "blade" } }),
-        json!({ "preset": { "id": "maul" } }),
     );
     let inputs = (0..300)
         .map(|t| {
@@ -719,7 +717,6 @@ fn assist() -> Definition {
     let stage = armed(
         stage_full(600, Some(boss_at(1_000_000, 40_000)), waves, vec![]),
         json!({ "preset": { "id": "blade" } }),
-        json!({ "preset": { "id": "maul" } }),
     );
     let inputs = (0..300)
         .map(|t| match t {

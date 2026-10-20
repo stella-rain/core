@@ -75,7 +75,6 @@ fn targets(count: u16) -> Stage {
     starry(armed(
         stage_full(18_000, Some(far_boss()), waves, vec![]),
         weapon(),
-        quiet_sub(),
     ))
 }
 
@@ -258,7 +257,6 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
     let stage = starry(armed(
         stage_full(18_000, Some(far_boss()), vec![w], vec![]),
         json!({ "preset": { "id": "blade" } }),
-        json!({ "preset": { "id": "maul" } }),
     ));
     let mut file: Value = serde_json::from_slice(Expertise::BUNDLED).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);

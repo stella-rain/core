@@ -15,8 +15,7 @@ const CLEAR_INPUT: &str = concat!(
     "stella-rain/parsed-stage/v1\n",
     r#"{"schema_version":0,"sim_version":0,"title":"Test Stage","description":"","seed":7,"#,
     r#""length_ticks":600,"player":{"base":"pilot_a","hp":300,"atk":1000,"#,
-    r#""main":{"preset":{"id":"blade"}},"#,
-    r#""sub":{"inline":{"bonus":{"type":"pull","distance":0,"ticks":1}}},"#,
+    r#""weapon":{"preset":{"id":"blade"}},"#,
     r#""evade":{"distance":12288,"ticks":8,"invulnerable_ticks":10,"cooldown_ticks":40}},"#,
     r#""companions":[],"waves":[],"#,
     r#""boss":{"base":"golem","hp":2000,"radius":8192,"spawn":{"x":46080,"y":121856},"parts":[],"#,
@@ -47,7 +46,7 @@ fn matches_the_adr_046_vector() {
     // SHA-256 of `CLEAR_INPUT`, computed with `sha256sum`, not with `core`.
     assert_eq!(
         hash_of(CLEAR),
-        "91e4f9e2546eb9a69cb6763b6306224153bd6803e3281a9e4c6e07f589c9d20a"
+        "5cff0a7d44a3d61c117d95410bd10b1b1735151c47fb370b937ed33808bb094d"
     );
 }
 
@@ -58,23 +57,23 @@ fn every_corpus_stage_keeps_its_hash() {
     for (bytes, expected) in [
         (
             &include_bytes!("corpus/v0/agents/stage.json")[..],
-            "5e8c05b888208b3a97083ea4371be80db26b496ba5d84674a74af1fff37c3617",
+            "e756db4147f171c5b1c31d1b6c4d4ad4d86c82f5f8668a15f31918763e1c3d5e",
         ),
         (
             &include_bytes!("corpus/v0/boss/stage.json")[..],
-            "e7ed945d227abaf6de547e65df9c8f420fccd9c002d604591b623ec04624afcf",
+            "aceb2f4f899b774579f742f0f7e169bd056fec1f349b6c128e27fb4f4d762eb3",
         ),
         (
             &include_bytes!("corpus/v0/bullets/stage.json")[..],
-            "569706d1fe53f1fc13d8112c4f95996cd8cf954da29954d56a65f7be72b348c4",
+            "dca7be1e425f7bf425723f2f87d65789ac427cc2632943786e8444a57f480483",
         ),
         (
             &include_bytes!("corpus/v0/fail/stage.json")[..],
-            "11409df75ce561e7a2d817aefc0f72956cffa149ceda68b570fba47418020e25",
+            "dba53a8ba47192b4ea075dd4367710580720f81bd9581122edccde2a71459de2",
         ),
         (
             &include_bytes!("corpus/v0/timeout/stage.json")[..],
-            "cd3da8090d6e8211f886b9b73e491d3654fc53321cecf72167292152d34bdb55",
+            "759d8fee156923f5d4ba5d6fc56b19064b0d5130cff8e68c35fa6b931250f7e4",
         ),
     ] {
         assert_eq!(hash_of(bytes), expected);
@@ -85,8 +84,7 @@ fn every_corpus_stage_keeps_its_hash() {
 fn formatting_and_key_order_do_not_change_the_hash() {
     let reformatted = br#"{"title":"Test Stage",
         "boss":{"phases":[{}],"spawn":{"y":121856,"x":46080},"radius":8192,"hp":2000,"base":"golem"},
-        "player":{"sub":{"inline":{"bonus":{"ticks":1,"distance":0,"type":"pull"}}},
-                  "main":{"preset":{"id":"blade"}},"atk":1000,"hp":300,"base":"pilot_a",
+        "player":{"weapon":{"preset":{"id":"blade"}},"atk":1000,"hp":300,"base":"pilot_a",
                   "evade":{"cooldown_ticks":40,"invulnerable_ticks":10,"ticks":8,"distance":12288}},
         "length_ticks":600,   "seed":7,
         "id":"test-stage","sim_version":0,"schema_version":0}

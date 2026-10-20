@@ -89,14 +89,9 @@
       "ticks": 8
     },
     "hp": 9900,
-    "main": {
+    "weapon": {
       "preset": {
         "id": "blade"
-      }
-    },
-    "sub": {
-      "preset": {
-        "id": "maul"
       }
     }
   },

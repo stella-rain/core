@@ -352,7 +352,6 @@ fn the_boss_bleeds_too() {
     let mut s = armed(
         stage_full(18_000, Some(boss_at(1_000_000, NEAR_Y)), waves, vec![]),
         weapon(),
-        quiet_sub(),
     );
     let star_stage = stage(7, tough(0, None, None));
     s.levels = star_stage.levels;
@@ -410,7 +409,7 @@ fn a_run_holding_bleed_records_and_verifies() {
     );
     // A seed whose run draws bleed among the seven runes: the trial has stars for about four.
     let setup = RunSetup {
-        seed: 20_261_011,
+        seed: 20_261_013,
         ..trial_setup()
     };
     let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();

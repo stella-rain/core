@@ -1,5 +1,5 @@
 //! The run setup (ADR-051 §1): what a run of the launch game starts from, and all it starts
-//! from. The mode, the Main and the Sub weapon (content IDs, ADR-026), and the seed of the
+//! from. The mode, the weapon (a content ID, ADR-026, ADR-107), and the seed of the
 //! run's SplitMix64 (ADR-033). No expertise level: every run starts at level 0 (ADR-079 §1).
 //! The mode's content is bundled in `core` (`modes/`), so replaying a run never needs the
 //! player's save data or a stage file.
@@ -40,10 +40,8 @@ pub struct RunSetup {
     pub sim_version: u32,
     /// A mode ID: the content the run plays.
     pub mode: ContentId,
-    /// A weapon preset, used in its Main role.
-    pub main: ContentId,
-    /// A weapon preset, used in its Sub role.
-    pub sub: ContentId,
+    /// A weapon preset: the one weapon the run's main character carries (ADR-107).
+    pub weapon: ContentId,
     /// Seeds the run's SplitMix64 (ADR-033), all 64 bits.
     pub seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
@@ -114,8 +112,7 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
         }
     };
     id("mode", &setup.mode, Kind::Mode);
-    id("main", &setup.main, Kind::Weapon);
-    id("sub", &setup.sub, Kind::Weapon);
+    id("weapon", &setup.weapon, Kind::Weapon);
     if let Some(pool) = &setup.star_pool {
         if pool.len() > MAX_STAR_POOL {
             issues.push(Issue {
@@ -215,11 +212,8 @@ fn stage_on(setup: &RunSetup, trial: &Stage, time_limit: &TimeLimit) -> Result<S
         }]));
     }
     let mut stage = trial.clone();
-    stage.player.main = WeaponRef::Preset {
-        id: setup.main.clone(),
-    };
-    stage.player.sub = WeaponRef::Preset {
-        id: setup.sub.clone(),
+    stage.player.weapon = WeaponRef::Preset {
+        id: setup.weapon.clone(),
     };
     validate::validate(&stage)?;
     Ok(stage)
@@ -242,11 +236,8 @@ pub(crate) fn time_limit_run(
         }]));
     }
     let mut stage = trial.clone();
-    stage.player.main = WeaponRef::Preset {
-        id: setup.main.clone(),
-    };
-    stage.player.sub = WeaponRef::Preset {
-        id: setup.sub.clone(),
+    stage.player.weapon = WeaponRef::Preset {
+        id: setup.weapon.clone(),
     };
     validate::validate(&stage)?;
     let template = stage.boss.take().ok_or_else(|| {

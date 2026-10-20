@@ -14,16 +14,16 @@ pub const TRIAL_LENGTH: u32 = 5400;
 pub const SPEND_INDEX: u32 = 1;
 
 /// The seed of the `stage_skill` run case: with it, the run kills an elite whose rare star
-/// offers the black hole, and takes it.
-pub const STAGE_SKILL_SEED: u64 = 74;
+/// offers the black hole, takes it, and uses it twice. Under one weapon (ADR-105) seed 74 no
+/// longer does; this one is the first of `0..=3000` with `blade` that does.
+pub const STAGE_SKILL_SEED: u64 = 55;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {
         schema_version: 0,
         sim_version: 0,
         mode: "trial".into(),
-        main: "blade".into(),
-        sub: "maul".into(),
+        weapon: "blade".into(),
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,

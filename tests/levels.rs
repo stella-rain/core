@@ -311,7 +311,7 @@ fn attack_speed_shortens_a_combo_step_spread_over_its_phases() {
             "direction": { "type": "aimed", "offset": 0 } }] },
         { "kind": "recovery", "ticks": 20 }
     ] });
-    let stage = armed(effect_stage(), main_ref(step), quiet_sub());
+    let stage = armed(effect_stage(), weapon_ref(step));
     let phases = |mut e: Engine| {
         while !e.snapshot().player.attacks.is_empty() {
             e.step(idle());
@@ -431,8 +431,7 @@ fn a_trial_run_levels_up_and_spends_its_points() {
         schema_version: SCHEMA_VERSION,
         sim_version: SIM_VERSION,
         mode: "trial".into(),
-        main: "blade".into(),
-        sub: "maul".into(),
+        weapon: "blade".into(),
         seed: 1,
         star_pool: None,
         extra_rerolls: 0,

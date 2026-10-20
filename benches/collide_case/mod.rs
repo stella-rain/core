@@ -89,7 +89,7 @@ fn built(waves: Vec<Value>, width: i32, height: i32) -> Stage {
             "type": "fire", "speed": 512, "direction": { "type": "relative", "angle": 0 }
         }]
     }]))});
-    stage.player.main = serde_json::from_value(common::main_ref(fan)).expect("the fan parses");
+    stage.player.weapon = serde_json::from_value(common::weapon_ref(fan)).expect("the fan parses");
     stage
 }
 

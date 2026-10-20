@@ -5,9 +5,8 @@
 //! freely and no longer depends on the ID. The engine runs a preset by that same expansion, so a preset and
 //! its inline copy run the same program and reach the same state hashes.
 //!
-//! Weapon presets (ADR-070) are the developer's weapons, each with its Main role (a combo tree)
-//! and its Sub role (a combo-part bonus), written the same way; a stage uses one by ID, without
-//! arguments, or holds an inline weapon.
+//! Weapon presets (ADR-084) are the developer's weapons, each a combo tree with its smash effect,
+//! written the same way; a stage uses one by ID, without arguments, or holds an inline weapon.
 //!
 //! Under version 0 (ADR-035) these definitions are placeholders and change in place.
 
@@ -15,7 +14,7 @@ use std::sync::{Arc, OnceLock};
 
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr};
 use crate::registry::{self, Kind};
-use crate::weapon::{MainWeapon, SubWeapon, WeaponPreset, WeaponRef};
+use crate::weapon::{Weapon, WeaponRef};
 
 /// `(id, definition)`: the definitions are JSON, the stage format's own, with `{"arg": n}` for
 /// the preset's arguments. Angles are in 1/256 degree, lengths in 1/256 pixel and speeds in 1/256
@@ -86,14 +85,14 @@ const DEFINITIONS: &[(&str, &str)] = &[
 /// `(id, definition)` of the weapon presets, in the stage format's own JSON. Placeholders until
 /// the game design's weapons are written (Giant Sword and the others, app#209).
 const WEAPONS: &[(&str, &str)] = &[
-    // Main: slash, slash, then a thrust that charges (a thrust at level 1, at level 2 a blow all
+    // Slash, slash, then a thrust that charges (a thrust at level 1, at level 2 a blow all
     // round, `slam`'s, but a Slash: the charged slash), or a thrust after the second slash for B;
     // B from the root thrusts, then slashes; a dash-strike thrusts; assist looks 160 pixels away.
-    // Slashes are Slash and thrusts Pierce (ADR-100). Sub: pulls what a B step hits by up to 24 pixels
-    // over 6 ticks.
+    // Slashes are Slash and thrusts Pierce (ADR-100). Smashes pull what they hit by up to 24
+    // pixels over 6 ticks.
     (
         "blade",
-        r#"{"main":{"combo":{
+        r#"{"combo":{
                 "main":{"attack":{"preset":{"id":"slash"}},"next":{
                     "main":{"attack":{"preset":{"id":"slash"}},"next":{
                         "main":{"attack":{"preset":{"id":"thrust"}},
@@ -110,14 +109,15 @@ const WEAPONS: &[(&str, &str)] = &[
                 "sub":{"attack":{"preset":{"id":"thrust"}},"next":{
                     "sub":{"attack":{"preset":{"id":"slash"}}}}}},
             "dash":{"main":{"attack":{"preset":{"id":"thrust"}}}},
-            "window_ticks":20,"dash_strike_ticks":10,"assist_range":40960},
-            "sub":{"bonus":{"type":"pull","distance":6144,"ticks":6}}}"#,
+            "window_ticks":20,"dash_strike_ticks":10,"assist_range":40960,
+            "smash":{"type":"pull","distance":6144,"ticks":6}}"#,
     ),
-    // Main: slam, then a slam that charges, rooted (a slam at level 1); B swings `slash`'s arc,
-    // but a Strike: every Hammer step is Strike (ADR-100); assist looks 128 pixels away. Sub: pulls what a B step hits by up to 40 pixels over 8 ticks.
+    // Slam, then a slam that charges, rooted (a slam at level 1); B swings `slash`'s arc,
+    // but a Strike: every Hammer step is Strike (ADR-100); assist looks 128 pixels away. Smashes
+    // pull what they hit by up to 40 pixels over 8 ticks.
     (
         "maul",
-        r#"{"main":{"combo":{
+        r#"{"combo":{
                 "main":{"attack":{"preset":{"id":"slam"}},"next":{
                     "main":{"attack":{"preset":{"id":"slam"}},
                             "charge":{"max_ticks":120,"move_pct":0,"levels":[
@@ -129,13 +129,13 @@ const WEAPONS: &[(&str, &str)] = &[
                      "hit_box":{"type":"arc","offset":{"forward":2048},"radius":8192,
                                 "half_angle":15360}},
                     {"kind":"recovery","ticks":10}]}}},
-            "window_ticks":24,"assist_range":32768},
-            "sub":{"bonus":{"type":"pull","distance":10240,"ticks":8}}}"#,
+            "window_ticks":24,"assist_range":32768,
+            "smash":{"type":"pull","distance":10240,"ticks":8}}"#,
     ),
 ];
 
-fn parsed_weapons() -> &'static [(&'static str, WeaponPreset)] {
-    static PARSED: OnceLock<Vec<(&'static str, WeaponPreset)>> = OnceLock::new();
+fn parsed_weapons() -> &'static [(&'static str, Weapon)] {
+    static PARSED: OnceLock<Vec<(&'static str, Weapon)>> = OnceLock::new();
     PARSED.get_or_init(|| {
         WEAPONS
             .iter()
@@ -160,27 +160,19 @@ pub fn weapon_ids() -> impl Iterator<Item = &'static str> {
     WEAPONS.iter().map(|(id, _)| *id)
 }
 
-/// A weapon preset's definition, both roles.
-pub fn weapon_preset(id: &str) -> Option<&'static WeaponPreset> {
+/// A weapon preset's definition.
+pub fn weapon_preset(id: &str) -> Option<&'static Weapon> {
     parsed_weapons()
         .iter()
         .find(|(i, _)| *i == id)
         .map(|(_, w)| w)
 }
 
-/// The Main weapon a reference names: the preset's Main role, or the inline weapon itself.
-/// `None` for a preset that has no definition.
-pub fn main_weapon(weapon: &WeaponRef<MainWeapon>) -> Option<&MainWeapon> {
+/// The weapon a reference names: the preset's definition, or the inline weapon itself. `None`
+/// for a preset that has no definition.
+pub fn weapon(weapon: &WeaponRef<Weapon>) -> Option<&Weapon> {
     match weapon {
-        WeaponRef::Preset { id } => weapon_preset(&id.0).map(|p| &p.main),
-        WeaponRef::Inline(w) => Some(w),
-    }
-}
-
-/// The Sub weapon a reference names, as `main_weapon` does.
-pub fn sub_weapon(weapon: &WeaponRef<SubWeapon>) -> Option<&SubWeapon> {
-    match weapon {
-        WeaponRef::Preset { id } => weapon_preset(&id.0).map(|p| &p.sub),
+        WeaponRef::Preset { id } => weapon_preset(&id.0),
         WeaponRef::Inline(w) => Some(w),
     }
 }

@@ -56,11 +56,7 @@ fn elite_at(at_tick: u32, dx: i32, dy: i32) -> Value {
 }
 
 fn stage(boss: Value, waves: Vec<Value>, step: Value) -> Stage {
-    armed(
-        stage_with(600, Some(boss), waves),
-        weapon(step),
-        quiet_sub(),
-    )
+    armed(stage_with(600, Some(boss), waves), weapon(step))
 }
 
 fn plain(waves: Vec<Value>) -> Stage {

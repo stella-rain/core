@@ -372,7 +372,7 @@ fn a_replay_that_ends_on_an_open_offer_verifies() {
 #[test]
 fn a_bad_setup_does_not_start_a_recording() {
     let bad = RunSetup {
-        main: "no_such_weapon".into(),
+        weapon: "no_such_weapon".into(),
         ..trial_setup()
     };
     assert!(matches!(
@@ -501,7 +501,7 @@ fn a_wrong_final_hash_is_refused() {
 #[test]
 fn a_bad_or_newer_setup_is_refused() {
     let replay = recorded(20);
-    let bytes = with(&replay, |v| v["setup"]["sub"] = json!("no_such_weapon"));
+    let bytes = with(&replay, |v| v["setup"]["weapon"] = json!("no_such_weapon"));
     assert!(matches!(
         verify_run(&bytes),
         Err(RunReplayError::Setup(Error::Invalid(_)))
