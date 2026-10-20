@@ -246,7 +246,7 @@ fn a_file_of_another_version_is_refused() {
 /// the file itself is read (the extra entries are copies, which the file would refuse too).
 #[test]
 fn each_count_budget_is_enforced() {
-    let lists: [(&str, usize); 15] = [
+    let lists: [(&str, usize); 16] = [
         ("/run_stats/stats", pack::MAX_RUN_STATS),
         ("/rewards/rewards", pack::MAX_REWARDS),
         ("/stage_skills/stage_skills", pack::MAX_STAGE_SKILLS),
@@ -257,6 +257,7 @@ fn each_count_budget_is_enforced() {
         ("/modes/time_limit/waves", pack::MAX_TIME_LIMIT_WAVES),
         ("/modes/time_limit/boss_ticks", pack::MAX_BOSS_TICKS),
         ("/modes/time_limit/mid_boss_pool", pack::MAX_MID_BOSS_POOL),
+        ("/modes/time_limit/elite_table", pack::MAX_ELITE_TABLE_TIERS),
         ("/introduced/run_stats", pack::MAX_RUN_STATS),
         ("/introduced/rewards", pack::MAX_REWARDS),
         ("/introduced/stage_skills", pack::MAX_STAGE_SKILLS),

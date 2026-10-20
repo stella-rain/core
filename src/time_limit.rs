@@ -3,7 +3,8 @@
 //! the map. Read from `modes/time_limit.json` as untrusted bytes (ADR-020), like the other
 //! content files: a size limit before parsing, strict parsing, the current versions only, every
 //! content ID in the registry, and each number under a named cap. Only the file is read here;
-//! its end and the elites come in later steps.
+//! its end and the elites come in later steps. The elite table and the elite cap (ADR-090) are
+//! data only for now: checked here, read by nothing in the simulation.
 //!
 //! Step b (core#212) adds the schedule: `waves`, the enemies that spawn over the run, as a stage's
 //! waves do (`stage::Wave`), checked as a stage's are with larger caps and without elites.
@@ -20,7 +21,7 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::stage::{Map, Wave};
-use crate::validate::limits::{MAX_MAP_SIDE, MIN_MAP_SIDE};
+use crate::validate::limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -42,6 +43,12 @@ pub const MAX_WAVES: usize = 8;
 pub const MAX_SPAWN_COUNT: u16 = 2000;
 /// The most enemies the whole schedule spawns: 100 a minute for the longest run is 3000.
 pub const MAX_TOTAL_SPAWNS: u32 = 6000;
+/// The most time tiers in the elite table: one for each phase of a run, 16 is generous.
+pub const MAX_ELITE_TIERS: usize = 16;
+/// The most elite types one tier names.
+pub const MAX_ELITE_TYPES: usize = 8;
+/// The largest weight of an elite type, as `MAX_RARITY_WEIGHT` is for a star's rarity.
+pub const MAX_ELITE_WEIGHT: u32 = 10_000;
 
 /// The `time_limit` mode file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -74,6 +81,33 @@ pub struct TimeLimitFile {
     /// wave with `around` spawns that far from the main character; the placeholder content is
     /// the trial's enemies.
     pub waves: Vec<Wave>,
+    /// The elites each whole minute that starts no boss brings (ADR-090): 1 to
+    /// `MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting
+    /// before the length. Read and checked now; a later step draws from it.
+    pub elite_table: Vec<EliteTier>,
+    /// The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the
+    /// same bound). Read and checked now; a later step uses it.
+    pub elite_cap: u16,
+}
+
+/// From `start_tick` until the next tier starts, an elite is drawn by these weights.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EliteTier {
+    /// When the tier starts, in ticks from the start of the run.
+    pub start_tick: u32,
+    /// 1 to `MAX_ELITE_TYPES` elite types, each named once.
+    pub weights: Vec<EliteWeight>,
+}
+
+/// How likely an elite type is to be drawn, against the other types of its tier.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EliteWeight {
+    /// The elite type (a sprite ID); a grade is a type.
+    pub elite: ContentId,
+    /// 1 to `MAX_ELITE_WEIGHT`.
+    pub weight: u32,
 }
 
 /// An open field: its sides in 1/256 pixels and where the player starts.
@@ -172,6 +206,16 @@ impl TimeLimit {
     /// The enemy schedule.
     pub fn waves(&self) -> &[Wave] {
         &self.file.waves
+    }
+
+    /// The elite table's tiers, by start.
+    pub fn elite_table(&self) -> &[EliteTier] {
+        &self.file.elite_table
+    }
+
+    /// The most elites alive at once.
+    pub fn elite_cap(&self) -> u16 {
+        self.file.elite_cap
     }
 
     /// The map and the player's start.
@@ -329,6 +373,66 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
                 "$.waves".into(),
                 format!("at most {MAX_TOTAL_SPAWNS} enemies in all (found {total})"),
             );
+        }
+    }
+
+    if !(1..=MAX_ELITES_ALIVE).contains(&file.elite_cap) {
+        issue(
+            "$.elite_cap".into(),
+            format!("1 to {MAX_ELITES_ALIVE} (found {})", file.elite_cap),
+        );
+    }
+
+    let tiers = &file.elite_table;
+    if tiers.is_empty() || tiers.len() > MAX_ELITE_TIERS {
+        issue(
+            "$.elite_table".into(),
+            format!("1 to {MAX_ELITE_TIERS} tiers (found {})", tiers.len()),
+        );
+    } else {
+        for (i, tier) in tiers.iter().enumerate() {
+            let message = if i == 0 && tier.start_tick != 0 {
+                Some("the first tier starts with the run, at tick 0")
+            } else if i > 0 && tier.start_tick <= tiers[i - 1].start_tick {
+                Some("later than the tier before it")
+            } else if tier.start_tick >= file.length_ticks {
+                Some("before the run ends")
+            } else {
+                None
+            };
+            if let Some(message) = message {
+                issue(format!("$.elite_table[{i}].start_tick"), message.into());
+            }
+            let weights = &tier.weights;
+            if weights.is_empty() || weights.len() > MAX_ELITE_TYPES {
+                issue(
+                    format!("$.elite_table[{i}].weights"),
+                    format!("1 to {MAX_ELITE_TYPES} types (found {})", weights.len()),
+                );
+                continue;
+            }
+            for (j, w) in weights.iter().enumerate() {
+                let known = registry::is_well_formed(&w.elite.0)
+                    && registry::find(registry::ENTRIES, Kind::Asset, &w.elite.0)
+                        .is_some_and(|e| e.introduced <= file.sim_version);
+                if !known {
+                    issue(
+                        format!("$.elite_table[{i}].weights[{j}].elite"),
+                        "no such sprite ID in the registry".into(),
+                    );
+                } else if weights[..j].iter().any(|before| before.elite == w.elite) {
+                    issue(
+                        format!("$.elite_table[{i}].weights[{j}].elite"),
+                        "named once in a tier".into(),
+                    );
+                }
+                if !(1..=MAX_ELITE_WEIGHT).contains(&w.weight) {
+                    issue(
+                        format!("$.elite_table[{i}].weights[{j}].weight"),
+                        format!("1 to {MAX_ELITE_WEIGHT} (found {})", w.weight),
+                    );
+                }
+            }
         }
     }
 

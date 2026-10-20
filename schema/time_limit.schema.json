@@ -13,6 +13,20 @@
         "minimum": 0
       }
     },
+    "elite_cap": {
+      "description": "The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the\nsame bound). Read and checked now; a later step uses it.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
+    "elite_table": {
+      "description": "The elites each whole minute that starts no boss brings (ADR-090): 1 to\n`MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting\nbefore the length. Read and checked now; a later step draws from it.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EliteTier"
+      }
+    },
     "final_boss": {
       "description": "The final boss (a sprite ID).",
       "$ref": "#/$defs/ContentId"
@@ -79,7 +93,9 @@
     "overtime_ticks",
     "star_hunter_extra_ticks",
     "map",
-    "waves"
+    "waves",
+    "elite_table",
+    "elite_cap"
   ],
   "$defs": {
     "Action": {
@@ -627,6 +643,51 @@
       "additionalProperties": false,
       "required": [
         "range"
+      ]
+    },
+    "EliteTier": {
+      "description": "From `start_tick` until the next tier starts, an elite is drawn by these weights.",
+      "type": "object",
+      "properties": {
+        "start_tick": {
+          "description": "When the tier starts, in ticks from the start of the run.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "weights": {
+          "description": "1 to `MAX_ELITE_TYPES` elite types, each named once.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EliteWeight"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "start_tick",
+        "weights"
+      ]
+    },
+    "EliteWeight": {
+      "description": "How likely an elite type is to be drawn, against the other types of its tier.",
+      "type": "object",
+      "properties": {
+        "elite": {
+          "description": "The elite type (a sprite ID); a grade is a type.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "weight": {
+          "description": "1 to `MAX_ELITE_WEIGHT`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "elite",
+        "weight"
       ]
     },
     "Emitter": {

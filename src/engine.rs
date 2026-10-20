@@ -1297,6 +1297,8 @@ mod horde_tests {
         v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
         v["boss_ticks"] = serde_json::json!(boss_ticks);
         v["waves"] = serde_json::json!([]);
+        v["elite_table"] =
+            serde_json::json!([{"start_tick": 0, "weights": [{"elite": "bat", "weight": 1}]}]);
         let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap();
         let setup = RunSetup {
             schema_version: 0,
