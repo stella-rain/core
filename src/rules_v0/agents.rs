@@ -79,13 +79,16 @@ pub(super) fn new_agent(
         order: None,
         orbit_angle: angle,
         crowded: false,
-        elite: def.elite.map(|elite| EliteState {
+        elite: def.elite.as_ref().map(|elite| EliteState {
             home: at,
             called: false,
             boss_call: elite.boss_call,
         }),
         leave: (matches!(def.movement, Movement::FleeWhenDisturbed { .. })
-            || def.elite.is_some_and(|e| e.boss_call == BossCall::Leave))
+            || def
+                .elite
+                .as_ref()
+                .is_some_and(|e| e.boss_call == BossCall::Leave))
         .then_some(LeaveState {
             disturbed: None,
             go: false,
@@ -268,7 +271,7 @@ fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
 
 /// An elite not called yet waits while the main character is beyond its range.
 fn waits(s: &State, me: Who, def: &Agent) -> bool {
-    let (Some(elite), Some(st)) = (def.elite, agent(s, me).elite) else {
+    let (Some(elite), Some(st)) = (def.elite.as_ref(), agent(s, me).elite) else {
         return false;
     };
     !st.called && !super::overlaps(agent(s, me).at, elite.range.0, s.player.at, 0)

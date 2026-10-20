@@ -410,7 +410,7 @@ fn boss_call_is_join_by_default_and_leaves_the_file_unchanged() {
     let plain: Elite = serde_json::from_value(json!({ "range": 256 })).unwrap();
     assert_eq!(plain.boss_call, BossCall::Join);
     assert_eq!(
-        serde_json::to_value(plain).unwrap(),
+        serde_json::to_value(&plain).unwrap(),
         json!({ "range": 256 })
     );
     let named: Elite =
@@ -434,7 +434,10 @@ fn the_bundled_mode_has_the_goblin_in_every_tier() {
         .find(|t| t.id.0 == "elite_goblin")
         .expect("elite_goblin is defined");
     assert!(t.enemy.rules.is_empty(), "it has no attack");
-    assert_eq!(t.enemy.elite.expect("an elite").boss_call, BossCall::Leave);
+    assert_eq!(
+        t.enemy.elite.as_ref().expect("an elite").boss_call,
+        BossCall::Leave
+    );
     assert!(matches!(
         t.enemy.movement,
         stella_rain_core::behaviour::Movement::FleeWhenDisturbed { .. }

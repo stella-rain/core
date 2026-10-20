@@ -18,7 +18,9 @@ use serde::Deserialize;
 use crate::attack::{
     AttackPhase, AttackRef, DamageType, Direction, Emitter, Expr, HitBox, PhaseKind, Profile,
 };
-use crate::behaviour::{Action, Agent, BossCall, Condition, Movement, Rule, Selector, Skill};
+use crate::behaviour::{
+    Action, Agent, BossCall, Condition, Guardians, Movement, Rule, Selector, Skill,
+};
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::Rarity;
@@ -103,8 +105,12 @@ pub mod limits {
     pub const MAX_SUMMON_COUNT: u8 = 8;
     /// Elites alive at once (ADR-068), among the enemies.
     pub const MAX_ELITES_ALIVE: u16 = 32;
-    /// The most guardians one shrine rings itself with (ADR-090).
+    /// The most guardians one shrine rings itself with, or escorts one pack leader brings
+    /// (ADR-090).
     pub const MAX_SHRINE_GUARDIANS: u8 = 16;
+    /// The most a pack leader's aura adds to the damage of the enemies near it, in percent
+    /// (ADR-090).
+    pub const MAX_AURA_PERCENT: u16 = 200;
 
     pub const MAX_PLAYER_HP: u32 = 99;
     pub const MAX_PLAYER_ATK: u32 = 999;
@@ -882,8 +888,40 @@ impl<'a> Ctx<'a> {
                 {
                     c.key("boss_call", |c| c.fail("a shrine's boss_call is stay"));
                 }
+                if let Some(aura) = &elite.aura {
+                    c.key("aura", |c| {
+                        c.within("radius", i64::from(aura.radius.0), 1, i64::from(MAX_LEN));
+                        c.within(
+                            "damage_percent",
+                            i64::from(aura.damage_percent),
+                            1,
+                            i64::from(MAX_AURA_PERCENT),
+                        );
+                    });
+                }
+                if let Some(escort) = &elite.escort {
+                    c.key("escort", |c| c.guardians(escort));
+                }
             });
         }
+    }
+
+    /// A shrine's guardians or a pack leader's escort: a bounded count and ring of ordinary
+    /// enemies.
+    fn guardians(&mut self, g: &Guardians) {
+        self.within(
+            "count",
+            i64::from(g.count),
+            1,
+            i64::from(MAX_SHRINE_GUARDIANS),
+        );
+        self.within("radius", i64::from(g.radius.0), 1, i64::from(MAX_LEN));
+        self.key("enemy", |c| {
+            c.agent(&g.enemy, false);
+            if g.enemy.elite.is_some() {
+                c.key("elite", |c| c.fail("a guardian is an ordinary enemy"));
+            }
+        });
     }
 
     fn movement(&mut self, m: &Movement) {
@@ -909,26 +947,7 @@ impl<'a> Ctx<'a> {
                 guardians,
             } => {
                 self.ticks("fight_ticks", *fight_ticks, 1);
-                self.key("guardians", |c| {
-                    c.within(
-                        "count",
-                        i64::from(guardians.count),
-                        1,
-                        i64::from(MAX_SHRINE_GUARDIANS),
-                    );
-                    c.within(
-                        "radius",
-                        i64::from(guardians.radius.0),
-                        1,
-                        i64::from(MAX_LEN),
-                    );
-                    c.key("enemy", |c| {
-                        c.agent(&guardians.enemy, false);
-                        if guardians.enemy.elite.is_some() {
-                            c.key("elite", |c| c.fail("a guardian is an ordinary enemy"));
-                        }
-                    });
-                });
+                self.key("guardians", |c| c.guardians(guardians));
             }
             Movement::Hold { at } => self.point("at", at),
             Movement::Straight { vx, vy } => {

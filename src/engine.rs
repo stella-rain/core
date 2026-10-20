@@ -352,6 +352,7 @@ impl Engine {
                     hp: b.hp,
                     attack: attack_of(b.id),
                     elite: false,
+                    aura_radius: None,
                     damage_over_time: dot_views(&b.statuses),
                 });
             }
@@ -371,6 +372,11 @@ impl Engine {
                         hp: a.hp,
                         attack: attack_of(a.id),
                         elite: a.elite.is_some(),
+                        aura_radius: def
+                            .elite
+                            .as_ref()
+                            .and_then(|e| e.aura)
+                            .map(|aura| aura.radius),
                         damage_over_time: dot_views(&a.statuses),
                     });
                 }
@@ -394,6 +400,7 @@ impl Engine {
                         hp: part.hp,
                         attack: None,
                         elite: false,
+                        aura_radius: None,
                         damage_over_time: dot_views(&part.statuses),
                     });
                 }

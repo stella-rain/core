@@ -444,6 +444,10 @@ pub struct EntityView {
     /// An elite enemy (ADR-068), which the minimap shows wherever it is.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub elite: bool,
+    /// A pack leader's aura (ADR-090): the radius, around `at`, within which the non-elite
+    /// enemies deal more damage for as long as this entity is there to be drawn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aura_radius: Option<Fx>,
     /// Its damage-over-time statuses (ADR-099), one of a kind at most.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub damage_over_time: Vec<DamageOverTimeView>,
