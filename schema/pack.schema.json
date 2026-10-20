@@ -3536,6 +3536,17 @@
         },
         "next": {
           "$ref": "#/$defs/Branches"
+        },
+        "unlock": {
+          "description": "The permanent upgrade that opens the step (ADR-084 point 7): without it in the run's\nsetup the step is absent, and so is every step below it. None: always open.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,

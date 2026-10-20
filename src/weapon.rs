@@ -85,6 +85,10 @@ pub struct Step {
     pub hold: Option<Hold>,
     #[serde(default, skip_serializing_if = "Branches::is_empty")]
     pub next: Branches,
+    /// The permanent upgrade that opens the step (ADR-084 point 7): without it in the run's
+    /// setup the step is absent, and so is every step below it. None: always open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unlock: Option<ContentId>,
 }
 
 /// A held step (ADR-084 point 6): an attack that goes on while the button stays held, then a

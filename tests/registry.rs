@@ -20,6 +20,7 @@ fn entries_are_sorted_by_kind_then_id_without_duplicates() {
         Kind::Status => 4,
         Kind::Weapon => 5,
         Kind::Mode => 6,
+        Kind::Upgrade => 7,
     };
     for pair in ENTRIES.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
@@ -65,4 +66,26 @@ fn id_format_rules() {
     ] {
         assert!(!is_well_formed(bad), "{bad}");
     }
+}
+
+#[test]
+fn the_combo_upgrades_are_registered_in_version_0() {
+    // ADR-084 point 7, ADR-026: the permanent upgrades that open the AAB and AAAB steps.
+    for id in [
+        "giant_hammer_aaab",
+        "giant_hammer_aab",
+        "giant_sword_aaab",
+        "giant_sword_aab",
+    ] {
+        let e = find(ENTRIES, Kind::Upgrade, id).unwrap_or_else(|| panic!("{id}"));
+        assert_eq!(e.introduced, 0, "{id}");
+    }
+    assert!(find(ENTRIES, Kind::Weapon, "giant_sword_aab").is_none());
+}
+
+#[test]
+fn the_upgrade_mask_has_room_for_every_upgrade() {
+    let n = ENTRIES.iter().filter(|e| e.kind == Kind::Upgrade).count();
+    assert!(n <= stella_rain_core::registry::MAX_UPGRADES);
+    assert_eq!(stella_rain_core::registry::upgrade_bit("giant_sword_aab"), Some(3));
 }

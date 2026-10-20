@@ -785,6 +785,9 @@ impl<'a> Ctx<'a> {
                     return;
                 }
                 c.key("attack", |c| c.attack_ref(&step.attack));
+                if let Some(unlock) = &step.unlock {
+                    c.content_id("unlock", unlock, Kind::Upgrade);
+                }
                 if let Some(charge) = &step.charge {
                     c.key("charge", |c| c.charge(charge));
                 }

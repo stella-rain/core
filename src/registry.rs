@@ -22,6 +22,9 @@ pub enum Kind {
     Weapon,
     /// A game mode: the content a run plays (ADR-051), bundled in `core` (`modes/`).
     Mode,
+    /// A permanent upgrade bought with Stardust (ADR-079): the run setup lists the ones the
+    /// player holds, and a combo step names the one that opens it (ADR-084 point 7).
+    Upgrade,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -81,6 +84,10 @@ pub const ENTRIES: &[Entry] = &[
     entry("giant_sword", Kind::Weapon, 0),
     entry("time_limit", Kind::Mode, 0),
     entry("trial", Kind::Mode, 0),
+    entry("giant_hammer_aaab", Kind::Upgrade, 0),
+    entry("giant_hammer_aab", Kind::Upgrade, 0),
+    entry("giant_sword_aaab", Kind::Upgrade, 0),
+    entry("giant_sword_aab", Kind::Upgrade, 0),
 ];
 
 /// Lowercase `snake_case`, 1 to 32 characters (ADR-026). Stage-defined names, such as boss part
@@ -108,3 +115,16 @@ pub fn bullet_style(id: &str) -> u16 {
         .position(|e| e.id == id)
         .map_or(0, |i| u16::try_from(i + 1).unwrap_or(0))
 }
+
+/// The bit of upgrade `id` in an upgrade mask: its position among the upgrades of `ENTRIES`.
+/// At most `MAX_UPGRADES` upgrades are registered (`tests/registry.rs`).
+pub fn upgrade_bit(id: &str) -> Option<u32> {
+    ENTRIES
+        .iter()
+        .filter(|e| e.kind == Kind::Upgrade)
+        .position(|e| e.id == id)
+        .and_then(|i| u32::try_from(i).ok())
+}
+
+/// The most upgrades the registry holds: the width of an upgrade mask.
+pub const MAX_UPGRADES: usize = 32;

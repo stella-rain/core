@@ -1201,6 +1201,33 @@ fn a_smash_is_the_weapon_s_field_not_a_step_s() {
 }
 
 #[test]
+fn a_step_s_unlock_names_a_registered_upgrade() {
+    // ADR-084 point 10: an unlock the registry does not hold, or of another kind, is refused,
+    // in the dash branch too.
+    let unlocked = |id: &str| {
+        with_combo(chain(1), |w| {
+            w["combo"]["main"]["next"]["sub"] = json!({
+                "attack": slash(), "unlock": id });
+        })
+    };
+    assert_valid(&unlocked("giant_sword_aab"));
+    for bad in ["no_such_upgrade", "giant_sword", "Giant"] {
+        assert_eq!(
+            first_issue(&unlocked(bad)).path,
+            "$.player.weapon.inline.combo.main.next.sub.unlock",
+            "{bad}"
+        );
+    }
+    let dash = with_combo(chain(1), |w| {
+        w["dash"] = json!({ "main": { "attack": slash(), "unlock": "slash" } })
+    });
+    assert_eq!(
+        first_issue(&dash).path,
+        "$.player.weapon.inline.dash.main.unlock"
+    );
+}
+
+#[test]
 fn a_combo_step_s_attack_is_checked_where_it_is() {
     let v = with_combo(chain(1), |w| {
         w["combo"]["main"]["next"]["sub"] = step(json!({ "preset": { "id": "no_such_attack" } }))
