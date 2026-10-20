@@ -240,6 +240,44 @@ impl State {
 }
 
 impl State {
+    /// Puts the `stun` status on an enemy for `ticks` (ADR-085 point 1). It does not stack: a stun
+    /// on a stunned enemy keeps the longer of the two remainders.
+    pub(super) fn add_stun(
+        &mut self,
+        target: Who,
+        source: EntityId,
+        ticks: u32,
+        events: &mut Vec<DomainEvent>,
+    ) {
+        let list = self.statuses_mut(target);
+        match list.iter_mut().find(|s| s.kind == StatusKind::Stun) {
+            Some(s) => {
+                if ticks > s.remaining {
+                    s.total = ticks;
+                }
+                s.remaining = s.remaining.max(ticks);
+                s.source = source;
+            }
+            None => list.push(StatusState {
+                kind: StatusKind::Stun,
+                source,
+                remaining: ticks,
+                total: ticks,
+                stacks: 1,
+                value_pct: 0,
+                dot: None,
+            }),
+        }
+        events.push(DomainEvent::StatusApplied {
+            target: self.id_of(target),
+            status: ContentId(StatusKind::Stun.name().to_owned()),
+            stacks: 1,
+            duration_ticks: ticks,
+        });
+    }
+}
+
+impl State {
     /// Applies a damage-over-time status of `kind` (ADR-099), or adds a stack to the one there,
     /// up to `max_stacks`: one status of a kind per entity, its stacks shared. Either way its
     /// duration starts again and `dot`, with the multipliers of its source fixed now, replaces
@@ -418,7 +456,7 @@ pub(super) fn scale_damage(
 /// Statuses run out and aggro fades, once per tick. Damage-over-time statuses run out as they
 /// tick instead (`tick_dots`); whether there is one on anyone is returned, so a tick without
 /// one skips that pass.
-pub(super) fn tick_statuses_and_aggro(s: &mut State) -> bool {
+pub(super) fn tick_statuses_and_aggro(s: &mut State, events: &mut Vec<DomainEvent>) -> bool {
     fn age(list: &mut Vec<StatusState>) -> bool {
         let mut dots = false;
         for st in list.iter_mut() {
@@ -443,8 +481,16 @@ pub(super) fn tick_statuses_and_aggro(s: &mut State) -> bool {
         dots |= age(&mut c.statuses);
         c.aggro = c.aggro.saturating_sub(super::AGGRO_DECAY);
     }
+    // An enemy's immunity counts down, and a stun that runs out starts it (ADR-085 point 4).
+    let immune = s.stun.immune_ticks;
     for e in &mut s.enemies {
+        e.stun_immune = e.stun_immune.saturating_sub(1);
+        let stunned = super::stun::stunned(&e.statuses);
         dots |= age(&mut e.statuses);
+        if stunned && !super::stun::stunned(&e.statuses) {
+            e.stun_immune = immune;
+            events.push(DomainEvent::StunEnded { target: e.id });
+        }
     }
     dots
 }

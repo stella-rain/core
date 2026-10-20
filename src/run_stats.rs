@@ -38,6 +38,10 @@ pub const MAX_TITLE_CHARS: usize = 32;
 /// The longest description, in characters.
 pub const MAX_DESCRIPTION_CHARS: usize = 160;
 
+/// The largest immunity to a new stun after one ends, in ticks (ADR-085 point 4): a placeholder
+/// bound, as the other limits are (ADR-020 decides that one exists).
+pub const MAX_STUN_IMMUNE_TICKS: u32 = 600;
+
 /// The most the attack speed total can reach, in percent: a placeholder (expertise options have
 /// no stack limit, so the total is held here, ADR-099). The total saturates at it.
 pub const MAX_ATTACK_SPEED_PCT: u32 = 500;
@@ -99,6 +103,18 @@ pub struct RunStat {
     pub description: String,
 }
 
+/// The stun rules (ADR-085 points 4 and 6): run rules read with the stats, as they are content
+/// too. Both are tuning values; that each is bounded is the decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StunRules {
+    /// Ticks after a stun ends in which the enemy cannot be stunned again, 0 to
+    /// `MAX_STUN_IMMUNE_TICKS`.
+    pub immune_ticks: u32,
+    /// The share of a stun's ticks an elite takes, in percent, 0 to 100.
+    pub elite_pct: u32,
+}
+
 /// The run stats file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -107,12 +123,15 @@ pub struct RunStatsFile {
     pub sim_version: u32,
     /// The stats, in the order the pause screen lists them and `spend` numbers them.
     pub stats: Vec<RunStat>,
+    /// The stun rules.
+    pub stun: StunRules,
 }
 
 /// Run stats that passed validation, and the SHA-256 of the bytes they came from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunStats {
     stats: Vec<RunStat>,
+    stun: StunRules,
     sha256: [u8; 32],
 }
 
@@ -154,6 +173,7 @@ impl RunStats {
         validate(&file)?;
         Ok(RunStats {
             stats: file.stats,
+            stun: file.stun,
             sha256: Sha256::digest(bytes).into(),
         })
     }
@@ -161,6 +181,11 @@ impl RunStats {
     /// The stats, in the file's order.
     pub fn stats(&self) -> &[RunStat] {
         &self.stats
+    }
+
+    /// The stun rules of the file.
+    pub fn stun(&self) -> StunRules {
+        self.stun
     }
 
     /// The SHA-256 of the bytes they were parsed from.
@@ -211,6 +236,21 @@ pub fn validate(file: &RunStatsFile) -> Result<(), Error> {
         if let Some(problem) = text_problem(&stat.description, 0, MAX_DESCRIPTION_CHARS) {
             issue(at("description"), problem);
         }
+    }
+    if file.stun.immune_ticks > MAX_STUN_IMMUNE_TICKS {
+        issue(
+            "$.stun.immune_ticks".into(),
+            format!(
+                "0 to {MAX_STUN_IMMUNE_TICKS} (found {})",
+                file.stun.immune_ticks
+            ),
+        );
+    }
+    if file.stun.elite_pct > MAX_STEP {
+        issue(
+            "$.stun.elite_pct".into(),
+            format!("0 to {MAX_STEP} (found {})", file.stun.elite_pct),
+        );
     }
     if issues.is_empty() {
         Ok(())

@@ -125,7 +125,7 @@ const WEAPONS: &[(&str, &str)] = &[
                         {"kind":"recovery","ticks":8}]}},
                     "sub":{"attack":{"preset":{"id":"slam"}}}},
             "window_ticks":24,"dash_strike_ticks":10,"assist_range":32768,
-            "smash":{"type":"pull","distance":10240,"ticks":8}}"#,
+            "smash":{"type":"stun","ticks":30}}"#,
     ),
     // The Vindictus shape (ADR-084): A, AA and AAA are a slash, a slash and a thrust (Pierce,
     // ADR-100); AAA charges, at level 1 a wide slash and at level 2 a spin all round, each with

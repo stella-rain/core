@@ -515,15 +515,15 @@ fn a_smash_ends_its_combo_in_every_weapon() {
 }
 
 #[test]
-fn the_giant_sword_s_smashes_bleed_and_the_giant_hammer_s_pull() {
-    // ADR-084 point 8: the Sword's smashes put the bleed on what they hit; the Hammer's stun
-    // comes in its own task, so it keeps the pull for now.
+fn the_giant_sword_s_smashes_bleed_and_the_giant_hammer_s_smashes_stun() {
+    // ADR-084 point 8: the Sword's smashes put the bleed on what they hit, the Hammer's stun them
+    // for 30 ticks (a placeholder, ADR-085 point 5).
     use stella_rain_core::weapon::SmashEffect;
     assert_eq!(weapon_of("giant_sword").smash, Some(SmashEffect::Bleed {}));
-    assert!(matches!(
+    assert_eq!(
         weapon_of("giant_hammer").smash,
-        Some(SmashEffect::Pull { .. })
-    ));
+        Some(SmashEffect::Stun { ticks: 30 })
+    );
 }
 
 #[test]

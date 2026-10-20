@@ -78,6 +78,8 @@ pub mod limits {
     /// The Sub weapon's pull (ADR-070): at most 64 pixels, over at most 1 second.
     pub const MAX_PULL_DISTANCE: i32 = 16_384;
     pub const MAX_PULL_TICKS: u32 = 60;
+    /// A stun lasts at most 2 seconds (ADR-085 point 5, a placeholder bound).
+    pub const MAX_STUN_TICKS: u32 = 120;
     /// Twenty seconds: a bullet at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
     /// so a lifetime is a shorter one than the margin's (core#147).
     pub const MAX_BULLET_TICKS: u32 = 1_200;
@@ -791,6 +793,9 @@ impl<'a> Ctx<'a> {
             }
             // No numbers of its own: the rune's come from the runes file, bounded there.
             SmashEffect::Bleed {} => {}
+            SmashEffect::Stun { ticks } => {
+                self.within("ticks", i64::from(ticks), 1, i64::from(MAX_STUN_TICKS));
+            }
         }
     }
 

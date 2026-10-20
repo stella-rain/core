@@ -86,6 +86,7 @@ pub(super) fn new_agent(
         order: None,
         orbit_angle: angle,
         crowded: false,
+        stun_immune: 0,
         elite: def.elite.as_ref().map(|elite| EliteState {
             home: at,
             called: false,
@@ -288,6 +289,11 @@ fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
     // act either, so it acts from the next tick (ADR-090).
     if agent(s, me).hidden() {
         reveal(s, me, def, events);
+        return;
+    }
+    // A stunned enemy does nothing while the stun lasts (ADR-085 point 2): no movement and no
+    // rule. Its cooldowns counted above, so they run on through the stun.
+    if super::stun::stunned(&agent(s, me).statuses) {
         return;
     }
     move_agent(stage, s, me, def);

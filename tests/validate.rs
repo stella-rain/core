@@ -1283,6 +1283,22 @@ fn an_assist_range_is_0_to_its_limit() {
     );
 }
 
+fn with_stun(ticks: u32) -> Value {
+    with_weapon(main_weapon(chain(1), |w| {
+        w["smash"] = json!({ "type": "stun", "ticks": ticks })
+    }))
+}
+
+#[test]
+fn a_stun_is_1_to_its_max_ticks() {
+    // ADR-085 point 5: a stun lasts at least a tick and at most the bound (2 seconds).
+    assert_valid(&with_stun(1));
+    assert_valid(&with_stun(MAX_STUN_TICKS));
+    let at = "$.player.weapon.inline.smash.ticks";
+    assert_eq!(first_issue(&with_stun(0)).path, at);
+    assert_eq!(first_issue(&with_stun(MAX_STUN_TICKS + 1)).path, at);
+}
+
 #[test]
 fn a_pull_is_0_to_its_distance_over_1_to_its_ticks() {
     assert_valid(&with_smash(0, 1));

@@ -70,7 +70,9 @@ impl Rune {
             StatusKind::Bleed => Some(Rune::Bleed),
             StatusKind::Poison => Some(Rune::Poison),
             StatusKind::Burn => Some(Rune::Burn),
-            StatusKind::AtkUp | StatusKind::Vulnerable | StatusKind::Slow => None,
+            StatusKind::AtkUp | StatusKind::Vulnerable | StatusKind::Slow | StatusKind::Stun => {
+                None
+            }
         }
     }
 

@@ -42,5 +42,9 @@
       "title": "Speed",
       "description": "Move faster"
     }
-  ]
+  ],
+  "stun": {
+    "immune_ticks": 60,
+    "elite_pct": 50
+  }
 }
