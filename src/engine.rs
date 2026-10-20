@@ -1368,4 +1368,139 @@ mod horde_tests {
         assert_eq!(e.outcome(), Outcome::Failed);
         assert!(e.events().contains(&DomainEvent::StageFailed));
     }
+
+    /// A `time_limit` run of `edit`ed bundled mode, no waves, that the main character cannot die in.
+    fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
+        let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+        v["waves"] = serde_json::json!([]);
+        edit(&mut v);
+        let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+        let setup = RunSetup {
+            schema_version: 0,
+            sim_version: 0,
+            mode: "time_limit".into(),
+            main: "blade".into(),
+            sub: "maul".into(),
+            seed,
+            star_pool: None,
+            extra_rerolls: 0,
+        };
+        let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
+        e.state.player.hp = u32::MAX;
+        e.state.player.max_hp = u32::MAX;
+        e
+    }
+
+    /// Steps to `until` and lists each elite spawned: the tick, the sprite.
+    fn elites_spawned(e: &mut Engine, until: u32) -> Vec<(u32, String)> {
+        let mut out = Vec::new();
+        while e.tick() < until {
+            e.step(Input::default());
+            for ev in e.events() {
+                if let DomainEvent::EliteSpawned { asset, .. } = ev {
+                    out.push((e.tick(), asset.0.clone()));
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn elite_minutes_land_on_each_whole_minute_but_boss_ticks_and_overtime() {
+        // Room for all sixteen: the cap is not what is tested here.
+        let mut e = run_of(1, |v| v["elite_cap"] = serde_json::json!(32));
+        let ticks: Vec<u32> = elites_spawned(&mut e, 72_000 + 3_600 * 2)
+            .into_iter()
+            .map(|(t, _)| t)
+            .collect();
+        let expected: Vec<u32> = (1..=19)
+            .map(|k| k * 3_600)
+            .filter(|t| ![18_000, 36_000, 54_000].contains(t))
+            .collect();
+        assert_eq!(expected.len(), 16);
+        assert_eq!(ticks, expected);
+    }
+
+    #[test]
+    fn a_tier_boundary_on_an_elite_minute_picks_the_later_tier() {
+        let mut e = run_of(1, |v| {
+            v["length_ticks"] = serde_json::json!(18_000);
+            v["boss_ticks"] = serde_json::json!([18_000]);
+            v["mid_boss_pool"] = serde_json::json!([]);
+            v["elite_cap"] = serde_json::json!(32);
+            v["elite_table"] = serde_json::json!([
+                { "start_tick": 0, "weights": [{ "elite": "bat", "weight": 1 }] },
+                { "start_tick": 10_800, "weights": [{ "elite": "fairy_a", "weight": 1 }] }
+            ]);
+        });
+        let spawned = elites_spawned(&mut e, 14_400);
+        let sprites: Vec<(u32, &str)> = spawned.iter().map(|(t, a)| (*t, a.as_str())).collect();
+        assert_eq!(
+            sprites,
+            [
+                (3_600, "bat"),
+                (7_200, "bat"),
+                (10_800, "fairy_a"),
+                (14_400, "fairy_a")
+            ]
+        );
+    }
+
+    #[test]
+    fn the_cap_holds_an_elite_back_but_the_generator_is_drawn_the_same() {
+        let table = serde_json::json!([{ "start_tick": 0, "weights": [
+            { "elite": "bat", "weight": 1 }, { "elite": "fairy_a", "weight": 1 } ] }]);
+        let run = |cap: u32| {
+            run_of(7, |v| {
+                v["elite_cap"] = serde_json::json!(cap);
+                v["elite_table"] = table.clone();
+            })
+        };
+        let (mut tight, mut roomy) = (run(1), run(32));
+        let (mut few, mut many) = (0, 0);
+        for minute in 1..=4 {
+            let at = minute * 3_600;
+            few += elites_spawned(&mut tight, at).len();
+            many += elites_spawned(&mut roomy, at).len();
+            assert_eq!(
+                tight.state.rng.state(),
+                roomy.state.rng.state(),
+                "the generator after minute {minute}"
+            );
+        }
+        assert_eq!((few, many), (1, 4), "the cap held three back");
+        let alive = |e: &Engine| e.state.enemies.iter().filter(|a| a.elite.is_some()).count();
+        assert_eq!((alive(&tight), alive(&roomy)), (1, 4));
+    }
+
+    #[test]
+    fn the_boss_calls_the_elites_of_the_minutes_before_and_after_it_comes() {
+        let mut e = run_of(3, |v| {
+            v["length_ticks"] = serde_json::json!(20_000);
+            v["boss_ticks"] = serde_json::json!([4_000, 20_000]);
+            v["mid_boss_pool"] = serde_json::json!(["golem"]);
+            v["elite_cap"] = serde_json::json!(32);
+            v["elite_table"] =
+                serde_json::json!([{"start_tick": 0, "weights": [{"elite": "bat", "weight": 1}]}]);
+        });
+        let mut called = Vec::new();
+        while e.tick() < 7_200 {
+            e.step(Input::default());
+            for ev in e.events() {
+                if let DomainEvent::ElitesCalled { elites } = ev {
+                    called.push((e.tick(), *elites));
+                }
+            }
+        }
+        // The elite of minute 1 is alive when the boss that came at 4000 calls at 5801.
+        assert_eq!(called, [(5_801, 1)]);
+        // The elite of minute 2 spawned after the call: called at once.
+        let elites: Vec<bool> = e
+            .state
+            .enemies
+            .iter()
+            .filter_map(|a| a.elite.map(|el| el.called))
+            .collect();
+        assert_eq!(elites, [true, true]);
+    }
 }
