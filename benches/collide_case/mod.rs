@@ -54,6 +54,12 @@ pub fn stage() -> Stage {
             common::wave(1, per_hold as u16, 1, enemy, BAND_X, y)
         })
         .collect();
+    built(waves, 262_144, 163_840)
+}
+
+/// The stage with `waves` on a map of `width` by `height` (1/256 pixels), the main character at
+/// `START` and the crowd's guards and fan as `stage` describes them.
+fn built(waves: Vec<Value>, width: i32, height: i32) -> Stage {
     let sweep = json!([{ "kind": "active", "ticks": 30, "damage": 1, "rehit_ticks": 1,
                          "hit_box": { "type": "arc", "offset": { "forward": 2_560 },
                                       "radius": 65_536, "half_angle": 60 * 256 } }]);
@@ -73,8 +79,8 @@ pub fn stage() -> Stage {
     );
     let mut stage = common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4]);
     stage.map = Some(Map {
-        width: Fx(262_144),
-        height: Fx(163_840),
+        width: Fx(width),
+        height: Fx(height),
         start: Some(start),
     });
     let fan = json!({ "inline": common::spawned(json!([{
