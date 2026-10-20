@@ -47,8 +47,8 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 | `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `runs/v0/<case>/` holds a run's `run.replay` and `hashes.txt` (ADR-051); `corpus.rs` checks it (ADR-019) |
 | `benches/` | `worst_tick.rs`: `iai-callgrind` instruction count of a worst-case tick in a run that holds every rune, with Rune Haste and a damage-over-time status of each kind on every enemy (core#180), every dynamic cap of ADR-020 reached, a fresh stack of enemies to push apart and aim assist looking through all 500 enemies for a target (ADR-021, ADR-058, ADR-072); `worst_case/` builds the stage and `tests/worst_case.rs` checks it holds every cap (`Engine::load`); `collide_tick.rs` counts friendly-bullet collision at the caps with the crowd at rest (`collide_case/`, `tests/collide_case.rs`); `time_limit_tick.rs` counts the `time_limit` mode's horde at its heaviest: 500 enemies of the mode's kinds alive, about 3,950 bullets, a boss and the Main weapon hitting (`time_limit_case/`, `tests/time_limit_case.rs`, core#212) |
 | `fuzz/` | `cargo-fuzz` targets for the stage parser, the run after validation, the replay loader (stage and run replays), the share-code decoder, the run setup and the content pack (`pack_load`; ADR-020, ADR-051, ADR-080); its own workspace on nightly; `fuzz/tests/smoke.rs` runs them on stable, `regressions/<target>/` keeps the inputs of crashes that were fixed |
-| `.github/workflows/` | Rust gates on x86_64 and arm64 (tests also on Windows and macOS), mobile `cargo check`, the fuzz jobs, the weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`), both called by the release checks (`release-checks.yml`), the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge, branch cleanup, actionlint, the secret and key-file scan (`repo-check.yml`), the release (`release.yml`) and its script tests (`scripts.yml`) |
-| `.github/scripts/` | `release_tag.py` (the release's version, required checks and notes) with tests; the iOS Simulator runner and the fuzz report |
+| `.github/workflows/` | Rust gates on x86_64 and arm64 (tests also on Windows and macOS), mobile `cargo check`, the fuzz jobs, the weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`), both called by Candidate, the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge, branch cleanup, actionlint, the secret and key-file scan (`repo-check.yml`), Candidate, Promote and Candidate guard (`candidate.yml`, `promote.yml`, `candidate-guard.yml`) and the script tests (`scripts.yml`) |
+| `.github/scripts/` | `release.py` (the release's version, checks and notes) with tests; the iOS Simulator runner and the fuzz report |
 
 ## Gates
 
@@ -56,15 +56,15 @@ So far: the ADR-039 spike, the version 0 types, validator, engine, attacks, boss
 |---|---|
 | Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`; in CI (`rust.yml`) a PR of only `*.md` files skips every Rust job, and `rust checks` passes when each job ran or was skipped by right |
 | Simulation | Replay corpus: every tick's hash matches, on x86_64, on an arm64 runner, and (tests only) on Windows x86_64 and macOS arm64 runners, every PR and weekly on `main` (ADR-019, ADR-039); an intended change: `UPDATE_CORPUS=1 cargo test --test integration corpus::` |
-| iOS readiness | `cargo check --target aarch64-apple-ios` on every PR (ADR-039); the tests and the corpus run in the iOS Simulator by hand or from the release checks (`ios-sim.yml`, runner `.github/scripts/ios-sim-runner.sh`, ADR-054) |
+| iOS readiness | `cargo check --target aarch64-apple-ios` on every PR (ADR-039); the tests and the corpus run in the iOS Simulator by hand or from Candidate (`ios-sim.yml`, runner `.github/scripts/ios-sim-runner.sh`, ADR-054) |
 | Parser, validator, replay loader, share codes, run setups | In `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo +nightly fuzz build`; a PR that touches parsing also runs `cargo +nightly fuzz run <target> -- -max_total_time=60` for each of the six targets, seeded from the corpus, the bundled content and `content-pack export` (CI: `rust.yml`); weekly, each target runs 7 minutes on a growing cached corpus, and a crash opens a hash-only issue (`fuzz-long.yml`, `.github/scripts/fuzz-report.sh`) |
 | Tick cost | `cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick` (needs `valgrind` and `iai-callgrind-runner` 0.16.1); CI compares all three with the base commit's on both architectures and fails on more than +2% instructions in any of the three (`rust.yml`, ADR-058); the benches build at one codegen unit, base and head alike (`[profile.bench]`, core#192); `-- --save-baseline=base`, then `-- --baseline=base --callgrind-limits=ir=2%` runs the same comparison here |
 | `.github/scripts/*.py` | `python3 -m unittest discover -s .github/scripts` (CI: `scripts.yml`) |
 | `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too) |
 | Line endings | CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 
-The corpus run on an Android device is a release gate (ADR-054), and so are the iOS Simulator and long
-fuzz runs (`release-checks.yml`, on a PR from `main` into `rc`); when a gate is needed and cannot run
+The corpus run on an Android device is a release gate (ADR-054), tried on the prerelease, and so are the
+iOS Simulator and long fuzz runs, which Candidate runs; when a gate is needed and cannot run
 here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
 
 ## State
@@ -84,11 +84,8 @@ here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
   PR as a draft, and he merges it; `branch-cleanup.yml` deletes their merged branches (ADR-053). Any other branch (Kade's own) is merged by hand. A local session opens
   the PR with Kade's `gh` login; without it, it prints the commands for Kade.
   `auto-merge.yml` is read from `main`, so a change to it acts only after its own merge.
-- Release candidates are pull requests from `main` into `rc` (ADR-054): never commit to `rc`, and
-  no other head. Kade merges the PR by hand, then starts `release.yml` on `rc`: it checks the
-  release checks and tags `v<Cargo.toml version>` with a GitHub Release (ADR-054). `auto-merge.yml`
-  never touches it (it acts on `claude/*` heads into `main` only). A fix found on a candidate
-  goes to `main` first.
+- Releases follow the `release-flow` skill. The version is `version` in `Cargo.toml` (`fuzz/Cargo.lock`
+  agrees); Candidate generates the release notes from the commits since the last release (`.github/scripts/release.py`).
 - Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app can use it (ADR-029). Zip deliveries (Windows PC only) are laid out from the `stella-rain` root.
 
 ## Overrides of global rules

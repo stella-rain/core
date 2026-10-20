@@ -1,0 +1,132 @@
+# Promote (the release-flow skill). Kade runs it on the branch rc/vX.Y.Z-rc.N that Candidate
+# made (the GitHub app lists branches, not tags), after trying that prerelease. The tag is the
+# record and the branch only a handle: it refuses unless the branch head is the rc tag's commit,
+# the tag is the highest rc of a version that is not released yet and is above the latest
+# release, Cargo.toml at that commit has that version, and the prerelease exists
+# (.github/scripts/release.py rc-branch, check-promote). It then downloads the prerelease's
+# files, checks them against SHA256SUMS, tags the same commit vX.Y.Z and makes the GitHub
+# release, marked latest, with those files and the prerelease's notes: nothing is built again.
+# Last, it deletes the rc branches of that version and every older one; a failed run keeps them.
+# Only the tag job can write, and it runs none of the repository's code.
+name: Promote
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: check the candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      final: ${{ steps.check.outputs.final }}
+      commit: ${{ steps.check.outputs.commit }}
+      rc: ${{ steps.check.outputs.rc }}
+      released: ${{ steps.check.outputs.released }}
+      notes: ${{ steps.check.outputs.notes }}
+    steps:
+      - name: Only an rc/<rc tag> branch is promoted
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/rc/v*-rc.*) ;;
+            *) echo "::error::Promote runs on a branch rc/vX.Y.Z-rc.N only; this run is on $GITHUB_REF"; exit 1 ;;
+          esac
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: The candidate is the newest of a new version, with its prerelease
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          rc=$(python3 .github/scripts/release.py rc-branch "$GITHUB_REF_NAME")
+          final=$(python3 .github/scripts/release.py check-promote "$rc")
+          commit=$(git rev-parse "refs/tags/$rc^{commit}")
+          if [ "$commit" != "$GITHUB_SHA" ]; then
+            echo "::error::$GITHUB_REF_NAME is at $GITHUB_SHA, not at its tag $rc ($commit)"
+            exit 1
+          fi
+          if [ "$(gh release view "$rc" --repo "$REPO" --json isPrerelease --jq .isPrerelease)" != true ]; then
+            echo "::error::$rc has no prerelease"
+            exit 1
+          fi
+          released=$(python3 .github/scripts/release.py released "$final")
+          {
+            echo "$final, promoted from $rc."
+            echo
+            gh release view "$rc" --repo "$REPO" --json body --jq .body
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "final=$final"
+            echo "commit=$commit"
+            echo "rc=$rc"
+            echo "released=$released"
+            echo "notes=$(base64 -w0 "$RUNNER_TEMP/notes.md")"
+          } >> "$GITHUB_OUTPUT"
+
+  tag:
+    name: tag and GitHub release
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write  # the tag, the release and deleting the rc branches
+    steps:
+      - name: Tag the candidate's commit, make the release with its files, delete the rc branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          FINAL: ${{ needs.check.outputs.final }}
+          COMMIT: ${{ needs.check.outputs.commit }}
+          RC: ${{ needs.check.outputs.rc }}
+          RELEASED: ${{ needs.check.outputs.released }}
+          NOTES: ${{ needs.check.outputs.notes }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$REPO/git/ref/heads/$GITHUB_REF_NAME" --jq .object.sha)
+          if [ "$head" != "$COMMIT" ]; then
+            echo "::error::$GITHUB_REF_NAME moved from $COMMIT to $head"
+            exit 1
+          fi
+          mkdir "$RUNNER_TEMP/dist"
+          gh release download "$RC" --repo "$REPO" --dir "$RUNNER_TEMP/dist"
+          cd "$RUNNER_TEMP/dist"
+          if [ ! -f SHA256SUMS ]; then
+            echo "::error::$RC has no SHA256SUMS"
+            exit 1
+          fi
+          sha256sum -c SHA256SUMS
+          # Every downloaded file is listed in SHA256SUMS, and every listed file was downloaded.
+          listed=$(awk '{print $2}' SHA256SUMS | sed 's/^\*//' | sort)
+          present=$(find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' | sort)
+          if [ "$listed" != "$present" ]; then
+            echo "::error::the files of $RC and SHA256SUMS differ"
+            exit 1
+          fi
+          cd - > /dev/null
+          base64 -d <<<"$NOTES" > "$RUNNER_TEMP/notes.md"
+          object=$(gh api "repos/$REPO/git/tags" -f tag="$FINAL" -f message="$FINAL" \
+                     -f object="$COMMIT" -f type=commit --jq .sha)
+          gh api "repos/$REPO/git/refs" -f ref="refs/tags/$FINAL" -f sha="$object" > /dev/null
+          gh release create "$FINAL" --repo "$REPO" --verify-tag --latest --title "$FINAL" \
+            --notes-file "$RUNNER_TEMP/notes.md" "$RUNNER_TEMP"/dist/*
+          for b in $RELEASED; do
+            gh api -X DELETE "repos/$REPO/git/refs/heads/$b" > /dev/null || echo "::warning::could not delete $b"
+          done
+          {
+            echo "Released $FINAL at $COMMIT, promoted from $RC."
+            echo "Deleted the rc branches $RELEASED."
+          } >> "$GITHUB_STEP_SUMMARY"
