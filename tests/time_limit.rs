@@ -7,10 +7,14 @@ use stella_rain_core::registry::{ENTRIES, Kind};
 use stella_rain_core::run_replay::content_sha256;
 use stella_rain_core::run_setup;
 use stella_rain_core::time_limit::{
-    MAX_BOSS_TIMES, MAX_EXTRA_TICKS, MAX_LENGTH_TICKS, MAX_OVERTIME_TICKS, MAX_POOL,
-    MAX_SPAWN_COUNT, MAX_TIME_LIMIT_BYTES, MAX_TOTAL_SPAWNS, MAX_WAVES, TimeLimit,
+    MAX_BOSS_TIMES, MAX_ELITE_TIERS, MAX_ELITE_TYPES, MAX_ELITE_WEIGHT, MAX_EXTRA_TICKS,
+    MAX_LENGTH_TICKS, MAX_OVERTIME_TICKS, MAX_POOL, MAX_SPAWN_COUNT, MAX_TIME_LIMIT_BYTES,
+    MAX_TOTAL_SPAWNS, MAX_WAVES, TimeLimit,
 };
-use stella_rain_core::validate::{Error, limits::MAX_MAP_SIDE};
+use stella_rain_core::validate::{
+    Error,
+    limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE},
+};
 
 const MINUTE: u32 = 3600;
 
@@ -63,7 +67,9 @@ fn the_mode_is_registered_and_its_file_is_part_of_the_content_hash() {
     assert!(file.starts_with(TimeLimit::BUNDLED));
     assert!(file.ends_with(run_setup::mode_stage("trial").unwrap()));
     assert_ne!(content_sha256("time_limit"), None);
-    assert_ne!(content_sha256("time_limit"), content_sha256("trial"));
+    // One pack, one hash for both modes (ADR-080); a mode that does not exist has none.
+    assert_eq!(content_sha256("time_limit"), content_sha256("trial"));
+    assert_eq!(content_sha256("blade"), None);
     // Not a stage file: its run is built from the mode file.
     assert_eq!(run_setup::mode_stage("time_limit"), None);
 }
@@ -156,6 +162,7 @@ fn each_number_is_under_its_hard_cap() {
     v["length_ticks"] = json!(MAX_BOSS_TIMES as u32 + 1);
     v["mid_boss_pool"] = json!(vec!["golem"; MAX_BOSS_TIMES]);
     v["waves"] = json!([]);
+    v["elite_table"] = json!([tier(0, &[("bat", 1)])]);
     assert_eq!(paths(&v), ["$.boss_ticks"]);
     let pool = vec!["golem"; MAX_POOL + 1];
     assert_eq!(
@@ -264,4 +271,172 @@ fn the_schedule_has_no_elites_yet() {
     let mut w = wave();
     w["enemy"]["elite"] = json!({ "range": 40960 });
     assert_eq!(paths(&waves(vec![w])), ["$.waves[0].enemy.elite"]);
+}
+
+fn tier(start_tick: u32, weights: &[(&str, u32)]) -> Value {
+    let weights: Vec<Value> = weights
+        .iter()
+        .map(|(elite, weight)| json!({ "elite": elite, "weight": weight }))
+        .collect();
+    json!({ "start_tick": start_tick, "weights": weights })
+}
+
+fn table(tiers: Vec<Value>) -> Value {
+    with("elite_table", json!(tiers))
+}
+
+#[test]
+fn the_bundled_elite_table_has_no_high_grade_before_minute_16() {
+    let m = TimeLimit::bundled();
+    assert_eq!(m.elite_cap(), 5);
+    let tiers = m.elite_table();
+    let starts: Vec<u32> = tiers.iter().map(|t| t.start_tick).collect();
+    assert_eq!(starts, [0, 6 * MINUTE, 16 * MINUTE]);
+    let names = |i: usize| -> Vec<&str> {
+        tiers[i]
+            .weights
+            .iter()
+            .map(|w| w.elite.0.as_str())
+            .collect()
+    };
+    assert_eq!(names(0), ["bat"]);
+    assert_eq!(names(1), ["bat", "fairy_a"]);
+    assert_eq!(names(2), ["bat", "fairy_a", "horns_2"]);
+}
+
+#[test]
+fn a_valid_elite_table_parses() {
+    let v = table(vec![
+        tier(0, &[("bat", 1)]),
+        tier(MINUTE, &[("bat", 3), ("fairy_a", MAX_ELITE_WEIGHT)]),
+    ]);
+    let m = parse(&v).unwrap();
+    assert_eq!(m.elite_table().len(), 2);
+    assert_eq!(m.elite_table()[1].weights[1].weight, MAX_ELITE_WEIGHT);
+}
+
+#[test]
+fn elite_tiers_rise_strictly_and_the_first_starts_with_the_run() {
+    let weights = [("bat", 1)];
+    assert_eq!(
+        paths(&table(vec![tier(0, &weights), tier(0, &weights)])),
+        ["$.elite_table[1].start_tick"]
+    );
+    assert_eq!(
+        paths(&table(vec![tier(MINUTE, &weights), tier(0, &weights)])),
+        ["$.elite_table[0].start_tick", "$.elite_table[1].start_tick"]
+    );
+}
+
+#[test]
+fn an_elite_tier_starts_before_the_run_ends() {
+    let weights = [("bat", 1)];
+    let end = 20 * MINUTE;
+    assert!(parse(&table(vec![tier(0, &weights), tier(end - 1, &weights)])).is_ok());
+    assert_eq!(
+        paths(&table(vec![tier(0, &weights), tier(end, &weights)])),
+        ["$.elite_table[1].start_tick"]
+    );
+}
+
+#[test]
+fn an_elite_weight_is_above_zero_and_under_its_cap() {
+    assert_eq!(
+        paths(&table(vec![tier(0, &[("bat", 0)])])),
+        ["$.elite_table[0].weights[0].weight"]
+    );
+    assert_eq!(
+        paths(&table(vec![tier(0, &[("bat", MAX_ELITE_WEIGHT + 1)])])),
+        ["$.elite_table[0].weights[0].weight"]
+    );
+}
+
+#[test]
+fn an_elite_type_is_a_known_sprite_named_once_per_tier() {
+    assert_eq!(
+        paths(&table(vec![tier(0, &[("bat", 1), ("nope", 1)])])),
+        ["$.elite_table[0].weights[1].elite"]
+    );
+    assert_eq!(
+        paths(&table(vec![tier(0, &[("blade", 1)])])),
+        ["$.elite_table[0].weights[0].elite"]
+    );
+    assert_eq!(
+        paths(&table(vec![tier(0, &[("bat", 1), ("bat", 2)])])),
+        ["$.elite_table[0].weights[1].elite"]
+    );
+}
+
+#[test]
+fn the_elite_table_has_at_least_one_tier_and_one_type_each_and_at_most_so_many() {
+    assert_eq!(paths(&table(vec![])), ["$.elite_table"]);
+    assert_eq!(
+        paths(&table(vec![tier(0, &[])])),
+        ["$.elite_table[0].weights"]
+    );
+    let at_cap: Vec<Value> = (0..MAX_ELITE_TIERS as u32)
+        .map(|i| tier(i * 60, &[("bat", 1)]))
+        .collect();
+    assert!(parse(&table(at_cap)).is_ok());
+    let too_many: Vec<Value> = (0..=MAX_ELITE_TIERS as u32)
+        .map(|i| tier(i * 60, &[("bat", 1)]))
+        .collect();
+    assert_eq!(paths(&table(too_many)), ["$.elite_table"]);
+
+    let ids = [
+        "bat",
+        "fairy_a",
+        "golem",
+        "horns_2",
+        "pilot_a",
+        "icon_hex",
+        "icon_nova",
+        "icon_aegis",
+        "icon_war_cry",
+    ];
+    assert!(MAX_ELITE_TYPES < ids.len());
+    let at_cap: Vec<(&str, u32)> = ids[..MAX_ELITE_TYPES].iter().map(|&i| (i, 1)).collect();
+    assert!(parse(&table(vec![tier(0, &at_cap)])).is_ok());
+    let past: Vec<(&str, u32)> = ids[..=MAX_ELITE_TYPES].iter().map(|&i| (i, 1)).collect();
+    assert_eq!(
+        paths(&table(vec![tier(0, &past)])),
+        ["$.elite_table[0].weights"]
+    );
+}
+
+#[test]
+fn the_elite_cap_is_from_one_to_the_most_elites_alive() {
+    assert_eq!(paths(&with("elite_cap", json!(0))), ["$.elite_cap"]);
+    assert_eq!(
+        paths(&with("elite_cap", json!(MAX_ELITES_ALIVE + 1))),
+        ["$.elite_cap"]
+    );
+    assert_eq!(
+        parse(&with("elite_cap", json!(MAX_ELITES_ALIVE)))
+            .unwrap()
+            .elite_cap(),
+        MAX_ELITES_ALIVE
+    );
+    assert_eq!(parse(&with("elite_cap", json!(1))).unwrap().elite_cap(), 1);
+}
+
+#[test]
+fn the_elite_fields_are_strict_and_a_refusal_echoes_no_file_text() {
+    let mut v = table(vec![tier(0, &[("bat", 1)])]);
+    v["elite_table"][0]["extra"] = json!(1);
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
+    let mut v = good();
+    v.as_object_mut().unwrap().remove("elite_cap");
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
+
+    let secret = "secret_text_from_the_file";
+    let v = table(vec![tier(0, &[(secret, 1)])]);
+    let Err(Error::Invalid(issues)) = parse(&v) else {
+        panic!("not refused");
+    };
+    assert!(
+        issues
+            .iter()
+            .all(|i| !i.path.contains(secret) && !i.message.contains(secret))
+    );
 }

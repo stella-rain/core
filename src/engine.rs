@@ -142,7 +142,7 @@ impl Engine {
         if setup.mode.0 == "time_limit" {
             return Engine::start_time_limit(setup, content, content.time_limit());
         }
-        let stage = run_setup::stage(setup)?;
+        let stage = run_setup::stage_in(setup, content)?;
         let pool = rules_v0::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
             extra_rerolls: setup.extra_rerolls,
@@ -163,7 +163,7 @@ impl Engine {
         content: &RunContent,
         mode: &crate::time_limit::TimeLimit,
     ) -> Result<Engine, Error> {
-        let (stage, horde) = run_setup::time_limit_run(setup, mode)?;
+        let (stage, horde) = run_setup::time_limit_run(setup, mode, content.trial())?;
         let pool = rules_v0::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
             extra_rerolls: setup.extra_rerolls,
@@ -1297,6 +1297,8 @@ mod horde_tests {
         v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
         v["boss_ticks"] = serde_json::json!(boss_ticks);
         v["waves"] = serde_json::json!([]);
+        v["elite_table"] =
+            serde_json::json!([{"start_tick": 0, "weights": [{"elite": "bat", "weight": 1}]}]);
         let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap();
         let setup = RunSetup {
             schema_version: 0,

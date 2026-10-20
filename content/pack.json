@@ -1,0 +1,1901 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "introduced": {
+    "run_stats": [
+      {
+        "id": "max_hp",
+        "sim_version": 0
+      },
+      {
+        "id": "attack",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_speed",
+        "sim_version": 0
+      },
+      {
+        "id": "evade",
+        "sim_version": 0
+      },
+      {
+        "id": "speed",
+        "sim_version": 0
+      }
+    ],
+    "rewards": [
+      {
+        "id": "max_hp_common",
+        "sim_version": 0
+      },
+      {
+        "id": "max_hp_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "max_hp_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_common",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_speed_common",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_speed_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_speed_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "evade_common",
+        "sim_version": 0
+      },
+      {
+        "id": "evade_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "evade_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "speed_common",
+        "sim_version": 0
+      },
+      {
+        "id": "speed_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "speed_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "xp_common",
+        "sim_version": 0
+      },
+      {
+        "id": "xp_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "xp_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "black_hole_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "war_cry_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "hex_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "nova_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "aegis_rare",
+        "sim_version": 0
+      }
+    ],
+    "stage_skills": [
+      {
+        "id": "black_hole",
+        "sim_version": 0
+      },
+      {
+        "id": "war_cry",
+        "sim_version": 0
+      },
+      {
+        "id": "hex",
+        "sim_version": 0
+      },
+      {
+        "id": "nova",
+        "sim_version": 0
+      },
+      {
+        "id": "aegis",
+        "sim_version": 0
+      }
+    ],
+    "expertise": [
+      {
+        "weapon": "blade",
+        "ids": [
+          {
+            "id": "edge",
+            "sim_version": 0
+          },
+          {
+            "id": "edge_6",
+            "sim_version": 0
+          },
+          {
+            "id": "edge_9",
+            "sim_version": 0
+          },
+          {
+            "id": "edge_10",
+            "sim_version": 0
+          },
+          {
+            "id": "tempo",
+            "sim_version": 0
+          },
+          {
+            "id": "tempo_6",
+            "sim_version": 0
+          },
+          {
+            "id": "tempo_9",
+            "sim_version": 0
+          },
+          {
+            "id": "tempo_10",
+            "sim_version": 0
+          },
+          {
+            "id": "reach",
+            "sim_version": 0
+          },
+          {
+            "id": "reach_6",
+            "sim_version": 0
+          },
+          {
+            "id": "reach_9",
+            "sim_version": 0
+          },
+          {
+            "id": "reach_10",
+            "sim_version": 0
+          },
+          {
+            "id": "damage",
+            "sim_version": 0
+          },
+          {
+            "id": "attack_speed",
+            "sim_version": 0
+          },
+          {
+            "id": "hit_box",
+            "sim_version": 0
+          }
+        ]
+      },
+      {
+        "weapon": "maul",
+        "ids": [
+          {
+            "id": "crush",
+            "sim_version": 0
+          },
+          {
+            "id": "crush_6",
+            "sim_version": 0
+          },
+          {
+            "id": "crush_9",
+            "sim_version": 0
+          },
+          {
+            "id": "crush_10",
+            "sim_version": 0
+          },
+          {
+            "id": "quake",
+            "sim_version": 0
+          },
+          {
+            "id": "quake_6",
+            "sim_version": 0
+          },
+          {
+            "id": "quake_9",
+            "sim_version": 0
+          },
+          {
+            "id": "quake_10",
+            "sim_version": 0
+          },
+          {
+            "id": "bulwark",
+            "sim_version": 0
+          },
+          {
+            "id": "bulwark_6",
+            "sim_version": 0
+          },
+          {
+            "id": "bulwark_9",
+            "sim_version": 0
+          },
+          {
+            "id": "bulwark_10",
+            "sim_version": 0
+          },
+          {
+            "id": "damage",
+            "sim_version": 0
+          },
+          {
+            "id": "attack_speed",
+            "sim_version": 0
+          },
+          {
+            "id": "hit_box",
+            "sim_version": 0
+          }
+        ]
+      }
+    ]
+  },
+  "run_stats": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "stats": [
+    {
+      "id": "max_hp",
+      "effect": "max_hp",
+      "step": 1,
+      "limit": 5,
+      "title": "Max HP",
+      "description": "One more hit point at most, and one healed"
+    },
+    {
+      "id": "attack",
+      "effect": "attack_pct",
+      "step": 10,
+      "limit": 5,
+      "title": "Attack",
+      "description": "More damage from every attack"
+    },
+    {
+      "id": "attack_speed",
+      "effect": "attack_speed_pct",
+      "step": 8,
+      "limit": 5,
+      "title": "Attack Speed",
+      "description": "Every attack is faster"
+    },
+    {
+      "id": "evade",
+      "effect": "evade_pct",
+      "step": 10,
+      "limit": 5,
+      "title": "Evade",
+      "description": "A shorter evade cooldown"
+    },
+    {
+      "id": "speed",
+      "effect": "speed_pct",
+      "step": 8,
+      "limit": 5,
+      "title": "Speed",
+      "description": "Move faster"
+    }
+  ]
+},
+  "rewards": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "rewards": [
+    {
+      "id": "max_hp_common",
+      "rarity": "common",
+      "effect": "max_hp",
+      "amount": 2,
+      "limit": 5,
+      "title": "Vigour (Common)",
+      "description": "2 more hit points at most, and as many healed"
+    },
+    {
+      "id": "max_hp_rare",
+      "rarity": "rare",
+      "effect": "max_hp",
+      "amount": 5,
+      "limit": 3,
+      "title": "Vigour (Rare)",
+      "description": "5 more hit points at most, and as many healed"
+    },
+    {
+      "id": "max_hp_legendary",
+      "rarity": "legendary",
+      "effect": "max_hp",
+      "amount": 10,
+      "limit": 1,
+      "title": "Vigour (Legendary)",
+      "description": "10 more hit points at most, and as many healed"
+    },
+    {
+      "id": "attack_common",
+      "rarity": "common",
+      "effect": "attack_pct",
+      "amount": 5,
+      "limit": 5,
+      "title": "Might (Common)",
+      "description": "5 percent more damage"
+    },
+    {
+      "id": "attack_rare",
+      "rarity": "rare",
+      "effect": "attack_pct",
+      "amount": 12,
+      "limit": 3,
+      "title": "Might (Rare)",
+      "description": "12 percent more damage"
+    },
+    {
+      "id": "attack_legendary",
+      "rarity": "legendary",
+      "effect": "attack_pct",
+      "amount": 25,
+      "limit": 1,
+      "title": "Might (Legendary)",
+      "description": "25 percent more damage"
+    },
+    {
+      "id": "attack_speed_common",
+      "rarity": "common",
+      "effect": "attack_speed_pct",
+      "amount": 4,
+      "limit": 5,
+      "title": "Swiftness (Common)",
+      "description": "Attacks 4 percent faster"
+    },
+    {
+      "id": "attack_speed_rare",
+      "rarity": "rare",
+      "effect": "attack_speed_pct",
+      "amount": 10,
+      "limit": 3,
+      "title": "Swiftness (Rare)",
+      "description": "Attacks 10 percent faster"
+    },
+    {
+      "id": "attack_speed_legendary",
+      "rarity": "legendary",
+      "effect": "attack_speed_pct",
+      "amount": 20,
+      "limit": 1,
+      "title": "Swiftness (Legendary)",
+      "description": "Attacks 20 percent faster"
+    },
+    {
+      "id": "evade_common",
+      "rarity": "common",
+      "effect": "evade_pct",
+      "amount": 5,
+      "limit": 5,
+      "title": "Grace (Common)",
+      "description": "5 percent shorter evade cooldown"
+    },
+    {
+      "id": "evade_rare",
+      "rarity": "rare",
+      "effect": "evade_pct",
+      "amount": 12,
+      "limit": 3,
+      "title": "Grace (Rare)",
+      "description": "12 percent shorter evade cooldown"
+    },
+    {
+      "id": "evade_legendary",
+      "rarity": "legendary",
+      "effect": "evade_pct",
+      "amount": 25,
+      "limit": 1,
+      "title": "Grace (Legendary)",
+      "description": "25 percent shorter evade cooldown"
+    },
+    {
+      "id": "speed_common",
+      "rarity": "common",
+      "effect": "speed_pct",
+      "amount": 4,
+      "limit": 5,
+      "title": "Swiftness (Common)",
+      "description": "4 percent more speed"
+    },
+    {
+      "id": "speed_rare",
+      "rarity": "rare",
+      "effect": "speed_pct",
+      "amount": 10,
+      "limit": 3,
+      "title": "Swiftness (Rare)",
+      "description": "10 percent more speed"
+    },
+    {
+      "id": "speed_legendary",
+      "rarity": "legendary",
+      "effect": "speed_pct",
+      "amount": 20,
+      "limit": 1,
+      "title": "Swiftness (Legendary)",
+      "description": "20 percent more speed"
+    },
+    {
+      "id": "xp_common",
+      "rarity": "common",
+      "effect": "xp_pct",
+      "amount": 10,
+      "limit": 5,
+      "title": "Insight (Common)",
+      "description": "10 percent more experience"
+    },
+    {
+      "id": "xp_rare",
+      "rarity": "rare",
+      "effect": "xp_pct",
+      "amount": 25,
+      "limit": 3,
+      "title": "Insight (Rare)",
+      "description": "25 percent more experience"
+    },
+    {
+      "id": "xp_legendary",
+      "rarity": "legendary",
+      "effect": "xp_pct",
+      "amount": 50,
+      "limit": 1,
+      "title": "Insight (Legendary)",
+      "description": "50 percent more experience"
+    },
+    {
+      "id": "black_hole_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "black_hole",
+      "amount": 1,
+      "limit": 3,
+      "title": "Black Hole",
+      "description": "Pulls the enemies ahead into one point and holds them there"
+    },
+    {
+      "id": "war_cry_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "war_cry",
+      "amount": 1,
+      "limit": 3,
+      "title": "War Cry",
+      "description": "Your attacks hit harder for 5 seconds"
+    },
+    {
+      "id": "hex_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "hex",
+      "amount": 1,
+      "limit": 3,
+      "title": "Hex",
+      "description": "The enemies ahead take more damage for 5 seconds"
+    },
+    {
+      "id": "nova_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "nova",
+      "amount": 1,
+      "limit": 3,
+      "title": "Nova",
+      "description": "A burst of starlight strikes the area ahead"
+    },
+    {
+      "id": "aegis_rare",
+      "rarity": "rare",
+      "effect": "stage_skill",
+      "skill": "aegis",
+      "amount": 1,
+      "limit": 3,
+      "title": "Aegis",
+      "description": "A shield absorbs the next hits for a while"
+    }
+  ]
+},
+  "stage_skills": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "stage_skills": [
+    {
+      "id": "black_hole",
+      "icon": "icon_black_hole",
+      "title": "Black Hole",
+      "description": "Pulls the enemies ahead into one point and holds them there",
+      "ahead": 24576,
+      "levels": [
+        {
+          "cooldown_ticks": 900,
+          "effects": [
+            {
+              "type": "pull",
+              "radius": 16384,
+              "strength": 512,
+              "duration_ticks": 120
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 840,
+          "effects": [
+            {
+              "type": "pull",
+              "radius": 18432,
+              "strength": 640,
+              "duration_ticks": 150
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 780,
+          "effects": [
+            {
+              "type": "pull",
+              "radius": 20480,
+              "strength": 768,
+              "duration_ticks": 180
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "war_cry",
+      "icon": "icon_war_cry",
+      "title": "War Cry",
+      "description": "Your attacks hit harder for 5 seconds",
+      "levels": [
+        {
+          "cooldown_ticks": 1200,
+          "effects": [
+            {
+              "type": "self_status",
+              "status": "atk_up",
+              "value_pct": 30,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 1100,
+          "effects": [
+            {
+              "type": "self_status",
+              "status": "atk_up",
+              "value_pct": 45,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 1000,
+          "effects": [
+            {
+              "type": "self_status",
+              "status": "atk_up",
+              "value_pct": 60,
+              "duration_ticks": 300
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hex",
+      "icon": "icon_hex",
+      "title": "Hex",
+      "description": "The enemies ahead take more damage for 5 seconds",
+      "ahead": 24576,
+      "levels": [
+        {
+          "cooldown_ticks": 900,
+          "effects": [
+            {
+              "type": "area_status",
+              "status": "vulnerable",
+              "radius": 16384,
+              "value_pct": 25,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 840,
+          "effects": [
+            {
+              "type": "area_status",
+              "status": "vulnerable",
+              "radius": 20480,
+              "value_pct": 35,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 780,
+          "effects": [
+            {
+              "type": "area_status",
+              "status": "vulnerable",
+              "radius": 24576,
+              "value_pct": 50,
+              "duration_ticks": 300
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nova",
+      "icon": "icon_nova",
+      "title": "Nova",
+      "description": "A burst of starlight strikes the area ahead",
+      "levels": [
+        {
+          "cooldown_ticks": 600,
+          "effects": [
+            {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 10,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 12288
+                    }
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 4,
+                    "damage": 20,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 12288
+                    }
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 6
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 540,
+          "effects": [
+            {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 10,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 14336
+                    }
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 4,
+                    "damage": 30,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 14336
+                    }
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 6
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 480,
+          "effects": [
+            {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 10,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 16384
+                    }
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 4,
+                    "damage": 40,
+                    "hit_box": {
+                      "type": "circle",
+                      "offset": {
+                        "forward": 24576
+                      },
+                      "radius": 16384
+                    }
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 6
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "aegis",
+      "icon": "icon_aegis",
+      "title": "Aegis",
+      "description": "A shield absorbs the next hits for a while",
+      "levels": [
+        {
+          "cooldown_ticks": 1200,
+          "effects": [
+            {
+              "type": "shield",
+              "amount": 3,
+              "duration_ticks": 300
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 1100,
+          "effects": [
+            {
+              "type": "shield",
+              "amount": 5,
+              "duration_ticks": 360
+            }
+          ]
+        },
+        {
+          "cooldown_ticks": 1000,
+          "effects": [
+            {
+              "type": "shield",
+              "amount": 8,
+              "duration_ticks": 420
+            }
+          ]
+        }
+      ]
+    }
+  ]
+},
+  "expertise": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "thresholds": [
+    30,
+    45,
+    65,
+    90,
+    120,
+    155,
+    195,
+    240,
+    290,
+    345
+  ],
+  "growth_pct": 115,
+  "max_points": 50000,
+  "weapons": [
+    {
+      "weapon": "blade",
+      "styles": [
+        {
+          "id": "edge",
+          "effect": "attack_pct",
+          "amount": 10,
+          "title": "Edge",
+          "description": "10 percent more damage",
+          "upgrade_6": [
+            {
+              "id": "edge_6",
+              "effect": "attack_pct",
+              "amount": 15,
+              "title": "Keen Edge",
+              "description": "15 percent more damage"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "edge_9",
+              "effect": "range_pct",
+              "amount": 15,
+              "title": "Long Edge",
+              "description": "Every combo step's hit box 15 percent larger"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "edge_10",
+              "effect": "attack_pct",
+              "amount": 30,
+              "title": "Master Edge",
+              "description": "30 percent more damage"
+            }
+          ]
+        },
+        {
+          "id": "tempo",
+          "effect": "attack_speed_pct",
+          "amount": 8,
+          "title": "Tempo",
+          "description": "Attacks 8 percent faster",
+          "upgrade_6": [
+            {
+              "id": "tempo_6",
+              "effect": "speed_pct",
+              "amount": 10,
+              "title": "Light Step",
+              "description": "10 percent more speed"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "tempo_9",
+              "effect": "attack_speed_pct",
+              "amount": 10,
+              "title": "Quick Hands",
+              "description": "Attacks 10 percent faster"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "tempo_10",
+              "effect": "evade_pct",
+              "amount": 25,
+              "title": "Flow",
+              "description": "25 percent shorter evade cooldown"
+            }
+          ]
+        },
+        {
+          "id": "reach",
+          "effect": "range_pct",
+          "amount": 15,
+          "title": "Reach",
+          "description": "Every combo step's hit box 15 percent larger",
+          "upgrade_6": [
+            {
+              "id": "reach_6",
+              "effect": "range_pct",
+              "amount": 15,
+              "title": "Wide Arc",
+              "description": "Every combo step's hit box 15 percent larger"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "reach_9",
+              "effect": "attack_pct",
+              "amount": 15,
+              "title": "Sure Strike",
+              "description": "15 percent more damage"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "reach_10",
+              "effect": "range_pct",
+              "amount": 30,
+              "title": "Far Reach",
+              "description": "Every combo step's hit box 30 percent larger"
+            }
+          ]
+        }
+      ],
+      "common": [
+        {
+          "id": "damage",
+          "effect": "attack_pct",
+          "amount": 10,
+          "title": "Damage",
+          "description": "10 percent more damage"
+        },
+        {
+          "id": "attack_speed",
+          "effect": "attack_speed_pct",
+          "amount": 10,
+          "title": "Attack Speed",
+          "description": "Attacks 10 percent faster"
+        },
+        {
+          "id": "hit_box",
+          "effect": "range_pct",
+          "amount": 10,
+          "title": "Hit Box",
+          "description": "Every combo step's hit box 10 percent larger"
+        }
+      ]
+    },
+    {
+      "weapon": "maul",
+      "styles": [
+        {
+          "id": "crush",
+          "effect": "attack_pct",
+          "amount": 15,
+          "title": "Crush",
+          "description": "15 percent more damage",
+          "upgrade_6": [
+            {
+              "id": "crush_6",
+              "effect": "attack_pct",
+              "amount": 20,
+              "title": "Heavy Head",
+              "description": "20 percent more damage"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "crush_9",
+              "effect": "max_hp",
+              "amount": 2,
+              "title": "Iron Grip",
+              "description": "2 more hit points at most, and as many healed"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "crush_10",
+              "effect": "attack_pct",
+              "amount": 40,
+              "title": "Shatter",
+              "description": "40 percent more damage"
+            }
+          ]
+        },
+        {
+          "id": "quake",
+          "effect": "range_pct",
+          "amount": 20,
+          "title": "Quake",
+          "description": "Every combo step's hit box 20 percent larger",
+          "upgrade_6": [
+            {
+              "id": "quake_6",
+              "effect": "range_pct",
+              "amount": 20,
+              "title": "Tremor",
+              "description": "Every combo step's hit box 20 percent larger"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "quake_9",
+              "effect": "attack_pct",
+              "amount": 15,
+              "title": "Aftershock",
+              "description": "15 percent more damage"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "quake_10",
+              "effect": "range_pct",
+              "amount": 40,
+              "title": "Earthshaker",
+              "description": "Every combo step's hit box 40 percent larger"
+            }
+          ]
+        },
+        {
+          "id": "bulwark",
+          "effect": "max_hp",
+          "amount": 2,
+          "title": "Bulwark",
+          "description": "2 more hit points at most, and as many healed",
+          "upgrade_6": [
+            {
+              "id": "bulwark_6",
+              "effect": "evade_pct",
+              "amount": 15,
+              "title": "Brace",
+              "description": "15 percent shorter evade cooldown"
+            }
+          ],
+          "upgrade_9": [
+            {
+              "id": "bulwark_9",
+              "effect": "max_hp",
+              "amount": 3,
+              "title": "Stone Skin",
+              "description": "3 more hit points at most, and as many healed"
+            }
+          ],
+          "capstone": [
+            {
+              "id": "bulwark_10",
+              "effect": "evade_pct",
+              "amount": 30,
+              "title": "Fortress",
+              "description": "30 percent shorter evade cooldown"
+            }
+          ]
+        }
+      ],
+      "common": [
+        {
+          "id": "damage",
+          "effect": "attack_pct",
+          "amount": 10,
+          "title": "Damage",
+          "description": "10 percent more damage"
+        },
+        {
+          "id": "attack_speed",
+          "effect": "attack_speed_pct",
+          "amount": 10,
+          "title": "Attack Speed",
+          "description": "Attacks 10 percent faster"
+        },
+        {
+          "id": "hit_box",
+          "effect": "range_pct",
+          "amount": 10,
+          "title": "Hit Box",
+          "description": "Every combo step's hit box 10 percent larger"
+        }
+      ]
+    }
+  ]
+},
+  "match_ups": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "weak_pct": 20,
+  "strong_pct": 20,
+  "resisted_pct": 20,
+  "max_type_bonus_pct": 1000
+},
+  "runes": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "on_hit": [
+    {
+      "rune": "explosion",
+      "cooldown_ticks": 120,
+      "damage": 15,
+      "attack": [
+        {
+          "kind": "active",
+          "ticks": 6,
+          "type": "pyro",
+          "hit_box": { "type": "circle", "radius": 10240 }
+        }
+      ]
+    },
+    {
+      "rune": "thunder",
+      "cooldown_ticks": 90,
+      "damage": 20,
+      "attack": [
+        {
+          "kind": "wind_up",
+          "ticks": 12,
+          "hit_box": { "type": "circle", "radius": 6144 }
+        },
+        {
+          "kind": "active",
+          "ticks": 2,
+          "type": "electro",
+          "hit_box": { "type": "circle", "radius": 6144 }
+        }
+      ]
+    },
+    {
+      "rune": "boomerang",
+      "cooldown_ticks": 150,
+      "damage": 12,
+      "attack": [
+        {
+          "kind": "active",
+          "ticks": 15,
+          "hit_box": { "type": "circle", "radius": 4096 }
+        },
+        {
+          "kind": "active",
+          "ticks": 15,
+          "hit_box": { "type": "circle", "radius": 4096 }
+        }
+      ]
+    },
+    {
+      "rune": "homing_missiles",
+      "cooldown_ticks": 180,
+      "damage": 8,
+      "missiles": 3,
+      "range": 40960,
+      "attack": [
+        {
+          "kind": "active",
+          "ticks": 30,
+          "hit_box": { "type": "circle", "radius": 3072 }
+        }
+      ]
+    }
+  ],
+  "damage_over_time": [
+    {
+      "rune": "bleed",
+      "interval_ticks": 30,
+      "duration_ticks": 180,
+      "damage": 3,
+      "max_stacks": 5,
+      "type": "slash"
+    },
+    {
+      "rune": "poison",
+      "interval_ticks": 30,
+      "duration_ticks": 180,
+      "damage": 3,
+      "max_stacks": 5,
+      "type": "dendro"
+    },
+    {
+      "rune": "burn",
+      "interval_ticks": 30,
+      "duration_ticks": 180,
+      "damage": 3,
+      "max_stacks": 5,
+      "type": "pyro"
+    }
+  ]
+},
+  "modes": {
+    "trial": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "trial",
+  "title": "Trial",
+  "description": "The trial mode: one placeholder stage of bats in waves, a fairy that heals, and a golem whose horn breaks. Defeated enemies give experience, and each level gives a stat point to spend. Two elites hold their places until the golem calls them. Placeholder match-ups: the bats are weak to Slash, the elites strong against Pierce and resist every other attack type, the golem weak to Strike and resists every other attack type; its horn has none. The weapons and the seed come from the run setup.",
+  "seed": 20261010,
+  "length_ticks": 5400,
+  "map": {
+    "width": 327680,
+    "height": 184320,
+    "start": {
+      "x": 163840,
+      "y": 153600
+    }
+  },
+  "player": {
+    "base": "pilot_a",
+    "hp": 5,
+    "atk": 10,
+    "main": {
+      "preset": {
+        "id": "blade"
+      }
+    },
+    "sub": {
+      "preset": {
+        "id": "maul"
+      }
+    },
+    "evade": {
+      "distance": 12288,
+      "ticks": 8,
+      "invulnerable_ticks": 10,
+      "cooldown_ticks": 40
+    }
+  },
+  "companions": [
+    {
+      "base": "fairy_a",
+      "hp": 10,
+      "radius": 1024,
+      "movement": {
+        "type": "orbit",
+        "radius": 10240
+      },
+      "rules": [
+        {
+          "when": {
+            "type": "hp_below",
+            "who": "lowest_hp_ally",
+            "pct": 60
+          },
+          "target": "lowest_hp_ally",
+          "do": {
+            "type": "cast",
+            "skill": {
+              "type": "heal",
+              "amount": 1
+            }
+          },
+          "cooldown_ticks": 600,
+          "once": false
+        }
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "at_tick": 120,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 192
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 70,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 61440,
+        "y": 0
+      },
+      "count": 5,
+      "every_ticks": 40,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
+    },
+    {
+      "at_tick": 600,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 192
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 70,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 266240,
+        "y": 0
+      },
+      "count": 5,
+      "every_ticks": 40,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
+    },
+    {
+      "at_tick": 1200,
+      "enemy": {
+        "base": "bat",
+        "hp": 60,
+        "radius": 2560,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "straight",
+          "vx": 64,
+          "vy": 128
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "spread_5",
+                  "args": []
+                }
+              }
+            },
+            "cooldown_ticks": 120,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 102400,
+        "y": 0
+      },
+      "count": 4,
+      "every_ticks": 60,
+      "xp": 2,
+      "expertise": {
+        "hit": 1,
+        "kill": 6
+      }
+    },
+    {
+      "at_tick": 60,
+      "enemy": {
+        "base": "bat",
+        "hp": 240,
+        "radius": 3072,
+        "profile": {
+          "strong": [
+            "pierce"
+          ],
+          "resist": "physical"
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 90,
+            "once": false
+          }
+        ],
+        "elite": {
+          "range": 51200
+        }
+      },
+      "spawn": {
+        "x": 133120,
+        "y": 120320
+      },
+      "count": 1,
+      "every_ticks": 0,
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
+    },
+    {
+      "at_tick": 60,
+      "enemy": {
+        "base": "bat",
+        "hp": 2000,
+        "radius": 3072,
+        "profile": {
+          "strong": [
+            "pierce"
+          ],
+          "resist": "physical"
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 90,
+            "once": false
+          }
+        ],
+        "elite": {
+          "range": 40960
+        }
+      },
+      "spawn": {
+        "x": 266240,
+        "y": 76800
+      },
+      "count": 1,
+      "every_ticks": 0,
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
+    }
+  ],
+  "boss": {
+    "base": "golem",
+    "hp": 3000,
+    "radius": 8192,
+    "profile": {
+      "weak": [
+        "strike"
+      ],
+      "resist": "physical"
+    },
+    "spawn": {
+      "x": 163840,
+      "y": 35840
+    },
+    "parts": [
+      {
+        "id": "horn",
+        "asset": "horns_2",
+        "hp": 400,
+        "offset": {
+          "x": 0,
+          "y": -7680
+        },
+        "radius": 4096
+      }
+    ],
+    "phases": [
+      {
+        "until": {
+          "type": "part_broken",
+          "part": "horn"
+        },
+        "transition": [],
+        "timeline": [
+          {
+            "type": "wait",
+            "ticks": 90
+          },
+          {
+            "type": "telegraph",
+            "ticks": 30
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  768
+                ]
+              }
+            }
+          },
+          {
+            "type": "move_to",
+            "to": {
+              "x": 92160,
+              "y": 35840
+            },
+            "ticks": 60
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  768
+                ]
+              }
+            }
+          },
+          {
+            "type": "move_to",
+            "to": {
+              "x": 235520,
+              "y": 35840
+            },
+            "ticks": 90
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  768
+                ]
+              }
+            }
+          },
+          {
+            "type": "move_to",
+            "to": {
+              "x": 163840,
+              "y": 35840
+            },
+            "ticks": 60
+          },
+          {
+            "type": "loop"
+          }
+        ],
+        "rules": []
+      },
+      {
+        "transition": [
+          {
+            "type": "clear_bullets"
+          },
+          {
+            "type": "invulnerable_ticks",
+            "ticks": 60
+          }
+        ],
+        "timeline": [
+          {
+            "type": "telegraph",
+            "ticks": 40
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "spiral",
+                "args": [
+                  512
+                ]
+              }
+            }
+          },
+          {
+            "type": "wait",
+            "ticks": 150
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  896
+                ]
+              }
+            }
+          },
+          {
+            "type": "wait",
+            "ticks": 60
+          },
+          {
+            "type": "loop"
+          }
+        ],
+        "rules": []
+      }
+    ],
+    "call_elites": {
+      "after_ticks": 1800,
+      "below_pct": 70
+    },
+    "expertise": {
+      "hit": 5,
+      "kill": 500
+    }
+  },
+  "levels": {
+    "xp": [
+      3,
+      4,
+      5
+    ]
+  },
+  "stars": {
+    "drop_per_mille": 500,
+    "pity": 2,
+    "cap": 16,
+    "pickup_radius": 6144,
+    "rerolls": 2,
+    "banishes": 1,
+    "tiers": [
+      {
+        "from_level": 1,
+        "weights": {
+          "common": 100
+        }
+      },
+      {
+        "from_level": 3,
+        "weights": {
+          "common": 70,
+          "rare": 30
+        }
+      },
+      {
+        "from_level": 5,
+        "weights": {
+          "common": 50,
+          "rare": 35,
+          "legendary": 15
+        }
+      }
+    ]
+  },
+  "elite_cap": 4
+},
+    "time_limit": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "time_limit",
+  "length_ticks": 72000,
+  "boss_ticks": [
+    18000,
+    36000,
+    54000,
+    72000
+  ],
+  "mid_boss_pool": [
+    "golem",
+    "golem",
+    "golem"
+  ],
+  "final_boss": "golem",
+  "overtime_ticks": 18000,
+  "star_hunter_extra_ticks": 3600,
+  "map": {
+    "width": 1048576,
+    "height": 1048576,
+    "start": {
+      "x": 524288,
+      "y": 524288
+    }
+  },
+  "waves": [
+    {
+      "at_tick": 60,
+      "enemy": {
+        "base": "bat",
+        "hp": 30,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 192
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 70,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 102400,
+      "count": 1199,
+      "every_ticks": 60,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
+    },
+    {
+      "at_tick": 90,
+      "enemy": {
+        "base": "bat",
+        "hp": 60,
+        "radius": 3072,
+        "profile": {
+          "weak": [
+            "strike"
+          ]
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 90,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 115200,
+      "count": 798,
+      "every_ticks": 90,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
+    }
+  ],
+  "elite_table": [
+    {
+      "start_tick": 0,
+      "weights": [
+        { "elite": "bat", "weight": 1 }
+      ]
+    },
+    {
+      "start_tick": 21600,
+      "weights": [
+        { "elite": "bat", "weight": 2 },
+        { "elite": "fairy_a", "weight": 1 }
+      ]
+    },
+    {
+      "start_tick": 57600,
+      "weights": [
+        { "elite": "bat", "weight": 2 },
+        { "elite": "fairy_a", "weight": 2 },
+        { "elite": "horns_2", "weight": 1 }
+      ]
+    }
+  ],
+  "elite_cap": 5
+}
+  }
+}

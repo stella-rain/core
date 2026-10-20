@@ -8,6 +8,7 @@ use crate::event::DomainEvent;
 use crate::expertise::ExpertiseFile;
 use crate::input::Input;
 use crate::match_ups::MatchUpsFile;
+use crate::pack::PackFile;
 use crate::replay::Replay;
 use crate::rewards::RewardsFile;
 use crate::run_replay::RunReplay;
@@ -44,5 +45,6 @@ pub fn all() -> Vec<(&'static str, String)> {
         ("match_ups.schema.json", pretty(schema_for!(MatchUpsFile))),
         ("time_limit.schema.json", pretty(schema_for!(TimeLimitFile))),
         ("runes.schema.json", pretty(schema_for!(RunesFile))),
+        ("pack.schema.json", pretty(schema_for!(PackFile))),
     ]
 }

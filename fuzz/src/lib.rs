@@ -11,10 +11,11 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::input::Input;
 use stella_rain_core::match_ups::MatchUps;
+use stella_rain_core::pack::{Pack, PackFile};
 use stella_rain_core::replay::{self, Replay};
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay};
-use stella_rain_core::run_setup;
+use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::stage::Stage;
@@ -258,6 +259,54 @@ fn check_code(code: &str) -> bool {
     if let Ok(again) = share::encode(&stage, &replay) {
         let back = share::decode(&again).expect("a code that was encoded decodes");
         assert_eq!(back, (stage, replay), "a share code changed its files");
+    }
+    true
+}
+
+/// The content pack loader (ADR-020, ADR-080): a pack that loads loads again as the same pack,
+/// its hash is the SHA-256 of its bytes, it saves (compactly) to a pack of the same content,
+/// and its content starts a run of each mode that survives `RUN_TICKS` ticks of any input
+/// without a panic (ADR-019). The bytes are the pack and, read over and over, the inputs.
+pub fn pack_load(data: &[u8]) -> bool {
+    let Ok(pack) = Pack::from_bytes(data) else {
+        return false;
+    };
+    let again = Pack::from_bytes(data).expect("a pack that loaded loads again");
+    assert_eq!(again, pack, "the same bytes loaded as another pack");
+    let file: PackFile = serde_json::from_slice(data).expect("a pack that loaded parses");
+    let saved = serde_json::to_vec(&file).expect("a pack serialises");
+    let resaved = Pack::from_bytes(&saved).expect("a saved pack loads");
+    // The files are the same bytes in the new layout; only the pack's own hash differs.
+    assert_eq!(pack.content().pack_sha256(), Some(pack.sha256()));
+    assert_eq!(resaved.content().pack_sha256(), Some(resaved.sha256()));
+    let runes = pack.content().runes().clone();
+    assert_eq!(
+        resaved.content().clone().with_runes(runes.clone()),
+        pack.content().clone().with_runes(runes),
+        "a saved pack loads as other content"
+    );
+    assert_eq!(
+        resaved.trial(),
+        pack.trial(),
+        "a saved pack loads as another stage"
+    );
+    for mode in ["trial", "time_limit"] {
+        let setup = RunSetup {
+            schema_version: 0,
+            sim_version: pack.sim_version(),
+            mode: mode.into(),
+            main: "blade".into(),
+            sub: "maul".into(),
+            seed: u64::from(pick(data, 0)),
+            star_pool: None,
+            extra_rerolls: 0,
+        };
+        let mut engine = Engine::start_with(&setup, pack.content())
+            .expect("a pack that loads starts a run of each mode");
+        for (t, input) in inputs_from(data, RUN_TICKS).into_iter().enumerate() {
+            step_spending(&mut engine, input, pick(data, t));
+            let _ = engine.snapshot();
+        }
     }
     true
 }
