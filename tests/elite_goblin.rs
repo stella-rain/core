@@ -114,7 +114,11 @@ fn an_undisturbed_goblin_stays_put_and_never_attacks() {
     let events = run_until(&mut e, idle(), 900, |_| false);
     assert_eq!(elites(&e), [SIDE]);
     assert_eq!(harmed(&events), 0, "{events:?}");
-    assert_eq!(left(&events), Vec::<u32>::new(), "never disturbed, never leaves");
+    assert_eq!(
+        left(&events),
+        Vec::<u32>::new(),
+        "never disturbed, never leaves"
+    );
 }
 
 #[test]
@@ -133,7 +137,10 @@ fn the_main_character_coming_within_the_disturb_radius_disturbs_it() {
     };
     assert_eq!(at(NEAR), SIDE, "100 pixels away, 40 is not near");
     let fled = at(FAR);
-    assert!(fled.0 > SIDE.0, "it fled away from the main character: {fled:?}");
+    assert!(
+        fled.0 > SIDE.0,
+        "it fled away from the main character: {fled:?}"
+    );
 }
 
 #[test]
@@ -147,9 +154,9 @@ fn walking_up_to_it_disturbs_it() {
         SIDE.1,
     )]));
     // 3 pixels a tick, 60 pixels to cover before it is within 40: well past 20 ticks.
-    run_until(&mut e, moving(1, 0), 10, |_| false);
+    run_until(&mut e, moving(127, 0), 10, |_| false);
     assert_eq!(elites(&e), [SIDE]);
-    run_until(&mut e, moving(1, 0), 60, |_| false);
+    run_until(&mut e, moving(127, 0), 60, |_| false);
     assert!(elites(&e)[0].0 > SIDE.0, "{:?}", elites(&e));
 }
 
@@ -166,11 +173,16 @@ fn damage_disturbs_it_and_it_flees_directly_away() {
     )]));
     let events = fire_until(&mut e, idle(), 200, |_| false);
     assert!(
-        events.iter().any(|(_, ev)| matches!(ev, DomainEvent::Hit { .. })),
+        events
+            .iter()
+            .any(|(_, ev)| matches!(ev, DomainEvent::Hit { .. })),
         "the Main weapon hits it"
     );
     let (x, y) = elites(&e)[0];
-    assert_eq!(x, START_X, "directly away: along the line from the main character");
+    assert_eq!(
+        x, START_X,
+        "directly away: along the line from the main character"
+    );
     assert!(y < FAR_Y, "it fled up, away: {y}");
 }
 
@@ -183,7 +195,7 @@ fn it_flees_at_its_speed_and_stays_on_the_map() {
         1,
         1,
         0,
-        goblin(10, i32::MAX / 4, 6000),
+        goblin(10, limits::MAX_LEN, 6000),
         at.0,
         at.1,
     )]));
@@ -192,14 +204,24 @@ fn it_flees_at_its_speed_and_stays_on_the_map() {
     for _ in 0..30 {
         e.step(idle());
         let now = elites(&e);
-        assert_eq!(now.len(), 1, "on the map, not removed with the field's margin");
+        assert_eq!(
+            now.len(),
+            1,
+            "on the map, not removed with the field's margin"
+        );
         steps.push(now[0].0 - last);
         last = now[0].0;
         assert!(now[0].0 <= width, "{now:?}");
     }
     assert_eq!(last, width, "it ran to the edge and stopped there");
-    assert!(steps.iter().all(|&s| (0..=SPEED_FX).contains(&s)), "{steps:?}");
-    assert!(steps.contains(&SPEED_FX) || steps.iter().any(|&s| s > 0), "{steps:?}");
+    assert!(
+        steps.iter().all(|&s| (0..=SPEED_FX).contains(&s)),
+        "{steps:?}"
+    );
+    assert!(
+        steps.contains(&SPEED_FX) || steps.iter().any(|&s| s > 0),
+        "{steps:?}"
+    );
 }
 
 #[test]
@@ -210,14 +232,17 @@ fn it_slides_along_the_edge_when_the_main_character_is_diagonal() {
         1,
         1,
         0,
-        goblin(10, i32::MAX / 4, 6000),
+        goblin(10, limits::MAX_LEN, 6000),
         at.0,
         at.1,
     )]));
     run_until(&mut e, idle(), 20, |_| false);
     let (x, y) = elites(&e)[0];
     assert_eq!(x, width, "pinned to the right edge");
-    assert!(y < at.1, "and sliding along it, away from the main character: {y}");
+    assert!(
+        y < at.1,
+        "and sliding along it, away from the main character: {y}"
+    );
 }
 
 // --- Leaving -----------------------------------------------------------------------------------
@@ -243,7 +268,11 @@ fn it_leaves_after_leave_after_ticks_from_its_disturbance_without_a_reward() {
         }
     }
     assert!(disturbed > 0);
-    assert_eq!(left(&events), [disturbed + 90], "90 ticks from the disturbance");
+    assert_eq!(
+        left(&events),
+        [disturbed + 90],
+        "90 ticks from the disturbance"
+    );
     assert!(elites(&e).is_empty());
     assert!(
         events.iter().all(|(_, ev)| !matches!(
@@ -320,7 +349,11 @@ fn the_boss_s_call_calls_the_joining_elites_and_the_goblin_leaves_instead() {
         DomainEvent::ElitesCalled { elites: 1 },
         "only the one that joins is called"
     );
-    assert_eq!(left(&events), [calls[0].0], "the goblin leaves on the tick of the call");
+    assert_eq!(
+        left(&events),
+        [calls[0].0],
+        "the goblin leaves on the tick of the call"
+    );
     assert_eq!(elites(&e).len(), 1, "the other elite stays and fights");
 }
 
@@ -356,7 +389,7 @@ fn goblin_run(boss: u32) -> TimeLimit {
     v["waves"] = json!([]);
     v["elite_types"] = json!([{ "id": "elite_test_goblin", "enemy": {
         "base": "bat", "hp": 240, "radius": 3072,
-        "movement": flee(1024, 60_000),
+        "movement": flee(1024, 6_000),
         "elite": { "range": 256, "boss_call": "leave" } } }]);
     v["elite_table"] =
         json!([{ "start_tick": 0, "weights": [{ "elite": "elite_test_goblin", "weight": 1 }] }]);
@@ -370,7 +403,11 @@ fn a_goblin_leaves_at_once_when_a_boss_spawns() {
     let events = run_until(&mut e, idle(), 4_600, |_| false);
     let spawned = ticks_of(&events, |ev| matches!(ev, DomainEvent::EliteSpawned { .. }));
     assert_eq!(spawned, [3_600]);
-    assert_eq!(left(&events), [4_500], "it waited, undisturbed, until the boss came");
+    assert_eq!(
+        left(&events),
+        [4_500],
+        "it waited, undisturbed, until the boss came"
+    );
     assert!(elites(&e).is_empty());
 }
 
@@ -380,7 +417,10 @@ fn a_goblin_leaves_at_once_when_a_boss_spawns() {
 fn boss_call_is_join_by_default_and_leaves_the_file_unchanged() {
     let plain: Elite = serde_json::from_value(json!({ "range": 256 })).unwrap();
     assert_eq!(plain.boss_call, BossCall::Join);
-    assert_eq!(serde_json::to_value(plain).unwrap(), json!({ "range": 256 }));
+    assert_eq!(
+        serde_json::to_value(plain).unwrap(),
+        json!({ "range": 256 })
+    );
     let named: Elite =
         serde_json::from_value(json!({ "range": 256, "boss_call": "join" })).unwrap();
     assert_eq!(named, plain);
@@ -446,15 +486,25 @@ fn the_flight_is_bounded() {
         (flee(1, 0, 1), vec![format!("{m}.speed")]),
         (flee(1, max + 1, 1), vec![format!("{m}.speed")]),
         (flee(1, 1, 0), vec![format!("{m}.leave_after_ticks")]),
-        (flee(1, 1, ticks + 1), vec![format!("{m}.leave_after_ticks")]),
-        (flee(0, 0, 0), vec![
-            format!("{m}.disturb_radius"),
-            format!("{m}.speed"),
-            format!("{m}.leave_after_ticks"),
-        ]),
+        (
+            flee(1, 1, ticks + 1),
+            vec![format!("{m}.leave_after_ticks")],
+        ),
+        (
+            flee(0, 0, 0),
+            vec![
+                format!("{m}.disturb_radius"),
+                format!("{m}.speed"),
+                format!("{m}.leave_after_ticks"),
+            ],
+        ),
     ];
     for (movement, expected) in cases {
-        assert_eq!(issues(&goblin_stage(movement.clone())), expected, "{movement}");
+        assert_eq!(
+            issues(&goblin_stage(movement.clone())),
+            expected,
+            "{movement}"
+        );
     }
 }
 
