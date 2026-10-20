@@ -155,8 +155,8 @@ pub(super) fn apply(stage: &Stage, s: &mut State) {
     let mut left = false;
     for (e, (dx, dy, crowded)) in s.enemies.iter_mut().zip(offsets(&bodies)) {
         e.crowded = crowded;
-        // A shrine is fixed; the others are pushed off it.
-        if (dx, dy) == (0, 0) || e.shrine.is_some() {
+        // A shrine, or a mimic in disguise, is fixed; the others are pushed off it.
+        if (dx, dy) == (0, 0) || e.shrine.is_some() || e.hidden() {
             continue;
         }
         let to = Point {

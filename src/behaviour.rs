@@ -57,6 +57,27 @@ pub struct Elite {
     /// kind, as `boss_call` is; the ring is the shrine's guardians' (`Guardians`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub escort: Option<Guardians>,
+    /// A mimic's disguise (ADR-090): until the main character comes near, it is drawn as another
+    /// sprite and nothing can touch it. Kept here, with the aura and the escort, because it is
+    /// about what makes this enemy an elite of its kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mimic: Option<Mimic>,
+}
+
+/// What a mimic is (ADR-090). It starts disguised: it does not move or attack, nothing damages
+/// it, aim assist and the selectors pass it over, and it is drawn as `disguise`. The first tick
+/// the main character's centre is within `reveal_radius` of its centre (the edge counts) it
+/// reveals, for good: from that tick's collisions on it takes damage, and from the next tick it
+/// acts by its movement and rules like a grade elite. The boss's call skips it while it is
+/// disguised and calls it once it is revealed. Needs `boss_call` `join`, and no aura, escort,
+/// shrine or flee movement.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Mimic {
+    /// Asset ID of the sprite it is drawn as while disguised (ADR-007).
+    pub disguise: ContentId,
+    /// 1 to `MAX_LEN`.
+    pub reveal_radius: Fx,
 }
 
 /// What a pack leader does for the enemies near it (ADR-090). Every non-elite enemy whose centre

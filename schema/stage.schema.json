@@ -995,6 +995,17 @@
             }
           ]
         },
+        "mimic": {
+          "description": "A mimic's disguise (ADR-090): until the main character comes near, it is drawn as another\nsprite and nothing can touch it. Kept here, with the aura and the escort, because it is\nabout what makes this enemy an elite of its kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Mimic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "range": {
           "description": "How near the main character's centre must come to its centre for its rules to fire.",
           "$ref": "#/$defs/Fx"
@@ -1659,6 +1670,25 @@
       "required": [
         "width",
         "height"
+      ]
+    },
+    "Mimic": {
+      "description": "What a mimic is (ADR-090). It starts disguised: it does not move or attack, nothing damages\nit, aim assist and the selectors pass it over, and it is drawn as `disguise`. The first tick\nthe main character's centre is within `reveal_radius` of its centre (the edge counts) it\nreveals, for good: from that tick's collisions on it takes damage, and from the next tick it\nacts by its movement and rules like a grade elite. The boss's call skips it while it is\ndisguised and calls it once it is revealed. Needs `boss_call` `join`, and no aura, escort,\nshrine or flee movement.",
+      "type": "object",
+      "properties": {
+        "disguise": {
+          "description": "Asset ID of the sprite it is drawn as while disguised (ADR-007).",
+          "$ref": "#/$defs/ContentId"
+        },
+        "reveal_radius": {
+          "description": "1 to `MAX_LEN`.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "disguise",
+        "reveal_radius"
       ]
     },
     "Movement": {
