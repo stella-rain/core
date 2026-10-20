@@ -40,7 +40,7 @@ fn corpus_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/v0")
 }
 
-fn runs_dir() -> PathBuf {
+pub(crate) fn runs_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/runs/v0")
 }
 
@@ -167,7 +167,7 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
 /// The content a run case plays with: the bundled files, and the `time_limit` mode file of its
 /// own when the case has a `mode.json` (a short mode, so that a run ends by the final boss's
 /// kill or by the overtime without 20 minutes of play).
-fn case_content(case: &Path) -> Result<RunContent, String> {
+pub(crate) fn case_content(case: &Path) -> Result<RunContent, String> {
     match fs::read(case.join("mode.json")) {
         Ok(bytes) => {
             let mode = TimeLimit::parse(&bytes).map_err(|e| e.to_string())?;
@@ -436,7 +436,7 @@ fn a_run_case_with_hashes_that_are_not_one_per_tick_fails() {
 // These are only read by `UPDATE_CORPUS=1`, which writes the files; a normal run reads the files
 // and nothing else, so what the device run sees is exactly what CI checked.
 
-type Definition = (&'static str, Vec<u8>, Vec<Input>);
+pub(crate) type Definition = (&'static str, Vec<u8>, Vec<Input>);
 
 fn bytes(stage: &impl serde::Serialize) -> Vec<u8> {
     let mut bytes = serde_json::to_vec_pretty(stage).unwrap();
@@ -824,7 +824,7 @@ fn timeout() -> Definition {
     )
 }
 
-fn definitions() -> Vec<Definition> {
+pub(crate) fn definitions() -> Vec<Definition> {
     vec![
         (
             "clear",
