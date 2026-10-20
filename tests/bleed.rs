@@ -493,11 +493,11 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
 
 // --- A smash's bleed (ADR-084 point 8) ---------------------------------------------------------
 
-/// The Main weapon of one blow, its `sub` step the same blow, and its smash bleeding what it
-/// hits: a press of `sub` (B) puts the one bleed on the enemy hit, a press of `main` none.
+/// The Main weapon of one blow, its `smash` step the same blow, and its smash bleeding what it
+/// hits: a press of `smash` (B) puts the one bleed on the enemy hit, a press of `main` none.
 fn smashing() -> Value {
     let mut w = weapon();
-    w["inline"]["combo"]["sub"] = w["inline"]["combo"]["main"].clone();
+    w["inline"]["combo"]["smash"] = w["inline"]["combo"]["main"].clone();
     w["inline"]["smash"] = json!({ "type": "bleed" });
     w
 }
@@ -511,10 +511,10 @@ fn smashing_stage(runes: Runes, target: Value) -> Engine {
     with(&stage, &content(vec![random_rune()], None, runes))
 }
 
-/// Presses of `sub` (B, the smash) on the ticks `start + d` for each `d` in `at`.
+/// Presses of `smash` (B, the smash) on the ticks `start + d` for each `d` in `at`.
 fn smash_presses(start: u32, at: &'static [u32]) -> impl Fn(u32) -> Input {
     move |t| Input {
-        sub: at.iter().any(|d| start + d == t),
+        smash: at.iter().any(|d| start + d == t),
         ..idle()
     }
 }
@@ -658,7 +658,7 @@ fn a_smash_and_the_rune_share_one_bleed() {
         let t = e.tick();
         e.step(Input {
             main: t == start,
-            sub: t == start + 60,
+            smash: t == start + 60,
             ..idle()
         });
         for ev in e.events() {

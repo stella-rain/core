@@ -774,7 +774,7 @@ impl<'a> Ctx<'a> {
     }
 
     fn branches(&mut self, b: &Branches, depth: u32, steps: &mut usize) {
-        for (key, step) in [("main", &b.main), ("sub", &b.sub)] {
+        for (key, step) in [("main", &b.main), ("smash", &b.smash)] {
             let Some(step) = step else {
                 continue;
             };

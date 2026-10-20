@@ -52,12 +52,12 @@ fn stick(move_x: i8, move_y: i8, evade: bool) -> Input {
     }
 }
 
-/// `stick` with the buttons and switches of bits 1 to 5 of `bits` (ADR-071): `main`, `sub`,
+/// `stick` with the buttons and switches of bits 1 to 5 of `bits` (ADR-071): `main`, `smash`,
 /// `skill`, `assist`, `auto`.
 fn buttons(input: Input, bits: u32) -> Input {
     Input {
         main: bits & 0b1 != 0,
-        sub: bits & 0b10 != 0,
+        smash: bits & 0b10 != 0,
         skill: bits & 0b100 != 0,
         assist: bits & 0b1000 != 0,
         auto: bits & 0b1_0000 != 0,
@@ -150,7 +150,7 @@ fn damaged_packed_inputs_are_refused_with_a_reason() {
     );
     assert!(reason(&[3, 1, 0, 0], 2).contains("more inputs than ticks"));
     assert!(reason(&[1, 1, 0, 0], 2).contains("fewer inputs"));
-    // Bits 1 to 5 are `main`, `sub`, `skill`, `assist` and `auto`; the rest are unknown.
+    // Bits 1 to 5 are `main`, `smash`, `skill`, `assist` and `auto`; the rest are unknown.
     assert_eq!(
         unpack_raw(&[1, 0b11_1111, 0, 0], 1).unwrap(),
         [buttons(stick(0, 0, true), 0b1_1111)]

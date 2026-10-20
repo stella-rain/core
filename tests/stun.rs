@@ -20,11 +20,11 @@ use crate::common;
 use common::on_hit::*;
 use common::*;
 
-/// A sub step of one circle 1,024 units forward, 10 damage and 4 ticks of recovery, with the
+/// A smash step of one circle 1,024 units forward, 10 damage and 4 ticks of recovery, with the
 /// stun of `ticks` as its weapon's smash.
 fn stunning(ticks: u32) -> Value {
     json!({ "inline": {
-        "combo": { "sub": { "attack": { "inline": [
+        "combo": { "smash": { "attack": { "inline": [
             { "kind": "active", "ticks": 1, "damage": 10,
               "hit_box": { "type": "circle", "offset": { "forward": 1_024 }, "radius": 8_192 } },
             { "kind": "recovery", "ticks": 4 }
@@ -93,13 +93,13 @@ fn stuns(e: &Engine, id: EntityId) -> Vec<StatusView> {
         .collect()
 }
 
-/// Runs `ticks` ticks, pressing `sub` on each tick of `presses`, and records what happens to `id`.
+/// Runs `ticks` ticks, pressing `smash` on each tick of `presses`, and records what happens to `id`.
 fn play(e: &mut Engine, id: EntityId, presses: &[u32], ticks: u32) -> Played {
     let mut p = Played::default();
     for _ in 0..ticks {
         let t = e.tick();
         e.step(Input {
-            sub: presses.contains(&t),
+            smash: presses.contains(&t),
             ..idle()
         });
         let now = e.tick();
@@ -168,7 +168,7 @@ fn a_boss_takes_no_stun_from_a_smash() {
     for _ in 0..10 {
         let t = e.tick();
         e.step(Input {
-            sub: t == 0,
+            smash: t == 0,
             ..idle()
         });
         for ev in e.events() {

@@ -790,7 +790,7 @@ fn sword_aab_commands() -> Vec<Command> {
         .map(|t| {
             Command::Step(Input {
                 main: t == 0 || t == 6,
-                sub: t == 14,
+                smash: t == 14,
                 ..Input::default()
             })
         })
@@ -808,7 +808,7 @@ fn smash_depths(setup: &RunSetup) -> Vec<u8> {
         engine.step(input);
         for event in engine.events() {
             if let DomainEvent::ComboStep { press, depth } = event {
-                if *press == Press::Sub {
+                if *press == Press::Smash {
                     depths.push(*depth);
                 }
             }

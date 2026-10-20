@@ -184,7 +184,7 @@ fn commands_go_to_a_recording_and_back_unchanged() {
 #[test]
 fn a_choose_line_reads_back_as_a_choice() {
     let text = concat!(
-        r#"{"tick":1,"dir":"fe>be","type":"Input","data":{"move_x":0,"move_y":0,"main":false,"sub":false,"evade":false,"skill":false,"assist":false,"auto":false}}"#,
+        r#"{"tick":1,"dir":"fe>be","type":"Input","data":{"move_x":0,"move_y":0,"main":false,"smash":false,"evade":false,"skill":false,"assist":false,"auto":false}}"#,
         "\n",
         r#"{"tick":1,"dir":"fe>be","type":"Choose","data":{"index":2}}"#,
         "\n"

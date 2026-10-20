@@ -1196,7 +1196,7 @@
       "type": "string",
       "enum": [
         "main",
-        "sub"
+        "smash"
       ]
     },
     "ProgressView": {

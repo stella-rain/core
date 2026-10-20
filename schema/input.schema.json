@@ -36,8 +36,8 @@
       "description": "The stage skill button (Y) is held on this tick: a press uses the skill in the slot when\nit is ready (ADR-075).",
       "type": "boolean"
     },
-    "sub": {
-      "description": "The Sub attack button (B) is held on this tick (ADR-070).",
+    "smash": {
+      "description": "The smash button (B) is held on this tick (ADR-070).",
       "type": "boolean"
     }
   },
@@ -46,7 +46,7 @@
     "move_x",
     "move_y",
     "main",
-    "sub",
+    "smash",
     "evade",
     "skill",
     "assist",

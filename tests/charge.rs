@@ -39,11 +39,11 @@ fn charged() -> Value {
     })
 }
 
-/// `stage` whose Main weapon has the charged step for `main` and for `sub`, both leaves.
+/// `stage` whose Main weapon has the charged step for `main` and for `smash`, both leaves.
 fn charging(stage: Stage) -> Stage {
     armed(
         stage,
-        weapon_combo(json!({ "main": charged(), "sub": charged() })),
+        weapon_combo(json!({ "main": charged(), "smash": charged() })),
     )
 }
 
@@ -192,11 +192,11 @@ fn a_charge_has_no_cooldown() {
 
 #[test]
 fn presses_while_charging_are_not_buffered() {
-    // `main` held from tick 1 to 20, `sub` pressed on tick 10: the release on tick 21 is the
-    // only step's attack, and the combo is not buffered for `sub`.
+    // `main` held from tick 1 to 20, `smash` pressed on tick 10: the release on tick 21 is the
+    // only step's attack, and the combo is not buffered for `smash`.
     let mut e = engine(&far());
     let inputs = (1..=30).map(|t| Input {
-        sub: t == 10,
+        smash: t == 10,
         ..held(t <= 20)
     });
     let events = play(&mut e, inputs);
@@ -214,16 +214,16 @@ fn presses_while_charging_are_not_buffered() {
 
 #[test]
 fn a_step_reached_by_sub_charges_while_sub_is_held() {
-    // `sub` held from tick 1 to 38 and `main` tapped on tick 5: still charging, then perfect.
+    // `smash` held from tick 1 to 38 and `main` tapped on tick 5: still charging, then perfect.
     let mut e = engine(&far());
     let inputs = (1..=39).map(|t| Input {
         main: t == 5,
-        sub: t <= 38,
+        smash: t <= 38,
         ..idle()
     });
     let events = play(&mut e, inputs);
     assert_eq!(releases(&events), [(39, 1, true)]);
-    assert_eq!(e.snapshot().player.combo.presses, [Press::Sub]);
+    assert_eq!(e.snapshot().player.combo.presses, [Press::Smash]);
 }
 
 #[test]

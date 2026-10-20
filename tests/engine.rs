@@ -504,7 +504,7 @@ fn script(tick: u32) -> Input {
         move_y,
         evade: tick % 120 == 60,
         main: matches!(tick % 200, 0 | 8) || (16..72).contains(&(tick % 200)),
-        sub: matches!(tick % 200, 100 | 108),
+        smash: matches!(tick % 200, 100 | 108),
         ..Input::default()
     }
 }
@@ -605,7 +605,7 @@ fn random_inputs_keep_every_invariant() {
                 move_y: any(&mut rng),
                 evade: rng.below(8) == 0,
                 main: rng.below(2) == 0,
-                sub: rng.below(16) == 0,
+                smash: rng.below(16) == 0,
                 ..Input::default()
             };
             e.step(input);

@@ -22,7 +22,7 @@ use common::*;
 const NEAR_Y: i32 = START_Y - 8_192;
 
 /// A Main weapon whose A step (`main`) fires one bullet straight up at 8 pixels a tick, and
-/// whose B step (`sub`) is a hit box of 8 pixels 32 pixels ahead: 10 damage each, both from
+/// whose B step (`smash`) is a hit box of 8 pixels 32 pixels ahead: 10 damage each, both from
 /// the root, so each press starts its own step.
 fn weapon() -> Value {
     let swing = json!({ "inline": [
@@ -32,7 +32,7 @@ fn weapon() -> Value {
     ] });
     weapon_combo(json!({
         "main": step(json!({ "preset": { "id": "aimed_single", "args": [2048] } })),
-        "sub": step(swing),
+        "smash": step(swing),
     }))
 }
 
@@ -85,9 +85,9 @@ fn view(level: u32, points: u32, next: u32) -> ExpertiseView {
     }
 }
 
-/// Waits for the combo step in progress to end, presses `sub` (B) or `main` (A) for a tick,
+/// Waits for the combo step in progress to end, presses `smash` (B) or `main` (A) for a tick,
 /// then waits 20 ticks for its hit to land.
-fn press(e: &mut Engine, sub: bool) {
+fn press(e: &mut Engine, smash: bool) {
     for _ in 0..60 {
         if e.snapshot().player.attacks.iter().all(|a| a.slot != 0) {
             break;
@@ -95,8 +95,8 @@ fn press(e: &mut Engine, sub: bool) {
         e.step(idle());
     }
     e.step(Input {
-        main: !sub,
-        sub,
+        main: !smash,
+        smash,
         ..Input::default()
     });
     for _ in 0..20 {
