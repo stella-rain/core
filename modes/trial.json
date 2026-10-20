@@ -20,7 +20,7 @@
     "atk": 1000,
     "weapon": {
       "preset": {
-        "id": "blade"
+        "id": "giant_sword"
       }
     },
     "evade": {

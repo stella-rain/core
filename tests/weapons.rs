@@ -11,6 +11,7 @@ use crate::common;
 
 use common::*;
 use serde_json::{Value, json};
+use stella_rain_core::attack::{AttackRef, DamageType, HitBox, PhaseKind};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::{DomainEvent, Press};
 use stella_rain_core::input::Input;
@@ -18,7 +19,7 @@ use stella_rain_core::presets;
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::validate_weapon_preset;
-use stella_rain_core::weapon::WeaponRef;
+use stella_rain_core::weapon::{Branches, Step, WeaponRef};
 
 // --- Builders --------------------------------------------------------------------------------
 
@@ -389,14 +390,14 @@ fn preset(id: &str) -> Value {
 
 #[test]
 fn a_preset_is_the_one_weapon_both_buttons_play() {
-    // The maul's A slams; the blade's A slashes.
+    // The giant_sword's A slashes; the giant_hammer's A is its own spin, no preset.
     let first = |weapon: &str| {
         let mut e = engine(&armed(far(), preset(weapon)));
         e.step(pressing_main());
-        e.snapshot().player.attacks[0].preset.clone().unwrap().0
+        e.snapshot().player.attacks[0].preset.clone().map(|p| p.0)
     };
-    assert_eq!(first("maul"), "slam");
-    assert_eq!(first("blade"), "slash");
+    assert_eq!(first("giant_hammer"), None);
+    assert_eq!(first("giant_sword").as_deref(), Some("slash"));
 }
 
 #[test]
@@ -404,10 +405,13 @@ fn a_preset_and_its_inline_copy_run_the_same() {
     let preset_of = |id: &str| presets::weapon_preset(id).expect("a weapon preset");
     let copy = |w: Value| json!({ "inline": w });
     let waves = || vec![wave(1, 3, 20, still(40), START_X, START_Y - 9_216)];
-    let by_id = armed(stage_with(600, Some(far_boss()), waves()), preset("blade"));
+    let by_id = armed(
+        stage_with(600, Some(far_boss()), waves()),
+        preset("giant_sword"),
+    );
     let inline = armed(
         stage_with(600, Some(far_boss()), waves()),
-        copy(serde_json::to_value(preset_of("blade")).unwrap()),
+        copy(serde_json::to_value(preset_of("giant_sword")).unwrap()),
     );
     let (mut a, mut b) = (engine(&by_id), engine(&inline));
     // Slash, slash and the thrust charged to level 2; B, B; an evade and its dash-strike.
@@ -440,5 +444,129 @@ fn every_weapon_preset_is_registered_and_both_roles_are_valid() {
             presets::weapon(&WeaponRef::Preset { id: id.into() }),
             Some(w)
         );
+    }
+}
+
+// --- The Vindictus shape (ADR-084 points 2 and 11) --------------------------------------------
+
+/// The weapon preset `id`.
+fn weapon_of(id: &str) -> &'static stella_rain_core::weapon::Weapon {
+    presets::weapon_preset(id).expect("a weapon preset")
+}
+
+/// The step that a press sequence reaches from `branches`: `A` for `main`, `B` for `sub`.
+fn step_at<'a>(branches: &'a Branches, presses: &str) -> Option<&'a Step> {
+    let mut at = branches;
+    let mut found = None;
+    for press in presses.chars() {
+        let step = at.get(press == 'B')?;
+        found = Some(step);
+        at = &step.next;
+    }
+    found
+}
+
+/// Every step of `branches` with whether a `sub` press reached it (a smash), depth first.
+fn steps(branches: &Branches) -> Vec<(bool, &Step)> {
+    let mut out = Vec::new();
+    for sub in [false, true] {
+        if let Some(step) = branches.get(sub) {
+            out.push((sub, step));
+            out.extend(steps(&step.next));
+        }
+    }
+    out
+}
+
+/// The damage types of an attack's active phases.
+fn active_types(attack: &AttackRef) -> Vec<Option<DamageType>> {
+    presets::phases(attack)
+        .unwrap()
+        .iter()
+        .filter(|p| p.kind == PhaseKind::Active)
+        .map(|p| p.damage_type)
+        .collect()
+}
+
+/// The radius of an attack's circular hit box in its active phase.
+fn active_radius(attack: &AttackRef) -> i32 {
+    let phases = presets::phases(attack).unwrap();
+    let hit_box = phases
+        .iter()
+        .find(|p| p.kind == PhaseKind::Active)
+        .and_then(|p| p.hit_box.as_ref());
+    match hit_box {
+        Some(HitBox::Circle { radius, .. }) => radius.0,
+        other => panic!("a circle hit box, found {other:?}"),
+    }
+}
+
+#[test]
+fn a_smash_ends_its_combo_in_every_weapon() {
+    // ADR-084 point 2: after a B press the combo ends, the dash branch included.
+    for id in presets::weapon_ids() {
+        let w = weapon_of(id);
+        for (sub, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
+            if sub {
+                assert!(step.next.is_empty(), "{id}: a smash has a next step");
+            }
+        }
+    }
+}
+
+#[test]
+fn the_giant_sword_takes_the_vindictus_shape() {
+    // A, AA and AAA, and the smashes B and AB; AAB and AAAB are Stardust unlocks that core does
+    // not have yet, so they are absent here.
+    let w = weapon_of("giant_sword");
+    for presses in ["A", "AA", "AAA", "B", "AB"] {
+        assert!(step_at(&w.combo, presses).is_some(), "{presses}");
+    }
+    for presses in ["AAB", "AAAB"] {
+        assert!(step_at(&w.combo, presses).is_none(), "{presses}");
+    }
+    // Slash, slash, then a thrust that is Pierce; its smashes are a slash and a thrust.
+    let types = |presses: &str| active_types(&step_at(&w.combo, presses).unwrap().attack);
+    assert_eq!(types("A"), [Some(DamageType::Slash)]);
+    assert_eq!(types("AA"), [Some(DamageType::Slash)]);
+    assert_eq!(types("AAA"), [Some(DamageType::Pierce)]);
+    assert_eq!(types("B"), [Some(DamageType::Slash)]);
+    assert_eq!(types("AB"), [Some(DamageType::Pierce)]);
+    // AAA charges: a wide slash at level 1, a spin at level 2, each with the +50% perfect bonus.
+    let charge = step_at(&w.combo, "AAA").unwrap().charge.as_ref().unwrap();
+    assert_eq!(charge.levels.len(), 2);
+    assert!(charge.levels.iter().all(|l| l.perfect_pct == 50));
+    // The dash branch: a lunge thrust, then a dash smash.
+    let dash = |sub: bool| w.dash.get(sub).expect("a dash step");
+    assert_eq!(
+        active_types(&dash(false).attack),
+        [Some(DamageType::Pierce)]
+    );
+    assert!(dash(true).next.is_empty());
+}
+
+#[test]
+fn the_giant_hammer_spins_wider_with_each_normal_attack() {
+    // A, AA and AAA, each a spin wider than the last; AAA is a plain step (its hold is a later
+    // task); the smashes B and AB. AAB and AAAB are Stardust unlocks, absent here.
+    let w = weapon_of("giant_hammer");
+    for presses in ["A", "AA", "AAA", "B", "AB"] {
+        assert!(step_at(&w.combo, presses).is_some(), "{presses}");
+    }
+    for presses in ["AAB", "AAAB"] {
+        assert!(step_at(&w.combo, presses).is_none(), "{presses}");
+    }
+    let radius = |presses: &str| active_radius(&step_at(&w.combo, presses).unwrap().attack);
+    assert!(radius("A") < radius("AA") && radius("AA") < radius("AAA"));
+    assert!(step_at(&w.combo, "AAA").unwrap().charge.is_none());
+    assert!(step_at(&w.combo, "AAA").unwrap().next.is_empty());
+}
+
+#[test]
+fn every_step_of_the_giant_hammer_is_strike() {
+    // ADR-100: every Hammer step is Strike, the dash branch included.
+    let w = weapon_of("giant_hammer");
+    for (_, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
+        assert_eq!(active_types(&step.attack), [Some(DamageType::Strike)]);
     }
 }

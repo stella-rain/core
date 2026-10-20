@@ -12,7 +12,7 @@
     "atk": 10,
     "weapon": {
       "preset": {
-        "id": "blade"
+        "id": "giant_sword"
       }
     },
     "evade": { "distance": 12288, "ticks": 8, "invulnerable_ticks": 10, "cooldown_ticks": 40 }

@@ -69,7 +69,7 @@ fn the_mode_is_registered_and_its_file_is_part_of_the_content_hash() {
     assert_ne!(content_sha256("time_limit"), None);
     // One pack, one hash for both modes (ADR-080); a mode that does not exist has none.
     assert_eq!(content_sha256("time_limit"), content_sha256("trial"));
-    assert_eq!(content_sha256("blade"), None);
+    assert_eq!(content_sha256("giant_sword"), None);
     // Not a stage file: its run is built from the mode file.
     assert_eq!(run_setup::mode_stage("time_limit"), None);
 }
@@ -132,7 +132,10 @@ fn the_pool_holds_a_boss_for_each_mid_boss_time() {
 fn every_content_id_must_exist_as_an_asset() {
     assert_eq!(paths(&with("final_boss", json!("nope"))), ["$.final_boss"]);
     assert_eq!(
-        paths(&with("mid_boss_pool", json!(["golem", "blade", "golem"]))),
+        paths(&with(
+            "mid_boss_pool",
+            json!(["golem", "giant_sword", "golem"])
+        )),
         ["$.mid_boss_pool[1]"]
     );
     assert_eq!(
@@ -470,7 +473,7 @@ fn an_elite_type_is_a_well_formed_unique_id_with_a_valid_elite_enemy() {
 
     // A weapon preset is not a sprite.
     let mut t = low();
-    t["enemy"]["base"] = json!("blade");
+    t["enemy"]["base"] = json!("giant_sword");
     assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].enemy.base"]);
 
     let mut t = low();

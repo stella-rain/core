@@ -242,8 +242,8 @@ fn option(id: &str, effect: &str, amount: u32) -> Value {
 
 #[test]
 fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
-    // The `blade` as Main: its first step a slash, an arc of 32 pixels 8 pixels ahead after 4
-    // ticks of wind-up; the `maul` as Sub. A kill of 10 points reaches expertise level 1, whose
+    // The `giant_sword` as Main: its first step a slash, an arc of 32 pixels 8 pixels ahead after 4
+    // ticks of wind-up; the `giant_hammer` as Sub. A kill of 10 points reaches expertise level 1, whose
     // offer opens before the kill's star's.
     let mut w = wave(
         1,
@@ -256,7 +256,7 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
     w["expertise"] = json!({ "hit": 0, "kill": 10 });
     let stage = starry(armed(
         stage_full(18_000, Some(far_boss()), vec![w], vec![]),
-        json!({ "preset": { "id": "blade" } }),
+        json!({ "preset": { "id": "giant_sword" } }),
     ));
     let mut file: Value = serde_json::from_slice(Expertise::BUNDLED).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);

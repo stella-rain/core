@@ -66,10 +66,11 @@ pub mod limits {
     /// bonus of at most +1000%.
     pub const MAX_CHARGE_LEVELS: usize = 8;
     pub const MAX_CHARGE_TICKS: u32 = 600;
-    /// A Main weapon's combos (ADR-070): at most 32 steps in its tree and dash branch together,
-    /// none deeper than 8; a window of at most 2 seconds and a dash-strike of at most 1 second.
+    /// A Main weapon's combos (ADR-070, ADR-084): at most 32 steps in its tree and dash branch
+    /// together, no path from the root deeper than six steps (six attacks, AAAAAB at most); a
+    /// window of at most 2 seconds and a dash-strike of at most 1 second.
     pub const MAX_COMBO_STEPS: usize = 32;
-    pub const MAX_COMBO_DEPTH: u32 = 8;
+    pub const MAX_COMBO_DEPTH: u32 = 6;
     pub const MAX_COMBO_WINDOW_TICKS: u32 = 120;
     pub const MAX_DASH_STRIKE_TICKS: u32 = 60;
     /// Aim assist looks at most 512 pixels away (ADR-072).

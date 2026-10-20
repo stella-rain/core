@@ -85,52 +85,80 @@ const DEFINITIONS: &[(&str, &str)] = &[
 /// `(id, definition)` of the weapon presets, in the stage format's own JSON. Placeholders until
 /// the game design's weapons are written (Giant Sword and the others, app#209).
 const WEAPONS: &[(&str, &str)] = &[
-    // Slash, slash, then a thrust that charges (a thrust at level 1, at level 2 a blow all
-    // round, `slam`'s, but a Slash: the charged slash), or a thrust after the second slash for B;
-    // B from the root thrusts, then slashes; a dash-strike thrusts; assist looks 160 pixels away.
-    // Slashes are Slash and thrusts Pierce (ADR-100). Smashes pull what they hit by up to 24
-    // pixels over 6 ticks.
+    // The Vindictus shape (ADR-084): A, AA and AAA are spins around the main character, each
+    // wider than the last, and every Hammer step is Strike (ADR-100). AAA is a plain step; its
+    // hold comes in a later task. B is an overhead smash (`slam`) and AB a ground shock, a forward
+    // arc; a smash ends the combo. The dash-strike is a short spin, the dash smash `slam`. Smashes
+    // pull what they hit by up to 40 pixels over 8 ticks; assist looks 128 pixels away. AAB and
+    // AAAB are Stardust unlocks, not in core yet.
     (
-        "blade",
+        "giant_hammer",
+        r#"{"combo":{
+                "main":{"attack":{"inline":[
+                            {"kind":"wind_up","ticks":6},
+                            {"kind":"active","ticks":4,"type":"strike",
+                             "hit_box":{"type":"circle","radius":8192}},
+                            {"kind":"recovery","ticks":14}]},
+                        "next":{
+                    "main":{"attack":{"inline":[
+                                {"kind":"wind_up","ticks":6},
+                                {"kind":"active","ticks":5,"type":"strike",
+                                 "hit_box":{"type":"circle","radius":10240}},
+                                {"kind":"recovery","ticks":14}]},
+                            "next":{
+                        "main":{"attack":{"inline":[
+                                    {"kind":"wind_up","ticks":8},
+                                    {"kind":"active","ticks":6,"type":"strike",
+                                     "hit_box":{"type":"circle","radius":12288}},
+                                    {"kind":"recovery","ticks":20}]}}}},
+                    "sub":{"attack":{"inline":[
+                                {"kind":"wind_up","ticks":14,"move_pct":50},
+                                {"kind":"active","ticks":4,"move_pct":50,"type":"strike",
+                                 "hit_box":{"type":"arc","offset":{"forward":4096},
+                                            "radius":12288,"half_angle":20480}},
+                                {"kind":"recovery","ticks":22,"move_pct":50}]}}}},
+                "sub":{"attack":{"preset":{"id":"slam"}}}},
+            "dash":{"main":{"attack":{"inline":[
+                        {"kind":"wind_up","ticks":2},
+                        {"kind":"active","ticks":3,"type":"strike",
+                         "hit_box":{"type":"circle","radius":8192}},
+                        {"kind":"recovery","ticks":8}]}},
+                    "sub":{"attack":{"preset":{"id":"slam"}}}},
+            "window_ticks":24,"dash_strike_ticks":10,"assist_range":32768,
+            "smash":{"type":"pull","distance":10240,"ticks":8}}"#,
+    ),
+    // The Vindictus shape (ADR-084): A, AA and AAA are a slash, a slash and a thrust (Pierce,
+    // ADR-100); AAA charges, at level 1 a wide slash and at level 2 a spin all round, each with
+    // the +50% perfect bonus. B is a slash and AB a thrust, both smashes that end the combo. The
+    // dash-strike is a lunge thrust, the dash smash a slash. Assist looks 160 pixels away.
+    // Smashes pull what they hit by up to 24 pixels over 6 ticks. AAB and AAAB are Stardust
+    // unlocks, not in core yet.
+    (
+        "giant_sword",
         r#"{"combo":{
                 "main":{"attack":{"preset":{"id":"slash"}},"next":{
                     "main":{"attack":{"preset":{"id":"slash"}},"next":{
                         "main":{"attack":{"preset":{"id":"thrust"}},
                                 "charge":{"max_ticks":90,"move_pct":50,"levels":[
                                     {"at_ticks":20,"perfect_ticks":6,"perfect_pct":50,
-                                     "attack":{"preset":{"id":"thrust"}}},
-                                    {"at_ticks":50,"perfect_ticks":6,"perfect_pct":100,
+                                     "attack":{"inline":[
+                                        {"kind":"wind_up","ticks":8,"move_pct":50},
+                                        {"kind":"active","ticks":4,"move_pct":50,"type":"slash",
+                                         "hit_box":{"type":"arc","offset":{"forward":2048},
+                                                    "radius":8192,"half_angle":22528}},
+                                        {"kind":"recovery","ticks":14,"move_pct":50}]}},
+                                    {"at_ticks":50,"perfect_ticks":6,"perfect_pct":50,
                                      "attack":{"inline":[
                                         {"kind":"wind_up","ticks":12,"move_pct":50},
                                         {"kind":"active","ticks":4,"move_pct":50,"type":"slash",
                                          "hit_box":{"type":"circle","radius":10240}},
-                                        {"kind":"recovery","ticks":20,"move_pct":50}]}}]}},
-                        "sub":{"attack":{"preset":{"id":"thrust"}}}}}}},
-                "sub":{"attack":{"preset":{"id":"thrust"}},"next":{
-                    "sub":{"attack":{"preset":{"id":"slash"}}}}}},
-            "dash":{"main":{"attack":{"preset":{"id":"thrust"}}}},
+                                        {"kind":"recovery","ticks":20,"move_pct":50}]}}]}}}},
+                        "sub":{"attack":{"preset":{"id":"thrust"}}}}},
+                "sub":{"attack":{"preset":{"id":"slash"}}}},
+            "dash":{"main":{"attack":{"preset":{"id":"thrust"}}},
+                    "sub":{"attack":{"preset":{"id":"slash"}}}},
             "window_ticks":20,"dash_strike_ticks":10,"assist_range":40960,
             "smash":{"type":"pull","distance":6144,"ticks":6}}"#,
-    ),
-    // Slam, then a slam that charges, rooted (a slam at level 1); B swings `slash`'s arc,
-    // but a Strike: every Hammer step is Strike (ADR-100); assist looks 128 pixels away. Smashes
-    // pull what they hit by up to 40 pixels over 8 ticks.
-    (
-        "maul",
-        r#"{"combo":{
-                "main":{"attack":{"preset":{"id":"slam"}},"next":{
-                    "main":{"attack":{"preset":{"id":"slam"}},
-                            "charge":{"max_ticks":120,"move_pct":0,"levels":[
-                                {"at_ticks":30,"perfect_ticks":8,"perfect_pct":100,
-                                 "attack":{"preset":{"id":"slam"}}}]}}}},
-                "sub":{"attack":{"inline":[
-                    {"kind":"wind_up","ticks":4},
-                    {"kind":"active","ticks":3,"type":"strike",
-                     "hit_box":{"type":"arc","offset":{"forward":2048},"radius":8192,
-                                "half_angle":15360}},
-                    {"kind":"recovery","ticks":10}]}}},
-            "window_ticks":24,"assist_range":32768,
-            "smash":{"type":"pull","distance":10240,"ticks":8}}"#,
     ),
 ];
 

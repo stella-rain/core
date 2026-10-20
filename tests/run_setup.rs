@@ -18,7 +18,7 @@ fn setup() -> RunSetup {
         schema_version: 0,
         sim_version: 0,
         mode: "trial".into(),
-        weapon: "blade".into(),
+        weapon: "giant_sword".into(),
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,
@@ -74,7 +74,9 @@ fn a_setup_file_reads_back_as_the_setup() {
 fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
     let mut by_hand =
         validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
-    by_hand.player.weapon = WeaponRef::Preset { id: "blade".into() };
+    by_hand.player.weapon = WeaponRef::Preset {
+        id: "giant_sword".into(),
+    };
     by_hand.seed = 20_261_010;
     assert_eq!(run_setup::stage(&setup()), Ok(by_hand.clone()));
     let started = hashes(Engine::start(&setup()).unwrap(), 600);
@@ -107,7 +109,7 @@ fn the_setup_s_weapons_arm_the_run() {
             300,
         )
     };
-    assert_ne!(run("blade"), run("maul"));
+    assert_ne!(run("giant_sword"), run("giant_hammer"));
 }
 
 #[test]
@@ -128,7 +130,7 @@ fn only_the_setup_format_parses() {
     for bad in [
         "not json".to_owned(),
         text.replace("\"seed\"", "\"secret\":1,\"seed\""),
-        text.replace(",\"weapon\":\"blade\"", ""),
+        text.replace(",\"weapon\":\"giant_sword\"", ""),
         text.replace("20261010", "-1"),
         text.replace("20261010", "18446744073709551616"),
     ] {
@@ -143,8 +145,7 @@ fn only_the_setup_format_parses() {
 #[test]
 fn a_setup_holds_no_expertise_level() {
     // Every run starts the expertise gauge at level 0 (ADR-079 §1): the setup carries none.
-    let without =
-        r#"{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"blade","seed":20261010}"#;
+    let without = r#"{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"giant_sword","seed":20261010}"#;
     assert!(run_setup::parse_and_validate(without.as_bytes()).is_ok());
     for field in ["\"main_expertise\":0,", "\"sub_expertise\":0,"] {
         let with = without.replace("\"seed\"", &format!("{field}\"seed\""));
@@ -201,7 +202,11 @@ fn an_id_newer_than_the_setup_s_sim_version_is_refused() {
     let newer: Vec<Entry> = ENTRIES
         .iter()
         .map(|e| Entry {
-            introduced: if e.id == "blade" { 1 } else { e.introduced },
+            introduced: if e.id == "giant_sword" {
+                1
+            } else {
+                e.introduced
+            },
             ..*e
         })
         .collect();
@@ -232,8 +237,8 @@ fn every_mode_has_content_that_validates_and_nothing_else_has() {
     for id in &modes {
         assert!(run_setup::mode_file(id).is_some(), "{id} has no file");
     }
-    assert_eq!(run_setup::mode_stage("blade"), None);
-    assert_eq!(run_setup::mode_file("blade"), None);
+    assert_eq!(run_setup::mode_stage("giant_sword"), None);
+    assert_eq!(run_setup::mode_file("giant_sword"), None);
 }
 
 // --- The star pool and extra rerolls (ADR-079 §1) ---------------------------------------------

@@ -431,7 +431,7 @@ fn a_trial_run_levels_up_and_spends_its_points() {
         schema_version: SCHEMA_VERSION,
         sim_version: SIM_VERSION,
         mode: "trial".into(),
-        weapon: "blade".into(),
+        weapon: "giant_sword".into(),
         seed: 1,
         star_pool: None,
         extra_rerolls: 0,
@@ -446,7 +446,7 @@ fn a_trial_run_levels_up_and_spends_its_points() {
             continue;
         }
         e.step(common::run::run_input(&e, e.tick()));
-        while points(&e) > 0 {
+        while points(&e) > 0 && !e.offer_open() {
             e.spend(spends % 5).unwrap();
             spends += 1;
         }

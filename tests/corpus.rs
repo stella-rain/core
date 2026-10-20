@@ -449,9 +449,8 @@ fn firing_for(ticks: u32) -> Vec<Input> {
     (0..ticks).map(|t| firing(idle(), t)).collect()
 }
 
-/// The `blade` played by hand in a 60-tick cycle from tick `t`: `main` on 0, 8 and 16 (slash,
-/// slash, thrust) and `sub` on 40 and 48 (a thrust and a slash, which the Sub weapon's pull
-/// joins).
+/// The `giant_sword` played by hand in a 60-tick cycle from tick `t`: `main` on 0, 8 and 16 (slash,
+/// slash, thrust) and `sub` on 40 and 48 (two smashes from the root, each a slash that pulls).
 fn combos(t: u32, input: Input) -> Input {
     let c = t % 60;
     Input {
@@ -526,18 +525,18 @@ fn bullets() -> Definition {
             { "type": "wait", "ticks": 90 },
             { "type": "loop" } ] }]
     });
-    // The weapons are the `blade` and the `maul`: the blade's combos by hand, with the maul's
+    // The weapons are the `giant_sword` and the `giant_hammer`: the giant_sword's combos by hand, with the giant_hammer's
     // pull on the steps reached by `sub`. The boss stands far out of reach.
     let stage = armed(
         stage_full(600, Some(boss), vec![], vec![]),
-        json!({ "preset": { "id": "blade" } }),
+        json!({ "preset": { "id": "giant_sword" } }),
     );
     // Half speed from side to side, turning to face up the field once a second, and evading
     // twice. `main` on ticks 0 and 8 (slash, slash), then on 16 held to 68 (the thrust charged
     // to level 2, 52 ticks, released inside its perfect window: a slam); `sub` on 100 and 108
     // (thrust, slash); `main` on 133, during the evade of tick 130 (the dash-strike); `main` on
     // 170 and 178, then on 186 held until the evade of tick 230 breaks the charge; and the
-    // switches and the stage skill pressed now and then. The boss stays out of the blade's
+    // switches and the stage skill pressed now and then. The boss stays out of the giant_sword's
     // assist range, so the switches find no target here (`assist` is the case that does).
     let inputs = (0..300)
         .map(|t| {
@@ -628,8 +627,8 @@ fn fail() -> Definition {
 /// Melee (ADR-055): three enemies trail the main character and swing at it, a wind-up, an arc
 /// and a recovery, rooted while they wind up and swing; a companion orbiting it cleaves them
 /// with a wide arc that hits again every 2 ticks, through their defence. The main character
-/// stands still, then walks from side to side, playing the `blade`'s combos, whose steps
-/// reached by `sub` pull what they hit (the `maul`'s pull). Nobody fires a bullet.
+/// stands still, then walks from side to side, playing the `giant_sword`'s combos, whose smashes
+/// pull what they hit. Nobody fires a bullet.
 fn melee() -> Definition {
     let phase = |kind: &str, ticks: u32, hit_box: Value, damage: u32, move_pct: u8| {
         json!({ "kind": kind, "ticks": ticks, "hit_box": hit_box, "damage": damage,
@@ -678,7 +677,7 @@ fn melee() -> Definition {
         .collect();
     let stage = armed(
         stage_full(600, Some(far_boss()), waves, vec![guard]),
-        json!({ "preset": { "id": "blade" } }),
+        json!({ "preset": { "id": "giant_sword" } }),
     );
     let inputs = (0..300)
         .map(|t| {
@@ -693,7 +692,7 @@ fn melee() -> Definition {
     ("melee", bytes(&stage), inputs)
 }
 
-/// Aim assist and auto mode (ADR-072, ADR-073) with the blade, whose assist range is 160
+/// Aim assist and auto mode (ADR-072, ADR-073) with the giant_sword, whose assist range is 160
 /// pixels: three bats to the left and an elite to the right, all within it, and a boss far up
 /// the field. Auto mode alone for 100 ticks (the elite first, then the bats as they fall);
 /// combos by hand with assist for 100; then assist on while the main character walks up to the
@@ -716,9 +715,9 @@ fn assist() -> Definition {
     ];
     let stage = armed(
         stage_full(600, Some(boss_at(1_000_000, 40_000)), waves, vec![]),
-        json!({ "preset": { "id": "blade" } }),
+        json!({ "preset": { "id": "giant_sword" } }),
     );
-    let inputs = (0..300)
+    let inputs = (0..320)
         .map(|t| match t {
             0..100 => Input {
                 auto: true,
@@ -729,7 +728,7 @@ fn assist() -> Definition {
                 ..combos(t, idle())
             },
             _ => Input {
-                main: t == 205 || t == 225 || (240..285).contains(&t),
+                main: t == 205 || t == 225 || t == 240 || (250..285).contains(&t),
                 assist: true,
                 auto: t >= 262,
                 ..moving(0, -127)
@@ -845,7 +844,8 @@ pub(crate) fn definitions() -> Vec<Definition> {
 /// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command>)> {
     use common::run::{
-        STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, time_limit_setup, trial_setup,
+        KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, time_limit_setup,
+        trial_setup,
     };
     let stage_skill = RunSetup {
         seed: STAGE_SKILL_SEED,
@@ -860,8 +860,11 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     // the overtime is long enough for the main character to kill it (it does, at tick 8098);
     // in the second it ends at tick 600 with the boss alive.
     let (kill_mode, kill_content) = short_time_limit(12_000);
-    let kill_setup = time_limit_setup();
-    let kill_commands = play_run_with(&kill_setup, &kill_content, 12_060, boss_input);
+    let kill_setup = RunSetup {
+        seed: KILL_SEED,
+        ..time_limit_setup()
+    };
+    let kill_commands = play_run_with(&kill_setup, &kill_content, 20_060, boss_input);
     let (overtime_mode, overtime_content) = short_time_limit(540);
     let kill_setup_2 = time_limit_setup();
     let overtime_commands = play_run_with(&kill_setup_2, &overtime_content, 600, boss_input);
@@ -951,7 +954,7 @@ fn elites_time_limit() -> (String, RunContent) {
 }
 
 /// How near the scripted main character of the `elites` run stands to an enemy it fights: 32
-/// pixels, inside the `blade`'s reach.
+/// pixels, inside the `giant_sword`'s reach.
 const FIGHT_NEAR: i64 = 8_192;
 
 /// The scripted main character of the `elites` run. It meets the leader and kills its escort

@@ -14,16 +14,22 @@ pub const TRIAL_LENGTH: u32 = 5400;
 pub const SPEND_INDEX: u32 = 1;
 
 /// The seed of the `stage_skill` run case: with it, the run kills an elite whose rare star
-/// offers the black hole, takes it, and uses it twice. Under one weapon (ADR-105) seed 74 no
-/// longer does; this one is the first of `0..=3000` with `blade` that does.
-pub const STAGE_SKILL_SEED: u64 = 55;
+/// offers the black hole, takes it, and uses it twice. Under the Vindictus shape (ADR-084) seed
+/// 55 no longer does; this one is the first of `0..=400` with `giant_sword` that does.
+pub const STAGE_SKILL_SEED: u64 = 186;
+
+/// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
+/// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
+/// 20261010 ends with the main character falling. Of seeds 1 to 10, seeds 1, 2, 4, 5 and 8 end in
+/// a kill; this one is the lowest.
+pub const KILL_SEED: u64 = 1;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {
         schema_version: 0,
         sim_version: 0,
         mode: "trial".into(),
-        weapon: "blade".into(),
+        weapon: "giant_sword".into(),
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,
@@ -38,10 +44,10 @@ pub fn time_limit_setup() -> RunSetup {
     }
 }
 
-/// Side to side, and the `blade`'s combos in a 60-tick cycle: `main` on its ticks 0, 8 and 16
+/// Side to side, and the `giant_sword`'s combos in a 60-tick cycle: `main` on its ticks 0, 8 and 16
 /// (slash, slash, thrust), the thrust held to tick 40 in every other cycle (a charge released at
-/// level 1, inside its perfect window), and `sub` on 44 and 52 (a thrust and a slash, with the
-/// `maul`'s pull); the stage skill pressed on tick 30 of every cycle.
+/// level 1, inside its perfect window), and `sub` on 44 and 52 (two smashes from the root, each a
+/// slash that pulls what it hits); the stage skill pressed on tick 30 of every cycle.
 pub fn run_script(tick: u32) -> Input {
     let c = tick % 60;
     let charging = (tick / 60) % 2 == 1 && (16..40).contains(&c);
@@ -66,7 +72,7 @@ pub const STEER_FROM: u32 = 800;
 /// ends before the trial does.
 pub const BRAVE_FROM: u32 = 2400;
 
-/// How near `run_input` walks to the enemy it fights: 32 pixels, inside the `blade`'s reach.
+/// How near `run_input` walks to the enemy it fights: 32 pixels, inside the `giant_sword`'s reach.
 const NEAR: i64 = 8192;
 
 /// `run_input` steps out of the way of a hostile bullet that would come within `HIT` in the
