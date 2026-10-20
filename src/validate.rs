@@ -112,15 +112,22 @@ pub mod limits {
     /// (ADR-090).
     pub const MAX_AURA_PERCENT: u16 = 200;
 
-    pub const MAX_PLAYER_HP: u32 = 99;
-    pub const MAX_PLAYER_ATK: u32 = 999;
-    pub const MAX_AGENT_HP: u32 = 100_000;
-    pub const MAX_BOSS_HP: u32 = 1_000_000;
-    pub const MAX_DAMAGE: u32 = 10_000;
-    /// At this defence a hit keeps about 1% of its damage (ADR-056, K = 100).
-    pub const MAX_DEFENCE: u32 = 10_000;
+    /// What every default damage and hit-point value is multiplied by (ADR-103 decision 6), so
+    /// that a percentage of a hit (an aura's +25%) is a whole number. The bounds below, `K` of
+    /// ADR-056, the aggro constants and the bundled content all hold the scaled values.
+    pub const DAMAGE_SCALE: u32 = 100;
+    pub const MAX_PLAYER_HP: u32 = 99 * DAMAGE_SCALE;
+    pub const MAX_PLAYER_ATK: u32 = 999 * DAMAGE_SCALE;
+    pub const MAX_AGENT_HP: u32 = 100_000 * DAMAGE_SCALE;
+    pub const MAX_BOSS_HP: u32 = 1_000_000 * DAMAGE_SCALE;
+    /// The largest base damage. With the atk-up, the type bonus and the vulnerability at their
+    /// caps and the match-up at its cap, a hit of it is `MAX_DAMAGE × 11 × 11 × 11 × 2`: below
+    /// `u32::MAX` (ADR-056 decision 5), as `rules_v0::entity`'s tests check.
+    pub const MAX_DAMAGE: u32 = 10_000 * DAMAGE_SCALE;
+    /// At this defence a hit keeps about 1% of its damage (ADR-056, K = 100 × `DAMAGE_SCALE`).
+    pub const MAX_DEFENCE: u32 = 10_000 * DAMAGE_SCALE;
     pub const MAX_BUFF_PCT: u16 = 500;
-    pub const MAX_AGGRO: u32 = 1_000_000;
+    pub const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
     /// A number in an expression, an argument or a velocity-like field.
     pub const MAX_NUMBER: i32 = 1_000_000;
     /// A length in 1/256 pixels: 1,024 pixels.

@@ -119,6 +119,7 @@ use crate::rune::Rune;
 use crate::snapshot::OfferOption;
 use crate::stage::Stage;
 use crate::trig;
+use crate::validate::limits::DAMAGE_SCALE;
 
 pub(crate) use agents::agent_def;
 use entity::{Who, scale_damage, status_pct};
@@ -149,12 +150,17 @@ const ENEMY_BULLET_RADIUS: i32 = Fx::px(3).0;
 /// Ticks of invulnerability after the main character is hit.
 const HIT_INVULNERABLE_TICKS: u32 = 60;
 
-/// Aggro (ADR-036): raised by damage dealt, by buffs and by heals; fading every tick.
+/// Aggro (ADR-036): raised by damage dealt, by buffs and by heals; fading every tick. A point of
+/// damage or healing is worth the same aggro as before the scale of ADR-103 (so the two
+/// per-point values stay), and the flat amounts scale with it: a buff, the decay and the cap.
 const AGGRO_PER_DAMAGE: u32 = 1;
-const AGGRO_PER_BUFF: u32 = 40;
+const AGGRO_PER_BUFF: u32 = 40 * DAMAGE_SCALE;
 const AGGRO_PER_HEAL_POINT: u32 = 2;
-const AGGRO_DECAY: u32 = 1;
-const MAX_AGGRO: u32 = 1_000_000;
+const AGGRO_DECAY: u32 = DAMAGE_SCALE;
+const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
+/// The damage an attack does when an enemy or the boss makes it and the attack names none: 1 at
+/// the design values, scaled (ADR-103).
+const ENEMY_ATTACK_DAMAGE: u32 = DAMAGE_SCALE;
 
 pub(crate) fn bullet_radius(friendly: bool) -> i32 {
     if friendly {
