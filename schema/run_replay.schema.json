@@ -8,7 +8,7 @@
       "type": "string"
     },
     "content_sha256": {
-      "description": "The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every\npreset, the run stats, the rewards, the stage skills, the expertise and the match-ups\n(`content_sha256_with`). Other content invalidates\nthe replay.",
+      "description": "The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content\npack (`content_sha256_with`, ADR-080). Any other pack invalidates the replay.",
       "type": "string"
     },
     "final_hash": {
