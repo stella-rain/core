@@ -488,7 +488,8 @@ fn take_step(
     let onward = step_at(main, c).is_some_and(|st| st.next.get_open(smash, c.upgrades).is_some());
     if !onward {
         reset(c, events);
-        c.dash = by_hand && c.dash_strike_left > 0 && main.dash.get_open(smash, c.upgrades).is_some();
+        c.dash =
+            by_hand && c.dash_strike_left > 0 && main.dash.get_open(smash, c.upgrades).is_some();
         if !c.dash && main.combo.get_open(smash, c.upgrades).is_none() {
             return;
         }
