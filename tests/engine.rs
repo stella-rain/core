@@ -484,7 +484,9 @@ fn the_snapshot_survives_json() {
 // --- Determinism (ADR-004, ADR-019) ----------------------------------------------------------
 
 fn fixture() -> Stage {
-    serde_json::from_str(FIXTURE).expect("the fixture parses")
+    // The fixture is written at design values and scaled like the corpus stages (ADR-103).
+    let value = serde_json::from_str(FIXTURE).expect("the fixture is JSON");
+    serde_json::from_value(common::scaled(value, common::SCALE)).expect("the fixture parses")
 }
 
 /// A fixed, varied script: drift about at different strengths, evade now and then, and play
@@ -522,7 +524,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0xe6fa_7369_4ee4_abe7;
+const GOLDEN_HASH: u64 = 0x4be8_9ee8_4677_b94b;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {
