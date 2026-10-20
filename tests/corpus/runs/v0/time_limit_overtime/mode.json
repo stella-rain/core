@@ -340,6 +340,68 @@
       },
       "id": "elite_leader",
       "xp": 3
+    },
+    {
+      "enemy": {
+        "base": "fairy_a",
+        "elite": {
+          "mimic": {
+            "disguise": "icon_hex",
+            "reveal_radius": 30720
+          },
+          "range": 51200
+        },
+        "hp": 480,
+        "movement": {
+          "distance": 12288,
+          "type": "follow"
+        },
+        "profile": {
+          "resist": "physical",
+          "strong": [
+            "pierce"
+          ]
+        },
+        "radius": 3072,
+        "rules": [
+          {
+            "cooldown_ticks": 90,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 2,
+                    "kind": "active",
+                    "spawn": [
+                      {
+                        "direction": {
+                          "offset": 0,
+                          "type": "aimed"
+                        },
+                        "speed": 640,
+                        "type": "fire"
+                      }
+                    ],
+                    "ticks": 1
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      },
+      "id": "elite_mimic",
+      "xp": 3
     }
   ],
   "final_boss": "golem",
