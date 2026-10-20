@@ -29,9 +29,13 @@ const SIDE: (i32, i32) = (START_X + 25_600, START_Y);
 /// 40 pixels: the guardians' ring.
 const RING: i32 = 10_240;
 
-/// A guardian: it walks onto the main character and has no attack.
+/// A guardian: it stands where it is put and has no attack.
 fn guardian(hp: u32) -> Value {
-    enemy(hp, json!({ "type": "follow", "distance": 0 }), json!([]))
+    enemy(
+        hp,
+        json!({ "type": "straight", "vx": 0, "vy": 0 }),
+        json!([]),
+    )
 }
 
 fn guardians(enemy: Value, count: u8, radius: i32) -> Value {
@@ -106,7 +110,9 @@ fn positions(e: &Engine, elite: bool) -> Vec<(i32, i32)> {
 }
 
 fn activated(events: &[(u32, DomainEvent)]) -> Vec<u32> {
-    ticks_of(events, |ev| matches!(ev, DomainEvent::ShrineActivated { .. }))
+    ticks_of(events, |ev| {
+        matches!(ev, DomainEvent::ShrineActivated { .. })
+    })
 }
 
 fn left(events: &[(u32, DomainEvent)]) -> Vec<u32> {
@@ -138,8 +144,7 @@ fn ring(at: (i32, i32), count: i32, radius: i32) -> Vec<(i32, i32)> {
             let angle = i * trig::PER_TURN / count;
             let (sin, cos) = trig::sin_cos(angle);
             let off = |unit: i32| {
-                i32::try_from(i64::from(radius) * i64::from(unit) / i64::from(trig::SCALE))
-                    .unwrap()
+                i32::try_from(i64::from(radius) * i64::from(unit) / i64::from(trig::SCALE)).unwrap()
             };
             (at.0 + off(cos), at.1 + off(sin))
         })
@@ -164,7 +169,11 @@ fn an_untouched_shrine_takes_no_damage_and_the_main_character_s_shots_pass_throu
         START_X,
         100_000,
     );
-    let mut e = with(&shrine_stage((START_X, FAR_Y), shrine(600, 4, 5), vec![behind]));
+    let mut e = with(&shrine_stage(
+        (START_X, FAR_Y),
+        shrine(600, 4, 5),
+        vec![behind],
+    ));
     let events = fire_until(&mut e, idle(), 300, |_| false);
     let hits: Vec<_> = events
         .iter()
@@ -209,12 +218,15 @@ fn an_untouched_shrine_does_not_move_or_attack() {
 fn an_untouched_shrine_counts_toward_the_elite_cap() {
     let mut st = shrine_stage(SIDE, shrine(600, 4, 5), vec![]);
     st.elite_cap = Some(1);
-    st.waves.push(
-        serde_json::from_value(wave(1, 1, 0, joiner(), SIDE.0, SIDE.1 - 50_000)).unwrap(),
-    );
+    st.waves
+        .push(serde_json::from_value(wave(1, 1, 0, joiner(), SIDE.0, SIDE.1 - 50_000)).unwrap());
     let mut e = with(&st);
     run_until(&mut e, idle(), 5, |_| false);
-    assert_eq!(positions(&e, true).len(), 1, "the cap of 1 is spent on the shrine");
+    assert_eq!(
+        positions(&e, true).len(),
+        1,
+        "the cap of 1 is spent on the shrine"
+    );
 }
 
 // --- Touched -----------------------------------------------------------------------------------
@@ -286,11 +298,27 @@ fn stars(events: &[(u32, DomainEvent)]) -> Vec<u32> {
 
 #[test]
 fn clearing_the_guardians_in_time_gives_the_elite_reward_and_the_shrine_goes() {
-    let mut e = with(&shrine_stage(SIDE, shrine(600, 3, 5), vec![]));
+    // Two guardians, east and west of the shrine. The main character, which faces the way it
+    // walked (east, onto the shrine), shoots the east one, then walks west and shoots the other.
+    let mut e = with(&shrine_stage(SIDE, shrine(600, 2, 5), vec![]));
     let mut events = touch(&mut e);
     let shrine_id = e.snapshot().entities.iter().find(|v| v.elite).unwrap().id;
-    events.extend(fire_until(&mut e, idle(), 300, |e| {
-        e.snapshot().entities.iter().all(|v| v.kind != EntityKind::Enemy)
+    events.extend(fire_until(&mut e, idle(), 60, |e| {
+        positions(e, false).len() == 1
+    }));
+    assert_eq!(
+        positions(&e, false),
+        [ring(SIDE, 2, RING)[1]],
+        "the east one died"
+    );
+    assert_eq!(
+        stars(&events),
+        Vec::<u32>::new(),
+        "the shrine is not done with a guardian left: {events:?}"
+    );
+    assert_eq!(positions(&e, true), [SIDE]);
+    events.extend(fire_until(&mut e, moving(-127, 0), 120, |e| {
+        positions(e, true).is_empty()
     }));
     let died: Vec<_> = events
         .iter()
@@ -299,15 +327,19 @@ fn clearing_the_guardians_in_time_gives_the_elite_reward_and_the_shrine_goes() {
             _ => None,
         })
         .collect();
-    assert_eq!(died.len(), 4, "three guardians and the shrine: {events:?}");
+    assert_eq!(died.len(), 3, "two guardians and the shrine: {events:?}");
     assert_eq!(
         died.iter().filter(|d| **d == shrine_id).count(),
         1,
         "the shrine died once: {events:?}"
     );
-    assert_eq!(stars(&events).len(), 1, "an elite always drops a star: {events:?}");
+    assert_eq!(
+        stars(&events).len(),
+        1,
+        "an elite always drops a star: {events:?}"
+    );
     assert_eq!(left(&events), Vec::<u32>::new());
-    assert!(e.snapshot().entities.iter().all(|v| v.kind != EntityKind::Enemy));
+    assert!(positions(&e, true).is_empty());
 }
 
 #[test]
@@ -317,10 +349,20 @@ fn running_out_of_time_with_guardians_alive_leaves_the_shrine_without_a_reward()
     let at = e.tick();
     events.extend(run_until(&mut e, idle(), 300, |_| false));
     assert_eq!(left(&events), [at + 120], "120 ticks from the activation");
-    assert_eq!(positions(&e, true), Vec::<(i32, i32)>::new(), "the shrine is gone");
-    assert_eq!(positions(&e, false).len(), 3, "the guardians stay, ordinary enemies");
+    assert_eq!(
+        positions(&e, true),
+        Vec::<(i32, i32)>::new(),
+        "the shrine is gone"
+    );
+    assert_eq!(
+        positions(&e, false).len(),
+        3,
+        "the guardians stay, ordinary enemies"
+    );
     assert!(
-        events.iter().all(|(_, ev)| !matches!(ev, DomainEvent::Died { .. })),
+        events
+            .iter()
+            .all(|(_, ev)| !matches!(ev, DomainEvent::Died { .. })),
         "{events:?}"
     );
     assert_eq!(stars(&events), Vec::<u32>::new());
@@ -342,7 +384,14 @@ fn a_cleared_fight_in_the_last_tick_still_counts() {
 fn the_enemy_cap_limits_the_guardians() {
     // 497 enemies and the shrine make 498 of the 500 alive at most: two guardians fit.
     let filler = |count: u16, x: i32| {
-        wave(1, count, 0, enemy(10, hold(x, 40_000), json!([])), x, 40_000)
+        wave(
+            1,
+            count,
+            1,
+            enemy(10, hold(x, 40_000), json!([])),
+            x,
+            40_000,
+        )
     };
     let others = vec![
         filler(100, 1_000),
@@ -352,6 +401,9 @@ fn the_enemy_cap_limits_the_guardians() {
         filler(97, 5_000),
     ];
     let mut e = with(&shrine_stage(SIDE, shrine(6000, 4, 100_000), others));
+    // The last of them comes at tick 100.
+    run_until(&mut e, idle(), 110, |_| false);
+    assert_eq!(e.snapshot().entities.len() - 1, 498, "497 and the shrine");
     let events = touch(&mut e);
     assert!(is_activated(&events));
     let ring = ring(SIDE, 4, RING);
@@ -359,8 +411,16 @@ fn the_enemy_cap_limits_the_guardians() {
         .into_iter()
         .filter(|p| ring.contains(p))
         .collect();
-    assert_eq!(near, ring[..2], "the first two on the ring spawned, the others were refused");
-    assert_eq!(e.snapshot().entities.len() - 1, 499, "500 enemies, 1 of them the shrine");
+    assert_eq!(
+        near,
+        ring[..2],
+        "the first two on the ring spawned, the others were refused"
+    );
+    assert_eq!(
+        e.snapshot().entities.len() - 1,
+        500,
+        "500 enemies alive, the shrine one of them"
+    );
 }
 
 // --- The boss ----------------------------------------------------------------------------------
@@ -387,16 +447,30 @@ fn the_boss_s_call_skips_an_untouched_shrine() {
         .filter(|(_, ev)| matches!(ev, DomainEvent::ElitesCalled { .. }))
         .collect();
     assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].1, DomainEvent::ElitesCalled { elites: 1 }, "only the joiner");
+    assert_eq!(
+        calls[0].1,
+        DomainEvent::ElitesCalled { elites: 1 },
+        "only the joiner"
+    );
     assert_eq!(left(&events), Vec::<u32>::new());
-    assert!(positions(&e, true).contains(&SIDE), "the shrine stays where it is");
+    assert!(
+        positions(&e, true).contains(&SIDE),
+        "the shrine stays where it is"
+    );
 }
 
 #[test]
 fn a_shrine_that_comes_after_the_call_is_not_called_either() {
     let mut boss = boss_at(1_000_000, FAR_Y);
     boss["call_elites"] = json!({ "after_ticks": 0 });
-    let mut st = stage(vec![wave(100, 1, 0, shrine(6000, 3, 100_000), SIDE.0, SIDE.1)]);
+    let mut st = stage(vec![wave(
+        100,
+        1,
+        0,
+        shrine(6000, 3, 100_000),
+        SIDE.0,
+        SIDE.1,
+    )]);
     st.boss = Some(serde_json::from_value(boss).expect("boss parses"));
     let mut e = with(&st);
     let events = run_until(&mut e, idle(), 300, |_| false);
@@ -417,7 +491,11 @@ fn an_active_fight_keeps_running_when_the_boss_calls() {
             .any(|(_, ev)| matches!(ev, DomainEvent::ElitesCalled { .. })),
         "{events:?}"
     );
-    assert_eq!(left(&events), Vec::<u32>::new(), "its 6,000 ticks have not run out");
+    assert_eq!(
+        left(&events),
+        Vec::<u32>::new(),
+        "its 6,000 ticks have not run out"
+    );
     assert!(positions(&e, true).contains(&SIDE));
     assert!(positions(&e, false).len() >= 3, "the guardians fight on");
 }
@@ -461,7 +539,11 @@ fn an_untouched_shrine_stays_when_a_boss_spawns() {
         [3_600]
     );
     assert_eq!(left(&events), Vec::<u32>::new());
-    assert_eq!(positions(&e, true).len(), 1, "the boss came, the shrine stays");
+    assert_eq!(
+        positions(&e, true).len(),
+        1,
+        "the boss came, the shrine stays"
+    );
 }
 
 // --- Data and schema ---------------------------------------------------------------------------
@@ -511,11 +593,14 @@ fn shrine_stage_with(movement: Value) -> Stage {
 
 #[test]
 fn the_fight_is_bounded() {
-    let (max, ticks, most) = (limits::MAX_LEN, limits::MAX_TICKS, limits::MAX_SHRINE_GUARDIANS);
+    let (max, ticks, most) = (
+        limits::MAX_LEN,
+        limits::MAX_TICKS,
+        limits::MAX_SHRINE_GUARDIANS,
+    );
     let m = "$.waves[0].enemy.movement";
-    let g = |t: u32, count: u8, radius: i32| {
-        shrine_movement(t, guardians(guardian(5), count, radius))
-    };
+    let g =
+        |t: u32, count: u8, radius: i32| shrine_movement(t, guardians(guardian(5), count, radius));
     let cases: [(Value, Vec<String>); 11] = [
         (g(1, 1, 1), vec![]),
         (g(ticks, most, max), vec![]),
@@ -572,13 +657,23 @@ fn a_guardian_is_an_ordinary_enemy() {
     let mut elite = guardian(5);
     elite["elite"] = json!({ "range": 256 });
     assert_eq!(
-        issues(&shrine_stage_with(shrine_movement(1, guardians(elite, 1, 1)))),
+        issues(&shrine_stage_with(shrine_movement(
+            1,
+            guardians(elite, 1, 1)
+        ))),
         [format!("{m}.elite")]
     );
     // Not a shrine itself, nor a flier-away: guardians do not nest.
-    let nested = enemy(5, shrine_movement(1, guardians(guardian(5), 1, 1)), json!([]));
+    let nested = enemy(
+        5,
+        shrine_movement(1, guardians(guardian(5), 1, 1)),
+        json!([]),
+    );
     assert_eq!(
-        issues(&shrine_stage_with(shrine_movement(1, guardians(nested, 1, 1)))),
+        issues(&shrine_stage_with(shrine_movement(
+            1,
+            guardians(nested, 1, 1)
+        ))),
         [format!("{m}.movement")]
     );
     // Does not summon.
@@ -588,7 +683,10 @@ fn a_guardian_is_an_ordinary_enemy() {
         json!([rule(always(), json!("player"), summon(2), 0)]),
     );
     assert_eq!(
-        issues(&shrine_stage_with(shrine_movement(1, guardians(summoner, 1, 1)))),
+        issues(&shrine_stage_with(shrine_movement(
+            1,
+            guardians(summoner, 1, 1)
+        ))),
         [format!("{m}.rules[0].do")]
     );
 }
@@ -607,7 +705,11 @@ fn a_shrine_needs_an_elite_that_stays() {
         issues(&stage(vec![wave(1, 1, 0, s, 1000, 1000)])),
         ["$.waves[0].enemy.elite.boss_call"]
     );
-    let c = companion(10, shrine_movement(600, guardians(guardian(5), 1, 1)), json!([]));
+    let c = companion(
+        10,
+        shrine_movement(600, guardians(guardian(5), 1, 1)),
+        json!([]),
+    );
     let mut st = stage_full(600, Some(far_boss()), vec![], vec![c]);
     st.levels = None;
     assert_eq!(issues(&st), ["$.companions[0].movement"]);

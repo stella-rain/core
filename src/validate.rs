@@ -877,7 +877,8 @@ impl<'a> Ctx<'a> {
         if let Some(elite) = &a.elite {
             self.key("elite", |c| {
                 c.within("range", i64::from(elite.range.0), 1, i64::from(MAX_LEN));
-                if matches!(a.movement, Movement::Shrine { .. }) && elite.boss_call != BossCall::Stay
+                if matches!(a.movement, Movement::Shrine { .. })
+                    && elite.boss_call != BossCall::Stay
                 {
                     c.key("boss_call", |c| c.fail("a shrine's boss_call is stay"));
                 }
@@ -915,7 +916,12 @@ impl<'a> Ctx<'a> {
                         1,
                         i64::from(MAX_SHRINE_GUARDIANS),
                     );
-                    c.within("radius", i64::from(guardians.radius.0), 1, i64::from(MAX_LEN));
+                    c.within(
+                        "radius",
+                        i64::from(guardians.radius.0),
+                        1,
+                        i64::from(MAX_LEN),
+                    );
                     c.key("enemy", |c| {
                         c.agent(&guardians.enemy, false);
                         if guardians.enemy.elite.is_some() {

@@ -243,7 +243,10 @@ pub(super) fn pull(stage: &Stage, s: &mut State) {
     };
     let map = stage.map();
     for e in s.enemies.iter_mut() {
-        if e.hp == 0 || !overlaps(b.at, b.radius, e.at, agent_def(stage, e.key).radius.0) {
+        if e.hp == 0
+            || e.shrine.is_some()
+            || !overlaps(b.at, b.radius, e.at, agent_def(stage, e.key).radius.0)
+        {
             continue;
         }
         let dx = i64::from(b.at.x.0) - i64::from(e.at.x.0);
