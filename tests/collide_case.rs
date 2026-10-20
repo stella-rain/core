@@ -143,3 +143,33 @@ fn the_measured_tick_has_its_load() {
     }
 }
 
+/// The spread case's measured tick (`collide_case::spread_stage`) has the clustered tick's load,
+/// with its crowds reaching the corners: every enemy alive and unhurt, nearly `MAX_BULLETS_ALIVE`
+/// friendly bullets in the air, and the crowds at the map's far edges (core#146).
+#[test]
+fn the_spread_tick_has_its_load() {
+    let mut engine = collide_case::spread_warmed_up();
+    engine.step(collide_case::input(collide_case::WARMUP_TICKS + 1));
+    let load = engine.load();
+    assert_eq!(load.enemies, 500);
+    assert!((3_900..4_000).contains(&load.bullets), "{load:?}");
+    let snapshot = engine.snapshot();
+    let enemies: Vec<_> = snapshot
+        .entities
+        .iter()
+        .filter(|e| e.kind == EntityKind::Enemy)
+        .collect();
+    assert_eq!(enemies.len(), 500);
+    assert!(
+        enemies.iter().all(|e| e.hp == 100_000),
+        "neither a friendly bullet nor a hit box hits an enemy"
+    );
+    // The crowds reach the far edges: the top-right and bottom-right corners' crowds are within
+    // 256 pixels of the right edge and of the top and bottom edges.
+    let max_x = enemies.iter().map(|e| e.at.x.0).max();
+    let min_y = enemies.iter().map(|e| e.at.y.0).min();
+    let max_y = enemies.iter().map(|e| e.at.y.0).max();
+    assert!(max_x >= Some(SIDE - 65_536), "{max_x:?}");
+    assert!(min_y <= Some(65_536), "{min_y:?}");
+    assert!(max_y >= Some(SIDE - 65_536), "{max_y:?}");
+}
