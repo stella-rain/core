@@ -675,6 +675,9 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
     if b.combo {
         expertise::credit(stage, s, target, dead);
+        if !dead && b.smash == Some(Smash::Bleed) {
+            runes::apply_smash_bleed(s, target, events);
+        }
         if !s.player.runes.is_empty() {
             if !dead {
                 runes::apply_dots(s, target, events);
@@ -1090,6 +1093,8 @@ fn hash_smash(h: &mut StateHasher, smash: Option<Smash>) {
             h.write_i32(distance);
             h.write_u32(ticks);
         }
+        // A tag that is neither the presence flag's 0 nor 1: a bleed has no numbers of its own.
+        Some(Smash::Bleed) => h.write_bytes(&[2]),
         None => h.write_bool(false),
     }
 }

@@ -410,12 +410,12 @@ fn strike(
     let smash = if last_press_sub(&s.player.combo) {
         presets::weapon(&stage.player.weapon)
             .and_then(|w| w.smash)
-            .and_then(|effect| match effect {
-                SmashEffect::Pull { distance, ticks } => Some(Smash::Pull(Pull {
+            .map(|effect| match effect {
+                SmashEffect::Pull { distance, ticks } => Smash::Pull(Pull {
                     distance: distance.0,
                     ticks,
-                })),
-                SmashEffect::Bleed {} => None,
+                }),
+                SmashEffect::Bleed {} => Smash::Bleed,
             })
     } else {
         None

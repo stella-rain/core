@@ -869,6 +869,8 @@ pub(crate) struct Pull {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Smash {
     Pull(Pull),
+    /// The `bleed` status, with the bleed rune's numbers from the runes file (ADR-099 point 3).
+    Bleed,
 }
 
 /// The stage skill held (ADR-075): its place in the stage skills file, its level from 1, and

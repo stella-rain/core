@@ -643,8 +643,9 @@ fn a_smash_that_kills_applies_no_bleed() {
 
 #[test]
 fn a_smash_and_the_rune_share_one_bleed() {
-    // Held, the rune bleeds the step's hit, and the smash, 60 ticks on, adds the second stack
-    // to the same status with the rune's numbers.
+    // Held, the rune bleeds every combo hit. The main step's hit gives one stack. The smash, 60
+    // ticks on, is a combo hit too, so the rune adds its stack and the smash adds its own: each
+    // source adds to the one bleed (ADR-099 point 3), with the rune's numbers.
     let mut e = with(
         &armed(stage(7, tough(0, None, None)), smashing()),
         &content(vec![random_rune()], None, runes(30, 180, 3, 5)),
@@ -674,8 +675,8 @@ fn a_smash_and_the_rune_share_one_bleed() {
             }
         }
     }
-    assert_eq!(stacks, [1, 2]);
+    assert_eq!(stacks, [1, 2, 3]);
     let bleed = statuses(&e, target);
     assert_eq!(bleed.len(), 1, "one bleed on the enemy");
-    assert_eq!(bleed[0].stacks, 2);
+    assert_eq!(bleed[0].stacks, 3);
 }
