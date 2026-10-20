@@ -255,6 +255,91 @@
       },
       "id": "elite_shrine",
       "xp": 3
+    },
+    {
+      "enemy": {
+        "base": "horns_2",
+        "elite": {
+          "aura": {
+            "damage_percent": 25,
+            "radius": 40960
+          },
+          "escort": {
+            "count": 4,
+            "enemy": {
+              "base": "bat",
+              "hp": 60,
+              "movement": {
+                "distance": 12288,
+                "type": "follow"
+              },
+              "radius": 2048,
+              "rules": [
+                {
+                  "cooldown_ticks": 90,
+                  "do": {
+                    "attack": {
+                      "preset": {
+                        "args": [
+                          640
+                        ],
+                        "id": "aimed_single"
+                      }
+                    },
+                    "type": "attack"
+                  },
+                  "once": false,
+                  "target": "nearest_ally",
+                  "when": {
+                    "type": "always"
+                  }
+                }
+              ]
+            },
+            "radius": 15360
+          },
+          "range": 51200
+        },
+        "hp": 480,
+        "movement": {
+          "distance": 12288,
+          "type": "follow"
+        },
+        "profile": {
+          "resist": "physical",
+          "strong": [
+            "pierce"
+          ]
+        },
+        "radius": 3072,
+        "rules": [
+          {
+            "cooldown_ticks": 90,
+            "do": {
+              "attack": {
+                "preset": {
+                  "args": [
+                    640
+                  ],
+                  "id": "aimed_single"
+                }
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      },
+      "id": "elite_leader",
+      "xp": 3
     }
   ],
   "final_boss": "golem",
