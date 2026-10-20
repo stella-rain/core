@@ -372,6 +372,17 @@
             }
           ]
         },
+        "aura_radius": {
+          "description": "A pack leader's aura (ADR-090): the radius, around `at`, within which the non-elite\nenemies deal more damage for as long as this entity is there to be drawn.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fx"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "damage_over_time": {
           "description": "Its damage-over-time statuses (ADR-099), one of a kind at most.",
           "type": "array",

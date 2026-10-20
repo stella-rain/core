@@ -497,6 +497,18 @@ pub(super) fn spawn_enemy(
         }
     }
     s.enemies.push(enemy);
+    // A pack leader's escort comes with it, on a ring around it (ADR-090). Only a wave's enemy
+    // has one: that is the definition the escort is found by.
+    if key.source == AgentSource::Wave {
+        if let Some(escort) = def.elite.as_ref().and_then(|e| e.escort.as_ref()) {
+            let key = AgentKey {
+                source: AgentSource::Escort,
+                index: key.index,
+                rule: 0,
+            };
+            agents::ring_up(stage, s, key, escort, at);
+        }
+    }
     true
 }
 
@@ -758,19 +770,60 @@ fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     }
 }
 
+/// `b` with the damage a pack leader's aura adds (ADR-090), for a hit of an enemy's on an ally:
+/// if the enemy that dealt it is still on the map and not an elite, the highest `damage_percent`
+/// among the auras whose leader's centre is within `radius` of its centre (the edge counts)
+/// raises the damage to `damage * (100 + percent) / 100`, rounded down. Every leader still in
+/// the enemies counts, in index order, so a leader killed in this tick's collisions still gives
+/// its aura through the rest of the tick, and none from the next, when the dead are removed.
+/// An enemy that has since left the map or died earlier gets none. No random number is drawn.
+fn aided(stage: &Stage, s: &State, b: Shot) -> Shot {
+    let Ok(at) = s.enemies.binary_search_by_key(&b.owner, |e| e.id) else {
+        return b;
+    };
+    let owner = &s.enemies[at];
+    if owner.elite.is_some() {
+        return b;
+    }
+    let percent = s
+        .enemies
+        .iter()
+        .filter(|l| l.elite.is_some())
+        .filter_map(|l| {
+            agent_def(stage, l.key)
+                .elite
+                .as_ref()?
+                .aura
+                .map(|aura| (l.at, aura))
+        })
+        .filter(|(from, aura)| {
+            let dx = i64::from(from.x.0) - i64::from(owner.at.x.0);
+            let dy = i64::from(from.y.0) - i64::from(owner.at.y.0);
+            let reach = i64::from(aura.radius.0);
+            dx * dx + dy * dy <= reach * reach
+        })
+        .map(|(_, aura)| u64::from(aura.damage_percent))
+        .max()
+        .unwrap_or(0);
+    Shot {
+        damage: u32::try_from(u64::from(b.damage) * (100 + percent) / 100).unwrap_or(u32::MAX),
+        ..b
+    }
+}
+
 /// An enemy's shot against the main character (unless it is invulnerable), then the
 /// companions in ID order.
 fn hit_ally_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
     if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
-        hurt_player(s, b, events);
+        hurt_player(s, aided(stage, s, b), events);
         return true;
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = agent_def(stage, c.key).radius.0;
         if c.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, c.at, radius) {
-            damage(stage, s, b, Who::Companion(i), events);
+            damage(stage, s, aided(stage, s, b), Who::Companion(i), events);
             return true;
         }
     }

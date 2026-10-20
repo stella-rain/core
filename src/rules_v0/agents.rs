@@ -3,7 +3,7 @@
 //! fires; the others wait. Agents are evaluated in entity-ID order (companions, then enemies),
 //! each rule list in order.
 
-use crate::behaviour::{Action, Agent, BossCall, Condition, Movement, Rule};
+use crate::behaviour::{Action, Agent, BossCall, Condition, Elite, Guardians, Movement, Rule};
 use crate::engine::{
     AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, ShrineState,
     State, UNLIMITED,
@@ -45,6 +45,13 @@ pub(crate) fn agent_def(stage: &Stage, key: AgentKey) -> &Agent {
             Movement::Shrine { guardians, .. } => &guardians.enemy,
             _ => unreachable!("a guardian names the shrine that rang it"),
         },
+        AgentSource::Escort => match &wave_enemy(key.index).elite {
+            Some(Elite {
+                escort: Some(escort),
+                ..
+            }) => &escort.enemy,
+            _ => unreachable!("an escort names the leader that brought it"),
+        },
         AgentSource::Summoned => {
             match wave_enemy(key.index)
                 .rules
@@ -79,13 +86,16 @@ pub(super) fn new_agent(
         order: None,
         orbit_angle: angle,
         crowded: false,
-        elite: def.elite.map(|elite| EliteState {
+        elite: def.elite.as_ref().map(|elite| EliteState {
             home: at,
             called: false,
             boss_call: elite.boss_call,
         }),
         leave: (matches!(def.movement, Movement::FleeWhenDisturbed { .. })
-            || def.elite.is_some_and(|e| e.boss_call == BossCall::Leave))
+            || def
+                .elite
+                .as_ref()
+                .is_some_and(|e| e.boss_call == BossCall::Leave))
         .then_some(LeaveState {
             disturbed: None,
             go: false,
@@ -174,15 +184,7 @@ fn shrines(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
                 index: wave,
                 rule: 0,
             };
-            let mut rung = Vec::new();
-            for k in 0..u32::from(guardians.count) {
-                let at = ring_point(stage, home, guardians.radius, k, u32::from(guardians.count));
-                let next = EntityId(s.next_id);
-                if !super::spawn_enemy(stage, s, key, &guardians.enemy, at) {
-                    break;
-                }
-                rung.push(next);
-            }
+            let rung = ring_up(stage, s, key, guardians, home);
             if let Some(sh) = s.enemies[i].shrine.as_mut() {
                 sh.fight = Some(0);
                 sh.guardians = rung;
@@ -205,6 +207,28 @@ fn shrines(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
             sh.fight = Some(fight);
         }
     }
+}
+
+/// Places `guardians` (a shrine's, or a pack leader's escort) on their ring around `home`, in
+/// order, through the usual spawn path: the cap on enemies refuses the ones that do not fit and
+/// the first refusal ends the ring. Returns the ones that spawned. No random number is drawn.
+pub(super) fn ring_up(
+    stage: &Stage,
+    s: &mut State,
+    key: AgentKey,
+    guardians: &Guardians,
+    home: Point,
+) -> Vec<EntityId> {
+    let mut rung = Vec::new();
+    for k in 0..u32::from(guardians.count) {
+        let at = ring_point(stage, home, guardians.radius, k, u32::from(guardians.count));
+        let next = EntityId(s.next_id);
+        if !super::spawn_enemy(stage, s, key, &guardians.enemy, at) {
+            break;
+        }
+        rung.push(next);
+    }
+    rung
 }
 
 /// Guardian `k` of `count`: on the ring of `radius` around `at`, evenly spaced from the east,
@@ -268,7 +292,7 @@ fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
 
 /// An elite not called yet waits while the main character is beyond its range.
 fn waits(s: &State, me: Who, def: &Agent) -> bool {
-    let (Some(elite), Some(st)) = (def.elite, agent(s, me).elite) else {
+    let (Some(elite), Some(st)) = (def.elite.as_ref(), agent(s, me).elite) else {
         return false;
     };
     !st.called && !super::overlaps(agent(s, me).at, elite.range.0, s.player.at, 0)

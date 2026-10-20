@@ -304,14 +304,20 @@ fn hit_ally_side(stage: &Stage, s: &mut State, w: &Swing, events: &mut Vec<Domai
         && covers(w, p.at, PLAYER_RADIUS)
         && take_hit(s, w, super::PLAYER_ID)
     {
-        hurt_player(s, shot(w), events);
+        hurt_player(s, super::aided(stage, s, shot(w)), events);
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let (id, at, hp) = (c.id, c.at, c.hp);
         let radius = agent_def(stage, c.key).radius.0;
         if hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-            damage(stage, s, shot(w), Who::Companion(i), events);
+            damage(
+                stage,
+                s,
+                super::aided(stage, s, shot(w)),
+                Who::Companion(i),
+                events,
+            );
         }
     }
 }

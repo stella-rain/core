@@ -41,7 +41,7 @@ pub struct Agent {
 }
 
 /// What makes an enemy an elite.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Elite {
     /// How near the main character's centre must come to its centre for its rules to fire.
@@ -49,6 +49,27 @@ pub struct Elite {
     /// What the boss's call does to it (ADR-090); `join` when absent.
     #[serde(default, skip_serializing_if = "BossCall::is_join")]
     pub boss_call: BossCall,
+    /// A pack leader's aura (ADR-090): while it is alive, the non-elite enemies near it deal more.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aura: Option<Aura>,
+    /// A pack leader's escort (ADR-090): ordinary enemies that spawn with it on a ring around it.
+    /// Kept here, with the aura, because both are about what makes this enemy an elite of its
+    /// kind, as `boss_call` is; the ring is the shrine's guardians' (`Guardians`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub escort: Option<Guardians>,
+}
+
+/// What a pack leader does for the enemies near it (ADR-090). Every non-elite enemy whose centre
+/// is within `radius` of the leader's centre (the edge counts) deals its damage times
+/// `100 + damage_percent` over 100, rounded down; when several leaders reach it, the highest
+/// `damage_percent` counts. It ends with the leader's death.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Aura {
+    /// 1 to `MAX_LEN`.
+    pub radius: Fx,
+    /// 1 to `MAX_AURA_PERCENT`.
+    pub damage_percent: u16,
 }
 
 /// What a boss's call does to an elite.
@@ -102,9 +123,9 @@ pub enum Movement {
     },
 }
 
-/// The guardians of a shrine: `count` ordinary enemies placed on a ring of `radius` around it,
-/// evenly spaced from the east, kept on the map. The enemy cap still applies to them: one it
-/// refuses is not spawned.
+/// The guardians of a shrine, or the escort of a pack leader: `count` ordinary enemies placed on
+/// a ring of `radius` around it, evenly spaced from the east, kept on the map. The enemy cap
+/// still applies to them: one it refuses is not spawned.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Guardians {

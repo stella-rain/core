@@ -413,6 +413,28 @@
         }
       ]
     },
+    "Aura": {
+      "description": "What a pack leader does for the enemies near it (ADR-090). Every non-elite enemy whose centre\nis within `radius` of the leader's centre (the edge counts) deals its damage times\n`100 + damage_percent` over 100, rounded down; when several leaders reach it, the highest\n`damage_percent` counts. It ends with the leader's death.",
+      "type": "object",
+      "properties": {
+        "damage_percent": {
+          "description": "1 to `MAX_AURA_PERCENT`.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "radius": {
+          "description": "1 to `MAX_LEN`.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "radius",
+        "damage_percent"
+      ]
+    },
     "Blanket": {
       "description": "A blanket resist: every attack type, or every element (ADR-100).",
       "type": "string",
@@ -663,9 +685,31 @@
       "description": "What makes an enemy an elite.",
       "type": "object",
       "properties": {
+        "aura": {
+          "description": "A pack leader's aura (ADR-090): while it is alive, the non-elite enemies near it deal more.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Aura"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "boss_call": {
           "description": "What the boss's call does to it (ADR-090); `join` when absent.",
           "$ref": "#/$defs/BossCall"
+        },
+        "escort": {
+          "description": "A pack leader's escort (ADR-090): ordinary enemies that spawn with it on a ring around it.\nKept here, with the aura, because both are about what makes this enemy an elite of its\nkind, as `boss_call` is; the ring is the shrine's guardians' (`Guardians`).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Guardians"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "range": {
           "description": "How near the main character's centre must come to its centre for its rules to fire.",
@@ -1201,7 +1245,7 @@
       "format": "int32"
     },
     "Guardians": {
-      "description": "The guardians of a shrine: `count` ordinary enemies placed on a ring of `radius` around it,\nevenly spaced from the east, kept on the map. The enemy cap still applies to them: one it\nrefuses is not spawned.",
+      "description": "The guardians of a shrine, or the escort of a pack leader: `count` ordinary enemies placed on\na ring of `radius` around it, evenly spaced from the east, kept on the map. The enemy cap\nstill applies to them: one it refuses is not spawned.",
       "type": "object",
       "properties": {
         "count": {
