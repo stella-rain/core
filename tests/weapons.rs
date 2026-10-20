@@ -515,6 +515,18 @@ fn a_smash_ends_its_combo_in_every_weapon() {
 }
 
 #[test]
+fn the_giant_sword_s_smashes_bleed_and_the_giant_hammer_s_pull() {
+    // ADR-084 point 8: the Sword's smashes put the bleed on what they hit; the Hammer's stun
+    // comes in its own task, so it keeps the pull for now.
+    use stella_rain_core::weapon::SmashEffect;
+    assert_eq!(weapon_of("giant_sword").smash, Some(SmashEffect::Bleed {}));
+    assert!(matches!(
+        weapon_of("giant_hammer").smash,
+        Some(SmashEffect::Pull { .. })
+    ));
+}
+
+#[test]
 fn the_giant_sword_takes_the_vindictus_shape() {
     // A, AA and AAA, and the smashes B and AB; AAB and AAAB are Stardust unlocks that core does
     // not have yet, so they are absent here.
