@@ -701,6 +701,33 @@
       ]
     },
     {
+      "description": "The main character touched the shrine `elite`: its guardians appeared and its timer began\n(ADR-090).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "elite": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "elite"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "ShrineActivated"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
       "description": "An offer opened, and the world stopped until a choice closes it (ADR-079 §3).",
       "type": "object",
       "properties": {
