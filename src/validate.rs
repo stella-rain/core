@@ -22,6 +22,7 @@ use crate::behaviour::{
     Action, Agent, BossCall, Condition, Elite, Guardians, Movement, Rule, Selector, Skill,
 };
 use crate::id::ContentId;
+use crate::presets;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::Rarity;
 use crate::stage::{
@@ -30,7 +31,7 @@ use crate::stage::{
 };
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
-use crate::weapon::{Branches, Charge, SmashEffect, Weapon, WeaponRef};
+use crate::weapon::{Branches, Charge, Hold, SmashEffect, Weapon, WeaponRef};
 
 /// Limits a stage must keep. The first block is ADR-020, the second ADR-036, the rest the
 /// loadout and numeric ranges that ADR-012 and ADR-019 ask for.
@@ -66,6 +67,8 @@ pub mod limits {
     /// bonus of at most +1000%.
     pub const MAX_CHARGE_LEVELS: usize = 8;
     pub const MAX_CHARGE_TICKS: u32 = 600;
+    /// A held step's hold (ADR-084 point 6): at most 10 seconds, as a charge.
+    pub const MAX_HOLD_TICKS: u32 = 600;
     /// A Main weapon's combos (ADR-070, ADR-084): at most 32 steps in its tree and dash branch
     /// together, no path from the root deeper than six steps (six attacks, AAAAAB at most); a
     /// window of at most 2 seconds and a dash-strike of at most 1 second.
@@ -338,6 +341,16 @@ pub fn validate_weapon_preset(preset: &Weapon, registry: &[Entry]) -> Result<(),
     } else {
         Err(ctx.issues)
     }
+}
+
+/// Whether the phase after an attack's last `active` one is a recovery with no spawn: where a
+/// held step's hold begins (ADR-084 point 6).
+fn holds_after_active(phases: &[AttackPhase]) -> bool {
+    phases
+        .iter()
+        .rposition(|p| p.kind == PhaseKind::Active)
+        .and_then(|last| phases.get(last + 1))
+        .is_some_and(|p| p.kind == PhaseKind::Recovery && p.spawn.is_empty())
 }
 
 fn check_versions(schema_version: u32, sim_version: u32) -> Result<(), Error> {
@@ -775,9 +788,45 @@ impl<'a> Ctx<'a> {
                 if let Some(charge) = &step.charge {
                     c.key("charge", |c| c.charge(charge));
                 }
+                if let Some(hold) = &step.hold {
+                    if step.charge.is_some() {
+                        c.key("hold", |c| {
+                            c.fail("a step has a charge or a hold, never both")
+                        });
+                    }
+                    c.key("hold", |c| c.hold(hold));
+                    if presets::phases(&step.attack).is_some_and(|p| !holds_after_active(&p)) {
+                        c.key("attack", |c| {
+                            c.fail(
+                                "a held step's attack has a recovery with no spawn after its last active phase, where the hold begins",
+                            )
+                        });
+                    }
+                }
                 c.key("next", |c| c.branches(&step.next, depth + 1, steps));
             });
         }
+    }
+
+    /// A held step's hold (ADR-084 point 6): the ticks held and the movement are bounded, the
+    /// loop's phases are all `active`, and both attacks are checked as any attack's are.
+    fn hold(&mut self, h: &Hold) {
+        self.within(
+            "max_ticks",
+            i64::from(h.max_ticks),
+            1,
+            i64::from(MAX_HOLD_TICKS),
+        );
+        self.within("move_pct", i64::from(h.move_pct), 0, 100);
+        self.key("loop", |c| {
+            c.attack_ref(&h.loop_attack);
+            if presets::phases(&h.loop_attack)
+                .is_some_and(|p| p.iter().any(|q| q.kind != PhaseKind::Active))
+            {
+                c.fail("a loop's phases are all active");
+            }
+        });
+        self.key("release", |c| c.attack_ref(&h.release));
     }
 
     fn smash(&mut self, effect: &SmashEffect) {

@@ -86,8 +86,9 @@ const DEFINITIONS: &[(&str, &str)] = &[
 /// the game design's weapons are written (Giant Sword and the others, app#209).
 const WEAPONS: &[(&str, &str)] = &[
     // The Vindictus shape (ADR-084): A, AA and AAA are spins around the main character, each
-    // wider than the last, and every Hammer step is Strike (ADR-100). AAA is a plain step; its
-    // hold comes in a later task. B is an overhead smash (`slam`) and AB a ground shock, a forward
+    // wider than the last, and every Hammer step is Strike (ADR-100). AAA holds (ADR-084 point 6):
+    // its loop spins on at half speed while A stays held, each loop a new attack that hits again
+    // after 8 ticks, and the release is a heavy slam at 100 times the default damage (ADR-103). B is an overhead smash (`slam`) and AB a ground shock, a forward
     // arc; a smash ends the combo. The dash-strike is a short spin, the dash smash `slam`. Smashes
     // pull what they hit by up to 40 pixels over 8 ticks; assist looks 128 pixels away. AAB and
     // AAAB are Stardust unlocks, not in core yet.
@@ -110,7 +111,8 @@ const WEAPONS: &[(&str, &str)] = &[
                                     {"kind":"wind_up","ticks":8},
                                     {"kind":"active","ticks":6,"type":"strike",
                                      "hit_box":{"type":"circle","radius":12288}},
-                                    {"kind":"recovery","ticks":20}]}}}},
+                                    {"kind":"recovery","ticks":20}]},
+                                "hold":{"loop":{"inline":[{"kind":"active","ticks":8,"rehit_ticks":8,"type":"strike","hit_box":{"type":"circle","radius":12288}}]},"release":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":5,"type":"strike","damage":10000,"hit_box":{"type":"circle","offset":{"forward":4096},"radius":16384}},{"kind":"recovery","ticks":24}]},"max_ticks":180,"move_pct":50}}}},
                     "sub":{"attack":{"inline":[
                                 {"kind":"wind_up","ticks":14,"move_pct":50},
                                 {"kind":"active","ticks":4,"move_pct":50,"type":"strike",

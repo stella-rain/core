@@ -278,6 +278,9 @@ pub struct PlayerView {
     /// The current step charging, if it is (ADR-070).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub charge: Option<ChargeView>,
+    /// The current step held, if it is (ADR-084 point 6).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hold: Option<HoldView>,
     /// The enemy aim assist and auto mode would face, while either is on (ADR-072), so the
     /// frontend can mark it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -441,6 +444,15 @@ pub struct ChargeView {
     pub held: u32,
     /// Inside the level's perfect window: letting go on the next tick is a perfect release.
     pub perfect: bool,
+}
+
+/// A hold in progress (ADR-084 point 6): the ticks held so far, 0 on the tick it began, and the
+/// most it can last. The release comes on the tick the button is let go or the maximum is reached.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HoldView {
+    pub held: u32,
+    pub max_ticks: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -78,8 +78,33 @@ pub struct Step {
     /// While the button that reached the step stays held as it starts, it charges instead.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub charge: Option<Charge>,
+    /// Held past its last `active` phase, the button that reached the step starts a hold
+    /// instead of the attack's recovery (ADR-084 point 6). A step has a charge or a hold, never
+    /// both.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hold: Option<Hold>,
     #[serde(default, skip_serializing_if = "Branches::is_empty")]
     pub next: Branches,
+}
+
+/// A held step (ADR-084 point 6): an attack that goes on while the button stays held, then a
+/// release attack when it is let go, or at `max_ticks`. The hold begins where the step's
+/// recovery after its last `active` phase would, so that phase is the hold's place.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Hold {
+    /// The attack that runs while held: its phases are `active`, and it starts again from its
+    /// first phase each time it ends, each loop a new attack with its facing locked at its start.
+    #[serde(rename = "loop")]
+    pub loop_attack: AttackRef,
+    /// The attack released when the button is let go, or at `max_ticks`, with its facing locked
+    /// when it starts.
+    pub release: AttackRef,
+    /// The longest hold, in ticks.
+    pub max_ticks: u32,
+    /// The main character's movement speed while held, in percent; 100 when absent.
+    #[serde(default = "full_speed", skip_serializing_if = "is_full_speed")]
+    pub move_pct: u8,
 }
 
 /// A charged step (ADR-070): the ticks held raise its level, and letting go attacks at the

@@ -97,7 +97,7 @@ mod skill;
 mod stars;
 mod stun;
 
-pub(crate) use player::{charge_view, combo_view};
+pub(crate) use player::{charge_view, combo_view, hold_view};
 mod select;
 
 use crate::attack::{DamageType, MatchUp, Profile};
@@ -1205,6 +1205,12 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_bool(c.hand);
     h.write_u32(c.auto_path);
     h.write_u32(u32::from(c.auto_depth));
+    // The hold, only while one is held (ADR-084 point 6), so that the hashes of other runs stay
+    // as they were.
+    if c.hold.is_some() || c.released {
+        h.write_bool(c.released);
+        h.write_u32(c.hold.unwrap_or(0));
+    }
     match p.dash {
         Some(DashState { dir, done, left }) => {
             h.write_bool(true);
