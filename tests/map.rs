@@ -211,3 +211,90 @@ fn holds_is_exact_at_the_margin() {
         assert!(!at(-m - 1, -m - 1) && at(w + m, h + m) && !at(w + m, h + m + 1));
     }
 }
+
+// --- A bullet's lifetime and the start facing (core#147) ----------------------------------
+
+/// An enemy at the top left of a landscape map that fires one bullet straight down, 2 pixels a
+/// tick, on its first tick: with `ticks` on the fire, if any. The bullet is off the main
+/// character's line, which is in the middle of the map, and the rest of the stage is quiet.
+fn one_bullet(ticks: Option<u32>) -> Stage {
+    let mut fire = json!({ "type": "fire", "speed": 512,
+        "direction": { "type": "absolute", "angle": 0 } });
+    if let Some(ticks) = ticks {
+        fire["ticks"] = json!(ticks);
+    }
+    let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "spawn": [fire] }] });
+    let rules = json!([{ "when": always(), "target": "player",
+        "do": { "type": "attack", "attack": attack }, "once": true }]);
+    let shooter = enemy(100_000, hold(LEFT, 16_384), rules);
+    wide(quiet(stage_full(
+        18_000,
+        Some(far_boss()),
+        vec![wave(1, 1, 0, shooter, LEFT, 16_384)],
+        vec![],
+    )))
+}
+
+/// A column well left of the middle, 32,768 units from the left edge.
+const LEFT: i32 = 32_768;
+
+/// Whether the stage has a bullet on the map after each of `ticks` ticks.
+fn on_the_map(e: &mut Engine, ticks: u32) -> Vec<bool> {
+    (0..ticks)
+        .map(|_| {
+            e.step(idle());
+            !e.snapshot().bullets.is_empty()
+        })
+        .collect()
+}
+
+#[test]
+fn a_bullet_with_ticks_lives_exactly_that_many_ticks() {
+    // 30 ticks at 2 pixels a tick is 60 pixels: the margin is 64 pixels past the edge, so it
+    // is not what removes the bullet.
+    let mut e = engine(&one_bullet(Some(30)));
+    let seen = on_the_map(&mut e, 60);
+    assert_eq!(seen.iter().filter(|s| **s).count(), 30, "{seen:?}");
+    assert!(
+        seen.windows(2).filter(|w| w[0] && !w[1]).count() == 1,
+        "{seen:?}"
+    );
+}
+
+#[test]
+fn a_bullet_without_ticks_lives_until_it_is_past_the_margin() {
+    // From 16,384 units (64 pixels) inside the top edge, 2 pixels a tick, it passes the bottom
+    // margin after 512 ticks: well past the 240 a default lifetime would give.
+    let mut e = engine(&one_bullet(None));
+    let seen = on_the_map(&mut e, 600);
+    assert!(seen[299], "still there after 300 ticks");
+    assert!(!seen[599], "gone by 600 ticks");
+    let count = seen.iter().filter(|s| **s).count();
+    assert!((510..=514).contains(&count), "about 512 ticks: {count}");
+}
+
+fn facing_of(e: &Engine) -> (i32, i32) {
+    let f = e.snapshot().player.facing;
+    (f.x, f.y)
+}
+
+#[test]
+fn the_main_character_faces_up_unless_the_map_says_otherwise() {
+    let up = engine(&wide(stage_with(600, Some(far_boss()), vec![])));
+    assert_eq!(
+        facing_of(&up),
+        (0, -stella_rain_core::trig::SCALE),
+        "up, as it always was"
+    );
+    // A quarter turn: 90 degrees, to the right of the screen.
+    let angle = stella_rain_core::trig::PER_TURN / 4;
+    let turned = on_map(
+        stage_with(600, Some(far_boss()), vec![]),
+        json!({ "width": WIDTH, "height": HEIGHT, "facing": angle }),
+    );
+    assert_eq!(
+        facing_of(&engine(&turned)),
+        stella_rain_core::trig::sin_cos(angle),
+        "the map's facing"
+    );
+}

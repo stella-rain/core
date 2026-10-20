@@ -53,6 +53,45 @@ fn first_issue(v: &Value) -> Issue {
         .expect("expected the stage to be rejected")
 }
 
+/// The fixture with the first `fire` given `ticks`.
+fn fire_with_ticks(ticks: u32) -> Value {
+    let text = STAGE.replacen(
+        "\"type\": \"fire\",",
+        &format!("\"type\": \"fire\", \"ticks\": {ticks},"),
+        1,
+    );
+    serde_json::from_str(&text).unwrap()
+}
+
+#[test]
+fn a_fire_s_ticks_are_at_least_one_and_at_most_the_limit() {
+    assert_valid(&fire_with_ticks(1));
+    assert_valid(&fire_with_ticks(MAX_BULLET_TICKS));
+    assert!(first_issue(&fire_with_ticks(0)).path.ends_with(".ticks"));
+    assert!(
+        first_issue(&fire_with_ticks(MAX_BULLET_TICKS + 1))
+            .path
+            .ends_with(".ticks")
+    );
+}
+
+#[test]
+fn a_map_s_facing_is_an_angle_from_0_to_a_full_turn() {
+    let with_facing = |facing: i32| {
+        let mut v = base();
+        v["map"] = json!({ "width": 524_288, "height": 262_144, "facing": facing });
+        v
+    };
+    assert_valid(&with_facing(0));
+    assert_valid(&with_facing(stella_rain_core::trig::PER_TURN - 1));
+    assert!(first_issue(&with_facing(-1)).path.ends_with("facing"));
+    assert!(
+        first_issue(&with_facing(stella_rain_core::trig::PER_TURN))
+            .path
+            .ends_with("facing")
+    );
+}
+
 /// `build(max)` is valid and `build(max + 1)` is rejected at `path`.
 fn at_limit_and_over(max: usize, path: &str, build: impl Fn(usize) -> Value) {
     assert_valid(&build(max));
