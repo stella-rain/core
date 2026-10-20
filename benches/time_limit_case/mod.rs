@@ -30,7 +30,7 @@ pub fn setup() -> RunSetup {
         schema_version: 0,
         sim_version: 0,
         mode: "time_limit".into(),
-        weapon: "blade".into(),
+        weapon: "giant_sword".into(),
         seed: 1,
         star_pool: None,
         extra_rerolls: 0,

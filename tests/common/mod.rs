@@ -25,13 +25,13 @@ pub fn evade() -> Value {
 }
 
 /// A stage whose boss (20 hp, 10 damage a hit) waits 100 pixels above the main character, out
-/// of the `blade`'s reach until an evade dashes 48 pixels toward it.
+/// of the `giant_sword`'s reach until an evade dashes 48 pixels toward it.
 pub fn clearing_stage_json() -> Value {
     json!({
         "schema_version": 0, "sim_version": 0, "id": "test-stage", "title": "Test Stage",
         "seed": 7, "length_ticks": 600,
         "player": { "base": "pilot_a", "hp": 3, "atk": 10,
-                    "weapon": { "preset": { "id": "blade" } },
+                    "weapon": { "preset": { "id": "giant_sword" } },
                     "evade": evade() },
         "boss": { "base": "golem", "hp": 20, "radius": 8192,
                   "spawn": { "x": START_X, "y": START_Y - 25_600 }, "phases": [{}] }
@@ -125,7 +125,7 @@ pub fn stage_bytes() -> Vec<u8> {
 pub const CLEAR_TICK: u32 = 35;
 
 /// Inputs that clear `clearing_stage_json`: an evade toward the boss, a dash-strike (the
-/// `blade`'s thrust) during the dash, then, once it has run out, a slash from the root.
+/// `giant_sword`'s thrust) during the dash, then, once it has run out, a slash from the root.
 pub fn clearing_inputs() -> Vec<Input> {
     (0..CLEAR_TICK)
         .map(|t| Input {

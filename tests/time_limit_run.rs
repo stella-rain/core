@@ -16,7 +16,7 @@ fn setup(seed: u64) -> RunSetup {
         schema_version: 0,
         sim_version: 0,
         mode: "time_limit".into(),
-        weapon: "blade".into(),
+        weapon: "giant_sword".into(),
         seed,
         star_pool: None,
         extra_rerolls: 0,

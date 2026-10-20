@@ -490,8 +490,8 @@ fn fixture() -> Stage {
 }
 
 /// A fixed, varied script: drift about at different strengths, evade now and then, and play
-/// the fixture's `blade` every 200 ticks: slash, slash and the thrust held for 56 ticks (a
-/// charge to level 2), then B, B (a thrust and a slash, with the `maul`'s pull).
+/// the fixture's `giant_sword` every 200 ticks: slash, slash and the thrust held for 56 ticks (a
+/// charge to level 2), then B, B (a thrust and a slash, with the `giant_hammer`'s pull).
 fn script(tick: u32) -> Input {
     let (move_x, move_y) = match (tick / 45) % 4 {
         0 => (64, 0),

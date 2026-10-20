@@ -389,14 +389,14 @@ fn preset(id: &str) -> Value {
 
 #[test]
 fn a_preset_is_the_one_weapon_both_buttons_play() {
-    // The maul's A slams; the blade's A slashes.
+    // The giant_hammer's A slams; the giant_sword's A slashes.
     let first = |weapon: &str| {
         let mut e = engine(&armed(far(), preset(weapon)));
         e.step(pressing_main());
         e.snapshot().player.attacks[0].preset.clone().unwrap().0
     };
-    assert_eq!(first("maul"), "slam");
-    assert_eq!(first("blade"), "slash");
+    assert_eq!(first("giant_hammer"), "slam");
+    assert_eq!(first("giant_sword"), "slash");
 }
 
 #[test]
@@ -404,10 +404,13 @@ fn a_preset_and_its_inline_copy_run_the_same() {
     let preset_of = |id: &str| presets::weapon_preset(id).expect("a weapon preset");
     let copy = |w: Value| json!({ "inline": w });
     let waves = || vec![wave(1, 3, 20, still(40), START_X, START_Y - 9_216)];
-    let by_id = armed(stage_with(600, Some(far_boss()), waves()), preset("blade"));
+    let by_id = armed(
+        stage_with(600, Some(far_boss()), waves()),
+        preset("giant_sword"),
+    );
     let inline = armed(
         stage_with(600, Some(far_boss()), waves()),
-        copy(serde_json::to_value(preset_of("blade")).unwrap()),
+        copy(serde_json::to_value(preset_of("giant_sword")).unwrap()),
     );
     let (mut a, mut b) = (engine(&by_id), engine(&inline));
     // Slash, slash and the thrust charged to level 2; B, B; an evade and its dash-strike.

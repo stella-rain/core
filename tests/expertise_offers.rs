@@ -25,7 +25,7 @@ use crate::common;
 
 use common::*;
 
-/// 32 pixels above it: inside the `blade`'s slash and the pickup circle.
+/// 32 pixels above it: inside the `giant_sword`'s slash and the pickup circle.
 const NEAR_Y: i32 = START_Y - 8_192;
 
 /// Level 1 needs 10 points, level 2 20 more, and so on to 100 for level 10; 150, 225 and 337
@@ -56,7 +56,7 @@ fn damages(prefix: &str, n: usize) -> Vec<Value> {
 }
 
 /// The bundled content, its expertise with `TABLE` (growth 150 percent, at most 100_000), and
-/// the `blade`'s common pool replaced by `main`. Both roles read the one weapon's pools for now
+/// the `giant_sword`'s common pool replaced by `main`. Both roles read the one weapon's pools for now
 /// (ADR-105; interim until ADR-106's rewrite), so the Sub's offers draw from `main` too.
 fn content(main: Vec<Value>) -> RunContent {
     content_with(TABLE, 150, 100_000, main)
@@ -71,7 +71,7 @@ fn content_with(
     parsed(file_with(thresholds, growth_pct, max_points, main))
 }
 
-/// The bundled expertise file with `thresholds`, `growth_pct`, `max_points`, and the `blade`'s
+/// The bundled expertise file with `thresholds`, `growth_pct`, `max_points`, and the `giant_sword`'s
 /// common pool replaced by `main`.
 fn file_with(thresholds: [u32; 10], growth_pct: u16, max_points: u32, main: Vec<Value>) -> Value {
     let mut file: Value = serde_json::from_slice(Expertise::BUNDLED).unwrap();
@@ -79,7 +79,7 @@ fn file_with(thresholds: [u32; 10], growth_pct: u16, max_points: u32, main: Vec<
     file["growth_pct"] = json!(growth_pct);
     file["max_points"] = json!(max_points);
     for w in file["weapons"].as_array_mut().unwrap() {
-        if w["weapon"].as_str() == Some("blade") {
+        if w["weapon"].as_str() == Some("giant_sword") {
             w["common"] = json!(main.clone());
         }
     }
@@ -99,7 +99,7 @@ fn target(hp: u32, x: i32, y: i32, kill: u32) -> Value {
     w
 }
 
-/// The `blade` as the one weapon, levels of 1000 experience, stars that every kill
+/// The `giant_sword` as the one weapon, levels of 1000 experience, stars that every kill
 /// drops (taken at once within 48 pixels), one reroll and one banish; a boss of `boss_hp` 32
 /// pixels ahead giving `boss_kill` points, or none; and `waves`.
 fn stage(boss: Option<(u32, u32)>, waves: Vec<Value>) -> Stage {
@@ -109,7 +109,7 @@ fn stage(boss: Option<(u32, u32)>, waves: Vec<Value>) -> Stage {
         b
     });
     let mut stage = stage_full(18_000, boss.or(Some(far_boss())), waves, vec![]);
-    stage = armed(stage, json!({ "preset": { "id": "blade" } }));
+    stage = armed(stage, json!({ "preset": { "id": "giant_sword" } }));
     stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
     stage.stars = Some(
         serde_json::from_value(json!({
@@ -547,7 +547,7 @@ fn styles(prefix: &str) -> [Value; 3] {
     ["a", "b", "c"].map(|s| style(&format!("{prefix}_{s}"), "attack_pct", 1))
 }
 
-/// `content` with three damage options per pool, and the `blade`'s styles `main`. A Sub style
+/// `content` with three damage options per pool, and the `giant_sword`'s styles `main`. A Sub style
 /// reads the same styles (interim, ADR-105), so `styled` takes one set.
 fn styled(main: [Value; 3]) -> RunContent {
     let mut file = file_with(TABLE, 150, 100_000, damages("m", 3));

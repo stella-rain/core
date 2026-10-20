@@ -381,7 +381,7 @@ fn every_id_a_pack_introduces_is_listed_once() {
     assert!(matches!(load(&v), Err(PackError::Introduced(_))));
     // A weapon the expertise does not have, and a weapon left out.
     let mut v = value();
-    v["introduced"]["expertise"][0]["weapon"] = json!("maul");
+    v["introduced"]["expertise"][0]["weapon"] = json!("giant_sword");
     assert!(matches!(load(&v), Err(PackError::Introduced(_))));
     let mut v = value();
     v["introduced"]["expertise"].as_array_mut().unwrap().pop();

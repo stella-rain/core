@@ -1175,13 +1175,13 @@ fn chain(n: usize) -> Value {
 #[test]
 fn a_weapon_preset_is_a_weapon_id() {
     let preset = |id: &str| with_weapon(json!({ "preset": { "id": id } }));
-    assert_valid(&preset("blade"));
-    assert_valid(&preset("maul"));
+    assert_valid(&preset("giant_sword"));
+    assert_valid(&preset("giant_hammer"));
     for id in ["slash", "no_such_weapon"] {
         assert_eq!(first_issue(&preset(id)).path, "$.player.weapon.preset.id");
     }
     // A weapon preset takes no arguments.
-    let args = with_weapon(json!({ "preset": { "id": "blade", "args": [] } }));
+    let args = with_weapon(json!({ "preset": { "id": "giant_sword", "args": [] } }));
     assert!(serde_json::from_value::<Stage>(args).is_err());
 }
 
@@ -1209,9 +1209,11 @@ fn a_combo_step_s_attack_is_checked_where_it_is() {
         first_issue(&v).path,
         "$.player.weapon.inline.combo.main.next.sub.attack.preset.id"
     );
-    let dash = with_combo(chain(1), |w| {
-        w["dash"] = json!({ "sub": step(json!({ "preset": { "id": "blade" } })) })
-    });
+    let dash =
+        with_combo(
+            chain(1),
+            |w| w["dash"] = json!({ "sub": step(json!({ "preset": { "id": "giant_sword" } })) }),
+        );
     assert_eq!(
         first_issue(&dash).path,
         "$.player.weapon.inline.dash.sub.attack.preset.id"

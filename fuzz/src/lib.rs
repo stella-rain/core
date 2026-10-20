@@ -295,7 +295,7 @@ pub fn pack_load(data: &[u8]) -> bool {
             schema_version: 0,
             sim_version: pack.sim_version(),
             mode: mode.into(),
-            weapon: "blade".into(),
+            weapon: "giant_sword".into(),
             seed: u64::from(pick(data, 0)),
             star_pool: None,
             extra_rerolls: 0,
