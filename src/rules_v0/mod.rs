@@ -840,6 +840,15 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
         h.write_i32(el.home.y.0);
         h.write_bool(el.called);
     }
+    // Only for a shrine, which its key already tells apart.
+    if let Some(sh) = &a.shrine {
+        h.write_bool(sh.fight.is_some());
+        h.write_u32(sh.fight.unwrap_or(0));
+        h.write_u32(count(&sh.guardians));
+        for g in &sh.guardians {
+            h.write_u32(g.0);
+        }
+    }
     // Only for an agent that leaves, which its key already tells apart.
     if let Some(l) = a.leave {
         h.write_bool(l.disturbed.is_some());

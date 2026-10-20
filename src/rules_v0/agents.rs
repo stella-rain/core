@@ -5,8 +5,8 @@
 
 use crate::behaviour::{Action, Agent, BossCall, Condition, Movement, Rule};
 use crate::engine::{
-    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, State,
-    UNLIMITED,
+    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, ShrineState,
+    State, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -41,6 +41,10 @@ pub(crate) fn agent_def(stage: &Stage, key: AgentKey) -> &Agent {
                 _ => unreachable!("a boss summon names the summon rule that made it"),
             }
         }
+        AgentSource::Guardian => match &wave_enemy(key.index).movement {
+            Movement::Shrine { guardians, .. } => &guardians.enemy,
+            _ => unreachable!("a guardian names the shrine that rang it"),
+        },
         AgentSource::Summoned => {
             match wave_enemy(key.index)
                 .rules
@@ -85,6 +89,12 @@ pub(super) fn new_agent(
         .then_some(LeaveState {
             disturbed: None,
             go: false,
+        }),
+        shrine: matches!(def.movement, Movement::Shrine { .. }).then(|| {
+            Box::new(ShrineState {
+                fight: None,
+                guardians: Vec::new(),
+            })
         }),
     }
 }
@@ -380,7 +390,8 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
         return;
     }
     match def.movement {
-        Movement::FleeWhenDisturbed { .. } => {}
+        // A shrine is a stay elite: never called, so it held its place above.
+        Movement::FleeWhenDisturbed { .. } | Movement::Shrine { .. } => {}
         Movement::Hold { at } => {
             a.at = match me {
                 Who::Enemy(_) if yields => a.at,

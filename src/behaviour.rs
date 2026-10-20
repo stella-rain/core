@@ -60,6 +60,8 @@ pub enum BossCall {
     Join,
     /// It is not called: it leaves the map instead, unkilled and with no reward.
     Leave,
+    /// It is not called and does not leave: it stays where it is (the shrine's, ADR-090).
+    Stay,
 }
 
 impl BossCall {
@@ -90,6 +92,28 @@ pub enum Movement {
         speed: Fx,
         leave_after_ticks: u32,
     },
+    /// An elite's (it needs the `elite` field, with `boss_call` `stay`): an object that cannot be
+    /// damaged and does nothing until the main character's body touches it. It then activates
+    /// once: its guardians appear on a ring around it and it gives its kill reward when they are
+    /// all dead within `fight_ticks` ticks of the touch, else it leaves unkilled (ADR-090).
+    Shrine {
+        fight_ticks: u32,
+        guardians: Guardians,
+    },
+}
+
+/// The guardians of a shrine: `count` ordinary enemies placed on a ring of `radius` around it,
+/// evenly spaced from the east, kept on the map. The enemy cap still applies to them: one it
+/// refuses is not spawned.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Guardians {
+    /// Not an elite and not a shrine; it does not summon.
+    pub enemy: Box<Agent>,
+    /// 1 to `MAX_SHRINE_GUARDIANS`.
+    pub count: u8,
+    /// How far from the shrine's centre they stand.
+    pub radius: Fx,
 }
 
 /// `when <condition>` → `target <selector>` → `do <action>` (ADR-036).

@@ -955,6 +955,8 @@ pub(crate) enum AgentSource {
     Summoned,
     /// Summoned by a rule of the boss: `index` is its phase, `rule` the rule in it.
     BossRule,
+    /// Rung around a shrine: `index` is the shrine's wave.
+    Guardian,
 }
 
 /// A companion or an enemy: a movement and a rule list (ADR-036 tier 1).
@@ -986,6 +988,18 @@ pub(crate) struct AgentState {
     /// An agent that leaves the map unkilled (a goblin, or any elite whose `boss_call` is
     /// `leave`); `None` for every other agent, which hashes nothing for it.
     pub leave: Option<LeaveState>,
+    /// A shrine's own state; `None` for every other agent, which hashes nothing for it. Boxed:
+    /// almost no agent has one.
+    pub shrine: Option<Box<ShrineState>>,
+}
+
+/// A shrine's fight (ADR-090).
+#[derive(Clone, Debug)]
+pub(crate) struct ShrineState {
+    /// Ticks since the main character touched it, 0 on the tick it did; `None` while untouched.
+    pub fight: Option<u32>,
+    /// The guardians that spawned, in ring order.
+    pub guardians: Vec<EntityId>,
 }
 
 /// When an elite that leaves is to go (ADR-090).

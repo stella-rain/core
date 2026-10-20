@@ -18,7 +18,7 @@ use serde::Deserialize;
 use crate::attack::{
     AttackPhase, AttackRef, DamageType, Direction, Emitter, Expr, HitBox, PhaseKind, Profile,
 };
-use crate::behaviour::{Action, Agent, Condition, Movement, Rule, Selector, Skill};
+use crate::behaviour::{Action, Agent, BossCall, Condition, Movement, Rule, Selector, Skill};
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::Rarity;
@@ -103,6 +103,8 @@ pub mod limits {
     pub const MAX_SUMMON_COUNT: u8 = 8;
     /// Elites alive at once (ADR-068), among the enemies.
     pub const MAX_ELITES_ALIVE: u16 = 32;
+    /// The most guardians one shrine rings itself with (ADR-090).
+    pub const MAX_SHRINE_GUARDIANS: u8 = 16;
 
     pub const MAX_PLAYER_HP: u32 = 99;
     pub const MAX_PLAYER_ATK: u32 = 999;
@@ -863,14 +865,22 @@ impl<'a> Ctx<'a> {
         self.within("radius", i64::from(a.radius.0), 1, i64::from(MAX_RADIUS));
         self.key("movement", |c| {
             c.movement(&a.movement);
-            if matches!(a.movement, Movement::FleeWhenDisturbed { .. }) && a.elite.is_none() {
-                c.fail("flee_when_disturbed needs an elite");
+            match (&a.movement, &a.elite) {
+                (Movement::FleeWhenDisturbed { .. }, None) => {
+                    c.fail("flee_when_disturbed needs an elite")
+                }
+                (Movement::Shrine { .. }, None) => c.fail("shrine needs an elite"),
+                _ => {}
             }
         });
         self.rules("rules", &a.rules, summon_ok);
         if let Some(elite) = &a.elite {
             self.key("elite", |c| {
                 c.within("range", i64::from(elite.range.0), 1, i64::from(MAX_LEN));
+                if matches!(a.movement, Movement::Shrine { .. }) && elite.boss_call != BossCall::Stay
+                {
+                    c.key("boss_call", |c| c.fail("a shrine's boss_call is stay"));
+                }
             });
         }
     }
@@ -892,6 +902,27 @@ impl<'a> Ctx<'a> {
                 self.within("disturb_radius", i64::from(disturb_radius.0), 1, max);
                 self.within("speed", i64::from(speed.0), 1, max);
                 self.ticks("leave_after_ticks", *leave_after_ticks, 1);
+            }
+            Movement::Shrine {
+                fight_ticks,
+                guardians,
+            } => {
+                self.ticks("fight_ticks", *fight_ticks, 1);
+                self.key("guardians", |c| {
+                    c.within(
+                        "count",
+                        i64::from(guardians.count),
+                        1,
+                        i64::from(MAX_SHRINE_GUARDIANS),
+                    );
+                    c.within("radius", i64::from(guardians.radius.0), 1, i64::from(MAX_LEN));
+                    c.key("enemy", |c| {
+                        c.agent(&guardians.enemy, false);
+                        if guardians.enemy.elite.is_some() {
+                            c.key("elite", |c| c.fail("a guardian is an ordinary enemy"));
+                        }
+                    });
+                });
             }
             Movement::Hold { at } => self.point("at", at),
             Movement::Straight { vx, vy } => {
