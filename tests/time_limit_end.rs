@@ -32,7 +32,8 @@ fn short_mode() -> TimeLimit {
     v["overtime_ticks"] = json!(50);
     v["star_hunter_extra_ticks"] = json!(20);
     v["waves"] = json!([]);
-    v["elite_table"] = json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
+    v["elite_table"] =
+        json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
     TimeLimit::parse(v.to_string().as_bytes()).unwrap()
 }
 

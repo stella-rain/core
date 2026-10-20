@@ -7,9 +7,9 @@ use stella_rain_core::registry::{ENTRIES, Kind};
 use stella_rain_core::run_replay::content_sha256;
 use stella_rain_core::run_setup;
 use stella_rain_core::time_limit::{
-    MAX_BOSS_TIMES, MAX_ELITE_DEFINITIONS, MAX_ELITE_TIERS, MAX_ELITE_TYPES, MAX_ELITE_WEIGHT, MAX_EXTRA_TICKS,
-    MAX_LENGTH_TICKS, MAX_OVERTIME_TICKS, MAX_POOL, MAX_SPAWN_COUNT, MAX_TIME_LIMIT_BYTES,
-    MAX_TOTAL_SPAWNS, MAX_WAVES, TimeLimit,
+    MAX_BOSS_TIMES, MAX_ELITE_DEFINITIONS, MAX_ELITE_TIERS, MAX_ELITE_TYPES, MAX_ELITE_WEIGHT,
+    MAX_EXTRA_TICKS, MAX_LENGTH_TICKS, MAX_OVERTIME_TICKS, MAX_POOL, MAX_SPAWN_COUNT,
+    MAX_TIME_LIMIT_BYTES, MAX_TOTAL_SPAWNS, MAX_WAVES, TimeLimit,
 };
 use stella_rain_core::validate::{
     Error,
@@ -313,7 +313,10 @@ fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
     assert_eq!(sprites, ["bat", "fairy_a", "horns_2"]);
     assert!(types.iter().all(|t| t.enemy.elite.is_some()));
     let hp: Vec<u32> = types.iter().map(|t| t.enemy.hp).collect();
-    assert!(hp[0] < hp[1] && hp[1] < hp[2], "health rises by grade: {hp:?}");
+    assert!(
+        hp[0] < hp[1] && hp[1] < hp[2],
+        "health rises by grade: {hp:?}"
+    );
     let damage = |i: usize| -> u32 {
         let v = serde_json::to_value(&types[i].enemy).unwrap();
         v["rules"][0]["do"]["attack"]["inline"][0]["damage"]
@@ -327,10 +330,7 @@ fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
 fn a_valid_elite_table_parses() {
     let v = table(vec![
         tier(0, &[("elite_low", 1)]),
-        tier(
-            MINUTE,
-            &[("elite_low", 3), ("elite_mid", MAX_ELITE_WEIGHT)],
-        ),
+        tier(MINUTE, &[("elite_low", 3), ("elite_mid", MAX_ELITE_WEIGHT)]),
     ]);
     let m = parse(&v).unwrap();
     assert_eq!(m.elite_table().len(), 2);
@@ -368,7 +368,10 @@ fn an_elite_weight_is_above_zero_and_under_its_cap() {
         ["$.elite_table[0].weights[0].weight"]
     );
     assert_eq!(
-        paths(&table(vec![tier(0, &[("elite_low", MAX_ELITE_WEIGHT + 1)])])),
+        paths(&table(vec![tier(
+            0,
+            &[("elite_low", MAX_ELITE_WEIGHT + 1)]
+        )])),
         ["$.elite_table[0].weights[0].weight"]
     );
 }
@@ -397,9 +400,9 @@ fn types(list: Vec<Value>) -> Value {
 
 /// The bundled file with its elite types replaced and a table that names only the first.
 fn only(list: Vec<Value>) -> Value {
-    let first = list
-        .first()
-        .map_or("elite_low".to_string(), |t| t["id"].as_str().unwrap_or("x").to_string());
+    let first = list.first().map_or("elite_low".to_string(), |t| {
+        t["id"].as_str().unwrap_or("x").to_string()
+    });
     let mut v = types(list);
     v["elite_table"] = json!([tier(0, &[(first.as_str(), 1)])]);
     v
@@ -514,9 +517,8 @@ fn the_elite_table_has_at_least_one_tier_and_one_type_each_and_at_most_so_many()
         .map(|i| format!("elite_t{i}"))
         .collect();
     let mut v = types(ids.iter().map(|i| named(i)).collect());
-    let weights = |n: usize| -> Vec<(&str, u32)> {
-        ids[..n].iter().map(|i| (i.as_str(), 1)).collect()
-    };
+    let weights =
+        |n: usize| -> Vec<(&str, u32)> { ids[..n].iter().map(|i| (i.as_str(), 1)).collect() };
     v["elite_table"] = json!([tier(0, &weights(MAX_ELITE_TYPES))]);
     assert!(parse(&v).is_ok());
     v["elite_table"] = json!([tier(0, &weights(MAX_ELITE_TYPES + 1))]);

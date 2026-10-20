@@ -1305,8 +1305,7 @@ mod horde_tests {
         v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
         v["boss_ticks"] = serde_json::json!(boss_ticks);
         v["waves"] = serde_json::json!([]);
-        v["elite_table"] =
-            serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
+        v["elite_table"] = serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
         let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap();
         let setup = RunSetup {
             schema_version: 0,
@@ -1469,13 +1468,28 @@ mod horde_tests {
         let sprites: Vec<(u32, &str)> = spawned.iter().map(|(t, a)| (*t, a.as_str())).collect();
         assert_eq!(
             sprites,
-            [(3_600, "bat"), (7_200, "bat"), (10_800, "bat"), (14_400, "bat")]
+            [
+                (3_600, "bat"),
+                (7_200, "bat"),
+                (10_800, "bat"),
+                (14_400, "bat")
+            ]
         );
         assert_eq!(e.state.rng.state(), 10_372_713_005_361_028_292);
-        let at: Vec<(i32, i32)> = e.state.enemies.iter().map(|a| (a.at.x.0, a.at.y.0)).collect();
+        let at: Vec<(i32, i32)> = e
+            .state
+            .enemies
+            .iter()
+            .map(|a| (a.at.x.0, a.at.y.0))
+            .collect();
         assert_eq!(
             at,
-            [(441_027, 487_214), (474_645, 600_729), (612_319, 500_700), (505_330, 613_439)]
+            [
+                (441_027, 487_214),
+                (474_645, 600_729),
+                (612_319, 500_700),
+                (505_330, 613_439)
+            ]
         );
     }
 
@@ -1494,11 +1508,26 @@ mod horde_tests {
             });
             let spawned = elites_spawned(&mut e, 3_600);
             assert_eq!(spawned, [(3_600, sprite.to_string())], "{id}");
-            let elites: Vec<_> = e.state.enemies.iter().filter(|a| a.elite.is_some()).collect();
+            let elites: Vec<_> = e
+                .state
+                .enemies
+                .iter()
+                .filter(|a| a.elite.is_some())
+                .collect();
             assert_eq!(elites.len(), 1);
-            assert_eq!(elites[0].hp, def.enemy.hp, "{id}'s health is its definition's");
+            assert_eq!(
+                elites[0].hp, def.enemy.hp,
+                "{id}'s health is its definition's"
+            );
         }
-        let hp = |id: &str| mode.elite_types().iter().find(|t| t.id.0 == id).unwrap().enemy.hp;
+        let hp = |id: &str| {
+            mode.elite_types()
+                .iter()
+                .find(|t| t.id.0 == id)
+                .unwrap()
+                .enemy
+                .hp
+        };
         assert!(hp("elite_low") < hp("elite_mid") && hp("elite_mid") < hp("elite_high"));
     }
 
@@ -1536,8 +1565,7 @@ mod horde_tests {
             v["boss_ticks"] = serde_json::json!([4_000, 20_000]);
             v["mid_boss_pool"] = serde_json::json!(["golem"]);
             v["elite_cap"] = serde_json::json!(32);
-            v["elite_table"] =
-                serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
+            v["elite_table"] = serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
         });
         let mut called = Vec::new();
         while e.tick() < 7_200 {

@@ -416,10 +416,7 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
     if types.is_empty() || types.len() > MAX_ELITE_DEFINITIONS {
         issue(
             "$.elite_types".into(),
-            format!(
-                "1 to {MAX_ELITE_DEFINITIONS} types (found {})",
-                types.len()
-            ),
+            format!("1 to {MAX_ELITE_DEFINITIONS} types (found {})", types.len()),
         );
     } else {
         let field = Map {
