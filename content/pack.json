@@ -1871,7 +1871,31 @@
         "kill": 3
       }
     }
-  ]
+  ],
+  "elite_table": [
+    {
+      "start_tick": 0,
+      "weights": [
+        { "elite": "bat", "weight": 1 }
+      ]
+    },
+    {
+      "start_tick": 21600,
+      "weights": [
+        { "elite": "bat", "weight": 2 },
+        { "elite": "fairy_a", "weight": 1 }
+      ]
+    },
+    {
+      "start_tick": 57600,
+      "weights": [
+        { "elite": "bat", "weight": 2 },
+        { "elite": "fairy_a", "weight": 2 },
+        { "elite": "horns_2", "weight": 1 }
+      ]
+    }
+  ],
+  "elite_cap": 5
 }
   }
 }

@@ -2,6 +2,18 @@
   "boss_ticks": [
     60
   ],
+  "elite_cap": 5,
+  "elite_table": [
+    {
+      "start_tick": 0,
+      "weights": [
+        {
+          "elite": "bat",
+          "weight": 1
+        }
+      ]
+    }
+  ],
   "final_boss": "golem",
   "id": "time_limit",
   "length_ticks": 60,
