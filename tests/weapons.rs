@@ -17,6 +17,7 @@ use stella_rain_core::event::{DomainEvent, Press};
 use stella_rain_core::input::Input;
 use stella_rain_core::presets;
 use stella_rain_core::registry::{self, Kind};
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::validate_weapon_preset;
 use stella_rain_core::weapon::{Branches, Step, WeaponRef};
@@ -581,4 +582,100 @@ fn every_step_of_the_giant_hammer_is_strike() {
     for (_, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
         assert_eq!(active_types(&step.attack), [Some(DamageType::Strike)]);
     }
+}
+
+// --- Steps unlocked by permanent upgrades (ADR-084 points 3 and 7) ------------------------
+
+const AAB: i32 = 1792;
+const AABA: i32 = 2048;
+
+/// The test weapon with AAB after AA, opened by `unlock`, and a step AABA after it (none if
+/// `with_step` is false: the same weapon with the step deleted).
+fn unlock_weapon(with_step: bool, unlock: Option<&str>) -> Value {
+    let mut w = test_weapon(WINDOW);
+    if with_step {
+        let mut aab = json!({ "attack": swing(AAB), "next": { "main": step(swing(AABA)) } });
+        if let Some(id) = unlock {
+            aab["unlock"] = json!(id);
+        }
+        w["inline"]["combo"]["main"]["next"]["main"]["next"]["sub"] = aab;
+    }
+    w
+}
+
+fn engine_with(stage: &Stage, upgrades: &[&str]) -> Engine {
+    let ids: Vec<_> = upgrades.iter().map(|id| (*id).into()).collect();
+    Engine::new_with_upgrades(stage, RunContent::bundled(), &ids).expect("the stage is valid")
+}
+
+/// AA, then B, then A: AAB and AABA if they are open.
+fn through_aab() -> Vec<Input> {
+    presses(&[(1, "a"), (3, "a"), (7, "b"), (11, "a")], 40)
+}
+
+fn played_with(weapon: Value, upgrades: &[&str]) -> Played {
+    let stage = armed(far(), weapon);
+    play(&mut engine_with(&stage, upgrades), &through_aab())
+}
+
+#[test]
+fn a_step_opens_with_its_upgrade() {
+    let p = played_with(
+        unlock_weapon(true, Some("giant_sword_aab")),
+        &["giant_sword_aab"],
+    );
+    assert_eq!(
+        p.steps(),
+        [
+            (1, Press::Main, 1),
+            (5, Press::Main, 2),
+            (9, Press::Sub, 3),
+            (13, Press::Main, 4)
+        ]
+    );
+    assert_eq!(p.shots, [(3, A), (7, AA), (11, AAB), (15, AABA)]);
+}
+
+#[test]
+fn a_step_without_its_upgrade_is_absent_as_if_deleted() {
+    // The press takes no step where no next step exists (point 3): the run is the run of the
+    // weapon with the step deleted, whatever other upgrades are held.
+    let gone = played_with(unlock_weapon(false, None), &[]);
+    for held in [&[][..], &["giant_sword_aaab"], &["giant_hammer_aab"]] {
+        let locked = played_with(unlock_weapon(true, Some("giant_sword_aab")), held);
+        assert_eq!(locked.events, gone.events, "{held:?}");
+        assert_eq!(locked.shots, gone.shots, "{held:?}");
+    }
+    assert!(gone.shots.iter().all(|(_, s)| *s != AAB && *s != AABA));
+}
+
+#[test]
+fn the_steps_below_a_locked_step_cannot_be_reached() {
+    // AABA has no unlock of its own but sits under the locked AAB.
+    let locked = played_with(unlock_weapon(true, Some("giant_sword_aab")), &[]);
+    assert!(locked.shots.iter().all(|(_, s)| *s != AABA));
+    assert!(locked.steps().iter().all(|(_, _, depth)| *depth <= 3));
+}
+
+#[test]
+fn a_step_with_no_unlock_is_always_open() {
+    let p = played_with(unlock_weapon(true, None), &[]);
+    assert!(p.shots.iter().any(|(_, s)| *s == AABA));
+}
+
+#[test]
+fn a_run_with_upgrades_plays_the_same_every_time() {
+    let stage = armed(far(), unlock_weapon(true, Some("giant_sword_aab")));
+    let hashes = |upgrades: &[&str]| {
+        let mut e = engine_with(&stage, upgrades);
+        through_aab()
+            .into_iter()
+            .map(|i| {
+                e.step(i);
+                e.state_hash()
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(hashes(&["giant_sword_aab"]), hashes(&["giant_sword_aab"]));
+    assert_ne!(hashes(&["giant_sword_aab"]), hashes(&[]));
 }

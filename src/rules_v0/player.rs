@@ -220,7 +220,7 @@ fn step_at<'a>(main: &'a Weapon, c: &ComboState) -> Option<&'a Step> {
     let mut branches = if c.dash { &main.dash } else { &main.combo };
     let mut step = None;
     for i in 0..c.depth {
-        let next = branches.get(c.path >> i & 1 == 1)?;
+        let next = branches.get_open(c.path >> i & 1 == 1, c.upgrades)?;
         branches = &next.next;
         step = Some(next);
     }
@@ -306,7 +306,7 @@ fn combo(
         take_step(stage, s, main, sub, by_hand, input, events);
         return;
     }
-    let next = step_at(main, &c).and_then(|st| st.next.get(sub)).is_some();
+    let next = step_at(main, &c).is_some_and(|st| st.next.get_open(sub, c.upgrades).is_some());
     if next && attacks::in_end_recovery(s, me, COMBO_SLOT) {
         attacks::end_run(s, me, COMBO_SLOT);
         take_step(stage, s, main, sub, by_hand, input, events);
@@ -339,7 +339,9 @@ fn begins_hold(main: &Weapon, c: &ComboState, input: Input) -> bool {
     } else {
         input.main
     };
-    let cancels = c.buffered.is_some_and(|sub| step.next.get(sub).is_some());
+    let cancels = c
+        .buffered
+        .is_some_and(|sub| step.next.get_open(sub, c.upgrades).is_some());
     still && !cancels
 }
 
@@ -451,17 +453,18 @@ fn auto_press(c: &ComboState, input: Input, target: bool) -> Option<Auto> {
 
 /// The combo a run starts with: at the root, with the weapon's A chain as the auto combo,
 /// `main` pressed from the root until a step has no next step for it (ADR-073).
-pub(super) fn initial_combo(stage: &Stage) -> ComboState {
+pub(super) fn initial_combo(stage: &Stage, upgrades: u32) -> ComboState {
     let mut depth = 0u8;
     if let Some(main) = presets::weapon(&stage.player.weapon) {
-        let mut step = main.combo.main.as_deref();
+        let mut step = main.combo.get_open(false, upgrades);
         while let Some(st) = step {
             depth = depth.saturating_add(1);
-            step = st.next.main.as_deref();
+            step = st.next.get_open(false, upgrades);
         }
     }
     ComboState {
         auto_depth: depth,
+        upgrades,
         ..ComboState::default()
     }
 }
@@ -482,11 +485,11 @@ fn take_step(
     let c = &mut s.player.combo;
     c.buffered = None;
     c.released = false;
-    let onward = step_at(main, c).is_some_and(|st| st.next.get(sub).is_some());
+    let onward = step_at(main, c).is_some_and(|st| st.next.get_open(sub, c.upgrades).is_some());
     if !onward {
         reset(c, events);
-        c.dash = by_hand && c.dash_strike_left > 0 && main.dash.get(sub).is_some();
-        if !c.dash && main.combo.get(sub).is_none() {
+        c.dash = by_hand && c.dash_strike_left > 0 && main.dash.get_open(sub, c.upgrades).is_some();
+        if !c.dash && main.combo.get_open(sub, c.upgrades).is_none() {
             return;
         }
     }

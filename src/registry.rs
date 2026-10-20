@@ -128,3 +128,11 @@ pub fn upgrade_bit(id: &str) -> Option<u32> {
 
 /// The most upgrades the registry holds: the width of an upgrade mask.
 pub const MAX_UPGRADES: usize = 32;
+
+/// The mask of the upgrades `ids` name: bit `upgrade_bit` for each registered one. An ID the
+/// registry does not hold sets no bit.
+pub fn upgrade_mask<'a>(ids: impl IntoIterator<Item = &'a str>) -> u32 {
+    ids.into_iter()
+        .filter_map(upgrade_bit)
+        .fold(0, |mask, bit| mask | 1 << bit)
+}
