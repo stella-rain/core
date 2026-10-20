@@ -568,8 +568,8 @@
             }
           ]
         },
-        "sub": {
-          "description": "The step a press of `sub` (B) takes: a smash, which the weapon's smash effect joins.",
+        "smash": {
+          "description": "The step a press of `smash` (B) takes: a smash, which the weapon's smash effect joins.",
           "anyOf": [
             {
               "$ref": "#/$defs/Step"
@@ -3155,7 +3155,7 @@
       ]
     },
     "SmashEffect": {
-      "description": "What a smash (a step reached by `sub`) does to every enemy it hits (ADR-084 point 8): one\nof a closed list built into `core`, its numbers in JSON (ADR-067).",
+      "description": "What a smash (a step reached by `smash`) does to every enemy it hits (ADR-084 point 8): one\nof a closed list built into `core`, its numbers in JSON (ADR-067).",
       "oneOf": [
         {
           "description": "The enemy hit is drawn toward the main character, at most `distance`, over `ticks`, and\nstops where their circles touch. A boss, its parts and elites resist it.",
@@ -4010,7 +4010,7 @@
           "minimum": 0
         },
         "smash": {
-          "description": "What every hit of a smash (a step reached by `sub`) adds, in the dash branch too; none\nwhen absent.",
+          "description": "What every hit of a smash (a step reached by `smash`) adds, in the dash branch too; none\nwhen absent.",
           "anyOf": [
             {
               "$ref": "#/$defs/SmashEffect"

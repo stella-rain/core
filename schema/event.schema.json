@@ -1164,7 +1164,7 @@
       "type": "string",
       "enum": [
         "main",
-        "sub"
+        "smash"
       ]
     },
     "Rarity": {
