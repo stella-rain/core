@@ -1253,6 +1253,9 @@ pub(crate) struct BulletState {
     pub combo: bool,
     /// Starts an attack of its own after a while (`on_bullet`).
     pub hook: Option<Box<Hook>>,
+    /// Ticks left before it leaves the map, `UNLIMITED` for a bullet with no lifetime (core#147).
+    /// It leaves when this runs out or when it is past the map's margin, whichever comes first.
+    pub life: u32,
 }
 
 /// An `on_bullet` waiting on a bullet.

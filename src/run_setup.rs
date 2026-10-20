@@ -263,6 +263,7 @@ pub(crate) fn time_limit_run(
         width: mode.map().width,
         height: mode.map().height,
         start: Some(mode.map().start),
+        facing: None,
     });
     stage.waves = mode.waves().to_vec();
     stage.elite_cap = Some(mode.elite_cap());

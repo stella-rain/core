@@ -164,6 +164,11 @@ pub struct Map {
     /// The centre of the map when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub start: Option<Point>,
+    /// The angle the main character faces at the start, as `Direction::Absolute` takes it: 0 is
+    /// straight down the screen, a half turn is up. Absent means up, as it always was
+    /// (core#147). Between 0 and a full turn, not including it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub facing: Option<i32>,
 }
 
 impl Map {
@@ -176,6 +181,7 @@ impl Map {
             x: Fx(FIELD_W / 2),
             y: Fx(FIELD_H - Fx::px(64).0),
         }),
+        facing: None,
     };
 
     /// Where the main character starts.

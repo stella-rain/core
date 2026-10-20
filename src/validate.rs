@@ -77,6 +77,9 @@ pub mod limits {
     /// The Sub weapon's pull (ADR-070): at most 64 pixels, over at most 1 second.
     pub const MAX_PULL_DISTANCE: i32 = 16_384;
     pub const MAX_PULL_TICKS: u32 = 60;
+    /// Twenty seconds: a bullet at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
+    /// so a lifetime is a shorter one than the margin's (core#147).
+    pub const MAX_BULLET_TICKS: u32 = 1_200;
     pub const MAX_PERFECT_PCT: u16 = 1000;
     pub const MAX_BOSS_PARTS: usize = 8;
     pub const MAX_TRANSITIONS: usize = 4;
@@ -525,6 +528,14 @@ impl<'a> Ctx<'a> {
                 c.within("x", i64::from(start.x.0), 0, i64::from(m.width.0));
                 c.within("y", i64::from(start.y.0), 0, i64::from(m.height.0));
             });
+        }
+        if let Some(facing) = m.facing {
+            self.within(
+                "facing",
+                i64::from(facing),
+                0,
+                i64::from(crate::trig::PER_TURN) - 1,
+            );
         }
     }
 
@@ -1414,7 +1425,19 @@ impl<'a> Ctx<'a> {
                 speed,
                 direction,
                 bullet,
+                ticks,
             } => {
+                if let Some(t) = ticks {
+                    self.key("ticks", |c| c.expr(t));
+                    if let Expr::Const(v) = t {
+                        self.within(
+                            "ticks",
+                            i64::from(*v),
+                            1,
+                            i64::from(limits::MAX_BULLET_TICKS),
+                        );
+                    }
+                }
                 self.key("speed", |c| c.expr(speed));
                 self.key("direction", |c| match direction {
                     Direction::Aimed { offset } => c.key("offset", |c| c.expr(offset)),

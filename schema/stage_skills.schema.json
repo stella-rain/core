@@ -276,6 +276,17 @@
             "speed": {
               "$ref": "#/$defs/Expr"
             },
+            "ticks": {
+              "description": "How many ticks the bullet lives, at least 1 and at most `limits::MAX_BULLET_TICKS`;\nabsent means it lives until it is past the map's margin (core#147).",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "type": {
               "type": "string",
               "const": "fire"

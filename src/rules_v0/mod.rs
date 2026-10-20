@@ -103,7 +103,7 @@ use crate::attack::{DamageType, MatchUp, Profile};
 use crate::behaviour::BossCall;
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
-    PartState, PlayerState, Progress, Pull, StarField, State,
+    PartState, PlayerState, Progress, Pull, StarField, State, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
@@ -227,8 +227,11 @@ pub(crate) fn initial_state(
             max_hp: stage.player.hp,
             defence: stage.player.defence,
             invulnerable: 0,
-            // Up the map on every map, landscape ones included; a stage cannot set it yet.
-            facing: Dir::UP,
+            // Up the map unless the map's facing says otherwise (core#147).
+            facing: stage
+                .map()
+                .facing
+                .map_or(Dir::UP, |angle| attacks::rotate(Dir::DOWN, angle)),
             target: None,
             // The validator holds it to 1..=3; the clamp keeps an unvalidated stage there too.
             evade_charges: stage
@@ -534,13 +537,21 @@ fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
     s.bullets.push(bullet);
 }
 
+/// Moves every bullet a tick, and drops those that leave: one whose lifetime is up leaves
+/// before it moves, so a bullet with `n` ticks is on the map for `n` ticks (core#147).
 fn move_bullets(stage: &Stage, s: &mut State) {
-    for b in &mut s.bullets {
+    let holds = stage.map().holds();
+    s.bullets.retain_mut(|b| {
+        if b.life == 0 {
+            return false;
+        }
         b.at.x = b.at.x.saturating_add(b.vx);
         b.at.y = b.at.y.saturating_add(b.vy);
-    }
-    let holds = stage.map().holds();
-    s.bullets.retain(|b| holds(b.at));
+        if b.life != UNLIMITED {
+            b.life -= 1;
+        }
+        holds(b.at)
+    });
 }
 
 /// Two circles overlap (touching counts), in 64-bit fixed point.
@@ -1401,6 +1412,14 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         for b in &s.bullets {
             h.write_u32(type_code(b.damage_type));
             h.write_u32(b.hook.as_ref().map_or(0, |k| type_code(k.damage_type)));
+        }
+    }
+    // Each bullet's ticks left, and only while one has a lifetime (core#147), so that the hashes
+    // of runs without one stay as they were.
+    if s.bullets.iter().any(|b| b.life != UNLIMITED) {
+        h.write_u32(count(&s.bullets));
+        for b in &s.bullets {
+            h.write_u32(b.life);
         }
     }
     // Last, and only while the main character holds a type bonus (ADR-100), so that the hashes

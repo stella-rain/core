@@ -232,6 +232,10 @@ pub enum Emitter {
         /// Bullet asset; absent means the default bullet.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bullet: Option<ContentId>,
+        /// How many ticks the bullet lives, at least 1 and at most `limits::MAX_BULLET_TICKS`;
+        /// absent means it lives until it is past the map's margin (core#147).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ticks: Option<Expr>,
     },
     /// Runs `body` `count` times (at most 100). The next round starts `interval_ticks` ticks
     /// after the body of the last one ends.

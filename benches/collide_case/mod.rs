@@ -82,6 +82,7 @@ fn built(waves: Vec<Value>, width: i32, height: i32) -> Stage {
         width: Fx(width),
         height: Fx(height),
         start: Some(start),
+        facing: None,
     });
     let fan = json!({ "inline": common::spawned(json!([{
         "type": "spread", "count": 90, "angle": FAN_ANGLE, "body": [{
