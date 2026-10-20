@@ -18,7 +18,7 @@ use crate::run_content::RunContent;
 use std::sync::OnceLock;
 
 use crate::engine::Horde;
-use crate::stage::{Map, Stage};
+use crate::stage::{Map, Stage, Wave};
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -266,30 +266,24 @@ pub(crate) fn time_limit_run(
     });
     stage.waves = mode.waves().to_vec();
     stage.elite_cap = Some(mode.elite_cap());
-    let elite = trial
-        .waves
-        .iter()
-        .find(|w| w.enemy.elite.is_some())
-        .ok_or_else(|| {
-            Error::Invalid(vec![Issue {
-                path: "$.waves".into(),
-                message: "the placeholder stage has no elite".into(),
-            }])
-        })?;
+    // Each elite type is a wave that never spawns (count 0): the lookups of an enemy's
+    // definition, experience and expertise go by the stage's waves.
     let mut elite_waves: Vec<(ContentId, u32)> = Vec::new();
-    for w in mode.elite_table().iter().flat_map(|t| &t.weights) {
-        if elite_waves.iter().all(|(sprite, _)| *sprite != w.elite) {
-            let mut wave = elite.clone();
-            wave.enemy.base = w.elite.clone();
-            wave.at_tick = 0;
-            wave.every_ticks = 0;
-            wave.count = 0;
-            elite_waves.push((
-                w.elite.clone(),
-                u32::try_from(stage.waves.len()).unwrap_or(u32::MAX),
-            ));
-            stage.waves.push(wave);
-        }
+    for t in mode.elite_types() {
+        elite_waves.push((
+            t.id.clone(),
+            u32::try_from(stage.waves.len()).unwrap_or(u32::MAX),
+        ));
+        stage.waves.push(Wave {
+            at_tick: 0,
+            enemy: t.enemy.clone(),
+            spawn: mode.map().start,
+            around: None,
+            count: 0,
+            every_ticks: 0,
+            xp: t.xp,
+            expertise: t.expertise,
+        });
     }
     let horde = Horde {
         boss_ticks: mode.boss_ticks().to_vec(),

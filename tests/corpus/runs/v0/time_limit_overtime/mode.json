@@ -8,10 +8,175 @@
       "start_tick": 0,
       "weights": [
         {
-          "elite": "bat",
+          "elite": "elite_low",
           "weight": 1
         }
       ]
+    }
+  ],
+  "elite_types": [
+    {
+      "enemy": {
+        "base": "bat",
+        "elite": {
+          "range": 51200
+        },
+        "hp": 240,
+        "movement": {
+          "distance": 12288,
+          "type": "follow"
+        },
+        "profile": {
+          "resist": "physical",
+          "strong": [
+            "pierce"
+          ]
+        },
+        "radius": 3072,
+        "rules": [
+          {
+            "cooldown_ticks": 90,
+            "do": {
+              "attack": {
+                "preset": {
+                  "args": [
+                    640
+                  ],
+                  "id": "aimed_single"
+                }
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      },
+      "id": "elite_low",
+      "xp": 3
+    },
+    {
+      "enemy": {
+        "base": "fairy_a",
+        "elite": {
+          "range": 51200
+        },
+        "hp": 480,
+        "movement": {
+          "distance": 12288,
+          "type": "follow"
+        },
+        "profile": {
+          "resist": "physical",
+          "strong": [
+            "pierce"
+          ]
+        },
+        "radius": 3072,
+        "rules": [
+          {
+            "cooldown_ticks": 90,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 2,
+                    "kind": "active",
+                    "spawn": [
+                      {
+                        "direction": {
+                          "offset": 0,
+                          "type": "aimed"
+                        },
+                        "speed": 640,
+                        "type": "fire"
+                      }
+                    ],
+                    "ticks": 1
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      },
+      "id": "elite_mid",
+      "xp": 3
+    },
+    {
+      "enemy": {
+        "base": "horns_2",
+        "elite": {
+          "range": 51200
+        },
+        "hp": 960,
+        "movement": {
+          "distance": 12288,
+          "type": "follow"
+        },
+        "profile": {
+          "resist": "physical",
+          "strong": [
+            "pierce"
+          ]
+        },
+        "radius": 3072,
+        "rules": [
+          {
+            "cooldown_ticks": 90,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 3,
+                    "kind": "active",
+                    "spawn": [
+                      {
+                        "direction": {
+                          "offset": 0,
+                          "type": "aimed"
+                        },
+                        "speed": 640,
+                        "type": "fire"
+                      }
+                    ],
+                    "ticks": 1
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      },
+      "id": "elite_high",
+      "xp": 3
     }
   ],
   "final_boss": "golem",
