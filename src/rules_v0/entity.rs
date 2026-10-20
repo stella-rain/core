@@ -472,6 +472,16 @@ mod tests {
     }
 
     #[test]
+    fn a_percentage_of_a_scaled_hit_is_not_rounded_away() {
+        // ADR-103: at the design values +5% of 10 is 10 (10.5 cut), and +25% of 1 is 1; at the
+        // scaled values the same percentages are whole numbers.
+        assert_eq!(scale_damage(10, 5, 0, 0, 0, 0), 10);
+        assert_eq!(scale_damage(1_000, 5, 0, 0, 0, 0), 1_050);
+        assert_eq!(scale_damage(1, 25, 0, 0, 0, 0), 1);
+        assert_eq!(scale_damage(100, 25, 0, 0, 0, 0), 125);
+    }
+
+    #[test]
     fn a_type_bonus_raises_with_the_atk_up_and_multiplies_with_the_match_up() {
         // ADR-100's example: Pyro +50 against a target strong against Pyro, 1.5 × 0.8.
         assert_eq!(scale_damage(100, 0, 50, 0, -20, 0), 120);

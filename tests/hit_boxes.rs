@@ -291,17 +291,17 @@ fn a_phases_damage_is_the_base_damage_of_the_bullets_it_spawns() {
             START_Y - 40 * 256,
             attack("player", true, vec![p]),
         );
-        let events = run_until(&mut engine(&stage(vec![foe], vec![])), idle(), 30, |_| {
-            false
-        });
+        let mut st = stage(vec![foe], vec![]);
+        st.player.hp = 9_900;
+        let events = run_until(&mut engine(&st), idle(), 30, |_| false);
         player_hits(&events)
             .into_iter()
             .map(|(_, hp)| hp)
             .collect::<Vec<u32>>()
     };
-    assert_eq!(shot(Some(7)), [92]);
-    // Without one, an enemy's attack does 1, as before.
-    assert_eq!(shot(None), [98]);
+    assert_eq!(shot(Some(7)), [9_893]);
+    // Without one, an enemy's attack does 100 (1 before the scale of ADR-103).
+    assert_eq!(shot(None), [9_800]);
 }
 
 #[test]

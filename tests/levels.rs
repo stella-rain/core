@@ -227,7 +227,11 @@ fn after_spending(stage: &Stage, effect: Option<StatEffect>) -> Engine {
 fn max_hp_raises_the_most_hp_and_heals_as_much() {
     let with = after_spending(&effect_stage(), Some(StatEffect::MaxHp));
     let without = after_spending(&effect_stage(), None);
-    assert_eq!(with.snapshot().player.hp, without.snapshot().player.hp + 1);
+    // A point of Max HP is 100 hit points (1 before the scale of ADR-103).
+    assert_eq!(
+        with.snapshot().player.hp,
+        without.snapshot().player.hp + 100
+    );
 }
 
 #[test]
