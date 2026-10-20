@@ -529,15 +529,28 @@ fn the_giant_sword_s_smashes_bleed_and_the_giant_hammer_s_smashes_stun() {
 
 #[test]
 fn the_giant_sword_takes_the_vindictus_shape() {
-    // A, AA and AAA, and the smashes B and AB; AAB and AAAB are Stardust unlocks that core does
-    // not have yet, so they are absent here.
+    // A, AA and AAA, the smashes B and AB, and AAB and AAAB, which the permanent upgrades
+    // `giant_sword_aab` and `giant_sword_aaab` open (ADR-084 point 7).
     let w = weapon_of("giant_sword");
-    for presses in ["A", "AA", "AAA", "B", "AB"] {
+    for presses in ["A", "AA", "AAA", "B", "AB", "AAB", "AAAB"] {
         assert!(step_at(&w.combo, presses).is_some(), "{presses}");
     }
-    for presses in ["AAB", "AAAB"] {
-        assert!(step_at(&w.combo, presses).is_none(), "{presses}");
+    let unlock = |presses: &str| step_at(&w.combo, presses).unwrap().unlock.clone();
+    assert_eq!(unlock("AAB"), Some("giant_sword_aab".into()));
+    assert_eq!(unlock("AAAB"), Some("giant_sword_aaab".into()));
+    for presses in ["A", "AA", "AAA", "B", "AB"] {
+        assert_eq!(unlock(presses), None, "{presses}");
     }
+    // Both unlocks are smashes: Slash, then Pierce, ending the combo, at 100 times the default
+    // damage.
+    assert_eq!(
+        active_types(&step_at(&w.combo, "AAB").unwrap().attack),
+        [Some(DamageType::Slash)]
+    );
+    assert_eq!(
+        active_types(&step_at(&w.combo, "AAAB").unwrap().attack),
+        [Some(DamageType::Pierce)]
+    );
     // Slash, slash, then a thrust that is Pierce; its smashes are a slash and a thrust.
     let types = |presses: &str| active_types(&step_at(&w.combo, presses).unwrap().attack);
     assert_eq!(types("A"), [Some(DamageType::Slash)]);
@@ -560,19 +573,51 @@ fn the_giant_sword_takes_the_vindictus_shape() {
 
 #[test]
 fn the_giant_hammer_spins_wider_with_each_normal_attack() {
-    // A, AA and AAA, each a spin wider than the last; AAA is a plain step (its hold is a later
-    // task); the smashes B and AB. AAB and AAAB are Stardust unlocks, absent here.
+    // A, AA and AAA, each a spin wider than the last; AAA holds (ADR-084 point 6); the smashes
+    // B and AB, and AAB and AAAB, which `giant_hammer_aab` and `giant_hammer_aaab` open.
     let w = weapon_of("giant_hammer");
-    for presses in ["A", "AA", "AAA", "B", "AB"] {
+    for presses in ["A", "AA", "AAA", "B", "AB", "AAB", "AAAB"] {
         assert!(step_at(&w.combo, presses).is_some(), "{presses}");
     }
-    for presses in ["AAB", "AAAB"] {
-        assert!(step_at(&w.combo, presses).is_none(), "{presses}");
+    let unlock = |presses: &str| step_at(&w.combo, presses).unwrap().unlock.clone();
+    assert_eq!(unlock("AAB"), Some("giant_hammer_aab".into()));
+    assert_eq!(unlock("AAAB"), Some("giant_hammer_aaab".into()));
+    for presses in ["A", "AA", "AAA", "B", "AB"] {
+        assert_eq!(unlock(presses), None, "{presses}");
     }
     let radius = |presses: &str| active_radius(&step_at(&w.combo, presses).unwrap().attack);
     assert!(radius("A") < radius("AA") && radius("AA") < radius("AAA"));
     assert!(step_at(&w.combo, "AAA").unwrap().charge.is_none());
-    assert!(step_at(&w.combo, "AAA").unwrap().next.is_empty());
+    // AAA's only next step is the smash AAAB.
+    let next = &step_at(&w.combo, "AAA").unwrap().next;
+    assert!(next.main.is_none() && next.sub.is_some());
+}
+
+#[test]
+fn the_unlocked_smashes_end_the_combo_and_hit_for_100_times_the_default() {
+    use stella_rain_core::attack::AttackPhase;
+    for (id, strike_or_not) in [("giant_sword", false), ("giant_hammer", true)] {
+        let w = weapon_of(id);
+        for presses in ["AAB", "AAAB"] {
+            let step = step_at(&w.combo, presses).unwrap();
+            assert!(step.next.is_empty(), "{id} {presses}");
+            let AttackRef::Inline(phases) = &step.attack else {
+                panic!("{id} {presses}: an inline attack");
+            };
+            let damages: Vec<_> = phases
+                .iter()
+                .filter(|p: &&AttackPhase| p.kind == PhaseKind::Active)
+                .map(|p| p.damage)
+                .collect();
+            assert_eq!(damages, [Some(10_000)], "{id} {presses}");
+            let types = active_types(&step.attack);
+            assert_eq!(
+                types == [Some(DamageType::Strike)],
+                strike_or_not,
+                "{id} {presses}"
+            );
+        }
+    }
 }
 
 #[test]
