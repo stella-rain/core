@@ -1,4 +1,4 @@
-# Unit tests of the Python scripts in .github/scripts (release_tag.py). Runs on every pull
+# Unit tests of the Python scripts in .github/scripts (release.py). Runs on every pull
 # request, so auto-merge.yml requires it.
 name: Scripts
 

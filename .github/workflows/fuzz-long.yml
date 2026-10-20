@@ -1,5 +1,5 @@
 # The long fuzz run of the six fuzz targets (ADR-020 item 7, ADR-054): every week, on demand,
-# and as a reusable workflow for the release checks of `main` into `rc` (core#24 calls it).
+# and as a reusable workflow for Candidate (candidate.yml calls it).
 # `rust.yml` keeps the 60-second run of a PR that touches parsing.
 #
 # Each target runs in its own job and keeps a corpus that grows from run to run in the Actions
