@@ -643,7 +643,7 @@
       ]
     },
     {
-      "description": "An elite minute of a `time_limit` run brought the elite `elite`, of the sprite `asset`\n(ADR-090). Not sent when the cap on elites alive held it back.",
+      "description": "An elite minute of a `time_limit` run brought the elite `elite`, of the sprite `asset`\n(ADR-090); for a mimic, the sprite it is disguised as. Not sent when the cap on elites\nalive held it back.",
       "type": "object",
       "properties": {
         "data": {
@@ -719,6 +719,33 @@
         "type": {
           "type": "string",
           "const": "ShrineActivated"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The main character came within the mimic `elite`'s reveal radius: it is no longer\ndisguised, takes damage and acts as a grade elite from now on. Sent once (ADR-090).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "elite": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "elite"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "MimicRevealed"
         }
       },
       "additionalProperties": false,

@@ -19,7 +19,7 @@ use crate::attack::{
     AttackPhase, AttackRef, DamageType, Direction, Emitter, Expr, HitBox, PhaseKind, Profile,
 };
 use crate::behaviour::{
-    Action, Agent, BossCall, Condition, Guardians, Movement, Rule, Selector, Skill,
+    Action, Agent, BossCall, Condition, Elite, Guardians, Movement, Rule, Selector, Skill,
 };
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
@@ -876,6 +876,10 @@ impl<'a> Ctx<'a> {
                     c.fail("flee_when_disturbed needs an elite")
                 }
                 (Movement::Shrine { .. }, None) => c.fail("shrine needs an elite"),
+                (
+                    Movement::Shrine { .. } | Movement::FleeWhenDisturbed { .. },
+                    Some(Elite { mimic: Some(_), .. }),
+                ) => c.fail("a mimic is neither a shrine nor a goblin"),
                 _ => {}
             }
         });
@@ -887,8 +891,24 @@ impl<'a> Ctx<'a> {
                     && elite.boss_call != BossCall::Stay
                 {
                     c.key("boss_call", |c| c.fail("a shrine's boss_call is stay"));
+                } else if elite.mimic.is_some() && elite.boss_call != BossCall::Join {
+                    c.key("boss_call", |c| c.fail("a mimic's boss_call is join"));
+                }
+                if let Some(mimic) = &elite.mimic {
+                    c.key("mimic", |c| {
+                        c.content_id("disguise", &mimic.disguise, Kind::Asset);
+                        c.within(
+                            "reveal_radius",
+                            i64::from(mimic.reveal_radius.0),
+                            1,
+                            i64::from(MAX_LEN),
+                        );
+                    });
                 }
                 if let Some(aura) = &elite.aura {
+                    if elite.mimic.is_some() {
+                        c.key("aura", |c| c.fail("a mimic has no aura"));
+                    }
                     c.key("aura", |c| {
                         c.within("radius", i64::from(aura.radius.0), 1, i64::from(MAX_LEN));
                         c.within(
@@ -900,6 +920,9 @@ impl<'a> Ctx<'a> {
                     });
                 }
                 if let Some(escort) = &elite.escort {
+                    if elite.mimic.is_some() {
+                        c.key("escort", |c| c.fail("a mimic has no escort"));
+                    }
                     c.key("escort", |c| c.guardians(escort));
                 }
             });

@@ -441,6 +441,10 @@ pub struct EntityView {
     /// The attack it is making, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attack: Option<AttackView>,
+    /// A mimic that is still disguised (ADR-090): `asset` is its disguise and `elite` is false,
+    /// so the app draws an object and the minimap shows nothing. Absent when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub disguised: bool,
     /// An elite enemy (ADR-068), which the minimap shows wherever it is.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub elite: bool,

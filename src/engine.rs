@@ -351,6 +351,7 @@ impl Engine {
                     radius: boss.radius,
                     hp: b.hp,
                     attack: attack_of(b.id),
+                    disguised: false,
                     elite: false,
                     aura_radius: None,
                     damage_over_time: dot_views(&b.statuses),
@@ -362,16 +363,21 @@ impl Engine {
             |kind, agents: &[crate::engine::AgentState], out: &mut Vec<EntityView>| {
                 for a in agents {
                     let def = rules_v0::agent_def(&self.stage, a.key);
+                    let hidden = a.hidden();
                     out.push(EntityView {
                         id: a.id,
                         kind,
-                        asset: ContentId(def.base.0.clone()),
+                        asset: match def.elite.as_ref().and_then(|e| e.mimic.as_ref()) {
+                            Some(m) if hidden => m.disguise.clone(),
+                            _ => ContentId(def.base.0.clone()),
+                        },
                         palette: def.palette.clone(),
                         at: a.at,
                         radius: def.radius,
                         hp: a.hp,
                         attack: attack_of(a.id),
-                        elite: a.elite.is_some(),
+                        disguised: hidden,
+                        elite: a.elite.is_some() && !hidden,
                         aura_radius: def
                             .elite
                             .as_ref()
@@ -399,6 +405,7 @@ impl Engine {
                         radius: Fx(part.radius),
                         hp: part.hp,
                         attack: None,
+                        disguised: false,
                         elite: false,
                         aura_radius: None,
                         damage_over_time: dot_views(&part.statuses),
@@ -1002,6 +1009,13 @@ pub(crate) struct AgentState {
     pub shrine: Option<Box<ShrineState>>,
 }
 
+impl AgentState {
+    /// A mimic that has not revealed yet: an object nothing touches (ADR-090).
+    pub(crate) fn hidden(&self) -> bool {
+        self.elite.is_some_and(|el| el.disguised)
+    }
+}
+
 /// A shrine's fight (ADR-090).
 #[derive(Clone, Debug)]
 pub(crate) struct ShrineState {
@@ -1027,6 +1041,8 @@ pub(crate) struct EliteState {
     pub called: bool,
     /// What the boss's call does to it; its definition's, so not part of the hash.
     pub boss_call: BossCall,
+    /// A mimic that has not revealed yet (ADR-090); false for every other elite.
+    pub disguised: bool,
 }
 
 #[derive(Clone, Copy, Debug)]

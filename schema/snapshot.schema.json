@@ -390,6 +390,10 @@
             "$ref": "#/$defs/DamageOverTimeView"
           }
         },
+        "disguised": {
+          "description": "A mimic that is still disguised (ADR-090): `asset` is its disguise and `elite` is false,\nso the app draws an object and the minimap shows nothing. Absent when false.",
+          "type": "boolean"
+        },
         "elite": {
           "description": "An elite enemy (ADR-068), which the minimap shows wherever it is.",
           "type": "boolean"
