@@ -3458,14 +3458,14 @@
           }
         },
         "elite_cap": {
-          "description": "The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the\nsame bound). Read and checked now; a later step uses it.",
+          "description": "The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the\nsame bound). The run's stage takes it as its own.",
           "type": "integer",
           "format": "uint16",
           "maximum": 65535,
           "minimum": 0
         },
         "elite_table": {
-          "description": "The elites each whole minute that starts no boss brings (ADR-090): 1 to\n`MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting\nbefore the length. Read and checked now; a later step draws from it.",
+          "description": "The elites each whole minute that starts no boss brings (ADR-090): 1 to\n`MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting\nbefore the length. An elite minute draws from it (`rules_v0::horde`).",
           "type": "array",
           "items": {
             "$ref": "#/$defs/EliteTier"
