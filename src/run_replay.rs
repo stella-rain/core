@@ -35,6 +35,7 @@ use crate::base64;
 use crate::content_hash::to_hex;
 use crate::engine::{ChoiceError, Engine, Outcome, SpendError};
 use crate::input::Input;
+use crate::pack::Pack;
 use crate::presets;
 use crate::replay::{
     MAX_REPLAY_BYTES, hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack, write_varint,
@@ -446,6 +447,12 @@ impl RunRecorder {
         })
     }
 
+    /// As `start`, with the content of `pack` in place of the bundled pack: the replay records
+    /// the SHA-256 of the pack's bytes (ADR-079 §5, ADR-080).
+    pub fn start_with_pack(setup: &RunSetup, pack: &Pack) -> Result<RunRecorder, RunReplayError> {
+        RunRecorder::start_with(setup, pack.content())
+    }
+
     /// The run, for its snapshot and events.
     pub fn engine(&self) -> &Engine {
         &self.engine
@@ -546,6 +553,16 @@ pub fn record_run_with(
     Ok(recorder.replay())
 }
 
+/// As `record_run`, with the content of `pack` in place of the bundled pack: the replay records
+/// the SHA-256 of the pack's bytes.
+pub fn record_run_with_pack(
+    setup: &RunSetup,
+    pack: &Pack,
+    commands: &[Command],
+) -> Result<RunReplay, RunReplayError> {
+    record_run_with(setup, pack.content(), commands)
+}
+
 /// Re-simulates a run replay from its bytes and the bundled content files, and checks every
 /// command and the final hash (ADR-079 §5). The whole file is untrusted.
 pub fn verify_run(replay_bytes: &[u8]) -> Result<RunVerified, RunReplayError> {
@@ -558,6 +575,24 @@ pub fn verify_run_with(
     content: &RunContent,
 ) -> Result<RunVerified, RunReplayError> {
     verify_inner(replay_bytes, content, None)
+}
+
+/// As `verify_run`, with the content of `pack`, the one the replay's `content_sha256` names:
+/// refuses a replay recorded with any other pack (`ContentChanged`).
+pub fn verify_run_with_pack(
+    replay_bytes: &[u8],
+    pack: &Pack,
+) -> Result<RunVerified, RunReplayError> {
+    verify_inner(replay_bytes, pack.content(), None)
+}
+
+/// As `verify_run_against`, with the content of `pack`.
+pub fn verify_run_against_with_pack(
+    replay_bytes: &[u8],
+    pack: &Pack,
+    expected: &[u64],
+) -> Result<RunVerified, RunReplayError> {
+    verify_inner(replay_bytes, pack.content(), Some(expected))
 }
 
 /// As `verify_run`, and also compares the hash after every tick (before the commands that

@@ -20,6 +20,8 @@ use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::{self, Error};
 
+use crate::common;
+
 fn bundled() -> Vec<u8> {
     pack::export_bundled()
 }
@@ -465,4 +467,100 @@ fn a_file_given_twice_is_refused() {
         Pack::from_bytes(twice.as_bytes()),
         Err(PackError::Parse { .. })
     ));
+}
+
+/// The pack a caller keeps: the bundled files written compactly, so other bytes, so another hash.
+fn kept_pack() -> (Vec<u8>, Pack) {
+    let kept = bytes(&value());
+    let pack = Pack::from_bytes(&kept).expect("a compact pack loads");
+    (kept, pack)
+}
+
+fn hex(sha: &[u8]) -> String {
+    sha.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[test]
+fn a_run_replay_records_the_sha256_of_the_pack_s_bytes() {
+    let replay =
+        run_replay::record_run(&common::run::trial_setup(), &common::run::play_run(60)).unwrap();
+    assert_eq!(replay.content_sha256, hex(&Sha256::digest(Pack::BUNDLED)));
+    assert_eq!(replay.content_sha256, hex(&Pack::bundled().sha256()));
+    for mode in ["trial", "time_limit"] {
+        let sha = run_replay::content_sha256(mode).unwrap();
+        assert_eq!(sha, Sha256::digest(Pack::BUNDLED).as_slice());
+    }
+}
+
+#[test]
+fn a_run_replay_recorded_with_a_pack_records_that_pack_s_hash() {
+    let (kept, pack) = kept_pack();
+    let replay = run_replay::record_run_with_pack(
+        &common::run::trial_setup(),
+        &pack,
+        &common::run::play_run(60),
+    )
+    .unwrap();
+    assert_eq!(replay.content_sha256, hex(&Sha256::digest(&kept)));
+    let mut recorder =
+        run_replay::RunRecorder::start_with_pack(&common::run::trial_setup(), &pack).unwrap();
+    recorder
+        .step(stella_rain_core::input::Input::default())
+        .unwrap();
+    assert_eq!(
+        recorder.replay().content_sha256,
+        hex(&Sha256::digest(&kept))
+    );
+}
+
+#[test]
+fn verification_works_with_a_pack_the_caller_supplies() {
+    let (_, pack) = kept_pack();
+    let bytes = run_replay::record_run_with_pack(
+        &common::run::trial_setup(),
+        &pack,
+        &common::run::play_run(120),
+    )
+    .unwrap()
+    .to_bytes();
+    let verified = run_replay::verify_run_with_pack(&bytes, &pack).unwrap();
+    assert_eq!(verified.ticks, 120);
+    let hashes: Vec<u64> = {
+        let replay = RunReplay::from_bytes(&bytes).unwrap();
+        let mut engine =
+            stella_rain_core::engine::Engine::start_with(&replay.setup, pack.content()).unwrap();
+        replay
+            .unpack_inputs(u32::MAX)
+            .unwrap()
+            .into_iter()
+            .map(|input| {
+                engine.step(input);
+                engine.state_hash()
+            })
+            .collect()
+    };
+    run_replay::verify_run_against_with_pack(&bytes, &pack, &hashes).unwrap();
+}
+
+#[test]
+fn verification_refuses_a_replay_that_names_another_pack() {
+    let (_, pack) = kept_pack();
+    let setup = common::run::trial_setup();
+    let play = common::run::play_run(60);
+    let bundled_replay = run_replay::record_run(&setup, &play).unwrap().to_bytes();
+    let kept_replay = run_replay::record_run_with_pack(&setup, &pack, &play)
+        .unwrap()
+        .to_bytes();
+    assert_eq!(
+        run_replay::verify_run_with_pack(&bundled_replay, &pack),
+        Err(run_replay::RunReplayError::ContentChanged)
+    );
+    assert_eq!(
+        run_replay::verify_run_with_pack(&kept_replay, Pack::bundled()),
+        Err(run_replay::RunReplayError::ContentChanged)
+    );
+    assert_eq!(
+        run_replay::verify_run(&kept_replay),
+        Err(run_replay::RunReplayError::ContentChanged)
+    );
 }
