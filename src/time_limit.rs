@@ -16,11 +16,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::behaviour::Agent;
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
-use crate::stage::{Map, Wave};
+use crate::stage::{ExpertisePoints, Map, Wave};
 use crate::validate::limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -87,6 +88,9 @@ pub struct TimeLimitFile {
     /// `MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting
     /// before the length. An elite minute draws from it (`rules_v0::horde`).
     pub elite_table: Vec<EliteTier>,
+    /// The elite types: 1 to `MAX_ELITE_DEFINITIONS`, each with a unique ID (ADR-090). The
+    /// table names them; one no tier names is allowed.
+    pub elite_types: Vec<EliteType>,
     /// The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the
     /// same bound). The run's stage takes it as its own.
     pub elite_cap: u16,
@@ -106,19 +110,28 @@ pub struct EliteTier {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EliteWeight {
-    /// The elite type (a sprite ID); a grade is a type.
+    /// The ID of an elite type of the file's `elite_types`.
     pub elite: ContentId,
     /// 1 to `MAX_ELITE_WEIGHT`.
     pub weight: u32,
 }
 
-/// An elite type (ADR-090): an ID and the enemy it spawns, with what a kill of it gives, as a
-/// wave of the schedule does. The sprite is the enemy's `base`.
+/// An elite type (ADR-090): a content ID (ADR-026) and the enemy it spawns, with what a kill of
+/// it gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the
+/// enemy must be an elite (ADR-068). A grade is a type; later kinds of elite add entries.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EliteType {
+    /// Lowercase snake_case, unique in the file; never renamed or removed once released.
     pub id: ContentId,
-    pub enemy: crate::behaviour::Agent,
+    /// Checked as a wave's enemy is, and an elite.
+    pub enemy: Agent,
+    /// The experience a kill gives; as a wave's `xp`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xp: Option<u32>,
+    /// The expertise points it gives; as a wave's `expertise`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expertise: Option<ExpertisePoints>,
 }
 
 /// An open field: its sides in 1/256 pixels and where the player starts.
@@ -231,7 +244,7 @@ impl TimeLimit {
 
     /// The elite types the file defines.
     pub fn elite_types(&self) -> &[EliteType] {
-        &[]
+        &self.file.elite_types
     }
 
     /// The map and the player's start.
@@ -399,6 +412,65 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
         );
     }
 
+    let types = &file.elite_types;
+    if types.is_empty() || types.len() > MAX_ELITE_DEFINITIONS {
+        issue(
+            "$.elite_types".into(),
+            format!(
+                "1 to {MAX_ELITE_DEFINITIONS} types (found {})",
+                types.len()
+            ),
+        );
+    } else {
+        let field = Map {
+            width: map.width,
+            height: map.height,
+            start: Some(map.start),
+        };
+        for (i, t) in types.iter().enumerate() {
+            if !registry::is_well_formed(&t.id.0) {
+                issue(
+                    format!("$.elite_types[{i}].id"),
+                    "not a valid content ID (lowercase snake_case, at most 32 characters)".into(),
+                );
+            } else if types[..i].iter().any(|before| before.id == t.id) {
+                issue(
+                    format!("$.elite_types[{i}].id"),
+                    "the same ID as an earlier type".into(),
+                );
+            }
+            // Checked as a wave of one enemy at the start, which holds the enemy's own bounds
+            // and the kill's experience and expertise.
+            let wave = Wave {
+                at_tick: 0,
+                enemy: t.enemy.clone(),
+                spawn: map.start,
+                around: None,
+                count: 1,
+                every_ticks: 0,
+                xp: t.xp,
+                expertise: t.expertise,
+            };
+            if let Err(found) = crate::validate::validate_waves(
+                std::slice::from_ref(&wave),
+                field,
+                file.length_ticks.max(1),
+                1,
+            ) {
+                for f in found {
+                    let rest = f.path.trim_start_matches("$[0]");
+                    issue(format!("$.elite_types[{i}]{rest}"), f.message);
+                }
+            }
+            if t.enemy.elite.is_none() {
+                issue(
+                    format!("$.elite_types[{i}].enemy.elite"),
+                    "an elite type is an elite".into(),
+                );
+            }
+        }
+    }
+
     let tiers = &file.elite_table;
     if tiers.is_empty() || tiers.len() > MAX_ELITE_TIERS {
         issue(
@@ -428,13 +500,10 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
                 continue;
             }
             for (j, w) in weights.iter().enumerate() {
-                let known = registry::is_well_formed(&w.elite.0)
-                    && registry::find(registry::ENTRIES, Kind::Asset, &w.elite.0)
-                        .is_some_and(|e| e.introduced <= file.sim_version);
-                if !known {
+                if !file.elite_types.iter().any(|t| t.id == w.elite) {
                     issue(
                         format!("$.elite_table[{i}].weights[{j}].elite"),
-                        "no such sprite ID in the registry".into(),
+                        "no such elite type in $.elite_types".into(),
                     );
                 } else if weights[..j].iter().any(|before| before.elite == w.elite) {
                     issue(

@@ -395,6 +395,16 @@ fn types(list: Vec<Value>) -> Value {
     with("elite_types", json!(list))
 }
 
+/// The bundled file with its elite types replaced and a table that names only the first.
+fn only(list: Vec<Value>) -> Value {
+    let first = list
+        .first()
+        .map_or("elite_low".to_string(), |t| t["id"].as_str().unwrap_or("x").to_string());
+    let mut v = types(list);
+    v["elite_table"] = json!([tier(0, &[(first.as_str(), 1)])]);
+    v
+}
+
 fn low() -> Value {
     good()["elite_types"][0].clone()
 }
@@ -410,42 +420,42 @@ fn named(id: &str) -> Value {
 fn an_elite_type_is_a_well_formed_unique_id_with_a_valid_elite_enemy() {
     let mut mid = good()["elite_types"][1].clone();
     mid["id"] = json!("elite_low");
-    let both_low = types(vec![low(), mid]);
+    let both_low = only(vec![low(), mid]);
     assert_eq!(paths(&both_low), ["$.elite_types[1].id"]);
 
     let mut t = low();
     t["id"] = json!("Not Valid");
-    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].id"]);
+    assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].id"]);
 
     let mut t = low();
     t["enemy"]["base"] = json!("nope");
-    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].enemy.base"]);
+    assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].enemy.base"]);
 
     // A weapon preset is not a sprite.
     let mut t = low();
     t["enemy"]["base"] = json!("blade");
-    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].enemy.base"]);
+    assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].enemy.base"]);
 
     let mut t = low();
     t["enemy"]["hp"] = json!(0);
-    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].enemy.hp"]);
+    assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].enemy.hp"]);
 
     let mut t = low();
     t["enemy"]["rules"][0]["do"]["attack"]["preset"]["id"] = json!("nope");
     assert!(
-        paths(&types(vec![t]))
+        paths(&only(vec![t]))
             .iter()
             .all(|p| p.starts_with("$.elite_types[0].enemy.rules[0]"))
     );
 
     let mut t = low();
     t["xp"] = json!(u32::MAX);
-    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].xp"]);
+    assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].xp"]);
 
     // An elite type is an elite.
     let mut t = low();
     t["enemy"].as_object_mut().unwrap().remove("elite");
-    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].enemy.elite"]);
+    assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].enemy.elite"]);
 }
 
 #[test]
