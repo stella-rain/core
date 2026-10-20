@@ -310,10 +310,10 @@
     {
       "id": "max_hp",
       "effect": "max_hp",
-      "step": 1,
+      "step": 100,
       "limit": 5,
       "title": "Max HP",
-      "description": "One more hit point at most, and one healed"
+      "description": "100 more hit points at most, and as many healed"
     },
     {
       "id": "attack",
@@ -357,28 +357,28 @@
       "id": "max_hp_common",
       "rarity": "common",
       "effect": "max_hp",
-      "amount": 2,
+      "amount": 200,
       "limit": 5,
       "title": "Vigour (Common)",
-      "description": "2 more hit points at most, and as many healed"
+      "description": "200 more hit points at most, and as many healed"
     },
     {
       "id": "max_hp_rare",
       "rarity": "rare",
       "effect": "max_hp",
-      "amount": 5,
+      "amount": 500,
       "limit": 3,
       "title": "Vigour (Rare)",
-      "description": "5 more hit points at most, and as many healed"
+      "description": "500 more hit points at most, and as many healed"
     },
     {
       "id": "max_hp_legendary",
       "rarity": "legendary",
       "effect": "max_hp",
-      "amount": 10,
+      "amount": 1000,
       "limit": 1,
       "title": "Vigour (Legendary)",
-      "description": "10 more hit points at most, and as many healed"
+      "description": "1000 more hit points at most, and as many healed"
     },
     {
       "id": "attack_common",
@@ -726,7 +726,7 @@
                   {
                     "kind": "active",
                     "ticks": 4,
-                    "damage": 20,
+                    "damage": 2000,
                     "hit_box": {
                       "type": "circle",
                       "offset": {
@@ -765,7 +765,7 @@
                   {
                     "kind": "active",
                     "ticks": 4,
-                    "damage": 30,
+                    "damage": 3000,
                     "hit_box": {
                       "type": "circle",
                       "offset": {
@@ -804,7 +804,7 @@
                   {
                     "kind": "active",
                     "ticks": 4,
-                    "damage": 40,
+                    "damage": 4000,
                     "hit_box": {
                       "type": "circle",
                       "offset": {
@@ -835,7 +835,7 @@
           "effects": [
             {
               "type": "shield",
-              "amount": 3,
+              "amount": 300,
               "duration_ticks": 300
             }
           ]
@@ -845,7 +845,7 @@
           "effects": [
             {
               "type": "shield",
-              "amount": 5,
+              "amount": 500,
               "duration_ticks": 360
             }
           ]
@@ -855,7 +855,7 @@
           "effects": [
             {
               "type": "shield",
-              "amount": 8,
+              "amount": 800,
               "duration_ticks": 420
             }
           ]
@@ -1034,9 +1034,9 @@
             {
               "id": "crush_9",
               "effect": "max_hp",
-              "amount": 2,
+              "amount": 200,
               "title": "Iron Grip",
-              "description": "2 more hit points at most, and as many healed"
+              "description": "200 more hit points at most, and as many healed"
             }
           ],
           "capstone": [
@@ -1086,9 +1086,9 @@
         {
           "id": "bulwark",
           "effect": "max_hp",
-          "amount": 2,
+          "amount": 200,
           "title": "Bulwark",
-          "description": "2 more hit points at most, and as many healed",
+          "description": "200 more hit points at most, and as many healed",
           "upgrade_6": [
             {
               "id": "bulwark_6",
@@ -1102,9 +1102,9 @@
             {
               "id": "bulwark_9",
               "effect": "max_hp",
-              "amount": 3,
+              "amount": 300,
               "title": "Stone Skin",
-              "description": "3 more hit points at most, and as many healed"
+              "description": "300 more hit points at most, and as many healed"
             }
           ],
           "capstone": [
@@ -1159,7 +1159,7 @@
     {
       "rune": "explosion",
       "cooldown_ticks": 120,
-      "damage": 15,
+      "damage": 1500,
       "attack": [
         {
           "kind": "active",
@@ -1172,7 +1172,7 @@
     {
       "rune": "thunder",
       "cooldown_ticks": 90,
-      "damage": 20,
+      "damage": 2000,
       "attack": [
         {
           "kind": "wind_up",
@@ -1190,7 +1190,7 @@
     {
       "rune": "boomerang",
       "cooldown_ticks": 150,
-      "damage": 12,
+      "damage": 1200,
       "attack": [
         {
           "kind": "active",
@@ -1207,7 +1207,7 @@
     {
       "rune": "homing_missiles",
       "cooldown_ticks": 180,
-      "damage": 8,
+      "damage": 800,
       "missiles": 3,
       "range": 40960,
       "attack": [
@@ -1224,7 +1224,7 @@
       "rune": "bleed",
       "interval_ticks": 30,
       "duration_ticks": 180,
-      "damage": 3,
+      "damage": 300,
       "max_stacks": 5,
       "type": "slash"
     },
@@ -1232,7 +1232,7 @@
       "rune": "poison",
       "interval_ticks": 30,
       "duration_ticks": 180,
-      "damage": 3,
+      "damage": 300,
       "max_stacks": 5,
       "type": "dendro"
     },
@@ -1240,7 +1240,7 @@
       "rune": "burn",
       "interval_ticks": 30,
       "duration_ticks": 180,
-      "damage": 3,
+      "damage": 300,
       "max_stacks": 5,
       "type": "pyro"
     }
@@ -1265,8 +1265,8 @@
   },
   "player": {
     "base": "pilot_a",
-    "hp": 5,
-    "atk": 10,
+    "hp": 500,
+    "atk": 1000,
     "main": {
       "preset": {
         "id": "blade"
@@ -1287,7 +1287,7 @@
   "companions": [
     {
       "base": "fairy_a",
-      "hp": 10,
+      "hp": 1000,
       "radius": 1024,
       "movement": {
         "type": "orbit",
@@ -1305,7 +1305,7 @@
             "type": "cast",
             "skill": {
               "type": "heal",
-              "amount": 1
+              "amount": 100
             }
           },
           "cooldown_ticks": 600,
@@ -1319,7 +1319,7 @@
       "at_tick": 120,
       "enemy": {
         "base": "bat",
-        "hp": 30,
+        "hp": 3000,
         "radius": 2048,
         "profile": {
           "weak": [
@@ -1368,7 +1368,7 @@
       "at_tick": 600,
       "enemy": {
         "base": "bat",
-        "hp": 30,
+        "hp": 3000,
         "radius": 2048,
         "profile": {
           "weak": [
@@ -1417,7 +1417,7 @@
       "at_tick": 1200,
       "enemy": {
         "base": "bat",
-        "hp": 60,
+        "hp": 6000,
         "radius": 2560,
         "profile": {
           "weak": [
@@ -1465,7 +1465,7 @@
       "at_tick": 60,
       "enemy": {
         "base": "bat",
-        "hp": 240,
+        "hp": 24000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -1518,7 +1518,7 @@
       "at_tick": 60,
       "enemy": {
         "base": "bat",
-        "hp": 2000,
+        "hp": 200000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -1570,7 +1570,7 @@
   ],
   "boss": {
     "base": "golem",
-    "hp": 3000,
+    "hp": 300000,
     "radius": 8192,
     "profile": {
       "weak": [
@@ -1586,7 +1586,7 @@
       {
         "id": "horn",
         "asset": "horns_2",
-        "hp": 400,
+        "hp": 40000,
         "offset": {
           "x": 0,
           "y": -7680
@@ -1806,7 +1806,7 @@
       "at_tick": 60,
       "enemy": {
         "base": "bat",
-        "hp": 30,
+        "hp": 3000,
         "radius": 2048,
         "profile": {
           "weak": [
@@ -1856,7 +1856,7 @@
       "at_tick": 90,
       "enemy": {
         "base": "bat",
-        "hp": 60,
+        "hp": 6000,
         "radius": 3072,
         "profile": {
           "weak": [
@@ -1940,7 +1940,7 @@
       "id": "elite_low",
       "enemy": {
         "base": "bat",
-        "hp": 240,
+        "hp": 24000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -1987,7 +1987,7 @@
       "id": "elite_mid",
       "enemy": {
         "base": "fairy_a",
-        "hp": 480,
+        "hp": 48000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -2012,7 +2012,7 @@
                   {
                     "kind": "active",
                     "ticks": 1,
-                    "damage": 2,
+                    "damage": 200,
                     "spawn": [
                       {
                         "type": "fire",
@@ -2045,7 +2045,7 @@
       "id": "elite_high",
       "enemy": {
         "base": "horns_2",
-        "hp": 960,
+        "hp": 96000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -2070,7 +2070,7 @@
                   {
                     "kind": "active",
                     "ticks": 1,
-                    "damage": 3,
+                    "damage": 300,
                     "spawn": [
                       {
                         "type": "fire",
@@ -2103,7 +2103,7 @@
       "id": "elite_goblin",
       "enemy": {
         "base": "fairy_a",
-        "hp": 120,
+        "hp": 12000,
         "radius": 3072,
         "movement": {
           "type": "flee_when_disturbed",
@@ -2126,7 +2126,7 @@
       "id": "elite_shrine",
       "enemy": {
         "base": "golem",
-        "hp": 1,
+        "hp": 100,
         "radius": 4096,
         "movement": {
           "type": "shrine",
@@ -2134,7 +2134,7 @@
           "guardians": {
             "enemy": {
               "base": "bat",
-              "hp": 60,
+              "hp": 6000,
               "radius": 2048,
               "movement": {
                 "type": "follow",
@@ -2181,7 +2181,7 @@
       "id": "elite_leader",
       "enemy": {
         "base": "horns_2",
-        "hp": 480,
+        "hp": 48000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -2223,7 +2223,7 @@
           "escort": {
             "enemy": {
               "base": "bat",
-              "hp": 60,
+              "hp": 6000,
               "radius": 2048,
               "movement": {
                 "type": "follow",
@@ -2266,7 +2266,7 @@
       "id": "elite_mimic",
       "enemy": {
         "base": "fairy_a",
-        "hp": 480,
+        "hp": 48000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -2291,7 +2291,7 @@
                   {
                     "kind": "active",
                     "ticks": 1,
-                    "damage": 2,
+                    "damage": 200,
                     "spawn": [
                       {
                         "type": "fire",
