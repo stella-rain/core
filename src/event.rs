@@ -121,6 +121,12 @@ pub enum DomainEvent {
     ElitesCalled {
         elites: u32,
     },
+    /// An elite minute of a `time_limit` run brought the elite `elite`, of the sprite `asset`
+    /// (ADR-090). Not sent when the cap on elites alive held it back.
+    EliteSpawned {
+        elite: EntityId,
+        asset: ContentId,
+    },
     /// An offer opened, and the world stopped until a choice closes it (ADR-079 §3).
     OfferOpened {
         kind: OfferKind,
