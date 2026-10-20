@@ -15,7 +15,7 @@ const CLEAR_INPUT: &str = concat!(
     "stella-rain/parsed-stage/v1\n",
     r#"{"schema_version":0,"sim_version":0,"title":"Test Stage","description":"","seed":7,"#,
     r#""length_ticks":600,"player":{"base":"pilot_a","hp":300,"atk":1000,"#,
-    r#""weapon":{"preset":{"id":"blade"}},"#,
+    r#""weapon":{"preset":{"id":"giant_sword"}},"#,
     r#""evade":{"distance":12288,"ticks":8,"invulnerable_ticks":10,"cooldown_ticks":40}},"#,
     r#""companions":[],"waves":[],"#,
     r#""boss":{"base":"golem","hp":2000,"radius":8192,"spawn":{"x":46080,"y":121856},"parts":[],"#,
@@ -46,7 +46,7 @@ fn matches_the_adr_046_vector() {
     // SHA-256 of `CLEAR_INPUT`, computed with `sha256sum`, not with `core`.
     assert_eq!(
         hash_of(CLEAR),
-        "5cff0a7d44a3d61c117d95410bd10b1b1735151c47fb370b937ed33808bb094d"
+        "3684311817267d63e3308d859884d1867e8242a13439e8f341247d7f7aefc2f4"
     );
 }
 
@@ -65,7 +65,7 @@ fn every_corpus_stage_keeps_its_hash() {
         ),
         (
             &include_bytes!("corpus/v0/bullets/stage.json")[..],
-            "dca7be1e425f7bf425723f2f87d65789ac427cc2632943786e8444a57f480483",
+            "33f89c4d3fe113dba8deaf11d9c6ae222d2025d225e441c7f5a487d0c5d440c4",
         ),
         (
             &include_bytes!("corpus/v0/fail/stage.json")[..],
@@ -84,7 +84,7 @@ fn every_corpus_stage_keeps_its_hash() {
 fn formatting_and_key_order_do_not_change_the_hash() {
     let reformatted = br#"{"title":"Test Stage",
         "boss":{"phases":[{}],"spawn":{"y":121856,"x":46080},"radius":8192,"hp":2000,"base":"golem"},
-        "player":{"weapon":{"preset":{"id":"blade"}},"atk":1000,"hp":300,"base":"pilot_a",
+        "player":{"weapon":{"preset":{"id":"giant_sword"}},"atk":1000,"hp":300,"base":"pilot_a",
                   "evade":{"cooldown_ticks":40,"invulnerable_ticks":10,"ticks":8,"distance":12288}},
         "length_ticks":600,   "seed":7,
         "id":"test-stage","sim_version":0,"schema_version":0}

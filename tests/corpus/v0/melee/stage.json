@@ -91,7 +91,7 @@
     "hp": 9900,
     "weapon": {
       "preset": {
-        "id": "blade"
+        "id": "giant_sword"
       }
     }
   },
