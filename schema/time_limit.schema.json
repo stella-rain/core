@@ -421,6 +421,21 @@
         "elements"
       ]
     },
+    "BossCall": {
+      "description": "What a boss's call does to an elite.",
+      "oneOf": [
+        {
+          "description": "It is called: it leaves its place and fights beside the boss.",
+          "type": "string",
+          "const": "join"
+        },
+        {
+          "description": "It is not called: it leaves the map instead, unkilled and with no reward.",
+          "type": "string",
+          "const": "leave"
+        }
+      ]
+    },
     "Condition": {
       "oneOf": [
         {
@@ -643,6 +658,10 @@
       "description": "What makes an enemy an elite.",
       "type": "object",
       "properties": {
+        "boss_call": {
+          "description": "What the boss's call does to it (ADR-090); `join` when absent.",
+          "$ref": "#/$defs/BossCall"
+        },
         "range": {
           "description": "How near the main character's centre must come to its centre for its rules to fire.",
           "$ref": "#/$defs/Fx"
@@ -1311,6 +1330,34 @@
             "type",
             "vx",
             "vy"
+          ]
+        },
+        {
+          "description": "An elite's (it needs the `elite` field): holds its place until it is disturbed, by\ndamage or by the main character coming within `disturb_radius` of its centre, then runs\ndirectly away from the main character at `speed` a tick, kept on the map, and leaves it\nunkilled `leave_after_ticks` ticks after the disturbance (ADR-090).",
+          "type": "object",
+          "properties": {
+            "disturb_radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "leave_after_ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "speed": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "flee_when_disturbed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "disturb_radius",
+            "speed",
+            "leave_after_ticks"
           ]
         }
       ]

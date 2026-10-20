@@ -284,6 +284,10 @@
       {
         "id": "elite_high",
         "sim_version": 0
+      },
+      {
+        "id": "elite_goblin",
+        "sim_version": 0
       }
     ]
   },
@@ -1890,14 +1894,16 @@
     {
       "start_tick": 0,
       "weights": [
-        { "elite": "elite_low", "weight": 1 }
+        { "elite": "elite_low", "weight": 1 },
+        { "elite": "elite_goblin", "weight": 1 }
       ]
     },
     {
       "start_tick": 21600,
       "weights": [
         { "elite": "elite_low", "weight": 2 },
-        { "elite": "elite_mid", "weight": 1 }
+        { "elite": "elite_mid", "weight": 1 },
+        { "elite": "elite_goblin", "weight": 1 }
       ]
     },
     {
@@ -1905,7 +1911,8 @@
       "weights": [
         { "elite": "elite_low", "weight": 2 },
         { "elite": "elite_mid", "weight": 2 },
-        { "elite": "elite_high", "weight": 1 }
+        { "elite": "elite_high", "weight": 1 },
+        { "elite": "elite_goblin", "weight": 1 }
       ]
     }
   ],
@@ -2065,6 +2072,29 @@
         ],
         "elite": {
           "range": 51200
+        }
+      },
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
+    },
+    {
+      "id": "elite_goblin",
+      "enemy": {
+        "base": "fairy_a",
+        "hp": 120,
+        "radius": 3072,
+        "movement": {
+          "type": "flee_when_disturbed",
+          "disturb_radius": 12800,
+          "speed": 640,
+          "leave_after_ticks": 600
+        },
+        "elite": {
+          "range": 51200,
+          "boss_call": "leave"
         }
       },
       "xp": 3,

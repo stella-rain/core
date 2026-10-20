@@ -22,9 +22,11 @@
 //! After that, a boss with `call_elites` that is still alive and has not called yet calls its
 //! elites (ADR-068) once its time is up or its hit points are below its share: every elite
 //! alive is called, and so is every one that spawns later (`spawn_enemy`). A called elite
-//! leaves its place and acts at any distance, by its own movement and rules.
+//! leaves its place and acts at any distance, by its own movement and rules. An elite whose
+//! `boss_call` is `leave` is not called: it leaves the map (ADR-090).
 
 use crate::attack::AttackRef;
+use crate::behaviour::BossCall;
 use crate::engine::{MoveOrder, Origin, State};
 use crate::event::DomainEvent;
 use crate::stage::Stage;
@@ -101,9 +103,15 @@ pub(super) fn call_elites(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
     }
     b.elites_called = Some(true);
     let mut elites = 0u32;
-    for el in s.enemies.iter_mut().filter_map(|e| e.elite.as_mut()) {
-        el.called = true;
-        elites = elites.saturating_add(1);
+    for e in &mut s.enemies {
+        match (e.elite.as_mut(), e.leave.as_mut()) {
+            (Some(el), Some(l)) if el.boss_call == BossCall::Leave => l.go = true,
+            (Some(el), _) => {
+                el.called = true;
+                elites = elites.saturating_add(1);
+            }
+            _ => {}
+        }
     }
     events.push(DomainEvent::ElitesCalled { elites });
 }

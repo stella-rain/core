@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use crate::attack::{AttackPhase, DamageType, Emitter};
+use crate::behaviour::BossCall;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
@@ -982,6 +983,18 @@ pub(crate) struct AgentState {
     pub crowded: bool,
     /// An elite's own state; `None` for every other agent, which hashes nothing for it.
     pub elite: Option<EliteState>,
+    /// An agent that leaves the map unkilled (a goblin, or any elite whose `boss_call` is
+    /// `leave`); `None` for every other agent, which hashes nothing for it.
+    pub leave: Option<LeaveState>,
+}
+
+/// When an elite that leaves is to go (ADR-090).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct LeaveState {
+    /// Ticks since it was disturbed, 0 on the tick it was; `None` while it is not.
+    pub disturbed: Option<u32>,
+    /// A boss came or called: it goes on this tick.
+    pub go: bool,
 }
 
 /// An elite holds `home`, where it spawned, until a boss calls it (ADR-068).
@@ -989,6 +1002,8 @@ pub(crate) struct AgentState {
 pub(crate) struct EliteState {
     pub home: Point,
     pub called: bool,
+    /// What the boss's call does to it; its definition's, so not part of the hash.
+    pub boss_call: BossCall,
 }
 
 #[derive(Clone, Copy, Debug)]

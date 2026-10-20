@@ -3,9 +3,10 @@
 //! fires; the others wait. Agents are evaluated in entity-ID order (companions, then enemies),
 //! each rule list in order.
 
-use crate::behaviour::{Action, Agent, Condition, Movement, Rule};
+use crate::behaviour::{Action, Agent, BossCall, Condition, Movement, Rule};
 use crate::engine::{
-    AgentKey, AgentSource, AgentState, EliteState, MoveOrder, RuleState, State, UNLIMITED,
+    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, State,
+    UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -74,9 +75,16 @@ pub(super) fn new_agent(
         order: None,
         orbit_angle: angle,
         crowded: false,
-        elite: def.elite.map(|_| EliteState {
+        elite: def.elite.map(|elite| EliteState {
             home: at,
             called: false,
+            boss_call: elite.boss_call,
+        }),
+        leave: (matches!(def.movement, Movement::FleeWhenDisturbed { .. })
+            || def.elite.is_some_and(|e| e.boss_call == BossCall::Leave))
+        .then_some(LeaveState {
+            disturbed: None,
+            go: false,
         }),
     }
 }
@@ -112,6 +120,36 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     // Enemies that have left the map are gone, whether or not they were killed.
     let holds = stage.map().holds();
     s.enemies.retain(|e| holds(e.at));
+    leave(stage, s, events);
+}
+
+/// Elites that leave go, unkilled: a boss came or called, or they were disturbed long enough
+/// ago (ADR-090). They are gone before any hit of this tick lands, so a leaving elite gives no
+/// kill reward.
+fn leave(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let mut gone = Vec::new();
+    for e in &s.enemies {
+        let Some(state) = e.leave else {
+            continue;
+        };
+        let timed_out = match agent_def(stage, e.key).movement {
+            Movement::FleeWhenDisturbed {
+                leave_after_ticks, ..
+            } => state.disturbed.is_some_and(|t| t >= leave_after_ticks),
+            _ => false,
+        };
+        if state.go || timed_out {
+            gone.push(e.id);
+        }
+    }
+    if gone.is_empty() {
+        return;
+    }
+    s.enemies.retain(|e| !gone.contains(&e.id));
+    events.extend(
+        gone.into_iter()
+            .map(|elite| DomainEvent::EliteLeft { elite }),
+    );
 }
 
 fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
@@ -295,6 +333,45 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
     // A crowded enemy yields: it does not walk into the neighbours the push just parted it from.
     // Only enemies are ever crowded, and one that flies straight goes to no place, so it flies on.
     let yields = a.crowded;
+    if let Movement::FleeWhenDisturbed {
+        disturb_radius,
+        speed,
+        ..
+    } = def.movement
+    {
+        let Some(leave) = a.leave.as_mut() else {
+            return;
+        };
+        leave.disturbed = match leave.disturbed {
+            Some(t) => Some(t.saturating_add(1)),
+            None if a.hp < a.max_hp || super::overlaps(a.at, disturb_radius.0, player_at, 0) => {
+                Some(0)
+            }
+            None => None,
+        };
+        if leave.disturbed.is_none() {
+            // Undisturbed it holds where it spawned, as an elite not called does.
+            if let (false, Some(st)) = (yields, a.elite) {
+                a.at = step_toward(a.at, st.home, FOLLOW_SPEED * keep / 100);
+            }
+            return;
+        }
+        // Directly away from the main character; on top of it, up.
+        let (dx, mut dy) = (
+            i64::from(a.at.x.0) - i64::from(player_at.x.0),
+            i64::from(a.at.y.0) - i64::from(player_at.y.0),
+        );
+        if dx == 0 && dy == 0 {
+            dy = -1;
+        }
+        let dist = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+        let step = i64::from(speed.0) * keep / 100;
+        a.at = map.clamp(Point {
+            x: a.at.x.saturating_add(Fx((dx * step / dist) as i32)),
+            y: a.at.y.saturating_add(Fx((dy * step / dist) as i32)),
+        });
+        return;
+    }
     // An elite not called yet holds where it spawned, whatever its movement.
     if let Some(st) = a.elite.filter(|st| !st.called) {
         if !yields {
@@ -303,6 +380,7 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
         return;
     }
     match def.movement {
+        Movement::FleeWhenDisturbed { .. } => {}
         Movement::Hold { at } => {
             a.at = match me {
                 Who::Enemy(_) if yields => a.at,

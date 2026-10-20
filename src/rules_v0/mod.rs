@@ -100,6 +100,7 @@ pub(crate) use player::{charge_view, combo_view};
 mod select;
 
 use crate::attack::{DamageType, MatchUp, Profile};
+use crate::behaviour::BossCall;
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
     PartState, PlayerState, Progress, Pull, StarField, State,
@@ -487,7 +488,11 @@ pub(super) fn spawn_enemy(
     s.next_id += 1;
     let mut enemy = agents::new_agent(id, key, def, at, 0);
     if let Some(el) = enemy.elite.as_mut() {
-        el.called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
+        let called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
+        match (el.boss_call, enemy.leave.as_mut()) {
+            (BossCall::Leave, Some(l)) => l.go = called,
+            _ => el.called = called,
+        }
     }
     s.enemies.push(enemy);
     true
@@ -834,6 +839,12 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
         h.write_i32(el.home.x.0);
         h.write_i32(el.home.y.0);
         h.write_bool(el.called);
+    }
+    // Only for an agent that leaves, which its key already tells apart.
+    if let Some(l) = a.leave {
+        h.write_bool(l.disturbed.is_some());
+        h.write_u32(l.disturbed.unwrap_or(0));
+        h.write_bool(l.go);
     }
     match a.order {
         Some(o) => {

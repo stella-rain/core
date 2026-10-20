@@ -18,7 +18,7 @@
 //! whoever spawned them) and the cap on enemies hold it back after the draws, so the generator
 //! never depends on either. An elite is built from the definition of the type drawn (`elite_types` of the mode file); its sprite is the type's.
 
-use crate::behaviour::Action;
+use crate::behaviour::{Action, BossCall};
 use crate::engine::{AgentKey, AgentSource, Outcome, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -64,6 +64,12 @@ pub(crate) fn spawn_boss(stage: &mut Stage, s: &mut State) {
         }
     };
     horde.spawned += 1;
+    // The elites that leave when a boss comes go (ADR-090).
+    for e in &mut s.enemies {
+        if let (Some(el), Some(l)) = (e.elite, e.leave.as_mut()) {
+            l.go |= el.boss_call == BossCall::Leave;
+        }
+    }
 
     let mut def = horde.template.clone();
     def.base = base;

@@ -861,7 +861,12 @@ impl<'a> Ctx<'a> {
             self.key("profile", |c| c.profile(p));
         }
         self.within("radius", i64::from(a.radius.0), 1, i64::from(MAX_RADIUS));
-        self.key("movement", |c| c.movement(&a.movement));
+        self.key("movement", |c| {
+            c.movement(&a.movement);
+            if matches!(a.movement, Movement::FleeWhenDisturbed { .. }) && a.elite.is_none() {
+                c.fail("flee_when_disturbed needs an elite");
+            }
+        });
         self.rules("rules", &a.rules, summon_ok);
         if let Some(elite) = &a.elite {
             self.key("elite", |c| {
@@ -877,6 +882,16 @@ impl<'a> Ctx<'a> {
             }
             Movement::Follow { distance } => {
                 self.within("distance", i64::from(distance.0), 0, i64::from(MAX_LEN))
+            }
+            Movement::FleeWhenDisturbed {
+                disturb_radius,
+                speed,
+                leave_after_ticks,
+            } => {
+                let max = i64::from(MAX_LEN);
+                self.within("disturb_radius", i64::from(disturb_radius.0), 1, max);
+                self.within("speed", i64::from(speed.0), 1, max);
+                self.ticks("leave_after_ticks", *leave_after_ticks, 1);
             }
             Movement::Hold { at } => self.point("at", at),
             Movement::Straight { vx, vy } => {
