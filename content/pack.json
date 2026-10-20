@@ -296,6 +296,10 @@
       {
         "id": "elite_leader",
         "sim_version": 0
+      },
+      {
+        "id": "elite_mimic",
+        "sim_version": 0
       }
     ]
   },
@@ -1914,7 +1918,8 @@
         { "elite": "elite_mid", "weight": 1 },
         { "elite": "elite_goblin", "weight": 1 },
         { "elite": "elite_shrine", "weight": 1 },
-        { "elite": "elite_leader", "weight": 1 }
+        { "elite": "elite_leader", "weight": 1 },
+        { "elite": "elite_mimic", "weight": 1 }
       ]
     },
     {
@@ -1925,7 +1930,8 @@
         { "elite": "elite_high", "weight": 1 },
         { "elite": "elite_goblin", "weight": 1 },
         { "elite": "elite_shrine", "weight": 1 },
-        { "elite": "elite_leader", "weight": 1 }
+        { "elite": "elite_leader", "weight": 1 },
+        { "elite": "elite_mimic", "weight": 1 }
       ]
     }
   ],
@@ -2247,6 +2253,68 @@
             },
             "count": 4,
             "radius": 15360
+          }
+        }
+      },
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
+    },
+    {
+      "id": "elite_mimic",
+      "enemy": {
+        "base": "fairy_a",
+        "hp": 480,
+        "radius": 3072,
+        "profile": {
+          "strong": [
+            "pierce"
+          ],
+          "resist": "physical"
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "active",
+                    "ticks": 1,
+                    "damage": 2,
+                    "spawn": [
+                      {
+                        "type": "fire",
+                        "speed": 640,
+                        "direction": {
+                          "type": "aimed",
+                          "offset": 0
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "cooldown_ticks": 90,
+            "once": false
+          }
+        ],
+        "elite": {
+          "range": 51200,
+          "mimic": {
+            "disguise": "icon_hex",
+            "reveal_radius": 30720
           }
         }
       },
