@@ -368,3 +368,47 @@ fn garbage_is_refused() {
         assert!(Pack::from_bytes(garbage).is_err());
     }
 }
+
+/// The pack finds each file's bytes itself: a key written with escapes, members in another
+/// order and other whitespace find the same files, with the same bytes.
+#[test]
+fn a_file_is_found_whatever_the_pack_s_layout() {
+    let text = String::from_utf8(bundled()).unwrap();
+    let escaped = text
+        .replacen("\"run_stats\": {", "\"run\\u005fstats\" :\t{", 1)
+        .replacen("\"time_limit\": {", "\"time\\u005flimit\"\n:{", 1);
+    assert_ne!(escaped, text);
+    let pack = Pack::from_bytes(escaped.as_bytes()).expect("escaped keys load");
+    assert_eq!(pack.content(), RunContent::bundled());
+
+    // The modes first, the versions last.
+    let v = value();
+    let mut moved = serde_json::Map::new();
+    for key in ["modes", "runes", "introduced", "run_stats", "rewards"] {
+        moved.insert(key.into(), v[key].clone());
+    }
+    for key in [
+        "expertise",
+        "match_ups",
+        "stage_skills",
+        "sim_version",
+        "schema_version",
+    ] {
+        moved.insert(key.into(), v[key].clone());
+    }
+    let pack = load(&Value::Object(moved)).expect("another order loads");
+    assert_eq!(
+        pack.content().stage_skills().skills(),
+        RunContent::bundled().stage_skills().skills()
+    );
+}
+
+#[test]
+fn a_file_given_twice_is_refused() {
+    let text = String::from_utf8(bundled()).unwrap();
+    let twice = text.replacen("\"run_stats\": {", "\"runes\": {}, \"run_stats\": {", 1);
+    assert!(matches!(
+        Pack::from_bytes(twice.as_bytes()),
+        Err(PackError::Parse { .. })
+    ));
+}
