@@ -1690,6 +1690,7 @@
           },
           {
             "type": "attack",
+            "big": true,
             "attack": {
               "preset": {
                 "id": "spiral",
