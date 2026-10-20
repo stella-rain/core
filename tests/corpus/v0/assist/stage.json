@@ -1,15 +1,35 @@
 {
-  "schema_version": 0,
-  "sim_version": 0,
-  "id": "test",
-  "title": "Test",
+  "boss": {
+    "base": "golem",
+    "hp": 100000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [],
+        "transition": []
+      }
+    ],
+    "radius": 8192,
+    "spawn": {
+      "x": 46080,
+      "y": 40000
+    }
+  },
+  "companions": [],
   "description": "",
-  "seed": 7,
+  "id": "test",
   "length_ticks": 600,
   "player": {
+    "atk": 1000,
     "base": "pilot_a",
-    "hp": 99,
-    "atk": 10,
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 9900,
     "main": {
       "preset": {
         "id": "blade"
@@ -19,123 +39,103 @@
       "preset": {
         "id": "maul"
       }
-    },
-    "evade": {
-      "distance": 12288,
-      "ticks": 8,
-      "invulnerable_ticks": 10,
-      "cooldown_ticks": 40
     }
   },
-  "companions": [],
+  "schema_version": 0,
+  "seed": 7,
+  "sim_version": 0,
+  "title": "Test",
   "waves": [
     {
       "at_tick": 1,
+      "count": 1,
       "enemy": {
         "base": "bat",
-        "hp": 30,
-        "radius": 2048,
+        "hp": 3000,
         "movement": {
-          "type": "hold",
           "at": {
             "x": 20000,
             "y": 140000
-          }
+          },
+          "type": "hold"
         },
+        "radius": 2048,
         "rules": []
       },
+      "every_ticks": 0,
       "spawn": {
         "x": 20000,
         "y": 140000
-      },
-      "count": 1,
-      "every_ticks": 0
+      }
     },
     {
       "at_tick": 1,
+      "count": 1,
       "enemy": {
         "base": "bat",
-        "hp": 30,
-        "radius": 2048,
+        "hp": 3000,
         "movement": {
-          "type": "hold",
           "at": {
             "x": 22000,
             "y": 152000
-          }
+          },
+          "type": "hold"
         },
+        "radius": 2048,
         "rules": []
       },
+      "every_ticks": 0,
       "spawn": {
         "x": 22000,
         "y": 152000
-      },
-      "count": 1,
-      "every_ticks": 0
+      }
     },
     {
       "at_tick": 1,
+      "count": 1,
       "enemy": {
         "base": "bat",
-        "hp": 30,
-        "radius": 2048,
+        "hp": 3000,
         "movement": {
-          "type": "hold",
           "at": {
             "x": 26000,
             "y": 147456
-          }
+          },
+          "type": "hold"
         },
+        "radius": 2048,
         "rules": []
       },
+      "every_ticks": 0,
       "spawn": {
         "x": 26000,
         "y": 147456
-      },
-      "count": 1,
-      "every_ticks": 0
+      }
     },
     {
       "at_tick": 1,
+      "count": 1,
       "enemy": {
         "base": "bat",
-        "hp": 40,
-        "radius": 2048,
+        "elite": {
+          "range": 1
+        },
+        "hp": 4000,
         "movement": {
-          "type": "hold",
           "at": {
             "x": 76000,
             "y": 147456
-          }
+          },
+          "type": "hold"
         },
-        "rules": [],
-        "elite": {
-          "range": 1
-        }
+        "radius": 2048,
+        "rules": []
       },
+      "every_ticks": 0,
       "spawn": {
         "x": 76000,
         "y": 147456
-      },
-      "count": 1,
-      "every_ticks": 0
-    }
-  ],
-  "boss": {
-    "base": "golem",
-    "hp": 1000000,
-    "radius": 8192,
-    "spawn": {
-      "x": 46080,
-      "y": 40000
-    },
-    "parts": [],
-    "phases": [
-      {
-        "transition": [],
-        "timeline": [],
-        "rules": []
       }
-    ]
-  }
+    }
+  ]
 }

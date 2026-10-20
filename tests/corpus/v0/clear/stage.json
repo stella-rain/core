@@ -1,7 +1,7 @@
 {
   "boss": {
     "base": "golem",
-    "hp": 20,
+    "hp": 2000,
     "phases": [
       {}
     ],
@@ -14,7 +14,7 @@
   "id": "test-stage",
   "length_ticks": 600,
   "player": {
-    "atk": 10,
+    "atk": 1000,
     "base": "pilot_a",
     "evade": {
       "cooldown_ticks": 40,
@@ -22,7 +22,7 @@
       "invulnerable_ticks": 10,
       "ticks": 8
     },
-    "hp": 3,
+    "hp": 300,
     "main": {
       "preset": {
         "id": "blade"
