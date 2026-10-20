@@ -339,6 +339,13 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    # One codegen unit for every bench build of the job, the base commit's included, so that both
+    # sides are counted as `[profile.bench]` of Cargo.toml now builds them. Set here rather than
+    # read from the PR's Cargo.toml, which would also bring the PR's dependencies and features
+    # into the base's count. With the default 16 units, any change to the crate moves what is
+    # inlined into the tick (core#191: +2.01% on arm64 from code no tick calls).
+    env:
+      CARGO_PROFILE_BENCH_CODEGEN_UNITS: "1"
     strategy:
       fail-fast: false
       matrix:

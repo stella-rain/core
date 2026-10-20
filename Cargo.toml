@@ -80,3 +80,8 @@ overflow-checks = true
 
 [profile.bench]
 overflow-checks = true
+# One codegen unit, so that the tick benches count the tick's code (ADR-058). With the default 16,
+# rustc's split of the crate into units moves with any change to the crate, a new module or a
+# dependency's feature, and with it what is inlined in the tick: core#148's pack, which no tick
+# calls, moved the worst-case tick by +2.01% on arm64 that way, and by nothing at one unit.
+codegen-units = 1
