@@ -110,7 +110,9 @@ jobs:
           fi
           sha256sum -c SHA256SUMS
           # Every downloaded file is listed in SHA256SUMS, and every listed file was downloaded.
-          if [ "$(ls | grep -vx SHA256SUMS | sort)" != "$(awk '{print $2}' SHA256SUMS | sed 's/^\*//' | sort)" ]; then
+          listed=$(awk '{print $2}' SHA256SUMS | sed 's/^\*//' | sort)
+          present=$(find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' | sort)
+          if [ "$listed" != "$present" ]; then
             echo "::error::the files of $RC and SHA256SUMS differ"
             exit 1
           fi
