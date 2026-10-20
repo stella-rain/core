@@ -7,7 +7,6 @@ use serde_json::{Value, json};
 use stella_rain_core::behaviour::{BossCall, Elite};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
@@ -90,13 +89,6 @@ fn harmed(events: &[(u32, DomainEvent)]) -> usize {
         matches!(ev, DomainEvent::RuleFired { .. } | DomainEvent::Hit { .. })
     })
     .len()
-}
-
-/// Steps with nothing pressed until the goblin has moved; returns the tick it did.
-fn first_move(e: &mut Engine, input: Input, max: u32) -> u32 {
-    let from = elites(e);
-    run_until(e, input, max, |e| elites(e) != from);
-    e.tick()
 }
 
 // --- Holding, disturbance, flight --------------------------------------------------------------
