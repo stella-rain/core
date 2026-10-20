@@ -298,3 +298,18 @@ fn the_main_character_faces_up_unless_the_map_says_otherwise() {
         "the map's facing"
     );
 }
+
+#[test]
+fn a_bullet_s_lifetime_is_part_of_the_state_hash() {
+    // Two stages that differ only in a bullet's ticks hash differently while the bullet is out,
+    // so a replay that drifts in its lifetimes fails to verify (core#147, determinism rules).
+    let hash_after = |ticks: u32| {
+        let mut e = engine(&one_bullet(Some(ticks)));
+        for _ in 0..5 {
+            e.step(idle());
+        }
+        e.state_hash()
+    };
+    assert_ne!(hash_after(30), hash_after(31));
+    assert_eq!(hash_after(30), hash_after(30));
+}
