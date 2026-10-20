@@ -63,6 +63,8 @@ pub const MAX_DAMAGE_OVER_TIME_RUNES: usize = 16;
 pub const MAX_TIME_LIMIT_WAVES: usize = crate::time_limit::MAX_WAVES;
 /// The most boss times of the `time_limit` mode (4 today; held to the file's own cap).
 pub const MAX_BOSS_TICKS: usize = crate::time_limit::MAX_BOSS_TIMES;
+/// The most tiers in the `time_limit` mode's elite table (3 today; held to the file's own cap).
+pub const MAX_ELITE_TABLE_TIERS: usize = crate::time_limit::MAX_ELITE_TIERS;
 /// The most bosses in the `time_limit` mode's mid-boss pool (3 today; held to the file's own
 /// cap).
 pub const MAX_MID_BOSS_POOL: usize = crate::time_limit::MAX_POOL;
@@ -399,6 +401,8 @@ struct Lists {
     boss_ticks: Vec<IgnoredAny>,
     #[serde(default)]
     mid_boss_pool: Vec<IgnoredAny>,
+    #[serde(default)]
+    elite_table: Vec<IgnoredAny>,
 }
 
 #[derive(Deserialize)]
@@ -498,6 +502,11 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
             "$.modes.time_limit.mid_boss_pool",
             l.mid_boss_pool.len(),
             MAX_MID_BOSS_POOL,
+        )?;
+        budget(
+            "$.modes.time_limit.elite_table",
+            l.elite_table.len(),
+            MAX_ELITE_TABLE_TIERS,
         )?;
     }
     Ok(())

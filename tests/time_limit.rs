@@ -162,6 +162,7 @@ fn each_number_is_under_its_hard_cap() {
     v["length_ticks"] = json!(MAX_BOSS_TIMES as u32 + 1);
     v["mid_boss_pool"] = json!(vec!["golem"; MAX_BOSS_TIMES]);
     v["waves"] = json!([]);
+    v["elite_table"] = json!([tier(0, &[("bat", 1)])]);
     assert_eq!(paths(&v), ["$.boss_ticks"]);
     let pool = vec!["golem"; MAX_POOL + 1];
     assert_eq!(

@@ -46,6 +46,8 @@ fn bosses_at(ticks: &[u32], pool: &[&str]) -> TimeLimit {
         v["boss_ticks"] = json!(ticks);
         v["mid_boss_pool"] = json!(pool);
         v["waves"] = json!([]);
+        v["elite_table"] =
+            json!([{ "start_tick": 0, "weights": [{ "elite": "bat", "weight": 1 }] }]);
     })
 }
 
