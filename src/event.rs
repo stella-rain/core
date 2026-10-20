@@ -77,6 +77,13 @@ pub enum DomainEvent {
     },
     /// A charge ended without an attack: an evade, or a hit from an attack that breaks charges.
     ChargeBroken,
+    /// A held step's hold was let go, or reached its `max_ticks`, after `ticks` ticks held; its
+    /// release attack follows (ADR-084 point 6).
+    HoldReleased {
+        ticks: u32,
+    },
+    /// A hold ended without a release: an evade, or a hit from an attack that breaks charges.
+    HoldBroken,
     /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-036).
     RuleFired {
         agent: EntityId,

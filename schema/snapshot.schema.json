@@ -748,6 +748,27 @@
         }
       ]
     },
+    "HoldView": {
+      "description": "A hold in progress (ADR-084 point 6): the ticks held so far, 0 on the tick it began, and the\nmost it can last. The release comes on the tick the button is let go or the maximum is reached.",
+      "type": "object",
+      "properties": {
+        "held": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_ticks": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "held",
+        "max_ticks"
+      ]
+    },
     "MapView": {
       "description": "The map's width and height, from its top-left corner.",
       "type": "object",
@@ -1030,6 +1051,17 @@
         "facing": {
           "description": "The last non-zero movement direction (ADR-055).",
           "$ref": "#/$defs/Facing"
+        },
+        "hold": {
+          "description": "The current step held, if it is (ADR-084 point 6).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HoldView"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "hp": {
           "type": "integer",

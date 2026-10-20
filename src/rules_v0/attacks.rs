@@ -376,6 +376,15 @@ pub(super) fn in_end_recovery(s: &State, owner: EntityId, slot: u8) -> bool {
     })
 }
 
+/// Whether `owner`'s run in `slot` has just reached the recovery after its last `active` phase,
+/// on its first tick: where a held step's hold begins (ADR-084 point 6).
+pub(super) fn hold_ready(s: &State, owner: EntityId, slot: u8) -> bool {
+    in_end_recovery(s, owner, slot)
+        && s.runs
+            .iter()
+            .any(|r| r.owner == owner && r.slot == slot && r.tick == 0)
+}
+
 /// Ends every run of `owner` (a boss leaving the phase that started them).
 pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
     s.runs.retain(|r| r.owner != owner);

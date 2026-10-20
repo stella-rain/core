@@ -331,6 +331,49 @@
       ]
     },
     {
+      "description": "A held step's hold was let go, or reached its `max_ticks`, after `ticks` ticks held; its\nrelease attack follows (ADR-084 point 6).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "ticks"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "HoldReleased"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "A hold ended without a release: an evade, or a hit from an attack that breaks charges.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "HoldBroken"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    {
       "description": "An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-036).",
       "type": "object",
       "properties": {

@@ -27,7 +27,7 @@ use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, DamageOverTimeView, EntityKind, EntityView,
-    EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView,
+    EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, HoldView, MapView, OfferKind, OrbitView,
     PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
     StatusView, TypeBonusView, WeaponRole,
 };
@@ -462,6 +462,8 @@ impl Engine {
                         perfect,
                     }
                 }),
+                hold: rules_v0::hold_view(&self.stage, s)
+                    .map(|(held, max_ticks)| HoldView { held, max_ticks }),
                 target: s.player.target,
                 skill: s.player.skill.and_then(|slot| {
                     let def = self.content.stage_skills().get(usize::from(slot.index))?;
@@ -849,6 +851,11 @@ pub(crate) struct ComboState {
     pub dash_strike_left: u32,
     /// The current step charging: ticks held, 0 on the tick it began.
     pub charge: Option<u32>,
+    /// The current step held (ADR-084 point 6): ticks held, 0 on the tick it began.
+    pub hold: Option<u32>,
+    /// The current step's hold has released, so its release attack, and its recovery, never
+    /// begins a hold again; a step taken next clears it.
+    pub released: bool,
     /// A press by hand took a step in this combo (ADR-073): auto mode waits, and the combo
     /// becomes the auto combo when it resets, unless it began in the dash branch.
     pub hand: bool,

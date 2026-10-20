@@ -34,7 +34,7 @@ use crate::rewards::Rewards;
 use crate::stage::Stage;
 use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
-use crate::weapon::{Charge, SmashEffect, Step, Weapon};
+use crate::weapon::{Charge, Hold, SmashEffect, Step, Weapon};
 
 use super::PLAYER_SPEED;
 use super::attacks;
@@ -140,7 +140,7 @@ fn move_by(stage: &Stage, p: &mut PlayerState, dx: i64, dy: i64) {
 
 fn move_player(stage: &Stage, s: &mut State, x: i8, y: i8) {
     let keep = speed_pct(&s.player.statuses) * attacks::move_pct(s, s.id_of(Who::Player)) / 100
-        * charge_move_pct(stage, s)
+        * held_move_pct(stage, s)
         / 100;
     let cap = levels::speed(s, i64::from(PLAYER_SPEED) * keep / 100);
     let (dx, dy) = stick_move(x, y, cap);
@@ -244,6 +244,7 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
     c.depth = 0;
     c.dash = false;
     c.window_left = 0;
+    c.released = false;
 }
 
 /// One tick of the combo (ADR-070, ADR-076): see the module's description.
@@ -259,18 +260,21 @@ fn combo(
         charging(stage, s, main, input, ticks, events);
         return;
     }
-    let press = if pressed & input::MAIN != 0 {
-        Some(false)
-    } else if pressed & input::SUB != 0 {
-        Some(true)
-    } else {
-        None
-    };
-    if press.is_some() {
-        s.player.combo.buffered = press;
+    if let Some(ticks) = s.player.combo.hold {
+        holding(stage, s, main, input, pressed, ticks, events);
+        return;
+    }
+    if let Some(press) = press_of_pressed(pressed) {
+        s.player.combo.buffered = Some(press);
     }
     let me = s.id_of(Who::Player);
     let busy = attacks::busy(s, me, COMBO_SLOT);
+    // A held step holds where its recovery would begin, unless a buffered press takes its next
+    // step first (ADR-084 points 3 and 6).
+    if busy && attacks::hold_ready(s, me, COMBO_SLOT) && begins_hold(main, &s.player.combo, input) {
+        begin_hold(stage, s, main, input, events);
+        return;
+    }
     if s.player.combo.running && !busy {
         s.player.combo.running = false;
         s.player.combo.window_left = main.window_ticks;
@@ -304,6 +308,118 @@ fn combo(
         attacks::end_run(s, me, COMBO_SLOT);
         take_step(stage, s, main, sub, by_hand, input, events);
     }
+}
+
+/// The press `pressed` holds, `main` first: `Some(true)` for `sub`.
+fn press_of_pressed(pressed: u8) -> Option<bool> {
+    if pressed & input::MAIN != 0 {
+        Some(false)
+    } else if pressed & input::SUB != 0 {
+        Some(true)
+    } else {
+        None
+    }
+}
+
+/// Whether the step whose recovery begins now holds (ADR-084 point 6): it has a hold, its press
+/// was by hand (auto mode never holds, ADR-073), the button that reached it is still held, and
+/// no buffered press takes a next step, which cancels the recovery instead (point 3).
+fn begins_hold(main: &Weapon, c: &ComboState, input: Input) -> bool {
+    let Some(step) = step_at(main, c) else {
+        return false;
+    };
+    if step.hold.is_none() || !c.hand || c.released {
+        return false;
+    }
+    let still = if last_press_sub(c) {
+        input.sub
+    } else {
+        input.main
+    };
+    let cancels = c.buffered.is_some_and(|sub| step.next.get(sub).is_some());
+    still && !cancels
+}
+
+/// The hold begins on the tick the recovery would: the step's own recovery does not play, and
+/// the loop starts on this tick.
+fn begin_hold(
+    stage: &Stage,
+    s: &mut State,
+    main: &Weapon,
+    input: Input,
+    events: &mut Vec<DomainEvent>,
+) {
+    let me = s.id_of(Who::Player);
+    attacks::end_run(s, me, COMBO_SLOT);
+    s.player.combo.hold = Some(0);
+    spin(stage, s, main, input, events);
+}
+
+/// The loop starts again, as a new attack: its facing is the main character's as it starts
+/// (ADR-069), or the target's with aim assist on (ADR-072).
+fn spin(stage: &Stage, s: &mut State, main: &Weapon, input: Input, events: &mut Vec<DomainEvent>) {
+    let Some(hold) = step_at(main, &s.player.combo).and_then(|st| st.hold.as_ref()) else {
+        return;
+    };
+    strike(stage, s, &hold.loop_attack, 0, input.assist, events);
+}
+
+/// One tick of a hold (ADR-084 point 6): a press is buffered, as during any step. Letting go,
+/// or reaching `max_ticks`, releases with the ticks held; otherwise the hold goes on, and the
+/// loop starts again once the last one has ended.
+fn holding(
+    stage: &Stage,
+    s: &mut State,
+    main: &Weapon,
+    input: Input,
+    pressed: u8,
+    held: u32,
+    events: &mut Vec<DomainEvent>,
+) {
+    if let Some(press) = press_of_pressed(pressed) {
+        s.player.combo.buffered = Some(press);
+    }
+    let c = s.player.combo;
+    let Some(hold) = step_at(main, &c).and_then(|st| st.hold.as_ref()) else {
+        s.player.combo.hold = None;
+        return;
+    };
+    let still = if last_press_sub(&c) {
+        input.sub
+    } else {
+        input.main
+    };
+    if !still {
+        release_hold(stage, s, hold, held, input, events);
+        return;
+    }
+    let held = held.saturating_add(1);
+    if held >= hold.max_ticks {
+        release_hold(stage, s, hold, held, input, events);
+        return;
+    }
+    s.player.combo.hold = Some(held);
+    if !attacks::busy(s, s.id_of(Who::Player), COMBO_SLOT) {
+        spin(stage, s, main, input, events);
+    }
+}
+
+/// The release: the loop ends with the hold, and the release attack starts with its facing
+/// locked (ADR-069). Its recovery is the end lag, as any step's (point 3).
+fn release_hold(
+    stage: &Stage,
+    s: &mut State,
+    hold: &Hold,
+    ticks: u32,
+    input: Input,
+    events: &mut Vec<DomainEvent>,
+) {
+    let me = s.id_of(Who::Player);
+    attacks::end_run(s, me, COMBO_SLOT);
+    s.player.combo.hold = None;
+    s.player.combo.released = true;
+    strike(stage, s, &hold.release, 0, input.assist, events);
+    events.push(DomainEvent::HoldReleased { ticks });
 }
 
 /// What auto mode presses this tick (ADR-073).
@@ -362,6 +478,7 @@ fn take_step(
 ) {
     let c = &mut s.player.combo;
     c.buffered = None;
+    c.released = false;
     let onward = step_at(main, c).is_some_and(|st| st.next.get(sub).is_some());
     if !onward {
         reset(c, events);
@@ -565,27 +682,56 @@ fn cancel(s: &mut State, events: &mut Vec<DomainEvent>) {
     if c.charge.take().is_some() {
         events.push(DomainEvent::ChargeBroken);
     }
+    if c.hold.take().is_some() {
+        events.push(DomainEvent::HoldBroken);
+    }
     c.buffered = None;
     c.running = false;
     reset(c, events);
 }
 
-/// A hit from a phase that breaks charges ends a charge in progress without an attack, and the
-/// combo starts again from the root (ADR-070).
+/// A hit from a phase that breaks charges ends a charge or a hold in progress without an
+/// attack (a hold's loop ends with it), and the combo starts again from the root (ADR-070,
+/// ADR-084 point 6).
 pub(super) fn break_charge(s: &mut State, events: &mut Vec<DomainEvent>) {
-    let c = &mut s.player.combo;
-    if c.charge.take().is_none() {
+    let me = s.id_of(Who::Player);
+    let charging = s.player.combo.charge.take().is_some();
+    let holding = s.player.combo.hold.take().is_some();
+    if !charging && !holding {
         return;
     }
-    events.push(DomainEvent::ChargeBroken);
+    if holding {
+        attacks::end_run(s, me, COMBO_SLOT);
+        events.push(DomainEvent::HoldBroken);
+    }
+    if charging {
+        events.push(DomainEvent::ChargeBroken);
+    }
+    let c = &mut s.player.combo;
     c.buffered = None;
     reset(c, events);
 }
 
-/// The movement speed, in percent, a charge leaves the main character: its `move_pct`, 100
-/// when not charging.
-fn charge_move_pct(stage: &Stage, s: &State) -> i64 {
+/// The movement speed, in percent, a charge or a hold leaves the main character: its
+/// `move_pct`, 100 when neither is on.
+fn held_move_pct(stage: &Stage, s: &State) -> i64 {
+    if let Some(hold) = current_hold(stage, s) {
+        return i64::from(hold.move_pct);
+    }
     current_charge(stage, s).map_or(100, |c| i64::from(c.move_pct))
+}
+
+/// The current step's hold, if it is held.
+fn current_hold<'a>(stage: &'a Stage, s: &State) -> Option<&'a Hold> {
+    s.player.combo.hold?;
+    let main = presets::weapon(&stage.player.weapon)?;
+    step_at(main, &s.player.combo)?.hold.as_ref()
+}
+
+/// The hold's view for the snapshot (ADR-084 point 9): the ticks held and the most it can last.
+pub(crate) fn hold_view(stage: &Stage, s: &State) -> Option<(u32, u32)> {
+    let held = s.player.combo.hold?;
+    Some((held, current_hold(stage, s)?.max_ticks))
 }
 
 /// The presses of `path` from the root, `depth` of them.
