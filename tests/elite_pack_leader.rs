@@ -100,8 +100,10 @@ fn at_leader(at: (i32, i32), aura: Value) -> Value {
     wave(1, 1, 0, leader(at, aura, None), at.0, at.1)
 }
 
-/// 10 pixels to the side of the attacker.
-const NEAR: (i32, i32) = (ATTACKER.0 + 2_560, ATTACKER.1);
+/// 6,000 units (23.4 pixels) to the side of the attacker: their bodies (3,072 and 2,048) do not
+/// overlap, so nothing pushes them apart.
+const REACH: i32 = 6_000;
+const NEAR: (i32, i32) = (ATTACKER.0 + REACH, ATTACKER.1);
 
 fn positions(e: &Engine, elite: bool) -> Vec<(i32, i32)> {
     e.snapshot()
@@ -203,40 +205,39 @@ fn the_enemy_cap_trims_the_escort() {
 #[test]
 fn an_enemy_within_the_radius_deals_a_quarter_more_rounded_down() {
     assert_eq!(first_hurt(shooter(), vec![]), SHOT, "no leader: base");
-    let near = at_leader(NEAR, pack_aura(5_120, 25));
+    let near = at_leader(NEAR, pack_aura(10_000, 25));
     assert_eq!(first_hurt(shooter(), vec![near]), 8, "7 * 125 / 100 = 8");
 }
 
 #[test]
 fn an_enemy_outside_the_radius_deals_the_base() {
-    // 10 pixels away, radius 9 pixels.
-    let far = at_leader(NEAR, pack_aura(2_304, 25));
+    let far = at_leader(NEAR, pack_aura(REACH - 1, 25));
     assert_eq!(first_hurt(shooter(), vec![far]), SHOT);
 }
 
 #[test]
 fn the_radius_includes_its_edge() {
-    let edge = at_leader(NEAR, pack_aura(2_560, 25));
+    let edge = at_leader(NEAR, pack_aura(REACH, 25));
     assert_eq!(first_hurt(shooter(), vec![edge]), 8);
 }
 
 #[test]
 fn two_leaders_do_not_stack_the_highest_bonus_wins() {
-    let a = at_leader(NEAR, pack_aura(5_120, 25));
-    let b = at_leader((NEAR.0, NEAR.1 - 1_024), pack_aura(5_120, 50));
+    let a = at_leader(NEAR, pack_aura(10_000, 25));
+    let b = at_leader((NEAR.0, NEAR.1 - 7_000), pack_aura(10_000, 50));
     assert_eq!(first_hurt(shooter(), vec![a.clone(), b.clone()]), 10);
     // Out of range, the higher one does not count.
-    let b_far = at_leader((NEAR.0, NEAR.1 - 60_000), pack_aura(5_120, 50));
+    let b_far = at_leader((NEAR.0, NEAR.1 - 60_000), pack_aura(10_000, 50));
     assert_eq!(first_hurt(shooter(), vec![a, b_far]), 8);
 }
 
 #[test]
 fn an_elite_is_not_helped_and_neither_is_the_leader() {
-    let aura = at_leader(NEAR, pack_aura(5_120, 25));
+    let aura = at_leader(NEAR, pack_aura(10_000, 25));
     assert_eq!(first_hurt(elite_shooter(), vec![aura]), SHOT);
     // A leader that shoots, standing in its own aura.
     let mut own = elite_shooter();
-    own["elite"]["aura"] = pack_aura(5_120, 25);
+    own["elite"]["aura"] = pack_aura(10_000, 25);
     assert_eq!(first_hurt(own, vec![]), SHOT);
 }
 
@@ -248,14 +249,14 @@ fn the_bonus_ends_with_the_leader_s_death_tick() {
     let lead_at = (START_X, 120_000);
     let side = (START_X + 25_600, START_Y);
     let mut found_same_tick = false;
-    for from in 0..COOLDOWN {
+    for from in 0..2 * COOLDOWN {
         let mut shooter = shooter();
         shooter["movement"] = hold(side.0, side.1);
         let mut waves = vec![wave(1, 1, 0, shooter, side.0, side.1)];
         let mut lead = leader(lead_at, pack_aura(40_960, 25), None);
         lead["hp"] = json!(10);
         waves.push(wave(1, 1, 0, lead, lead_at.0, lead_at.1));
-        let mut e = engine(&stage(waves));
+        let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![]));
         let mut events = Vec::new();
         for _ in 0..400 {
             let input = Input {

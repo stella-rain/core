@@ -964,6 +964,8 @@ pub(crate) enum AgentSource {
     BossRule,
     /// Rung around a shrine: `index` is the shrine's wave.
     Guardian,
+    /// Brought by a pack leader: `index` is the leader's wave.
+    Escort,
 }
 
 /// A companion or an enemy: a movement and a rule list (ADR-036 tier 1).
@@ -1025,6 +1027,8 @@ pub(crate) struct EliteState {
     pub called: bool,
     /// What the boss's call does to it; its definition's, so not part of the hash.
     pub boss_call: BossCall,
+    /// A pack leader's aura; its definition's, so not part of the hash.
+    pub aura: Option<crate::behaviour::Aura>,
 }
 
 #[derive(Clone, Copy, Debug)]
