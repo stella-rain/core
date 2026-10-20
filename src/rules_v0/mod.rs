@@ -673,6 +673,18 @@ fn profile<'a>(stage: &'a Stage, s: &State, target: Who) -> Option<&'a Profile> 
     }
 }
 
+/// The lowest live enemy a shot at `at` lands on past the mimics in disguise from `first` on:
+/// the rare shot that lands on one.
+#[cold]
+fn past_hidden(s: &State, grid: &Grid, at: Point, mut first: Option<usize>) -> Option<usize> {
+    while let Some(i) = first.filter(|&i| s.enemies[i].hidden()) {
+        first = grid.first_hit(at, PLAYER_BULLET_RADIUS, |j| {
+            j > i && s.enemies[j].hp > 0 && s.enemies[j].shrine.is_none()
+        });
+    }
+    first
+}
+
 /// An ally's shot against the enemies in ID order, then the boss. Returns whether it was used up.
 /// `grid` holds the enemies of this tick, so only those near the shot are checked.
 fn hit_enemy_side(
@@ -682,10 +694,15 @@ fn hit_enemy_side(
     b: Shot,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    // A shot passes through a shrine and a mimic in disguise.
-    let hittable =
-        |i: usize| s.enemies[i].hp > 0 && s.enemies[i].shrine.is_none() && !s.enemies[i].hidden();
-    if let Some(i) = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, hittable) {
+    // A shot passes through a shrine.
+    let hittable = |i: usize| s.enemies[i].hp > 0 && s.enemies[i].shrine.is_none();
+    let mut first = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, hittable);
+    // And through a mimic in disguise. Checked on the one found rather than in `hittable`, which
+    // runs for every enemy near every bullet (ADR-058).
+    if first.is_some_and(|i| s.enemies[i].hidden()) {
+        first = past_hidden(s, grid, b.at, first);
+    }
+    if let Some(i) = first {
         damage(stage, s, b, Who::Enemy(i), events);
         if let Some(pull) = b.pull {
             pull_enemy(stage, s, i, pull);
