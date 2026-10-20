@@ -26,6 +26,7 @@ use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, hash_from_hex, hash_to_hex};
 use stella_rain_core::run_content::RunContent;
@@ -1051,6 +1052,200 @@ fn the_run_cases_are_what_their_names_say() {
         used.len() >= 2 && used.iter().all(|u| *u == ("black_hole".into(), 1)),
         "the black hole is used more than once: {used:?}"
     );
+}
+
+/// The kind of elite a spawned one is, told from what the snapshot shows of it on the tick it
+/// comes (the mode's elite types, whose sprites are shared): a mimic by its disguise, a shrine
+/// by the golem it stands as, a leader by its aura; the rest by sprite and hit points.
+fn elite_kind(asset: &str, hp: u32, aura: bool) -> &'static str {
+    match (asset, hp) {
+        ("icon_hex", _) => "mimic",
+        ("golem", _) => "shrine",
+        ("horns_2", _) if aura => "leader",
+        ("horns_2", _) => "high",
+        ("bat", _) => "low",
+        ("fairy_a", 120) => "goblin",
+        ("fairy_a", _) => "mid",
+        other => panic!("no elite type looks like {other:?}"),
+    }
+}
+
+/// What the `elites` run case does, found by re-simulating it from its file.
+#[derive(Default)]
+struct EliteReach {
+    /// Each elite spawned: its kind and the tick it came.
+    spawned: Vec<(EntityId, &'static str, u32)>,
+    /// The most elites alive at once (a disguised mimic counts).
+    peak: usize,
+    /// The elite minutes, whole minutes before the length that start no boss, on whose tick the
+    /// cap on elites alive was full and nobody came.
+    held_back: Vec<u32>,
+    /// The elites that left, with the tick they did.
+    left: Vec<(EntityId, u32)>,
+    /// The shrines the main character touched, and the elites that died.
+    activated: Vec<EntityId>,
+    died: Vec<EntityId>,
+    revealed: Vec<EntityId>,
+    /// The damage of every hit on the main character.
+    hurts: Vec<(u32, u32)>,
+    /// The tick the first boss came.
+    boss_at: Option<u32>,
+    /// Each call of a boss: its tick, the elites it called, the kinds alive then that it called
+    /// by the rules (all but a shrine, a goblin and a mimic still disguised) and those it skipped.
+    calls: Vec<Call>,
+}
+
+/// A boss's call of its elites: its tick, how many it called, and the kinds of the elites alive
+/// then that join and of those that do not.
+type Call = (u32, u32, Vec<&'static str>, Vec<&'static str>);
+
+impl EliteReach {
+    fn of(&self, kind: &str) -> Vec<(EntityId, u32)> {
+        let found = self.spawned.iter().filter(|s| s.1 == kind);
+        found.map(|s| (s.0, s.2)).collect()
+    }
+}
+
+fn elite_reach(name: &str) -> EliteReach {
+    let case = runs_dir().join(name);
+    let content = case_content(&case).unwrap();
+    let bytes = fs::read(case.join("run.replay")).unwrap();
+    let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
+    assert_eq!(
+        verified.outcome,
+        Outcome::Failed,
+        "`{name}` ends by the overtime"
+    );
+    let replay = RunReplay::from_bytes(&bytes).unwrap();
+    let mode = content.time_limit();
+    let mut engine = Engine::start_with(&replay.setup, &content).unwrap();
+    let commands = replay.unpack_commands().unwrap();
+    let mut next = commands.iter().peekable();
+    let mut r = EliteReach::default();
+    let mut hp = engine.snapshot().player.hp;
+    for input in replay.unpack_inputs(u32::MAX).unwrap() {
+        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
+            apply(&mut engine, c).unwrap();
+        }
+        engine.step(input);
+        let (tick, s) = (engine.tick(), engine.snapshot());
+        let alive: Vec<_> = s
+            .entities
+            .iter()
+            .filter(|e| e.kind == EntityKind::Enemy && (e.elite || e.disguised))
+            .collect();
+        r.peak = r.peak.max(alive.len());
+        if r.boss_at.is_none() && s.entities.iter().any(|e| e.kind == EntityKind::Boss) {
+            r.boss_at = Some(tick);
+        }
+        let events = engine.events();
+        let came = events
+            .iter()
+            .any(|e| matches!(e, DomainEvent::EliteSpawned { .. }));
+        let is_minute = tick % 3600 == 0
+            && tick < mode.length_ticks()
+            && !mode.boss_ticks().contains(&tick)
+            && tick > 0;
+        if is_minute && !came && alive.len() == usize::from(mode.elite_cap()) {
+            r.held_back.push(tick);
+        }
+        for e in events {
+            match e {
+                DomainEvent::EliteSpawned { elite, .. } => {
+                    let v = s.entities.iter().find(|v| v.id == *elite).unwrap();
+                    r.spawned.push((
+                        *elite,
+                        elite_kind(&v.asset.0, v.hp, v.aura_radius.is_some()),
+                        tick,
+                    ));
+                }
+                DomainEvent::EliteLeft { elite } => r.left.push((*elite, tick)),
+                DomainEvent::ShrineActivated { elite } => r.activated.push(*elite),
+                DomainEvent::Died { entity } => r.died.push(*entity),
+                DomainEvent::MimicRevealed { elite } => r.revealed.push(*elite),
+                DomainEvent::PlayerHit { hp_left } => {
+                    r.hurts.push((tick, hp.saturating_sub(*hp_left)));
+                }
+                DomainEvent::ElitesCalled { elites } => {
+                    // The kinds of the elites alive that this call did not call: the ones that
+                    // stay, the disguised mimics and the goblins (which left with the boss).
+                    let kind = |id: EntityId| r.spawned.iter().find(|s| s.0 == id).unwrap().1;
+                    let (mut called, mut skipped) = (Vec::new(), Vec::new());
+                    for v in &alive {
+                        let k = kind(v.id);
+                        let skip = k == "shrine" || k == "goblin" || v.disguised;
+                        if skip { &mut skipped } else { &mut called }.push(k);
+                    }
+                    r.calls.push((tick, *elites, called, skipped));
+                }
+                _ => {}
+            }
+        }
+        hp = s.player.hp;
+    }
+    r
+}
+
+#[test]
+fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
+    let r = elite_reach("elites");
+    // Every elite type spawns.
+    for kind in ["low", "mid", "high", "goblin", "leader", "shrine", "mimic"] {
+        assert!(!r.of(kind).is_empty(), "no {kind} spawns: {:?}", r.spawned);
+    }
+    // The cap of 5 is reached, never passed, and an elite minute is held back by it.
+    assert_eq!(r.peak, 5, "the most elites alive");
+    assert!(
+        !r.held_back.is_empty(),
+        "no elite minute is held back by the cap"
+    );
+    let boss = r.boss_at.expect("a boss comes");
+    // A goblin is disturbed and leaves, before any boss; another leaves when the boss comes.
+    let goblins = r.of("goblin");
+    let left_at = |id| r.left.iter().find(|l| l.0 == id).map(|l| l.1);
+    assert!(
+        goblins
+            .iter()
+            .any(|g| left_at(g.0).is_some_and(|t| t + 1 < boss)),
+        "no goblin leaves on its own: {:?}",
+        r.left
+    );
+    assert!(
+        goblins.iter().any(|g| left_at(g.0) == Some(boss)),
+        "no goblin leaves with the boss at {boss}: {:?}",
+        r.left
+    );
+    // A shrine is touched and its fight ends, cleared (it dies) or failed (it leaves).
+    let shrines = r.of("shrine");
+    assert!(
+        shrines.iter().any(
+            |s| r.activated.contains(&s.0) && (r.died.contains(&s.0) || left_at(s.0).is_some())
+        ),
+        "no shrine is touched and done"
+    );
+    // A mimic is revealed.
+    assert!(r.of("mimic").iter().any(|m| r.revealed.contains(&m.0)));
+    // A leader's aura raises a hit: an escort shot of 1 lands as 2 (1 * 200 / 100). Before the
+    // middle grade's elite comes (minute 8, the first to shoot for 2) nothing else deals 2.
+    assert!(
+        r.hurts.iter().any(|&(t, damage)| t < 28_800 && damage == 2),
+        "no hit of 2: {:?}",
+        r.hurts
+    );
+    // The boss calls the elites that join, and skips a shrine, a disguised mimic and a goblin
+    // that is still on the map.
+    // (A boss's call is due at once in a run, whose tick counts from its start, so it comes on
+    // the tick the boss does.)
+    let (tick, elites, called, skipped) = r.calls.first().cloned().expect("a boss calls");
+    assert_eq!(tick, boss, "the call comes with the boss");
+    assert_eq!(
+        usize::try_from(elites).unwrap(),
+        called.len(),
+        "{called:?} {skipped:?}"
+    );
+    assert!(elites >= 1, "an elite is called");
+    assert!(skipped.contains(&"shrine"), "{skipped:?}");
+    assert!(skipped.contains(&"mimic"), "{skipped:?}");
 }
 
 #[test]
