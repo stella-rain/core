@@ -1,4 +1,4 @@
-# The long fuzz run of the five fuzz targets (ADR-020 item 7, ADR-054): every week, on demand,
+# The long fuzz run of the six fuzz targets (ADR-020 item 7, ADR-054): every week, on demand,
 # and as a reusable workflow for the release checks of `main` into `rc` (core#24 calls it).
 # `rust.yml` keeps the 60-second run of a PR that touches parsing.
 #
@@ -46,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [stage_parse, stage_run, replay_load, share_decode, run_setup]
+        target: [stage_parse, stage_run, replay_load, share_decode, run_setup, pack_load]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -60,12 +60,13 @@ jobs:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
           restore-keys: fuzz-corpus-${{ matrix.target }}-
-      # The corpus stages and replays, the run setups of tests/fixtures/run_setup/ and the bundled
-      # content/ files are the seeds; nothing generated is committed. stage_parse also reads its
-      # bytes as rewards and run stats, so the content files seed the stage targets too.
+      # The corpus stages and replays, the run setups of tests/fixtures/run_setup/, the bundled
+      # content/ files and the bundled content pack (`content-pack export`) are the seeds;
+      # nothing generated is committed. stage_parse also reads its bytes as rewards and run stats,
+      # so the content files seed the stage targets too.
       - name: Seeds from the replay corpus
         run: |
-          mkdir -p seeds/stage seeds/replay seeds/setup
+          mkdir -p seeds/stage seeds/replay seeds/setup seeds/pack
           for dir in tests/corpus/v0/*/; do
             name=$(basename "$dir")
             cp "$dir/stage.json" "seeds/stage/$name.json"
@@ -76,6 +77,7 @@ jobs:
           done
           cp tests/fixtures/run_setup/*.json seeds/setup/
           cp content/*.json seeds/stage/
+          cargo run --locked --bin content-pack -- export > seeds/pack/bundled.pack
       - name: Fuzz ${{ matrix.target }}
         env:
           TARGET: ${{ matrix.target }}
@@ -85,6 +87,7 @@ jobs:
             stage_*) seeds=seeds/stage ;;
             replay_load) seeds=seeds/replay ;;
             run_setup) seeds=seeds/setup ;;
+            pack_load) seeds=seeds/pack ;;
             *) seeds= ;;
           esac
           mkdir -p "fuzz/corpus/$TARGET"
@@ -98,7 +101,7 @@ jobs:
         with:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
-      # A crash input is a stage, replay or share code; replay it with
+      # A crash input is a stage, replay, pack or share code; replay it with
       # `cargo fuzz run <target> <file>` and keep it in fuzz/regressions/<target>/ with the fix.
       - name: Upload the crash inputs
         if: failure()
