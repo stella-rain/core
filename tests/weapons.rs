@@ -51,8 +51,8 @@ fn test_weapon(window: u32) -> Value {
         "combo": {
             "main": { "attack": swing(A), "next": {
                 "main": { "attack": swing(AA), "next": { "main": step(swing(AAA)) } },
-                "sub": step(swing(AB)) } },
-            "sub": step(swing(B))
+                "smash": step(swing(AB)) } },
+            "smash": step(swing(B))
         },
         "dash": { "main": step(swing(D)) },
         "window_ticks": window, "dash_strike_ticks": DASH_STRIKE,
@@ -69,7 +69,7 @@ fn combo_stage(window: u32) -> Stage {
 }
 
 /// The inputs of ticks 1 to `ticks`: on each tick of `presses` the buttons its letters name
-/// are held, for that tick only: `a` (`main`), `b` (`sub`), `x` (`evade`).
+/// are held, for that tick only: `a` (`main`), `b` (`smash`), `x` (`evade`).
 fn presses(presses: &[(u32, &str)], ticks: u32) -> Vec<Input> {
     (1..=ticks)
         .map(|t| {
@@ -79,7 +79,7 @@ fn presses(presses: &[(u32, &str)], ticks: u32) -> Vec<Input> {
                 .map_or("", |(_, keys)| *keys);
             Input {
                 main: held.contains('a'),
-                sub: held.contains('b'),
+                smash: held.contains('b'),
                 evade: held.contains('x'),
                 ..idle()
             }
@@ -181,7 +181,7 @@ fn one_press_is_buffered_and_the_latest_wins() {
         &combo_stage(WINDOW),
         &presses(&[(1, "a"), (3, "a"), (4, "b")], 20),
     );
-    assert_eq!(p.steps(), [(1, Press::Main, 1), (5, Press::Sub, 2)]);
+    assert_eq!(p.steps(), [(1, Press::Main, 1), (5, Press::Smash, 2)]);
     assert_eq!(p.shots, [(3, A), (7, AB)]);
 }
 
@@ -196,7 +196,7 @@ fn a_and_b_on_one_tick_count_as_a() {
 #[test]
 fn b_takes_its_own_branch_from_the_root() {
     let p = played(&combo_stage(WINDOW), &presses(&[(1, "b")], 20));
-    assert_eq!(p.steps(), [(1, Press::Sub, 1)]);
+    assert_eq!(p.steps(), [(1, Press::Smash, 1)]);
     assert_eq!(p.shots, [(3, B)]);
 }
 
@@ -260,7 +260,7 @@ fn the_snapshot_shows_the_combo_and_the_buffered_press() {
     let combo = e.snapshot().player.combo;
     assert_eq!(
         (combo.presses, combo.dash, combo.buffered),
-        (vec![Press::Main], false, Some(Press::Sub))
+        (vec![Press::Main], false, Some(Press::Smash))
     );
 }
 
@@ -316,7 +316,7 @@ fn pulling(target: Value, dy: i32, levels: bool) -> Stage {
             vec![],
         ),
         with_smash(
-            weapon_combo(json!({ "main": step(blow()), "sub": step(blow()) })),
+            weapon_combo(json!({ "main": step(blow()), "smash": step(blow()) })),
             6_144,
             6,
         ),
@@ -373,7 +373,7 @@ fn an_elite_and_the_boss_resist_the_pull() {
     assert_eq!(after_blow(&pulling(elite, 10_240, true), "b"), 10_240);
     let mut stage = armed(
         stage_full(600, Some(boss_at(1000, START_Y - 10_240)), vec![], vec![]),
-        with_smash(weapon_combo(json!({ "sub": step(blow()) })), 6_144, 6),
+        with_smash(weapon_combo(json!({ "smash": step(blow()) })), 6_144, 6),
     );
     stage.player.hp = 99;
     let mut e = engine(&stage);
@@ -419,7 +419,7 @@ fn a_preset_and_its_inline_copy_run_the_same() {
     for t in 0..160 {
         let input = Input {
             main: matches!(t, 0 | 8 | 120) || (16..70).contains(&t),
-            sub: t == 90 || t == 98,
+            smash: t == 90 || t == 98,
             evade: t == 118,
             ..if t < 130 { idle() } else { moving(40, -20) }
         };
@@ -455,7 +455,7 @@ fn weapon_of(id: &str) -> &'static stella_rain_core::weapon::Weapon {
     presets::weapon_preset(id).expect("a weapon preset")
 }
 
-/// The step that a press sequence reaches from `branches`: `A` for `main`, `B` for `sub`.
+/// The step that a press sequence reaches from `branches`: `A` for `main`, `B` for `smash`.
 fn step_at<'a>(branches: &'a Branches, presses: &str) -> Option<&'a Step> {
     let mut at = branches;
     let mut found = None;
@@ -467,12 +467,12 @@ fn step_at<'a>(branches: &'a Branches, presses: &str) -> Option<&'a Step> {
     found
 }
 
-/// Every step of `branches` with whether a `sub` press reached it (a smash), depth first.
+/// Every step of `branches` with whether a `smash` press reached it (a smash), depth first.
 fn steps(branches: &Branches) -> Vec<(bool, &Step)> {
     let mut out = Vec::new();
-    for sub in [false, true] {
-        if let Some(step) = branches.get(sub) {
-            out.push((sub, step));
+    for smash in [false, true] {
+        if let Some(step) = branches.get(smash) {
+            out.push((smash, step));
             out.extend(steps(&step.next));
         }
     }
@@ -507,8 +507,8 @@ fn a_smash_ends_its_combo_in_every_weapon() {
     // ADR-084 point 2: after a B press the combo ends, the dash branch included.
     for id in presets::weapon_ids() {
         let w = weapon_of(id);
-        for (sub, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
-            if sub {
+        for (smash, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
+            if smash {
                 assert!(step.next.is_empty(), "{id}: a smash has a next step");
             }
         }
@@ -563,7 +563,7 @@ fn the_giant_sword_takes_the_vindictus_shape() {
     assert_eq!(charge.levels.len(), 2);
     assert!(charge.levels.iter().all(|l| l.perfect_pct == 50));
     // The dash branch: a lunge thrust, then a dash smash.
-    let dash = |sub: bool| w.dash.get(sub).expect("a dash step");
+    let dash = |smash: bool| w.dash.get(smash).expect("a dash step");
     assert_eq!(
         active_types(&dash(false).attack),
         [Some(DamageType::Pierce)]
@@ -590,7 +590,7 @@ fn the_giant_hammer_spins_wider_with_each_normal_attack() {
     assert!(step_at(&w.combo, "AAA").unwrap().charge.is_none());
     // AAA's only next step is the smash AAAB.
     let next = &step_at(&w.combo, "AAA").unwrap().next;
-    assert!(next.main.is_none() && next.sub.is_some());
+    assert!(next.main.is_none() && next.smash.is_some());
 }
 
 #[test]
@@ -643,7 +643,7 @@ fn unlock_weapon(with_step: bool, unlock: Option<&str>) -> Value {
         if let Some(id) = unlock {
             aab["unlock"] = json!(id);
         }
-        w["inline"]["combo"]["main"]["next"]["main"]["next"]["sub"] = aab;
+        w["inline"]["combo"]["main"]["next"]["main"]["next"]["smash"] = aab;
     }
     w
 }
@@ -674,7 +674,7 @@ fn a_step_opens_with_its_upgrade() {
         [
             (1, Press::Main, 1),
             (5, Press::Main, 2),
-            (9, Press::Sub, 3),
+            (9, Press::Smash, 3),
             (13, Press::Main, 4)
         ]
     );

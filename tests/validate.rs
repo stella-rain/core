@@ -1145,11 +1145,11 @@ fn with_smash(distance: i32, ticks: u32) -> Value {
 const CHARGE: &str = "$.player.weapon.inline.combo.main.charge";
 
 /// A tree of `n` slashes, breadth first: step `i` leads to `2i + 1` by `main` and `2i + 2` by
-/// `sub`, so 33 steps are only 6 deep.
+/// `smash`, so 33 steps are only 6 deep.
 fn tree(n: usize) -> Value {
     fn node(i: usize, n: usize) -> Value {
         let mut s = step(slash());
-        for (key, child) in [("main", 2 * i + 1), ("sub", 2 * i + 2)] {
+        for (key, child) in [("main", 2 * i + 1), ("smash", 2 * i + 2)] {
             if child < n {
                 s["next"][key] = node(child, n);
             }
@@ -1206,7 +1206,7 @@ fn a_step_s_unlock_names_a_registered_upgrade() {
     // in the dash branch too.
     let unlocked = |id: &str| {
         with_combo(chain(1), |w| {
-            w["combo"]["main"]["next"]["sub"] = json!({
+            w["combo"]["main"]["next"]["smash"] = json!({
                 "attack": slash(), "unlock": id });
         })
     };
@@ -1214,7 +1214,7 @@ fn a_step_s_unlock_names_a_registered_upgrade() {
     for bad in ["no_such_upgrade", "giant_sword", "Giant"] {
         assert_eq!(
             first_issue(&unlocked(bad)).path,
-            "$.player.weapon.inline.combo.main.next.sub.unlock",
+            "$.player.weapon.inline.combo.main.next.smash.unlock",
             "{bad}"
         );
     }
@@ -1230,20 +1230,20 @@ fn a_step_s_unlock_names_a_registered_upgrade() {
 #[test]
 fn a_combo_step_s_attack_is_checked_where_it_is() {
     let v = with_combo(chain(1), |w| {
-        w["combo"]["main"]["next"]["sub"] = step(json!({ "preset": { "id": "no_such_attack" } }))
+        w["combo"]["main"]["next"]["smash"] = step(json!({ "preset": { "id": "no_such_attack" } }))
     });
     assert_eq!(
         first_issue(&v).path,
-        "$.player.weapon.inline.combo.main.next.sub.attack.preset.id"
+        "$.player.weapon.inline.combo.main.next.smash.attack.preset.id"
     );
     let dash =
         with_combo(
             chain(1),
-            |w| w["dash"] = json!({ "sub": step(json!({ "preset": { "id": "giant_sword" } })) }),
+            |w| w["dash"] = json!({ "smash": step(json!({ "preset": { "id": "giant_sword" } })) }),
         );
     assert_eq!(
         first_issue(&dash).path,
-        "$.player.weapon.inline.dash.sub.attack.preset.id"
+        "$.player.weapon.inline.dash.smash.attack.preset.id"
     );
 }
 

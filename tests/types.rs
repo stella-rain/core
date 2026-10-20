@@ -89,7 +89,7 @@ fn input_record_holds_the_stick_four_buttons_and_two_switches_only() {
         move_x: -127,
         move_y: 64,
         main: true,
-        sub: false,
+        smash: false,
         evade: true,
         skill: false,
         assist: true,
@@ -105,18 +105,18 @@ fn input_record_holds_the_stick_four_buttons_and_two_switches_only() {
     assert_eq!(
         keys,
         [
-            "assist", "auto", "evade", "main", "move_x", "move_y", "skill", "sub"
+            "assist", "auto", "evade", "main", "move_x", "move_y", "skill", "smash"
         ]
     );
     assert_eq!(serde_json::from_value::<Input>(value).unwrap(), input);
-    let all = r#""move_x":0,"move_y":0,"main":false,"sub":false,"evade":false,"skill":false,"assist":false,"auto":false"#;
+    let all = r#""move_x":0,"move_y":0,"main":false,"smash":false,"evade":false,"skill":false,"assist":false,"auto":false"#;
     assert!(serde_json::from_str::<Input>(&format!("{{{all}}}")).is_ok());
     for bad in [
         format!(r#"{{{all},"device":"touch"}}"#),
         format!(r#"{{{all},"charge":true}}"#),
         format!(r#"{{{all},"fire":true}}"#),
         format!("{{{}}}", all.replace(r#""move_x":0"#, r#""move_x":128"#)),
-        r#"{"move_x":0,"move_y":0,"main":false,"sub":false,"evade":false}"#.to_string(),
+        r#"{"move_x":0,"move_y":0,"main":false,"smash":false,"evade":false}"#.to_string(),
     ] {
         assert!(serde_json::from_str::<Input>(&bad).is_err(), "{bad}");
     }

@@ -37,7 +37,7 @@ fn script(tick: u32) -> Input {
         move_y: 0,
         evade: tick % 50 == 25,
         main: (tick / 45) % 3 == 1,
-        sub: tick % 9 == 0,
+        smash: tick % 9 == 0,
         ..Input::default()
     }
 }

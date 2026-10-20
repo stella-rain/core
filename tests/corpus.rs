@@ -450,12 +450,12 @@ fn firing_for(ticks: u32) -> Vec<Input> {
 }
 
 /// The `giant_sword` played by hand in a 60-tick cycle from tick `t`: `main` on 0, 8 and 16 (slash,
-/// slash, thrust) and `sub` on 40 and 48 (two smashes from the root, each a slash that pulls).
+/// slash, thrust) and `smash` on 40 and 48 (two smashes from the root, each a slash that pulls).
 fn combos(t: u32, input: Input) -> Input {
     let c = t % 60;
     Input {
         main: matches!(c, 0 | 8 | 16),
-        sub: c == 40 || c == 48,
+        smash: c == 40 || c == 48,
         ..input
     }
 }
@@ -526,14 +526,14 @@ fn bullets() -> Definition {
             { "type": "loop" } ] }]
     });
     // The weapons are the `giant_sword` and the `giant_hammer`: the giant_sword's combos by hand, with the giant_hammer's
-    // pull on the steps reached by `sub`. The boss stands far out of reach.
+    // pull on the steps reached by `smash`. The boss stands far out of reach.
     let stage = armed(
         stage_full(600, Some(boss), vec![], vec![]),
         json!({ "preset": { "id": "giant_sword" } }),
     );
     // Half speed from side to side, turning to face up the field once a second, and evading
     // twice. `main` on ticks 0 and 8 (slash, slash), then on 16 held to 68 (the thrust charged
-    // to level 2, 52 ticks, released inside its perfect window: a slam); `sub` on 100 and 108
+    // to level 2, 52 ticks, released inside its perfect window: a slam); `smash` on 100 and 108
     // (thrust, slash); `main` on 133, during the evade of tick 130 (the dash-strike); `main` on
     // 170 and 178, then on 186 held until the evade of tick 230 breaks the charge; and the
     // switches and the stage skill pressed now and then. The boss stays out of the giant_sword's
@@ -553,7 +553,7 @@ fn bullets() -> Definition {
                 main: matches!(t, 0 | 8 | 133 | 170 | 178)
                     || (16..68).contains(&t)
                     || (186..240).contains(&t),
-                sub: t == 100 || t == 108,
+                smash: t == 100 || t == 108,
                 skill: t % 50 == 7,
                 assist: (t / 70) % 2 == 1,
                 auto: (t / 90) % 2 == 1,

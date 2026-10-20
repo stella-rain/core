@@ -35,7 +35,7 @@ fn swing() -> Value {
 /// for A. `first` is the step A, so a test can make it charge.
 fn weapon(first: Value) -> Value {
     json!({ "inline": {
-        "combo": { "main": first, "sub": step(swing()) },
+        "combo": { "main": first, "smash": step(swing()) },
         "dash": { "main": step(swing()) },
         "window_ticks": WINDOW, "dash_strike_ticks": 5, "assist_range": RANGE
     } })
@@ -44,7 +44,7 @@ fn weapon(first: Value) -> Value {
 fn a_step() -> Value {
     json!({ "attack": swing(), "next": {
         "main": { "attack": swing(), "next": { "main": step(swing()) } },
-        "sub": step(swing()) } })
+        "smash": step(swing()) } })
 }
 
 /// A step A that charges while held, with the same next steps.
@@ -73,7 +73,7 @@ fn target_above() -> Stage {
 }
 
 /// The inputs of ticks 1 to `ticks` with `auto` on: on each tick of `presses` the buttons its
-/// letters name are held, for that tick only: `a` (`main`), `b` (`sub`), `x` (`evade`).
+/// letters name are held, for that tick only: `a` (`main`), `b` (`smash`), `x` (`evade`).
 fn auto(presses: &[(u32, &str)], ticks: u32) -> Vec<Input> {
     (1..=ticks)
         .map(|t| {
@@ -83,7 +83,7 @@ fn auto(presses: &[(u32, &str)], ticks: u32) -> Vec<Input> {
                 .map_or("", |(_, keys)| *keys);
             Input {
                 main: held.contains('a'),
-                sub: held.contains('b'),
+                smash: held.contains('b'),
                 evade: held.contains('x'),
                 auto: true,
                 ..idle()
@@ -122,7 +122,7 @@ fn auto_combo(e: &Engine) -> Vec<Press> {
 }
 
 const M: Press = Press::Main;
-const S: Press = Press::Sub;
+const S: Press = Press::Smash;
 
 // --- Playing the auto combo --------------------------------------------------------------------
 

@@ -180,10 +180,10 @@ fn letting_go_before_the_recovery_is_a_plain_step() {
 
 #[test]
 fn a_press_during_the_hold_is_taken_after_the_release() {
-    let next = json!({ "sub": { "attack": own() } });
+    let next = json!({ "smash": { "attack": own() } });
     let inputs = (1..).take(12).map(|t| Input {
         main: t <= 7,
-        sub: t == 5,
+        smash: t == 5,
         ..idle()
     });
     let (_, t) = run(&stage(held_step(180, 0, 0, next)), inputs);
@@ -192,7 +192,7 @@ fn a_press_during_the_hold_is_taken_after_the_release() {
         matches!(
             ev,
             DomainEvent::ComboStep {
-                press: Press::Sub,
+                press: Press::Smash,
                 ..
             }
         )
