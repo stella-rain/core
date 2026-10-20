@@ -20,13 +20,18 @@
       "items": {
         "$ref": "#/$defs/RunStat"
       }
+    },
+    "stun": {
+      "description": "The stun rules.",
+      "$ref": "#/$defs/StunRules"
     }
   },
   "additionalProperties": false,
   "required": [
     "schema_version",
     "sim_version",
-    "stats"
+    "stats",
+    "stun"
   ],
   "$defs": {
     "ContentId": {
@@ -109,6 +114,29 @@
           "type": "string",
           "const": "xp_pct"
         }
+      ]
+    },
+    "StunRules": {
+      "description": "The stun rules (ADR-085 points 4 and 6): run rules read with the stats, as they are content\ntoo. Both are tuning values; that each is bounded is the decision.",
+      "type": "object",
+      "properties": {
+        "elite_pct": {
+          "description": "The share of a stun's ticks an elite takes, in percent, 0 to 100.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "immune_ticks": {
+          "description": "Ticks after a stun ends in which the enemy cannot be stunned again, 0 to\n`MAX_STUN_IMMUNE_TICKS`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "immune_ticks",
+        "elite_pct"
       ]
     }
   }

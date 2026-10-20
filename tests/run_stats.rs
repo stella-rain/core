@@ -13,7 +13,8 @@ use stella_rain_core::run_replay::{
 };
 use stella_rain_core::run_stats::{
     MAX_ATTACK_SPEED_PCT, MAX_DESCRIPTION_CHARS, MAX_HP_STEP, MAX_LIMIT, MAX_RUN_STATS_BYTES,
-    MAX_STATS, MAX_STEP, MAX_TITLE_CHARS, RunStats, StatEffect, capped_attack_speed_pct,
+    MAX_STATS, MAX_STEP, MAX_STUN_IMMUNE_TICKS, MAX_TITLE_CHARS, RunStats, StatEffect,
+    capped_attack_speed_pct,
 };
 use stella_rain_core::validate::Error;
 
@@ -33,7 +34,19 @@ fn stat(id: &str) -> Value {
 }
 
 fn file(stats: Vec<Value>) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0, "stats": stats })
+    json!({
+        "schema_version": 0,
+        "sim_version": 0,
+        "stats": stats,
+        "stun": { "immune_ticks": 60, "elite_pct": 50 },
+    })
+}
+
+/// One valid stat with the stun rules `stun` in place of the bundled ones.
+fn with_stun(stun: Value) -> Value {
+    let mut v = file(vec![stat("speed")]);
+    v["stun"] = stun;
+    v
 }
 
 fn parse(v: &Value) -> Result<RunStats, Error> {
@@ -280,4 +293,28 @@ fn the_attack_speed_total_saturates_at_its_cap() {
         MAX_ATTACK_SPEED_PCT
     );
     assert_eq!(capped_attack_speed_pct(u32::MAX), MAX_ATTACK_SPEED_PCT);
+}
+
+#[test]
+fn the_stun_rules_are_bounded_and_the_bundled_ones_are_the_placeholders() {
+    // ADR-085 points 4 and 6: the immunity after a stun and the elite's share of it, run rules
+    // in the run stats file (ADR-067), both bounded (ADR-020).
+    let bundled = RunStats::bundled().stun();
+    assert_eq!((bundled.immune_ticks, bundled.elite_pct), (60, 50));
+    assert!(parse(&with_stun(json!({ "immune_ticks": 0, "elite_pct": 0 }))).is_ok());
+    assert!(
+        parse(&with_stun(json!({
+            "immune_ticks": MAX_STUN_IMMUNE_TICKS,
+            "elite_pct": 100,
+        })))
+        .is_ok()
+    );
+    invalid_at(
+        &with_stun(json!({ "immune_ticks": MAX_STUN_IMMUNE_TICKS + 1, "elite_pct": 50 })),
+        "$.stun.immune_ticks",
+    );
+    invalid_at(
+        &with_stun(json!({ "immune_ticks": 60, "elite_pct": 101 })),
+        "$.stun.elite_pct",
+    );
 }
