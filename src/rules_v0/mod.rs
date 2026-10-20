@@ -103,7 +103,7 @@ use crate::attack::{DamageType, MatchUp, Profile};
 use crate::behaviour::BossCall;
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
-    PartState, PlayerState, Progress, Pull, StarField, State, UNLIMITED,
+    PartState, PlayerState, Progress, Pull, Smash, StarField, State, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
@@ -572,8 +572,8 @@ struct Shot {
     /// Its type (ADR-100); `None` is neutral.
     damage_type: Option<DamageType>,
     breaks_charge: bool,
-    /// The Sub weapon's pull, for a combo part's hit (ADR-070).
-    pull: Option<Pull>,
+    /// What a smash does to the enemy it hits (ADR-084 point 8), for a combo part's hit.
+    smash: Option<Smash>,
     /// A combo step's hit, which adds expertise points (ADR-078 §2).
     combo: bool,
     /// The rune that dealt it (ADR-099), which the `Hit` event reports.
@@ -599,7 +599,7 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             damage: b.damage,
             damage_type: b.damage_type,
             breaks_charge: b.breaks_charge,
-            pull: b.pull,
+            smash: b.smash,
             combo: b.combo,
             rune: None,
         };
@@ -727,7 +727,7 @@ fn hit_enemy_side(
     }
     if let Some(i) = first {
         damage(stage, s, b, Who::Enemy(i), events);
-        if let Some(pull) = b.pull {
+        if let Some(Smash::Pull(pull)) = b.smash {
             pull_enemy(stage, s, i, pull);
         }
         return true;
@@ -1037,7 +1037,7 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
     h.write_bool(t.friendly);
     h.write_u32(t.damage);
     h.write_bool(t.breaks_charge);
-    hash_pull(h, t.pull);
+    hash_smash(h, t.smash);
     h.write_u32(t.age);
     h.write_u32(t.wait_left);
     h.write_i32(t.parent_dir.x);
@@ -1080,12 +1080,12 @@ fn hash_run(h: &mut StateHasher, r: &crate::engine::AttackRun) {
         h.write_u32(id.0);
         h.write_u32(*tick);
     }
-    hash_pull(h, r.pull);
+    hash_smash(h, r.smash);
 }
 
-fn hash_pull(h: &mut StateHasher, pull: Option<Pull>) {
-    match pull {
-        Some(Pull { distance, ticks }) => {
+fn hash_smash(h: &mut StateHasher, smash: Option<Smash>) {
+    match smash {
+        Some(Smash::Pull(Pull { distance, ticks })) => {
             h.write_bool(true);
             h.write_i32(distance);
             h.write_u32(ticks);
@@ -1279,7 +1279,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_bool(b.friendly);
         h.write_u32(b.damage);
         h.write_bool(b.breaks_charge);
-        hash_pull(&mut h, b.pull);
+        hash_smash(&mut h, b.smash);
         match &b.hook {
             Some(hook) => {
                 h.write_bool(true);
@@ -1290,7 +1290,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
                 h.write_bool(hook.friendly);
                 h.write_u32(hook.damage);
                 h.write_bool(hook.breaks_charge);
-                hash_pull(&mut h, hook.pull);
+                hash_smash(&mut h, hook.smash);
             }
             None => h.write_bool(false),
         }

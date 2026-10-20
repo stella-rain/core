@@ -39,7 +39,7 @@ use std::sync::Arc;
 
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::engine::{
-    Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Pull, State,
+    Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Smash, State,
     StatusKind, UNLIMITED,
 };
 use crate::event::DomainEvent;
@@ -147,7 +147,7 @@ pub(super) struct Strike {
     pub bonus_pct: u32,
     pub speed_pct: u32,
     pub range_pct: u32,
-    pub pull: Option<Pull>,
+    pub smash: Option<Smash>,
 }
 
 /// Starts `attack` for the main character in `slot`, along `facing`, with its `strike`. False,
@@ -188,7 +188,7 @@ pub(super) fn start_player(
         base_damage,
         0,
         strike.bonus_pct,
-        strike.pull,
+        strike.smash,
         None,
         events,
     );
@@ -290,7 +290,7 @@ fn launch(
     base_damage: u32,
     age: u32,
     bonus_pct: u32,
-    pull: Option<Pull>,
+    smash: Option<Smash>,
     at: Option<Point>,
     events: &mut Vec<DomainEvent>,
 ) {
@@ -323,7 +323,7 @@ fn launch(
         type_bonus_pct,
         age,
         hits: Vec::new(),
-        pull,
+        smash,
         at,
         throw: None,
         homing: None,
@@ -437,7 +437,7 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         damage: phase_damage(r),
         damage_type: p.damage_type,
         breaks_charge: p.breaks_charge,
-        pull: r.pull,
+        smash: r.smash,
         combo: is_combo(r),
         age: r.age.saturating_add(elapsed),
         wait_left: 0,
@@ -479,7 +479,7 @@ pub(super) fn fire_hooks(s: &mut State) {
             damage: hook.damage,
             damage_type: hook.damage_type,
             breaks_charge: hook.breaks_charge,
-            pull: hook.pull,
+            smash: hook.smash,
             combo: hook.combo,
             age: 0,
             wait_left: 0,
@@ -939,7 +939,7 @@ fn emit(
             damage: t.damage,
             damage_type: t.damage_type,
             breaks_charge: t.breaks_charge,
-            pull: t.pull,
+            smash: t.smash,
             combo: t.combo,
         })
     });
@@ -958,7 +958,7 @@ fn emit(
             damage: t.damage,
             damage_type: t.damage_type,
             breaks_charge: t.breaks_charge,
-            pull: t.pull,
+            smash: t.smash,
             combo: t.combo,
             hook,
             life,

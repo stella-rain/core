@@ -19,7 +19,7 @@
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
 use crate::attack::{DamageType, HitBox, PhaseKind};
-use crate::engine::{Dir, Pull, State};
+use crate::engine::{Dir, Smash, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
@@ -46,7 +46,7 @@ struct Swing {
     damage_type: Option<DamageType>,
     rehit_ticks: Option<u32>,
     breaks_charge: bool,
-    pull: Option<Pull>,
+    smash: Option<Smash>,
     combo: bool,
     rune: Option<Rune>,
     /// A homing missile's: one hit, then nothing.
@@ -132,7 +132,7 @@ fn active_swings(s: &State) -> Vec<Swing> {
             damage_type: p.damage_type,
             rehit_ticks: p.rehit_ticks,
             breaks_charge: p.breaks_charge,
-            pull: r.pull,
+            smash: r.smash,
             combo: super::attacks::is_combo(r),
             rune: super::runes::of_run(r),
             once: r.homing.is_some(),
@@ -247,7 +247,7 @@ fn shot(w: &Swing) -> Shot {
         damage: w.damage,
         damage_type: w.damage_type,
         breaks_charge: w.breaks_charge,
-        pull: w.pull,
+        smash: w.smash,
         combo: w.combo,
         rune: w.rune,
     }
@@ -294,7 +294,7 @@ fn hit_enemy_side(
             && take_hit(s, w, id)
         {
             damage(stage, s, shot(w), Who::Enemy(i), events);
-            if let Some(pull) = w.pull {
+            if let Some(Smash::Pull(pull)) = w.smash {
                 super::pull_enemy(stage, s, i, pull);
             }
         }

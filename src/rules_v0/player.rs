@@ -24,7 +24,7 @@
 //! becomes the auto combo when it resets, unless it began in the dash branch.
 
 use crate::attack::AttackRef;
-use crate::engine::{ComboState, DashState, Dir, PlayerState, Pull, State};
+use crate::engine::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
 use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
@@ -407,14 +407,14 @@ fn strike(
             s.player.facing = dir;
         }
     }
-    let pull = if last_press_sub(&s.player.combo) {
+    let smash = if last_press_sub(&s.player.combo) {
         presets::weapon(&stage.player.weapon)
             .and_then(|w| w.smash)
             .and_then(|effect| match effect {
-                SmashEffect::Pull { distance, ticks } => Some(Pull {
+                SmashEffect::Pull { distance, ticks } => Some(Smash::Pull(Pull {
                     distance: distance.0,
                     ticks,
-                }),
+                })),
                 SmashEffect::Bleed {} => None,
             })
     } else {
@@ -427,7 +427,7 @@ fn strike(
             .player
             .range_pct
             .saturating_add(s.expertise.as_ref().map_or(0, |g| g.range_pct)),
-        pull,
+        smash,
     };
     let facing = s.player.facing;
     let damage = levels::attack(s, stage.player.atk);

@@ -342,7 +342,7 @@ fn tick_dots_of(stage: &Stage, s: &mut State, who: Who, events: &mut Vec<DomainE
                 damage: scale_damage(base, dot.atk_up_pct, dot.type_bonus_pct, 0, 0, 0),
                 damage_type: dot.damage_type,
                 breaks_charge: false,
-                pull: None,
+                smash: None,
                 combo: false,
                 rune: Rune::of_dot(st.kind),
             };
