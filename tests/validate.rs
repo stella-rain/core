@@ -1253,6 +1253,22 @@ fn combo_limits_hold_at_the_limit_and_fail_one_past() {
 }
 
 #[test]
+fn a_combo_is_at_most_six_steps_deep_through_the_dash_branch_too() {
+    // ADR-084 point 2: six attacks is the most in a combo, the dash branch included.
+    assert_eq!(MAX_COMBO_DEPTH, 6);
+    let depth = MAX_COMBO_DEPTH as usize;
+    assert_valid(&with_combo(chain(1), |w| w["dash"] = chain(depth)));
+    let deepest = format!(
+        "$.player.weapon.inline.dash{}.main",
+        ".main.next".repeat(depth)
+    );
+    assert_eq!(
+        first_issue(&with_combo(chain(1), |w| w["dash"] = chain(depth + 1))).path,
+        deepest
+    );
+}
+
+#[test]
 fn an_assist_range_is_0_to_its_limit() {
     let with_range = |r: i64| with_combo(chain(1), |w| w["assist_range"] = json!(r));
     assert_valid(&with_range(0));
