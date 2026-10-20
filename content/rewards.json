@@ -6,28 +6,28 @@
       "id": "max_hp_common",
       "rarity": "common",
       "effect": "max_hp",
-      "amount": 2,
+      "amount": 200,
       "limit": 5,
       "title": "Vigour (Common)",
-      "description": "2 more hit points at most, and as many healed"
+      "description": "200 more hit points at most, and as many healed"
     },
     {
       "id": "max_hp_rare",
       "rarity": "rare",
       "effect": "max_hp",
-      "amount": 5,
+      "amount": 500,
       "limit": 3,
       "title": "Vigour (Rare)",
-      "description": "5 more hit points at most, and as many healed"
+      "description": "500 more hit points at most, and as many healed"
     },
     {
       "id": "max_hp_legendary",
       "rarity": "legendary",
       "effect": "max_hp",
-      "amount": 10,
+      "amount": 1000,
       "limit": 1,
       "title": "Vigour (Legendary)",
-      "description": "10 more hit points at most, and as many healed"
+      "description": "1000 more hit points at most, and as many healed"
     },
     {
       "id": "attack_common",

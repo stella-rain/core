@@ -30,7 +30,7 @@
       "at_tick": 60,
       "enemy": {
         "base": "bat",
-        "hp": 30,
+        "hp": 3000,
         "radius": 2048,
         "profile": {
           "weak": [
@@ -80,7 +80,7 @@
       "at_tick": 90,
       "enemy": {
         "base": "bat",
-        "hp": 60,
+        "hp": 6000,
         "radius": 3072,
         "profile": {
           "weak": [
@@ -164,7 +164,7 @@
       "id": "elite_low",
       "enemy": {
         "base": "bat",
-        "hp": 240,
+        "hp": 24000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -211,7 +211,7 @@
       "id": "elite_mid",
       "enemy": {
         "base": "fairy_a",
-        "hp": 480,
+        "hp": 48000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -236,7 +236,7 @@
                   {
                     "kind": "active",
                     "ticks": 1,
-                    "damage": 2,
+                    "damage": 200,
                     "spawn": [
                       {
                         "type": "fire",
@@ -269,7 +269,7 @@
       "id": "elite_high",
       "enemy": {
         "base": "horns_2",
-        "hp": 960,
+        "hp": 96000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -294,7 +294,7 @@
                   {
                     "kind": "active",
                     "ticks": 1,
-                    "damage": 3,
+                    "damage": 300,
                     "spawn": [
                       {
                         "type": "fire",
@@ -327,7 +327,7 @@
       "id": "elite_goblin",
       "enemy": {
         "base": "fairy_a",
-        "hp": 120,
+        "hp": 12000,
         "radius": 3072,
         "movement": {
           "type": "flee_when_disturbed",
@@ -350,7 +350,7 @@
       "id": "elite_shrine",
       "enemy": {
         "base": "golem",
-        "hp": 1,
+        "hp": 100,
         "radius": 4096,
         "movement": {
           "type": "shrine",
@@ -358,7 +358,7 @@
           "guardians": {
             "enemy": {
               "base": "bat",
-              "hp": 60,
+              "hp": 6000,
               "radius": 2048,
               "movement": {
                 "type": "follow",
@@ -405,7 +405,7 @@
       "id": "elite_leader",
       "enemy": {
         "base": "horns_2",
-        "hp": 480,
+        "hp": 48000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -447,7 +447,7 @@
           "escort": {
             "enemy": {
               "base": "bat",
-              "hp": 60,
+              "hp": 6000,
               "radius": 2048,
               "movement": {
                 "type": "follow",
@@ -490,7 +490,7 @@
       "id": "elite_mimic",
       "enemy": {
         "base": "fairy_a",
-        "hp": 480,
+        "hp": 48000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -515,7 +515,7 @@
                   {
                     "kind": "active",
                     "ticks": 1,
-                    "damage": 2,
+                    "damage": 200,
                     "spawn": [
                       {
                         "type": "fire",
