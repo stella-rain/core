@@ -1028,6 +1028,9 @@ pub(crate) struct AgentState {
     /// Enemies only: the last push-apart found it overlapping its neighbours by more than a
     /// pixel, so it does not take its own step to its place this tick (ADR-058).
     pub crowded: bool,
+    /// Ticks left in which a new stun cannot land on this enemy, from the end of its last stun
+    /// (ADR-085 point 4); 0 for none.
+    pub stun_immune: u32,
     /// An elite's own state; `None` for every other agent, which hashes nothing for it.
     pub elite: Option<EliteState>,
     /// An agent that leaves the map unkilled (a goblin, or any elite whose `boss_call` is

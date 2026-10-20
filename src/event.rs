@@ -50,6 +50,10 @@ pub enum DomainEvent {
         stacks: u16,
         duration_ticks: u32,
     },
+    /// `target`'s stun ran out; it is immune to a new one for the immunity ticks (ADR-085).
+    StunEnded {
+        target: EntityId,
+    },
     /// The main character started an evade (ADR-074).
     Evaded,
     /// The main character used its stage skill, at `level` (ADR-075).

@@ -160,6 +160,33 @@
       ]
     },
     {
+      "description": "`target`'s stun ran out; it is immune to a new one for the immunity ticks (ADR-085).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "target"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "StunEnded"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
       "description": "The main character started an evade (ADR-074).",
       "type": "object",
       "properties": {

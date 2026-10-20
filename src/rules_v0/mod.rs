@@ -351,7 +351,7 @@ pub(crate) fn step(
 
     spawn_waves(stage, s);
     spawn_elite(stage, s, events);
-    let dots = entity::tick_statuses_and_aggro(s);
+    let dots = entity::tick_statuses_and_aggro(s, events);
     runes::tick(s);
     attacks::advance_runs(s, events);
     player::update(stage, rewards, s, input, events);
@@ -972,6 +972,10 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
         if el.disguised {
             h.write_bool(true);
         }
+    }
+    // Only while immune to a stun, so every other agent hashes as before.
+    if a.stun_immune > 0 {
+        h.write_u32(a.stun_immune);
     }
     // Only for a shrine, which its key already tells apart.
     if let Some(sh) = &a.shrine {

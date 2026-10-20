@@ -456,7 +456,7 @@ pub(super) fn scale_damage(
 /// Statuses run out and aggro fades, once per tick. Damage-over-time statuses run out as they
 /// tick instead (`tick_dots`); whether there is one on anyone is returned, so a tick without
 /// one skips that pass.
-pub(super) fn tick_statuses_and_aggro(s: &mut State) -> bool {
+pub(super) fn tick_statuses_and_aggro(s: &mut State, events: &mut Vec<DomainEvent>) -> bool {
     fn age(list: &mut Vec<StatusState>) -> bool {
         let mut dots = false;
         for st in list.iter_mut() {
@@ -481,8 +481,16 @@ pub(super) fn tick_statuses_and_aggro(s: &mut State) -> bool {
         dots |= age(&mut c.statuses);
         c.aggro = c.aggro.saturating_sub(super::AGGRO_DECAY);
     }
+    // An enemy's immunity counts down, and a stun that runs out starts it (ADR-085 point 4).
+    let immune = s.stun.immune_ticks;
     for e in &mut s.enemies {
+        e.stun_immune = e.stun_immune.saturating_sub(1);
+        let stunned = super::stun::stunned(&e.statuses);
         dots |= age(&mut e.statuses);
+        if stunned && !super::stun::stunned(&e.statuses) {
+            e.stun_immune = immune;
+            events.push(DomainEvent::StunEnded { target: e.id });
+        }
     }
     dots
 }
