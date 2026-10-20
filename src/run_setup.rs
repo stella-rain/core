@@ -13,6 +13,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::id::ContentId;
+use crate::pack::Pack;
 use crate::registry::{self, Entry, Kind};
 use std::sync::OnceLock;
 
@@ -166,18 +167,20 @@ pub fn mode_file(id: &str) -> Option<&'static [u8]> {
 /// The bytes the content hash covers for a `time_limit` mode file `mode`: the file, then the
 /// stage its placeholder content comes from.
 pub fn time_limit_file(mode: &TimeLimit) -> Vec<u8> {
-    [mode.bytes(), TIME_LIMIT_BASE].concat()
+    [mode.bytes(), time_limit_base()].concat()
 }
 
 /// The stage the `time_limit` run takes its main character, companions, levels, stars and boss
-/// from: placeholders until the mode has its own.
-const TIME_LIMIT_BASE: &[u8] = include_bytes!("../modes/trial.json");
+/// from: placeholders until the mode has its own. The `trial` mode's stage, from the pack.
+fn time_limit_base() -> &'static [u8] {
+    Pack::bundled().trial_bytes()
+}
 
 /// The bundled content of mode `id` when it is a stage file; `time_limit` is not one (its run
 /// is built from its mode file, `time_limit_run`).
 pub fn mode_stage(id: &str) -> Option<&'static [u8]> {
     match id {
-        "trial" => Some(TIME_LIMIT_BASE),
+        "trial" => Some(time_limit_base()),
         _ => None,
     }
 }
@@ -225,7 +228,7 @@ pub(crate) fn time_limit_run(setup: &RunSetup, mode: &TimeLimit) -> Result<(Stag
             message: "not the time_limit mode".into(),
         }]));
     }
-    let mut stage = validate::parse_and_validate(TIME_LIMIT_BASE)?;
+    let mut stage = validate::parse_and_validate(time_limit_base())?;
     stage.player.main = WeaponRef::Preset {
         id: setup.main.clone(),
     };

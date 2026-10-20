@@ -4,10 +4,9 @@
 //! that a run's engine, its recorder and its verification read the same files, and the replay's
 //! content hash covers each of them (ADR-079 §5).
 
-use std::sync::OnceLock;
-
 use crate::expertise::Expertise;
 use crate::match_ups::MatchUps;
+use crate::pack::Pack;
 use crate::rewards::Rewards;
 use crate::run_stats::RunStats;
 use crate::runes::Runes;
@@ -38,6 +37,25 @@ impl RunContent {
         }
     }
 
+    /// The content of a pack: every file read from it, none from the bundled ones.
+    pub(crate) fn from_parts(
+        run_stats: RunStats,
+        rewards: Rewards,
+        expertise: Expertise,
+        match_ups: MatchUps,
+        runes: Runes,
+        time_limit: TimeLimit,
+    ) -> RunContent {
+        RunContent {
+            run_stats,
+            rewards,
+            expertise,
+            match_ups,
+            runes,
+            time_limit,
+        }
+    }
+
     /// The same content with `expertise` in place of its expertise.
     pub fn with_expertise(self, expertise: Expertise) -> RunContent {
         RunContent { expertise, ..self }
@@ -59,12 +77,9 @@ impl RunContent {
         RunContent { time_limit, ..self }
     }
 
-    /// The bundled files, the content of every run.
+    /// The bundled pack's content, the content of every run.
     pub fn bundled() -> &'static RunContent {
-        static BUNDLED: OnceLock<RunContent> = OnceLock::new();
-        BUNDLED.get_or_init(|| {
-            RunContent::new(RunStats::bundled().clone(), Rewards::bundled().clone())
-        })
+        Pack::bundled().content()
     }
 
     /// What a stat point can raise.

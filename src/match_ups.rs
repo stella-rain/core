@@ -11,13 +11,12 @@
 //! The bundled file, `content/match_ups.json`, is the default; the SHA-256 of whatever bytes a
 //! run used is part of its content hash, so a run replay verifies only with the same file.
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::attack::MatchUp;
+use crate::pack::Pack;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -61,8 +60,7 @@ impl MatchUps {
 
     /// The bundled table, the default of every run.
     pub fn bundled() -> &'static MatchUps {
-        static BUNDLED: OnceLock<MatchUps> = OnceLock::new();
-        BUNDLED.get_or_init(|| MatchUps::parse(MatchUps::BUNDLED).expect("the bundled match-ups"))
+        Pack::bundled().content().match_ups()
     }
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.

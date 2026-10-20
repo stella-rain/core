@@ -21,13 +21,12 @@
 //! bundled file, `content/expertise.json`, is the default; its styles are placeholders built
 //! from the effect kinds `core` has.
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::id::ContentId;
+use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::rewards::{MAX_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{self, StatEffect};
@@ -173,8 +172,7 @@ impl Expertise {
 
     /// The bundled expertise content.
     pub fn bundled() -> &'static Expertise {
-        static BUNDLED: OnceLock<Expertise> = OnceLock::new();
-        BUNDLED.get_or_init(|| Expertise::parse(Expertise::BUNDLED).expect("the bundled expertise"))
+        Pack::bundled().content().expertise()
     }
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.

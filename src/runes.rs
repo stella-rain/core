@@ -25,14 +25,13 @@
 //! The bundled file, `content/runes.json`, is the default; the SHA-256 of whatever bytes a
 //! run used is part of its content hash, so a run replay verifies only with the same file.
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::attack::{AttackPhase, AttackRef, DamageType, PhaseKind};
 use crate::fixed::Fx;
+use crate::pack::Pack;
 use crate::registry;
 use crate::rune::{Rune, RuneKind};
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
@@ -126,8 +125,7 @@ impl Runes {
 
     /// The bundled runes, the default of every run.
     pub fn bundled() -> &'static Runes {
-        static BUNDLED: OnceLock<Runes> = OnceLock::new();
-        BUNDLED.get_or_init(|| Runes::parse(Runes::BUNDLED).expect("the bundled runes"))
+        Pack::bundled().content().runes()
     }
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.

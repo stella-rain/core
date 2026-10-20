@@ -7,10 +7,17 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use stella_rain_core::expertise::Expertise;
+use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::pack::{self, Pack, PackError};
+use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, RunReplay};
 use stella_rain_core::run_setup;
+use stella_rain_core::run_stats::RunStats;
+use stella_rain_core::runes::Runes;
+use stella_rain_core::stage_skill::StageSkills;
+use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::{self, Error};
 
 fn bundled() -> Vec<u8> {
@@ -27,6 +34,53 @@ fn bytes(v: &Value) -> Vec<u8> {
 
 fn load(v: &Value) -> Result<Pack, PackError> {
     Pack::from_bytes(&bytes(v))
+}
+
+/// `content/pack.json` is generated: `cargo run --bin content-pack export > content/pack.json`.
+#[test]
+fn the_bundled_pack_is_the_export_of_the_individual_files() {
+    assert!(
+        Pack::BUNDLED == bundled().as_slice(),
+        "content/pack.json drifted from the individual files; regenerate it with \
+         `cargo run --bin content-pack export > content/pack.json`"
+    );
+    assert_eq!(
+        Pack::bundled().sha256(),
+        Sha256::digest(Pack::BUNDLED).as_slice()
+    );
+}
+
+#[test]
+fn the_bundled_content_is_the_individual_files() {
+    let content = RunContent::bundled();
+    assert_eq!(
+        content.run_stats().sha256(),
+        RunStats::parse(RunStats::BUNDLED).unwrap().sha256()
+    );
+    assert_eq!(
+        content.rewards().sha256(),
+        Rewards::parse(Rewards::BUNDLED).unwrap().sha256()
+    );
+    assert_eq!(
+        content.stage_skills().sha256(),
+        StageSkills::parse(StageSkills::BUNDLED).unwrap().sha256()
+    );
+    assert_eq!(
+        content.expertise().sha256(),
+        Expertise::parse(Expertise::BUNDLED).unwrap().sha256()
+    );
+    assert_eq!(
+        content.match_ups().sha256(),
+        MatchUps::parse(MatchUps::BUNDLED).unwrap().sha256()
+    );
+    assert_eq!(
+        content.runes().sha256(),
+        Runes::parse(Runes::BUNDLED).unwrap().sha256()
+    );
+    assert_eq!(
+        content.time_limit().sha256(),
+        TimeLimit::parse(TimeLimit::BUNDLED).unwrap().sha256()
+    );
 }
 
 #[test]

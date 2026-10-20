@@ -18,14 +18,13 @@
 //! skills file the rewards are read with. The bundled file, `content/rewards.json`, is the
 //! default; the SHA-256 of whatever bytes a run used is part of its content hash.
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::attack::{AttackRef, DamageType};
 use crate::id::ContentId;
+use crate::pack::Pack;
 use crate::registry;
 use crate::run_stats::{self, StatEffect};
 use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
@@ -245,8 +244,7 @@ impl Rewards {
 
     /// The bundled rewards, with the bundled stage skills: the default of every run.
     pub fn bundled() -> &'static Rewards {
-        static BUNDLED: OnceLock<Rewards> = OnceLock::new();
-        BUNDLED.get_or_init(|| Rewards::parse(Rewards::BUNDLED).expect("the bundled rewards"))
+        Pack::bundled().content().rewards()
     }
 
     /// `parse_with` the bundled stage skills.
