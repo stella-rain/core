@@ -292,6 +292,10 @@
       {
         "id": "elite_shrine",
         "sim_version": 0
+      },
+      {
+        "id": "elite_leader",
+        "sim_version": 0
       }
     ]
   },
@@ -1909,7 +1913,8 @@
         { "elite": "elite_low", "weight": 2 },
         { "elite": "elite_mid", "weight": 1 },
         { "elite": "elite_goblin", "weight": 1 },
-        { "elite": "elite_shrine", "weight": 1 }
+        { "elite": "elite_shrine", "weight": 1 },
+        { "elite": "elite_leader", "weight": 1 }
       ]
     },
     {
@@ -1919,7 +1924,8 @@
         { "elite": "elite_mid", "weight": 2 },
         { "elite": "elite_high", "weight": 1 },
         { "elite": "elite_goblin", "weight": 1 },
-        { "elite": "elite_shrine", "weight": 1 }
+        { "elite": "elite_shrine", "weight": 1 },
+        { "elite": "elite_leader", "weight": 1 }
       ]
     }
   ],
@@ -2157,6 +2163,91 @@
         "elite": {
           "range": 51200,
           "boss_call": "stay"
+        }
+      },
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
+    },
+    {
+      "id": "elite_leader",
+      "enemy": {
+        "base": "horns_2",
+        "hp": 480,
+        "radius": 3072,
+        "profile": {
+          "strong": [
+            "pierce"
+          ],
+          "resist": "physical"
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 90,
+            "once": false
+          }
+        ],
+        "elite": {
+          "range": 51200,
+          "aura": {
+            "radius": 40960,
+            "damage_percent": 25
+          },
+          "escort": {
+            "enemy": {
+              "base": "bat",
+              "hp": 60,
+              "radius": 2048,
+              "movement": {
+                "type": "follow",
+                "distance": 12288
+              },
+              "rules": [
+                {
+                  "when": {
+                    "type": "always"
+                  },
+                  "target": "nearest_ally",
+                  "do": {
+                    "type": "attack",
+                    "attack": {
+                      "preset": {
+                        "id": "aimed_single",
+                        "args": [
+                          640
+                        ]
+                      }
+                    }
+                  },
+                  "cooldown_ticks": 90,
+                  "once": false
+                }
+              ]
+            },
+            "count": 4,
+            "radius": 15360
+          }
         }
       },
       "xp": 3,
