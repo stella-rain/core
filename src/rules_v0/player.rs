@@ -10,8 +10,11 @@
 //! weapon's pull. A step with a charge charges while the button that reached it is still held
 //! as it starts: let go before level 1, it attacks as a tap would; later, at the level reached,
 //! with the perfect bonus inside a window; at `max_ticks` it releases by itself. Presses while
-//! charging are not buffered. An evade cancels the running step, breaks a charge and clears the
-//! buffer, and a press during its dash or `dash_strike_ticks` after it takes the dash branch.
+//! charging are not buffered. A step with a hold (ADR-084 point 6) holds where its recovery would
+//! begin while its button is still held: its loop runs and starts again each time it ends, until
+//! the button is let go or `max_ticks`, when its release plays; presses while holding are
+//! buffered. An evade cancels the running step, breaks a charge or a hold and clears the buffer,
+//! and a press during its dash or `dash_strike_ticks` after it takes the dash branch.
 //! Every step's attack is wider by the range rewards and the expertise range options taken
 //! (ADR-078, ADR-099), at most `MAX_RANGE_PCT` in all.
 //!
