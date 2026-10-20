@@ -1428,3 +1428,20 @@ fn an_enemy_s_and_the_boss_s_expertise_points_are_capped() {
         assert!(serde_json::from_value::<Stage>(partial).is_err());
     }
 }
+
+fn with_bleed_smash(smash: Value) -> Value {
+    with_weapon(main_weapon(chain(1), |w| w["smash"] = smash))
+}
+
+#[test]
+fn a_bleed_smash_takes_no_numbers() {
+    assert_valid(&with_bleed_smash(json!({ "type": "bleed" })));
+    let numbers = with_bleed_smash(json!({ "type": "bleed", "distance": 1 }));
+    assert!(
+        matches!(
+            parse_and_validate(numbers.to_string().as_bytes()),
+            Err(Error::Parse { .. })
+        ),
+        "a bleed takes no distance"
+    );
+}
