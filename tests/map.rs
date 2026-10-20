@@ -185,6 +185,7 @@ fn holds_is_exact_at_the_margin() {
             width: Fx(w),
             height: Fx(h),
             start: None,
+            facing: None,
         };
         let holds = map.holds();
         let at = |x: i32, y: i32| holds(Point { x: Fx(x), y: Fx(y) });

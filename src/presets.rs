@@ -351,10 +351,12 @@ fn emitters(nodes: &[Emitter], args: &[i32]) -> Vec<Emitter> {
                 speed,
                 direction: d,
                 bullet,
+                ticks,
             } => Emitter::Fire {
                 speed: expr(speed, args),
                 direction: direction(d, args),
                 bullet: bullet.clone(),
+                ticks: ticks.as_ref().map(|t| expr(t, args)),
             },
             Emitter::Repeat {
                 count,

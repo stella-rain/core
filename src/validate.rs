@@ -1414,6 +1414,7 @@ impl<'a> Ctx<'a> {
                 speed,
                 direction,
                 bullet,
+                ..
             } => {
                 self.key("speed", |c| c.expr(speed));
                 self.key("direction", |c| match direction {

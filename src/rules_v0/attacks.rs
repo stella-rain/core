@@ -885,6 +885,7 @@ fn emit(
         speed,
         direction,
         bullet,
+        ..
     } = node
     else {
         return true;

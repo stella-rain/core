@@ -377,6 +377,7 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
             width: map.width,
             height: map.height,
             start: Some(map.start),
+            facing: None,
         };
         if let Err(found) =
             crate::validate::validate_waves(waves, field, file.length_ticks, MAX_SPAWN_COUNT)
@@ -423,6 +424,7 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
             width: map.width,
             height: map.height,
             start: Some(map.start),
+            facing: None,
         };
         for (i, t) in types.iter().enumerate() {
             if !registry::is_well_formed(&t.id.0) {

@@ -1110,6 +1110,17 @@
             "speed": {
               "$ref": "#/$defs/Expr"
             },
+            "ticks": {
+              "description": "How many ticks the bullet lives, at least 1 and at most `limits::MAX_BULLET_TICKS`;\nabsent means it lives until it is past the map's margin (core#147).",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "type": {
               "type": "string",
               "const": "fire"
@@ -1894,6 +1905,14 @@
       "description": "The rectangle the run plays on, from its top-left corner, and where the main character\nstarts. The main character and companions are clamped to it; enemies and bullets leave once\nthey are more than `FIELD_MARGIN` outside it.",
       "type": "object",
       "properties": {
+        "facing": {
+          "description": "The angle the main character faces at the start, as `Direction::Absolute` takes it: 0 is\nstraight down the screen, a half turn is up. Absent means up, as it always was\n(core#147). Between 0 and a full turn, not including it.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
         "height": {
           "$ref": "#/$defs/Fx"
         },
