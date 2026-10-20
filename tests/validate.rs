@@ -1552,3 +1552,27 @@ fn a_step_has_a_charge_or_a_hold_never_both() {
         "$.player.weapon.inline.combo.main.hold"
     );
 }
+
+fn with_knockback(distance: i32, ticks: u32) -> Value {
+    with_weapon(main_weapon(
+        chain(1),
+        |w| w["smash"] = json!({ "type": "knockback", "distance": distance, "ticks": ticks }),
+    ))
+}
+
+#[test]
+fn a_knockback_is_0_to_the_pull_s_distance_over_1_to_its_ticks() {
+    assert_valid(&with_knockback(0, 1));
+    assert_valid(&with_knockback(MAX_PULL_DISTANCE, MAX_PULL_TICKS));
+    let at = |key: &str| format!("$.player.weapon.inline.smash.{key}");
+    assert_eq!(first_issue(&with_knockback(-1, 1)).path, at("distance"));
+    assert_eq!(
+        first_issue(&with_knockback(MAX_PULL_DISTANCE + 1, 1)).path,
+        at("distance")
+    );
+    assert_eq!(first_issue(&with_knockback(0, 0)).path, at("ticks"));
+    assert_eq!(
+        first_issue(&with_knockback(0, MAX_PULL_TICKS + 1)).path,
+        at("ticks")
+    );
+}

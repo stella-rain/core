@@ -383,6 +383,80 @@ fn an_elite_and_the_boss_resist_the_pull() {
     assert_eq!(START_Y - boss.at.y.0, 10_240);
 }
 
+// --- The knockback smash ---------------------------------------------------------------------
+
+/// `pulling`'s stage with a weapon whose smashes knock back 24 pixels over 6 ticks instead.
+fn knocking(target: Value, dy: i32, levels: bool) -> Stage {
+    let mut stage = pulling(target, dy, levels);
+    stage.player.weapon = serde_json::from_value(with_knockback(
+        weapon_combo(json!({ "main": step(blow()), "smash": step(blow()) })),
+        6_144,
+        6,
+    ))
+    .unwrap();
+    stage
+}
+
+fn with_knockback(mut weapon: Value, distance: i32, ticks: u32) -> Value {
+    weapon["inline"]["smash"] =
+        json!({ "type": "knockback", "distance": distance, "ticks": ticks });
+    weapon
+}
+
+#[test]
+fn a_knockback_smash_pushes_what_it_hits_away_by_its_distance() {
+    // 10 pixels above, pushed 24: it ends 34 pixels above. A step reached by `main` pushes
+    // nothing.
+    let stage = knocking(still(1000), 2_560, false);
+    assert_eq!(after_blow(&stage, "b"), 2_560 + 6_144);
+    assert_eq!(after_blow(&stage, "a"), 2_560);
+}
+
+#[test]
+fn the_knockback_takes_its_ticks() {
+    let mut e = engine(&knocking(still(1000), 2_560, false));
+    play(&mut e, &presses(&[(2, "b")], 5));
+    let y = START_Y - e.snapshot().entities[1].at.y.0;
+    assert!(2_560 < y && y < 2_560 + 6_144, "{y}");
+}
+
+#[test]
+fn the_knockback_stays_inside_the_map() {
+    // Well above the top edge's margin: the push ends at the map's clamp, not past it.
+    let stage = knocking(still(1000), START_Y, false);
+    let y = after_blow(&stage, "b");
+    assert!(START_Y - y >= 0, "{y}");
+}
+
+#[test]
+fn an_elite_and_the_boss_resist_the_knockback() {
+    let mut elite = still(1000);
+    elite["elite"] = json!({ "range": 65_536 });
+    assert_eq!(after_blow(&knocking(elite, 2_560, true), "b"), 2_560);
+    let mut stage = armed(
+        stage_full(600, Some(boss_at(1000, START_Y - 10_240)), vec![], vec![]),
+        with_knockback(weapon_combo(json!({ "smash": step(blow()) })), 6_144, 6),
+    );
+    stage.player.hp = 99;
+    let mut e = engine(&stage);
+    play(&mut e, &presses(&[(2, "b")], 12));
+    let boss = &e.snapshot().entities[0];
+    assert!(boss.hp < 1000, "the blow lands");
+    assert_eq!(START_Y - boss.at.y.0, 10_240);
+}
+
+#[test]
+fn a_knockback_is_deterministic_and_in_the_state_hash() {
+    let run = |stage: &Stage| {
+        let mut e = engine(stage);
+        play(&mut e, &presses(&[(2, "b")], 12));
+        e.state_hash()
+    };
+    let knock = knocking(still(1000), 2_560, false);
+    assert_eq!(run(&knock), run(&knocking(still(1000), 2_560, false)));
+    assert_ne!(run(&knock), run(&pulling(still(1000), 2_560, false)));
+}
+
 // --- Presets ---------------------------------------------------------------------------------
 
 fn preset(id: &str) -> Value {

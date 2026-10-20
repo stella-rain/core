@@ -539,6 +539,10 @@ fn strike(
                     distance: distance.0,
                     ticks,
                 }),
+                SmashEffect::Knockback { distance, ticks } => Smash::Knockback(Pull {
+                    distance: distance.0,
+                    ticks,
+                }),
                 SmashEffect::Bleed {} => Smash::Bleed,
                 SmashEffect::Stun { ticks } => Smash::Stun { ticks },
             })
