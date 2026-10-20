@@ -567,6 +567,7 @@ impl Engine {
                     offer: rules_v0::expertise_offer_view(&self.stage, self.content.expertise(), s),
                 }
             }),
+            patterns: Vec::new(),
         }
     }
 }
@@ -1378,6 +1379,39 @@ mod horde_tests {
         while e.tick() < tick {
             e.step(Input::default());
         }
+    }
+
+    /// The tick each boss came on and the tick it called its elites on, the main character
+    /// kept alive.
+    fn arrivals_and_calls(e: &mut Engine, until: u32) -> (Vec<u32>, Vec<u32>) {
+        let (mut arrived, mut called) = (Vec::new(), Vec::new());
+        let mut last = None;
+        while e.tick() < until {
+            e.state.player.hp = e.state.player.max_hp;
+            e.step(Input::default());
+            let id = e.state.boss.as_ref().map(|b| b.id);
+            if id.is_some() && id != last {
+                arrived.push(e.tick());
+            }
+            last = id;
+            if e.events()
+                .iter()
+                .any(|ev| matches!(ev, DomainEvent::ElitesCalled { .. }))
+            {
+                called.push(e.tick());
+            }
+        }
+        (arrived, called)
+    }
+
+    #[test]
+    fn a_boss_calls_its_elites_after_the_same_time_whenever_it_arrives() {
+        // Mid-bosses at 60 and 3000, the final boss at 6000; the mode's call is 1800 ticks.
+        let mut e = engine(&[60, 3000, 6000]);
+        let (arrived, called) = arrivals_and_calls(&mut e, 6000);
+        assert_eq!(arrived, [60, 3000, 6000]);
+        let delays: Vec<u32> = arrived.iter().zip(&called).map(|(a, c)| c - a).collect();
+        assert_eq!(delays, [1800, 1800], "{arrived:?} {called:?}");
     }
 
     #[test]

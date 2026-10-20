@@ -1264,7 +1264,7 @@ impl<'a> Ctx<'a> {
                 self.ticks("ticks", *ticks, 1);
             }
             Step::Wait { ticks } | Step::Telegraph { ticks } => self.ticks("ticks", *ticks, 1),
-            Step::Attack { attack } => self.key("attack", |c| c.attack_ref(attack)),
+            Step::Attack { attack, .. } => self.key("attack", |c| c.attack_ref(attack)),
             Step::Loop => {
                 if !last {
                     self.fail("`loop` must be the last step; later steps would never run");

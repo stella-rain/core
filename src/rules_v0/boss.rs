@@ -237,7 +237,7 @@ fn timeline(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
                     return;
                 }
             }
-            Step::Attack { attack } => {
+            Step::Attack { attack, .. } => {
                 if start_attack(s, attack, events) {
                     return;
                 }

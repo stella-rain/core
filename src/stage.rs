@@ -397,6 +397,11 @@ pub enum Step {
     },
     Attack {
         attack: AttackRef,
+        /// A big pattern (ADR-103): announced in the snapshot, with the ticks left until it
+        /// starts, while the timed steps before it run. Only a preset can be big; its ID names
+        /// it.
+        #[serde(default, skip_serializing_if = "crate::behaviour::is_false")]
+        big: bool,
     },
     /// Starts the timeline again from its first step.
     Loop,
