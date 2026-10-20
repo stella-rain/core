@@ -264,9 +264,11 @@ fn a_run_holding_thunder_records_and_verifies() {
         None,
         Runes::bundled().clone(),
     );
-    // A seed whose run draws thunder among the seven runes: the trial has stars for about four.
+    // A seed whose run draws thunder among the seven runes, and fires it: the trial has stars for
+    // about four. With the Sword's smashes bleeding (ADR-084 point 8) seed 20_261_011 no longer
+    // does; this one is the nearest of its range that does.
     let setup = RunSetup {
-        seed: 20_261_011,
+        seed: 20_261_013,
         ..trial_setup()
     };
     let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
