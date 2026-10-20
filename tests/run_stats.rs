@@ -12,8 +12,8 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::run_stats::{
-    MAX_ATTACK_SPEED_PCT, MAX_DESCRIPTION_CHARS, MAX_LIMIT, MAX_RUN_STATS_BYTES, MAX_STATS,
-    MAX_STEP, MAX_TITLE_CHARS, RunStats, StatEffect, capped_attack_speed_pct,
+    MAX_ATTACK_SPEED_PCT, MAX_DESCRIPTION_CHARS, MAX_HP_STEP, MAX_LIMIT, MAX_RUN_STATS_BYTES,
+    MAX_STATS, MAX_STEP, MAX_TITLE_CHARS, RunStats, StatEffect, capped_attack_speed_pct,
 };
 use stella_rain_core::validate::Error;
 
@@ -156,6 +156,20 @@ fn ids_are_well_formed_and_unique() {
     invalid_at(&file(vec![stat("a"), stat("a")]), "$.stats[1].id");
     // Not registry entries: any well-formed ID is a stat's own.
     assert!(parse(&file(vec![stat("crit_chance")])).is_ok());
+}
+
+#[test]
+fn a_hit_point_step_has_the_scaled_bound_and_the_others_keep_theirs() {
+    // ADR-103: a point of Max HP is up to 100 times a percentage's step.
+    assert_eq!(MAX_HP_STEP, MAX_STEP * 100);
+    let hp = |step: u32| {
+        let mut v = one_with("effect", json!("max_hp"));
+        v["stats"][0]["step"] = json!(step);
+        v
+    };
+    assert!(parse(&hp(MAX_HP_STEP)).is_ok());
+    invalid_at(&hp(MAX_HP_STEP + 1), "$.stats[0].step");
+    invalid_at(&one_with("step", json!(MAX_HP_STEP)), "$.stats[0].step");
 }
 
 #[test]

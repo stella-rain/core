@@ -10,7 +10,7 @@ use stella_rain_core::expertise::{
     MAX_LEVEL_POINTS, MAX_STYLE_CHOICES, STYLES, TABLE_LEVELS,
 };
 use stella_rain_core::registry::{self, Kind};
-use stella_rain_core::rewards::{MAX_AMOUNT, MAX_RANGE_PCT};
+use stella_rain_core::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use stella_rain_core::validate::Error;
 
 fn option(id: &str, effect: &str, amount: u32) -> Value {
@@ -332,6 +332,10 @@ fn amounts_are_one_to_their_effect_s_most() {
         &with("/weapons/0/common/0/amount", json!(MAX_AMOUNT + 1)),
         at,
     );
+    // Hit points are scaled by 100 (ADR-103); the bound is too.
+    let hp = |amount: u32| option("x", "max_hp", amount);
+    valid(&with("/weapons/0/common/0", hp(MAX_HP_AMOUNT)));
+    invalid_at(&with("/weapons/0/common/0", hp(MAX_HP_AMOUNT + 1)), at);
     let range = |amount: u32| option("x", "range_pct", amount);
     valid(&with("/weapons/0/common/0", range(MAX_RANGE_PCT)));
     invalid_at(&with("/weapons/0/common/0", range(MAX_RANGE_PCT + 1)), at);

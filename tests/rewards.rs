@@ -6,8 +6,8 @@
 use serde_json::{Value, json};
 use stella_rain_core::id::ContentId;
 use stella_rain_core::rewards::{
-    MAX_AMOUNT, MAX_ORBIT_COOLDOWN_TICKS, MAX_ORBIT_TURN, MAX_ORBITS, MAX_ORBS, MAX_RANGE_PCT,
-    MAX_REWARDS, MAX_REWARDS_BYTES, MAX_STACK, Rarity, RewardEffect, Rewards,
+    MAX_AMOUNT, MAX_HP_AMOUNT, MAX_ORBIT_COOLDOWN_TICKS, MAX_ORBIT_TURN, MAX_ORBITS, MAX_ORBS,
+    MAX_RANGE_PCT, MAX_REWARDS, MAX_REWARDS_BYTES, MAX_STACK, Rarity, RewardEffect, Rewards,
 };
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
@@ -276,6 +276,23 @@ fn amounts_limits_and_texts_are_bounded() {
     invalid_at(
         &one_with("description", json!("a\u{7}b")),
         "$.rewards[0].description",
+    );
+}
+
+#[test]
+fn a_hit_point_amount_has_the_scaled_bound_and_the_others_keep_theirs() {
+    // ADR-103: hit points are scaled by 100, a percentage is not.
+    assert_eq!(MAX_HP_AMOUNT, MAX_AMOUNT * 100);
+    let hp = |amount: u32| {
+        let mut v = one_with("effect", json!("max_hp"));
+        v["rewards"][0]["amount"] = json!(amount);
+        v
+    };
+    assert!(parse(&hp(MAX_HP_AMOUNT)).is_ok());
+    invalid_at(&hp(MAX_HP_AMOUNT + 1), "$.rewards[0].amount");
+    invalid_at(
+        &one_with("amount", json!(MAX_AMOUNT + 1)),
+        "$.rewards[0].amount",
     );
 }
 
