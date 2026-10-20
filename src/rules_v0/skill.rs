@@ -196,7 +196,7 @@ fn apply(
                 bonus_pct: 0,
                 speed_pct: 0,
                 range_pct: 0,
-                pull: None,
+                smash: None,
             };
             let damage = levels::attack(s, stage.player.atk);
             attacks::start_player(s, SKILL_SLOT, dir, attack, damage, strike, events);

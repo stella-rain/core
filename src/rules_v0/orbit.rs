@@ -80,7 +80,7 @@ pub(super) fn act(stage: &Stage, rewards: &Rewards, s: &mut State, events: &mut 
                 bonus_pct: 0,
                 speed_pct: 0,
                 range_pct: 0,
-                pull: None,
+                smash: None,
             };
             for j in 0..o.orbs {
                 let dir = facing(o.angle, j, o.orbs);

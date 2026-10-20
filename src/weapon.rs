@@ -137,4 +137,8 @@ pub enum SmashEffect {
     /// The enemy hit is drawn toward the main character, at most `distance`, over `ticks`, and
     /// stops where their circles touch. A boss, its parts and elites resist it.
     Pull { distance: Fx, ticks: u32 },
+    /// The enemy hit gets the `bleed` status, the one bleed of ADR-099 with the bleed rune's
+    /// numbers from the run's runes file, none of its own (ADR-084 point 8). A run whose file has
+    /// no bleed gives none.
+    Bleed {},
 }

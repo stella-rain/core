@@ -864,6 +864,15 @@ pub(crate) struct Pull {
     pub ticks: u32,
 }
 
+/// What a smash (a step reached by B) does to the enemy it hits (ADR-084 point 8), carried by
+/// the attack and the bullets it spawns, as a combo step's hits carry it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Smash {
+    Pull(Pull),
+    /// The `bleed` status, with the bleed rune's numbers from the runes file (ADR-099 point 3).
+    Bleed,
+}
+
 /// The stage skill held (ADR-075): its place in the stage skills file, its level from 1, and
 /// the ticks until it is ready again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1248,7 +1257,7 @@ pub(crate) struct BulletState {
     /// Its hit breaks the main character's charge (core#83).
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
-    pub pull: Option<Pull>,
+    pub smash: Option<Smash>,
     /// Fired by a combo step, A or B: its hit adds expertise points (ADR-078 §2).
     pub combo: bool,
     /// Starts an attack of its own after a while (`on_bullet`).
@@ -1273,7 +1282,7 @@ pub(crate) struct Hook {
     pub damage_type: Option<DamageType>,
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
-    pub pull: Option<Pull>,
+    pub smash: Option<Smash>,
     /// Of a combo step, A or B (ADR-078 §2).
     pub combo: bool,
 }
@@ -1344,7 +1353,7 @@ pub(crate) struct AttackRun {
     /// emptied when an active phase begins.
     pub hits: Vec<(EntityId, u32)>,
     /// The Sub weapon's pull, when the attack is a combo part (ADR-070).
-    pub pull: Option<Pull>,
+    pub smash: Option<Smash>,
     /// Where its hit boxes are centred instead of on its attacker: an on-hit rune's attack, at
     /// the point the combo step hit (ADR-099), or where a thrown one has flown to.
     pub at: Option<Point>,
@@ -1376,7 +1385,7 @@ pub(crate) struct AttackTask {
     /// The bullets it fires break the main character's charge (core#83).
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
-    pub pull: Option<Pull>,
+    pub smash: Option<Smash>,
     /// Started by a combo step, A or B: its hits add expertise points (ADR-078 §2).
     pub combo: bool,
     /// Ticks since it started.

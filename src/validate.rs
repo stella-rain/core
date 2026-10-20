@@ -789,6 +789,8 @@ impl<'a> Ctx<'a> {
                 );
                 self.within("ticks", i64::from(ticks), 1, i64::from(MAX_PULL_TICKS));
             }
+            // No numbers of its own: the rune's come from the runes file, bounded there.
+            SmashEffect::Bleed {} => {}
         }
     }
 

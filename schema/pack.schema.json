@@ -3142,6 +3142,20 @@
             "distance",
             "ticks"
           ]
+        },
+        {
+          "description": "The enemy hit gets the `bleed` status, the one bleed of ADR-099 with the bleed rune's\nnumbers from the run's runes file, none of its own (ADR-084 point 8). A run whose file has\nno bleed gives none.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "bleed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
         }
       ]
     },

@@ -131,8 +131,8 @@ const WEAPONS: &[(&str, &str)] = &[
     // ADR-100); AAA charges, at level 1 a wide slash and at level 2 a spin all round, each with
     // the +50% perfect bonus. B is a slash and AB a thrust, both smashes that end the combo. The
     // dash-strike is a lunge thrust, the dash smash a slash. Assist looks 160 pixels away.
-    // Smashes pull what they hit by up to 24 pixels over 6 ticks. AAB and AAAB are Stardust
-    // unlocks, not in core yet.
+    // Smashes put the bleed on what they hit, the bleed rune's numbers (ADR-084 point 8). AAB and
+    // AAAB are Stardust unlocks, not in core yet.
     (
         "giant_sword",
         r#"{"combo":{
@@ -158,7 +158,7 @@ const WEAPONS: &[(&str, &str)] = &[
             "dash":{"main":{"attack":{"preset":{"id":"thrust"}}},
                     "sub":{"attack":{"preset":{"id":"slash"}}}},
             "window_ticks":20,"dash_strike_ticks":10,"assist_range":40960,
-            "smash":{"type":"pull","distance":6144,"ticks":6}}"#,
+            "smash":{"type":"bleed"}}"#,
     ),
 ];
 

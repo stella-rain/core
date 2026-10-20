@@ -18,6 +18,9 @@
 //! main character's atk-up and its type bonus for the rune's type as they are when it is
 //! applied, as an attack's are when it starts (ADR-056), and by the target's multipliers at
 //! each tick (`entity::tick_dots`). The step's own bonuses (a perfect release's) are not its.
+//! A smash's hit that leaves its target standing adds one stack of bleed the same way, with the
+//! same numbers, whether the rune is held or not (`apply_smash_bleed`, ADR-084 point 8): each
+//! source adds its stack to the one bleed (ADR-099 point 3).
 //!
 //! Boomerang is thrown (`fly`): its attack starts on the main character, and its hit boxes fly
 //! out over its first phase to the point hit and back over its second toward where the main
@@ -153,36 +156,49 @@ pub(super) fn on_hit(
 pub(super) fn apply_dots(s: &mut State, target: Who, events: &mut Vec<DomainEvent>) {
     for i in 0..s.player.runes.len() {
         let rune = s.player.runes[i].rune;
-        let kind = match rune {
-            Rune::Bleed => StatusKind::Bleed,
-            Rune::Poison => StatusKind::Poison,
-            Rune::Burn => StatusKind::Burn,
-            Rune::Explosion | Rune::Thunder | Rune::Boomerang | Rune::HomingMissiles => continue,
-        };
-        let Some(entry) = s.runes.damage_over_time(rune) else {
-            continue;
-        };
-        // The validator holds every number to its cap; the clamps keep an unvalidated file there.
-        let interval = rune_haste_ticks(
-            entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS),
-            s.player.rune_haste_pct,
-        );
-        let duration = entry.duration_ticks.clamp(1, MAX_DOT_DURATION_TICKS);
-        let max_stacks = u16::try_from(entry.max_stacks.clamp(1, MAX_DOT_STACKS)).unwrap_or(1);
-        let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
-        let dot = DotState {
-            damage: entry.damage.min(MAX_DAMAGE),
-            damage_type: entry.damage_type,
-            atk_up_pct: status_pct(&s.player.statuses, StatusKind::AtkUp),
-            type_bonus_pct: entry
-                .damage_type
-                .map_or(0, |ty| s.player.type_bonus_pct[ty.index()].min(limit)),
-            interval,
-            next_in: interval,
-        };
-        let source = s.id_of(Who::Player);
-        s.add_dot(target, kind, source, dot, duration, max_stacks, events);
+        apply_dot(s, target, rune, events);
     }
+}
+
+/// A smash's hit that leaves `target` standing puts the bleed status on it, a stack more, with
+/// the bleed rune's numbers (ADR-084 point 8). It adds its own stack when the rune is held too:
+/// each source adds its stacks to the one bleed (ADR-099 point 3).
+pub(super) fn apply_smash_bleed(s: &mut State, target: Who, events: &mut Vec<DomainEvent>) {
+    apply_dot(s, target, Rune::Bleed, events);
+}
+
+/// Puts `rune`'s status on `target`, when `rune` is damage over time and the run's content has
+/// its entry; a run without one applies none (fail closed).
+fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEvent>) {
+    let kind = match rune {
+        Rune::Bleed => StatusKind::Bleed,
+        Rune::Poison => StatusKind::Poison,
+        Rune::Burn => StatusKind::Burn,
+        Rune::Explosion | Rune::Thunder | Rune::Boomerang | Rune::HomingMissiles => return,
+    };
+    let Some(entry) = s.runes.damage_over_time(rune) else {
+        return;
+    };
+    // The validator holds every number to its cap; the clamps keep an unvalidated file there.
+    let interval = rune_haste_ticks(
+        entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS),
+        s.player.rune_haste_pct,
+    );
+    let duration = entry.duration_ticks.clamp(1, MAX_DOT_DURATION_TICKS);
+    let max_stacks = u16::try_from(entry.max_stacks.clamp(1, MAX_DOT_STACKS)).unwrap_or(1);
+    let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
+    let dot = DotState {
+        damage: entry.damage.min(MAX_DAMAGE),
+        damage_type: entry.damage_type,
+        atk_up_pct: status_pct(&s.player.statuses, StatusKind::AtkUp),
+        type_bonus_pct: entry
+            .damage_type
+            .map_or(0, |ty| s.player.type_bonus_pct[ty.index()].min(limit)),
+        interval,
+        next_in: interval,
+    };
+    let source = s.id_of(Who::Player);
+    s.add_dot(target, kind, source, dot, duration, max_stacks, events);
 }
 
 /// Launches homing missiles' `missiles` from the main character, each toward its target, at
