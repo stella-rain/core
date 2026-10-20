@@ -916,6 +916,7 @@ fn hash_statuses(h: &mut StateHasher, statuses: &[crate::engine::StatusState]) {
         h.write_u32(st.remaining);
         h.write_u32(u32::from(st.stacks));
         h.write_u32(u32::from(st.value_pct));
+        h.write_u32(st.total);
         // Only for a damage-over-time status, which its kind already tells apart, so other
         // statuses hash as before.
         if let Some(d) = st.dot {
