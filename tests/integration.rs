@@ -10,6 +10,7 @@ mod assist;
 mod attacks;
 mod auto;
 mod base64;
+mod big_patterns;
 mod bleed;
 mod boomerang;
 mod boss;

@@ -897,7 +897,7 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
 }
 
 /// The ticks of the `elites` run: its length and its overtime.
-const ELITES_TICKS: u32 = 47_400;
+const ELITES_TICKS: u32 = 48_700;
 
 /// The elite each whole minute brings in the `elites` run, from minute 1: a leader and its
 /// escort, a goblin, a shrine and a mimic, then a low elite that fills the cap of 5, one that the
@@ -921,14 +921,14 @@ const ELITES_BY_MINUTE: [&str; 12] = [
 /// The `time_limit` mode of the `elites` run, as its file and as the content a run reads it
 /// with: the bundled mode with no waves, one tier of the elite table for each minute naming the
 /// one elite that minute brings (so that the draws, which the seed still makes, never change
-/// what comes), the final boss as the only boss at minute 13, 10 seconds of overtime,
+/// what comes), the final boss as the only boss at minute 13, 1900 ticks of overtime (the boss's call is due 1800 ticks after it comes),
 /// and the leader's aura at 100%, so that its raise is plain: the escort shoots for the default
 /// 100, which 100% makes a hit of 200 (the bundled 25% makes 125, `tests/elite_pack_leader.rs`).
 fn elites_time_limit() -> (String, RunContent) {
     let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
     v["length_ticks"] = json!(46_800);
     v["boss_ticks"] = json!([46_800]);
-    v["overtime_ticks"] = json!(600);
+    v["overtime_ticks"] = json!(1_900);
     v["waves"] = json!([]);
     let tiers: Vec<Value> = std::iter::once("elite_low")
         .chain(ELITES_BY_MINUTE)
@@ -1436,10 +1436,13 @@ fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
     );
     // The boss calls the elites that join, and skips a shrine, a disguised mimic and a goblin
     // that is still on the map.
-    // (A boss's call is due at once in a run, whose tick counts from its start, so it comes on
-    // the tick the boss does.)
+    // (The call counts the boss's 1800 ticks from its arrival, ADR-103, or comes at the share
+    // of its hit points that the main character takes, whichever is first.)
     let (tick, elites, called, skipped) = r.calls.first().cloned().expect("a boss calls");
-    assert_eq!(tick, boss, "the call comes with the boss");
+    assert!(
+        tick > boss && tick <= boss + 1_800,
+        "the call comes within 1800 ticks of the boss: {tick}, boss at {boss}"
+    );
     assert_eq!(
         usize::try_from(elites).unwrap(),
         called.len(),

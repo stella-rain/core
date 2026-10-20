@@ -240,6 +240,11 @@ pub enum Skill {
     Heal { amount: u32 },
 }
 
+/// For `skip_serializing_if`: a `false` that is the default is left out of the file.
+pub(crate) fn is_false(v: &bool) -> bool {
+    !*v
+}
+
 /// For `skip_serializing_if`: a 0 that is the default is left out of the file.
 pub(crate) fn is_zero(v: &u32) -> bool {
     *v == 0

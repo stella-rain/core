@@ -1264,7 +1264,14 @@ impl<'a> Ctx<'a> {
                 self.ticks("ticks", *ticks, 1);
             }
             Step::Wait { ticks } | Step::Telegraph { ticks } => self.ticks("ticks", *ticks, 1),
-            Step::Attack { attack } => self.key("attack", |c| c.attack_ref(attack)),
+            Step::Attack { attack, big } => {
+                self.key("attack", |c| c.attack_ref(attack));
+                if *big && !matches!(attack, AttackRef::Preset { .. }) {
+                    self.key("big", |c| {
+                        c.fail("only a preset can be big: its ID names it")
+                    });
+                }
+            }
             Step::Loop => {
                 if !last {
                     self.fail("`loop` must be the last step; later steps would never run");

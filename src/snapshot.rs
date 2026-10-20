@@ -67,6 +67,20 @@ pub struct Snapshot {
     /// expertise points.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expertise: Option<ExpertiseView>,
+    /// The boss's big patterns announced and not yet started (ADR-103), the call of its elites
+    /// first; the frontend draws each as a count-down bar.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub patterns: Vec<PatternView>,
+}
+
+/// A big pattern announced in the snapshot (ADR-103): its content ID, the ticks the count-down
+/// started with and the ticks left until it starts.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PatternView {
+    pub id: ContentId,
+    pub total: u32,
+    pub remaining: u32,
 }
 
 /// The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, its points

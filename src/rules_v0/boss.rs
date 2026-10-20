@@ -28,8 +28,9 @@
 
 use crate::attack::AttackRef;
 use crate::behaviour::BossCall;
-use crate::engine::{MoveOrder, Origin, State};
+use crate::engine::{BossState, MoveOrder, Origin, State};
 use crate::event::DomainEvent;
+use crate::snapshot::PatternView;
 use crate::stage::Stage;
 use crate::stage::{Step, Transition};
 
@@ -57,6 +58,7 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
         if b.hp == 0 {
             return;
         }
+        b.age = b.age.saturating_add(1);
         b.phase_age = b.phase_age.saturating_add(1);
         b.invulnerable = b.invulnerable.saturating_sub(1);
         for r in &mut b.rules {
@@ -93,10 +95,11 @@ pub(super) fn call_elites(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
     if b.hp == 0 || b.elites_called != Some(false) {
         return;
     }
-    // The boss's first tick is tick 1, so its time is up on tick `after_ticks + 1`.
+    // The boss's first tick is its age 1, so its time is up on its tick `after_ticks + 1`:
+    // counted from its arrival, not from the run's first tick (ADR-103).
     let time_up = call
         .after_ticks
-        .is_some_and(|t| s.tick.saturating_sub(1) >= t);
+        .is_some_and(|t| b.age.saturating_sub(1) >= t);
     let low = call
         .below_pct
         .is_some_and(|pct| u64::from(b.hp) * 100 < u64::from(pct) * u64::from(b.max_hp));
@@ -120,6 +123,71 @@ pub(super) fn call_elites(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
         }
     }
     events.push(DomainEvent::ElitesCalled { elites });
+}
+
+/// The content ID the boss's call of its elites is announced under (ADR-103).
+pub(crate) const CALL_ELITES: &str = "call_elites";
+
+/// The big patterns announced now, the call of the elites first (ADR-103): each with the ticks
+/// its count-down started with and the ticks left until it starts. It is a view of the state;
+/// nothing is stored.
+pub(crate) fn announced(stage: &Stage, s: &State) -> Vec<PatternView> {
+    let (Some(def), Some(b)) = (stage.boss.as_ref(), s.boss.as_ref()) else {
+        return Vec::new();
+    };
+    if b.hp == 0 {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    if let (Some(total), Some(false)) =
+        (def.call_elites.and_then(|c| c.after_ticks), b.elites_called)
+    {
+        let remaining = total.saturating_sub(b.age.saturating_sub(1));
+        if remaining > 0 {
+            out.push(PatternView {
+                id: CALL_ELITES.into(),
+                total,
+                remaining,
+            });
+        }
+    }
+    out.extend(next_big_attack(def, b));
+    out
+}
+
+/// The next attack step of the phase's timeline when it is a big preset and only timed steps
+/// come before it: its count-down is the ticks of those steps, the one in progress counted
+/// from what is left of it.
+fn next_big_attack(def: &crate::stage::Boss, b: &BossState) -> Option<PatternView> {
+    let timeline = &def.phases.get(b.phase as usize)?.timeline;
+    let held = |step: &Step| match step {
+        Step::MoveTo { ticks, .. } => Some((*ticks).max(1)),
+        Step::Wait { ticks } | Step::Telegraph { ticks } => Some(*ticks),
+        Step::Attack { .. } | Step::Loop => None,
+    };
+    let at = (b.step as usize..timeline.len()).find(|&i| held(&timeline[i]).is_none())?;
+    let Step::Attack {
+        attack: AttackRef::Preset { id, .. },
+        big: true,
+    } = &timeline[at]
+    else {
+        return None;
+    };
+    let ahead: u32 = timeline[b.step as usize..at]
+        .iter()
+        .filter_map(held)
+        .fold(0, u32::saturating_add);
+    let remaining = ahead.saturating_add(b.wait_left);
+    let total = timeline[..at]
+        .iter()
+        .rev()
+        .map_while(held)
+        .fold(0, u32::saturating_add);
+    (remaining > 0).then(|| PatternView {
+        id: id.clone(),
+        total: total.max(remaining),
+        remaining,
+    })
 }
 
 /// Ends the phase if its `until` holds and there is a phase to go on to.
@@ -237,7 +305,7 @@ fn timeline(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
                     return;
                 }
             }
-            Step::Attack { attack } => {
+            Step::Attack { attack, .. } => {
                 if start_attack(s, attack, events) {
                     return;
                 }

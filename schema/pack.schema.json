@@ -3522,6 +3522,10 @@
             "attack": {
               "$ref": "#/$defs/AttackRef"
             },
+            "big": {
+              "description": "A big pattern (ADR-103): announced in the snapshot, with the ticks left until it\nstarts, while the timed steps before it run. Only a preset can be big; its ID names\nit.",
+              "type": "boolean"
+            },
             "type": {
               "type": "string",
               "const": "attack"
