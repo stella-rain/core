@@ -549,5 +549,13 @@
       }
     }
   ],
-  "elite_cap": 5
+  "elite_cap": 5,
+  "level_table": {
+    "style": 3,
+    "upgrades": [
+      6,
+      9
+    ],
+    "capstone": 10
+  }
 }

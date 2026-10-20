@@ -48,6 +48,10 @@
       "format": "uint32",
       "minimum": 0
     },
+    "level_table": {
+      "description": "The expertise levels of the style path (ADR-106 §4): the style first, the levels rising\nstrictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The\nrun's stage takes it as its own.",
+      "$ref": "#/$defs/LevelTable"
+    },
     "map": {
       "$ref": "#/$defs/TimeLimitMap"
     },
@@ -103,7 +107,8 @@
     "waves",
     "elite_table",
     "elite_types",
-    "elite_cap"
+    "elite_cap",
+    "level_table"
   ],
   "$defs": {
     "Action": {
@@ -1350,6 +1355,38 @@
             "half_angle"
           ]
         }
+      ]
+    },
+    "LevelTable": {
+      "description": "The expertise levels of a run's style path (ADR-106 §4): the level of the style choice, of\neach of the two style upgrades and of the capstone. Every other level is a common offer.\nThe levels rise in that order, strictly, each from 1 to `MAX_STYLE_LEVEL`.",
+      "type": "object",
+      "properties": {
+        "capstone": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "style": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "upgrades": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "style",
+        "upgrades",
+        "capstone"
       ]
     },
     "Mimic": {

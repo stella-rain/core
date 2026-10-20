@@ -21,7 +21,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
-use crate::stage::{ExpertisePoints, Map, Wave};
+use crate::stage::{ExpertisePoints, LevelTable, Map, Wave};
 use crate::validate::limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -94,6 +94,10 @@ pub struct TimeLimitFile {
     /// The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the
     /// same bound). The run's stage takes it as its own.
     pub elite_cap: u16,
+    /// The expertise levels of the style path (ADR-106 §4): the style first, the levels rising
+    /// strictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The
+    /// run's stage takes it as its own.
+    pub level_table: LevelTable,
 }
 
 /// From `start_tick` until the next tier starts, an elite is drawn by these weights.
@@ -240,6 +244,11 @@ impl TimeLimit {
     /// The most elites alive at once.
     pub fn elite_cap(&self) -> u16 {
         self.file.elite_cap
+    }
+
+    /// The expertise levels of the style path.
+    pub fn level_table(&self) -> &LevelTable {
+        &self.file.level_table
     }
 
     /// The elite types the file defines.
@@ -406,6 +415,9 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
         }
     }
 
+    if let Some(problem) = file.level_table.problem() {
+        issue("$.level_table".into(), problem);
+    }
     if !(1..=MAX_ELITES_ALIVE).contains(&file.elite_cap) {
         issue(
             "$.elite_cap".into(),
