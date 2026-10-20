@@ -1461,3 +1461,67 @@ fn a_bleed_smash_takes_no_numbers() {
         "a bleed takes no distance"
     );
 }
+
+const HOLD: &str = "$.player.weapon.inline.combo.main.hold";
+
+/// A hold on a slash (ADR-084 point 6): a spin of one active phase, released by a thrust, at
+/// most 180 ticks and at half speed, with `edit` applied.
+fn hold(edit: impl FnOnce(&mut Value)) -> Value {
+    let mut h = json!({
+        "loop": { "inline": [{ "kind": "active", "ticks": 4, "type": "strike",
+                              "hit_box": { "type": "circle", "radius": 8192 } }] },
+        "release": { "preset": { "id": "thrust" } },
+        "max_ticks": 180, "move_pct": 50
+    });
+    edit(&mut h);
+    h
+}
+
+/// An inline Main weapon whose one step is a slash, held with `edit` applied to the hold.
+fn with_hold(edit: impl FnOnce(&mut Value)) -> Value {
+    let mut held = step(slash());
+    held["hold"] = hold(edit);
+    with_combo(json!({ "main": held }), |_| {})
+}
+
+#[test]
+fn a_held_step_holds_for_a_bounded_time_with_an_active_loop_and_a_recovery_to_hold_at() {
+    assert_valid(&with_hold(|_| {}));
+    let at = |key: &str| format!("{HOLD}.{key}");
+    let max_ticks = |n: u32| with_hold(|h| h["max_ticks"] = json!(n));
+    assert_valid(&max_ticks(MAX_HOLD_TICKS));
+    assert_eq!(first_issue(&max_ticks(0)).path, at("max_ticks"));
+    assert_eq!(
+        first_issue(&max_ticks(MAX_HOLD_TICKS + 1)).path,
+        at("max_ticks")
+    );
+    let slow = with_hold(|h| h["move_pct"] = json!(101));
+    assert_eq!(first_issue(&slow).path, at("move_pct"));
+    // The loop is a spin of active phases only: a thrust winds up first.
+    let winding = with_hold(|h| h["loop"] = json!({ "preset": { "id": "thrust" } }));
+    assert_eq!(first_issue(&winding).path, at("loop"));
+    // The hold begins where the slash's recovery is; a step with none has nowhere to hold.
+    let no_recovery = with_combo(
+        json!({ "main": {
+            "attack": { "inline": [{ "kind": "active", "ticks": 3, "type": "slash",
+                                    "hit_box": { "type": "circle", "radius": 8192 } }] },
+            "hold": hold(|_| {}) } }),
+        |_| {},
+    );
+    assert_eq!(
+        first_issue(&no_recovery).path,
+        "$.player.weapon.inline.combo.main.attack"
+    );
+}
+
+#[test]
+fn a_step_has_a_charge_or_a_hold_never_both() {
+    let mut both = step(slash());
+    both["charge"] = charge(|_| {});
+    both["hold"] = hold(|_| {});
+    let v = with_combo(json!({ "main": both }), |_| {});
+    assert_eq!(
+        first_issue(&v).path,
+        "$.player.weapon.inline.combo.main.hold"
+    );
+}

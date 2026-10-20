@@ -1600,6 +1600,39 @@
         }
       ]
     },
+    "Hold": {
+      "description": "A held step (ADR-084 point 6): an attack that goes on while the button stays held, then a\nrelease attack when it is let go, or at `max_ticks`. The hold begins where the step's\nrecovery after its last `active` phase would, so that phase is the hold's place.",
+      "type": "object",
+      "properties": {
+        "loop": {
+          "description": "The attack that runs while held: its phases are `active`, and it starts again from its\nfirst phase each time it ends, each loop a new attack with its facing locked at its start.",
+          "$ref": "#/$defs/AttackRef"
+        },
+        "max_ticks": {
+          "description": "The longest hold, in ticks.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "move_pct": {
+          "description": "The main character's movement speed while held, in percent; 100 when absent.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "release": {
+          "description": "The attack released when the button is let go, or at `max_ticks`, with its facing locked\nwhen it starts.",
+          "$ref": "#/$defs/AttackRef"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "loop",
+        "release",
+        "max_ticks"
+      ]
+    },
     "Levels": {
       "description": "How much experience each level needs.",
       "type": "object",
@@ -2354,6 +2387,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Charge"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hold": {
+          "description": "Held past its last `active` phase, the button that reached the step starts a hold\ninstead of the attack's recovery (ADR-084 point 6). A step has a charge or a hold, never\nboth.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Hold"
             },
             {
               "type": "null"
