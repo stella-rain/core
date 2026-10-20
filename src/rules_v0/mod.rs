@@ -103,7 +103,7 @@ use crate::attack::{DamageType, MatchUp, Profile};
 use crate::behaviour::BossCall;
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
-    PartState, PlayerState, Progress, Pull, StarField, State,
+    PartState, PlayerState, Progress, Pull, StarField, State, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
@@ -547,7 +547,9 @@ fn move_bullets(stage: &Stage, s: &mut State) {
         }
         b.at.x = b.at.x.saturating_add(b.vx);
         b.at.y = b.at.y.saturating_add(b.vy);
-        b.life -= 1;
+        if b.life != UNLIMITED {
+            b.life -= 1;
+        }
         holds(b.at)
     });
 }
@@ -1410,6 +1412,14 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         for b in &s.bullets {
             h.write_u32(type_code(b.damage_type));
             h.write_u32(b.hook.as_ref().map_or(0, |k| type_code(k.damage_type)));
+        }
+    }
+    // Each bullet's ticks left, and only while one has a lifetime (core#147), so that the hashes
+    // of runs without one stay as they were.
+    if s.bullets.iter().any(|b| b.life != UNLIMITED) {
+        h.write_u32(count(&s.bullets));
+        for b in &s.bullets {
+            h.write_u32(b.life);
         }
     }
     // Last, and only while the main character holds a type bonus (ADR-100), so that the hashes
