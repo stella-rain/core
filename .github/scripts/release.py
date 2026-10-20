@@ -149,12 +149,12 @@ def check_candidate(branch, head, on_main, others):
 
 
 def checks_passed(runs, run_id):
+    """auto-merge.yml merges with GITHUB_TOKEN, which starts no push run (app#176), so main's
+    commit may have no check run at all: the PR's head ran the gates. Runs that exist must pass."""
     own = f"/actions/runs/{run_id}/"
     others = [c for c in runs
               if own not in (c.get("details_url") or "") and c["name"] not in CANDIDATE_JOBS
               and not c["name"].startswith(CALLED_PREFIX)]
-    if not others:
-        raise ReleaseError("no check run on this commit besides this run")
     bad = [f"{c['name']}: {c['conclusion'] if c['status'] == 'completed' else c['status']}"
            for c in others if c["status"] != "completed" or c.get("conclusion") in FAILED]
     if bad:
