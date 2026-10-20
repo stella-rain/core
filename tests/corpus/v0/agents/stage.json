@@ -1,163 +1,163 @@
 {
-  "schema_version": 0,
-  "sim_version": 0,
-  "id": "test",
-  "title": "Test",
-  "description": "",
-  "seed": 7,
-  "length_ticks": 600,
-  "player": {
-    "base": "pilot_a",
-    "hp": 99,
-    "atk": 10,
-    "main": {
-      "inline": {
-        "combo": {
-          "main": {
-            "attack": {
-              "preset": {
-                "id": "aimed_single",
-                "args": [
-                  2048
-                ]
-              }
-            }
-          }
-        },
-        "window_ticks": 0,
-        "assist_range": 0
+  "boss": {
+    "base": "golem",
+    "hp": 100000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [],
+        "transition": []
       }
-    },
-    "sub": {
-      "inline": {
-        "bonus": {
-          "type": "pull",
-          "distance": 0,
-          "ticks": 1
-        }
-      }
-    },
-    "evade": {
-      "distance": 12288,
-      "ticks": 8,
-      "invulnerable_ticks": 10,
-      "cooldown_ticks": 40
+    ],
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
     }
   },
   "companions": [
     {
       "base": "fairy_a",
-      "hp": 10,
-      "radius": 1024,
+      "hp": 1000,
       "movement": {
-        "type": "orbit",
-        "radius": 10240
+        "radius": 10240,
+        "type": "orbit"
       },
+      "radius": 1024,
       "rules": [
         {
+          "cooldown_ticks": 30,
+          "do": {
+            "skill": {
+              "duration_ticks": 40,
+              "type": "atk_up",
+              "value_pct": 25
+            },
+            "type": "cast"
+          },
+          "once": false,
+          "target": "player",
           "when": {
             "type": "always"
-          },
-          "target": "player",
-          "do": {
-            "type": "cast",
-            "skill": {
-              "type": "atk_up",
-              "value_pct": 25,
-              "duration_ticks": 40
-            }
-          },
-          "cooldown_ticks": 30,
-          "once": false
+          }
         }
       ]
     },
     {
       "base": "fairy_a",
-      "hp": 10,
-      "radius": 1024,
+      "hp": 1000,
       "movement": {
-        "type": "follow",
-        "distance": 12288
+        "distance": 12288,
+        "type": "follow"
       },
+      "radius": 1024,
       "rules": [
         {
-          "when": {
-            "type": "hp_below",
-            "who": "lowest_hp_ally",
-            "pct": 100
-          },
-          "target": "lowest_hp_ally",
-          "do": {
-            "type": "cast",
-            "skill": {
-              "type": "heal",
-              "amount": 5
-            }
-          },
           "cooldown_ticks": 0,
-          "once": false
+          "do": {
+            "skill": {
+              "amount": 500,
+              "type": "heal"
+            },
+            "type": "cast"
+          },
+          "once": false,
+          "target": "lowest_hp_ally",
+          "when": {
+            "pct": 100,
+            "type": "hp_below",
+            "who": "lowest_hp_ally"
+          }
         }
       ]
     }
   ],
+  "description": "",
+  "id": "test",
+  "length_ticks": 600,
+  "player": {
+    "atk": 1000,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 9900,
+    "main": {
+      "inline": {
+        "assist_range": 0,
+        "combo": {
+          "main": {
+            "attack": {
+              "preset": {
+                "args": [
+                  2048
+                ],
+                "id": "aimed_single"
+              }
+            }
+          }
+        },
+        "window_ticks": 0
+      }
+    },
+    "sub": {
+      "inline": {
+        "bonus": {
+          "distance": 0,
+          "ticks": 1,
+          "type": "pull"
+        }
+      }
+    }
+  },
+  "schema_version": 0,
+  "seed": 7,
+  "sim_version": 0,
+  "title": "Test",
   "waves": [
     {
       "at_tick": 1,
+      "count": 1,
       "enemy": {
         "base": "bat",
-        "hp": 50,
-        "radius": 2048,
+        "hp": 5000,
         "movement": {
           "type": "straight",
           "vx": 0,
           "vy": 96
         },
+        "radius": 2048,
         "rules": [
           {
-            "when": {
-              "type": "always"
-            },
-            "target": "nearest_ally",
+            "cooldown_ticks": 5,
             "do": {
-              "type": "attack",
               "attack": {
                 "preset": {
-                  "id": "aimed_single",
                   "args": [
                     768
-                  ]
+                  ],
+                  "id": "aimed_single"
                 }
-              }
+              },
+              "type": "attack"
             },
-            "cooldown_ticks": 5,
-            "once": false
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
           }
         ]
       },
+      "every_ticks": 0,
       "spawn": {
         "x": 46080,
         "y": 100000
-      },
-      "count": 1,
-      "every_ticks": 0
-    }
-  ],
-  "boss": {
-    "base": "golem",
-    "hp": 1000000,
-    "radius": 1000,
-    "spawn": {
-      "x": 0,
-      "y": 0
-    },
-    "parts": [],
-    "phases": [
-      {
-        "transition": [],
-        "timeline": [],
-        "rules": []
       }
-    ]
-  }
+    }
+  ]
 }
