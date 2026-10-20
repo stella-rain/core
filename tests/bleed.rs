@@ -16,7 +16,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::runes::Runes;
-use stella_rain_core::snapshot::DamageOverTimeView;
+use stella_rain_core::snapshot::{DamageOverTimeView, StatusView};
 
 use crate::common;
 
@@ -434,4 +434,60 @@ fn a_run_holding_bleed_records_and_verifies() {
     assert!(bled, "bleed was applied in the run");
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());
+}
+
+#[test]
+fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_zero() {
+    // ADR-103 decision 3: the status is listed with what is left of it and the ticks it was
+    // applied for, beside the damage-over-time view it has always had.
+    let mut e = holding(runes(30, 180, 3, 5), tough(0, None, None));
+    let target = wait_for_target(&mut e);
+    // Poison and burn, held on the target too, are beside it in the list.
+    let listed = |e: &Engine| -> Vec<StatusView> {
+        e.snapshot()
+            .entities
+            .into_iter()
+            .find(|en| en.id == target)
+            .map(|en| en.statuses)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|s| s.id.0 == "bleed")
+            .collect()
+    };
+    assert!(listed(&e).is_empty());
+    let start = e.tick();
+    e.step(once(start)(start));
+    assert_eq!(
+        listed(&e),
+        [StatusView {
+            id: "bleed".into(),
+            remaining: 180,
+            total: 180
+        }]
+    );
+    e.step(Input::default());
+    assert_eq!(
+        listed(&e),
+        [StatusView {
+            id: "bleed".into(),
+            remaining: 179,
+            total: 180
+        }]
+    );
+    for _ in 0..178 {
+        e.step(Input::default());
+    }
+    assert_eq!(
+        listed(&e),
+        [StatusView {
+            id: "bleed".into(),
+            remaining: 1,
+            total: 180
+        }]
+    );
+    e.step(Input::default());
+    assert!(
+        listed(&e).is_empty(),
+        "it runs out on the 180th tick after it was applied"
+    );
 }

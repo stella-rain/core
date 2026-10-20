@@ -70,6 +70,7 @@ mod stage_skill;
 mod stage_skill_file;
 mod stage_verify;
 mod stars;
+mod statuses;
 mod thunder;
 mod time_limit;
 mod time_limit_end;

@@ -316,6 +316,9 @@ pub struct PlayerView {
     /// on-hit rune, by its place in `Rune::ALL` (ADR-099).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
+    /// Its statuses, sorted by ID (ADR-103 decision 3): the timed buffs and debuffs it holds.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub statuses: Vec<StatusView>,
 }
 
 /// The type bonus the main character holds for one damage type (ADR-100): the one-type
@@ -469,6 +472,24 @@ pub struct EntityView {
     /// Its damage-over-time statuses (ADR-099), one of a kind at most.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub damage_over_time: Vec<DamageOverTimeView>,
+    /// Its statuses and auras, sorted by ID (ADR-103 decision 3).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub statuses: Vec<StatusView>,
+}
+
+/// A status on an entity, or a pack leader's aura (ADR-103 decision 3): what the app shows as
+/// an icon with a count-down, or as a row while it lasts.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StatusView {
+    /// The status's content ID: `atk_up`, `vulnerable`, `slow`, `bleed`, `poison`, `burn`, or
+    /// `aura` for a pack leader's aura, which has no content ID of its own.
+    pub id: ContentId,
+    /// Ticks left. An aura has none: it lasts while its entity is in reach, so both this and
+    /// `total` are 0 for it.
+    pub remaining: u32,
+    /// The ticks the status was applied for, or 0 for an aura.
+    pub total: u32,
 }
 
 /// A damage-over-time status on an entity (ADR-099): bleed, poison or burn.

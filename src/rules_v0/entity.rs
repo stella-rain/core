@@ -209,6 +209,9 @@ impl State {
         let stacks = match list.iter_mut().find(|s| s.kind == kind) {
             Some(s) => {
                 s.stacks = (s.stacks + 1).min(MAX_STACKS);
+                if duration > s.remaining {
+                    s.total = duration;
+                }
                 s.remaining = s.remaining.max(duration);
                 s.source = source;
                 s.value_pct = value_pct;
@@ -219,6 +222,7 @@ impl State {
                     kind,
                     source,
                     remaining: duration,
+                    total: duration,
                     stacks: 1,
                     value_pct,
                     dot: None,
@@ -259,6 +263,7 @@ impl State {
                 }
                 s.stacks = s.stacks.saturating_add(1).min(max_stacks);
                 s.remaining = duration;
+                s.total = duration;
                 s.source = source;
                 s.dot = Some(dot);
                 s.stacks
@@ -268,6 +273,7 @@ impl State {
                     kind,
                     source,
                     remaining: duration,
+                    total: duration,
                     stacks: 1,
                     value_pct: 0,
                     dot: Some(dot),

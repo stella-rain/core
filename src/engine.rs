@@ -29,7 +29,7 @@ use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, DamageOverTimeView, EntityKind, EntityView,
     EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, MapView, OfferKind, OrbitView,
     PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
-    TypeBonusView, WeaponRole,
+    StatusView, TypeBonusView, WeaponRole,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -339,6 +339,8 @@ impl Engine {
             }
         };
         let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
+        // The auras of the elites, read once: an enemy within reach of one is strengthened.
+        let auras: Vec<_> = rules_v0::aura_sources(&self.stage, s).collect();
         let mut entities = Vec::new();
         if let (Some(b), Some(boss)) = (&s.boss, &self.stage.boss) {
             if b.hp > 0 {
@@ -355,6 +357,7 @@ impl Engine {
                     elite: false,
                     aura_radius: None,
                     damage_over_time: dot_views(&b.statuses),
+                    statuses: status_views(&b.statuses, false),
                 });
             }
         }
@@ -364,6 +367,10 @@ impl Engine {
                 for a in agents {
                     let def = rules_v0::agent_def(&self.stage, a.key);
                     let hidden = a.hidden();
+                    // Only a non-elite enemy is strengthened by an aura (ADR-090).
+                    let reached = kind == EntityKind::Enemy
+                        && a.elite.is_none()
+                        && rules_v0::aura_percent(auras.iter().copied(), a.at) > 0;
                     out.push(EntityView {
                         id: a.id,
                         kind,
@@ -384,6 +391,7 @@ impl Engine {
                             .and_then(|e| e.aura)
                             .map(|aura| aura.radius),
                         damage_over_time: dot_views(&a.statuses),
+                        statuses: status_views(&a.statuses, reached),
                     });
                 }
             };
@@ -409,6 +417,7 @@ impl Engine {
                         elite: false,
                         aura_radius: None,
                         damage_over_time: dot_views(&part.statuses),
+                        statuses: status_views(&part.statuses, false),
                     });
                 }
             }
@@ -520,6 +529,7 @@ impl Engine {
                     runs.sort_by_key(|r| r.slot);
                     runs.into_iter().map(view).collect()
                 },
+                statuses: status_views(&s.player.statuses, false),
             },
             entities,
             bullets: s
@@ -1113,6 +1123,9 @@ pub(crate) struct StatusState {
     /// Who applied it last.
     pub source: EntityId,
     pub remaining: u32,
+    /// The ticks of the application that set `remaining`, for the snapshot (ADR-103): a
+    /// refresh with a longer duration sets it, a shorter one leaves both alone.
+    pub total: u32,
     pub stacks: u16,
     /// Percent per stack.
     pub value_pct: u16,
@@ -1134,6 +1147,29 @@ fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
             })
         })
         .collect()
+}
+
+/// The statuses of `statuses` for the snapshot (ADR-103 decision 3), sorted by ID: each with
+/// what is left of it and the ticks it was applied for. `aura` adds a pack leader's aura,
+/// which has no timer: it lasts while its entity is in reach.
+fn status_views(statuses: &[StatusState], aura: bool) -> Vec<StatusView> {
+    let mut views: Vec<StatusView> = statuses
+        .iter()
+        .map(|st| StatusView {
+            id: ContentId(st.kind.name().to_owned()),
+            remaining: st.remaining,
+            total: st.total,
+        })
+        .collect();
+    if aura {
+        views.push(StatusView {
+            id: ContentId("aura".to_owned()),
+            remaining: 0,
+            total: 0,
+        });
+    }
+    views.sort_by(|a, b| a.id.0.cmp(&b.id.0));
+    views
 }
 
 /// What a damage-over-time status deals and when (ADR-099 points 2 and 3): its damage a stack

@@ -817,8 +817,19 @@ fn aided(stage: &Stage, s: &State, b: Shot) -> Shot {
     if owner.elite.is_some() {
         return b;
     }
-    let percent = s
-        .enemies
+    let percent = aura_percent(aura_sources(stage, s), owner.at);
+    Shot {
+        damage: u32::try_from(u64::from(b.damage) * (100 + percent) / 100).unwrap_or(u32::MAX),
+        ..b
+    }
+}
+
+/// The auras of the elites on the map, each with its leader's centre, in index order (ADR-090).
+pub(crate) fn aura_sources<'a>(
+    stage: &'a Stage,
+    s: &'a State,
+) -> impl Iterator<Item = (Point, crate::behaviour::Aura)> + 'a {
+    s.enemies
         .iter()
         .filter(|l| l.elite.is_some())
         .filter_map(|l| {
@@ -828,19 +839,24 @@ fn aided(stage: &Stage, s: &State, b: Shot) -> Shot {
                 .aura
                 .map(|aura| (l.at, aura))
         })
+}
+
+/// The highest `damage_percent` among the auras whose leader's centre is within its radius of
+/// `at` (the edge counts); 0 when none reaches it.
+pub(crate) fn aura_percent(
+    auras: impl Iterator<Item = (Point, crate::behaviour::Aura)>,
+    at: Point,
+) -> u64 {
+    auras
         .filter(|(from, aura)| {
-            let dx = i64::from(from.x.0) - i64::from(owner.at.x.0);
-            let dy = i64::from(from.y.0) - i64::from(owner.at.y.0);
+            let dx = i64::from(from.x.0) - i64::from(at.x.0);
+            let dy = i64::from(from.y.0) - i64::from(at.y.0);
             let reach = i64::from(aura.radius.0);
             dx * dx + dy * dy <= reach * reach
         })
         .map(|(_, aura)| u64::from(aura.damage_percent))
         .max()
-        .unwrap_or(0);
-    Shot {
-        damage: u32::try_from(u64::from(b.damage) * (100 + percent) / 100).unwrap_or(u32::MAX),
-        ..b
-    }
+        .unwrap_or(0)
 }
 
 /// An enemy's shot against the main character (unless it is invulnerable), then the
@@ -900,6 +916,7 @@ fn hash_statuses(h: &mut StateHasher, statuses: &[crate::engine::StatusState]) {
         h.write_u32(st.remaining);
         h.write_u32(u32::from(st.stacks));
         h.write_u32(u32::from(st.value_pct));
+        h.write_u32(st.total);
         // Only for a damage-over-time status, which its kind already tells apart, so other
         // statuses hash as before.
         if let Some(d) = st.dot {
