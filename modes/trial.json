@@ -18,14 +18,9 @@
     "base": "pilot_a",
     "hp": 500,
     "atk": 1000,
-    "main": {
+    "weapon": {
       "preset": {
         "id": "blade"
-      }
-    },
-    "sub": {
-      "preset": {
-        "id": "maul"
       }
     },
     "evade": {

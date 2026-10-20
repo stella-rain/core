@@ -146,12 +146,11 @@ pub fn stage() -> Stage {
                     "direction": { "type": "aimed", "offset": 0 } }] }] });
     let charged = json!({ "attack": { "inline": step }, "charge": {
         "levels": [{ "at_ticks": CHARGE_TICKS, "attack": released }], "max_ticks": 600 } });
-    let mut main = common::main_combo(json!({ "main": charged }));
+    let mut main = common::weapon_combo(json!({ "main": charged }));
     main["inline"]["assist_range"] = json!(MAX_ASSIST_RANGE);
     let mut stage = common::armed(
         common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4]),
         main,
-        common::quiet_sub(),
     );
     stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
     stage.stars = Some(

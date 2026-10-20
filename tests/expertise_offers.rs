@@ -56,9 +56,10 @@ fn damages(prefix: &str, n: usize) -> Vec<Value> {
 }
 
 /// The bundled content, its expertise with `TABLE` (growth 150 percent, at most 100_000), and
-/// the `blade`'s and the `maul`'s common pools replaced by `main` and `sub`.
-fn content(main: Vec<Value>, sub: Vec<Value>) -> RunContent {
-    content_with(TABLE, 150, 100_000, main, sub)
+/// the `blade`'s common pool replaced by `main`. Both roles read the one weapon's pools for now
+/// (ADR-105; interim until ADR-106's rewrite), so the Sub's offers draw from `main` too.
+fn content(main: Vec<Value>) -> RunContent {
+    content_with(TABLE, 150, 100_000, main)
 }
 
 fn content_with(
@@ -66,31 +67,21 @@ fn content_with(
     growth_pct: u16,
     max_points: u32,
     main: Vec<Value>,
-    sub: Vec<Value>,
 ) -> RunContent {
-    parsed(file_with(thresholds, growth_pct, max_points, main, sub))
+    parsed(file_with(thresholds, growth_pct, max_points, main))
 }
 
 /// The bundled expertise file with `thresholds`, `growth_pct`, `max_points`, and the `blade`'s
-/// and the `maul`'s common pools replaced by `main` and `sub`.
-fn file_with(
-    thresholds: [u32; 10],
-    growth_pct: u16,
-    max_points: u32,
-    main: Vec<Value>,
-    sub: Vec<Value>,
-) -> Value {
+/// common pool replaced by `main`.
+fn file_with(thresholds: [u32; 10], growth_pct: u16, max_points: u32, main: Vec<Value>) -> Value {
     let mut file: Value = serde_json::from_slice(Expertise::BUNDLED).unwrap();
     file["thresholds"] = json!(thresholds);
     file["growth_pct"] = json!(growth_pct);
     file["max_points"] = json!(max_points);
     for w in file["weapons"].as_array_mut().unwrap() {
-        let pool = match w["weapon"].as_str().unwrap() {
-            "blade" => main.clone(),
-            "maul" => sub.clone(),
-            other => panic!("no pool for {other}"),
-        };
-        w["common"] = json!(pool);
+        if w["weapon"].as_str() == Some("blade") {
+            w["common"] = json!(main.clone());
+        }
     }
     file
 }
@@ -108,7 +99,7 @@ fn target(hp: u32, x: i32, y: i32, kill: u32) -> Value {
     w
 }
 
-/// The `blade` as Main and the `maul` as Sub, levels of 1000 experience, stars that every kill
+/// The `blade` as the one weapon, levels of 1000 experience, stars that every kill
 /// drops (taken at once within 48 pixels), one reroll and one banish; a boss of `boss_hp` 32
 /// pixels ahead giving `boss_kill` points, or none; and `waves`.
 fn stage(boss: Option<(u32, u32)>, waves: Vec<Value>) -> Stage {
@@ -118,11 +109,7 @@ fn stage(boss: Option<(u32, u32)>, waves: Vec<Value>) -> Stage {
         b
     });
     let mut stage = stage_full(18_000, boss.or(Some(far_boss())), waves, vec![]);
-    stage = armed(
-        stage,
-        json!({ "preset": { "id": "blade" } }),
-        json!({ "preset": { "id": "maul" } }),
-    );
+    stage = armed(stage, json!({ "preset": { "id": "blade" } }));
     stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
     stage.stars = Some(
         serde_json::from_value(json!({
@@ -207,7 +194,7 @@ fn index_of(e: &Engine, option: OfferOption) -> u32 {
 fn a_boss_kill_crossing_several_thresholds_opens_one_offer_per_level_in_order() {
     let mut e = with(
         &stage(Some((1, to_level(13))), vec![]),
-        &content(damages("m", 3), damages("s", 3)),
+        &content(damages("m", 3)),
     );
     let first = until_offer(&mut e);
     let seen = take_all(&mut e, &first);
@@ -231,7 +218,7 @@ fn a_boss_kill_crossing_several_thresholds_opens_one_offer_per_level_in_order() 
 fn an_expertise_offer_opens_at_the_end_of_the_tick_and_stops_the_world() {
     let mut e = with(
         &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
-        &content(damages("m", 3), damages("s", 3)),
+        &content(damages("m", 3)),
     );
     let events = until_offer(&mut e);
     assert_eq!(
@@ -249,7 +236,7 @@ fn an_expertise_offer_opens_at_the_end_of_the_tick_and_stops_the_world() {
 fn a_kill_s_level_opens_before_the_star_it_drops() {
     let mut e = with(
         &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
-        &content(damages("m", 3), damages("s", 3)),
+        &content(damages("m", 3)),
     );
     let first = until_offer(&mut e);
     assert_eq!(take_all(&mut e, &first), ["main 1", "star"]);
@@ -260,7 +247,7 @@ fn a_common_offer_holds_three_candidates_and_a_reroll_of_each_and_no_skip_or_ban
     use OfferOption::{Reroll, Take};
     let mut e = with(
         &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
-        &content(damages("m", 4), damages("s", 4)),
+        &content(damages("m", 4)),
     );
     until_offer(&mut e);
     let offer = expertise_offer(&e);
@@ -288,7 +275,7 @@ fn a_common_offer_holds_three_candidates_and_a_reroll_of_each_and_no_skip_or_ban
 fn a_reroll_draws_that_candidate_alone_again_and_spends_a_reroll() {
     let mut e = with(
         &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
-        &content(damages("m", 4), damages("s", 4)),
+        &content(damages("m", 4)),
     );
     until_offer(&mut e);
     let before = candidates(&e);
@@ -321,7 +308,7 @@ fn a_reroll_draws_that_candidate_alone_again_and_spends_a_reroll() {
 fn no_reroll_is_offered_when_no_other_option_could_come() {
     let mut e = with(
         &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
-        &content(damages("m", 3), damages("s", 3)),
+        &content(damages("m", 3)),
     );
     until_offer(&mut e);
     assert_eq!(expertise_offer(&e).options.len(), 3);
@@ -331,7 +318,7 @@ fn no_reroll_is_offered_when_no_other_option_could_come() {
 fn with_fewer_options_left_the_offer_holds_those() {
     let mut e = with(
         &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
-        &content(damages("m", 2), damages("s", 2)),
+        &content(damages("m", 2)),
     );
     until_offer(&mut e);
     let mut c = candidates(&e);
@@ -344,7 +331,7 @@ fn with_fewer_options_left_the_offer_holds_those() {
 fn taking_an_option_applies_it_and_counts_it_for_its_weapon() {
     let mut e = with(
         &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
-        &content(vec![option("tough", "max_hp", 5)], damages("s", 1)),
+        &content(vec![option("tough", "max_hp", 5)]),
     );
     until_offer(&mut e);
     let hp = e.snapshot().player.hp;
@@ -366,10 +353,7 @@ fn taking_an_option_applies_it_and_counts_it_for_its_weapon() {
 fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
     // One option in the Main pool: levels 1, 4, 7, 11, 13, 14 and 16 offer it.
     let main = vec![option("quick", "attack_speed_pct", 10)];
-    let mut e = with(
-        &stage(Some((1, to_level(16))), vec![]),
-        &content(main, damages("s", 1)),
-    );
+    let mut e = with(&stage(Some((1, to_level(16))), vec![]), &content(main));
     until_offer(&mut e);
     e.choose(0).unwrap(); // The boss offer.
     let mut quick_offers = 0;
@@ -390,7 +374,7 @@ fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
 fn a_boss_kill_no_longer_upgrades_a_weapon_its_points_are_its_weapon_progress() {
     let mut e = with(
         &stage(Some((1, to_level(1))), vec![]),
-        &content(damages("m", 3), damages("s", 3)),
+        &content(damages("m", 3)),
     );
     let events = until_offer(&mut e);
     assert!(
@@ -417,7 +401,7 @@ fn a_boss_kill_s_clear_opens_its_offer_then_its_levels_then_the_star_s() {
             Some((1, to_level(2))),
             vec![target(1, START_X + 2_048, NEAR_Y, 0)],
         ),
-        &content(damages("m", 3), damages("s", 3)),
+        &content(damages("m", 3)),
     );
     let first = until_offer(&mut e);
     assert!(first.contains(&DomainEvent::StageCleared));
@@ -439,7 +423,7 @@ fn damage_stays_bounded_with_many_damage_options_stacked() {
     // levels, each a pick of 100 percent more damage, which the arithmetic of ADR-056
     // holds without overflowing.
     let big = |p: &str| vec![option(p, "attack_pct", 100)];
-    let content = content_with([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 101, 10, big("m"), big("s"));
+    let content = content_with([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 101, 10, big("m"));
     let tough = target(100_000, START_X + 2_048, NEAR_Y, 0);
     let killed = target(1, START_X, NEAR_Y, 100_000);
     let mut e = with(&stage(None, vec![killed, tough]), &content);
@@ -491,7 +475,7 @@ fn the_offer_and_the_picks_are_in_the_state_hash() {
     let make = || {
         with(
             &stage(None, vec![target(1, START_X, NEAR_Y, 10)]),
-            &content(damages("m", 4), damages("s", 4)),
+            &content(damages("m", 4)),
         )
     };
     let (mut a, mut b) = (make(), make());
@@ -563,15 +547,12 @@ fn styles(prefix: &str) -> [Value; 3] {
     ["a", "b", "c"].map(|s| style(&format!("{prefix}_{s}"), "attack_pct", 1))
 }
 
-/// `content` with three damage options per pool, the `blade`'s styles `main` and the `maul`'s
-/// `sub`.
-fn styled(main: [Value; 3], sub: [Value; 3]) -> RunContent {
-    let mut file = file_with(TABLE, 150, 100_000, damages("m", 3), damages("s", 3));
+/// `content` with three damage options per pool, and the `blade`'s styles `main`. A Sub style
+/// reads the same styles (interim, ADR-105), so `styled` takes one set.
+fn styled(main: [Value; 3]) -> RunContent {
+    let mut file = file_with(TABLE, 150, 100_000, damages("m", 3));
     for w in file["weapons"].as_array_mut().unwrap() {
-        w["styles"] = match w["weapon"].as_str().unwrap() {
-            "blade" => json!(main),
-            _ => json!(sub),
-        };
+        w["styles"] = json!(main);
     }
     parsed(file)
 }
@@ -609,7 +590,7 @@ fn ids(list: &[&str]) -> Vec<stella_rain_core::id::ContentId> {
 fn level_3_offers_the_main_s_three_styles_fixed_with_no_reroll_skip_or_banish() {
     let mut e = with(
         &stage(Some((1, to_level(3))), vec![]),
-        &styled(styles("main"), styles("sub")),
+        &styled(styles("main")),
     );
     let events = to_offer_of(&mut e, 3);
     let offer = expertise_offer(&e);
@@ -644,10 +625,10 @@ fn level_3_offers_the_main_s_three_styles_fixed_with_no_reroll_skip_or_banish() 
 }
 
 #[test]
-fn level_5_offers_the_sub_s_three_styles() {
+fn level_5_offers_the_sub_role_the_same_weapon_s_three_styles() {
     let mut e = with(
         &stage(Some((1, to_level(5))), vec![]),
-        &styled(styles("main"), styles("sub")),
+        &styled(styles("main")),
     );
     let events = to_offer_of(&mut e, 5);
     let offer = expertise_offer(&e);
@@ -655,13 +636,13 @@ fn level_5_offers_the_sub_s_three_styles() {
         (offer.weapon, offer.kind),
         (WeaponRole::Sub, ExpertiseOfferKind::Style)
     );
-    assert_eq!(candidates(&e), ["sub_a", "sub_b", "sub_c"]);
+    assert_eq!(candidates(&e), ["main_a", "main_b", "main_c"]);
     assert_eq!(offer.options, takes(3));
     assert!(events.contains(&DomainEvent::ExpertiseOfferOpened {
         level: 5,
         weapon: WeaponRole::Sub,
         kind: ExpertiseOfferKind::Style,
-        candidates: ids(&["sub_a", "sub_b", "sub_c"]),
+        candidates: ids(&["main_a", "main_b", "main_c"]),
     }));
 }
 
@@ -672,10 +653,7 @@ fn choosing_a_style_applies_its_effect_and_holds_it_for_the_run() {
         style("main_b", "max_hp", 7),
         style("main_c", "max_hp", 9),
     ];
-    let mut e = with(
-        &stage(Some((1, to_level(5))), vec![]),
-        &styled(main, styles("sub")),
-    );
+    let mut e = with(&stage(Some((1, to_level(5))), vec![]), &styled(main));
     to_offer_of(&mut e, 3);
     let hp = e.snapshot().player.hp;
     e.choose(1).unwrap();
@@ -699,7 +677,7 @@ fn choosing_a_style_applies_its_effect_and_holds_it_for_the_run() {
     let g = gauge(&e);
     assert_eq!(
         (g.main_style, g.sub_style),
-        (Some("main_b".into()), Some("sub_c".into()))
+        (Some("main_b".into()), Some("main_c".into()))
     );
     assert!(g.main_path.is_empty());
 }
@@ -708,7 +686,7 @@ fn choosing_a_style_applies_its_effect_and_holds_it_for_the_run() {
 fn levels_6_and_9_offer_the_chosen_main_style_s_upgrades_and_10_its_capstone() {
     let mut e = with(
         &stage(Some((1, to_level(10))), vec![]),
-        &styled(styles("main"), styles("sub")),
+        &styled(styles("main")),
     );
     to_offer_of(&mut e, 3);
     e.choose(1).unwrap();
@@ -768,7 +746,7 @@ fn the_styles_and_the_path_taken_are_in_the_state_hash() {
     let make = || {
         with(
             &stage(Some((1, to_level(6))), vec![]),
-            &styled(styles("main"), styles("sub")),
+            &styled(styles("main")),
         )
     };
     let (mut a, mut b) = (make(), make());
@@ -793,23 +771,19 @@ fn the_styles_and_the_path_taken_are_in_the_state_hash() {
 }
 
 #[test]
-fn an_inline_main_weapon_opens_no_style_upgrade_or_capstone_and_the_sub_still_does() {
-    // An inline weapon has no expertise content: none of the Main's levels opens, its style
-    // included, so 6, 9 and 10, which follow a Main style, fail closed and open nothing.
+fn an_inline_weapon_has_no_expertise_content_for_either_role() {
+    // An inline weapon has no expertise content: no weapon offer opens for either role, its
+    // styles and upgrades included, so 6, 9 and 10, which follow a style, fail closed.
     let stage = armed(
         stage(Some((1, to_level(13))), vec![]),
         json!({ "inline": { "combo": { "main": { "attack": { "preset": { "id": "slash" } } } },
                             "window_ticks": 20, "assist_range": 40_960 } }),
-        json!({ "preset": { "id": "maul" } }),
     );
-    let mut e = with(&stage, &content(damages("m", 3), damages("s", 3)));
+    let mut e = with(&stage, &content(damages("m", 3)));
     let first = until_offer(&mut e);
-    assert_eq!(
-        take_all(&mut e, &first),
-        ["boss", "sub 2", "sub 5", "sub 8", "sub 12"]
-    );
+    assert_eq!(take_all(&mut e, &first), ["boss"]);
     let g = gauge(&e);
     assert_eq!(g.level, 13);
-    assert_eq!((g.main_style, g.sub_style), (None, Some("crush".into())));
+    assert_eq!((g.main_style, g.sub_style), (None, None));
     assert!(g.main_path.is_empty());
 }

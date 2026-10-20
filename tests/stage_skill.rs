@@ -471,7 +471,7 @@ fn with_assist_on_the_point_is_ahead_toward_the_target() {
         standing(40, 50, START_X + 51_200, START_Y),
     ]))
     .unwrap();
-    stage["player"]["main"]["inline"]["assist_range"] = json!(65_536);
+    stage["player"]["weapon"]["inline"]["assist_range"] = json!(65_536);
     let mut e = with(
         &serde_json::from_value(stage).unwrap(),
         content(

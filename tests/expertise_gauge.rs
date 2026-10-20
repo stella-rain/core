@@ -30,7 +30,7 @@ fn weapon() -> Value {
           "hit_box": { "type": "circle", "offset": { "forward": 8_192 }, "radius": 2_048 } },
         { "kind": "recovery", "ticks": 4 }
     ] });
-    main_combo(json!({
+    weapon_combo(json!({
         "main": step(json!({ "preset": { "id": "aimed_single", "args": [2048] } })),
         "sub": step(swing),
     }))
@@ -52,7 +52,7 @@ fn target(hp: u32, hit: u32, kill: u32) -> Value {
 
 fn stage(waves: Vec<Value>, companions: Vec<Value>) -> Stage {
     let stage = stage_full(18_000, Some(far_boss()), waves, companions);
-    armed(stage, weapon(), quiet_sub())
+    armed(stage, weapon())
 }
 
 /// The bundled expertise content with `thresholds`, `growth_pct` and `max_points`.

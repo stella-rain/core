@@ -60,15 +60,15 @@ fn gives_points(stage: &Stage) -> bool {
 
 /// The gauge a run of `stage` starts with, at level 0.
 pub(super) fn initial(stage: &Stage, expertise: &Expertise) -> Option<ExpertiseGauge> {
-    let taken = |role| vec![0; pool(stage, expertise, role).len()];
+    let taken = || vec![0; pool(stage, expertise).len()];
     gives_points(stage).then(|| ExpertiseGauge {
         level: 0,
         points: 0,
         next: need(expertise, 1, 0),
         offered: 0,
         offer: None,
-        main_taken: taken(WeaponRole::Main),
-        sub_taken: taken(WeaponRole::Sub),
+        main_taken: taken(),
+        sub_taken: taken(),
         range_pct: 0,
         main_style: None,
         sub_style: None,
@@ -156,29 +156,18 @@ fn slot(level: u32) -> Option<(WeaponRole, ExpertiseOfferKind)> {
     })
 }
 
-/// The expertise content of the weapon in `role`: none for an inline weapon.
-fn content<'a>(
-    stage: &Stage,
-    expertise: &'a Expertise,
-    role: WeaponRole,
-) -> Option<&'a WeaponExpertise> {
-    let id = match role {
-        WeaponRole::Main => match &stage.player.main {
-            WeaponRef::Preset { id } => id,
-            WeaponRef::Inline(_) => return None,
-        },
-        WeaponRole::Sub => match &stage.player.sub {
-            WeaponRef::Preset { id } => id,
-            WeaponRef::Inline(_) => return None,
-        },
-    };
-    expertise.weapon(id)
+/// The expertise content of the one weapon, for both roles (interim, ADR-105): none for an
+/// inline weapon.
+fn content<'a>(stage: &Stage, expertise: &'a Expertise) -> Option<&'a WeaponExpertise> {
+    match &stage.player.weapon {
+        WeaponRef::Preset { id } => expertise.weapon(id),
+        WeaponRef::Inline(_) => None,
+    }
 }
 
-/// The common pool of the weapon in `role`: empty for an inline weapon, which has no expertise
-/// content.
-fn pool<'a>(stage: &Stage, expertise: &'a Expertise, role: WeaponRole) -> &'a [ExpertiseOption] {
-    content(stage, expertise, role).map_or(&[], |w| &w.common)
+/// The common pool of the weapon: empty for an inline weapon, which has no expertise content.
+fn pool<'a>(stage: &Stage, expertise: &'a Expertise) -> &'a [ExpertiseOption] {
+    content(stage, expertise).map_or(&[], |w| &w.common)
 }
 
 /// One choice an offer can hold: a common option, a style, or a choice of a style's path.
@@ -206,10 +195,9 @@ fn fixed<'a>(
     stage: &Stage,
     expertise: &'a Expertise,
     g: &ExpertiseGauge,
-    role: WeaponRole,
     level: u32,
 ) -> Vec<Choice<'a>> {
-    let Some(w) = content(stage, expertise, role) else {
+    let Some(w) = content(stage, expertise) else {
         return Vec::new();
     };
     let path = |pick: fn(&'a crate::expertise::Style) -> &'a Vec<ExpertiseOption>| {
@@ -249,10 +237,8 @@ fn choice_of<'a>(
 ) -> Option<Choice<'a>> {
     let at = usize::from(i);
     match o.kind {
-        ExpertiseOfferKind::Common => pool(stage, expertise, o.weapon).get(at).map(Choice::from),
-        _ => fixed(stage, expertise, g, o.weapon, o.level)
-            .into_iter()
-            .nth(at),
+        ExpertiseOfferKind::Common => pool(stage, expertise).get(at).map(Choice::from),
+        _ => fixed(stage, expertise, g, o.level).into_iter().nth(at),
     }
 }
 
@@ -277,8 +263,8 @@ fn draw(pool: &[ExpertiseOption], rng: &mut SplitMix64, held: &[u8]) -> Option<u
 }
 
 /// Whether some option besides `held` could still be offered from the weapon in `role`.
-fn any_left(stage: &Stage, expertise: &Expertise, role: WeaponRole, held: &[u8]) -> bool {
-    let pool = pool(stage, expertise, role);
+fn any_left(stage: &Stage, expertise: &Expertise, held: &[u8]) -> bool {
+    let pool = pool(stage, expertise);
     places(pool).any(|i| eligible(pool, i, held))
 }
 
@@ -300,8 +286,8 @@ pub(super) fn open_due(
     };
     while g.offer.is_none() && g.offered < g.level {
         if g.offered >= TABLE_LEVELS as u32
-            && !any_left(stage, expertise, WeaponRole::Main, &[])
-            && !any_left(stage, expertise, WeaponRole::Sub, &[])
+            && !any_left(stage, expertise, &[])
+            && !any_left(stage, expertise, &[])
         {
             // Past the style path, nothing can ever be offered again: every level due is
             // passed over.
@@ -314,7 +300,7 @@ pub(super) fn open_due(
             continue;
         };
         let candidates: Vec<u8> = if kind == ExpertiseOfferKind::Common {
-            let pool = pool(stage, expertise, weapon);
+            let pool = pool(stage, expertise);
             let mut candidates = Vec::with_capacity(OFFER_SIZE);
             while candidates.len() < OFFER_SIZE {
                 match draw(pool, rng, &candidates) {
@@ -324,7 +310,7 @@ pub(super) fn open_due(
             }
             candidates
         } else {
-            let n = fixed(stage, expertise, g, weapon, level).len();
+            let n = fixed(stage, expertise, g, level).len();
             (0..n).map_while(|i| u8::try_from(i).ok()).collect()
         };
         if candidates.is_empty() {
@@ -371,7 +357,7 @@ pub(crate) fn options(stage: &Stage, expertise: &Expertise, s: &State) -> Vec<Of
         .collect();
     if o.kind == ExpertiseOfferKind::Common
         && rerolls_left(s) > 0
-        && any_left(stage, expertise, o.weapon, &o.candidates)
+        && any_left(stage, expertise, &o.candidates)
     {
         out.extend((0..n).map(|candidate| OfferOption::Reroll { candidate }));
     }
@@ -400,7 +386,7 @@ pub(super) fn choose(
     let Some(mut o) = g.offer.take() else {
         return;
     };
-    let pool = pool(stage, expertise, o.weapon);
+    let pool = pool(stage, expertise);
     match option {
         OfferOption::Take { candidate } if o.kind != ExpertiseOfferKind::Common => {
             let Some(c) = o
@@ -501,25 +487,21 @@ pub(crate) fn styles_view(
     expertise: &Expertise,
     g: &ExpertiseGauge,
 ) -> (Option<ContentId>, Option<ContentId>, Vec<ContentId>) {
-    let style = |role, chosen: Option<u8>| {
-        let w = content(stage, expertise, role)?;
+    let style = |chosen: Option<u8>| {
+        let w = content(stage, expertise)?;
         Some(w.styles.get(usize::from(chosen?))?.id.clone())
     };
     let path = [6, 9, 10]
         .into_iter()
         .zip(&g.main_path)
         .filter_map(|(level, i)| {
-            fixed(stage, expertise, g, WeaponRole::Main, level)
+            fixed(stage, expertise, g, level)
                 .into_iter()
                 .nth(usize::from(*i))
                 .map(|c| c.id.clone())
         })
         .collect();
-    (
-        style(WeaponRole::Main, g.main_style),
-        style(WeaponRole::Sub, g.sub_style),
-        path,
-    )
+    (style(g.main_style), style(g.sub_style), path)
 }
 
 /// What the frontend shows of the open expertise offer.

@@ -441,7 +441,6 @@ fn assisted_stage(reveal_radius: i32) -> Stage {
             ],
         ),
         weapon,
-        quiet_sub(),
     )
 }
 
@@ -628,8 +627,7 @@ fn setup() -> RunSetup {
         schema_version: 0,
         sim_version: 0,
         mode: "time_limit".into(),
-        main: "blade".into(),
-        sub: "maul".into(),
+        weapon: "blade".into(),
         seed: 3,
         star_pool: None,
         extra_rerolls: 0,

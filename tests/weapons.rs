@@ -63,7 +63,7 @@ fn far() -> Stage {
 }
 
 fn combo_stage(window: u32) -> Stage {
-    armed(far(), test_weapon(window), quiet_sub())
+    armed(far(), test_weapon(window))
 }
 
 /// The inputs of ticks 1 to `ticks`: on each tick of `presses` the buttons its letters name
@@ -303,8 +303,8 @@ fn blow() -> Value {
                          "hit_box": { "type": "circle", "radius": 12_288 } }] })
 }
 
-/// A stage whose Main weapon has the blow on both buttons, whose Sub weapon pulls 24 pixels
-/// over 6 ticks, with `target` (an enemy that stands still) `dy` above the main character.
+/// A stage whose weapon has the blow on both buttons, whose smashes pull 24 pixels over 6
+/// ticks, with `target` (an enemy that stands still) `dy` above the main character.
 fn pulling(target: Value, dy: i32, levels: bool) -> Stage {
     let mut stage = armed(
         stage_full(
@@ -313,8 +313,11 @@ fn pulling(target: Value, dy: i32, levels: bool) -> Stage {
             vec![wave(1, 1, 0, target, START_X, START_Y - dy)],
             vec![],
         ),
-        main_combo(json!({ "main": step(blow()), "sub": step(blow()) })),
-        sub_pull(6_144, 6),
+        with_smash(
+            weapon_combo(json!({ "main": step(blow()), "sub": step(blow()) })),
+            6_144,
+            6,
+        ),
     );
     if levels {
         stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
@@ -340,7 +343,7 @@ fn after_blow(stage: &Stage, keys: &str) -> i32 {
 }
 
 #[test]
-fn a_step_reached_by_sub_pulls_what_it_hits_by_its_distance() {
+fn a_smash_pulls_what_it_hits_by_its_distance() {
     // 40 pixels above, pulled 24: it stops 16 pixels above. A step reached by `main` pulls
     // nothing.
     let stage = pulling(still(1000), 10_240, false);
@@ -368,8 +371,7 @@ fn an_elite_and_the_boss_resist_the_pull() {
     assert_eq!(after_blow(&pulling(elite, 10_240, true), "b"), 10_240);
     let mut stage = armed(
         stage_full(600, Some(boss_at(1000, START_Y - 10_240)), vec![], vec![]),
-        main_combo(json!({ "sub": step(blow()) })),
-        sub_pull(6_144, 6),
+        with_smash(weapon_combo(json!({ "sub": step(blow()) })), 6_144, 6),
     );
     stage.player.hp = 99;
     let mut e = engine(&stage);
@@ -386,24 +388,15 @@ fn preset(id: &str) -> Value {
 }
 
 #[test]
-fn a_preset_runs_its_main_role_as_main_and_its_sub_role_as_sub() {
-    // The maul as Main slams; the blade as Main slashes.
-    let first = |main: &str| {
-        let mut e = engine(&armed(far(), preset(main), preset("blade")));
+fn a_preset_is_the_one_weapon_both_buttons_play() {
+    // The maul's A slams; the blade's A slashes.
+    let first = |weapon: &str| {
+        let mut e = engine(&armed(far(), preset(weapon)));
         e.step(pressing_main());
         e.snapshot().player.attacks[0].preset.clone().unwrap().0
     };
     assert_eq!(first("maul"), "slam");
     assert_eq!(first("blade"), "slash");
-    // As Sub, the blade pulls 24 pixels and the maul 40: an enemy 36 pixels above, hit by the
-    // maul's B step (a slash) or the blade's (a thrust), stops 12 pixels above, or touching.
-    let pulled = |main: &str, sub: &str| {
-        let mut stage = pulling(still(1000), 9_216, false);
-        stage = armed(stage, preset(main), preset(sub));
-        after_blow(&stage, "b")
-    };
-    assert_eq!(pulled("maul", "blade"), 3_072);
-    assert_eq!(pulled("blade", "maul"), 2_048 + 512);
 }
 
 #[test]
@@ -411,15 +404,10 @@ fn a_preset_and_its_inline_copy_run_the_same() {
     let preset_of = |id: &str| presets::weapon_preset(id).expect("a weapon preset");
     let copy = |w: Value| json!({ "inline": w });
     let waves = || vec![wave(1, 3, 20, still(40), START_X, START_Y - 9_216)];
-    let by_id = armed(
-        stage_with(600, Some(far_boss()), waves()),
-        preset("blade"),
-        preset("maul"),
-    );
+    let by_id = armed(stage_with(600, Some(far_boss()), waves()), preset("blade"));
     let inline = armed(
         stage_with(600, Some(far_boss()), waves()),
-        copy(serde_json::to_value(&preset_of("blade").main).unwrap()),
-        copy(serde_json::to_value(&preset_of("maul").sub).unwrap()),
+        copy(serde_json::to_value(preset_of("blade")).unwrap()),
     );
     let (mut a, mut b) = (engine(&by_id), engine(&inline));
     // Slash, slash and the thrust charged to level 2; B, B; an evade and its dash-strike.
@@ -449,12 +437,8 @@ fn every_weapon_preset_is_registered_and_both_roles_are_valid() {
         let w = presets::weapon_preset(id).expect("a definition");
         assert_eq!(validate_weapon_preset(w, registry::ENTRIES), Ok(()), "{id}");
         assert_eq!(
-            presets::main_weapon(&WeaponRef::Preset { id: id.into() }),
-            Some(&w.main)
-        );
-        assert_eq!(
-            presets::sub_weapon(&WeaponRef::Preset { id: id.into() }),
-            Some(&w.sub)
+            presets::weapon(&WeaponRef::Preset { id: id.into() }),
+            Some(w)
         );
     }
 }

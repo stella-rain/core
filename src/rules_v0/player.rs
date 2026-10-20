@@ -34,7 +34,7 @@ use crate::rewards::Rewards;
 use crate::stage::Stage;
 use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
-use crate::weapon::{Charge, MainWeapon, Step, SubBonus};
+use crate::weapon::{Charge, SmashEffect, Step, Weapon};
 
 use super::PLAYER_SPEED;
 use super::attacks;
@@ -105,7 +105,7 @@ pub(super) fn update(
         p.facing = dir;
     }
     // The validator lets only defined presets through.
-    let main = presets::main_weapon(&stage.player.main);
+    let main = presets::weapon(&stage.player.weapon);
     s.player.target = match main {
         Some(m) if input.assist || input.auto => select::assist_target(stage, s, m.assist_range.0),
         _ => None,
@@ -213,7 +213,7 @@ fn press_of(sub: bool) -> Press {
 }
 
 /// The step the combo is at: `None` at the root.
-fn step_at<'a>(main: &'a MainWeapon, c: &ComboState) -> Option<&'a Step> {
+fn step_at<'a>(main: &'a Weapon, c: &ComboState) -> Option<&'a Step> {
     let mut branches = if c.dash { &main.dash } else { &main.combo };
     let mut step = None;
     for i in 0..c.depth {
@@ -250,7 +250,7 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
 fn combo(
     stage: &Stage,
     s: &mut State,
-    main: &MainWeapon,
+    main: &Weapon,
     input: Input,
     pressed: u8,
     events: &mut Vec<DomainEvent>,
@@ -330,11 +330,11 @@ fn auto_press(c: &ComboState, input: Input, target: bool) -> Option<Auto> {
     }
 }
 
-/// The combo a run starts with: at the root, with the Main weapon's A chain as the auto combo,
+/// The combo a run starts with: at the root, with the weapon's A chain as the auto combo,
 /// `main` pressed from the root until a step has no next step for it (ADR-073).
 pub(super) fn initial_combo(stage: &Stage) -> ComboState {
     let mut depth = 0u8;
-    if let Some(main) = presets::main_weapon(&stage.player.main) {
+    if let Some(main) = presets::weapon(&stage.player.weapon) {
         let mut step = main.combo.main.as_deref();
         while let Some(st) = step {
             depth = depth.saturating_add(1);
@@ -354,7 +354,7 @@ pub(super) fn initial_combo(stage: &Stage) -> ComboState {
 fn take_step(
     stage: &Stage,
     s: &mut State,
-    main: &MainWeapon,
+    main: &Weapon,
     sub: bool,
     by_hand: bool,
     input: Input,
@@ -408,12 +408,14 @@ fn strike(
         }
     }
     let pull = if last_press_sub(&s.player.combo) {
-        presets::sub_weapon(&stage.player.sub).map(|w| match w.bonus {
-            SubBonus::Pull { distance, ticks } => Pull {
-                distance: distance.0,
-                ticks,
-            },
-        })
+        presets::weapon(&stage.player.weapon)
+            .and_then(|w| w.smash)
+            .map(|effect| match effect {
+                SmashEffect::Pull { distance, ticks } => Pull {
+                    distance: distance.0,
+                    ticks,
+                },
+            })
     } else {
         None
     };
@@ -467,7 +469,7 @@ fn in_perfect_window(charge: &Charge, held: u32) -> bool {
 /// The current step's charge, if it is charging.
 fn current_charge<'a>(stage: &'a Stage, s: &State) -> Option<&'a Charge> {
     s.player.combo.charge?;
-    let main = presets::main_weapon(&stage.player.main)?;
+    let main = presets::weapon(&stage.player.weapon)?;
     step_at(main, &s.player.combo)?.charge.as_ref()
 }
 
@@ -488,7 +490,7 @@ pub(crate) fn charge_view(stage: &Stage, s: &State) -> Option<(u8, u32, bool)> {
 fn charging(
     stage: &Stage,
     s: &mut State,
-    main: &MainWeapon,
+    main: &Weapon,
     input: Input,
     held: u32,
     events: &mut Vec<DomainEvent>,

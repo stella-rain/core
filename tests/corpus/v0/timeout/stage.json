@@ -30,7 +30,7 @@
       "ticks": 8
     },
     "hp": 300,
-    "main": {
+    "weapon": {
       "inline": {
         "assist_range": 0,
         "combo": {
@@ -46,15 +46,6 @@
           }
         },
         "window_ticks": 0
-      }
-    },
-    "sub": {
-      "inline": {
-        "bonus": {
-          "distance": 0,
-          "ticks": 1,
-          "type": "pull"
-        }
       }
     }
   },

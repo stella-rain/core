@@ -100,7 +100,6 @@ fn targets(damage: u32, ty: Option<&str>, small: u16, profile: Option<Value>) ->
     starry(armed(
         stage_full(18_000, Some(far_boss()), waves, vec![]),
         weapon(damage, ty, false),
-        quiet_sub(),
     ))
 }
 
@@ -461,7 +460,6 @@ fn the_bonus_is_fixed_when_the_attack_starts() {
             vec![],
         ),
         weapon(100, Some("pyro"), true),
-        quiet_sub(),
     ));
     let mut e = with(&stage, vec![pyro(50)]);
     e.step(idle());

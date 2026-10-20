@@ -1,10 +1,8 @@
-//! Weapons (ADR-070): the main character carries a Main and a Sub weapon and attacks with them
-//! by hand. The Main weapon owns the combos: a tree of steps reached by presses of `main` (A)
-//! and `sub` (B), each step a phased attack (ADR-069) that may charge. The Sub weapon has no
-//! attack of its own; it adds its bonus to every step reached by `sub`. A weapon is a preset by
-//! ID or an inline definition, as an attack is. A preset is a whole weapon: one ID with a Main
-//! role and a Sub role; in `player.main` a preset runs its Main role, in `player.sub` its Sub
-//! role. The run's setup takes IDs only (ADR-079).
+//! Weapons (ADR-084): the main character carries one weapon and attacks with it by hand. The
+//! weapon owns the combo tree, reached by presses of `main` (A) and `sub` (B), each step a
+//! phased attack (ADR-069) that may charge. A weapon is a preset by ID or an inline definition,
+//! as an attack is, and a preset is the whole weapon: `player.weapon` names one. A smash (a step
+//! reached by B) may carry one smash effect. The run's setup takes one ID (ADR-107).
 //!
 //! Field names are placeholders until the freeze (ADR-035).
 
@@ -15,7 +13,7 @@ use crate::attack::AttackRef;
 use crate::fixed::Fx;
 use crate::id::ContentId;
 
-/// A weapon preset by ID, or an inline weapon in one role (`MainWeapon` or `SubWeapon`).
+/// A weapon preset by ID, or an inline weapon.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum WeaponRef<W> {
@@ -23,10 +21,10 @@ pub enum WeaponRef<W> {
     Inline(Box<W>),
 }
 
-/// A weapon as Main (ADR-070): its combo tree and the timings that join its steps.
+/// A weapon (ADR-084): its combo tree, the timings that join its steps and its smash effect.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct MainWeapon {
+pub struct Weapon {
     /// The first step for each press, from the root.
     pub combo: Branches,
     /// The first step for each press during an evade's dash or within `dash_strike_ticks` after
@@ -42,6 +40,10 @@ pub struct MainWeapon {
     /// How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle
     /// reaches within this distance of the main character.
     pub assist_range: Fx,
+    /// What every hit of a smash (a step reached by `sub`) adds, in the dash branch too; none
+    /// when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub smash: Option<SmashEffect>,
 }
 
 /// The steps that follow: at most one for a press of each button.
@@ -51,7 +53,7 @@ pub struct Branches {
     /// The step a press of `main` (A) takes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main: Option<Box<Step>>,
-    /// The step a press of `sub` (B) takes: a combo part, which the Sub weapon's bonus joins.
+    /// The step a press of `sub` (B) takes: a smash, which the weapon's smash effect joins.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sub: Option<Box<Step>>,
 }
@@ -127,27 +129,12 @@ fn is_zero_u16(v: &u16) -> bool {
     *v == 0
 }
 
-/// A weapon as Sub (ADR-070): no attack of its own, only its combo-part bonus.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SubWeapon {
-    pub bonus: SubBonus,
-}
-
-/// What the Sub weapon adds to every hit of a step reached by `sub` (ADR-070): one of a closed
-/// list built into `core`, its numbers in JSON (ADR-067).
+/// What a smash (a step reached by `sub`) does to every enemy it hits (ADR-084 point 8): one
+/// of a closed list built into `core`, its numbers in JSON (ADR-067).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub enum SubBonus {
+pub enum SmashEffect {
     /// The enemy hit is drawn toward the main character, at most `distance`, over `ticks`, and
     /// stops where their circles touch. A boss, its parts and elites resist it.
     Pull { distance: Fx, ticks: u32 },
-}
-
-/// A weapon preset's definition: both of its roles.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct WeaponPreset {
-    pub main: MainWeapon,
-    pub sub: SubWeapon,
 }

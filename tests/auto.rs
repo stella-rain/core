@@ -64,7 +64,6 @@ fn stage_with_bat(first: Value, dx: i32, dy: i32) -> Stage {
     armed(
         stage_with(600, Some(far_boss()), vec![bat_at(dx, dy)]),
         weapon(first),
-        quiet_sub(),
     )
 }
 

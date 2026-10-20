@@ -452,7 +452,7 @@ fn the_encoding_is_pinned() {
         String::from_utf8(bytes.clone()).unwrap(),
         concat!(
             r#"{"schema_version":0,"sim_version":0,"seed":7,"#,
-            r#""stage_sha256":"2c6d26f2bd4f0620c032def00cba3a9401f8b7219ba8766a98543e4947baad3e","#,
+            r#""stage_sha256":"5cf81537ced4a4f31903251695439f7bcd365473d37680dce411ee74ab6f56f2","#,
             r#""ticks":35,"final_hash":"ff58d1bacf0d62d1","#,
             r#""inputs":"AQEAAAIAAAACAgAAGQAAAAICAAADAAAA"}"#,
             "\n"
@@ -469,7 +469,7 @@ fn the_encoding_is_pinned() {
     );
     assert_eq!(
         to_hex(&content_hash(&stage, &bytes)),
-        "f89b66424fb3661adb8581c17529b53e5307482dbae366b1ab9cdcdc5084e7f5"
+        "777669869e9fd20c30f79547bab14c07b8f1f72ae66e08b7588e84418a555ba3"
     );
 }
 

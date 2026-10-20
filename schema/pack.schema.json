@@ -569,7 +569,7 @@
           ]
         },
         "sub": {
-          "description": "The step a press of `sub` (B) takes: a combo part, which the Sub weapon's bonus joins.",
+          "description": "The step a press of `sub` (B) takes: a smash, which the weapon's smash effect joins.",
           "anyOf": [
             {
               "$ref": "#/$defs/Step"
@@ -1865,42 +1865,6 @@
         "xp"
       ]
     },
-    "MainWeapon": {
-      "description": "A weapon as Main (ADR-070): its combo tree and the timings that join its steps.",
-      "type": "object",
-      "properties": {
-        "assist_range": {
-          "description": "How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle\nreaches within this distance of the main character.",
-          "$ref": "#/$defs/Fx"
-        },
-        "combo": {
-          "description": "The first step for each press, from the root.",
-          "$ref": "#/$defs/Branches"
-        },
-        "dash": {
-          "description": "The first step for each press during an evade's dash or within `dash_strike_ticks` after\nit: the dash-strike. A press with no step here starts from `combo`.",
-          "$ref": "#/$defs/Branches"
-        },
-        "dash_strike_ticks": {
-          "description": "Ticks after an evade's dash ends in which a press still takes the dash branch.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "window_ticks": {
-          "description": "Ticks the combo keeps its place after a step's recovery has run out with no press\nbuffered; a press within them takes the next step, after them it starts from the root.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "combo",
-        "window_ticks",
-        "assist_range"
-      ]
-    },
     "Map": {
       "description": "The rectangle the run plays on, from its top-left corner, and where the main character\nstarts. The main character and companions are clamped to it; enemies and bullets leave once\nthey are more than `FIELD_MARGIN` outside it.",
       "type": "object",
@@ -2342,13 +2306,9 @@
           "format": "uint32",
           "minimum": 0
         },
-        "main": {
-          "description": "The Main weapon, whose combos the main character makes by hand (ADR-070). It moves to\nthe run's setup when the setup exists (ADR-049, ADR-051).",
+        "weapon": {
+          "description": "The one weapon, whose combos the main character makes by hand with both buttons\n(ADR-084). It moves to the run's setup when the setup exists (ADR-049, ADR-051, ADR-107).",
           "$ref": "#/$defs/WeaponRef"
-        },
-        "sub": {
-          "description": "The Sub weapon, whose bonus joins every combo step reached by `sub` (ADR-070).",
-          "$ref": "#/$defs/WeaponRef2"
         }
       },
       "additionalProperties": false,
@@ -2356,8 +2316,7 @@
         "base",
         "hp",
         "atk",
-        "main",
-        "sub",
+        "weapon",
         "evade"
       ]
     },
@@ -3157,6 +3116,35 @@
         "effects"
       ]
     },
+    "SmashEffect": {
+      "description": "What a smash (a step reached by `sub`) does to every enemy it hits (ADR-084 point 8): one\nof a closed list built into `core`, its numbers in JSON (ADR-067).",
+      "oneOf": [
+        {
+          "description": "The enemy hit is drawn toward the main character, at most `distance`, over `ticks`, and\nstops where their circles touch. A boss, its parts and elites resist it.",
+          "type": "object",
+          "properties": {
+            "distance": {
+              "$ref": "#/$defs/Fx"
+            },
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "pull"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "distance",
+            "ticks"
+          ]
+        }
+      ]
+    },
     "Stage": {
       "type": "object",
       "properties": {
@@ -3629,48 +3617,6 @@
         "capstone"
       ]
     },
-    "SubBonus": {
-      "description": "What the Sub weapon adds to every hit of a step reached by `sub` (ADR-070): one of a closed\nlist built into `core`, its numbers in JSON (ADR-067).",
-      "oneOf": [
-        {
-          "description": "The enemy hit is drawn toward the main character, at most `distance`, over `ticks`, and\nstops where their circles touch. A boss, its parts and elites resist it.",
-          "type": "object",
-          "properties": {
-            "distance": {
-              "$ref": "#/$defs/Fx"
-            },
-            "ticks": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0
-            },
-            "type": {
-              "type": "string",
-              "const": "pull"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type",
-            "distance",
-            "ticks"
-          ]
-        }
-      ]
-    },
-    "SubWeapon": {
-      "description": "A weapon as Sub (ADR-070): no attack of its own, only its combo-part bonus.",
-      "type": "object",
-      "properties": {
-        "bonus": {
-          "$ref": "#/$defs/SubBonus"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "bonus"
-      ]
-    },
     "Tier": {
       "description": "One tier of the drop table.",
       "type": "object",
@@ -3924,6 +3870,53 @@
         "count"
       ]
     },
+    "Weapon": {
+      "description": "A weapon (ADR-084): its combo tree, the timings that join its steps and its smash effect.",
+      "type": "object",
+      "properties": {
+        "assist_range": {
+          "description": "How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle\nreaches within this distance of the main character.",
+          "$ref": "#/$defs/Fx"
+        },
+        "combo": {
+          "description": "The first step for each press, from the root.",
+          "$ref": "#/$defs/Branches"
+        },
+        "dash": {
+          "description": "The first step for each press during an evade's dash or within `dash_strike_ticks` after\nit: the dash-strike. A press with no step here starts from `combo`.",
+          "$ref": "#/$defs/Branches"
+        },
+        "dash_strike_ticks": {
+          "description": "Ticks after an evade's dash ends in which a press still takes the dash branch.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "smash": {
+          "description": "What every hit of a smash (a step reached by `sub`) adds, in the dash branch too; none\nwhen absent.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SmashEffect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "window_ticks": {
+          "description": "Ticks the combo keeps its place after a step's recovery has run out with no press\nbuffered; a press within them takes the next step, after them it starts from the root.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "combo",
+        "window_ticks",
+        "assist_range"
+      ]
+    },
     "WeaponExpertise": {
       "description": "One weapon's expertise, in either role.",
       "type": "object",
@@ -3975,7 +3968,7 @@
       ]
     },
     "WeaponRef": {
-      "description": "A weapon preset by ID, or an inline weapon in one role (`MainWeapon` or `SubWeapon`).",
+      "description": "A weapon preset by ID, or an inline weapon.",
       "oneOf": [
         {
           "type": "object",
@@ -4002,45 +3995,7 @@
           "type": "object",
           "properties": {
             "inline": {
-              "$ref": "#/$defs/MainWeapon"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "inline"
-          ]
-        }
-      ]
-    },
-    "WeaponRef2": {
-      "description": "A weapon preset by ID, or an inline weapon in one role (`MainWeapon` or `SubWeapon`).",
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "preset": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "$ref": "#/$defs/ContentId"
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "id"
-              ]
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "preset"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "inline": {
-              "$ref": "#/$defs/SubWeapon"
+              "$ref": "#/$defs/Weapon"
             }
           },
           "additionalProperties": false,

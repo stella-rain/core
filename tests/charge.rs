@@ -43,8 +43,7 @@ fn charged() -> Value {
 fn charging(stage: Stage) -> Stage {
     armed(
         stage,
-        main_combo(json!({ "main": charged(), "sub": charged() })),
-        quiet_sub(),
+        weapon_combo(json!({ "main": charged(), "sub": charged() })),
     )
 }
 
@@ -240,8 +239,7 @@ fn a_buffered_step_charges_only_if_its_button_is_held_as_it_starts() {
     ] });
     let stage = armed(
         stage_with(18_000, Some(far_boss()), vec![]),
-        main_combo(json!({ "main": { "attack": first, "next": { "main": charged() } } })),
-        quiet_sub(),
+        weapon_combo(json!({ "main": { "attack": first, "next": { "main": charged() } } })),
     );
     // Let go before tick 7: a plain step, its bullet on tick 7.
     let mut e = engine(&stage);
