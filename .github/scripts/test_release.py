@@ -137,9 +137,11 @@ class ChecksPassed(unittest.TestCase):
         r.checks_passed([run("short fuzz run", conclusion="skipped", run_id=1),
                          run("x", conclusion="neutral", run_id=1)], "9")
 
-    def test_no_check_run_besides_this_one(self):
-        with self.assertRaisesRegex(r.ReleaseError, "no check run"):
-            r.checks_passed([run("check and test", run_id=9)], "9")
+    def test_no_check_run_at_all_passes(self):
+        # auto-merge.yml merges with GITHUB_TOKEN, which starts no push run (app#176), so main's
+        # commit may have none: the PR's head ran the gates.
+        r.checks_passed([], "9")
+        r.checks_passed([run("check and test", run_id=9)], "9")
 
     def test_a_failure_is_named(self):
         with self.assertRaisesRegex(r.ReleaseError, "tests on arm64: failure"):
