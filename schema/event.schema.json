@@ -643,6 +643,37 @@
       ]
     },
     {
+      "description": "An elite minute of a `time_limit` run brought the elite `elite`, of the sprite `asset`\n(ADR-090). Not sent when the cap on elites alive held it back.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "asset": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "elite": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "elite",
+            "asset"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "EliteSpawned"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
       "description": "An offer opened, and the world stopped until a choice closes it (ADR-079 §3).",
       "type": "object",
       "properties": {
