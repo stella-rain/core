@@ -227,8 +227,11 @@ pub(crate) fn initial_state(
             max_hp: stage.player.hp,
             defence: stage.player.defence,
             invulnerable: 0,
-            // Up the map on every map, landscape ones included; a stage cannot set it yet.
-            facing: Dir::UP,
+            // Up the map unless the map's facing says otherwise (core#147).
+            facing: stage
+                .map()
+                .facing
+                .map_or(Dir::UP, |angle| attacks::rotate(Dir::DOWN, angle)),
             target: None,
             // The validator holds it to 1..=3; the clamp keeps an unvalidated stage there too.
             evade_charges: stage
@@ -534,13 +537,19 @@ fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
     s.bullets.push(bullet);
 }
 
+/// Moves every bullet a tick, and drops those that leave: one whose lifetime is up leaves
+/// before it moves, so a bullet with `n` ticks is on the map for `n` ticks (core#147).
 fn move_bullets(stage: &Stage, s: &mut State) {
-    for b in &mut s.bullets {
+    let holds = stage.map().holds();
+    s.bullets.retain_mut(|b| {
+        if b.life == 0 {
+            return false;
+        }
         b.at.x = b.at.x.saturating_add(b.vx);
         b.at.y = b.at.y.saturating_add(b.vy);
-    }
-    let holds = stage.map().holds();
-    s.bullets.retain(|b| holds(b.at));
+        b.life -= 1;
+        holds(b.at)
+    });
 }
 
 /// Two circles overlap (touching counts), in 64-bit fixed point.

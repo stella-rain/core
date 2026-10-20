@@ -40,7 +40,7 @@ use std::sync::Arc;
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::engine::{
     Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Pull, State,
-    StatusKind,
+    StatusKind, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -50,7 +50,7 @@ use crate::registry;
 use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
 use crate::trig;
-use crate::validate::limits::{MAX_LEN, MAX_REPEAT, MAX_TICKS};
+use crate::validate::limits::{MAX_BULLET_TICKS, MAX_LEN, MAX_REPEAT, MAX_TICKS};
 
 use super::entity::{Who, scale_damage, status_pct};
 use super::{MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, count, spawn_bullet};
@@ -673,6 +673,11 @@ fn ticks(v: i32) -> u32 {
     u32::try_from(v.clamp(0, i32::try_from(MAX_TICKS).unwrap_or(i32::MAX))).unwrap_or(0)
 }
 
+/// A bullet's lifetime in ticks, from 1 to `MAX_BULLET_TICKS` (core#147).
+fn bullet_ticks(v: i32) -> u32 {
+    u32::try_from(v.clamp(1, i32::try_from(MAX_BULLET_TICKS).unwrap_or(i32::MAX))).unwrap_or(1)
+}
+
 fn rounds(v: i32) -> u32 {
     u32::try_from(v.clamp(0, MAX_REPEAT)).unwrap_or(0)
 }
@@ -885,7 +890,7 @@ fn emit(
         speed,
         direction,
         bullet,
-        ..
+        ticks,
     } = node
     else {
         return true;
@@ -898,6 +903,9 @@ fn emit(
         },
     };
     let speed = value(s, t, ab, speed).clamp(-MAX_LEN, MAX_LEN);
+    let life = ticks
+        .as_ref()
+        .map_or(UNLIMITED, |e| bullet_ticks(value(s, t, ab, e)));
     let dir = match direction {
         Direction::Aimed { offset } => {
             let turn = value(s, t, ab, offset).saturating_add(ab.turn);
@@ -953,6 +961,7 @@ fn emit(
             pull: t.pull,
             combo: t.combo,
             hook,
+            life,
         },
         spawns_left,
     );

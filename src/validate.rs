@@ -529,6 +529,14 @@ impl<'a> Ctx<'a> {
                 c.within("y", i64::from(start.y.0), 0, i64::from(m.height.0));
             });
         }
+        if let Some(facing) = m.facing {
+            self.within(
+                "facing",
+                i64::from(facing),
+                0,
+                i64::from(crate::trig::PER_TURN) - 1,
+            );
+        }
     }
 
     fn ticks(&mut self, key: &'static str, ticks: u32, lo: u32) {
@@ -1417,8 +1425,19 @@ impl<'a> Ctx<'a> {
                 speed,
                 direction,
                 bullet,
-                ..
+                ticks,
             } => {
+                if let Some(t) = ticks {
+                    self.key("ticks", |c| c.expr(t));
+                    if let Expr::Const(v) = t {
+                        self.within(
+                            "ticks",
+                            i64::from(*v),
+                            1,
+                            i64::from(limits::MAX_BULLET_TICKS),
+                        );
+                    }
+                }
                 self.key("speed", |c| c.expr(speed));
                 self.key("direction", |c| match direction {
                     Direction::Aimed { offset } => c.key("offset", |c| c.expr(offset)),
