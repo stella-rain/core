@@ -444,6 +444,7 @@ pub(super) fn tick_statuses_and_aggro(s: &mut State) -> bool {
 #[cfg(test)]
 mod tests {
     use super::scale_damage;
+    use crate::rewards::MAX_TYPE_BONUS_PCT;
 
     #[test]
     fn a_match_up_scales_after_vulnerability_and_before_defence() {
@@ -474,5 +475,28 @@ mod tests {
         // After the atk-up, truncated at each step: 7 × 1.5 = 10, × 1.5 = 15.
         assert_eq!(scale_damage(7, 50, 50, 0, 0, 0), 15);
         assert_eq!(scale_damage(10, 0, 0, 0, 0, 0), 10);
+    }
+
+    #[test]
+    fn the_largest_hit_the_bounds_allow_stays_below_the_32_bit_limit() {
+        // ADR-103: the damage scale makes the limit of ADR-056 decision 5 100 times nearer, so
+        // the largest base damage the validator allows, with the atk-up, the type bonus and the
+        // vulnerability at their caps and the match-up at its cap, is held below it: that hit
+        // is dealt whole, not saturated.
+        use crate::validate::limits::MAX_DAMAGE;
+        assert_eq!(MAX_DAMAGE, 1_000_000, "10,000 at the design values, x100");
+        let hit = scale_damage(
+            MAX_DAMAGE,
+            super::MAX_BONUS_PCT,
+            MAX_TYPE_BONUS_PCT,
+            super::MAX_BONUS_PCT,
+            100,
+            0,
+        );
+        let exact = u64::from(MAX_DAMAGE) * 11 * 11 * 11 * 2;
+        assert_eq!(u64::from(hit), exact);
+        assert!(exact < u64::from(u32::MAX), "{exact} of {}", u32::MAX);
+        // The same hit twice over would saturate: the margin is under a factor of 2.
+        assert!(exact * 2 > u64::from(u32::MAX));
     }
 }
