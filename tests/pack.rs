@@ -435,7 +435,13 @@ fn a_file_is_found_whatever_the_pack_s_layout() {
         .replacen("\"time_limit\": {", "\"time\\u005flimit\"\n:{", 1);
     assert_ne!(escaped, text);
     let pack = Pack::from_bytes(escaped.as_bytes()).expect("escaped keys load");
-    assert_eq!(pack.content(), RunContent::bundled());
+    let (a, b) = (pack.content(), RunContent::bundled());
+    // The same files; the pack's bytes, so its hash, are not the bundled pack's.
+    assert_eq!(
+        a.clone().with_runes(b.runes().clone()),
+        b.clone().with_runes(b.runes().clone())
+    );
+    assert_ne!(a.pack_sha256(), b.pack_sha256());
 
     // The modes first, the versions last.
     let v = value();

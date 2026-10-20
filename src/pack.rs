@@ -244,8 +244,6 @@ pub struct Pack {
     schema_version: u32,
     sim_version: u32,
     content: RunContent,
-    trial: Stage,
-    trial_bytes: Vec<u8>,
     sha256: [u8; 32],
 }
 
@@ -311,15 +309,23 @@ impl Pack {
             &expertise,
         )?;
 
-        let content =
-            RunContent::from_parts(run_stats, rewards, expertise, match_ups, runes, time_limit);
+        let sha256: [u8; 32] = Sha256::digest(bytes).into();
+        let content = RunContent::from_parts(
+            run_stats,
+            rewards,
+            expertise,
+            match_ups,
+            runes,
+            time_limit,
+            trial,
+            file_bytes(&pack.modes.trial),
+            Some(sha256),
+        );
         Ok(Pack {
             schema_version: pack.schema_version,
             sim_version: pack.sim_version,
             content,
-            trial_bytes: file_bytes(&pack.modes.trial),
-            trial,
-            sha256: Sha256::digest(bytes).into(),
+            sha256,
         })
     }
 
@@ -345,15 +351,9 @@ impl Pack {
         BUNDLED.get_or_init(|| Pack::from_bytes(Pack::BUNDLED).expect("the bundled pack"))
     }
 
-    /// The `trial` mode's file as it has been in the pack, and a final newline: the bytes the
-    /// mode's content hash covered when the files were bundled one by one.
-    pub(crate) fn trial_bytes(&self) -> &[u8] {
-        &self.trial_bytes
-    }
-
     /// The `trial` mode's stage.
     pub fn trial(&self) -> &Stage {
-        &self.trial
+        self.content.trial()
     }
 
     /// The SHA-256 of the pack's bytes.
@@ -712,6 +712,9 @@ pub fn export_bundled() -> Vec<u8> {
         MatchUps::parse(MatchUps::BUNDLED).expect("the bundled match-ups"),
         Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
         TimeLimit::parse(TimeLimit::BUNDLED).expect("the bundled mode"),
+        validate::parse_and_validate(trial).expect("the bundled trial"),
+        trial.to_vec(),
+        None,
     );
     let introduced = introduced_at(&content, SIM_VERSION);
     let table = serde_json::to_string_pretty(&introduced).expect("the table serialises");

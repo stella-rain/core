@@ -20,10 +20,12 @@
 //! a command left over at the end, an input after the run ended, and a final hash that differs.
 //! A replay may end on an open offer: a bug report may stop while the player looks at one.
 //!
-//! The content hash covers the mode's bundled file, every attack and weapon preset's
-//! definition, and the bytes of the run stats, the rewards, the stage skills, the expertise and
-//! the match-ups (ADR-067, ADR-098, ADR-100), so any content update invalidates the replay rather than letting it drift. What
-//! the rules do with the content is the `sim_version`'s, which the setup carries.
+//! The content hash is the SHA-256 of the bytes of the content pack the run used (ADR-079 §5,
+//! ADR-080), so any content update invalidates the replay rather than letting it drift, and a
+//! kept pack is found by it. The attack and weapon presets are in the stage's own JSON and in
+//! the code, not in the pack, so the hash does not cover them: a change to a preset is a
+//! change to what the `sim_version` does. What the rules do with the content is the
+//! `sim_version`'s, which the setup carries.
 
 use std::fmt;
 
@@ -49,7 +51,8 @@ use crate::validate;
 /// per falling star taken.
 pub const MAX_COMMANDS: u32 = 1000;
 
-/// What the content hash starts with, so that it cannot be mistaken for another SHA-256.
+/// What the hash derived from files replaced one by one starts with, so that it cannot be
+/// mistaken for another SHA-256.
 const CONTENT_TAG: &[u8] = b"stella-rain run content v0\0";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -57,10 +60,8 @@ const CONTENT_TAG: &[u8] = b"stella-rain run content v0\0";
 pub struct RunReplay {
     /// What the run started from (ADR-079 §1).
     pub setup: RunSetup,
-    /// The SHA-256 of the game content the run used, lowercase hex: the setup's mode, every
-    /// preset, the run stats, the rewards, the stage skills, the expertise and the match-ups
-    /// (`content_sha256_with`). Other content invalidates
-    /// the replay.
+    /// The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content
+    /// pack (`content_sha256_with`, ADR-080). Any other pack invalidates the replay.
     pub content_sha256: String,
     /// Ticks recorded, at most the mode's length (a `time_limit` run's: its length, overtime and the Star-Hunter's extra time). A run that ended ends on the tick it ended.
     pub ticks: u32,
@@ -266,21 +267,29 @@ pub struct RunVerified {
     pub commands: u32,
 }
 
-/// The SHA-256 of the game content a run of `mode` uses with the bundled content files.
+/// The SHA-256 of the game content a run of `mode` uses with the bundled pack: the pack's hash.
 /// `None` for a mode with no content.
 pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
     content_sha256_with(mode, RunContent::bundled())
 }
 
-/// The SHA-256 of the game content a run of `mode` uses with `content`: the mode's bundled
-/// file, every preset's definition, and the bytes of the run stats, the rewards, the stage
-/// skills, the expertise, the match-ups and the runes, tagged and length-prefixed.
+/// The SHA-256 of the game content a run of `mode` uses with `content`. Content read from a
+/// pack has the pack's hash, the SHA-256 of the pack file's bytes (ADR-079 §5, ADR-080), whatever
+/// the mode. Content with any file replaced one by one has a hash derived from the mode's file,
+/// every preset's definition, and the bytes of the run stats, the rewards, the stage skills, the
+/// expertise, the match-ups and the runes, tagged and length-prefixed: never a pack's.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
+    if !matches!(mode, "trial" | "time_limit") {
+        return None;
+    }
+    if let Some(pack_sha256) = content.pack_sha256() {
+        return Some(pack_sha256);
+    }
     let file = if mode == "time_limit" {
-        run_setup::time_limit_file(content.time_limit())
+        [content.time_limit().bytes(), content.trial_bytes()].concat()
     } else {
-        run_setup::mode_file(mode)?.to_vec()
+        content.trial_bytes().to_vec()
     };
     Some(hash_content(
         mode,
@@ -620,8 +629,7 @@ fn verify_inner(
     expected: Option<&[u64]>,
 ) -> Result<RunVerified, RunReplayError> {
     let replay = RunReplay::from_bytes(replay_bytes)?;
-    let stage = run_setup::stage_with(&replay.setup, run_content.time_limit())
-        .map_err(RunReplayError::Setup)?;
+    let stage = run_setup::stage_in(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
     let content = content_sha256_with(&replay.setup.mode.0, run_content)
         .ok_or(RunReplayError::ContentChanged)?;
     if replay.content_sha256 != to_hex(&content) {

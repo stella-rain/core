@@ -10,6 +10,7 @@ use crate::pack::Pack;
 use crate::rewards::Rewards;
 use crate::run_stats::RunStats;
 use crate::runes::Runes;
+use crate::stage::Stage;
 use crate::stage_skill::StageSkills;
 use crate::time_limit::TimeLimit;
 
@@ -22,11 +23,19 @@ pub struct RunContent {
     match_ups: MatchUps,
     runes: Runes,
     time_limit: TimeLimit,
+    /// The `trial` mode's stage, and its file's bytes as they are in the pack.
+    trial: Stage,
+    trial_bytes: Vec<u8>,
+    /// The SHA-256 of the pack these files were read from: the content hash of a run
+    /// (ADR-079 §5, ADR-080). `None` once any file is replaced: the run's hash is then derived
+    /// from the files (`run_replay::content_sha256_with`).
+    pack_sha256: Option<[u8; 32]>,
 }
 
 impl RunContent {
     /// The run stats and rewards given, with the bundled expertise, match-ups and runes.
     pub fn new(run_stats: RunStats, rewards: Rewards) -> RunContent {
+        let bundled = RunContent::bundled();
         RunContent {
             run_stats,
             rewards,
@@ -34,10 +43,14 @@ impl RunContent {
             match_ups: *MatchUps::bundled(),
             runes: Runes::bundled().clone(),
             time_limit: TimeLimit::bundled().clone(),
+            trial: bundled.trial.clone(),
+            trial_bytes: bundled.trial_bytes.clone(),
+            pack_sha256: None,
         }
     }
 
     /// The content of a pack: every file read from it, none from the bundled ones.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_parts(
         run_stats: RunStats,
         rewards: Rewards,
@@ -45,6 +58,9 @@ impl RunContent {
         match_ups: MatchUps,
         runes: Runes,
         time_limit: TimeLimit,
+        trial: Stage,
+        trial_bytes: Vec<u8>,
+        pack_sha256: Option<[u8; 32]>,
     ) -> RunContent {
         RunContent {
             run_stats,
@@ -53,33 +69,68 @@ impl RunContent {
             match_ups,
             runes,
             time_limit,
+            trial,
+            trial_bytes,
+            pack_sha256,
         }
     }
 
     /// The same content with `expertise` in place of its expertise.
     pub fn with_expertise(self, expertise: Expertise) -> RunContent {
-        RunContent { expertise, ..self }
+        RunContent {
+            expertise,
+            pack_sha256: None,
+            ..self
+        }
     }
 
     /// The same content with `match_ups` in place of its match-up table.
     pub fn with_match_ups(self, match_ups: MatchUps) -> RunContent {
-        RunContent { match_ups, ..self }
+        RunContent {
+            match_ups,
+            pack_sha256: None,
+            ..self
+        }
     }
 
     /// The same content with `runes` in place of its runes.
     pub fn with_runes(self, runes: Runes) -> RunContent {
-        RunContent { runes, ..self }
+        RunContent {
+            runes,
+            pack_sha256: None,
+            ..self
+        }
     }
 
     /// The same content with `time_limit` in place of the `time_limit` mode's file: what its
     /// runs and its replays' bounds are read from, and part of their content hash.
     pub fn with_time_limit(self, time_limit: TimeLimit) -> RunContent {
-        RunContent { time_limit, ..self }
+        RunContent {
+            time_limit,
+            pack_sha256: None,
+            ..self
+        }
     }
 
     /// The bundled pack's content, the content of every run.
     pub fn bundled() -> &'static RunContent {
         Pack::bundled().content()
+    }
+
+    /// The `trial` mode's stage: also what the `time_limit` mode takes its placeholder content
+    /// from.
+    pub fn trial(&self) -> &Stage {
+        &self.trial
+    }
+
+    /// The `trial` mode's file as it has been in the pack, and a final newline.
+    pub(crate) fn trial_bytes(&self) -> &[u8] {
+        &self.trial_bytes
+    }
+
+    /// The SHA-256 of the pack these files were read from, `None` for files replaced one by one.
+    pub fn pack_sha256(&self) -> Option<[u8; 32]> {
+        self.pack_sha256
     }
 
     /// What a stat point can raise.

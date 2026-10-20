@@ -63,7 +63,9 @@ fn the_mode_is_registered_and_its_file_is_part_of_the_content_hash() {
     assert!(file.starts_with(TimeLimit::BUNDLED));
     assert!(file.ends_with(run_setup::mode_stage("trial").unwrap()));
     assert_ne!(content_sha256("time_limit"), None);
-    assert_ne!(content_sha256("time_limit"), content_sha256("trial"));
+    // One pack, one hash for both modes (ADR-080); a mode that does not exist has none.
+    assert_eq!(content_sha256("time_limit"), content_sha256("trial"));
+    assert_eq!(content_sha256("blade"), None);
     // Not a stage file: its run is built from the mode file.
     assert_eq!(run_setup::mode_stage("time_limit"), None);
 }

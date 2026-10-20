@@ -13,8 +13,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::id::ContentId;
-use crate::pack::Pack;
 use crate::registry::{self, Entry, Kind};
+use crate::run_content::RunContent;
 use std::sync::OnceLock;
 
 use crate::engine::Horde;
@@ -170,10 +170,10 @@ pub fn time_limit_file(mode: &TimeLimit) -> Vec<u8> {
     [mode.bytes(), time_limit_base()].concat()
 }
 
-/// The stage the `time_limit` run takes its main character, companions, levels, stars and boss
-/// from: placeholders until the mode has its own. The `trial` mode's stage, from the pack.
+/// The bundled `trial` mode's file: the stage the `time_limit` run takes its main character,
+/// companions, levels, stars and boss from (placeholders until the mode has its own).
 fn time_limit_base() -> &'static [u8] {
-    Pack::bundled().trial_bytes()
+    RunContent::bundled().trial_bytes()
 }
 
 /// The bundled content of mode `id` when it is a stage file; `time_limit` is not one (its run
@@ -190,22 +190,31 @@ pub fn mode_stage(id: &str) -> Option<&'static [u8]> {
 /// `Engine::start` seeds the run with the setup's. For `time_limit`, the stage of its run
 /// (`time_limit_run`).
 pub fn stage(setup: &RunSetup) -> Result<Stage, Error> {
-    stage_with(setup, TimeLimit::bundled())
+    stage_in(setup, RunContent::bundled())
 }
 
 /// As `stage`, with `time_limit` in place of the bundled `time_limit` mode file.
 pub fn stage_with(setup: &RunSetup, time_limit: &TimeLimit) -> Result<Stage, Error> {
+    stage_on(setup, RunContent::bundled().trial(), time_limit)
+}
+
+/// As `stage`, from the `trial` stage and the `time_limit` mode file of `content` (a pack's).
+pub fn stage_in(setup: &RunSetup, content: &RunContent) -> Result<Stage, Error> {
+    stage_on(setup, content.trial(), content.time_limit())
+}
+
+fn stage_on(setup: &RunSetup, trial: &Stage, time_limit: &TimeLimit) -> Result<Stage, Error> {
     validate(setup)?;
     if setup.mode.0 == "time_limit" {
-        return Ok(time_limit_run(setup, time_limit)?.0);
+        return Ok(time_limit_run(setup, time_limit, trial)?.0);
     }
-    let content = mode_stage(&setup.mode.0).ok_or_else(|| {
-        Error::Invalid(vec![Issue {
+    if setup.mode.0 != "trial" {
+        return Err(Error::Invalid(vec![Issue {
             path: "$.mode".into(),
             message: "the mode has no stage".into(),
-        }])
-    })?;
-    let mut stage = validate::parse_and_validate(content)?;
+        }]));
+    }
+    let mut stage = trial.clone();
     stage.player.main = WeaponRef::Preset {
         id: setup.main.clone(),
     };
@@ -221,14 +230,18 @@ pub fn stage_with(setup: &RunSetup, time_limit: &TimeLimit) -> Result<Stage, Err
 /// length being the run and its overtime (a clear is the final boss's death; running out of
 /// ticks fails), and no boss until their times (`Horde`). Only the base is validated as a
 /// stage: the mode file validated its own waves, which a stage's caps would refuse.
-pub(crate) fn time_limit_run(setup: &RunSetup, mode: &TimeLimit) -> Result<(Stage, Horde), Error> {
+pub(crate) fn time_limit_run(
+    setup: &RunSetup,
+    mode: &TimeLimit,
+    trial: &Stage,
+) -> Result<(Stage, Horde), Error> {
     if setup.mode.0 != "time_limit" {
         return Err(Error::Invalid(vec![Issue {
             path: "$.mode".into(),
             message: "not the time_limit mode".into(),
         }]));
     }
-    let mut stage = validate::parse_and_validate(time_limit_base())?;
+    let mut stage = trial.clone();
     stage.player.main = WeaponRef::Preset {
         id: setup.main.clone(),
     };
