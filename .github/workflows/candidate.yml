@@ -1,0 +1,229 @@
+# Candidate (the release-flow skill). An agent pushes candidate/<12-character sha> at a commit
+# on main, adding no commit; Kade runs this workflow on that branch. It
+#   - refuses unless the branch names HEAD, HEAD is on main, no other candidate branch is left
+#     over, the branch has not moved, every check run on HEAD passed, and the crate version in
+#     Cargo.toml is new (.github/scripts/release.py),
+#   - runs the iOS Simulator tests and the long fuzz run (ADR-054) on that commit, builds
+#     `stage-verify` once on the four desktop runners and runs each build on a corpus replay,
+#   - tags vX.Y.Z-rc.N on HEAD itself (the version is Cargo.toml's, so there is no stamp commit),
+#     makes a GitHub prerelease with the four binaries, the JSON Schema and SHA256SUMS,
+#   - makes the branch rc/<rc tag> at that commit, for Promote (promote.yml) to run from (the
+#     GitHub app lists branches only), and deletes the same version's lower rc branches.
+# Whatever happens, the last job deletes the candidate/<sha> branch; a failed candidate is fixed
+# on main and starts again with a new branch. Only the tag and cleanup jobs can write, and they
+# run none of the repository's code.
+name: Candidate
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: check the candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read  # the check runs on HEAD
+    outputs:
+      final: ${{ steps.check.outputs.final }}
+      rc: ${{ steps.check.outputs.rc }}
+      superseded: ${{ steps.check.outputs.superseded }}
+      notes: ${{ steps.check.outputs.notes }}
+    steps:
+      - name: Only a candidate branch is a candidate
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/candidate/*) ;;
+            *) echo "::error::a candidate is made from a candidate/* branch only; this run is on $GITHUB_REF"; exit 1 ;;
+          esac
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: The branch names a commit on main, has not moved, its checks passed, the version is new
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/release.py check-candidate "$GITHUB_REF_NAME"
+          head=$(gh api "repos/$REPO/git/ref/heads/$GITHUB_REF_NAME" --jq .object.sha)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::error::$GITHUB_REF_NAME moved from $GITHUB_SHA to $head"
+            exit 1
+          fi
+          gh api --paginate "repos/$REPO/commits/$GITHUB_SHA/check-runs?per_page=100" \
+            --jq '.check_runs[]' | jq -s '{check_runs: .}' \
+            | python3 .github/scripts/release.py checks-passed "$GITHUB_RUN_ID"
+          final=$(python3 .github/scripts/release.py version)
+          rc=$(python3 .github/scripts/release.py rc "$final")
+          superseded=$(python3 .github/scripts/release.py superseded "$rc")
+          previous=$(python3 .github/scripts/release.py previous)
+          if [ -n "$previous" ]; then
+            git log --no-merges --format='%h %s' "$previous..$GITHUB_SHA" > "$RUNNER_TEMP/log.txt"
+          else
+            : > "$RUNNER_TEMP/log.txt"
+          fi
+          python3 .github/scripts/release.py notes "$rc" "$GITHUB_SHA" "${previous:--}" \
+            "$RUNNER_TEMP/log.txt" > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "final=$final"
+            echo "rc=$rc"
+            echo "superseded=$superseded"
+            echo "notes=$(base64 -w0 "$RUNNER_TEMP/notes.md")"
+          } >> "$GITHUB_OUTPUT"
+
+  # The checks of ADR-054 that are not on every pull request. Their check runs are named
+  # "release <workflow> / <job>", which release.py leaves out of the next candidate's checks.
+  ios-simulator:
+    name: release iOS Simulator
+    needs: check
+    uses: ./.github/workflows/ios-sim.yml
+    permissions:
+      contents: read
+
+  long-fuzz:
+    name: release long fuzz
+    needs: check
+    uses: ./.github/workflows/fuzz-long.yml
+    with:
+      # Longer than the weekly run's 7: about 20 minutes of wall time, 6 targets in parallel.
+      minutes: 15
+    # A crash opens the same hash-only issue as a weekly run (fuzz-long.yml needs issues: write).
+    permissions:
+      contents: read
+      issues: write
+
+  build:
+    name: stage-verify on ${{ matrix.arch }}
+    needs: check
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: linux-x86_64
+            runner: ubuntu-latest
+          - arch: linux-arm64
+            runner: ubuntu-24.04-arm
+          - arch: windows-x86_64
+            runner: windows-latest
+            ext: .exe
+          - arch: macos-arm64
+            runner: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustc -vV
+      - run: cargo build --release --locked --bin stage-verify
+      - name: The built binary clears a corpus replay with every tick's hash
+        env:
+          EXT: ${{ matrix.ext }}
+        run: |
+          set -euo pipefail
+          case=tests/corpus/v0/clear
+          "target/release/stage-verify$EXT" "$case/stage.json" "$case/run.replay" --hashes "$case/hashes.txt"
+      - name: Name the files after the release
+        env:
+          FINAL: ${{ needs.check.outputs.final }}
+          ARCH: ${{ matrix.arch }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          mkdir dist
+          cp "target/release/stage-verify$EXT" "dist/stage-verify-$FINAL-$ARCH$EXT"
+          # The schema does not depend on the runner: one copy, from the first.
+          if [ "$ARCH" = linux-x86_64 ]; then cp schema/*.schema.json dist/; fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stage-verify-${{ matrix.arch }}
+          path: dist/
+          if-no-files-found: error
+
+  tag:
+    name: rc tag and prerelease
+    needs: [check, ios-simulator, long-fuzz, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # the rc tag, the prerelease and the rc branches
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: stage-verify-*
+          path: dist
+          merge-multiple: true
+      - name: Create the rc tag, the prerelease and the rc/ branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          FINAL: ${{ needs.check.outputs.final }}
+          RC: ${{ needs.check.outputs.rc }}
+          SUPERSEDED: ${{ needs.check.outputs.superseded }}
+          NOTES: ${{ needs.check.outputs.notes }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$REPO/git/ref/heads/$GITHUB_REF_NAME" --jq .object.sha)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::error::$GITHUB_REF_NAME moved from $GITHUB_SHA to $head"
+            exit 1
+          fi
+          (cd dist && sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS")
+          mv "$RUNNER_TEMP/SHA256SUMS" dist/SHA256SUMS
+          base64 -d <<<"$NOTES" > "$RUNNER_TEMP/notes.md"
+          # An annotated tag object, then its ref; `gh release create` alone would make a
+          # lightweight tag.
+          object=$(gh api "repos/$REPO/git/tags" -f tag="$RC" -f message="$RC" \
+                     -f object="$GITHUB_SHA" -f type=commit --jq .sha)
+          gh api "repos/$REPO/git/refs" -f ref="refs/tags/$RC" -f sha="$object" > /dev/null
+          gh release create "$RC" --repo "$REPO" --verify-tag --prerelease --title "$RC" \
+            --notes-file "$RUNNER_TEMP/notes.md" dist/*
+          gh api "repos/$REPO/git/refs" -f ref="refs/heads/rc/$RC" -f sha="$GITHUB_SHA" > /dev/null
+          for b in $SUPERSEDED; do
+            gh api -X DELETE "repos/$REPO/git/refs/heads/$b" > /dev/null || echo "::warning::could not delete $b"
+          done
+          {
+            echo "Candidate $RC of $FINAL at $GITHUB_SHA (on main)."
+            if [ -n "$SUPERSEDED" ]; then echo "Deleted the superseded $SUPERSEDED."; fi
+            echo "Try it, then Actions > Promote > Run workflow > branch rc/$RC."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    name: delete the candidate branch
+    needs: [check, ios-simulator, long-fuzz, build, tag]
+    if: always() && startsWith(github.ref, 'refs/heads/candidate/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # deleting the branch
+    steps:
+      - name: Delete the branch, whatever the result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          if gh api -X DELETE "repos/$REPO/git/refs/heads/$GITHUB_REF_NAME" > /dev/null; then
+            echo "Deleted $GITHUB_REF_NAME." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$(gh api "repos/$REPO/git/matching-refs/heads/$GITHUB_REF_NAME" \
+                      --jq 'map(select(.ref == "refs/heads/" + env.GITHUB_REF_NAME)) | length')" = 0 ]; then
+            echo "$GITHUB_REF_NAME was already deleted." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::could not delete $GITHUB_REF_NAME; Kade deletes it"
+            exit 1
+          fi
