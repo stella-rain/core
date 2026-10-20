@@ -442,6 +442,7 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
     // applied for, beside the damage-over-time view it has always had.
     let mut e = holding(runes(30, 180, 3, 5), tough(0, None, None));
     let target = wait_for_target(&mut e);
+    // Poison and burn, held on the target too, are beside it in the list.
     let listed = |e: &Engine| -> Vec<StatusView> {
         e.snapshot()
             .entities
@@ -449,6 +450,9 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
             .find(|en| en.id == target)
             .map(|en| en.statuses)
             .unwrap_or_default()
+            .into_iter()
+            .filter(|s| s.id.0 == "bleed")
+            .collect()
     };
     assert!(listed(&e).is_empty());
     let start = e.tick();

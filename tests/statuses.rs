@@ -33,23 +33,36 @@ fn applied_once(skill: Value) -> Value {
 
 #[test]
 fn the_main_character_s_timed_statuses_are_listed_by_id_and_count_down_to_zero() {
-    // Applied in the order vulnerable, atk-up, slow; the list is sorted by ID all the same.
-    let rules = json!([
-        applied_once(json!({ "type": "vulnerable", "value_pct": 10, "duration_ticks": 3 })),
-        applied_once(json!({ "type": "atk_up", "value_pct": 10, "duration_ticks": 30 })),
-        applied_once(json!({ "type": "slow", "value_pct": 10, "duration_ticks": 5 })),
-    ]);
-    let stage = quiet(stage_full(
-        18_000,
-        Some(far_boss()),
-        vec![wave(
+    // One enemy each applies one status on the first tick, in the order of the enemies: the
+    // list is sorted by ID all the same.
+    let applies = |skill: Value, x: i32| {
+        let rules = json!([applied_once(skill)]);
+        wave(
             1,
             1,
             0,
-            enemy(5, hold(START_X, START_Y - 40_960), rules),
-            START_X,
+            enemy(5, hold(x, START_Y - 40_960), rules),
+            x,
             START_Y - 40_960,
-        )],
+        )
+    };
+    let stage = quiet(stage_full(
+        18_000,
+        Some(far_boss()),
+        vec![
+            applies(
+                json!({ "type": "vulnerable", "value_pct": 10, "duration_ticks": 3 }),
+                START_X - 20_000,
+            ),
+            applies(
+                json!({ "type": "atk_up", "value_pct": 10, "duration_ticks": 30 }),
+                START_X,
+            ),
+            applies(
+                json!({ "type": "slow", "value_pct": 10, "duration_ticks": 5 }),
+                START_X + 20_000,
+            ),
+        ],
         vec![],
     ));
     let mut e = engine(&stage);
