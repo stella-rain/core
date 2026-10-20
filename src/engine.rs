@@ -567,7 +567,7 @@ impl Engine {
                     offer: rules_v0::expertise_offer_view(&self.stage, self.content.expertise(), s),
                 }
             }),
-            patterns: Vec::new(),
+            patterns: rules_v0::announced_patterns(&self.stage, s),
         }
     }
 }
@@ -935,6 +935,9 @@ pub(crate) struct BossState {
     /// Whether it has called its elites; `None` for a boss that calls none, which hashes
     /// nothing for it.
     pub elites_called: Option<bool>,
+    /// Ticks since it arrived: 1 on its first tick. The call of its elites counts them
+    /// (ADR-103), and so does the announcement of that call.
+    pub age: u32,
 }
 
 /// A breakable part of the boss, with its own hit points (ADR-007).
@@ -1543,7 +1546,8 @@ mod horde_tests {
 
     #[test]
     fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() {
-        // Recorded before elite types became content: same weights, same seed.
+        // Recorded before elite types became content: same weights, same seed. The positions are
+        // those after the boss's call counts from its arrival (ADR-103); the draws are the same.
         let table = serde_json::json!([{ "start_tick": 0, "weights": [
             { "elite": "elite_low", "weight": 1 }, { "elite": "elite_mid", "weight": 2 } ] },
             { "start_tick": 10_800, "weights": [
@@ -1573,10 +1577,10 @@ mod horde_tests {
         assert_eq!(
             at,
             [
-                (441_027, 487_214),
-                (474_645, 600_729),
-                (612_319, 500_700),
-                (505_330, 613_439)
+                (430_742, 482_638),
+                (468_518, 610_167),
+                (623_198, 497_785),
+                (502_998, 624_450)
             ]
         );
     }
@@ -1664,9 +1668,9 @@ mod horde_tests {
                 }
             }
         }
-        // The elite of minute 1 is alive when the boss comes at 4000. (The boss's `after_ticks`
-        // counts the run's ticks, so its call is already due on arrival.)
-        assert_eq!(called, [(4_000, 1)]);
+        // The elite of minute 1 is alive when the boss comes at 4000, and is called when the
+        // boss's 1800 ticks from its arrival are up (ADR-103).
+        assert_eq!(called, [(5_800, 1)]);
         // The elite of minute 2 spawned after the call: called at once.
         let elites: Vec<bool> = e
             .state

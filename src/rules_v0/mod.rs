@@ -284,6 +284,11 @@ pub(crate) fn initial_state(
     }
 }
 
+/// The big patterns the boss has announced (ADR-103), for the snapshot.
+pub(crate) fn announced_patterns(stage: &Stage, s: &State) -> Vec<crate::snapshot::PatternView> {
+    boss::announced(stage, s)
+}
+
 /// The boss before its first tick, its parts taking the entity IDs from `next_id` on. The
 /// first phase begins on the first tick (see `boss::act`).
 pub(crate) fn boss_state(b: &crate::stage::Boss, id: EntityId, next_id: &mut u32) -> BossState {
@@ -302,6 +307,7 @@ pub(crate) fn boss_state(b: &crate::stage::Boss, id: EntityId, next_id: &mut u32
         order: None,
         rules: Vec::new(),
         elites_called: b.call_elites.map(|_| false),
+        age: 0,
         parts: b
             .parts
             .iter()
@@ -1206,6 +1212,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             // Only for a boss that calls its elites, so other bosses hash as before.
             if let Some(called) = b.elites_called {
                 h.write_bool(called);
+                h.write_u32(b.age);
             }
         }
         None => h.write_bool(false),
