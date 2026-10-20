@@ -7,7 +7,7 @@ use stella_rain_core::registry::{ENTRIES, Kind};
 use stella_rain_core::run_replay::content_sha256;
 use stella_rain_core::run_setup;
 use stella_rain_core::time_limit::{
-    MAX_BOSS_TIMES, MAX_ELITE_TIERS, MAX_ELITE_TYPES, MAX_ELITE_WEIGHT, MAX_EXTRA_TICKS,
+    MAX_BOSS_TIMES, MAX_ELITE_DEFINITIONS, MAX_ELITE_TIERS, MAX_ELITE_TYPES, MAX_ELITE_WEIGHT, MAX_EXTRA_TICKS,
     MAX_LENGTH_TICKS, MAX_OVERTIME_TICKS, MAX_POOL, MAX_SPAWN_COUNT, MAX_TIME_LIMIT_BYTES,
     MAX_TOTAL_SPAWNS, MAX_WAVES, TimeLimit,
 };
@@ -162,7 +162,7 @@ fn each_number_is_under_its_hard_cap() {
     v["length_ticks"] = json!(MAX_BOSS_TIMES as u32 + 1);
     v["mid_boss_pool"] = json!(vec!["golem"; MAX_BOSS_TIMES]);
     v["waves"] = json!([]);
-    v["elite_table"] = json!([tier(0, &[("bat", 1)])]);
+    v["elite_table"] = json!([tier(0, &[("elite_low", 1)])]);
     assert_eq!(paths(&v), ["$.boss_ticks"]);
     let pool = vec!["golem"; MAX_POOL + 1];
     assert_eq!(
@@ -299,16 +299,38 @@ fn the_bundled_elite_table_has_no_high_grade_before_minute_16() {
             .map(|w| w.elite.0.as_str())
             .collect()
     };
-    assert_eq!(names(0), ["bat"]);
-    assert_eq!(names(1), ["bat", "fairy_a"]);
-    assert_eq!(names(2), ["bat", "fairy_a", "horns_2"]);
+    assert_eq!(names(0), ["elite_low"]);
+    assert_eq!(names(1), ["elite_low", "elite_mid"]);
+    assert_eq!(names(2), ["elite_low", "elite_mid", "elite_high"]);
+}
+
+#[test]
+fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
+    let types = TimeLimit::bundled().elite_types();
+    let ids: Vec<&str> = types.iter().map(|t| t.id.0.as_str()).collect();
+    assert_eq!(ids, ["elite_low", "elite_mid", "elite_high"]);
+    let sprites: Vec<&str> = types.iter().map(|t| t.enemy.base.0.as_str()).collect();
+    assert_eq!(sprites, ["bat", "fairy_a", "horns_2"]);
+    assert!(types.iter().all(|t| t.enemy.elite.is_some()));
+    let hp: Vec<u32> = types.iter().map(|t| t.enemy.hp).collect();
+    assert!(hp[0] < hp[1] && hp[1] < hp[2], "health rises by grade: {hp:?}");
+    let damage = |i: usize| -> u32 {
+        let v = serde_json::to_value(&types[i].enemy).unwrap();
+        v["rules"][0]["do"]["attack"]["inline"][0]["damage"]
+            .as_u64()
+            .unwrap_or(1) as u32
+    };
+    assert!(damage(0) < damage(1) && damage(1) < damage(2));
 }
 
 #[test]
 fn a_valid_elite_table_parses() {
     let v = table(vec![
-        tier(0, &[("bat", 1)]),
-        tier(MINUTE, &[("bat", 3), ("fairy_a", MAX_ELITE_WEIGHT)]),
+        tier(0, &[("elite_low", 1)]),
+        tier(
+            MINUTE,
+            &[("elite_low", 3), ("elite_mid", MAX_ELITE_WEIGHT)],
+        ),
     ]);
     let m = parse(&v).unwrap();
     assert_eq!(m.elite_table().len(), 2);
@@ -317,7 +339,7 @@ fn a_valid_elite_table_parses() {
 
 #[test]
 fn elite_tiers_rise_strictly_and_the_first_starts_with_the_run() {
-    let weights = [("bat", 1)];
+    let weights = [("elite_low", 1)];
     assert_eq!(
         paths(&table(vec![tier(0, &weights), tier(0, &weights)])),
         ["$.elite_table[1].start_tick"]
@@ -330,7 +352,7 @@ fn elite_tiers_rise_strictly_and_the_first_starts_with_the_run() {
 
 #[test]
 fn an_elite_tier_starts_before_the_run_ends() {
-    let weights = [("bat", 1)];
+    let weights = [("elite_low", 1)];
     let end = 20 * MINUTE;
     assert!(parse(&table(vec![tier(0, &weights), tier(end - 1, &weights)])).is_ok());
     assert_eq!(
@@ -342,29 +364,124 @@ fn an_elite_tier_starts_before_the_run_ends() {
 #[test]
 fn an_elite_weight_is_above_zero_and_under_its_cap() {
     assert_eq!(
-        paths(&table(vec![tier(0, &[("bat", 0)])])),
+        paths(&table(vec![tier(0, &[("elite_low", 0)])])),
         ["$.elite_table[0].weights[0].weight"]
     );
     assert_eq!(
-        paths(&table(vec![tier(0, &[("bat", MAX_ELITE_WEIGHT + 1)])])),
+        paths(&table(vec![tier(0, &[("elite_low", MAX_ELITE_WEIGHT + 1)])])),
         ["$.elite_table[0].weights[0].weight"]
     );
 }
 
 #[test]
-fn an_elite_type_is_a_known_sprite_named_once_per_tier() {
+fn an_elite_table_names_defined_types_once_per_tier() {
     assert_eq!(
-        paths(&table(vec![tier(0, &[("bat", 1), ("nope", 1)])])),
+        paths(&table(vec![tier(0, &[("elite_low", 1), ("nope", 1)])])),
         ["$.elite_table[0].weights[1].elite"]
     );
+    // A sprite ID is not an elite type.
     assert_eq!(
-        paths(&table(vec![tier(0, &[("blade", 1)])])),
+        paths(&table(vec![tier(0, &[("bat", 1)])])),
         ["$.elite_table[0].weights[0].elite"]
     );
     assert_eq!(
-        paths(&table(vec![tier(0, &[("bat", 1), ("bat", 2)])])),
+        paths(&table(vec![tier(0, &[("elite_low", 1), ("elite_low", 2)])])),
         ["$.elite_table[0].weights[1].elite"]
     );
+}
+
+/// The bundled file with its elite types replaced.
+fn types(list: Vec<Value>) -> Value {
+    with("elite_types", json!(list))
+}
+
+fn low() -> Value {
+    good()["elite_types"][0].clone()
+}
+
+/// `low` as a type of its own.
+fn named(id: &str) -> Value {
+    let mut t = low();
+    t["id"] = json!(id);
+    t
+}
+
+#[test]
+fn an_elite_type_is_a_well_formed_unique_id_with_a_valid_elite_enemy() {
+    let mut mid = good()["elite_types"][1].clone();
+    mid["id"] = json!("elite_low");
+    let both_low = types(vec![low(), mid]);
+    assert_eq!(paths(&both_low), ["$.elite_types[1].id"]);
+
+    let mut t = low();
+    t["id"] = json!("Not Valid");
+    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].id"]);
+
+    let mut t = low();
+    t["enemy"]["base"] = json!("nope");
+    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].enemy.base"]);
+
+    // A weapon preset is not a sprite.
+    let mut t = low();
+    t["enemy"]["base"] = json!("blade");
+    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].enemy.base"]);
+
+    let mut t = low();
+    t["enemy"]["hp"] = json!(0);
+    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].enemy.hp"]);
+
+    let mut t = low();
+    t["enemy"]["rules"][0]["do"]["attack"]["preset"]["id"] = json!("nope");
+    assert!(
+        paths(&types(vec![t]))
+            .iter()
+            .all(|p| p.starts_with("$.elite_types[0].enemy.rules[0]"))
+    );
+
+    let mut t = low();
+    t["xp"] = json!(u32::MAX);
+    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].xp"]);
+
+    // An elite type is an elite.
+    let mut t = low();
+    t["enemy"].as_object_mut().unwrap().remove("elite");
+    assert_eq!(paths(&types(vec![t])), ["$.elite_types[0].enemy.elite"]);
+}
+
+#[test]
+fn every_type_the_table_names_is_defined_and_every_type_is_named() {
+    // The table names `elite_mid` and `elite_high`, which are no longer defined.
+    assert_eq!(
+        paths(&types(vec![low()])),
+        [
+            "$.elite_table[1].weights[1].elite",
+            "$.elite_table[2].weights[1].elite",
+            "$.elite_table[2].weights[2].elite",
+        ]
+    );
+    // A type no tier names is fine: a later task's table may not reach it yet.
+    let mut v = types(vec![low(), named("elite_unused")]);
+    v["elite_table"] = json!([tier(0, &[("elite_low", 1)])]);
+    assert!(parse(&v).is_ok());
+}
+
+#[test]
+fn there_are_at_least_one_and_at_most_so_many_elite_types() {
+    let mut v = types(vec![]);
+    v["elite_table"] = json!([tier(0, &[("elite_low", 1)])]);
+    let found = paths(&v);
+    assert!(found.contains(&"$.elite_types".to_string()), "{found:?}");
+
+    let ids: Vec<String> = (0..=MAX_ELITE_DEFINITIONS)
+        .map(|i| format!("elite_t{i}"))
+        .collect();
+    let list = |n: usize| -> Vec<Value> { ids[..n].iter().map(|i| named(i)).collect() };
+    let mut at_cap = types(list(MAX_ELITE_DEFINITIONS));
+    at_cap["elite_table"] = json!([tier(0, &[("elite_t0", 1)])]);
+    assert!(parse(&at_cap).is_ok());
+    let mut past = types(list(MAX_ELITE_DEFINITIONS + 1));
+    past["elite_table"] = json!([tier(0, &[("elite_t0", 1)])]);
+    assert_eq!(paths(&past), ["$.elite_types"]);
 }
 
 #[test]
@@ -375,33 +492,25 @@ fn the_elite_table_has_at_least_one_tier_and_one_type_each_and_at_most_so_many()
         ["$.elite_table[0].weights"]
     );
     let at_cap: Vec<Value> = (0..MAX_ELITE_TIERS as u32)
-        .map(|i| tier(i * 60, &[("bat", 1)]))
+        .map(|i| tier(i * 60, &[("elite_low", 1)]))
         .collect();
     assert!(parse(&table(at_cap)).is_ok());
     let too_many: Vec<Value> = (0..=MAX_ELITE_TIERS as u32)
-        .map(|i| tier(i * 60, &[("bat", 1)]))
+        .map(|i| tier(i * 60, &[("elite_low", 1)]))
         .collect();
     assert_eq!(paths(&table(too_many)), ["$.elite_table"]);
 
-    let ids = [
-        "bat",
-        "fairy_a",
-        "golem",
-        "horns_2",
-        "pilot_a",
-        "icon_hex",
-        "icon_nova",
-        "icon_aegis",
-        "icon_war_cry",
-    ];
-    assert!(MAX_ELITE_TYPES < ids.len());
-    let at_cap: Vec<(&str, u32)> = ids[..MAX_ELITE_TYPES].iter().map(|&i| (i, 1)).collect();
-    assert!(parse(&table(vec![tier(0, &at_cap)])).is_ok());
-    let past: Vec<(&str, u32)> = ids[..=MAX_ELITE_TYPES].iter().map(|&i| (i, 1)).collect();
-    assert_eq!(
-        paths(&table(vec![tier(0, &past)])),
-        ["$.elite_table[0].weights"]
-    );
+    let ids: Vec<String> = (0..=MAX_ELITE_TYPES)
+        .map(|i| format!("elite_t{i}"))
+        .collect();
+    let mut v = types(ids.iter().map(|i| named(i)).collect());
+    let weights = |n: usize| -> Vec<(&str, u32)> {
+        ids[..n].iter().map(|i| (i.as_str(), 1)).collect()
+    };
+    v["elite_table"] = json!([tier(0, &weights(MAX_ELITE_TYPES))]);
+    assert!(parse(&v).is_ok());
+    v["elite_table"] = json!([tier(0, &weights(MAX_ELITE_TYPES + 1))]);
+    assert_eq!(paths(&v), ["$.elite_table[0].weights"]);
 }
 
 #[test]
@@ -422,21 +531,35 @@ fn the_elite_cap_is_from_one_to_the_most_elites_alive() {
 
 #[test]
 fn the_elite_fields_are_strict_and_a_refusal_echoes_no_file_text() {
-    let mut v = table(vec![tier(0, &[("bat", 1)])]);
+    let mut v = table(vec![tier(0, &[("elite_low", 1)])]);
     v["elite_table"][0]["extra"] = json!(1);
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
+    let mut v = good();
+    v["elite_types"][0]["extra"] = json!(1);
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
+    let mut v = good();
+    v.as_object_mut().unwrap().remove("elite_types");
     assert!(matches!(parse(&v), Err(Error::Parse { .. })));
     let mut v = good();
     v.as_object_mut().unwrap().remove("elite_cap");
     assert!(matches!(parse(&v), Err(Error::Parse { .. })));
 
     let secret = "secret_text_from_the_file";
-    let v = table(vec![tier(0, &[(secret, 1)])]);
-    let Err(Error::Invalid(issues)) = parse(&v) else {
-        panic!("not refused");
-    };
-    assert!(
-        issues
-            .iter()
-            .all(|i| !i.path.contains(secret) && !i.message.contains(secret))
-    );
+    let mut named_secret = low();
+    named_secret["id"] = json!(secret);
+    named_secret["enemy"]["base"] = json!(secret);
+    for v in [
+        table(vec![tier(0, &[(secret, 1)])]),
+        types(vec![named_secret]),
+    ] {
+        let Err(Error::Invalid(issues)) = parse(&v) else {
+            panic!("not refused");
+        };
+        assert!(!issues.is_empty());
+        assert!(
+            issues
+                .iter()
+                .all(|i| !i.path.contains(secret) && !i.message.contains(secret))
+        );
+    }
 }

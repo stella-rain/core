@@ -47,6 +47,8 @@ pub const MAX_TOTAL_SPAWNS: u32 = 6000;
 pub const MAX_ELITE_TIERS: usize = 16;
 /// The most elite types one tier names.
 pub const MAX_ELITE_TYPES: usize = 8;
+/// The most elite types the file defines.
+pub const MAX_ELITE_DEFINITIONS: usize = 16;
 /// The largest weight of an elite type, as `MAX_RARITY_WEIGHT` is for a star's rarity.
 pub const MAX_ELITE_WEIGHT: u32 = 10_000;
 
@@ -108,6 +110,15 @@ pub struct EliteWeight {
     pub elite: ContentId,
     /// 1 to `MAX_ELITE_WEIGHT`.
     pub weight: u32,
+}
+
+/// An elite type (ADR-090): an ID and the enemy it spawns, with what a kill of it gives, as a
+/// wave of the schedule does. The sprite is the enemy's `base`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EliteType {
+    pub id: ContentId,
+    pub enemy: crate::behaviour::Agent,
 }
 
 /// An open field: its sides in 1/256 pixels and where the player starts.
@@ -216,6 +227,11 @@ impl TimeLimit {
     /// The most elites alive at once.
     pub fn elite_cap(&self) -> u16 {
         self.file.elite_cap
+    }
+
+    /// The elite types the file defines.
+    pub fn elite_types(&self) -> &[EliteType] {
+        &[]
     }
 
     /// The map and the player's start.

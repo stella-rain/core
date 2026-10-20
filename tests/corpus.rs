@@ -894,7 +894,7 @@ fn short_time_limit(overtime: u32) -> (String, RunContent) {
     v["boss_ticks"] = json!([60]);
     v["overtime_ticks"] = json!(overtime);
     v["waves"] = json!([]);
-    v["elite_table"] = json!([{ "start_tick": 0, "weights": [{ "elite": "bat", "weight": 1 }] }]);
+    v["elite_table"] = json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
     let json = serde_json::to_string_pretty(&v).unwrap() + "\n";
     let content = RunContent::bundled()
         .clone()
