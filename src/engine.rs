@@ -850,13 +850,13 @@ impl PlayerState {
 /// Where the main character is in its Main weapon's combo tree (ADR-070, ADR-076).
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct ComboState {
-    /// The presses from the root to the current step, the first in bit 0: 1 for `sub`.
+    /// The presses from the root to the current step, the first in bit 0: 1 for `smash`.
     pub path: u32,
     /// How many presses `path` holds: 0 at the root.
     pub depth: u8,
     /// The path began in the dash branch.
     pub dash: bool,
-    /// The press waiting for the next step: `Some(true)` for `sub`.
+    /// The press waiting for the next step: `Some(true)` for `smash`.
     pub buffered: Option<bool>,
     /// The current step's attack is running.
     pub running: bool,
@@ -875,7 +875,7 @@ pub(crate) struct ComboState {
     /// becomes the auto combo when it resets, unless it began in the dash branch.
     pub hand: bool,
     /// The auto combo auto mode plays: its presses from the root, the first in bit 0 (1 for
-    /// `sub`), and how many; at most the tree's depth.
+    /// `smash`), and how many; at most the tree's depth.
     pub auto_path: u32,
     pub auto_depth: u8,
     /// The permanent upgrades the run holds, as a mask (`registry::upgrade_mask`): fixed for the

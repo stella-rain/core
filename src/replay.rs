@@ -8,7 +8,7 @@
 //! and `verify`.
 //!
 //! Packed inputs are runs of identical inputs. Each run is a LEB128 run length (at least 1),
-//! one flags byte (bit 0 `evade`, then `main`, `sub`, `skill`, `assist` and `auto`; bits 6 and 7
+//! one flags byte (bit 0 `evade`, then `main`, `smash`, `skill`, `assist` and `auto`; bits 6 and 7
 //! zero), then `move_x` and `move_y` as one two's-complement byte each, −127 to 127 (ADR-071). Five minutes of changing inputs take about
 //! 96 KB, inside `MAX_REPLAY_BYTES`; steady input takes a few bytes.
 
@@ -243,14 +243,14 @@ pub(crate) fn read_varint(bytes: &[u8], pos: &mut usize) -> Result<u32, &'static
 /// runs the same, and unpacking refuses it, so each input has one encoding.
 const NO_STICK: u8 = 0x80;
 
-/// The flags byte of a run (ADR-071): `evade` in bit 0, then `main`, `sub`, `skill`, `assist`
+/// The flags byte of a run (ADR-071): `evade` in bit 0, then `main`, `smash`, `skill`, `assist`
 /// and `auto`; bits 6 and 7 are never set.
 const ALL_FLAGS: u8 = 0b11_1111;
 
 fn flags_of(input: &Input) -> u8 {
     u8::from(input.evade)
         | u8::from(input.main) << 1
-        | u8::from(input.sub) << 2
+        | u8::from(input.smash) << 2
         | u8::from(input.skill) << 3
         | u8::from(input.assist) << 4
         | u8::from(input.auto) << 5
@@ -307,7 +307,7 @@ pub(crate) fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static st
             move_y: i8::from_le_bytes([y]),
             evade: flags & 1 != 0,
             main: flags & 0b10 != 0,
-            sub: flags & 0b100 != 0,
+            smash: flags & 0b100 != 0,
             skill: flags & 0b1000 != 0,
             assist: flags & 0b1_0000 != 0,
             auto: flags & 0b10_0000 != 0,

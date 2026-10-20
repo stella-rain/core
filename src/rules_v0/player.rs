@@ -1,12 +1,12 @@
 //! The main character (ADR-071): movement from the input's stick, the persistent facing
 //! (ADR-069), the evade on its charges (ADR-074), and the combos of its Main weapon, made by hand (ADR-070, ADR-076).
 //!
-//! The combo: a press of `main` or `sub` is buffered (one, the latest; `main` when both come
+//! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
 //! the root when there is none; a running step is cancelled for it once it reaches the
 //! recovery after its last hits, if there is a next step for the press; a leaf runs to its end
 //! first. When a step has run out with nothing buffered, the combo keeps its place for the
-//! weapon's `window_ticks`. A step reached by `sub` is a combo part, which carries the Sub
+//! weapon's `window_ticks`. A step reached by `smash` is a combo part, which carries the Sub
 //! weapon's pull. A step with a charge charges while the button that reached it is still held
 //! as it starts: let go before level 1, it attacks as a tap would; later, at the level reached,
 //! with the perfect bonus inside a window; at `max_ticks` it releases by itself. Presses while
@@ -211,8 +211,8 @@ fn dash(stage: &Stage, p: &mut PlayerState) {
 /// that attack on their own come with their own.
 pub(super) const COMBO_SLOT: u8 = 0;
 
-fn press_of(sub: bool) -> Press {
-    if sub { Press::Sub } else { Press::Main }
+fn press_of(smash: bool) -> Press {
+    if smash { Press::Smash } else { Press::Main }
 }
 
 /// The step the combo is at: `None` at the root.
@@ -227,8 +227,8 @@ fn step_at<'a>(main: &'a Weapon, c: &ComboState) -> Option<&'a Step> {
     step
 }
 
-/// Whether the press that reached the current step was `sub`.
-fn last_press_sub(c: &ComboState) -> bool {
+/// Whether the press that reached the current step was `smash`.
+fn last_press_smash(c: &ComboState) -> bool {
     c.depth > 0 && c.path >> (c.depth - 1) & 1 == 1
 }
 
@@ -288,9 +288,9 @@ fn combo(
         reset(&mut s.player.combo, events);
     }
     let c = s.player.combo;
-    let (sub, by_hand) = match (c.buffered, auto_press(&c, input, s.player.target.is_some())) {
-        (Some(sub), _) => (sub, true),
-        (None, Some(Auto::Next(sub))) => (sub, false),
+    let (smash, by_hand) = match (c.buffered, auto_press(&c, input, s.player.target.is_some())) {
+        (Some(smash), _) => (smash, true),
+        (None, Some(Auto::Next(smash))) => (smash, false),
         (None, Some(Auto::Again)) if !busy => {
             reset(&mut s.player.combo, events);
             (c.auto_path & 1 == 1, false)
@@ -303,21 +303,21 @@ fn combo(
         }
     };
     if !busy {
-        take_step(stage, s, main, sub, by_hand, input, events);
+        take_step(stage, s, main, smash, by_hand, input, events);
         return;
     }
-    let next = step_at(main, &c).is_some_and(|st| st.next.get_open(sub, c.upgrades).is_some());
+    let next = step_at(main, &c).is_some_and(|st| st.next.get_open(smash, c.upgrades).is_some());
     if next && attacks::in_end_recovery(s, me, COMBO_SLOT) {
         attacks::end_run(s, me, COMBO_SLOT);
-        take_step(stage, s, main, sub, by_hand, input, events);
+        take_step(stage, s, main, smash, by_hand, input, events);
     }
 }
 
-/// The press `pressed` holds, `main` first: `Some(true)` for `sub`.
+/// The press `pressed` holds, `main` first: `Some(true)` for `smash`.
 fn press_of_pressed(pressed: u8) -> Option<bool> {
     if pressed & input::MAIN != 0 {
         Some(false)
-    } else if pressed & input::SUB != 0 {
+    } else if pressed & input::SMASH != 0 {
         Some(true)
     } else {
         None
@@ -334,14 +334,14 @@ fn begins_hold(main: &Weapon, c: &ComboState, input: Input) -> bool {
     if step.hold.is_none() || !c.hand || c.released {
         return false;
     }
-    let still = if last_press_sub(c) {
-        input.sub
+    let still = if last_press_smash(c) {
+        input.smash
     } else {
         input.main
     };
     let cancels = c
         .buffered
-        .is_some_and(|sub| step.next.get_open(sub, c.upgrades).is_some());
+        .is_some_and(|smash| step.next.get_open(smash, c.upgrades).is_some());
     still && !cancels
 }
 
@@ -389,8 +389,8 @@ fn holding(
         s.player.combo.hold = None;
         return;
     };
-    let still = if last_press_sub(&c) {
-        input.sub
+    let still = if last_press_smash(&c) {
+        input.smash
     } else {
         input.main
     };
@@ -429,7 +429,7 @@ fn release_hold(
 
 /// What auto mode presses this tick (ADR-073).
 enum Auto {
-    /// The next press of the auto combo, `true` for `sub`, taken as a buffered press would be.
+    /// The next press of the auto combo, `true` for `smash`, taken as a buffered press would be.
     Next(bool),
     /// The auto combo again from the root, once the current step has run out.
     Again,
@@ -469,7 +469,7 @@ pub(super) fn initial_combo(stage: &Stage, upgrades: u32) -> ComboState {
     }
 }
 
-/// The press `sub`, buffered `by_hand` or auto mode's, takes its step: the next one from where
+/// The press `smash`, buffered `by_hand` or auto mode's, takes its step: the next one from where
 /// the combo is, or else the first from the root, in the dash branch while a dash-strike may
 /// start and it has one (by hand only). Auto mode's step never charges and faces the target.
 #[allow(clippy::too_many_arguments)]
@@ -477,7 +477,7 @@ fn take_step(
     stage: &Stage,
     s: &mut State,
     main: &Weapon,
-    sub: bool,
+    smash: bool,
     by_hand: bool,
     input: Input,
     events: &mut Vec<DomainEvent>,
@@ -485,26 +485,26 @@ fn take_step(
     let c = &mut s.player.combo;
     c.buffered = None;
     c.released = false;
-    let onward = step_at(main, c).is_some_and(|st| st.next.get_open(sub, c.upgrades).is_some());
+    let onward = step_at(main, c).is_some_and(|st| st.next.get_open(smash, c.upgrades).is_some());
     if !onward {
         reset(c, events);
-        c.dash = by_hand && c.dash_strike_left > 0 && main.dash.get_open(sub, c.upgrades).is_some();
-        if !c.dash && main.combo.get_open(sub, c.upgrades).is_none() {
+        c.dash = by_hand && c.dash_strike_left > 0 && main.dash.get_open(smash, c.upgrades).is_some();
+        if !c.dash && main.combo.get_open(smash, c.upgrades).is_none() {
             return;
         }
     }
     c.hand |= by_hand;
-    c.path |= u32::from(sub) << c.depth;
+    c.path |= u32::from(smash) << c.depth;
     c.depth += 1;
     c.window_left = 0;
     events.push(DomainEvent::ComboStep {
-        press: press_of(sub),
+        press: press_of(smash),
         depth: c.depth,
     });
     let Some(step) = step_at(main, c) else {
         return;
     };
-    let held = by_hand && if sub { input.sub } else { input.main };
+    let held = by_hand && if smash { input.smash } else { input.main };
     if step.charge.is_some() && held {
         s.player.combo.charge = Some(0);
     } else {
@@ -530,7 +530,7 @@ fn strike(
             s.player.facing = dir;
         }
     }
-    let smash = if last_press_sub(&s.player.combo) {
+    let smash = if last_press_smash(&s.player.combo) {
         presets::weapon(&stage.player.weapon)
             .and_then(|w| w.smash)
             .map(|effect| match effect {
@@ -629,8 +629,8 @@ fn charging(
         s.player.combo.charge = None;
         return;
     };
-    let still = if last_press_sub(&c) {
-        input.sub
+    let still = if last_press_smash(&c) {
+        input.smash
     } else {
         input.main
     };

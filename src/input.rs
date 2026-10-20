@@ -18,8 +18,8 @@ pub struct Input {
     pub move_y: i8,
     /// The Main attack button (A) is held on this tick (ADR-070).
     pub main: bool,
-    /// The Sub attack button (B) is held on this tick (ADR-070).
-    pub sub: bool,
+    /// The smash button (B) is held on this tick (ADR-070).
+    pub smash: bool,
     /// The evade button (X) is held on this tick: a press dashes when an evade is ready.
     pub evade: bool,
     /// The stage skill button (Y) is held on this tick: a press uses the skill in the slot when
@@ -33,15 +33,15 @@ pub struct Input {
 }
 
 /// The buttons of an input as bits, for the state to keep from one tick to the next: `main`,
-/// `sub`, `evade` and `skill` from bit 0. The switches are not buttons and are not kept.
+/// `smash`, `evade` and `skill` from bit 0. The switches are not buttons and are not kept.
 pub(crate) fn held_buttons(input: Input) -> u8 {
     u8::from(input.main)
-        | u8::from(input.sub) << 1
+        | u8::from(input.smash) << 1
         | u8::from(input.evade) << 2
         | u8::from(input.skill) << 3
 }
 
 pub(crate) const MAIN: u8 = 0b1;
-pub(crate) const SUB: u8 = 0b10;
+pub(crate) const SMASH: u8 = 0b10;
 pub(crate) const EVADE: u8 = 0b100;
 pub(crate) const SKILL: u8 = 0b1000;

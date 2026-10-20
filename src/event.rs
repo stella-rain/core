@@ -16,7 +16,7 @@ use crate::snapshot::{ExpertiseOfferKind, OfferKind, WeaponRole};
 #[serde(rename_all = "snake_case")]
 pub enum Press {
     Main,
-    Sub,
+    Smash,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

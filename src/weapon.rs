@@ -1,5 +1,5 @@
 //! Weapons (ADR-084): the main character carries one weapon and attacks with it by hand. The
-//! weapon owns the combo tree, reached by presses of `main` (A) and `sub` (B), each step a
+//! weapon owns the combo tree, reached by presses of `main` (A) and `smash` (B), each step a
 //! phased attack (ADR-069) that may charge. A weapon is a preset by ID or an inline definition,
 //! as an attack is, and a preset is the whole weapon: `player.weapon` names one. A smash (a step
 //! reached by B) may carry one smash effect. The run's setup takes one ID (ADR-107).
@@ -40,7 +40,7 @@ pub struct Weapon {
     /// How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle
     /// reaches within this distance of the main character.
     pub assist_range: Fx,
-    /// What every hit of a smash (a step reached by `sub`) adds, in the dash branch too; none
+    /// What every hit of a smash (a step reached by `smash`) adds, in the dash branch too; none
     /// when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub smash: Option<SmashEffect>,
@@ -53,25 +53,25 @@ pub struct Branches {
     /// The step a press of `main` (A) takes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main: Option<Box<Step>>,
-    /// The step a press of `sub` (B) takes: a smash, which the weapon's smash effect joins.
+    /// The step a press of `smash` (B) takes: a smash, which the weapon's smash effect joins.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sub: Option<Box<Step>>,
+    pub smash: Option<Box<Step>>,
 }
 
 impl Branches {
     pub fn is_empty(&self) -> bool {
-        self.main.is_none() && self.sub.is_none()
+        self.main.is_none() && self.smash.is_none()
     }
 
-    /// The step for a press of `main` (`sub` false) or of `sub`.
-    pub fn get(&self, sub: bool) -> Option<&Step> {
-        if sub { &self.sub } else { &self.main }.as_deref()
+    /// The step for a press of `main` (`smash` false) or of `smash`.
+    pub fn get(&self, smash: bool) -> Option<&Step> {
+        if smash { &self.smash } else { &self.main }.as_deref()
     }
 
     /// As `get`, but a step whose upgrade is not in `upgrades` (a mask, `registry::upgrade_mask`)
     /// counts as absent (ADR-084 point 7); so does everything below it, as no path leads there.
-    pub fn get_open(&self, sub: bool, upgrades: u32) -> Option<&Step> {
-        self.get(sub).filter(|step| step.is_open(upgrades))
+    pub fn get_open(&self, smash: bool, upgrades: u32) -> Option<&Step> {
+        self.get(smash).filter(|step| step.is_open(upgrades))
     }
 }
 
@@ -173,7 +173,7 @@ fn is_zero_u16(v: &u16) -> bool {
     *v == 0
 }
 
-/// What a smash (a step reached by `sub`) does to every enemy it hits (ADR-084 point 8): one
+/// What a smash (a step reached by `smash`) does to every enemy it hits (ADR-084 point 8): one
 /// of a closed list built into `core`, its numbers in JSON (ADR-067).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
