@@ -286,7 +286,8 @@ fn hit_enemy_side(
         let e = &s.enemies[i];
         let (id, at, hp) = (e.id, e.at, e.hp);
         let radius = agent_def(stage, e.key).radius.0;
-        if hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
+        // A shrine is not hurt: the hit passes through it.
+        if hp > 0 && e.shrine.is_none() && covers(w, at, radius) && take_hit(s, w, id) {
             damage(stage, s, shot(w), Who::Enemy(i), events);
             if let Some(pull) = w.pull {
                 super::pull_enemy(stage, s, i, pull);

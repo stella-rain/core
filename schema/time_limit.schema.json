@@ -433,6 +433,11 @@
           "description": "It is not called: it leaves the map instead, unkilled and with no reward.",
           "type": "string",
           "const": "leave"
+        },
+        {
+          "description": "It is not called and does not leave: it stays where it is (the shrine's, ADR-090).",
+          "type": "string",
+          "const": "stay"
         }
       ]
     },
@@ -1195,6 +1200,33 @@
       "type": "integer",
       "format": "int32"
     },
+    "Guardians": {
+      "description": "The guardians of a shrine: `count` ordinary enemies placed on a ring of `radius` around it,\nevenly spaced from the east, kept on the map. The enemy cap still applies to them: one it\nrefuses is not spawned.",
+      "type": "object",
+      "properties": {
+        "count": {
+          "description": "1 to `MAX_SHRINE_GUARDIANS`.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "enemy": {
+          "description": "Not an elite and not a shrine; it does not summon.",
+          "$ref": "#/$defs/Agent"
+        },
+        "radius": {
+          "description": "How far from the shrine's centre they stand.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enemy",
+        "count",
+        "radius"
+      ]
+    },
     "HitBox": {
       "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right.",
       "oneOf": [
@@ -1358,6 +1390,30 @@
             "disturb_radius",
             "speed",
             "leave_after_ticks"
+          ]
+        },
+        {
+          "description": "An elite's (it needs the `elite` field, with `boss_call` `stay`): an object that cannot be\ndamaged and does nothing until the main character's body touches it. It then activates\nonce: its guardians appear on a ring around it and it gives its kill reward when they are\nall dead within `fight_ticks` ticks of the touch, else it leaves unkilled (ADR-090).",
+          "type": "object",
+          "properties": {
+            "fight_ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "guardians": {
+              "$ref": "#/$defs/Guardians"
+            },
+            "type": {
+              "type": "string",
+              "const": "shrine"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "fight_ticks",
+            "guardians"
           ]
         }
       ]

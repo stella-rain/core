@@ -288,6 +288,10 @@
       {
         "id": "elite_goblin",
         "sim_version": 0
+      },
+      {
+        "id": "elite_shrine",
+        "sim_version": 0
       }
     ]
   },
@@ -1895,7 +1899,8 @@
       "start_tick": 0,
       "weights": [
         { "elite": "elite_low", "weight": 1 },
-        { "elite": "elite_goblin", "weight": 1 }
+        { "elite": "elite_goblin", "weight": 1 },
+        { "elite": "elite_shrine", "weight": 1 }
       ]
     },
     {
@@ -1903,7 +1908,8 @@
       "weights": [
         { "elite": "elite_low", "weight": 2 },
         { "elite": "elite_mid", "weight": 1 },
-        { "elite": "elite_goblin", "weight": 1 }
+        { "elite": "elite_goblin", "weight": 1 },
+        { "elite": "elite_shrine", "weight": 1 }
       ]
     },
     {
@@ -1912,7 +1918,8 @@
         { "elite": "elite_low", "weight": 2 },
         { "elite": "elite_mid", "weight": 2 },
         { "elite": "elite_high", "weight": 1 },
-        { "elite": "elite_goblin", "weight": 1 }
+        { "elite": "elite_goblin", "weight": 1 },
+        { "elite": "elite_shrine", "weight": 1 }
       ]
     }
   ],
@@ -2095,6 +2102,61 @@
         "elite": {
           "range": 51200,
           "boss_call": "leave"
+        }
+      },
+      "xp": 3,
+      "expertise": {
+        "hit": 4,
+        "kill": 60
+      }
+    },
+    {
+      "id": "elite_shrine",
+      "enemy": {
+        "base": "golem",
+        "hp": 1,
+        "radius": 4096,
+        "movement": {
+          "type": "shrine",
+          "fight_ticks": 1800,
+          "guardians": {
+            "enemy": {
+              "base": "bat",
+              "hp": 60,
+              "radius": 2048,
+              "movement": {
+                "type": "follow",
+                "distance": 12288
+              },
+              "rules": [
+                {
+                  "when": {
+                    "type": "always"
+                  },
+                  "target": "nearest_ally",
+                  "do": {
+                    "type": "attack",
+                    "attack": {
+                      "preset": {
+                        "id": "aimed_single",
+                        "args": [
+                          640
+                        ]
+                      }
+                    }
+                  },
+                  "cooldown_ticks": 90,
+                  "once": false
+                }
+              ]
+            },
+            "count": 6,
+            "radius": 20480
+          }
+        },
+        "elite": {
+          "range": 51200,
+          "boss_call": "stay"
         }
       },
       "xp": 3,

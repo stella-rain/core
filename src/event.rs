@@ -131,6 +131,11 @@ pub enum DomainEvent {
     EliteLeft {
         elite: EntityId,
     },
+    /// The main character touched the shrine `elite`: its guardians appeared and its timer began
+    /// (ADR-090).
+    ShrineActivated {
+        elite: EntityId,
+    },
     /// An offer opened, and the world stopped until a choice closes it (ADR-079 §3).
     OfferOpened {
         kind: OfferKind,

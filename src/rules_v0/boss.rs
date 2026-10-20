@@ -23,7 +23,8 @@
 //! elites (ADR-068) once its time is up or its hit points are below its share: every elite
 //! alive is called, and so is every one that spawns later (`spawn_enemy`). A called elite
 //! leaves its place and acts at any distance, by its own movement and rules. An elite whose
-//! `boss_call` is `leave` is not called: it leaves the map (ADR-090).
+//! `boss_call` is `leave` is not called: it leaves the map; one whose `boss_call` is `stay` (the shrine)
+//! is not called and stays (ADR-090).
 
 use crate::attack::AttackRef;
 use crate::behaviour::BossCall;
@@ -106,6 +107,8 @@ pub(super) fn call_elites(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
     for e in &mut s.enemies {
         match (e.elite.as_mut(), e.leave.as_mut()) {
             (Some(el), Some(l)) if el.boss_call == BossCall::Leave => l.go = true,
+            // An elite that stays is not called, and is not counted.
+            (Some(el), _) if el.boss_call == BossCall::Stay => {}
             (Some(el), _) => {
                 el.called = true;
                 elites = elites.saturating_add(1);

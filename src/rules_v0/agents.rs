@@ -5,8 +5,8 @@
 
 use crate::behaviour::{Action, Agent, BossCall, Condition, Movement, Rule};
 use crate::engine::{
-    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, State,
-    UNLIMITED,
+    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, ShrineState,
+    State, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -41,6 +41,10 @@ pub(crate) fn agent_def(stage: &Stage, key: AgentKey) -> &Agent {
                 _ => unreachable!("a boss summon names the summon rule that made it"),
             }
         }
+        AgentSource::Guardian => match &wave_enemy(key.index).movement {
+            Movement::Shrine { guardians, .. } => &guardians.enemy,
+            _ => unreachable!("a guardian names the shrine that rang it"),
+        },
         AgentSource::Summoned => {
             match wave_enemy(key.index)
                 .rules
@@ -86,6 +90,12 @@ pub(super) fn new_agent(
             disturbed: None,
             go: false,
         }),
+        shrine: matches!(def.movement, Movement::Shrine { .. }).then(|| {
+            Box::new(ShrineState {
+                fight: None,
+                guardians: Vec::new(),
+            })
+        }),
     }
 }
 
@@ -117,10 +127,98 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     for i in 0..s.enemies.len() {
         act_one(stage, s, Who::Enemy(i), events);
     }
+    // After the agents, so the guardians that appear start next tick, as summoned ones do.
+    shrines(stage, s, events);
     // Enemies that have left the map are gone, whether or not they were killed.
     let holds = stage.map().holds();
     s.enemies.retain(|e| holds(e.at));
     leave(stage, s, events);
+}
+
+/// The shrines' fights (ADR-090). An untouched shrine waits for the main character's body to
+/// overlap its own, then activates: its guardians are placed on the ring, in order, through the
+/// usual spawn path, so the cap on enemies refuses the ones that do not fit (the ring is then
+/// short of them, and the first refusal ends it), and its timer starts. Each later tick the
+/// timer counts one more; when no guardian that spawned is alive the shrine is done (its hit
+/// points go to 0 and the tick's hits credit the elite's kill), else when the timer reaches
+/// `fight_ticks` it leaves unkilled. No random number is drawn.
+fn shrines(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let ids: Vec<EntityId> = s
+        .enemies
+        .iter()
+        .filter(|e| e.hp > 0 && e.shrine.is_some())
+        .map(|e| e.id)
+        .collect();
+    for id in ids {
+        let Some(i) = s.enemies.iter().position(|e| e.id == id) else {
+            continue;
+        };
+        let e = &s.enemies[i];
+        let def = agent_def(stage, e.key);
+        let Movement::Shrine {
+            fight_ticks,
+            guardians,
+        } = &def.movement
+        else {
+            continue;
+        };
+        let fight = e.shrine.as_ref().and_then(|sh| sh.fight);
+        let Some(fight) = fight else {
+            if !super::overlaps(e.at, def.radius.0, s.player.at, super::PLAYER_RADIUS) {
+                continue;
+            }
+            let (home, wave) = (e.at, e.key.index);
+            events.push(DomainEvent::ShrineActivated { elite: id });
+            let key = AgentKey {
+                source: AgentSource::Guardian,
+                index: wave,
+                rule: 0,
+            };
+            let mut rung = Vec::new();
+            for k in 0..u32::from(guardians.count) {
+                let at = ring_point(stage, home, guardians.radius, k, u32::from(guardians.count));
+                let next = EntityId(s.next_id);
+                if !super::spawn_enemy(stage, s, key, &guardians.enemy, at) {
+                    break;
+                }
+                rung.push(next);
+            }
+            if let Some(sh) = s.enemies[i].shrine.as_mut() {
+                sh.fight = Some(0);
+                sh.guardians = rung;
+            }
+            continue;
+        };
+        let fight = fight.saturating_add(1);
+        let cleared = s.enemies[i].shrine.as_ref().is_some_and(|sh| {
+            !s.enemies
+                .iter()
+                .any(|g| g.hp > 0 && sh.guardians.contains(&g.id))
+        });
+        if cleared {
+            s.enemies[i].hp = 0;
+            events.push(DomainEvent::Died { entity: id });
+        } else if fight >= *fight_ticks {
+            s.enemies.remove(i);
+            events.push(DomainEvent::EliteLeft { elite: id });
+        } else if let Some(sh) = s.enemies[i].shrine.as_mut() {
+            sh.fight = Some(fight);
+        }
+    }
+}
+
+/// Guardian `k` of `count`: on the ring of `radius` around `at`, evenly spaced from the east,
+/// moved onto the map.
+fn ring_point(stage: &Stage, at: Point, radius: Fx, k: u32, count: u32) -> Point {
+    let angle = i64::from(k) * i64::from(trig::PER_TURN) / i64::from(count.max(1));
+    let (sin, cos) = trig::sin_cos(i32::try_from(angle).unwrap_or(0));
+    let offset = |unit: i32| {
+        i32::try_from(i64::from(radius.0) * i64::from(unit) / i64::from(trig::SCALE)).unwrap_or(0)
+    };
+    stage.map().clamp(Point {
+        x: at.x.saturating_add(Fx(offset(cos))),
+        y: at.y.saturating_add(Fx(offset(sin))),
+    })
 }
 
 /// Elites that leave go, unkilled: a boss came or called, or they were disturbed long enough
@@ -380,7 +478,8 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
         return;
     }
     match def.movement {
-        Movement::FleeWhenDisturbed { .. } => {}
+        // A shrine is a stay elite: never called, so it held its place above.
+        Movement::FleeWhenDisturbed { .. } | Movement::Shrine { .. } => {}
         Movement::Hold { at } => {
             a.at = match me {
                 Who::Enemy(_) if yields => a.at,

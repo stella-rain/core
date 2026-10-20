@@ -299,11 +299,20 @@ fn the_bundled_elite_table_has_no_high_grade_before_minute_16() {
             .map(|w| w.elite.0.as_str())
             .collect()
     };
-    assert_eq!(names(0), ["elite_low", "elite_goblin"]);
-    assert_eq!(names(1), ["elite_low", "elite_mid", "elite_goblin"]);
+    assert_eq!(names(0), ["elite_low", "elite_goblin", "elite_shrine"]);
+    assert_eq!(
+        names(1),
+        ["elite_low", "elite_mid", "elite_goblin", "elite_shrine"]
+    );
     assert_eq!(
         names(2),
-        ["elite_low", "elite_mid", "elite_high", "elite_goblin"]
+        [
+            "elite_low",
+            "elite_mid",
+            "elite_high",
+            "elite_goblin",
+            "elite_shrine"
+        ]
     );
 }
 
@@ -313,7 +322,13 @@ fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
     let ids: Vec<&str> = all.iter().map(|t| t.id.0.as_str()).collect();
     assert_eq!(
         ids,
-        ["elite_low", "elite_mid", "elite_high", "elite_goblin"]
+        [
+            "elite_low",
+            "elite_mid",
+            "elite_high",
+            "elite_goblin",
+            "elite_shrine"
+        ]
     );
     // The goblin has its own test (`tests/elite_goblin.rs`).
     let types = &all[..3];
@@ -471,16 +486,20 @@ fn an_elite_type_is_a_well_formed_unique_id_with_a_valid_elite_enemy() {
 
 #[test]
 fn every_type_the_table_names_is_defined_and_every_type_is_named() {
-    // The table names `elite_mid`, `elite_high` and `elite_goblin`, which are no longer defined.
+    // The table names `elite_mid`, `elite_high`, `elite_goblin` and `elite_shrine`, which are no
+    // longer defined.
     assert_eq!(
         paths(&types(vec![low()])),
         [
             "$.elite_table[0].weights[1].elite",
+            "$.elite_table[0].weights[2].elite",
             "$.elite_table[1].weights[1].elite",
             "$.elite_table[1].weights[2].elite",
+            "$.elite_table[1].weights[3].elite",
             "$.elite_table[2].weights[1].elite",
             "$.elite_table[2].weights[2].elite",
             "$.elite_table[2].weights[3].elite",
+            "$.elite_table[2].weights[4].elite",
         ]
     );
     // A type no tier names is fine: a later task's table may not reach it yet.
