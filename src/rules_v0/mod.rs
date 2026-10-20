@@ -125,6 +125,7 @@ pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
 use grid::Grid;
 pub(crate) use horde::spawn_boss;
+use horde::spawn_elite;
 pub(crate) use levels::{spend, xp_next};
 pub(crate) use stars::offer_view;
 
@@ -331,6 +332,7 @@ pub(crate) fn step(
     let mut spawns_left = MAX_BULLET_SPAWNS_PER_TICK;
 
     spawn_waves(stage, s);
+    spawn_elite(stage, s, events);
     let dots = entity::tick_statuses_and_aggro(s);
     runes::tick(s);
     attacks::advance_runs(s, events);

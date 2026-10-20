@@ -265,6 +265,32 @@ pub(crate) fn time_limit_run(
         start: Some(mode.map().start),
     });
     stage.waves = mode.waves().to_vec();
+    stage.elite_cap = Some(mode.elite_cap());
+    let elite = trial
+        .waves
+        .iter()
+        .find(|w| w.enemy.elite.is_some())
+        .ok_or_else(|| {
+            Error::Invalid(vec![Issue {
+                path: "$.waves".into(),
+                message: "the placeholder stage has no elite".into(),
+            }])
+        })?;
+    let mut elite_waves: Vec<(ContentId, u32)> = Vec::new();
+    for w in mode.elite_table().iter().flat_map(|t| &t.weights) {
+        if elite_waves.iter().all(|(sprite, _)| *sprite != w.elite) {
+            let mut wave = elite.clone();
+            wave.enemy.base = w.elite.clone();
+            wave.at_tick = 0;
+            wave.every_ticks = 0;
+            wave.count = 0;
+            elite_waves.push((
+                w.elite.clone(),
+                u32::try_from(stage.waves.len()).unwrap_or(u32::MAX),
+            ));
+            stage.waves.push(wave);
+        }
+    }
     let horde = Horde {
         boss_ticks: mode.boss_ticks().to_vec(),
         pool: mode.mid_boss_pool().to_vec(),
@@ -272,6 +298,9 @@ pub(crate) fn time_limit_run(
         template,
         spawned: 0,
         used: vec![false; mode.mid_boss_pool().len()],
+        length_ticks: mode.length_ticks(),
+        elite_table: mode.elite_table().to_vec(),
+        elite_waves,
     };
     Ok((stage, horde))
 }

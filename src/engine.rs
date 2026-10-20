@@ -637,6 +637,14 @@ pub(crate) struct Horde {
     pub spawned: u32,
     /// One per pool entry: drawn already.
     pub used: Vec<bool>,
+    /// The run's length: an elite minute comes only before it.
+    pub length_ticks: u32,
+    /// The mode's elite table (ADR-090), by start.
+    pub elite_table: Vec<crate::time_limit::EliteTier>,
+    /// For each elite sprite of the table, the stage wave that holds its definition: the
+    /// trial's first elite with the sprite replaced, a placeholder, never spawned as a wave
+    /// (count 0). A kill's experience and expertise are the wave's.
+    pub elite_waves: Vec<(ContentId, u32)>,
 }
 
 /// The one expertise gauge of both weapons (ADR-078 §1 to §3), and its offers (ADR-079 §2, §3).
@@ -1492,8 +1500,9 @@ mod horde_tests {
                 }
             }
         }
-        // The elite of minute 1 is alive when the boss that came at 4000 calls at 5801.
-        assert_eq!(called, [(5_801, 1)]);
+        // The elite of minute 1 is alive when the boss comes at 4000. (The boss's `after_ticks`
+        // counts the run's ticks, so its call is already due on arrival.)
+        assert_eq!(called, [(4_000, 1)]);
         // The elite of minute 2 spawned after the call: called at once.
         let elites: Vec<bool> = e
             .state

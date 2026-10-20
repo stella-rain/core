@@ -4,7 +4,7 @@
 //! content files: a size limit before parsing, strict parsing, the current versions only, every
 //! content ID in the registry, and each number under a named cap. Only the file is read here;
 //! its end and the elites come in later steps. The elite table and the elite cap (ADR-090) are
-//! data only for now: checked here, read by nothing in the simulation.
+//! read by the run's elite minutes (`rules_v0::horde`, ADR-090).
 //!
 //! Step b (core#212) adds the schedule: `waves`, the enemies that spawn over the run, as a stage's
 //! waves do (`stage::Wave`), checked as a stage's are with larger caps and without elites.
@@ -83,10 +83,10 @@ pub struct TimeLimitFile {
     pub waves: Vec<Wave>,
     /// The elites each whole minute that starts no boss brings (ADR-090): 1 to
     /// `MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting
-    /// before the length. Read and checked now; a later step draws from it.
+    /// before the length. An elite minute draws from it (`rules_v0::horde`).
     pub elite_table: Vec<EliteTier>,
     /// The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the
-    /// same bound). Read and checked now; a later step uses it.
+    /// same bound). The run's stage takes it as its own.
     pub elite_cap: u16,
 }
 
