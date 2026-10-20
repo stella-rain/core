@@ -868,6 +868,14 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     let (overtime_mode, overtime_content) = short_time_limit(540);
     let kill_setup_2 = time_limit_setup();
     let overtime_commands = play_run_with(&kill_setup_2, &overtime_content, 600, boss_input);
+    // The elites run: every elite type, the cap of 5 reached, and each elite's event; its own
+    // mode file, below.
+    let (elites_mode, elites_content) = elites_time_limit();
+    let elites_setup = time_limit_setup();
+    let elites_script = EliteScript::default();
+    let elites_commands = play_run_with(&elites_setup, &elites_content, ELITES_TICKS, |e, t| {
+        elites_script.input(e, t)
+    });
     vec![
         ("trial", trial_setup(), None, play_run(TRIAL_LENGTH)),
         ("stage_skill", stage_skill, None, stage_skill_commands),
@@ -884,7 +892,198 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
             Some(overtime_mode),
             overtime_commands,
         ),
+        ("elites", elites_setup, Some(elites_mode), elites_commands),
     ]
+}
+
+/// The ticks of the `elites` run: its length and its overtime.
+const ELITES_TICKS: u32 = 47_400;
+
+/// The elite each whole minute brings in the `elites` run, from minute 1: a leader and its
+/// escort, a goblin, a shrine and a mimic, then a low elite that fills the cap of 5, one that the
+/// cap holds back, the high and the middle grades, and again a goblin, a shrine and a mimic, which
+/// stay untouched until the boss comes at minute 13.
+const ELITES_BY_MINUTE: [&str; 12] = [
+    "elite_leader",
+    "elite_goblin",
+    "elite_shrine",
+    "elite_mimic",
+    "elite_low",
+    "elite_low",
+    "elite_high",
+    "elite_mid",
+    "elite_goblin",
+    "elite_shrine",
+    "elite_mimic",
+    "elite_low",
+];
+
+/// The `time_limit` mode of the `elites` run, as its file and as the content a run reads it
+/// with: the bundled mode with no waves, one tier of the elite table for each minute naming the
+/// one elite that minute brings (so that the draws, which the seed still makes, never change
+/// what comes), the final boss as the only boss at minute 13, 10 seconds of overtime,
+/// and the leader's aura at 100%, so that its raise is seen: the escort shoots for the default
+/// 1, which the bundled aura of 25% rounds back down to 1, and which 100% makes a hit of 2.
+fn elites_time_limit() -> (String, RunContent) {
+    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    v["length_ticks"] = json!(46_800);
+    v["boss_ticks"] = json!([46_800]);
+    v["overtime_ticks"] = json!(600);
+    v["waves"] = json!([]);
+    let tiers: Vec<Value> = std::iter::once("elite_low")
+        .chain(ELITES_BY_MINUTE)
+        .enumerate()
+        .map(|(minute, elite)| {
+            json!({ "start_tick": minute * 3600,
+                    "weights": [{ "elite": elite, "weight": 1 }] })
+        })
+        .collect();
+    v["elite_table"] = json!(tiers);
+    let leader = v["elite_types"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|t| t["id"] == "elite_leader")
+        .unwrap();
+    leader["enemy"]["elite"]["aura"]["damage_percent"] = json!(100);
+    let json = serde_json::to_string_pretty(&v).unwrap() + "\n";
+    let content = RunContent::bundled()
+        .clone()
+        .with_time_limit(TimeLimit::parse(json.as_bytes()).unwrap());
+    (json, content)
+}
+
+/// How near the scripted main character of the `elites` run stands to an enemy it fights: 32
+/// pixels, inside the `blade`'s reach.
+const FIGHT_NEAR: i64 = 8_192;
+
+/// The scripted main character of the `elites` run. It meets the leader and kills its escort
+/// (the escort's shots land inside the aura), then waits, away from the elites, until the cap of
+/// 5 has held an elite minute back; then it disturbs the goblin, touches the shrine and kills the
+/// guardians, reveals the mimic and kills the elites that are left; it leaves the second goblin,
+/// shrine and mimic alone, and fights the boss.
+#[derive(Default)]
+struct EliteScript {
+    leader_met: std::cell::Cell<bool>,
+    goblin_met: std::cell::Cell<bool>,
+    shrine_touched: std::cell::Cell<bool>,
+    /// The mimic once it is revealed, from then on an elite like the others to kill.
+    mimic_revealed: std::cell::Cell<Option<EntityId>>,
+}
+
+impl EliteScript {
+    /// The buttons of tick `tick`: the script's, with the dodging of the run script's.
+    fn input(&self, engine: &Engine, tick: u32) -> Input {
+        let wanted = self.wanted(engine, tick);
+        if engine
+            .snapshot()
+            .entities
+            .iter()
+            .any(|e| e.kind == EntityKind::Boss)
+        {
+            return wanted;
+        }
+        common::run::avoid_bullets(engine, wanted, false)
+    }
+
+    fn wanted(&self, engine: &Engine, tick: u32) -> Input {
+        for e in engine.events() {
+            match e {
+                DomainEvent::ShrineActivated { .. } => self.shrine_touched.set(true),
+                DomainEvent::MimicRevealed { elite } => self.mimic_revealed.set(Some(*elite)),
+                _ => {}
+            }
+        }
+        let s = engine.snapshot();
+        if s.entities.iter().any(|e| e.kind == EntityKind::Boss) {
+            return common::run::run_input_for(engine, tick, &[EntityKind::Boss], u32::MAX);
+        }
+        let me = s.player.at;
+        let enemies = || s.entities.iter().filter(|e| e.kind == EntityKind::Enemy);
+        let d2 = |at: stella_rain_core::fixed::Point| {
+            let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
+            x * x + y * y
+        };
+        let nearest = |pick: &dyn Fn(&&stella_rain_core::snapshot::EntityView) -> bool| {
+            enemies().filter(|e| pick(e)).min_by_key(|e| d2(e.at))
+        };
+        let toward = |d: i32| match d {
+            d if d > 256 => 127,
+            d if d < -256 => -127,
+            _ => 0,
+        };
+        // Walks to within `stop` of `at`, pressing the buttons of the run script if `fight`.
+        let go = |at: stella_rain_core::fixed::Point, stop: i64, fight: bool| {
+            let walk = i8::from(d2(at) > stop * stop);
+            let input = if fight {
+                common::run::run_script(tick)
+            } else {
+                Input::default()
+            };
+            Input {
+                move_x: walk * toward(at.x.0 - me.x.0),
+                move_y: walk * toward(at.y.0 - me.y.0),
+                ..input
+            }
+        };
+        let plain_elite = |e: &&stella_rain_core::snapshot::EntityView| {
+            e.elite
+                && e.asset.0 != "golem"
+                && (Some(e.id) == self.mimic_revealed.get()
+                    || !(e.asset.0 == "fairy_a" && e.hp <= 120))
+        };
+        let away = |from: stella_rain_core::fixed::Point| Input {
+            move_x: -toward(from.x.0 - me.x.0),
+            move_y: -toward(from.y.0 - me.y.0),
+            ..Input::default()
+        };
+
+        // The leader: walk up to it, kill the escort that comes, then leave it be.
+        if !self.leader_met.get() && tick >= 3_600 {
+            match nearest(&|e| e.aura_radius.is_some()) {
+                Some(leader) if d2(leader.at) > 100 * 100 * 65_536 => {
+                    return go(leader.at, 100 * 256, false);
+                }
+                Some(_) => match nearest(&|e| !e.elite && !e.disguised) {
+                    Some(escort) => return go(escort.at, FIGHT_NEAR, true),
+                    None => self.leader_met.set(true),
+                },
+                None => self.leader_met.set(true),
+            }
+        }
+
+        // Once the cap has held a minute back: the goblin, the shrine, the mimic, the rest.
+        if (21_660..25_100).contains(&tick) {
+            if !self.goblin_met.get() {
+                match nearest(&|e| e.asset.0 == "fairy_a" && e.hp <= 120 && e.elite) {
+                    Some(g) if d2(g.at) > 40 * 40 * 65_536 => return go(g.at, 40 * 256, false),
+                    _ => self.goblin_met.set(true),
+                }
+            }
+            if !self.shrine_touched.get() {
+                if let Some(shrine) = nearest(&|e| e.asset.0 == "golem") {
+                    return go(shrine.at, 0, false);
+                }
+            }
+            if let Some(guardian) = nearest(&|e| !e.elite && !e.disguised) {
+                return go(guardian.at, FIGHT_NEAR, true);
+            }
+            if self.mimic_revealed.get().is_none() {
+                if let Some(mimic) = nearest(&|e| e.disguised) {
+                    return go(mimic.at, 100 * 256, false);
+                }
+            }
+            if let Some(rest) = nearest(&plain_elite) {
+                return go(rest.at, FIGHT_NEAR, true);
+            }
+        }
+
+        // Otherwise wait, out of the range of the elites that act (200 pixels).
+        match nearest(&|e| e.elite && e.asset.0 != "golem") {
+            Some(e) if d2(e.at) < 240 * 240 * 65_536 => away(e.at),
+            _ => Input::default(),
+        }
+    }
 }
 
 /// A `time_limit` mode with no waves, the final boss at tick 60 and `overtime` ticks of overtime,
