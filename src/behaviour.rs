@@ -46,6 +46,26 @@ pub struct Agent {
 pub struct Elite {
     /// How near the main character's centre must come to its centre for its rules to fire.
     pub range: Fx,
+    /// What the boss's call does to it (ADR-090); `join` when absent.
+    #[serde(default, skip_serializing_if = "BossCall::is_join")]
+    pub boss_call: BossCall,
+}
+
+/// What a boss's call does to an elite.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BossCall {
+    /// It is called: it leaves its place and fights beside the boss.
+    #[default]
+    Join,
+    /// It is not called: it leaves the map instead, unkilled and with no reward.
+    Leave,
+}
+
+impl BossCall {
+    fn is_join(&self) -> bool {
+        *self == Self::Join
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -61,6 +81,15 @@ pub enum Movement {
     Hold { at: Point },
     /// Moves at a constant velocity per tick.
     Straight { vx: Fx, vy: Fx },
+    /// An elite's (it needs the `elite` field): holds its place until it is disturbed, by
+    /// damage or by the main character coming within `disturb_radius` of its centre, then runs
+    /// directly away from the main character at `speed` a tick, kept on the map, and leaves it
+    /// unkilled `leave_after_ticks` ticks after the disturbance (ADR-090).
+    FleeWhenDisturbed {
+        disturb_radius: Fx,
+        speed: Fx,
+        leave_after_ticks: u32,
+    },
 }
 
 /// `when <condition>` → `target <selector>` → `do <action>` (ADR-036).

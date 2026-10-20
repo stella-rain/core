@@ -303,6 +303,8 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
         return;
     }
     match def.movement {
+        // Its rules come in the next commit; until then it holds still.
+        Movement::FleeWhenDisturbed { .. } => {}
         Movement::Hold { at } => {
             a.at = match me {
                 Who::Enemy(_) if yields => a.at,

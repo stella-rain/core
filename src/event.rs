@@ -127,6 +127,10 @@ pub enum DomainEvent {
         elite: EntityId,
         asset: ContentId,
     },
+    /// The elite `elite` left the map without dying: no kill, no reward (ADR-090).
+    EliteLeft {
+        elite: EntityId,
+    },
     /// An offer opened, and the world stopped until a choice closes it (ADR-079 §3).
     OfferOpened {
         kind: OfferKind,
