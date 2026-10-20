@@ -299,16 +299,21 @@ fn the_bundled_elite_table_has_no_high_grade_before_minute_16() {
             .map(|w| w.elite.0.as_str())
             .collect()
     };
-    assert_eq!(names(0), ["elite_low"]);
-    assert_eq!(names(1), ["elite_low", "elite_mid"]);
-    assert_eq!(names(2), ["elite_low", "elite_mid", "elite_high"]);
+    assert_eq!(names(0), ["elite_low", "elite_goblin"]);
+    assert_eq!(names(1), ["elite_low", "elite_mid", "elite_goblin"]);
+    assert_eq!(
+        names(2),
+        ["elite_low", "elite_mid", "elite_high", "elite_goblin"]
+    );
 }
 
 #[test]
 fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
-    let types = TimeLimit::bundled().elite_types();
-    let ids: Vec<&str> = types.iter().map(|t| t.id.0.as_str()).collect();
-    assert_eq!(ids, ["elite_low", "elite_mid", "elite_high"]);
+    let all = TimeLimit::bundled().elite_types();
+    let ids: Vec<&str> = all.iter().map(|t| t.id.0.as_str()).collect();
+    assert_eq!(ids, ["elite_low", "elite_mid", "elite_high", "elite_goblin"]);
+    // The goblin has its own test (`tests/elite_goblin.rs`).
+    let types = &all[..3];
     let sprites: Vec<&str> = types.iter().map(|t| t.enemy.base.0.as_str()).collect();
     assert_eq!(sprites, ["bat", "fairy_a", "horns_2"]);
     assert!(types.iter().all(|t| t.enemy.elite.is_some()));

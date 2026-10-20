@@ -21,6 +21,7 @@ mod controls;
 mod corpus;
 mod damage_types;
 mod defence;
+mod elite_goblin;
 mod elites;
 mod engine;
 mod evade;
