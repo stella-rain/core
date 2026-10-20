@@ -54,6 +54,12 @@ pub fn stage() -> Stage {
             common::wave(1, per_hold as u16, 1, enemy, BAND_X, y)
         })
         .collect();
+    built(waves, 262_144, 163_840)
+}
+
+/// The stage with `waves` on a map of `width` by `height` (1/256 pixels), the main character at
+/// `START` and the crowd's guards and fan as `stage` describes them.
+fn built(waves: Vec<Value>, width: i32, height: i32) -> Stage {
     let sweep = json!([{ "kind": "active", "ticks": 30, "damage": 1, "rehit_ticks": 1,
                          "hit_box": { "type": "arc", "offset": { "forward": 2_560 },
                                       "radius": 65_536, "half_angle": 60 * 256 } }]);
@@ -73,8 +79,8 @@ pub fn stage() -> Stage {
     );
     let mut stage = common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4]);
     stage.map = Some(Map {
-        width: Fx(262_144),
-        height: Fx(163_840),
+        width: Fx(width),
+        height: Fx(height),
         start: Some(start),
     });
     let fan = json!({ "inline": common::spawned(json!([{
@@ -84,6 +90,50 @@ pub fn stage() -> Stage {
     }]))});
     stage.player.main = serde_json::from_value(common::main_ref(fan)).expect("the fan parses");
     stage
+}
+
+/// The largest map: 4,096 pixels a side (`MAX_MAP_SIDE`, core#87).
+pub const SPREAD_SIDE: i32 = 1_048_576;
+
+/// The spread case's start wave, 40 pixels from the left edge: the fan flies up from the start
+/// point (238 pixels), and a crowd of 100 at the start's own column eats the fan's bullets (a
+/// first measurement with the wave 80 pixels left of the start point hurt three enemies and left
+/// 360 bullets in the air, against 3,910 here).
+pub const SPREAD_START_X: i32 = 10_240;
+
+/// The spread case (core#146): the same 500 enemies, in five waves of 100 (`MAX_WAVE_COUNT`, the
+/// most a wave may hold) that hold three points of the largest map: one wave at the start, two at
+/// the top right and two at the bottom right. The corners are 128 pixels in from the right edge,
+/// about 3,700 and 5,000 pixels from the start point.
+///
+/// Each enemy holds its point, as the band's do, so the crowd pushes apart round its wave's
+/// point. Unlike the band, the crowds are far apart: the enemy grid spans the map (up to 128 by
+/// 128 cells of 32 pixels), and its build reads the whole map.
+pub fn spread_stage() -> Stage {
+    let (start_x, start_y) = (SPREAD_START_X, START.1);
+    let top_right = (SPREAD_SIDE - 32_768, 32_768);
+    let bottom_right = (SPREAD_SIDE - 32_768, SPREAD_SIDE - 32_768);
+    let far = |(x, y): (i32, i32)| {
+        let enemy = common::enemy(100_000, common::hold(x, y), json!([]));
+        common::wave(1, 100, 1, enemy, x, y)
+    };
+    let waves = vec![
+        far((start_x, start_y)),
+        far(top_right),
+        far(top_right),
+        far(bottom_right),
+        far(bottom_right),
+    ];
+    built(waves, SPREAD_SIDE, SPREAD_SIDE)
+}
+
+/// An engine `WARMUP_TICKS` ticks into the spread case: the next `step` is the measured tick.
+pub fn spread_warmed_up() -> Engine {
+    let mut engine = common::engine(&spread_stage());
+    for tick in 1..=WARMUP_TICKS {
+        engine.step(input(tick));
+    }
+    engine
 }
 
 /// The input of tick `tick` (from 1): the main character stays where it starts, firing its
