@@ -471,13 +471,16 @@ fn an_elite_type_is_a_well_formed_unique_id_with_a_valid_elite_enemy() {
 
 #[test]
 fn every_type_the_table_names_is_defined_and_every_type_is_named() {
-    // The table names `elite_mid` and `elite_high`, which are no longer defined.
+    // The table names `elite_mid`, `elite_high` and `elite_goblin`, which are no longer defined.
     assert_eq!(
         paths(&types(vec![low()])),
         [
+            "$.elite_table[0].weights[1].elite",
             "$.elite_table[1].weights[1].elite",
+            "$.elite_table[1].weights[2].elite",
             "$.elite_table[2].weights[1].elite",
             "$.elite_table[2].weights[2].elite",
+            "$.elite_table[2].weights[3].elite",
         ]
     );
     // A type no tier names is fine: a later task's table may not reach it yet.
