@@ -922,8 +922,8 @@ const ELITES_BY_MINUTE: [&str; 12] = [
 /// with: the bundled mode with no waves, one tier of the elite table for each minute naming the
 /// one elite that minute brings (so that the draws, which the seed still makes, never change
 /// what comes), the final boss as the only boss at minute 13, 10 seconds of overtime,
-/// and the leader's aura at 100%, so that its raise is seen: the escort shoots for the default
-/// 1, which the bundled aura of 25% rounds back down to 1, and which 100% makes a hit of 2.
+/// and the leader's aura at 100%, so that its raise is plain: the escort shoots for the default
+/// 100, which 100% makes a hit of 200 (the bundled 25% makes 125, `tests/elite_pack_leader.rs`).
 fn elites_time_limit() -> (String, RunContent) {
     let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
     v["length_ticks"] = json!(46_800);
@@ -1030,7 +1030,7 @@ impl EliteScript {
             e.elite
                 && e.asset.0 != "golem"
                 && (Some(e.id) == self.mimic_revealed.get()
-                    || !(e.asset.0 == "fairy_a" && e.hp <= 120))
+                    || !(e.asset.0 == "fairy_a" && e.hp <= 12_000))
         };
         let away = |from: stella_rain_core::fixed::Point| Input {
             move_x: -toward(from.x.0 - me.x.0),
@@ -1055,7 +1055,7 @@ impl EliteScript {
         // Once the cap has held a minute back: the goblin, the shrine, the mimic, the rest.
         if (21_660..25_100).contains(&tick) {
             if !self.goblin_met.get() {
-                match nearest(&|e| e.asset.0 == "fairy_a" && e.hp <= 120 && e.elite) {
+                match nearest(&|e| e.asset.0 == "fairy_a" && e.hp <= 12_000 && e.elite) {
                     Some(g) if d2(g.at) > 40 * 40 * 65_536 => return go(g.at, 40 * 256, false),
                     _ => self.goblin_met.set(true),
                 }
@@ -1263,7 +1263,7 @@ fn elite_kind(asset: &str, hp: u32, aura: bool) -> &'static str {
         ("horns_2", _) if aura => "leader",
         ("horns_2", _) => "high",
         ("bat", _) => "low",
-        ("fairy_a", 120) => "goblin",
+        ("fairy_a", 12_000) => "goblin",
         ("fairy_a", _) => "mid",
         other => panic!("no elite type looks like {other:?}"),
     }
@@ -1424,11 +1424,14 @@ fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
     );
     // A mimic is revealed.
     assert!(r.of("mimic").iter().any(|m| r.revealed.contains(&m.0)));
-    // A leader's aura raises a hit: an escort shot of 1 lands as 2 (1 * 200 / 100). Before the
-    // middle grade's elite comes (minute 8, the first to shoot for 2) nothing else deals 2.
+    // A leader's aura raises a hit: an escort shot of 100 lands as 200 (100 * 200 / 100). Before
+    // the middle grade's elite comes (minute 8, the first to shoot for 200) nothing else deals
+    // 200.
     assert!(
-        r.hurts.iter().any(|&(t, damage)| t < 28_800 && damage == 2),
-        "no hit of 2: {:?}",
+        r.hurts
+            .iter()
+            .any(|&(t, damage)| t < 28_800 && damage == 200),
+        "no hit of 200: {:?}",
         r.hurts
     );
     // The boss calls the elites that join, and skips a shrine, a disguised mimic and a goblin
@@ -1494,7 +1497,7 @@ fn the_cases_are_what_their_names_say() {
     // Hit boxes alone: no bullet ever flies, yet the main character is hurt and enemies die.
     let (outcome, hp, peak) = what_happens("melee");
     assert_eq!((outcome, peak), (Outcome::Running, 0));
-    assert!(hp < 99, "the swings land: {hp} hp left");
+    assert!(hp < 9_900, "the swings land: {hp} hp left");
     assert!(deaths("melee") >= 2, "the companion cleaves");
     // The map, not the portrait field: the corner holds the main character, and shots and
     // enemies get past where the portrait field's margin would have removed them.
@@ -1649,8 +1652,10 @@ fn deaths(name: &str) -> usize {
 #[test]
 fn the_corpus_matches() {
     if std::env::var_os("UPDATE_CORPUS").is_some() {
+        // The stages are written at design values and scaled here (ADR-103).
         for (name, stage_bytes, inputs) in definitions() {
-            write_case(&corpus_dir().join(name), &stage_bytes, &inputs);
+            let scaled = common::scaled_bytes(&stage_bytes, common::SCALE);
+            write_case(&corpus_dir().join(name), &scaled, &inputs);
         }
         for (name, setup, mode, commands) in run_definitions() {
             write_run_case(&runs_dir().join(name), &setup, mode.as_deref(), &commands);

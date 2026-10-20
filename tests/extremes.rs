@@ -158,7 +158,8 @@ fn stage(value: &dyn Fn(&str) -> Value) -> Stage {
     ];
     // The weapons are quiet, so that the enemies live to fill the field.
     let mut stage = quiet(stage_full(FULL_LENGTH, Some(far_boss()), waves, vec![]));
-    stage.player.hp = 99;
+    // 99 hit points at the design values, scaled (ADR-103): the enemies' default hit is 100.
+    stage.player.hp = 9_900;
     stage
 }
 

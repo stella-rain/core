@@ -210,6 +210,32 @@ fn an_enemy_within_the_radius_deals_a_quarter_more_rounded_down() {
 }
 
 #[test]
+fn the_aura_of_25_percent_raises_a_default_hit_of_100_to_125_whole() {
+    // ADR-103: default damage is scaled by 100, so the quarter is no longer rounded away. A shot
+    // of the default 100 (an enemy's attack that names no damage, 1 before the scale) hurts for
+    // 100 without a leader and for 125 within the bundled aura of 25%.
+    let shot = |others: Vec<Value>| {
+        let attack = json!({ "preset": { "id": "aimed_single", "args": [640] } });
+        let mut shooter = shooter();
+        shooter["rules"][0]["do"]["attack"] = attack;
+        let mut waves = vec![wave(1, 1, 0, shooter, ATTACKER.0, ATTACKER.1)];
+        waves.extend(others);
+        let mut st = stage(waves);
+        st.player.hp = 9_900;
+        let events = run_until(&mut engine(&st), idle(), 120, |_| false);
+        events
+            .iter()
+            .find_map(|(_, ev)| match ev {
+                DomainEvent::PlayerHit { hp_left } => Some(9_900 - hp_left),
+                _ => None,
+            })
+            .expect("the shot landed")
+    };
+    assert_eq!(shot(vec![]), 100, "no leader: the default hit");
+    assert_eq!(shot(vec![at_leader(NEAR, pack_aura(10_000, 25))]), 125);
+}
+
+#[test]
 fn an_enemy_outside_the_radius_deals_the_base() {
     let far = at_leader(NEAR, pack_aura(REACH - 1, 25));
     assert_eq!(first_hurt(shooter(), vec![far]), SHOT);

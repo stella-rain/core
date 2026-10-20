@@ -401,7 +401,7 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
             wave(60, 1, 0, shooter, START_X, START_Y - 40_000),
         ]),
         content(
-            vec![skill("ward", &[shield(1, 600)])],
+            vec![skill("ward", &[shield(100, 600)])],
             &[("ward_r", "ward", 1)],
         ),
     );
@@ -410,7 +410,7 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
     use_skill(&mut e);
     assert_eq!(
         e.snapshot().player.shield.map(|s| s.amount),
-        Some(1),
+        Some(100),
         "the shield is up"
     );
     let mut hits = Vec::new();
@@ -422,7 +422,7 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
             }
         }
     }
-    // The first shot's 1 damage is absorbed; the shield is gone, and the next one hurts.
+    // The first shot's 100 damage (the default, 1 before the scale of ADR-103) is absorbed; the shield is gone, and the next one hurts.
     assert_eq!(hits.first(), Some(&hp));
     assert!(hits.iter().any(|&h| h < hp), "{hits:?}");
     assert_eq!(e.snapshot().player.shield, None);

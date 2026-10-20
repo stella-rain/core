@@ -372,8 +372,8 @@ fn rules_run_companions_first_then_enemies_in_entity_id_order() {
 
 #[test]
 fn hp_below_is_strictly_below_a_percent_of_the_maximum() {
-    // An enemy shoots the companion K (10 hp) once per tick; K reacts when hit points are
-    // below 100% (the first hit) and below 50% (after the sixth hit, at 4 hp).
+    // An enemy shoots the companion K (1,000 hp) once per tick for the default 100; K reacts when
+    // hit points are below 100% (the first hit) and below 50% (after the sixth hit, at 400 hp).
     let shooter = enemy(
         50,
         hold(46_080, 100_000),
@@ -404,7 +404,7 @@ fn hp_below_is_strictly_below_a_percent_of_the_maximum() {
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
-        vec![companion(10, hold(46_080, 130_000), k_rules)],
+        vec![companion(1000, hold(46_080, 130_000), k_rules)],
     );
     let mut e = engine(&stage);
     let events = play(&mut e, 120, |_| idle());
@@ -416,8 +416,8 @@ fn hp_below_is_strictly_below_a_percent_of_the_maximum() {
         .collect();
     assert!(hits.len() >= 6, "{hits:?}");
     let fired = rule_firings_of(&events, 2);
-    // Rule 0 fires the tick after the first hit (9 of 10 hp), rule 1 the tick after the
-    // sixth (4 of 10 hp; 5 of 10 is not below 50%).
+    // Rule 0 fires the tick after the first hit (900 of 1,000 hp), rule 1 the tick after the
+    // sixth (400 of 1,000 hp; 500 is not below 50%).
     assert_eq!(
         fired.iter().map(|f| (f.0, f.1)).collect::<Vec<_>>(),
         [(hits[0] + 1, 0), (hits[5] + 1, 1)]
@@ -447,12 +447,12 @@ fn has_status_sees_a_status_until_it_runs_out() {
 
 #[test]
 fn aggro_above_compares_with_the_aggro_that_fades() {
-    // A buff gives +40 on tick 1; the aggro is 40 - (n - 1) on tick n, so it is above 30 until
-    // tick 10.
+    // A buff gives +4,000 on tick 1 (40 before the scale of ADR-103) and the aggro fades by 100
+    // a tick; it is 4,000 - 100 (n - 1) on tick n, so it is above 3,000 until tick 10.
     let rules = json!([
         rule(always(), json!("self"), atk_up(10, 5), 1000),
         rule(
-            json!({ "type": "aggro_above", "who": "self", "value": 30 }),
+            json!({ "type": "aggro_above", "who": "self", "value": 3000 }),
             json!("self"),
             telegraph(),
             0
@@ -869,9 +869,9 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
 
 #[test]
 fn heals_stop_at_the_maximum_and_say_how_much_they_gave() {
-    // An enemy hits the companion K (10 hp) once a tick; the healer H (far away) heals the
-    // lowest-hp ally by 5 whenever someone is hurt. K is hit, then healed back by exactly the
-    // 1 hit point it lacks, every tick.
+    // An enemy hits the companion K (1,000 hp) once a tick for the default 100; the healer H (far
+    // away) heals the lowest-hp ally by 500 whenever someone is hurt. K is hit, then healed back
+    // by exactly the 100 hit points it lacks, every tick.
     let shooter = enemy(
         50,
         hold(46_080, 100_000),
@@ -886,19 +886,21 @@ fn heals_stop_at_the_maximum_and_say_how_much_they_gave() {
     let healer = json!([rule(
         json!({ "type": "hp_below", "who": "lowest_hp_ally", "pct": 100 }),
         json!("lowest_hp_ally"),
-        cast(json!({ "type": "heal", "amount": 5 })),
+        cast(json!({ "type": "heal", "amount": 500 })),
         0
     )]);
     // The weapons are quiet, so that the shooter lives.
-    let stage = quiet(stage_full(
+    let mut stage = quiet(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
         vec![
-            companion(10, hold(46_080, 130_000), json!([])),
-            companion(10, hold(80_000, 147_456), healer),
+            companion(1000, hold(46_080, 130_000), json!([])),
+            companion(1000, hold(80_000, 147_456), healer),
         ],
     ));
+    // The main character is an ally too: its 99 hit points, scaled, outlast the shooter's hits.
+    stage.player.hp = 9_900;
     let mut e = engine(&stage);
     let events = play(&mut e, 150, |_| idle());
     let healed: Vec<(EntityId, u32)> = events
@@ -910,8 +912,8 @@ fn heals_stop_at_the_maximum_and_say_how_much_they_gave() {
         .collect();
     assert!(healed.len() > 50, "{} heals", healed.len());
     assert!(
-        healed.iter().all(|h| *h == (id(2), 1)),
-        "every heal restores the 1 point missing"
+        healed.iter().all(|h| *h == (id(2), 100)),
+        "every heal restores the 100 points missing"
     );
     assert!(
         e.snapshot().entities.iter().any(|x| x.id == id(2)),

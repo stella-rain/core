@@ -1,6 +1,6 @@
 //! Defence (ADR-056): every hit, from a hit box or a bullet, on any target, is the base damage
-//! times the attacker's and the target's multipliers, times `K / (K + defence)` with K = 100,
-//! truncated at each step and at least 1. The `Hit` event reports what is dealt.
+//! times the attacker's and the target's multipliers, times `K / (K + defence)` with K = 10,000 (100 at the design values, scaled by 100 with
+//! the damage, ADR-103), truncated at each step and at least 1. The `Hit` event reports what is dealt.
 
 use crate::common;
 
@@ -78,27 +78,27 @@ fn against(defence: Option<u32>, damage: u32) -> Vec<u32> {
 fn defence_divides_damage_by_k_plus_defence_over_k() {
     assert_eq!(against(None, 10), [10]);
     assert_eq!(against(Some(0), 10), [10]);
-    assert_eq!(against(Some(100), 10), [5]);
-    // 10 × 100 / 300 = 3.33, truncated.
-    assert_eq!(against(Some(200), 10), [3]);
+    assert_eq!(against(Some(10_000), 10), [5]);
+    // 10 × 10,000 / 30,000 = 3.33, truncated.
+    assert_eq!(against(Some(20_000), 10), [3]);
 }
 
 #[test]
 fn a_hit_with_any_damage_deals_at_least_1() {
-    assert_eq!(against(Some(10_000), 1), [1]);
-    assert_eq!(against(Some(10_000), 50), [1]);
+    assert_eq!(against(Some(1_000_000), 1), [1]);
+    assert_eq!(against(Some(1_000_000), 50), [1]);
 }
 
 #[test]
 fn defence_comes_after_the_targets_vulnerability() {
-    // Tick 1 makes the enemy 50% vulnerable; tick 2 strikes for 10: 15, then 15 × 100 / 200.
+    // Tick 1 makes the enemy 50% vulnerable; tick 2 strikes for 10: 15, then 15 × 10,000 / 20,000.
     let rules = json!([
         { "when": always(), "target": "nearest_enemy", "once": true,
           "do": cast(json!({ "type": "vulnerable", "value_pct": 50, "duration_ticks": 60 })) },
         { "when": always(), "target": "nearest_enemy", "once": true, "do": strike(10) }
     ]);
     let mut st = striker(rules);
-    st.waves = vec![serde_json::from_value(target(Some(100))).unwrap()];
+    st.waves = vec![serde_json::from_value(target(Some(10_000))).unwrap()];
     assert_eq!(dealt(&st, COMPANION, 3), [7]);
 }
 
@@ -113,7 +113,7 @@ fn bullets_meet_the_same_defence() {
         dealt(&st, COMPANION, 20)
     };
     assert_eq!(shot(None), [10]);
-    assert_eq!(shot(Some(100)), [5]);
+    assert_eq!(shot(Some(10_000)), [5]);
 }
 
 #[test]
@@ -143,7 +143,7 @@ fn the_main_character_companions_the_boss_and_its_parts_have_defence() {
             })
     };
     assert_eq!(hp_left(None), Some(89));
-    assert_eq!(hp_left(Some(100)), Some(94));
+    assert_eq!(hp_left(Some(10_000)), Some(94));
 
     // A companion: the same enemy swings at the companion beside it.
     let at_companion = |defence: u32| {
@@ -164,12 +164,12 @@ fn the_main_character_companions_the_boss_and_its_parts_have_defence() {
         dealt(&st, EntityId(3), 3)
     };
     assert_eq!(at_companion(0), [10]);
-    assert_eq!(at_companion(100), [5]);
+    assert_eq!(at_companion(10_000), [5]);
 
-    // The boss (defence 100) and its part (defence 300) under one hit box.
-    let boss = json!({ "base": "golem", "hp": 1_000, "radius": 8_192, "defence": 100,
+    // The boss (defence 10,000) and its part (defence 30,000) under one hit box.
+    let boss = json!({ "base": "golem", "hp": 1_000, "radius": 8_192, "defence": 10_000,
                        "spawn": { "x": CX, "y": CY + 10_240 },
-                       "parts": [{ "id": "horn", "asset": "horns_2", "hp": 100, "defence": 300,
+                       "parts": [{ "id": "horn", "asset": "horns_2", "hp": 100, "defence": 30_000,
                                    "offset": { "x": 0, "y": -4_096 }, "radius": 2_048 }],
                        "phases": [{}] });
     let sweep = json!([{ "when": always(), "target": "boss_first", "once": true,
