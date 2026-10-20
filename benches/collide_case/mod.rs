@@ -86,6 +86,12 @@ pub fn stage() -> Stage {
     stage
 }
 
+/// The spread case (core#146): the same horde, 500 enemies in three waves, over the largest map.
+/// Not yet built; the first commit of the test is red on it.
+pub fn spread_stage() -> Stage {
+    stage()
+}
+
 /// The input of tick `tick` (from 1): the main character stays where it starts, firing its
 /// shot every 6 ticks from the first.
 pub fn input(tick: u32) -> Input {

@@ -9,7 +9,46 @@
 mod collide_case;
 
 use stella_rain_core::attack::PhaseKind;
+use stella_rain_core::engine::Engine;
 use stella_rain_core::snapshot::{BulletView, EntityKind, EntityView};
+use stella_rain_core::validate::limits::MAX_MAP_SIDE;
+
+/// The largest map (core#87), and the spread case's two far corners: 128 pixels in from the right
+/// edge, at the top and at the bottom.
+const SIDE: i32 = MAX_MAP_SIDE;
+const TOP_RIGHT: (i32, i32) = (SIDE - 32_768, 32_768);
+const BOTTOM_RIGHT: (i32, i32) = (SIDE - 32_768, SIDE - 32_768);
+
+/// The spread case (`collide_case::spread_stage`): three waves, the first at the start point and
+/// the others at the far corners, 500 enemies in all, on a map of the largest side that the
+/// validator accepts.
+#[test]
+fn the_spread_waves_stand_at_the_start_and_two_far_corners() {
+    let stage = collide_case::spread_stage();
+    let map = stage.map.as_ref().expect("the spread case has a map");
+    assert_eq!((map.width.0, map.height.0), (SIDE, SIDE));
+    assert_eq!(
+        map.start.map(|p| (p.x.0, p.y.0)),
+        Some(collide_case::START)
+    );
+    let waves: Vec<(i32, i32, u16)> = stage
+        .waves
+        .iter()
+        .map(|w| (w.spawn.x.0, w.spawn.y.0, w.count))
+        .collect();
+    assert_eq!(waves.len(), 3, "{waves:?}");
+    let (start_x, start_y) = collide_case::START;
+    let (x, y, _) = waves[0];
+    assert!(
+        (x - start_x).abs() <= 32_768 && (y - start_y).abs() <= 32_768,
+        "the first wave at {x}, {y}, not at the start"
+    );
+    assert_eq!((waves[1].0, waves[1].1), TOP_RIGHT);
+    assert_eq!((waves[2].0, waves[2].1), BOTTOM_RIGHT);
+    let total: u32 = waves.iter().map(|w| u32::from(w.2)).sum();
+    assert_eq!(total, 500);
+    Engine::new(&stage).expect("the spread stage passes the validator");
+}
 
 /// The side of a cell of the enemy grid: the 32-pixel least, since a friendly bullet's radius and
 /// the bat's (2 and 8 pixels) add up to less.
