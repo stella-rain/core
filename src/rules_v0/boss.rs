@@ -109,6 +109,8 @@ pub(super) fn call_elites(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
             (Some(el), Some(l)) if el.boss_call == BossCall::Leave => l.go = true,
             // An elite that stays is not called, and is not counted.
             (Some(el), _) if el.boss_call == BossCall::Stay => {}
+            // A mimic still in disguise is not called; it joins when it reveals.
+            (Some(el), _) if el.disguised => {}
             (Some(el), _) => {
                 el.called = true;
                 elites = elites.saturating_add(1);

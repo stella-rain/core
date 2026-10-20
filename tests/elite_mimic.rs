@@ -389,7 +389,8 @@ fn it_attacks_from_the_tick_after_it_reveals() {
 }
 
 #[test]
-fn a_revealed_mimic_moves_by_its_own_movement() {
+fn a_revealed_mimic_holds_its_place_until_the_boss_calls_it_as_a_grade_elite_does() {
+    // Not called: it holds where it spawned, whatever its movement.
     let mut e = engine(&quiet_stage(vec![wave(
         1,
         1,
@@ -399,18 +400,16 @@ fn a_revealed_mimic_moves_by_its_own_movement() {
         SIDE.1,
     )]));
     walk_in(&mut e);
-    let before = mimic_view(&e).at;
-    assert_eq!(
-        (before.x.0, before.y.0),
-        SIDE,
-        "it did not move on the reveal tick"
-    );
     run_until(&mut e, idle(), 10, |_| false);
-    let after = mimic_view(&e).at;
-    assert!(
-        after.x.0 < SIDE.0,
-        "it follows the main character: {after:?}"
-    );
+    let at = mimic_view(&e).at;
+    assert_eq!((at.x.0, at.y.0), SIDE);
+    // Called (the call came first): it moves by its own movement, here following.
+    let mut e = engine(&calling(30));
+    run_until(&mut e, idle(), 40, |_| false);
+    walk_in(&mut e);
+    run_until(&mut e, idle(), 10, |_| false);
+    let at = mimic_view(&e).at;
+    assert!(at.x.0 < SIDE.0, "it follows the main character: {at:?}");
 }
 
 // --- Targets -----------------------------------------------------------------------------------

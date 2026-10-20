@@ -493,6 +493,8 @@ pub(super) fn spawn_enemy(
             (BossCall::Leave, Some(l)) => l.go = called,
             // A shrine, or any elite that stays, is never called.
             (BossCall::Stay, _) => {}
+            // A mimic is called when it reveals, not before.
+            _ if el.disguised => {}
             _ => el.called = called,
         }
     }
@@ -613,8 +615,8 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
 /// damage-over-time runes' statuses on a target it leaves standing, and fires the on-hit runes
 /// that are ready (`runes`).
 fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
-    // A shrine is an object: nothing damages it (ADR-090).
-    if matches!(target, Who::Enemy(i) if s.enemies[i].shrine.is_some()) {
+    // A shrine, or a mimic in disguise, is an object: nothing damages it (ADR-090).
+    if matches!(target, Who::Enemy(i) if s.enemies[i].shrine.is_some() || s.enemies[i].hidden()) {
         return;
     }
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
@@ -680,8 +682,9 @@ fn hit_enemy_side(
     b: Shot,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    // A shot passes through a shrine.
-    let hittable = |i: usize| s.enemies[i].hp > 0 && s.enemies[i].shrine.is_none();
+    // A shot passes through a shrine and a mimic in disguise.
+    let hittable =
+        |i: usize| s.enemies[i].hp > 0 && s.enemies[i].shrine.is_none() && !s.enemies[i].hidden();
     if let Some(i) = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, hittable) {
         damage(stage, s, b, Who::Enemy(i), events);
         if let Some(pull) = b.pull {
@@ -900,6 +903,10 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
         h.write_i32(el.home.x.0);
         h.write_i32(el.home.y.0);
         h.write_bool(el.called);
+        // Only while a mimic is disguised, so every other elite hashes as before.
+        if el.disguised {
+            h.write_bool(true);
+        }
     }
     // Only for a shrine, which its key already tells apart.
     if let Some(sh) = &a.shrine {

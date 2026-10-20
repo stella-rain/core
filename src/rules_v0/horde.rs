@@ -160,7 +160,12 @@ pub(super) fn spawn_elite(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
     if super::spawn_enemy(stage, s, key, def, at) {
         events.push(DomainEvent::EliteSpawned {
             elite: id,
-            asset: def.base.clone(),
+            // A mimic is announced as what it is disguised as.
+            asset: def
+                .elite
+                .as_ref()
+                .and_then(|e| e.mimic.as_ref())
+                .map_or_else(|| def.base.clone(), |m| m.disguise.clone()),
         });
     }
 }

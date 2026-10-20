@@ -284,11 +284,37 @@ fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
             r.cooldown_left = r.cooldown_left.saturating_sub(1);
         }
     }
+    // A disguised mimic does nothing but wait to be revealed; the tick it reveals it does not
+    // act either, so it acts from the next tick (ADR-090).
+    if agent(s, me).hidden() {
+        reveal(s, me, def, events);
+        return;
+    }
     move_agent(stage, s, me, def);
     if waits(s, me, def) {
         return;
     }
     fire_first_rule(stage, s, me, &def.rules, events);
+}
+
+/// A disguised mimic reveals the first tick the main character's centre is within its reveal
+/// radius (the edge counts), for good. A mimic that reveals after the boss's call joins it.
+fn reveal(s: &mut State, me: Who, def: &Agent, events: &mut Vec<DomainEvent>) {
+    let Some(mimic) = def.elite.as_ref().and_then(|e| e.mimic.as_ref()) else {
+        return;
+    };
+    let player = s.player.at;
+    let called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
+    let id = s.id_of(me);
+    let a = agent_mut(s, me);
+    if !super::overlaps(a.at, mimic.reveal_radius.0, player, 0) {
+        return;
+    }
+    if let Some(el) = a.elite.as_mut() {
+        el.disguised = false;
+        el.called = called;
+    }
+    events.push(DomainEvent::MimicRevealed { elite: id });
 }
 
 /// An elite not called yet waits while the main character is beyond its range.
