@@ -243,7 +243,7 @@
           "type": "boolean"
         },
         "damage": {
-          "description": "Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 1 for an enemy or the boss.",
+          "description": "Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 100 (1 at the design values, ADR-103) for an enemy or the boss.",
           "type": [
             "integer",
             "null"
@@ -2690,7 +2690,7 @@
           "minimum": 0
         },
         "step": {
-          "description": "What one point adds, from 1 to `MAX_STEP`.",
+          "description": "What one point adds, from 1 to `MAX_STEP` (`MAX_HP_STEP` for hit points).",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
