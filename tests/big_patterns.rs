@@ -171,7 +171,10 @@ fn golem_phase_one() -> Stage {
     let mut stage: Value = serde_json::from_slice(include_bytes!("../modes/trial.json")).unwrap();
     let phases = stage["boss"]["phases"].as_array_mut().unwrap();
     let phase = phases.remove(1);
-    assert!(phase.to_string().contains("\"spiral\""), "phase 1 holds the spiral");
+    assert!(
+        phase.to_string().contains("\"spiral\""),
+        "phase 1 holds the spiral"
+    );
     *phases = vec![phase];
     validate::parse_and_validate(&serde_json::to_vec(&stage).unwrap()).expect("valid")
 }
