@@ -158,8 +158,16 @@ class ChecksPassed(unittest.TestCase):
         r.checks_passed([run("tests", run_id=1), run("check", status="in_progress", conclusion=None, run_id=9)], "9")
 
     def test_the_candidate_workflows_jobs_of_any_run_are_left_out(self):
-        for name in r.CANDIDATE_JOBS:
+        # A candidate's tag is the main commit itself, so an earlier run's jobs sit on it.
+        names = [*r.CANDIDATE_JOBS, "release iOS Simulator / tests in the iOS Simulator (debug)",
+                 "release long fuzz / fuzz stage_run"]
+        for name in names:
             r.checks_passed([run("tests", run_id=1), run(name, conclusion="failure", run_id=3)], "9")
+
+    def test_a_manual_run_of_the_same_workflows_is_a_check(self):
+        with self.assertRaises(r.ReleaseError):
+            r.checks_passed([run("tests", run_id=1),
+                             run("tests in the iOS Simulator (debug)", conclusion="failure", run_id=3)], "9")
 
 
 class CheckPromote(unittest.TestCase):
