@@ -429,6 +429,13 @@
         "radius": {
           "description": "The hurt circle that hits use.",
           "$ref": "#/$defs/Fx"
+        },
+        "statuses": {
+          "description": "Its statuses and auras, sorted by ID (ADR-103 decision 3).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StatusView"
+          }
         }
       },
       "additionalProperties": false,
@@ -1098,6 +1105,13 @@
             }
           ]
         },
+        "statuses": {
+          "description": "Its statuses, sorted by ID (ADR-103 decision 3): the timed buffs and debuffs it holds.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StatusView"
+          }
+        },
         "target": {
           "description": "The enemy aim assist and auto mode would face, while either is on (ADR-072), so the\nfrontend can mark it.",
           "anyOf": [
@@ -1389,6 +1403,34 @@
         "id",
         "at",
         "rarity"
+      ]
+    },
+    "StatusView": {
+      "description": "A status on an entity, or a pack leader's aura (ADR-103 decision 3): what the app shows as\nan icon with a count-down, or as a row while it lasts.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The status's content ID: `atk_up`, `vulnerable`, `slow`, `bleed`, `poison`, `burn`, or\n`aura` for a pack leader's aura, which has no content ID of its own.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "remaining": {
+          "description": "Ticks left. An aura has none: it lasts while its entity is in reach, so both this and\n`total` are 0 for it.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "total": {
+          "description": "The ticks the status was applied for, or 0 for an aura.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "remaining",
+        "total"
       ]
     },
     "TypeBonusView": {

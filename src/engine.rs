@@ -355,6 +355,7 @@ impl Engine {
                     elite: false,
                     aura_radius: None,
                     damage_over_time: dot_views(&b.statuses),
+                    statuses: Vec::new(),
                 });
             }
         }
@@ -384,6 +385,7 @@ impl Engine {
                             .and_then(|e| e.aura)
                             .map(|aura| aura.radius),
                         damage_over_time: dot_views(&a.statuses),
+                        statuses: Vec::new(),
                     });
                 }
             };
@@ -409,6 +411,7 @@ impl Engine {
                         elite: false,
                         aura_radius: None,
                         damage_over_time: dot_views(&part.statuses),
+                        statuses: Vec::new(),
                     });
                 }
             }
@@ -520,6 +523,7 @@ impl Engine {
                     runs.sort_by_key(|r| r.slot);
                     runs.into_iter().map(view).collect()
                 },
+                statuses: Vec::new(),
             },
             entities,
             bullets: s
@@ -1113,6 +1117,9 @@ pub(crate) struct StatusState {
     /// Who applied it last.
     pub source: EntityId,
     pub remaining: u32,
+    /// The ticks of the application that set `remaining`, for the snapshot (ADR-103): a
+    /// refresh with a longer duration sets it, a shorter one leaves both alone.
+    pub total: u32,
     pub stacks: u16,
     /// Percent per stack.
     pub value_pct: u16,
