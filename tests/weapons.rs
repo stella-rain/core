@@ -398,7 +398,8 @@ fn knocking(target: Value, dy: i32, levels: bool) -> Stage {
 }
 
 fn with_knockback(mut weapon: Value, distance: i32, ticks: u32) -> Value {
-    weapon["inline"]["smash"] = json!({ "type": "knockback", "distance": distance, "ticks": ticks });
+    weapon["inline"]["smash"] =
+        json!({ "type": "knockback", "distance": distance, "ticks": ticks });
     weapon
 }
 

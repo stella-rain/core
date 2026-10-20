@@ -834,7 +834,7 @@ impl<'a> Ctx<'a> {
 
     fn smash(&mut self, effect: &SmashEffect) {
         match *effect {
-            SmashEffect::Pull { distance, ticks } => {
+            SmashEffect::Pull { distance, ticks } | SmashEffect::Knockback { distance, ticks } => {
                 self.within(
                     "distance",
                     i64::from(distance.0),

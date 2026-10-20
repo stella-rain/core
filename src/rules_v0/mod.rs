@@ -737,8 +737,10 @@ fn hit_enemy_side(
     }
     if let Some(i) = first {
         damage(stage, s, b, Who::Enemy(i), events);
-        if let Some(Smash::Pull(pull)) = b.smash {
-            pull_enemy(stage, s, i, pull);
+        match b.smash {
+            Some(Smash::Pull(pull)) => pull_enemy(stage, s, i, pull),
+            Some(Smash::Knockback(push)) => knock_enemy(stage, s, i, push),
+            _ => {}
         }
         return true;
     }
@@ -803,6 +805,37 @@ pub(super) fn pull_enemy(stage: &Stage, s: &mut State, i: usize, pull: Pull) {
     s.enemies[i].order = Some(MoveOrder {
         to: goal,
         ticks_left: pull.ticks.max(1),
+    });
+}
+
+/// A smash's knockback on enemy `i` (ADR-084 point 8): the pull's mirror. It is pushed away from
+/// the main character by at most `distance`, over `ticks`, as a move order that replaces its
+/// movement, and ends inside the map. A dead enemy and an elite are not pushed, nor one on the
+/// main character's very centre (no direction); a boss and its parts are never enemies here.
+pub(super) fn knock_enemy(stage: &Stage, s: &mut State, i: usize, push: Pull) {
+    let e = &s.enemies[i];
+    if e.hp == 0 || e.elite.is_some() {
+        return;
+    }
+    let from = s.player.at;
+    let (dx, dy) = (
+        i64::from(e.at.x.0) - i64::from(from.x.0),
+        i64::from(e.at.y.0) - i64::from(from.y.0),
+    );
+    let len = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+    if len == 0 {
+        return;
+    }
+    let step = i64::from(push.distance);
+    let at =
+        |from: Fx, d: i64| Fx(i32::try_from(i64::from(from.0) + d * step / len).unwrap_or(from.0));
+    let goal = stage.map().clamp(Point {
+        x: at(e.at.x, dx),
+        y: at(e.at.y, dy),
+    });
+    s.enemies[i].order = Some(MoveOrder {
+        to: goal,
+        ticks_left: push.ticks.max(1),
     });
 }
 
@@ -1101,6 +1134,11 @@ fn hash_smash(h: &mut StateHasher, smash: Option<Smash>) {
     match smash {
         Some(Smash::Pull(Pull { distance, ticks })) => {
             h.write_bool(true);
+            h.write_i32(distance);
+            h.write_u32(ticks);
+        }
+        Some(Smash::Knockback(Pull { distance, ticks })) => {
+            h.write_bytes(&[4]);
             h.write_i32(distance);
             h.write_u32(ticks);
         }

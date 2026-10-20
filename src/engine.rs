@@ -896,6 +896,8 @@ pub(crate) struct Pull {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Smash {
     Pull(Pull),
+    /// The enemy is pushed away from the main character, as far and as long as the pull's numbers.
+    Knockback(Pull),
     /// The `bleed` status, with the bleed rune's numbers from the runes file (ADR-099 point 3).
     Bleed,
     /// The `stun` status of a smash, for its ticks (ADR-085).

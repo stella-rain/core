@@ -294,8 +294,10 @@ fn hit_enemy_side(
             && take_hit(s, w, id)
         {
             damage(stage, s, shot(w), Who::Enemy(i), events);
-            if let Some(Smash::Pull(pull)) = w.smash {
-                super::pull_enemy(stage, s, i, pull);
+            match w.smash {
+                Some(Smash::Pull(pull)) => super::pull_enemy(stage, s, i, pull),
+                Some(Smash::Knockback(push)) => super::knock_enemy(stage, s, i, push),
+                _ => {}
             }
         }
     }

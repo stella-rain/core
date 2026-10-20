@@ -1554,9 +1554,10 @@ fn a_step_has_a_charge_or_a_hold_never_both() {
 }
 
 fn with_knockback(distance: i32, ticks: u32) -> Value {
-    with_weapon(main_weapon(chain(1), |w| {
-        w["smash"] = json!({ "type": "knockback", "distance": distance, "ticks": ticks })
-    }))
+    with_weapon(main_weapon(
+        chain(1),
+        |w| w["smash"] = json!({ "type": "knockback", "distance": distance, "ticks": ticks }),
+    ))
 }
 
 #[test]
