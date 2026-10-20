@@ -5,10 +5,10 @@
     {
       "id": "max_hp",
       "effect": "max_hp",
-      "step": 1,
+      "step": 100,
       "limit": 5,
       "title": "Max HP",
-      "description": "One more hit point at most, and one healed"
+      "description": "100 more hit points at most, and as many healed"
     },
     {
       "id": "attack",

@@ -27,8 +27,10 @@ use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 pub const MAX_RUN_STATS_BYTES: usize = 16 * 1024;
 /// The most stats a file lists.
 pub const MAX_STATS: usize = 32;
-/// The largest step: a point of hit points, or a percentage.
+/// The largest step: a percentage; for hit points, `MAX_HP_STEP`.
 pub const MAX_STEP: u32 = 100;
+/// The largest step of hit points: `MAX_STEP` at the design values, scaled (ADR-103).
+pub const MAX_HP_STEP: u32 = MAX_STEP * crate::validate::limits::DAMAGE_SCALE;
 /// The most points one stat takes.
 pub const MAX_LIMIT: u8 = 20;
 /// The longest title, in characters.
@@ -87,7 +89,7 @@ pub struct RunStat {
     /// The stat's own ID, unique within the file.
     pub id: ContentId,
     pub effect: StatEffect,
-    /// What one point adds, from 1 to `MAX_STEP`.
+    /// What one point adds, from 1 to `MAX_STEP` (`MAX_HP_STEP` for hit points).
     pub step: u32,
     /// The most points the stat takes in a run, from 1 to `MAX_LIMIT`.
     pub limit: u8,
@@ -187,8 +189,15 @@ pub fn validate(file: &RunStatsFile) -> Result<(), Error> {
         } else if file.stats[..i].iter().any(|s| s.id == stat.id) {
             issue(at("id"), "the same ID as an earlier stat".into());
         }
-        if !(1..=MAX_STEP).contains(&stat.step) {
-            issue(at("step"), format!("1 to {MAX_STEP} (found {})", stat.step));
+        let most_step = match stat.effect {
+            StatEffect::MaxHp => MAX_HP_STEP,
+            _ => MAX_STEP,
+        };
+        if !(1..=most_step).contains(&stat.step) {
+            issue(
+                at("step"),
+                format!("1 to {most_step} (found {})", stat.step),
+            );
         }
         if !(1..=MAX_LIMIT).contains(&stat.limit) {
             issue(

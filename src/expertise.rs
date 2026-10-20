@@ -28,7 +28,7 @@ use sha2::{Digest, Sha256};
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
-use crate::rewards::{MAX_AMOUNT, MAX_RANGE_PCT};
+use crate::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{self, StatEffect};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -84,6 +84,7 @@ impl ExpertiseEffect {
     pub fn max_amount(self) -> u32 {
         match self {
             ExpertiseEffect::RangePct => MAX_RANGE_PCT,
+            ExpertiseEffect::MaxHp => MAX_HP_AMOUNT,
             _ => MAX_AMOUNT,
         }
     }

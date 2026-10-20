@@ -157,7 +157,7 @@
                   {
                     "kind": "active",
                     "ticks": 4,
-                    "damage": 20,
+                    "damage": 2000,
                     "hit_box": {
                       "type": "circle",
                       "offset": {
@@ -196,7 +196,7 @@
                   {
                     "kind": "active",
                     "ticks": 4,
-                    "damage": 30,
+                    "damage": 3000,
                     "hit_box": {
                       "type": "circle",
                       "offset": {
@@ -235,7 +235,7 @@
                   {
                     "kind": "active",
                     "ticks": 4,
-                    "damage": 40,
+                    "damage": 4000,
                     "hit_box": {
                       "type": "circle",
                       "offset": {
@@ -266,7 +266,7 @@
           "effects": [
             {
               "type": "shield",
-              "amount": 3,
+              "amount": 300,
               "duration_ticks": 300
             }
           ]
@@ -276,7 +276,7 @@
           "effects": [
             {
               "type": "shield",
-              "amount": 5,
+              "amount": 500,
               "duration_ticks": 360
             }
           ]
@@ -286,7 +286,7 @@
           "effects": [
             {
               "type": "shield",
-              "amount": 8,
+              "amount": 800,
               "duration_ticks": 420
             }
           ]

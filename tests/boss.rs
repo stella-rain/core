@@ -942,3 +942,27 @@ fn an_attack_started_by_a_rule_runs_on_the_phase_clock() {
     e.step(idle());
     assert_eq!(e.snapshot().bullets[0].at.y.0 - before, 150);
 }
+
+#[test]
+fn a_timeline_attack_that_names_no_damage_does_the_default_100() {
+    // ADR-103: the damage of an enemy's or the boss's attack that names none is 100 (1 before
+    // the scale), the same for a rule's attack and for the boss's timeline.
+    let mut stage = stage_of(boss(
+        1_000_000,
+        vec![],
+        vec![phase(
+            None,
+            json!([]),
+            json!([step_attack("aimed_single", 768), step_wait(600)]),
+            json!([]),
+        )],
+    ));
+    stage.player.hp = 9_900;
+    let mut e = engine(&quiet(stage));
+    let events = run_until(&mut e, idle(), 600, |e| e.snapshot().player.hp < 9_900);
+    let hit = events.iter().find_map(|(_, ev)| match ev {
+        DomainEvent::PlayerHit { hp_left } => Some(*hp_left),
+        _ => None,
+    });
+    assert_eq!(hit, Some(9_800));
+}

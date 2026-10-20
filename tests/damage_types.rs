@@ -161,14 +161,14 @@ fn no_profile_is_neutral_to_every_type() {
 
 #[test]
 fn the_match_up_comes_after_vulnerability_and_before_defence() {
-    // 10 × 150 / 100 = 15, × 120 / 100 = 18, × 100 / 200 = 9.
+    // 10 × 150 / 100 = 15, × 120 / 100 = 18, × 10,000 / 20,000 = 9 (K is 10,000, ADR-103).
     let rules = json!([
         { "when": always(), "target": "nearest_enemy", "once": true,
           "do": cast(json!({ "type": "vulnerable", "value_pct": 50, "duration_ticks": 60 })) },
         { "when": always(), "target": "nearest_enemy", "once": true,
           "do": strike(10, Some("pyro")) }
     ]);
-    let st = striker(rules, target(Some(json!({ "weak": ["pyro"] })), 100));
+    let st = striker(rules, target(Some(json!({ "weak": ["pyro"] })), 10_000));
     assert_eq!(hits(&st, COMPANION, 3), [(9, MatchUp::Weak)]);
     // Truncated toward zero: 7 × 80 / 100 = 5.6, then at least 1 from 1 × 80 / 100.
     let st = striker(

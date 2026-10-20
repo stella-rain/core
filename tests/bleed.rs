@@ -297,7 +297,8 @@ fn boosted(ty: &str) -> Vec<(u32, u32)> {
                 "amount": 50, "limit": 1, "title": "Bonus", "description": "" }),
     ];
     let mut target = tough(0, Some(json!({ "weak": ["slash"] })), None);
-    target["enemy"]["defence"] = json!(100);
+    // K is 10,000 after the scale of ADR-103: a defence of K halves a hit.
+    target["enemy"]["defence"] = json!(10_000);
     let mut e = with(
         &stage(9, target),
         &content(rewards, Some(json!([war_cry])), runes(30, 180, 10, 1)),

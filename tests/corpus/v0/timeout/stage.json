@@ -1,66 +1,66 @@
 {
-  "schema_version": 0,
-  "sim_version": 0,
-  "id": "test",
-  "title": "Test",
+  "boss": {
+    "base": "golem",
+    "hp": 100000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [],
+        "transition": []
+      }
+    ],
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "companions": [],
   "description": "",
-  "seed": 7,
+  "id": "test",
   "length_ticks": 90,
   "player": {
+    "atk": 1000,
     "base": "pilot_a",
-    "hp": 3,
-    "atk": 10,
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 300,
     "main": {
       "inline": {
+        "assist_range": 0,
         "combo": {
           "main": {
             "attack": {
               "preset": {
-                "id": "aimed_single",
                 "args": [
                   2048
-                ]
+                ],
+                "id": "aimed_single"
               }
             }
           }
         },
-        "window_ticks": 0,
-        "assist_range": 0
+        "window_ticks": 0
       }
     },
     "sub": {
       "inline": {
         "bonus": {
-          "type": "pull",
           "distance": 0,
-          "ticks": 1
+          "ticks": 1,
+          "type": "pull"
         }
       }
-    },
-    "evade": {
-      "distance": 12288,
-      "ticks": 8,
-      "invulnerable_ticks": 10,
-      "cooldown_ticks": 40
     }
   },
-  "companions": [],
-  "waves": [],
-  "boss": {
-    "base": "golem",
-    "hp": 1000000,
-    "radius": 1000,
-    "spawn": {
-      "x": 0,
-      "y": 0
-    },
-    "parts": [],
-    "phases": [
-      {
-        "transition": [],
-        "timeline": [],
-        "rules": []
-      }
-    ]
-  }
+  "schema_version": 0,
+  "seed": 7,
+  "sim_version": 0,
+  "title": "Test",
+  "waves": []
 }

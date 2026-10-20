@@ -46,8 +46,8 @@ pub const MAX_SKILL_AHEAD: i32 = 131_072;
 pub const MAX_PULL: i32 = 2_048;
 /// The largest status: +1000%.
 pub const MAX_SKILL_PCT: u16 = 1_000;
-/// The most damage a shield absorbs.
-pub const MAX_SHIELD: u32 = 10_000;
+/// The most damage a shield absorbs: 10,000 at the design values, scaled (ADR-103).
+pub const MAX_SHIELD: u32 = 10_000 * crate::validate::limits::DAMAGE_SCALE;
 
 /// One stage skill.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

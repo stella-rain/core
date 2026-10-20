@@ -56,7 +56,7 @@
           "minimum": 0
         },
         "step": {
-          "description": "What one point adds, from 1 to `MAX_STEP`.",
+          "description": "What one point adds, from 1 to `MAX_STEP` (`MAX_HP_STEP` for hit points).",
           "type": "integer",
           "format": "uint32",
           "minimum": 0

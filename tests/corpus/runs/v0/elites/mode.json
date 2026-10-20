@@ -129,7 +129,7 @@
         "elite": {
           "range": 51200
         },
-        "hp": 240,
+        "hp": 24000,
         "movement": {
           "distance": 12288,
           "type": "follow"
@@ -176,7 +176,7 @@
         "elite": {
           "range": 51200
         },
-        "hp": 480,
+        "hp": 48000,
         "movement": {
           "distance": 12288,
           "type": "follow"
@@ -195,7 +195,7 @@
               "attack": {
                 "inline": [
                   {
-                    "damage": 2,
+                    "damage": 200,
                     "kind": "active",
                     "spawn": [
                       {
@@ -234,7 +234,7 @@
         "elite": {
           "range": 51200
         },
-        "hp": 960,
+        "hp": 96000,
         "movement": {
           "distance": 12288,
           "type": "follow"
@@ -253,7 +253,7 @@
               "attack": {
                 "inline": [
                   {
-                    "damage": 3,
+                    "damage": 300,
                     "kind": "active",
                     "spawn": [
                       {
@@ -293,7 +293,7 @@
           "boss_call": "leave",
           "range": 51200
         },
-        "hp": 120,
+        "hp": 12000,
         "movement": {
           "disturb_radius": 12800,
           "leave_after_ticks": 600,
@@ -316,14 +316,14 @@
           "boss_call": "stay",
           "range": 51200
         },
-        "hp": 1,
+        "hp": 100,
         "movement": {
           "fight_ticks": 1800,
           "guardians": {
             "count": 6,
             "enemy": {
               "base": "bat",
-              "hp": 60,
+              "hp": 6000,
               "movement": {
                 "distance": 12288,
                 "type": "follow"
@@ -376,7 +376,7 @@
             "count": 4,
             "enemy": {
               "base": "bat",
-              "hp": 60,
+              "hp": 6000,
               "movement": {
                 "distance": 12288,
                 "type": "follow"
@@ -408,7 +408,7 @@
           },
           "range": 51200
         },
-        "hp": 480,
+        "hp": 48000,
         "movement": {
           "distance": 12288,
           "type": "follow"
@@ -459,7 +459,7 @@
           },
           "range": 51200
         },
-        "hp": 480,
+        "hp": 48000,
         "movement": {
           "distance": 12288,
           "type": "follow"
@@ -478,7 +478,7 @@
               "attack": {
                 "inline": [
                   {
-                    "damage": 2,
+                    "damage": 200,
                     "kind": "active",
                     "spawn": [
                       {

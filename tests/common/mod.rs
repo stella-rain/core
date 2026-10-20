@@ -309,3 +309,41 @@ pub fn summon(count: u8) -> Value {
     json!({ "type": "summon", "count": count,
             "agent": { "base": "bat", "hp": 10, "radius": 2048, "movement": hold(1000, 1000) } })
 }
+
+/// ADR-103 decision 6: the factor default damage and hit points are scaled by.
+pub const SCALE: u64 = 100;
+
+/// The fields of a stage that hold a damage or hit-point value (ADR-103 decision 6): a stage
+/// written at design values becomes the stage of the scaled rules by multiplying these.
+const SCALED_FIELDS: [&str; 5] = ["hp", "atk", "defence", "damage", "amount"];
+
+/// `value`, a stage (or any JSON inside one), with every damage, hit-point and defence value
+/// multiplied by `factor`.
+pub fn scaled(mut value: Value, factor: u64) -> Value {
+    fn walk(value: &mut Value, factor: u64) {
+        match value {
+            Value::Object(map) => {
+                for (key, v) in map.iter_mut() {
+                    match v.as_u64() {
+                        Some(n) if SCALED_FIELDS.contains(&key.as_str()) => {
+                            *v = Value::from(n * factor)
+                        }
+                        _ => walk(v, factor),
+                    }
+                }
+            }
+            Value::Array(items) => items.iter_mut().for_each(|v| walk(v, factor)),
+            _ => {}
+        }
+    }
+    walk(&mut value, factor);
+    value
+}
+
+/// As `scaled`, for a stage's bytes, pretty-printed as the corpus writes them.
+pub fn scaled_bytes(bytes: &[u8], factor: u64) -> Vec<u8> {
+    let mut out =
+        serde_json::to_vec_pretty(&scaled(serde_json::from_slice(bytes).unwrap(), factor)).unwrap();
+    out.push(b'\n');
+    out
+}

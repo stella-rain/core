@@ -16,8 +16,8 @@
   },
   "player": {
     "base": "pilot_a",
-    "hp": 5,
-    "atk": 10,
+    "hp": 500,
+    "atk": 1000,
     "main": {
       "preset": {
         "id": "blade"
@@ -38,7 +38,7 @@
   "companions": [
     {
       "base": "fairy_a",
-      "hp": 10,
+      "hp": 1000,
       "radius": 1024,
       "movement": {
         "type": "orbit",
@@ -56,7 +56,7 @@
             "type": "cast",
             "skill": {
               "type": "heal",
-              "amount": 1
+              "amount": 100
             }
           },
           "cooldown_ticks": 600,
@@ -70,7 +70,7 @@
       "at_tick": 120,
       "enemy": {
         "base": "bat",
-        "hp": 30,
+        "hp": 3000,
         "radius": 2048,
         "profile": {
           "weak": [
@@ -119,7 +119,7 @@
       "at_tick": 600,
       "enemy": {
         "base": "bat",
-        "hp": 30,
+        "hp": 3000,
         "radius": 2048,
         "profile": {
           "weak": [
@@ -168,7 +168,7 @@
       "at_tick": 1200,
       "enemy": {
         "base": "bat",
-        "hp": 60,
+        "hp": 6000,
         "radius": 2560,
         "profile": {
           "weak": [
@@ -216,7 +216,7 @@
       "at_tick": 60,
       "enemy": {
         "base": "bat",
-        "hp": 240,
+        "hp": 24000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -269,7 +269,7 @@
       "at_tick": 60,
       "enemy": {
         "base": "bat",
-        "hp": 2000,
+        "hp": 200000,
         "radius": 3072,
         "profile": {
           "strong": [
@@ -321,7 +321,7 @@
   ],
   "boss": {
     "base": "golem",
-    "hp": 3000,
+    "hp": 300000,
     "radius": 8192,
     "profile": {
       "weak": [
@@ -337,7 +337,7 @@
       {
         "id": "horn",
         "asset": "horns_2",
-        "hp": 400,
+        "hp": 40000,
         "offset": {
           "x": 0,
           "y": -7680

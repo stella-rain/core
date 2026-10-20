@@ -168,9 +168,9 @@
             {
               "id": "crush_9",
               "effect": "max_hp",
-              "amount": 2,
+              "amount": 200,
               "title": "Iron Grip",
-              "description": "2 more hit points at most, and as many healed"
+              "description": "200 more hit points at most, and as many healed"
             }
           ],
           "capstone": [
@@ -220,9 +220,9 @@
         {
           "id": "bulwark",
           "effect": "max_hp",
-          "amount": 2,
+          "amount": 200,
           "title": "Bulwark",
-          "description": "2 more hit points at most, and as many healed",
+          "description": "200 more hit points at most, and as many healed",
           "upgrade_6": [
             {
               "id": "bulwark_6",
@@ -236,9 +236,9 @@
             {
               "id": "bulwark_9",
               "effect": "max_hp",
-              "amount": 3,
+              "amount": 300,
               "title": "Stone Skin",
-              "description": "3 more hit points at most, and as many healed"
+              "description": "300 more hit points at most, and as many healed"
             }
           ],
           "capstone": [

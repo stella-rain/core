@@ -29,7 +29,7 @@ use crate::registry;
 use crate::run_stats::{self, StatEffect};
 use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use crate::trig::PER_DEGREE;
-use crate::validate::limits::MAX_EVADE_CHARGES;
+use crate::validate::limits::{DAMAGE_SCALE, MAX_EVADE_CHARGES};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -37,8 +37,10 @@ use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 pub const MAX_REWARDS_BYTES: usize = 32 * 1024;
 /// The most rewards a file lists.
 pub const MAX_REWARDS: usize = 64;
-/// The largest amount: hit points, or a percentage.
+/// The largest amount: a percentage or a count; for hit points, `MAX_HP_AMOUNT`.
 pub const MAX_AMOUNT: u32 = 100;
+/// The largest amount of hit points: `MAX_AMOUNT` at the design values, scaled (ADR-103).
+pub const MAX_HP_AMOUNT: u32 = MAX_AMOUNT * DAMAGE_SCALE;
 /// The most times one run takes one reward.
 pub const MAX_STACK: u8 = 20;
 /// The most orbs one orbit holds, however often its reward is taken.
@@ -335,6 +337,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
             RewardEffect::Orbit => u32::from(MAX_ORBS),
             RewardEffect::RangePct => MAX_RANGE_PCT,
             RewardEffect::RuneHaste => MAX_RUNE_HASTE_PCT,
+            RewardEffect::MaxHp => MAX_HP_AMOUNT,
             _ => MAX_AMOUNT,
         };
         match (reward.effect, reward.amount) {

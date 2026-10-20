@@ -39,7 +39,7 @@ pub struct AttackPhase {
     pub hit_box: Option<HitBox>,
     /// Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is
     /// what the attacker's own attack does: the main character's `atk`, a `shot` skill's
-    /// `damage`, or 1 for an enemy or the boss.
+    /// `damage`, or 100 (1 at the design values, ADR-103) for an enemy or the boss.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub damage: Option<u32>,
     /// The damage type of the phase's hits and of the bullets it spawns (ADR-100); absent, they

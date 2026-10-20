@@ -1,7 +1,7 @@
 {
   "boss": {
     "base": "golem",
-    "hp": 1000000,
+    "hp": 100000000,
     "parts": [],
     "phases": [
       {
@@ -29,7 +29,7 @@
     "width": 524288
   },
   "player": {
-    "atk": 10,
+    "atk": 1000,
     "base": "pilot_a",
     "evade": {
       "cooldown_ticks": 40,
@@ -37,7 +37,7 @@
       "invulnerable_ticks": 10,
       "ticks": 8
     },
-    "hp": 99,
+    "hp": 9900,
     "main": {
       "inline": {
         "assist_range": 0,
@@ -76,7 +76,7 @@
       "count": 4,
       "enemy": {
         "base": "bat",
-        "hp": 30,
+        "hp": 3000,
         "movement": {
           "type": "straight",
           "vx": 512,
@@ -116,7 +116,7 @@
       "count": 4,
       "enemy": {
         "base": "bat",
-        "hp": 30,
+        "hp": 3000,
         "movement": {
           "type": "straight",
           "vx": 512,
