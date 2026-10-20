@@ -27,10 +27,7 @@ fn the_spread_waves_stand_at_the_start_and_two_far_corners() {
     let stage = collide_case::spread_stage();
     let map = stage.map.as_ref().expect("the spread case has a map");
     assert_eq!((map.width.0, map.height.0), (SIDE, SIDE));
-    assert_eq!(
-        map.start.map(|p| (p.x.0, p.y.0)),
-        Some(collide_case::START)
-    );
+    assert_eq!(map.start.map(|p| (p.x.0, p.y.0)), Some(collide_case::START));
     let waves: Vec<(i32, i32, u16)> = stage
         .waves
         .iter()
@@ -38,7 +35,10 @@ fn the_spread_waves_stand_at_the_start_and_two_far_corners() {
         .collect();
     assert_eq!(waves.len(), 5, "{waves:?}");
     let (x, y, _) = waves[0];
-    assert_eq!((x, y), (collide_case::SPREAD_START_X, collide_case::START.1));
+    assert_eq!(
+        (x, y),
+        (collide_case::SPREAD_START_X, collide_case::START.1)
+    );
     for wave in &waves[1..3] {
         assert_eq!((wave.0, wave.1), TOP_RIGHT);
     }
