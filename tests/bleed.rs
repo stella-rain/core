@@ -490,3 +490,192 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
         "it runs out on the 180th tick after it was applied"
     );
 }
+
+// --- A smash's bleed (ADR-084 point 8) ---------------------------------------------------------
+
+/// The Main weapon of one blow, its `sub` step the same blow, and its smash bleeding what it
+/// hits: a press of `sub` (B) puts the one bleed on the enemy hit, a press of `main` none.
+fn smashing() -> Value {
+    let mut w = weapon();
+    w["inline"]["combo"]["sub"] = w["inline"]["combo"]["main"].clone();
+    w["inline"]["smash"] = json!({ "type": "bleed" });
+    w
+}
+
+/// The smashing weapon on the tough target alone, no small enemies to drop a rune, no rune taken.
+fn smashing_stage(runes: Runes, target: Value) -> Engine {
+    let stage = armed(
+        stage_full(18_000, Some(far_boss()), vec![target], vec![]),
+        smashing(),
+    );
+    with(&stage, &content(vec![random_rune()], None, runes))
+}
+
+/// Presses of `sub` (B, the smash) on the ticks `start + d` for each `d` in `at`.
+fn smash_presses(start: u32, at: &'static [u32]) -> impl Fn(u32) -> Input {
+    move |t| Input {
+        sub: at.iter().any(|d| start + d == t),
+        ..idle()
+    }
+}
+
+#[test]
+fn a_smash_hit_applies_bleed_without_the_rune_held() {
+    let mut e = smashing_stage(runes(30, 180, 3, 5), tough(0, None, None));
+    let target = wait_for_target(&mut e);
+    assert!(statuses(&e, target).is_empty());
+    let start = e.tick();
+    e.step(smash_presses(start, &[0])(start));
+    assert!(e.events().iter().any(|ev| matches!(
+        ev,
+        DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180 }
+            if *t == target && status.0 == "bleed"
+    )));
+    let bleed = statuses(&e, target);
+    assert_eq!(bleed.len(), 1);
+    assert_eq!(
+        (bleed[0].stacks, bleed[0].ticks_left, bleed[0].next_tick_in),
+        (1, 180, 30)
+    );
+}
+
+#[test]
+fn a_plain_step_applies_no_bleed_without_the_rune_held() {
+    let mut e = smashing_stage(runes(30, 180, 3, 5), tough(0, None, None));
+    let target = wait_for_target(&mut e);
+    let start = e.tick();
+    let seen = hits(&mut e, target, 240, once(start));
+    assert_eq!(of(&seen, 10), [start + 1], "the step's hit");
+    assert!(seen.iter().all(|h| h.1 == 10), "no bleed tick: {seen:?}");
+    assert!(statuses(&e, target).is_empty());
+}
+
+#[test]
+fn a_smash_s_bleed_ticks_at_its_interval_for_its_duration() {
+    let mut e = smashing_stage(runes(30, 180, 3, 5), tough(0, None, None));
+    let target = wait_for_target(&mut e);
+    let start = e.tick();
+    let seen = hits(&mut e, target, 240, smash_presses(start, &[0]));
+    let hit = start + 1;
+    assert_eq!(of(&seen, 10), [hit], "the smash's hit");
+    let ticks: Vec<u32> = (1..=6).map(|k| hit + 30 * k).collect();
+    assert_eq!(of(&seen, 3), ticks, "180 / 30 ticks of 3: {seen:?}");
+    assert_eq!(seen.len(), 7, "nothing else: {seen:?}");
+    assert!(statuses(&e, target).is_empty(), "run out");
+}
+
+#[test]
+fn a_smash_stacks_to_the_maximum_and_each_hit_starts_its_duration_again() {
+    let mut e = smashing_stage(runes(30, 180, 3, 3), tough(0, None, None));
+    let target = wait_for_target(&mut e);
+    let start = e.tick();
+    let mut stacks = Vec::new();
+    for _ in 0..=60 {
+        let t = e.tick();
+        e.step(smash_presses(start, &[0, 10, 20, 40])(t));
+        for ev in e.events() {
+            if let DomainEvent::StatusApplied {
+                target: id,
+                status,
+                stacks: n,
+                duration_ticks,
+            } = ev
+            {
+                if *id == target && status.0 == "bleed" {
+                    assert_eq!(*duration_ticks, 180);
+                    stacks.push(*n);
+                }
+            }
+        }
+    }
+    assert_eq!(stacks, [1, 2, 3, 3]);
+}
+
+#[test]
+fn a_runes_file_without_bleed_is_refused() {
+    // A smash takes the bleed's numbers from the file, so a run whose file has none cannot start:
+    // the validator refuses the file. Every damage-over-time rune is once in it.
+    let dots: Vec<Value> = far_dots()
+        .into_iter()
+        .filter(|d| d["rune"] != "bleed")
+        .collect();
+    let file = json!({
+        "schema_version": 0, "sim_version": 0,
+        "on_hit": [far("explosion"), far("thunder"), far("boomerang"), far("homing_missiles")],
+        "damage_over_time": dots,
+    });
+    let err = Runes::parse(file.to_string().as_bytes()).unwrap_err();
+    assert!(err.to_string().contains("damage_over_time"), "{err}");
+}
+
+#[test]
+fn a_smash_s_bleed_gives_no_expertise() {
+    // The target gives 1 point a hit: the smash's, not the bleed's six.
+    let mut e = smashing_stage(runes(30, 180, 3, 5), tough(0, None, Some(1)));
+    let target = wait_for_target(&mut e);
+    let start = e.tick();
+    let seen = hits(&mut e, target, 200, smash_presses(start, &[0]));
+    assert_eq!(of(&seen, 3).len(), 6, "{seen:?}");
+    assert_eq!(e.snapshot().expertise.unwrap().points, 1);
+}
+
+#[test]
+fn a_smash_that_kills_applies_no_bleed() {
+    // A target of 10 hit points: the smash's 10 damage kills it, and a dead enemy takes none.
+    let target = wave(
+        TARGET_TICK,
+        1,
+        0,
+        enemy(10, hold(START_X, NEAR_Y), json!([])),
+        START_X,
+        NEAR_Y,
+    );
+    let mut e = smashing_stage(runes(30, 180, 3, 5), target);
+    let id = wait_for_target(&mut e);
+    let start = e.tick();
+    e.step(smash_presses(start, &[0])(start));
+    assert!(e.events().iter().any(|ev| matches!(
+        ev,
+        DomainEvent::Died { entity } if *entity == id
+    )));
+    assert!(statuses(&e, id).is_empty());
+}
+
+#[test]
+fn a_smash_and_the_rune_share_one_bleed() {
+    // Held, the rune bleeds the step's hit, and the smash, 60 ticks on, adds the second stack
+    // to the same status with the rune's numbers.
+    let mut e = with(
+        &armed(stage(7, tough(0, None, None)), smashing()),
+        &content(vec![random_rune()], None, runes(30, 180, 3, 5)),
+    );
+    take_all(&mut e);
+    let target = wait_for_target(&mut e);
+    let start = e.tick();
+    let mut stacks = Vec::new();
+    for _ in 0..=70 {
+        let t = e.tick();
+        e.step(Input {
+            main: t == start,
+            sub: t == start + 60,
+            ..idle()
+        });
+        for ev in e.events() {
+            if let DomainEvent::StatusApplied {
+                target: id,
+                status,
+                stacks: n,
+                ..
+            } = ev
+            {
+                if *id == target && status.0 == "bleed" {
+                    stacks.push(*n);
+                }
+            }
+        }
+    }
+    assert_eq!(stacks, [1, 2]);
+    let bleed = statuses(&e, target);
+    assert_eq!(bleed.len(), 1, "one bleed on the enemy");
+    assert_eq!(bleed[0].stacks, 2);
+}
