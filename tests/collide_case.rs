@@ -37,12 +37,8 @@ fn the_spread_waves_stand_at_the_start_and_two_far_corners() {
         .map(|w| (w.spawn.x.0, w.spawn.y.0, w.count))
         .collect();
     assert_eq!(waves.len(), 5, "{waves:?}");
-    let (start_x, start_y) = collide_case::START;
     let (x, y, _) = waves[0];
-    assert!(
-        (x - start_x).abs() <= 32_768 && (y - start_y).abs() <= 32_768,
-        "the first wave at {x}, {y}, not at the start"
-    );
+    assert_eq!((x, y), (collide_case::SPREAD_START_X, collide_case::START.1));
     for wave in &waves[1..3] {
         assert_eq!((wave.0, wave.1), TOP_RIGHT);
     }
@@ -146,3 +142,4 @@ fn the_measured_tick_has_its_load() {
         assert!(a.hit_box.is_some());
     }
 }
+

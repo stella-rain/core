@@ -95,17 +95,22 @@ fn built(waves: Vec<Value>, width: i32, height: i32) -> Stage {
 /// The largest map: 4,096 pixels a side (`MAX_MAP_SIDE`, core#87).
 pub const SPREAD_SIDE: i32 = 1_048_576;
 
+/// The spread case's start wave, 40 pixels from the left edge: the fan flies up from the start
+/// point (238 pixels), and a crowd of 100 at the start's own column eats the fan's bullets (a
+/// first measurement with the wave 80 pixels left of the start point hurt three enemies and left
+/// 360 bullets in the air, against 3,910 here).
+pub const SPREAD_START_X: i32 = 10_240;
+
 /// The spread case (core#146): the same 500 enemies, in five waves of 100 (`MAX_WAVE_COUNT`, the
-/// most a wave may hold) that hold three points of the largest map: one wave at the start point,
-/// two at the top right and two at the bottom right. The start wave stands 80 pixels left of the
-/// start point, out of the fan's column (the fan flies up from the start point). The corners are
-/// 128 pixels in from the right edge, about 3,700 and 5,000 pixels from the start.
+/// most a wave may hold) that hold three points of the largest map: one wave at the start, two at
+/// the top right and two at the bottom right. The corners are 128 pixels in from the right edge,
+/// about 3,700 and 5,000 pixels from the start point.
 ///
 /// Each enemy holds its point, as the band's do, so the crowd pushes apart round its wave's
 /// point. Unlike the band, the crowds are far apart: the enemy grid spans the map (up to 128 by
 /// 128 cells of 32 pixels), and its build reads the whole map.
 pub fn spread_stage() -> Stage {
-    let (start_x, start_y) = (START.0 - 20_480, START.1);
+    let (start_x, start_y) = (SPREAD_START_X, START.1);
     let top_right = (SPREAD_SIDE - 32_768, 32_768);
     let bottom_right = (SPREAD_SIDE - 32_768, SPREAD_SIDE - 32_768);
     let far = |(x, y): (i32, i32)| {
