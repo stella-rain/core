@@ -318,3 +318,28 @@ fn holding_moves_the_main_character_at_the_hold_s_percentage() {
     assert!(free_step > 0);
     assert_eq!(held[4] - held[3], free_step / 2);
 }
+
+#[test]
+fn the_giant_hammer_s_aaa_holds_while_a_stays_held() {
+    // A on tick 1, A buffered on 3 (taken when A's recovery begins on 11), A buffered on 13
+    // (taken when AA's recovery begins on 22): AAA's recovery begins on 36, still held, so it
+    // holds from there on.
+    let stage = armed(
+        stage_with(18_000, Some(far_boss()), vec![]),
+        json!({ "preset": { "id": "giant_hammer" } }),
+    );
+    let inputs = (1..=40).map(|t| Input {
+        main: t == 1 || (t >= 3 && t != 12),
+        ..idle()
+    });
+    let (_, t) = run(&stage, inputs);
+    assert_eq!(t.hold_at(35), None, "AAA's own attack is still running");
+    assert_eq!(
+        t.hold_at(37),
+        Some(HoldView {
+            held: 1,
+            max_ticks: 180
+        })
+    );
+    assert!(t.releases().is_empty(), "still held");
+}
