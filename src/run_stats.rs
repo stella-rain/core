@@ -13,13 +13,12 @@
 //! default; the SHA-256 of whatever bytes a run used is part of its content hash, so a run
 //! replay verifies only with the same file.
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::id::ContentId;
+use crate::pack::Pack;
 use crate::registry;
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -121,8 +120,7 @@ impl RunStats {
 
     /// The bundled run stats, the default of every run.
     pub fn bundled() -> &'static RunStats {
-        static BUNDLED: OnceLock<RunStats> = OnceLock::new();
-        BUNDLED.get_or_init(|| RunStats::parse(RunStats::BUNDLED).expect("the bundled run stats"))
+        Pack::bundled().content().run_stats()
     }
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.

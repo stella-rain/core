@@ -11,14 +11,13 @@
 //! Every time is in ticks (60 a second), as `length_ticks` of a stage is. The SHA-256 of the
 //! bytes read is part of the run's content hash with the other mode files (`run_setup::mode_file`).
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
+use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::stage::{Map, Wave};
 use crate::validate::limits::{MAX_MAP_SIDE, MIN_MAP_SIDE};
@@ -103,8 +102,7 @@ impl TimeLimit {
 
     /// The bundled mode, the default of every run of the mode.
     pub fn bundled() -> &'static TimeLimit {
-        static BUNDLED: OnceLock<TimeLimit> = OnceLock::new();
-        BUNDLED.get_or_init(|| TimeLimit::parse(TimeLimit::BUNDLED).expect("the bundled mode"))
+        Pack::bundled().content().time_limit()
     }
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.

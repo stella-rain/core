@@ -20,6 +20,8 @@
 //! bundled files (`export_bundled`) so gives each file the bundled file's SHA-256, and a run of
 //! its content the bundled content hash.
 
+use std::sync::OnceLock;
+
 use schemars::JsonSchema;
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Serialize};
@@ -31,7 +33,6 @@ use crate::id::ContentId;
 use crate::match_ups::{MatchUps, MatchUpsFile};
 use crate::rewards::{Rewards, RewardsFile};
 use crate::run_content::RunContent;
-use crate::run_setup;
 use crate::run_stats::{RunStats, RunStatsFile};
 use crate::runes::{Runes, RunesFile};
 use crate::stage::Stage;
@@ -243,7 +244,6 @@ pub struct Pack {
     schema_version: u32,
     sim_version: u32,
     content: RunContent,
-    trial: Stage,
     sha256: [u8; 32],
 }
 
@@ -251,6 +251,9 @@ impl Pack {
     /// The largest pack read (a tuning value; ADR-020 decides that one exists): about 30 times
     /// today's 36 KB of content.
     pub const MAX_BYTES: usize = 1024 * 1024;
+
+    /// The bundled pack file's bytes.
+    pub const BUNDLED: &'static [u8] = include_bytes!("../content/pack.json");
 
     /// Checks the size, the versions, parses strictly, checks the budgets, then reads each file
     /// with its own parser: the one call for a pack's bytes.
@@ -306,17 +309,23 @@ impl Pack {
             &expertise,
         )?;
 
-        let content = RunContent::new(run_stats, rewards)
-            .with_expertise(expertise)
-            .with_match_ups(match_ups)
-            .with_runes(runes)
-            .with_time_limit(time_limit);
+        let sha256: [u8; 32] = Sha256::digest(bytes).into();
+        let content = RunContent::from_parts(
+            run_stats,
+            rewards,
+            expertise,
+            match_ups,
+            runes,
+            time_limit,
+            trial,
+            file_bytes(&pack.modes.trial),
+            Some(sha256),
+        );
         Ok(Pack {
             schema_version: pack.schema_version,
             sim_version: pack.sim_version,
             content,
-            trial,
-            sha256: Sha256::digest(bytes).into(),
+            sha256,
         })
     }
 
@@ -334,9 +343,17 @@ impl Pack {
         &self.content
     }
 
+    /// The bundled pack, `content/pack.json`: the default content of every run (ADR-080). It is
+    /// our own file, tested to be what `export_bundled` writes, so a failure to read it is a
+    /// bug, and stops at the first use.
+    pub fn bundled() -> &'static Pack {
+        static BUNDLED: OnceLock<Pack> = OnceLock::new();
+        BUNDLED.get_or_init(|| Pack::from_bytes(Pack::BUNDLED).expect("the bundled pack"))
+    }
+
     /// The `trial` mode's stage.
     pub fn trial(&self) -> &Stage {
-        &self.trial
+        self.content.trial()
     }
 
     /// The SHA-256 of the pack's bytes.
@@ -678,13 +695,28 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
 /// bundled files' hashes (see the module's documentation).
 pub fn export_bundled() -> Vec<u8> {
     let file = |bytes: &[u8]| String::from_utf8_lossy(bytes.trim_ascii_end()).into_owned();
-    let trial = run_setup::mode_stage("trial").expect("the trial mode is bundled");
+    let trial: &[u8] = include_bytes!("../modes/trial.json");
     let mut out = String::new();
     out.push_str(&format!(
         "{{\n  \"schema_version\": {SCHEMA_VERSION},\n  \"sim_version\": {SIM_VERSION},\n"
     ));
     // Every bundled ID is version 0's (ADR-035).
-    let introduced = introduced_at(RunContent::bundled(), SIM_VERSION);
+    let content = RunContent::from_parts(
+        RunStats::parse(RunStats::BUNDLED).expect("the bundled run stats"),
+        Rewards::parse_with(
+            Rewards::BUNDLED,
+            &StageSkills::parse(StageSkills::BUNDLED).expect("the bundled stage skills"),
+        )
+        .expect("the bundled rewards"),
+        Expertise::parse(Expertise::BUNDLED).expect("the bundled expertise"),
+        MatchUps::parse(MatchUps::BUNDLED).expect("the bundled match-ups"),
+        Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
+        TimeLimit::parse(TimeLimit::BUNDLED).expect("the bundled mode"),
+        validate::parse_and_validate(trial).expect("the bundled trial"),
+        trial.to_vec(),
+        None,
+    );
+    let introduced = introduced_at(&content, SIM_VERSION);
     let table = serde_json::to_string_pretty(&introduced).expect("the table serialises");
     out.push_str(&format!(
         "  \"introduced\": {},\n",

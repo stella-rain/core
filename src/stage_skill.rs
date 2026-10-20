@@ -13,8 +13,6 @@
 //! The bundled file, `content/stage_skills.json`, is the default; the SHA-256 of whatever bytes
 //! a run used is part of its content hash.
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -22,6 +20,7 @@ use sha2::{Digest, Sha256};
 use crate::attack::AttackRef;
 use crate::fixed::Fx;
 use crate::id::ContentId;
+use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::run_stats;
 use crate::validate::{Error, Issue};
@@ -158,10 +157,7 @@ impl StageSkills {
 
     /// The bundled stage skills, the default of every run.
     pub fn bundled() -> &'static StageSkills {
-        static BUNDLED: OnceLock<StageSkills> = OnceLock::new();
-        BUNDLED.get_or_init(|| {
-            StageSkills::parse(StageSkills::BUNDLED).expect("the bundled stage skills")
-        })
+        Pack::bundled().content().stage_skills()
     }
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.

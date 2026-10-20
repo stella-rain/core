@@ -276,9 +276,13 @@ pub fn pack_load(data: &[u8]) -> bool {
     let file: PackFile = serde_json::from_slice(data).expect("a pack that loaded parses");
     let saved = serde_json::to_vec(&file).expect("a pack serialises");
     let resaved = Pack::from_bytes(&saved).expect("a saved pack loads");
+    // The files are the same bytes in the new layout; only the pack's own hash differs.
+    assert_eq!(pack.content().pack_sha256(), Some(pack.sha256()));
+    assert_eq!(resaved.content().pack_sha256(), Some(resaved.sha256()));
+    let runes = pack.content().runes().clone();
     assert_eq!(
-        resaved.content(),
-        pack.content(),
+        resaved.content().clone().with_runes(runes.clone()),
+        pack.content().clone().with_runes(runes),
         "a saved pack loads as other content"
     );
     assert_eq!(
