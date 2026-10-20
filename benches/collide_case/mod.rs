@@ -92,10 +92,43 @@ fn built(waves: Vec<Value>, width: i32, height: i32) -> Stage {
     stage
 }
 
-/// The spread case (core#146): the same horde, 500 enemies in three waves, over the largest map.
-/// Not yet built; the first commit of the test is red on it.
+/// The largest map: 4,096 pixels a side (`MAX_MAP_SIDE`, core#87).
+pub const SPREAD_SIDE: i32 = 1_048_576;
+
+/// The spread case (core#146): the same 500 enemies, in five waves of 100 (`MAX_WAVE_COUNT`, the
+/// most a wave may hold) that hold three points of the largest map: one wave at the start point,
+/// two at the top right and two at the bottom right. The start wave stands 80 pixels left of the
+/// start point, out of the fan's column (the fan flies up from the start point). The corners are
+/// 128 pixels in from the right edge, about 3,700 and 5,000 pixels from the start.
+///
+/// Each enemy holds its point, as the band's do, so the crowd pushes apart round its wave's
+/// point. Unlike the band, the crowds are far apart: the enemy grid spans the map (up to 128 by
+/// 128 cells of 32 pixels), and its build reads the whole map.
 pub fn spread_stage() -> Stage {
-    stage()
+    let (start_x, start_y) = (START.0 - 20_480, START.1);
+    let top_right = (SPREAD_SIDE - 32_768, 32_768);
+    let bottom_right = (SPREAD_SIDE - 32_768, SPREAD_SIDE - 32_768);
+    let far = |(x, y): (i32, i32)| {
+        let enemy = common::enemy(100_000, common::hold(x, y), json!([]));
+        common::wave(1, 100, 1, enemy, x, y)
+    };
+    let waves = vec![
+        far((start_x, start_y)),
+        far(top_right),
+        far(top_right),
+        far(bottom_right),
+        far(bottom_right),
+    ];
+    built(waves, SPREAD_SIDE, SPREAD_SIDE)
+}
+
+/// An engine `WARMUP_TICKS` ticks into the spread case: the next `step` is the measured tick.
+pub fn spread_warmed_up() -> Engine {
+    let mut engine = common::engine(&spread_stage());
+    for tick in 1..=WARMUP_TICKS {
+        engine.step(input(tick));
+    }
+    engine
 }
 
 /// The input of tick `tick` (from 1): the main character stays where it starts, firing its

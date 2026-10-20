@@ -19,9 +19,9 @@ const SIDE: i32 = MAX_MAP_SIDE;
 const TOP_RIGHT: (i32, i32) = (SIDE - 32_768, 32_768);
 const BOTTOM_RIGHT: (i32, i32) = (SIDE - 32_768, SIDE - 32_768);
 
-/// The spread case (`collide_case::spread_stage`): three waves, the first at the start point and
-/// the others at the far corners, 500 enemies in all, on a map of the largest side that the
-/// validator accepts.
+/// The spread case (`collide_case::spread_stage`): five waves, the first at the start point, two
+/// at the top-right corner and two at the bottom-right one, 500 enemies in all, on a map of the
+/// largest side that the validator accepts.
 #[test]
 fn the_spread_waves_stand_at_the_start_and_two_far_corners() {
     let stage = collide_case::spread_stage();
@@ -36,15 +36,19 @@ fn the_spread_waves_stand_at_the_start_and_two_far_corners() {
         .iter()
         .map(|w| (w.spawn.x.0, w.spawn.y.0, w.count))
         .collect();
-    assert_eq!(waves.len(), 3, "{waves:?}");
+    assert_eq!(waves.len(), 5, "{waves:?}");
     let (start_x, start_y) = collide_case::START;
     let (x, y, _) = waves[0];
     assert!(
         (x - start_x).abs() <= 32_768 && (y - start_y).abs() <= 32_768,
         "the first wave at {x}, {y}, not at the start"
     );
-    assert_eq!((waves[1].0, waves[1].1), TOP_RIGHT);
-    assert_eq!((waves[2].0, waves[2].1), BOTTOM_RIGHT);
+    for wave in &waves[1..3] {
+        assert_eq!((wave.0, wave.1), TOP_RIGHT);
+    }
+    for wave in &waves[3..] {
+        assert_eq!((wave.0, wave.1), BOTTOM_RIGHT);
+    }
     let total: u32 = waves.iter().map(|w| u32::from(w.2)).sum();
     assert_eq!(total, 500);
     Engine::new(&stage).expect("the spread stage passes the validator");
