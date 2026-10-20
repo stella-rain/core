@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use crate::attack::{AttackPhase, DamageType, Emitter};
+use crate::behaviour::BossCall;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
@@ -350,7 +351,9 @@ impl Engine {
                     radius: boss.radius,
                     hp: b.hp,
                     attack: attack_of(b.id),
+                    disguised: false,
                     elite: false,
+                    aura_radius: None,
                     damage_over_time: dot_views(&b.statuses),
                 });
             }
@@ -360,16 +363,26 @@ impl Engine {
             |kind, agents: &[crate::engine::AgentState], out: &mut Vec<EntityView>| {
                 for a in agents {
                     let def = rules_v0::agent_def(&self.stage, a.key);
+                    let hidden = a.hidden();
                     out.push(EntityView {
                         id: a.id,
                         kind,
-                        asset: ContentId(def.base.0.clone()),
+                        asset: match def.elite.as_ref().and_then(|e| e.mimic.as_ref()) {
+                            Some(m) if hidden => m.disguise.clone(),
+                            _ => ContentId(def.base.0.clone()),
+                        },
                         palette: def.palette.clone(),
                         at: a.at,
                         radius: def.radius,
                         hp: a.hp,
                         attack: attack_of(a.id),
-                        elite: a.elite.is_some(),
+                        disguised: hidden,
+                        elite: a.elite.is_some() && !hidden,
+                        aura_radius: def
+                            .elite
+                            .as_ref()
+                            .and_then(|e| e.aura)
+                            .map(|aura| aura.radius),
                         damage_over_time: dot_views(&a.statuses),
                     });
                 }
@@ -392,7 +405,9 @@ impl Engine {
                         radius: Fx(part.radius),
                         hp: part.hp,
                         attack: None,
+                        disguised: false,
                         elite: false,
+                        aura_radius: None,
                         damage_over_time: dot_views(&part.statuses),
                     });
                 }
@@ -637,6 +652,14 @@ pub(crate) struct Horde {
     pub spawned: u32,
     /// One per pool entry: drawn already.
     pub used: Vec<bool>,
+    /// The run's length: an elite minute comes only before it.
+    pub length_ticks: u32,
+    /// The mode's elite table (ADR-090), by start.
+    pub elite_table: Vec<crate::time_limit::EliteTier>,
+    /// For each elite type of the mode file, the stage wave that holds its definition: the
+    /// type's enemy, experience and expertise, never spawned as a wave (count 0). A kill's
+    /// experience and expertise are the wave's.
+    pub elite_waves: Vec<(ContentId, u32)>,
 }
 
 /// The one expertise gauge of both weapons (ADR-078 §1 to §3), and its offers (ADR-079 §2, §3).
@@ -946,6 +969,10 @@ pub(crate) enum AgentSource {
     Summoned,
     /// Summoned by a rule of the boss: `index` is its phase, `rule` the rule in it.
     BossRule,
+    /// Rung around a shrine: `index` is the shrine's wave.
+    Guardian,
+    /// Brought by a pack leader: `index` is the leader's wave.
+    Escort,
 }
 
 /// A companion or an enemy: a movement and a rule list (ADR-036 tier 1).
@@ -974,6 +1001,37 @@ pub(crate) struct AgentState {
     pub crowded: bool,
     /// An elite's own state; `None` for every other agent, which hashes nothing for it.
     pub elite: Option<EliteState>,
+    /// An agent that leaves the map unkilled (a goblin, or any elite whose `boss_call` is
+    /// `leave`); `None` for every other agent, which hashes nothing for it.
+    pub leave: Option<LeaveState>,
+    /// A shrine's own state; `None` for every other agent, which hashes nothing for it. Boxed:
+    /// almost no agent has one.
+    pub shrine: Option<Box<ShrineState>>,
+}
+
+impl AgentState {
+    /// A mimic that has not revealed yet: an object nothing touches (ADR-090).
+    pub(crate) fn hidden(&self) -> bool {
+        self.elite.is_some_and(|el| el.disguised)
+    }
+}
+
+/// A shrine's fight (ADR-090).
+#[derive(Clone, Debug)]
+pub(crate) struct ShrineState {
+    /// Ticks since the main character touched it, 0 on the tick it did; `None` while untouched.
+    pub fight: Option<u32>,
+    /// The guardians that spawned, in ring order.
+    pub guardians: Vec<EntityId>,
+}
+
+/// When an elite that leaves is to go (ADR-090).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct LeaveState {
+    /// Ticks since it was disturbed, 0 on the tick it was; `None` while it is not.
+    pub disturbed: Option<u32>,
+    /// A boss came or called: it goes on this tick.
+    pub go: bool,
 }
 
 /// An elite holds `home`, where it spawned, until a boss calls it (ADR-068).
@@ -981,6 +1039,10 @@ pub(crate) struct AgentState {
 pub(crate) struct EliteState {
     pub home: Point,
     pub called: bool,
+    /// What the boss's call does to it; its definition's, so not part of the hash.
+    pub boss_call: BossCall,
+    /// A mimic that has not revealed yet (ADR-090); false for every other elite.
+    pub disguised: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1297,8 +1359,7 @@ mod horde_tests {
         v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
         v["boss_ticks"] = serde_json::json!(boss_ticks);
         v["waves"] = serde_json::json!([]);
-        v["elite_table"] =
-            serde_json::json!([{"start_tick": 0, "weights": [{"elite": "bat", "weight": 1}]}]);
+        v["elite_table"] = serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
         let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap();
         let setup = RunSetup {
             schema_version: 0,
@@ -1367,5 +1428,218 @@ mod horde_tests {
         e.step(Input::default());
         assert_eq!(e.outcome(), Outcome::Failed);
         assert!(e.events().contains(&DomainEvent::StageFailed));
+    }
+
+    /// A `time_limit` run of `edit`ed bundled mode, no waves, that the main character cannot die in.
+    fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
+        let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+        v["waves"] = serde_json::json!([]);
+        edit(&mut v);
+        let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+        let setup = RunSetup {
+            schema_version: 0,
+            sim_version: 0,
+            mode: "time_limit".into(),
+            main: "blade".into(),
+            sub: "maul".into(),
+            seed,
+            star_pool: None,
+            extra_rerolls: 0,
+        };
+        let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
+        e.state.player.hp = u32::MAX;
+        e.state.player.max_hp = u32::MAX;
+        e
+    }
+
+    /// Steps to `until` and lists each elite spawned: the tick, the sprite.
+    fn elites_spawned(e: &mut Engine, until: u32) -> Vec<(u32, String)> {
+        let mut out = Vec::new();
+        while e.tick() < until {
+            e.step(Input::default());
+            for ev in e.events() {
+                if let DomainEvent::EliteSpawned { asset, .. } = ev {
+                    out.push((e.tick(), asset.0.clone()));
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn elite_minutes_land_on_each_whole_minute_but_boss_ticks_and_overtime() {
+        // Room for all sixteen: the cap is not what is tested here.
+        let mut e = run_of(1, |v| v["elite_cap"] = serde_json::json!(32));
+        let ticks: Vec<u32> = elites_spawned(&mut e, 72_000 + 3_600 * 2)
+            .into_iter()
+            .map(|(t, _)| t)
+            .collect();
+        let expected: Vec<u32> = (1..=19)
+            .map(|k| k * 3_600)
+            .filter(|t| ![18_000, 36_000, 54_000].contains(t))
+            .collect();
+        assert_eq!(expected.len(), 16);
+        assert_eq!(ticks, expected);
+    }
+
+    #[test]
+    fn a_tier_boundary_on_an_elite_minute_picks_the_later_tier() {
+        let mut e = run_of(1, |v| {
+            v["length_ticks"] = serde_json::json!(18_000);
+            v["boss_ticks"] = serde_json::json!([18_000]);
+            v["mid_boss_pool"] = serde_json::json!([]);
+            v["elite_cap"] = serde_json::json!(32);
+            v["elite_table"] = serde_json::json!([
+                { "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] },
+                { "start_tick": 10_800, "weights": [{ "elite": "elite_mid", "weight": 1 }] }
+            ]);
+        });
+        let spawned = elites_spawned(&mut e, 14_400);
+        let sprites: Vec<(u32, &str)> = spawned.iter().map(|(t, a)| (*t, a.as_str())).collect();
+        assert_eq!(
+            sprites,
+            [
+                (3_600, "bat"),
+                (7_200, "bat"),
+                (10_800, "fairy_a"),
+                (14_400, "fairy_a")
+            ]
+        );
+    }
+
+    #[test]
+    fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() {
+        // Recorded before elite types became content: same weights, same seed.
+        let table = serde_json::json!([{ "start_tick": 0, "weights": [
+            { "elite": "elite_low", "weight": 1 }, { "elite": "elite_mid", "weight": 2 } ] },
+            { "start_tick": 10_800, "weights": [
+            { "elite": "elite_low", "weight": 1 }, { "elite": "elite_high", "weight": 1 }] }]);
+        let mut e = run_of(7, |v| {
+            v["elite_cap"] = serde_json::json!(32);
+            v["elite_table"] = table.clone();
+        });
+        let spawned = elites_spawned(&mut e, 5 * 3_600 + 10);
+        let sprites: Vec<(u32, &str)> = spawned.iter().map(|(t, a)| (*t, a.as_str())).collect();
+        assert_eq!(
+            sprites,
+            [
+                (3_600, "bat"),
+                (7_200, "bat"),
+                (10_800, "bat"),
+                (14_400, "bat")
+            ]
+        );
+        assert_eq!(e.state.rng.state(), 10_372_713_005_361_028_292);
+        let at: Vec<(i32, i32)> = e
+            .state
+            .enemies
+            .iter()
+            .map(|a| (a.at.x.0, a.at.y.0))
+            .collect();
+        assert_eq!(
+            at,
+            [
+                (441_027, 487_214),
+                (474_645, 600_729),
+                (612_319, 500_700),
+                (505_330, 613_439)
+            ]
+        );
+    }
+
+    #[test]
+    fn each_grade_is_spawned_from_its_own_definition() {
+        let mode = TimeLimit::bundled();
+        for (id, sprite) in [
+            ("elite_low", "bat"),
+            ("elite_mid", "fairy_a"),
+            ("elite_high", "horns_2"),
+        ] {
+            let def = mode.elite_types().iter().find(|t| t.id.0 == id).unwrap();
+            let mut e = run_of(1, |v| {
+                v["elite_table"] =
+                    serde_json::json!([{"start_tick": 0, "weights": [{"elite": id, "weight": 1}]}]);
+            });
+            let spawned = elites_spawned(&mut e, 3_600);
+            assert_eq!(spawned, [(3_600, sprite.to_string())], "{id}");
+            let elites: Vec<_> = e
+                .state
+                .enemies
+                .iter()
+                .filter(|a| a.elite.is_some())
+                .collect();
+            assert_eq!(elites.len(), 1);
+            assert_eq!(
+                elites[0].hp, def.enemy.hp,
+                "{id}'s health is its definition's"
+            );
+        }
+        let hp = |id: &str| {
+            mode.elite_types()
+                .iter()
+                .find(|t| t.id.0 == id)
+                .unwrap()
+                .enemy
+                .hp
+        };
+        assert!(hp("elite_low") < hp("elite_mid") && hp("elite_mid") < hp("elite_high"));
+    }
+
+    #[test]
+    fn the_cap_holds_an_elite_back_but_the_generator_is_drawn_the_same() {
+        let table = serde_json::json!([{ "start_tick": 0, "weights": [
+            { "elite": "elite_low", "weight": 1 }, { "elite": "elite_mid", "weight": 1 } ] }]);
+        let run = |cap: u32| {
+            run_of(7, |v| {
+                v["elite_cap"] = serde_json::json!(cap);
+                v["elite_table"] = table.clone();
+            })
+        };
+        let (mut tight, mut roomy) = (run(1), run(32));
+        let (mut few, mut many) = (0, 0);
+        for minute in 1..=4 {
+            let at = minute * 3_600;
+            few += elites_spawned(&mut tight, at).len();
+            many += elites_spawned(&mut roomy, at).len();
+            assert_eq!(
+                tight.state.rng.state(),
+                roomy.state.rng.state(),
+                "the generator after minute {minute}"
+            );
+        }
+        assert_eq!((few, many), (1, 4), "the cap held three back");
+        let alive = |e: &Engine| e.state.enemies.iter().filter(|a| a.elite.is_some()).count();
+        assert_eq!((alive(&tight), alive(&roomy)), (1, 4));
+    }
+
+    #[test]
+    fn the_boss_calls_the_elites_of_the_minutes_before_and_after_it_comes() {
+        let mut e = run_of(3, |v| {
+            v["length_ticks"] = serde_json::json!(20_000);
+            v["boss_ticks"] = serde_json::json!([4_000, 20_000]);
+            v["mid_boss_pool"] = serde_json::json!(["golem"]);
+            v["elite_cap"] = serde_json::json!(32);
+            v["elite_table"] = serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
+        });
+        let mut called = Vec::new();
+        while e.tick() < 7_200 {
+            e.step(Input::default());
+            for ev in e.events() {
+                if let DomainEvent::ElitesCalled { elites } = ev {
+                    called.push((e.tick(), *elites));
+                }
+            }
+        }
+        // The elite of minute 1 is alive when the boss comes at 4000. (The boss's `after_ticks`
+        // counts the run's ticks, so its call is already due on arrival.)
+        assert_eq!(called, [(4_000, 1)]);
+        // The elite of minute 2 spawned after the call: called at once.
+        let elites: Vec<bool> = e
+            .state
+            .enemies
+            .iter()
+            .filter_map(|a| a.elite.map(|el| el.called))
+            .collect();
+        assert_eq!(elites, [true, true]);
     }
 }

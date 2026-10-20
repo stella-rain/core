@@ -3,9 +3,10 @@
 //! fires; the others wait. Agents are evaluated in entity-ID order (companions, then enemies),
 //! each rule list in order.
 
-use crate::behaviour::{Action, Agent, Condition, Movement, Rule};
+use crate::behaviour::{Action, Agent, BossCall, Condition, Elite, Guardians, Movement, Rule};
 use crate::engine::{
-    AgentKey, AgentSource, AgentState, EliteState, MoveOrder, RuleState, State, UNLIMITED,
+    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, ShrineState,
+    State, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -40,6 +41,17 @@ pub(crate) fn agent_def(stage: &Stage, key: AgentKey) -> &Agent {
                 _ => unreachable!("a boss summon names the summon rule that made it"),
             }
         }
+        AgentSource::Guardian => match &wave_enemy(key.index).movement {
+            Movement::Shrine { guardians, .. } => &guardians.enemy,
+            _ => unreachable!("a guardian names the shrine that rang it"),
+        },
+        AgentSource::Escort => match &wave_enemy(key.index).elite {
+            Some(Elite {
+                escort: Some(escort),
+                ..
+            }) => &escort.enemy,
+            _ => unreachable!("an escort names the leader that brought it"),
+        },
         AgentSource::Summoned => {
             match wave_enemy(key.index)
                 .rules
@@ -74,9 +86,26 @@ pub(super) fn new_agent(
         order: None,
         orbit_angle: angle,
         crowded: false,
-        elite: def.elite.map(|_| EliteState {
+        elite: def.elite.as_ref().map(|elite| EliteState {
             home: at,
             called: false,
+            boss_call: elite.boss_call,
+            disguised: elite.mimic.is_some(),
+        }),
+        leave: (matches!(def.movement, Movement::FleeWhenDisturbed { .. })
+            || def
+                .elite
+                .as_ref()
+                .is_some_and(|e| e.boss_call == BossCall::Leave))
+        .then_some(LeaveState {
+            disturbed: None,
+            go: false,
+        }),
+        shrine: matches!(def.movement, Movement::Shrine { .. }).then(|| {
+            Box::new(ShrineState {
+                fight: None,
+                guardians: Vec::new(),
+            })
         }),
     }
 }
@@ -109,9 +138,141 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     for i in 0..s.enemies.len() {
         act_one(stage, s, Who::Enemy(i), events);
     }
+    // After the agents, so the guardians that appear start next tick, as summoned ones do.
+    shrines(stage, s, events);
     // Enemies that have left the map are gone, whether or not they were killed.
     let holds = stage.map().holds();
     s.enemies.retain(|e| holds(e.at));
+    leave(stage, s, events);
+}
+
+/// The shrines' fights (ADR-090). An untouched shrine waits for the main character's body to
+/// overlap its own, then activates: its guardians are placed on the ring, in order, through the
+/// usual spawn path, so the cap on enemies refuses the ones that do not fit (the ring is then
+/// short of them, and the first refusal ends it), and its timer starts. Each later tick the
+/// timer counts one more; when no guardian that spawned is alive the shrine is done (its hit
+/// points go to 0 and the tick's hits credit the elite's kill), else when the timer reaches
+/// `fight_ticks` it leaves unkilled. No random number is drawn.
+fn shrines(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let ids: Vec<EntityId> = s
+        .enemies
+        .iter()
+        .filter(|e| e.hp > 0 && e.shrine.is_some())
+        .map(|e| e.id)
+        .collect();
+    for id in ids {
+        let Some(i) = s.enemies.iter().position(|e| e.id == id) else {
+            continue;
+        };
+        let e = &s.enemies[i];
+        let def = agent_def(stage, e.key);
+        let Movement::Shrine {
+            fight_ticks,
+            guardians,
+        } = &def.movement
+        else {
+            continue;
+        };
+        let fight = e.shrine.as_ref().and_then(|sh| sh.fight);
+        let Some(fight) = fight else {
+            if !super::overlaps(e.at, def.radius.0, s.player.at, super::PLAYER_RADIUS) {
+                continue;
+            }
+            let (home, wave) = (e.at, e.key.index);
+            events.push(DomainEvent::ShrineActivated { elite: id });
+            let key = AgentKey {
+                source: AgentSource::Guardian,
+                index: wave,
+                rule: 0,
+            };
+            let rung = ring_up(stage, s, key, guardians, home);
+            if let Some(sh) = s.enemies[i].shrine.as_mut() {
+                sh.fight = Some(0);
+                sh.guardians = rung;
+            }
+            continue;
+        };
+        let fight = fight.saturating_add(1);
+        let cleared = s.enemies[i].shrine.as_ref().is_some_and(|sh| {
+            !s.enemies
+                .iter()
+                .any(|g| g.hp > 0 && sh.guardians.contains(&g.id))
+        });
+        if cleared {
+            s.enemies[i].hp = 0;
+            events.push(DomainEvent::Died { entity: id });
+        } else if fight >= *fight_ticks {
+            s.enemies.remove(i);
+            events.push(DomainEvent::EliteLeft { elite: id });
+        } else if let Some(sh) = s.enemies[i].shrine.as_mut() {
+            sh.fight = Some(fight);
+        }
+    }
+}
+
+/// Places `guardians` (a shrine's, or a pack leader's escort) on their ring around `home`, in
+/// order, through the usual spawn path: the cap on enemies refuses the ones that do not fit and
+/// the first refusal ends the ring. Returns the ones that spawned. No random number is drawn.
+pub(super) fn ring_up(
+    stage: &Stage,
+    s: &mut State,
+    key: AgentKey,
+    guardians: &Guardians,
+    home: Point,
+) -> Vec<EntityId> {
+    let mut rung = Vec::new();
+    for k in 0..u32::from(guardians.count) {
+        let at = ring_point(stage, home, guardians.radius, k, u32::from(guardians.count));
+        let next = EntityId(s.next_id);
+        if !super::spawn_enemy(stage, s, key, &guardians.enemy, at) {
+            break;
+        }
+        rung.push(next);
+    }
+    rung
+}
+
+/// Guardian `k` of `count`: on the ring of `radius` around `at`, evenly spaced from the east,
+/// moved onto the map.
+fn ring_point(stage: &Stage, at: Point, radius: Fx, k: u32, count: u32) -> Point {
+    let angle = i64::from(k) * i64::from(trig::PER_TURN) / i64::from(count.max(1));
+    let (sin, cos) = trig::sin_cos(i32::try_from(angle).unwrap_or(0));
+    let offset = |unit: i32| {
+        i32::try_from(i64::from(radius.0) * i64::from(unit) / i64::from(trig::SCALE)).unwrap_or(0)
+    };
+    stage.map().clamp(Point {
+        x: at.x.saturating_add(Fx(offset(cos))),
+        y: at.y.saturating_add(Fx(offset(sin))),
+    })
+}
+
+/// Elites that leave go, unkilled: a boss came or called, or they were disturbed long enough
+/// ago (ADR-090). They are gone before any hit of this tick lands, so a leaving elite gives no
+/// kill reward.
+fn leave(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let mut gone = Vec::new();
+    for e in &s.enemies {
+        let Some(state) = e.leave else {
+            continue;
+        };
+        let timed_out = match agent_def(stage, e.key).movement {
+            Movement::FleeWhenDisturbed {
+                leave_after_ticks, ..
+            } => state.disturbed.is_some_and(|t| t >= leave_after_ticks),
+            _ => false,
+        };
+        if state.go || timed_out {
+            gone.push(e.id);
+        }
+    }
+    if gone.is_empty() {
+        return;
+    }
+    s.enemies.retain(|e| !gone.contains(&e.id));
+    events.extend(
+        gone.into_iter()
+            .map(|elite| DomainEvent::EliteLeft { elite }),
+    );
 }
 
 fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
@@ -123,6 +284,12 @@ fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
             r.cooldown_left = r.cooldown_left.saturating_sub(1);
         }
     }
+    // A disguised mimic does nothing but wait to be revealed; the tick it reveals it does not
+    // act either, so it acts from the next tick (ADR-090).
+    if agent(s, me).hidden() {
+        reveal(s, me, def, events);
+        return;
+    }
     move_agent(stage, s, me, def);
     if waits(s, me, def) {
         return;
@@ -130,9 +297,29 @@ fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
     fire_first_rule(stage, s, me, &def.rules, events);
 }
 
+/// A disguised mimic reveals the first tick the main character's centre is within its reveal
+/// radius (the edge counts), for good. A mimic that reveals after the boss's call joins it.
+fn reveal(s: &mut State, me: Who, def: &Agent, events: &mut Vec<DomainEvent>) {
+    let Some(mimic) = def.elite.as_ref().and_then(|e| e.mimic.as_ref()) else {
+        return;
+    };
+    let player = s.player.at;
+    let called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
+    let id = s.id_of(me);
+    let a = agent_mut(s, me);
+    if !super::overlaps(a.at, mimic.reveal_radius.0, player, 0) {
+        return;
+    }
+    if let Some(el) = a.elite.as_mut() {
+        el.disguised = false;
+        el.called = called;
+    }
+    events.push(DomainEvent::MimicRevealed { elite: id });
+}
+
 /// An elite not called yet waits while the main character is beyond its range.
 fn waits(s: &State, me: Who, def: &Agent) -> bool {
-    let (Some(elite), Some(st)) = (def.elite, agent(s, me).elite) else {
+    let (Some(elite), Some(st)) = (def.elite.as_ref(), agent(s, me).elite) else {
         return false;
     };
     !st.called && !super::overlaps(agent(s, me).at, elite.range.0, s.player.at, 0)
@@ -295,6 +482,45 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
     // A crowded enemy yields: it does not walk into the neighbours the push just parted it from.
     // Only enemies are ever crowded, and one that flies straight goes to no place, so it flies on.
     let yields = a.crowded;
+    if let Movement::FleeWhenDisturbed {
+        disturb_radius,
+        speed,
+        ..
+    } = def.movement
+    {
+        let Some(leave) = a.leave.as_mut() else {
+            return;
+        };
+        leave.disturbed = match leave.disturbed {
+            Some(t) => Some(t.saturating_add(1)),
+            None if a.hp < a.max_hp || super::overlaps(a.at, disturb_radius.0, player_at, 0) => {
+                Some(0)
+            }
+            None => None,
+        };
+        if leave.disturbed.is_none() {
+            // Undisturbed it holds where it spawned, as an elite not called does.
+            if let (false, Some(st)) = (yields, a.elite) {
+                a.at = step_toward(a.at, st.home, FOLLOW_SPEED * keep / 100);
+            }
+            return;
+        }
+        // Directly away from the main character; on top of it, up.
+        let (dx, mut dy) = (
+            i64::from(a.at.x.0) - i64::from(player_at.x.0),
+            i64::from(a.at.y.0) - i64::from(player_at.y.0),
+        );
+        if dx == 0 && dy == 0 {
+            dy = -1;
+        }
+        let dist = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+        let step = i64::from(speed.0) * keep / 100;
+        a.at = map.clamp(Point {
+            x: a.at.x.saturating_add(Fx((dx * step / dist) as i32)),
+            y: a.at.y.saturating_add(Fx((dy * step / dist) as i32)),
+        });
+        return;
+    }
     // An elite not called yet holds where it spawned, whatever its movement.
     if let Some(st) = a.elite.filter(|st| !st.called) {
         if !yields {
@@ -303,6 +529,8 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
         return;
     }
     match def.movement {
+        // A shrine is a stay elite: never called, so it held its place above.
+        Movement::FleeWhenDisturbed { .. } | Movement::Shrine { .. } => {}
         Movement::Hold { at } => {
             a.at = match me {
                 Who::Enemy(_) if yields => a.at,

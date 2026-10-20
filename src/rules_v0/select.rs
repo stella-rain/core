@@ -34,7 +34,7 @@ fn enemies(s: &State) -> impl Iterator<Item = Who> + '_ {
         .iter()
         .map(|_| Who::Boss)
         .chain((0..s.enemies.len()).map(Who::Enemy))
-        .filter(|w| s.is_alive(*w))
+        .filter(|w| s.is_alive(*w) && !matches!(*w, Who::Enemy(i) if s.enemies[i].hidden()))
 }
 
 /// The entity `selector` picks for `me`, if there is one.
@@ -97,7 +97,7 @@ pub(super) fn assist_target(stage: &Stage, s: &State, range: i32) -> Option<Enti
         }
     }
     for e in &s.enemies {
-        if e.hp > 0 {
+        if e.hp > 0 && !e.hidden() {
             let class = if e.elite.is_some() { 1 } else { 2 };
             consider(class, e.at, agent_def(stage, e.key).radius.0, e.id);
         }
@@ -134,7 +134,7 @@ pub(super) fn assist_targets(stage: &Stage, s: &State, range: i32, n: usize) -> 
         }
     }
     for e in &s.enemies {
-        if e.hp > 0 {
+        if e.hp > 0 && !e.hidden() {
             let class = if e.elite.is_some() { 1 } else { 2 };
             consider(class, e.at, agent_def(stage, e.key).radius.0, e.id);
         }

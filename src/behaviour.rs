@@ -41,11 +41,75 @@ pub struct Agent {
 }
 
 /// What makes an enemy an elite.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Elite {
     /// How near the main character's centre must come to its centre for its rules to fire.
     pub range: Fx,
+    /// What the boss's call does to it (ADR-090); `join` when absent.
+    #[serde(default, skip_serializing_if = "BossCall::is_join")]
+    pub boss_call: BossCall,
+    /// A pack leader's aura (ADR-090): while it is alive, the non-elite enemies near it deal more.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aura: Option<Aura>,
+    /// A pack leader's escort (ADR-090): ordinary enemies that spawn with it on a ring around it.
+    /// Kept here, with the aura, because both are about what makes this enemy an elite of its
+    /// kind, as `boss_call` is; the ring is the shrine's guardians' (`Guardians`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub escort: Option<Guardians>,
+    /// A mimic's disguise (ADR-090): until the main character comes near, it is drawn as another
+    /// sprite and nothing can touch it. Kept here, with the aura and the escort, because it is
+    /// about what makes this enemy an elite of its kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mimic: Option<Mimic>,
+}
+
+/// What a mimic is (ADR-090). It starts disguised: it does not move or attack, nothing damages
+/// it, aim assist and the selectors pass it over, and it is drawn as `disguise`. The first tick
+/// the main character's centre is within `reveal_radius` of its centre (the edge counts) it
+/// reveals, for good: from that tick's collisions on it takes damage, and from the next tick it
+/// acts by its movement and rules like a grade elite. The boss's call skips it while it is
+/// disguised and calls it once it is revealed. Needs `boss_call` `join`, and no aura, escort,
+/// shrine or flee movement.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Mimic {
+    /// Asset ID of the sprite it is drawn as while disguised (ADR-007).
+    pub disguise: ContentId,
+    /// 1 to `MAX_LEN`.
+    pub reveal_radius: Fx,
+}
+
+/// What a pack leader does for the enemies near it (ADR-090). Every non-elite enemy whose centre
+/// is within `radius` of the leader's centre (the edge counts) deals its damage times
+/// `100 + damage_percent` over 100, rounded down; when several leaders reach it, the highest
+/// `damage_percent` counts. It ends with the leader's death.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Aura {
+    /// 1 to `MAX_LEN`.
+    pub radius: Fx,
+    /// 1 to `MAX_AURA_PERCENT`.
+    pub damage_percent: u16,
+}
+
+/// What a boss's call does to an elite.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BossCall {
+    /// It is called: it leaves its place and fights beside the boss.
+    #[default]
+    Join,
+    /// It is not called: it leaves the map instead, unkilled and with no reward.
+    Leave,
+    /// It is not called and does not leave: it stays where it is (the shrine's, ADR-090).
+    Stay,
+}
+
+impl BossCall {
+    fn is_join(&self) -> bool {
+        *self == Self::Join
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -61,6 +125,37 @@ pub enum Movement {
     Hold { at: Point },
     /// Moves at a constant velocity per tick.
     Straight { vx: Fx, vy: Fx },
+    /// An elite's (it needs the `elite` field): holds its place until it is disturbed, by
+    /// damage or by the main character coming within `disturb_radius` of its centre, then runs
+    /// directly away from the main character at `speed` a tick, kept on the map, and leaves it
+    /// unkilled `leave_after_ticks` ticks after the disturbance (ADR-090).
+    FleeWhenDisturbed {
+        disturb_radius: Fx,
+        speed: Fx,
+        leave_after_ticks: u32,
+    },
+    /// An elite's (it needs the `elite` field, with `boss_call` `stay`): an object that cannot be
+    /// damaged and does nothing until the main character's body touches it. It then activates
+    /// once: its guardians appear on a ring around it and it gives its kill reward when they are
+    /// all dead within `fight_ticks` ticks of the touch, else it leaves unkilled (ADR-090).
+    Shrine {
+        fight_ticks: u32,
+        guardians: Guardians,
+    },
+}
+
+/// The guardians of a shrine, or the escort of a pack leader: `count` ordinary enemies placed on
+/// a ring of `radius` around it, evenly spaced from the east, kept on the map. The enemy cap
+/// still applies to them: one it refuses is not spawned.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Guardians {
+    /// Not an elite and not a shrine; it does not summon.
+    pub enemy: Box<Agent>,
+    /// 1 to `MAX_SHRINE_GUARDIANS`.
+    pub count: u8,
+    /// How far from the shrine's centre they stand.
+    pub radius: Fx,
 }
 
 /// `when <condition>` → `target <selector>` → `do <action>` (ADR-036).

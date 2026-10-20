@@ -10,7 +10,7 @@
 //! from the pack.
 //!
 //! A content ID a pack introduces, the file's own ID of a run stat, a reward, a stage skill, or
-//! a style or option of a weapon's expertise, records the `sim_version` that introduced it in
+//! a style or option of a weapon's expertise, or an elite type of the `time_limit` mode, records the `sim_version` that introduced it in
 //! the pack's `introduced` table, each exactly once, and is refused when that is newer than the
 //! pack's own (ADR-080, as the registry's IDs are for a stage, ADR-017). The registry's IDs a
 //! file names are checked against the registry by the file's own parser.
@@ -65,6 +65,8 @@ pub const MAX_TIME_LIMIT_WAVES: usize = crate::time_limit::MAX_WAVES;
 pub const MAX_BOSS_TICKS: usize = crate::time_limit::MAX_BOSS_TIMES;
 /// The most tiers in the `time_limit` mode's elite table (3 today; held to the file's own cap).
 pub const MAX_ELITE_TABLE_TIERS: usize = crate::time_limit::MAX_ELITE_TIERS;
+/// The most elite types the `time_limit` mode defines (3 today; held to the file's own cap).
+pub const MAX_ELITE_TYPE_DEFINITIONS: usize = crate::time_limit::MAX_ELITE_DEFINITIONS;
 /// The most bosses in the `time_limit` mode's mid-boss pool (3 today; held to the file's own
 /// cap).
 pub const MAX_MID_BOSS_POOL: usize = crate::time_limit::MAX_POOL;
@@ -107,6 +109,8 @@ pub struct Introduced {
     pub stage_skills: Vec<IntroducedId>,
     /// One entry for each weapon of the expertise.
     pub expertise: Vec<WeaponIds>,
+    /// The elite types of the `time_limit` mode file (ADR-090).
+    pub elite_types: Vec<IntroducedId>,
 }
 
 /// An ID and the `sim_version` that introduced it: at most the pack's.
@@ -309,6 +313,7 @@ impl Pack {
             &rewards,
             &stage_skills,
             &expertise,
+            &time_limit,
         )?;
 
         let sha256: [u8; 32] = Sha256::digest(bytes).into();
@@ -403,6 +408,8 @@ struct Lists {
     mid_boss_pool: Vec<IgnoredAny>,
     #[serde(default)]
     elite_table: Vec<IgnoredAny>,
+    #[serde(default)]
+    elite_types: Vec<IgnoredAny>,
 }
 
 #[derive(Deserialize)]
@@ -508,6 +515,11 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
             l.elite_table.len(),
             MAX_ELITE_TABLE_TIERS,
         )?;
+        budget(
+            "$.modes.time_limit.elite_types",
+            l.elite_types.len(),
+            MAX_ELITE_TYPE_DEFINITIONS,
+        )?;
     }
     Ok(())
 }
@@ -592,6 +604,7 @@ fn check_introduced(
     rewards: &Rewards,
     stage_skills: &StageSkills,
     expertise: &Expertise,
+    time_limit: &TimeLimit,
 ) -> Result<(), PackError> {
     let mut issues = Vec::new();
     let stats = paths("run_stats.stats", run_stats.stats().iter().map(|s| &s.id));
@@ -611,6 +624,17 @@ fn check_introduced(
     ] {
         check_ids(&mut issues, at, listed, ids, sim_version);
     }
+    let elites = paths(
+        "modes.time_limit.elite_types",
+        time_limit.elite_types().iter().map(|t| &t.id),
+    );
+    check_ids(
+        &mut issues,
+        "$.introduced.elite_types",
+        &introduced.elite_types,
+        &elites,
+        sim_version,
+    );
     for (k, entry) in introduced.expertise.iter().enumerate() {
         let at = format!("$.introduced.expertise[{k}]");
         let found = expertise
@@ -696,6 +720,14 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
                 ),
             })
             .collect(),
+        elite_types: list(
+            content
+                .time_limit()
+                .elite_types()
+                .iter()
+                .map(|t| &t.id)
+                .collect(),
+        ),
     }
 }
 

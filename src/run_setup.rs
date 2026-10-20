@@ -18,7 +18,7 @@ use crate::run_content::RunContent;
 use std::sync::OnceLock;
 
 use crate::engine::Horde;
-use crate::stage::{Map, Stage};
+use crate::stage::{Map, Stage, Wave};
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -265,6 +265,26 @@ pub(crate) fn time_limit_run(
         start: Some(mode.map().start),
     });
     stage.waves = mode.waves().to_vec();
+    stage.elite_cap = Some(mode.elite_cap());
+    // Each elite type is a wave that never spawns (count 0): the lookups of an enemy's
+    // definition, experience and expertise go by the stage's waves.
+    let mut elite_waves: Vec<(ContentId, u32)> = Vec::new();
+    for t in mode.elite_types() {
+        elite_waves.push((
+            t.id.clone(),
+            u32::try_from(stage.waves.len()).unwrap_or(u32::MAX),
+        ));
+        stage.waves.push(Wave {
+            at_tick: 0,
+            enemy: t.enemy.clone(),
+            spawn: mode.map().start,
+            around: None,
+            count: 0,
+            every_ticks: 0,
+            xp: t.xp,
+            expertise: t.expertise,
+        });
+    }
     let horde = Horde {
         boss_ticks: mode.boss_ticks().to_vec(),
         pool: mode.mid_boss_pool().to_vec(),
@@ -272,6 +292,9 @@ pub(crate) fn time_limit_run(
         template,
         spawned: 0,
         used: vec![false; mode.mid_boss_pool().len()],
+        length_ticks: mode.length_ticks(),
+        elite_table: mode.elite_table().to_vec(),
+        elite_waves,
     };
     Ok((stage, horde))
 }

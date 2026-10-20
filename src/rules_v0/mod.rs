@@ -100,6 +100,7 @@ pub(crate) use player::{charge_view, combo_view};
 mod select;
 
 use crate::attack::{DamageType, MatchUp, Profile};
+use crate::behaviour::BossCall;
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
     PartState, PlayerState, Progress, Pull, StarField, State,
@@ -125,6 +126,7 @@ pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
 use grid::Grid;
 pub(crate) use horde::spawn_boss;
+use horde::spawn_elite;
 pub(crate) use levels::{spend, xp_next};
 pub(crate) use stars::offer_view;
 
@@ -331,6 +333,7 @@ pub(crate) fn step(
     let mut spawns_left = MAX_BULLET_SPAWNS_PER_TICK;
 
     spawn_waves(stage, s);
+    spawn_elite(stage, s, events);
     let dots = entity::tick_statuses_and_aggro(s);
     runes::tick(s);
     attacks::advance_runs(s, events);
@@ -485,9 +488,29 @@ pub(super) fn spawn_enemy(
     s.next_id += 1;
     let mut enemy = agents::new_agent(id, key, def, at, 0);
     if let Some(el) = enemy.elite.as_mut() {
-        el.called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
+        let called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
+        match (el.boss_call, enemy.leave.as_mut()) {
+            (BossCall::Leave, Some(l)) => l.go = called,
+            // A shrine, or any elite that stays, is never called.
+            (BossCall::Stay, _) => {}
+            // A mimic is called when it reveals, not before.
+            _ if el.disguised => {}
+            _ => el.called = called,
+        }
     }
     s.enemies.push(enemy);
+    // A pack leader's escort comes with it, on a ring around it (ADR-090). Only a wave's enemy
+    // has one: that is the definition the escort is found by.
+    if key.source == AgentSource::Wave {
+        if let Some(escort) = def.elite.as_ref().and_then(|e| e.escort.as_ref()) {
+            let key = AgentKey {
+                source: AgentSource::Escort,
+                index: key.index,
+                rule: 0,
+            };
+            agents::ring_up(stage, s, key, escort, at);
+        }
+    }
     true
 }
 
@@ -592,6 +615,10 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
 /// damage-over-time runes' statuses on a target it leaves standing, and fires the on-hit runes
 /// that are ready (`runes`).
 fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
+    // A shrine, or a mimic in disguise, is an object: nothing damages it (ADR-090).
+    if matches!(target, Who::Enemy(i) if s.enemies[i].shrine.is_some() || s.enemies[i].hidden()) {
+        return;
+    }
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let dealt = scale_damage(
@@ -646,6 +673,18 @@ fn profile<'a>(stage: &'a Stage, s: &State, target: Who) -> Option<&'a Profile> 
     }
 }
 
+/// The lowest live enemy a shot at `at` lands on past the mimics in disguise from `first` on:
+/// the rare shot that lands on one.
+#[cold]
+fn past_hidden(s: &State, grid: &Grid, at: Point, mut first: Option<usize>) -> Option<usize> {
+    while let Some(i) = first.filter(|&i| s.enemies[i].hidden()) {
+        first = grid.first_hit(at, PLAYER_BULLET_RADIUS, |j| {
+            j > i && s.enemies[j].hp > 0 && s.enemies[j].shrine.is_none()
+        });
+    }
+    first
+}
+
 /// An ally's shot against the enemies in ID order, then the boss. Returns whether it was used up.
 /// `grid` holds the enemies of this tick, so only those near the shot are checked.
 fn hit_enemy_side(
@@ -655,7 +694,15 @@ fn hit_enemy_side(
     b: Shot,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    if let Some(i) = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, |i| s.enemies[i].hp > 0) {
+    // A shot passes through a shrine.
+    let hittable = |i: usize| s.enemies[i].hp > 0 && s.enemies[i].shrine.is_none();
+    let mut first = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, hittable);
+    // And through a mimic in disguise. Checked on the one found rather than in `hittable`, which
+    // runs for every enemy near every bullet (ADR-058).
+    if first.is_some_and(|i| s.enemies[i].hidden()) {
+        first = past_hidden(s, grid, b.at, first);
+    }
+    if let Some(i) = first {
         damage(stage, s, b, Who::Enemy(i), events);
         if let Some(pull) = b.pull {
             pull_enemy(stage, s, i, pull);
@@ -743,19 +790,60 @@ fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     }
 }
 
+/// `b` with the damage a pack leader's aura adds (ADR-090), for a hit of an enemy's on an ally:
+/// if the enemy that dealt it is still on the map and not an elite, the highest `damage_percent`
+/// among the auras whose leader's centre is within `radius` of its centre (the edge counts)
+/// raises the damage to `damage * (100 + percent) / 100`, rounded down. Every leader still in
+/// the enemies counts, in index order, so a leader killed in this tick's collisions still gives
+/// its aura through the rest of the tick, and none from the next, when the dead are removed.
+/// An enemy that has since left the map or died earlier gets none. No random number is drawn.
+fn aided(stage: &Stage, s: &State, b: Shot) -> Shot {
+    let Ok(at) = s.enemies.binary_search_by_key(&b.owner, |e| e.id) else {
+        return b;
+    };
+    let owner = &s.enemies[at];
+    if owner.elite.is_some() {
+        return b;
+    }
+    let percent = s
+        .enemies
+        .iter()
+        .filter(|l| l.elite.is_some())
+        .filter_map(|l| {
+            agent_def(stage, l.key)
+                .elite
+                .as_ref()?
+                .aura
+                .map(|aura| (l.at, aura))
+        })
+        .filter(|(from, aura)| {
+            let dx = i64::from(from.x.0) - i64::from(owner.at.x.0);
+            let dy = i64::from(from.y.0) - i64::from(owner.at.y.0);
+            let reach = i64::from(aura.radius.0);
+            dx * dx + dy * dy <= reach * reach
+        })
+        .map(|(_, aura)| u64::from(aura.damage_percent))
+        .max()
+        .unwrap_or(0);
+    Shot {
+        damage: u32::try_from(u64::from(b.damage) * (100 + percent) / 100).unwrap_or(u32::MAX),
+        ..b
+    }
+}
+
 /// An enemy's shot against the main character (unless it is invulnerable), then the
 /// companions in ID order.
 fn hit_ally_side(stage: &Stage, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
     if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
-        hurt_player(s, b, events);
+        hurt_player(s, aided(stage, s, b), events);
         return true;
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = agent_def(stage, c.key).radius.0;
         if c.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, c.at, radius) {
-            damage(stage, s, b, Who::Companion(i), events);
+            damage(stage, s, aided(stage, s, b), Who::Companion(i), events);
             return true;
         }
     }
@@ -832,6 +920,25 @@ fn hash_agent(h: &mut StateHasher, a: &crate::engine::AgentState) {
         h.write_i32(el.home.x.0);
         h.write_i32(el.home.y.0);
         h.write_bool(el.called);
+        // Only while a mimic is disguised, so every other elite hashes as before.
+        if el.disguised {
+            h.write_bool(true);
+        }
+    }
+    // Only for a shrine, which its key already tells apart.
+    if let Some(sh) = &a.shrine {
+        h.write_bool(sh.fight.is_some());
+        h.write_u32(sh.fight.unwrap_or(0));
+        h.write_u32(count(&sh.guardians));
+        for g in &sh.guardians {
+            h.write_u32(g.0);
+        }
+    }
+    // Only for an agent that leaves, which its key already tells apart.
+    if let Some(l) = a.leave {
+        h.write_bool(l.disturbed.is_some());
+        h.write_u32(l.disturbed.unwrap_or(0));
+        h.write_bool(l.go);
     }
     match a.order {
         Some(o) => {

@@ -133,6 +133,18 @@ pub fn run_input_for(engine: &Engine, tick: u32, kinds: &[EntityKind], brave_fro
     if tick >= brave_from {
         return input;
     }
+    avoid_bullets(engine, input, at_elite)
+}
+
+/// `input` with the step across the path of the first hostile bullet about to hit, and the evade
+/// at the last moment, that `run_input_for` makes (`LATE` while it goes for an elite, `at_elite`).
+pub fn avoid_bullets(engine: &Engine, mut input: Input, at_elite: bool) -> Input {
+    let s = engine.snapshot();
+    let me = s.player.at;
+    let d2 = |at: Point| {
+        let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
+        x * x + y * y
+    };
     // The first hostile bullet that would pass within `HIT` in the next `SEE` ticks.
     let threat = s
         .bullets

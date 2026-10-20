@@ -121,6 +121,27 @@ pub enum DomainEvent {
     ElitesCalled {
         elites: u32,
     },
+    /// An elite minute of a `time_limit` run brought the elite `elite`, of the sprite `asset`
+    /// (ADR-090); for a mimic, the sprite it is disguised as. Not sent when the cap on elites
+    /// alive held it back.
+    EliteSpawned {
+        elite: EntityId,
+        asset: ContentId,
+    },
+    /// The elite `elite` left the map without dying: no kill, no reward (ADR-090).
+    EliteLeft {
+        elite: EntityId,
+    },
+    /// The main character touched the shrine `elite`: its guardians appeared and its timer began
+    /// (ADR-090).
+    ShrineActivated {
+        elite: EntityId,
+    },
+    /// The main character came within the mimic `elite`'s reveal radius: it is no longer
+    /// disguised, takes damage and acts as a grade elite from now on. Sent once (ADR-090).
+    MimicRevealed {
+        elite: EntityId,
+    },
     /// An offer opened, and the world stopped until a choice closes it (ADR-079 §3).
     OfferOpened {
         kind: OfferKind,

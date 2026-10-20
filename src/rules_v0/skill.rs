@@ -220,7 +220,9 @@ fn within(stage: &Stage, s: &State, at: Point, radius: i32) -> Vec<Who> {
         .enemies
         .iter()
         .enumerate()
-        .filter(|(_, e)| e.hp > 0 && overlaps(at, radius, e.at, agent_def(stage, e.key).radius.0))
+        .filter(|(_, e)| {
+            e.hp > 0 && !e.hidden() && overlaps(at, radius, e.at, agent_def(stage, e.key).radius.0)
+        })
         .map(|(i, _)| Who::Enemy(i))
         .collect();
     if let Some((def, boss)) = stage.boss.as_ref().zip(s.boss.as_ref()) {
@@ -243,7 +245,11 @@ pub(super) fn pull(stage: &Stage, s: &mut State) {
     };
     let map = stage.map();
     for e in s.enemies.iter_mut() {
-        if e.hp == 0 || !overlaps(b.at, b.radius, e.at, agent_def(stage, e.key).radius.0) {
+        if e.hp == 0
+            || e.shrine.is_some()
+            || e.hidden()
+            || !overlaps(b.at, b.radius, e.at, agent_def(stage, e.key).radius.0)
+        {
             continue;
         }
         let dx = i64::from(b.at.x.0) - i64::from(e.at.x.0);

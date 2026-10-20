@@ -4,7 +4,7 @@
 //! content files: a size limit before parsing, strict parsing, the current versions only, every
 //! content ID in the registry, and each number under a named cap. Only the file is read here;
 //! its end and the elites come in later steps. The elite table and the elite cap (ADR-090) are
-//! data only for now: checked here, read by nothing in the simulation.
+//! read by the run's elite minutes (`rules_v0::horde`, ADR-090).
 //!
 //! Step b (core#212) adds the schedule: `waves`, the enemies that spawn over the run, as a stage's
 //! waves do (`stage::Wave`), checked as a stage's are with larger caps and without elites.
@@ -16,11 +16,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::behaviour::Agent;
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
-use crate::stage::{Map, Wave};
+use crate::stage::{ExpertisePoints, Map, Wave};
 use crate::validate::limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -47,6 +48,8 @@ pub const MAX_TOTAL_SPAWNS: u32 = 6000;
 pub const MAX_ELITE_TIERS: usize = 16;
 /// The most elite types one tier names.
 pub const MAX_ELITE_TYPES: usize = 8;
+/// The most elite types the file defines.
+pub const MAX_ELITE_DEFINITIONS: usize = 16;
 /// The largest weight of an elite type, as `MAX_RARITY_WEIGHT` is for a star's rarity.
 pub const MAX_ELITE_WEIGHT: u32 = 10_000;
 
@@ -83,10 +86,13 @@ pub struct TimeLimitFile {
     pub waves: Vec<Wave>,
     /// The elites each whole minute that starts no boss brings (ADR-090): 1 to
     /// `MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting
-    /// before the length. Read and checked now; a later step draws from it.
+    /// before the length. An elite minute draws from it (`rules_v0::horde`).
     pub elite_table: Vec<EliteTier>,
+    /// The elite types: 1 to `MAX_ELITE_DEFINITIONS`, each with a unique ID (ADR-090). The
+    /// table names them; one no tier names is allowed.
+    pub elite_types: Vec<EliteType>,
     /// The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the
-    /// same bound). Read and checked now; a later step uses it.
+    /// same bound). The run's stage takes it as its own.
     pub elite_cap: u16,
 }
 
@@ -104,10 +110,28 @@ pub struct EliteTier {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EliteWeight {
-    /// The elite type (a sprite ID); a grade is a type.
+    /// The ID of an elite type of the file's `elite_types`.
     pub elite: ContentId,
     /// 1 to `MAX_ELITE_WEIGHT`.
     pub weight: u32,
+}
+
+/// An elite type (ADR-090): a content ID (ADR-026) and the enemy it spawns, with what a kill of
+/// it gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the
+/// enemy must be an elite (ADR-068). A grade is a type; later kinds of elite add entries.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EliteType {
+    /// Lowercase snake_case, unique in the file; never renamed or removed once released.
+    pub id: ContentId,
+    /// Checked as a wave's enemy is, and an elite.
+    pub enemy: Agent,
+    /// The experience a kill gives; as a wave's `xp`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xp: Option<u32>,
+    /// The expertise points it gives; as a wave's `expertise`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expertise: Option<ExpertisePoints>,
 }
 
 /// An open field: its sides in 1/256 pixels and where the player starts.
@@ -216,6 +240,11 @@ impl TimeLimit {
     /// The most elites alive at once.
     pub fn elite_cap(&self) -> u16 {
         self.file.elite_cap
+    }
+
+    /// The elite types the file defines.
+    pub fn elite_types(&self) -> &[EliteType] {
+        &self.file.elite_types
     }
 
     /// The map and the player's start.
@@ -383,6 +412,62 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
         );
     }
 
+    let types = &file.elite_types;
+    if types.is_empty() || types.len() > MAX_ELITE_DEFINITIONS {
+        issue(
+            "$.elite_types".into(),
+            format!("1 to {MAX_ELITE_DEFINITIONS} types (found {})", types.len()),
+        );
+    } else {
+        let field = Map {
+            width: map.width,
+            height: map.height,
+            start: Some(map.start),
+        };
+        for (i, t) in types.iter().enumerate() {
+            if !registry::is_well_formed(&t.id.0) {
+                issue(
+                    format!("$.elite_types[{i}].id"),
+                    "not a valid content ID (lowercase snake_case, at most 32 characters)".into(),
+                );
+            } else if types[..i].iter().any(|before| before.id == t.id) {
+                issue(
+                    format!("$.elite_types[{i}].id"),
+                    "the same ID as an earlier type".into(),
+                );
+            }
+            // Checked as a wave of one enemy at the start, which holds the enemy's own bounds
+            // and the kill's experience and expertise.
+            let wave = Wave {
+                at_tick: 0,
+                enemy: t.enemy.clone(),
+                spawn: map.start,
+                around: None,
+                count: 1,
+                every_ticks: 0,
+                xp: t.xp,
+                expertise: t.expertise,
+            };
+            if let Err(found) = crate::validate::validate_waves(
+                std::slice::from_ref(&wave),
+                field,
+                file.length_ticks.max(1),
+                1,
+            ) {
+                for f in found {
+                    let rest = f.path.trim_start_matches("$[0]");
+                    issue(format!("$.elite_types[{i}]{rest}"), f.message);
+                }
+            }
+            if t.enemy.elite.is_none() {
+                issue(
+                    format!("$.elite_types[{i}].enemy.elite"),
+                    "an elite type is an elite".into(),
+                );
+            }
+        }
+    }
+
     let tiers = &file.elite_table;
     if tiers.is_empty() || tiers.len() > MAX_ELITE_TIERS {
         issue(
@@ -412,13 +497,10 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
                 continue;
             }
             for (j, w) in weights.iter().enumerate() {
-                let known = registry::is_well_formed(&w.elite.0)
-                    && registry::find(registry::ENTRIES, Kind::Asset, &w.elite.0)
-                        .is_some_and(|e| e.introduced <= file.sim_version);
-                if !known {
+                if !file.elite_types.iter().any(|t| t.id == w.elite) {
                     issue(
                         format!("$.elite_table[{i}].weights[{j}].elite"),
-                        "no such sprite ID in the registry".into(),
+                        "no such elite type in $.elite_types".into(),
                     );
                 } else if weights[..j].iter().any(|before| before.elite == w.elite) {
                     issue(

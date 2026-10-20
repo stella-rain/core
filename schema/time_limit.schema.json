@@ -14,17 +14,24 @@
       }
     },
     "elite_cap": {
-      "description": "The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the\nsame bound). Read and checked now; a later step uses it.",
+      "description": "The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the\nsame bound). The run's stage takes it as its own.",
       "type": "integer",
       "format": "uint16",
       "maximum": 65535,
       "minimum": 0
     },
     "elite_table": {
-      "description": "The elites each whole minute that starts no boss brings (ADR-090): 1 to\n`MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting\nbefore the length. Read and checked now; a later step draws from it.",
+      "description": "The elites each whole minute that starts no boss brings (ADR-090): 1 to\n`MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting\nbefore the length. An elite minute draws from it (`rules_v0::horde`).",
       "type": "array",
       "items": {
         "$ref": "#/$defs/EliteTier"
+      }
+    },
+    "elite_types": {
+      "description": "The elite types: 1 to `MAX_ELITE_DEFINITIONS`, each with a unique ID (ADR-090). The\ntable names them; one no tier names is allowed.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EliteType"
       }
     },
     "final_boss": {
@@ -95,6 +102,7 @@
     "map",
     "waves",
     "elite_table",
+    "elite_types",
     "elite_cap"
   ],
   "$defs": {
@@ -405,12 +413,54 @@
         }
       ]
     },
+    "Aura": {
+      "description": "What a pack leader does for the enemies near it (ADR-090). Every non-elite enemy whose centre\nis within `radius` of the leader's centre (the edge counts) deals its damage times\n`100 + damage_percent` over 100, rounded down; when several leaders reach it, the highest\n`damage_percent` counts. It ends with the leader's death.",
+      "type": "object",
+      "properties": {
+        "damage_percent": {
+          "description": "1 to `MAX_AURA_PERCENT`.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "radius": {
+          "description": "1 to `MAX_LEN`.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "radius",
+        "damage_percent"
+      ]
+    },
     "Blanket": {
       "description": "A blanket resist: every attack type, or every element (ADR-100).",
       "type": "string",
       "enum": [
         "physical",
         "elements"
+      ]
+    },
+    "BossCall": {
+      "description": "What a boss's call does to an elite.",
+      "oneOf": [
+        {
+          "description": "It is called: it leaves its place and fights beside the boss.",
+          "type": "string",
+          "const": "join"
+        },
+        {
+          "description": "It is not called: it leaves the map instead, unkilled and with no reward.",
+          "type": "string",
+          "const": "leave"
+        },
+        {
+          "description": "It is not called and does not leave: it stays where it is (the shrine's, ADR-090).",
+          "type": "string",
+          "const": "stay"
+        }
       ]
     },
     "Condition": {
@@ -635,6 +685,43 @@
       "description": "What makes an enemy an elite.",
       "type": "object",
       "properties": {
+        "aura": {
+          "description": "A pack leader's aura (ADR-090): while it is alive, the non-elite enemies near it deal more.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Aura"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "boss_call": {
+          "description": "What the boss's call does to it (ADR-090); `join` when absent.",
+          "$ref": "#/$defs/BossCall"
+        },
+        "escort": {
+          "description": "A pack leader's escort (ADR-090): ordinary enemies that spawn with it on a ring around it.\nKept here, with the aura, because both are about what makes this enemy an elite of its\nkind, as `boss_call` is; the ring is the shrine's guardians' (`Guardians`).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Guardians"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mimic": {
+          "description": "A mimic's disguise (ADR-090): until the main character comes near, it is drawn as another\nsprite and nothing can touch it. Kept here, with the aura and the escort, because it is\nabout what makes this enemy an elite of its kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Mimic"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "range": {
           "description": "How near the main character's centre must come to its centre for its rules to fire.",
           "$ref": "#/$defs/Fx"
@@ -669,12 +756,51 @@
         "weights"
       ]
     },
+    "EliteType": {
+      "description": "An elite type (ADR-090): a content ID (ADR-026) and the enemy it spawns, with what a kill of\nit gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the\nenemy must be an elite (ADR-068). A grade is a type; later kinds of elite add entries.",
+      "type": "object",
+      "properties": {
+        "enemy": {
+          "description": "Checked as a wave's enemy is, and an elite.",
+          "$ref": "#/$defs/Agent"
+        },
+        "expertise": {
+          "description": "The expertise points it gives; as a wave's `expertise`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExpertisePoints"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "description": "Lowercase snake_case, unique in the file; never renamed or removed once released.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "xp": {
+          "description": "The experience a kill gives; as a wave's `xp`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "enemy"
+      ]
+    },
     "EliteWeight": {
       "description": "How likely an elite type is to be drawn, against the other types of its tier.",
       "type": "object",
       "properties": {
         "elite": {
-          "description": "The elite type (a sprite ID); a grade is a type.",
+          "description": "The ID of an elite type of the file's `elite_types`.",
           "$ref": "#/$defs/ContentId"
         },
         "weight": {
@@ -1129,6 +1255,33 @@
       "type": "integer",
       "format": "int32"
     },
+    "Guardians": {
+      "description": "The guardians of a shrine, or the escort of a pack leader: `count` ordinary enemies placed on\na ring of `radius` around it, evenly spaced from the east, kept on the map. The enemy cap\nstill applies to them: one it refuses is not spawned.",
+      "type": "object",
+      "properties": {
+        "count": {
+          "description": "1 to `MAX_SHRINE_GUARDIANS`.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "enemy": {
+          "description": "Not an elite and not a shrine; it does not summon.",
+          "$ref": "#/$defs/Agent"
+        },
+        "radius": {
+          "description": "How far from the shrine's centre they stand.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enemy",
+        "count",
+        "radius"
+      ]
+    },
     "HitBox": {
       "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right.",
       "oneOf": [
@@ -1186,6 +1339,25 @@
             "half_angle"
           ]
         }
+      ]
+    },
+    "Mimic": {
+      "description": "What a mimic is (ADR-090). It starts disguised: it does not move or attack, nothing damages\nit, aim assist and the selectors pass it over, and it is drawn as `disguise`. The first tick\nthe main character's centre is within `reveal_radius` of its centre (the edge counts) it\nreveals, for good: from that tick's collisions on it takes damage, and from the next tick it\nacts by its movement and rules like a grade elite. The boss's call skips it while it is\ndisguised and calls it once it is revealed. Needs `boss_call` `join`, and no aura, escort,\nshrine or flee movement.",
+      "type": "object",
+      "properties": {
+        "disguise": {
+          "description": "Asset ID of the sprite it is drawn as while disguised (ADR-007).",
+          "$ref": "#/$defs/ContentId"
+        },
+        "reveal_radius": {
+          "description": "1 to `MAX_LEN`.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "disguise",
+        "reveal_radius"
       ]
     },
     "Movement": {
@@ -1264,6 +1436,58 @@
             "type",
             "vx",
             "vy"
+          ]
+        },
+        {
+          "description": "An elite's (it needs the `elite` field): holds its place until it is disturbed, by\ndamage or by the main character coming within `disturb_radius` of its centre, then runs\ndirectly away from the main character at `speed` a tick, kept on the map, and leaves it\nunkilled `leave_after_ticks` ticks after the disturbance (ADR-090).",
+          "type": "object",
+          "properties": {
+            "disturb_radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "leave_after_ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "speed": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "flee_when_disturbed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "disturb_radius",
+            "speed",
+            "leave_after_ticks"
+          ]
+        },
+        {
+          "description": "An elite's (it needs the `elite` field, with `boss_call` `stay`): an object that cannot be\ndamaged and does nothing until the main character's body touches it. It then activates\nonce: its guardians appear on a ring around it and it gives its kill reward when they are\nall dead within `fight_ticks` ticks of the touch, else it leaves unkilled (ADR-090).",
+          "type": "object",
+          "properties": {
+            "fight_ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "guardians": {
+              "$ref": "#/$defs/Guardians"
+            },
+            "type": {
+              "type": "string",
+              "const": "shrine"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "fight_ticks",
+            "guardians"
           ]
         }
       ]
