@@ -16,7 +16,7 @@
 //! angle (a boss time, whose draw comes before the tick, has no elite minute). The type and the
 //! angle are drawn whether or not the elite can spawn: the cap on elites alive (all of them,
 //! whoever spawned them) and the cap on enemies hold it back after the draws, so the generator
-//! never depends on either. The placeholder elite is the trial's.
+//! never depends on either. An elite is built from the definition of the type drawn (`elite_types` of the mode file); its sprite is the type's.
 
 use crate::behaviour::Action;
 use crate::engine::{AgentKey, AgentSource, Outcome, State};
@@ -139,8 +139,8 @@ pub(super) fn spawn_elite(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
     }) else {
         return;
     };
-    let sprite = chosen.elite.clone();
-    let Some(&(_, index)) = horde.elite_waves.iter().find(|(id, _)| *id == sprite) else {
+    let kind = chosen.elite.clone();
+    let Some(&(_, index)) = horde.elite_waves.iter().find(|(id, _)| *id == kind) else {
         return;
     };
     let at = super::around_player(stage, s, ELITE_RING);
@@ -154,7 +154,7 @@ pub(super) fn spawn_elite(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
     if super::spawn_enemy(stage, s, key, def, at) {
         events.push(DomainEvent::EliteSpawned {
             elite: id,
-            asset: sprite,
+            asset: def.base.clone(),
         });
     }
 }

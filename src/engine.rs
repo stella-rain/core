@@ -641,9 +641,9 @@ pub(crate) struct Horde {
     pub length_ticks: u32,
     /// The mode's elite table (ADR-090), by start.
     pub elite_table: Vec<crate::time_limit::EliteTier>,
-    /// For each elite sprite of the table, the stage wave that holds its definition: the
-    /// trial's first elite with the sprite replaced, a placeholder, never spawned as a wave
-    /// (count 0). A kill's experience and expertise are the wave's.
+    /// For each elite type of the mode file, the stage wave that holds its definition: the
+    /// type's enemy, experience and expertise, never spawned as a wave (count 0). A kill's
+    /// experience and expertise are the wave's.
     pub elite_waves: Vec<(ContentId, u32)>,
 }
 
