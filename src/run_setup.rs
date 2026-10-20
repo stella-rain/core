@@ -51,6 +51,11 @@ pub struct RunSetup {
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub extra_rerolls: u8,
+    /// The permanent upgrades the player holds (ADR-079), which open the combo steps that name
+    /// them (ADR-084 point 7): registered upgrade IDs, sorted, each once, at most
+    /// `registry::MAX_UPGRADES`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub upgrades: Vec<ContentId>,
 }
 
 fn is_zero(n: &u8) -> bool {
@@ -141,6 +146,38 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
                 "at most {MAX_EXTRA_REROLLS} (found {})",
                 setup.extra_rerolls
             ),
+        });
+    }
+    if setup.upgrades.len() > registry::MAX_UPGRADES {
+        issues.push(Issue {
+            path: "$.upgrades".into(),
+            message: format!(
+                "at most {} upgrades (found {})",
+                registry::MAX_UPGRADES,
+                setup.upgrades.len()
+            ),
+        });
+    }
+    for (i, upgrade) in setup
+        .upgrades
+        .iter()
+        .enumerate()
+        .take(registry::MAX_UPGRADES)
+    {
+        let in_order = i == 0 || setup.upgrades[i - 1].0 < upgrade.0;
+        let message = if !in_order {
+            "not after the entry before it (sorted, each once)"
+        } else {
+            let known = registry::find(registry, Kind::Upgrade, &upgrade.0)
+                .is_some_and(|e| e.introduced <= setup.sim_version);
+            if known {
+                continue;
+            }
+            "no such Upgrade ID in the registry"
+        };
+        issues.push(Issue {
+            path: format!("$.upgrades[{i}]"),
+            message: message.into(),
         });
     }
     if issues.is_empty() {

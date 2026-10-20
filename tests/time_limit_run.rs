@@ -20,6 +20,7 @@ fn setup(seed: u64) -> RunSetup {
         seed,
         star_pool: None,
         extra_rerolls: 0,
+        upgrades: Vec::new(),
     }
 }
 

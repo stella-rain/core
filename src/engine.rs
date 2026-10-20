@@ -1440,6 +1440,7 @@ mod horde_tests {
             seed: 1,
             star_pool: None,
             extra_rerolls: 0,
+            upgrades: Vec::new(),
         };
         Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
     }
@@ -1547,6 +1548,7 @@ mod horde_tests {
             seed,
             star_pool: None,
             extra_rerolls: 0,
+            upgrades: Vec::new(),
         };
         let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
         e.state.player.hp = u32::MAX;
