@@ -162,3 +162,34 @@ fn a_call_at_once_is_never_announced() {
     e.step(Input::default());
     assert_eq!(patterns(&e), none());
 }
+
+// --- The golem's spiral -------------------------------------------------------------------
+
+/// The trial's stage with the golem's phase 1 alone, as the stage file has it: a copy of the
+/// timeline would not show what the bundled file says.
+fn golem_phase_one() -> Stage {
+    let mut stage: Value = serde_json::from_slice(include_bytes!("../modes/trial.json")).unwrap();
+    let phases = stage["boss"]["phases"].as_array_mut().unwrap();
+    let phase = phases.remove(1);
+    assert!(phase.to_string().contains("\"spiral\""), "phase 1 holds the spiral");
+    *phases = vec![phase];
+    validate::parse_and_validate(&serde_json::to_vec(&stage).unwrap()).expect("valid")
+}
+
+#[test]
+fn the_golem_s_spiral_is_announced_for_its_telegraph_before_it_starts() {
+    let mut e = Engine::new(&golem_phase_one()).expect("valid");
+    let spirals = |e: &Engine| -> Vec<PatternView> {
+        e.snapshot()
+            .patterns
+            .into_iter()
+            .filter(|p| p.id == "spiral".into())
+            .collect()
+    };
+    for tick in 1..=40 {
+        e.step(Input::default());
+        assert_eq!(spirals(&e), [view("spiral", 40, 41 - tick)], "tick {tick}");
+    }
+    e.step(Input::default());
+    assert_eq!(spirals(&e), none(), "it starts on tick 41");
+}
