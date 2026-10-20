@@ -309,7 +309,9 @@ class Cli(unittest.TestCase):
     def test_checks_passed_reads_the_api_json_on_stdin(self):
         ok = '{"check_runs": [{"name": "t", "status": "completed", "conclusion": "success", "details_url": "x/runs/1/job/2"}]}'
         self.assertEqual(script(self.dev, "checks-passed", "9", stdin=ok).returncode, 0)
-        self.assertEqual(script(self.dev, "checks-passed", "9", stdin='{"check_runs": []}').returncode, 1)
+        bad = '{"check_runs": [{"name": "t", "status": "completed", "conclusion": "failure", "details_url": "x/runs/1/job/2"}]}'
+        self.assertEqual(script(self.dev, "checks-passed", "9", stdin=bad).returncode, 1)
+        self.assertEqual(script(self.dev, "checks-passed", "9", stdin='{"check_runs": []}').returncode, 0)
 
     def test_an_unknown_command_is_a_usage_error(self):
         self.assertEqual(script(self.dev, "nope").returncode, 2)
