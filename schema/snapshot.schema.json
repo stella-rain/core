@@ -31,6 +31,13 @@
       "description": "The map's size, so the frontend can bound its camera (core#87).",
       "$ref": "#/$defs/MapView"
     },
+    "patterns": {
+      "description": "The boss's big patterns announced and not yet started (ADR-103), the call of its elites\nfirst; the frontend draws each as a count-down bar.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PatternView"
+      }
+    },
     "player": {
       "$ref": "#/$defs/PlayerView"
     },
@@ -935,6 +942,31 @@
         "reward",
         "orbs",
         "cooldown_left"
+      ]
+    },
+    "PatternView": {
+      "description": "A big pattern announced in the snapshot (ADR-103): its content ID, the ticks the count-down\nstarted with and the ticks left until it starts.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ContentId"
+        },
+        "remaining": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "total",
+        "remaining"
       ]
     },
     "PhaseKind": {
