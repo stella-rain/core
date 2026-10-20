@@ -446,7 +446,7 @@ fn a_trial_run_levels_up_and_spends_its_points() {
             continue;
         }
         e.step(common::run::run_input(&e, e.tick()));
-        while points(&e) > 0 {
+        while points(&e) > 0 && !e.offer_open() {
             e.spend(spends % 5).unwrap();
             spends += 1;
         }

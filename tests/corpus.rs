@@ -450,8 +450,7 @@ fn firing_for(ticks: u32) -> Vec<Input> {
 }
 
 /// The `giant_sword` played by hand in a 60-tick cycle from tick `t`: `main` on 0, 8 and 16 (slash,
-/// slash, thrust) and `sub` on 40 and 48 (a thrust and a slash, which the Sub weapon's pull
-/// joins).
+/// slash, thrust) and `sub` on 40 and 48 (two smashes from the root, each a slash that pulls).
 fn combos(t: u32, input: Input) -> Input {
     let c = t % 60;
     Input {
@@ -628,8 +627,8 @@ fn fail() -> Definition {
 /// Melee (ADR-055): three enemies trail the main character and swing at it, a wind-up, an arc
 /// and a recovery, rooted while they wind up and swing; a companion orbiting it cleaves them
 /// with a wide arc that hits again every 2 ticks, through their defence. The main character
-/// stands still, then walks from side to side, playing the `giant_sword`'s combos, whose steps
-/// reached by `sub` pull what they hit (the `giant_hammer`'s pull). Nobody fires a bullet.
+/// stands still, then walks from side to side, playing the `giant_sword`'s combos, whose smashes
+/// pull what they hit. Nobody fires a bullet.
 fn melee() -> Definition {
     let phase = |kind: &str, ticks: u32, hit_box: Value, damage: u32, move_pct: u8| {
         json!({ "kind": kind, "ticks": ticks, "hit_box": hit_box, "damage": damage,
@@ -718,7 +717,7 @@ fn assist() -> Definition {
         stage_full(600, Some(boss_at(1_000_000, 40_000)), waves, vec![]),
         json!({ "preset": { "id": "giant_sword" } }),
     );
-    let inputs = (0..300)
+    let inputs = (0..320)
         .map(|t| match t {
             0..100 => Input {
                 auto: true,
@@ -729,7 +728,7 @@ fn assist() -> Definition {
                 ..combos(t, idle())
             },
             _ => Input {
-                main: t == 205 || t == 225 || (240..285).contains(&t),
+                main: t == 205 || t == 225 || t == 240 || (250..285).contains(&t),
                 assist: true,
                 auto: t >= 262,
                 ..moving(0, -127)
@@ -845,7 +844,8 @@ pub(crate) fn definitions() -> Vec<Definition> {
 /// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command>)> {
     use common::run::{
-        STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, time_limit_setup, trial_setup,
+        KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, time_limit_setup,
+        trial_setup,
     };
     let stage_skill = RunSetup {
         seed: STAGE_SKILL_SEED,
@@ -860,8 +860,11 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     // the overtime is long enough for the main character to kill it (it does, at tick 8098);
     // in the second it ends at tick 600 with the boss alive.
     let (kill_mode, kill_content) = short_time_limit(12_000);
-    let kill_setup = time_limit_setup();
-    let kill_commands = play_run_with(&kill_setup, &kill_content, 12_060, boss_input);
+    let kill_setup = RunSetup {
+        seed: KILL_SEED,
+        ..time_limit_setup()
+    };
+    let kill_commands = play_run_with(&kill_setup, &kill_content, 20_060, boss_input);
     let (overtime_mode, overtime_content) = short_time_limit(540);
     let kill_setup_2 = time_limit_setup();
     let overtime_commands = play_run_with(&kill_setup_2, &overtime_content, 600, boss_input);

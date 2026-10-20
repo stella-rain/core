@@ -491,7 +491,7 @@ fn fixture() -> Stage {
 
 /// A fixed, varied script: drift about at different strengths, evade now and then, and play
 /// the fixture's `giant_sword` every 200 ticks: slash, slash and the thrust held for 56 ticks (a
-/// charge to level 2), then B, B (a thrust and a slash, with the `giant_hammer`'s pull).
+/// charge to level 2), then B and B again from the root (two slashes, each a smash that pulls).
 fn script(tick: u32) -> Input {
     let (move_x, move_y) = match (tick / 45) % 4 {
         0 => (64, 0),
@@ -524,7 +524,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x2eeb_7582_878c_2e98;
+const GOLDEN_HASH: u64 = 0x4fbd_17ec_534a_5d3f;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {
