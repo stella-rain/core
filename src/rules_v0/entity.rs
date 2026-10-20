@@ -452,7 +452,8 @@ mod tests {
     fn a_match_up_scales_after_vulnerability_and_before_defence() {
         assert_eq!(scale_damage(10, 0, 0, 0, 20, 0), 12);
         assert_eq!(scale_damage(10, 0, 0, 0, -20, 0), 8);
-        assert_eq!(scale_damage(10, 0, 0, 50, 20, 100), 9);
+        // A defence of K halves the hit (K = 10,000 after the scale of ADR-103).
+        assert_eq!(scale_damage(10, 0, 0, 50, 20, 10_000), 9);
         assert_eq!(scale_damage(10, 0, 0, 0, 0, 0), 10);
     }
 
