@@ -95,6 +95,7 @@ mod push;
 mod runes;
 mod skill;
 mod stars;
+mod stun;
 
 pub(crate) use player::{charge_view, combo_view};
 mod select;
@@ -283,6 +284,7 @@ pub(crate) fn initial_state(
         expertise: expertise::initial(stage, content.expertise()),
         match_ups: *content.match_ups(),
         runes: content.runes().clone(),
+        stun: run_stats.stun(),
         horde: None,
     }
 }
@@ -677,6 +679,9 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         expertise::credit(stage, s, target, dead);
         if !dead && b.smash == Some(Smash::Bleed) {
             runes::apply_smash_bleed(s, target, events);
+        }
+        if let Some(Smash::Stun { ticks }) = b.smash.filter(|_| !dead) {
+            stun::apply(stage, s, target, b.owner, ticks, events);
         }
         if !s.player.runes.is_empty() {
             if !dead {
@@ -1095,6 +1100,10 @@ fn hash_smash(h: &mut StateHasher, smash: Option<Smash>) {
         }
         // A tag that is neither the presence flag's 0 nor 1: a bleed has no numbers of its own.
         Some(Smash::Bleed) => h.write_bytes(&[2]),
+        Some(Smash::Stun { ticks }) => {
+            h.write_bytes(&[3]);
+            h.write_u32(ticks);
+        }
         None => h.write_bool(false),
     }
 }

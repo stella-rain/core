@@ -416,6 +416,7 @@ fn strike(
                     ticks,
                 }),
                 SmashEffect::Bleed {} => Smash::Bleed,
+                SmashEffect::Stun { ticks } => Smash::Stun { ticks },
             })
     } else {
         None

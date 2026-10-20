@@ -71,6 +71,7 @@ mod stage_skill_file;
 mod stage_verify;
 mod stars;
 mod statuses;
+mod stun;
 mod thunder;
 mod time_limit;
 mod time_limit_end;

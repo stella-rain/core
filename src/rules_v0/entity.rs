@@ -240,6 +240,44 @@ impl State {
 }
 
 impl State {
+    /// Puts the `stun` status on an enemy for `ticks` (ADR-085 point 1). It does not stack: a stun
+    /// on a stunned enemy keeps the longer of the two remainders.
+    pub(super) fn add_stun(
+        &mut self,
+        target: Who,
+        source: EntityId,
+        ticks: u32,
+        events: &mut Vec<DomainEvent>,
+    ) {
+        let list = self.statuses_mut(target);
+        match list.iter_mut().find(|s| s.kind == StatusKind::Stun) {
+            Some(s) => {
+                if ticks > s.remaining {
+                    s.total = ticks;
+                }
+                s.remaining = s.remaining.max(ticks);
+                s.source = source;
+            }
+            None => list.push(StatusState {
+                kind: StatusKind::Stun,
+                source,
+                remaining: ticks,
+                total: ticks,
+                stacks: 1,
+                value_pct: 0,
+                dot: None,
+            }),
+        }
+        events.push(DomainEvent::StatusApplied {
+            target: self.id_of(target),
+            status: ContentId(StatusKind::Stun.name().to_owned()),
+            stacks: 1,
+            duration_ticks: ticks,
+        });
+    }
+}
+
+impl State {
     /// Applies a damage-over-time status of `kind` (ADR-099), or adds a stack to the one there,
     /// up to `max_stacks`: one status of a kind per entity, its stacks shared. Either way its
     /// duration starts again and `dot`, with the multipliers of its source fixed now, replaces

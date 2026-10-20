@@ -141,4 +141,7 @@ pub enum SmashEffect {
     /// numbers from the run's runes file, none of its own (ADR-084 point 8). A run whose file has
     /// no bleed gives none.
     Bleed {},
+    /// The enemy hit is stunned for `ticks` (ADR-085): it stops what it was doing and cannot act
+    /// until the stun runs out. Bosses resist it, and an elite takes half the ticks.
+    Stun { ticks: u32 },
 }

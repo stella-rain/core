@@ -2256,6 +2256,26 @@
           "required": [
             "type"
           ]
+        },
+        {
+          "description": "The enemy hit is stunned for `ticks` (ADR-085): it stops what it was doing and cannot act\nuntil the stun runs out. Bosses resist it, and an elite takes half the ticks.",
+          "type": "object",
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "stun"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "ticks"
+          ]
         }
       ]
     },

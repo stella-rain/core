@@ -644,6 +644,8 @@ pub(crate) struct State {
     pub match_ups: MatchUps,
     /// What each on-hit rune does when it fires (ADR-099): content, as the match-ups are.
     pub runes: Runes,
+    /// The stun rules (ADR-085 points 4 and 6): content, as the match-ups are.
+    pub stun: crate::run_stats::StunRules,
     /// The bosses of a `time_limit` run, as they come; `None` in any other run, which hashes
     /// nothing for it.
     pub horde: Option<Horde>,
@@ -871,6 +873,10 @@ pub(crate) enum Smash {
     Pull(Pull),
     /// The `bleed` status, with the bleed rune's numbers from the runes file (ADR-099 point 3).
     Bleed,
+    /// The `stun` status of a smash, for its ticks (ADR-085).
+    Stun {
+        ticks: u32,
+    },
 }
 
 /// The stage skill held (ADR-075): its place in the stage skills file, its level from 1, and
@@ -1099,6 +1105,8 @@ pub(crate) enum StatusKind {
     Poison,
     /// Damage over time, in stacks, of its own beside bleed's (ADR-099).
     Burn,
+    /// The enemy stops what it was doing for its ticks (ADR-085). Not a skill's status.
+    Stun,
 }
 
 impl StatusKind {
@@ -1121,6 +1129,7 @@ impl StatusKind {
             StatusKind::Bleed => "bleed",
             StatusKind::Poison => "poison",
             StatusKind::Burn => "burn",
+            StatusKind::Stun => "stun",
         }
     }
 }
