@@ -299,6 +299,7 @@ pub fn pack_load(data: &[u8]) -> bool {
             seed: u64::from(pick(data, 0)),
             star_pool: None,
             extra_rerolls: 0,
+            upgrades: Vec::new(),
         };
         let mut engine = Engine::start_with(&setup, pack.content())
             .expect("a pack that loads starts a run of each mode");

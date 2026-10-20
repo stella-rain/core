@@ -85,6 +85,13 @@
             "$ref": "#/$defs/ContentId"
           }
         },
+        "upgrades": {
+          "description": "The permanent upgrades the player holds (ADR-079), which open the combo steps that name\nthem (ADR-084 point 7): registered upgrade IDs, sorted, each once, at most\n`registry::MAX_UPGRADES`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          }
+        },
         "weapon": {
           "description": "A weapon preset: the one weapon the run's main character carries (ADR-107).",
           "$ref": "#/$defs/ContentId"

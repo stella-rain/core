@@ -509,6 +509,7 @@ fn setup() -> RunSetup {
         seed: 3,
         star_pool: None,
         extra_rerolls: 0,
+        upgrades: Vec::new(),
     }
 }
 

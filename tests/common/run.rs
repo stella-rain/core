@@ -34,6 +34,7 @@ pub fn trial_setup() -> RunSetup {
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,
+        upgrades: Vec::new(),
     }
 }
 

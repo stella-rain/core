@@ -17,6 +17,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::input::Input;
 use crate::match_ups::MatchUps;
+use crate::registry;
 use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
@@ -118,10 +119,22 @@ impl Engine {
 
     /// As `new`, with `content` in place of the bundled files (ADR-067).
     pub fn new_with(stage: &Stage, content: &RunContent) -> Result<Engine, Error> {
+        Engine::new_with_upgrades(stage, content, &[])
+    }
+
+    /// As `new_with`, for a player who holds the permanent `upgrades` (ADR-079): the combo
+    /// steps that name one of them are open, the others absent (ADR-084 point 7). IDs the
+    /// registry does not hold open nothing; a run setup validates its own.
+    pub fn new_with_upgrades(
+        stage: &Stage,
+        content: &RunContent,
+        upgrades: &[ContentId],
+    ) -> Result<Engine, Error> {
         validate::validate(stage)?;
         let pool = rules_v0::RunPool {
             rewards: pool(None, content.rewards())?,
             extra_rerolls: 0,
+            upgrades: registry::upgrade_mask(upgrades.iter().map(|id| id.0.as_str())),
         };
         Ok(Engine {
             state: rules_v0::initial_state(stage, content, pool, u64::from(stage.seed)),
@@ -147,6 +160,7 @@ impl Engine {
         let pool = rules_v0::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
             extra_rerolls: setup.extra_rerolls,
+            upgrades: registry::upgrade_mask(setup.upgrades.iter().map(|id| id.0.as_str())),
         };
         Ok(Engine {
             state: rules_v0::initial_state(&stage, content, pool, setup.seed),
@@ -168,6 +182,7 @@ impl Engine {
         let pool = rules_v0::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
             extra_rerolls: setup.extra_rerolls,
+            upgrades: registry::upgrade_mask(setup.upgrades.iter().map(|id| id.0.as_str())),
         };
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed);
         state.horde = Some(horde);
@@ -863,6 +878,9 @@ pub(crate) struct ComboState {
     /// `sub`), and how many; at most the tree's depth.
     pub auto_path: u32,
     pub auto_depth: u8,
+    /// The permanent upgrades the run holds, as a mask (`registry::upgrade_mask`): fixed for the
+    /// run, so it is not part of the state hash. A step needing one that is not here is absent.
+    pub upgrades: u32,
 }
 
 /// The Sub weapon's pull on what a combo part hits (ADR-070), carried by the attack and the
@@ -1440,6 +1458,7 @@ mod horde_tests {
             seed: 1,
             star_pool: None,
             extra_rerolls: 0,
+            upgrades: Vec::new(),
         };
         Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
     }
@@ -1547,6 +1566,7 @@ mod horde_tests {
             seed,
             star_pool: None,
             extra_rerolls: 0,
+            upgrades: Vec::new(),
         };
         let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
         e.state.player.hp = u32::MAX;

@@ -90,8 +90,9 @@ const WEAPONS: &[(&str, &str)] = &[
     // its loop spins on at half speed while A stays held, each loop a new attack that hits again
     // after 8 ticks, and the release is a heavy slam at 100 times the default damage (ADR-103). B is an overhead smash (`slam`) and AB a ground shock, a forward
     // arc; a smash ends the combo. The dash-strike is a short spin, the dash smash `slam`. Smashes
-    // pull what they hit by up to 40 pixels over 8 ticks; assist looks 128 pixels away. AAB and
-    // AAAB are Stardust unlocks, not in core yet.
+    // pull what they hit by up to 40 pixels over 8 ticks; assist looks 128 pixels away. AAB (an
+    // arc) and AAAB (a wide circle) are Strike smashes at 100 times the default damage, placeholders,
+    // opened by the permanent upgrades `giant_hammer_aab` and `giant_hammer_aaab` (ADR-084 point 7).
     (
         "giant_hammer",
         r#"{"combo":{
@@ -112,7 +113,7 @@ const WEAPONS: &[(&str, &str)] = &[
                                     {"kind":"active","ticks":6,"type":"strike",
                                      "hit_box":{"type":"circle","radius":12288}},
                                     {"kind":"recovery","ticks":20}]},
-                                "hold":{"loop":{"inline":[{"kind":"active","ticks":8,"rehit_ticks":8,"type":"strike","hit_box":{"type":"circle","radius":12288}}]},"release":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":5,"type":"strike","damage":10000,"hit_box":{"type":"circle","offset":{"forward":4096},"radius":16384}},{"kind":"recovery","ticks":24}]},"max_ticks":180,"move_pct":50}}}},
+                                "hold":{"loop":{"inline":[{"kind":"active","ticks":8,"rehit_ticks":8,"type":"strike","hit_box":{"type":"circle","radius":12288}}]},"release":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":5,"type":"strike","damage":10000,"hit_box":{"type":"circle","offset":{"forward":4096},"radius":16384}},{"kind":"recovery","ticks":24}]},"max_ticks":180,"move_pct":50},"next":{"sub":{"attack":{"inline":[{"kind":"wind_up","ticks":16,"move_pct":50},{"kind":"active","ticks":5,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"circle","radius":16384}},{"kind":"recovery","ticks":26,"move_pct":50}]},"unlock":"giant_hammer_aaab"}}},"sub":{"attack":{"inline":[{"kind":"wind_up","ticks":12,"move_pct":50},{"kind":"active","ticks":4,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"arc","offset":{"forward":4096},"radius":14336,"half_angle":24576}},{"kind":"recovery","ticks":22,"move_pct":50}]},"unlock":"giant_hammer_aab"}}},
                     "sub":{"attack":{"inline":[
                                 {"kind":"wind_up","ticks":14,"move_pct":50},
                                 {"kind":"active","ticks":4,"move_pct":50,"type":"strike",
@@ -133,8 +134,10 @@ const WEAPONS: &[(&str, &str)] = &[
     // ADR-100); AAA charges, at level 1 a wide slash and at level 2 a spin all round, each with
     // the +50% perfect bonus. B is a slash and AB a thrust, both smashes that end the combo. The
     // dash-strike is a lunge thrust, the dash smash a slash. Assist looks 160 pixels away.
-    // Smashes put the bleed on what they hit, the bleed rune's numbers (ADR-084 point 8). AAB and
-    // AAAB are Stardust unlocks, not in core yet.
+    // Smashes put the bleed on what they hit, the bleed rune's numbers (ADR-084 point 8). AAB (a
+    // wide Slash) and AAAB (a long Pierce) are smashes at 100 times the default damage,
+    // placeholders, opened by the permanent upgrades `giant_sword_aab` and `giant_sword_aaab`
+    // (ADR-084 point 7).
     (
         "giant_sword",
         r#"{"combo":{
@@ -154,7 +157,7 @@ const WEAPONS: &[(&str, &str)] = &[
                                         {"kind":"wind_up","ticks":12,"move_pct":50},
                                         {"kind":"active","ticks":4,"move_pct":50,"type":"slash",
                                          "hit_box":{"type":"circle","radius":10240}},
-                                        {"kind":"recovery","ticks":20,"move_pct":50}]}}]}}}},
+                                        {"kind":"recovery","ticks":20,"move_pct":50}]}}]},"next":{"sub":{"attack":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":3,"type":"pierce","damage":10000,"hit_box":{"type":"circle","offset":{"forward":8192},"radius":4096}},{"kind":"recovery","ticks":18}]},"unlock":"giant_sword_aaab"}}},"sub":{"attack":{"inline":[{"kind":"wind_up","ticks":8},{"kind":"active","ticks":4,"type":"slash","damage":10000,"hit_box":{"type":"arc","offset":{"forward":2048},"radius":10240,"half_angle":20480}},{"kind":"recovery","ticks":14}]},"unlock":"giant_sword_aab"}}},
                         "sub":{"attack":{"preset":{"id":"thrust"}}}}},
                 "sub":{"attack":{"preset":{"id":"slash"}}}},
             "dash":{"main":{"attack":{"preset":{"id":"thrust"}}},

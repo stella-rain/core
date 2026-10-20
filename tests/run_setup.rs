@@ -22,6 +22,7 @@ fn setup() -> RunSetup {
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,
+        upgrades: Vec::new(),
     }
 }
 
@@ -259,6 +260,7 @@ fn a_setup_without_a_pool_or_extra_rerolls_writes_neither() {
     );
     let more = RunSetup {
         extra_rerolls: 2,
+        upgrades: Vec::new(),
         ..with_pool(&["max_hp_common"])
     };
     assert_eq!(run_setup::parse_and_validate(&bytes(&more)), Ok(more));
@@ -280,6 +282,7 @@ fn the_pool_names_each_reward_once_and_at_most_max_star_pool() {
 fn extra_rerolls_are_at_most_max_extra_rerolls() {
     let at = |n| RunSetup {
         extra_rerolls: n,
+        upgrades: Vec::new(),
         ..setup()
     };
     assert!(run_setup::validate(&at(MAX_EXTRA_REROLLS)).is_ok());
@@ -323,6 +326,7 @@ fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
     let pool = ["speed_common", "xp_common", "evade_common"];
     let narrowed = RunSetup {
         extra_rerolls: 3,
+        upgrades: Vec::new(),
         ..with_pool(&pool)
     };
     let offer = |s: &RunSetup| {
@@ -337,6 +341,7 @@ fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
     let narrow = offer(&RunSetup {
         star_pool: narrowed.star_pool.clone(),
         extra_rerolls: 3,
+        upgrades: Vec::new(),
         ..common::run::trial_setup()
     });
     let mut ids: Vec<&str> = narrow
@@ -349,4 +354,82 @@ fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
     want.sort_unstable();
     assert_eq!(ids, want);
     assert_eq!(narrow.rerolls_left, wide.rerolls_left + 3);
+}
+
+// --- Permanent upgrades (ADR-079, ADR-084 point 7) -----------------------------------------
+
+fn with_upgrades(ids: &[&str]) -> RunSetup {
+    RunSetup {
+        upgrades: ids.iter().map(|id| (*id).into()).collect(),
+        ..setup()
+    }
+}
+
+#[test]
+fn a_setup_without_upgrades_writes_none() {
+    let text = String::from_utf8(bytes(&setup())).unwrap();
+    assert!(!text.contains("upgrades"), "{text}");
+    assert_eq!(
+        run_setup::parse_and_validate(text.as_bytes())
+            .unwrap()
+            .upgrades,
+        Vec::new()
+    );
+}
+
+#[test]
+fn a_setup_names_the_upgrades_the_player_holds() {
+    let held = with_upgrades(&["giant_sword_aaab", "giant_sword_aab"]);
+    assert_eq!(run_setup::parse_and_validate(&bytes(&held)), Ok(held));
+}
+
+#[test]
+fn upgrades_are_registered_sorted_and_each_once() {
+    let path = |i: usize| format!("$.upgrades[{i}]");
+    let found = |ids: &[&str]| issues(run_setup::validate(&with_upgrades(ids)).unwrap_err());
+    assert_eq!(
+        found(&["no_such_upgrade"]),
+        vec![issue(&path(0), "no such Upgrade ID in the registry")]
+    );
+    // A weapon is not an upgrade.
+    assert_eq!(
+        found(&["giant_sword"]),
+        vec![issue(&path(0), "no such Upgrade ID in the registry")]
+    );
+    assert_eq!(
+        found(&["giant_sword_aab", "giant_sword_aaab"]),
+        vec![issue(
+            &path(1),
+            "not after the entry before it (sorted, each once)"
+        )]
+    );
+    assert_eq!(
+        found(&["giant_sword_aab", "giant_sword_aab"]),
+        vec![issue(
+            &path(1),
+            "not after the entry before it (sorted, each once)"
+        )]
+    );
+}
+
+#[test]
+fn upgrades_are_at_most_max_upgrades() {
+    use stella_rain_core::registry::MAX_UPGRADES;
+    let many = RunSetup {
+        upgrades: (0..=MAX_UPGRADES)
+            .map(|i| format!("u{i:02}").as_str().into())
+            .collect(),
+        ..setup()
+    };
+    let found = issues(run_setup::validate(&many).unwrap_err());
+    assert_eq!(
+        found[0],
+        issue(
+            "$.upgrades",
+            &format!(
+                "at most {MAX_UPGRADES} upgrades (found {})",
+                MAX_UPGRADES + 1
+            )
+        )
+    );
 }

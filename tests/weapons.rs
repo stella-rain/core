@@ -17,6 +17,7 @@ use stella_rain_core::event::{DomainEvent, Press};
 use stella_rain_core::input::Input;
 use stella_rain_core::presets;
 use stella_rain_core::registry::{self, Kind};
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::validate_weapon_preset;
 use stella_rain_core::weapon::{Branches, Step, WeaponRef};
@@ -528,15 +529,28 @@ fn the_giant_sword_s_smashes_bleed_and_the_giant_hammer_s_smashes_stun() {
 
 #[test]
 fn the_giant_sword_takes_the_vindictus_shape() {
-    // A, AA and AAA, and the smashes B and AB; AAB and AAAB are Stardust unlocks that core does
-    // not have yet, so they are absent here.
+    // A, AA and AAA, the smashes B and AB, and AAB and AAAB, which the permanent upgrades
+    // `giant_sword_aab` and `giant_sword_aaab` open (ADR-084 point 7).
     let w = weapon_of("giant_sword");
-    for presses in ["A", "AA", "AAA", "B", "AB"] {
+    for presses in ["A", "AA", "AAA", "B", "AB", "AAB", "AAAB"] {
         assert!(step_at(&w.combo, presses).is_some(), "{presses}");
     }
-    for presses in ["AAB", "AAAB"] {
-        assert!(step_at(&w.combo, presses).is_none(), "{presses}");
+    let unlock = |presses: &str| step_at(&w.combo, presses).unwrap().unlock.clone();
+    assert_eq!(unlock("AAB"), Some("giant_sword_aab".into()));
+    assert_eq!(unlock("AAAB"), Some("giant_sword_aaab".into()));
+    for presses in ["A", "AA", "AAA", "B", "AB"] {
+        assert_eq!(unlock(presses), None, "{presses}");
     }
+    // Both unlocks are smashes: Slash, then Pierce, ending the combo, at 100 times the default
+    // damage.
+    assert_eq!(
+        active_types(&step_at(&w.combo, "AAB").unwrap().attack),
+        [Some(DamageType::Slash)]
+    );
+    assert_eq!(
+        active_types(&step_at(&w.combo, "AAAB").unwrap().attack),
+        [Some(DamageType::Pierce)]
+    );
     // Slash, slash, then a thrust that is Pierce; its smashes are a slash and a thrust.
     let types = |presses: &str| active_types(&step_at(&w.combo, presses).unwrap().attack);
     assert_eq!(types("A"), [Some(DamageType::Slash)]);
@@ -559,19 +573,51 @@ fn the_giant_sword_takes_the_vindictus_shape() {
 
 #[test]
 fn the_giant_hammer_spins_wider_with_each_normal_attack() {
-    // A, AA and AAA, each a spin wider than the last; AAA is a plain step (its hold is a later
-    // task); the smashes B and AB. AAB and AAAB are Stardust unlocks, absent here.
+    // A, AA and AAA, each a spin wider than the last; AAA holds (ADR-084 point 6); the smashes
+    // B and AB, and AAB and AAAB, which `giant_hammer_aab` and `giant_hammer_aaab` open.
     let w = weapon_of("giant_hammer");
-    for presses in ["A", "AA", "AAA", "B", "AB"] {
+    for presses in ["A", "AA", "AAA", "B", "AB", "AAB", "AAAB"] {
         assert!(step_at(&w.combo, presses).is_some(), "{presses}");
     }
-    for presses in ["AAB", "AAAB"] {
-        assert!(step_at(&w.combo, presses).is_none(), "{presses}");
+    let unlock = |presses: &str| step_at(&w.combo, presses).unwrap().unlock.clone();
+    assert_eq!(unlock("AAB"), Some("giant_hammer_aab".into()));
+    assert_eq!(unlock("AAAB"), Some("giant_hammer_aaab".into()));
+    for presses in ["A", "AA", "AAA", "B", "AB"] {
+        assert_eq!(unlock(presses), None, "{presses}");
     }
     let radius = |presses: &str| active_radius(&step_at(&w.combo, presses).unwrap().attack);
     assert!(radius("A") < radius("AA") && radius("AA") < radius("AAA"));
     assert!(step_at(&w.combo, "AAA").unwrap().charge.is_none());
-    assert!(step_at(&w.combo, "AAA").unwrap().next.is_empty());
+    // AAA's only next step is the smash AAAB.
+    let next = &step_at(&w.combo, "AAA").unwrap().next;
+    assert!(next.main.is_none() && next.sub.is_some());
+}
+
+#[test]
+fn the_unlocked_smashes_end_the_combo_and_hit_for_100_times_the_default() {
+    use stella_rain_core::attack::AttackPhase;
+    for (id, strike_or_not) in [("giant_sword", false), ("giant_hammer", true)] {
+        let w = weapon_of(id);
+        for presses in ["AAB", "AAAB"] {
+            let step = step_at(&w.combo, presses).unwrap();
+            assert!(step.next.is_empty(), "{id} {presses}");
+            let AttackRef::Inline(phases) = &step.attack else {
+                panic!("{id} {presses}: an inline attack");
+            };
+            let damages: Vec<_> = phases
+                .iter()
+                .filter(|p: &&AttackPhase| p.kind == PhaseKind::Active)
+                .map(|p| p.damage)
+                .collect();
+            assert_eq!(damages, [Some(10_000)], "{id} {presses}");
+            let types = active_types(&step.attack);
+            assert_eq!(
+                types == [Some(DamageType::Strike)],
+                strike_or_not,
+                "{id} {presses}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -581,4 +627,100 @@ fn every_step_of_the_giant_hammer_is_strike() {
     for (_, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
         assert_eq!(active_types(&step.attack), [Some(DamageType::Strike)]);
     }
+}
+
+// --- Steps unlocked by permanent upgrades (ADR-084 points 3 and 7) ------------------------
+
+const AAB: i32 = 1792;
+const AABA: i32 = 2048;
+
+/// The test weapon with AAB after AA, opened by `unlock`, and a step AABA after it (none if
+/// `with_step` is false: the same weapon with the step deleted).
+fn unlock_weapon(with_step: bool, unlock: Option<&str>) -> Value {
+    let mut w = test_weapon(WINDOW);
+    if with_step {
+        let mut aab = json!({ "attack": swing(AAB), "next": { "main": step(swing(AABA)) } });
+        if let Some(id) = unlock {
+            aab["unlock"] = json!(id);
+        }
+        w["inline"]["combo"]["main"]["next"]["main"]["next"]["sub"] = aab;
+    }
+    w
+}
+
+fn engine_with(stage: &Stage, upgrades: &[&str]) -> Engine {
+    let ids: Vec<_> = upgrades.iter().map(|id| (*id).into()).collect();
+    Engine::new_with_upgrades(stage, RunContent::bundled(), &ids).expect("the stage is valid")
+}
+
+/// AA, then B, then A: AAB and AABA if they are open.
+fn through_aab() -> Vec<Input> {
+    presses(&[(1, "a"), (3, "a"), (7, "b"), (11, "a")], 40)
+}
+
+fn played_with(weapon: Value, upgrades: &[&str]) -> Played {
+    let stage = armed(far(), weapon);
+    play(&mut engine_with(&stage, upgrades), &through_aab())
+}
+
+#[test]
+fn a_step_opens_with_its_upgrade() {
+    let p = played_with(
+        unlock_weapon(true, Some("giant_sword_aab")),
+        &["giant_sword_aab"],
+    );
+    assert_eq!(
+        p.steps(),
+        [
+            (1, Press::Main, 1),
+            (5, Press::Main, 2),
+            (9, Press::Sub, 3),
+            (13, Press::Main, 4)
+        ]
+    );
+    assert_eq!(p.shots, [(3, A), (7, AA), (11, AAB), (15, AABA)]);
+}
+
+#[test]
+fn a_step_without_its_upgrade_is_absent_as_if_deleted() {
+    // The press takes no step where no next step exists (point 3): the run is the run of the
+    // weapon with the step deleted, whatever other upgrades are held.
+    let gone = played_with(unlock_weapon(false, None), &[]);
+    for held in [&[][..], &["giant_sword_aaab"], &["giant_hammer_aab"]] {
+        let locked = played_with(unlock_weapon(true, Some("giant_sword_aab")), held);
+        assert_eq!(locked.events, gone.events, "{held:?}");
+        assert_eq!(locked.shots, gone.shots, "{held:?}");
+    }
+    assert!(gone.shots.iter().all(|(_, s)| *s != AAB && *s != AABA));
+}
+
+#[test]
+fn the_steps_below_a_locked_step_cannot_be_reached() {
+    // AABA has no unlock of its own but sits under the locked AAB.
+    let locked = played_with(unlock_weapon(true, Some("giant_sword_aab")), &[]);
+    assert!(locked.shots.iter().all(|(_, s)| *s != AABA));
+    assert!(locked.steps().iter().all(|(_, _, depth)| *depth <= 3));
+}
+
+#[test]
+fn a_step_with_no_unlock_is_always_open() {
+    let p = played_with(unlock_weapon(true, None), &[]);
+    assert!(p.shots.iter().any(|(_, s)| *s == AABA));
+}
+
+#[test]
+fn a_run_with_upgrades_plays_the_same_every_time() {
+    let stage = armed(far(), unlock_weapon(true, Some("giant_sword_aab")));
+    let hashes = |upgrades: &[&str]| {
+        let mut e = engine_with(&stage, upgrades);
+        through_aab()
+            .into_iter()
+            .map(|i| {
+                e.step(i);
+                e.state_hash()
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(hashes(&["giant_sword_aab"]), hashes(&["giant_sword_aab"]));
+    assert_ne!(hashes(&["giant_sword_aab"]), hashes(&[]));
 }

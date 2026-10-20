@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc f68e09bce8bcf98952259f1b6490d0e3d01a2a2df758a84d6ad1875e176bbad1 # shrinks to stage = 1, inputs = [Input { move_x: 0, move_y: 0, main: false, sub: false, evade: false, skill: false, assist: false, auto: false }], cut = Index(0)

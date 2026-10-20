@@ -435,6 +435,7 @@ fn a_trial_run_levels_up_and_spends_its_points() {
         seed: 1,
         star_pool: None,
         extra_rerolls: 0,
+        upgrades: Vec::new(),
     };
     // The trial run's script plays it, taking candidate 0 of every offer.
     let mut e = Engine::start(&setup).unwrap();
