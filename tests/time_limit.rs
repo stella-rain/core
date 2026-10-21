@@ -130,16 +130,12 @@ fn the_pool_holds_a_boss_for_each_mid_boss_time() {
 }
 
 #[test]
-fn the_no_call_times_are_mid_boss_times() {
+fn the_no_call_times_are_unique_and_inside_the_run() {
     assert_eq!(
-        paths(&with("no_call_ticks", json!([18000, 19000]))),
+        paths(&with("no_call_ticks", json!([18000, 18000]))),
         ["$.no_call_ticks[1]"]
     );
-    assert_eq!(
-        paths(&with("no_call_ticks", json!([72000]))),
-        ["$.no_call_ticks[0]"]
-    );
-    assert!(parse(&with("no_call_ticks", json!([18000]))).is_ok());
+    assert!(parse(&with("no_call_ticks", json!([18000, 36000]))).is_ok());
 }
 
 #[test]

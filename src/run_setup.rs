@@ -535,6 +535,24 @@ pub(crate) fn time_limit_run(
         id: setup.weapon.clone(),
     };
     validate::validate(&stage)?;
+    // Each boss definition is checked as the placeholder stage with that boss is (its presets,
+    // its parts, its numbers), so a run never starts on a boss the stage would refuse.
+    for (k, def) in mode.bosses().iter().enumerate() {
+        let mut as_stage = stage.clone();
+        as_stage.boss = Some(def.clone());
+        validate::validate(&as_stage).map_err(|e| match e {
+            Error::Invalid(issues) => Error::Invalid(
+                issues
+                    .into_iter()
+                    .map(|i| Issue {
+                        path: format!("$.bosses[{k}]{}", i.path.trim_start_matches("$.boss")),
+                        message: i.message,
+                    })
+                    .collect(),
+            ),
+            other => other,
+        })?;
+    }
     let template = stage.boss.take().ok_or_else(|| {
         Error::Invalid(vec![Issue {
             path: "$.boss".into(),
@@ -597,6 +615,8 @@ pub(crate) fn time_limit_run(
         pool: mode.mid_boss_pool().to_vec(),
         final_boss: mode.final_boss().clone(),
         template,
+        bosses: mode.bosses().to_vec(),
+        no_call_ticks: mode.no_call_ticks().to_vec(),
         spawned: 0,
         used: vec![false; mode.mid_boss_pool().len()],
         length_ticks,

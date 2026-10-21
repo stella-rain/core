@@ -3,11 +3,13 @@
 //! the last the final boss. The engine has one boss at a time: one that is still alive when the
 //! next comes is replaced by it.
 //!
-//! Every boss is the horde's template with its sprite set to the one drawn, standing 120 pixels
-//! above the main character, its `move_to` steps moved with it. The template is a placeholder
-//! (the trial's golem); it takes the boss's place in the stage, so the rules that read the
-//! stage's boss read it, and the state's boss starts fresh at its time. A boss's death opens the
-//! boss offer as any boss's does; the run clears only on the final boss's.
+//! Every boss is the mode file's definition of the drawn sprite (core#336), or, for a sprite with
+//! none, the horde's template with its sprite set to the one drawn; the template is a placeholder
+//! (the trial's golem). Either stands 120 pixels above the main character, its `move_to` steps
+//! moved with it, and takes the boss's place in the stage, so the rules that read the stage's
+//! boss read it, and the state's boss starts fresh at its time. A boss at a `no_call_ticks` time
+//! calls no elites. A boss's death opens the boss offer as any boss's does; the run clears only
+//! on the final boss's.
 //!
 //! Elite minutes (ADR-090): on each whole minute of the run before its length that is not a boss
 //! time, one elite is drawn from the tier whose start is the latest one not after the tick, by
@@ -71,8 +73,17 @@ pub(crate) fn spawn_boss(stage: &mut Stage, s: &mut State) {
         }
     }
 
-    let mut def = horde.template.clone();
+    let mut def = horde
+        .bosses
+        .iter()
+        .find(|b| b.base == base)
+        .unwrap_or(&horde.template)
+        .clone();
     def.base = base;
+    // A boss time the mode file lists calls no elites (core#336).
+    if horde.no_call_ticks.contains(&due) {
+        def.call_elites = None;
+    }
     let to = stage.map().clamp(Point {
         x: s.player.at.x,
         y: s.player.at.y.saturating_add(Fx(-ABOVE)),

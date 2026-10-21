@@ -740,8 +740,13 @@ pub(crate) struct Horde {
     pub boss_ticks: Vec<u32>,
     pub pool: Vec<ContentId>,
     pub final_boss: ContentId,
-    /// The boss every one is made from, with its sprite replaced: a placeholder.
+    /// The boss every one is made from, with its sprite replaced, when the mode file gives no
+    /// definition for its sprite: a placeholder.
     pub template: crate::stage::Boss,
+    /// The mode file's boss definitions (core#336), by sprite.
+    pub bosses: Vec<crate::stage::Boss>,
+    /// The boss times at which the boss calls no elites (core#336).
+    pub no_call_ticks: Vec<u32>,
     /// Bosses that have come, mid-bosses and the final one.
     pub spawned: u32,
     /// One per pool entry: drawn already.

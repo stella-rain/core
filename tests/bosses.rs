@@ -155,6 +155,13 @@ fn calls_between(e: &mut Engine, from: u32, to: u32) -> (Vec<u32>, bool) {
 }
 
 #[test]
+fn the_five_minute_boss_is_the_one_that_calls_no_elites() {
+    let m = TimeLimit::bundled();
+    assert_eq!(m.no_call_ticks(), [5 * MINUTE]);
+    assert_eq!(m.boss_ticks()[0], 5 * MINUTE);
+}
+
+#[test]
 fn the_five_minute_boss_never_calls_its_elites() {
     let m = quiet_mode();
     assert_eq!(m.no_call_ticks(), [5 * MINUTE]);

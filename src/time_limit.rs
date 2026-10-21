@@ -21,13 +21,15 @@ use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
-use crate::stage::{ExpertisePoints, LevelTable, Map, Wave};
+use crate::stage::{Boss, ExpertisePoints, LevelTable, Map, Wave};
 use crate::validate::limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
-/// The largest mode file read; the bundled one is about 3 KB.
-pub const MAX_TIME_LIMIT_BYTES: usize = 16 * 1024;
+/// The largest mode file read; the bundled one is about 19 KB, with the boss definitions
+/// (core#336) and the placeholder schedule. Raised from 16 KB with them: a budget change, tested
+/// at the limit (`tests/time_limit.rs`).
+pub const MAX_TIME_LIMIT_BYTES: usize = 32 * 1024;
 /// The longest run: 30 minutes.
 pub const MAX_LENGTH_TICKS: u32 = 30 * 60 * 60;
 /// The most boss times: the mid-bosses and the final boss.
@@ -50,6 +52,8 @@ pub const MAX_ELITE_TIERS: usize = 16;
 pub const MAX_ELITE_TYPES: usize = 8;
 /// The most elite types the file defines.
 pub const MAX_ELITE_DEFINITIONS: usize = 16;
+/// The most boss definitions the file gives (core#336): as many as the pool, which is its bound.
+pub const MAX_BOSS_DEFINITIONS: usize = MAX_POOL;
 /// The largest weight of an elite type, as `MAX_RARITY_WEIGHT` is for a star's rarity.
 pub const MAX_ELITE_WEIGHT: u32 = 10_000;
 
@@ -72,6 +76,16 @@ pub struct TimeLimitFile {
     pub mid_boss_pool: Vec<ContentId>,
     /// The final boss (a sprite ID).
     pub final_boss: ContentId,
+    /// The boss times at which no elite is called (core#336), each once. A time that is no boss
+    /// time of the run has no effect; every other boss calls its elites as its definition says.
+    #[serde(default)]
+    pub no_call_ticks: Vec<u32>,
+    /// The boss definitions (core#336), 0 to `MAX_BOSS_DEFINITIONS`, each for one sprite: a
+    /// pool entry or the final boss with a definition here is made from it, one without is made
+    /// from the trial's placeholder boss with its sprite. Each is checked as a stage's boss is,
+    /// when a run starts (`run_setup`), and its sprite is an asset.
+    #[serde(default)]
+    pub bosses: Vec<Boss>,
     /// How long the run goes on past the length while the final boss lives, in ticks, 1 to
     /// `MAX_OVERTIME_TICKS`.
     pub overtime_ticks: u32,
@@ -225,6 +239,16 @@ impl TimeLimit {
         &self.file.final_boss
     }
 
+    /// The boss times at which no elite is called.
+    pub fn no_call_ticks(&self) -> &[u32] {
+        &self.file.no_call_ticks
+    }
+
+    /// The boss definitions, by sprite.
+    pub fn bosses(&self) -> &[Boss] {
+        &self.file.bosses
+    }
+
     /// The overtime in ticks.
     pub fn overtime_ticks(&self) -> u32 {
         self.file.overtime_ticks
@@ -314,6 +338,14 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
     }
 
     let mid_bosses = times.len().saturating_sub(1);
+    for (i, t) in file.no_call_ticks.iter().enumerate() {
+        if file.no_call_ticks[..i].contains(t) {
+            issue(
+                format!("$.no_call_ticks[{i}]"),
+                "the same time as an earlier entry".into(),
+            );
+        }
+    }
     let pool = &file.mid_boss_pool;
     if pool.len() > MAX_POOL || pool.len() < mid_bosses {
         issue(
@@ -323,6 +355,24 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
                 pool.len()
             ),
         );
+    }
+    let defs = &file.bosses;
+    if defs.len() > MAX_BOSS_DEFINITIONS {
+        issue(
+            "$.bosses".into(),
+            format!(
+                "at most {MAX_BOSS_DEFINITIONS} definitions (found {})",
+                defs.len()
+            ),
+        );
+    }
+    for (i, def) in defs.iter().enumerate().take(MAX_BOSS_DEFINITIONS) {
+        if defs[..i].iter().any(|before| before.base == def.base) {
+            issue(
+                format!("$.bosses[{i}].base"),
+                "the same sprite as an earlier definition".into(),
+            );
+        }
     }
     let mut boss = |path: String, id: &ContentId| {
         let message = if !registry::is_well_formed(&id.0) {
@@ -340,6 +390,10 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
         boss(format!("$.mid_boss_pool[{i}]"), id);
     }
     boss("$.final_boss".into(), &file.final_boss);
+    for (i, def) in defs.iter().enumerate().take(MAX_BOSS_DEFINITIONS) {
+        boss(format!("$.bosses[{i}].base"), &def.base);
+    }
+
 
     if !(1..=MAX_OVERTIME_TICKS).contains(&file.overtime_ticks) {
         issue(
