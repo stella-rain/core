@@ -1867,4 +1867,79 @@ mod horde_tests {
             .collect();
         assert_eq!(elites, [true, true]);
     }
+
+    /// A bundled `time_limit` run on `difficulty`, the main character alive (`arrivals_and_calls`
+    /// keeps it so; `boss_sprite_at` does too).
+    fn bundled_run(difficulty: &str, seed: u64) -> Engine {
+        let setup = RunSetup {
+            schema_version: 0,
+            sim_version: 0,
+            mode: "time_limit".into(),
+            weapon: "giant_sword".into(),
+            seed,
+            star_pool: None,
+            extra_rerolls: 0,
+            upgrades: Vec::new(),
+            perk_set: "duelist".into(),
+            auto_combo: false,
+            rune_pool: Vec::new(),
+            carried: Vec::new(),
+            lumine: 0,
+            starting_rune: None,
+            difficulty: difficulty.into(),
+        };
+        let mode = TimeLimit::bundled();
+        Engine::start_time_limit(&setup, RunContent::bundled(), mode).unwrap()
+    }
+
+    /// The sprite of the boss on the field once the run has reached `tick`.
+    fn boss_sprite_at(e: &mut Engine, tick: u32) -> Option<String> {
+        while e.tick() < tick {
+            e.state.player.hp = e.state.player.max_hp;
+            e.step(Input::default());
+        }
+        e.snapshot()
+            .entities
+            .iter()
+            .find(|v| v.kind == crate::snapshot::EntityKind::Boss)
+            .map(|v| v.asset.0.clone())
+    }
+
+    fn assert_three_distinct_mid_bosses(difficulty: &str, times: [u32; 3]) {
+        const POOL: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
+        for seed in 0..4 {
+            let mut e = bundled_run(difficulty, seed);
+            let drawn: Vec<String> = times
+                .iter()
+                .map(|&t| boss_sprite_at(&mut e, t).expect("a boss"))
+                .collect();
+            let mut unique = drawn.clone();
+            unique.sort();
+            unique.dedup();
+            assert_eq!(unique.len(), 3, "seed {seed}: {drawn:?}");
+            assert!(drawn.iter().all(|d| POOL.contains(&d.as_str())), "{drawn:?}");
+        }
+    }
+
+    #[test]
+    fn the_20_minute_run_draws_three_distinct_mid_bosses_from_the_four() {
+        assert_three_distinct_mid_bosses("normal", [18_000, 36_000, 54_000]);
+    }
+
+    #[test]
+    fn the_easy_run_draws_its_three_mid_bosses_without_repeats() {
+        assert_three_distinct_mid_bosses("easy", [9_000, 18_000, 27_000]);
+    }
+
+    #[test]
+    fn the_five_minute_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds() {
+        // The 5-minute boss comes at 18000 and calls nothing; the 10-minute one at 36000 calls
+        // 1800 ticks after it came, and so does the 15-minute one at 54000.
+        for seed in 0..2 {
+            let mut e = bundled_run("normal", seed);
+            let (arrived, called) = arrivals_and_calls(&mut e, 55_800);
+            assert_eq!(arrived, [18_000, 36_000, 54_000], "seed {seed}");
+            assert_eq!(called, [37_800, 55_800], "seed {seed}");
+        }
+    }
 }
