@@ -90,6 +90,26 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
 }
 
 #[test]
+fn the_bundled_rewards_have_the_stack_limit_of_their_rarity() {
+    // app#336: how many times one run takes an ordinary reward, by rarity.
+    for reward in Rewards::bundled().rewards() {
+        let limit = match reward.rarity {
+            Rarity::Common => 5,
+            Rarity::Uncommon => 4,
+            Rarity::Rare => 3,
+            Rarity::Epic | Rarity::Legendary | Rarity::Supernova => 2,
+        };
+        assert_eq!(
+            reward.limit,
+            Some(limit),
+            "{} ({:?})",
+            reward.id.0,
+            reward.rarity
+        );
+    }
+}
+
+#[test]
 fn the_bundled_rewards_offer_every_bundled_stage_skill() {
     let bundled = Rewards::bundled();
     assert_eq!(bundled.stage_skills(), StageSkills::bundled());
