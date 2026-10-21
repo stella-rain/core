@@ -1490,6 +1490,50 @@ pub(crate) struct AttackRun {
     pub homing: Option<EntityId>,
 }
 
+/// The movement speed, in percent, that the running attacks leave each attacker: the lowest
+/// `move_pct` of the current phases of its runs. Kept beside `State::runs` so that asking costs
+/// a search over the attackers, not a scan of every run; a derived value that no hash reads.
+/// Sorted by owner, one entry for each owner with a run.
+#[derive(Clone, Debug, Default)]
+#[allow(dead_code)] // wired in by the next commit
+pub(crate) struct MoveIndex {
+    by_owner: Vec<(EntityId, i64)>,
+}
+
+#[allow(dead_code)] // wired in by the next commit
+impl MoveIndex {
+    /// The speed `owner`'s runs leave it, 100 with none.
+    #[inline]
+    pub fn get(&self, owner: EntityId) -> i64 {
+        let at = self.by_owner.partition_point(|e| e.0 < owner);
+        match self.by_owner.get(at) {
+            Some(e) if e.0 == owner => e.1,
+            _ => 100,
+        }
+    }
+
+    /// Takes in a run that starts, or whose phase changes to one, with this `move_pct`.
+    pub fn lower(&mut self, owner: EntityId, pct: i64) {
+        let at = self.by_owner.partition_point(|e| e.0 < owner);
+        match self.by_owner.get_mut(at) {
+            Some(e) if e.0 == owner => e.1 = e.1.min(pct),
+            _ => self.by_owner.insert(at, (owner, pct)),
+        }
+    }
+
+    /// Starts again from `runs`: after one ended or went on to another phase.
+    pub fn rebuild(&mut self, runs: &[AttackRun]) {
+        self.by_owner.clear();
+        self.by_owner.extend(
+            runs.iter()
+                .map(|r| (r.owner, i64::from(r.phases[r.phase as usize].move_pct))),
+        );
+        // Lowest first within an owner, so that the entry `dedup_by_key` keeps is the lowest.
+        self.by_owner.sort_unstable();
+        self.by_owner.dedup_by_key(|e| e.0);
+    }
+}
+
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it
 /// needs to know to aim and to hurt. Presets are expanded before they get here, so a preset and
 /// its inline copy are the same task.
@@ -2010,5 +2054,102 @@ mod horde_tests {
             assert_eq!(arrived, [18_000, 36_000, 54_000], "seed {seed}");
             assert_eq!(called, [37_800, 55_800], "seed {seed}");
         }
+    }
+}
+
+#[cfg(test)]
+mod move_index_tests {
+    use super::*;
+    use crate::attack::PhaseKind;
+
+    fn phase(move_pct: u8) -> AttackPhase {
+        AttackPhase {
+            kind: PhaseKind::Active,
+            ticks: 5,
+            hit_box: None,
+            damage: None,
+            damage_type: None,
+            rehit_ticks: None,
+            spawn: Vec::new(),
+            move_pct,
+            breaks_charge: false,
+        }
+    }
+
+    /// A run of `owner` whose phases have these `move_pct`s, on its `phase`.
+    fn run(owner: u32, phase_at: u32, pcts: &[u8]) -> AttackRun {
+        AttackRun {
+            owner: EntityId(owner),
+            slot: 0,
+            preset: None,
+            phases: Arc::new(pcts.iter().map(|p| phase(*p)).collect()),
+            phase: phase_at,
+            tick: 0,
+            facing: Dir::DOWN,
+            aim: Aim::Fixed(Dir::DOWN),
+            friendly: false,
+            base: 1,
+            atk_up_pct: 0,
+            damage_pct: 100,
+            type_bonus_pct: None,
+            age: 0,
+            hits: Vec::new(),
+            smash: None,
+            at: None,
+            throw: None,
+            homing: None,
+        }
+    }
+
+    /// The scan the index replaces, kept as the oracle.
+    fn scan(runs: &[AttackRun], owner: EntityId) -> i64 {
+        runs.iter()
+            .filter(|r| r.owner == owner)
+            .map(|r| i64::from(r.phases[r.phase as usize].move_pct))
+            .min()
+            .unwrap_or(100)
+    }
+
+    fn assert_same(index: &MoveIndex, runs: &[AttackRun]) {
+        for id in 0..8 {
+            assert_eq!(
+                index.get(EntityId(id)),
+                scan(runs, EntityId(id)),
+                "owner {id}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_owner_with_several_runs_gets_the_lowest_move_pct() {
+        let runs = vec![
+            run(3, 0, &[80, 10]),
+            run(5, 1, &[0, 100]),
+            run(3, 1, &[100, 40]),
+            run(3, 0, &[90]),
+            run(1, 0, &[0]),
+        ];
+        let mut index = MoveIndex::default();
+        index.rebuild(&runs);
+        assert_same(&index, &runs);
+        assert_eq!(index.get(EntityId(3)), 40);
+        assert_eq!(index.get(EntityId(1)), 0);
+        assert_eq!(index.get(EntityId(2)), 100);
+    }
+
+    #[test]
+    fn lowering_for_a_new_run_matches_a_rebuild() {
+        let mut runs = vec![run(4, 0, &[70]), run(2, 0, &[100])];
+        let mut index = MoveIndex::default();
+        index.rebuild(&runs);
+        for (owner, pcts) in [(4, [30u8]), (6, [100]), (2, [55]), (6, [0]), (0, [90])] {
+            let r = run(owner, 0, &pcts);
+            index.lower(r.owner, i64::from(r.phases[0].move_pct));
+            runs.push(r);
+            assert_same(&index, &runs);
+        }
+        let mut rebuilt = MoveIndex::default();
+        rebuilt.rebuild(&runs);
+        assert_same(&rebuilt, &runs);
     }
 }
