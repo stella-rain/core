@@ -71,7 +71,7 @@ pub(super) fn move_pct(s: &State, owner: EntityId) -> i64 {
 
 /// What `move_pct` was before `State::move_index`: every run scanned. The index is checked
 /// against it in debug builds.
-#[cfg(debug_assertions)]
+#[cfg_attr(not(debug_assertions), allow(dead_code))]
 fn scan_move_pct(s: &State, owner: EntityId) -> i64 {
     s.runs
         .iter()
