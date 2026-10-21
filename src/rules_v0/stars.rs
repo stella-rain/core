@@ -309,12 +309,14 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
 /// Takes the reward at `i` of the file: counts it toward its stack limit and does what it does.
 /// The rune a random rune drew, if it drew one. A pick from an open offer and a star the run
 /// starts with (ADR-107 point 3) go through here alike.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn take(
     stage: &Stage,
     rewards: &Rewards,
     rng: &mut SplitMix64,
     progress: &mut Option<Progress>,
     player: &mut PlayerState,
+    regen: &mut u32,
     f: &mut StarField,
     i: u16,
 ) -> Option<Rune> {
@@ -337,6 +339,7 @@ pub(super) fn take(
         RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
         RewardEffect::Orbit => orbit::take(player, i, amount),
         RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
+        RewardEffect::Regen => *regen = regen.saturating_add(amount),
         RewardEffect::RuneHaste => {
             player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
         }
@@ -377,6 +380,7 @@ pub(super) fn choose(
         stars,
         progress,
         player,
+        regen,
         ..
     } = s;
     let Some(f) = stars.as_mut() else {
@@ -390,7 +394,7 @@ pub(super) fn choose(
             let Some(&i) = o.candidates.get(usize::from(candidate)) else {
                 return;
             };
-            let rune = take(stage, rewards, rng, progress, player, f, i);
+            let rune = take(stage, rewards, rng, progress, player, regen, f, i);
             let at = usize::from(i);
             events.push(DomainEvent::RewardTaken {
                 reward: rewards.rewards()[at].id.clone(),
@@ -473,6 +477,8 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rules_v0::{RunDifficulty, RunPool, initial_state};
+    use crate::run_content::RunContent;
 
     const ALL: (Rarity, Rarity) = (Rarity::Common, Rarity::Supernova);
 
@@ -520,5 +526,38 @@ mod tests {
             let exact = draw_rarity(&mut b, &w, (Rarity::Common, Rarity::Legendary));
             assert_eq!(wide, exact);
         }
+    }
+
+    #[test]
+    fn a_boss_offer_at_the_tiers_highest_rarity_stays_inside_the_difficultys_range() {
+        // Level 1's tier tops at supernova, and easy's range tops at rare: the boss offer is rare.
+        // (A run-level test cannot reach it: the player would have to be at level 5 first.)
+        let mut stage = RunContent::bundled().trial().clone();
+        let st = stage.stars.as_mut().expect("the trial stage has stars");
+        st.tiers = vec![Tier {
+            from_level: 1,
+            weights: RarityWeights {
+                supernova: 1,
+                ..RarityWeights::default()
+            },
+        }];
+        let pool = RunPool {
+            rewards: (0..3).collect(),
+            extra_rerolls: 0,
+            upgrades: 0,
+            difficulty: RunDifficulty {
+                hp_pct: 70,
+                damage_pct: 75,
+                rarity: (Rarity::Common, Rarity::Rare),
+            },
+        };
+        let mut s = initial_state(&stage, RunContent::bundled(), pool, 1);
+        boss_killed(&stage, &mut s);
+        let due = &s.stars.as_ref().expect("a star field").due;
+        assert_eq!(due.len(), 1, "{due:?}");
+        assert_eq!(
+            (due[0].kind, due[0].rarity),
+            (OfferKind::Boss, Rarity::Rare)
+        );
     }
 }

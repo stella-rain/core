@@ -507,6 +507,7 @@
         "from_level": 3,
         "weights": {
           "common": 70,
+          "uncommon": 15,
           "rare": 30
         }
       },
@@ -514,11 +515,21 @@
         "from_level": 5,
         "weights": {
           "common": 50,
+          "uncommon": 10,
           "rare": 35,
-          "legendary": 15
+          "epic": 10,
+          "legendary": 15,
+          "supernova": 5
         }
       }
     ]
+  },
+  "heal": {
+    "boss_pct": 25,
+    "drop_one_in": 150,
+    "amount": 300,
+    "cap": 5,
+    "pickup_radius": 6144
   },
   "elite_cap": 4,
   "level_table": {

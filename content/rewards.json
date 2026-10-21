@@ -213,6 +213,222 @@
       "limit": 3,
       "title": "Aegis",
       "description": "A shield absorbs the next hits for a while"
+    },
+    {
+      "id": "regen_common",
+      "rarity": "common",
+      "effect": "regen",
+      "amount": 10,
+      "limit": 5,
+      "title": "Regeneration",
+      "description": "Hit points come back every second, a little"
+    },
+    {
+      "id": "regen_rare",
+      "rarity": "rare",
+      "effect": "regen",
+      "amount": 30,
+      "limit": 3,
+      "title": "Regeneration",
+      "description": "Hit points come back every second"
+    },
+    {
+      "id": "regen_legendary",
+      "rarity": "legendary",
+      "effect": "regen",
+      "amount": 60,
+      "limit": 1,
+      "title": "Regeneration",
+      "description": "Hit points come back every second, a lot"
+    },
+    {
+      "id": "max_hp_uncommon",
+      "rarity": "uncommon",
+      "effect": "max_hp",
+      "amount": 300,
+      "limit": 4,
+      "title": "Vigour (Uncommon)",
+      "description": "300 more hit points at most, and as many healed"
+    },
+    {
+      "id": "max_hp_epic",
+      "rarity": "epic",
+      "effect": "max_hp",
+      "amount": 700,
+      "limit": 2,
+      "title": "Vigour (Epic)",
+      "description": "700 more hit points at most, and as many healed"
+    },
+    {
+      "id": "max_hp_supernova",
+      "rarity": "supernova",
+      "effect": "max_hp",
+      "amount": 1600,
+      "limit": 1,
+      "title": "Vigour (Supernova)",
+      "description": "1600 more hit points at most, and as many healed"
+    },
+    {
+      "id": "attack_uncommon",
+      "rarity": "uncommon",
+      "effect": "attack_pct",
+      "amount": 7,
+      "limit": 4,
+      "title": "Might (Uncommon)",
+      "description": "7 percent more damage"
+    },
+    {
+      "id": "attack_epic",
+      "rarity": "epic",
+      "effect": "attack_pct",
+      "amount": 17,
+      "limit": 2,
+      "title": "Might (Epic)",
+      "description": "17 percent more damage"
+    },
+    {
+      "id": "attack_supernova",
+      "rarity": "supernova",
+      "effect": "attack_pct",
+      "amount": 40,
+      "limit": 1,
+      "title": "Might (Supernova)",
+      "description": "40 percent more damage"
+    },
+    {
+      "id": "attack_speed_uncommon",
+      "rarity": "uncommon",
+      "effect": "attack_speed_pct",
+      "amount": 6,
+      "limit": 4,
+      "title": "Swiftness (Uncommon)",
+      "description": "Attacks 6 percent faster"
+    },
+    {
+      "id": "attack_speed_epic",
+      "rarity": "epic",
+      "effect": "attack_speed_pct",
+      "amount": 14,
+      "limit": 2,
+      "title": "Swiftness (Epic)",
+      "description": "Attacks 14 percent faster"
+    },
+    {
+      "id": "attack_speed_supernova",
+      "rarity": "supernova",
+      "effect": "attack_speed_pct",
+      "amount": 32,
+      "limit": 1,
+      "title": "Swiftness (Supernova)",
+      "description": "Attacks 32 percent faster"
+    },
+    {
+      "id": "evade_uncommon",
+      "rarity": "uncommon",
+      "effect": "evade_pct",
+      "amount": 7,
+      "limit": 4,
+      "title": "Grace (Uncommon)",
+      "description": "7 percent shorter evade cooldown"
+    },
+    {
+      "id": "evade_epic",
+      "rarity": "epic",
+      "effect": "evade_pct",
+      "amount": 17,
+      "limit": 2,
+      "title": "Grace (Epic)",
+      "description": "17 percent shorter evade cooldown"
+    },
+    {
+      "id": "evade_supernova",
+      "rarity": "supernova",
+      "effect": "evade_pct",
+      "amount": 40,
+      "limit": 1,
+      "title": "Grace (Supernova)",
+      "description": "40 percent shorter evade cooldown"
+    },
+    {
+      "id": "speed_uncommon",
+      "rarity": "uncommon",
+      "effect": "speed_pct",
+      "amount": 6,
+      "limit": 4,
+      "title": "Swiftness (Uncommon)",
+      "description": "6 percent more speed"
+    },
+    {
+      "id": "speed_epic",
+      "rarity": "epic",
+      "effect": "speed_pct",
+      "amount": 14,
+      "limit": 2,
+      "title": "Swiftness (Epic)",
+      "description": "14 percent more speed"
+    },
+    {
+      "id": "speed_supernova",
+      "rarity": "supernova",
+      "effect": "speed_pct",
+      "amount": 32,
+      "limit": 1,
+      "title": "Swiftness (Supernova)",
+      "description": "32 percent more speed"
+    },
+    {
+      "id": "xp_uncommon",
+      "rarity": "uncommon",
+      "effect": "xp_pct",
+      "amount": 15,
+      "limit": 4,
+      "title": "Insight (Uncommon)",
+      "description": "15 percent more experience"
+    },
+    {
+      "id": "xp_epic",
+      "rarity": "epic",
+      "effect": "xp_pct",
+      "amount": 35,
+      "limit": 2,
+      "title": "Insight (Epic)",
+      "description": "35 percent more experience"
+    },
+    {
+      "id": "xp_supernova",
+      "rarity": "supernova",
+      "effect": "xp_pct",
+      "amount": 80,
+      "limit": 1,
+      "title": "Insight (Supernova)",
+      "description": "80 percent more experience"
+    },
+    {
+      "id": "regen_uncommon",
+      "rarity": "uncommon",
+      "effect": "regen",
+      "amount": 15,
+      "limit": 4,
+      "title": "Regeneration (Uncommon)",
+      "description": "Hit points come back every second, some"
+    },
+    {
+      "id": "regen_epic",
+      "rarity": "epic",
+      "effect": "regen",
+      "amount": 35,
+      "limit": 2,
+      "title": "Regeneration (Epic)",
+      "description": "Hit points come back every second, much"
+    },
+    {
+      "id": "regen_supernova",
+      "rarity": "supernova",
+      "effect": "regen",
+      "amount": 80,
+      "limit": 1,
+      "title": "Regeneration (Supernova)",
+      "description": "Hit points come back every second, a huge amount"
     }
   ]
 }
