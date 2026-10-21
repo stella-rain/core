@@ -29,6 +29,7 @@ mod elite_mimic;
 mod elite_pack_leader;
 mod elite_shrine;
 mod elites;
+mod enemy_roles;
 mod engine;
 mod evade;
 mod expertise;
