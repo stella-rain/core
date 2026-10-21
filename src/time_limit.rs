@@ -22,7 +22,7 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::stage::{ExpertisePoints, LevelTable, Map, StardustTier, Wave, stardust_tiers_problem};
-use crate::validate::limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
+use crate::validate::limits::{self, MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -103,6 +103,10 @@ pub struct TimeLimitFile {
     /// the first at tick 0, the ticks rising strictly, each percent from 1 to
     /// `limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own (ADR-110).
     pub stardust_tiers: Vec<StardustTier>,
+    /// The base Stardust a kill of a summoned enemy earns before the factor, times 10, at most
+    /// `limits::MAX_STARDUST_BASE`; the run's stage takes it as its `stardust.summon_base`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stardust_summon_base: Option<u32>,
 }
 
 /// From `start_tick` until the next tier starts, an elite is drawn by these weights.
@@ -263,6 +267,11 @@ impl TimeLimit {
     /// The Stardust time factor's tiers a run takes unless its difficulty gives its own.
     pub fn stardust_tiers(&self) -> &[StardustTier] {
         &self.file.stardust_tiers
+    }
+
+    /// The base Stardust of a summoned enemy's kill, times 10, if the mode pays one.
+    pub fn stardust_summon_base(&self) -> Option<u32> {
+        self.file.stardust_summon_base
     }
 
     /// The elite types the file defines.
@@ -451,6 +460,15 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
     }
     if let Some(problem) = stardust_tiers_problem(&file.stardust_tiers) {
         issue("$.stardust_tiers".into(), problem);
+    }
+    if file
+        .stardust_summon_base
+        .is_some_and(|b| b > limits::MAX_STARDUST_BASE)
+    {
+        issue(
+            "$.stardust_summon_base".into(),
+            format!("at most {}", limits::MAX_STARDUST_BASE),
+        );
     }
     if !(1..=MAX_ELITES_ALIVE).contains(&file.elite_cap) {
         issue(

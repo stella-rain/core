@@ -71,6 +71,7 @@ mod tests {
                 .iter()
                 .map(|&(start_tick, pct)| StardustTier { start_tick, pct })
                 .collect(),
+            summon_base: None,
         }
     }
 

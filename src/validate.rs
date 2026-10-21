@@ -654,6 +654,16 @@ impl<'a> Ctx<'a> {
         {
             self.key("stardust", |c| c.key("tiers", |c| c.fail(problem)));
         }
+        if let Some(base) = s.stardust.as_ref().and_then(|f| f.summon_base) {
+            self.key("stardust", |c| {
+                c.within(
+                    "summon_base",
+                    i64::from(base),
+                    0,
+                    i64::from(MAX_STARDUST_BASE),
+                );
+            });
+        }
         if let Some(cap) = s.elite_cap {
             self.within("elite_cap", i64::from(cap), 1, i64::from(MAX_ELITES_ALIVE));
         }

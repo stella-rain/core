@@ -75,6 +75,11 @@ pub struct Stage {
 pub struct StardustFactor {
     /// 1 to `limits::MAX_STARDUST_TIERS` tiers, the first at tick 0, the ticks rising strictly.
     pub tiers: Vec<StardustTier>,
+    /// The base Stardust a kill of a summoned enemy earns before the factor, times 10 (a boss's
+    /// or a splitter's `summon`), at most `limits::MAX_STARDUST_BASE`; none when absent.
+    /// Guardians, escorts and a boss's parts earn nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summon_base: Option<u32>,
 }
 
 /// One tier of the Stardust time factor: from `start_tick` until the next tier starts, a kill
