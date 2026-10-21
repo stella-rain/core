@@ -55,12 +55,12 @@ fn ladder(rarity: Rarity, common: u32) -> u32 {
     }
 }
 
-/// The stack limit each new rarity gets: uncommon 4, epic 2 and supernova 1.
+/// The stack limit each new rarity gets: uncommon 4, epic 2 and supernova 2.
 fn limit_of(rarity: Rarity) -> u8 {
     match rarity {
         Rarity::Uncommon => 4,
         Rarity::Epic => 2,
-        Rarity::Supernova => 1,
+        Rarity::Supernova => 2,
         _ => unreachable!("only the new rarities have a ladder limit"),
     }
 }
@@ -114,14 +114,14 @@ fn every_new_amount_is_inside_its_bound() {
 
 #[test]
 fn supernova_takes_a_bigger_amount_and_no_bigger_limit_than_legendary() {
-    // Legendary's limit is 1, the least a limit can be, so supernova's stays at 1: a lower one
-    // would mean changing legendary's released limit. The strict comparison is left for Kade.
+    // Legendary and supernova both stack twice (app#336): the bigger amount is what sets
+    // supernova apart, never a bigger limit.
     for effect in FAMILIES {
         let sup = bundled(effect, Rarity::Supernova);
         let leg = bundled(effect, Rarity::Legendary);
         assert!(sup.amount > leg.amount, "{effect:?}");
         assert!(sup.limit <= leg.limit, "{effect:?}");
-        assert_eq!(sup.limit, Some(1), "{effect:?}");
+        assert_eq!(sup.limit, Some(2), "{effect:?}");
     }
 }
 
@@ -171,7 +171,7 @@ fn the_bundled_rewards_still_parse_and_bound_their_new_limits() {
     };
     assert!(bad(0), "a limit of 0");
     assert!(bad(21), "a limit past MAX_STACK");
-    assert!(!bad(1), "the bundled limit of 1");
+    assert!(!bad(2), "the bundled limit of 2");
 }
 
 /// A run setup on `difficulty`, the `time_limit` mode with the bundled content.

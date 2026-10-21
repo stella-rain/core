@@ -25,7 +25,7 @@
       "rarity": "legendary",
       "effect": "max_hp",
       "amount": 1000,
-      "limit": 1,
+      "limit": 2,
       "title": "Vigour (Legendary)",
       "description": "1000 more hit points at most, and as many healed"
     },
@@ -52,7 +52,7 @@
       "rarity": "legendary",
       "effect": "attack_pct",
       "amount": 25,
-      "limit": 1,
+      "limit": 2,
       "title": "Might (Legendary)",
       "description": "25 percent more damage"
     },
@@ -79,7 +79,7 @@
       "rarity": "legendary",
       "effect": "attack_speed_pct",
       "amount": 20,
-      "limit": 1,
+      "limit": 2,
       "title": "Swiftness (Legendary)",
       "description": "Attacks 20 percent faster"
     },
@@ -106,7 +106,7 @@
       "rarity": "legendary",
       "effect": "evade_pct",
       "amount": 25,
-      "limit": 1,
+      "limit": 2,
       "title": "Grace (Legendary)",
       "description": "25 percent shorter evade cooldown"
     },
@@ -133,7 +133,7 @@
       "rarity": "legendary",
       "effect": "speed_pct",
       "amount": 20,
-      "limit": 1,
+      "limit": 2,
       "title": "Swiftness (Legendary)",
       "description": "20 percent more speed"
     },
@@ -160,7 +160,7 @@
       "rarity": "legendary",
       "effect": "xp_pct",
       "amount": 50,
-      "limit": 1,
+      "limit": 2,
       "title": "Insight (Legendary)",
       "description": "50 percent more experience"
     },
@@ -237,7 +237,7 @@
       "rarity": "legendary",
       "effect": "regen",
       "amount": 6000,
-      "limit": 1,
+      "limit": 2,
       "title": "Regeneration",
       "description": "Hit points come back every second, a lot"
     },
@@ -264,7 +264,7 @@
       "rarity": "supernova",
       "effect": "max_hp",
       "amount": 1600,
-      "limit": 1,
+      "limit": 2,
       "title": "Vigour (Supernova)",
       "description": "1600 more hit points at most, and as many healed"
     },
@@ -291,7 +291,7 @@
       "rarity": "supernova",
       "effect": "attack_pct",
       "amount": 40,
-      "limit": 1,
+      "limit": 2,
       "title": "Might (Supernova)",
       "description": "40 percent more damage"
     },
@@ -318,7 +318,7 @@
       "rarity": "supernova",
       "effect": "attack_speed_pct",
       "amount": 32,
-      "limit": 1,
+      "limit": 2,
       "title": "Swiftness (Supernova)",
       "description": "Attacks 32 percent faster"
     },
@@ -345,7 +345,7 @@
       "rarity": "supernova",
       "effect": "evade_pct",
       "amount": 40,
-      "limit": 1,
+      "limit": 2,
       "title": "Grace (Supernova)",
       "description": "40 percent shorter evade cooldown"
     },
@@ -372,7 +372,7 @@
       "rarity": "supernova",
       "effect": "speed_pct",
       "amount": 32,
-      "limit": 1,
+      "limit": 2,
       "title": "Swiftness (Supernova)",
       "description": "32 percent more speed"
     },
@@ -399,7 +399,7 @@
       "rarity": "supernova",
       "effect": "xp_pct",
       "amount": 80,
-      "limit": 1,
+      "limit": 2,
       "title": "Insight (Supernova)",
       "description": "80 percent more experience"
     },
@@ -426,7 +426,7 @@
       "rarity": "supernova",
       "effect": "regen",
       "amount": 8000,
-      "limit": 1,
+      "limit": 2,
       "title": "Regeneration (Supernova)",
       "description": "Hit points come back every second, a huge amount"
     }
