@@ -1,8 +1,8 @@
 //! Difficulties (ADR-110, ADR-067: data picks, code acts): `easy`, `normal`, `hard` and `rainy`,
 //! each a content ID with the percent its enemies' hit points and damage are scaled by, the
-//! range of rarities its drops may have, the factor its Stardust time bonus grows by (ADR-109,
-//! counted by `rules_v0::stardust`) and, optionally, its own length, boss times and level table for the
-//! mode it is played in. A setup names one (`RunSetup::difficulty`).
+//! range of rarities its drops may have and, optionally, its own length, boss times, level table and
+//! Stardust time factor tiers (ADR-109, counted by `rules_v0::stardust`) for the mode it is
+//! played in. A setup names one (`RunSetup::difficulty`).
 //!
 //! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every field bounded: 1 to `MAX_DIFFICULTIES`
@@ -23,7 +23,7 @@ use crate::pack::Pack;
 use crate::registry;
 use crate::rewards::{Rarity, Rewards};
 use crate::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, text_problem};
-use crate::stage::LevelTable;
+use crate::stage::{LevelTable, StardustTier, stardust_tiers_problem};
 use crate::time_limit::{MAX_BOSS_TIMES, MAX_LENGTH_TICKS};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -33,7 +33,7 @@ pub const MAX_DIFFICULTIES_BYTES: usize = 8 * 1024;
 /// The most difficulties a file lists (4 today).
 pub const MAX_DIFFICULTIES: usize = 8;
 /// The largest percent of any kind: hit points and damage (ADR-103's 32-bit values saturate
-/// rather than wrap, `scale_pct`), and the Stardust time factor.
+/// rather than wrap, `scale_pct`).
 pub const MAX_PCT: u32 = 1_000;
 /// The difficulty of a setup that names none: a setup written before difficulties existed.
 /// New setups always name theirs.
@@ -65,10 +65,6 @@ pub struct Difficulty {
     pub rarity_min: Rarity,
     /// The highest rarity its drops and offers may have; not below `rarity_min`.
     pub rarity_max: Rarity,
-    /// The Stardust time factor at the start of a run, in percent, from 1 to `MAX_PCT`.
-    pub stardust_start_pct: u32,
-    /// The Stardust time factor at the end of a run, in percent, from the start's to `MAX_PCT`.
-    pub stardust_end_pct: u32,
     /// The mode's run length in ticks, in place of its file's: with `boss_ticks`, or neither.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub length_ticks: Option<u32>,
@@ -79,6 +75,10 @@ pub struct Difficulty {
     /// The expertise levels (ADR-106 point 4) in place of the mode's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub level_table: Option<LevelTable>,
+    /// The Stardust time factor's tiers (ADR-109 decision 2) in place of the mode's: as the
+    /// mode file's `stardust_tiers`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stardust_tiers: Option<Vec<StardustTier>>,
 }
 
 impl Difficulty {
@@ -201,25 +201,10 @@ pub fn validate(file: &DifficultiesFile) -> Result<(), Error> {
         if let Some(problem) = text_problem(&d.description, 0, MAX_DESCRIPTION_CHARS) {
             issue(at("description"), problem);
         }
-        for (field, pct) in [
-            ("hp_pct", d.hp_pct),
-            ("damage_pct", d.damage_pct),
-            ("stardust_start_pct", d.stardust_start_pct),
-            ("stardust_end_pct", d.stardust_end_pct),
-        ] {
+        for (field, pct) in [("hp_pct", d.hp_pct), ("damage_pct", d.damage_pct)] {
             if !(1..=MAX_PCT).contains(&pct) {
                 issue(at(field), format!("1 to {MAX_PCT} (found {pct})"));
             }
-        }
-        let in_range = |pct: u32| (1..=MAX_PCT).contains(&pct);
-        if in_range(d.stardust_start_pct)
-            && in_range(d.stardust_end_pct)
-            && d.stardust_end_pct < d.stardust_start_pct
-        {
-            issue(
-                at("stardust_end_pct"),
-                "not below the factor at the start".into(),
-            );
         }
         if d.rarity_max < d.rarity_min {
             issue(at("rarity_max"), "not below rarity_min".into());
@@ -262,6 +247,9 @@ pub fn validate(file: &DifficultiesFile) -> Result<(), Error> {
         }
         if let Some(problem) = d.level_table.as_ref().and_then(LevelTable::problem) {
             issue(at("level_table"), problem);
+        }
+        if let Some(problem) = d.stardust_tiers.as_deref().and_then(stardust_tiers_problem) {
+            issue(at("stardust_tiers"), problem);
         }
     }
     if issues.is_empty() {

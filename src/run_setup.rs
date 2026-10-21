@@ -569,8 +569,10 @@ pub(crate) fn time_limit_run(
     stage.elite_cap = Some(mode.elite_cap());
     stage.level_table = Some(difficulty.level_table.unwrap_or(*mode.level_table()));
     stage.stardust = Some(StardustFactor {
-        start_pct: difficulty.stardust_start_pct,
-        end_pct: difficulty.stardust_end_pct,
+        tiers: difficulty
+            .stardust_tiers
+            .clone()
+            .unwrap_or_else(|| mode.stardust_tiers().to_vec()),
     });
     // Each elite type is a wave that never spawns (count 0): the lookups of an enemy's
     // definition, experience and expertise go by the stage's waves.
