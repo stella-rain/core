@@ -410,7 +410,10 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
                     format!("$.waves[{i}].id"),
                     "not a valid content ID (lowercase snake_case, at most 32 characters)".into(),
                 );
-            } else if waves[..i].iter().any(|before| before.id.as_ref() == Some(id)) {
+            } else if waves[..i]
+                .iter()
+                .any(|before| before.id.as_ref() == Some(id))
+            {
                 issue(
                     format!("$.waves[{i}].id"),
                     "the same ID as an earlier wave".into(),
