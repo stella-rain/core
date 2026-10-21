@@ -581,6 +581,7 @@ pub(crate) fn time_limit_run(
             u32::try_from(stage.waves.len()).unwrap_or(u32::MAX),
         ));
         stage.waves.push(Wave {
+            id: None,
             at_tick: 0,
             enemy: t.enemy.clone(),
             spawn: mode.map().start,

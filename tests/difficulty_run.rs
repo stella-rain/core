@@ -200,6 +200,8 @@ fn easys_bosses_come_at_its_times() {
 fn an_override_with_more_mid_bosses_than_the_pool_has_is_refused() {
     let m = mode(|v| {
         v["length_ticks"] = json!(600);
+        // The bundled schedule's waves start after a 600-tick run ends; this run has none.
+        v["waves"] = json!([]);
         v["boss_ticks"] = json!([300, 600]);
         v["mid_boss_pool"] = json!(["golem"]);
         v["elite_table"] =

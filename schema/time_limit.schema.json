@@ -1934,6 +1934,17 @@
             }
           ]
         },
+        "id": {
+          "description": "The wave's role in a `time_limit` schedule (R2): lowercase snake_case, unique among the\nschedule's waves. A stage's waves do not use it; absent, the wave has no ID.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "spawn": {
           "$ref": "#/$defs/Point"
         },

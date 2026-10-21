@@ -26,8 +26,10 @@ use crate::stage::Stage;
 use crate::validate;
 
 /// A replay file is at most this big (ADR-020). Even a maximum-length replay whose inputs never
-/// repeat fits.
-pub const MAX_REPLAY_BYTES: usize = 256 * 1024;
+/// repeat fits. Placeholder (R2): 1 MiB, from 256 KiB, because a 20-minute `time_limit` run with
+/// a bot is about 300 KB and the longest (43 minutes with overtime and the Star-Hunter's time)
+/// about 510 KB. An ADR-020 follow-up decides the real figure.
+pub const MAX_REPLAY_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

@@ -203,11 +203,17 @@ fn waves(list: Vec<Value>) -> Value {
 }
 
 #[test]
-fn the_bundled_schedule_spawns_about_a_hundred_a_minute_and_is_within_its_caps() {
+fn the_bundled_schedule_is_within_its_caps_and_the_bats_spawn_a_hundred_a_minute() {
     let m = TimeLimit::bundled();
     let total: u32 = m.waves().iter().map(|w| u32::from(w.count)).sum();
     assert!(total <= MAX_TOTAL_SPAWNS && m.waves().len() <= MAX_WAVES);
-    let a_minute: u32 = m.waves().iter().map(|w| 3600 / w.every_ticks).sum();
+    // The bats are the schedule's waves without an ID; the six roles have IDs.
+    let a_minute: u32 = m
+        .waves()
+        .iter()
+        .filter(|w| w.id.is_none())
+        .map(|w| 3600 / w.every_ticks)
+        .sum();
     assert_eq!(a_minute, 100);
     assert!(m.waves().iter().all(|w| w.enemy.elite.is_none()));
     // The last spawn comes before the run ends.
