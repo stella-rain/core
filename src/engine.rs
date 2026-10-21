@@ -1534,7 +1534,12 @@ mod horde_tests {
     use crate::time_limit::TimeLimit;
 
     fn engine(boss_ticks: &[u32]) -> Engine {
+        engine_with(boss_ticks, &[])
+    }
+
+    fn engine_with(boss_ticks: &[u32], no_call_ticks: &[u32]) -> Engine {
         let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+        v["no_call_ticks"] = serde_json::json!(no_call_ticks);
         v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
         v["boss_ticks"] = serde_json::json!(boss_ticks);
         v["waves"] = serde_json::json!([]);
@@ -1597,6 +1602,38 @@ mod horde_tests {
         assert_eq!(arrived, [60, 3000, 6000]);
         let delays: Vec<u32> = arrived.iter().zip(&called).map(|(a, c)| c - a).collect();
         assert_eq!(delays, [1800, 1800], "{arrived:?} {called:?}");
+    }
+
+    /// Drops the boss on the field below 70% of its hit points and steps once: whether it
+    /// called its elites on that tick.
+    fn calls_below_70_pct(e: &mut Engine) -> bool {
+        let boss = e.state.boss.as_mut().unwrap();
+        boss.hp = boss.max_hp * 69 / 100;
+        e.step(Input::default());
+        e.events()
+            .iter()
+            .any(|ev| matches!(ev, DomainEvent::ElitesCalled { .. }))
+    }
+
+    #[test]
+    fn a_boss_calls_below_70_pct_unless_its_time_is_a_no_call_time() {
+        // The first time stands for the 5-minute boss, the second for the 10-minute one.
+        let mut e = engine_with(&[50, 200, 400], &[50]);
+        run_to(&mut e, 60);
+        assert!(!calls_below_70_pct(&mut e), "a no-call boss never calls");
+        run_to(&mut e, 210);
+        assert!(calls_below_70_pct(&mut e), "well before its 30 seconds");
+    }
+
+    #[test]
+    fn the_final_boss_is_the_core_pair_and_its_death_clears_the_run() {
+        let mut e = engine(&[50, 100]);
+        run_to(&mut e, 100);
+        assert_eq!(e.stage.boss.as_ref().unwrap().base.0, "core_pair");
+        assert_eq!(e.state.boss.as_ref().unwrap().parts.len(), 2);
+        e.state.boss.as_mut().unwrap().hp = 0;
+        e.step(Input::default());
+        assert_eq!(e.outcome(), Outcome::Cleared);
     }
 
     #[test]
