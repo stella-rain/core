@@ -2,6 +2,777 @@
   "boss_ticks": [
     46800
   ],
+  "bosses": [
+    {
+      "base": "stone_warden",
+      "call_elites": {
+        "after_ticks": 1800,
+        "below_pct": 70
+      },
+      "expertise": {
+        "hit": 5,
+        "kill": 500
+      },
+      "hp": 150000,
+      "phases": [
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 120,
+              "type": "wait"
+            },
+            {
+              "ticks": 60,
+              "type": "telegraph"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [],
+                  "id": "elite_slam"
+                }
+              },
+              "big": true,
+              "type": "attack"
+            },
+            {
+              "ticks": 150,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "active",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "direction": {
+                              "angle": 0,
+                              "type": "absolute"
+                            },
+                            "speed": 640,
+                            "type": "fire"
+                          }
+                        ],
+                        "count": 16,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 1
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 90,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [],
+          "until": {
+            "pct": 50,
+            "type": "hp_below",
+            "who": "self"
+          }
+        },
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 30,
+              "type": "telegraph"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    512
+                  ],
+                  "id": "spiral"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 120,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [],
+                  "id": "slam"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 60,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [
+            {
+              "type": "clear_bullets"
+            },
+            {
+              "ticks": 60,
+              "type": "invulnerable_ticks"
+            }
+          ]
+        }
+      ],
+      "profile": {
+        "resist": "physical",
+        "weak": [
+          "strike"
+        ]
+      },
+      "radius": 8192,
+      "spawn": {
+        "x": 163840,
+        "y": 35840
+      },
+      "stardust": 2000
+    },
+    {
+      "base": "lantern_choir",
+      "call_elites": {
+        "after_ticks": 1800,
+        "below_pct": 70
+      },
+      "expertise": {
+        "hit": 5,
+        "kill": 500
+      },
+      "hp": 150000,
+      "phases": [
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 90,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    768
+                  ],
+                  "id": "aimed_spread"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 60,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "active",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "angle": 2560,
+                            "body": [
+                              {
+                                "direction": {
+                                  "offset": 0,
+                                  "type": "aimed"
+                                },
+                                "speed": 768,
+                                "type": "fire"
+                              }
+                            ],
+                            "count": 3,
+                            "type": "spread"
+                          }
+                        ],
+                        "count": 8,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 1
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 90,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [],
+          "until": {
+            "pct": 50,
+            "type": "hp_below",
+            "who": "self"
+          }
+        },
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 30,
+              "type": "telegraph"
+            },
+            {
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "active",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "angle": 2560,
+                            "body": [
+                              {
+                                "direction": {
+                                  "offset": 0,
+                                  "type": "aimed"
+                                },
+                                "speed": 896,
+                                "type": "fire"
+                              }
+                            ],
+                            "count": 3,
+                            "type": "spread"
+                          }
+                        ],
+                        "count": 12,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 1
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 60,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    896
+                  ],
+                  "id": "aimed_spread"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 60,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [
+            {
+              "type": "clear_bullets"
+            },
+            {
+              "ticks": 60,
+              "type": "invulnerable_ticks"
+            }
+          ]
+        }
+      ],
+      "profile": {
+        "resist": "physical",
+        "weak": [
+          "slash"
+        ]
+      },
+      "radius": 8192,
+      "spawn": {
+        "x": 163840,
+        "y": 35840
+      },
+      "stardust": 2000
+    },
+    {
+      "base": "horn_charger",
+      "call_elites": {
+        "after_ticks": 1800,
+        "below_pct": 70
+      },
+      "expertise": {
+        "hit": 5,
+        "kill": 500
+      },
+      "hp": 150000,
+      "phases": [
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 40,
+              "type": "telegraph"
+            },
+            {
+              "ticks": 30,
+              "to": {
+                "x": 163840,
+                "y": 180000
+              },
+              "type": "move_to"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [],
+                  "id": "spread_5"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 30,
+              "type": "wait"
+            },
+            {
+              "ticks": 60,
+              "to": {
+                "x": 163840,
+                "y": 35840
+              },
+              "type": "move_to"
+            },
+            {
+              "ticks": 30,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [],
+          "until": {
+            "pct": 50,
+            "type": "hp_below",
+            "who": "self"
+          }
+        },
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 20,
+              "type": "telegraph"
+            },
+            {
+              "ticks": 20,
+              "to": {
+                "x": 163840,
+                "y": 180000
+              },
+              "type": "move_to"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [],
+                  "id": "twin_shot"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 20,
+              "type": "wait"
+            },
+            {
+              "ticks": 40,
+              "to": {
+                "x": 163840,
+                "y": 35840
+              },
+              "type": "move_to"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [
+            {
+              "type": "clear_bullets"
+            },
+            {
+              "ticks": 60,
+              "type": "invulnerable_ticks"
+            }
+          ]
+        }
+      ],
+      "profile": {
+        "resist": "physical",
+        "weak": [
+          "pierce"
+        ]
+      },
+      "radius": 8192,
+      "spawn": {
+        "x": 163840,
+        "y": 35840
+      },
+      "stardust": 2000
+    },
+    {
+      "base": "weaver",
+      "call_elites": {
+        "after_ticks": 1800,
+        "below_pct": 70
+      },
+      "expertise": {
+        "hit": 5,
+        "kill": 500
+      },
+      "hp": 150000,
+      "phases": [
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 90,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    640
+                  ],
+                  "id": "aimed_single"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 60,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [],
+          "until": {
+            "pct": 66,
+            "type": "hp_below",
+            "who": "self"
+          }
+        },
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 60,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    768
+                  ],
+                  "id": "aimed_spread"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 60,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    640
+                  ],
+                  "id": "aimed_single"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 40,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [
+            {
+              "type": "clear_bullets"
+            }
+          ],
+          "until": {
+            "pct": 33,
+            "type": "hp_below",
+            "who": "self"
+          }
+        },
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 30,
+              "type": "telegraph"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    512
+                  ],
+                  "id": "spiral"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 90,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    896
+                  ],
+                  "id": "aimed_spread"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 40,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [
+            {
+              "type": "clear_bullets"
+            },
+            {
+              "ticks": 60,
+              "type": "invulnerable_ticks"
+            }
+          ]
+        }
+      ],
+      "profile": {
+        "resist": "physical",
+        "weak": [
+          "pierce"
+        ]
+      },
+      "radius": 8192,
+      "spawn": {
+        "x": 163840,
+        "y": 35840
+      },
+      "stardust": 2000
+    },
+    {
+      "base": "core_pair",
+      "call_elites": {
+        "after_ticks": 1800,
+        "below_pct": 70
+      },
+      "expertise": {
+        "hit": 5,
+        "kill": 500
+      },
+      "hp": 300000,
+      "parts": [
+        {
+          "asset": "horns_2",
+          "hp": 60000,
+          "id": "core_left",
+          "offset": {
+            "x": -3840,
+            "y": -2048
+          },
+          "radius": 4096
+        },
+        {
+          "asset": "horns_2",
+          "hp": 60000,
+          "id": "core_right",
+          "offset": {
+            "x": 3840,
+            "y": -2048
+          },
+          "radius": 4096
+        }
+      ],
+      "phases": [
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 90,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    768
+                  ],
+                  "id": "aimed_spread"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 60,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [],
+          "until": {
+            "part": "core_left",
+            "type": "part_broken"
+          }
+        },
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "ticks": 40,
+              "type": "telegraph"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    512
+                  ],
+                  "id": "spiral"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 150,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [
+            {
+              "type": "clear_bullets"
+            },
+            {
+              "ticks": 60,
+              "type": "invulnerable_ticks"
+            }
+          ],
+          "until": {
+            "part": "core_right",
+            "type": "part_broken"
+          }
+        },
+        {
+          "rules": [],
+          "timeline": [
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    896
+                  ],
+                  "id": "aimed_spread"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 60,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "preset": {
+                  "args": [
+                    512
+                  ],
+                  "id": "spiral"
+                }
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 120,
+              "type": "wait"
+            },
+            {
+              "type": "loop"
+            }
+          ],
+          "transition": [
+            {
+              "type": "clear_bullets"
+            },
+            {
+              "ticks": 60,
+              "type": "invulnerable_ticks"
+            }
+          ]
+        }
+      ],
+      "profile": {
+        "resist": "physical",
+        "weak": [
+          "strike"
+        ]
+      },
+      "radius": 8192,
+      "spawn": {
+        "x": 163840,
+        "y": 35840
+      },
+      "stardust": 2000
+    }
+  ],
   "elite_cap": 5,
   "elite_table": [
     {
@@ -523,7 +1294,7 @@
       "xp": 3
     }
   ],
-  "final_boss": "golem",
+  "final_boss": "core_pair",
   "id": "time_limit",
   "length_ticks": 46800,
   "level_table": {
@@ -542,10 +1313,19 @@
     },
     "width": 1048576
   },
+  "mid_boss_hp_pct": [
+    100,
+    130,
+    160
+  ],
   "mid_boss_pool": [
-    "golem",
-    "golem",
-    "golem"
+    "stone_warden",
+    "lantern_choir",
+    "horn_charger",
+    "weaver"
+  ],
+  "no_call_ticks": [
+    18000
   ],
   "overtime_ticks": 1900,
   "schema_version": 0,
