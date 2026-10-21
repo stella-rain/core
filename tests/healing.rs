@@ -28,6 +28,20 @@ const MAX_HP: u32 = 1_000;
 /// The main character's entity ID.
 const PLAYER: u32 = 0;
 
+/// A Main weapon of one step: a circle 8 pixels ahead of the main character and 32 pixels
+/// wide, one active tick of 10 damage and 4 ticks of recovery (as `tests/range_reward.rs`).
+fn weapon() -> Value {
+    json!({ "inline": {
+        "combo": { "main": { "attack": { "inline": [
+            { "kind": "active", "ticks": 1, "damage": 10,
+              "hit_box": { "type": "circle", "offset": { "forward": 1_024 }, "radius": 8_192 } },
+            { "kind": "recovery", "ticks": 4 }
+        ] } } },
+        "window_ticks": 30,
+        "assist_range": 0
+    } })
+}
+
 /// The bundled healing of `trial.json`'s numbers: a quarter for a boss, one pickup in 150 that
 /// heals 300, at most 5 on the map.
 fn heal_json(boss_pct: u16, drop_one_in: u32, cap: u16) -> Value {
@@ -39,7 +53,8 @@ fn heal_json(boss_pct: u16, drop_one_in: u32, cap: u16) -> Value {
 
 /// `stage` healing with `heal`, a stage with levels and stars (so a kill's star offers open,
 /// taken from the pool of `rarity`), the main character at `MAX_HP`.
-fn healing(mut stage: Stage, heal: Value) -> Stage {
+fn healing(stage: Stage, heal: Value) -> Stage {
+    let mut stage = armed(stage, weapon());
     stage.heal = Some(serde_json::from_value(heal).expect("the heal config parses"));
     stage.player.hp = MAX_HP;
     stage
@@ -74,18 +89,18 @@ fn starry(stage: Stage, rarity: &str) -> Stage {
     stage
 }
 
-/// A shooter at `NEAR_Y` that fires once at the main character (and the weapon kills it at
-/// `NEAR_Y` if it is `hp` or fewer): one bullet of 100 hit points hurts it. A pickup is then
-/// taken or not as the stage's radius allows.
-fn shooter(hp: u32) -> Value {
+/// A shooter on the main character's own spot that fires once, at the first tick: its bullet
+/// hurts the main character at once, by 100 hit points. Its 10 000 hit points keep the weapon
+/// from killing it.
+fn shooter() -> Value {
     let rules = json!([attack_rule(always(), 10_000)]);
     wave(
         1,
         1,
         0,
-        enemy(hp, hold(START_X, NEAR_Y), rules),
+        enemy(10_000, hold(START_X, START_Y), rules),
         START_X,
-        NEAR_Y,
+        START_Y,
     )
 }
 
@@ -199,29 +214,37 @@ fn a_regen_reward_is_bounded_like_the_max_hit_points_reward() {
 
 // Boss kill: a quarter of the most hit points, never above them.
 
-/// The boss of `hp` at `NEAR_Y`, which the weapon kills, with the shooter hurting the main
-/// character once before it.
+/// The boss of `boss_hp` at `NEAR_Y`, which the weapon kills, with the shooter hurting the main
+/// character at once.
 fn boss_stage(boss_hp: u32, heal: Value) -> Stage {
     let boss = boss_at(boss_hp, NEAR_Y);
-    let waves = vec![shooter(10_000)];
+    let waves = vec![shooter()];
     healing(stage_full(1_800, Some(boss), waves, vec![]), heal)
 }
 
 #[test]
-fn a_boss_kill_heals_a_quarter_of_the_most_hit_points() {
+fn a_boss_kill_heals_a_quarter_of_the_most_hit_points_up_to_the_most() {
     let mut e = Engine::new(&boss_stage(10, heal_json(25, 150, 5))).unwrap();
-    // The shooter's bullet hurts the main character before the boss falls.
-    let seen = run(&mut e, 600, boss_dead);
+    let (before, seen) = until_step(&mut e, |e| boss_dead(e));
     assert!(boss_dead(&e), "the boss falls within 600 ticks");
-    let boss_heals = healed(&seen);
-    // 25 percent of 1000 is 250; the bullet's 100 is the only damage taken, so the heal is 250
-    // and it lands at 1000 (never above) once the hit points were 900.
-    assert_eq!(
-        boss_heals,
-        vec![250],
-        "one boss kill, one heal of a quarter"
-    );
-    assert!(hp(&e) <= MAX_HP, "never above the most");
+    // 25 percent of the most (1000) is 250, healed as far as the most allows.
+    assert_eq!(healed(&seen), vec![250.min(MAX_HP - before)]);
+    assert_eq!(hp(&e), (before + 250).min(MAX_HP), "never above the most");
+}
+
+/// Steps `e` until `stop` holds after a step: the hit points before that step, and the events
+/// of that step.
+fn until_step(e: &mut Engine, stop: impl Fn(&Engine) -> bool) -> (u32, Vec<(u32, DomainEvent)>) {
+    for _ in 0..600 {
+        let before = hp(e);
+        e.step(firing(idle(), e.tick()));
+        let seen: Vec<(u32, DomainEvent)> =
+            e.events().iter().map(|ev| (e.tick(), ev.clone())).collect();
+        if stop(e) {
+            return (before, seen);
+        }
+    }
+    panic!("the stop condition holds within 600 ticks")
 }
 
 #[test]
@@ -253,24 +276,32 @@ fn a_regular_kill_drops_a_pickup_at_one_in_one_and_it_heals_on_touch() {
 }
 
 #[test]
-fn a_pickup_heals_300_and_never_above_the_most() {
-    // The shooter hurts the main character to 900 first; the kill at NEAR_Y drops a pickup the
-    // main character takes at once. 900 + 300 is 1200, so it heals 100 to the most.
+fn a_pickup_heals_300_as_far_as_the_most_allows() {
+    // The kill at `NEAR_Y` drops a pickup the main character takes at once; the shooter's
+    // bullet has hurt it by then, so the heal is what the most leaves room for.
     let stage = healing(
         starry(
-            stage_full(600, Some(far_boss()), vec![shooter(10), targets(1)], vec![]),
+            stage_full(600, Some(far_boss()), vec![shooter(), targets(1)], vec![]),
             "common",
         ),
         heal_json(25, 1, 5),
     );
     let mut e = Engine::new(&stage).unwrap();
-    let seen = run(&mut e, 300, |e| {
-        e.snapshot().player.hp < 1_000 && e.tick() > 30
-    });
-    let pickup_heals = healed(&seen);
-    assert!(!pickup_heals.is_empty(), "the pickup was taken");
-    assert_eq!(pickup_heals[0], 100, "healed up to the most, not by 300");
-    assert_eq!(hp(&e), MAX_HP, "at the most, never above");
+    let (before, seen) = until_step(&mut e, |e| !healed_now(e).is_empty());
+    assert!(before < MAX_HP, "the bullet hurt the main character first");
+    assert_eq!(healed(&seen), vec![300.min(MAX_HP - before)]);
+    assert_eq!(hp(&e), (before + 300).min(MAX_HP), "never above the most");
+}
+
+/// The heal amounts of the last step.
+fn healed_now(e: &Engine) -> Vec<u32> {
+    e.events()
+        .iter()
+        .filter_map(|ev| match ev {
+            DomainEvent::Healed { target, amount } if target.0 == PLAYER => Some(*amount),
+            _ => None,
+        })
+        .collect()
 }
 
 #[test]
@@ -328,15 +359,14 @@ fn the_pickups_on_the_map_stay_within_the_cap() {
 /// A stage where one kill drops a star of `rarity` taken at once, after the shooter hurts the
 /// main character: then the reward `regen` is offered, taken and held for a second.
 fn regen_offer(rarity: &str, amount: u32) -> Engine {
-    let stage = starry(
-        stage_full(
-            1_200,
-            Some(far_boss()),
-            vec![shooter(10), targets(1)],
-            vec![],
+    let mut stage = armed(
+        starry(
+            stage_full(1_200, Some(far_boss()), vec![shooter(), targets(1)], vec![]),
+            rarity,
         ),
-        rarity,
+        weapon(),
     );
+    stage.player.hp = MAX_HP;
     let list = vec![regen("regen", rarity, amount, 5)];
     let content = RunContent::new(RunStats::bundled().clone(), rewards(list));
     Engine::new_with(&stage, &content).expect("the test stage is valid")

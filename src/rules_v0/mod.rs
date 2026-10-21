@@ -1223,6 +1223,8 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_i32(p.at.y.0);
     h.write_u32(p.hp);
     h.write_u32(p.max_hp);
+    // A reward raises it in the run, as well as a perk fixes it at the start.
+    h.write_u32(s.regen);
     h.write_u32(p.defence);
     h.write_u32(p.invulnerable);
     h.write_i32(p.facing.x);
@@ -1468,6 +1470,16 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(count(&f.banished));
         for b in &f.banished {
             h.write_bool(*b);
+        }
+    }
+    // After it, and only in a stage with healing, for the same reason: the heal pickups on the
+    // map, in the order they dropped.
+    if let Some(heals) = &s.heal_pickups {
+        h.write_u32(count(heals));
+        for pickup in heals {
+            h.write_u32(pickup.id.0);
+            h.write_i32(pickup.at.x.0);
+            h.write_i32(pickup.at.y.0);
         }
     }
     // After it, and only in a stage that gives expertise points, for the same reason: the

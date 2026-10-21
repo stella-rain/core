@@ -315,6 +315,7 @@ pub(super) fn take(
     rng: &mut SplitMix64,
     progress: &mut Option<Progress>,
     player: &mut PlayerState,
+    regen: &mut u32,
     f: &mut StarField,
     i: u16,
 ) -> Option<Rune> {
@@ -337,6 +338,7 @@ pub(super) fn take(
         RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
         RewardEffect::Orbit => orbit::take(player, i, amount),
         RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
+        RewardEffect::Regen => *regen = regen.saturating_add(amount),
         RewardEffect::RuneHaste => {
             player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
         }
@@ -377,6 +379,7 @@ pub(super) fn choose(
         stars,
         progress,
         player,
+        regen,
         ..
     } = s;
     let Some(f) = stars.as_mut() else {
@@ -390,7 +393,7 @@ pub(super) fn choose(
             let Some(&i) = o.candidates.get(usize::from(candidate)) else {
                 return;
             };
-            let rune = take(stage, rewards, rng, progress, player, f, i);
+            let rune = take(stage, rewards, rng, progress, player, regen, f, i);
             let at = usize::from(i);
             events.push(DomainEvent::RewardTaken {
                 reward: rewards.rewards()[at].id.clone(),
