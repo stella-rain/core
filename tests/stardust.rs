@@ -1,7 +1,7 @@
 //! Stardust (ADR-109): every kill by the player earns the enemy's base times the time factor at
 //! the kill tick, counted in the run state (so in the state hash), in the snapshot and in the
-//! verified run, saturating at a cap. Bases are held times 10 (ADR-103 style), the factor is a
-//! percent that grows linearly over the run's length, integer math truncated toward zero.
+//! verified run, saturating at a cap. Bases are held times 10 (ADR-103 style), the factor is the
+//! percent of a time tier (`stardust_tiers.rs`), integer math truncated toward zero.
 //! A stage without a `stardust` factor counts nothing and hashes as it did.
 
 use serde_json::{Value, json};
@@ -33,20 +33,17 @@ fn targets(count: u16, base: Option<u32>) -> Value {
     w
 }
 
-fn with_factor(mut stage: Stage, start: u32, end: u32) -> Stage {
+/// A one-tier table: `pct` percent the whole run.
+fn with_factor(mut stage: Stage, pct: u32) -> Stage {
     stage.stardust = Some(
-        serde_json::from_value(json!({ "start_pct": start, "end_pct": end }))
+        serde_json::from_value(json!({ "tiers": [{ "start_tick": 0, "pct": pct }] }))
             .expect("a factor parses"),
     );
     stage
 }
 
-fn stage(start: u32, end: u32, waves: Vec<Value>) -> Stage {
-    with_factor(
-        stage_full(LENGTH, Some(far_boss()), waves, vec![]),
-        start,
-        end,
-    )
+fn stage(pct: u32, waves: Vec<Value>) -> Stage {
+    with_factor(stage_full(LENGTH, Some(far_boss()), waves, vec![]), pct)
 }
 
 fn stardust(e: &Engine) -> u32 {
@@ -67,10 +64,6 @@ fn kills(e: &mut Engine, ticks: u32) -> Vec<(u32, u32)> {
     out
 }
 
-fn factor_pct(start: u32, end: u32, tick: u32) -> u64 {
-    u64::from(start) + u64::from(end - start) * u64::from(tick.min(LENGTH)) / u64::from(LENGTH)
-}
-
 #[test]
 fn a_stage_without_a_factor_counts_nothing_and_its_snapshot_has_no_stardust() {
     let mut e = engine(&stage_full(
@@ -87,7 +80,7 @@ fn a_stage_without_a_factor_counts_nothing_and_its_snapshot_has_no_stardust() {
 
 #[test]
 fn a_kill_earns_its_base_at_a_flat_factor() {
-    let mut e = engine(&stage(100, 100, vec![targets(5, Some(10))]));
+    let mut e = engine(&stage(100, vec![targets(5, Some(10))]));
     assert_eq!(stardust(&e), 0);
     let got = kills(&mut e, 300);
     assert_eq!(got.len(), 5, "{got:?}");
@@ -97,30 +90,16 @@ fn a_kill_earns_its_base_at_a_flat_factor() {
 
 #[test]
 fn a_wave_that_names_no_base_earns_nothing() {
-    let mut e = engine(&stage(100, 100, vec![targets(3, None)]));
+    let mut e = engine(&stage(100, vec![targets(3, None)]));
     assert!(kills(&mut e, 300).is_empty());
     assert_eq!(stardust(&e), 0);
-}
-
-#[test]
-fn the_factor_grows_linearly_over_the_run_by_the_kill_tick_truncated() {
-    // 200% to 400% over 18,000 ticks, an odd base so that truncation shows.
-    let mut e = engine(&stage(200, 400, vec![targets(40, Some(7))]));
-    let got = kills(&mut e, 600);
-    assert!(got.len() >= 30, "{got:?}");
-    for (tick, gained) in &got {
-        let expected = 7 * factor_pct(200, 400, *tick) / 100;
-        assert_eq!(u64::from(*gained), expected, "tick {tick}");
-    }
-    // The factor moved, so the later kills earn more than the first.
-    assert!(got.last().unwrap().1 > got.first().unwrap().1, "{got:?}");
 }
 
 #[test]
 fn a_boss_kill_earns_the_bosss_base() {
     let mut boss = boss_at(10, 60_000);
     boss["stardust"] = json!(2_000);
-    let s = with_factor(stage_full(LENGTH, Some(boss), vec![], vec![]), 100, 100);
+    let s = with_factor(stage_full(LENGTH, Some(boss), vec![], vec![]), 100);
     let mut e = engine(&s);
     let got = kills(&mut e, 600);
     assert_eq!(got.iter().map(|&(_, g)| g).sum::<u32>(), 2_000, "{got:?}");
@@ -131,7 +110,6 @@ fn the_run_total_saturates_at_the_cap() {
     // Every kill is worth the largest base at the largest percent: 1,000,000.
     let mut e = engine(&stage(
         1000,
-        1000,
         vec![targets(30, Some(limits::MAX_STARDUST_BASE))],
     ));
     kills(&mut e, 400);
@@ -141,7 +119,7 @@ fn the_run_total_saturates_at_the_cap() {
 #[test]
 fn the_counter_is_in_the_state_hash() {
     let run = |base| {
-        let mut e = engine(&stage(100, 100, vec![targets(2, Some(base))]));
+        let mut e = engine(&stage(100, vec![targets(2, Some(base))]));
         for _ in 0..120 {
             e.step(firing(idle(), e.tick()));
         }
@@ -159,29 +137,19 @@ fn problems(s: &Stage) -> Vec<String> {
 }
 
 #[test]
-fn bases_percents_and_the_factor_are_bounded() {
+fn bases_are_bounded() {
     let at_limit = stage(
-        1,
         limits::MAX_STARDUST_PCT,
         vec![targets(1, Some(limits::MAX_STARDUST_BASE))],
     );
     assert_eq!(validate::validate(&at_limit), Ok(()));
 
-    let past = stage(1, 1, vec![targets(1, Some(limits::MAX_STARDUST_BASE + 1))]);
+    let past = stage(1, vec![targets(1, Some(limits::MAX_STARDUST_BASE + 1))]);
     assert_eq!(problems(&past), ["$.waves[0].stardust"]);
-
-    let past_pct = stage(1, limits::MAX_STARDUST_PCT + 1, vec![targets(1, None)]);
-    assert_eq!(problems(&past_pct), ["$.stardust.end_pct"]);
-
-    let zero = stage(0, 100, vec![targets(1, None)]);
-    assert_eq!(problems(&zero), ["$.stardust.start_pct"]);
-
-    let falling = stage(200, 199, vec![targets(1, None)]);
-    assert_eq!(problems(&falling), ["$.stardust.end_pct"]);
 
     let mut boss = boss_at(10, 60_000);
     boss["stardust"] = json!(limits::MAX_STARDUST_BASE + 1);
-    let boss_past = with_factor(stage_full(LENGTH, Some(boss), vec![], vec![]), 100, 100);
+    let boss_past = with_factor(stage_full(LENGTH, Some(boss), vec![], vec![]), 100);
     assert_eq!(problems(&boss_past), ["$.boss.stardust"]);
 }
 
@@ -235,8 +203,8 @@ fn mode_kills(setup: &RunSetup, commands: &[Command]) -> Vec<(u32, u32)> {
 
 #[test]
 fn a_mode_run_earns_by_its_difficultys_factor_from_the_bundled_bases() {
-    // A regular enemy's base is 10: the first kills, in the first minutes, earn the start factor
-    // of their difficulty (100% on normal, 200% on rainy) plus a hair.
+    // A regular enemy's base is 10: the first kills, in the first minutes, earn the first tier
+    // of their difficulty's table (100% on normal, 200% on rainy).
     for (id, first) in [("normal", 10), ("rainy", 20)] {
         let setup = setup(id);
         let commands = play_run_from(&setup, 1_500);

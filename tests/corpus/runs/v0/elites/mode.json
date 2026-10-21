@@ -550,5 +550,27 @@
   "schema_version": 0,
   "sim_version": 0,
   "star_hunter_extra_ticks": 3600,
+  "stardust_tiers": [
+    {
+      "pct": 100,
+      "start_tick": 0
+    },
+    {
+      "pct": 110,
+      "start_tick": 18000
+    },
+    {
+      "pct": 120,
+      "start_tick": 36000
+    },
+    {
+      "pct": 135,
+      "start_tick": 54000
+    },
+    {
+      "pct": 150,
+      "start_tick": 72000
+    }
+  ],
   "waves": []
 }

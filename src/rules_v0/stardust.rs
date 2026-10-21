@@ -1,9 +1,9 @@
 //! Stardust (ADR-109): every kill by the player earns its base Stardust (times 10, from the
 //! wave, elite type or boss that made the enemy) times the time factor at the kill tick, in
 //! integer percent truncated toward zero, added to the run's counter, which saturates at
-//! `MAX_RUN_STARDUST`. The factor is `start_pct` at tick 0 and `end_pct` at the run's length (a
-//! mode run's length without its overtime), in a straight line between and held at `end_pct`
-//! after. Nothing random is drawn. Summoned enemies, guardians, escorts and a boss's parts earn
+//! `MAX_RUN_STARDUST`. The factor is the percent of the last tier of the stage's table that
+//! started at or before the kill tick (ADR-109 decision 2); past the last tier's start, overtime
+//! included, the last tier holds. Nothing random is drawn. Summoned enemies, guardians, escorts and a boss's parts earn
 //! nothing: only a wave's enemies (elite types are waves here) and the boss do. A stage without
 //! a factor counts nothing.
 
@@ -11,13 +11,14 @@ use crate::engine::{AgentSource, State};
 use crate::stage::{Stage, StardustFactor};
 use crate::validate::limits::MAX_RUN_STARDUST;
 
-/// The factor at `tick` of a run `length` ticks long, in percent, truncated.
-pub(crate) fn factor_pct(f: &StardustFactor, tick: u32, length: u32) -> u32 {
-    let length = u64::from(length.max(1));
-    let at = u64::from(tick).min(length);
-    let rise = u64::from(f.end_pct.saturating_sub(f.start_pct));
-    // `at <= length`, so the step is at most `rise`, which fits a `u32`.
-    u32::try_from(u64::from(f.start_pct) + rise * at / length).unwrap_or(u32::MAX)
+/// The factor at `tick`, in percent: the last tier that started at or before it. The validator
+/// makes the first tier start at 0; a table without one counts 0 before its first tier.
+pub(crate) fn factor_pct(f: &StardustFactor, tick: u32) -> u32 {
+    f.tiers
+        .iter()
+        .take_while(|t| t.start_tick <= tick)
+        .last()
+        .map_or(0, |t| t.pct)
 }
 
 /// Adds a kill of base `base` at this tick to the counter.
@@ -25,11 +26,7 @@ fn earn(stage: &Stage, s: &mut State, base: u32) {
     let (Some(f), Some(total)) = (stage.stardust.as_ref(), s.stardust) else {
         return;
     };
-    let length = s
-        .horde
-        .as_ref()
-        .map_or(stage.length_ticks, |h| h.length_ticks);
-    let pct = factor_pct(f, s.tick, length);
+    let pct = factor_pct(f, s.tick);
     let gained = u64::from(base) * u64::from(pct) / 100;
     let sum = u64::from(total) + gained;
     s.stardust = Some(u32::try_from(sum.min(u64::from(MAX_RUN_STARDUST))).unwrap_or(u32::MAX));
@@ -66,32 +63,31 @@ pub(super) fn boss_killed(stage: &Stage, s: &mut State) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stage::StardustTier;
 
-    const F: StardustFactor = StardustFactor {
-        start_pct: 200,
-        end_pct: 400,
-    };
-
-    #[test]
-    fn the_factor_runs_from_start_to_end_in_a_line_truncated() {
-        assert_eq!(factor_pct(&F, 0, 1_000), 200);
-        assert_eq!(factor_pct(&F, 250, 1_000), 250);
-        assert_eq!(factor_pct(&F, 333, 1_000), 266);
-        assert_eq!(factor_pct(&F, 1_000, 1_000), 400);
+    fn table(list: &[(u32, u32)]) -> StardustFactor {
+        StardustFactor {
+            tiers: list
+                .iter()
+                .map(|&(start_tick, pct)| StardustTier { start_tick, pct })
+                .collect(),
+        }
     }
 
     #[test]
-    fn past_the_length_it_holds_at_the_end() {
-        assert_eq!(factor_pct(&F, 5_000, 1_000), 400);
-        assert_eq!(factor_pct(&F, u32::MAX, 1), 400);
+    fn the_factor_is_the_last_tier_started_by_the_tick() {
+        let f = table(&[(0, 100), (18_000, 110), (36_000, 120)]);
+        assert_eq!(factor_pct(&f, 0), 100);
+        assert_eq!(factor_pct(&f, 17_999), 100);
+        assert_eq!(factor_pct(&f, 18_000), 110);
+        assert_eq!(factor_pct(&f, 35_999), 110);
+        assert_eq!(factor_pct(&f, 36_000), 120);
     }
 
     #[test]
-    fn the_largest_numbers_do_not_overflow() {
-        let f = StardustFactor {
-            start_pct: 1,
-            end_pct: u32::MAX,
-        };
-        assert_eq!(factor_pct(&f, u32::MAX, u32::MAX), u32::MAX);
+    fn past_the_last_tier_it_holds() {
+        let f = table(&[(0, 200), (10, 400)]);
+        assert_eq!(factor_pct(&f, 5_000), 400);
+        assert_eq!(factor_pct(&f, u32::MAX), 400);
     }
 }

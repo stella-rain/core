@@ -1696,8 +1696,6 @@
       "damage_pct": 75,
       "rarity_min": "common",
       "rarity_max": "rare",
-      "stardust_start_pct": 100,
-      "stardust_end_pct": 150,
       "length_ticks": 36000,
       "boss_ticks": [9000, 18000, 27000, 36000],
       "level_table": { "style": 2, "upgrades": [4, 6], "capstone": 8 }
@@ -1709,9 +1707,7 @@
       "hp_pct": 100,
       "damage_pct": 100,
       "rarity_min": "common",
-      "rarity_max": "legendary",
-      "stardust_start_pct": 100,
-      "stardust_end_pct": 150
+      "rarity_max": "legendary"
     },
     {
       "id": "hard",
@@ -1720,9 +1716,7 @@
       "hp_pct": 150,
       "damage_pct": 125,
       "rarity_min": "common",
-      "rarity_max": "supernova",
-      "stardust_start_pct": 100,
-      "stardust_end_pct": 150
+      "rarity_max": "supernova"
     },
     {
       "id": "rainy",
@@ -1732,8 +1726,13 @@
       "damage_pct": 150,
       "rarity_min": "uncommon",
       "rarity_max": "supernova",
-      "stardust_start_pct": 200,
-      "stardust_end_pct": 400
+      "stardust_tiers": [
+        { "start_tick": 0, "pct": 200 },
+        { "start_tick": 18000, "pct": 240 },
+        { "start_tick": 36000, "pct": 280 },
+        { "start_tick": 54000, "pct": 340 },
+        { "start_tick": 72000, "pct": 400 }
+      ]
     }
   ]
 },
@@ -3133,7 +3132,29 @@
       9
     ],
     "capstone": 10
-  }
+  },
+  "stardust_tiers": [
+    {
+      "start_tick": 0,
+      "pct": 100
+    },
+    {
+      "start_tick": 18000,
+      "pct": 110
+    },
+    {
+      "start_tick": 36000,
+      "pct": 120
+    },
+    {
+      "start_tick": 54000,
+      "pct": 135
+    },
+    {
+      "start_tick": 72000,
+      "pct": 150
+    }
+  ]
 },
     "tutorial": {
   "schema_version": 0,

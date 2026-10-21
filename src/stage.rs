@@ -64,16 +64,52 @@ pub struct Stage {
     pub stardust: Option<StardustFactor>,
 }
 
-/// The Stardust time factor (ADR-109): the percent a kill's base Stardust is multiplied by,
-/// `start_pct` at tick 0 and `end_pct` at the run's length, rising in a straight line between and
-/// held at `end_pct` after it; integer math, truncated toward zero. Each from 1 to
-/// `limits::MAX_STARDUST_PCT`, the end not below the start. A mode's run takes it from its
-/// difficulty (ADR-110).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+/// The Stardust time factor (ADR-109 decision 2): a table of time tiers, each the tick it starts
+/// at and a percent. A kill's base Stardust is multiplied by the percent of the last tier that
+/// started at or before the kill tick, truncated toward zero; past the last tier's start
+/// (overtime included) the last tier holds. A mode's run takes the mode file's table, or its
+/// difficulty's when the difficulty gives one (ADR-110 decision 2). `stardust_tiers_problem`
+/// says what a valid table is.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StardustFactor {
-    pub start_pct: u32,
-    pub end_pct: u32,
+    /// 1 to `limits::MAX_STARDUST_TIERS` tiers, the first at tick 0, the ticks rising strictly.
+    pub tiers: Vec<StardustTier>,
+}
+
+/// One tier of the Stardust time factor: from `start_tick` until the next tier starts, a kill
+/// earns `pct` percent of its base.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StardustTier {
+    /// When the tier starts, in ticks from the start of the run.
+    pub start_tick: u32,
+    /// From 1 to `limits::MAX_STARDUST_PCT`.
+    pub pct: u32,
+}
+
+/// Why a Stardust tier table is not valid, if it is not: 1 to `limits::MAX_STARDUST_TIERS`
+/// tiers, the first at tick 0, the ticks rising strictly, each percent from 1 to
+/// `limits::MAX_STARDUST_PCT` (ADR-020).
+pub fn stardust_tiers_problem(tiers: &[StardustTier]) -> Option<String> {
+    use crate::validate::limits::{MAX_STARDUST_PCT, MAX_STARDUST_TIERS};
+    if tiers.is_empty() || tiers.len() > MAX_STARDUST_TIERS {
+        Some(format!(
+            "1 to {MAX_STARDUST_TIERS} tiers (found {})",
+            tiers.len()
+        ))
+    } else if tiers[0].start_tick != 0 {
+        Some("the first tier starts at tick 0".into())
+    } else if tiers.windows(2).any(|w| w[0].start_tick >= w[1].start_tick) {
+        Some("each tier starts later than the one before it".into())
+    } else if tiers
+        .iter()
+        .any(|t| !(1..=MAX_STARDUST_PCT).contains(&t.pct))
+    {
+        Some(format!("every percent from 1 to {MAX_STARDUST_PCT}"))
+    } else {
+        None
+    }
 }
 
 /// The highest level a level table may name: the last level whose threshold the expertise file
