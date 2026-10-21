@@ -175,7 +175,7 @@ fn a_mid_boss_comes_at_each_boss_time_but_the_last_and_the_final_boss_at_the_las
     assert_ne!(seen[4].1.0, seen[5].1.0);
     let last = of_kind(&step_to(&mut e, 400), EntityKind::Boss);
     assert_eq!(last.len(), 1);
-    assert_eq!(last[0].1, "golem", "the final boss is the file's");
+    assert_eq!(last[0].1, "core_pair", "the final boss is the file's");
     assert_eq!(e.outcome(), Outcome::Running);
 }
 

@@ -48,8 +48,8 @@ fn the_bundled_file_loads_with_the_defaults() {
         m.boss_ticks(),
         [5 * MINUTE, 10 * MINUTE, 15 * MINUTE, 20 * MINUTE]
     );
-    assert_eq!(m.mid_boss_pool().len(), 3);
-    assert_eq!(m.final_boss().0, "golem");
+    assert_eq!(m.mid_boss_pool().len(), 4);
+    assert_eq!(m.final_boss().0, "core_pair");
     assert_eq!(m.overtime_ticks(), 5 * MINUTE);
     assert_eq!(m.star_hunter_extra_ticks(), MINUTE);
     assert_eq!((m.map().width.0, m.map().height.0), (1_048_576, 1_048_576));
@@ -127,6 +127,32 @@ fn the_pool_holds_a_boss_for_each_mid_boss_time() {
         ))
         .is_ok()
     );
+}
+
+#[test]
+fn the_no_call_times_are_mid_boss_times() {
+    assert_eq!(
+        paths(&with("no_call_ticks", json!([18000, 19000]))),
+        ["$.no_call_ticks[1]"]
+    );
+    assert_eq!(
+        paths(&with("no_call_ticks", json!([72000]))),
+        ["$.no_call_ticks[0]"]
+    );
+    assert!(parse(&with("no_call_ticks", json!([18000]))).is_ok());
+}
+
+#[test]
+fn each_boss_definition_is_unique_and_names_a_sprite() {
+    let bosses = good()["bosses"].clone();
+    let first = bosses[0].clone();
+    assert_eq!(
+        paths(&with("bosses", json!([first.clone(), first]))),
+        ["$.bosses[1].base"]
+    );
+    let mut unknown = bosses[0].clone();
+    unknown["base"] = json!("nope");
+    assert_eq!(paths(&with("bosses", json!([unknown]))), ["$.bosses[0].base"]);
 }
 
 #[test]
