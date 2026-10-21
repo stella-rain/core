@@ -809,6 +809,24 @@
             "type",
             "ticks"
           ]
+        },
+        {
+          "description": "The main character's centre is within `distance` of the agent's centre (the edge counts):\nan exploder's burst (ADR-036).",
+          "type": "object",
+          "properties": {
+            "distance": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "near_target"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "distance"
+          ]
         }
       ]
     },
@@ -2205,11 +2223,21 @@
           ]
         },
         {
-          "description": "Trails the main character at a distance.",
+          "description": "Trails the main character at a distance, at most `speed` a tick (a tank's is slower);\nabsent, 4 pixels a tick as it always was (ADR-058).",
           "type": "object",
           "properties": {
             "distance": {
               "$ref": "#/$defs/Fx"
+            },
+            "speed": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Fx"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": {
               "type": "string",
@@ -2968,6 +2996,10 @@
           "description": "Fires at most once (the same as one charge, kept for editor clarity).",
           "type": "boolean",
           "default": false
+        },
+        "self_destruct": {
+          "description": "An enemy that fires this rule removes itself with it, as an exploder does. It goes through\nhit points 0, so the defeat credit of any dead enemy applies (placeholder, R1). Ignored\nfor a companion and the boss.",
+          "type": "boolean"
         },
         "target": {
           "$ref": "#/$defs/Selector"
