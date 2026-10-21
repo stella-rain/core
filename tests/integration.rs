@@ -82,6 +82,7 @@ mod stage_skill;
 mod stage_skill_file;
 mod stage_verify;
 mod stardust;
+mod stardust_tiers;
 mod stars;
 mod statuses;
 mod stun;

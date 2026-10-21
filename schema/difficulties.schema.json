@@ -97,17 +97,15 @@
           "description": "The lowest rarity its drops and offers may have, over all six.",
           "$ref": "#/$defs/Rarity"
         },
-        "stardust_end_pct": {
-          "description": "The Stardust time factor at the end of a run, in percent, from the start's to `MAX_PCT`.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "stardust_start_pct": {
-          "description": "The Stardust time factor at the start of a run, in percent, from 1 to `MAX_PCT`.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
+        "stardust_tiers": {
+          "description": "The Stardust time factor's tiers (ADR-109 decision 2) in place of the mode's: as the\nmode file's `stardust_tiers`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/StardustTier"
+          }
         },
         "title": {
           "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
@@ -122,9 +120,7 @@
         "hp_pct",
         "damage_pct",
         "rarity_min",
-        "rarity_max",
-        "stardust_start_pct",
-        "stardust_end_pct"
+        "rarity_max"
       ]
     },
     "LevelTable": {
@@ -169,6 +165,29 @@
         "epic",
         "legendary",
         "supernova"
+      ]
+    },
+    "StardustTier": {
+      "description": "One tier of the Stardust time factor: from `start_tick` until the next tier starts, a kill\nearns `pct` percent of its base.",
+      "type": "object",
+      "properties": {
+        "pct": {
+          "description": "From 1 to `limits::MAX_STARDUST_PCT`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "start_tick": {
+          "description": "When the tier starts, in ticks from the start of the run.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "start_tick",
+        "pct"
       ]
     }
   }

@@ -10,8 +10,8 @@ use stella_rain_core::content_hash::{content_hash, sha256, to_hex};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{
-    MAX_REPLAY_BYTES, Replay, ReplayError, hash_from_hex, hash_to_hex, pack_inputs, record, verify,
-    verify_against,
+    MAX_STAGE_REPLAY_BYTES, Replay, ReplayError, hash_from_hex, hash_to_hex, pack_inputs, record,
+    verify, verify_against,
 };
 use stella_rain_core::rng::SplitMix64;
 use stella_rain_core::validate;
@@ -104,7 +104,7 @@ fn a_replay_of_never_repeating_input_fits_the_size_limit() {
     let mut replay = replay_of(&inputs, 18_000);
     replay.stage_sha256 = "0".repeat(64);
     assert!(
-        replay.to_bytes().len() < MAX_REPLAY_BYTES,
+        replay.to_bytes().len() < MAX_STAGE_REPLAY_BYTES,
         "{} bytes",
         replay.to_bytes().len()
     );
@@ -236,19 +236,20 @@ fn the_replay_file_round_trips_and_is_strict() {
 
 #[test]
 fn the_size_limit_applies_before_parsing() {
+    assert_eq!(MAX_STAGE_REPLAY_BYTES, 256 * 1024);
     let (_, _, mut bytes) = recorded();
-    bytes.resize(MAX_REPLAY_BYTES, b' ');
+    bytes.resize(MAX_STAGE_REPLAY_BYTES, b' ');
     assert!(Replay::from_bytes(&bytes).is_ok());
     bytes.push(b' ');
     assert_eq!(
         Replay::from_bytes(&bytes),
         Err(ReplayError::TooLarge {
-            size: MAX_REPLAY_BYTES + 1,
-            limit: MAX_REPLAY_BYTES
+            size: MAX_STAGE_REPLAY_BYTES + 1,
+            limit: MAX_STAGE_REPLAY_BYTES
         })
     );
     assert!(matches!(
-        Replay::from_bytes(&vec![b'x'; MAX_REPLAY_BYTES + 1]),
+        Replay::from_bytes(&vec![b'x'; MAX_STAGE_REPLAY_BYTES + 1]),
         Err(ReplayError::TooLarge { .. })
     ));
 }

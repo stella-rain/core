@@ -22,7 +22,9 @@ use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
-use crate::stage::{Boss, ExpertisePoints, LevelTable, Map, Wave};
+use crate::stage::{
+    Boss, ExpertisePoints, LevelTable, Map, StardustTier, Wave, stardust_tiers_problem,
+};
 use crate::validate::limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -118,6 +120,10 @@ pub struct TimeLimitFile {
     /// strictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The
     /// run's stage takes it as its own.
     pub level_table: LevelTable,
+    /// The Stardust time factor (ADR-109 decision 2): 1 to `limits::MAX_STARDUST_TIERS` tiers,
+    /// the first at tick 0, the ticks rising strictly, each percent from 1 to
+    /// `limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own (ADR-110).
+    pub stardust_tiers: Vec<StardustTier>,
 }
 
 /// From `start_tick` until the next tier starts, an elite is drawn by these weights.
@@ -288,6 +294,11 @@ impl TimeLimit {
     /// The expertise levels of the style path.
     pub fn level_table(&self) -> &LevelTable {
         &self.file.level_table
+    }
+
+    /// The Stardust time factor's tiers a run takes unless its difficulty gives its own.
+    pub fn stardust_tiers(&self) -> &[StardustTier] {
+        &self.file.stardust_tiers
     }
 
     /// The elite types the file defines.
@@ -526,6 +537,9 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
 
     if let Some(problem) = file.level_table.problem() {
         issue("$.level_table".into(), problem);
+    }
+    if let Some(problem) = stardust_tiers_problem(&file.stardust_tiers) {
+        issue("$.stardust_tiers".into(), problem);
     }
     if !(1..=MAX_ELITES_ALIVE).contains(&file.elite_cap) {
         issue(

@@ -10,7 +10,7 @@
 //! Packed inputs are runs of identical inputs. Each run is a LEB128 run length (at least 1),
 //! one flags byte (bit 0 `evade`, then `main`, `smash`, `skill`, `assist` and `auto`; bits 6 and 7
 //! zero), then `move_x` and `move_y` as one two's-complement byte each, −127 to 127 (ADR-071). Five minutes of changing inputs take about
-//! 96 KB, inside `MAX_REPLAY_BYTES`; steady input takes a few bytes.
+//! 96 KB, inside `MAX_STAGE_REPLAY_BYTES`; steady input takes a few bytes.
 
 use std::fmt;
 
@@ -25,11 +25,10 @@ use crate::parsed_stage_hash;
 use crate::stage::Stage;
 use crate::validate;
 
-/// A replay file is at most this big (ADR-020). Even a maximum-length replay whose inputs never
-/// repeat fits. Placeholder (R2): 1 MiB, from 256 KiB, because a 20-minute `time_limit` run with
-/// a bot is about 300 KB and the longest (43 minutes with overtime and the Star-Hunter's time)
-/// about 510 KB. An ADR-020 follow-up decides the real figure.
-pub const MAX_REPLAY_BYTES: usize = 1024 * 1024;
+/// A stage's clear replay file is at most this big (ADR-020). Even a maximum-length replay
+/// whose inputs never repeat fits. It is also what a share code may carry (`share`). A run's
+/// replay has its own, larger cap: `run_replay::MAX_RUN_REPLAY_BYTES`.
+pub const MAX_STAGE_REPLAY_BYTES: usize = 256 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -183,10 +182,10 @@ impl Replay {
 
     /// Parses a replay file: size limit first, then strict parsing.
     pub fn from_bytes(bytes: &[u8]) -> Result<Replay, ReplayError> {
-        if bytes.len() > MAX_REPLAY_BYTES {
+        if bytes.len() > MAX_STAGE_REPLAY_BYTES {
             return Err(ReplayError::TooLarge {
                 size: bytes.len(),
-                limit: MAX_REPLAY_BYTES,
+                limit: MAX_STAGE_REPLAY_BYTES,
             });
         }
         serde_json::from_slice(bytes).map_err(|e| ReplayError::Parse {

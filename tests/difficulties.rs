@@ -1,6 +1,6 @@
 //! The difficulties file (ADR-110): each difficulty a content ID with the percents its enemies
-//! are scaled by, the range of rarities its drops may have, its Stardust time factor and,
-//! optionally, its own length, boss times and level table. Read from JSON as untrusted bytes
+//! are scaled by, the range of rarities its drops may have and,
+//! optionally, its own length, boss times, level table and Stardust tiers (`stardust_tiers.rs`). Read from JSON as untrusted bytes
 //! (ADR-020). The bundled file is the default; other bytes run the same way and change the run's
 //! content hash.
 
@@ -20,7 +20,6 @@ fn difficulty(id: &str) -> Value {
         "id": id, "title": "Level", "description": "A level",
         "hp_pct": 100, "damage_pct": 100,
         "rarity_min": "common", "rarity_max": "legendary",
-        "stardust_start_pct": 100, "stardust_end_pct": 150,
     })
 }
 
@@ -61,20 +60,13 @@ fn the_bundled_file_holds_the_four_difficulties_with_kades_numbers() {
     assert_eq!(ids, ["easy", "normal", "hard", "rainy"]);
     let numbers = |id: &str| {
         let d = bundled(id);
-        (
-            d.hp_pct,
-            d.damage_pct,
-            d.rarity_min,
-            d.rarity_max,
-            d.stardust_start_pct,
-            d.stardust_end_pct,
-        )
+        (d.hp_pct, d.damage_pct, d.rarity_min, d.rarity_max)
     };
     use Rarity::*;
-    assert_eq!(numbers("easy"), (70, 75, Common, Rare, 100, 150));
-    assert_eq!(numbers("normal"), (100, 100, Common, Legendary, 100, 150));
-    assert_eq!(numbers("hard"), (150, 125, Common, Supernova, 100, 150));
-    assert_eq!(numbers("rainy"), (200, 150, Uncommon, Supernova, 200, 400));
+    assert_eq!(numbers("easy"), (70, 75, Common, Rare));
+    assert_eq!(numbers("normal"), (100, 100, Common, Legendary));
+    assert_eq!(numbers("hard"), (150, 125, Common, Supernova));
+    assert_eq!(numbers("rainy"), (200, 150, Uncommon, Supernova));
     assert_eq!(DEFAULT_DIFFICULTY, "normal");
 }
 
@@ -167,16 +159,8 @@ fn ids_are_well_formed_and_unique() {
 
 #[test]
 fn percents_are_bounded() {
-    for field in [
-        "hp_pct",
-        "damage_pct",
-        "stardust_start_pct",
-        "stardust_end_pct",
-    ] {
-        let at_most = one(|d| {
-            d[field] = json!(MAX_PCT);
-            d["stardust_end_pct"] = json!(MAX_PCT);
-        });
+    for field in ["hp_pct", "damage_pct"] {
+        let at_most = one(|d| d[field] = json!(MAX_PCT));
         assert!(parse(&at_most).is_ok(), "{field}");
         for bad in [0, MAX_PCT + 1] {
             let v = one(|d| d[field] = json!(bad));
@@ -187,18 +171,6 @@ fn percents_are_bounded() {
             );
         }
     }
-}
-
-#[test]
-fn the_stardust_factor_does_not_fall_over_the_run() {
-    let v = one(|d| {
-        d["stardust_start_pct"] = json!(200);
-        d["stardust_end_pct"] = json!(199);
-    });
-    assert_eq!(
-        paths(parse(&v).unwrap_err()),
-        ["$.difficulties[0].stardust_end_pct"]
-    );
 }
 
 #[test]
