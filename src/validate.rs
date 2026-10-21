@@ -1145,7 +1145,7 @@ impl<'a> Ctx<'a> {
     fn action(&mut self, a: &Action, summon_ok: bool) {
         match a {
             Action::Cast { skill } => self.key("skill", |c| c.skill(skill)),
-            Action::Attack { attack } => self.key("attack", |c| c.attack_ref(attack)),
+            Action::Attack { attack, .. } => self.key("attack", |c| c.attack_ref(attack)),
             Action::Summon { agent, count } => {
                 if !summon_ok {
                     self.fail("a summoned agent cannot summon");

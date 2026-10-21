@@ -168,3 +168,27 @@ fn a_big_enemy_rule_must_name_a_preset() {
     };
     assert!(paths.iter().any(|p| p.contains("big")), "{paths:?}");
 }
+
+#[test]
+fn a_big_enemy_rule_is_announced_through_its_wind_up_and_dropped_when_it_starts() {
+    let rules = json!([{ "when": always(), "target": "player",
+        "do": { "type": "attack", "attack": { "preset": { "id": "elite_slam" } }, "big": true },
+        "cooldown_ticks": 600 }]);
+    let mut e = engine(&standing(&enemy(3000, hold(ELITE.0, ELITE.1), rules)));
+    let mut counted = Vec::new();
+    for _ in 0..100 {
+        e.step(idle());
+        for p in patterns(&e) {
+            assert_eq!(p.id, "elite_slam".into(), "the slam is what is announced");
+            counted.push((p.total, p.remaining));
+        }
+    }
+    let expected: Vec<(u32, u32)> = (1..=SLAM_WIND_UP)
+        .rev()
+        .map(|r| (SLAM_WIND_UP, r))
+        .collect();
+    assert_eq!(
+        counted, expected,
+        "announced for the wind-up, one count a tick"
+    );
+}
