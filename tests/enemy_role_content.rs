@@ -66,15 +66,16 @@ fn edited(edit: impl FnOnce(&mut Value)) -> Vec<u8> {
     serde_json::to_vec(&v).expect("JSON")
 }
 
-/// A stage whose only enemy is the bundled `id` at `(x, y)`, with its enemy edited by `edit`.
+/// A stage whose only enemy is the bundled `id` at `(x, y)`, with its enemy edited by `edit`; the
+/// main character keeps its weapon, so a splitter can be hit (`tests/enemy_roles.rs`).
 fn alone(id: &str, x: i32, y: i32, edit: impl FnOnce(&mut Value)) -> Engine {
     let mut enemy = role(id)["enemy"].clone();
     edit(&mut enemy);
-    engine(&quiet(stage_with(
+    engine(&stage_with(
         18_000,
         Some(far_boss()),
         vec![wave(0, 1, 1, enemy, x, y)],
-    )))
+    ))
 }
 
 /// The enemies alive.
