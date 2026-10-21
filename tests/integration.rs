@@ -86,6 +86,7 @@ mod time_limit;
 mod time_limit_end;
 mod time_limit_run;
 mod trig;
+mod tutorial;
 mod type_bonuses;
 mod types;
 mod validate;

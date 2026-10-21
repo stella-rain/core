@@ -2512,12 +2512,17 @@
         "trial": {
           "description": "The `trial` mode's stage, checked as any stage is.",
           "$ref": "#/$defs/Stage"
+        },
+        "tutorial": {
+          "description": "The `tutorial` mode's stage, checked as any stage is (ADR-086).",
+          "$ref": "#/$defs/Stage"
         }
       },
       "additionalProperties": false,
       "required": [
         "trial",
-        "time_limit"
+        "time_limit",
+        "tutorial"
       ]
     },
     "PerkEffect": {

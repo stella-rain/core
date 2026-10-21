@@ -892,7 +892,14 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     let elites_commands = play_run_with(&elites_setup, &elites_content, ELITES_TICKS, |e, t| {
         elites_script.input(e, t)
     });
+    // The tutorial mode (ADR-086): three minutes of bats and one weak golem, which the bot kills.
+    let tutorial = RunSetup {
+        mode: "tutorial".into(),
+        ..trial_setup()
+    };
+    let tutorial_commands = play_run_with(&tutorial, RunContent::bundled(), 10_800, boss_input);
     vec![
+        ("tutorial", tutorial, None, tutorial_commands),
         ("trial", trial_setup(), None, play_run(TRIAL_LENGTH)),
         ("stage_skill", stage_skill, None, stage_skill_commands),
         ("time_limit", time_limit, None, time_limit_commands),

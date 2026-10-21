@@ -153,6 +153,9 @@ pub struct PackModes {
     pub trial: Box<RawValue>,
     #[schemars(with = "TimeLimitFile")]
     pub time_limit: Box<RawValue>,
+    /// The `tutorial` mode's stage, checked as any stage is (ADR-086).
+    #[schemars(with = "Stage")]
+    pub tutorial: Box<RawValue>,
 }
 
 /// Why a pack was refused. Paths and numbers only, never text from the pack.
@@ -188,7 +191,7 @@ impl PackError {
 /// Where a file sits in the pack, as a path.
 fn location(file: &str) -> String {
     match file {
-        "trial" | "time_limit" => format!("$.modes.{file}"),
+        "trial" | "time_limit" | "tutorial" => format!("$.modes.{file}"),
         _ => format!("$.{file}"),
     }
 }
@@ -323,6 +326,8 @@ impl Pack {
             .map_err(PackError::in_file("trial"))?;
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit))
             .map_err(PackError::in_file("time_limit"))?;
+        let tutorial = validate::parse_and_validate(&file_bytes(&pack.modes.tutorial))
+            .map_err(PackError::in_file("tutorial"))?;
 
         check_introduced(
             &pack.introduced,
@@ -348,6 +353,8 @@ impl Pack {
             time_limit,
             trial,
             file_bytes(&pack.modes.trial),
+            tutorial,
+            file_bytes(&pack.modes.tutorial),
             Some(sha256),
         );
         Ok(Pack {
@@ -817,6 +824,7 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
 pub fn export_bundled() -> Vec<u8> {
     let file = |bytes: &[u8]| String::from_utf8_lossy(bytes.trim_ascii_end()).into_owned();
     let trial: &[u8] = include_bytes!("../modes/trial.json");
+    let tutorial: &[u8] = include_bytes!("../modes/tutorial.json");
     let mut out = String::new();
     out.push_str(&format!(
         "{{\n  \"schema_version\": {SCHEMA_VERSION},\n  \"sim_version\": {SIM_VERSION},\n"
@@ -837,6 +845,8 @@ pub fn export_bundled() -> Vec<u8> {
         TimeLimit::parse(TimeLimit::BUNDLED).expect("the bundled mode"),
         validate::parse_and_validate(trial).expect("the bundled trial"),
         trial.to_vec(),
+        validate::parse_and_validate(tutorial).expect("the bundled tutorial"),
+        tutorial.to_vec(),
         None,
     );
     let introduced = introduced_at(&content, SIM_VERSION);
@@ -858,9 +868,10 @@ pub fn export_bundled() -> Vec<u8> {
         out.push_str(&format!("  \"{name}\": {},\n", file(bytes)));
     }
     out.push_str(&format!(
-        "  \"modes\": {{\n    \"trial\": {},\n    \"time_limit\": {}\n  }}\n}}\n",
+        "  \"modes\": {{\n    \"trial\": {},\n    \"time_limit\": {},\n    \"tutorial\": {}\n  }}\n}}\n",
         file(trial),
-        file(TimeLimit::BUNDLED)
+        file(TimeLimit::BUNDLED),
+        file(tutorial)
     ));
     out.into_bytes()
 }
