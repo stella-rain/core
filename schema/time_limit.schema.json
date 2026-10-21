@@ -784,6 +784,15 @@
           "description": "Lowercase snake_case, unique in the file; never renamed or removed once released.",
           "$ref": "#/$defs/ContentId"
         },
+        "stardust": {
+          "description": "The Stardust a kill of it earns before the time factor, times 10; as a wave's\n`stardust`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
         "xp": {
           "description": "The experience a kill gives; as a wave's `xp`.",
           "type": [
@@ -1891,6 +1900,15 @@
         },
         "spawn": {
           "$ref": "#/$defs/Point"
+        },
+        "stardust": {
+          "description": "The Stardust a kill of each enemy of the wave earns before the time factor, times 10\n(ADR-109), at most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage\nwith a `stardust` factor.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
         },
         "xp": {
           "description": "The experience each enemy of the wave gives when defeated, in a stage with `levels`;\n1 when absent.",

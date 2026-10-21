@@ -75,6 +75,7 @@ mod spike;
 mod stage_skill;
 mod stage_skill_file;
 mod stage_verify;
+mod stardust;
 mod stars;
 mod statuses;
 mod stun;

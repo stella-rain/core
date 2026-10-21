@@ -55,6 +55,21 @@ pub struct Stage {
     /// The levels of the expertise style path (ADR-106 §4); `LevelTable::NORMAL` when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub level_table: Option<LevelTable>,
+    /// How a kill's Stardust grows over the run (ADR-109): without it the run counts none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stardust: Option<StardustFactor>,
+}
+
+/// The Stardust time factor (ADR-109): the percent a kill's base Stardust is multiplied by,
+/// `start_pct` at tick 0 and `end_pct` at the run's length, rising in a straight line between and
+/// held at `end_pct` after it; integer math, truncated toward zero. Each from 1 to
+/// `limits::MAX_STARDUST_PCT`, the end not below the start. A mode's run takes it from its
+/// difficulty (ADR-110).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StardustFactor {
+    pub start_pct: u32,
+    pub end_pct: u32,
 }
 
 /// The highest level a level table may name: the last level whose threshold the expertise file
@@ -349,6 +364,11 @@ pub struct Wave {
     /// The expertise points each enemy of the wave gives (ADR-078 §2); none when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expertise: Option<ExpertisePoints>,
+    /// The Stardust a kill of each enemy of the wave earns before the time factor, times 10
+    /// (ADR-109), at most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage
+    /// with a `stardust` factor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stardust: Option<u32>,
 }
 
 /// What a hit and a kill by an A or a B step of a combo add to the one expertise gauge
@@ -389,6 +409,9 @@ pub struct Boss {
     /// The expertise points the boss gives (ADR-078 §2); none when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expertise: Option<ExpertisePoints>,
+    /// The Stardust its kill earns before the time factor, times 10; as a wave's `stardust`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stardust: Option<u32>,
 }
 
 /// The boss calls its elites at whichever comes first: `after_ticks` ticks after its first
