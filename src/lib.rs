@@ -7,6 +7,7 @@ pub mod attack;
 pub mod base64;
 pub mod behaviour;
 pub mod content_hash;
+pub mod difficulties;
 pub mod engine;
 pub mod event;
 pub mod expertise;

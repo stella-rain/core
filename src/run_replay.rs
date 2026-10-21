@@ -301,6 +301,7 @@ pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]>
         &content.match_ups().sha256(),
         &content.runes().sha256(),
         &content.perk_sets().sha256(),
+        &content.difficulties().sha256(),
         presets::sources(),
     ))
 }
@@ -316,6 +317,7 @@ fn hash_content<'a>(
     match_ups_sha256: &[u8; 32],
     runes_sha256: &[u8; 32],
     perk_sets_sha256: &[u8; 32],
+    difficulties_sha256: &[u8; 32],
     sources: impl Iterator<Item = (u8, &'a str, &'a str)>,
 ) -> [u8; 32] {
     fn part(sha: &mut Sha256, kind: u8, id: &[u8], body: &[u8]) {
@@ -336,6 +338,7 @@ fn hash_content<'a>(
     part(&mut sha, b'u', b"match_ups", match_ups_sha256);
     part(&mut sha, b'n', b"runes", runes_sha256);
     part(&mut sha, b'p', b"perk_sets", perk_sets_sha256);
+    part(&mut sha, b'd', b"difficulties", difficulties_sha256);
     for (kind, id, definition) in sources {
         part(&mut sha, kind, id.as_bytes(), definition.as_bytes());
     }
@@ -734,6 +737,7 @@ mod tests {
     const MATCH_UPS: [u8; 32] = [1; 32];
     const RUNES: [u8; 32] = [2; 32];
     const PERKS: [u8; 32] = [4; 32];
+    const DIFFICULTIES: [u8; 32] = [6; 32];
 
     fn hash(mode: &str, file: &[u8], sources: &[(u8, &'static str, &'static str)]) -> [u8; 32] {
         hash_content(
@@ -746,6 +750,7 @@ mod tests {
             &MATCH_UPS,
             &RUNES,
             &PERKS,
+            &DIFFICULTIES,
             sources.iter().copied(),
         )
     }
@@ -766,6 +771,7 @@ mod tests {
             &MATCH_UPS,
             &RUNES,
             &PERKS,
+            &DIFFICULTIES,
             SOURCES.iter().copied(),
         )
     }
@@ -809,6 +815,7 @@ mod tests {
                 &[8; 32],
                 &RUNES,
                 &PERKS,
+                &DIFFICULTIES,
                 SOURCES.iter().copied(),
             ),
             "the match-ups"
@@ -825,6 +832,7 @@ mod tests {
                 &MATCH_UPS,
                 &[8; 32],
                 &PERKS,
+                &DIFFICULTIES,
                 SOURCES.iter().copied(),
             ),
             "the runes"
@@ -841,9 +849,27 @@ mod tests {
                 &MATCH_UPS,
                 &RUNES,
                 &[8; 32],
+                &DIFFICULTIES,
                 SOURCES.iter().copied(),
             ),
             "the perk sets"
+        );
+        assert_ne!(
+            base,
+            hash_content(
+                "trial",
+                b"{}",
+                &STATS,
+                &REWARDS,
+                &SKILLS,
+                &EXPERTISE,
+                &MATCH_UPS,
+                &RUNES,
+                &PERKS,
+                &[8; 32],
+                SOURCES.iter().copied(),
+            ),
+            "the difficulties"
         );
         assert_ne!(
             base,

@@ -12,6 +12,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::difficulties::{Difficulties, Difficulty};
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::{Rarity, RewardEffect};
@@ -35,6 +36,7 @@ pub const MAX_EXTRA_REROLLS: u8 = 20;
 /// The perk set of a setup that names none: a setup written before perk sets existed (ADR-105).
 /// New setups always name theirs.
 pub const DEFAULT_PERK_SET: &str = "duelist";
+pub use crate::difficulties::DEFAULT_DIFFICULTY;
 /// The most runes a rune pool names: every rune once.
 pub const MAX_RUNE_POOL: usize = Rune::ALL.len();
 /// The most stars a run starts holding (ADR-107 point 2).
@@ -96,6 +98,11 @@ pub struct RunSetup {
     /// that keeps the preset records `auto: false` on every tick.
     #[serde(default, skip_serializing_if = "is_false")]
     pub auto_combo: bool,
+    /// The difficulty the run is played on (ADR-110), by the ID of the run's difficulties file:
+    /// it scales the enemies, bounds the rarities and may set the mode's length. A setup written
+    /// before difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing.
+    #[serde(default = "default_difficulty")]
+    pub difficulty: ContentId,
     /// The runes the random rune may draw (ADR-099 point 4a, ADR-107): rune IDs, sorted, each
     /// once, at most `MAX_RUNE_POOL`. Empty: every rune.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -117,6 +124,10 @@ pub struct RunSetup {
 
 fn default_perk_set() -> ContentId {
     ContentId(DEFAULT_PERK_SET.to_owned())
+}
+
+fn default_difficulty() -> ContentId {
+    ContentId(DEFAULT_DIFFICULTY.to_owned())
 }
 
 fn is_zero(n: &u8) -> bool {
@@ -261,6 +272,9 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
     if !registry::is_well_formed(&setup.perk_set.0) {
         issue("$.perk_set".into(), ill_formed.into());
     }
+    if !registry::is_well_formed(&setup.difficulty.0) {
+        issue("$.difficulty".into(), ill_formed.into());
+    }
     if setup.rune_pool.len() > MAX_RUNE_POOL {
         issue(
             "$.rune_pool".into(),
@@ -311,7 +325,7 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
 }
 
 /// As `validate`, and against the run's content files: the perk set is one of the perk sets
-/// file's, every carried star a reward of the rewards file (and of the star pool, when the
+/// file's, the difficulty one of the difficulties file's, every carried star a reward of the rewards file (and of the star pool, when the
 /// setup names one) that is not the random rune, a reward carried no more times than it
 /// stacks, and the carried stars' costs within the Lumine budget (ADR-107 point 4). The call
 /// `Engine::start_with` makes.
@@ -322,6 +336,12 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
         issues.push(Issue {
             path: "$.perk_set".into(),
             message: "no such perk set in the run's perk sets file".into(),
+        });
+    }
+    if content.difficulties().get(&setup.difficulty).is_none() {
+        issues.push(Issue {
+            path: "$.difficulty".into(),
+            message: "no such difficulty in the run's difficulties file".into(),
         });
     }
     let rewards = content.rewards();
@@ -419,18 +439,30 @@ pub fn stage(setup: &RunSetup) -> Result<Stage, Error> {
 
 /// As `stage`, with `time_limit` in place of the bundled `time_limit` mode file.
 pub fn stage_with(setup: &RunSetup, time_limit: &TimeLimit) -> Result<Stage, Error> {
-    stage_on(setup, RunContent::bundled().trial(), time_limit)
+    let bundled = RunContent::bundled();
+    stage_on(setup, bundled.trial(), time_limit, bundled.difficulties())
 }
 
 /// As `stage`, from the `trial` stage and the `time_limit` mode file of `content` (a pack's).
 pub fn stage_in(setup: &RunSetup, content: &RunContent) -> Result<Stage, Error> {
-    stage_on(setup, content.trial(), content.time_limit())
+    stage_on(
+        setup,
+        content.trial(),
+        content.time_limit(),
+        content.difficulties(),
+    )
 }
 
-fn stage_on(setup: &RunSetup, trial: &Stage, time_limit: &TimeLimit) -> Result<Stage, Error> {
+fn stage_on(
+    setup: &RunSetup,
+    trial: &Stage,
+    time_limit: &TimeLimit,
+    difficulties: &Difficulties,
+) -> Result<Stage, Error> {
     validate(setup)?;
     if setup.mode.0 == "time_limit" {
-        return Ok(time_limit_run(setup, time_limit, trial)?.0);
+        let difficulty = difficulty_of(setup, difficulties)?;
+        return Ok(time_limit_run(setup, time_limit, difficulty, trial)?.0);
     }
     if setup.mode.0 != "trial" {
         return Err(Error::Invalid(vec![Issue {
@@ -446,6 +478,19 @@ fn stage_on(setup: &RunSetup, trial: &Stage, time_limit: &TimeLimit) -> Result<S
     Ok(stage)
 }
 
+/// The difficulty `setup` names, in `difficulties`.
+pub(crate) fn difficulty_of<'a>(
+    setup: &RunSetup,
+    difficulties: &'a Difficulties,
+) -> Result<&'a Difficulty, Error> {
+    difficulties.get(&setup.difficulty).ok_or_else(|| {
+        Error::Invalid(vec![Issue {
+            path: "$.difficulty".into(),
+            message: "no such difficulty in the run's difficulties file".into(),
+        }])
+    })
+}
+
 /// The stage and the bosses of a `time_limit` run of `mode` (core#212): the placeholder stage
 /// with the setup's weapons, its map, schedule of waves and length from the mode file, the
 /// length being the run and its overtime (a clear is the final boss's death; running out of
@@ -454,6 +499,7 @@ fn stage_on(setup: &RunSetup, trial: &Stage, time_limit: &TimeLimit) -> Result<S
 pub(crate) fn time_limit_run(
     setup: &RunSetup,
     mode: &TimeLimit,
+    difficulty: &Difficulty,
     trial: &Stage,
 ) -> Result<(Stage, Horde), Error> {
     if setup.mode.0 != "time_limit" {
@@ -476,7 +522,21 @@ pub(crate) fn time_limit_run(
     stage.id = "time-limit".into();
     stage.title = "Time Limit".into();
     stage.description = String::new();
-    stage.length_ticks = mode.length_ticks().saturating_add(mode.overtime_ticks());
+    let length_ticks = difficulty
+        .length_ticks
+        .unwrap_or_else(|| mode.length_ticks());
+    let boss_ticks = difficulty
+        .boss_ticks
+        .clone()
+        .unwrap_or_else(|| mode.boss_ticks().to_vec());
+    // One mid-boss for each boss time but the last, from the pool, each entry once.
+    if boss_ticks.len().saturating_sub(1) > mode.mid_boss_pool().len() {
+        return Err(Error::Invalid(vec![Issue {
+            path: "$.difficulty".into(),
+            message: "more mid-boss times than the mode's pool has bosses".into(),
+        }]));
+    }
+    stage.length_ticks = length_ticks.saturating_add(mode.overtime_ticks());
     stage.map = Some(Map {
         width: mode.map().width,
         height: mode.map().height,
@@ -485,7 +545,7 @@ pub(crate) fn time_limit_run(
     });
     stage.waves = mode.waves().to_vec();
     stage.elite_cap = Some(mode.elite_cap());
-    stage.level_table = Some(*mode.level_table());
+    stage.level_table = Some(difficulty.level_table.unwrap_or(*mode.level_table()));
     // Each elite type is a wave that never spawns (count 0): the lookups of an enemy's
     // definition, experience and expertise go by the stage's waves.
     let mut elite_waves: Vec<(ContentId, u32)> = Vec::new();
@@ -506,13 +566,13 @@ pub(crate) fn time_limit_run(
         });
     }
     let horde = Horde {
-        boss_ticks: mode.boss_ticks().to_vec(),
+        boss_ticks,
         pool: mode.mid_boss_pool().to_vec(),
         final_boss: mode.final_boss().clone(),
         template,
         spawned: 0,
         used: vec![false; mode.mid_boss_pool().len()],
-        length_ticks: mode.length_ticks(),
+        length_ticks,
         elite_table: mode.elite_table().to_vec(),
         elite_waves,
     };

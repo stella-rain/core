@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use sha2::{Digest, Sha256};
 
+use crate::difficulties::{Difficulties, DifficultiesFile};
 use crate::expertise::{Expertise, ExpertiseFile, WeaponExpertise};
 use crate::id::ContentId;
 use crate::match_ups::{MatchUps, MatchUpsFile};
@@ -62,6 +63,8 @@ pub const MAX_ON_HIT_RUNES: usize = 16;
 pub const MAX_DAMAGE_OVER_TIME_RUNES: usize = 16;
 /// The most perk sets (4 today; held to the file's own cap).
 pub const MAX_PERK_SETS: usize = crate::perk_sets::MAX_PERK_SETS;
+/// The most difficulties (4 today; held to the file's own cap).
+pub const MAX_DIFFICULTIES: usize = crate::difficulties::MAX_DIFFICULTIES;
 /// The most waves of the `time_limit` mode (2 today; held to the file's own cap).
 pub const MAX_TIME_LIMIT_WAVES: usize = crate::time_limit::MAX_WAVES;
 /// The most boss times of the `time_limit` mode (4 today; held to the file's own cap).
@@ -100,6 +103,8 @@ pub struct PackFile {
     pub runes: Box<RawValue>,
     #[schemars(with = "PerkSetsFile")]
     pub perk_sets: Box<RawValue>,
+    #[schemars(with = "DifficultiesFile")]
+    pub difficulties: Box<RawValue>,
     pub modes: PackModes,
 }
 
@@ -114,6 +119,8 @@ pub struct Introduced {
     pub stage_skills: Vec<IntroducedId>,
     /// The perk sets (ADR-105).
     pub perk_sets: Vec<IntroducedId>,
+    /// The difficulties (ADR-110).
+    pub difficulties: Vec<IntroducedId>,
     /// One entry for each weapon of the expertise.
     pub expertise: Vec<WeaponIds>,
     /// The elite types of the `time_limit` mode file (ADR-090).
@@ -310,6 +317,8 @@ impl Pack {
         let runes = Runes::parse(&file_bytes(&pack.runes)).map_err(PackError::in_file("runes"))?;
         let perk_sets = PerkSets::parse(&file_bytes(&pack.perk_sets))
             .map_err(PackError::in_file("perk_sets"))?;
+        let difficulties = Difficulties::parse(&file_bytes(&pack.difficulties))
+            .map_err(PackError::in_file("difficulties"))?;
         let trial = validate::parse_and_validate(&file_bytes(&pack.modes.trial))
             .map_err(PackError::in_file("trial"))?;
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit))
@@ -323,6 +332,7 @@ impl Pack {
             &stage_skills,
             &expertise,
             &perk_sets,
+            &difficulties,
             &time_limit,
         )?;
 
@@ -334,6 +344,7 @@ impl Pack {
             match_ups,
             runes,
             perk_sets,
+            difficulties,
             time_limit,
             trial,
             file_bytes(&pack.modes.trial),
@@ -408,6 +419,8 @@ struct Lists {
     #[serde(default)]
     perk_sets: Vec<IgnoredAny>,
     #[serde(default)]
+    difficulties: Vec<IgnoredAny>,
+    #[serde(default)]
     weapons: Vec<WeaponLists>,
     #[serde(default)]
     on_hit: Vec<IgnoredAny>,
@@ -466,6 +479,11 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
         MAX_PERK_SETS,
     )?;
     budget(
+        "$.introduced.difficulties",
+        introduced.difficulties.len(),
+        MAX_DIFFICULTIES,
+    )?;
+    budget(
         "$.introduced.expertise",
         introduced.expertise.len(),
         MAX_EXPERTISE_WEAPONS,
@@ -514,6 +532,13 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
     }
     if let Some(l) = counts::<Lists>(&pack.perk_sets) {
         budget("$.perk_sets.perk_sets", l.perk_sets.len(), MAX_PERK_SETS)?;
+    }
+    if let Some(l) = counts::<Lists>(&pack.difficulties) {
+        budget(
+            "$.difficulties.difficulties",
+            l.difficulties.len(),
+            MAX_DIFFICULTIES,
+        )?;
     }
     if let Some(l) = counts::<Lists>(&pack.modes.time_limit) {
         budget(
@@ -627,6 +652,7 @@ fn check_introduced(
     stage_skills: &StageSkills,
     expertise: &Expertise,
     perk_sets: &PerkSets,
+    difficulties: &Difficulties,
     time_limit: &TimeLimit,
 ) -> Result<(), PackError> {
     let mut issues = Vec::new();
@@ -656,6 +682,17 @@ fn check_introduced(
         "$.introduced.perk_sets",
         &introduced.perk_sets,
         &sets,
+        sim_version,
+    );
+    let difficulty_ids = paths(
+        "difficulties.difficulties",
+        difficulties.list().iter().map(|d| &d.id),
+    );
+    check_ids(
+        &mut issues,
+        "$.introduced.difficulties",
+        &introduced.difficulties,
+        &difficulty_ids,
         sim_version,
     );
     let elites = paths(
@@ -755,6 +792,14 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
             })
             .collect(),
         perk_sets: list(content.perk_sets().sets().iter().map(|s| &s.id).collect()),
+        difficulties: list(
+            content
+                .difficulties()
+                .list()
+                .iter()
+                .map(|d| &d.id)
+                .collect(),
+        ),
         elite_types: list(
             content
                 .time_limit()
@@ -788,6 +833,7 @@ pub fn export_bundled() -> Vec<u8> {
         MatchUps::parse(MatchUps::BUNDLED).expect("the bundled match-ups"),
         Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
         PerkSets::parse(PerkSets::BUNDLED).expect("the bundled perk sets"),
+        Difficulties::parse(Difficulties::BUNDLED).expect("the bundled difficulties"),
         TimeLimit::parse(TimeLimit::BUNDLED).expect("the bundled mode"),
         validate::parse_and_validate(trial).expect("the bundled trial"),
         trial.to_vec(),
@@ -807,6 +853,7 @@ pub fn export_bundled() -> Vec<u8> {
         ("match_ups", MatchUps::BUNDLED),
         ("runes", Runes::BUNDLED),
         ("perk_sets", PerkSets::BUNDLED),
+        ("difficulties", Difficulties::BUNDLED),
     ] {
         out.push_str(&format!("  \"{name}\": {},\n", file(bytes)));
     }

@@ -27,6 +27,7 @@ fn setup(seed: u64) -> RunSetup {
         carried: Vec::new(),
         lumine: 0,
         starting_rune: None,
+        difficulty: "normal".into(),
     }
 }
 

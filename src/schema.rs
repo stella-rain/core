@@ -4,6 +4,7 @@
 
 use schemars::schema_for;
 
+use crate::difficulties::DifficultiesFile;
 use crate::event::DomainEvent;
 use crate::expertise::ExpertiseFile;
 use crate::input::Input;
@@ -46,6 +47,10 @@ pub fn all() -> Vec<(&'static str, String)> {
         ("match_ups.schema.json", pretty(schema_for!(MatchUpsFile))),
         ("time_limit.schema.json", pretty(schema_for!(TimeLimitFile))),
         ("perk_sets.schema.json", pretty(schema_for!(PerkSetsFile))),
+        (
+            "difficulties.schema.json",
+            pretty(schema_for!(DifficultiesFile)),
+        ),
         ("runes.schema.json", pretty(schema_for!(RunesFile))),
         ("pack.schema.json", pretty(schema_for!(PackFile))),
     ]

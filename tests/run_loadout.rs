@@ -91,6 +91,7 @@ fn a_new_setup_writes_its_perk_set_and_only_the_fields_it_uses() {
         carried: carry(&["max_hp_common"]),
         lumine: 1,
         starting_rune: Some("explosion".into()),
+        difficulty: "normal".into(),
         ..trial_setup()
     };
     let bytes = serde_json::to_vec(&full).unwrap();
@@ -170,6 +171,7 @@ fn the_starting_rune_is_a_known_rune_of_the_pool_when_there_is_one() {
     let with = |rune: &str, pool: &[&str]| {
         run_setup::validate(&RunSetup {
             starting_rune: Some(rune.into()),
+            difficulty: "normal".into(),
             rune_pool: names(pool),
             ..trial_setup()
         })
@@ -475,6 +477,7 @@ fn a_carried_star_counts_toward_its_stack_limit() {
 fn the_starting_rune_is_held_from_tick_0() {
     let setup = RunSetup {
         starting_rune: Some("explosion".into()),
+        difficulty: "normal".into(),
         ..plain()
     };
     let e = start(&setup).unwrap();
@@ -537,6 +540,7 @@ fn the_random_rune_draws_only_from_the_rune_pool_and_never_the_starting_rune_aga
     let started = RunSetup {
         rune_pool: names(&["bleed", "poison"]),
         starting_rune: Some("bleed".into()),
+        difficulty: "normal".into(),
         ..plain()
     };
     let drawn = runes_after_the_run(&started);
@@ -561,6 +565,7 @@ fn a_setup_with_all_of_it_runs_deterministically() {
         carried: carry(&["attack_common", "speed_rare"]),
         lumine: 4,
         starting_rune: Some("thunder".into()),
+        difficulty: "normal".into(),
         ..trial_setup()
     };
     let run = || hashes(Engine::start(&setup).unwrap(), 400, script);

@@ -38,6 +38,7 @@
 use std::sync::Arc;
 
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
+use crate::difficulties::scale_pct;
 use crate::engine::{
     Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Smash, State,
     StatusKind, UNLIMITED,
@@ -320,6 +321,11 @@ fn launch(
         friendly: State::is_ally(owner),
         base: base_damage,
         atk_up_pct,
+        damage_pct: if State::is_ally(owner) {
+            100
+        } else {
+            s.damage_pct
+        },
         type_bonus_pct,
         age,
         hits: Vec::new(),
@@ -400,7 +406,7 @@ pub(super) fn phase_damage(r: &AttackRun) -> u32 {
         _ => 0,
     };
     scale_damage(
-        p.damage.unwrap_or(r.base),
+        scale_pct(p.damage.unwrap_or(r.base), r.damage_pct),
         r.atk_up_pct,
         type_bonus,
         0,

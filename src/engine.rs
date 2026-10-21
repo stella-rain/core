@@ -135,6 +135,7 @@ impl Engine {
             rewards: pool(None, content.rewards())?,
             extra_rerolls: 0,
             upgrades: registry::upgrade_mask(upgrades.iter().map(|id| id.0.as_str())),
+            difficulty: rules_v0::RunDifficulty::NONE,
         };
         Ok(Engine {
             state: rules_v0::initial_state(stage, content, pool, u64::from(stage.seed)),
@@ -162,6 +163,7 @@ impl Engine {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
             extra_rerolls: setup.extra_rerolls,
             upgrades: registry::upgrade_mask(setup.upgrades.iter().map(|id| id.0.as_str())),
+            difficulty: run_difficulty(setup, content)?,
         };
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed);
         let loadout = rules_v0::Loadout::of(setup, content);
@@ -183,11 +185,13 @@ impl Engine {
         mode: &crate::time_limit::TimeLimit,
     ) -> Result<Engine, Error> {
         run_setup::validate_in(setup, content)?;
-        let (stage, horde) = run_setup::time_limit_run(setup, mode, content.trial())?;
+        let difficulty = run_setup::difficulty_of(setup, content.difficulties())?;
+        let (stage, horde) = run_setup::time_limit_run(setup, mode, difficulty, content.trial())?;
         let pool = rules_v0::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
             extra_rerolls: setup.extra_rerolls,
             upgrades: registry::upgrade_mask(setup.upgrades.iter().map(|id| id.0.as_str())),
+            difficulty: run_difficulty(setup, content)?,
         };
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed);
         state.horde = Some(horde);
@@ -618,6 +622,20 @@ impl Engine {
     }
 }
 
+/// What the setup's difficulty brings to the run (ADR-110): its percents, and its rarity range
+/// clamped to the rarities the run's rewards have.
+fn run_difficulty(
+    setup: &RunSetup,
+    content: &RunContent,
+) -> Result<rules_v0::RunDifficulty, Error> {
+    let d = run_setup::difficulty_of(setup, content.difficulties())?;
+    Ok(rules_v0::RunDifficulty {
+        hp_pct: d.hp_pct,
+        damage_pct: d.damage_pct,
+        rarity: d.rarity_range(content.rewards()),
+    })
+}
+
 /// The run's star pool: the places in `rewards` of the rewards `ids` names, or of every reward
 /// when it names none. A name the file does not hold fails closed, one issue per name.
 fn pool(ids: Option<&[ContentId]>, rewards: &Rewards) -> Result<Vec<u16>, Error> {
@@ -691,6 +709,10 @@ pub(crate) struct State {
     /// The setup's auto combo (ADR-107): auto mode is on when the input's `auto` differs from
     /// it. Fixed for the run, like `regen`.
     pub auto_combo: bool,
+    /// The percents the run's difficulty scales enemies' hit points and attacks' damage by
+    /// (ADR-110): fixed for the run, part of the setup, so the state hash writes nothing for them.
+    pub hp_pct: u32,
+    pub damage_pct: u32,
 }
 
 /// What a `time_limit` run brings to its bosses (core#212): the times, the pool they are drawn
@@ -768,6 +790,9 @@ pub(crate) struct StarField {
     pub offer: Option<OfferState>,
     pub rerolls_left: u32,
     pub banishes_left: u32,
+    /// The rarities its stars and offers may have, lowest and highest (ADR-110): fixed for the
+    /// run, so the state hash writes nothing for it.
+    pub rarity: (Rarity, Rarity),
     /// The runes the random rune may draw, by `Rune::index` (ADR-107): fixed for the run, part
     /// of the setup, so the state hash writes nothing for it.
     pub rune_pool: u8,
@@ -1407,6 +1432,9 @@ pub(crate) struct AttackRun {
     pub base: u32,
     /// The attacker's atk-up, in percent, fixed when the attack starts (ADR-056).
     pub atk_up_pct: u32,
+    /// The percent of the damage a difficulty scales an enemy's or the boss's attack by
+    /// (ADR-110), fixed when the attack starts; 100 for the main character's and its allies'.
+    pub damage_pct: u32,
     /// The attacker's type bonus for each damage type, by its place in `DamageType::ALL`, in
     /// percent, each at most the match-up file's `max_type_bonus_pct`, fixed when the attack
     /// starts (ADR-100): the main character's, once it holds any; none for every other
@@ -1493,6 +1521,7 @@ mod horde_tests {
             carried: Vec::new(),
             lumine: 0,
             starting_rune: None,
+            difficulty: "normal".into(),
         };
         Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
     }
@@ -1607,6 +1636,7 @@ mod horde_tests {
             carried: Vec::new(),
             lumine: 0,
             starting_rune: None,
+            difficulty: "normal".into(),
         };
         let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
         e.state.player.hp = u32::MAX;

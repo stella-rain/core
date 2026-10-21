@@ -87,7 +87,7 @@ pub(super) fn drop_from_defeated(stage: &Stage, s: &mut State, events: &mut Vec<
             }
             f.misses = 0;
         }
-        let rarity = draw_rarity(rng, &if elite { up } else { tier }.weights);
+        let rarity = draw_rarity(rng, &if elite { up } else { tier }.weights, f.rarity);
         let id = EntityId(*next_id);
         *next_id += 1;
         f.on_map.push(StarState { id, at, rarity });
@@ -116,21 +116,30 @@ pub(super) fn boss_killed(stage: &Stage, s: &mut State) {
         return;
     };
     if let Some(f) = s.stars.as_mut() {
+        // Inside the difficulty's range (ADR-110).
+        let rarity = rarity.clamp(f.rarity.0, f.rarity.1);
         let kind = OfferKind::Boss;
         f.due.insert(0, Due { kind, rarity });
     }
 }
 
-fn draw_rarity(rng: &mut SplitMix64, weights: &RarityWeights) -> Rarity {
-    let mut left = rng.below(weights.total().max(1));
+/// A rarity drawn by `weights`, leaving out those outside `range`, the difficulty's (ADR-110):
+/// the lowest of the range when it leaves no weight. The generator is drawn once either way.
+fn draw_rarity(rng: &mut SplitMix64, weights: &RarityWeights, range: (Rarity, Rarity)) -> Rarity {
+    let weight = |rarity: Rarity| match (range.0..=range.1).contains(&rarity) {
+        true => u32::from(weights.get(rarity)),
+        false => 0,
+    };
+    let total: u32 = Rarity::ALL.into_iter().map(weight).sum();
+    let mut left = rng.below(total.max(1));
     for rarity in Rarity::ALL {
-        let w = u32::from(weights.get(rarity));
+        let w = weight(rarity);
         if left < w {
             return rarity;
         }
         left -= w;
     }
-    Rarity::Common
+    range.0
 }
 
 /// The main character takes the stars inside its pickup circle; their offers are due.
@@ -242,7 +251,7 @@ fn first_rarity(
         .iter()
         .rev()
         .copied()
-        .filter(|r| *r <= top)
+        .filter(|r| *r <= top && *r >= f.rarity.0)
         .find(|r| {
             f.pool
                 .iter()
@@ -459,4 +468,57 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
         rerolls_left: f.rerolls_left,
         banishes_left: f.banishes_left,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ALL: (Rarity, Rarity) = (Rarity::Common, Rarity::Supernova);
+
+    fn weights(common: u16, rare: u16, legendary: u16) -> RarityWeights {
+        RarityWeights {
+            common,
+            rare,
+            legendary,
+            ..RarityWeights::default()
+        }
+    }
+
+    #[test]
+    fn a_range_leaves_out_the_rarities_outside_it() {
+        let w = weights(50, 35, 15);
+        let draws = |range| -> Vec<Rarity> {
+            let mut rng = SplitMix64::new(9);
+            (0..400).map(|_| draw_rarity(&mut rng, &w, range)).collect()
+        };
+        let all = draws(ALL);
+        assert!(all.contains(&Rarity::Common) && all.contains(&Rarity::Legendary));
+        let capped = draws((Rarity::Common, Rarity::Rare));
+        assert!(capped.iter().all(|r| *r <= Rarity::Rare));
+        assert!(capped.contains(&Rarity::Rare));
+        let raised = draws((Rarity::Rare, Rarity::Supernova));
+        assert!(raised.iter().all(|r| *r >= Rarity::Rare));
+    }
+
+    #[test]
+    fn a_range_that_leaves_no_weight_gives_its_lowest_rarity() {
+        let mut rng = SplitMix64::new(1);
+        let only_common = weights(100, 0, 0);
+        assert_eq!(
+            draw_rarity(&mut rng, &only_common, (Rarity::Rare, Rarity::Supernova)),
+            Rarity::Rare
+        );
+    }
+
+    #[test]
+    fn a_range_that_leaves_every_weight_in_changes_no_draw() {
+        let w = weights(50, 35, 15);
+        let (mut a, mut b) = (SplitMix64::new(3), SplitMix64::new(3));
+        for _ in 0..100 {
+            let wide = draw_rarity(&mut a, &w, ALL);
+            let exact = draw_rarity(&mut b, &w, (Rarity::Common, Rarity::Legendary));
+            assert_eq!(wide, exact);
+        }
+    }
 }
