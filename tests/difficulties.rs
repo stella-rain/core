@@ -111,7 +111,10 @@ fn the_rarity_range_is_clamped_to_the_rarities_rewards_have() {
     assert_eq!(bundled("easy").rarity_range(rewards), (Common, Rare));
     assert_eq!(bundled("normal").rarity_range(rewards), (Common, Legendary));
     assert_eq!(bundled("hard").rarity_range(rewards), (Common, Supernova));
-    assert_eq!(bundled("rainy").rarity_range(rewards), (Uncommon, Supernova));
+    assert_eq!(
+        bundled("rainy").rarity_range(rewards),
+        (Uncommon, Supernova)
+    );
 }
 
 #[test]

@@ -85,7 +85,11 @@ fn the_new_amounts_follow_the_ladder_from_the_common_reward() {
         let common = bundled(effect, Rarity::Common).amount.unwrap();
         for rarity in NEW {
             let r = bundled(effect, rarity);
-            assert_eq!(r.amount, Some(ladder(rarity, common)), "{effect:?} {rarity:?}");
+            assert_eq!(
+                r.amount,
+                Some(ladder(rarity, common)),
+                "{effect:?} {rarity:?}"
+            );
             assert_eq!(r.limit, Some(limit_of(rarity)), "{effect:?} {rarity:?}");
         }
     }
@@ -141,7 +145,10 @@ fn every_difficulty_offers_each_rarity_it_allows() {
 
 #[test]
 fn the_top_drop_tier_of_trial_and_tutorial_weighs_every_rarity() {
-    for stage in [RunContent::bundled().trial(), RunContent::bundled().tutorial()] {
+    for stage in [
+        RunContent::bundled().trial(),
+        RunContent::bundled().tutorial(),
+    ] {
         let tiers = &stage.stars.as_ref().expect("a stage with stars").tiers;
         let top = tiers.last().expect("a tier");
         for rarity in Rarity::ALL {
@@ -302,7 +309,11 @@ fn next_offer(e: &mut Engine) {
 /// The ids of the open offer's candidates, sorted.
 fn offered(e: &Engine) -> Vec<String> {
     let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let mut ids: Vec<String> = offer.candidates.iter().map(|c| c.reward.0.clone()).collect();
+    let mut ids: Vec<String> = offer
+        .candidates
+        .iter()
+        .map(|c| c.reward.0.clone())
+        .collect();
     ids.sort();
     ids
 }
@@ -351,4 +362,3 @@ fn an_offer_at_supernova_falls_to_legendary_once_the_supernova_reward_is_taken()
     next_offer(&mut e);
     assert_eq!(offered(&e), ["leg"], "the offer falls to legendary");
 }
-
