@@ -5,11 +5,13 @@
 use crate::common::run::{play_run_with, run_input_for, trial_setup};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use stella_rain_core::engine::Outcome;
+use stella_rain_core::engine::{Engine, Outcome};
+use stella_rain_core::event::DomainEvent;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay;
+use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::validate;
@@ -127,4 +129,37 @@ fn the_bundled_pack_holds_the_tutorial_file_and_the_run_hash_covers_it() {
         Pack::from_bytes(&edited).is_err(),
         "a pack whose tutorial file is changed is refused"
     );
+}
+
+/// The tutorial earns no Stardust (ADR-086, ADR-109): a stage with no Stardust factor counts
+/// nothing, and the tutorial's stage has none, so the bot's run, which kills what it reaches,
+/// leaves the counter at zero.
+#[test]
+fn the_tutorial_earns_no_stardust() {
+    let setup = setup("giant_sword");
+    let bundled = RunContent::bundled();
+    let commands = play_run_with(&setup, bundled, LENGTH, |e, t| {
+        run_input_for(e, t, &[EntityKind::Enemy, EntityKind::Boss], u32::MAX)
+    });
+    let mut engine = Engine::start_with(&setup, bundled).unwrap();
+    let mut kills = 0;
+    for command in &commands {
+        match *command {
+            Command::Step(input) => {
+                engine.step(input);
+                kills += engine
+                    .events()
+                    .iter()
+                    .filter(|e| matches!(e, DomainEvent::Died { .. }))
+                    .count();
+            }
+            Command::Choose(index) => engine.choose(index).unwrap(),
+            Command::Spend(index) => engine.spend(index).unwrap(),
+        }
+    }
+    assert!(
+        kills > 0,
+        "the bot kills something, so the counter is tested"
+    );
+    assert_eq!(engine.stardust(), 0);
 }
