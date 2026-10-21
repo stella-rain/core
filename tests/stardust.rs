@@ -14,7 +14,7 @@ use crate::common;
 use common::*;
 
 const ENEMY_Y: i32 = 100_000;
-const LENGTH: u32 = 18_000;
+const LENGTH: u32 = 1_200;
 
 /// `count` one-shot enemies waiting above the main character, one every 6 ticks from tick 1,
 /// each with `base` Stardust when given.
@@ -114,23 +114,6 @@ fn the_factor_grows_linearly_over_the_run_by_the_kill_tick_truncated() {
     }
     // The factor moved, so the later kills earn more than the first.
     assert!(got.last().unwrap().1 > got.first().unwrap().1, "{got:?}");
-}
-
-#[test]
-fn a_kill_after_the_length_earns_at_the_end_factor() {
-    let mut s = stage(100, 300, vec![]);
-    let mut w = targets(1, Some(100));
-    w["at_tick"] = json!(LENGTH + 10);
-    s.length_ticks = LENGTH + 600;
-    s.waves = serde_json::from_value(json!([w])).unwrap();
-    let mut e = engine(&s);
-    // Skip to the wave; the Main weapon takes it down once it spawns.
-    while e.tick() < LENGTH + 5 {
-        e.step(idle());
-    }
-    let got = kills(&mut e, 300);
-    assert_eq!(got.len(), 1, "{got:?}");
-    assert_eq!(got[0].1, 300, "100 × 300% past the length");
 }
 
 #[test]

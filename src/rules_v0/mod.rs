@@ -96,6 +96,7 @@ mod player;
 mod push;
 mod runes;
 mod skill;
+mod stardust;
 mod stars;
 mod stun;
 
@@ -673,10 +674,12 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     s.bullets.retain(|_| !flags.next().unwrap_or(false));
     s.companions.retain(|c| c.hp > 0);
     levels::credit_defeated(stage, s, events);
+    stardust::credit_defeated(stage, s);
     stars::drop_from_defeated(stage, s, events);
     s.enemies.retain(|e| e.hp > 0);
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         stars::boss_killed(stage, s);
+        stardust::boss_killed(stage, s);
     }
     stars::pick_up(stage, s, events);
 }
