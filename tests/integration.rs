@@ -58,6 +58,7 @@ mod poison_burn;
 mod properties;
 mod push_apart;
 mod range_reward;
+mod rarities;
 mod recording;
 mod registry;
 mod replay;

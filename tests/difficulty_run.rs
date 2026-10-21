@@ -276,13 +276,13 @@ fn star_rarities(difficulty: &str, ticks: u32) -> Vec<Rarity> {
 
 #[test]
 fn stars_drop_inside_the_difficultys_rarity_range() {
-    // Level 1's drop table weighs only common stars; the rewards have common, rare and
-    // legendary ones, so rainy's range (uncommon and up) clamps to rare and up.
+    // Level 1's drop table weighs only common stars; the rewards have every rarity, so rainy's
+    // range (uncommon and up) is the rewards' own, and its level-1 stars fall to uncommon.
     let normal = star_rarities("normal", 3_000);
     assert!(normal.contains(&Rarity::Common), "{normal:?}");
     let rainy = star_rarities("rainy", 3_000);
     assert!(!rainy.is_empty());
-    assert!(rainy.iter().all(|r| *r >= Rarity::Rare), "{rainy:?}");
+    assert!(rainy.iter().all(|r| *r >= Rarity::Uncommon), "{rainy:?}");
     let easy = star_rarities("easy", 3_000);
     assert!(easy.iter().all(|r| *r <= Rarity::Rare), "{easy:?}");
 }

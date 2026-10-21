@@ -105,13 +105,16 @@ fn scaling_truncates_toward_zero_and_saturates() {
 
 #[test]
 fn the_rarity_range_is_clamped_to_the_rarities_rewards_have() {
-    // Rewards have common, rare and legendary today.
+    // Rewards have every rarity today (tests/rarities.rs), so each range is the file's own.
     let rewards = Rewards::bundled();
     use Rarity::*;
     assert_eq!(bundled("easy").rarity_range(rewards), (Common, Rare));
     assert_eq!(bundled("normal").rarity_range(rewards), (Common, Legendary));
-    assert_eq!(bundled("hard").rarity_range(rewards), (Common, Legendary));
-    assert_eq!(bundled("rainy").rarity_range(rewards), (Rare, Legendary));
+    assert_eq!(bundled("hard").rarity_range(rewards), (Common, Supernova));
+    assert_eq!(
+        bundled("rainy").rarity_range(rewards),
+        (Uncommon, Supernova)
+    );
 }
 
 #[test]

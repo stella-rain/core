@@ -18,7 +18,9 @@ pub const SPEND_INDEX: u32 = 1;
 /// (ADR-084 point 8) seed 186 no longer does, and with the one weapon's level table (ADR-106)
 /// seed 61 no longer does; with the default perk set (ADR-105) seed 2 no longer does; with the
 /// healing (core#336) seed 57 no longer does, and this one is the first of `1..` that does.
-pub const STAGE_SKILL_SEED: u64 = 73;
+/// With the six rarities (ADR-110) seed 73 no longer does: the elite's star now draws from the
+/// higher rarities, and seed 11 is the first of `1..` that does again.
+pub const STAGE_SKILL_SEED: u64 = 11;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
 /// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
