@@ -2879,8 +2879,7 @@
                 "preset": {
                   "id": "elite_slam"
                 }
-              },
-              "big": true
+              }
             },
             "cooldown_ticks": 90,
             "once": false

@@ -237,27 +237,11 @@ pub enum Selector {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
-    Cast {
-        skill: Skill,
-    },
-    /// `big`: a big pattern (ADR-103), announced in the snapshot through its wind-up. Only a
-    /// preset can be big, the validator holds it to that.
-    Attack {
-        attack: AttackRef,
-        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-        big: bool,
-    },
-    Summon {
-        agent: Box<Agent>,
-        count: u8,
-    },
-    MoveTo {
-        to: Point,
-        ticks: u32,
-    },
-    Telegraph {
-        ticks: u32,
-    },
+    Cast { skill: Skill },
+    Attack { attack: AttackRef },
+    Summon { agent: Box<Agent>, count: u8 },
+    MoveTo { to: Point, ticks: u32 },
+    Telegraph { ticks: u32 },
 }
 
 /// A skill block (ADR-008, ADR-036). Percentages are whole percent.

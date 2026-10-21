@@ -24,7 +24,7 @@ pub(super) fn perform(
     match action {
         // An attack does as much as the main character's weapons (its attack stat) if an ally
         // makes it, and `ENEMY_ATTACK_DAMAGE` (1 at the design values) if an enemy does.
-        Action::Attack { attack, big } => {
+        Action::Attack { attack } => {
             let base = if State::is_ally(me) {
                 stage.player.atk
             } else {
@@ -36,11 +36,7 @@ pub(super) fn perform(
                 _ => 0,
             };
             // Not ready while its last attack runs (ADR-055): the next rule gets its turn.
-            let started = attacks::start_aged(s, me, 0, target, attack, base, age, events);
-            if started && *big {
-                attacks::mark_big(s);
-            }
-            started
+            attacks::start_aged(s, me, 0, target, attack, base, age, events)
         }
         Action::Cast { skill } => {
             if matches!(skill, Skill::Shot { .. }) && attacks::busy(s, s.id_of(me), 0) {
