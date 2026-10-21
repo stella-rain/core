@@ -73,6 +73,11 @@ fn follower_ys(speed: Option<i32>, ticks: u32) -> Vec<i32> {
 /// An exploder 5,000 units above the main character on a hold, with a burst on `near_target`
 /// `distance` (its centre to the main character's), which `self_destruct`s when asked.
 fn exploder(distance: i32, self_destruct: bool) -> Stage {
+    quiet(exploder_armed(distance, self_destruct))
+}
+
+/// `exploder` with the main character's weapon as the stage gives it.
+fn exploder_armed(distance: i32, self_destruct: bool) -> Stage {
     let mut burst = rule(
         json!({ "type": "near_target", "distance": distance }),
         json!("player"),
@@ -83,7 +88,7 @@ fn exploder(distance: i32, self_destruct: bool) -> Stage {
         burst["self_destruct"] = json!(true);
     }
     let at = PLAYER_Y + 5_000;
-    quiet(stage_with(
+    stage_with(
         18_000,
         Some(far_boss()),
         vec![wave(
@@ -94,7 +99,7 @@ fn exploder(distance: i32, self_destruct: bool) -> Stage {
             PLAYER_X,
             at,
         )],
-    ))
+    )
 }
 
 /// A child of a split: a small enemy that chases the main character.
@@ -195,6 +200,66 @@ fn an_exploder_that_self_destructs_fires_once_and_is_gone() {
     // empty map show that it removed itself.
     assert_eq!(firings, 1);
     assert!(enemies_of(&e).is_empty(), "{:?}", enemies_of(&e));
+}
+
+/// The exploder with experience and Stardust to give (a level that needs 1,000, a base of 100
+/// at 100 percent), its burst at `distance`, and a `self_destruct` when asked. `shot_at` puts it where the main
+/// character's bullets go, with the stage's own weapon.
+fn paying_exploder(distance: i32, self_destruct: bool, shot_at: bool) -> Stage {
+    let mut stage = if shot_at {
+        exploder_armed(distance, self_destruct)
+    } else {
+        exploder(distance, self_destruct)
+    };
+    stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).expect("levels parse"));
+    stage.stardust = Some(
+        serde_json::from_value(json!({ "tiers": [{ "start_tick": 0, "pct": 100 }] }))
+            .expect("a factor parses"),
+    );
+    let mut value = serde_json::to_value(&stage).expect("the stage serialises");
+    value["waves"][0]["stardust"] = json!(100);
+    value["waves"][0]["enemy"]["hp"] = json!(10);
+    if shot_at {
+        // Up the field, where the main character's bullets go.
+        value["waves"][0]["spawn"]["y"] = json!(PLAYER_Y - 5_000);
+        value["waves"][0]["enemy"]["movement"]["at"]["y"] = json!(PLAYER_Y - 5_000);
+    }
+    serde_json::from_value(value).expect("the stage parses")
+}
+
+/// `(experience, Stardust)` after 40 ticks, firing when `shoot`.
+fn credit_after(stage: &Stage, shoot: bool) -> (u32, u32) {
+    let mut e = engine(stage);
+    for _ in 0..40 {
+        let input = if shoot {
+            firing(idle(), e.tick())
+        } else {
+            idle()
+        };
+        e.step(input);
+    }
+    assert!(enemies_of(&e).is_empty(), "the exploder is gone");
+    let snap = e.snapshot();
+    (
+        snap.progress.expect("levels").xp,
+        snap.stardust.expect("a factor"),
+    )
+}
+
+#[test]
+fn an_exploder_that_bursts_gives_no_experience_or_stardust() {
+    // The burst fires (the rule is shown by the test above); nothing is earned by it.
+    let stage = paying_exploder(5_000, true, false);
+    assert_eq!(credit_after(&stage, false), (0, 0));
+}
+
+#[test]
+fn an_exploder_killed_before_its_burst_gives_the_full_credit() {
+    // `near_target` of 1 never holds at 5,000 apart; the main character's bullets kill it.
+    let stage = paying_exploder(1, true, true);
+    let (xp, dust) = credit_after(&stage, true);
+    assert_eq!(xp, 1);
+    assert!(dust > 0, "{dust}");
 }
 
 #[test]

@@ -1137,6 +1137,10 @@ pub(crate) struct AgentState {
     /// Enemies only: the last push-apart found it overlapping its neighbours by more than a
     /// pixel, so it does not take its own step to its place this tick (ADR-058).
     pub crowded: bool,
+    /// Enemies only: it removed itself with a `self_destruct` rule. It is at 0 hit points for
+    /// the removal, but it was not defeated, so nothing credits it. Not hashed: it only lives
+    /// until the end of the tick it is set in.
+    pub burst: bool,
     /// Ticks left in which a new stun cannot land on this enemy, from the end of its last stun
     /// (ADR-085 point 4); 0 for none.
     pub stun_immune: u32,

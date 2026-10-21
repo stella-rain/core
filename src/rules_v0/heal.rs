@@ -46,7 +46,10 @@ pub(super) fn drop_from_defeated(stage: &Stage, s: &mut State, events: &mut Vec<
     let Some(pickups) = heal_pickups.as_mut() else {
         return;
     };
-    for e in enemies.iter().filter(|e| e.hp == 0 && e.elite.is_none()) {
+    for e in enemies
+        .iter()
+        .filter(|e| e.hp == 0 && !e.burst && e.elite.is_none())
+    {
         let drops = rng.below(cfg.drop_one_in) == 0;
         if !drops || pickups.len() >= usize::from(cfg.cap) {
             continue;

@@ -30,7 +30,8 @@ fn the_bats_spawn_a_hundred_enemies_a_minute() {
 }
 
 /// A bench wave is a wave of the mode's schedule but for its timing, hit points, rewards and the
-/// exploder's self-destruct, which the bench leaves off so that the 500 stay alive.
+/// exploder's self-destruct, which the bench leaves off as its rule (the exploders burst and
+/// stay, so the measured tick holds 500 with the burst running).
 fn is_kind_of(bench: &Wave, mode: &Wave) -> bool {
     let mut rules = mode.enemy.rules.clone();
     for rule in &mut rules {

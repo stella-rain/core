@@ -2227,7 +2227,7 @@
           "default": false
         },
         "self_destruct": {
-          "description": "An enemy that fires this rule removes itself with it, as an exploder does. It goes through\nhit points 0, so the defeat credit of any dead enemy applies (placeholder, R1). Ignored\nfor a companion and the boss.",
+          "description": "An enemy that fires this rule removes itself with it, as an exploder does. It is gone\nat the end of the tick, but it was not defeated: it gives no experience, expertise or\nStardust and drops no star or heal pickup, and the burst's attack still fires. An\nexploder the main character kills before the rule fires gives its full credit. Ignored\nfor a companion and the boss.",
           "type": "boolean"
         },
         "target": {
