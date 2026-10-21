@@ -86,8 +86,13 @@ fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
     };
     by_hand.seed = 20_261_010;
     assert_eq!(run_setup::stage(&setup()), Ok(by_hand.clone()));
-    let started = hashes(Engine::start(&setup()).unwrap(), 600);
-    assert_eq!(started, hashes(Engine::new(&by_hand).unwrap(), 600));
+    // Under a perk set with no effects, as a run is without a setup.
+    let (plain, content) = (common::run::plain_setup(), common::run::plain_content());
+    let started = hashes(Engine::start_with(&plain, &content).unwrap(), 600);
+    assert_eq!(
+        started,
+        hashes(Engine::new_with(&by_hand, &content).unwrap(), 600)
+    );
 }
 
 #[test]

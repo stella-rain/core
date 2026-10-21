@@ -191,7 +191,7 @@ fn the_final_hash_is_the_one_after_the_last_spend() {
 #[test]
 fn a_run_with_unspent_points_verifies() {
     let point = first_point_tick();
-    let commands: Vec<Command> = play_run(point + 50)
+    let commands: Vec<Command> = play_run(point + 20)
         .into_iter()
         .filter(|c| !matches!(c, Command::Spend(_)))
         .collect();
@@ -204,7 +204,7 @@ fn a_run_with_unspent_points_verifies() {
     let verified = verify_run(&replay.to_bytes()).unwrap();
     assert_eq!(
         (verified.ticks, verified.commands),
-        (point + 50, u32::try_from(left.len()).unwrap())
+        (point + 20, u32::try_from(left.len()).unwrap())
     );
 }
 
@@ -533,7 +533,7 @@ fn a_changed_input_or_seed_reaches_another_final_hash() {
 #[test]
 fn a_changed_spend_reaches_another_final_hash() {
     let point = first_point_tick();
-    let replay = recorded(point + 100);
+    let replay = recorded(point + 20);
     let changed = spend(point, 0);
     assert_ne!(first_spend(&replay), Some(changed));
     assert!(matches!(

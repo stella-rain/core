@@ -59,6 +59,7 @@ mod registry;
 mod replay;
 mod rewards;
 mod rng;
+mod run_loadout;
 mod run_replay;
 mod run_setup;
 mod run_stats;

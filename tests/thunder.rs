@@ -266,9 +266,10 @@ fn a_run_holding_thunder_records_and_verifies() {
     );
     // A seed whose run draws thunder among the seven runes, and fires it: the trial has stars for
     // about four. With the Sword's smashes bleeding (ADR-084 point 8) seed 20_261_011 no longer
-    // does; this one is the nearest of its range that does.
+    // does, nor, under the default perk set (ADR-105), seed 20_261_013; this one is the nearest of
+    // its range that does.
     let setup = RunSetup {
-        seed: 20_261_013,
+        seed: 20_261_014,
         ..trial_setup()
     };
     let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();

@@ -290,18 +290,39 @@ fn fly_one(s: &mut State, i: usize) {
 }
 
 /// The Main weapon holds every rune: the random rune has nothing left to give.
-pub(super) fn all_held(runes: &[HeldRune]) -> bool {
-    Rune::ALL.iter().all(|r| runes.iter().any(|h| h.rune == *r))
+pub(super) fn all_held(runes: &[HeldRune], pool: u8) -> bool {
+    Rune::ALL
+        .iter()
+        .filter(|r| in_pool(pool, **r))
+        .all(|r| runes.iter().any(|h| h.rune == *r))
 }
 
-/// The random rune is picked: draws one of the runes the Main does not hold, in `Rune::ALL`'s
-/// order, with one draw from the run's generator, and adds it. None, drawing nothing, once it
-/// holds them all.
-pub(super) fn draw(rng: &mut SplitMix64, p: &mut PlayerState) -> Option<Rune> {
+/// Whether `rune` is in the run's rune pool, a mask by `Rune::index` (ADR-107).
+pub(crate) fn in_pool(pool: u8, rune: Rune) -> bool {
+    pool >> rune.index() & 1 == 1
+}
+
+/// The mask of the runes `ids` name; the whole list when it is empty (ADR-107).
+pub(crate) fn pool_mask(ids: &[crate::id::ContentId]) -> u8 {
+    if ids.is_empty() {
+        return FULL_POOL;
+    }
+    ids.iter()
+        .filter_map(|id| Rune::from_id(&id.0))
+        .fold(0, |mask, r| mask | 1 << r.index())
+}
+
+/// Every rune in the pool.
+pub(crate) const FULL_POOL: u8 = (1 << Rune::ALL.len()) - 1;
+
+/// The random rune is picked: draws one of the runes of the run's rune pool (`pool`) the Main
+/// does not hold, in `Rune::ALL`'s order, with one draw from the run's generator, and adds it.
+/// None, drawing nothing, once it holds them all.
+pub(super) fn draw(rng: &mut SplitMix64, p: &mut PlayerState, pool: u8) -> Option<Rune> {
     let left: Vec<Rune> = Rune::ALL
         .iter()
         .copied()
-        .filter(|r| !p.runes.iter().any(|h| h.rune == *r))
+        .filter(|r| in_pool(pool, *r) && !p.runes.iter().any(|h| h.rune == *r))
         .collect();
     if left.is_empty() || p.runes.len() >= MAX_RUNES {
         return None;
