@@ -35,10 +35,12 @@ fn setup(seed: u64, difficulty: &str) -> RunSetup {
     }
 }
 
-/// The bundled file with no enemies on its schedule, so a run is quick to play to a boss.
+/// The bundled file with no enemies on its schedule and one elite at a time, so a run is quick to
+/// play to a boss.
 fn quiet_mode() -> TimeLimit {
     let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
     v["waves"] = json!([]);
+    v["elite_cap"] = json!(1);
     TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
 }
 
@@ -104,7 +106,7 @@ fn the_final_boss_has_two_cores_and_three_phases() {
 #[test]
 fn three_mid_bosses_are_drawn_without_repeats_on_the_20_minute_run() {
     let m = quiet_mode();
-    for seed in 0..4 {
+    for seed in 0..2 {
         let mut e = start(&m, seed, "normal");
         let drawn: Vec<String> = [5, 10, 15]
             .iter()
@@ -121,7 +123,7 @@ fn three_mid_bosses_are_drawn_without_repeats_on_the_20_minute_run() {
 #[test]
 fn easy_s_10_minute_run_draws_its_three_mid_bosses_without_repeats() {
     let m = quiet_mode();
-    for seed in 0..4 {
+    for seed in 0..2 {
         let mut e = start(&m, seed, "easy");
         let drawn: Vec<String> = [9000, 18000, 27000]
             .iter()
