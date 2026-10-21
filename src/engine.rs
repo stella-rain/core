@@ -692,6 +692,8 @@ pub(crate) struct State {
     pub tasks: Vec<AttackTask>,
     /// Phased attacks in progress, in the order they started (ADR-055).
     pub runs: Vec<AttackRun>,
+    /// What `runs` leave each attacker's speed; updated wherever `runs` changes.
+    pub move_index: MoveIndex,
     /// In spawn order.
     pub bullets: Vec<BulletState>,
     /// Enemies spawned so far, per wave.
@@ -1495,12 +1497,10 @@ pub(crate) struct AttackRun {
 /// a search over the attackers, not a scan of every run; a derived value that no hash reads.
 /// Sorted by owner, one entry for each owner with a run.
 #[derive(Clone, Debug, Default)]
-#[allow(dead_code)] // wired in by the next commit
 pub(crate) struct MoveIndex {
     by_owner: Vec<(EntityId, i64)>,
 }
 
-#[allow(dead_code)] // wired in by the next commit
 impl MoveIndex {
     /// The speed `owner`'s runs leave it, 100 with none.
     #[inline]

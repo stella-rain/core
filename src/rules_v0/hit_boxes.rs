@@ -96,6 +96,7 @@ pub(super) fn resolve(
     }
     if swings.iter().any(|w| w.once) {
         s.runs.retain(|r| r.homing.is_none() || r.hits.is_empty());
+        s.move_index.rebuild(&s.runs);
     }
 }
 

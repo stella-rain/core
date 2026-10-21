@@ -64,6 +64,15 @@ pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
 /// The movement speed, in percent, that `owner`'s running attacks leave it: the lowest
 /// `move_pct` of their current phases, 100 with none.
 pub(super) fn move_pct(s: &State, owner: EntityId) -> i64 {
+    let pct = s.move_index.get(owner);
+    debug_assert_eq!(pct, scan_move_pct(s, owner), "the move index is stale");
+    pct
+}
+
+/// What `move_pct` was before `State::move_index`: every run scanned. The index is checked
+/// against it in debug builds.
+#[cfg(debug_assertions)]
+fn scan_move_pct(s: &State, owner: EntityId) -> i64 {
     s.runs
         .iter()
         .filter(|r| r.owner == owner)
@@ -334,6 +343,9 @@ fn launch(
         throw: None,
         homing: None,
     });
+    let first = &s.runs[s.runs.len() - 1];
+    s.move_index
+        .lower(first.owner, i64::from(first.phases[0].move_pct));
     begin_phase(s, s.runs.len() - 1, events);
 }
 
@@ -341,10 +353,12 @@ fn launch(
 /// or away after its last phase or when its attacker is gone. Called at the start of a tick,
 /// before anyone acts, so that an attacker whose attack has ended can start the next one.
 pub(super) fn advance_runs(s: &mut State, events: &mut Vec<DomainEvent>) {
+    let mut changed = false;
     let mut i = 0;
     while i < s.runs.len() {
         if s.find(s.runs[i].owner).is_none() {
             s.runs.remove(i);
+            changed = true;
             continue;
         }
         let r = &mut s.runs[i];
@@ -352,6 +366,7 @@ pub(super) fn advance_runs(s: &mut State, events: &mut Vec<DomainEvent>) {
         if r.tick >= r.phases[r.phase as usize].ticks {
             r.phase += 1;
             r.tick = 0;
+            changed = true;
             if r.phase as usize >= r.phases.len() {
                 s.runs.remove(i);
                 continue;
@@ -360,12 +375,16 @@ pub(super) fn advance_runs(s: &mut State, events: &mut Vec<DomainEvent>) {
         }
         i += 1;
     }
+    if changed {
+        s.move_index.rebuild(&s.runs);
+    }
 }
 
 /// Ends `owner`'s run in `slot`, if any: an evade cancels the main character's combo step, and
 /// a follow-up press its recovery (ADR-070, ADR-076). Bullets it spawned fly on.
 pub(super) fn end_run(s: &mut State, owner: EntityId, slot: u8) {
     s.runs.retain(|r| r.owner != owner || r.slot != slot);
+    s.move_index.rebuild(&s.runs);
 }
 
 /// Whether `owner`'s run in `slot` is in a `recovery` phase after its last `active` one: where
@@ -394,6 +413,7 @@ pub(super) fn hold_ready(s: &State, owner: EntityId, slot: u8) -> bool {
 /// Ends every run of `owner` (a boss leaving the phase that started them).
 pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
     s.runs.retain(|r| r.owner != owner);
+    s.move_index.rebuild(&s.runs);
 }
 
 /// The damage of run `r`'s current phase, for its hit box and the bullets it spawns: the

@@ -297,6 +297,7 @@ pub(crate) fn initial_state(
         enemies: Vec::new(),
         tasks: Vec::new(),
         runs: Vec::new(),
+        move_index: crate::engine::MoveIndex::default(),
         bullets: Vec::new(),
         spawned: vec![0; stage.waves.len()],
         next_id,
