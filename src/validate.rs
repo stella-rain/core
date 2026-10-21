@@ -120,8 +120,10 @@ pub mod limits {
     /// The chance of a heal pickup is at least 1 in this many; 1 in `MAX_HEAL_ONE_IN` is the
     /// rarest a file may give.
     pub const MAX_HEAL_ONE_IN: u32 = 1_000_000;
-    /// The most hit points a pickup heals: the most the main character can hold.
-    pub const MAX_HEAL_AMOUNT: u32 = MAX_PLAYER_HP;
+    /// The most hit points a pickup heals: 1,000 shown hit points, scaled (ADR-103). A run's
+    /// main character holds more than a stage's `MAX_PLAYER_HP` (perks, stat points, rewards),
+    /// and a heal never goes beyond the most it holds.
+    pub const MAX_HEAL_AMOUNT: u32 = 1_000 * DAMAGE_SCALE;
     pub const MAX_PICKUP_RADIUS: i32 = 16_384;
     pub const MAX_REROLLS: u8 = 20;
     pub const MAX_BANISHES: u8 = 20;
@@ -1175,14 +1177,7 @@ impl<'a> Ctx<'a> {
     fn action(&mut self, a: &Action, summon_ok: bool) {
         match a {
             Action::Cast { skill } => self.key("skill", |c| c.skill(skill)),
-            Action::Attack { attack, big } => {
-                self.key("attack", |c| c.attack_ref(attack));
-                if *big && !matches!(attack, AttackRef::Preset { .. }) {
-                    self.key("big", |c| {
-                        c.fail("only a preset can be big: its ID names it")
-                    });
-                }
-            }
+            Action::Attack { attack } => self.key("attack", |c| c.attack_ref(attack)),
             Action::Summon { agent, count } => {
                 if !summon_ok {
                     self.fail("a summoned agent cannot summon");

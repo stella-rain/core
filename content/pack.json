@@ -721,7 +721,7 @@
       "id": "regen_common",
       "rarity": "common",
       "effect": "regen",
-      "amount": 10,
+      "amount": 1000,
       "limit": 5,
       "title": "Regeneration",
       "description": "Hit points come back every second, a little"
@@ -730,7 +730,7 @@
       "id": "regen_rare",
       "rarity": "rare",
       "effect": "regen",
-      "amount": 30,
+      "amount": 3000,
       "limit": 3,
       "title": "Regeneration",
       "description": "Hit points come back every second"
@@ -739,7 +739,7 @@
       "id": "regen_legendary",
       "rarity": "legendary",
       "effect": "regen",
-      "amount": 60,
+      "amount": 6000,
       "limit": 1,
       "title": "Regeneration",
       "description": "Hit points come back every second, a lot"
@@ -910,7 +910,7 @@
       "id": "regen_uncommon",
       "rarity": "uncommon",
       "effect": "regen",
-      "amount": 15,
+      "amount": 1500,
       "limit": 4,
       "title": "Regeneration (Uncommon)",
       "description": "Hit points come back every second, some"
@@ -919,7 +919,7 @@
       "id": "regen_epic",
       "rarity": "epic",
       "effect": "regen",
-      "amount": 35,
+      "amount": 3500,
       "limit": 2,
       "title": "Regeneration (Epic)",
       "description": "Hit points come back every second, much"
@@ -928,7 +928,7 @@
       "id": "regen_supernova",
       "rarity": "supernova",
       "effect": "regen",
-      "amount": 80,
+      "amount": 8000,
       "limit": 1,
       "title": "Regeneration (Supernova)",
       "description": "Hit points come back every second, a huge amount"
@@ -1651,8 +1651,8 @@
       "title": "Vanguard",
       "description": "More hit points, and they come back on their own",
       "effects": [
-        { "effect": "max_hp", "amount": 300 },
-        { "effect": "regen", "amount": 10 }
+        { "effect": "max_hp", "amount": 30000 },
+        { "effect": "regen", "amount": 1000 }
       ]
     },
     {
@@ -2266,7 +2266,7 @@
   "heal": {
     "boss_pct": 25,
     "drop_one_in": 150,
-    "amount": 300,
+    "amount": 30000,
     "cap": 5,
     "pickup_radius": 6144
   },
@@ -2888,8 +2888,7 @@
                 "preset": {
                   "id": "elite_slam"
                 }
-              },
-              "big": true
+              }
             },
             "cooldown_ticks": 90,
             "once": false
