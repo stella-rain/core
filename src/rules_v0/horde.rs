@@ -103,7 +103,7 @@ pub(crate) fn spawn_boss(stage: &mut Stage, s: &mut State) {
     }
     let id = EntityId(s.next_id);
     s.next_id += 1;
-    s.boss = Some(super::boss_state(&def, id, &mut s.next_id));
+    s.boss = Some(super::boss_state(&def, id, &mut s.next_id, s.hp_pct));
     stage.boss = Some(def);
 }
 

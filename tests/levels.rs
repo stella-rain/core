@@ -442,6 +442,7 @@ fn a_trial_run_levels_up_and_spends_its_points() {
         carried: Vec::new(),
         lumine: 0,
         starting_rune: None,
+        difficulty: "normal".into(),
     };
     // The trial run's script plays it, taking candidate 0 of every offer.
     let mut e = Engine::start(&setup).unwrap();

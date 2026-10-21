@@ -104,6 +104,7 @@ mod select;
 
 use crate::attack::{DamageType, MatchUp, Profile};
 use crate::behaviour::BossCall;
+use crate::difficulties::scale_pct;
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
     PartState, PlayerState, Progress, Pull, Smash, StarField, State, UNLIMITED,
@@ -114,7 +115,7 @@ use crate::fixed::{Fx, Point};
 use crate::hash::StateHasher;
 use crate::id::EntityId;
 use crate::input::Input;
-use crate::rewards::Rewards;
+use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
@@ -181,6 +182,35 @@ pub(crate) struct RunPool {
     pub rewards: Vec<u16>,
     pub extra_rerolls: u8,
     pub upgrades: u32,
+    pub difficulty: RunDifficulty,
+}
+
+/// `hp` scaled by `pct` (ADR-110): never to 0 from a positive value, which would be dead at
+/// its spawn.
+pub(crate) fn scale_hp(hp: u32, pct: u32) -> u32 {
+    match hp {
+        0 => 0,
+        _ => scale_pct(hp, pct).max(1),
+    }
+}
+
+/// What a run takes from its difficulty (ADR-110): the percents its enemies' hit points and
+/// attacks' damage are scaled by, and the range of rarities its stars and offers may have.
+/// Fixed for the run, part of the setup, so the state hash writes nothing for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RunDifficulty {
+    pub hp_pct: u32,
+    pub damage_pct: u32,
+    pub rarity: (Rarity, Rarity),
+}
+
+impl RunDifficulty {
+    /// A stage run alone, without a setup: nothing scaled and no rarity left out.
+    pub const NONE: RunDifficulty = RunDifficulty {
+        hp_pct: 100,
+        damage_pct: 100,
+        rarity: (Rarity::Common, Rarity::Supernova),
+    };
 }
 
 /// The state before the first tick, its generator seeded with `seed`: the stage's own for a
@@ -222,7 +252,7 @@ pub(crate) fn initial_state(
         .boss
         .as_ref()
         .zip(boss_id)
-        .map(|(b, id)| boss_state(b, id, &mut next_id));
+        .map(|(b, id)| boss_state(b, id, &mut next_id, pool.difficulty.hp_pct));
     State {
         tick: 0,
         rng: SplitMix64::new(seed),
@@ -280,6 +310,7 @@ pub(crate) fn initial_state(
             on_map: Vec::new(),
             due: Vec::new(),
             offer: None,
+            rarity: pool.difficulty.rarity,
             rerolls_left: u32::from(st.rerolls) + u32::from(pool.extra_rerolls),
             banishes_left: u32::from(st.banishes),
             rune_pool: runes::FULL_POOL,
@@ -294,6 +325,8 @@ pub(crate) fn initial_state(
         horde: None,
         regen: 0,
         auto_combo: false,
+        hp_pct: pool.difficulty.hp_pct,
+        damage_pct: pool.difficulty.damage_pct,
     }
 }
 
@@ -304,12 +337,19 @@ pub(crate) fn announced_patterns(stage: &Stage, s: &State) -> Vec<crate::snapsho
 
 /// The boss before its first tick, its parts taking the entity IDs from `next_id` on. The
 /// first phase begins on the first tick (see `boss::act`).
-pub(crate) fn boss_state(b: &crate::stage::Boss, id: EntityId, next_id: &mut u32) -> BossState {
+/// The boss's state at its spawn, its hit points and its parts' scaled by `hp_pct` (ADR-110).
+pub(crate) fn boss_state(
+    b: &crate::stage::Boss,
+    id: EntityId,
+    next_id: &mut u32,
+    hp_pct: u32,
+) -> BossState {
+    let hp = |hp: u32| scale_hp(hp, hp_pct);
     BossState {
         id,
         at: b.spawn,
-        hp: b.hp,
-        max_hp: b.hp,
+        hp: hp(b.hp),
+        max_hp: hp(b.hp),
         defence: b.defence,
         statuses: Vec::new(),
         phase: 0,
@@ -330,8 +370,8 @@ pub(crate) fn boss_state(b: &crate::stage::Boss, id: EntityId, next_id: &mut u32
                 PartState {
                     id: part_id,
                     name: p.id.clone(),
-                    hp: p.hp,
-                    max_hp: p.hp,
+                    hp: hp(p.hp),
+                    max_hp: hp(p.hp),
                     defence: p.defence,
                     offset: p.offset,
                     radius: p.radius.0,
@@ -518,6 +558,8 @@ pub(super) fn spawn_enemy(
     let id = EntityId(s.next_id);
     s.next_id += 1;
     let mut enemy = agents::new_agent(id, key, def, at, 0);
+    enemy.hp = scale_hp(enemy.hp, s.hp_pct);
+    enemy.max_hp = enemy.hp;
     if let Some(el) = enemy.elite.as_mut() {
         let called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
         match (el.boss_call, enemy.leave.as_mut()) {

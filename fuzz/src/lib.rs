@@ -315,6 +315,7 @@ pub fn pack_load(data: &[u8]) -> bool {
             carried: Vec::new(),
             lumine: 0,
             starting_rune: None,
+            difficulty: "normal".into(),
         };
         let mut engine = Engine::start_with(&setup, pack.content())
             .expect("a pack that loads starts a run of each mode");
