@@ -597,6 +597,7 @@ pub(crate) fn time_limit_run(
             .stardust_tiers
             .clone()
             .unwrap_or_else(|| mode.stardust_tiers().to_vec()),
+        summon_base: mode.stardust_summon_base(),
     });
     // Each elite type is a wave that never spawns (count 0): the lookups of an enemy's
     // definition, experience and expertise go by the stage's waves.
