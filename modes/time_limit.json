@@ -256,6 +256,25 @@
             },
             "cooldown_ticks": 90,
             "once": false
+          },
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_spread",
+                  "args": [
+                    768
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 120,
+            "once": false
           }
         ],
         "elite": {
