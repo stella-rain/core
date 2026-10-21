@@ -180,6 +180,11 @@ pub struct Rule {
     /// Fires at most once (the same as one charge, kept for editor clarity).
     #[serde(default)]
     pub once: bool,
+    /// An enemy that fires this rule removes itself with it, as an exploder does. It goes through
+    /// hit points 0, so the defeat credit of any dead enemy applies (placeholder, R1). Ignored
+    /// for a companion and the boss.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub self_destruct: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -204,6 +209,11 @@ pub enum Condition {
     /// Ticks since the agent spawned, or since the boss phase began.
     TimeAbove {
         ticks: u32,
+    },
+    /// The main character's centre is within `distance` of the agent's centre (the edge counts):
+    /// an exploder's burst (ADR-036).
+    NearTarget {
+        distance: Fx,
     },
 }
 

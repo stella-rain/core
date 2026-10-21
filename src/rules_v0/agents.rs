@@ -370,6 +370,9 @@ pub(super) fn fire_first_rule(
             st.charges_left -= 1;
         }
         st.fired = true;
+        if let (true, Who::Enemy(i)) = (rule.self_destruct, me) {
+            s.enemies[i].hp = 0;
+        }
         events.push(DomainEvent::RuleFired {
             agent: id,
             rule: u8::try_from(i).unwrap_or(u8::MAX),
@@ -413,6 +416,9 @@ pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition, stage: &Stag
             select(stage, s, me, who).is_some_and(|w| s.aggro(w) > *value)
         }
         Condition::TimeAbove { ticks } => time_since_start(s, me) > *ticks,
+        Condition::NearTarget { distance } => {
+            super::overlaps(s.at(me), distance.0, s.player.at, 0)
+        }
         Condition::PartBroken { part } => {
             let index = stage
                 .boss

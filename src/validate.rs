@@ -1103,6 +1103,9 @@ impl<'a> Ctx<'a> {
             }
             Condition::PartBroken { part } => self.part("part", part),
             Condition::TimeAbove { ticks } => self.ticks("ticks", *ticks, 0),
+            Condition::NearTarget { distance } => {
+                self.within("distance", i64::from(distance.0), 1, i64::from(MAX_LEN))
+            }
         }
     }
 
