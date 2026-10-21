@@ -164,24 +164,11 @@
             "cooldown_ticks": 90,
             "do": {
               "attack": {
-                "inline": [
-                  {
-                    "damage": 300,
-                    "kind": "active",
-                    "spawn": [
-                      {
-                        "direction": {
-                          "offset": 0,
-                          "type": "aimed"
-                        },
-                        "speed": 640,
-                        "type": "fire"
-                      }
-                    ],
-                    "ticks": 1
-                  }
-                ]
+                "preset": {
+                  "id": "elite_slam"
+                }
               },
+              "big": true,
               "type": "attack"
             },
             "once": false,
