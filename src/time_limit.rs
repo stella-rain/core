@@ -28,8 +28,7 @@ use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
 /// The largest mode file read; the bundled one is about 25 KB: R2's enemy roles are most of it,
-/// and the boss definitions (core#336) about 6 KB. Raised to 32 KiB for them: a budget change,
-/// tested at the limit (`tests/time_limit.rs`).
+/// and the boss definitions (core#336) about 6 KB.
 pub const MAX_TIME_LIMIT_BYTES: usize = 32 * 1024;
 /// The longest run: 30 minutes.
 pub const MAX_LENGTH_TICKS: u32 = 30 * 60 * 60;
