@@ -20,7 +20,7 @@ use std::io::Read;
 use std::process::ExitCode;
 
 use stella_rain_core::content_hash::to_hex;
-use stella_rain_core::replay::{self, MAX_REPLAY_BYTES, ReplayError};
+use stella_rain_core::replay::{self, MAX_STAGE_REPLAY_BYTES, ReplayError};
 use stella_rain_core::share::{self, MAX_SHARE_CODE_CHARS};
 use stella_rain_core::validate::limits::MAX_STAGE_BYTES;
 
@@ -114,7 +114,7 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
         }
         (None, [stage, replay]) => (
             read_up_to(stage, MAX_STAGE_BYTES)?,
-            read_up_to(replay, MAX_REPLAY_BYTES)?,
+            read_up_to(replay, MAX_STAGE_REPLAY_BYTES)?,
         ),
         _ => return Err(Failure::Usage(USAGE.into())),
     };

@@ -6,7 +6,7 @@ use crate::common;
 use common::{clearing_inputs, stage_bytes};
 use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::base64;
-use stella_rain_core::replay::{MAX_REPLAY_BYTES, record, verify};
+use stella_rain_core::replay::{MAX_STAGE_REPLAY_BYTES, record, verify};
 use stella_rain_core::rng::SplitMix64;
 use stella_rain_core::share::{
     MAX_SHARE_CODE_CHARS, MAX_SHARE_DECOMPRESSED_BYTES, ShareError, decode, encode,
@@ -51,7 +51,7 @@ fn files_that_are_not_text_or_too_big_are_not_encoded() {
         Err(ShareError::FileTooLarge)
     );
     assert_eq!(
-        encode(b"{}", &vec![b' '; MAX_REPLAY_BYTES + 1]),
+        encode(b"{}", &vec![b' '; MAX_STAGE_REPLAY_BYTES + 1]),
         Err(ShareError::FileTooLarge)
     );
 }
@@ -102,13 +102,13 @@ fn each_file_inside_has_its_own_limit() {
             "a".repeat(replay)
         ))
     };
-    assert!(decode(&json(MAX_STAGE_BYTES, MAX_REPLAY_BYTES)).is_ok());
+    assert!(decode(&json(MAX_STAGE_BYTES, MAX_STAGE_REPLAY_BYTES)).is_ok());
     assert_eq!(
         decode(&json(MAX_STAGE_BYTES + 1, 0)),
         Err(ShareError::FileTooLarge)
     );
     assert_eq!(
-        decode(&json(0, MAX_REPLAY_BYTES + 1)),
+        decode(&json(0, MAX_STAGE_REPLAY_BYTES + 1)),
         Err(ShareError::FileTooLarge)
     );
 }
@@ -167,4 +167,32 @@ fn damaged_codes_never_panic() {
         }
     }
     assert!(refused > accepted, "{refused} refused, {accepted} accepted");
+}
+
+#[test]
+fn the_caps_are_the_ones_from_before_run_replays_were_files() {
+    assert_eq!(MAX_SHARE_CODE_CHARS, 512 * 1024);
+    assert_eq!(MAX_STAGE_REPLAY_BYTES, 256 * 1024);
+    assert_eq!(
+        MAX_SHARE_DECOMPRESSED_BYTES,
+        2 * (MAX_STAGE_BYTES + MAX_STAGE_REPLAY_BYTES)
+    );
+    assert_eq!(MAX_SHARE_DECOMPRESSED_BYTES, 1024 * 1024);
+}
+
+#[test]
+fn a_run_replay_is_not_shared_as_a_code() {
+    // Shape of a run replay file (ADR-066): setup, content hash, commands.
+    let run = br#"{"setup":{},"content_sha256":"00","ticks":0,"final_hash":"00","inputs":"","commands":""}"#;
+    assert_eq!(encode(b"{}", run), Err(ShareError::RunReplay));
+    // A hand-made code carrying one is refused by the decoder too.
+    let text = std::str::from_utf8(run).unwrap().replace('"', "\\\"");
+    let code = code_of(&format!("{{\"stage\":\"{{}}\",\"replay\":\"{text}\"}}"));
+    assert_eq!(decode(&code), Err(ShareError::RunReplay));
+    // A 1 MiB file, the size a run replay may be, does not fit the container at all.
+    let big = code_of(&format!(
+        "{{\"stage\":\"{{}}\",\"replay\":\"{}\"}}",
+        "a".repeat(1024 * 1024)
+    ));
+    assert_eq!(decode(&big), Err(ShareError::TooLarge));
 }

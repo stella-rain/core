@@ -39,9 +39,7 @@ use crate::engine::{ChoiceError, Engine, Outcome, SpendError};
 use crate::input::Input;
 use crate::pack::Pack;
 use crate::presets;
-use crate::replay::{
-    MAX_REPLAY_BYTES, hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack, write_varint,
-};
+use crate::replay::{hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack, write_varint};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::validate;
@@ -50,6 +48,12 @@ use crate::validate;
 /// Version 0 gives at most 99 points in a run; the rest is room for the offers' choices, a few
 /// per falling star taken.
 pub const MAX_COMMANDS: u32 = 1000;
+
+/// A run replay file is at most this big (ADR-020). Placeholder (R2): 1 MiB, because a
+/// 20-minute `time_limit` run with a bot is about 300 KB and the longest (43 minutes with
+/// overtime and the Star-Hunter's time) about 510 KB. A run replay is shared as a file, never as
+/// a share code (`share`).
+pub const MAX_RUN_REPLAY_BYTES: usize = 1024 * 1024;
 
 /// What the hash derived from files replaced one by one starts with, so that it cannot be
 /// mistaken for another SHA-256.
@@ -358,10 +362,10 @@ impl RunReplay {
 
     /// Parses a run replay file: size limit first, then strict parsing.
     pub fn from_bytes(bytes: &[u8]) -> Result<RunReplay, RunReplayError> {
-        if bytes.len() > MAX_REPLAY_BYTES {
+        if bytes.len() > MAX_RUN_REPLAY_BYTES {
             return Err(RunReplayError::TooLarge {
                 size: bytes.len(),
-                limit: MAX_REPLAY_BYTES,
+                limit: MAX_RUN_REPLAY_BYTES,
             });
         }
         serde_json::from_slice(bytes).map_err(|e| RunReplayError::Parse {
