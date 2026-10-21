@@ -1935,6 +1935,29 @@ mod horde_tests {
     }
 
     #[test]
+    fn each_mid_boss_s_hit_points_rise_by_its_slot_and_the_final_boss_s_do_not() {
+        // Normal difficulty scales nothing; the slots are 100%, 130% and 160%.
+        let mut e = engine(&[50, 100, 150, 200]);
+        let mode = TimeLimit::bundled();
+        let mut seen = Vec::new();
+        for (t, pct) in [(50, 100), (100, 130), (150, 160), (200, 100)] {
+            run_to(&mut e, t);
+            let boss = e.state.boss.as_ref().unwrap();
+            let def = mode
+                .bosses()
+                .iter()
+                .find(|b| b.base == e.stage.boss.as_ref().unwrap().base)
+                .unwrap();
+            assert_eq!(boss.max_hp, def.hp * pct / 100, "at {t}");
+            let parts: Vec<u32> = boss.parts.iter().map(|p| p.hp).collect();
+            let want: Vec<u32> = def.parts.iter().map(|p| p.hp * pct / 100).collect();
+            assert_eq!(parts, want, "at {t}");
+            seen.push(def.base.0.clone());
+        }
+        assert_eq!(seen[3], "core_pair");
+    }
+
+    #[test]
     fn the_five_minute_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds() {
         // The 5-minute boss comes at 18000 and calls nothing; the 10-minute one at 36000 calls
         // 1800 ticks after it came, and so does the 15-minute one at 54000.

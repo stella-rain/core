@@ -3,6 +3,7 @@
 //! untrusted bytes (ADR-020). Every time is in ticks (60 a second).
 
 use serde_json::{Value, json};
+use stella_rain_core::difficulties::MAX_PCT;
 use stella_rain_core::presets;
 use stella_rain_core::registry::{ENTRIES, Kind};
 use stella_rain_core::run_replay::content_sha256;
@@ -146,6 +147,22 @@ fn the_no_call_times_are_at_most_one_per_boss_time() {
     assert_eq!(
         paths(&with("no_call_ticks", json!(past))),
         ["$.no_call_ticks"]
+    );
+}
+
+#[test]
+fn the_mid_boss_hp_percents_rise_by_slot_and_are_bounded() {
+    assert_eq!(TimeLimit::bundled().mid_boss_hp_pct(), [100, 130, 160]);
+    let at_limit = vec![MAX_PCT; MAX_BOSS_TIMES];
+    assert!(parse(&with("mid_boss_hp_pct", json!(at_limit))).is_ok());
+    let past = vec![100; MAX_BOSS_TIMES + 1];
+    assert_eq!(
+        paths(&with("mid_boss_hp_pct", json!(past))),
+        ["$.mid_boss_hp_pct"]
+    );
+    assert_eq!(
+        paths(&with("mid_boss_hp_pct", json!([100, 0, MAX_PCT + 1]))),
+        ["$.mid_boss_hp_pct[1]", "$.mid_boss_hp_pct[2]"]
     );
 }
 
