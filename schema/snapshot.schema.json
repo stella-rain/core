@@ -293,6 +293,29 @@
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
+    "Countdown": {
+      "description": "A count-down in the snapshot (ADR-103): the ticks left and the ticks it started with.",
+      "type": "object",
+      "properties": {
+        "remaining": {
+          "description": "Ticks left.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "total": {
+          "description": "The ticks it started with.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "remaining",
+        "total"
+      ]
+    },
     "DamageOverTimeView": {
       "description": "A damage-over-time status on an entity (ADR-099): bleed, poison or burn.",
       "type": "object",
@@ -404,6 +427,17 @@
         "elite": {
           "description": "An elite enemy (ADR-068), which the minimap shows wherever it is.",
           "type": "boolean"
+        },
+        "fight": {
+          "description": "A shrine's running fight (ADR-090, ADR-103): the ticks left before it leaves unkilled.\nAbsent for every other entity, and for a shrine nobody has touched.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Countdown"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "hp": {
           "type": "integer",

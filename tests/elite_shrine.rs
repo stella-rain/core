@@ -378,6 +378,68 @@ fn a_cleared_fight_in_the_last_tick_still_counts() {
     assert_eq!(stars(&events).len(), 1, "{events:?}");
 }
 
+// --- The snapshot's count-down (app#345) ----------------------------------------------------------
+
+/// The shrine's fight count-down in the snapshot, as `(remaining, total)`; `None` when the
+/// snapshot shows no shrine fight (no shrine, or none running).
+fn fight_of(e: &Engine) -> Option<(u32, u32)> {
+    let snap = e.snapshot();
+    let shrine = snap
+        .entities
+        .iter()
+        .find(|v| v.kind == EntityKind::Enemy && v.elite)?;
+    shrine.fight.as_ref().map(|c| (c.remaining, c.total))
+}
+
+#[test]
+fn an_untouched_shrine_has_no_fight_count_down() {
+    let mut e = with(&shrine_stage(SIDE, shrine(120, 3, 100_000), vec![]));
+    run_until(&mut e, idle(), 1, |_| false);
+    assert_eq!(positions(&e, true), [SIDE], "the shrine is there");
+    assert_eq!(fight_of(&e), None);
+    run_until(&mut e, idle(), 30, |_| false);
+    assert_eq!(fight_of(&e), None, "still untouched");
+}
+
+#[test]
+fn the_fight_count_down_starts_full_and_falls_one_a_tick() {
+    let mut e = with(&shrine_stage(SIDE, shrine(120, 3, 100_000), vec![]));
+    touch(&mut e);
+    assert_eq!(
+        fight_of(&e),
+        Some((120, 120)),
+        "full on the tick it activates"
+    );
+    for left in (110..120).rev() {
+        run_until(&mut e, idle(), 1, |_| false);
+        assert_eq!(fight_of(&e), Some((left, 120)));
+    }
+}
+
+#[test]
+fn the_fight_count_down_is_gone_when_the_timer_runs_out() {
+    let mut e = with(&shrine_stage(SIDE, shrine(40, 3, 100_000), vec![]));
+    touch(&mut e);
+    run_until(&mut e, idle(), 39, |_| false);
+    assert_eq!(fight_of(&e), Some((1, 40)), "one tick left");
+    run_until(&mut e, idle(), 1, |_| false);
+    assert_eq!(
+        positions(&e, true),
+        Vec::<(i32, i32)>::new(),
+        "the shrine left"
+    );
+    assert_eq!(fight_of(&e), None);
+}
+
+#[test]
+fn the_fight_count_down_is_gone_when_the_guardians_are_cleared() {
+    let mut e = with(&shrine_stage(SIDE, shrine(600, 1, 5), vec![]));
+    touch(&mut e);
+    assert!(fight_of(&e).is_some());
+    fire_until(&mut e, idle(), 200, |_| false);
+    assert_eq!(fight_of(&e), None, "cleared");
+}
+
 // --- The enemy cap -----------------------------------------------------------------------------
 
 #[test]

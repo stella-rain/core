@@ -471,6 +471,20 @@ pub struct EntityView {
     /// Its statuses and auras, sorted by ID (ADR-103 decision 3).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub statuses: Vec<StatusView>,
+    /// A shrine's running fight (ADR-090, ADR-103): the ticks left before it leaves unkilled.
+    /// Absent for every other entity, and for a shrine nobody has touched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fight: Option<Countdown>,
+}
+
+/// A count-down in the snapshot (ADR-103): the ticks left and the ticks it started with.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Countdown {
+    /// Ticks left.
+    pub remaining: u32,
+    /// The ticks it started with.
+    pub total: u32,
 }
 
 /// A status on an entity, or a pack leader's aura (ADR-103 decision 3): what the app shows as
