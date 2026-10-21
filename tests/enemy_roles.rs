@@ -247,17 +247,25 @@ fn a_splitter_splits_once_on_the_tick_after_it_drops_below_half() {
 fn a_split_spawns_only_what_the_enemy_cap_has_room_for() {
     // 498 bats (7 hit points, away from the splitter) and the splitter make 499 alive; the cap of
     // 500 has room for one child, which has 5 hit points.
+    // A wave holds at most 100, so the bats come in five waves.
     let at = PLAYER_Y + 8_000;
-    let bats = wave(
-        0,
-        498,
-        1,
-        enemy(7, hold(PLAYER_X + 8_000, at), json!([])),
-        PLAYER_X + 8_000,
-        at,
-    );
-    let mut e = engine(&splitter_with(100, always(), 2, vec![bats]));
-    for _ in 0..6 {
+    let bats: Vec<Value> = [100, 100, 100, 100, 98]
+        .into_iter()
+        .map(|count| {
+            wave(
+                0,
+                count,
+                1,
+                enemy(7, hold(PLAYER_X + 8_000, at), json!([])),
+                PLAYER_X + 8_000,
+                at,
+            )
+        })
+        .collect();
+    // The waves spawn one copy a tick, so the splitter waits until they are all alive.
+    let when = json!({ "type": "time_above", "ticks": 150 });
+    let mut e = engine(&splitter_with(100, when, 2, bats));
+    for _ in 0..160 {
         e.step(idle());
     }
     let all = enemies_of(&e);
