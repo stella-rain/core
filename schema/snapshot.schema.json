@@ -52,6 +52,15 @@
         }
       ]
     },
+    "stardust": {
+      "description": "The Stardust earned so far, times 10 (ADR-109); absent in a stage without a Stardust\nfactor.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0
+    },
     "stars": {
       "description": "Falling stars on the map, in the order they dropped (ADR-079 §2).",
       "type": "array",

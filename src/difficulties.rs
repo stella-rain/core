@@ -1,7 +1,7 @@
 //! Difficulties (ADR-110, ADR-067: data picks, code acts): `easy`, `normal`, `hard` and `rainy`,
 //! each a content ID with the percent its enemies' hit points and damage are scaled by, the
 //! range of rarities its drops may have, the factor its Stardust time bonus grows by (ADR-109,
-//! used by the app's reward) and, optionally, its own length, boss times and level table for the
+//! counted by `rules_v0::stardust`) and, optionally, its own length, boss times and level table for the
 //! mode it is played in. A setup names one (`RunSetup::difficulty`).
 //!
 //! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,

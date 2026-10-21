@@ -21,7 +21,7 @@ use crate::rune::Rune;
 use std::sync::OnceLock;
 
 use crate::engine::Horde;
-use crate::stage::{Map, Stage, Wave};
+use crate::stage::{Map, Stage, StardustFactor, Wave};
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -325,7 +325,7 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
 }
 
 /// As `validate`, and against the run's content files: the perk set is one of the perk sets
-/// file's, the difficulty one of the difficulties file's, every carried star a reward of the rewards file (and of the star pool, when the
+/// file's, the difficulty one of the difficulties file's, every star pool entry a reward of the rewards file, every carried star a reward of the rewards file (and of the star pool, when the
 /// setup names one) that is not the random rune, a reward carried no more times than it
 /// stacks, and the carried stars' costs within the Lumine budget (ADR-107 point 4). The call
 /// `Engine::start_with` makes.
@@ -345,6 +345,14 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
         });
     }
     let rewards = content.rewards();
+    for (i, id) in setup.star_pool.iter().flatten().enumerate() {
+        if rewards.index_of(id).is_none() {
+            issues.push(Issue {
+                path: format!("$.star_pool[{i}]"),
+                message: "no such reward in the run's rewards file".into(),
+            });
+        }
+    }
     let mut cost: u32 = 0;
     for (i, star) in setup.carried.iter().enumerate() {
         let path = format!("$.carried[{i}].reward");
@@ -560,6 +568,10 @@ pub(crate) fn time_limit_run(
     stage.waves = mode.waves().to_vec();
     stage.elite_cap = Some(mode.elite_cap());
     stage.level_table = Some(difficulty.level_table.unwrap_or(*mode.level_table()));
+    stage.stardust = Some(StardustFactor {
+        start_pct: difficulty.stardust_start_pct,
+        end_pct: difficulty.stardust_end_pct,
+    });
     // Each elite type is a wave that never spawns (count 0): the lookups of an enemy's
     // definition, experience and expertise go by the stage's waves.
     let mut elite_waves: Vec<(ContentId, u32)> = Vec::new();
@@ -577,6 +589,7 @@ pub(crate) fn time_limit_run(
             every_ticks: 0,
             xp: t.xp,
             expertise: t.expertise,
+            stardust: t.stardust,
         });
     }
     let horde = Horde {

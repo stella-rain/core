@@ -1907,7 +1907,8 @@
     "expertise": {
       "hit": 5,
       "kill": 500
-    }
+    },
+    "stardust": 2000
   },
   "levels": {
     "xp": [
@@ -2033,7 +2034,8 @@
       "expertise": {
         "hit": 1,
         "kill": 3
-      }
+      },
+      "stardust": 10
     },
     {
       "at_tick": 90,
@@ -2082,7 +2084,8 @@
       "expertise": {
         "hit": 1,
         "kill": 3
-      }
+      },
+      "stardust": 10
     }
   ],
   "elite_table": [
@@ -2164,7 +2167,8 @@
       "expertise": {
         "hit": 4,
         "kill": 60
-      }
+      },
+      "stardust": 200
     },
     {
       "id": "elite_mid",
@@ -2222,7 +2226,8 @@
       "expertise": {
         "hit": 4,
         "kill": 60
-      }
+      },
+      "stardust": 200
     },
     {
       "id": "elite_high",
@@ -2280,7 +2285,8 @@
       "expertise": {
         "hit": 4,
         "kill": 60
-      }
+      },
+      "stardust": 200
     },
     {
       "id": "elite_goblin",
@@ -2443,7 +2449,8 @@
       "expertise": {
         "hit": 4,
         "kill": 60
-      }
+      },
+      "stardust": 200
     },
     {
       "id": "elite_mimic",
@@ -2505,7 +2512,8 @@
       "expertise": {
         "hit": 4,
         "kill": 60
-      }
+      },
+      "stardust": 200
     }
   ],
   "elite_cap": 5,

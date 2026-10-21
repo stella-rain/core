@@ -479,7 +479,8 @@
     "expertise": {
       "hit": 5,
       "kill": 500
-    }
+    },
+    "stardust": 2000
   },
   "levels": {
     "xp": [
