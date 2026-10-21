@@ -43,7 +43,7 @@ pub(super) fn credit_defeated(stage: &Stage, s: &mut State) {
     let bases: Vec<u32> = s
         .enemies
         .iter()
-        .filter(|e| e.hp == 0)
+        .filter(|e| e.hp == 0 && !e.burst)
         .filter_map(|e| match e.key.source {
             AgentSource::Wave => usize::try_from(e.key.index)
                 .ok()

@@ -86,6 +86,7 @@ pub(super) fn new_agent(
         order: None,
         orbit_angle: angle,
         crowded: false,
+        burst: false,
         stun_immune: 0,
         elite: def.elite.as_ref().map(|elite| EliteState {
             home: at,
@@ -372,6 +373,7 @@ pub(super) fn fire_first_rule(
         st.fired = true;
         if let (true, Who::Enemy(i)) = (rule.self_destruct, me) {
             s.enemies[i].hp = 0;
+            s.enemies[i].burst = true;
         }
         events.push(DomainEvent::RuleFired {
             agent: id,

@@ -61,7 +61,7 @@ pub(super) fn drop_from_defeated(stage: &Stage, s: &mut State, events: &mut Vec<
     let fallen: Vec<_> = s
         .enemies
         .iter()
-        .filter(|e| e.hp == 0)
+        .filter(|e| e.hp == 0 && !e.burst)
         .map(|e| (e.at, e.elite.is_some()))
         .collect();
     let State {

@@ -180,8 +180,10 @@ pub struct Rule {
     /// Fires at most once (the same as one charge, kept for editor clarity).
     #[serde(default)]
     pub once: bool,
-    /// An enemy that fires this rule removes itself with it, as an exploder does. It goes through
-    /// hit points 0, so the defeat credit of any dead enemy applies (placeholder, R1). Ignored
+    /// An enemy that fires this rule removes itself with it, as an exploder does. It is gone
+    /// at the end of the tick, but it was not defeated: it gives no experience, expertise or
+    /// Stardust and drops no star or heal pickup, and the burst's attack still fires. An
+    /// exploder the main character kills before the rule fires gives its full credit. Ignored
     /// for a companion and the boss.
     #[serde(default, skip_serializing_if = "is_false")]
     pub self_destruct: bool,
