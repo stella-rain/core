@@ -1008,17 +1008,15 @@
           "description": "The lowest rarity its drops and offers may have, over all six.",
           "$ref": "#/$defs/Rarity"
         },
-        "stardust_end_pct": {
-          "description": "The Stardust time factor at the end of a run, in percent, from the start's to `MAX_PCT`.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "stardust_start_pct": {
-          "description": "The Stardust time factor at the start of a run, in percent, from 1 to `MAX_PCT`.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
+        "stardust_tiers": {
+          "description": "The Stardust time factor's tiers (ADR-109 decision 2) in place of the mode's: as the\nmode file's `stardust_tiers`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/StardustTier"
+          }
         },
         "title": {
           "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
@@ -1033,9 +1031,7 @@
         "hp_pct",
         "damage_pct",
         "rarity_min",
-        "rarity_max",
-        "stardust_start_pct",
-        "stardust_end_pct"
+        "rarity_max"
       ]
     },
     "Direction": {
@@ -3878,15 +3874,34 @@
       ]
     },
     "StardustFactor": {
-      "description": "The Stardust time factor (ADR-109): the percent a kill's base Stardust is multiplied by,\n`start_pct` at tick 0 and `end_pct` at the run's length, rising in a straight line between and\nheld at `end_pct` after it; integer math, truncated toward zero. Each from 1 to\n`limits::MAX_STARDUST_PCT`, the end not below the start. A mode's run takes it from its\ndifficulty (ADR-110).",
+      "description": "The Stardust time factor (ADR-109 decision 2): a table of time tiers, each the tick it starts\nat and a percent. A kill's base Stardust is multiplied by the percent of the last tier that\nstarted at or before the kill tick, truncated toward zero; past the last tier's start\n(overtime included) the last tier holds. A mode's run takes the mode file's table, or its\ndifficulty's when the difficulty gives one (ADR-110 decision 2). `stardust_tiers_problem`\nsays what a valid table is.",
       "type": "object",
       "properties": {
-        "end_pct": {
+        "tiers": {
+          "description": "1 to `limits::MAX_STARDUST_TIERS` tiers, the first at tick 0, the ticks rising strictly.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StardustTier"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tiers"
+      ]
+    },
+    "StardustTier": {
+      "description": "One tier of the Stardust time factor: from `start_tick` until the next tier starts, a kill\nearns `pct` percent of its base.",
+      "type": "object",
+      "properties": {
+        "pct": {
+          "description": "From 1 to `limits::MAX_STARDUST_PCT`.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "start_pct": {
+        "start_tick": {
+          "description": "When the tier starts, in ticks from the start of the run.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -3894,8 +3909,8 @@
       },
       "additionalProperties": false,
       "required": [
-        "start_pct",
-        "end_pct"
+        "start_tick",
+        "pct"
       ]
     },
     "Stars": {
@@ -4329,6 +4344,13 @@
           "format": "uint32",
           "minimum": 0
         },
+        "stardust_tiers": {
+          "description": "The Stardust time factor (ADR-109 decision 2): 1 to `limits::MAX_STARDUST_TIERS` tiers,\nthe first at tick 0, the ticks rising strictly, each percent from 1 to\n`limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own (ADR-110).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StardustTier"
+          }
+        },
         "waves": {
           "description": "The enemies that spawn over the run, 0 to `MAX_WAVES` waves of up to `MAX_SPAWN_COUNT`\nenemies, `MAX_TOTAL_SPAWNS` in all, none an elite, each starting before the length. A\nwave with `around` spawns that far from the main character; the placeholder content is\nthe trial's enemies.",
           "type": "array",
@@ -4353,7 +4375,8 @@
         "elite_table",
         "elite_types",
         "elite_cap",
-        "level_table"
+        "level_table",
+        "stardust_tiers"
       ]
     },
     "TimeLimitMap": {

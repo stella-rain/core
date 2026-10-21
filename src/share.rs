@@ -1,7 +1,10 @@
-//! Share codes (ADR-010, ADR-018): a stage and its replay as text, for players without GitHub.
+//! Share codes (ADR-010, ADR-018): a stage and its clear replay as text, for players without GitHub.
 //! The two files go into one JSON object as strings, so their exact bytes survive (the replay
 //! names the SHA-256 of the stage file, and the content hash covers both, ADR-034). The object
 //! is compressed with zlib (the `miniz_oxide` crate) and base64-encoded.
+//!
+//! A code never holds a run's replay (ADR-066): that is a file, up to `MAX_RUN_REPLAY_BYTES`,
+//! and a code carrying one is refused (`ShareError::RunReplay`).
 //!
 //! A code is untrusted (ADR-020). Its length is limited before anything is decoded, the
 //! decompressed size is limited while decompressing, so a small code cannot expand into a
@@ -14,16 +17,16 @@ use miniz_oxide::inflate::{TINFLStatus, decompress_to_vec_zlib_with_limit};
 use serde::{Deserialize, Serialize};
 
 use crate::base64;
-use crate::replay::MAX_REPLAY_BYTES;
+use crate::replay::MAX_STAGE_REPLAY_BYTES;
 use crate::validate::limits::MAX_STAGE_BYTES;
 
 /// A code is at most this many characters.
 pub const MAX_SHARE_CODE_CHARS: usize = 512 * 1024;
 
-/// The decompressed container is at most this many bytes: two files at their limits, escaped
-/// twice over (the stage is JSON inside JSON; the replay is base64, which escapes nothing). With
-/// the replay cap at 1 MiB (R2) this is 2.5 MiB; the code cap above still bounds a code.
-pub const MAX_SHARE_DECOMPRESSED_BYTES: usize = 2 * (MAX_STAGE_BYTES + MAX_REPLAY_BYTES);
+/// The decompressed container is at most this many bytes: a stage and its stage replay at their
+/// limits, escaped twice over (the stage is JSON inside JSON; the replay is base64, which
+/// escapes nothing). That is 1 MiB.
+pub const MAX_SHARE_DECOMPRESSED_BYTES: usize = 2 * (MAX_STAGE_BYTES + MAX_STAGE_REPLAY_BYTES);
 
 /// Zlib's best compression. Only decoding has to be stable across versions of the crate.
 const LEVEL: u8 = 9;
@@ -49,6 +52,8 @@ pub enum ShareError {
     Parse,
     /// A file is over its own size limit.
     FileTooLarge,
+    /// The replay is a run's replay (ADR-066), which is shared as a file, not a code.
+    RunReplay,
     /// A file is not text (stage and replay files are JSON).
     NotText,
 }
@@ -62,6 +67,7 @@ impl fmt::Display for ShareError {
             ShareError::TooLarge => f.write_str("the share code expands to too much data"),
             ShareError::Parse => f.write_str("the share code does not hold a stage and a replay"),
             ShareError::FileTooLarge => f.write_str("a file in the share code is too large"),
+            ShareError::RunReplay => f.write_str("a run replay is a file, not a share code"),
             ShareError::NotText => f.write_str("a file to share is not text"),
         }
     }
@@ -69,9 +75,24 @@ impl fmt::Display for ShareError {
 
 impl std::error::Error for ShareError {}
 
+/// The keys only a run replay has (ADR-066): a stage replay has none of them.
+#[derive(Deserialize)]
+struct RunReplayKeys {
+    setup: Option<serde::de::IgnoredAny>,
+    content_sha256: Option<serde::de::IgnoredAny>,
+    commands: Option<serde::de::IgnoredAny>,
+}
+
+/// Whether the replay text is a run replay's JSON. Text that is not a JSON object is left to
+/// `replay::verify`.
+fn is_run_replay(replay: &str) -> bool {
+    serde_json::from_str::<RunReplayKeys>(replay)
+        .is_ok_and(|k| k.setup.is_some() || k.content_sha256.is_some() || k.commands.is_some())
+}
+
 /// The share code for a stage file and its replay file.
 pub fn encode(stage_bytes: &[u8], replay_bytes: &[u8]) -> Result<String, ShareError> {
-    if stage_bytes.len() > MAX_STAGE_BYTES || replay_bytes.len() > MAX_REPLAY_BYTES {
+    if stage_bytes.len() > MAX_STAGE_BYTES || replay_bytes.len() > MAX_STAGE_REPLAY_BYTES {
         return Err(ShareError::FileTooLarge);
     }
     let text = |bytes: &[u8]| {
@@ -83,6 +104,9 @@ pub fn encode(stage_bytes: &[u8], replay_bytes: &[u8]) -> Result<String, ShareEr
         stage: text(stage_bytes)?,
         replay: text(replay_bytes)?,
     };
+    if is_run_replay(&container.replay) {
+        return Err(ShareError::RunReplay);
+    }
     let json = serde_json::to_vec(&container).expect("a container serialises");
     let code = base64::encode(&compress_to_vec_zlib(&json, LEVEL));
     if code.len() > MAX_SHARE_CODE_CHARS {
@@ -104,8 +128,11 @@ pub fn decode(code: &str) -> Result<(Vec<u8>, Vec<u8>), ShareError> {
             _ => ShareError::Corrupt,
         })?;
     let container: Container = serde_json::from_slice(&json).map_err(|_| ShareError::Parse)?;
-    if container.stage.len() > MAX_STAGE_BYTES || container.replay.len() > MAX_REPLAY_BYTES {
+    if container.stage.len() > MAX_STAGE_BYTES || container.replay.len() > MAX_STAGE_REPLAY_BYTES {
         return Err(ShareError::FileTooLarge);
+    }
+    if is_run_replay(&container.replay) {
+        return Err(ShareError::RunReplay);
     }
     Ok((container.stage.into_bytes(), container.replay.into_bytes()))
 }

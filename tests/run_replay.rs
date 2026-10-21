@@ -7,7 +7,8 @@ use stella_rain_core::base64;
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome, SpendError};
 use stella_rain_core::input::Input;
-use stella_rain_core::replay::{MAX_REPLAY_BYTES, hash_to_hex, pack_inputs};
+use stella_rain_core::replay::{hash_to_hex, pack_inputs};
+use stella_rain_core::run_replay::MAX_RUN_REPLAY_BYTES;
 use stella_rain_core::run_replay::{
     Command, CommandKind, MAX_COMMANDS, RunRecorder, RunReplay, RunReplayError, TickCommand,
     content_sha256, pack_commands, record_run, verify_run, verify_run_against,
@@ -629,17 +630,19 @@ fn a_replay_file_reads_back_as_the_replay() {
 
 #[test]
 fn a_file_over_the_limit_is_not_parsed() {
-    let big = vec![b' '; MAX_REPLAY_BYTES + 1];
+    // A run replay is a file, up to 1 MiB (ADR-020); it never goes in a share code.
+    assert_eq!(MAX_RUN_REPLAY_BYTES, 1024 * 1024);
+    let big = vec![b' '; MAX_RUN_REPLAY_BYTES + 1];
     assert_eq!(
         RunReplay::from_bytes(&big),
         Err(RunReplayError::TooLarge {
-            size: MAX_REPLAY_BYTES + 1,
-            limit: MAX_REPLAY_BYTES
+            size: MAX_RUN_REPLAY_BYTES + 1,
+            limit: MAX_RUN_REPLAY_BYTES
         })
     );
     // At the limit it is parsed (and is not a replay).
     let mut padded = recorded(20).to_bytes();
-    padded.resize(MAX_REPLAY_BYTES, b' ');
+    padded.resize(MAX_RUN_REPLAY_BYTES, b' ');
     assert!(RunReplay::from_bytes(&padded).is_ok());
 }
 
