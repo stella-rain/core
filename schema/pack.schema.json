@@ -479,6 +479,15 @@
         },
         "spawn": {
           "$ref": "#/$defs/Point"
+        },
+        "stardust": {
+          "description": "The Stardust its kill earns before the time factor, times 10; as a wave's `stardust`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
         }
       },
       "additionalProperties": false,
@@ -808,6 +817,24 @@
           "required": [
             "type",
             "ticks"
+          ]
+        },
+        {
+          "description": "The main character's centre is within `distance` of the agent's centre (the edge counts):\nan exploder's burst (ADR-036).",
+          "type": "object",
+          "properties": {
+            "distance": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "near_target"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "distance"
           ]
         }
       ]
@@ -1180,6 +1207,15 @@
         "id": {
           "description": "Lowercase snake_case, unique in the file; never renamed or removed once released.",
           "$ref": "#/$defs/ContentId"
+        },
+        "stardust": {
+          "description": "The Stardust a kill of it earns before the time factor, times 10; as a wave's\n`stardust`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
         },
         "xp": {
           "description": "The experience a kill gives; as a wave's `xp`.",
@@ -2249,11 +2285,21 @@
           ]
         },
         {
-          "description": "Trails the main character at a distance.",
+          "description": "Trails the main character at a distance, at most `speed` a tick (a tank's is slower);\nabsent, 4 pixels a tick as it always was (ADR-058).",
           "type": "object",
           "properties": {
             "distance": {
               "$ref": "#/$defs/Fx"
+            },
+            "speed": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Fx"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": {
               "type": "string",
@@ -3018,6 +3064,10 @@
           "type": "boolean",
           "default": false
         },
+        "self_destruct": {
+          "description": "An enemy that fires this rule removes itself with it, as an exploder does. It goes through\nhit points 0, so the defeat credit of any dead enemy applies (placeholder, R1). Ignored\nfor a companion and the boss.",
+          "type": "boolean"
+        },
         "target": {
           "$ref": "#/$defs/Selector"
         },
@@ -3704,6 +3754,17 @@
           "format": "uint32",
           "minimum": 0
         },
+        "stardust": {
+          "description": "How a kill's Stardust grows over the run (ADR-109): without it the run counts none.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StardustFactor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "stars": {
           "description": "Falling stars and the offers they open (ADR-079 §2, §3, ADR-068); only with `levels`.\nWithout them kills drop nothing and nothing is offered.",
           "anyOf": [
@@ -3805,6 +3866,27 @@
         "schema_version",
         "sim_version",
         "stage_skills"
+      ]
+    },
+    "StardustFactor": {
+      "description": "The Stardust time factor (ADR-109): the percent a kill's base Stardust is multiplied by,\n`start_pct` at tick 0 and `end_pct` at the run's length, rising in a straight line between and\nheld at `end_pct` after it; integer math, truncated toward zero. Each from 1 to\n`limits::MAX_STARDUST_PCT`, the end not below the start. A mode's run takes it from its\ndifficulty (ADR-110).",
+      "type": "object",
+      "properties": {
+        "end_pct": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "start_pct": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "start_pct",
+        "end_pct"
       ]
     },
     "Stars": {
@@ -4373,6 +4455,15 @@
         },
         "spawn": {
           "$ref": "#/$defs/Point"
+        },
+        "stardust": {
+          "description": "The Stardust a kill of each enemy of the wave earns before the time factor, times 10\n(ADR-109), at most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage\nwith a `stardust` factor.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
         },
         "xp": {
           "description": "The experience each enemy of the wave gives when defeated, in a stage with `levels`;\n1 when absent.",

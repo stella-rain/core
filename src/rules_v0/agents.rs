@@ -370,6 +370,9 @@ pub(super) fn fire_first_rule(
             st.charges_left -= 1;
         }
         st.fired = true;
+        if let (true, Who::Enemy(i)) = (rule.self_destruct, me) {
+            s.enemies[i].hp = 0;
+        }
         events.push(DomainEvent::RuleFired {
             agent: id,
             rule: u8::try_from(i).unwrap_or(u8::MAX),
@@ -413,6 +416,7 @@ pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition, stage: &Stag
             select(stage, s, me, who).is_some_and(|w| s.aggro(w) > *value)
         }
         Condition::TimeAbove { ticks } => time_since_start(s, me) > *ticks,
+        Condition::NearTarget { distance } => super::overlaps(s.at(me), distance.0, s.player.at, 0),
         Condition::PartBroken { part } => {
             let index = stage
                 .boss
@@ -578,14 +582,15 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
                 _ => place,
             };
         }
-        Movement::Follow { distance } => {
+        Movement::Follow { distance, speed } => {
             let dx = i64::from(player_at.x.0) - i64::from(a.at.x.0);
             let dy = i64::from(player_at.y.0) - i64::from(a.at.y.0);
             let dist =
                 i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
             let gap = dist - i64::from(distance.0);
+            let speed = speed.map_or(FOLLOW_SPEED, |s| i64::from(s.0));
             if gap > 0 && !yields {
-                let step = gap.min(FOLLOW_SPEED * keep / 100);
+                let step = gap.min(speed * keep / 100);
                 a.at.x = a.at.x.saturating_add(Fx((dx * step / dist) as i32));
                 a.at.y = a.at.y.saturating_add(Fx((dy * step / dist) as i32));
             }

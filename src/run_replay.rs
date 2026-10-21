@@ -265,6 +265,9 @@ pub struct RunVerified {
     pub outcome: Outcome,
     /// The commands between ticks that applied.
     pub commands: u32,
+    /// The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST` (ADR-109): the
+    /// app pays it after the run (ADR-079, ADR-101).
+    pub stardust: u32,
 }
 
 /// The SHA-256 of the game content a run of `mode` uses with the bundled pack: the pack's hash.
@@ -701,6 +704,7 @@ fn verify_inner(
         final_hash: actual,
         outcome: engine.outcome(),
         commands: u32::try_from(commands.len()).unwrap_or(u32::MAX),
+        stardust: engine.stardust(),
     })
 }
 

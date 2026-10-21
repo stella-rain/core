@@ -60,6 +60,7 @@
         "kill": 60
       },
       "id": "elite_low",
+      "stardust": 200,
       "xp": 3
     },
     {
@@ -118,6 +119,7 @@
         "kill": 60
       },
       "id": "elite_mid",
+      "stardust": 200,
       "xp": 3
     },
     {
@@ -176,6 +178,7 @@
         "kill": 60
       },
       "id": "elite_high",
+      "stardust": 200,
       "xp": 3
     },
     {
@@ -339,6 +342,7 @@
         "kill": 60
       },
       "id": "elite_leader",
+      "stardust": 200,
       "xp": 3
     },
     {
@@ -401,6 +405,7 @@
         "kill": 60
       },
       "id": "elite_mimic",
+      "stardust": 200,
       "xp": 3
     }
   ],

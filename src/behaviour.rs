@@ -118,8 +118,13 @@ pub enum Movement {
     /// Circles the main character. A companion is set on its circle; an enemy moves to its
     /// place on it, at most its orbit step plus 4 pixels a tick (ADR-058).
     Orbit { radius: Fx },
-    /// Trails the main character at a distance.
-    Follow { distance: Fx },
+    /// Trails the main character at a distance, at most `speed` a tick (a tank's is slower);
+    /// absent, 4 pixels a tick as it always was (ADR-058).
+    Follow {
+        distance: Fx,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        speed: Option<Fx>,
+    },
     /// Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at
     /// most 4 pixels a tick, and walks back when it is pushed off it (ADR-058).
     Hold { at: Point },
@@ -175,6 +180,11 @@ pub struct Rule {
     /// Fires at most once (the same as one charge, kept for editor clarity).
     #[serde(default)]
     pub once: bool,
+    /// An enemy that fires this rule removes itself with it, as an exploder does. It goes through
+    /// hit points 0, so the defeat credit of any dead enemy applies (placeholder, R1). Ignored
+    /// for a companion and the boss.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub self_destruct: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -199,6 +209,11 @@ pub enum Condition {
     /// Ticks since the agent spawned, or since the boss phase began.
     TimeAbove {
         ticks: u32,
+    },
+    /// The main character's centre is within `distance` of the agent's centre (the edge counts):
+    /// an exploder's burst (ADR-036).
+    NearTarget {
+        distance: Fx,
     },
 }
 

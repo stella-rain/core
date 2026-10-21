@@ -4,6 +4,7 @@
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::registry::{ENTRIES, Entry, Kind};
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{
     self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
@@ -310,6 +311,20 @@ fn a_pool_naming_a_reward_the_file_does_not_hold_does_not_start() {
         issues(Engine::start(&with_pool(&["max_hp_common", "no_such_reward"])).unwrap_err());
     assert_eq!(
         found,
+        [issue(
+            "$.star_pool[1]",
+            "no such reward in the run's rewards file"
+        )]
+    );
+}
+
+#[test]
+fn validate_in_refuses_a_pool_naming_a_reward_the_file_does_not_hold() {
+    // The fuzz target `run_setup` found a setup that `validate_in` passed and `Engine::start`
+    // refused for this: the two must agree.
+    let setup = with_pool(&["max_hp_common", "no_such_reward"]);
+    assert_eq!(
+        issues(run_setup::validate_in(&setup, RunContent::bundled()).unwrap_err()),
         [issue(
             "$.star_pool[1]",
             "no such reward in the run's rewards file"

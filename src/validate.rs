@@ -99,6 +99,13 @@ pub mod limits {
     /// The expertise points an enemy or the boss gives for a hit and for a kill (ADR-078 §7).
     pub const MAX_EXPERTISE_PER_HIT: u32 = 1000;
     pub const MAX_EXPERTISE_PER_KILL: u32 = 100_000;
+    /// Stardust (ADR-109, ADR-020), held times 10: the base an enemy or the boss earns for a kill
+    /// (the bundled boss's is 2,000), the percent of the time factor (as `difficulties::MAX_PCT`),
+    /// and the run's total, at which the counter saturates. At the largest base and percent a
+    /// kill earns 1,000,000, so the total is reached in ten kills and never wraps a `u32`.
+    pub const MAX_STARDUST_BASE: u32 = 100_000;
+    pub const MAX_STARDUST_PCT: u32 = 1_000;
+    pub const MAX_RUN_STARDUST: u32 = 10_000_000;
     /// Falling stars (ADR-079 §2, ADR-068): the drop chance is in 1000; the pity, the stars on
     /// the map, the pickup circle (64 pixels), the rerolls and banishes, and the drop table's
     /// tiers, each starting at most at the highest level, with weights of at most 10,000.
@@ -639,6 +646,19 @@ impl<'a> Ctx<'a> {
         {
             self.key("level_table", |c| c.fail(problem));
         }
+        if let Some(f) = &s.stardust {
+            self.key("stardust", |c| {
+                let max = i64::from(MAX_STARDUST_PCT);
+                c.within("start_pct", i64::from(f.start_pct), 1, max);
+                c.within("end_pct", i64::from(f.end_pct), 1, max);
+                if (1..=max).contains(&i64::from(f.start_pct))
+                    && (1..=max).contains(&i64::from(f.end_pct))
+                    && f.end_pct < f.start_pct
+                {
+                    c.key("end_pct", |c| c.fail("not below the factor at the start"));
+                }
+            });
+        }
         if let Some(cap) = s.elite_cap {
             self.within("elite_cap", i64::from(cap), 1, i64::from(MAX_ELITES_ALIVE));
         }
@@ -1071,8 +1091,11 @@ impl<'a> Ctx<'a> {
             Movement::Orbit { radius } => {
                 self.within("radius", i64::from(radius.0), 1, i64::from(MAX_LEN))
             }
-            Movement::Follow { distance } => {
-                self.within("distance", i64::from(distance.0), 0, i64::from(MAX_LEN))
+            Movement::Follow { distance, speed } => {
+                self.within("distance", i64::from(distance.0), 0, i64::from(MAX_LEN));
+                if let Some(speed) = speed {
+                    self.within("speed", i64::from(speed.0), 1, i64::from(MAX_LEN));
+                }
             }
             Movement::FleeWhenDisturbed {
                 disturb_radius,
@@ -1135,6 +1158,9 @@ impl<'a> Ctx<'a> {
             }
             Condition::PartBroken { part } => self.part("part", part),
             Condition::TimeAbove { ticks } => self.ticks("ticks", *ticks, 0),
+            Condition::NearTarget { distance } => {
+                self.within("distance", i64::from(distance.0), 1, i64::from(MAX_LEN))
+            }
         }
     }
 
@@ -1223,6 +1249,9 @@ impl<'a> Ctx<'a> {
         if let Some(points) = &w.expertise {
             self.expertise_points(points);
         }
+        if let Some(base) = w.stardust {
+            self.within("stardust", i64::from(base), 0, i64::from(MAX_STARDUST_BASE));
+        }
     }
 
     fn expertise_points(&mut self, points: &ExpertisePoints) {
@@ -1248,6 +1277,9 @@ impl<'a> Ctx<'a> {
             self.content_id("palette", p, Kind::Palette);
         }
         self.within("hp", i64::from(b.hp), 1, i64::from(MAX_BOSS_HP));
+        if let Some(base) = b.stardust {
+            self.within("stardust", i64::from(base), 0, i64::from(MAX_STARDUST_BASE));
+        }
         self.within("defence", i64::from(b.defence), 0, i64::from(MAX_DEFENCE));
         if let Some(p) = &b.profile {
             self.key("profile", |c| c.profile(p));

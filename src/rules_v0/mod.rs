@@ -97,6 +97,7 @@ mod player;
 mod push;
 mod runes;
 mod skill;
+mod stardust;
 mod stars;
 mod stun;
 
@@ -325,6 +326,7 @@ pub(crate) fn initial_state(
         runes: content.runes().clone(),
         stun: run_stats.stun(),
         horde: None,
+        stardust: stage.stardust.map(|_| 0),
         regen: 0,
         auto_combo: false,
         hp_pct: pool.difficulty.hp_pct,
@@ -674,12 +676,14 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     s.bullets.retain(|_| !flags.next().unwrap_or(false));
     s.companions.retain(|c| c.hp > 0);
     levels::credit_defeated(stage, s, events);
+    stardust::credit_defeated(stage, s);
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
     s.enemies.retain(|e| e.hp > 0);
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         stars::boss_killed(stage, s);
         heal::boss_killed(stage, s, events);
+        stardust::boss_killed(stage, s);
     }
     stars::pick_up(stage, s, events);
     heal::pick_up(stage, s, events);
@@ -1433,6 +1437,9 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         for t in p.totals {
             h.write_u32(t);
         }
+    }
+    if let Some(stardust) = s.stardust {
+        h.write_u32(stardust);
     }
     // After it, and only in a stage with stars, for the same reason.
     if let Some(f) = &s.stars {
