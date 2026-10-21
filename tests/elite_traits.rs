@@ -1,6 +1,6 @@
 //! The elite grades' traits (Kade's Q-D3, `modes/time_limit.json`): LOW is tougher than the bat
 //! and keeps the bat's one pattern; MID adds an aimed spread at the main character; HIGH's slam
-//! is a big pattern with a long wind-up, announced in the snapshot while it winds up (ADR-103).
+//! is a long wind-up, the visible tell; an enemy's attack is never announced in the snapshot.
 
 use serde_json::{Value, json};
 use stella_rain_core::attack::PhaseKind;
@@ -158,7 +158,7 @@ fn the_high_elite_slam_winds_up_for_at_least_the_placeholder_and_is_not_announce
 
 #[test]
 fn a_big_flag_on_an_enemy_rule_is_refused_as_an_unknown_field() {
-    let mut enemy = elite_type("elite_high");
-    enemy["rules"][0]["do"]["big"] = json!(true);
-    assert!(serde_json::from_value::<Stage>(standing_json(&enemy)).is_err());
+    let mut stage = standing_json(&elite_type("elite_high"));
+    stage["waves"][0]["enemy"]["rules"][0]["do"]["big"] = json!(true);
+    assert!(serde_json::from_value::<Stage>(stage).is_err());
 }
