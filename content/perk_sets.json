@@ -7,8 +7,8 @@
       "title": "Vanguard",
       "description": "More hit points, and they come back on their own",
       "effects": [
-        { "effect": "max_hp", "amount": 300 },
-        { "effect": "regen", "amount": 10 }
+        { "effect": "max_hp", "amount": 30000 },
+        { "effect": "regen", "amount": 1000 }
       ]
     },
     {
