@@ -55,7 +55,11 @@ fn every_pool_boss_and_the_final_boss_has_a_definition_with_a_profile_and_the_de
         let b = definition(m, id);
         assert!(b.profile.is_some(), "{id} has no match-up profile");
         let call = b.call_elites.expect("an elite call");
-        assert_eq!((call.after_ticks, call.below_pct), (Some(1800), Some(70)), "{id}");
+        assert_eq!(
+            (call.after_ticks, call.below_pct),
+            (Some(1800), Some(70)),
+            "{id}"
+        );
     }
 }
 

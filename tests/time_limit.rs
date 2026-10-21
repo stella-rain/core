@@ -159,7 +159,10 @@ fn each_boss_definition_is_unique_and_names_a_sprite() {
     );
     let mut unknown = bosses[0].clone();
     unknown["base"] = json!("nope");
-    assert_eq!(paths(&with("bosses", json!([unknown]))), ["$.bosses[0].base"]);
+    assert_eq!(
+        paths(&with("bosses", json!([unknown]))),
+        ["$.bosses[0].base"]
+    );
 }
 
 #[test]

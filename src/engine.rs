@@ -1917,7 +1917,10 @@ mod horde_tests {
             unique.sort();
             unique.dedup();
             assert_eq!(unique.len(), 3, "seed {seed}: {drawn:?}");
-            assert!(drawn.iter().all(|d| POOL.contains(&d.as_str())), "{drawn:?}");
+            assert!(
+                drawn.iter().all(|d| POOL.contains(&d.as_str())),
+                "{drawn:?}"
+            );
         }
     }
 
