@@ -26,8 +26,9 @@ use crate::validate::limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
-/// The largest mode file read; the bundled one is about 3 KB.
-pub const MAX_TIME_LIMIT_BYTES: usize = 16 * 1024;
+/// The largest mode file read; the bundled one is about 18 KB (the six regular roles of R2 are
+/// most of it).
+pub const MAX_TIME_LIMIT_BYTES: usize = 32 * 1024;
 /// The longest run: 30 minutes.
 pub const MAX_LENGTH_TICKS: u32 = 30 * 60 * 60;
 /// The most boss times: the mid-bosses and the final boss.

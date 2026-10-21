@@ -14,10 +14,13 @@ use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::time_limit::TimeLimit;
 
 #[test]
-fn the_mode_spawns_a_hundred_enemies_a_minute() {
+fn the_bats_spawn_a_hundred_enemies_a_minute() {
+    // The regular roles of R2 come on top of the bats, which have no ID; the bench takes the bats
+    // (see `stage`).
     let a_minute: u32 = TimeLimit::bundled()
         .waves()
         .iter()
+        .filter(|w| w.id.is_none())
         .map(|w| 3600 / w.every_ticks)
         .sum();
     assert_eq!(a_minute, 100);
