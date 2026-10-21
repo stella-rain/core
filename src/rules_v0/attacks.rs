@@ -353,28 +353,30 @@ fn launch(
 /// or away after its last phase or when its attacker is gone. Called at the start of a tick,
 /// before anyone acts, so that an attacker whose attack has ended can start the next one.
 pub(super) fn advance_runs(s: &mut State, events: &mut Vec<DomainEvent>) {
+    // One pass that moves each run that stays down to the next free place, in the order they
+    // had, instead of shifting every run behind each one that ends.
     let mut changed = false;
-    let mut i = 0;
-    while i < s.runs.len() {
+    let mut kept = 0;
+    for i in 0..s.runs.len() {
         if s.find(s.runs[i].owner).is_none() {
-            s.runs.remove(i);
             changed = true;
             continue;
         }
-        let r = &mut s.runs[i];
+        s.runs.swap(kept, i);
+        let r = &mut s.runs[kept];
         r.tick = r.tick.saturating_add(1);
         if r.tick >= r.phases[r.phase as usize].ticks {
             r.phase += 1;
             r.tick = 0;
             changed = true;
             if r.phase as usize >= r.phases.len() {
-                s.runs.remove(i);
                 continue;
             }
-            begin_phase(s, i, events);
+            begin_phase(s, kept, events);
         }
-        i += 1;
+        kept += 1;
     }
+    s.runs.truncate(kept);
     if changed {
         s.move_index.rebuild(&s.runs);
     }
