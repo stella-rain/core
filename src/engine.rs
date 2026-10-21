@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use crate::attack::{AttackPhase, DamageType, Emitter};
-use crate::behaviour::BossCall;
+use crate::behaviour::{BossCall, Movement};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
@@ -27,10 +27,10 @@ use crate::run_stats::{RunStats, StatEffect};
 use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::snapshot::{
-    AttackView, BulletView, ChargeView, ComboView, DamageOverTimeView, EntityKind, EntityView,
-    EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, HoldView, MapView, OfferKind, OrbitView,
-    PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
-    StatusView, TypeBonusView,
+    AttackView, BulletView, ChargeView, ComboView, Countdown, DamageOverTimeView, EntityKind,
+    EntityView, EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, HoldView, MapView, OfferKind,
+    OrbitView, PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot,
+    StarView, StatusView, TypeBonusView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -373,6 +373,7 @@ impl Engine {
                     aura_radius: None,
                     damage_over_time: dot_views(&b.statuses),
                     statuses: status_views(&b.statuses, false),
+                    fight: None,
                 });
             }
         }
@@ -407,6 +408,18 @@ impl Engine {
                             .map(|aura| aura.radius),
                         damage_over_time: dot_views(&a.statuses),
                         statuses: status_views(&a.statuses, reached),
+                        fight: match (&def.movement, a.shrine.as_deref()) {
+                            (
+                                Movement::Shrine { fight_ticks, .. },
+                                Some(ShrineState {
+                                    fight: Some(since), ..
+                                }),
+                            ) => Some(Countdown {
+                                remaining: fight_ticks.saturating_sub(*since),
+                                total: *fight_ticks,
+                            }),
+                            _ => None,
+                        },
                     });
                 }
             };
@@ -433,6 +446,7 @@ impl Engine {
                         aura_radius: None,
                         damage_over_time: dot_views(&part.statuses),
                         statuses: status_views(&part.statuses, false),
+                        fight: None,
                     });
                 }
             }
