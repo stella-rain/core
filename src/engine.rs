@@ -1481,9 +1481,6 @@ pub(crate) struct AttackRun {
     /// A homing missile's target (ADR-099): `throw` follows it while it is alive, and the
     /// missile is gone once it hits anything.
     pub homing: Option<EntityId>,
-    /// A big pattern (ADR-103) from an enemy's rule: announced in the snapshot while its first
-    /// phase, the wind-up, runs. Nothing in the rules reads it.
-    pub big: bool,
 }
 
 /// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it

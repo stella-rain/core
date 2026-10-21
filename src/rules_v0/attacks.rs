@@ -50,7 +50,6 @@ use crate::presets;
 use crate::registry;
 use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
-use crate::snapshot::PatternView;
 use crate::trig;
 use crate::validate::limits::{MAX_BULLET_TICKS, MAX_LEN, MAX_REPEAT, MAX_TICKS};
 
@@ -334,34 +333,8 @@ fn launch(
         at,
         throw: None,
         homing: None,
-        big: false,
     });
     begin_phase(s, s.runs.len() - 1, events);
-}
-
-/// Marks the attack that was just started as big (ADR-103): called right after it started.
-pub(super) fn mark_big(s: &mut State) {
-    if let Some(run) = s.runs.last_mut() {
-        run.big = true;
-    }
-}
-
-/// The big patterns of the runs in their wind-up, each with the ticks its wind-up started with
-/// and the ticks left until it ends (the boss's count-down, ADR-103).
-pub(crate) fn announced(s: &State) -> Vec<PatternView> {
-    s.runs
-        .iter()
-        .filter(|r| r.big)
-        .filter_map(|r| {
-            let phase = r.phases.get(r.phase as usize)?;
-            let id = r.preset.clone()?;
-            (phase.kind == PhaseKind::WindUp && r.tick < phase.ticks).then(|| PatternView {
-                id,
-                total: phase.ticks,
-                remaining: phase.ticks - r.tick,
-            })
-        })
-        .collect()
 }
 
 /// Every run goes on by a tick: to its next phase once the current one has lasted its ticks,
