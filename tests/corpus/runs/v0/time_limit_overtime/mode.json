@@ -208,6 +208,7 @@
         "kill": 60
       },
       "id": "elite_goblin",
+      "stardust": 10000,
       "xp": 3
     },
     {
@@ -263,6 +264,7 @@
         "kill": 60
       },
       "id": "elite_shrine",
+      "stardust": 200,
       "xp": 3
     },
     {
@@ -443,6 +445,7 @@
   "schema_version": 0,
   "sim_version": 0,
   "star_hunter_extra_ticks": 3600,
+  "stardust_summon_base": 10,
   "stardust_tiers": [
     {
       "pct": 100,
