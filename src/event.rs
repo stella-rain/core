@@ -9,7 +9,7 @@ use crate::attack::MatchUp;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
 use crate::rune::Rune;
-use crate::snapshot::{ExpertiseOfferKind, OfferKind, WeaponRole};
+use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 
 /// Which button's press took a combo step (ADR-070): A or B.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -178,18 +178,16 @@ pub enum DomainEvent {
         slot: u8,
         reward: ContentId,
     },
-    /// An expertise offer of `kind` opened for the level `level` and `weapon`, and the world
-    /// stopped until a choice closes it (ADR-078 §4, §5; ADR-079 §2, §3).
+    /// An expertise offer of `kind` opened for the level `level`, and the world stopped until a
+    /// choice closes it (ADR-106 §4, §5; ADR-079 §2, §3).
     ExpertiseOfferOpened {
         level: u32,
-        weapon: WeaponRole,
         kind: ExpertiseOfferKind,
         candidates: Vec<ContentId>,
     },
-    /// The expertise option was taken: the run now has it `taken` times for that weapon. A
-    /// style, an upgrade or a capstone is taken once.
+    /// The expertise option was taken: the run now has it `taken` times. A style, an upgrade or
+    /// a capstone is taken once.
     ExpertiseOptionTaken {
-        weapon: WeaponRole,
         option: ContentId,
         taken: u8,
     },

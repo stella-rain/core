@@ -14,7 +14,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{MAX_RANGE_PCT, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::{AttackView, OfferOption, WeaponRole};
+use stella_rain_core::snapshot::{AttackView, OfferOption};
 use stella_rain_core::stage::Stage;
 
 use crate::common;
@@ -243,7 +243,7 @@ fn option(id: &str, effect: &str, amount: u32) -> Value {
 #[test]
 fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
     // The `giant_sword` as Main: its first step a slash, an arc of 32 pixels 8 pixels ahead after 4
-    // ticks of wind-up; the `giant_hammer` as Sub. A kill of 10 points reaches expertise level 1, whose
+    // ticks of wind-up. A kill of 10 points reaches expertise level 1, whose
     // offer opens before the kill's star's.
     let mut w = wave(
         1,
@@ -291,7 +291,6 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
     assert_eq!(
         e.events().first(),
         Some(&DomainEvent::ExpertiseOptionTaken {
-            weapon: WeaponRole::Main,
             option: "wide".into(),
             taken: 1,
         })

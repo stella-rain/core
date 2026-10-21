@@ -30,8 +30,8 @@ fn style(id: &str) -> Value {
         "amount": 10,
         "title": "Style",
         "description": "A path",
-        "upgrade_6": [option(&format!("{id}_6"), "attack_pct", 5)],
-        "upgrade_9": [option(&format!("{id}_9"), "speed_pct", 5)],
+        "upgrade_1": [option(&format!("{id}_6"), "attack_pct", 5)],
+        "upgrade_2": [option(&format!("{id}_9"), "speed_pct", 5)],
         "capstone": [option(&format!("{id}_10"), "range_pct", 20)]
     })
 }
@@ -115,7 +115,7 @@ fn the_bundled_file_covers_every_weapon_with_three_complete_styles() {
     for w in bundled.weapons() {
         assert_eq!(w.styles.len(), STYLES, "{}", w.weapon.0);
         for s in &w.styles {
-            assert!(!s.upgrade_6.is_empty() && !s.upgrade_9.is_empty() && !s.capstone.is_empty());
+            assert!(!s.upgrade_1.is_empty() && !s.upgrade_2.is_empty() && !s.capstone.is_empty());
         }
         assert!(!w.common.is_empty(), "{}", w.weapon.0);
         // No option has a stack limit, attack speed included (ADR-099).
@@ -266,7 +266,7 @@ fn every_weapon_has_three_complete_styles() {
         );
     }
     valid(&with("/weapons/0/styles", three));
-    for level in ["upgrade_6", "upgrade_9", "capstone"] {
+    for level in ["upgrade_1", "upgrade_2", "capstone"] {
         invalid_at(
             &with(&format!("/weapons/0/styles/1/{level}"), json!([])),
             &format!("$.weapons[0].styles[1].{level}"),
@@ -314,7 +314,7 @@ fn no_expertise_option_has_a_stack_limit() {
         ("/weapons/0/common/1", "attack_speed_pct", 5),
         ("/weapons/0/common/1", "attack_speed_pct", 21),
         ("/weapons/0/common/1", "attack_pct", 3),
-        ("/weapons/0/styles/0/upgrade_6/0", "attack_speed_pct", 3),
+        ("/weapons/0/styles/0/upgrade_1/0", "attack_speed_pct", 3),
     ] {
         assert!(
             parse(&with(at, limited("x", effect, limit))).is_err(),
@@ -363,8 +363,8 @@ fn ids_are_well_formed_and_unique_within_a_weapon() {
         "$.weapons[0].common[0].id",
     );
     invalid_at(
-        &with("/weapons/0/styles/1/upgrade_9/0/id", json!("one_6")),
-        "$.weapons[0].styles[1].upgrade_9[0].id",
+        &with("/weapons/0/styles/1/upgrade_2/0/id", json!("one_6")),
+        "$.weapons[0].styles[1].upgrade_2[0].id",
     );
     // Each weapon's IDs are its own: the test file repeats them across weapons.
     valid(&file());

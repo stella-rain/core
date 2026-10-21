@@ -25,7 +25,7 @@
           "amount": 15,
           "title": "Crush",
           "description": "15 percent more damage",
-          "upgrade_6": [
+          "upgrade_1": [
             {
               "id": "crush_6",
               "effect": "attack_pct",
@@ -34,7 +34,7 @@
               "description": "20 percent more damage"
             }
           ],
-          "upgrade_9": [
+          "upgrade_2": [
             {
               "id": "crush_9",
               "effect": "max_hp",
@@ -59,7 +59,7 @@
           "amount": 20,
           "title": "Quake",
           "description": "Every combo step's hit box 20 percent larger",
-          "upgrade_6": [
+          "upgrade_1": [
             {
               "id": "quake_6",
               "effect": "range_pct",
@@ -68,7 +68,7 @@
               "description": "Every combo step's hit box 20 percent larger"
             }
           ],
-          "upgrade_9": [
+          "upgrade_2": [
             {
               "id": "quake_9",
               "effect": "attack_pct",
@@ -93,7 +93,7 @@
           "amount": 200,
           "title": "Bulwark",
           "description": "200 more hit points at most, and as many healed",
-          "upgrade_6": [
+          "upgrade_1": [
             {
               "id": "bulwark_6",
               "effect": "evade_pct",
@@ -102,7 +102,7 @@
               "description": "15 percent shorter evade cooldown"
             }
           ],
-          "upgrade_9": [
+          "upgrade_2": [
             {
               "id": "bulwark_9",
               "effect": "max_hp",
@@ -143,6 +143,20 @@
           "amount": 10,
           "title": "Hit Box",
           "description": "Every combo step's hit box 10 percent larger"
+        },
+        {
+          "id": "vitality",
+          "effect": "max_hp",
+          "amount": 100,
+          "title": "Vitality",
+          "description": "100 more hit points at most, and as many healed"
+        },
+        {
+          "id": "swiftness",
+          "effect": "speed_pct",
+          "amount": 5,
+          "title": "Swiftness",
+          "description": "5 percent faster movement"
         }
       ]
     },
@@ -155,7 +169,7 @@
           "amount": 10,
           "title": "Edge",
           "description": "10 percent more damage",
-          "upgrade_6": [
+          "upgrade_1": [
             {
               "id": "edge_6",
               "effect": "attack_pct",
@@ -164,7 +178,7 @@
               "description": "15 percent more damage"
             }
           ],
-          "upgrade_9": [
+          "upgrade_2": [
             {
               "id": "edge_9",
               "effect": "range_pct",
@@ -189,7 +203,7 @@
           "amount": 8,
           "title": "Tempo",
           "description": "Attacks 8 percent faster",
-          "upgrade_6": [
+          "upgrade_1": [
             {
               "id": "tempo_6",
               "effect": "speed_pct",
@@ -198,7 +212,7 @@
               "description": "10 percent more speed"
             }
           ],
-          "upgrade_9": [
+          "upgrade_2": [
             {
               "id": "tempo_9",
               "effect": "attack_speed_pct",
@@ -223,7 +237,7 @@
           "amount": 15,
           "title": "Reach",
           "description": "Every combo step's hit box 15 percent larger",
-          "upgrade_6": [
+          "upgrade_1": [
             {
               "id": "reach_6",
               "effect": "range_pct",
@@ -232,7 +246,7 @@
               "description": "Every combo step's hit box 15 percent larger"
             }
           ],
-          "upgrade_9": [
+          "upgrade_2": [
             {
               "id": "reach_9",
               "effect": "attack_pct",
@@ -273,6 +287,20 @@
           "amount": 10,
           "title": "Hit Box",
           "description": "Every combo step's hit box 10 percent larger"
+        },
+        {
+          "id": "vitality",
+          "effect": "max_hp",
+          "amount": 100,
+          "title": "Vitality",
+          "description": "100 more hit points at most, and as many healed"
+        },
+        {
+          "id": "swiftness",
+          "effect": "speed_pct",
+          "amount": 5,
+          "title": "Swiftness",
+          "description": "5 percent faster movement"
         }
       ]
     }

@@ -27,8 +27,9 @@
 //!
 //! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
 //! step 6 adds them to the one expertise gauge, and its levels are reached at the end of step 6
-//! (`expertise`). Each level reached is due an offer for the weapon ADR-078's table gives: its
-//! common options, its three styles, or the chosen Main style's upgrades or capstones.
+//! (`expertise`). Each level reached is due an offer of the kind the stage's level table gives
+//! (ADR-106 §4): common options, the weapon's three styles, or the chosen style's upgrades or
+//! capstone.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks. In
@@ -1426,7 +1427,6 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             Some(o) => {
                 h.write_bool(true);
                 h.write_u32(o.level);
-                h.write_u32(o.weapon as u32);
                 h.write_u32(o.kind as u32);
                 h.write_u32(count(&o.candidates));
                 for c in &o.candidates {
@@ -1435,19 +1435,15 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             }
             None => h.write_bool(false),
         }
-        for taken in [&g.main_taken, &g.sub_taken] {
-            h.write_u32(count(taken));
-            for n in taken.iter() {
-                h.write_u32(u32::from(*n));
-            }
+        h.write_u32(count(&g.taken));
+        for n in &g.taken {
+            h.write_u32(u32::from(*n));
         }
         h.write_u32(g.range_pct);
-        for style in [g.main_style, g.sub_style] {
-            h.write_bool(style.is_some());
-            h.write_u32(style.map_or(0, u32::from));
-        }
-        h.write_u32(count(&g.main_path));
-        for i in &g.main_path {
+        h.write_bool(g.style.is_some());
+        h.write_u32(g.style.map_or(0, u32::from));
+        h.write_u32(count(&g.path));
+        for i in &g.path {
             h.write_u32(u32::from(*i));
         }
         h.write_u32(count(&s.tasks));

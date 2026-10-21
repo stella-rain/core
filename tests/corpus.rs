@@ -844,8 +844,8 @@ pub(crate) fn definitions() -> Vec<Definition> {
 /// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command>)> {
     use common::run::{
-        KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from, time_limit_setup,
-        trial_setup,
+        ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from,
+        time_limit_setup, trial_setup,
     };
     let stage_skill = RunSetup {
         seed: STAGE_SKILL_SEED,
@@ -871,7 +871,10 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     // The elites run: every elite type, the cap of 5 reached, and each elite's event; its own
     // mode file, below.
     let (elites_mode, elites_content) = elites_time_limit();
-    let elites_setup = time_limit_setup();
+    let elites_setup = RunSetup {
+        seed: ELITES_SEED,
+        ..time_limit_setup()
+    };
     let elites_script = EliteScript::default();
     let elites_commands = play_run_with(&elites_setup, &elites_content, ELITES_TICKS, |e, t| {
         elites_script.input(e, t)

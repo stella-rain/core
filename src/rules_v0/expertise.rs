@@ -1,6 +1,6 @@
-//! The expertise gauge (ADR-078 §1 to §3), in a stage whose enemies or boss give expertise
-//! points: one gauge for both weapons, from level 0 with no highest level; and its offers
-//! (ADR-078 §4, §6; ADR-079 §2, §3).
+//! The expertise gauge (ADR-106 §1 to §3), in a stage whose enemies or boss give expertise
+//! points: one gauge for the one weapon, from level 0 with no highest level; and its offers
+//! (ADR-106 §4 to §6; ADR-079 §2, §3).
 //!
 //! A hit by an attack of an A or a B step of the combo adds its target's points per hit, and a
 //! kill its points per kill too: an enemy's from its wave, the boss's and its parts' from the
@@ -14,38 +14,40 @@
 //! the content maximum. Once the need stops growing, the levels left are one division, so a
 //! tick's cost stays bounded however many levels its points cross.
 //!
-//! Each level reached is due an offer, in level order, for the weapon and of the kind
-//! ADR-078's table gives: common options at 1, 4 and 7 (Main), 2 and 8 (Sub), and from 11 on
-//! Main, Sub, Main in turn; the weapon's three styles at 3 (Main) and 5 (Sub); the chosen Main
-//! style's upgrades at 6 and 9 and its capstones at 10. A common offer draws `OFFER_SIZE`
-//! candidates from that weapon's common pool, from the run's generator, leaving out the candidates it already holds; with fewer left it holds those, and
-//! with none it does not open. Its options are the candidates, then a reroll of each while the
-//! run has rerolls (shared with the stars' offers) and another option could come; never a skip
-//! or a banish. Taking an option adds its effect as a reward of that kind does, a range option
-//! widening the combo steps as a range reward does, and counts it for its weapon.
+//! Each level reached is due an offer, in level order, of the kind the stage's level table gives
+//! (`stage::LevelTable`, ADR-106 §4): the weapon's three styles at the table's style level, the
+//! chosen style's first and second upgrades at its upgrade levels and its capstone at its
+//! capstone level; every other level is a common offer. A common offer draws `OFFER_SIZE`
+//! candidates from the weapon's common pool, from the run's generator, leaving out the
+//! candidates it already holds; with fewer left it holds those, and with none it does not open.
+//! Its options are the candidates, then a reroll of each while the run has rerolls (shared with
+//! the stars' offers) and another option could come; never a skip or a banish. Taking an option
+//! adds its effect as a reward of that kind does, a range option widening the combo steps as a
+//! range reward does, and counts it. No option has a stack limit and none leaves the pool by
+//! being taken (ADR-099).
 //!
 //! A style, upgrade or capstone offer is not drawn: it shows its fixed choices in the content's
 //! order, takes nothing from the generator, and its options are the choices alone: no reroll,
-//! skip or banish. Taking one applies its effect as a common option's does; a style is held
-//! for the run, and the Main style's upgrades and capstone are kept in level order. An inline
-//! weapon has no expertise content, so none of its levels opens, its style's included; and a
-//! level 6, 9 or 10 with no Main style chosen opens nothing (fail closed: in level order the
-//! style at 3 always comes first for a weapon with content).
+//! skip or banish. Taking one applies its effect as a common option's does; the style is held
+//! for the run, and its upgrades and capstone are kept in level order. An inline weapon has no
+//! expertise content, so none of its levels opens, its style's included; and an upgrade or
+//! capstone level with no style chosen opens nothing (fail closed: the table puts the style
+//! first, so for a weapon with content a style is always chosen before them).
 //!
-//! Past level 10, once neither weapon has a common option left to offer, the levels due are
-//! passed over at once, so the offers' cost stays bounded too.
+//! Past the table's last level (at most 10) every level is a common offer; with no pool the
+//! levels due are passed over at once, so the offers' cost stays bounded too.
 
 use crate::engine::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
 use crate::event::DomainEvent;
 use crate::expertise::{
-    Expertise, ExpertiseEffect, ExpertiseOption, TABLE_LEVELS, WeaponExpertise,
+    Expertise, ExpertiseEffect, ExpertiseOption, Style, TABLE_LEVELS, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::rng::SplitMix64;
 use crate::snapshot::{
-    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption, WeaponRole,
+    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption,
 };
-use crate::stage::{ExpertisePoints, Stage};
+use crate::stage::{ExpertisePoints, LevelTable, Stage};
 use crate::weapon::WeaponRef;
 
 use super::entity::Who;
@@ -67,12 +69,10 @@ pub(super) fn initial(stage: &Stage, expertise: &Expertise) -> Option<ExpertiseG
         next: need(expertise, 1, 0),
         offered: 0,
         offer: None,
-        main_taken: taken(),
-        sub_taken: taken(),
+        taken: taken(),
         range_pct: 0,
-        main_style: None,
-        sub_style: None,
-        main_path: Vec::new(),
+        style: None,
+        path: Vec::new(),
     })
 }
 
@@ -139,25 +139,23 @@ pub(super) fn level_up(expertise: &Expertise, s: &mut State) {
     }
 }
 
-/// The weapon and the kind of the offer level `level` opens (ADR-078 §4); none at level 0.
-fn slot(level: u32) -> Option<(WeaponRole, ExpertiseOfferKind)> {
+/// The kind of the offer level `level` opens (ADR-106 §4); none at level 0.
+fn slot(table: &LevelTable, level: u32) -> Option<ExpertiseOfferKind> {
     use ExpertiseOfferKind::{Capstone, Common, Style, Upgrade};
-    use WeaponRole::{Main, Sub};
-    Some(match level {
-        0 => return None,
-        1 | 4 | 7 => (Main, Common),
-        2 | 8 => (Sub, Common),
-        3 => (Main, Style),
-        5 => (Sub, Style),
-        6 | 9 => (Main, Upgrade),
-        10 => (Main, Capstone),
-        _ if (level - 11) % 3 == 1 => (Sub, Common),
-        _ => (Main, Common),
+    Some(if level == 0 {
+        return None;
+    } else if level == table.style {
+        Style
+    } else if table.upgrades.contains(&level) {
+        Upgrade
+    } else if level == table.capstone {
+        Capstone
+    } else {
+        Common
     })
 }
 
-/// The expertise content of the one weapon, for both roles (interim, ADR-105): none for an
-/// inline weapon.
+/// The expertise content of the one weapon: none for an inline weapon.
 fn content<'a>(stage: &Stage, expertise: &'a Expertise) -> Option<&'a WeaponExpertise> {
     match &stage.player.weapon {
         WeaponRef::Preset { id } => expertise.weapon(id),
@@ -187,10 +185,9 @@ impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
     }
 }
 
-/// The fixed choices of level `level`'s style, upgrade or capstone offer for the weapon in
-/// `role`, in the content's order: its styles, or the chosen Main style's upgrades or
-/// capstones. Empty with no content, at a common level, or at 6, 9 or 10 with no Main style
-/// chosen.
+/// The fixed choices of level `level`'s style, upgrade or capstone offer, in the content's
+/// order: the styles, or the chosen style's upgrades or capstone. Empty with no content, at a
+/// common level, or at an upgrade or capstone level with no style chosen.
 fn fixed<'a>(
     stage: &Stage,
     expertise: &'a Expertise,
@@ -200,15 +197,16 @@ fn fixed<'a>(
     let Some(w) = content(stage, expertise) else {
         return Vec::new();
     };
-    let path = |pick: fn(&'a crate::expertise::Style) -> &'a Vec<ExpertiseOption>| {
-        g.main_style
+    let table = stage.level_table();
+    let path = |pick: fn(&'a Style) -> &'a Vec<ExpertiseOption>| {
+        g.style
             .and_then(|i| w.styles.get(usize::from(i)))
             .map_or_else(Vec::new, |style| {
                 pick(style).iter().map(Choice::from).collect()
             })
     };
-    match slot(level) {
-        Some((_, ExpertiseOfferKind::Style)) => w
+    match slot(&table, level) {
+        Some(ExpertiseOfferKind::Style) => w
             .styles
             .iter()
             .map(|st| Choice {
@@ -217,11 +215,9 @@ fn fixed<'a>(
                 amount: st.amount,
             })
             .collect(),
-        Some((WeaponRole::Main, ExpertiseOfferKind::Upgrade)) if level == 6 => {
-            path(|st| &st.upgrade_6)
-        }
-        Some((WeaponRole::Main, ExpertiseOfferKind::Upgrade)) => path(|st| &st.upgrade_9),
-        Some((WeaponRole::Main, ExpertiseOfferKind::Capstone)) => path(|st| &st.capstone),
+        Some(ExpertiseOfferKind::Upgrade) if level == table.upgrades[0] => path(|st| &st.upgrade_1),
+        Some(ExpertiseOfferKind::Upgrade) => path(|st| &st.upgrade_2),
+        Some(ExpertiseOfferKind::Capstone) => path(|st| &st.capstone),
         _ => Vec::new(),
     }
 }
@@ -262,7 +258,7 @@ fn draw(pool: &[ExpertiseOption], rng: &mut SplitMix64, held: &[u8]) -> Option<u
     list.get(usize::try_from(at).unwrap_or(usize::MAX)).copied()
 }
 
-/// Whether some option besides `held` could still be offered from the weapon in `role`.
+/// Whether some option besides `held` could still be offered from the weapon.
 fn any_left(stage: &Stage, expertise: &Expertise, held: &[u8]) -> bool {
     let pool = pool(stage, expertise);
     places(pool).any(|i| eligible(pool, i, held))
@@ -285,10 +281,7 @@ pub(super) fn open_due(
         return;
     };
     while g.offer.is_none() && g.offered < g.level {
-        if g.offered >= TABLE_LEVELS as u32
-            && !any_left(stage, expertise, &[])
-            && !any_left(stage, expertise, &[])
-        {
+        if g.offered >= TABLE_LEVELS as u32 && !any_left(stage, expertise, &[]) {
             // Past the style path, nothing can ever be offered again: every level due is
             // passed over.
             g.offered = g.level;
@@ -296,7 +289,7 @@ pub(super) fn open_due(
         }
         g.offered += 1;
         let level = g.offered;
-        let Some((weapon, kind)) = slot(level) else {
+        let Some(kind) = slot(&stage.level_table(), level) else {
             continue;
         };
         let candidates: Vec<u8> = if kind == ExpertiseOfferKind::Common {
@@ -318,13 +311,11 @@ pub(super) fn open_due(
         }
         let o = ExpertiseOffer {
             level,
-            weapon,
             kind,
             candidates,
         };
         events.push(DomainEvent::ExpertiseOfferOpened {
             level,
-            weapon,
             kind,
             candidates: o
                 .candidates
@@ -398,13 +389,12 @@ pub(super) fn choose(
             };
             let (place, id) = (o.candidates[usize::from(candidate)], c.id.clone());
             apply(&mut g.range_pct, progress, player, c.effect, c.amount);
-            match (o.kind, o.weapon) {
-                (ExpertiseOfferKind::Style, WeaponRole::Main) => g.main_style = Some(place),
-                (ExpertiseOfferKind::Style, WeaponRole::Sub) => g.sub_style = Some(place),
-                _ => g.main_path.push(place),
+            if o.kind == ExpertiseOfferKind::Style {
+                g.style = Some(place);
+            } else {
+                g.path.push(place);
             }
             events.push(DomainEvent::ExpertiseOptionTaken {
-                weapon: o.weapon,
                 option: id,
                 taken: 1,
             });
@@ -414,11 +404,7 @@ pub(super) fn choose(
                 return;
             };
             let at = usize::from(i);
-            let taken = match o.weapon {
-                WeaponRole::Main => &mut g.main_taken,
-                WeaponRole::Sub => &mut g.sub_taken,
-            };
-            let (Some(n), Some(picked)) = (taken.get_mut(at), pool.get(at)) else {
+            let (Some(n), Some(picked)) = (g.taken.get_mut(at), pool.get(at)) else {
                 return;
             };
             *n = n.saturating_add(1);
@@ -431,7 +417,6 @@ pub(super) fn choose(
                 picked.amount,
             );
             events.push(DomainEvent::ExpertiseOptionTaken {
-                weapon: o.weapon,
                 option: picked.id.clone(),
                 taken,
             });
@@ -480,20 +465,21 @@ fn apply(
     }
 }
 
-/// The IDs of the Main and the Sub style chosen, and of the Main style's path taken, in level
-/// order.
+/// The ID of the style chosen, and of the style's path taken, in level order.
 pub(crate) fn styles_view(
     stage: &Stage,
     expertise: &Expertise,
     g: &ExpertiseGauge,
-) -> (Option<ContentId>, Option<ContentId>, Vec<ContentId>) {
-    let style = |chosen: Option<u8>| {
-        let w = content(stage, expertise)?;
-        Some(w.styles.get(usize::from(chosen?))?.id.clone())
-    };
-    let path = [6, 9, 10]
+) -> (Option<ContentId>, Vec<ContentId>) {
+    let style = content(stage, expertise).and_then(|w| {
+        let chosen = g.style?;
+        Some(w.styles.get(usize::from(chosen))?.id.clone())
+    });
+    let table = stage.level_table();
+    let levels = [table.upgrades[0], table.upgrades[1], table.capstone];
+    let path = levels
         .into_iter()
-        .zip(&g.main_path)
+        .zip(&g.path)
         .filter_map(|(level, i)| {
             fixed(stage, expertise, g, level)
                 .into_iter()
@@ -501,7 +487,7 @@ pub(crate) fn styles_view(
                 .map(|c| c.id.clone())
         })
         .collect();
-    (style(g.main_style), style(g.sub_style), path)
+    (style, path)
 }
 
 /// What the frontend shows of the open expertise offer.
@@ -514,7 +500,6 @@ pub(crate) fn offer_view(
     let o = g.offer.as_ref()?;
     Some(ExpertiseOfferView {
         level: o.level,
-        weapon: o.weapon,
         kind: o.kind,
         candidates: o
             .candidates
