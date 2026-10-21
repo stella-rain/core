@@ -26,19 +26,22 @@ Usage (run inside the repository; commands that list branches ask origin):
   release.py released TAG             origin's rc branches of version TAG and every older one
   release.py notes RC_TAG COMMIT PREVIOUS|- LOG_FILE
                                       the release notes; LOG_FILE holds one commit per line
-                                      since PREVIOUS
+                                      since PREVIOUS; starts with a warning when content/pack.json
+                                      differs from PREVIOUS's (ADR-080: a content release must follow)
   release.py previous                 the latest release tag, or nothing
 
 Exit status: 0 done; 1 refused (the reason on standard error); 2 usage.
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
 import tomllib
 
 CRATE = "stella-rain-core"
+PACK = "content/pack.json"
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 CANDIDATE_RE = re.compile(r"^(v\d+\.\d+\.\d+)-rc\.(\d+)$")
@@ -179,9 +182,20 @@ def check_promote(rc, tags, version_at_rc):
     return final
 
 
-def notes(rc, commit, prev, log):
+def pack_changed(prev_bytes, head_bytes):
+    """ADR-080 decision 1: a core release that changes content/pack.json gets a content release
+    before an app build ships. A file is None when missing, so a pack the previous tag lacks counts
+    as changed."""
+    return prev_bytes != head_bytes
+
+
+def notes(rc, commit, prev, log, pack_changed=False):
     final = CANDIDATE_RE.match(rc).group(1)
-    lines = [f"# {final}", "", f"Commit `{commit}` on `main`, tested as `{rc}`.", "",
+    lines = []
+    if pack_changed and prev:
+        lines += [f"content/pack.json changed since {prev}: publish a stella-rain/content release "
+                  "from this tag before an app build pins it (ADR-080)", ""]
+    lines += [f"# {final}", "", f"Commit `{commit}` on `main`, tested as `{rc}`.", "",
              "## Assets", "",
              "- `stage-verify` for Linux x86_64 and arm64, Windows x86_64 and macOS arm64.",
              "- The JSON Schema of the stage, event, input, replay and snapshot types.",
@@ -243,8 +257,19 @@ def _released(tag):
     return " ".join(released_branches(_origin_branches("rc/*"), tag))
 
 
+def _pack_at(tag):
+    """content/pack.json at TAG as bytes, or None when TAG has no such file."""
+    done = subprocess.run(["git", "show", f"{tag}^{{commit}}:{PACK}"], capture_output=True)
+    return None if done.returncode else done.stdout
+
+
 def _notes(rc, commit, prev, log_file):
-    return notes(rc, commit, None if prev == "-" else prev, _read(log_file).splitlines())
+    prev = None if prev == "-" else prev
+    changed = False
+    if prev:
+        head = open(PACK, "rb").read() if os.path.exists(PACK) else None
+        changed = pack_changed(_pack_at(prev), head)
+    return notes(rc, commit, prev, _read(log_file).splitlines(), changed)
 
 
 USAGE = ("usage: release.py version | rc TAG | check-candidate BRANCH | checks-passed RUN_ID | "
