@@ -856,6 +856,18 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     // before the first boss time; the bosses are in `tests/time_limit_run.rs`).
     let time_limit = time_limit_setup();
     let time_limit_commands = play_run_from(&time_limit, 25_000);
+    // The time_limit mode on easy and on rainy (ADR-110): the enemies' hit points and damage
+    // scaled, the stars inside the rarity range; easy with its own boss times and level table.
+    let easy = RunSetup {
+        difficulty: "easy".into(),
+        ..time_limit_setup()
+    };
+    let easy_commands = play_run_from(&easy, 6_000);
+    let rainy = RunSetup {
+        difficulty: "rainy".into(),
+        ..time_limit_setup()
+    };
+    let rainy_commands = play_run_from(&rainy, 6_000);
     // Two short modes with no waves and the final boss at tick 60, the only boss: in the first
     // the overtime is long enough for the main character to kill it (it does, at tick 8098);
     // in the second it ends at tick 600 with the boss alive.
@@ -883,6 +895,8 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
         ("trial", trial_setup(), None, play_run(TRIAL_LENGTH)),
         ("stage_skill", stage_skill, None, stage_skill_commands),
         ("time_limit", time_limit, None, time_limit_commands),
+        ("easy", easy, None, easy_commands),
+        ("rainy", rainy, None, rainy_commands),
         (
             "time_limit_kill",
             kill_setup,

@@ -15,6 +15,11 @@
         "$ref": "#/$defs/CarriedStar"
       }
     },
+    "difficulty": {
+      "description": "The difficulty the run is played on (ADR-110), by the ID of the run's difficulties file:\nit scales the enemies, bounds the rarities and may set the mode's length. A setup written\nbefore difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing.",
+      "$ref": "#/$defs/ContentId",
+      "default": "normal"
+    },
     "extra_rerolls": {
       "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.",
       "type": "integer",
