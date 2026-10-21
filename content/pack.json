@@ -116,6 +116,18 @@
       {
         "id": "aegis_rare",
         "sim_version": 0
+      },
+      {
+        "id": "regen_common",
+        "sim_version": 0
+      },
+      {
+        "id": "regen_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "regen_legendary",
+        "sim_version": 0
       }
     ],
     "stage_skills": [
@@ -620,6 +632,33 @@
       "limit": 3,
       "title": "Aegis",
       "description": "A shield absorbs the next hits for a while"
+    },
+    {
+      "id": "regen_common",
+      "rarity": "common",
+      "effect": "regen",
+      "amount": 10,
+      "limit": 5,
+      "title": "Regeneration",
+      "description": "Hit points come back every second, a little"
+    },
+    {
+      "id": "regen_rare",
+      "rarity": "rare",
+      "effect": "regen",
+      "amount": 30,
+      "limit": 3,
+      "title": "Regeneration",
+      "description": "Hit points come back every second"
+    },
+    {
+      "id": "regen_legendary",
+      "rarity": "legendary",
+      "effect": "regen",
+      "amount": 60,
+      "limit": 1,
+      "title": "Regeneration",
+      "description": "Hit points come back every second, a lot"
     }
   ]
 },
@@ -1947,6 +1986,13 @@
         }
       }
     ]
+  },
+  "heal": {
+    "boss_pct": 25,
+    "drop_one_in": 150,
+    "amount": 300,
+    "cap": 5,
+    "pickup_radius": 6144
   },
   "elite_cap": 4,
   "level_table": {

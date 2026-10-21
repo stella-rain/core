@@ -48,6 +48,10 @@ pub struct Stage {
     /// Without them kills drop nothing and nothing is offered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stars: Option<Stars>,
+    /// Healing: what a boss kill heals and the heal pickups a regular kill may drop. Without it
+    /// a stage heals only by a reward.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub heal: Option<Healing>,
     /// The most elites alive at once (ADR-068); `MAX_ELITES_ALIVE` when absent. An elite that
     /// would spawn past it does not, and a wave counts it as spawned.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -147,6 +151,22 @@ pub struct Stars {
     /// The drop table: tiers by the player's level, the first from level 1, each later one from
     /// a higher level (ADR-068). A star draws its rarity from the tier of the level reached.
     pub tiers: Vec<Tier>,
+}
+
+/// Healing (see `Stage::heal`). Hit points are in the stage's own scale (ADR-103).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Healing {
+    /// The percent of the main character's most hit points a boss kill heals, from 0 to 100.
+    pub boss_pct: u16,
+    /// A regular enemy's kill drops a heal pickup with a chance of 1 in this many, from 1 up.
+    pub drop_one_in: u32,
+    /// The hit points a pickup heals when the main character takes it, from 1 up.
+    pub amount: u32,
+    /// The most pickups on the map at once, from 1 up. A kill with the map full drops none.
+    pub cap: u16,
+    /// How near the main character's centre a pickup must come to be taken.
+    pub pickup_radius: Fx,
 }
 
 /// One tier of the drop table.

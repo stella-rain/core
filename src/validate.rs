@@ -26,8 +26,8 @@ use crate::presets;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::Rarity;
 use crate::stage::{
-    Boss, BossPart, Evade, ExpertisePoints, Levels, Phase, Player, Stage, Stars, Step, Tier,
-    Transition, Wave,
+    Boss, BossPart, Evade, ExpertisePoints, Healing, Levels, Phase, Player, Stage, Stars, Step,
+    Tier, Transition, Wave,
 };
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -112,6 +112,15 @@ pub mod limits {
     pub const MAX_DROP_PER_MILLE: u16 = 1000;
     pub const MAX_PITY: u16 = 1000;
     pub const MAX_STARS_ON_MAP: u16 = 64;
+    /// The most pickups of healing on the map at once: a hard cap (ADR-020).
+    pub const MAX_HEAL_PICKUPS: u16 = 16;
+    /// The most a boss kill heals, in percent of the most hit points.
+    pub const MAX_HEAL_PCT: u16 = 100;
+    /// The chance of a heal pickup is at least 1 in this many; 1 in `MAX_HEAL_ONE_IN` is the
+    /// rarest a file may give.
+    pub const MAX_HEAL_ONE_IN: u32 = 1_000_000;
+    /// The most hit points a pickup heals: the most the main character can hold.
+    pub const MAX_HEAL_AMOUNT: u32 = MAX_PLAYER_HP;
     pub const MAX_PICKUP_RADIUS: i32 = 16_384;
     pub const MAX_REROLLS: u8 = 20;
     pub const MAX_BANISHES: u8 = 20;
@@ -661,6 +670,32 @@ impl<'a> Ctx<'a> {
                 c.stars(stars);
             });
         }
+        if let Some(heal) = &s.heal {
+            self.key("heal", |c| c.heal(heal));
+        }
+    }
+
+    fn heal(&mut self, h: &Healing) {
+        self.within(
+            "boss_pct",
+            i64::from(h.boss_pct),
+            0,
+            i64::from(MAX_HEAL_PCT),
+        );
+        self.within(
+            "drop_one_in",
+            i64::from(h.drop_one_in),
+            1,
+            i64::from(MAX_HEAL_ONE_IN),
+        );
+        self.within("amount", i64::from(h.amount), 1, i64::from(MAX_HEAL_AMOUNT));
+        self.within("cap", i64::from(h.cap), 1, i64::from(MAX_HEAL_PICKUPS));
+        self.within(
+            "pickup_radius",
+            i64::from(h.pickup_radius.0),
+            1,
+            i64::from(MAX_PICKUP_RADIUS),
+        );
     }
 
     fn stars(&mut self, st: &Stars) {

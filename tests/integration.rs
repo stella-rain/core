@@ -39,6 +39,7 @@ mod explosion;
 mod extremes;
 mod golden;
 mod hash;
+mod healing;
 mod hit_boxes;
 mod hit_marks;
 mod hold;

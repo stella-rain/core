@@ -34,6 +34,17 @@
       "maximum": 65535,
       "minimum": 0
     },
+    "heal": {
+      "description": "Healing: what a boss kill heals and the heal pickups a regular kill may drop. Without it\na stage heals only by a reward.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Healing"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "id": {
       "description": "The stage ID: the file name and the first half of the version tag.",
       "type": "string"
@@ -1588,6 +1599,50 @@
         "enemy",
         "count",
         "radius"
+      ]
+    },
+    "Healing": {
+      "description": "Healing (see `Stage::heal`). Hit points are in the stage's own scale (ADR-103).",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "description": "The hit points a pickup heals when the main character takes it, from 1 up.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "boss_pct": {
+          "description": "The percent of the main character's most hit points a boss kill heals, from 0 to 100.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "cap": {
+          "description": "The most pickups on the map at once, from 1 up. A kill with the map full drops none.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "drop_one_in": {
+          "description": "A regular enemy's kill drops a heal pickup with a chance of 1 in this many, from 1 up.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "pickup_radius": {
+          "description": "How near the main character's centre a pickup must come to be taken.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "boss_pct",
+        "drop_one_in",
+        "amount",
+        "cap",
+        "pickup_radius"
       ]
     },
     "HitBox": {

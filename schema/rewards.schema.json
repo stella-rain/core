@@ -954,6 +954,11 @@
           "description": "One rune the Main weapon does not hold, drawn from the run's generator when the reward\nis picked, never before: an offer shows it hidden (ADR-099). It is offered only while\nthe Main lacks a rune.",
           "type": "string",
           "const": "random_rune"
+        },
+        {
+          "description": "Hit points the main character regenerates each second, `amount` more (the perk\n`regen`'s counter).",
+          "type": "string",
+          "const": "regen"
         }
       ]
     }
