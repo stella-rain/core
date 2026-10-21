@@ -1699,7 +1699,7 @@
       "stardust_start_pct": 100,
       "stardust_end_pct": 150,
       "length_ticks": 36000,
-      "boss_ticks": [9000, 18000, 27000, 36000],
+      "boss_ticks": [18000, 36000],
       "level_table": { "style": 2, "upgrades": [4, 6], "capstone": 8 }
     },
     {
