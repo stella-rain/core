@@ -3,6 +3,7 @@
 //! untrusted bytes (ADR-020). Every time is in ticks (60 a second).
 
 use serde_json::{Value, json};
+use stella_rain_core::difficulties::MAX_PCT;
 use stella_rain_core::presets;
 use stella_rain_core::registry::{ENTRIES, Kind};
 use stella_rain_core::run_replay::content_sha256;
@@ -48,8 +49,8 @@ fn the_bundled_file_loads_with_the_defaults() {
         m.boss_ticks(),
         [5 * MINUTE, 10 * MINUTE, 15 * MINUTE, 20 * MINUTE]
     );
-    assert_eq!(m.mid_boss_pool().len(), 3);
-    assert_eq!(m.final_boss().0, "golem");
+    assert_eq!(m.mid_boss_pool().len(), 4);
+    assert_eq!(m.final_boss().0, "core_pair");
     assert_eq!(m.overtime_ticks(), 5 * MINUTE);
     assert_eq!(m.star_hunter_extra_ticks(), MINUTE);
     assert_eq!((m.map().width.0, m.map().height.0), (1_048_576, 1_048_576));
@@ -126,6 +127,58 @@ fn the_pool_holds_a_boss_for_each_mid_boss_time() {
             json!(["golem", "golem", "golem", "golem"])
         ))
         .is_ok()
+    );
+}
+
+#[test]
+fn the_no_call_times_are_unique_and_inside_the_run() {
+    assert_eq!(
+        paths(&with("no_call_ticks", json!([18000, 18000]))),
+        ["$.no_call_ticks[1]"]
+    );
+    assert!(parse(&with("no_call_ticks", json!([18000, 36000]))).is_ok());
+}
+
+#[test]
+fn the_no_call_times_are_at_most_one_per_boss_time() {
+    let at_limit: Vec<u32> = (1..=MAX_BOSS_TIMES as u32).collect();
+    assert!(parse(&with("no_call_ticks", json!(at_limit))).is_ok());
+    let past: Vec<u32> = (1..=MAX_BOSS_TIMES as u32 + 1).collect();
+    assert_eq!(
+        paths(&with("no_call_ticks", json!(past))),
+        ["$.no_call_ticks"]
+    );
+}
+
+#[test]
+fn the_mid_boss_hp_percents_rise_by_slot_and_are_bounded() {
+    assert_eq!(TimeLimit::bundled().mid_boss_hp_pct(), [100, 130, 160]);
+    let at_limit = vec![MAX_PCT; MAX_BOSS_TIMES];
+    assert!(parse(&with("mid_boss_hp_pct", json!(at_limit))).is_ok());
+    let past = vec![100; MAX_BOSS_TIMES + 1];
+    assert_eq!(
+        paths(&with("mid_boss_hp_pct", json!(past))),
+        ["$.mid_boss_hp_pct"]
+    );
+    assert_eq!(
+        paths(&with("mid_boss_hp_pct", json!([100, 0, MAX_PCT + 1]))),
+        ["$.mid_boss_hp_pct[1]", "$.mid_boss_hp_pct[2]"]
+    );
+}
+
+#[test]
+fn each_boss_definition_is_unique_and_names_a_sprite() {
+    let bosses = good()["bosses"].clone();
+    let first = bosses[0].clone();
+    assert_eq!(
+        paths(&with("bosses", json!([first.clone(), first]))),
+        ["$.bosses[1].base"]
+    );
+    let mut unknown = bosses[0].clone();
+    unknown["base"] = json!("nope");
+    assert_eq!(
+        paths(&with("bosses", json!([unknown]))),
+        ["$.bosses[0].base"]
     );
 }
 

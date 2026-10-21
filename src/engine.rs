@@ -740,8 +740,15 @@ pub(crate) struct Horde {
     pub boss_ticks: Vec<u32>,
     pub pool: Vec<ContentId>,
     pub final_boss: ContentId,
-    /// The boss every one is made from, with its sprite replaced: a placeholder.
+    /// The boss every one is made from, with its sprite replaced, when the mode file gives no
+    /// definition for its sprite: a placeholder.
     pub template: crate::stage::Boss,
+    /// The mode file's boss definitions (core#336), by sprite.
+    pub bosses: Vec<crate::stage::Boss>,
+    /// The boss times at which the boss calls no elites (core#336).
+    pub no_call_ticks: Vec<u32>,
+    /// The mid-bosses' hit points by slot, in percent (core#336).
+    pub mid_boss_hp_pct: Vec<u32>,
     /// Bosses that have come, mid-bosses and the final one.
     pub spawned: u32,
     /// One per pool entry: drawn already.
@@ -1524,7 +1531,12 @@ mod horde_tests {
     use crate::time_limit::TimeLimit;
 
     fn engine(boss_ticks: &[u32]) -> Engine {
+        engine_with(boss_ticks, &[])
+    }
+
+    fn engine_with(boss_ticks: &[u32], no_call_ticks: &[u32]) -> Engine {
         let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+        v["no_call_ticks"] = serde_json::json!(no_call_ticks);
         v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
         v["boss_ticks"] = serde_json::json!(boss_ticks);
         v["waves"] = serde_json::json!([]);
@@ -1587,6 +1599,38 @@ mod horde_tests {
         assert_eq!(arrived, [60, 3000, 6000]);
         let delays: Vec<u32> = arrived.iter().zip(&called).map(|(a, c)| c - a).collect();
         assert_eq!(delays, [1800, 1800], "{arrived:?} {called:?}");
+    }
+
+    /// Drops the boss on the field below 70% of its hit points and steps once: whether it
+    /// called its elites on that tick.
+    fn calls_below_70_pct(e: &mut Engine) -> bool {
+        let boss = e.state.boss.as_mut().unwrap();
+        boss.hp = boss.max_hp * 69 / 100;
+        e.step(Input::default());
+        e.events()
+            .iter()
+            .any(|ev| matches!(ev, DomainEvent::ElitesCalled { .. }))
+    }
+
+    #[test]
+    fn a_boss_calls_below_70_pct_unless_its_time_is_a_no_call_time() {
+        // The first time stands for the 5-minute boss, the second for the 10-minute one.
+        let mut e = engine_with(&[50, 200, 400], &[50]);
+        run_to(&mut e, 60);
+        assert!(!calls_below_70_pct(&mut e), "a no-call boss never calls");
+        run_to(&mut e, 210);
+        assert!(calls_below_70_pct(&mut e), "well before its 30 seconds");
+    }
+
+    #[test]
+    fn the_final_boss_is_the_core_pair_and_its_death_clears_the_run() {
+        let mut e = engine(&[50, 100]);
+        run_to(&mut e, 100);
+        assert_eq!(e.stage.boss.as_ref().unwrap().base.0, "core_pair");
+        assert_eq!(e.state.boss.as_ref().unwrap().parts.len(), 2);
+        e.state.boss.as_mut().unwrap().hp = 0;
+        e.step(Input::default());
+        assert_eq!(e.outcome(), Outcome::Cleared);
     }
 
     #[test]
@@ -1858,5 +1902,113 @@ mod horde_tests {
             .filter_map(|a| a.elite.map(|el| el.called))
             .collect();
         assert_eq!(elites, [true, true]);
+    }
+
+    /// A bundled `time_limit` run on `difficulty`, the main character alive (`arrivals_and_calls`
+    /// keeps it so; `boss_sprite_at` does too).
+    fn bundled_run(difficulty: &str, seed: u64) -> Engine {
+        let setup = RunSetup {
+            schema_version: 0,
+            sim_version: 0,
+            mode: "time_limit".into(),
+            weapon: "giant_sword".into(),
+            seed,
+            star_pool: None,
+            extra_rerolls: 0,
+            upgrades: Vec::new(),
+            perk_set: "duelist".into(),
+            auto_combo: false,
+            rune_pool: Vec::new(),
+            carried: Vec::new(),
+            lumine: 0,
+            starting_rune: None,
+            difficulty: difficulty.into(),
+        };
+        let mode = TimeLimit::bundled();
+        Engine::start_time_limit(&setup, RunContent::bundled(), mode).unwrap()
+    }
+
+    /// The sprite of the boss on the field once the run has reached `tick`.
+    fn boss_sprite_at(e: &mut Engine, tick: u32) -> Option<String> {
+        while e.tick() < tick {
+            e.state.player.hp = e.state.player.max_hp;
+            e.step(Input::default());
+        }
+        e.snapshot()
+            .entities
+            .iter()
+            .find(|v| v.kind == crate::snapshot::EntityKind::Boss)
+            .map(|v| v.asset.0.clone())
+    }
+
+    fn assert_three_distinct_mid_bosses(difficulty: &str, times: [u32; 3]) {
+        const POOL: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
+        for seed in 0..4 {
+            let mut e = bundled_run(difficulty, seed);
+            let drawn: Vec<String> = times
+                .iter()
+                .map(|&t| boss_sprite_at(&mut e, t).expect("a boss"))
+                .collect();
+            let mut unique = drawn.clone();
+            unique.sort();
+            unique.dedup();
+            assert_eq!(unique.len(), 3, "seed {seed}: {drawn:?}");
+            assert!(
+                drawn.iter().all(|d| POOL.contains(&d.as_str())),
+                "{drawn:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_20_minute_run_draws_three_distinct_mid_bosses_from_the_four() {
+        assert_three_distinct_mid_bosses("normal", [18_000, 36_000, 54_000]);
+    }
+
+    #[test]
+    fn the_easy_run_draws_one_mid_boss_from_the_four_and_then_the_final_boss() {
+        const POOL: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
+        for seed in 0..2 {
+            let mut e = bundled_run("easy", seed);
+            let horde = e.state.horde.as_ref().unwrap();
+            assert_eq!(horde.boss_ticks, [18_000, 36_000], "seed {seed}");
+            let drawn = boss_sprite_at(&mut e, 18_000).expect("a boss");
+            assert!(POOL.contains(&drawn.as_str()), "seed {seed}: {drawn}");
+        }
+    }
+
+    #[test]
+    fn each_mid_boss_s_hit_points_rise_by_its_slot_and_the_final_boss_s_do_not() {
+        // Normal difficulty scales nothing; the slots are 100%, 130% and 160%.
+        let mut e = engine(&[50, 100, 150, 200]);
+        let mode = TimeLimit::bundled();
+        let mut seen = Vec::new();
+        for (t, pct) in [(50, 100), (100, 130), (150, 160), (200, 100)] {
+            run_to(&mut e, t);
+            let boss = e.state.boss.as_ref().unwrap();
+            let def = mode
+                .bosses()
+                .iter()
+                .find(|b| b.base == e.stage.boss.as_ref().unwrap().base)
+                .unwrap();
+            assert_eq!(boss.max_hp, def.hp * pct / 100, "at {t}");
+            let parts: Vec<u32> = boss.parts.iter().map(|p| p.hp).collect();
+            let want: Vec<u32> = def.parts.iter().map(|p| p.hp * pct / 100).collect();
+            assert_eq!(parts, want, "at {t}");
+            seen.push(def.base.0.clone());
+        }
+        assert_eq!(seen[3], "core_pair");
+    }
+
+    #[test]
+    fn the_five_minute_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds() {
+        // The 5-minute boss comes at 18000 and calls nothing; the 10-minute one at 36000 calls
+        // 1800 ticks after it came, and so does the 15-minute one at 54000.
+        for seed in 0..2 {
+            let mut e = bundled_run("normal", seed);
+            let (arrived, called) = arrivals_and_calls(&mut e, 55_800);
+            assert_eq!(arrived, [18_000, 36_000, 54_000], "seed {seed}");
+            assert_eq!(called, [37_800, 55_800], "seed {seed}");
+        }
     }
 }

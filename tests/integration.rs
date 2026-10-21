@@ -14,6 +14,7 @@ mod big_patterns;
 mod bleed;
 mod boomerang;
 mod boss;
+mod bosses;
 mod charge;
 mod collide_case;
 mod content_hash;
