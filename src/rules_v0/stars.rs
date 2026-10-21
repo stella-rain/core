@@ -309,6 +309,7 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
 /// Takes the reward at `i` of the file: counts it toward its stack limit and does what it does.
 /// The rune a random rune drew, if it drew one. A pick from an open offer and a star the run
 /// starts with (ADR-107 point 3) go through here alike.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn take(
     stage: &Stage,
     rewards: &Rewards,

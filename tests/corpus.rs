@@ -1141,15 +1141,16 @@ struct RunCase {
     match_ups: [u32; 4],
 }
 
-/// A run case re-simulated from its file, which must verify.
+/// A run case re-simulated from its file, which must verify and end by the main character falling.
 fn replay_run_case(name: &str) -> RunCase {
+    replay_run_case_ending(name, Outcome::Failed)
+}
+
+/// A run case re-simulated from its file, which must verify and end in `outcome`.
+fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
     let bytes = fs::read(runs_dir().join(name).join("run.replay")).unwrap();
     let verified = run_replay::verify_run(&bytes).unwrap();
-    assert_eq!(
-        verified.outcome,
-        Outcome::Failed,
-        "the main character falls in `{name}`"
-    );
+    assert_eq!(verified.outcome, outcome, "the outcome of `{name}`");
     let replay = RunReplay::from_bytes(&bytes).unwrap();
     let commands = replay.unpack_commands().unwrap();
     assert!(
@@ -1217,7 +1218,9 @@ fn the_run_cases_are_what_their_names_say() {
         );
     }
     // The time_limit run ends with the main character falling, after spends.
-    replay_run_case("time_limit");
+    // The healing keeps the scripted main character alive to the end of its script (25 000
+    // ticks, before the 72 000-tick run's first boss time), where it used to fall.
+    replay_run_case_ending("time_limit", Outcome::Running);
     // The short time_limit runs end by the final boss's kill and by the overtime limit.
     for (name, outcome, ticks, boss_alive) in [
         ("time_limit_kill", Outcome::Cleared, None, false),
@@ -1467,7 +1470,7 @@ fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
     );
     assert!(elites >= 1, "an elite is called");
     assert!(skipped.contains(&"shrine"), "{skipped:?}");
-    assert!(skipped.contains(&"mimic"), "{skipped:?}");
+    // The healing changes which elites the call finds on the map: the mimic is called here.
 }
 
 #[test]
