@@ -127,6 +127,10 @@ pub enum DomainEvent {
         star: EntityId,
         rarity: Rarity,
     },
+    /// A regular kill dropped the heal pickup `pickup`.
+    HealDropped {
+        pickup: EntityId,
+    },
     /// The boss called its elites: the `elites` alive leave their places and fight beside it,
     /// and every elite that comes later is called at once (ADR-068).
     ElitesCalled {

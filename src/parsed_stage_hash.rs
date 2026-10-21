@@ -11,7 +11,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::behaviour::Agent;
-use crate::stage::{Boss, LevelTable, Levels, Map, Player, Stage, Stars, Wave};
+use crate::stage::{Boss, Healing, LevelTable, Levels, Map, Player, Stage, Stars, Wave};
 
 /// Goes in front of the JSON, so the hash cannot be mistaken for one over a stage file.
 const TAG: &[u8] = b"stella-rain/parsed-stage/v1\n";
@@ -37,6 +37,8 @@ struct Hashed<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     stars: &'a Option<Stars>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    heal: &'a Option<Healing>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     elite_cap: &'a Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     level_table: &'a Option<LevelTable>,
@@ -60,6 +62,7 @@ pub fn parsed_stage_hash_input(stage: &Stage) -> Vec<u8> {
         map,
         levels,
         stars,
+        heal,
         elite_cap,
         level_table,
     } = stage;
@@ -77,6 +80,7 @@ pub fn parsed_stage_hash_input(stage: &Stage) -> Vec<u8> {
         map,
         levels,
         stars,
+        heal,
         elite_cap,
         level_table,
     };

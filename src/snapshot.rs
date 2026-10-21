@@ -60,6 +60,9 @@ pub struct Snapshot {
     /// Falling stars on the map, in the order they dropped (ADR-079 §2).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stars: Vec<StarView>,
+    /// Heal pickups on the map, in the order they dropped; empty without healing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heal_pickups: Vec<HealPickupView>,
     /// Experience, level, stat points and the open offer; absent in a stage without levels.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<ProgressView>,
@@ -179,6 +182,14 @@ pub struct StarView {
     pub id: EntityId,
     pub at: Point,
     pub rarity: Rarity,
+}
+
+/// A heal pickup on the map (see `DomainEvent::HealDropped`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HealPickupView {
+    pub id: EntityId,
+    pub at: Point,
 }
 
 /// An offer from a falling star (ADR-079 §3).

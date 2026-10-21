@@ -141,6 +141,9 @@ pub enum RewardEffect {
     /// is picked, never before: an offer shows it hidden (ADR-099). It is offered only while
     /// the Main lacks a rune.
     RandomRune,
+    /// Hit points the main character regenerates each second, `amount` more (the perk
+    /// `regen`'s counter).
+    Regen,
 }
 
 impl RewardEffect {
@@ -161,6 +164,7 @@ impl RewardEffect {
             | RewardEffect::TypeBonusPct
             | RewardEffect::AttackTypeBonusPct
             | RewardEffect::ElementBonusPct
+            | RewardEffect::Regen
             | RewardEffect::RandomRune => return None,
         })
     }

@@ -318,6 +318,7 @@ pub(crate) fn initial_state(
             taken: vec![0; rewards],
             banished: vec![false; rewards],
         }),
+        heal_pickups: stage.heal.as_ref().map(|_| Vec::new()),
         expertise: expertise::initial(stage, content.expertise()),
         match_ups: *content.match_ups(),
         runes: content.runes().clone(),

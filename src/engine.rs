@@ -28,9 +28,9 @@ use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, Countdown, DamageOverTimeView, EntityKind,
-    EntityView, EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, HoldView, MapView, OfferKind,
-    OrbitView, PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot,
-    StarView, StatusView, TypeBonusView,
+    EntityView, EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, HealPickupView, HoldView,
+    MapView, OfferKind, OrbitView, PlayerView, ProgressView, PullView, RuneView, ShieldView,
+    SkillView, Snapshot, StarView, StatusView, TypeBonusView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -596,6 +596,11 @@ impl Engine {
                     })
                     .collect()
             }),
+            heal_pickups: s.heal_pickups.as_ref().map_or_else(Vec::new, |h| {
+                h.iter()
+                    .map(|p| HealPickupView { id: p.id, at: p.at })
+                    .collect()
+            }),
             progress: s.progress.as_ref().map(|p| ProgressView {
                 level: p.level,
                 xp: p.xp,
@@ -690,6 +695,9 @@ pub(crate) struct State {
     pub progress: Option<Progress>,
     /// Falling stars and offers; `None` in a stage without stars, which hashes nothing for it.
     pub stars: Option<StarField>,
+    /// Heal pickups on the map, in the order they dropped; `None` in a stage without healing,
+    /// which hashes nothing for it.
+    pub heal_pickups: Option<Vec<HealPickup>>,
     /// The expertise gauge; `None` in a stage whose enemies and boss give no expertise points,
     /// which hashes nothing for it.
     pub expertise: Option<ExpertiseGauge>,
@@ -801,6 +809,13 @@ pub(crate) struct StarField {
     /// For each reward of the file: times taken, and whether it is banished.
     pub taken: Vec<u8>,
     pub banished: Vec<bool>,
+}
+
+/// A heal pickup on the map.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct HealPickup {
+    pub id: EntityId,
+    pub at: Point,
 }
 
 #[derive(Clone, Copy, Debug)]
