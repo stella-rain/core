@@ -341,7 +341,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
             RewardEffect::Orbit => u32::from(MAX_ORBS),
             RewardEffect::RangePct => MAX_RANGE_PCT,
             RewardEffect::RuneHaste => MAX_RUNE_HASTE_PCT,
-            RewardEffect::MaxHp => MAX_HP_AMOUNT,
+            RewardEffect::MaxHp | RewardEffect::Regen => MAX_HP_AMOUNT,
             _ => MAX_AMOUNT,
         };
         match (reward.effect, reward.amount) {
