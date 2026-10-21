@@ -27,7 +27,7 @@ use crate::registry::{self, Entry, Kind};
 use crate::rewards::Rarity;
 use crate::stage::{
     Boss, BossPart, Evade, ExpertisePoints, Healing, Levels, Phase, Player, Stage, Stars, Step,
-    Tier, Transition, Wave,
+    Tier, Transition, Wave, stardust_tiers_problem,
 };
 use crate::trig;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -100,11 +100,12 @@ pub mod limits {
     pub const MAX_EXPERTISE_PER_HIT: u32 = 1000;
     pub const MAX_EXPERTISE_PER_KILL: u32 = 100_000;
     /// Stardust (ADR-109, ADR-020), held times 10: the base an enemy or the boss earns for a kill
-    /// (the bundled boss's is 2,000), the percent of the time factor (as `difficulties::MAX_PCT`),
-    /// and the run's total, at which the counter saturates. At the largest base and percent a
+    /// (the bundled boss's is 2,000), the percent of a time factor tier (as
+    /// `difficulties::MAX_PCT`), the tiers of a time factor table, and the run's total, at which the counter saturates. At the largest base and percent a
     /// kill earns 1,000,000, so the total is reached in ten kills and never wraps a `u32`.
     pub const MAX_STARDUST_BASE: u32 = 100_000;
     pub const MAX_STARDUST_PCT: u32 = 1_000;
+    pub const MAX_STARDUST_TIERS: usize = 16;
     pub const MAX_RUN_STARDUST: u32 = 10_000_000;
     /// Falling stars (ADR-079 §2, ADR-068): the drop chance is in 1000; the pity, the stars on
     /// the map, the pickup circle (64 pixels), the rerolls and banishes, and the drop table's
@@ -646,18 +647,12 @@ impl<'a> Ctx<'a> {
         {
             self.key("level_table", |c| c.fail(problem));
         }
-        if let Some(f) = &s.stardust {
-            self.key("stardust", |c| {
-                let max = i64::from(MAX_STARDUST_PCT);
-                c.within("start_pct", i64::from(f.start_pct), 1, max);
-                c.within("end_pct", i64::from(f.end_pct), 1, max);
-                if (1..=max).contains(&i64::from(f.start_pct))
-                    && (1..=max).contains(&i64::from(f.end_pct))
-                    && f.end_pct < f.start_pct
-                {
-                    c.key("end_pct", |c| c.fail("not below the factor at the start"));
-                }
-            });
+        if let Some(problem) = s
+            .stardust
+            .as_ref()
+            .and_then(|f| stardust_tiers_problem(&f.tiers))
+        {
+            self.key("stardust", |c| c.key("tiers", |c| c.fail(problem)));
         }
         if let Some(cap) = s.elite_cap {
             self.within("elite_cap", i64::from(cap), 1, i64::from(MAX_ELITES_ALIVE));

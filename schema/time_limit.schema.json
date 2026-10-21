@@ -84,6 +84,13 @@
       "format": "uint32",
       "minimum": 0
     },
+    "stardust_tiers": {
+      "description": "The Stardust time factor (ADR-109 decision 2): 1 to `limits::MAX_STARDUST_TIERS` tiers,\nthe first at tick 0, the ticks rising strictly, each percent from 1 to\n`limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own (ADR-110).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StardustTier"
+      }
+    },
     "waves": {
       "description": "The enemies that spawn over the run, 0 to `MAX_WAVES` waves of up to `MAX_SPAWN_COUNT`\nenemies, `MAX_TOTAL_SPAWNS` in all, none an elite, each starting before the length. A\nwave with `around` spawns that far from the main character; the placeholder content is\nthe trial's enemies.",
       "type": "array",
@@ -108,7 +115,8 @@
     "elite_table",
     "elite_types",
     "elite_cap",
-    "level_table"
+    "level_table",
+    "stardust_tiers"
   ],
   "$defs": {
     "Action": {
@@ -1862,6 +1870,29 @@
             "amount"
           ]
         }
+      ]
+    },
+    "StardustTier": {
+      "description": "One tier of the Stardust time factor: from `start_tick` until the next tier starts, a kill\nearns `pct` percent of its base.",
+      "type": "object",
+      "properties": {
+        "pct": {
+          "description": "From 1 to `limits::MAX_STARDUST_PCT`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "start_tick": {
+          "description": "When the tier starts, in ticks from the start of the run.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "start_tick",
+        "pct"
       ]
     },
     "TimeLimitMap": {

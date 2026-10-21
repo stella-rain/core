@@ -326,7 +326,7 @@ pub(crate) fn initial_state(
         runes: content.runes().clone(),
         stun: run_stats.stun(),
         horde: None,
-        stardust: stage.stardust.map(|_| 0),
+        stardust: stage.stardust.as_ref().map(|_| 0),
         regen: 0,
         auto_combo: false,
         hp_pct: pool.difficulty.hp_pct,
