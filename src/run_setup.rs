@@ -513,6 +513,29 @@ pub(crate) fn difficulty_of<'a>(
     })
 }
 
+/// Checks each boss definition of the mode as the placeholder stage with that boss is (its
+/// presets, its parts, its numbers), so a run never starts on a boss the stage would refuse.
+/// A run start checks them, and so does a pack's load, so a pack that loads starts a run.
+pub(crate) fn check_bosses(placeholder: &Stage, mode: &TimeLimit) -> Result<(), Error> {
+    for (k, def) in mode.bosses().iter().enumerate() {
+        let mut as_stage = placeholder.clone();
+        as_stage.boss = Some(def.clone());
+        validate::validate(&as_stage).map_err(|e| match e {
+            Error::Invalid(issues) => Error::Invalid(
+                issues
+                    .into_iter()
+                    .map(|i| Issue {
+                        path: format!("$.bosses[{k}]{}", i.path.trim_start_matches("$.boss")),
+                        message: i.message,
+                    })
+                    .collect(),
+            ),
+            other => other,
+        })?;
+    }
+    Ok(())
+}
+
 /// The stage and the bosses of a `time_limit` run of `mode` (core#212): the placeholder stage
 /// with the setup's weapons, its map, schedule of waves and length from the mode file, the
 /// length being the run and its overtime (a clear is the final boss's death; running out of
@@ -535,24 +558,7 @@ pub(crate) fn time_limit_run(
         id: setup.weapon.clone(),
     };
     validate::validate(&stage)?;
-    // Each boss definition is checked as the placeholder stage with that boss is (its presets,
-    // its parts, its numbers), so a run never starts on a boss the stage would refuse.
-    for (k, def) in mode.bosses().iter().enumerate() {
-        let mut as_stage = stage.clone();
-        as_stage.boss = Some(def.clone());
-        validate::validate(&as_stage).map_err(|e| match e {
-            Error::Invalid(issues) => Error::Invalid(
-                issues
-                    .into_iter()
-                    .map(|i| Issue {
-                        path: format!("$.bosses[{k}]{}", i.path.trim_start_matches("$.boss")),
-                        message: i.message,
-                    })
-                    .collect(),
-            ),
-            other => other,
-        })?;
-    }
+    check_bosses(&stage, mode)?;
     let template = stage.boss.take().ok_or_else(|| {
         Error::Invalid(vec![Issue {
             path: "$.boss".into(),
