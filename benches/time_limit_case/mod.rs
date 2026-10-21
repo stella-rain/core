@@ -65,9 +65,10 @@ pub fn setup() -> RunSetup {
 /// - Each enemy has the most hit points, so that the main character's attacks hit and none
 ///   dies: the 500 stay alive and every hit is carried out. So the splitter never drops below
 ///   half its hit points and never splits; its check still runs.
-/// - No rule makes its enemy remove itself (`self_destruct`). An exploder that reaches the main
-///   character bursts and goes, which leaves 499 alive on the measured tick; with the flag off
-///   its `near_target` check and burst run and it stays.
+/// - The bench clears the `self_destruct` flag of every rule: the exploders burst and stay, so
+///   the measured tick holds 500 enemies with the `near_target` check and the burst running. In
+///   a real run an exploder that bursts goes at once and gives no credit; kept alive here, the
+///   cap stays full. (The bench's rule, not a change of behaviour: app#336 Q11.)
 /// - The main character has the most hit points a stage allows, and a boss stands where the
 ///   trial's golem does from the start, in place of a boss that comes at a boss time
 ///   (`Engine::start_time_limit` skips the stage's caps, which the schedule's 1,199 enemies
