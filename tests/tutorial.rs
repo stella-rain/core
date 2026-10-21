@@ -60,7 +60,10 @@ fn the_tutorial_has_one_weak_boss_and_no_elites_or_mid_boss() {
         "no elite in any wave"
     );
     assert_eq!(m["boss"]["base"], "golem");
-    assert!(m["boss"]["call_elites"].is_null(), "the boss calls no elites");
+    assert!(
+        m["boss"]["call_elites"].is_null(),
+        "the boss calls no elites"
+    );
     assert!(m["boss"]["parts"].as_array().unwrap().is_empty());
     assert_eq!(m["boss"]["phases"].as_array().unwrap().len(), 1);
     assert!(
@@ -83,12 +86,15 @@ fn every_bundled_weapon_runs_the_tutorial_and_its_replay_verifies() {
         let commands = play_run_with(&setup, RunContent::bundled(), LENGTH, |e, t| {
             run_input_for(e, t, &[EntityKind::Enemy, EntityKind::Boss], u32::MAX)
         });
-        let recorded = run_replay::record_run(&setup, &commands)
-            .unwrap_or_else(|e| panic!("{weapon}: {e:?}"));
+        let recorded =
+            run_replay::record_run(&setup, &commands).unwrap_or_else(|e| panic!("{weapon}: {e:?}"));
         let verified = run_replay::verify_run(&recorded.to_bytes())
             .unwrap_or_else(|e| panic!("{weapon}: {e:?}"));
         assert_ne!(verified.outcome, Outcome::Running, "{weapon} ends the run");
-        assert_eq!(verified.ticks, recorded.ticks, "{weapon} replays every tick");
+        assert_eq!(
+            verified.ticks, recorded.ticks,
+            "{weapon} replays every tick"
+        );
     }
 }
 
@@ -101,7 +107,10 @@ fn the_bot_kills_the_golem_in_the_tutorial() {
     let recorded = run_replay::record_run(&setup, &commands).unwrap();
     let verified = run_replay::verify_run(&recorded.to_bytes()).unwrap();
     assert_eq!(verified.outcome, Outcome::Cleared);
-    assert!(verified.ticks < LENGTH, "the golem dies before the time is up");
+    assert!(
+        verified.ticks < LENGTH,
+        "the golem dies before the time is up"
+    );
 }
 
 #[test]
