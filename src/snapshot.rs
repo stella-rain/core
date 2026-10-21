@@ -71,6 +71,10 @@ pub struct Snapshot {
     /// first; the frontend draws each as a count-down bar.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub patterns: Vec<PatternView>,
+    /// The Stardust earned so far, times 10 (ADR-109); absent in a stage without a Stardust
+    /// factor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stardust: Option<u32>,
 }
 
 /// A big pattern announced in the snapshot (ADR-103): its content ID, the ticks the count-down

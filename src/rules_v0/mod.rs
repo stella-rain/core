@@ -323,6 +323,7 @@ pub(crate) fn initial_state(
         runes: content.runes().clone(),
         stun: run_stats.stun(),
         horde: None,
+        stardust: stage.stardust.map(|_| 0),
         regen: 0,
         auto_combo: false,
         hp_pct: pool.difficulty.hp_pct,
@@ -1426,6 +1427,9 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         for t in p.totals {
             h.write_u32(t);
         }
+    }
+    if let Some(stardust) = s.stardust {
+        h.write_u32(stardust);
     }
     // After it, and only in a stage with stars, for the same reason.
     if let Some(f) = &s.stars {

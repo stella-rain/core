@@ -21,7 +21,7 @@ use crate::rune::Rune;
 use std::sync::OnceLock;
 
 use crate::engine::Horde;
-use crate::stage::{Map, Stage, Wave};
+use crate::stage::{Map, Stage, StardustFactor, Wave};
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -546,6 +546,10 @@ pub(crate) fn time_limit_run(
     stage.waves = mode.waves().to_vec();
     stage.elite_cap = Some(mode.elite_cap());
     stage.level_table = Some(difficulty.level_table.unwrap_or(*mode.level_table()));
+    stage.stardust = Some(StardustFactor {
+        start_pct: difficulty.stardust_start_pct,
+        end_pct: difficulty.stardust_end_pct,
+    });
     // Each elite type is a wave that never spawns (count 0): the lookups of an enemy's
     // definition, experience and expertise go by the stage's waves.
     let mut elite_waves: Vec<(ContentId, u32)> = Vec::new();
@@ -563,6 +567,7 @@ pub(crate) fn time_limit_run(
             every_ticks: 0,
             xp: t.xp,
             expertise: t.expertise,
+            stardust: t.stardust,
         });
     }
     let horde = Horde {

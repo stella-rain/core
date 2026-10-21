@@ -136,6 +136,10 @@ pub struct EliteType {
     /// The expertise points it gives; as a wave's `expertise`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expertise: Option<ExpertisePoints>,
+    /// The Stardust a kill of it earns before the time factor, times 10; as a wave's
+    /// `stardust`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stardust: Option<u32>,
 }
 
 /// An open field: its sides in 1/256 pixels and where the player starts.
@@ -461,6 +465,7 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
                 every_ticks: 0,
                 xp: t.xp,
                 expertise: t.expertise,
+                stardust: t.stardust,
             };
             if let Err(found) = crate::validate::validate_waves(
                 std::slice::from_ref(&wave),

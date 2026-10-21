@@ -618,6 +618,7 @@ impl Engine {
                 }
             }),
             patterns: rules_v0::announced_patterns(&self.stage, s),
+            stardust: s.stardust,
         }
     }
 }
@@ -703,6 +704,9 @@ pub(crate) struct State {
     /// The bosses of a `time_limit` run, as they come; `None` in any other run, which hashes
     /// nothing for it.
     pub horde: Option<Horde>,
+    /// The Stardust the run has earned, times 10 (ADR-109): `Some` in a stage with a Stardust
+    /// factor, hashed only then, so the hashes of stages without stay as they were.
+    pub stardust: Option<u32>,
     /// Hit points the main character regenerates each second (a perk, ADR-105): fixed for the
     /// run, part of the setup, so the state hash writes nothing for it.
     pub regen: u32,
