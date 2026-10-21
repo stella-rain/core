@@ -19,6 +19,11 @@
   "no_call_ticks": [
     18000
   ],
+  "mid_boss_hp_pct": [
+    100,
+    130,
+    160
+  ],
   "overtime_ticks": 18000,
   "star_hunter_extra_ticks": 3600,
   "map": {

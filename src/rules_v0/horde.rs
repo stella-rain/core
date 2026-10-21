@@ -8,7 +8,8 @@
 //! (the trial's golem). Either stands 120 pixels above the main character, its `move_to` steps
 //! moved with it, and takes the boss's place in the stage, so the rules that read the stage's
 //! boss read it, and the state's boss starts fresh at its time. A boss at a `no_call_ticks` time
-//! calls no elites. A boss's death opens the boss offer as any boss's does; the run clears only
+//! calls no elites, and the k-th mid-boss's hit points are scaled by the file's k-th
+//! `mid_boss_hp_pct`. A boss's death opens the boss offer as any boss's does; the run clears only
 //! on the final boss's.
 //!
 //! Elite minutes (ADR-090): on each whole minute of the run before its length that is not a boss
@@ -26,6 +27,8 @@ use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::stage::{Stage, Step};
+
+use super::scale_hp;
 
 /// 60 ticks a second, 60 seconds.
 const TICKS_PER_MINUTE: u32 = 3_600;
@@ -51,7 +54,8 @@ pub(crate) fn spawn_boss(stage: &mut Stage, s: &mut State) {
     if tick < due {
         return;
     }
-    let is_final = horde.spawned as usize + 1 == horde.boss_ticks.len();
+    let slot = horde.spawned as usize;
+    let is_final = slot + 1 == horde.boss_ticks.len();
     let base = if is_final {
         horde.final_boss.clone()
     } else {
@@ -83,6 +87,14 @@ pub(crate) fn spawn_boss(stage: &mut Stage, s: &mut State) {
     // A boss time the mode file lists calls no elites (core#336).
     if horde.no_call_ticks.contains(&due) {
         def.call_elites = None;
+    }
+    // A mid-boss's hit points rise by its slot (core#336); the difficulty scales them after.
+    if !is_final {
+        let pct = horde.mid_boss_hp_pct.get(slot).copied().unwrap_or(100);
+        def.hp = scale_hp(def.hp, pct);
+        for part in &mut def.parts {
+            part.hp = scale_hp(part.hp, pct);
+        }
     }
     let to = stage.map().clamp(Point {
         x: s.player.at.x,

@@ -747,6 +747,8 @@ pub(crate) struct Horde {
     pub bosses: Vec<crate::stage::Boss>,
     /// The boss times at which the boss calls no elites (core#336).
     pub no_call_ticks: Vec<u32>,
+    /// The mid-bosses' hit points by slot, in percent (core#336).
+    pub mid_boss_hp_pct: Vec<u32>,
     /// Bosses that have come, mid-bosses and the final one.
     pub spawned: u32,
     /// One per pool entry: drawn already.

@@ -618,6 +618,7 @@ pub(crate) fn time_limit_run(
         template,
         bosses: mode.bosses().to_vec(),
         no_call_ticks: mode.no_call_ticks().to_vec(),
+        mid_boss_hp_pct: mode.mid_boss_hp_pct().to_vec(),
         spawned: 0,
         used: vec![false; mode.mid_boss_pool().len()],
         length_ticks,

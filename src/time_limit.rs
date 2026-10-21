@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::behaviour::Agent;
+use crate::difficulties::MAX_PCT;
 use crate::fixed::{Fx, Point};
 use crate::id::ContentId;
 use crate::pack::Pack;
@@ -80,6 +81,12 @@ pub struct TimeLimitFile {
     /// `MAX_BOSS_TIMES`. A time that is no boss time of the run has no effect; every other boss calls its elites as its definition says.
     #[serde(default)]
     pub no_call_ticks: Vec<u32>,
+    /// The mid-bosses' hit points by slot, in percent (core#336): entry k scales the k-th
+    /// mid-boss's hit points and its parts', before the difficulty does; a slot past the list
+    /// is at 100. At most `MAX_BOSS_TIMES` entries of 1 to `difficulties::MAX_PCT`. The final
+    /// boss is never scaled by it.
+    #[serde(default)]
+    pub mid_boss_hp_pct: Vec<u32>,
     /// The boss definitions (core#336), 0 to `MAX_BOSS_DEFINITIONS`, each for one sprite: a
     /// pool entry or the final boss with a definition here is made from it, one without is made
     /// from the trial's placeholder boss with its sprite. Each is checked as a stage's boss is,
@@ -244,6 +251,11 @@ impl TimeLimit {
         &self.file.no_call_ticks
     }
 
+    /// The mid-bosses' hit points by slot, in percent.
+    pub fn mid_boss_hp_pct(&self) -> &[u32] {
+        &self.file.mid_boss_hp_pct
+    }
+
     /// The boss definitions, by sprite.
     pub fn bosses(&self) -> &[Boss] {
         &self.file.bosses
@@ -352,6 +364,21 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
             issue(
                 format!("$.no_call_ticks[{i}]"),
                 "the same time as an earlier entry".into(),
+            );
+        }
+    }
+    let hp_pct = &file.mid_boss_hp_pct;
+    if hp_pct.len() > MAX_BOSS_TIMES {
+        issue(
+            "$.mid_boss_hp_pct".into(),
+            format!("at most {MAX_BOSS_TIMES} percents (found {})", hp_pct.len()),
+        );
+    }
+    for (i, &pct) in hp_pct.iter().enumerate().take(MAX_BOSS_TIMES) {
+        if !(1..=MAX_PCT).contains(&pct) {
+            issue(
+                format!("$.mid_boss_hp_pct[{i}]"),
+                format!("1 to {MAX_PCT} (found {pct})"),
             );
         }
     }
