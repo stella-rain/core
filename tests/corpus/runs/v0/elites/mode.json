@@ -515,6 +515,14 @@
   "final_boss": "golem",
   "id": "time_limit",
   "length_ticks": 46800,
+  "level_table": {
+    "capstone": 10,
+    "style": 3,
+    "upgrades": [
+      6,
+      9
+    ]
+  },
   "map": {
     "height": 1048576,
     "start": {

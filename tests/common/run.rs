@@ -15,15 +15,21 @@ pub const SPEND_INDEX: u32 = 1;
 
 /// The seed of the `stage_skill` run case: with it, the run kills an elite whose rare star
 /// offers the black hole, takes it, and uses it twice. Under the Sword's smashes bleeding
-/// (ADR-084 point 8) seed 186 no longer does; this one is the first of `0..=400` with
-/// `giant_sword` that does.
-pub const STAGE_SKILL_SEED: u64 = 61;
+/// (ADR-084 point 8) seed 186 no longer does, and with the one weapon's level table (ADR-106)
+/// seed 61 no longer does; this one is the first of `0..` with `giant_sword` that does.
+pub const STAGE_SKILL_SEED: u64 = 2;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
 /// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
 /// 20261010 ends with the main character falling. Of seeds 1 to 10, seeds 1, 2, 4, 5 and 8 end in
 /// a kill; this one is the lowest.
 pub const KILL_SEED: u64 = 1;
+
+/// The seed of the `elites` run case: with it the scripted run still leaves a shrine and a
+/// mimic on the map when the boss calls. With the one weapon's level table and a pool of five
+/// (ADR-106) the main character's build differs and seed 20261010 no longer does; this one is
+/// the first of `1..` that does.
+pub const ELITES_SEED: u64 = 15;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {

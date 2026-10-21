@@ -512,17 +512,17 @@
           "const": "common"
         },
         {
-          "description": "The weapon's three styles, at level 3 (Main) or 5 (Sub): fixed, no reroll.",
+          "description": "The weapon's three styles, at the level table's style level: fixed, no reroll.",
           "type": "string",
           "const": "style"
         },
         {
-          "description": "The fixed upgrades of the chosen Main style, at level 6 or 9: no reroll.",
+          "description": "The fixed upgrades of the chosen style, at the table's upgrade levels: no reroll.",
           "type": "string",
           "const": "upgrade"
         },
         {
-          "description": "The fixed capstones of the chosen Main style, at level 10: no reroll.",
+          "description": "The fixed capstones of the chosen style, at the table's capstone level: no reroll.",
           "type": "string",
           "const": "capstone"
         }
@@ -559,16 +559,11 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
-        },
-        "weapon": {
-          "description": "The weapon it is for.",
-          "$ref": "#/$defs/WeaponRole"
         }
       },
       "additionalProperties": false,
       "required": [
         "level",
-        "weapon",
         "kind",
         "candidates",
         "options",
@@ -584,34 +579,6 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
-        },
-        "main_path": {
-          "description": "The choices taken from the Main style's path, in level order: its upgrades at 6 and 9,\nthen its capstone at 10.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ContentId"
-          }
-        },
-        "main_style": {
-          "description": "The Main weapon's style, chosen at level 3 and held for the run.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ContentId"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "main_taken": {
-          "description": "Times each option of the Main weapon's common pool was taken, in the pool's order; empty\nfor a weapon with no expertise content.",
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
         },
         "next": {
           "description": "Points the next level needs.",
@@ -630,14 +597,21 @@
             }
           ]
         },
+        "path": {
+          "description": "The choices taken from the style's path, in level order: its two upgrades, then its\ncapstone.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          }
+        },
         "points": {
           "description": "Points gained toward the next level.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "sub_style": {
-          "description": "The Sub weapon's style, chosen at level 5 and held for the run.",
+        "style": {
+          "description": "The weapon's style, chosen at the level table's style level and held for the run.",
           "anyOf": [
             {
               "$ref": "#/$defs/ContentId"
@@ -647,8 +621,8 @@
             }
           ]
         },
-        "sub_taken": {
-          "description": "The same for the Sub weapon's common pool.",
+        "taken": {
+          "description": "Times each option of the weapon's common pool was taken, in the pool's order; empty for\na weapon with no expertise content.",
           "type": "array",
           "items": {
             "type": "integer",
@@ -1482,14 +1456,6 @@
       "required": [
         "type",
         "pct"
-      ]
-    },
-    "WeaponRole": {
-      "description": "Which of the main character's two weapons (ADR-070).",
-      "type": "string",
-      "enum": [
-        "main",
-        "sub"
       ]
     }
   }

@@ -52,6 +52,62 @@ pub struct Stage {
     /// would spawn past it does not, and a wave counts it as spawned.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub elite_cap: Option<u16>,
+    /// The levels of the expertise style path (ADR-106 §4); `LevelTable::NORMAL` when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub level_table: Option<LevelTable>,
+}
+
+/// The highest level a level table may name: the last level whose threshold the expertise file
+/// lists (ADR-106 §3, ADR-020).
+pub const MAX_STYLE_LEVEL: u32 = 10;
+
+/// The expertise levels of a run's style path (ADR-106 §4): the level of the style choice, of
+/// each of the two style upgrades and of the capstone. Every other level is a common offer.
+/// The levels rise in that order, strictly, each from 1 to `MAX_STYLE_LEVEL`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LevelTable {
+    pub style: u32,
+    pub upgrades: [u32; 2],
+    pub capstone: u32,
+}
+
+impl LevelTable {
+    /// The normal run's table (placeholder numbers).
+    pub const NORMAL: LevelTable = LevelTable {
+        style: 3,
+        upgrades: [6, 9],
+        capstone: 10,
+    };
+    /// The short run's table (placeholder numbers).
+    pub const SHORT: LevelTable = LevelTable {
+        style: 2,
+        upgrades: [4, 6],
+        capstone: 8,
+    };
+
+    /// The levels in path order: the style, the two upgrades, the capstone.
+    pub fn levels(&self) -> [u32; 4] {
+        [
+            self.style,
+            self.upgrades[0],
+            self.upgrades[1],
+            self.capstone,
+        ]
+    }
+
+    /// Why the table is not valid, if it is not: the style comes first, the levels rise
+    /// strictly, and all are within bounds.
+    pub fn problem(&self) -> Option<String> {
+        let levels = self.levels();
+        if levels.iter().any(|l| !(1..=MAX_STYLE_LEVEL).contains(l)) {
+            Some(format!("every level from 1 to {MAX_STYLE_LEVEL}"))
+        } else if levels.windows(2).any(|w| w[0] >= w[1]) {
+            Some("style, upgrades and capstone rise strictly in that order".into())
+        } else {
+            None
+        }
+    }
 }
 
 /// How kills drop falling stars, what rarity a star has, and what an offer allows.
@@ -140,6 +196,11 @@ pub struct Levels {
 }
 
 impl Stage {
+    /// The levels of the expertise style path.
+    pub fn level_table(&self) -> LevelTable {
+        self.level_table.unwrap_or(LevelTable::NORMAL)
+    }
+
     /// The most elites alive at once.
     pub fn elite_cap(&self) -> u16 {
         self.elite_cap

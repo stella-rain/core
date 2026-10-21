@@ -295,6 +295,7 @@ pub(crate) fn time_limit_run(
     });
     stage.waves = mode.waves().to_vec();
     stage.elite_cap = Some(mode.elite_cap());
+    stage.level_table = Some(*mode.level_table());
     // Each elite type is a wave that never spawns (count 0): the lookups of an enemy's
     // definition, experience and expertise go by the stage's waves.
     let mut elite_waves: Vec<(ContentId, u32)> = Vec::new();

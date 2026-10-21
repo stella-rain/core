@@ -532,8 +532,8 @@ fn expertise_ids(w: usize, weapon: &WeaponExpertise) -> Vec<(String, &ContentId)
         let base = format!("$.expertise.weapons[{w}].styles[{s}]");
         ids.push((format!("{base}.id"), &style.id));
         for (field, choices) in [
-            ("upgrade_6", &style.upgrade_6),
-            ("upgrade_9", &style.upgrade_9),
+            ("upgrade_1", &style.upgrade_1),
+            ("upgrade_2", &style.upgrade_2),
             ("capstone", &style.capstone),
         ] {
             for (c, choice) in choices.iter().enumerate() {

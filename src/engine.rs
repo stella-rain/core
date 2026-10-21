@@ -30,7 +30,7 @@ use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, DamageOverTimeView, EntityKind, EntityView,
     EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, HoldView, MapView, OfferKind, OrbitView,
     PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
-    StatusView, TypeBonusView, WeaponRole,
+    StatusView, TypeBonusView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -580,17 +580,15 @@ impl Engine {
                 offer: rules_v0::offer_view(self.content.rewards(), s),
             }),
             expertise: s.expertise.as_ref().map(|g| {
-                let (main_style, sub_style, main_path) =
+                let (style, path) =
                     rules_v0::expertise_styles_view(&self.stage, self.content.expertise(), g);
                 ExpertiseView {
                     level: g.level,
                     points: g.points,
                     next: g.next,
-                    main_taken: g.main_taken.clone(),
-                    sub_taken: g.sub_taken.clone(),
-                    main_style,
-                    sub_style,
-                    main_path,
+                    taken: g.taken.clone(),
+                    style,
+                    path,
                     offer: rules_v0::expertise_offer_view(&self.stage, self.content.expertise(), s),
                 }
             }),
@@ -692,7 +690,7 @@ pub(crate) struct Horde {
     pub elite_waves: Vec<(ContentId, u32)>,
 }
 
-/// The one expertise gauge of both weapons (ADR-078 §1 to §3), and its offers (ADR-079 §2, §3).
+/// The one expertise gauge of the one weapon (ADR-106 §1 to §3), and its offers (ADR-079 §2, §3).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExpertiseGauge {
     /// From 0.
@@ -705,19 +703,18 @@ pub(crate) struct ExpertiseGauge {
     /// are due, in level order.
     pub offered: u32,
     pub offer: Option<ExpertiseOffer>,
-    /// For each option of the Main and of the Sub weapon's common pool, in the pool's order:
-    /// times taken. Empty for a weapon with no expertise content.
-    pub main_taken: Vec<u8>,
-    pub sub_taken: Vec<u8>,
+    /// For each option of the weapon's common pool, in the pool's order: times taken. Empty
+    /// for a weapon with no expertise content.
+    pub taken: Vec<u8>,
     /// What the range options taken add up to: every combo step's hit box that much wider,
     /// with the range rewards' (ADR-070, ADR-099).
     pub range_pct: u32,
-    /// The Main and the Sub weapon's style, a place among its three, once chosen at level 3
-    /// or 5; held for the run (ADR-078 §5).
-    pub main_style: Option<u8>,
-    pub sub_style: Option<u8>,
-    /// The places of the Main style's choices taken at 6, 9 and 10, in level order.
-    pub main_path: Vec<u8>,
+    /// The weapon's style, a place among its three, once chosen at the level table's style
+    /// level; held for the run (ADR-106 §5).
+    pub style: Option<u8>,
+    /// The places of the style's choices taken at the upgrade and capstone levels, in level
+    /// order.
+    pub path: Vec<u8>,
 }
 
 /// An open expertise offer: common options, or a style's fixed choices.
@@ -725,7 +722,6 @@ pub(crate) struct ExpertiseGauge {
 pub(crate) struct ExpertiseOffer {
     /// The level that opened it.
     pub level: u32,
-    pub weapon: WeaponRole,
     pub kind: ExpertiseOfferKind,
     /// Places in the weapon's common pool, or among the fixed choices, in the offer's order.
     pub candidates: Vec<u8>,

@@ -1879,6 +1879,38 @@
         "sim_version"
       ]
     },
+    "LevelTable": {
+      "description": "The expertise levels of a run's style path (ADR-106 §4): the level of the style choice, of\neach of the two style upgrades and of the capstone. Every other level is a common offer.\nThe levels rise in that order, strictly, each from 1 to `MAX_STYLE_LEVEL`.",
+      "type": "object",
+      "properties": {
+        "capstone": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "style": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "upgrades": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "style",
+        "upgrades",
+        "capstone"
+      ]
+    },
     "Levels": {
       "description": "How much experience each level needs.",
       "type": "object",
@@ -3285,6 +3317,17 @@
           "format": "uint32",
           "minimum": 0
         },
+        "level_table": {
+          "description": "The levels of the expertise style path (ADR-106 §4); `LevelTable::NORMAL` when absent.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LevelTable"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "levels": {
           "description": "Experience and levels, each level-up giving a stat point (ADR-079 §2); a mode's stages\nhave them. Without them defeated enemies give nothing.",
           "anyOf": [
@@ -3702,7 +3745,7 @@
       ]
     },
     "Style": {
-      "description": "A style (ADR-078 §5): a path chosen at level 3 for the Main or 5 for the Sub, held for the\nrun. Its own effect applies when it is chosen; the Main's then offers the fixed choices of\n`upgrade_6` at level 6, `upgrade_9` at 9 and `capstone` at 10.",
+      "description": "A style (ADR-106 §5): a path chosen at the level table's style level, held for the run. Its\nown effect applies when it is chosen; it then offers the fixed choices of `upgrade_1` at the\ntable's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.",
       "type": "object",
       "properties": {
         "amount": {
@@ -3712,7 +3755,7 @@
           "minimum": 0
         },
         "capstone": {
-          "description": "Level 10's choices, 1 to `MAX_STYLE_CHOICES`.",
+          "description": "The capstone's choices, 1 to `MAX_STYLE_CHOICES`.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/ExpertiseOption"
@@ -3731,15 +3774,15 @@
         "title": {
           "type": "string"
         },
-        "upgrade_6": {
-          "description": "Level 6's choices, 1 to `MAX_STYLE_CHOICES`.",
+        "upgrade_1": {
+          "description": "The first upgrade's choices, 1 to `MAX_STYLE_CHOICES`.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/ExpertiseOption"
           }
         },
-        "upgrade_9": {
-          "description": "Level 9's choices, 1 to `MAX_STYLE_CHOICES`.",
+        "upgrade_2": {
+          "description": "The second upgrade's choices, 1 to `MAX_STYLE_CHOICES`.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/ExpertiseOption"
@@ -3753,8 +3796,8 @@
         "amount",
         "title",
         "description",
-        "upgrade_6",
-        "upgrade_9",
+        "upgrade_1",
+        "upgrade_2",
         "capstone"
       ]
     },
@@ -3826,6 +3869,10 @@
           "format": "uint32",
           "minimum": 0
         },
+        "level_table": {
+          "description": "The expertise levels of the style path (ADR-106 §4): the style first, the levels rising\nstrictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The\nrun's stage takes it as its own.",
+          "$ref": "#/$defs/LevelTable"
+        },
         "map": {
           "$ref": "#/$defs/TimeLimitMap"
         },
@@ -3881,7 +3928,8 @@
         "waves",
         "elite_table",
         "elite_types",
-        "elite_cap"
+        "elite_cap",
+        "level_table"
       ]
     },
     "TimeLimitMap": {
@@ -4059,7 +4107,7 @@
       ]
     },
     "WeaponExpertise": {
-      "description": "One weapon's expertise, in either role.",
+      "description": "One weapon's expertise.",
       "type": "object",
       "properties": {
         "common": {

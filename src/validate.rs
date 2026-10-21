@@ -625,6 +625,11 @@ impl<'a> Ctx<'a> {
         if let Some(levels) = &s.levels {
             self.key("levels", |c| c.levels(levels));
         }
+        if let Some(table) = s.level_table
+            && let Some(problem) = table.problem()
+        {
+            self.key("level_table", |c| c.fail(problem));
+        }
         if let Some(cap) = s.elite_cap {
             self.within("elite_cap", i64::from(cap), 1, i64::from(MAX_ELITES_ALIVE));
         }

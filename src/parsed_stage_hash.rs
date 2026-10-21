@@ -11,7 +11,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::behaviour::Agent;
-use crate::stage::{Boss, Levels, Map, Player, Stage, Stars, Wave};
+use crate::stage::{Boss, LevelTable, Levels, Map, Player, Stage, Stars, Wave};
 
 /// Goes in front of the JSON, so the hash cannot be mistaken for one over a stage file.
 const TAG: &[u8] = b"stella-rain/parsed-stage/v1\n";
@@ -38,6 +38,8 @@ struct Hashed<'a> {
     stars: &'a Option<Stars>,
     #[serde(skip_serializing_if = "Option::is_none")]
     elite_cap: &'a Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    level_table: &'a Option<LevelTable>,
 }
 
 /// The bytes the parsed-stage hash is taken over. `stage` must have passed the validator.
@@ -59,6 +61,7 @@ pub fn parsed_stage_hash_input(stage: &Stage) -> Vec<u8> {
         levels,
         stars,
         elite_cap,
+        level_table,
     } = stage;
     let hashed = Hashed {
         schema_version: *schema_version,
@@ -75,6 +78,7 @@ pub fn parsed_stage_hash_input(stage: &Stage) -> Vec<u8> {
         levels,
         stars,
         elite_cap,
+        level_table,
     };
     let mut bytes = TAG.to_vec();
     // Writing these types to a `Vec` cannot fail: no maps with non-string keys, no I/O.

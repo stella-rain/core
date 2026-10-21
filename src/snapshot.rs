@@ -95,35 +95,21 @@ pub struct ExpertiseView {
     pub points: u32,
     /// Points the next level needs.
     pub next: u32,
-    /// Times each option of the Main weapon's common pool was taken, in the pool's order; empty
-    /// for a weapon with no expertise content.
+    /// Times each option of the weapon's common pool was taken, in the pool's order; empty for
+    /// a weapon with no expertise content.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub main_taken: Vec<u8>,
-    /// The same for the Sub weapon's common pool.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub sub_taken: Vec<u8>,
-    /// The Main weapon's style, chosen at level 3 and held for the run.
+    pub taken: Vec<u8>,
+    /// The weapon's style, chosen at the level table's style level and held for the run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub main_style: Option<ContentId>,
-    /// The Sub weapon's style, chosen at level 5 and held for the run.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sub_style: Option<ContentId>,
-    /// The choices taken from the Main style's path, in level order: its upgrades at 6 and 9,
-    /// then its capstone at 10.
+    pub style: Option<ContentId>,
+    /// The choices taken from the style's path, in level order: its two upgrades, then its
+    /// capstone.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub main_path: Vec<ContentId>,
+    pub path: Vec<ContentId>,
     /// The open expertise offer: while it is open the world is stopped, and `Engine::choose`
     /// takes one of its options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offer: Option<ExpertiseOfferView>,
-}
-
-/// Which of the main character's two weapons (ADR-070).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum WeaponRole {
-    Main,
-    Sub,
 }
 
 /// What an expertise level offers (ADR-078 §4, §5).
@@ -132,11 +118,11 @@ pub enum WeaponRole {
 pub enum ExpertiseOfferKind {
     /// Options drawn from the weapon's common pool, with a reroll of each.
     Common,
-    /// The weapon's three styles, at level 3 (Main) or 5 (Sub): fixed, no reroll.
+    /// The weapon's three styles, at the level table's style level: fixed, no reroll.
     Style,
-    /// The fixed upgrades of the chosen Main style, at level 6 or 9: no reroll.
+    /// The fixed upgrades of the chosen style, at the table's upgrade levels: no reroll.
     Upgrade,
-    /// The fixed capstones of the chosen Main style, at level 10: no reroll.
+    /// The fixed capstones of the chosen style, at the table's capstone level: no reroll.
     Capstone,
 }
 
@@ -148,8 +134,6 @@ pub enum ExpertiseOfferKind {
 pub struct ExpertiseOfferView {
     /// The expertise level that opened it.
     pub level: u32,
-    /// The weapon it is for.
-    pub weapon: WeaponRole,
     pub kind: ExpertiseOfferKind,
     pub candidates: Vec<ExpertiseCandidateView>,
     /// What `Engine::choose` takes, by index: the candidates, then, in a common offer, a reroll

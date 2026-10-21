@@ -982,7 +982,7 @@
       ]
     },
     {
-      "description": "An expertise offer of `kind` opened for the level `level` and `weapon`, and the world\nstopped until a choice closes it (ADR-078 §4, §5; ADR-079 §2, §3).",
+      "description": "An expertise offer of `kind` opened for the level `level`, and the world stopped until a\nchoice closes it (ADR-106 §4, §5; ADR-079 §2, §3).",
       "type": "object",
       "properties": {
         "data": {
@@ -1001,15 +1001,11 @@
               "type": "integer",
               "format": "uint32",
               "minimum": 0
-            },
-            "weapon": {
-              "$ref": "#/$defs/WeaponRole"
             }
           },
           "additionalProperties": false,
           "required": [
             "level",
-            "weapon",
             "kind",
             "candidates"
           ]
@@ -1026,7 +1022,7 @@
       ]
     },
     {
-      "description": "The expertise option was taken: the run now has it `taken` times for that weapon. A\nstyle, an upgrade or a capstone is taken once.",
+      "description": "The expertise option was taken: the run now has it `taken` times. A style, an upgrade or\na capstone is taken once.",
       "type": "object",
       "properties": {
         "data": {
@@ -1040,14 +1036,10 @@
               "format": "uint8",
               "maximum": 255,
               "minimum": 0
-            },
-            "weapon": {
-              "$ref": "#/$defs/WeaponRole"
             }
           },
           "additionalProperties": false,
           "required": [
-            "weapon",
             "option",
             "taken"
           ]
@@ -1118,17 +1110,17 @@
           "const": "common"
         },
         {
-          "description": "The weapon's three styles, at level 3 (Main) or 5 (Sub): fixed, no reroll.",
+          "description": "The weapon's three styles, at the level table's style level: fixed, no reroll.",
           "type": "string",
           "const": "style"
         },
         {
-          "description": "The fixed upgrades of the chosen Main style, at level 6 or 9: no reroll.",
+          "description": "The fixed upgrades of the chosen style, at the table's upgrade levels: no reroll.",
           "type": "string",
           "const": "upgrade"
         },
         {
-          "description": "The fixed capstones of the chosen Main style, at level 10: no reroll.",
+          "description": "The fixed capstones of the chosen style, at the table's capstone level: no reroll.",
           "type": "string",
           "const": "capstone"
         }
@@ -1217,14 +1209,6 @@
           "type": "string",
           "const": "burn"
         }
-      ]
-    },
-    "WeaponRole": {
-      "description": "Which of the main character's two weapons (ADR-070).",
-      "type": "string",
-      "enum": [
-        "main",
-        "sub"
       ]
     }
   }

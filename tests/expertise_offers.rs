@@ -1,11 +1,11 @@
-//! The expertise offers (ADR-078 §4, §6; ADR-079 §2, §3): each level reached opens one offer
-//! at the end of the tick, for the weapon ADR-078's table gives, in level order. Common levels
-//! (1, 4, 7 Main; 2, 8 Sub; 11 and up Main, Sub, Main) draw from that weapon's common pool.
-//! Level 3 (Main) and 5 (Sub) show that weapon's three styles; 6 and 9 the chosen Main style's
-//! upgrades, 10 its capstone: fixed choices, no draw and no reroll. A common offer has a
-//! reroll of each candidate; no expertise offer has a skip or a banish. No option has a stack limit: one taken
-//! any number of times is still offered. On one tick the boss offer
-//! opens first, then the expertise offers in level order, then the stars'.
+//! The expertise offers (ADR-106 §4 to §6; ADR-079 §2, §3): each level reached opens one offer
+//! at the end of the tick, for the one weapon, in level order. The mode's level table places the
+//! style path (normal: style 3, upgrades 6 and 9, capstone 10); every other level is a common
+//! offer drawn from the weapon's common pool. The style level shows the weapon's three styles;
+//! the upgrade levels and the capstone level the chosen style's fixed choices: no draw and no
+//! reroll. A common offer has a reroll of each candidate; no expertise offer has a skip or a
+//! banish. No option has a stack limit: one taken any number of times is still offered. On one
+//! tick the boss offer opens first, then the expertise offers in level order, then the stars'.
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -17,9 +17,8 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{Command, record_run, verify_run};
 use stella_rain_core::snapshot::{
     EntityKind, ExpertiseOfferKind, ExpertiseOfferView, ExpertiseView, OfferKind, OfferOption,
-    WeaponRole,
 };
-use stella_rain_core::stage::Stage;
+use stella_rain_core::stage::{LevelTable, Stage};
 
 use crate::common;
 
@@ -56,8 +55,7 @@ fn damages(prefix: &str, n: usize) -> Vec<Value> {
 }
 
 /// The bundled content, its expertise with `TABLE` (growth 150 percent, at most 100_000), and
-/// the `giant_sword`'s common pool replaced by `main`. Both roles read the one weapon's pools for now
-/// (ADR-105; interim until ADR-106's rewrite), so the Sub's offers draw from `main` too.
+/// the `giant_sword`'s common pool replaced by `main`.
 fn content(main: Vec<Value>) -> RunContent {
     content_with(TABLE, 150, 100_000, main)
 }
@@ -122,6 +120,13 @@ fn stage(boss: Option<(u32, u32)>, waves: Vec<Value>) -> Stage {
     stage
 }
 
+/// As `stage`, with the mode's level table `table`.
+fn stage_with_table(boss: Option<(u32, u32)>, table: LevelTable) -> Stage {
+    let mut s = stage(boss, vec![]);
+    s.level_table = Some(table);
+    s
+}
+
 fn with(stage: &Stage, content: &RunContent) -> Engine {
     Engine::new_with(stage, content).expect("the test stage is valid")
 }
@@ -149,7 +154,7 @@ fn until_offer(e: &mut Engine) -> Vec<DomainEvent> {
     seen.into_iter().map(|(_, ev)| ev).collect()
 }
 
-/// What each offer opening in `events` is: `boss`, `star`, or the weapon and the level.
+/// What each offer opening in `events` is: `boss`, `star`, or the expertise level.
 fn openings(events: &[DomainEvent]) -> Vec<String> {
     events
         .iter()
@@ -158,13 +163,7 @@ fn openings(events: &[DomainEvent]) -> Vec<String> {
                 OfferKind::Boss => "boss".to_string(),
                 OfferKind::Star => "star".to_string(),
             }),
-            DomainEvent::ExpertiseOfferOpened { level, weapon, .. } => Some(format!(
-                "{} {level}",
-                match weapon {
-                    WeaponRole::Main => "main",
-                    WeaponRole::Sub => "sub",
-                }
-            )),
+            DomainEvent::ExpertiseOfferOpened { level, .. } => Some(level.to_string()),
             _ => None,
         })
         .collect()
@@ -198,20 +197,17 @@ fn a_boss_kill_crossing_several_thresholds_opens_one_offer_per_level_in_order() 
     );
     let first = until_offer(&mut e);
     let seen = take_all(&mut e, &first);
-    // The style path (3, 5, 6, 9, 10) opens in level order with the rest; 11 and up go Main,
-    // Sub, Main.
+    // The style path (3, 6, 9, 10) opens in level order with the common offers.
     assert_eq!(
         seen,
         [
-            "boss", "main 1", "sub 2", "main 3", "main 4", "sub 5", "main 6", "main 7", "sub 8",
-            "main 9", "main 10", "main 11", "sub 12", "main 13"
+            "boss", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"
         ]
     );
     let g = gauge(&e);
     assert_eq!((g.level, g.points), (13, 0));
     let sum = |t: &[u8]| t.iter().map(|n| u32::from(*n)).sum::<u32>();
-    assert_eq!(sum(&g.main_taken), 5, "five Main offers, one pick each");
-    assert_eq!(sum(&g.sub_taken), 3, "three Sub offers");
+    assert_eq!(sum(&g.taken), 9, "nine common offers, one pick each");
 }
 
 #[test]
@@ -223,7 +219,7 @@ fn an_expertise_offer_opens_at_the_end_of_the_tick_and_stops_the_world() {
     let events = until_offer(&mut e);
     assert_eq!(
         openings(&events),
-        ["main 1"],
+        ["1"],
         "the kill's tick opens level 1's offer"
     );
     let tick = e.tick();
@@ -239,7 +235,7 @@ fn a_kill_s_level_opens_before_the_star_it_drops() {
         &content(damages("m", 3)),
     );
     let first = until_offer(&mut e);
-    assert_eq!(take_all(&mut e, &first), ["main 1", "star"]);
+    assert_eq!(take_all(&mut e, &first), ["1", "star"]);
 }
 
 #[test]
@@ -251,10 +247,7 @@ fn a_common_offer_holds_three_candidates_and_a_reroll_of_each_and_no_skip_or_ban
     );
     until_offer(&mut e);
     let offer = expertise_offer(&e);
-    assert_eq!(
-        (offer.level, offer.weapon, offer.kind),
-        (1, WeaponRole::Main, ExpertiseOfferKind::Common)
-    );
+    assert_eq!((offer.level, offer.kind), (1, ExpertiseOfferKind::Common));
     assert_eq!(offer.candidates.len(), 3);
     assert_eq!(
         offer.options,
@@ -339,19 +332,17 @@ fn taking_an_option_applies_it_and_counts_it_for_its_weapon() {
     assert_eq!(
         e.events().first(),
         Some(&DomainEvent::ExpertiseOptionTaken {
-            weapon: WeaponRole::Main,
             option: "tough".into(),
             taken: 1,
         })
     );
     assert_eq!(e.snapshot().player.hp, hp + 5, "five more hit points");
-    assert_eq!(gauge(&e).main_taken, [1]);
-    assert_eq!(gauge(&e).sub_taken, [0]);
+    assert_eq!(gauge(&e).taken, [1]);
 }
 
 #[test]
 fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
-    // One option in the Main pool: levels 1, 4, 7, 11, 13, 14 and 16 offer it.
+    // One option in the pool: every level but 3, 6, 9 and 10 offers it.
     let main = vec![option("quick", "attack_speed_pct", 10)];
     let mut e = with(&stage(Some((1, to_level(16))), vec![]), &content(main));
     until_offer(&mut e);
@@ -359,15 +350,13 @@ fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
     let mut quick_offers = 0;
     while e.offer_open() {
         let offer = expertise_offer(&e);
-        if offer.weapon == WeaponRole::Main
-            && offer.candidates.iter().any(|c| c.option.0 == "quick")
-        {
+        if offer.candidates.iter().any(|c| c.option.0 == "quick") {
             quick_offers += 1;
         }
         e.choose(0).unwrap();
     }
-    assert!(quick_offers > 5, "offered {quick_offers} times");
-    assert_eq!(gauge(&e).main_taken, [u8::try_from(quick_offers).unwrap()]);
+    assert_eq!(quick_offers, 12, "offered at the 12 common levels of 16");
+    assert_eq!(gauge(&e).taken, [u8::try_from(quick_offers).unwrap()]);
 }
 
 #[test]
@@ -387,9 +376,8 @@ fn a_boss_kill_no_longer_upgrades_a_weapon_its_points_are_its_weapon_progress() 
     let s = e.snapshot();
     let g = s.expertise.unwrap();
     assert_eq!(g.level, 1, "the kill's points are its weapon progress");
-    assert_eq!(g.main_taken, [0, 0, 0]);
-    assert_eq!(g.sub_taken, [0, 0, 0]);
-    assert_eq!(take_all(&mut e, &events), ["boss", "main 1"]);
+    assert_eq!(g.taken, [0, 0, 0]);
+    assert_eq!(take_all(&mut e, &events), ["boss", "1"]);
 }
 
 #[test]
@@ -410,10 +398,7 @@ fn a_boss_kill_s_clear_opens_its_offer_then_its_levels_then_the_star_s() {
             .iter()
             .any(|ev| matches!(ev, DomainEvent::StarTaken { .. }))
     );
-    assert_eq!(
-        take_all(&mut e, &first),
-        ["boss", "main 1", "sub 2", "star"]
-    );
+    assert_eq!(take_all(&mut e, &first), ["boss", "1", "2", "star"]);
     assert_eq!(gauge(&e).level, 2);
 }
 
@@ -454,7 +439,7 @@ fn damage_stays_bounded_with_many_damage_options_stacked() {
     assert!(picks > 9_000, "{picks} offers");
     let g = gauge(&e);
     assert_eq!(
-        g.main_taken,
+        g.taken,
         [u8::MAX],
         "the count stops at its most; the picks go on"
     );
@@ -523,7 +508,7 @@ fn a_run_with_expertise_choices_replays_and_verifies() {
         style_choices >= 1,
         "the trial run chooses a style: {style_choices}"
     );
-    assert!(e.snapshot().expertise.unwrap().main_style.is_some());
+    assert!(e.snapshot().expertise.unwrap().style.is_some());
     let replay = record_run(&trial_setup(), &commands).unwrap();
     let verified = verify_run(&replay.to_bytes()).unwrap();
     assert_eq!(hash_to_hex(verified.final_hash), replay.final_hash);
@@ -539,7 +524,7 @@ fn style(id: &str, effect: &str, amount: u32) -> Value {
         ]
     };
     json!({ "id": id, "effect": effect, "amount": amount, "title": "Style", "description": "",
-            "upgrade_6": two(6), "upgrade_9": two(9), "capstone": two(10) })
+            "upgrade_1": two(6), "upgrade_2": two(9), "capstone": two(10) })
 }
 
 /// Styles `<prefix>_a`, `<prefix>_b` and `<prefix>_c`, each 1 percent more damage.
@@ -547,8 +532,7 @@ fn styles(prefix: &str) -> [Value; 3] {
     ["a", "b", "c"].map(|s| style(&format!("{prefix}_{s}"), "attack_pct", 1))
 }
 
-/// `content` with three damage options per pool, and the `giant_sword`'s styles `main`. A Sub style
-/// reads the same styles (interim, ADR-105), so `styled` takes one set.
+/// `content` with three damage options in the pool, and every weapon's styles `main`.
 fn styled(main: [Value; 3]) -> RunContent {
     let mut file = file_with(TABLE, 150, 100_000, damages("m", 3));
     for w in file["weapons"].as_array_mut().unwrap() {
@@ -587,17 +571,14 @@ fn ids(list: &[&str]) -> Vec<stella_rain_core::id::ContentId> {
 }
 
 #[test]
-fn level_3_offers_the_main_s_three_styles_fixed_with_no_reroll_skip_or_banish() {
+fn the_style_level_offers_the_three_styles_fixed_with_no_reroll_skip_or_banish() {
     let mut e = with(
         &stage(Some((1, to_level(3))), vec![]),
         &styled(styles("main")),
     );
     let events = to_offer_of(&mut e, 3);
     let offer = expertise_offer(&e);
-    assert_eq!(
-        (offer.weapon, offer.kind),
-        (WeaponRole::Main, ExpertiseOfferKind::Style)
-    );
+    assert_eq!(offer.kind, ExpertiseOfferKind::Style);
     assert_eq!(
         candidates(&e),
         ["main_a", "main_b", "main_c"],
@@ -612,7 +593,6 @@ fn level_3_offers_the_main_s_three_styles_fixed_with_no_reroll_skip_or_banish() 
     assert!(
         events.contains(&DomainEvent::ExpertiseOfferOpened {
             level: 3,
-            weapon: WeaponRole::Main,
             kind: ExpertiseOfferKind::Style,
             candidates: ids(&["main_a", "main_b", "main_c"]),
         }),
@@ -625,25 +605,20 @@ fn level_3_offers_the_main_s_three_styles_fixed_with_no_reroll_skip_or_banish() 
 }
 
 #[test]
-fn level_5_offers_the_sub_role_the_same_weapon_s_three_styles() {
+fn level_5_is_a_common_offer_there_is_no_second_style() {
     let mut e = with(
         &stage(Some((1, to_level(5))), vec![]),
         &styled(styles("main")),
     );
-    let events = to_offer_of(&mut e, 5);
+    to_offer_of(&mut e, 5);
     let offer = expertise_offer(&e);
-    assert_eq!(
-        (offer.weapon, offer.kind),
-        (WeaponRole::Sub, ExpertiseOfferKind::Style)
+    assert_eq!(offer.kind, ExpertiseOfferKind::Common);
+    assert_eq!(offer.candidates.len(), 3);
+    assert!(
+        candidates(&e).iter().all(|c| c.starts_with('m')),
+        "drawn from the pool: {:?}",
+        candidates(&e)
     );
-    assert_eq!(candidates(&e), ["main_a", "main_b", "main_c"]);
-    assert_eq!(offer.options, takes(3));
-    assert!(events.contains(&DomainEvent::ExpertiseOfferOpened {
-        level: 5,
-        weapon: WeaponRole::Sub,
-        kind: ExpertiseOfferKind::Style,
-        candidates: ids(&["main_a", "main_b", "main_c"]),
-    }));
 }
 
 #[test]
@@ -660,51 +635,41 @@ fn choosing_a_style_applies_its_effect_and_holds_it_for_the_run() {
     assert_eq!(
         e.events().first(),
         Some(&DomainEvent::ExpertiseOptionTaken {
-            weapon: WeaponRole::Main,
             option: "main_b".into(),
             taken: 1,
         })
     );
     assert_eq!(e.snapshot().player.hp, hp + 7, "seven more hit points");
     let g = gauge(&e);
-    assert_eq!(
-        (g.main_style, g.sub_style),
-        (Some("main_b".into()), None),
-        "the Sub's style comes at level 5"
-    );
-    next_offer_of(&mut e, 5, Vec::new());
-    e.choose(2).unwrap();
-    let g = gauge(&e);
-    assert_eq!(
-        (g.main_style, g.sub_style),
-        (Some("main_b".into()), Some("main_c".into()))
-    );
-    assert!(g.main_path.is_empty());
+    assert_eq!(g.style, Some("main_b".into()));
+    assert!(g.path.is_empty());
 }
 
-#[test]
-fn levels_6_and_9_offer_the_chosen_main_style_s_upgrades_and_10_its_capstone() {
+/// The path of the chosen style at the levels of `table`: the style at `table.style`, then the
+/// style's two upgrades and its capstone, each a fixed choice, never a draw.
+fn walk_the_path(table: LevelTable) {
     let mut e = with(
-        &stage(Some((1, to_level(10))), vec![]),
+        &stage_with_table(Some((1, to_level(10))), table),
         &styled(styles("main")),
     );
-    to_offer_of(&mut e, 3);
+    to_offer_of(&mut e, table.style);
+    assert_eq!(expertise_offer(&e).kind, ExpertiseOfferKind::Style);
     e.choose(1).unwrap();
     for (level, kind, choices, pick) in [
         (
-            6,
+            table.upgrades[0],
             ExpertiseOfferKind::Upgrade,
             ["main_b_6a", "main_b_6b"],
             1,
         ),
         (
-            9,
+            table.upgrades[1],
             ExpertiseOfferKind::Upgrade,
             ["main_b_9a", "main_b_9b"],
             0,
         ),
         (
-            10,
+            table.capstone,
             ExpertiseOfferKind::Capstone,
             ["main_b_10a", "main_b_10b"],
             1,
@@ -713,12 +678,11 @@ fn levels_6_and_9_offer_the_chosen_main_style_s_upgrades_and_10_its_capstone() {
         let before = e.events().to_vec();
         let events = next_offer_of(&mut e, level, before);
         let offer = expertise_offer(&e);
-        assert_eq!((offer.weapon, offer.kind), (WeaponRole::Main, kind));
+        assert_eq!(offer.kind, kind, "level {level}");
         assert_eq!(candidates(&e), choices, "the chosen style's, fixed");
         assert_eq!(offer.options, takes(2), "no reroll");
         assert!(events.contains(&DomainEvent::ExpertiseOfferOpened {
             level,
-            weapon: WeaponRole::Main,
             kind,
             candidates: ids(&choices),
         }));
@@ -727,18 +691,31 @@ fn levels_6_and_9_offer_the_chosen_main_style_s_upgrades_and_10_its_capstone() {
         assert_eq!(
             e.events().first(),
             Some(&DomainEvent::ExpertiseOptionTaken {
-                weapon: WeaponRole::Main,
                 option: choices[pick as usize].into(),
                 taken: 1,
             })
         );
         assert_eq!(e.snapshot().player.hp, hp + 1, "the choice applies");
     }
-    assert!(!e.offer_open());
+    // Every other level before the capstone is a common offer: the four path levels are not.
     assert_eq!(
-        gauge(&e).main_path,
+        gauge(&e).taken.iter().map(|n| u32::from(*n)).sum::<u32>(),
+        table.capstone - 4,
+    );
+    assert_eq!(
+        gauge(&e).path,
         ids(&["main_b_6b", "main_b_9a", "main_b_10b"])
     );
+}
+
+#[test]
+fn the_normal_table_places_the_style_at_3_upgrades_at_6_and_9_and_the_capstone_at_10() {
+    walk_the_path(LevelTable::NORMAL);
+}
+
+#[test]
+fn the_short_table_places_the_style_at_2_upgrades_at_4_and_6_and_the_capstone_at_8() {
+    walk_the_path(LevelTable::SHORT);
 }
 
 #[test]
@@ -771,9 +748,9 @@ fn the_styles_and_the_path_taken_are_in_the_state_hash() {
 }
 
 #[test]
-fn an_inline_weapon_has_no_expertise_content_for_either_role() {
-    // An inline weapon has no expertise content: no weapon offer opens for either role, its
-    // styles and upgrades included, so 6, 9 and 10, which follow a style, fail closed.
+fn an_inline_weapon_has_no_expertise_content() {
+    // An inline weapon has no expertise content: no offer opens, its styles and upgrades
+    // included, so the upgrade and capstone levels, which follow a style, fail closed.
     let stage = armed(
         stage(Some((1, to_level(13))), vec![]),
         json!({ "inline": { "combo": { "main": { "attack": { "preset": { "id": "slash" } } } },
@@ -784,6 +761,6 @@ fn an_inline_weapon_has_no_expertise_content_for_either_role() {
     assert_eq!(take_all(&mut e, &first), ["boss"]);
     let g = gauge(&e);
     assert_eq!(g.level, 13);
-    assert_eq!((g.main_style, g.sub_style), (None, None));
-    assert!(g.main_path.is_empty());
+    assert_eq!(g.style, None);
+    assert!(g.path.is_empty());
 }

@@ -40,6 +40,7 @@ mod hit_boxes;
 mod hit_marks;
 mod hold;
 mod homing_missiles;
+mod level_table;
 mod levels;
 mod map;
 mod match_ups;

@@ -1,18 +1,18 @@
-//! Expertise (ADR-078, ADR-067): one level inside one run, shared by both weapons, with no
-//! highest level. This is its content: the points levels 1 to 10 each need, the growth factor
-//! for every level after and the most a level needs, and for each weapon its three styles (a
-//! path: the style at level 3 for the Main or 5 for the Sub, then the Main's upgrades at 6 and
-//! 9 and its capstone at 10) and its common pool, drawn at the other levels. Only attack speed
-//! options have no stack limit and none leaves its pool by being taken (the attack speed total
-//! is held at `run_stats::MAX_ATTACK_SPEED_PCT`); cooldown reduction is no expertise option
-//! but Rune Haste, a star reward (ADR-099). Each enemy's points per hit and per kill are in the stage
+//! Expertise (ADR-106, ADR-067): one level inside one run, for the one weapon, with no highest
+//! level. This is its content: the points levels 1 to 10 each need, the growth factor for every
+//! level after and the most a level needs, and for each weapon its three styles (a path: the
+//! style, then two upgrades and a capstone, at the levels of the mode's level table,
+//! `stage::LevelTable`) and its common pool, drawn at the other levels. No option has a stack
+//! limit and none leaves its pool by being taken (the attack speed total is held at
+//! `run_stats::MAX_ATTACK_SPEED_PCT`); cooldown reduction is no expertise option but Rune
+//! Haste, a star reward (ADR-099). Each enemy's points per hit and per kill are in the stage
 //! (`stage::ExpertisePoints`).
 //!
 //! Data picks, code acts: an option's effect is one of the run stats' effect kinds
 //! (`StatEffect`), under the same names, or `range_pct`, the range reward's widening
 //! (ADR-070, ADR-099). The gauge reads the thresholds, the growth and the maximum, the common offers
-//! draw from the common pools, and the style offers show the styles and the chosen Main
-//! style's upgrades and capstones (`rules_v0`).
+//! draw from the common pool, and the style offers show the styles and the chosen style's
+//! upgrades and capstone (`rules_v0`).
 //!
 //! The file is untrusted (ADR-020), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. The thresholds rise strictly,
@@ -35,15 +35,16 @@ use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
 /// The largest expertise file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_EXPERTISE_BYTES: usize = 64 * 1024;
-/// The levels whose thresholds the file lists: 1 to 10 (ADR-078 §3).
+/// The levels whose thresholds the file lists: 1 to 10, so far as the style path's last level
+/// (ADR-106 §3, `stage::MAX_STYLE_LEVEL`).
 pub const TABLE_LEVELS: usize = 10;
 /// The most points one level needs, a threshold or the growth's maximum.
 pub const MAX_LEVEL_POINTS: u32 = 1_000_000;
 /// The largest growth factor, in percent: four times the level before.
 pub const MAX_GROWTH_PCT: u16 = 400;
-/// The styles of each weapon: exactly three (ADR-078 §5).
+/// The styles of each weapon: exactly three (ADR-106 §5).
 pub const STYLES: usize = 3;
-/// The most fixed choices a style offers at each of levels 6, 9 and 10.
+/// The most fixed choices a style offers at each of its two upgrades and its capstone.
 pub const MAX_STYLE_CHOICES: usize = 3;
 /// The most options in a weapon's common pool.
 pub const MAX_COMMON_OPTIONS: usize = 32;
@@ -105,9 +106,9 @@ pub struct ExpertiseOption {
     pub description: String,
 }
 
-/// A style (ADR-078 §5): a path chosen at level 3 for the Main or 5 for the Sub, held for the
-/// run. Its own effect applies when it is chosen; the Main's then offers the fixed choices of
-/// `upgrade_6` at level 6, `upgrade_9` at 9 and `capstone` at 10.
+/// A style (ADR-106 §5): a path chosen at the level table's style level, held for the run. Its
+/// own effect applies when it is chosen; it then offers the fixed choices of `upgrade_1` at the
+/// table's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Style {
@@ -118,15 +119,15 @@ pub struct Style {
     pub amount: u32,
     pub title: String,
     pub description: String,
-    /// Level 6's choices, 1 to `MAX_STYLE_CHOICES`.
-    pub upgrade_6: Vec<ExpertiseOption>,
-    /// Level 9's choices, 1 to `MAX_STYLE_CHOICES`.
-    pub upgrade_9: Vec<ExpertiseOption>,
-    /// Level 10's choices, 1 to `MAX_STYLE_CHOICES`.
+    /// The first upgrade's choices, 1 to `MAX_STYLE_CHOICES`.
+    pub upgrade_1: Vec<ExpertiseOption>,
+    /// The second upgrade's choices, 1 to `MAX_STYLE_CHOICES`.
+    pub upgrade_2: Vec<ExpertiseOption>,
+    /// The capstone's choices, 1 to `MAX_STYLE_CHOICES`.
     pub capstone: Vec<ExpertiseOption>,
 }
 
-/// One weapon's expertise, in either role.
+/// One weapon's expertise.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WeaponExpertise {
@@ -333,8 +334,8 @@ pub fn validate(file: &ExpertiseFile) -> Result<(), Error> {
             check_amount(&mut issue, &base, style.effect, style.amount);
             check_text(&mut issue, &base, &style.title, &style.description);
             for (field, choices) in [
-                ("upgrade_6", &style.upgrade_6),
-                ("upgrade_9", &style.upgrade_9),
+                ("upgrade_1", &style.upgrade_1),
+                ("upgrade_2", &style.upgrade_2),
                 ("capstone", &style.capstone),
             ] {
                 let path = format!("{base}.{field}");
