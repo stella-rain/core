@@ -139,6 +139,17 @@ fn the_no_call_times_are_unique_and_inside_the_run() {
 }
 
 #[test]
+fn the_no_call_times_are_at_most_one_per_boss_time() {
+    let at_limit: Vec<u32> = (1..=MAX_BOSS_TIMES as u32).collect();
+    assert!(parse(&with("no_call_ticks", json!(at_limit))).is_ok());
+    let past: Vec<u32> = (1..=MAX_BOSS_TIMES as u32 + 1).collect();
+    assert_eq!(
+        paths(&with("no_call_ticks", json!(past))),
+        ["$.no_call_ticks"]
+    );
+}
+
+#[test]
 fn each_boss_definition_is_unique_and_names_a_sprite() {
     let bosses = good()["bosses"].clone();
     let first = bosses[0].clone();
