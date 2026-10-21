@@ -5,7 +5,6 @@
 use serde_json::{Value, json};
 use stella_rain_core::attack::PhaseKind;
 use stella_rain_core::engine::Engine;
-use stella_rain_core::input::Input;
 use stella_rain_core::presets;
 use stella_rain_core::snapshot::PatternView;
 use stella_rain_core::stage::Stage;
@@ -50,7 +49,7 @@ fn attacks(enemy: &Value) -> Vec<Value> {
 fn standing_json(enemy: &Value) -> Value {
     let mut enemy = enemy.clone();
     enemy["movement"] = hold(ELITE.0, ELITE.1);
-    let mut stage = serde_json::to_value(stage_full(
+    let stage = serde_json::to_value(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, enemy, ELITE.0, ELITE.1)],
