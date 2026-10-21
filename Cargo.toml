@@ -74,8 +74,13 @@ harness = false
 
 # Overflow behaves the same in every profile (ADR-019): it panics unless the code says
 # `wrapping_*` or `saturating_*`. Release and bench would otherwise wrap silently.
+# Debug builds (and the test profile, which inherits from dev) optimise a little: a whole
+# time_limit run is about 7 times faster at opt-level 1 than at 0, and the debug tests' run drops
+# from about 7.5 minutes to about 1.3 (core#247). Overflow checks and debug assertions stay on, and an outcome
+# cannot depend on the level: release, at opt-level 3, matches the same corpus.
 [profile.dev]
 overflow-checks = true
+opt-level = 1
 
 [profile.release]
 overflow-checks = true
