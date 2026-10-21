@@ -2409,6 +2409,287 @@
         "kill": 3
       },
       "stardust": 10
+    },
+    {
+      "id": "swarmer",
+      "at_tick": 0,
+      "enemy": {
+        "base": "fairy_a",
+        "hp": 1500,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 12288,
+          "speed": 1536
+        },
+        "rules": []
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 102400,
+      "count": 1200,
+      "every_ticks": 60,
+      "xp": 1,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      },
+      "stardust": 10
+    },
+    {
+      "id": "chaser",
+      "at_tick": 0,
+      "enemy": {
+        "base": "bat",
+        "hp": 4000,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "strike"
+          ]
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": []
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 102400,
+      "count": 400,
+      "every_ticks": 180,
+      "xp": 1,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      },
+      "stardust": 10
+    },
+    {
+      "id": "ranged_shooter",
+      "at_tick": 10800,
+      "enemy": {
+        "base": "fairy_a",
+        "hp": 6000,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "pierce"
+          ]
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 61440
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 90,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 102400,
+      "count": 204,
+      "every_ticks": 300,
+      "xp": 1,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      },
+      "stardust": 10
+    },
+    {
+      "id": "tank",
+      "at_tick": 21600,
+      "enemy": {
+        "base": "horns_2",
+        "hp": 30000,
+        "radius": 4096,
+        "profile": {
+          "strong": [
+            "pierce"
+          ],
+          "resist": "physical"
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 8192,
+          "speed": 512
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "slam"
+                }
+              }
+            },
+            "cooldown_ticks": 150,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 102400,
+      "count": 84,
+      "every_ticks": 600,
+      "xp": 1,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      },
+      "stardust": 10
+    },
+    {
+      "id": "exploder",
+      "at_tick": 32400,
+      "enemy": {
+        "base": "bat",
+        "hp": 800,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 4096
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "near_target",
+              "distance": 8192
+            },
+            "target": "player",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "spread_5"
+                }
+              }
+            },
+            "cooldown_ticks": 0,
+            "once": false,
+            "self_destruct": true
+          }
+        ]
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 102400,
+      "count": 132,
+      "every_ticks": 300,
+      "xp": 1,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      },
+      "stardust": 10
+    },
+    {
+      "id": "splitter",
+      "at_tick": 43200,
+      "enemy": {
+        "base": "golem",
+        "hp": 6000,
+        "radius": 3072,
+        "profile": {
+          "weak": [
+            "strike"
+          ]
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 12288
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "hp_below",
+              "who": "self",
+              "pct": 50
+            },
+            "target": "self",
+            "do": {
+              "type": "summon",
+              "count": 2,
+              "agent": {
+                "base": "fairy_a",
+                "hp": 600,
+                "radius": 2048,
+                "profile": {
+                  "weak": [
+                    "slash"
+                  ]
+                },
+                "movement": {
+                  "type": "follow",
+                  "distance": 12288,
+                  "speed": 1536
+                },
+                "rules": []
+              }
+            },
+            "once": true
+          }
+        ]
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 102400,
+      "count": 48,
+      "every_ticks": 600,
+      "xp": 1,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      },
+      "stardust": 10
     }
   ],
   "elite_table": [
