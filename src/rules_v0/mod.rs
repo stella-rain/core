@@ -87,6 +87,7 @@ mod boss;
 mod entity;
 mod expertise;
 mod grid;
+mod heal;
 mod hit_boxes;
 mod horde;
 mod levels;
@@ -674,11 +675,14 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     s.companions.retain(|c| c.hp > 0);
     levels::credit_defeated(stage, s, events);
     stars::drop_from_defeated(stage, s, events);
+    heal::drop_from_defeated(stage, s, events);
     s.enemies.retain(|e| e.hp > 0);
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         stars::boss_killed(stage, s);
+        heal::boss_killed(stage, s, events);
     }
     stars::pick_up(stage, s, events);
+    heal::pick_up(stage, s, events);
 }
 
 /// The enemies as circles, in index order, for friendly bullets to land on.
