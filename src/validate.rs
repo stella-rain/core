@@ -1056,8 +1056,11 @@ impl<'a> Ctx<'a> {
             Movement::Orbit { radius } => {
                 self.within("radius", i64::from(radius.0), 1, i64::from(MAX_LEN))
             }
-            Movement::Follow { distance } => {
-                self.within("distance", i64::from(distance.0), 0, i64::from(MAX_LEN))
+            Movement::Follow { distance, speed } => {
+                self.within("distance", i64::from(distance.0), 0, i64::from(MAX_LEN));
+                if let Some(speed) = speed {
+                    self.within("speed", i64::from(speed.0), 1, i64::from(MAX_LEN));
+                }
             }
             Movement::FleeWhenDisturbed {
                 disturb_radius,
@@ -1120,6 +1123,9 @@ impl<'a> Ctx<'a> {
             }
             Condition::PartBroken { part } => self.part("part", part),
             Condition::TimeAbove { ticks } => self.ticks("ticks", *ticks, 0),
+            Condition::NearTarget { distance } => {
+                self.within("distance", i64::from(distance.0), 1, i64::from(MAX_LEN))
+            }
         }
     }
 
