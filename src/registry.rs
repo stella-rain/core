@@ -84,6 +84,7 @@ pub const ENTRIES: &[Entry] = &[
     entry("giant_sword", Kind::Weapon, 0),
     entry("time_limit", Kind::Mode, 0),
     entry("trial", Kind::Mode, 0),
+    entry("tutorial", Kind::Mode, 0),
     entry("giant_hammer_aaab", Kind::Upgrade, 0),
     entry("giant_hammer_aab", Kind::Upgrade, 0),
     entry("giant_sword_aaab", Kind::Upgrade, 0),
