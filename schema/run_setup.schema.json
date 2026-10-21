@@ -4,8 +4,26 @@
   "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-051).",
   "type": "object",
   "properties": {
+    "auto_combo": {
+      "description": "The run starts with auto mode on (ADR-073, ADR-107). The input's `auto` switch still\ntoggles it: on a tick, auto mode is on when `auto` differs from this field, so a run\nthat keeps the preset records `auto: false` on every tick.",
+      "type": "boolean"
+    },
+    "carried": {
+      "description": "The stars the run starts holding (ADR-107 point 3), at most `MAX_CARRIED_STARS`: each\napplies at tick 0 as if picked from an offer, in this order, and counts toward its\nreward's stack limit. Their costs (`lumine_cost`) add up to at most `lumine`.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CarriedStar"
+      }
+    },
     "extra_rerolls": {
       "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.",
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    },
+    "lumine": {
+      "description": "The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE` (ADR-107\npoint 2).",
       "type": "integer",
       "format": "uint8",
       "maximum": 255,
@@ -14,6 +32,18 @@
     "mode": {
       "description": "A mode ID: the content the run plays.",
       "$ref": "#/$defs/ContentId"
+    },
+    "perk_set": {
+      "description": "The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk\nsets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`.",
+      "$ref": "#/$defs/ContentId",
+      "default": "duelist"
+    },
+    "rune_pool": {
+      "description": "The runes the random rune may draw (ADR-099 point 4a, ADR-107): rune IDs, sorted, each\nonce, at most `MAX_RUNE_POOL`. Empty: every rune.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentId"
+      }
     },
     "schema_version": {
       "type": "integer",
@@ -41,6 +71,17 @@
         "$ref": "#/$defs/ContentId"
       }
     },
+    "starting_rune": {
+      "description": "A rune the run starts holding (ADR-107 point 3): in the rune pool when there is one. It\ncosts no Lumine, and the random rune never draws it again.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContentId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "upgrades": {
       "description": "The permanent upgrades the player holds (ADR-079), which open the combo steps that name\nthem (ADR-084 point 7): registered upgrade IDs, sorted, each once, at most\n`registry::MAX_UPGRADES`.",
       "type": "array",
@@ -62,6 +103,19 @@
     "seed"
   ],
   "$defs": {
+    "CarriedStar": {
+      "description": "A star the run starts holding: a reward of the run's rewards file.",
+      "type": "object",
+      "properties": {
+        "reward": {
+          "$ref": "#/$defs/ContentId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "reward"
+      ]
+    },
     "ContentId": {
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"

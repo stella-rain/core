@@ -369,6 +369,12 @@ fn setup() -> RunSetup {
         star_pool: None,
         extra_rerolls: 0,
         upgrades: Vec::new(),
+        perk_set: "duelist".into(),
+        auto_combo: false,
+        rune_pool: Vec::new(),
+        carried: Vec::new(),
+        lumine: 0,
+        starting_rune: None,
     }
 }
 

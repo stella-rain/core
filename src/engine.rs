@@ -1471,6 +1471,12 @@ mod horde_tests {
             star_pool: None,
             extra_rerolls: 0,
             upgrades: Vec::new(),
+            perk_set: "duelist".into(),
+            auto_combo: false,
+            rune_pool: Vec::new(),
+            carried: Vec::new(),
+            lumine: 0,
+            starting_rune: None,
         };
         Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
     }
@@ -1579,6 +1585,12 @@ mod horde_tests {
             star_pool: None,
             extra_rerolls: 0,
             upgrades: Vec::new(),
+            perk_set: "duelist".into(),
+            auto_combo: false,
+            rune_pool: Vec::new(),
+            carried: Vec::new(),
+            lumine: 0,
+            starting_rune: None,
         };
         let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
         e.state.player.hp = u32::MAX;
