@@ -219,6 +219,25 @@
             "when": {
               "type": "always"
             }
+          },
+          {
+            "cooldown_ticks": 120,
+            "do": {
+              "attack": {
+                "preset": {
+                  "args": [
+                    768
+                  ],
+                  "id": "aimed_spread"
+                }
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
           }
         ]
       },
