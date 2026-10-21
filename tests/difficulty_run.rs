@@ -105,8 +105,8 @@ fn a_boss_spawns_with_the_difficultys_percent_of_its_hit_points() {
         v["elite_table"] =
             json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
     });
-    // Easy's own boss times put the first boss at 2.5 minutes.
-    let first = |id: &str| if id == "easy" { 9_000 } else { 50 };
+    // Easy's own boss times put its one mid-boss at 5 minutes.
+    let first = |id: &str| if id == "easy" { 18_000 } else { 50 };
     let boss = |id: &str| {
         let s = step_to(&mut start(id, &m), first(id));
         (hp_of(&s, EntityKind::Boss), hp_of(&s, EntityKind::BossPart))
@@ -181,19 +181,16 @@ fn easy_runs_ten_minutes_with_its_boss_times_and_the_short_level_table() {
 }
 
 #[test]
-fn easys_bosses_come_at_its_times() {
+fn easys_one_mid_boss_comes_at_5_minutes_and_its_final_boss_at_10() {
     let m = mode(|v| v["waves"] = json!([]));
     let mut e = start("easy", &m);
-    for (tick, bosses) in [(8_999, 0), (9_000, 1)] {
+    for (tick, bosses) in [(17_999, 0), (18_000, 1)] {
         assert_eq!(
             hp_of(&step_to(&mut e, tick), EntityKind::Boss).len(),
             bosses,
             "tick {tick}"
         );
     }
-    // Normal's first boss is at 5 minutes.
-    let mut e = start("normal", &m);
-    assert!(hp_of(&step_to(&mut e, 9_000), EntityKind::Boss).is_empty());
 }
 
 #[test]

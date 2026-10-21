@@ -82,10 +82,7 @@ fn the_bundled_file_holds_the_four_difficulties_with_kades_numbers() {
 fn only_easy_overrides_the_mode() {
     let easy = bundled("easy");
     assert_eq!(easy.length_ticks, Some(10 * 60 * 60));
-    assert_eq!(
-        easy.boss_ticks.as_deref(),
-        Some(&[9_000, 18_000, 27_000, 36_000][..])
-    );
+    assert_eq!(easy.boss_ticks.as_deref(), Some(&[18_000, 36_000][..]));
     assert_eq!(easy.level_table, Some(LevelTable::SHORT));
     for id in ["normal", "hard", "rainy"] {
         let d = bundled(id);

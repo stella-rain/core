@@ -1932,8 +1932,15 @@ mod horde_tests {
     }
 
     #[test]
-    fn the_easy_run_draws_its_three_mid_bosses_without_repeats() {
-        assert_three_distinct_mid_bosses("easy", [9_000, 18_000, 27_000]);
+    fn the_easy_run_draws_one_mid_boss_from_the_four_and_then_the_final_boss() {
+        const POOL: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
+        for seed in 0..2 {
+            let mut e = bundled_run("easy", seed);
+            let horde = e.state.horde.as_ref().unwrap();
+            assert_eq!(horde.boss_ticks, [18_000, 36_000], "seed {seed}");
+            let drawn = boss_sprite_at(&mut e, 18_000).expect("a boss");
+            assert!(POOL.contains(&drawn.as_str()), "seed {seed}: {drawn}");
+        }
     }
 
     #[test]
