@@ -84,6 +84,15 @@
       "format": "uint32",
       "minimum": 0
     },
+    "stardust_summon_base": {
+      "description": "The base Stardust a kill of a summoned enemy earns before the factor, times 10, at most\n`limits::MAX_STARDUST_BASE`; the run's stage takes it as its `stardust.summon_base`.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0
+    },
     "stardust_tiers": {
       "description": "The Stardust time factor (ADR-109 decision 2): 1 to `limits::MAX_STARDUST_TIERS` tiers,\nthe first at tick 0, the ticks rising strictly, each percent from 1 to\n`limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own (ADR-110).",
       "type": "array",
