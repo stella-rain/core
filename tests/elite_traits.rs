@@ -9,7 +9,6 @@ use stella_rain_core::presets;
 use stella_rain_core::snapshot::PatternView;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::time_limit::TimeLimit;
-use stella_rain_core::validate::{self, Error};
 
 use crate::common;
 
@@ -124,7 +123,7 @@ fn the_mid_elite_fires_an_aimed_spread_at_the_main_character() {
 }
 
 #[test]
-fn the_high_elite_slam_winds_up_for_at_least_the_placeholder_and_is_announced_big() {
+fn the_high_elite_slam_winds_up_for_at_least_the_placeholder_and_is_not_announced() {
     let slam = presets::definition("elite_slam").expect("the preset exists");
     let wind_up = &slam[0];
     assert_eq!(
@@ -135,60 +134,31 @@ fn the_high_elite_slam_winds_up_for_at_least_the_placeholder_and_is_announced_bi
     assert!(wind_up.ticks >= SLAM_WIND_UP, "a long wind-up");
 
     let mut e = engine(&standing(&elite_type("elite_high")));
-    let mut shown = Vec::new();
+    let mut winding = 0;
     for _ in 0..(wind_up.ticks + 10) {
         e.step(idle());
-        shown.extend(patterns(&e));
+        assert_eq!(
+            patterns(&e),
+            Vec::<PatternView>::new(),
+            "an enemy's attack is never announced"
+        );
+        winding += e
+            .snapshot()
+            .entities
+            .iter()
+            .filter_map(|en| en.attack.as_ref())
+            .filter(|a| a.kind == PhaseKind::WindUp && a.preset == Some("elite_slam".into()))
+            .count();
     }
-    let total = wind_up.ticks;
-    let counted: Vec<u32> = shown
-        .iter()
-        .map(|p| {
-            assert_eq!(p.id, "elite_slam".into(), "the slam is what is announced");
-            assert_eq!(p.total, total, "the count-down starts at the wind-up");
-            p.remaining
-        })
-        .collect();
-    let expected: Vec<u32> = (1..=total).rev().collect();
-    assert_eq!(
-        counted, expected,
-        "one tick a count, from the wind-up down to 1"
+    assert!(
+        winding >= SLAM_WIND_UP as usize,
+        "the wind-up is the visible tell: {winding}"
     );
 }
 
 #[test]
-fn a_big_enemy_rule_must_name_a_preset() {
+fn a_big_flag_on_an_enemy_rule_is_refused_as_an_unknown_field() {
     let mut enemy = elite_type("elite_high");
-    enemy["rules"][0]["do"]["attack"] = json!({ "inline": [{ "kind": "active", "ticks": 1 }] });
     enemy["rules"][0]["do"]["big"] = json!(true);
-    let stage: Stage = serde_json::from_value(standing_json(&enemy)).expect("parses");
-    let paths: Vec<String> = match validate::validate(&stage) {
-        Err(Error::Invalid(issues)) => issues.into_iter().map(|i| i.path).collect(),
-        other => panic!("not refused: {other:?}"),
-    };
-    assert!(paths.iter().any(|p| p.contains("big")), "{paths:?}");
-}
-
-#[test]
-fn a_big_enemy_rule_is_announced_through_its_wind_up_and_dropped_when_it_starts() {
-    let rules = json!([{ "when": always(), "target": "player",
-        "do": { "type": "attack", "attack": { "preset": { "id": "elite_slam" } }, "big": true },
-        "cooldown_ticks": 600 }]);
-    let mut e = engine(&standing(&enemy(3000, hold(ELITE.0, ELITE.1), rules)));
-    let mut counted = Vec::new();
-    for _ in 0..100 {
-        e.step(idle());
-        for p in patterns(&e) {
-            assert_eq!(p.id, "elite_slam".into(), "the slam is what is announced");
-            counted.push((p.total, p.remaining));
-        }
-    }
-    let expected: Vec<(u32, u32)> = (1..=SLAM_WIND_UP)
-        .rev()
-        .map(|r| (SLAM_WIND_UP, r))
-        .collect();
-    assert_eq!(
-        counted, expected,
-        "announced for the wind-up, one count a tick"
-    );
+    assert!(serde_json::from_value::<Stage>(standing_json(&enemy)).is_err());
 }
