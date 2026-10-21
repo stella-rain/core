@@ -131,14 +131,10 @@
           ]
         },
         {
-          "description": "`big`: a big pattern (ADR-103), announced in the snapshot through its wind-up. Only a\npreset can be big, the validator holds it to that.",
           "type": "object",
           "properties": {
             "attack": {
               "$ref": "#/$defs/AttackRef"
-            },
-            "big": {
-              "type": "boolean"
             },
             "type": {
               "type": "string",

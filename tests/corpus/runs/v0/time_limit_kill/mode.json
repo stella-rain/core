@@ -168,7 +168,6 @@
                   "id": "elite_slam"
                 }
               },
-              "big": true,
               "type": "attack"
             },
             "once": false,
