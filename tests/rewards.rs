@@ -59,7 +59,7 @@ fn invalid_at(v: &Value, path: &str) {
 }
 
 #[test]
-fn the_bundled_rewards_hold_every_effect_at_three_rarities() {
+fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
     let rewards = Rewards::bundled().rewards();
     for effect in StatEffect::ALL {
         let rarities: Vec<Rarity> = rewards
@@ -67,9 +67,18 @@ fn the_bundled_rewards_hold_every_effect_at_three_rarities() {
             .filter(|r| r.effect.stat() == Some(effect))
             .map(|r| r.rarity)
             .collect();
+        // The three released rarities come first, then the six-rarity ladder's new ones
+        // (tests/rarities.rs).
         assert_eq!(
             rarities,
-            [Rarity::Common, Rarity::Rare, Rarity::Legendary],
+            [
+                Rarity::Common,
+                Rarity::Rare,
+                Rarity::Legendary,
+                Rarity::Uncommon,
+                Rarity::Epic,
+                Rarity::Supernova,
+            ],
             "{effect:?}"
         );
     }
