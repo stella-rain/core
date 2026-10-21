@@ -22,6 +22,7 @@ use crate::pack::Pack;
 use crate::registry;
 use crate::run_setup::MAX_EXTRA_REROLLS;
 use crate::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, StatEffect, text_problem};
+use crate::validate::limits::DAMAGE_SCALE;
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -33,10 +34,11 @@ pub const MAX_PERK_SETS: usize = 16;
 pub const MAX_PERK_EFFECTS: usize = PerkEffect::ALL.len();
 /// The largest amount of a percentage effect.
 pub const MAX_PERK_PCT: u32 = 100;
-/// The most hit points a set adds (ADR-103's scale as the rewards' amounts are).
-pub const MAX_PERK_MAX_HP: u32 = 5_000;
-/// The most hit points a set regenerates each second.
-pub const MAX_PERK_REGEN: u32 = 1_000;
+/// The most hit points a set adds: 500 shown hit points, scaled (ADR-103) as the rewards'
+/// amounts are.
+pub const MAX_PERK_MAX_HP: u32 = 500 * DAMAGE_SCALE;
+/// The most hit points a set regenerates each second: 10 shown hit points, scaled (ADR-103).
+pub const MAX_PERK_REGEN: u32 = 10 * DAMAGE_SCALE;
 /// The most rerolls or banishes a set adds: as many as a setup may add (`MAX_EXTRA_REROLLS`).
 pub const MAX_PERK_OFFER_EXTRAS: u32 = MAX_EXTRA_REROLLS as u32;
 

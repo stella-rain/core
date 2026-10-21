@@ -1,18 +1,20 @@
 //! Healing: a boss kill heals a quarter of the main character's most hit points, never above it;
 //! a regular kill drops a heal pickup with a chance of 1 in 150 from the run's generator, and
-//! taking the pickup heals 300 hit points, never above the most; a regen reward adds its amount
-//! a second at its rarity (10, 30 and 60 for common, rare and legendary). Hit points are in the
-//! stage's scale (ADR-103): 100 is one shown hit point. Every number here is worked out by hand.
+//! taking the pickup heals 300 shown hit points, never above the most; a regen reward adds its
+//! amount a second at its rarity (10, 15, 30, 35, 60 and 80 shown hit points from common up to
+//! supernova). Kade's numbers are shown hit points; the files hold them in the stage's scale
+//! (ADR-103): `DAMAGE_SCALE` (100) is one shown hit point. Every number here is worked out by hand.
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::rewards::{MAX_HP_AMOUNT, Rewards};
+use stella_rain_core::rewards::{MAX_HP_AMOUNT, Rarity, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::OfferOption;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate;
+use stella_rain_core::validate::limits::{DAMAGE_SCALE, MAX_HEAL_AMOUNT, MAX_PLAYER_HP};
 
 use crate::common;
 
@@ -24,6 +26,9 @@ const NEAR_Y: i32 = START_Y - 8_192;
 
 /// The most hit points of the test main character.
 const MAX_HP: u32 = 1_000;
+
+/// What a pickup heals: 300 shown hit points (Kade, app#336), as the bundled `trial` mode has.
+const PICKUP: u32 = 300 * DAMAGE_SCALE;
 
 /// The main character's entity ID.
 const PLAYER: u32 = 0;
@@ -42,11 +47,11 @@ fn weapon() -> Value {
     } })
 }
 
-/// The heal config: `boss_pct` percent for a boss, one pickup in `drop_one_in` that heals 300, at
-/// most `cap` on the map, taken within 12 288 of the main character.
+/// The heal config: `boss_pct` percent for a boss, one pickup in `drop_one_in` that heals
+/// `PICKUP`, at most `cap` on the map, taken within 12 288 of the main character.
 fn heal_json(boss_pct: u16, drop_one_in: u32, cap: u16) -> Value {
     json!({
-        "boss_pct": boss_pct, "drop_one_in": drop_one_in, "amount": 300, "cap": cap,
+        "boss_pct": boss_pct, "drop_one_in": drop_one_in, "amount": PICKUP, "cap": cap,
         "pickup_radius": 12_288
     })
 }
@@ -94,6 +99,18 @@ fn regen(id: &str, rarity: &str, amount: u32, limit: u8) -> Value {
 /// Its 10 000 hit points keep the weapon from killing it.
 fn shooter() -> Value {
     let rules = json!([attack_rule(always(), 10_000)]);
+    let (x, y) = (START_X + 40_000, START_Y);
+    wave(1, 1, 0, enemy(10_000, hold(x, y), rules), x, y)
+}
+
+/// As `shooter`, with a bullet of `damage`: enough to leave room for a heal of shown size.
+fn heavy_shooter(damage: u32) -> Value {
+    let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "damage": damage, "spawn": [
+        { "type": "fire", "speed": 768, "direction": { "type": "aimed", "offset": 0 } }
+    ] }] });
+    let rules = json!([{ "when": always(), "target": "player",
+                         "do": { "type": "attack", "attack": attack },
+                         "cooldown_ticks": 10_000 }]);
     let (x, y) = (START_X + 40_000, START_Y);
     wave(1, 1, 0, enemy(10_000, hold(x, y), rules), x, y)
 }
@@ -171,17 +188,17 @@ fn a_heal_config_is_bounded_like_the_other_content() {
         json!({ "boss_pct": boss_pct, "drop_one_in": drop_one_in, "amount": amount,
                 "cap": cap, "pickup_radius": 6_144 })
     };
-    assert!(validate::validate(&stage(config(25, 150, 300, 5))).is_ok());
+    assert!(validate::validate(&stage(config(25, 150, PICKUP, 5))).is_ok());
     assert!(
         validate::validate(&stage(config(100, 1, 1, 1))).is_ok(),
         "the least of each"
     );
     assert!(
-        validate::validate(&stage(config(101, 150, 300, 5))).is_err(),
+        validate::validate(&stage(config(101, 150, PICKUP, 5))).is_err(),
         "over 100 percent"
     );
     assert!(
-        validate::validate(&stage(config(25, 0, 300, 5))).is_err(),
+        validate::validate(&stage(config(25, 0, PICKUP, 5))).is_err(),
         "a chance of 1 in 0"
     );
     assert!(
@@ -189,12 +206,20 @@ fn a_heal_config_is_bounded_like_the_other_content() {
         "a heal of 0"
     );
     assert!(
-        validate::validate(&stage(config(25, 150, 300, 0))).is_err(),
+        validate::validate(&stage(config(25, 150, PICKUP, 0))).is_err(),
         "no pickups at all"
     );
     assert!(
-        validate::validate(&stage(config(25, 150, 300, 17))).is_err(),
+        validate::validate(&stage(config(25, 150, PICKUP, 17))).is_err(),
         "past the hard cap"
+    );
+    assert!(
+        validate::validate(&stage(config(25, 150, MAX_HEAL_AMOUNT, 5))).is_ok(),
+        "the most a pickup heals"
+    );
+    assert!(
+        validate::validate(&stage(config(25, 150, MAX_HEAL_AMOUNT + 1, 5))).is_err(),
+        "past the most a pickup heals"
     );
 }
 
@@ -205,7 +230,8 @@ fn a_regen_reward_is_bounded_like_the_max_hit_points_reward() {
                            "rewards": [regen("regen", "common", amount, 5)] });
         Rewards::parse(file.to_string().as_bytes()).is_ok()
     };
-    assert!(parses(10), "the common amount");
+    assert!(parses(10 * DAMAGE_SCALE), "the common amount");
+    assert!(parses(80 * DAMAGE_SCALE), "the supernova amount");
     assert!(parses(MAX_HP_AMOUNT), "the most hit points a second");
     assert!(!parses(0), "no regeneration");
     assert!(!parses(MAX_HP_AMOUNT + 1), "past the most");
@@ -269,9 +295,10 @@ fn a_regular_kill_drops_a_pickup_at_one_in_one_and_the_first_heals_on_touch() {
 }
 
 #[test]
-fn a_pickup_heals_300_as_far_as_the_most_allows() {
+fn a_pickup_heals_300_shown_hit_points_as_far_as_the_most_allows() {
     // The kill at `NEAR_Y` drops a pickup the main character takes at once, on the tick the
-    // shooter's bullet hurts it to 900: 300 more would be 1200, so it heals 100 to the most.
+    // shooter's bullet hurts it to 900: 300 shown more would be far past 1000, so it heals 100
+    // to the most.
     let stage = healing(
         stage_full(
             600,
@@ -285,6 +312,37 @@ fn a_pickup_heals_300_as_far_as_the_most_allows() {
     let seen = run(&mut e, 300, |e| e.tick() >= 90);
     assert_eq!(healed(&seen), vec![100]);
     assert_eq!(hp(&e), MAX_HP, "at the most, never above");
+}
+
+#[test]
+fn a_pickup_heals_far_more_than_300_raw_hit_points() {
+    // At the most a stage allows (99 shown), a bullet of 90 shown hit points leaves 9 shown:
+    // the pickup's 300 shown hit points heal all 90 back, to the most and no further.
+    let mut stage = healing(
+        stage_full(
+            600,
+            Some(far_boss()),
+            vec![heavy_shooter(90 * DAMAGE_SCALE), targets(60, 1)],
+            vec![],
+        ),
+        heal_json(25, 1, 5),
+    );
+    stage.player.hp = MAX_PLAYER_HP;
+    let mut e = Engine::new(&stage).unwrap();
+    let seen = run(&mut e, 300, |e| e.tick() >= 90);
+    assert_eq!(healed(&seen), vec![90 * DAMAGE_SCALE]);
+    assert_eq!(hp(&e), MAX_PLAYER_HP, "at the most, never above");
+}
+
+#[test]
+fn the_bundled_heal_pickup_heals_300_shown_hit_points() {
+    let content = RunContent::bundled();
+    let trial = content.trial().heal.as_ref().expect("the trial mode heals");
+    assert_eq!(trial.amount, 300 * DAMAGE_SCALE);
+    assert_eq!(trial.boss_pct, 25, "a percent of the most: unscaled");
+    if let Some(heal) = &content.tutorial().heal {
+        assert_eq!(heal.amount, 300 * DAMAGE_SCALE, "tutorial");
+    }
 }
 
 #[test]
@@ -337,14 +395,14 @@ fn the_pickups_on_the_map_stay_within_the_cap() {
 // Regen: a regen reward adds its amount to the perk counter, a second at a time.
 
 /// A stage where one kill drops a star of `rarity`, taken at once, after the shooter hurts the
-/// main character: then the reward `regen` is offered and taken.
+/// main character from 99 shown hit points to 9: then the reward `regen` is offered and taken.
 fn regen_offer(rarity: &str, amount: u32) -> Engine {
     let stage = armed(
         starry(
             stage_full(
                 1_200,
                 Some(far_boss()),
-                vec![shooter(), targets(60, 1)],
+                vec![heavy_shooter(90 * DAMAGE_SCALE), targets(60, 1)],
                 vec![],
             ),
             rarity,
@@ -352,7 +410,7 @@ fn regen_offer(rarity: &str, amount: u32) -> Engine {
         weapon(),
     );
     let mut stage = stage;
-    stage.player.hp = MAX_HP;
+    stage.player.hp = MAX_PLAYER_HP;
     let list = vec![regen("regen", rarity, amount, 5)];
     let content = RunContent::new(RunStats::bundled().clone(), rewards(list));
     Engine::new_with(&stage, &content).expect("the test stage is valid")
@@ -375,7 +433,9 @@ fn take(e: &mut Engine, reward: &str) {
 
 #[test]
 fn a_regen_reward_heals_its_amount_each_second_at_each_rarity() {
-    for (rarity, amount) in [("common", 10), ("rare", 30), ("legendary", 60)] {
+    for (rarity, amount) in bundled_regen() {
+        let rarity = format!("{rarity:?}").to_lowercase();
+        let rarity = rarity.as_str();
         let mut e = regen_offer(rarity, amount);
         run(&mut e, 300, |e| e.offer_open());
         assert!(e.offer_open(), "{rarity}: an offer opens after the kill");
@@ -389,4 +449,29 @@ fn a_regen_reward_heals_its_amount_each_second_at_each_rarity() {
             "{rarity}: {amount} hit points a second"
         );
     }
+}
+
+/// The bundled regen rewards' rarities and amounts, from common up.
+fn bundled_regen() -> Vec<(Rarity, u32)> {
+    let mut all: Vec<(Rarity, u32)> = Rewards::bundled()
+        .rewards()
+        .iter()
+        .filter(|r| r.effect == RewardEffect::Regen)
+        .map(|r| (r.rarity, r.amount.unwrap()))
+        .collect();
+    all.sort_by_key(|(rarity, _)| rarity.index());
+    all
+}
+
+#[test]
+fn the_bundled_regen_rewards_give_shown_hit_points_a_second() {
+    // Kade's 10 / 30 / 60 shown for common / rare / legendary, and the ladder of core#236
+    // (×1.5, ×3.5, ×8 of common) for uncommon / epic / supernova.
+    let shown = [10, 15, 30, 35, 60, 80].map(|n| n * DAMAGE_SCALE);
+    let expected: Vec<(Rarity, u32)> = Rarity::ALL.iter().copied().zip(shown).collect();
+    assert_eq!(bundled_regen(), expected);
+    assert!(
+        expected.iter().all(|(_, a)| *a <= MAX_HP_AMOUNT),
+        "within the cap"
+    );
 }

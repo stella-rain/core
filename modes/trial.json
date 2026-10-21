@@ -527,7 +527,7 @@
   "heal": {
     "boss_pct": 25,
     "drop_one_in": 150,
-    "amount": 300,
+    "amount": 30000,
     "cap": 5,
     "pickup_radius": 6144
   },
