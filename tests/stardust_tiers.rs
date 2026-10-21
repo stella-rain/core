@@ -83,7 +83,10 @@ fn a_kill_earns_the_percent_of_its_tier_truncated() {
     }
     let percents: Vec<u32> = got.iter().map(|&(t, _)| pct_at(&table, t)).collect();
     for (_, pct) in table {
-        assert!(percents.contains(&pct), "no kill in the {pct}% tier: {got:?}");
+        assert!(
+            percents.contains(&pct),
+            "no kill in the {pct}% tier: {got:?}"
+        );
     }
 }
 
