@@ -328,6 +328,9 @@ impl Pack {
             .map_err(PackError::in_file("time_limit"))?;
         let tutorial = validate::parse_and_validate(&file_bytes(&pack.modes.tutorial))
             .map_err(PackError::in_file("tutorial"))?;
+        // Its bosses are checked against the trial stage they are placed in.
+        crate::run_setup::check_bosses(&trial, &time_limit)
+            .map_err(PackError::in_file("time_limit"))?;
 
         check_introduced(
             &pack.introduced,
