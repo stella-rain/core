@@ -13,14 +13,6 @@
         "minimum": 0
       }
     },
-    "bosses": {
-      "description": "The boss definitions (core#336), 0 to `MAX_BOSS_DEFINITIONS`, each for one sprite: a\npool entry or the final boss with a definition here is made from it, one without is made\nfrom the trial's placeholder boss with its sprite. Each is checked as a stage's boss is,\nwhen a run starts (`run_setup`), and its sprite is an asset.",
-      "type": "array",
-      "default": [],
-      "items": {
-        "$ref": "#/$defs/Boss"
-      }
-    },
     "elite_cap": {
       "description": "The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the\nsame bound). The run's stage takes it as its own.",
       "type": "integer",
@@ -68,16 +60,6 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/ContentId"
-      }
-    },
-    "no_call_ticks": {
-      "description": "The boss times at which no elite is called (core#336), each once. A time that is no boss\ntime of the run has no effect; every other boss calls its elites as its definition says.",
-      "type": "array",
-      "default": [],
-      "items": {
-        "type": "integer",
-        "format": "uint32",
-        "minimum": 0
       }
     },
     "overtime_ticks": {
@@ -470,105 +452,6 @@
         "elements"
       ]
     },
-    "Boss": {
-      "description": "Tier 2 (ADR-036): body parts and an ordered list of phases that only move forward.",
-      "type": "object",
-      "properties": {
-        "base": {
-          "$ref": "#/$defs/ContentId"
-        },
-        "call_elites": {
-          "description": "When every elite alive joins the boss fight (ADR-068); without it the boss calls none.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/CallElites"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defence": {
-          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "expertise": {
-          "description": "The expertise points the boss gives (ADR-078 §2); none when absent.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ExpertisePoints"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "hp": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "palette": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ContentId"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "parts": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/BossPart"
-          }
-        },
-        "phases": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Phase"
-          }
-        },
-        "profile": {
-          "description": "What it is weak and strong against (ADR-100); without one, every type is neutral against\nit.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Profile"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "radius": {
-          "$ref": "#/$defs/Fx"
-        },
-        "spawn": {
-          "$ref": "#/$defs/Point"
-        },
-        "stardust": {
-          "description": "The Stardust its kill earns before the time factor, times 10; as a wave's `stardust`.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "base",
-        "hp",
-        "radius",
-        "spawn",
-        "phases"
-      ]
-    },
     "BossCall": {
       "description": "What a boss's call does to an elite.",
       "oneOf": [
@@ -588,81 +471,6 @@
           "const": "stay"
         }
       ]
-    },
-    "BossPart": {
-      "description": "A breakable part with its own HP and hurt circle (ADR-007, ADR-036).",
-      "type": "object",
-      "properties": {
-        "asset": {
-          "description": "Asset ID of the part's sprite.",
-          "$ref": "#/$defs/ContentId"
-        },
-        "defence": {
-          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "hp": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "id": {
-          "description": "Unique within the boss; `part_broken` and the `part` selector use it.",
-          "$ref": "#/$defs/ContentId"
-        },
-        "offset": {
-          "description": "Offset from the boss's centre.",
-          "$ref": "#/$defs/Point"
-        },
-        "profile": {
-          "description": "Its own profile (ADR-100), not the boss's; without one, every type is neutral against it.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Profile"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "radius": {
-          "$ref": "#/$defs/Fx"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "asset",
-        "hp",
-        "offset",
-        "radius"
-      ]
-    },
-    "CallElites": {
-      "description": "The boss calls its elites at whichever comes first: `after_ticks` ticks after its first\ntick (0 calls on it), or its hit points falling below `below_pct` percent of its maximum.\nAt least one of the two is given.",
-      "type": "object",
-      "properties": {
-        "after_ticks": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0
-        },
-        "below_pct": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false
     },
     "Condition": {
       "oneOf": [
@@ -1787,47 +1595,6 @@
       },
       "additionalProperties": false
     },
-    "Phase": {
-      "type": "object",
-      "properties": {
-        "rules": {
-          "description": "Reactions, evaluated like an agent's rules.",
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Rule"
-          }
-        },
-        "timeline": {
-          "description": "The choreography, one step at a time.",
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Step"
-          }
-        },
-        "transition": {
-          "description": "Runs when the phase begins.",
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Transition"
-          }
-        },
-        "until": {
-          "description": "Ends the phase; absent on the last phase, which lasts until the boss dies.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Condition"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
     "PhaseKind": {
       "oneOf": [
         {
@@ -2097,106 +1864,6 @@
         }
       ]
     },
-    "Step": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "ticks": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0
-            },
-            "to": {
-              "$ref": "#/$defs/Point"
-            },
-            "type": {
-              "type": "string",
-              "const": "move_to"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type",
-            "to",
-            "ticks"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "ticks": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0
-            },
-            "type": {
-              "type": "string",
-              "const": "wait"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type",
-            "ticks"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "ticks": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0
-            },
-            "type": {
-              "type": "string",
-              "const": "telegraph"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type",
-            "ticks"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "attack": {
-              "$ref": "#/$defs/AttackRef"
-            },
-            "big": {
-              "description": "A big pattern (ADR-103): announced in the snapshot, with the ticks left until it\nstarts, while the timed steps before it run. Only a preset can be big; its ID names\nit.",
-              "type": "boolean"
-            },
-            "type": {
-              "type": "string",
-              "const": "attack"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type",
-            "attack"
-          ]
-        },
-        {
-          "description": "Starts the timeline again from its first step.",
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "loop"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type"
-          ]
-        }
-      ]
-    },
     "TimeLimitMap": {
       "description": "An open field: its sides in 1/256 pixels and where the player starts.",
       "type": "object",
@@ -2219,42 +1886,6 @@
         "width",
         "height",
         "start"
-      ]
-    },
-    "Transition": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "clear_bullets"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "ticks": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0
-            },
-            "type": {
-              "type": "string",
-              "const": "invulnerable_ticks"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type",
-            "ticks"
-          ]
-        }
       ]
     },
     "Wave": {
@@ -2297,6 +1928,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/ExpertisePoints"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "description": "The wave's role in a `time_limit` schedule (R2): lowercase snake_case, unique among the\nschedule's waves. A stage's waves do not use it; absent, the wave has no ID.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
             },
             {
               "type": "null"

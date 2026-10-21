@@ -20,8 +20,10 @@ use crate::validate::limits::MAX_STAGE_BYTES;
 /// A code is at most this many characters.
 pub const MAX_SHARE_CODE_CHARS: usize = 512 * 1024;
 
-/// The decompressed container is at most this many bytes: two files at their limits, escaped.
-pub const MAX_SHARE_DECOMPRESSED_BYTES: usize = 1024 * 1024;
+/// The decompressed container is at most this many bytes: two files at their limits, escaped
+/// twice over (the stage is JSON inside JSON; the replay is base64, which escapes nothing). With
+/// the replay cap at 1 MiB (R2) this is 2.5 MiB; the code cap above still bounds a code.
+pub const MAX_SHARE_DECOMPRESSED_BYTES: usize = 2 * (MAX_STAGE_BYTES + MAX_REPLAY_BYTES);
 
 /// Zlib's best compression. Only decoding has to be stable across versions of the crate.
 const LEVEL: u8 = 9;

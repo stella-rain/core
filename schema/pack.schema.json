@@ -4258,14 +4258,6 @@
             "minimum": 0
           }
         },
-        "bosses": {
-          "description": "The boss definitions (core#336), 0 to `MAX_BOSS_DEFINITIONS`, each for one sprite: a\npool entry or the final boss with a definition here is made from it, one without is made\nfrom the trial's placeholder boss with its sprite. Each is checked as a stage's boss is,\nwhen a run starts (`run_setup`), and its sprite is an asset.",
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Boss"
-          }
-        },
         "elite_cap": {
           "description": "The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the\nsame bound). The run's stage takes it as its own.",
           "type": "integer",
@@ -4313,16 +4305,6 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/ContentId"
-          }
-        },
-        "no_call_ticks": {
-          "description": "The boss times at which no elite is called (core#336), each once. A time that is no boss\ntime of the run has no effect; every other boss calls its elites as its definition says.",
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0
           }
         },
         "overtime_ticks": {
@@ -4474,6 +4456,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/ExpertisePoints"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "description": "The wave's role in a `time_limit` schedule (R2): lowercase snake_case, unique among the\nschedule's waves. A stage's waves do not use it; absent, the wave has no ID.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
             },
             {
               "type": "null"
