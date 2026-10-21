@@ -365,8 +365,8 @@ pub struct Wave {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expertise: Option<ExpertisePoints>,
     /// The Stardust a kill of each enemy of the wave earns before the time factor, times 10
-    /// (ADR-109), at most `limits::MAX_STARDUST_BASE`; none when absent. Needs the stage's
-    /// `stardust` factor.
+    /// (ADR-109), at most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage
+    /// with a `stardust` factor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stardust: Option<u32>,
 }

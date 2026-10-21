@@ -186,7 +186,80 @@ fn bases_percents_and_the_factor_are_bounded() {
 }
 
 #[test]
-fn a_base_needs_a_factor() {
-    let s = stage_full(LENGTH, Some(far_boss()), vec![targets(1, Some(10))], vec![]);
-    assert_eq!(problems(&s), ["$.stardust"]);
+fn a_base_without_a_factor_counts_nothing() {
+    let mut e = engine(&stage_full(
+        LENGTH,
+        Some(far_boss()),
+        vec![targets(3, Some(10))],
+        vec![],
+    ));
+    for _ in 0..300 {
+        e.step(firing(idle(), e.tick()));
+    }
+    assert_eq!(e.snapshot().stardust, None);
+}
+
+// --- A mode run -------------------------------------------------------------------------------
+
+use stella_rain_core::engine::Outcome;
+use stella_rain_core::run_replay::{Command, record_run, verify_run};
+use stella_rain_core::run_setup::RunSetup;
+
+use common::run::{play_run_from, time_limit_setup};
+
+fn setup(difficulty: &str) -> RunSetup {
+    RunSetup {
+        difficulty: difficulty.into(),
+        ..time_limit_setup()
+    }
+}
+
+/// Plays `commands` on a fresh run of `setup`, returning each kill's tick and its Stardust.
+fn mode_kills(setup: &RunSetup, commands: &[Command]) -> Vec<(u32, u32)> {
+    let mut e = Engine::start(setup).unwrap();
+    let mut out = Vec::new();
+    for c in commands {
+        let before = e.stardust();
+        match c {
+            Command::Step(input) => e.step(*input),
+            Command::Choose(i) => e.choose(*i).unwrap(),
+            Command::Spend(i) => e.spend(*i).unwrap(),
+        }
+        if e.stardust() > before {
+            out.push((e.tick(), e.stardust() - before));
+        }
+    }
+    assert_eq!(e.outcome(), Outcome::Running);
+    out
+}
+
+#[test]
+fn a_mode_run_earns_by_its_difficultys_factor_from_the_bundled_bases() {
+    // A regular enemy's base is 10: the first kills, in the first minutes, earn the start factor
+    // of their difficulty (100% on normal, 200% on rainy) plus a hair.
+    for (id, first) in [("normal", 10), ("rainy", 20)] {
+        let setup = setup(id);
+        let commands = play_run_from(&setup, 1_500);
+        let got = mode_kills(&setup, &commands);
+        assert!(!got.is_empty(), "{id}: no kill in 1,500 ticks");
+        assert_eq!(got[0].1, first, "{id}: {got:?}");
+    }
+}
+
+#[test]
+fn a_verified_run_reports_the_stardust_it_earned() {
+    let setup = setup("normal");
+    let commands = play_run_from(&setup, 1_500);
+    let mut e = Engine::start(&setup).unwrap();
+    for c in &commands {
+        match c {
+            Command::Step(input) => e.step(*input),
+            Command::Choose(i) => e.choose(*i).unwrap(),
+            Command::Spend(i) => e.spend(*i).unwrap(),
+        }
+    }
+    assert!(e.stardust() > 0);
+    let replay = record_run(&setup, &commands).unwrap();
+    let verified = verify_run(&replay.to_bytes()).unwrap();
+    assert_eq!(verified.stardust, e.stardust());
 }

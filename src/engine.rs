@@ -320,6 +320,11 @@ impl Engine {
         self.state.tick
     }
 
+    /// The Stardust the run has earned, times 10 (ADR-109); 0 in a stage without a factor.
+    pub fn stardust(&self) -> u32 {
+        self.state.stardust.unwrap_or(0)
+    }
+
     pub fn outcome(&self) -> Outcome {
         self.state.outcome
     }

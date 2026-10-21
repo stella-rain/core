@@ -649,12 +649,6 @@ impl<'a> Ctx<'a> {
                     c.key("end_pct", |c| c.fail("not below the factor at the start"));
                 }
             });
-        } else if s.waves.iter().any(|w| w.stardust.is_some())
-            || s.boss.as_ref().is_some_and(|b| b.stardust.is_some())
-        {
-            self.key("stardust", |c| {
-                c.fail("needed: an enemy or the boss names a Stardust base (ADR-109)")
-            });
         }
         if let Some(cap) = s.elite_cap {
             self.within("elite_cap", i64::from(cap), 1, i64::from(MAX_ELITES_ALIVE));
