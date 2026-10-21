@@ -41,6 +41,7 @@ fn quiet_mode() -> TimeLimit {
     let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
     v["waves"] = json!([]);
     v["elite_cap"] = json!(1);
+    v["elite_table"] = json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
     TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
 }
 
