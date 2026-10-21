@@ -27,6 +27,13 @@
         }
       ]
     },
+    "heal_pickups": {
+      "description": "Heal pickups on the map, in the order they dropped; empty without healing.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HealPickupView"
+      }
+    },
     "map": {
       "description": "The map's size, so the frontend can bound its camera (core#87).",
       "$ref": "#/$defs/MapView"
@@ -696,6 +703,23 @@
       "description": "A length in 1/256 pixel units. In files it is the plain integer.",
       "type": "integer",
       "format": "int32"
+    },
+    "HealPickupView": {
+      "description": "A heal pickup on the map (see `DomainEvent::HealDropped`).",
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Point"
+        },
+        "id": {
+          "$ref": "#/$defs/EntityId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "at"
+      ]
     },
     "HitBox": {
       "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right.",

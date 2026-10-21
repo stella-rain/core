@@ -213,6 +213,33 @@
       "limit": 3,
       "title": "Aegis",
       "description": "A shield absorbs the next hits for a while"
+    },
+    {
+      "id": "regen_common",
+      "rarity": "common",
+      "effect": "regen",
+      "amount": 10,
+      "limit": 5,
+      "title": "Regeneration",
+      "description": "Hit points come back every second, a little"
+    },
+    {
+      "id": "regen_rare",
+      "rarity": "rare",
+      "effect": "regen",
+      "amount": 30,
+      "limit": 3,
+      "title": "Regeneration",
+      "description": "Hit points come back every second"
+    },
+    {
+      "id": "regen_legendary",
+      "rarity": "legendary",
+      "effect": "regen",
+      "amount": 60,
+      "limit": 1,
+      "title": "Regeneration",
+      "description": "Hit points come back every second, a lot"
     }
   ]
 }

@@ -519,6 +519,13 @@
       }
     ]
   },
+  "heal": {
+    "boss_pct": 25,
+    "drop_one_in": 150,
+    "amount": 300,
+    "cap": 5,
+    "pickup_radius": 6144
+  },
   "elite_cap": 4,
   "level_table": {
     "style": 3,
