@@ -76,8 +76,8 @@ pub struct TimeLimitFile {
     pub mid_boss_pool: Vec<ContentId>,
     /// The final boss (a sprite ID).
     pub final_boss: ContentId,
-    /// The boss times at which no elite is called (core#336), each once. A time that is no boss
-    /// time of the run has no effect; every other boss calls its elites as its definition says.
+    /// The boss times at which no elite is called (core#336), each once, at most
+    /// `MAX_BOSS_TIMES`. A time that is no boss time of the run has no effect; every other boss calls its elites as its definition says.
     #[serde(default)]
     pub no_call_ticks: Vec<u32>,
     /// The boss definitions (core#336), 0 to `MAX_BOSS_DEFINITIONS`, each for one sprite: a
@@ -338,7 +338,16 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
     }
 
     let mid_bosses = times.len().saturating_sub(1);
-    for (i, t) in file.no_call_ticks.iter().enumerate() {
+    if file.no_call_ticks.len() > MAX_BOSS_TIMES {
+        issue(
+            "$.no_call_ticks".into(),
+            format!(
+                "at most {MAX_BOSS_TIMES} times (found {})",
+                file.no_call_ticks.len()
+            ),
+        );
+    }
+    for (i, t) in file.no_call_ticks.iter().enumerate().take(MAX_BOSS_TIMES) {
         if file.no_call_ticks[..i].contains(t) {
             issue(
                 format!("$.no_call_ticks[{i}]"),
@@ -393,7 +402,6 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
     for (i, def) in defs.iter().enumerate().take(MAX_BOSS_DEFINITIONS) {
         boss(format!("$.bosses[{i}].base"), &def.base);
     }
-
 
     if !(1..=MAX_OVERTIME_TICKS).contains(&file.overtime_ticks) {
         issue(
