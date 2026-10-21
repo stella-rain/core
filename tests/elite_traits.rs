@@ -49,14 +49,13 @@ fn attacks(enemy: &Value) -> Vec<Value> {
 fn standing_json(enemy: &Value) -> Value {
     let mut enemy = enemy.clone();
     enemy["movement"] = hold(ELITE.0, ELITE.1);
-    let stage = serde_json::to_value(stage_full(
+    serde_json::to_value(stage_full(
         18_000,
         Some(far_boss()),
         vec![wave(1, 1, 0, enemy, ELITE.0, ELITE.1)],
         vec![],
     ))
-    .expect("json");
-    stage
+    .expect("json")
 }
 
 /// The elite standing at `ELITE`, with nothing else in the field.
