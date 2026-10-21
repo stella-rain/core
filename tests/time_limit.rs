@@ -3,6 +3,7 @@
 //! untrusted bytes (ADR-020). Every time is in ticks (60 a second).
 
 use serde_json::{Value, json};
+use stella_rain_core::presets;
 use stella_rain_core::registry::{ENTRIES, Kind};
 use stella_rain_core::run_replay::content_sha256;
 use stella_rain_core::run_setup;
@@ -360,7 +361,10 @@ fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
             .as_u64()
             .unwrap_or(1) as u32
     };
-    assert!(damage(0) < damage(1) && damage(1) < damage(2));
+    // The high elite's attack is its preset (ADR-103): its damage is the slam's, not an inline.
+    let slam = presets::definition("elite_slam").expect("the preset");
+    let slam_damage = slam.iter().find_map(|phase| phase.damage).unwrap_or(0);
+    assert!(damage(0) < damage(1) && damage(1) < slam_damage);
 }
 
 #[test]
