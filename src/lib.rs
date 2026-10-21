@@ -17,6 +17,7 @@ pub mod input;
 pub mod match_ups;
 pub mod pack;
 pub mod parsed_stage_hash;
+pub mod perk_sets;
 pub mod presets;
 #[cfg(feature = "record")]
 pub mod recording;

@@ -1,6 +1,6 @@
 //! The content pack (ADR-080, core#148): the game's content as one JSON file, holding its
 //! `schema_version`, the `sim_version` it needs and the content files (the run stats, the
-//! rewards, the stage skills, the expertise, the match-up table, the runes and the modes). Its
+//! rewards, the stage skills, the expertise, the match-up table, the runes, the perk sets and the modes). Its
 //! hash is the SHA-256 of the file's bytes.
 //!
 //! A pack is untrusted (ADR-020), read from the network or from the cache alike: a size limit
@@ -31,6 +31,7 @@ use sha2::{Digest, Sha256};
 use crate::expertise::{Expertise, ExpertiseFile, WeaponExpertise};
 use crate::id::ContentId;
 use crate::match_ups::{MatchUps, MatchUpsFile};
+use crate::perk_sets::{PerkSets, PerkSetsFile};
 use crate::rewards::{Rewards, RewardsFile};
 use crate::run_content::RunContent;
 use crate::run_stats::{RunStats, RunStatsFile};
@@ -59,6 +60,8 @@ pub const MAX_EXPERTISE_COMMON: usize = 16;
 pub const MAX_ON_HIT_RUNES: usize = 16;
 /// The most damage-over-time runes (3 today).
 pub const MAX_DAMAGE_OVER_TIME_RUNES: usize = 16;
+/// The most perk sets (4 today; held to the file's own cap).
+pub const MAX_PERK_SETS: usize = crate::perk_sets::MAX_PERK_SETS;
 /// The most waves of the `time_limit` mode (2 today; held to the file's own cap).
 pub const MAX_TIME_LIMIT_WAVES: usize = crate::time_limit::MAX_WAVES;
 /// The most boss times of the `time_limit` mode (4 today; held to the file's own cap).
@@ -95,6 +98,8 @@ pub struct PackFile {
     pub match_ups: Box<RawValue>,
     #[schemars(with = "RunesFile")]
     pub runes: Box<RawValue>,
+    #[schemars(with = "PerkSetsFile")]
+    pub perk_sets: Box<RawValue>,
     pub modes: PackModes,
 }
 
@@ -107,6 +112,8 @@ pub struct Introduced {
     pub run_stats: Vec<IntroducedId>,
     pub rewards: Vec<IntroducedId>,
     pub stage_skills: Vec<IntroducedId>,
+    /// The perk sets (ADR-105).
+    pub perk_sets: Vec<IntroducedId>,
     /// One entry for each weapon of the expertise.
     pub expertise: Vec<WeaponIds>,
     /// The elite types of the `time_limit` mode file (ADR-090).
@@ -301,6 +308,8 @@ impl Pack {
         let match_ups = MatchUps::parse(&file_bytes(&pack.match_ups))
             .map_err(PackError::in_file("match_ups"))?;
         let runes = Runes::parse(&file_bytes(&pack.runes)).map_err(PackError::in_file("runes"))?;
+        let perk_sets = PerkSets::parse(&file_bytes(&pack.perk_sets))
+            .map_err(PackError::in_file("perk_sets"))?;
         let trial = validate::parse_and_validate(&file_bytes(&pack.modes.trial))
             .map_err(PackError::in_file("trial"))?;
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit))
@@ -313,6 +322,7 @@ impl Pack {
             &rewards,
             &stage_skills,
             &expertise,
+            &perk_sets,
             &time_limit,
         )?;
 
@@ -323,6 +333,7 @@ impl Pack {
             expertise,
             match_ups,
             runes,
+            perk_sets,
             time_limit,
             trial,
             file_bytes(&pack.modes.trial),
@@ -395,6 +406,8 @@ struct Lists {
     #[serde(default)]
     stage_skills: Vec<IgnoredAny>,
     #[serde(default)]
+    perk_sets: Vec<IgnoredAny>,
+    #[serde(default)]
     weapons: Vec<WeaponLists>,
     #[serde(default)]
     on_hit: Vec<IgnoredAny>,
@@ -448,6 +461,11 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
         MAX_STAGE_SKILLS,
     )?;
     budget(
+        "$.introduced.perk_sets",
+        introduced.perk_sets.len(),
+        MAX_PERK_SETS,
+    )?;
+    budget(
         "$.introduced.expertise",
         introduced.expertise.len(),
         MAX_EXPERTISE_WEAPONS,
@@ -493,6 +511,9 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
             l.damage_over_time.len(),
             MAX_DAMAGE_OVER_TIME_RUNES,
         )?;
+    }
+    if let Some(l) = counts::<Lists>(&pack.perk_sets) {
+        budget("$.perk_sets.perk_sets", l.perk_sets.len(), MAX_PERK_SETS)?;
     }
     if let Some(l) = counts::<Lists>(&pack.modes.time_limit) {
         budget(
@@ -597,6 +618,7 @@ fn paths<'a>(list: &str, ids: impl Iterator<Item = &'a ContentId>) -> Vec<(Strin
         .collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn check_introduced(
     introduced: &Introduced,
     sim_version: u32,
@@ -604,6 +626,7 @@ fn check_introduced(
     rewards: &Rewards,
     stage_skills: &StageSkills,
     expertise: &Expertise,
+    perk_sets: &PerkSets,
     time_limit: &TimeLimit,
 ) -> Result<(), PackError> {
     let mut issues = Vec::new();
@@ -624,6 +647,17 @@ fn check_introduced(
     ] {
         check_ids(&mut issues, at, listed, ids, sim_version);
     }
+    let sets = paths(
+        "perk_sets.perk_sets",
+        perk_sets.sets().iter().map(|s| &s.id),
+    );
+    check_ids(
+        &mut issues,
+        "$.introduced.perk_sets",
+        &introduced.perk_sets,
+        &sets,
+        sim_version,
+    );
     let elites = paths(
         "modes.time_limit.elite_types",
         time_limit.elite_types().iter().map(|t| &t.id),
@@ -720,6 +754,7 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
                 ),
             })
             .collect(),
+        perk_sets: list(content.perk_sets().sets().iter().map(|s| &s.id).collect()),
         elite_types: list(
             content
                 .time_limit()
@@ -752,6 +787,7 @@ pub fn export_bundled() -> Vec<u8> {
         Expertise::parse(Expertise::BUNDLED).expect("the bundled expertise"),
         MatchUps::parse(MatchUps::BUNDLED).expect("the bundled match-ups"),
         Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
+        PerkSets::parse(PerkSets::BUNDLED).expect("the bundled perk sets"),
         TimeLimit::parse(TimeLimit::BUNDLED).expect("the bundled mode"),
         validate::parse_and_validate(trial).expect("the bundled trial"),
         trial.to_vec(),
@@ -770,6 +806,7 @@ pub fn export_bundled() -> Vec<u8> {
         ("expertise", Expertise::BUNDLED),
         ("match_ups", MatchUps::BUNDLED),
         ("runes", Runes::BUNDLED),
+        ("perk_sets", PerkSets::BUNDLED),
     ] {
         out.push_str(&format!("  \"{name}\": {},\n", file(bytes)));
     }

@@ -277,7 +277,7 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 /// pack has the pack's hash, the SHA-256 of the pack file's bytes (ADR-079 §5, ADR-080), whatever
 /// the mode. Content with any file replaced one by one has a hash derived from the mode's file,
 /// every preset's definition, and the bytes of the run stats, the rewards, the stage skills, the
-/// expertise, the match-ups and the runes, tagged and length-prefixed: never a pack's.
+/// expertise, the match-ups, the runes and the perk sets, tagged and length-prefixed: never a pack's.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
     if !matches!(mode, "trial" | "time_limit") {
@@ -300,6 +300,7 @@ pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]>
         &content.expertise().sha256(),
         &content.match_ups().sha256(),
         &content.runes().sha256(),
+        &content.perk_sets().sha256(),
         presets::sources(),
     ))
 }
@@ -314,6 +315,7 @@ fn hash_content<'a>(
     expertise_sha256: &[u8; 32],
     match_ups_sha256: &[u8; 32],
     runes_sha256: &[u8; 32],
+    perk_sets_sha256: &[u8; 32],
     sources: impl Iterator<Item = (u8, &'a str, &'a str)>,
 ) -> [u8; 32] {
     fn part(sha: &mut Sha256, kind: u8, id: &[u8], body: &[u8]) {
@@ -333,6 +335,7 @@ fn hash_content<'a>(
     part(&mut sha, b'e', b"expertise", expertise_sha256);
     part(&mut sha, b'u', b"match_ups", match_ups_sha256);
     part(&mut sha, b'n', b"runes", runes_sha256);
+    part(&mut sha, b'p', b"perk_sets", perk_sets_sha256);
     for (kind, id, definition) in sources {
         part(&mut sha, kind, id.as_bytes(), definition.as_bytes());
     }
@@ -730,6 +733,7 @@ mod tests {
     const EXPERTISE: [u8; 32] = [3; 32];
     const MATCH_UPS: [u8; 32] = [1; 32];
     const RUNES: [u8; 32] = [2; 32];
+    const PERKS: [u8; 32] = [4; 32];
 
     fn hash(mode: &str, file: &[u8], sources: &[(u8, &'static str, &'static str)]) -> [u8; 32] {
         hash_content(
@@ -741,6 +745,7 @@ mod tests {
             &EXPERTISE,
             &MATCH_UPS,
             &RUNES,
+            &PERKS,
             sources.iter().copied(),
         )
     }
@@ -760,6 +765,7 @@ mod tests {
             expertise,
             &MATCH_UPS,
             &RUNES,
+            &PERKS,
             SOURCES.iter().copied(),
         )
     }
@@ -802,6 +808,7 @@ mod tests {
                 &EXPERTISE,
                 &[8; 32],
                 &RUNES,
+                &PERKS,
                 SOURCES.iter().copied(),
             ),
             "the match-ups"
@@ -817,9 +824,26 @@ mod tests {
                 &EXPERTISE,
                 &MATCH_UPS,
                 &[8; 32],
+                &PERKS,
                 SOURCES.iter().copied(),
             ),
             "the runes"
+        );
+        assert_ne!(
+            base,
+            hash_content(
+                "trial",
+                b"{}",
+                &STATS,
+                &REWARDS,
+                &SKILLS,
+                &EXPERTISE,
+                &MATCH_UPS,
+                &RUNES,
+                &[8; 32],
+                SOURCES.iter().copied(),
+            ),
+            "the perk sets"
         );
         assert_ne!(
             base,

@@ -48,6 +48,7 @@ mod orbit;
 mod overflow;
 mod pack;
 mod parsed_stage_hash;
+mod perk_sets;
 mod phases;
 mod poison_burn;
 mod properties;
