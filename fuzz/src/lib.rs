@@ -14,6 +14,7 @@ use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::pack::{Pack, PackFile};
 use stella_rain_core::replay::{self, Replay};
 use stella_rain_core::rewards::Rewards;
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay};
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::run_stats::RunStats;
@@ -106,7 +107,15 @@ pub fn run_setup(data: &[u8]) -> bool {
     let saved = serde_json::to_vec(&setup).expect("a setup serialises");
     let again = run_setup::parse_and_validate(&saved).expect("a setup that loaded loads again");
     assert_eq!(again, setup, "a saved setup loads as another setup");
-    let mut engine = Engine::start(&setup).expect("a setup that validates starts a run");
+    // The perk set and the carried stars are checked against the run's content when it starts:
+    // a setup that names what the content lacks fails closed there, and only there.
+    let Ok(mut engine) = Engine::start(&setup) else {
+        assert!(
+            run_setup::validate_in(&setup, RunContent::bundled()).is_err(),
+            "a setup that validates against the content starts a run"
+        );
+        return false;
+    };
     for (t, input) in inputs_from(data, RUN_TICKS).into_iter().enumerate() {
         step_spending(&mut engine, input, pick(data, t));
         let _ = engine.snapshot();
@@ -300,6 +309,12 @@ pub fn pack_load(data: &[u8]) -> bool {
             star_pool: None,
             extra_rerolls: 0,
             upgrades: Vec::new(),
+            perk_set: "duelist".into(),
+            auto_combo: false,
+            rune_pool: Vec::new(),
+            carried: Vec::new(),
+            lumine: 0,
+            starting_rune: None,
         };
         let mut engine = Engine::start_with(&setup, pack.content())
             .expect("a pack that loads starts a run of each mode");

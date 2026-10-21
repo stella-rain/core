@@ -14,7 +14,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
+use crate::rewards::{Rarity, RewardEffect};
 use crate::run_content::RunContent;
+use crate::rune::Rune;
 use std::sync::OnceLock;
 
 use crate::engine::Horde;
@@ -30,6 +32,35 @@ pub const MAX_SETUP_BYTES: usize = 4096;
 pub const MAX_STAR_POOL: usize = crate::rewards::MAX_REWARDS;
 /// The most extra rerolls a setup brings.
 pub const MAX_EXTRA_REROLLS: u8 = 20;
+/// The perk set of a setup that names none: a setup written before perk sets existed (ADR-105).
+/// New setups always name theirs.
+pub const DEFAULT_PERK_SET: &str = "duelist";
+/// The most runes a rune pool names: every rune once.
+pub const MAX_RUNE_POOL: usize = Rune::ALL.len();
+/// The most stars a run starts holding (ADR-107 point 2).
+pub const MAX_CARRIED_STARS: usize = 5;
+/// The largest Lumine budget, the level of the Lumine upgrade at its most (ADR-107 point 2).
+pub const MAX_LUMINE: u8 = 10;
+
+/// What carrying a star of `rarity` costs, in Lumine (ADR-107 point 2): 1, 2, 3, 4, 6 and 10
+/// from common to supernova. Tuning values, as the budget's maximum and the count are.
+pub fn lumine_cost(rarity: Rarity) -> u8 {
+    match rarity {
+        Rarity::Common => 1,
+        Rarity::Uncommon => 2,
+        Rarity::Rare => 3,
+        Rarity::Epic => 4,
+        Rarity::Legendary => 6,
+        Rarity::Supernova => 10,
+    }
+}
+
+/// A star the run starts holding: a reward of the run's rewards file.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CarriedStar {
+    pub reward: ContentId,
+}
 
 /// What a run starts from: built by the app from local storage when a run starts, and stored
 /// in the run's replay (ADR-051).
@@ -56,10 +87,44 @@ pub struct RunSetup {
     /// `registry::MAX_UPGRADES`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub upgrades: Vec<ContentId>,
+    /// The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk
+    /// sets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`.
+    #[serde(default = "default_perk_set")]
+    pub perk_set: ContentId,
+    /// The run starts with auto mode on (ADR-073, ADR-107). The input's `auto` switch still
+    /// toggles it: on a tick, auto mode is on when `auto` differs from this field, so a run
+    /// that keeps the preset records `auto: false` on every tick.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub auto_combo: bool,
+    /// The runes the random rune may draw (ADR-099 point 4a, ADR-107): rune IDs, sorted, each
+    /// once, at most `MAX_RUNE_POOL`. Empty: every rune.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rune_pool: Vec<ContentId>,
+    /// The stars the run starts holding (ADR-107 point 3), at most `MAX_CARRIED_STARS`: each
+    /// applies at tick 0 as if picked from an offer, in this order, and counts toward its
+    /// reward's stack limit. Their costs (`lumine_cost`) add up to at most `lumine`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub carried: Vec<CarriedStar>,
+    /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE` (ADR-107
+    /// point 2).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub lumine: u8,
+    /// A rune the run starts holding (ADR-107 point 3): in the rune pool when there is one. It
+    /// costs no Lumine, and the random rune never draws it again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub starting_rune: Option<ContentId>,
+}
+
+fn default_perk_set() -> ContentId {
+    ContentId(DEFAULT_PERK_SET.to_owned())
 }
 
 fn is_zero(n: &u8) -> bool {
     *n == 0
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// Checks the size, parses strictly and validates: the one call for a setup file's bytes.
@@ -178,6 +243,131 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
         issues.push(Issue {
             path: format!("$.upgrades[{i}]"),
             message: message.into(),
+        });
+    }
+    validate_loadout(setup, &mut issues);
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(Error::Invalid(issues))
+    }
+}
+
+/// The perk set, rune pool, carried stars, Lumine and starting rune, against what needs no
+/// content file: well-formed IDs, known runes, sorted and unique, and the counts.
+fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
+    let mut issue = |path: String, message: String| issues.push(Issue { path, message });
+    let ill_formed = "not a valid ID (lowercase snake_case, at most 32 characters)";
+    if !registry::is_well_formed(&setup.perk_set.0) {
+        issue("$.perk_set".into(), ill_formed.into());
+    }
+    if setup.rune_pool.len() > MAX_RUNE_POOL {
+        issue(
+            "$.rune_pool".into(),
+            format!(
+                "at most {MAX_RUNE_POOL} runes (found {})",
+                setup.rune_pool.len()
+            ),
+        );
+    }
+    for (i, rune) in setup.rune_pool.iter().enumerate().take(MAX_RUNE_POOL) {
+        let message = if Rune::from_id(&rune.0).is_none() {
+            "no such rune"
+        } else if i > 0 && setup.rune_pool[i - 1].0 >= rune.0 {
+            "not after the entry before it (sorted, each once)"
+        } else {
+            continue;
+        };
+        issue(format!("$.rune_pool[{i}]"), message.into());
+    }
+    if setup.carried.len() > MAX_CARRIED_STARS {
+        issue(
+            "$.carried".into(),
+            format!(
+                "at most {MAX_CARRIED_STARS} stars (found {})",
+                setup.carried.len()
+            ),
+        );
+    }
+    for (i, star) in setup.carried.iter().enumerate().take(MAX_CARRIED_STARS) {
+        if !registry::is_well_formed(&star.reward.0) {
+            issue(format!("$.carried[{i}].reward"), ill_formed.into());
+        }
+    }
+    if setup.lumine > MAX_LUMINE {
+        issue(
+            "$.lumine".into(),
+            format!("at most {MAX_LUMINE} (found {})", setup.lumine),
+        );
+    }
+    if let Some(rune) = &setup.starting_rune {
+        let in_pool = setup.rune_pool.is_empty() || setup.rune_pool.contains(rune);
+        if Rune::from_id(&rune.0).is_none() {
+            issue("$.starting_rune".into(), "no such rune".into());
+        } else if !in_pool {
+            issue("$.starting_rune".into(), "not in the rune pool".into());
+        }
+    }
+}
+
+/// As `validate`, and against the run's content files: the perk set is one of the perk sets
+/// file's, every carried star a reward of the rewards file (and of the star pool, when the
+/// setup names one) that is not the random rune, a reward carried no more times than it
+/// stacks, and the carried stars' costs within the Lumine budget (ADR-107 point 4). The call
+/// `Engine::start_with` makes.
+pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> {
+    validate(setup)?;
+    let mut issues = Vec::new();
+    if content.perk_sets().index_of(&setup.perk_set).is_none() {
+        issues.push(Issue {
+            path: "$.perk_set".into(),
+            message: "no such perk set in the run's perk sets file".into(),
+        });
+    }
+    let rewards = content.rewards();
+    let mut cost: u32 = 0;
+    for (i, star) in setup.carried.iter().enumerate() {
+        let path = format!("$.carried[{i}].reward");
+        let Some(at) = rewards.index_of(&star.reward) else {
+            issues.push(Issue {
+                path,
+                message: "no such reward in the run's rewards file".into(),
+            });
+            continue;
+        };
+        let reward = &rewards.rewards()[at];
+        let in_pool = setup
+            .star_pool
+            .as_ref()
+            .is_none_or(|pool| pool.contains(&star.reward));
+        let times = setup.carried[..=i]
+            .iter()
+            .filter(|c| c.reward == star.reward)
+            .count();
+        let message = if reward.effect == RewardEffect::RandomRune {
+            Some("the random rune is not carried; start with a rune instead")
+        } else if !in_pool {
+            Some("not in the star pool")
+        } else if reward.limit.is_some_and(|limit| times > usize::from(limit)) {
+            Some("carried more times than the reward stacks")
+        } else {
+            None
+        };
+        match message {
+            Some(message) => issues.push(Issue {
+                path,
+                message: message.into(),
+            }),
+            None => cost += u32::from(lumine_cost(reward.rarity)),
+        }
+    }
+    if issues.is_empty() && cost > u32::from(setup.lumine) {
+        issues.push(Issue {
+            path: "$.carried".into(),
+            message: format!(
+                "cost {cost} Lumine, more than the budget of {}",
+                setup.lumine
+            ),
         });
     }
     if issues.is_empty() {

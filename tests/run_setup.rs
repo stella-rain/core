@@ -23,6 +23,12 @@ fn setup() -> RunSetup {
         star_pool: None,
         extra_rerolls: 0,
         upgrades: Vec::new(),
+        perk_set: "duelist".into(),
+        auto_combo: false,
+        rune_pool: Vec::new(),
+        carried: Vec::new(),
+        lumine: 0,
+        starting_rune: None,
     }
 }
 
@@ -80,8 +86,13 @@ fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
     };
     by_hand.seed = 20_261_010;
     assert_eq!(run_setup::stage(&setup()), Ok(by_hand.clone()));
-    let started = hashes(Engine::start(&setup()).unwrap(), 600);
-    assert_eq!(started, hashes(Engine::new(&by_hand).unwrap(), 600));
+    // Under a perk set with no effects, as a run is without a setup.
+    let (plain, content) = (common::run::plain_setup(), common::run::plain_content());
+    let started = hashes(Engine::start_with(&plain, &content).unwrap(), 600);
+    assert_eq!(
+        started,
+        hashes(Engine::new_with(&by_hand, &content).unwrap(), 600)
+    );
 }
 
 #[test]

@@ -90,6 +90,7 @@ mod grid;
 mod hit_boxes;
 mod horde;
 mod levels;
+mod loadout;
 mod orbit;
 mod player;
 mod push;
@@ -131,6 +132,7 @@ use grid::Grid;
 pub(crate) use horde::spawn_boss;
 use horde::spawn_elite;
 pub(crate) use levels::{spend, xp_next};
+pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use stars::offer_view;
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
@@ -280,6 +282,7 @@ pub(crate) fn initial_state(
             offer: None,
             rerolls_left: u32::from(st.rerolls) + u32::from(pool.extra_rerolls),
             banishes_left: u32::from(st.banishes),
+            rune_pool: runes::FULL_POOL,
             pool: pool.rewards,
             taken: vec![0; rewards],
             banished: vec![false; rewards],
@@ -289,6 +292,8 @@ pub(crate) fn initial_state(
         runes: content.runes().clone(),
         stun: run_stats.stun(),
         horde: None,
+        regen: 0,
+        auto_combo: false,
     }
 }
 
@@ -350,6 +355,12 @@ pub(crate) fn step(
         return;
     }
     s.tick += 1;
+    // The setup's auto combo starts auto mode on; the input's switch turns it off (ADR-107).
+    let input = Input {
+        auto: input.auto != s.auto_combo,
+        ..input
+    };
+    loadout::regen(s);
     let mut spawns_left = MAX_BULLET_SPAWNS_PER_TICK;
 
     spawn_waves(stage, s);

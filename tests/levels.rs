@@ -436,6 +436,12 @@ fn a_trial_run_levels_up_and_spends_its_points() {
         star_pool: None,
         extra_rerolls: 0,
         upgrades: Vec::new(),
+        perk_set: "duelist".into(),
+        auto_combo: false,
+        rune_pool: Vec::new(),
+        carried: Vec::new(),
+        lumine: 0,
+        starting_rune: None,
     };
     // The trial run's script plays it, taking candidate 0 of every offer.
     let mut e = Engine::start(&setup).unwrap();

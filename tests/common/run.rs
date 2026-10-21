@@ -16,8 +16,9 @@ pub const SPEND_INDEX: u32 = 1;
 /// The seed of the `stage_skill` run case: with it, the run kills an elite whose rare star
 /// offers the black hole, takes it, and uses it twice. Under the Sword's smashes bleeding
 /// (ADR-084 point 8) seed 186 no longer does, and with the one weapon's level table (ADR-106)
-/// seed 61 no longer does; this one is the first of `0..` with `giant_sword` that does.
-pub const STAGE_SKILL_SEED: u64 = 2;
+/// seed 61 no longer does; with the default perk set (ADR-105) seed 2 no longer does; this one is
+/// the first of `0..` that does.
+pub const STAGE_SKILL_SEED: u64 = 57;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
 /// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
@@ -27,9 +28,10 @@ pub const KILL_SEED: u64 = 1;
 
 /// The seed of the `elites` run case: with it the scripted run still leaves a shrine and a
 /// mimic on the map when the boss calls. With the one weapon's level table and a pool of five
-/// (ADR-106) the main character's build differs and seed 20261010 no longer does; this one is
-/// the first of `1..` that does.
-pub const ELITES_SEED: u64 = 15;
+/// (ADR-106) the main character's build differs and seed 20261010 no longer does; under the
+/// default perk set (ADR-105) seed 15 no longer does either; this one is the first of `1..`
+/// that does.
+pub const ELITES_SEED: u64 = 5;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {
@@ -41,6 +43,12 @@ pub fn trial_setup() -> RunSetup {
         star_pool: None,
         extra_rerolls: 0,
         upgrades: Vec::new(),
+        perk_set: "duelist".into(),
+        auto_combo: false,
+        rune_pool: Vec::new(),
+        carried: Vec::new(),
+        lumine: 0,
+        starting_rune: None,
     }
 }
 
@@ -291,4 +299,28 @@ pub fn first_point_tick() -> u32 {
         .filter(|c| matches!(c, Command::Step(_)))
         .count();
     u32::try_from(steps).unwrap()
+}
+
+/// The bundled perk sets and a `plain` one with no effects: a run that differs from the same
+/// stage played without a setup only by what its setup holds.
+pub fn plain_content() -> RunContent {
+    let mut file: serde_json::Value =
+        serde_json::from_slice(stella_rain_core::perk_sets::PerkSets::BUNDLED).unwrap();
+    file["perk_sets"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "id": "plain", "title": "Plain", "description": "", "effects": []
+        }));
+    RunContent::bundled().clone().with_perk_sets(
+        stella_rain_core::perk_sets::PerkSets::parse(file.to_string().as_bytes()).unwrap(),
+    )
+}
+
+/// The trial setup under the `plain` perk set (`plain_content`).
+pub fn plain_setup() -> RunSetup {
+    RunSetup {
+        perk_set: "plain".into(),
+        ..trial_setup()
+    }
 }

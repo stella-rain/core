@@ -10,6 +10,7 @@ use sha2::{Digest, Sha256};
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::pack::{self, Pack, PackError};
+use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, RunReplay};
@@ -80,6 +81,10 @@ fn the_bundled_content_is_the_individual_files() {
         Runes::parse(Runes::BUNDLED).unwrap().sha256()
     );
     assert_eq!(
+        content.perk_sets().sha256(),
+        PerkSets::parse(PerkSets::BUNDLED).unwrap().sha256()
+    );
+    assert_eq!(
         content.time_limit().sha256(),
         TimeLimit::parse(TimeLimit::BUNDLED).unwrap().sha256()
     );
@@ -110,6 +115,7 @@ fn the_exported_pack_has_its_fields_in_order() {
         "\"expertise\"",
         "\"match_ups\"",
         "\"runes\"",
+        "\"perk_sets\": {",
         "\"modes\"",
     ];
     let at: Vec<usize> = keys.iter().map(|k| text.find(k).unwrap()).collect();
@@ -202,7 +208,7 @@ fn an_unknown_field_is_refused() {
 
 #[test]
 fn a_missing_file_is_refused() {
-    for file in ["run_stats", "rewards", "stage_skills", "runes"] {
+    for file in ["run_stats", "rewards", "stage_skills", "runes", "perk_sets"] {
         let mut v = value();
         v.as_object_mut().unwrap().remove(file);
         assert!(matches!(load(&v), Err(PackError::Parse { .. })), "{file}");
@@ -246,7 +252,7 @@ fn a_file_of_another_version_is_refused() {
 /// the file itself is read (the extra entries are copies, which the file would refuse too).
 #[test]
 fn each_count_budget_is_enforced() {
-    let lists: [(&str, usize); 16] = [
+    let lists: [(&str, usize); 18] = [
         ("/run_stats/stats", pack::MAX_RUN_STATS),
         ("/rewards/rewards", pack::MAX_REWARDS),
         ("/stage_skills/stage_skills", pack::MAX_STAGE_SKILLS),
@@ -254,6 +260,7 @@ fn each_count_budget_is_enforced() {
         ("/expertise/weapons/0/common", pack::MAX_EXPERTISE_COMMON),
         ("/runes/on_hit", pack::MAX_ON_HIT_RUNES),
         ("/runes/damage_over_time", pack::MAX_DAMAGE_OVER_TIME_RUNES),
+        ("/perk_sets/perk_sets", pack::MAX_PERK_SETS),
         ("/modes/time_limit/waves", pack::MAX_TIME_LIMIT_WAVES),
         ("/modes/time_limit/boss_ticks", pack::MAX_BOSS_TICKS),
         ("/modes/time_limit/mid_boss_pool", pack::MAX_MID_BOSS_POOL),
@@ -261,6 +268,7 @@ fn each_count_budget_is_enforced() {
         ("/introduced/run_stats", pack::MAX_RUN_STATS),
         ("/introduced/rewards", pack::MAX_REWARDS),
         ("/introduced/stage_skills", pack::MAX_STAGE_SKILLS),
+        ("/introduced/perk_sets", pack::MAX_PERK_SETS),
         ("/introduced/expertise", pack::MAX_EXPERTISE_WEAPONS),
         ("/introduced/expertise/0/ids", pack::MAX_EXPERTISE_IDS),
     ];
@@ -288,10 +296,15 @@ fn each_count_budget_is_enforced() {
 
 #[test]
 fn a_bound_of_a_file_is_enforced_inside_a_pack() {
-    let cases: [(&str, Value, &str); 4] = [
+    let cases: [(&str, Value, &str); 5] = [
         ("/run_stats/stats/0/step", json!(0), "run_stats"),
         ("/rewards/rewards/0/limit", json!(0), "rewards"),
         ("/match_ups/max_type_bonus_pct", json!(100_000), "match_ups"),
+        (
+            "/perk_sets/perk_sets/0/effects/0/amount",
+            json!(0),
+            "perk_sets",
+        ),
         ("/modes/time_limit/length_ticks", json!(0), "time_limit"),
     ];
     for (pointer, bad, file) in cases {
@@ -451,6 +464,7 @@ fn a_file_is_found_whatever_the_pack_s_layout() {
         moved.insert(key.into(), v[key].clone());
     }
     for key in [
+        "perk_sets",
         "expertise",
         "match_ups",
         "stage_skills",

@@ -1,12 +1,14 @@
 //! The game content a run reads besides its mode's stage (ADR-067): the run stats a point
 //! raises, the rewards an offer holds and the stage skills those name (ADR-098), the
-//! expertise levels (ADR-078), the match-up table (ADR-100) and the runes (ADR-099). One value, so
+//! expertise levels (ADR-078), the match-up table (ADR-100), the runes (ADR-099) and the perk
+//! sets (ADR-105). One value, so
 //! that a run's engine, its recorder and its verification read the same files, and the replay's
 //! content hash covers each of them (ADR-079 §5).
 
 use crate::expertise::Expertise;
 use crate::match_ups::MatchUps;
 use crate::pack::Pack;
+use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
 use crate::run_stats::RunStats;
 use crate::runes::Runes;
@@ -22,6 +24,7 @@ pub struct RunContent {
     expertise: Expertise,
     match_ups: MatchUps,
     runes: Runes,
+    perk_sets: PerkSets,
     time_limit: TimeLimit,
     /// The `trial` mode's stage, and its file's bytes as they are in the pack.
     trial: Stage,
@@ -42,6 +45,7 @@ impl RunContent {
             expertise: Expertise::bundled().clone(),
             match_ups: *MatchUps::bundled(),
             runes: Runes::bundled().clone(),
+            perk_sets: PerkSets::bundled().clone(),
             time_limit: TimeLimit::bundled().clone(),
             trial: bundled.trial.clone(),
             trial_bytes: bundled.trial_bytes.clone(),
@@ -57,6 +61,7 @@ impl RunContent {
         expertise: Expertise,
         match_ups: MatchUps,
         runes: Runes,
+        perk_sets: PerkSets,
         time_limit: TimeLimit,
         trial: Stage,
         trial_bytes: Vec<u8>,
@@ -68,6 +73,7 @@ impl RunContent {
             expertise,
             match_ups,
             runes,
+            perk_sets,
             time_limit,
             trial,
             trial_bytes,
@@ -97,6 +103,15 @@ impl RunContent {
     pub fn with_runes(self, runes: Runes) -> RunContent {
         RunContent {
             runes,
+            pack_sha256: None,
+            ..self
+        }
+    }
+
+    /// The same content with `perk_sets` in place of its perk sets.
+    pub fn with_perk_sets(self, perk_sets: PerkSets) -> RunContent {
+        RunContent {
+            perk_sets,
             pack_sha256: None,
             ..self
         }
@@ -156,6 +171,11 @@ impl RunContent {
     /// What each on-hit rune does when it fires.
     pub fn runes(&self) -> &Runes {
         &self.runes
+    }
+
+    /// The perk sets a setup picks from (ADR-105, ADR-107).
+    pub fn perk_sets(&self) -> &PerkSets {
+        &self.perk_sets
     }
 
     /// The `time_limit` mode's file.

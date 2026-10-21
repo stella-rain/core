@@ -153,6 +153,7 @@ impl Engine {
 
     /// As `start`, with `content` in place of the bundled files (ADR-067).
     pub fn start_with(setup: &RunSetup, content: &RunContent) -> Result<Engine, Error> {
+        run_setup::validate_in(setup, content)?;
         if setup.mode.0 == "time_limit" {
             return Engine::start_time_limit(setup, content, content.time_limit());
         }
@@ -162,8 +163,11 @@ impl Engine {
             extra_rerolls: setup.extra_rerolls,
             upgrades: registry::upgrade_mask(setup.upgrades.iter().map(|id| id.0.as_str())),
         };
+        let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed);
+        let loadout = rules_v0::Loadout::of(setup, content);
+        rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         Ok(Engine {
-            state: rules_v0::initial_state(&stage, content, pool, setup.seed),
+            state,
             stage,
             content: content.clone(),
             events: Vec::new(),
@@ -178,6 +182,7 @@ impl Engine {
         content: &RunContent,
         mode: &crate::time_limit::TimeLimit,
     ) -> Result<Engine, Error> {
+        run_setup::validate_in(setup, content)?;
         let (stage, horde) = run_setup::time_limit_run(setup, mode, content.trial())?;
         let pool = rules_v0::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
@@ -186,6 +191,8 @@ impl Engine {
         };
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed);
         state.horde = Some(horde);
+        let loadout = rules_v0::Loadout::of(setup, content);
+        rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         Ok(Engine {
             state,
             stage,
@@ -678,6 +685,12 @@ pub(crate) struct State {
     /// The bosses of a `time_limit` run, as they come; `None` in any other run, which hashes
     /// nothing for it.
     pub horde: Option<Horde>,
+    /// Hit points the main character regenerates each second (a perk, ADR-105): fixed for the
+    /// run, part of the setup, so the state hash writes nothing for it.
+    pub regen: u32,
+    /// The setup's auto combo (ADR-107): auto mode is on when the input's `auto` differs from
+    /// it. Fixed for the run, like `regen`.
+    pub auto_combo: bool,
 }
 
 /// What a `time_limit` run brings to its bosses (core#212): the times, the pool they are drawn
@@ -755,6 +768,9 @@ pub(crate) struct StarField {
     pub offer: Option<OfferState>,
     pub rerolls_left: u32,
     pub banishes_left: u32,
+    /// The runes the random rune may draw, by `Rune::index` (ADR-107): fixed for the run, part
+    /// of the setup, so the state hash writes nothing for it.
+    pub rune_pool: u8,
     /// The run's pool: places in the rewards file, in its order, fixed for the run.
     pub pool: Vec<u16>,
     /// For each reward of the file: times taken, and whether it is banished.
@@ -1471,6 +1487,12 @@ mod horde_tests {
             star_pool: None,
             extra_rerolls: 0,
             upgrades: Vec::new(),
+            perk_set: "duelist".into(),
+            auto_combo: false,
+            rune_pool: Vec::new(),
+            carried: Vec::new(),
+            lumine: 0,
+            starting_rune: None,
         };
         Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
     }
@@ -1579,6 +1601,12 @@ mod horde_tests {
             star_pool: None,
             extra_rerolls: 0,
             upgrades: Vec::new(),
+            perk_set: "duelist".into(),
+            auto_combo: false,
+            rune_pool: Vec::new(),
+            carried: Vec::new(),
+            lumine: 0,
+            starting_rune: None,
         };
         let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
         e.state.player.hp = u32::MAX;

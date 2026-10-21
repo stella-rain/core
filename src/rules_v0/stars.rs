@@ -23,11 +23,14 @@
 //! once (`super::choose`). Every draw is from the run's generator, in this order.
 
 use crate::attack::DamageType;
-use crate::engine::{Due, HeldRune, OfferState, StarField, StarState, State};
+use crate::engine::{
+    Due, HeldRune, OfferState, PlayerState, Progress, StarField, StarState, State,
+};
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::{Rarity, RewardEffect, Rewards};
 use crate::rng::SplitMix64;
+use crate::rune::Rune;
 use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
@@ -219,7 +222,7 @@ fn eligible(
     let at = usize::from(i);
     rewards.rewards().get(at).is_some_and(|r| {
         let room = match (r.effect, r.limit) {
-            (RewardEffect::RandomRune, _) => !runes::all_held(runes),
+            (RewardEffect::RandomRune, _) => !runes::all_held(runes, f.rune_pool),
             (_, Some(limit)) => f.taken[at] < limit,
             (_, None) => false,
         };
@@ -294,6 +297,64 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
     out
 }
 
+/// Takes the reward at `i` of the file: counts it toward its stack limit and does what it does.
+/// The rune a random rune drew, if it drew one. A pick from an open offer and a star the run
+/// starts with (ADR-107 point 3) go through here alike.
+pub(super) fn take(
+    stage: &Stage,
+    rewards: &Rewards,
+    rng: &mut SplitMix64,
+    progress: &mut Option<Progress>,
+    player: &mut PlayerState,
+    f: &mut StarField,
+    i: u16,
+) -> Option<Rune> {
+    let at = usize::from(i);
+    f.taken[at] = f.taken[at].saturating_add(1);
+    let reward = &rewards.rewards()[at];
+    // Every effect but the random rune's has an amount (`rewards::validate`).
+    let amount = reward.amount.unwrap_or(0);
+    let mut rune = None;
+    match reward.effect {
+        RewardEffect::StageSkill => {
+            let index = reward
+                .skill
+                .as_ref()
+                .and_then(|id| rewards.stage_skills().index_of(id));
+            if let Some(index) = index {
+                skill::take(rewards, player, index, amount);
+            }
+        }
+        RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
+        RewardEffect::Orbit => orbit::take(player, i, amount),
+        RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
+        RewardEffect::RuneHaste => {
+            player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
+        }
+        RewardEffect::RandomRune => rune = runes::draw(rng, player, f.rune_pool),
+        RewardEffect::TypeBonusPct
+        | RewardEffect::AttackTypeBonusPct
+        | RewardEffect::ElementBonusPct => {
+            for (ty, pct) in DamageType::ALL.iter().zip(&mut player.type_bonus_pct) {
+                let applies = match reward.effect {
+                    RewardEffect::AttackTypeBonusPct => ty.is_physical(),
+                    RewardEffect::ElementBonusPct => !ty.is_physical(),
+                    _ => reward.damage_type == Some(*ty),
+                };
+                if applies {
+                    *pct = pct.saturating_add(amount);
+                }
+            }
+        }
+        effect => {
+            if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
+                levels::add_effect(p, player, effect, amount);
+            }
+        }
+    }
+    rune
+}
+
 /// Carries out `option`, one of `options`, on the open offer.
 pub(super) fn choose(
     stage: &Stage,
@@ -320,53 +381,10 @@ pub(super) fn choose(
             let Some(&i) = o.candidates.get(usize::from(candidate)) else {
                 return;
             };
+            let rune = take(stage, rewards, rng, progress, player, f, i);
             let at = usize::from(i);
-            f.taken[at] = f.taken[at].saturating_add(1);
-            let reward = &rewards.rewards()[at];
-            // Every effect but the random rune's has an amount (`rewards::validate`).
-            let amount = reward.amount.unwrap_or(0);
-            let mut rune = None;
-            match reward.effect {
-                RewardEffect::StageSkill => {
-                    let index = reward
-                        .skill
-                        .as_ref()
-                        .and_then(|id| rewards.stage_skills().index_of(id));
-                    if let Some(index) = index {
-                        skill::take(rewards, player, index, amount);
-                    }
-                }
-                RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
-                RewardEffect::Orbit => orbit::take(player, i, amount),
-                RewardEffect::RangePct => {
-                    player.range_pct = player.range_pct.saturating_add(amount)
-                }
-                RewardEffect::RuneHaste => {
-                    player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
-                }
-                RewardEffect::RandomRune => rune = runes::draw(rng, player),
-                RewardEffect::TypeBonusPct
-                | RewardEffect::AttackTypeBonusPct
-                | RewardEffect::ElementBonusPct => {
-                    for (ty, pct) in DamageType::ALL.iter().zip(&mut player.type_bonus_pct) {
-                        let applies = match reward.effect {
-                            RewardEffect::AttackTypeBonusPct => ty.is_physical(),
-                            RewardEffect::ElementBonusPct => !ty.is_physical(),
-                            _ => reward.damage_type == Some(*ty),
-                        };
-                        if applies {
-                            *pct = pct.saturating_add(amount);
-                        }
-                    }
-                }
-                effect => {
-                    if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
-                        levels::add_effect(p, player, effect, amount);
-                    }
-                }
-            }
             events.push(DomainEvent::RewardTaken {
-                reward: reward.id.clone(),
+                reward: rewards.rewards()[at].id.clone(),
                 taken: f.taken[at],
                 rune,
             });

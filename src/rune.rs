@@ -63,6 +63,25 @@ impl Rune {
         self as u8
     }
 
+    /// The rune's content ID: its name in snake case, as a setup's rune pool and starting rune
+    /// name it (ADR-107).
+    pub fn id(self) -> &'static str {
+        match self {
+            Rune::Explosion => "explosion",
+            Rune::Thunder => "thunder",
+            Rune::Boomerang => "boomerang",
+            Rune::HomingMissiles => "homing_missiles",
+            Rune::Bleed => "bleed",
+            Rune::Poison => "poison",
+            Rune::Burn => "burn",
+        }
+    }
+
+    /// The rune whose content ID is `id`.
+    pub fn from_id(id: &str) -> Option<Rune> {
+        Rune::ALL.into_iter().find(|r| r.id() == id)
+    }
+
     /// The damage-over-time rune whose status is `kind`; `None` for every other status.
     pub(crate) fn of_dot(kind: crate::engine::StatusKind) -> Option<Rune> {
         use crate::engine::StatusKind;
