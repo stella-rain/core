@@ -3877,6 +3877,15 @@
       "description": "The Stardust time factor (ADR-109 decision 2): a table of time tiers, each the tick it starts\nat and a percent. A kill's base Stardust is multiplied by the percent of the last tier that\nstarted at or before the kill tick, truncated toward zero; past the last tier's start\n(overtime included) the last tier holds. A mode's run takes the mode file's table, or its\ndifficulty's when the difficulty gives one (ADR-110 decision 2). `stardust_tiers_problem`\nsays what a valid table is.",
       "type": "object",
       "properties": {
+        "summon_base": {
+          "description": "The base Stardust a kill of a summoned enemy earns before the factor, times 10 (a boss's\nor a splitter's `summon`), at most `limits::MAX_STARDUST_BASE`; none when absent.\nGuardians, escorts and a boss's parts earn nothing.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
         "tiers": {
           "description": "1 to `limits::MAX_STARDUST_TIERS` tiers, the first at tick 0, the ticks rising strictly.",
           "type": "array",
@@ -4341,6 +4350,15 @@
         "star_hunter_extra_ticks": {
           "description": "The time the Star-Hunter adds, in ticks, 1 to `MAX_EXTRA_TICKS`. Read and checked now;\na later step uses it.",
           "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "stardust_summon_base": {
+          "description": "The base Stardust a kill of a summoned enemy earns before the factor, times 10, at most\n`limits::MAX_STARDUST_BASE`; the run's stage takes it as its `stardust.summon_base`.",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint32",
           "minimum": 0
         },

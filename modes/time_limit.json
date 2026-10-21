@@ -636,7 +636,8 @@
       "expertise": {
         "hit": 4,
         "kill": 60
-      }
+      },
+      "stardust": 10000
     },
     {
       "id": "elite_shrine",
@@ -691,7 +692,8 @@
       "expertise": {
         "hit": 4,
         "kill": 60
-      }
+      },
+      "stardust": 200
     },
     {
       "id": "elite_leader",
@@ -852,6 +854,7 @@
     ],
     "capstone": 10
   },
+  "stardust_summon_base": 10,
   "stardust_tiers": [
     {
       "start_tick": 0,
