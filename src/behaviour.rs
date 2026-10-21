@@ -118,8 +118,13 @@ pub enum Movement {
     /// Circles the main character. A companion is set on its circle; an enemy moves to its
     /// place on it, at most its orbit step plus 4 pixels a tick (ADR-058).
     Orbit { radius: Fx },
-    /// Trails the main character at a distance.
-    Follow { distance: Fx },
+    /// Trails the main character at a distance, at most `speed` a tick (a tank's is slower);
+    /// absent, 4 pixels a tick as it always was (ADR-058).
+    Follow {
+        distance: Fx,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        speed: Option<Fx>,
+    },
     /// Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at
     /// most 4 pixels a tick, and walks back when it is pushed off it (ADR-058).
     Hold { at: Point },

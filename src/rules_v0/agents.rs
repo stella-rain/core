@@ -578,14 +578,15 @@ fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
                 _ => place,
             };
         }
-        Movement::Follow { distance } => {
+        Movement::Follow { distance, speed } => {
             let dx = i64::from(player_at.x.0) - i64::from(a.at.x.0);
             let dy = i64::from(player_at.y.0) - i64::from(a.at.y.0);
             let dist =
                 i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
             let gap = dist - i64::from(distance.0);
+            let speed = speed.map_or(FOLLOW_SPEED, |s| i64::from(s.0));
             if gap > 0 && !yields {
-                let step = gap.min(FOLLOW_SPEED * keep / 100);
+                let step = gap.min(speed * keep / 100);
                 a.at.x = a.at.x.saturating_add(Fx((dx * step / dist) as i32));
                 a.at.y = a.at.y.saturating_add(Fx((dy * step / dist) as i32));
             }
