@@ -19,8 +19,10 @@ pub const SPEND_INDEX: u32 = 1;
 /// seed 61 no longer does; with the default perk set (ADR-105) seed 2 no longer does; with the
 /// healing (core#336) seed 57 no longer does, and this one is the first of `1..` that does.
 /// With the six rarities (ADR-110) seed 73 no longer does: the elite's star now draws from the
-/// higher rarities, and seed 11 is the first of `1..` that does again.
-pub const STAGE_SKILL_SEED: u64 = 11;
+/// higher rarities, and seed 11 is the first of `1..` that does again. With the heals in shown
+/// hit points (app#336) seed 11's run lives long enough to take and use the hex as well, and
+/// seed 66 is the first of `1..` that uses the black hole alone, at level 1, again.
+pub const STAGE_SKILL_SEED: u64 = 66;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
 /// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
