@@ -31,6 +31,9 @@ pub struct RunContent {
     /// The `trial` mode's stage, and its file's bytes as they are in the pack.
     trial: Stage,
     trial_bytes: Vec<u8>,
+    /// The `tutorial` mode's stage, and its file's bytes as they are in the pack (ADR-086).
+    tutorial: Stage,
+    tutorial_bytes: Vec<u8>,
     /// The SHA-256 of the pack these files were read from: the content hash of a run
     /// (ADR-079 §5, ADR-080). `None` once any file is replaced: the run's hash is then derived
     /// from the files (`run_replay::content_sha256_with`).
@@ -52,6 +55,8 @@ impl RunContent {
             time_limit: TimeLimit::bundled().clone(),
             trial: bundled.trial.clone(),
             trial_bytes: bundled.trial_bytes.clone(),
+            tutorial: bundled.tutorial.clone(),
+            tutorial_bytes: bundled.tutorial_bytes.clone(),
             pack_sha256: None,
         }
     }
@@ -69,6 +74,8 @@ impl RunContent {
         time_limit: TimeLimit,
         trial: Stage,
         trial_bytes: Vec<u8>,
+        tutorial: Stage,
+        tutorial_bytes: Vec<u8>,
         pack_sha256: Option<[u8; 32]>,
     ) -> RunContent {
         RunContent {
@@ -82,6 +89,8 @@ impl RunContent {
             time_limit,
             trial,
             trial_bytes,
+            tutorial,
+            tutorial_bytes,
             pack_sha256,
         }
     }
@@ -155,6 +164,16 @@ impl RunContent {
     /// The `trial` mode's file as it has been in the pack, and a final newline.
     pub(crate) fn trial_bytes(&self) -> &[u8] {
         &self.trial_bytes
+    }
+
+    /// The `tutorial` mode's stage (ADR-086).
+    pub fn tutorial(&self) -> &Stage {
+        &self.tutorial
+    }
+
+    /// The `tutorial` mode's file as it has been in the pack.
+    pub(crate) fn tutorial_bytes(&self) -> &[u8] {
+        &self.tutorial_bytes
     }
 
     /// The SHA-256 of the pack these files were read from, `None` for files replaced one by one.

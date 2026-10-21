@@ -433,6 +433,7 @@ fn time_limit_base() -> &'static [u8] {
 pub fn mode_stage(id: &str) -> Option<&'static [u8]> {
     match id {
         "trial" => Some(time_limit_base()),
+        "tutorial" => Some(RunContent::bundled().tutorial_bytes()),
         _ => None,
     }
 }
@@ -448,14 +449,22 @@ pub fn stage(setup: &RunSetup) -> Result<Stage, Error> {
 /// As `stage`, with `time_limit` in place of the bundled `time_limit` mode file.
 pub fn stage_with(setup: &RunSetup, time_limit: &TimeLimit) -> Result<Stage, Error> {
     let bundled = RunContent::bundled();
-    stage_on(setup, bundled.trial(), time_limit, bundled.difficulties())
+    stage_on(
+        setup,
+        bundled.trial(),
+        bundled.tutorial(),
+        time_limit,
+        bundled.difficulties(),
+    )
 }
 
-/// As `stage`, from the `trial` stage and the `time_limit` mode file of `content` (a pack's).
+/// As `stage`, from the `trial` and `tutorial` stages and the `time_limit` mode file of
+/// `content` (a pack's).
 pub fn stage_in(setup: &RunSetup, content: &RunContent) -> Result<Stage, Error> {
     stage_on(
         setup,
         content.trial(),
+        content.tutorial(),
         content.time_limit(),
         content.difficulties(),
     )
@@ -464,6 +473,7 @@ pub fn stage_in(setup: &RunSetup, content: &RunContent) -> Result<Stage, Error> 
 fn stage_on(
     setup: &RunSetup,
     trial: &Stage,
+    tutorial: &Stage,
     time_limit: &TimeLimit,
     difficulties: &Difficulties,
 ) -> Result<Stage, Error> {
@@ -472,13 +482,17 @@ fn stage_on(
         let difficulty = difficulty_of(setup, difficulties)?;
         return Ok(time_limit_run(setup, time_limit, difficulty, trial)?.0);
     }
-    if setup.mode.0 != "trial" {
-        return Err(Error::Invalid(vec![Issue {
-            path: "$.mode".into(),
-            message: "the mode has no stage".into(),
-        }]));
-    }
-    let mut stage = trial.clone();
+    let base = match setup.mode.0.as_str() {
+        "trial" => trial,
+        "tutorial" => tutorial,
+        _ => {
+            return Err(Error::Invalid(vec![Issue {
+                path: "$.mode".into(),
+                message: "the mode has no stage".into(),
+            }]));
+        }
+    };
+    let mut stage = base.clone();
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
     };

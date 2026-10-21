@@ -283,16 +283,16 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 /// expertise, the match-ups, the runes and the perk sets, tagged and length-prefixed: never a pack's.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
-    if !matches!(mode, "trial" | "time_limit") {
+    if !matches!(mode, "trial" | "time_limit" | "tutorial") {
         return None;
     }
     if let Some(pack_sha256) = content.pack_sha256() {
         return Some(pack_sha256);
     }
-    let file = if mode == "time_limit" {
-        [content.time_limit().bytes(), content.trial_bytes()].concat()
-    } else {
-        content.trial_bytes().to_vec()
+    let file = match mode {
+        "time_limit" => [content.time_limit().bytes(), content.trial_bytes()].concat(),
+        "tutorial" => content.tutorial_bytes().to_vec(),
+        _ => content.trial_bytes().to_vec(),
     };
     Some(hash_content(
         mode,

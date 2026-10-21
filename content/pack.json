@@ -2525,6 +2525,360 @@
     ],
     "capstone": 10
   }
+},
+    "tutorial": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "id": "tutorial",
+  "title": "Tutorial",
+  "description": "The tutorial mode: three minutes of gentle bats and one weak golem, with no elites, no mid-boss and no Stardust. Placeholder content from the trial stage: the same main character, companion, levels and stars, with the bats weak to Slash and the golem weak to Strike. Every weapon can be switched inside it; the weapon and the seed come from the run setup.",
+  "seed": 20261010,
+  "length_ticks": 10800,
+  "map": {
+    "width": 327680,
+    "height": 184320,
+    "start": {
+      "x": 163840,
+      "y": 153600
+    }
+  },
+  "player": {
+    "base": "pilot_a",
+    "hp": 500,
+    "atk": 1000,
+    "weapon": {
+      "preset": {
+        "id": "giant_sword"
+      }
+    },
+    "evade": {
+      "distance": 12288,
+      "ticks": 8,
+      "invulnerable_ticks": 10,
+      "cooldown_ticks": 40
+    }
+  },
+  "companions": [
+    {
+      "base": "fairy_a",
+      "hp": 1000,
+      "radius": 1024,
+      "movement": {
+        "type": "orbit",
+        "radius": 10240
+      },
+      "rules": [
+        {
+          "when": {
+            "type": "hp_below",
+            "who": "lowest_hp_ally",
+            "pct": 60
+          },
+          "target": "lowest_hp_ally",
+          "do": {
+            "type": "cast",
+            "skill": {
+              "type": "heal",
+              "amount": 100
+            }
+          },
+          "cooldown_ticks": 600,
+          "once": false
+        }
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "at_tick": 120,
+      "enemy": {
+        "base": "bat",
+        "hp": 3000,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 192
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 70,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 61440,
+        "y": 0
+      },
+      "count": 3,
+      "every_ticks": 40,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
+    },
+    {
+      "at_tick": 600,
+      "enemy": {
+        "base": "bat",
+        "hp": 3000,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 192
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "aimed_single",
+                  "args": [
+                    640
+                  ]
+                }
+              }
+            },
+            "cooldown_ticks": 70,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 266240,
+        "y": 0
+      },
+      "count": 3,
+      "every_ticks": 40,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      }
+    },
+    {
+      "at_tick": 1200,
+      "enemy": {
+        "base": "bat",
+        "hp": 6000,
+        "radius": 2560,
+        "profile": {
+          "weak": [
+            "slash"
+          ]
+        },
+        "movement": {
+          "type": "straight",
+          "vx": 64,
+          "vy": 128
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "preset": {
+                  "id": "spread_5",
+                  "args": []
+                }
+              }
+            },
+            "cooldown_ticks": 120,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 102400,
+        "y": 0
+      },
+      "count": 2,
+      "every_ticks": 60,
+      "xp": 2,
+      "expertise": {
+        "hit": 1,
+        "kill": 6
+      }
+    }
+  ],
+  "boss": {
+    "base": "golem",
+    "hp": 20000,
+    "radius": 8192,
+    "profile": {
+      "weak": [
+        "strike"
+      ],
+      "resist": "physical"
+    },
+    "spawn": {
+      "x": 163840,
+      "y": 35840
+    },
+    "parts": [],
+    "phases": [
+      {
+        "transition": [],
+        "timeline": [
+          {
+            "type": "wait",
+            "ticks": 90
+          },
+          {
+            "type": "telegraph",
+            "ticks": 30
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  768
+                ]
+              }
+            }
+          },
+          {
+            "type": "move_to",
+            "to": {
+              "x": 92160,
+              "y": 35840
+            },
+            "ticks": 60
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  768
+                ]
+              }
+            }
+          },
+          {
+            "type": "move_to",
+            "to": {
+              "x": 235520,
+              "y": 35840
+            },
+            "ticks": 90
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "preset": {
+                "id": "aimed_spread",
+                "args": [
+                  768
+                ]
+              }
+            }
+          },
+          {
+            "type": "move_to",
+            "to": {
+              "x": 163840,
+              "y": 35840
+            },
+            "ticks": 60
+          },
+          {
+            "type": "loop"
+          }
+        ],
+        "rules": []
+      }
+    ],
+    "expertise": {
+      "hit": 5,
+      "kill": 500
+    }
+  },
+  "levels": {
+    "xp": [
+      3,
+      4,
+      5
+    ]
+  },
+  "stars": {
+    "drop_per_mille": 500,
+    "pity": 2,
+    "cap": 16,
+    "pickup_radius": 6144,
+    "rerolls": 2,
+    "banishes": 1,
+    "tiers": [
+      {
+        "from_level": 1,
+        "weights": {
+          "common": 100
+        }
+      },
+      {
+        "from_level": 3,
+        "weights": {
+          "common": 70,
+          "rare": 30
+        }
+      },
+      {
+        "from_level": 5,
+        "weights": {
+          "common": 50,
+          "rare": 35,
+          "legendary": 15
+        }
+      }
+    ]
+  },
+  "elite_cap": 4,
+  "level_table": {
+    "style": 3,
+    "upgrades": [
+      6,
+      9
+    ],
+    "capstone": 10
+  }
 }
   }
 }
