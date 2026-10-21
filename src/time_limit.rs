@@ -403,6 +403,20 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
             }
         }
         for (i, w) in waves.iter().enumerate() {
+            let Some(id) = &w.id else { continue };
+            if !registry::is_well_formed(&id.0) {
+                issue(
+                    format!("$.waves[{i}].id"),
+                    "not a valid content ID (lowercase snake_case, at most 32 characters)".into(),
+                );
+            } else if waves[..i].iter().any(|before| before.id.as_ref() == Some(id)) {
+                issue(
+                    format!("$.waves[{i}].id"),
+                    "the same ID as an earlier wave".into(),
+                );
+            }
+        }
+        for (i, w) in waves.iter().enumerate() {
             if w.enemy.elite.is_some() {
                 issue(
                     format!("$.waves[{i}].enemy.elite"),
@@ -457,6 +471,7 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
             // Checked as a wave of one enemy at the start, which holds the enemy's own bounds
             // and the kill's experience and expertise.
             let wave = Wave {
+                id: None,
                 at_tick: 0,
                 enemy: t.enemy.clone(),
                 spawn: map.start,

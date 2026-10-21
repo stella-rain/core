@@ -366,6 +366,10 @@ fn is_one_charge(n: &u8) -> bool {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Wave {
+    /// The wave's role in a `time_limit` schedule (R2): lowercase snake_case, unique among the
+    /// schedule's waves. A stage's waves do not use it; absent, the wave has no ID.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<ContentId>,
     pub at_tick: u32,
     pub enemy: Agent,
     pub spawn: Point,
