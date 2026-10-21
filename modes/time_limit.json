@@ -313,24 +313,11 @@
             "do": {
               "type": "attack",
               "attack": {
-                "inline": [
-                  {
-                    "kind": "active",
-                    "ticks": 1,
-                    "damage": 300,
-                    "spawn": [
-                      {
-                        "type": "fire",
-                        "speed": 640,
-                        "direction": {
-                          "type": "aimed",
-                          "offset": 0
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
+                "preset": {
+                  "id": "elite_slam"
+                }
+              },
+              "big": true
             },
             "cooldown_ticks": 90,
             "once": false
