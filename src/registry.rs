@@ -71,6 +71,7 @@ pub const ENTRIES: &[Entry] = &[
     entry("orb_small", Kind::Bullet, 0),
     entry("aimed_single", Kind::Preset, 1),
     entry("aimed_spread", Kind::Preset, 1),
+    entry("elite_slam", Kind::Preset, 0),
     entry("slam", Kind::Preset, 0),
     entry("slash", Kind::Preset, 0),
     entry("spiral", Kind::Preset, 1),

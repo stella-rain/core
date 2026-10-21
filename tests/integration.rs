@@ -28,6 +28,7 @@ mod elite_goblin;
 mod elite_mimic;
 mod elite_pack_leader;
 mod elite_shrine;
+mod elite_traits;
 mod elites;
 mod enemy_roles;
 mod engine;

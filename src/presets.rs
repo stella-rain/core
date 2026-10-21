@@ -34,6 +34,15 @@ const DEFINITIONS: &[(&str, &str)] = &[
             {"type":"spread","count":7,"angle":7680,"body":[
             {"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
+    // The elite's big slam (ADR-103): `slam`'s blow after a 90-tick wind-up, 300 damage, the
+    // attack a high elite made with one inline shot before; the wind-up is the telegraph.
+    (
+        "elite_slam",
+        r#"[{"kind":"wind_up","ticks":90,"move_pct":50},
+            {"kind":"active","ticks":4,"move_pct":50,"type":"strike","damage":300,
+             "hit_box":{"type":"circle","radius":10240}},
+            {"kind":"recovery","ticks":20,"move_pct":50}]"#,
+    ),
     // A blow all round: a 40-pixel circle after a slow wind-up, rooted to half speed; Strike.
     (
         "slam",

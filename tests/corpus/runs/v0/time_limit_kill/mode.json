@@ -111,6 +111,25 @@
             "when": {
               "type": "always"
             }
+          },
+          {
+            "cooldown_ticks": 120,
+            "do": {
+              "attack": {
+                "preset": {
+                  "args": [
+                    768
+                  ],
+                  "id": "aimed_spread"
+                }
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
           }
         ]
       },
@@ -145,24 +164,11 @@
             "cooldown_ticks": 90,
             "do": {
               "attack": {
-                "inline": [
-                  {
-                    "damage": 300,
-                    "kind": "active",
-                    "spawn": [
-                      {
-                        "direction": {
-                          "offset": 0,
-                          "type": "aimed"
-                        },
-                        "speed": 640,
-                        "type": "fire"
-                      }
-                    ],
-                    "ticks": 1
-                  }
-                ]
+                "preset": {
+                  "id": "elite_slam"
+                }
               },
+              "big": true,
               "type": "attack"
             },
             "once": false,

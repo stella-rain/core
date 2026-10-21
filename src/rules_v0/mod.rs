@@ -336,7 +336,9 @@ pub(crate) fn initial_state(
 
 /// The big patterns the boss has announced (ADR-103), for the snapshot.
 pub(crate) fn announced_patterns(stage: &Stage, s: &State) -> Vec<crate::snapshot::PatternView> {
-    boss::announced(stage, s)
+    let mut out = boss::announced(stage, s);
+    out.extend(attacks::announced(s));
+    out
 }
 
 /// The boss before its first tick, its parts taking the entity IDs from `next_id` on. The
