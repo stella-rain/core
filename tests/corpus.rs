@@ -34,6 +34,7 @@ use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCo
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::snapshot::{EntityKind, OfferOption, Snapshot};
 use stella_rain_core::time_limit::TimeLimit;
+use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::parse_and_validate;
 
 fn corpus_dir() -> PathBuf {
@@ -855,7 +856,7 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     // The time_limit mode's waves around the main character, played until it falls (it does
     // before the first boss time; the bosses are in `tests/time_limit_run.rs`).
     let time_limit = time_limit_setup();
-    let time_limit_commands = play_run_from(&time_limit, 25_000);
+    let time_limit_commands = play_run_from(&time_limit, MAX_TICKS);
     // The time_limit mode on easy and on rainy (ADR-110): the enemies' hit points and damage
     // scaled, the stars inside the rarity range; easy with its own boss times and level table.
     let easy = RunSetup {
@@ -1218,8 +1219,8 @@ fn the_run_cases_are_what_their_names_say() {
         );
     }
     // The time_limit run ends with the main character falling, after spends.
-    // The healing keeps the scripted main character alive to the end of its script (25 000
-    // ticks, before the 72 000-tick run's first boss time), where it used to fall.
+    // The healing keeps the scripted main character alive to the end of its script (MAX_TICKS,
+    // the most ticks a replay the fuzz targets read may hold), where it used to fall.
     replay_run_case_ending("time_limit", Outcome::Running);
     // The short time_limit runs end by the final boss's kill and by the overtime limit.
     for (name, outcome, ticks, boss_alive) in [
