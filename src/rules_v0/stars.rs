@@ -477,6 +477,8 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rules_v0::{RunDifficulty, RunPool, initial_state};
+    use crate::run_content::RunContent;
 
     const ALL: (Rarity, Rarity) = (Rarity::Common, Rarity::Supernova);
 
@@ -524,5 +526,38 @@ mod tests {
             let exact = draw_rarity(&mut b, &w, (Rarity::Common, Rarity::Legendary));
             assert_eq!(wide, exact);
         }
+    }
+
+    #[test]
+    fn a_boss_offer_at_the_tiers_highest_rarity_stays_inside_the_difficultys_range() {
+        // Level 1's tier tops at supernova, and easy's range tops at rare: the boss offer is rare.
+        // (A run-level test cannot reach it: the player would have to be at level 5 first.)
+        let mut stage = RunContent::bundled().trial().clone();
+        let st = stage.stars.as_mut().expect("the trial stage has stars");
+        st.tiers = vec![Tier {
+            from_level: 1,
+            weights: RarityWeights {
+                supernova: 1,
+                ..RarityWeights::default()
+            },
+        }];
+        let pool = RunPool {
+            rewards: (0..3).collect(),
+            extra_rerolls: 0,
+            upgrades: 0,
+            difficulty: RunDifficulty {
+                hp_pct: 70,
+                damage_pct: 75,
+                rarity: (Rarity::Common, Rarity::Rare),
+            },
+        };
+        let mut s = initial_state(&stage, RunContent::bundled(), pool, 1);
+        boss_killed(&stage, &mut s);
+        let due = &s.stars.as_ref().expect("a star field").due;
+        assert_eq!(due.len(), 1, "{due:?}");
+        assert_eq!(
+            (due[0].kind, due[0].rarity),
+            (OfferKind::Boss, Rarity::Rare)
+        );
     }
 }
