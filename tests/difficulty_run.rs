@@ -199,8 +199,9 @@ fn an_override_with_more_mid_bosses_than_the_pool_has_is_refused() {
         v["length_ticks"] = json!(600);
         // The bundled schedule's waves start after a 600-tick run ends; this run has none.
         v["waves"] = json!([]);
-        v["boss_ticks"] = json!([300, 600]);
-        v["mid_boss_pool"] = json!(["golem"]);
+        // Only the final boss: an empty pool, and easy's own times ask for one mid-boss.
+        v["boss_ticks"] = json!([600]);
+        v["mid_boss_pool"] = json!([]);
         v["elite_table"] =
             json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
     });
