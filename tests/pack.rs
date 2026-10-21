@@ -362,6 +362,26 @@ fn a_reward_needs_a_stage_skill_of_the_same_pack() {
 }
 
 #[test]
+fn a_time_limit_boss_the_trial_stage_would_refuse_is_refused_with_the_pack() {
+    // The fuzz target's invariant: a pack that loads starts a run of each mode. A boss
+    // definition whose phase waits on a part it does not have is caught at load, not at start.
+    let mut v = value();
+    let bosses = v["modes"]["time_limit"]["bosses"].as_array_mut().unwrap();
+    let core_pair = bosses
+        .iter_mut()
+        .find(|b| b["base"] == json!("core_pair"))
+        .unwrap();
+    core_pair["phases"][0]["until"]["part"] = json!("core_middle");
+    match load(&v) {
+        Err(PackError::File {
+            file: "time_limit",
+            error: Error::Invalid(issues),
+        }) => assert_eq!(issues[0].path, "$.bosses[4].phases[0].until.part"),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
 fn an_id_newer_than_the_pack_is_refused() {
     let mut v = value();
     v["introduced"]["rewards"][0]["sim_version"] = json!(1);
