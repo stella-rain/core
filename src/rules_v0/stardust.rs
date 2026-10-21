@@ -3,9 +3,11 @@
 //! integer percent truncated toward zero, added to the run's counter, which saturates at
 //! `MAX_RUN_STARDUST`. The factor is the percent of the last tier of the stage's table that
 //! started at or before the kill tick (ADR-109 decision 2); past the last tier's start, overtime
-//! included, the last tier holds. Nothing random is drawn. Summoned enemies, guardians, escorts and a boss's parts earn
-//! nothing: only a wave's enemies (elite types are waves here) and the boss do. A stage without
-//! a factor counts nothing.
+//! included, the last tier holds. Nothing random is drawn. A wave's enemies (elite types are waves
+//! here: the Treasure Goblin's kill, a shrine's win, which sets its hit points to 0) and the boss
+//! earn their own base; an enemy summoned by a boss or a splitter earns the factor's
+//! `summon_base`. Guardians, escorts and a boss's parts earn nothing. A stage without a factor
+//! counts nothing.
 
 use crate::engine::{AgentSource, State};
 use crate::stage::{Stage, StardustFactor};
@@ -37,15 +39,18 @@ pub(super) fn credit_defeated(stage: &Stage, s: &mut State) {
     if s.stardust.is_none() {
         return;
     }
+    let summon_base = stage.stardust.as_ref().and_then(|f| f.summon_base);
     let bases: Vec<u32> = s
         .enemies
         .iter()
-        .filter(|e| e.hp == 0 && e.key.source == AgentSource::Wave)
-        .filter_map(|e| {
-            usize::try_from(e.key.index)
+        .filter(|e| e.hp == 0)
+        .filter_map(|e| match e.key.source {
+            AgentSource::Wave => usize::try_from(e.key.index)
                 .ok()
                 .and_then(|i| stage.waves.get(i))
-                .and_then(|w| w.stardust)
+                .and_then(|w| w.stardust),
+            AgentSource::Summoned | AgentSource::BossRule => summon_base,
+            _ => None,
         })
         .collect();
     for base in bases {
