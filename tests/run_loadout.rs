@@ -15,6 +15,7 @@ use stella_rain_core::run_setup::{
 };
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::Rune;
+use stella_rain_core::validate::limits::DAMAGE_SCALE;
 use stella_rain_core::validate::{Error, Issue};
 
 use crate::common;
@@ -300,7 +301,7 @@ fn the_random_rune_is_not_a_carried_star() {
 // --- Perk sets at tick 0 -------------------------------------------------------------------
 
 #[test]
-fn vanguard_adds_300_hit_points_and_duelist_none() {
+fn vanguard_adds_300_shown_hit_points_and_duelist_none() {
     let content = plain_content();
     let base = hp(&start(&plain()).unwrap());
     let with = |set: &str| {
@@ -310,7 +311,7 @@ fn vanguard_adds_300_hit_points_and_duelist_none() {
         };
         hp(&Engine::start_with(&setup, &content).unwrap())
     };
-    assert_eq!(with("vanguard"), base + 300);
+    assert_eq!(with("vanguard"), base + 300 * DAMAGE_SCALE);
     assert_eq!(with("duelist"), base);
     assert_eq!(with("scout"), base);
 }
@@ -348,11 +349,11 @@ fn a_perk_set_changes_the_run_and_the_same_one_always_runs_the_same() {
 #[test]
 fn regen_gives_back_its_hit_points_every_second_never_beyond_the_most() {
     let content = plain_content();
-    // The same run under `vanguard` and under a set with its 300 hit points and no regen.
+    // The same run under `vanguard` and under a set with its 300 shown hit points and no regen.
     let mut file: Value = serde_json::from_slice(PerkSets::BUNDLED).unwrap();
     file["perk_sets"].as_array_mut().unwrap().push(json!({
         "id": "no_regen", "title": "No regen", "description": "",
-        "effects": [{ "effect": "max_hp", "amount": 300 }]
+        "effects": [{ "effect": "max_hp", "amount": 300 * DAMAGE_SCALE }]
     }));
     let content_no_regen = content
         .clone()
@@ -384,7 +385,8 @@ fn regen_gives_back_its_hit_points_every_second_never_beyond_the_most() {
         with.iter().zip(&without).all(|(a, b)| a >= b),
         "regen never costs"
     );
-    assert!(with.iter().all(|h| *h <= 800), "never beyond the most");
+    let most = hp(&start(&plain()).unwrap()) + 300 * DAMAGE_SCALE;
+    assert!(with.iter().all(|h| *h <= most), "never beyond the most");
 }
 
 #[test]

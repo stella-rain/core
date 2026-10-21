@@ -20,11 +20,30 @@ use stella_rain_core::validate::Error;
 use crate::common;
 
 use common::run::{
-    SPEND_INDEX, TRIAL_LENGTH, first_point_tick, play_run, run_input, run_script, trial_setup,
+    SPEND_INDEX, TRIAL_LENGTH, first_point_tick, play_run, play_run_from, run_input, run_script,
+    trial_setup,
 };
 
 fn recorded(ticks: u32) -> RunReplay {
     record_run(&trial_setup(), &play_run(ticks)).unwrap()
+}
+
+/// The seed of a trial run the script falls in before the length: since the heals hold shown hit
+/// points (app#336) the default seed's run lasts the whole length, and seed 1's ends at tick 2553.
+const FALLING_SEED: u64 = 1;
+
+/// The trial setup from `FALLING_SEED`.
+fn falling_setup() -> RunSetup {
+    RunSetup {
+        seed: FALLING_SEED,
+        ..trial_setup()
+    }
+}
+
+/// The trial run of `FALLING_SEED`, played to the length: it ends before it.
+fn fallen() -> RunReplay {
+    let setup = falling_setup();
+    record_run(&setup, &play_run_from(&setup, TRIAL_LENGTH)).unwrap()
 }
 
 /// The replay's bytes with one field changed.
@@ -124,16 +143,16 @@ fn the_content_hash_is_the_same_every_time_and_only_modes_have_one() {
 
 #[test]
 fn a_run_that_ends_is_recorded_to_the_tick_it_ends() {
-    let replay = recorded(TRIAL_LENGTH);
+    let replay = fallen();
     let verified = verify_run(&replay.to_bytes()).unwrap();
     assert_eq!(verified.outcome, Outcome::Failed);
     assert!(replay.ticks < TRIAL_LENGTH, "the script's run ends early");
     assert_eq!(verified.ticks, replay.ticks);
 
     // Commands after the end are left out, as a stage replay leaves them out.
-    let mut more = play_run(TRIAL_LENGTH);
+    let mut more = play_run_from(&falling_setup(), TRIAL_LENGTH);
     more.extend([Command::Step(run_script(0)), Command::Spend(0)]);
-    assert_eq!(record_run(&trial_setup(), &more).unwrap(), replay);
+    assert_eq!(record_run(&falling_setup(), &more).unwrap(), replay);
 }
 
 #[test]
@@ -460,7 +479,7 @@ fn an_index_outside_the_stats_is_refused() {
 
 #[test]
 fn inputs_after_the_run_ended_are_refused() {
-    let replay = recorded(TRIAL_LENGTH);
+    let replay = fallen();
     let ended = replay.ticks;
     let mut inputs = replay.unpack_inputs(TRIAL_LENGTH).unwrap();
     inputs.push(Input::default());

@@ -5,11 +5,13 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::perk_sets::{
-    MAX_PERK_EFFECTS, MAX_PERK_PCT, MAX_PERK_SETS, MAX_PERK_SETS_BYTES, PerkEffect, PerkSets,
+    MAX_PERK_EFFECTS, MAX_PERK_MAX_HP, MAX_PERK_PCT, MAX_PERK_REGEN, MAX_PERK_SETS,
+    MAX_PERK_SETS_BYTES, PerkEffect, PerkSets,
 };
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{content_sha256, content_sha256_with};
 use stella_rain_core::validate::Error;
+use stella_rain_core::validate::limits::DAMAGE_SCALE;
 
 fn set(id: &str, effects: Value) -> Value {
     json!({ "id": id, "title": "Set", "description": "A set", "effects": effects })
@@ -54,7 +56,11 @@ fn the_bundled_file_holds_the_four_sets_with_kades_numbers() {
     assert_eq!(ids, ["vanguard", "duelist", "scout", "scholar"]);
     assert_eq!(
         effects_of("vanguard"),
-        [(PerkEffect::MaxHp, 300), (PerkEffect::Regen, 10)]
+        // Kade's numbers are shown hit points; the file holds them scaled (ADR-103).
+        [
+            (PerkEffect::MaxHp, 300 * DAMAGE_SCALE),
+            (PerkEffect::Regen, 10 * DAMAGE_SCALE)
+        ]
     );
     assert_eq!(
         effects_of("duelist"),
@@ -170,6 +176,13 @@ fn an_amount_is_1_to_its_effects_cap() {
             ["$.perk_sets[0].effects[0].amount"]
         );
         assert!(at(effect, 0).is_err(), "{effect} at 0");
+    }
+    for (effect, cap) in [("max_hp", MAX_PERK_MAX_HP), ("regen", MAX_PERK_REGEN)] {
+        assert!(at(effect, cap).is_ok(), "{effect} at the cap");
+        assert_eq!(
+            paths(at(effect, cap + 1).unwrap_err()),
+            ["$.perk_sets[0].effects[0].amount"]
+        );
     }
     for effect in ["max_hp", "regen", "extra_rerolls", "extra_banishes"] {
         assert!(at(effect, 0).is_err(), "{effect} at 0");
