@@ -1,10 +1,11 @@
 //! The game content a run reads besides its mode's stage (ADR-067): the run stats a point
 //! raises, the rewards an offer holds and the stage skills those name (ADR-098), the
 //! expertise levels (ADR-078), the match-up table (ADR-100), the runes (ADR-099) and the perk
-//! sets (ADR-105). One value, so
+//! sets (ADR-105) and the difficulties (ADR-110). One value, so
 //! that a run's engine, its recorder and its verification read the same files, and the replay's
 //! content hash covers each of them (ADR-079 §5).
 
+use crate::difficulties::Difficulties;
 use crate::expertise::Expertise;
 use crate::match_ups::MatchUps;
 use crate::pack::Pack;
@@ -25,6 +26,7 @@ pub struct RunContent {
     match_ups: MatchUps,
     runes: Runes,
     perk_sets: PerkSets,
+    difficulties: Difficulties,
     time_limit: TimeLimit,
     /// The `trial` mode's stage, and its file's bytes as they are in the pack.
     trial: Stage,
@@ -46,6 +48,7 @@ impl RunContent {
             match_ups: *MatchUps::bundled(),
             runes: Runes::bundled().clone(),
             perk_sets: PerkSets::bundled().clone(),
+            difficulties: Difficulties::bundled().clone(),
             time_limit: TimeLimit::bundled().clone(),
             trial: bundled.trial.clone(),
             trial_bytes: bundled.trial_bytes.clone(),
@@ -62,6 +65,7 @@ impl RunContent {
         match_ups: MatchUps,
         runes: Runes,
         perk_sets: PerkSets,
+        difficulties: Difficulties,
         time_limit: TimeLimit,
         trial: Stage,
         trial_bytes: Vec<u8>,
@@ -74,6 +78,7 @@ impl RunContent {
             match_ups,
             runes,
             perk_sets,
+            difficulties,
             time_limit,
             trial,
             trial_bytes,
@@ -112,6 +117,15 @@ impl RunContent {
     pub fn with_perk_sets(self, perk_sets: PerkSets) -> RunContent {
         RunContent {
             perk_sets,
+            pack_sha256: None,
+            ..self
+        }
+    }
+
+    /// The same content with `difficulties` in place of its difficulties.
+    pub fn with_difficulties(self, difficulties: Difficulties) -> RunContent {
+        RunContent {
+            difficulties,
             pack_sha256: None,
             ..self
         }
@@ -176,6 +190,11 @@ impl RunContent {
     /// The perk sets a setup picks from (ADR-105, ADR-107).
     pub fn perk_sets(&self) -> &PerkSets {
         &self.perk_sets
+    }
+
+    /// The difficulties a setup picks from (ADR-110).
+    pub fn difficulties(&self) -> &Difficulties {
+        &self.difficulties
     }
 
     /// The `time_limit` mode's file.

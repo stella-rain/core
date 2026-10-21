@@ -116,6 +116,7 @@ fn the_exported_pack_has_its_fields_in_order() {
         "\"match_ups\"",
         "\"runes\"",
         "\"perk_sets\": {",
+        "\"difficulties\": {",
         "\"modes\"",
     ];
     let at: Vec<usize> = keys.iter().map(|k| text.find(k).unwrap()).collect();
@@ -208,7 +209,14 @@ fn an_unknown_field_is_refused() {
 
 #[test]
 fn a_missing_file_is_refused() {
-    for file in ["run_stats", "rewards", "stage_skills", "runes", "perk_sets"] {
+    for file in [
+        "run_stats",
+        "rewards",
+        "stage_skills",
+        "runes",
+        "perk_sets",
+        "difficulties",
+    ] {
         let mut v = value();
         v.as_object_mut().unwrap().remove(file);
         assert!(matches!(load(&v), Err(PackError::Parse { .. })), "{file}");
@@ -252,7 +260,7 @@ fn a_file_of_another_version_is_refused() {
 /// the file itself is read (the extra entries are copies, which the file would refuse too).
 #[test]
 fn each_count_budget_is_enforced() {
-    let lists: [(&str, usize); 18] = [
+    let lists: [(&str, usize); 20] = [
         ("/run_stats/stats", pack::MAX_RUN_STATS),
         ("/rewards/rewards", pack::MAX_REWARDS),
         ("/stage_skills/stage_skills", pack::MAX_STAGE_SKILLS),
@@ -261,6 +269,7 @@ fn each_count_budget_is_enforced() {
         ("/runes/on_hit", pack::MAX_ON_HIT_RUNES),
         ("/runes/damage_over_time", pack::MAX_DAMAGE_OVER_TIME_RUNES),
         ("/perk_sets/perk_sets", pack::MAX_PERK_SETS),
+        ("/difficulties/difficulties", pack::MAX_DIFFICULTIES),
         ("/modes/time_limit/waves", pack::MAX_TIME_LIMIT_WAVES),
         ("/modes/time_limit/boss_ticks", pack::MAX_BOSS_TICKS),
         ("/modes/time_limit/mid_boss_pool", pack::MAX_MID_BOSS_POOL),
@@ -269,6 +278,7 @@ fn each_count_budget_is_enforced() {
         ("/introduced/rewards", pack::MAX_REWARDS),
         ("/introduced/stage_skills", pack::MAX_STAGE_SKILLS),
         ("/introduced/perk_sets", pack::MAX_PERK_SETS),
+        ("/introduced/difficulties", pack::MAX_DIFFICULTIES),
         ("/introduced/expertise", pack::MAX_EXPERTISE_WEAPONS),
         ("/introduced/expertise/0/ids", pack::MAX_EXPERTISE_IDS),
     ];
@@ -465,6 +475,7 @@ fn a_file_is_found_whatever_the_pack_s_layout() {
     }
     for key in [
         "perk_sets",
+        "difficulties",
         "expertise",
         "match_ups",
         "stage_skills",

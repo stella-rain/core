@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DifficultiesFile",
+  "description": "The difficulties file.",
+  "type": "object",
+  "properties": {
+    "difficulties": {
+      "description": "The difficulties, 1 to `MAX_DIFFICULTIES`.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Difficulty"
+      }
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sim_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "difficulties"
+  ],
+  "$defs": {
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    },
+    "Difficulty": {
+      "description": "One difficulty.",
+      "type": "object",
+      "properties": {
+        "boss_ticks": {
+          "description": "The mode's boss times in ticks, in place of its file's: rising, the last at\n`length_ticks`, at most `time_limit::MAX_BOSS_TIMES`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "damage_pct": {
+          "description": "Percent of the content's damage every attack of an enemy, elite or boss does, from 1 to\n`MAX_PCT`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "description": {
+          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
+          "type": "string"
+        },
+        "hp_pct": {
+          "description": "Percent of the content's hit points every enemy, elite and boss (and each boss part)\nstarts with, from 1 to `MAX_PCT` (100 for normal).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "id": {
+          "description": "The difficulty's own ID, unique within the file.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "length_ticks": {
+          "description": "The mode's run length in ticks, in place of its file's: with `boss_ticks`, or neither.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "level_table": {
+          "description": "The expertise levels (ADR-106 point 4) in place of the mode's.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LevelTable"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rarity_max": {
+          "description": "The highest rarity its drops and offers may have; not below `rarity_min`.",
+          "$ref": "#/$defs/Rarity"
+        },
+        "rarity_min": {
+          "description": "The lowest rarity its drops and offers may have, over all six.",
+          "$ref": "#/$defs/Rarity"
+        },
+        "stardust_end_pct": {
+          "description": "The Stardust time factor at the end of a run, in percent, from the start's to `MAX_PCT`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "stardust_start_pct": {
+          "description": "The Stardust time factor at the start of a run, in percent, from 1 to `MAX_PCT`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "title": {
+          "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "description",
+        "hp_pct",
+        "damage_pct",
+        "rarity_min",
+        "rarity_max",
+        "stardust_start_pct",
+        "stardust_end_pct"
+      ]
+    },
+    "LevelTable": {
+      "description": "The expertise levels of a run's style path (ADR-106 §4): the level of the style choice, of\neach of the two style upgrades and of the capstone. Every other level is a common offer.\nThe levels rise in that order, strictly, each from 1 to `MAX_STYLE_LEVEL`.",
+      "type": "object",
+      "properties": {
+        "capstone": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "style": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "upgrades": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "style",
+        "upgrades",
+        "capstone"
+      ]
+    },
+    "Rarity": {
+      "description": "A reward's rarity, from the most common up (ADR-079 §2).",
+      "type": "string",
+      "enum": [
+        "common",
+        "uncommon",
+        "rare",
+        "epic",
+        "legendary",
+        "supernova"
+      ]
+    }
+  }
+}

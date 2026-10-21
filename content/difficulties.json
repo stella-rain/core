@@ -1,0 +1,53 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "difficulties": [
+    {
+      "id": "easy",
+      "title": "Easy",
+      "description": "Weaker enemies, a 10-minute Time Limit and no rarer reward than rare",
+      "hp_pct": 70,
+      "damage_pct": 75,
+      "rarity_min": "common",
+      "rarity_max": "rare",
+      "stardust_start_pct": 100,
+      "stardust_end_pct": 150,
+      "length_ticks": 36000,
+      "boss_ticks": [9000, 18000, 27000, 36000],
+      "level_table": { "style": 2, "upgrades": [4, 6], "capstone": 8 }
+    },
+    {
+      "id": "normal",
+      "title": "Normal",
+      "description": "The game as designed",
+      "hp_pct": 100,
+      "damage_pct": 100,
+      "rarity_min": "common",
+      "rarity_max": "legendary",
+      "stardust_start_pct": 100,
+      "stardust_end_pct": 150
+    },
+    {
+      "id": "hard",
+      "title": "Hard",
+      "description": "Tougher enemies that hit harder, and every rarity may drop",
+      "hp_pct": 150,
+      "damage_pct": 125,
+      "rarity_min": "common",
+      "rarity_max": "supernova",
+      "stardust_start_pct": 100,
+      "stardust_end_pct": 150
+    },
+    {
+      "id": "rainy",
+      "title": "Rainy",
+      "description": "Enemies with twice the hit points, and nothing common drops",
+      "hp_pct": 200,
+      "damage_pct": 150,
+      "rarity_min": "uncommon",
+      "rarity_max": "supernova",
+      "stardust_start_pct": 200,
+      "stardust_end_pct": 400
+    }
+  ]
+}

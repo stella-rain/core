@@ -22,6 +22,7 @@ mod controls;
 mod corpus;
 mod damage_types;
 mod defence;
+mod difficulties;
 mod elite_goblin;
 mod elite_mimic;
 mod elite_pack_leader;
