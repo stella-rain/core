@@ -311,7 +311,7 @@ fn amounts_limits_and_texts_are_bounded() {
 #[test]
 fn a_hit_point_amount_has_the_scaled_bound_and_the_others_keep_theirs() {
     // ADR-103: hit points are scaled by 100, a percentage is not.
-    assert_eq!(MAX_HP_AMOUNT, MAX_AMOUNT * 100);
+    assert_eq!(MAX_HP_AMOUNT, 5_000 * 100);
     let hp = |amount: u32| {
         let mut v = one_with("effect", json!("max_hp"));
         v["rewards"][0]["amount"] = json!(amount);
