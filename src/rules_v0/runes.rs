@@ -121,7 +121,7 @@ pub(super) fn on_hit(
         // there. Rune Haste shortens it as it is set.
         let cooldown = rune_haste_ticks(
             entry.cooldown_ticks.min(MAX_RUNE_COOLDOWN_TICKS),
-            s.player.rune_haste_pct,
+            s.player.rune_haste_pct.min(s.max_rune_haste_pct),
         );
         let damage = entry.damage;
         let phases = Arc::new(entry.attack.clone());
@@ -182,7 +182,7 @@ fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEven
     // The validator holds every number to its cap; the clamps keep an unvalidated file there.
     let interval = rune_haste_ticks(
         entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS),
-        s.player.rune_haste_pct,
+        s.player.rune_haste_pct.min(s.max_rune_haste_pct),
     );
     let duration = entry.duration_ticks.clamp(1, MAX_DOT_DURATION_TICKS);
     let max_stacks = u16::try_from(entry.max_stacks.clamp(1, MAX_DOT_STACKS)).unwrap_or(1);

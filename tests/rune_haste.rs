@@ -148,11 +148,6 @@ fn the_formula_rounds_up_and_floors_at_one_tick() {
     assert_eq!(rune_haste_ticks(1, MAX_HASTE), 1, "0.25 up");
     assert_eq!(rune_haste_ticks(0, 50), 1, "never zero");
     assert_eq!(rune_haste_ticks(3_600, MAX_HASTE), 900);
-    assert_eq!(
-        rune_haste_ticks(3_600, MAX_HASTE + 1),
-        900,
-        "held to the cap"
-    );
     assert_eq!(rune_haste_ticks(u32::MAX, 0), u32::MAX, "no overflow");
 }
 

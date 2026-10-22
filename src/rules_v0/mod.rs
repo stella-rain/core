@@ -341,6 +341,7 @@ pub(crate) fn initial_state(
         runes: content.runes().clone(),
         stun: run_stats.stun(),
         max_attack_speed_pct: run_stats.max_attack_speed_pct(),
+        max_rune_haste_pct: content.rewards().max_rune_haste_pct(),
         horde: None,
         stardust: stage.stardust.as_ref().map(|_| 0),
         regen: 0,

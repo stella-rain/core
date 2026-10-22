@@ -19,7 +19,7 @@ use stella_rain_core::rune::{Rune, RuneKind};
 use stella_rain_core::runes::MAX_DOT_STACKS;
 use stella_rain_core::snapshot::EntityKind;
 
-/// The most Rune Haste there is (`MAX_RUNE_HASTE_PCT`, ADR-099 point 5).
+/// The most Rune Haste there is (`DEFAULT_MAX_RUNE_HASTE_PCT`, ADR-099 point 5).
 const FULL_HASTE: u32 = 300;
 
 /// Every enemy and every companion is in an active phase with a hit box, every companion's
