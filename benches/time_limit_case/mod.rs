@@ -17,8 +17,10 @@ use stella_rain_core::validate::limits::{MAX_AGENT_HP, MAX_PLAYER_HP};
 /// tick), and the measured tick is one on which the main character's Main weapon hits
 /// (`tests/time_limit_case.rs`). The six roles shoot less than the bats alone did, so the
 /// bullets take longer to build up than they did (tick 1,518 then, 1,957 now); the enemies
-/// start to fall to the Main weapon from about tick 2,300.
-pub const WARMUP_TICKS: u32 = 1_956;
+/// start to fall to the Main weapon from about tick 2,300. The Sword's chain is five A's deep (ADR-117),
+/// so its tap-every-other-tick cycle is longer: the first tick from 1,957 on where a step lands a
+/// hit is 1,963, so the measured tick is that one.
+pub const WARMUP_TICKS: u32 = 1_962;
 
 /// The longest stage there is: 5 minutes. The mode's run is longer, which only the mode may be.
 const STAGE_LENGTH_TICKS: u32 = 18_000;
