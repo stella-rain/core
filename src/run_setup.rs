@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::difficulties::{Difficulties, Difficulty};
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
-use crate::rewards::{Rarity, RewardEffect};
+use crate::rewards::Rarity;
 use crate::run_content::RunContent;
 use crate::rune::Rune;
 use std::sync::OnceLock;
@@ -372,7 +372,7 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
             .iter()
             .filter(|c| c.reward == star.reward)
             .count();
-        let message = if reward.effect == RewardEffect::RandomRune {
+        let message = if reward.is_random_rune() {
             Some("the random rune is not carried; start with a rune instead")
         } else if !in_pool {
             Some("not in the star pool")

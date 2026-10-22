@@ -194,13 +194,18 @@ fn the_runes_are_a_closed_list_of_two_kinds() {
 fn a_random_rune_has_a_rarity_and_no_amount_or_limit() {
     let parsed = rewards(vec![random_rune()]);
     let r = &parsed.rewards()[0];
-    assert_eq!(r.effect, RewardEffect::RandomRune);
-    assert_eq!((r.amount, r.limit), (None, None));
+    assert_eq!(r.effect(), RewardEffect::RandomRune);
+    assert_eq!((r.amount(), r.limit), (None, None));
     let refused = |field: &str, value: Value| {
         let mut reward = random_rune();
         reward[field] = value;
         let err = Rewards::parse(file(vec![reward]).as_bytes()).unwrap_err();
-        format!("{err:?}").contains(&format!("$.rewards[0].{field}"))
+        let at = if field == "amount" {
+            "effects[0].amount"
+        } else {
+            field
+        };
+        format!("{err:?}").contains(&format!("$.rewards[0].{at}"))
     };
     assert!(refused("amount", json!(1)), "an amount");
     assert!(refused("limit", json!(1)), "a limit");
@@ -208,12 +213,12 @@ fn a_random_rune_has_a_rarity_and_no_amount_or_limit() {
 
 #[test]
 fn every_other_reward_still_needs_its_amount_and_limit() {
-    for field in ["amount", "limit"] {
+    for (field, path) in [("amount", "effects[0].amount"), ("limit", "limit")] {
         let mut reward = inert("dash");
         reward.as_object_mut().unwrap().remove(field);
         let err = Rewards::parse(file(vec![reward]).as_bytes()).unwrap_err();
         assert!(
-            format!("{err:?}").contains(&format!("$.rewards[0].{field}")),
+            format!("{err:?}").contains(&format!("$.rewards[0].{path}")),
             "{field} missing: {err:?}"
         );
     }

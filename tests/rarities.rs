@@ -40,7 +40,7 @@ fn bundled(effect: RewardEffect, rarity: Rarity) -> &'static Reward {
     Rewards::bundled()
         .rewards()
         .iter()
-        .find(|r| r.effect == effect && r.rarity == rarity)
+        .find(|r| r.effect() == effect && r.rarity == rarity)
         .unwrap_or_else(|| panic!("no {effect:?} reward at {rarity:?}"))
 }
 
@@ -72,7 +72,7 @@ fn every_scaling_effect_has_a_reward_at_all_six_rarities() {
             let found = Rewards::bundled()
                 .rewards()
                 .iter()
-                .filter(|r| r.effect == effect && r.rarity == rarity)
+                .filter(|r| r.effect() == effect && r.rarity == rarity)
                 .count();
             assert_eq!(found, 1, "{effect:?} at {rarity:?}");
         }
@@ -82,11 +82,11 @@ fn every_scaling_effect_has_a_reward_at_all_six_rarities() {
 #[test]
 fn the_new_amounts_follow_the_ladder_from_the_common_reward() {
     for effect in FAMILIES {
-        let common = bundled(effect, Rarity::Common).amount.unwrap();
+        let common = bundled(effect, Rarity::Common).amount().unwrap();
         for rarity in NEW {
             let r = bundled(effect, rarity);
             assert_eq!(
-                r.amount,
+                r.amount(),
                 Some(ladder(rarity, common)),
                 "{effect:?} {rarity:?}"
             );
@@ -103,7 +103,7 @@ fn every_new_amount_is_inside_its_bound() {
             _ => MAX_AMOUNT,
         };
         for rarity in Rarity::ALL {
-            let amount = bundled(effect, rarity).amount.unwrap();
+            let amount = bundled(effect, rarity).amount().unwrap();
             assert!(
                 (1..=bound).contains(&amount),
                 "{effect:?} {rarity:?}: {amount}"
@@ -119,7 +119,7 @@ fn supernova_takes_a_bigger_amount_and_no_bigger_limit_than_legendary() {
     for effect in FAMILIES {
         let sup = bundled(effect, Rarity::Supernova);
         let leg = bundled(effect, Rarity::Legendary);
-        assert!(sup.amount > leg.amount, "{effect:?}");
+        assert!(sup.amount() > leg.amount(), "{effect:?}");
         assert!(sup.limit <= leg.limit, "{effect:?}");
         assert_eq!(sup.limit, Some(2), "{effect:?}");
     }

@@ -230,10 +230,10 @@ fn eligible(
 ) -> bool {
     let at = usize::from(i);
     rewards.rewards().get(at).is_some_and(|r| {
-        let room = match (r.effect, r.limit) {
-            (RewardEffect::RandomRune, _) => !runes::all_held(runes, f.rune_pool),
-            (_, Some(limit)) => f.taken[at] < limit,
-            (_, None) => false,
+        let room = match (r.is_random_rune(), r.limit) {
+            (true, _) => !runes::all_held(runes, f.rune_pool),
+            (false, Some(limit)) => f.taken[at] < limit,
+            (false, None) => false,
         };
         r.rarity == rarity && !f.banished[at] && room && !held.contains(&i)
     })
@@ -323,44 +323,46 @@ pub(super) fn take(
     let at = usize::from(i);
     f.taken[at] = f.taken[at].saturating_add(1);
     let reward = &rewards.rewards()[at];
-    // Every effect but the random rune's has an amount (`rewards::validate`).
-    let amount = reward.amount.unwrap_or(0);
     let mut rune = None;
-    match reward.effect {
-        RewardEffect::StageSkill => {
-            let index = reward
-                .skill
-                .as_ref()
-                .and_then(|id| rewards.stage_skills().index_of(id));
-            if let Some(index) = index {
-                skill::take(rewards, player, index, amount);
-            }
-        }
-        RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
-        RewardEffect::Orbit => orbit::take(player, i, amount),
-        RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
-        RewardEffect::Regen => *regen = regen.saturating_add(amount),
-        RewardEffect::RuneHaste => {
-            player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
-        }
-        RewardEffect::RandomRune => rune = runes::draw(rng, player, f.rune_pool),
-        RewardEffect::TypeBonusPct
-        | RewardEffect::AttackTypeBonusPct
-        | RewardEffect::ElementBonusPct => {
-            for (ty, pct) in DamageType::ALL.iter().zip(&mut player.type_bonus_pct) {
-                let applies = match reward.effect {
-                    RewardEffect::AttackTypeBonusPct => ty.is_physical(),
-                    RewardEffect::ElementBonusPct => !ty.is_physical(),
-                    _ => reward.damage_type == Some(*ty),
-                };
-                if applies {
-                    *pct = pct.saturating_add(amount);
+    for entry in &reward.effects {
+        // Every effect but the random rune's has an amount (`rewards::validate`).
+        let amount = entry.amount.unwrap_or(0);
+        match entry.effect {
+            RewardEffect::StageSkill => {
+                let index = entry
+                    .skill
+                    .as_ref()
+                    .and_then(|id| rewards.stage_skills().index_of(id));
+                if let Some(index) = index {
+                    skill::take(rewards, player, index, amount);
                 }
             }
-        }
-        effect => {
-            if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
-                levels::add_effect(p, player, effect, amount);
+            RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
+            RewardEffect::Orbit => orbit::take(player, i, amount),
+            RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
+            RewardEffect::Regen => *regen = regen.saturating_add(amount),
+            RewardEffect::RuneHaste => {
+                player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
+            }
+            RewardEffect::RandomRune => rune = runes::draw(rng, player, f.rune_pool),
+            RewardEffect::TypeBonusPct
+            | RewardEffect::AttackTypeBonusPct
+            | RewardEffect::ElementBonusPct => {
+                for (ty, pct) in DamageType::ALL.iter().zip(&mut player.type_bonus_pct) {
+                    let applies = match entry.effect {
+                        RewardEffect::AttackTypeBonusPct => ty.is_physical(),
+                        RewardEffect::ElementBonusPct => !ty.is_physical(),
+                        _ => entry.damage_type == Some(*ty),
+                    };
+                    if applies {
+                        *pct = pct.saturating_add(amount);
+                    }
+                }
+            }
+            effect => {
+                if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
+                    levels::add_effect(p, player, effect, amount);
+                }
             }
         }
     }
@@ -464,7 +466,7 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                 CandidateView {
                     reward: r.id.clone(),
                     rarity: r.rarity,
-                    hidden: r.effect == RewardEffect::RandomRune,
+                    hidden: r.is_random_rune(),
                 }
             })
             .collect(),

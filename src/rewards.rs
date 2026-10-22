@@ -171,13 +171,10 @@ impl RewardEffect {
     }
 }
 
-/// One reward an offer can hold.
+/// One effect of a reward: an effect kind with the fields that kind takes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct Reward {
-    /// The reward's own ID, unique within the file.
-    pub id: ContentId,
-    pub rarity: Rarity,
+pub struct EffectEntry {
     pub effect: RewardEffect,
     /// The stage skill it gives, one of the stage skills file's: with the `stage_skill` effect
     /// only, and required by it.
@@ -199,14 +196,148 @@ pub struct Reward {
     /// has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub amount: Option<u32>,
-    /// The most times one run takes it, from 1 to `MAX_STACK`. Required by every effect but
-    /// the random rune, which has none of its own.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+}
+
+/// The most effects one reward holds.
+pub const MAX_REWARD_EFFECTS: usize = 3;
+/// The most named rewards a file lists (a placeholder bound, ADR-020).
+pub const MAX_NAMED_REWARDS: usize = 32;
+/// The weight a reward has when its file gives none.
+pub const DEFAULT_WEIGHT: u16 = 100;
+/// The largest draw weight; the smallest is 1 (a placeholder bound, ADR-020).
+pub const MAX_WEIGHT: u16 = 1_000;
+/// The fewest times an unnamed reward stacks: ordinary rewards stack.
+pub const MIN_UNNAMED_LIMIT: u8 = 2;
+
+fn default_weight() -> u16 {
+    DEFAULT_WEIGHT
+}
+
+fn is_default_weight(w: &u16) -> bool {
+    *w == DEFAULT_WEIGHT
+}
+
+/// One reward an offer can hold. In a file it is written with an `effects` list of 1 to
+/// `MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the
+/// reward itself, which reads as a list of one (ADR-026).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "RawReward")]
+#[schemars(with = "RawReward")]
+pub struct Reward {
+    /// The reward's own ID, unique within the file.
+    pub id: ContentId,
+    pub rarity: Rarity,
+    /// What taking it does, in order: 1 to `MAX_REWARD_EFFECTS`.
+    pub effects: Vec<EffectEntry>,
+    /// The most times one run takes it, from 1 to `MAX_STACK`. Required by every reward but a
+    /// random rune, which has none of its own.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u8>,
+    /// A named star (decision of app#336): taken once, epic or above, shown under `star`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub named: bool,
+    /// The star's display name, 1 to `run_stats::MAX_TITLE_CHARS` characters, unique within
+    /// the file: required when `named`, and only then.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub star: Option<String>,
+    /// Its share of a draw among the rewards of its rarity, from 1 to `MAX_WEIGHT`.
+    #[serde(skip_serializing_if = "is_default_weight")]
+    pub weight: u16,
     /// The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.
     pub title: String,
     /// What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.
     pub description: String,
+}
+
+impl Reward {
+    /// The first effect's kind: the reward's one, for a reward of one effect.
+    pub fn effect(&self) -> RewardEffect {
+        self.effects[0].effect
+    }
+
+    /// The first effect's amount.
+    pub fn amount(&self) -> Option<u32> {
+        self.effects[0].amount
+    }
+
+    /// Whether it is the random rune alone.
+    pub fn is_random_rune(&self) -> bool {
+        matches!(&self.effects[..], [e] if e.effect == RewardEffect::RandomRune)
+    }
+
+    /// The first entry that holds an orbit, if any.
+    pub fn orbit(&self) -> Option<&Orbit> {
+        self.effects.iter().find_map(|e| e.orbit.as_ref())
+    }
+}
+
+/// A reward as a file writes it: the `effects` list, or the released form's single effect.
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RawReward {
+    id: ContentId,
+    rarity: Rarity,
+    /// The effects, 1 to `MAX_REWARD_EFFECTS`: instead of `effect` and the fields of one.
+    #[serde(default)]
+    effects: Option<Vec<EffectEntry>>,
+    /// The released form's single effect: with its `skill`, `orbit`, `type` and `amount`.
+    #[serde(default)]
+    effect: Option<RewardEffect>,
+    #[serde(default)]
+    skill: Option<ContentId>,
+    #[serde(default)]
+    orbit: Option<Orbit>,
+    #[serde(rename = "type", default)]
+    damage_type: Option<DamageType>,
+    #[serde(default)]
+    amount: Option<u32>,
+    #[serde(default)]
+    limit: Option<u8>,
+    #[serde(default)]
+    named: bool,
+    #[serde(default)]
+    star: Option<String>,
+    #[serde(default = "default_weight")]
+    weight: u16,
+    title: String,
+    description: String,
+}
+
+impl TryFrom<RawReward> for Reward {
+    type Error = String;
+
+    fn try_from(raw: RawReward) -> Result<Reward, String> {
+        let single = raw.effect.is_some()
+            || raw.skill.is_some()
+            || raw.orbit.is_some()
+            || raw.damage_type.is_some()
+            || raw.amount.is_some();
+        let effects = match (raw.effects, raw.effect) {
+            (Some(_), _) if single => {
+                return Err("a reward has `effects` or one effect's fields, not both".into());
+            }
+            (Some(list), _) => list,
+            (None, Some(effect)) => vec![EffectEntry {
+                effect,
+                skill: raw.skill,
+                orbit: raw.orbit,
+                damage_type: raw.damage_type,
+                amount: raw.amount,
+            }],
+            (None, None) => return Err("a reward has `effects` or an `effect`".into()),
+        };
+        Ok(Reward {
+            id: raw.id,
+            rarity: raw.rarity,
+            effects,
+            limit: raw.limit,
+            named: raw.named,
+            star: raw.star,
+            weight: raw.weight,
+            title: raw.title,
+            description: raw.description,
+        })
+    }
 }
 
 /// Orbs that turn round the main character and attack on their own (ADR-069). Each orb runs
@@ -315,6 +446,96 @@ impl Rewards {
     }
 }
 
+/// The largest amount of one effect.
+fn most_of(effect: RewardEffect) -> u32 {
+    match effect {
+        RewardEffect::StageSkill => MAX_SKILL_LEVELS as u32,
+        RewardEffect::EvadeCharge => u32::from(MAX_EVADE_CHARGES),
+        RewardEffect::Orbit => u32::from(MAX_ORBS),
+        RewardEffect::RangePct => MAX_RANGE_PCT,
+        RewardEffect::RuneHaste => MAX_RUNE_HASTE_PCT,
+        RewardEffect::MaxHp | RewardEffect::Regen => MAX_HP_AMOUNT,
+        _ => MAX_AMOUNT,
+    }
+}
+
+/// One effect entry on its own: its amount, skill, orbit and type, by its kind.
+fn validate_entry(
+    entry: &EffectEntry,
+    at: &dyn Fn(&str) -> String,
+    stage_skills: &StageSkills,
+    issue: &mut dyn FnMut(String, String),
+) {
+    let most = most_of(entry.effect);
+    match (entry.effect, entry.amount) {
+        (RewardEffect::RandomRune, None) => {}
+        (RewardEffect::RandomRune, Some(_)) => {
+            issue(at("amount"), "a random rune has no amount".into())
+        }
+        (_, None) => issue(at("amount"), format!("1 to {most} (missing)")),
+        (_, Some(amount)) => {
+            if !(1..=most).contains(&amount) {
+                issue(at("amount"), format!("1 to {most} (found {amount})"));
+            }
+        }
+    }
+    match (entry.effect, &entry.skill) {
+        (RewardEffect::StageSkill, None) => {
+            issue(at("skill"), "a stage skill reward names its skill".into())
+        }
+        (RewardEffect::StageSkill, Some(id)) => {
+            if stage_skills.index_of(id).is_none() {
+                issue(at("skill"), "no such skill in the stage skills file".into());
+            }
+        }
+        (_, Some(_)) => issue(
+            at("skill"),
+            "only a stage skill reward names a skill".into(),
+        ),
+        (_, None) => {}
+    }
+    match (entry.effect, &entry.orbit) {
+        (RewardEffect::Orbit, None) => issue(at("orbit"), "an orbit reward holds its orbit".into()),
+        (RewardEffect::Orbit, Some(orbit)) => {
+            if !(-MAX_ORBIT_TURN..=MAX_ORBIT_TURN).contains(&orbit.turn_per_tick) {
+                issue(
+                    at("orbit.turn_per_tick"),
+                    format!(
+                        "-{MAX_ORBIT_TURN} to {MAX_ORBIT_TURN} (found {})",
+                        orbit.turn_per_tick
+                    ),
+                );
+            }
+            if !(1..=MAX_ORBIT_COOLDOWN_TICKS).contains(&orbit.cooldown_ticks) {
+                issue(
+                    at("orbit.cooldown_ticks"),
+                    format!(
+                        "1 to {MAX_ORBIT_COOLDOWN_TICKS} (found {})",
+                        orbit.cooldown_ticks
+                    ),
+                );
+            }
+            if let Err(found) =
+                crate::validate::validate_attack_ref(&orbit.attack, registry::ENTRIES)
+            {
+                // The attack's paths start at `$`.
+                for f in found {
+                    issue(format!("{}{}", at("orbit.attack"), &f.path[1..]), f.message);
+                }
+            }
+        }
+        (_, Some(_)) => issue(at("orbit"), "only an orbit reward holds an orbit".into()),
+        (_, None) => {}
+    }
+    match (entry.effect, entry.damage_type) {
+        (RewardEffect::TypeBonusPct, None) => {
+            issue(at("type"), "a type bonus reward names its type".into())
+        }
+        (RewardEffect::TypeBonusPct, Some(_)) | (_, None) => {}
+        (_, Some(_)) => issue(at("type"), "only a type bonus reward names a type".into()),
+    }
+}
+
 /// Validates a parsed file, each reward's skill in `stage_skills`: one issue per problem, with
 /// its path, never text from the file.
 pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Error> {
@@ -336,103 +557,39 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
         } else if file.rewards[..i].iter().any(|r| r.id == reward.id) {
             issue(at("id"), "the same ID as an earlier reward".into());
         }
-        let most = match reward.effect {
-            RewardEffect::StageSkill => MAX_SKILL_LEVELS as u32,
-            RewardEffect::EvadeCharge => u32::from(MAX_EVADE_CHARGES),
-            RewardEffect::Orbit => u32::from(MAX_ORBS),
-            RewardEffect::RangePct => MAX_RANGE_PCT,
-            RewardEffect::RuneHaste => MAX_RUNE_HASTE_PCT,
-            RewardEffect::MaxHp | RewardEffect::Regen => MAX_HP_AMOUNT,
-            _ => MAX_AMOUNT,
-        };
-        match (reward.effect, reward.amount) {
-            (RewardEffect::RandomRune, None) => {}
-            (RewardEffect::RandomRune, Some(_)) => {
-                issue(at("amount"), "a random rune has no amount".into())
-            }
-            (_, None) => issue(at("amount"), format!("1 to {most} (missing)")),
-            (_, Some(amount)) => {
-                if !(1..=most).contains(&amount) {
-                    issue(at("amount"), format!("1 to {most} (found {amount})"));
-                }
-            }
+        if reward.effects.is_empty() || reward.effects.len() > MAX_REWARD_EFFECTS {
+            issue(
+                at("effects"),
+                format!(
+                    "1 to {MAX_REWARD_EFFECTS} effects (found {})",
+                    reward.effects.len()
+                ),
+            );
         }
-        match (reward.effect, &reward.skill) {
-            (RewardEffect::StageSkill, None) => {
-                issue(at("skill"), "a stage skill reward names its skill".into())
-            }
-            (RewardEffect::StageSkill, Some(id)) => {
-                if stage_skills.index_of(id).is_none() {
-                    issue(at("skill"), "no such skill in the stage skills file".into());
-                }
-            }
-            (_, Some(_)) => issue(
-                at("skill"),
-                "only a stage skill reward names a skill".into(),
-            ),
-            (_, None) => {}
-        }
-        match (reward.effect, &reward.orbit) {
-            (RewardEffect::Orbit, None) => {
-                issue(at("orbit"), "an orbit reward holds its orbit".into())
-            }
-            (RewardEffect::Orbit, Some(orbit)) => {
-                if file.rewards[..i]
+        for (k, entry) in reward.effects.iter().enumerate() {
+            let at = |field: &str| format!("$.rewards[{i}].effects[{k}].{field}");
+            validate_entry(entry, &at, stage_skills, &mut issue);
+            if entry.effect == RewardEffect::Orbit && entry.orbit.is_some() {
+                let earlier = file.rewards[..i]
                     .iter()
-                    .filter(|r| r.effect == RewardEffect::Orbit)
-                    .count()
-                    >= MAX_ORBITS
-                {
+                    .filter(|r| r.effects.iter().any(|e| e.effect == RewardEffect::Orbit))
+                    .count();
+                if k == 0 && earlier >= MAX_ORBITS {
                     issue(
                         at("effect"),
                         format!("at most {MAX_ORBITS} orbit rewards in a file"),
                     );
                 }
-                if !(-MAX_ORBIT_TURN..=MAX_ORBIT_TURN).contains(&orbit.turn_per_tick) {
-                    issue(
-                        at("orbit.turn_per_tick"),
-                        format!(
-                            "-{MAX_ORBIT_TURN} to {MAX_ORBIT_TURN} (found {})",
-                            orbit.turn_per_tick
-                        ),
-                    );
-                }
-                if !(1..=MAX_ORBIT_COOLDOWN_TICKS).contains(&orbit.cooldown_ticks) {
-                    issue(
-                        at("orbit.cooldown_ticks"),
-                        format!(
-                            "1 to {MAX_ORBIT_COOLDOWN_TICKS} (found {})",
-                            orbit.cooldown_ticks
-                        ),
-                    );
-                }
-                if let Err(found) =
-                    crate::validate::validate_attack_ref(&orbit.attack, registry::ENTRIES)
-                {
-                    // The attack's paths start at `$`.
-                    for f in found {
-                        issue(format!("{}{}", at("orbit.attack"), &f.path[1..]), f.message);
-                    }
-                }
             }
-            (_, Some(_)) => issue(at("orbit"), "only an orbit reward holds an orbit".into()),
-            (_, None) => {}
         }
-        match (reward.effect, reward.damage_type) {
-            (RewardEffect::TypeBonusPct, None) => {
-                issue(at("type"), "a type bonus reward names its type".into())
-            }
-            (RewardEffect::TypeBonusPct, Some(_)) | (_, None) => {}
-            (_, Some(_)) => issue(at("type"), "only a type bonus reward names a type".into()),
-        }
-        match (reward.effect, reward.limit) {
-            (RewardEffect::RandomRune, None) => {}
-            (RewardEffect::RandomRune, Some(_)) => issue(
+        match (reward.is_random_rune(), reward.limit) {
+            (true, None) => {}
+            (true, Some(_)) => issue(
                 at("limit"),
                 "a random rune has no limit: it leaves the offers once every rune is held".into(),
             ),
-            (_, None) => issue(at("limit"), format!("1 to {MAX_STACK} (missing)")),
-            (_, Some(limit)) => {
+            (false, None) => issue(at("limit"), format!("1 to {MAX_STACK} (missing)")),
+            (false, Some(limit)) => {
                 if !(1..=MAX_STACK).contains(&limit) {
                     issue(at("limit"), format!("1 to {MAX_STACK} (found {limit})"));
                 }

@@ -170,7 +170,7 @@ fn swing(e: &mut Engine) -> HitBox {
 #[test]
 fn a_range_reward_is_a_stat_like_effect_bounded_like_the_others() {
     let parsed = rewards(vec![range("reach", MAX_RANGE_PCT, 20)]);
-    assert_eq!(parsed.rewards()[0].effect, RewardEffect::RangePct);
+    assert_eq!(parsed.rewards()[0].effect(), RewardEffect::RangePct);
     let bad = |pct: u32, limit: u8| {
         let file = json!({ "schema_version": 0, "sim_version": 0,
                            "rewards": [range("reach", pct, limit)] });

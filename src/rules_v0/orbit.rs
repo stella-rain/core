@@ -68,7 +68,7 @@ pub(super) fn act(stage: &Stage, rewards: &Rewards, s: &mut State, events: &mut 
         let Some(def) = rewards
             .rewards()
             .get(usize::from(o.reward))
-            .and_then(|r| r.orbit.as_ref())
+            .and_then(|r| r.orbit())
         else {
             continue;
         };
