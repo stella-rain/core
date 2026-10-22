@@ -86,6 +86,8 @@ pub mod limits {
     /// Twenty seconds: a bullet at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
     /// so a lifetime is a shorter one than the margin's (core#147).
     pub const MAX_BULLET_TICKS: u32 = 1_200;
+    /// A zone warns, and then hurts, for at most 10 seconds each (core Z1, a placeholder bound).
+    pub const MAX_ZONE_TICKS: u32 = 600;
     pub const MAX_PERFECT_PCT: u16 = 1000;
     pub const MAX_BOSS_PARTS: usize = 8;
     pub const MAX_TRANSITIONS: usize = 4;
