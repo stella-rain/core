@@ -186,6 +186,12 @@ pub enum DomainEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         rune: Option<Rune>,
     },
+    /// The reward taken just before completed enough of the constellation `set` to reach its
+    /// tier `tier`, counted from 1: the tier's effects replace the lower tier's (core#NS3).
+    Constellation {
+        set: ContentId,
+        tier: u8,
+    },
     /// The offer was closed with nothing taken.
     OfferSkipped,
     /// The reward left the run's pool for good.

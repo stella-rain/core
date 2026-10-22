@@ -23,6 +23,7 @@
 //! once (`super::choose`). Every draw is from the run's generator, in this order.
 
 use crate::attack::DamageType;
+use crate::constellations;
 use crate::engine::{
     Due, HeldRune, OfferState, PlayerState, Progress, StarField, StarState, State,
 };
@@ -334,9 +335,20 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
     out
 }
 
-/// Takes the reward at `i` of the file: counts it toward its stack limit and does what it does.
-/// The rune a random rune drew, if it drew one. A pick from an open offer and a star the run
-/// starts with (ADR-107 point 3) go through here alike.
+/// What taking a reward gave besides its own effects.
+pub(super) struct Taken {
+    /// The rune a random rune drew, if it drew one.
+    pub rune: Option<Rune>,
+    /// The tiers its set newly reached (core#NS3): the set's place in the file and the tier,
+    /// counted from 1.
+    pub tiers: Vec<(usize, u8)>,
+}
+
+/// Takes the reward at `i` of the file: counts it toward its stack limit and does what it does,
+/// then, for a member of a set, counts the set's members held and applies each tier newly
+/// reached once: the difference from the tier before (`constellations::tier_delta`), so the full
+/// tier replaces the small one. A pick from an open offer and a star the run starts with
+/// (ADR-107 point 3, ADR-117) go through here alike.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn take(
     stage: &Stage,
@@ -347,11 +359,11 @@ pub(super) fn take(
     regen: &mut u32,
     f: &mut StarField,
     i: u16,
-) -> Option<Rune> {
+) -> Taken {
     let at = usize::from(i);
     f.taken[at] = f.taken[at].saturating_add(1);
     let reward = &rewards.rewards()[at];
-    apply_effects(
+    let rune = apply_effects(
         stage,
         rewards,
         rng,
@@ -361,7 +373,31 @@ pub(super) fn take(
         f,
         i,
         &reward.effects,
-    )
+    );
+    let mut tiers = Vec::new();
+    let sets = rewards.constellations();
+    if let Some(set) = sets.set_of(&reward.id) {
+        let c = &sets.sets()[set];
+        let held = c
+            .members
+            .iter()
+            .filter(|m| rewards.index_of(m).is_some_and(|p| f.taken[p] > 0))
+            .count();
+        let held = u8::try_from(held).unwrap_or(u8::MAX);
+        let before = f.set_counts.get(set).copied().unwrap_or(0);
+        if let Some(count) = f.set_counts.get_mut(set) {
+            *count = held;
+        }
+        for (t, tier) in c.tiers.iter().enumerate() {
+            if before < tier.threshold && tier.threshold <= held {
+                let lower = t.checked_sub(1).map(|p| &c.tiers[p]);
+                let delta = constellations::tier_delta(lower, tier);
+                apply_effects(stage, rewards, rng, progress, player, regen, f, i, &delta);
+                tiers.push((set, u8::try_from(t + 1).unwrap_or(u8::MAX)));
+            }
+        }
+    }
+    Taken { rune, tiers }
 }
 
 /// Does what `effects` do, once: the effects of the reward at `i` of the file (an orbit keys on
@@ -501,13 +537,19 @@ pub(super) fn choose(
             let Some(&i) = o.candidates.get(usize::from(candidate)) else {
                 return;
             };
-            let rune = take(stage, rewards, rng, progress, player, regen, f, i);
+            let Taken { rune, tiers } = take(stage, rewards, rng, progress, player, regen, f, i);
             let at = usize::from(i);
             events.push(DomainEvent::RewardTaken {
                 reward: rewards.rewards()[at].id.clone(),
                 taken: f.taken[at],
                 rune,
             });
+            for (set, tier) in tiers {
+                events.push(DomainEvent::Constellation {
+                    set: rewards.constellations().sets()[set].id.clone(),
+                    tier,
+                });
+            }
             false
         }
         OfferOption::Reroll { candidate } => {
