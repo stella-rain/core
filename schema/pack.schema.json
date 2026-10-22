@@ -1130,6 +1130,15 @@
           "format": "uint32",
           "minimum": 0
         },
+        "depth": {
+          "description": "The links of a chain of bursts, from 1 to `MAX_BURST_DEPTH`: with the `kill_burst`\neffect only, and required by it.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
         "effect": {
           "$ref": "#/$defs/RewardEffect"
         },
@@ -1152,6 +1161,15 @@
               "type": "null"
             }
           ]
+        },
+        "radius": {
+          "description": "How far a burst reaches, in pixels, from 1 to `MAX_BURST_RADIUS_PX`: with the\n`kill_burst` effect only, and required by it. Its `amount` is the percent of hit points.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
         },
         "skill": {
           "description": "The stage skill it gives, one of the stage skills file's: with the `stage_skill` effect\nonly, and required by it.",
@@ -2945,6 +2963,15 @@
           "default": null,
           "minimum": 0
         },
+        "depth": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
         "description": {
           "type": "string"
         },
@@ -3007,6 +3034,15 @@
             }
           ],
           "default": null
+        },
+        "radius": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
         },
         "rarity": {
           "$ref": "#/$defs/Rarity"
@@ -3152,6 +3188,26 @@
           "description": "`amount` more banishes for the run, as the perk `extra_banishes` gives them.",
           "type": "string",
           "const": "banishes"
+        },
+        {
+          "description": "`amount` percent more chance that a hit of the main character is a critical hit, adding\nup over the picks to `MAX_CRIT_CHANCE_TOTAL_PCT`.",
+          "type": "string",
+          "const": "crit_chance_pct"
+        },
+        {
+          "description": "A critical hit does `amount` percent more damage than the base twice, adding up over\nthe picks to `MAX_CRIT_DAMAGE_TOTAL_PCT`.",
+          "type": "string",
+          "const": "crit_damage_pct"
+        },
+        {
+          "description": "Each hit of the main character is repeated once, a tick later, on the same target, for\n`amount` percent of its damage; the picks add up to `MAX_ECHO_HIT_PCT`.",
+          "type": "string",
+          "const": "echo_hit_pct"
+        },
+        {
+          "description": "A kill by the main character bursts: it damages the other enemies within `radius`\npixels for `amount` percent of the dead enemy's maximum hit points, and a burst kill\nbursts again, down to `depth` links.",
+          "type": "string",
+          "const": "kill_burst"
         }
       ]
     },

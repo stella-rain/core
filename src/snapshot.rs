@@ -331,6 +331,22 @@ pub struct PlayerView {
     pub kill_heal: u32,
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub kill_heal_every: u32,
+    /// What the combat rewards taken add up to (core#NS2b): the chance of a crit in percent
+    /// (at most 75), a crit's bonus damage beyond twice (at most 300), an echo's percent of a
+    /// hit (at most 100), and a kill burst's percent of max hit points, radius in pixels and
+    /// chain depth; each 0 while none is held.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub crit_chance_pct: u32,
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub crit_damage_pct: u32,
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub echo_hit_pct: u32,
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub burst_pct: u32,
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub burst_radius: u32,
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub burst_depth: u32,
     /// What the type bonus rewards taken add up to, for each damage type that has any, in the
     /// order of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`
     /// (ADR-100).

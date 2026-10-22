@@ -1092,6 +1092,21 @@
           "maximum": 255,
           "minimum": 0
         },
+        "burst_depth": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "burst_pct": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "burst_radius": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "charge": {
           "description": "The current step charging, if it is (ADR-070).",
           "anyOf": [
@@ -1106,6 +1121,22 @@
         "combo": {
           "description": "Where it is in its Main weapon's combos (ADR-070).",
           "$ref": "#/$defs/ComboView"
+        },
+        "crit_chance_pct": {
+          "description": "What the combat rewards taken add up to (core#NS2b): the chance of a crit in percent\n(at most 75), a crit's bonus damage beyond twice (at most 300), an echo's percent of a\nhit (at most 100), and a kill burst's percent of max hit points, radius in pixels and\nchain depth; each 0 while none is held.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "crit_damage_pct": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "echo_hit_pct": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         },
         "evade": {
           "$ref": "#/$defs/EvadeView"

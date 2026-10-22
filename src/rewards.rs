@@ -80,6 +80,32 @@ pub const MAX_COUNTER_AMOUNT: u32 = 10;
 /// shows 3, and each such reward adds 1 (a placeholder bound, ADR-020).
 pub const MAX_OFFER_CANDIDATES: usize = 4;
 
+/// The most one reward adds to the chance of a critical hit, in percent (a placeholder bound,
+/// ADR-020).
+pub const MAX_CRIT_CHANCE_PCT: u32 = 50;
+/// The most the picks of a run add up to: a hit is a crit three times in four at the most.
+pub const MAX_CRIT_CHANCE_TOTAL_PCT: u32 = 75;
+/// The most one reward adds to a crit's bonus damage, in percent. A crit does twice the damage
+/// before any bonus.
+pub const MAX_CRIT_DAMAGE_PCT: u32 = 200;
+/// The most the picks add up to: a crit does five times the damage at the most.
+pub const MAX_CRIT_DAMAGE_TOTAL_PCT: u32 = 300;
+/// The most one reward lets an echo repeat of a hit's damage, in percent, and the most the
+/// picks add up to.
+pub const MAX_ECHO_HIT_PCT: u32 = 100;
+/// The most echoes one tick resolves; the rest are dropped, first-come first-served (ADR-058).
+pub const MAX_ECHOES_PER_TICK: usize = 64;
+/// The most of a killed enemy's maximum hit points a kill burst deals, in percent (a reward's
+/// `amount`), and the most the picks add up to.
+pub const MAX_BURST_PCT: u32 = 100;
+/// The widest a kill burst reaches, in pixels (a reward's `radius`), and the most the picks
+/// add up to.
+pub const MAX_BURST_RADIUS_PX: u32 = 240;
+/// The most links of a chain of bursts (a reward's `depth`): the first burst is the first link.
+pub const MAX_BURST_DEPTH: u32 = 3;
+/// The most bursts one tick resolves, as ADR-058's contagion cap; the rest are dropped.
+pub const MAX_BURSTS_PER_TICK: usize = 8;
+
 /// `ticks` shortened by `haste_pct` percent of Rune Haste (ADR-099 point 5): `ticks × 100 /
 /// (100 + h)` rounded up, at least 1. The haste is held to `MAX_RUNE_HASTE_PCT`, so an
 /// unvalidated sum cannot pass it.
@@ -177,6 +203,19 @@ pub enum RewardEffect {
     Rerolls,
     /// `amount` more banishes for the run, as the perk `extra_banishes` gives them.
     Banishes,
+    /// `amount` percent more chance that a hit of the main character is a critical hit, adding
+    /// up over the picks to `MAX_CRIT_CHANCE_TOTAL_PCT`.
+    CritChancePct,
+    /// A critical hit does `amount` percent more damage than the base twice, adding up over
+    /// the picks to `MAX_CRIT_DAMAGE_TOTAL_PCT`.
+    CritDamagePct,
+    /// Each hit of the main character is repeated once, a tick later, on the same target, for
+    /// `amount` percent of its damage; the picks add up to `MAX_ECHO_HIT_PCT`.
+    EchoHitPct,
+    /// A kill by the main character bursts: it damages the other enemies within `radius`
+    /// pixels for `amount` percent of the dead enemy's maximum hit points, and a burst kill
+    /// bursts again, down to `depth` links.
+    KillBurst,
 }
 
 impl RewardEffect {
@@ -204,6 +243,10 @@ impl RewardEffect {
             | RewardEffect::OfferCandidates
             | RewardEffect::Rerolls
             | RewardEffect::Banishes
+            | RewardEffect::CritChancePct
+            | RewardEffect::CritDamagePct
+            | RewardEffect::EchoHitPct
+            | RewardEffect::KillBurst
             | RewardEffect::RandomRune => return None,
         })
     }
@@ -238,6 +281,14 @@ pub struct EffectEntry {
     /// effect only, and required by it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kills: Option<u32>,
+    /// How far a burst reaches, in pixels, from 1 to `MAX_BURST_RADIUS_PX`: with the
+    /// `kill_burst` effect only, and required by it. Its `amount` is the percent of hit points.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius: Option<u32>,
+    /// The links of a chain of bursts, from 1 to `MAX_BURST_DEPTH`: with the `kill_burst`
+    /// effect only, and required by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth: Option<u32>,
 }
 
 /// The most effects one reward holds.
@@ -336,6 +387,10 @@ struct RawReward {
     #[serde(default)]
     kills: Option<u32>,
     #[serde(default)]
+    radius: Option<u32>,
+    #[serde(default)]
+    depth: Option<u32>,
+    #[serde(default)]
     limit: Option<u8>,
     #[serde(default)]
     named: bool,
@@ -356,7 +411,9 @@ impl TryFrom<RawReward> for Reward {
             || raw.orbit.is_some()
             || raw.damage_type.is_some()
             || raw.amount.is_some()
-            || raw.kills.is_some();
+            || raw.kills.is_some()
+            || raw.radius.is_some()
+            || raw.depth.is_some();
         let effects = match (raw.effects, raw.effect) {
             (Some(_), _) if single => {
                 return Err("a reward has `effects` or one effect's fields, not both".into());
@@ -369,6 +426,8 @@ impl TryFrom<RawReward> for Reward {
                 damage_type: raw.damage_type,
                 amount: raw.amount,
                 kills: raw.kills,
+                radius: raw.radius,
+                depth: raw.depth,
             }],
             (None, None) => return Err("a reward has `effects` or an `effect`".into()),
         };
@@ -506,11 +565,16 @@ fn most_of(effect: RewardEffect) -> u32 {
         RewardEffect::HealPerKills => MAX_HEAL_AMOUNT,
         RewardEffect::OfferCandidates => 1,
         RewardEffect::Rerolls | RewardEffect::Banishes => MAX_COUNTER_AMOUNT,
+        RewardEffect::CritChancePct => MAX_CRIT_CHANCE_PCT,
+        RewardEffect::CritDamagePct => MAX_CRIT_DAMAGE_PCT,
+        RewardEffect::EchoHitPct => MAX_ECHO_HIT_PCT,
+        RewardEffect::KillBurst => MAX_BURST_PCT,
         _ => MAX_AMOUNT,
     }
 }
 
-/// One effect entry on its own: its amount, skill, orbit, type and kills, by its kind.
+/// One effect entry on its own: its amount, skill, orbit, type, kills, radius and depth, by its
+/// kind.
 fn validate_entry(
     entry: &EffectEntry,
     at: &dyn Fn(&str) -> String,
@@ -602,6 +666,21 @@ fn validate_entry(
             "only a heal-per-kills reward names its kills".into(),
         ),
         (_, None) => {}
+    }
+    for (field, value, most) in [
+        ("radius", entry.radius, MAX_BURST_RADIUS_PX),
+        ("depth", entry.depth, MAX_BURST_DEPTH),
+    ] {
+        match (entry.effect, value) {
+            (RewardEffect::KillBurst, None) => issue(at(field), format!("1 to {most} (missing)")),
+            (RewardEffect::KillBurst, Some(v)) => {
+                if !(1..=most).contains(&v) {
+                    issue(at(field), format!("1 to {most} (found {v})"));
+                }
+            }
+            (_, Some(_)) => issue(at(field), "only a kill burst reward names it".into()),
+            (_, None) => {}
+        }
     }
 }
 

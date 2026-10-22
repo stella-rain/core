@@ -6,6 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::attack::MatchUp;
+use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
 use crate::rune::Rune;
@@ -34,6 +35,20 @@ pub enum DomainEvent {
         /// damage-over-time rune whose status ticked; left out for every other hit.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         rune: Option<Rune>,
+        /// The main character's hit was a critical hit (core#NS2b); left out when not.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        crit: bool,
+        /// The hit is an echo of an earlier one, a tick later; left out when not.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        echo: bool,
+    },
+    /// A kill burst went off where an enemy fell: it damaged the enemies within `radius`
+    /// (1/256 pixel) of `at`. `depth` counts the links of the chain, from 1 for the burst of
+    /// a kill by the main character.
+    KillBurst {
+        at: Point,
+        radius: i32,
+        depth: u8,
     },
     /// The main character was hit.
     PlayerHit {

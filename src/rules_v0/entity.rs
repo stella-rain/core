@@ -383,6 +383,7 @@ fn tick_dots_of(stage: &Stage, s: &mut State, who: Who, events: &mut Vec<DomainE
                 smash: None,
                 combo: false,
                 rune: Rune::of_dot(st.kind),
+                chain: false,
             };
             super::damage(stage, s, shot, who, events);
         }

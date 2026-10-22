@@ -9,10 +9,18 @@
         "data": {
           "type": "object",
           "properties": {
+            "crit": {
+              "description": "The main character's hit was a critical hit (core#NS2b); left out when not.",
+              "type": "boolean"
+            },
             "damage": {
               "type": "integer",
               "format": "uint32",
               "minimum": 0
+            },
+            "echo": {
+              "description": "The hit is an echo of an earlier one, a tick later; left out when not.",
+              "type": "boolean"
             },
             "match_up": {
               "description": "The match-up the hit got (ADR-100); left out when none.",
@@ -46,6 +54,45 @@
         "type": {
           "type": "string",
           "const": "Hit"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "A kill burst went off where an enemy fell: it damaged the enemies within `radius`\n(1/256 pixel) of `at`. `depth` counts the links of the chain, from 1 for the burst of\na kill by the main character.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "$ref": "#/$defs/Point"
+            },
+            "depth": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "radius": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "at",
+            "radius",
+            "depth"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "KillBurst"
         }
       },
       "additionalProperties": false,
@@ -1153,6 +1200,11 @@
         }
       ]
     },
+    "Fx": {
+      "description": "A length in 1/256 pixel units. In files it is the plain integer.",
+      "type": "integer",
+      "format": "int32"
+    },
     "MatchUp": {
       "description": "The match-up a hit got (ADR-100), which the `Hit` event reports.",
       "type": "string",
@@ -1176,6 +1228,23 @@
           "type": "string",
           "const": "boss"
         }
+      ]
+    },
+    "Point": {
+      "description": "A point on the playfield, from its top-left corner.",
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/Fx"
+        },
+        "y": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
       ]
     },
     "Press": {

@@ -28,7 +28,11 @@ use crate::engine::{
 };
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
-use crate::rewards::{MAX_OFFER_CANDIDATES, Rarity, RewardEffect, Rewards};
+use crate::rewards::{
+    MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
+    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, Rarity, RewardEffect,
+    Rewards,
+};
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
 use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
@@ -378,6 +382,33 @@ pub(super) fn take(
                     0 => every,
                     held => held.min(every),
                 };
+            }
+            RewardEffect::CritChancePct => {
+                player.crit_chance_pct = player
+                    .crit_chance_pct
+                    .saturating_add(amount)
+                    .min(MAX_CRIT_CHANCE_TOTAL_PCT)
+            }
+            RewardEffect::CritDamagePct => {
+                player.crit_damage_pct = player
+                    .crit_damage_pct
+                    .saturating_add(amount)
+                    .min(MAX_CRIT_DAMAGE_TOTAL_PCT)
+            }
+            RewardEffect::EchoHitPct => {
+                player.echo_hit_pct = player
+                    .echo_hit_pct
+                    .saturating_add(amount)
+                    .min(MAX_ECHO_HIT_PCT)
+            }
+            RewardEffect::KillBurst => {
+                let (radius, depth) = (entry.radius.unwrap_or(0), entry.depth.unwrap_or(0));
+                player.burst_pct = player.burst_pct.saturating_add(amount).min(MAX_BURST_PCT);
+                player.burst_radius = player
+                    .burst_radius
+                    .saturating_add(radius)
+                    .min(MAX_BURST_RADIUS_PX);
+                player.burst_depth = player.burst_depth.max(depth).min(MAX_BURST_DEPTH);
             }
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
             // The perks' counters (`loadout::perk`), added to for the rest of the run.

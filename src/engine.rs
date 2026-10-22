@@ -554,6 +554,12 @@ impl Engine {
                 skill_cooldown_pct: s.player.skill_cooldown_pct,
                 kill_heal: s.player.kill_heal,
                 kill_heal_every: s.player.kill_heal_every,
+                crit_chance_pct: s.player.crit_chance_pct,
+                crit_damage_pct: s.player.crit_damage_pct,
+                echo_hit_pct: s.player.echo_hit_pct,
+                burst_pct: s.player.burst_pct,
+                burst_radius: s.player.burst_radius,
+                burst_depth: s.player.burst_depth,
                 type_bonuses: DamageType::ALL
                     .iter()
                     .zip(s.player.type_bonus_pct)
@@ -734,6 +740,21 @@ pub(crate) struct State {
     /// (ADR-110): fixed for the run, part of the setup, so the state hash writes nothing for them.
     pub hp_pct: u32,
     pub damage_pct: u32,
+    /// The run's seed, which the critical-hit rolls are hashed from: they draw nothing from
+    /// `rng`, so a run without crit chance spends the same random numbers as before.
+    pub crit_seed: u64,
+    /// The echoes of last tick's hits, waiting for this tick's `collide`, in the order the hits
+    /// landed; at most `MAX_ECHOES_PER_TICK`.
+    pub echoes: Vec<Echo>,
+}
+
+/// One hit's echo, queued when the hit lands and dealt a tick later (core#NS2b).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Echo {
+    pub source: EntityId,
+    pub target: EntityId,
+    /// Hit points taken, already the hit's percent of its damage.
+    pub damage: u32,
 }
 
 /// What a `time_limit` run brings to its bosses (core#212): the times, the pool they are drawn
@@ -932,6 +953,20 @@ pub(crate) struct PlayerState {
     pub kill_heal_every: u32,
     /// Kills counted since the last such heal, below `kill_heal_every` between ticks.
     pub kills_counted: u32,
+    /// What the crit chance rewards taken add up to, in percent, saturating; held to
+    /// `MAX_CRIT_CHANCE_TOTAL_PCT` where it is rolled.
+    pub crit_chance_pct: u32,
+    /// What the crit damage rewards add up to: a crit does twice the damage and this many
+    /// percent more, held to `MAX_CRIT_DAMAGE_TOTAL_PCT`.
+    pub crit_damage_pct: u32,
+    /// What the echo rewards add up to: each hit echoes this percent of its damage, held to
+    /// `MAX_ECHO_HIT_PCT`; 0 while none is held.
+    pub echo_hit_pct: u32,
+    /// The kill burst rewards taken, added up: the percent of the dead enemy's maximum hit
+    /// points, the radius in pixels, and the longest chain; all 0 while none is held.
+    pub burst_pct: u32,
+    pub burst_radius: u32,
+    pub burst_depth: u32,
     /// What the type bonus rewards taken add up to for each damage type, by its place in
     /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
     /// type of its group.
