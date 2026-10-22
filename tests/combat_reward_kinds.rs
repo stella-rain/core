@@ -53,7 +53,7 @@ fn burst(pct: u32, radius: Option<u32>, depth: Option<u32>) -> Value {
 #[test]
 fn kill_burst_holds_a_percent_a_radius_and_a_depth() {
     ok(vec![burst(1, Some(1), Some(1))]);
-    ok(vec![burst(100, Some(240), Some(3))]);
+    ok(vec![burst(100, Some(240), Some(5))]);
     invalid_at(&file_of(vec![burst(0, Some(120), Some(3))]), AMOUNT);
     invalid_at(&file_of(vec![burst(101, Some(120), Some(3))]), AMOUNT);
     let radius = "$.rewards[0].effects[0].radius";
@@ -63,7 +63,7 @@ fn kill_burst_holds_a_percent_a_radius_and_a_depth() {
     invalid_at(&file_of(vec![burst(40, Some(241), Some(3))]), radius);
     invalid_at(&file_of(vec![burst(40, Some(120), None)]), depth);
     invalid_at(&file_of(vec![burst(40, Some(120), Some(0))]), depth);
-    invalid_at(&file_of(vec![burst(40, Some(120), Some(4))]), depth);
+    invalid_at(&file_of(vec![burst(40, Some(120), Some(6))]), depth);
     // No other kind takes a radius or a depth.
     let mut stray = entry("rerolls", 1);
     stray["radius"] = json!(5);
@@ -255,6 +255,35 @@ fn a_burst_that_kills_bursts_again_down_to_its_depth() {
         assert_eq!(died(&events), base + depth as usize, "depth {depth}");
         assert_eq!(of_type(&events, "KillBurst").len(), depth as usize);
     }
+}
+
+#[test]
+fn a_chain_goes_five_links_deep_and_stops_there() {
+    // Seven enemies in a row, each in reach of the next one's burst.
+    let stage = two_waves(pack(&[0, 100, 200, 300, 400, 500, 600]));
+    let base = died(&play(&stage, vec![], 600));
+    let events = play(&stage, vec![burst(100, Some(120), Some(5))], 600);
+    assert_eq!(died(&events), base + 5);
+    assert_eq!(of_type(&events, "KillBurst").len(), 5);
+}
+
+#[test]
+fn burst_depth_adds_links_to_the_chain_whatever_the_order() {
+    let stage = two_waves(pack(&[0, 100, 200, 300, 400, 500, 600]));
+    let base = died(&play(&stage, vec![], 600));
+    for effects in [
+        vec![burst(100, Some(120), Some(3)), entry("burst_depth", 2)],
+        vec![entry("burst_depth", 2), burst(100, Some(120), Some(3))],
+    ] {
+        let events = play(&stage, effects, 600);
+        assert_eq!(died(&events), base + 5);
+    }
+    // Alone it bursts nothing, and it is bounded.
+    let events = play(&stage, vec![entry("burst_depth", 2)], 600);
+    assert!(of_type(&events, "KillBurst").is_empty());
+    ok(vec![entry("burst_depth", 5)]);
+    invalid_at(&file_of(vec![entry("burst_depth", 0)]), AMOUNT);
+    invalid_at(&file_of(vec![entry("burst_depth", 6)]), AMOUNT);
 }
 
 #[test]

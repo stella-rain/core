@@ -156,3 +156,38 @@ fn the_bundled_constellations_file_validates_against_the_bundled_rewards() {
         assert_eq!(set.members.len(), 3, "{}", set.id.0);
     }
 }
+
+fn effect_of(star: &str, kind: &str) -> Option<u32> {
+    let r = &rewards().rewards()[rewards().index_of(&id(star)).unwrap()];
+    r.effects
+        .iter()
+        .find(|e| serde_json::to_value(e.effect).unwrap() == kind)
+        .and_then(|e| e.amount)
+}
+
+fn tier_effect(set: &str, tier: usize, kind: &str) -> Option<u32> {
+    let sets = Pack::bundled().content().constellations();
+    let set = sets.sets().iter().find(|s| s.id.0 == set).unwrap();
+    set.tiers[tier]
+        .effects
+        .iter()
+        .find(|e| serde_json::to_value(e.effect).unwrap() == kind)
+        .and_then(|e| e.amount)
+}
+
+#[test]
+fn polaris_carries_forty_percent_experience() {
+    assert_eq!(effect_of("star_polaris", "xp_pct"), Some(40));
+    let r = &rewards().rewards()[rewards().index_of(&id("star_polaris")).unwrap()];
+    assert_eq!(r.effects.len(), 4);
+}
+
+#[test]
+fn the_summer_triangle_gives_three_orbs_and_the_winter_triangle_two_more_links() {
+    assert_eq!(tier_effect("summer_triangle", 1, "orbit"), Some(3));
+    assert_eq!(tier_effect("summer_triangle", 0, "orbit"), None);
+    assert_eq!(tier_effect("winter_triangle", 1, "burst_depth"), Some(2));
+    // Deneb stays as built.
+    assert_eq!(effect_of("star_deneb", "crit_chance_pct"), Some(15));
+    assert_eq!(effect_of("star_deneb", "crit_damage_pct"), Some(50));
+}

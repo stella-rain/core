@@ -587,17 +587,22 @@ fn message_at(v: &Value, path: &str) -> String {
 }
 
 #[test]
-fn a_reward_holds_a_list_of_one_to_three_effects() {
+fn a_reward_holds_a_list_of_one_to_four_effects() {
     let ok = file(vec![bundle(
-        "trio",
-        vec![pct("attack_pct", 10), pct("speed_pct", 5), pct("xp_pct", 5)],
+        "quad",
+        vec![
+            pct("attack_pct", 10),
+            pct("speed_pct", 5),
+            pct("xp_pct", 5),
+            pct("evade_pct", 5),
+        ],
     )]);
-    let rewards = parse(&ok).expect("three effects parse");
+    let rewards = parse(&ok).expect("four effects parse");
     let back = serde_json::to_value(&rewards.rewards()[0]).unwrap();
-    assert_eq!(back["effects"].as_array().map(Vec::len), Some(3), "{back}");
+    assert_eq!(back["effects"].as_array().map(Vec::len), Some(4), "{back}");
     invalid_at(&file(vec![bundle("none", vec![])]), "$.rewards[0].effects");
-    let four = (0..4).map(|_| pct("attack_pct", 1)).collect();
-    invalid_at(&file(vec![bundle("four", four)]), "$.rewards[0].effects");
+    let five = (0..5).map(|_| pct("attack_pct", 1)).collect();
+    invalid_at(&file(vec![bundle("five", five)]), "$.rewards[0].effects");
 }
 
 #[test]
