@@ -144,7 +144,7 @@ pub mod limits {
     /// that a percentage of a hit (an aura's +25%) is a whole number. The bounds below, `K` of
     /// ADR-056, the aggro constants and the bundled content all hold the scaled values.
     pub const DAMAGE_SCALE: u32 = 100;
-    pub const MAX_PLAYER_HP: u32 = 99 * DAMAGE_SCALE;
+    pub const MAX_PLAYER_HP: u32 = 999 * DAMAGE_SCALE;
     pub const MAX_PLAYER_ATK: u32 = 999 * DAMAGE_SCALE;
     pub const MAX_AGENT_HP: u32 = 100_000 * DAMAGE_SCALE;
     pub const MAX_BOSS_HP: u32 = 1_000_000 * DAMAGE_SCALE;
