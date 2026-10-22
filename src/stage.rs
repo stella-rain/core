@@ -536,7 +536,11 @@ pub struct Phase {
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Transition {
     ClearBullets,
-    InvulnerableTicks { ticks: u32 },
+    /// Removes every enemy zone, as `clear_bullets` removes every enemy bullet (core Z1).
+    ClearZones,
+    InvulnerableTicks {
+        ticks: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

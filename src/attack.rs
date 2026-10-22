@@ -194,22 +194,88 @@ pub enum PhaseKind {
     Recovery,
 }
 
+/// Where a hit box or a zone is anchored (core Z1).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Anchor {
+    /// The attacker's own spot: a hit box follows its attacker, a zone stays where the attacker
+    /// was when the zone was placed.
+    #[default]
+    Attacker,
+    /// The target's spot: where the target stood when the attack began, so that a target that
+    /// leaves during the wind-up leaves the area too.
+    Target,
+}
+
+impl Anchor {
+    pub fn is_attacker(&self) -> bool {
+        *self == Anchor::Attacker
+    }
+}
+
+impl HitBox {
+    /// Where the hit box is anchored.
+    pub fn anchor(&self) -> Anchor {
+        match self {
+            HitBox::Circle { anchor, .. }
+            | HitBox::Arc { anchor, .. }
+            | HitBox::Line { anchor, .. } => *anchor,
+        }
+    }
+}
+
 /// A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing
-/// and to its right.
+/// and to its right, from the `anchor`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum HitBox {
     Circle {
+        #[serde(default, skip_serializing_if = "Anchor::is_attacker")]
+        anchor: Anchor,
         #[serde(default)]
         offset: Offset,
         radius: Fx,
     },
     /// A circle sector centred on the facing, `half_angle` to each side.
     Arc {
+        #[serde(default, skip_serializing_if = "Anchor::is_attacker")]
+        anchor: Anchor,
         #[serde(default)]
         offset: Offset,
         radius: Fx,
         half_angle: i32,
+    },
+    /// A rectangle from its starting point (the anchor and `offset`) along the facing turned by
+    /// `angle`: `length` long and `width` wide, half of it to each side.
+    Line {
+        #[serde(default, skip_serializing_if = "Anchor::is_attacker")]
+        anchor: Anchor,
+        #[serde(default)]
+        offset: Offset,
+        /// Turn from the facing, in 1/256 degree; positive turns toward the right.
+        #[serde(default)]
+        angle: i32,
+        length: Fx,
+        width: Fx,
+    },
+}
+
+/// The area of a zone (core Z1), laid out like a hit box but placed by its emitter node.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ZoneShape {
+    Circle {
+        radius: Fx,
+    },
+    /// A circle sector centred on the zone's direction, `half_angle` to each side.
+    Arc {
+        radius: Fx,
+        half_angle: i32,
+    },
+    /// A rectangle from the zone's centre along its direction.
+    Line {
+        length: Fx,
+        width: Fx,
     },
 }
 
@@ -272,6 +338,30 @@ pub enum Emitter {
         body: Vec<Emitter>,
         then: Vec<Emitter>,
     },
+    /// A zone that does not move (core Z1): it is placed at the `anchor`, moved by `offset`
+    /// (forward along its `direction`, and to the right of it), warns for `wind_up_ticks`,
+    /// hurts each target at most once for `active_ticks`, then ends. `ring`, `spread` and
+    /// `rotate` turn its direction, and with it the offset, as they turn a bullet's.
+    Zone {
+        shape: ZoneShape,
+        #[serde(default, skip_serializing_if = "Anchor::is_attacker")]
+        anchor: Anchor,
+        #[serde(default)]
+        offset: Offset,
+        #[serde(default = "straight_on")]
+        direction: Direction,
+        /// 0 to `MAX_ZONE_TICKS`; 0 is a zone that hurts at once.
+        wind_up_ticks: Expr,
+        /// 1 to `MAX_ZONE_TICKS`.
+        active_ticks: Expr,
+    },
+}
+
+/// The direction of a zone that names none: at the target.
+fn straight_on() -> Direction {
+    Direction::Aimed {
+        offset: Expr::Const(0),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

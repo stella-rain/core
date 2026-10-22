@@ -101,11 +101,12 @@ mod skill;
 mod stardust;
 mod stars;
 mod stun;
+mod zones;
 
 pub(crate) use player::{auto_charge_view, charge_view, combo_view, hold_view};
 mod select;
 
-use crate::attack::{DamageType, MatchUp, Profile};
+use crate::attack::{DamageType, MatchUp, Profile, ZoneShape};
 use crate::behaviour::BossCall;
 use crate::difficulties::scale_pct;
 use crate::engine::{
@@ -142,6 +143,9 @@ pub(crate) use stars::{constellation_views, offer_view};
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
 pub(crate) const MAX_BULLET_SPAWNS_PER_TICK: u32 = 200;
+/// Zones alive at once (core Z1, a placeholder cap pending ADR-058); a zone placed over it is
+/// dropped, as a bullet over `MAX_BULLETS_ALIVE` is.
+pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Attacks being carried out at once (ADR-036 tier 3), and the node steps they may take in a
 /// tick between them. An attack that would take more waits for the next tick.
 pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
@@ -306,6 +310,7 @@ pub(crate) fn initial_state(
         runs: Vec::new(),
         move_index: crate::engine::MoveIndex::default(),
         bullets: Vec::new(),
+        zones: Vec::new(),
         spawned: vec![0; stage.waves.len()],
         next_id,
         progress: stage.levels.as_ref().map(|_| Progress {
@@ -434,12 +439,14 @@ pub(crate) fn step(
     if !s.player.runes.is_empty() {
         runes::steer(s);
     }
+    zones::advance(s);
     attacks::fire_hooks(s);
     let (tasks, emitter_steps) = attacks::run(s, &mut spawns_left);
     *load = Load {
         enemies: count(&s.enemies),
         tasks,
         bullets: count(&s.bullets),
+        zones: count(&s.zones),
         bullet_spawns: MAX_BULLET_SPAWNS_PER_TICK - spawns_left,
         emitter_steps,
     };
@@ -1734,7 +1741,68 @@ pub(crate) fn state_hash(s: &State) -> u64 {
             h.write_bool(*used);
         }
     }
+    // After it, and only while a zone is alive or an attack holds the spot where its target
+    // stood (core Z1), so that the hashes of runs without either stay as they were.
+    if !s.zones.is_empty() {
+        h.write_u32(count(&s.zones));
+        for z in &s.zones {
+            hash_zone(&mut h, z);
+        }
+    }
+    if s.runs.iter().any(|r| r.spot.is_some()) || s.tasks.iter().any(|t| t.spot.is_some()) {
+        h.write_u32(count(&s.runs));
+        for r in &s.runs {
+            hash_spot(&mut h, r.spot);
+        }
+        h.write_u32(count(&s.tasks));
+        for t in &s.tasks {
+            hash_spot(&mut h, t.spot);
+        }
+    }
     h.finish()
+}
+
+fn hash_spot(h: &mut StateHasher, spot: Option<Point>) {
+    h.write_bool(spot.is_some());
+    if let Some(at) = spot {
+        h.write_i32(at.x.0);
+        h.write_i32(at.y.0);
+    }
+}
+
+fn hash_zone(h: &mut StateHasher, z: &crate::engine::ZoneState) {
+    match &z.shape {
+        ZoneShape::Circle { radius } => {
+            h.write_u32(0);
+            h.write_i32(radius.0);
+        }
+        ZoneShape::Arc { radius, half_angle } => {
+            h.write_u32(1);
+            h.write_i32(radius.0);
+            h.write_i32(*half_angle);
+        }
+        ZoneShape::Line { length, width } => {
+            h.write_u32(2);
+            h.write_i32(length.0);
+            h.write_i32(width.0);
+        }
+    }
+    h.write_u32(z.owner.0);
+    h.write_bool(z.friendly);
+    h.write_i32(z.at.x.0);
+    h.write_i32(z.at.y.0);
+    h.write_i32(z.dir.x);
+    h.write_i32(z.dir.y);
+    h.write_u32(z.wind_left);
+    h.write_u32(z.active_left);
+    h.write_u32(z.damage);
+    h.write_u32(type_code(z.damage_type));
+    h.write_bool(z.breaks_charge);
+    h.write_u32(count(&z.hits));
+    for (id, tick) in &z.hits {
+        h.write_u32(id.0);
+        h.write_u32(*tick);
+    }
 }
 
 /// A damage type in the state hash: its place in `DamageType::ALL` plus 1, or 0 for neutral.

@@ -37,11 +37,11 @@
 
 use std::sync::Arc;
 
-use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
+use crate::attack::{Anchor, AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::difficulties::scale_pct;
 use crate::engine::{
     Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Smash, State,
-    StatusKind, UNLIMITED,
+    StatusKind, UNLIMITED, ZoneState,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -51,7 +51,7 @@ use crate::registry;
 use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
 use crate::trig;
-use crate::validate::limits::{MAX_BULLET_TICKS, MAX_LEN, MAX_REPEAT, MAX_TICKS};
+use crate::validate::limits::{MAX_BULLET_TICKS, MAX_LEN, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS};
 
 use super::entity::{Who, scale_damage, status_pct};
 use super::{MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, count, spawn_bullet};
@@ -277,12 +277,24 @@ pub(super) fn wider(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
     };
     let mut out = phases.to_vec();
     for p in &mut out {
-        if let Some(HitBox::Circle { offset, radius } | HitBox::Arc { offset, radius, .. }) =
-            &mut p.hit_box
-        {
-            grow(radius);
-            grow(&mut offset.forward);
-            grow(&mut offset.right);
+        match &mut p.hit_box {
+            Some(HitBox::Circle { offset, radius, .. } | HitBox::Arc { offset, radius, .. }) => {
+                grow(radius);
+                grow(&mut offset.forward);
+                grow(&mut offset.right);
+            }
+            Some(HitBox::Line {
+                offset,
+                length,
+                width,
+                ..
+            }) => {
+                grow(length);
+                grow(width);
+                grow(&mut offset.forward);
+                grow(&mut offset.right);
+            }
+            None => {}
         }
     }
     out
@@ -318,6 +330,10 @@ fn launch(
         AttackRef::Inline(_) => None,
     };
     let facing = self::aim(s, s.at(owner), aim);
+    let spot = uses_spot(&phases).then(|| match aim {
+        Aim::Entity(target) => s.find(target).map_or_else(|| s.at(owner), |w| s.at(w)),
+        Aim::Fixed(_) => s.at(owner),
+    });
     s.runs.push(AttackRun {
         owner: id,
         slot,
@@ -342,6 +358,7 @@ fn launch(
         at,
         throw: None,
         homing: None,
+        spot,
     });
     let first = &s.runs[s.runs.len() - 1];
     s.move_index
@@ -481,6 +498,7 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         frames: vec![Frame::default()],
         parent_dir: r.aim.heading(),
         last_dir: r.aim.heading(),
+        spot: r.spot,
     };
     s.tasks.push(task);
 }
@@ -523,6 +541,7 @@ pub(super) fn fire_hooks(s: &mut State) {
             frames: vec![Frame::default()],
             parent_dir: dir,
             last_dir: dir,
+            spot: None,
         });
     }
 }
@@ -565,7 +584,7 @@ fn body_of(node: &Emitter) -> Option<&[Emitter]> {
         | Emitter::Spread { body, .. }
         | Emitter::Rotate { body, .. }
         | Emitter::OnBullet { body, .. } => Some(body),
-        Emitter::Fire { .. } | Emitter::Wait { .. } => None,
+        Emitter::Fire { .. } | Emitter::Wait { .. } | Emitter::Zone { .. } => None,
     }
 }
 
@@ -619,7 +638,7 @@ fn above(root: &[Emitter], frames: &[Frame], depth: usize) -> Option<Above> {
             }
             Emitter::Rotate { .. } => out.turn = out.turn.saturating_add(f.offset),
             Emitter::OnBullet { .. } => out.hook = Some((k, f.hook_after)),
-            Emitter::Fire { .. } | Emitter::Wait { .. } => {}
+            Emitter::Fire { .. } | Emitter::Wait { .. } | Emitter::Zone { .. } => {}
         }
         list = body_of(node)?;
     }
@@ -806,6 +825,12 @@ fn exec(s: &mut State, t: &mut AttackTask, budget: &mut u32, spawns_left: &mut u
                 }
                 t.frames[top].idx += 1;
             }
+            Emitter::Zone { .. } => {
+                if !emit_zone(s, t, &ab, node) {
+                    return false;
+                }
+                t.frames[top].idx += 1;
+            }
             Emitter::Wait { ticks: n } => {
                 let wait = ticks(value(s, t, &ab, n));
                 t.frames[top].idx += 1;
@@ -911,8 +936,101 @@ fn next_round(s: &mut State, t: &mut AttackTask, root: &[Emitter], parent: usize
             t.frames[parent].idx += 1;
             Advance::Continue
         }
-        Emitter::Fire { .. } | Emitter::Wait { .. } => Advance::Broken,
+        Emitter::Fire { .. } | Emitter::Wait { .. } | Emitter::Zone { .. } => Advance::Broken,
     }
+}
+
+/// The direction a `fire` or `zone` node takes from `origin`, turned by the `rotate`, `ring` and
+/// `spread` nodes round it.
+fn heading(s: &mut State, t: &AttackTask, ab: &Above, origin: Point, direction: &Direction) -> Dir {
+    match direction {
+        Direction::Aimed { offset } => {
+            let turn = value(s, t, ab, offset).saturating_add(ab.turn);
+            rotate(aim(s, origin, t.aim), turn)
+        }
+        Direction::Absolute { angle } => {
+            rotate(Dir::DOWN, value(s, t, ab, angle).saturating_add(ab.turn))
+        }
+        Direction::Relative { angle } => {
+            rotate(t.parent_dir, value(s, t, ab, angle).saturating_add(ab.turn))
+        }
+        Direction::Sequential { step } => rotate(t.last_dir, value(s, t, ab, step)),
+    }
+}
+
+/// A zone's tick count, from `lo` to `MAX_ZONE_TICKS`.
+fn zone_ticks(v: i32, lo: u32) -> u32 {
+    ticks(v).min(MAX_ZONE_TICKS).max(lo)
+}
+
+/// Places the zone of a `zone` node, unless there are too many. False if the attack's owner is
+/// gone. Its tick counts are evaluated first, then its direction, so the order of `rand` draws is
+/// fixed; the zone is centred at its anchor moved by `offset` in the frame of its direction.
+fn emit_zone(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter) -> bool {
+    let Emitter::Zone {
+        shape,
+        anchor,
+        offset,
+        direction,
+        wind_up_ticks,
+        active_ticks,
+    } = node
+    else {
+        return true;
+    };
+    let origin = match t.origin {
+        Origin::At(p) => p,
+        Origin::Owner => match s.find(t.owner) {
+            Some(w) => s.at(w),
+            None => return false,
+        },
+    };
+    let wind_left = zone_ticks(value(s, t, ab, wind_up_ticks), 0);
+    let active_left = zone_ticks(value(s, t, ab, active_ticks), 1);
+    let dir = heading(s, t, ab, origin, direction);
+    let from = match anchor {
+        Anchor::Attacker => origin,
+        Anchor::Target => t.spot.unwrap_or_else(|| match t.aim {
+            Aim::Entity(target) => s.find(target).map_or(origin, |w| s.at(w)),
+            Aim::Fixed(_) => origin,
+        }),
+    };
+    super::zones::place(
+        s,
+        ZoneState {
+            owner: t.owner,
+            friendly: t.friendly,
+            shape: shape.clone(),
+            at: super::hit_boxes::centre(from, dir, offset.forward.0, offset.right.0),
+            dir,
+            wind_left,
+            active_left,
+            damage: t.damage,
+            damage_type: t.damage_type,
+            breaks_charge: t.breaks_charge,
+            hits: Vec::new(),
+        },
+    );
+    t.last_dir = dir;
+    true
+}
+
+/// Whether any hit box of `phases`, or any zone their nodes place, is anchored at the target:
+/// only then does an attack keep the spot where its target stood.
+fn uses_spot(phases: &[AttackPhase]) -> bool {
+    fn nodes(list: &[Emitter]) -> bool {
+        list.iter().any(|n| match n {
+            Emitter::Zone { anchor, .. } => *anchor == Anchor::Target,
+            Emitter::OnBullet { body, then, .. } => nodes(body) || nodes(then),
+            other => body_of(other).is_some_and(nodes),
+        })
+    }
+    phases.iter().any(|p| {
+        p.hit_box
+            .as_ref()
+            .is_some_and(|h| h.anchor() == Anchor::Target)
+            || nodes(&p.spawn)
+    })
 }
 
 /// Makes the bullet of a `fire` node. False if the attack's owner is gone.
@@ -943,19 +1061,7 @@ fn emit(
     let life = ticks
         .as_ref()
         .map_or(UNLIMITED, |e| bullet_ticks(value(s, t, ab, e)));
-    let dir = match direction {
-        Direction::Aimed { offset } => {
-            let turn = value(s, t, ab, offset).saturating_add(ab.turn);
-            rotate(aim(s, origin, t.aim), turn)
-        }
-        Direction::Absolute { angle } => {
-            rotate(Dir::DOWN, value(s, t, ab, angle).saturating_add(ab.turn))
-        }
-        Direction::Relative { angle } => {
-            rotate(t.parent_dir, value(s, t, ab, angle).saturating_add(ab.turn))
-        }
-        Direction::Sequential { step } => rotate(t.last_dir, value(s, t, ab, step)),
-    };
+    let dir = heading(s, t, ab, origin, direction);
     let hook = ab.hook.map(|(k, after)| {
         let path = t
             .base

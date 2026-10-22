@@ -224,24 +224,40 @@ fn a_ring_of_eight_zones_places_eight_zones_at_equal_angles() {
     e.step(idle());
     let zones = zones_of(&e);
     assert_eq!(zones.len(), 8);
-    let spot = (f64::from(CX), f64::from(CY + 40 * PX));
-    let mut angles: Vec<f64> = zones
+    let spot = (i64::from(CX), i64::from(CY + 40 * PX));
+    let int = |v: &Value| v.as_i64().unwrap();
+    // Each zone lies 50 pixels from the target's spot along its own direction (a unit vector
+    // times the table's scale, so its squared length is the scale squared).
+    let dirs: Vec<(i64, i64)> = zones
         .iter()
         .map(|z| {
-            let dx = z["at"]["x"].as_f64().unwrap() - spot.0;
-            let dy = z["at"]["y"].as_f64().unwrap() - spot.1;
-            assert!((dx.hypot(dy) - f64::from(50 * PX)).abs() < 8.0, "{z}");
-            dy.atan2(dx).to_degrees().rem_euclid(360.0)
+            let d = (int(&z["direction"]["x"]), int(&z["direction"]["y"]));
+            let scale2 = d.0 * d.0 + d.1 * d.1;
+            let (dx, dy) = (int(&z["at"]["x"]) - spot.0, int(&z["at"]["y"]) - spot.1);
+            let along = (dx * d.0 + dy * d.1) / scale2.isqrt();
+            assert!((along - i64::from(50 * PX)).abs() <= 2, "{z}");
+            assert!((dx * d.1 - dy * d.0).abs() / scale2.isqrt() <= 2, "{z}");
+            d
         })
         .collect();
-    angles.sort_by(f64::total_cmp);
-    for pair in angles.windows(2) {
-        assert!((pair[1] - pair[0] - 45.0).abs() < 1.0, "{angles:?}");
+    // Eight directions a turn apart, 45 degrees each: every pair is a multiple of 45 degrees
+    // from the other, so the pairs by the cosine of their angle (in thousandths) fall into the
+    // 8 of 45, 8 of 90, 8 of 135 and 4 of 180 degrees that eight equal angles make.
+    let mut by_angle = [0; 4];
+    for (i, a) in dirs.iter().enumerate() {
+        for b in &dirs[i + 1..] {
+            let cos = (a.0 * b.0 + a.1 * b.1) * 1000 / (a.0 * a.0 + a.1 * a.1);
+            let bucket = match cos {
+                700..=714 => 0,
+                -3..=3 => 1,
+                -714..=-700 => 2,
+                -1000..=-997 => 3,
+                other => panic!("a pair of zones at cosine {other}/1000: {dirs:?}"),
+            };
+            by_angle[bucket] += 1;
+        }
     }
-    assert!(
-        (angles[0] + 360.0 - angles[7] - 45.0).abs() < 1.0,
-        "{angles:?}"
-    );
+    assert_eq!(by_angle, [8, 8, 8, 4], "{dirs:?}");
 }
 
 #[test]
