@@ -200,7 +200,7 @@ fn an_orbit_s_hits_apply_no_bleed() {
     // An orb's circle 40 pixels out, 7 damage, on a target out of the step's reach, which is
     // never pressed.
     let orbit = json!({
-        "id": "orbit", "rarity": "common", "effect": "orbit", "amount": 1, "limit": 1,
+        "id": "orbit", "rarity": "common", "effect": "orbit", "amount": 1, "limit": 2,
         "title": "Orbit", "description": "",
         "orbit": {
             "attack": { "inline": [
@@ -291,10 +291,10 @@ fn boosted(ty: &str) -> Vec<(u32, u32)> {
     let rewards = vec![
         random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
-                "skill": "war_cry", "amount": 1, "limit": 1, "title": "Skill",
+                "skill": "war_cry", "amount": 1, "limit": 2, "title": "Skill",
                 "description": "" }),
         json!({ "id": "bonus", "rarity": "common", "effect": "type_bonus_pct", "type": ty,
-                "amount": 50, "limit": 1, "title": "Bonus", "description": "" }),
+                "amount": 50, "limit": 2, "title": "Bonus", "description": "" }),
     ];
     let mut target = tough(0, Some(json!({ "weak": ["slash"] })), None);
     // K is 10,000 after the scale of ADR-103: a defence of K halves a hit.

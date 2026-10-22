@@ -217,12 +217,23 @@
           "description": "A random rune (ADR-099): which rune it gives is drawn only when it is taken, so the\nfrontend shows it face down.",
           "type": "boolean"
         },
+        "named": {
+          "description": "A named star: the frontend shows `star` as its name.",
+          "type": "boolean"
+        },
         "rarity": {
           "$ref": "#/$defs/Rarity"
         },
         "reward": {
           "description": "Its ID in the run's rewards file.",
           "$ref": "#/$defs/ContentId"
+        },
+        "star": {
+          "description": "The named star's display name; with `named` only.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false,

@@ -222,7 +222,7 @@ fn an_orbit_s_hits_fire_no_explosion() {
     // An orb's circle 40 pixels out, turning a quarter turn in 6 ticks, 7 damage; the target 40
     // pixels to the right of the main character, out of the step's reach, which is never pressed.
     let orbit = json!({
-        "id": "orbit", "rarity": "common", "effect": "orbit", "amount": 1, "limit": 1,
+        "id": "orbit", "rarity": "common", "effect": "orbit", "amount": 1, "limit": 2,
         "title": "Orbit", "description": "",
         "orbit": {
             "attack": { "inline": [
@@ -270,7 +270,7 @@ fn a_stage_skill_s_hits_fire_no_explosion() {
               "hit_box": { "type": "circle", "offset": { "forward": ahead }, "radius": 8_192 } }
         ] } }] }] });
     let reward = json!({ "id": "nova_r", "rarity": "common", "effect": "stage_skill",
-                         "skill": "nova", "amount": 1, "limit": 1, "title": "Skill",
+                         "skill": "nova", "amount": 1, "limit": 2, "title": "Skill",
                          "description": "" });
     let target = json!(wave(
         TARGET_TICK,
@@ -317,10 +317,10 @@ fn boosted(ty: Option<&str>) -> (u32, u32) {
     let rewards = vec![
         random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
-                "skill": "war_cry", "amount": 1, "limit": 1, "title": "Skill",
+                "skill": "war_cry", "amount": 1, "limit": 2, "title": "Skill",
                 "description": "" }),
         json!({ "id": "pyro", "rarity": "common", "effect": "type_bonus_pct", "type": "pyro",
-                "amount": 50, "limit": 1, "title": "Pyro", "description": "" }),
+                "amount": 50, "limit": 2, "title": "Pyro", "description": "" }),
     ];
     let weak = json!({ "weak": ["pyro"] });
     let mut e = with(

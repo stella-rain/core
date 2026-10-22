@@ -213,10 +213,10 @@ fn the_three_effects_parse_and_a_one_type_bonus_names_its_type() {
         bonus("elemental", "element_bonus_pct", None, 10, 5),
     ]);
     let r = parsed.rewards();
-    assert_eq!(r[0].effect, RewardEffect::TypeBonusPct);
-    assert_eq!(r[0].damage_type, Some(DamageType::Pyro));
-    assert_eq!(r[1].effect, RewardEffect::AttackTypeBonusPct);
-    assert_eq!(r[2].effect, RewardEffect::ElementBonusPct);
+    assert_eq!(r[0].effect(), RewardEffect::TypeBonusPct);
+    assert_eq!(r[0].effects[0].damage_type, Some(DamageType::Pyro));
+    assert_eq!(r[1].effect(), RewardEffect::AttackTypeBonusPct);
+    assert_eq!(r[2].effect(), RewardEffect::ElementBonusPct);
 }
 
 #[test]
@@ -262,7 +262,7 @@ fn a_type_bonus_names_its_path_when_refused() {
     else {
         panic!("refused as invalid");
     };
-    assert_eq!(issues[0].path, "$.rewards[0].type");
+    assert_eq!(issues[0].path, "$.rewards[0].effects[0].type");
 }
 
 #[test]

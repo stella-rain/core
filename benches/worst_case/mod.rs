@@ -174,7 +174,7 @@ const PICKS: u16 = 8;
 /// tick.
 pub fn content() -> RunContent {
     let haste = json!({ "id": HASTE, "rarity": "common", "effect": "rune_haste",
-                        "amount": 300, "limit": 1, "title": "Haste", "description": "" });
+                        "amount": 300, "limit": 2, "title": "Haste", "description": "" });
     let mut file: Value = serde_json::from_slice(Runes::BUNDLED).expect("the bundled runes");
     let dots: Vec<Value> = ["bleed", "poison", "burn"]
         .into_iter()

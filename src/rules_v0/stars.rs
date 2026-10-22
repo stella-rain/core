@@ -230,10 +230,10 @@ fn eligible(
 ) -> bool {
     let at = usize::from(i);
     rewards.rewards().get(at).is_some_and(|r| {
-        let room = match (r.effect, r.limit) {
-            (RewardEffect::RandomRune, _) => !runes::all_held(runes, f.rune_pool),
-            (_, Some(limit)) => f.taken[at] < limit,
-            (_, None) => false,
+        let room = match (r.is_random_rune(), r.limit) {
+            (true, _) => !runes::all_held(runes, f.rune_pool),
+            (false, Some(limit)) => f.taken[at] < limit,
+            (false, None) => false,
         };
         r.rarity == rarity && !f.banished[at] && room && !held.contains(&i)
     })
@@ -276,8 +276,24 @@ fn draw(
         .copied()
         .filter(|i| eligible(rewards, f, runes, *i, rarity, held))
         .collect();
-    let at = rng.below(u32::try_from(list.len()).unwrap_or(u32::MAX));
-    list.get(usize::try_from(at).unwrap_or(usize::MAX)).copied()
+    // One draw over the weights, divided by their greatest common divisor: equal weights are
+    // one each, so the draw is `below(len)` as it was before rewards had weights.
+    let weight = |i: u16| u32::from(rewards.rewards()[usize::from(i)].weight).max(1);
+    let step = list.iter().fold(0, |g, i| gcd(g, weight(*i)));
+    let total: u32 = list.iter().map(|i| weight(*i) / step).sum();
+    let mut at = rng.below(total);
+    for i in &list {
+        let w = weight(*i) / step;
+        if at < w {
+            return Some(*i);
+        }
+        at -= w;
+    }
+    None
+}
+
+fn gcd(a: u32, b: u32) -> u32 {
+    if b == 0 { a } else { gcd(b, a % b) }
 }
 
 fn id(rewards: &Rewards, i: u16) -> ContentId {
@@ -323,44 +339,46 @@ pub(super) fn take(
     let at = usize::from(i);
     f.taken[at] = f.taken[at].saturating_add(1);
     let reward = &rewards.rewards()[at];
-    // Every effect but the random rune's has an amount (`rewards::validate`).
-    let amount = reward.amount.unwrap_or(0);
     let mut rune = None;
-    match reward.effect {
-        RewardEffect::StageSkill => {
-            let index = reward
-                .skill
-                .as_ref()
-                .and_then(|id| rewards.stage_skills().index_of(id));
-            if let Some(index) = index {
-                skill::take(rewards, player, index, amount);
-            }
-        }
-        RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
-        RewardEffect::Orbit => orbit::take(player, i, amount),
-        RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
-        RewardEffect::Regen => *regen = regen.saturating_add(amount),
-        RewardEffect::RuneHaste => {
-            player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
-        }
-        RewardEffect::RandomRune => rune = runes::draw(rng, player, f.rune_pool),
-        RewardEffect::TypeBonusPct
-        | RewardEffect::AttackTypeBonusPct
-        | RewardEffect::ElementBonusPct => {
-            for (ty, pct) in DamageType::ALL.iter().zip(&mut player.type_bonus_pct) {
-                let applies = match reward.effect {
-                    RewardEffect::AttackTypeBonusPct => ty.is_physical(),
-                    RewardEffect::ElementBonusPct => !ty.is_physical(),
-                    _ => reward.damage_type == Some(*ty),
-                };
-                if applies {
-                    *pct = pct.saturating_add(amount);
+    for entry in &reward.effects {
+        // Every effect but the random rune's has an amount (`rewards::validate`).
+        let amount = entry.amount.unwrap_or(0);
+        match entry.effect {
+            RewardEffect::StageSkill => {
+                let index = entry
+                    .skill
+                    .as_ref()
+                    .and_then(|id| rewards.stage_skills().index_of(id));
+                if let Some(index) = index {
+                    skill::take(rewards, player, index, amount);
                 }
             }
-        }
-        effect => {
-            if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
-                levels::add_effect(p, player, effect, amount);
+            RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
+            RewardEffect::Orbit => orbit::take(player, i, amount),
+            RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
+            RewardEffect::Regen => *regen = regen.saturating_add(amount),
+            RewardEffect::RuneHaste => {
+                player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
+            }
+            RewardEffect::RandomRune => rune = runes::draw(rng, player, f.rune_pool),
+            RewardEffect::TypeBonusPct
+            | RewardEffect::AttackTypeBonusPct
+            | RewardEffect::ElementBonusPct => {
+                for (ty, pct) in DamageType::ALL.iter().zip(&mut player.type_bonus_pct) {
+                    let applies = match entry.effect {
+                        RewardEffect::AttackTypeBonusPct => ty.is_physical(),
+                        RewardEffect::ElementBonusPct => !ty.is_physical(),
+                        _ => entry.damage_type == Some(*ty),
+                    };
+                    if applies {
+                        *pct = pct.saturating_add(amount);
+                    }
+                }
+            }
+            effect => {
+                if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
+                    levels::add_effect(p, player, effect, amount);
+                }
             }
         }
     }
@@ -464,7 +482,9 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                 CandidateView {
                     reward: r.id.clone(),
                     rarity: r.rarity,
-                    hidden: r.effect == RewardEffect::RandomRune,
+                    hidden: r.is_random_rune(),
+                    named: r.named,
+                    star: r.star.clone(),
                 }
             })
             .collect(),

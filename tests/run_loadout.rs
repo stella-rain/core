@@ -255,7 +255,7 @@ fn carried_stars_are_rewards_of_the_file_and_of_the_pool_within_the_budget() {
 fn a_reward_is_carried_no_more_times_than_it_stacks() {
     let rewards = Rewards::parse(
         json!({ "schema_version": 0, "sim_version": 0, "rewards": [{
-            "id": "once", "rarity": "common", "effect": "max_hp", "amount": 100, "limit": 1,
+            "id": "once", "rarity": "common", "effect": "max_hp", "amount": 100, "limit": 2,
             "title": "Once", "description": ""
         }]})
         .to_string()
@@ -268,10 +268,10 @@ fn a_reward_is_carried_no_more_times_than_it_stacks() {
         lumine: 5,
         ..trial_setup()
     };
-    assert!(Engine::start_with(&setup(1), &content).is_ok());
+    assert!(Engine::start_with(&setup(2), &content).is_ok());
     assert_eq!(
-        paths(Engine::start_with(&setup(2), &content).unwrap_err()),
-        ["$.carried[1].reward"]
+        paths(Engine::start_with(&setup(3), &content).unwrap_err()),
+        ["$.carried[2].reward"]
     );
 }
 

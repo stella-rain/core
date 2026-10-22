@@ -456,8 +456,8 @@ fn bundled_regen() -> Vec<(Rarity, u32)> {
     let mut all: Vec<(Rarity, u32)> = Rewards::bundled()
         .rewards()
         .iter()
-        .filter(|r| r.effect == RewardEffect::Regen)
-        .map(|r| (r.rarity, r.amount.unwrap()))
+        .filter(|r| r.effect() == RewardEffect::Regen)
+        .map(|r| (r.rarity, r.amount().unwrap()))
         .collect();
     all.sort_by_key(|(rarity, _)| rarity.index());
     all

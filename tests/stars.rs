@@ -473,28 +473,28 @@ fn banishing_the_last_reward_closes_the_offer_and_an_empty_pool_opens_none() {
 #[test]
 fn a_reward_at_its_stack_limit_is_offered_no_more() {
     let list = rewards(&[
-        ("once", "common", "max_hp", 1, 1),
+        ("once", "common", "max_hp", 1, 2),
         ("b", "common", "max_hp", 1, 9),
         ("c", "common", "max_hp", 1, 9),
         ("d", "common", "max_hp", 1, 9),
     ]);
     let st = stars(json!({ "rerolls": 0, "banishes": 0 }));
     let mut e = with(&starry(&[1000], st, vec![targets(1, 12, NEAR_Y)]), list);
-    let mut taken = false;
+    let mut times = 0;
     let mut after = Vec::new();
     for _ in 0..12 {
         if fire_until(&mut e, idle(), 600, Engine::offer_open).is_empty() && !e.offer_open() {
             break;
         }
         let c = candidates(&e);
-        if taken {
+        if times == 2 {
             after.extend(c.clone());
         }
         let pick = c.iter().position(|id| id == "once").unwrap_or(0);
-        taken |= c[pick] == "once";
+        times += usize::from(c[pick] == "once");
         e.choose(u32::try_from(pick).unwrap()).unwrap();
     }
-    assert!(taken && after.len() >= 9, "{after:?}");
+    assert!(times == 2 && after.len() >= 9, "{after:?}");
     assert!(!after.iter().any(|id| id == "once"), "{after:?}");
 }
 
@@ -556,8 +556,8 @@ fn experience_rewards_raise_the_experience_of_every_kill() {
     // The first kill drops a star at once; with +50% experience, each later kill of a 2-xp
     // enemy gives 3.
     let list = rewards(&[
-        ("insight", "common", "xp_pct", 50, 1),
-        ("x", "common", "max_hp", 1, 1),
+        ("insight", "common", "xp_pct", 50, 2),
+        ("x", "common", "max_hp", 1, 2),
     ]);
     let mut first = targets(1, 1, NEAR_Y);
     first["xp"] = json!(2);
@@ -894,4 +894,94 @@ fn a_tier_weighs_something_and_no_rarity_weighs_too_much() {
         ["$.stars.tiers[0].weights"]
     );
     assert_eq!(issues(stars(tier(json!({})))), ["$.stars.tiers[0].weights"]);
+}
+
+// --- Weights -----------------------------------------------------------------------------------
+
+/// Two common rewards `a` and `b` of the given draw weights.
+fn weighted(a: u16, b: u16) -> Rewards {
+    let one = |id: &str, weight: u16| {
+        json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
+                "weight": weight, "title": "Reward", "description": "" })
+    };
+    let file = json!({ "schema_version": 0, "sim_version": 0,
+                       "rewards": [one("a", a), one("b", b)] });
+    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+}
+
+/// The first candidate of the first offer of 10,000 runs of seeds 0.., counted for `b`, and
+/// how often `a` came first, as `(a, b)`.
+fn firsts(rewards: &Rewards) -> (u32, u32) {
+    let mut out = (0, 0);
+    for seed in 0..10_000 {
+        let mut stage = starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
+        stage.seed = seed;
+        let mut e = with(&stage, rewards.clone());
+        until_offer(&mut e, idle());
+        match candidates(&e)[0].as_str() {
+            "a" => out.0 += 1,
+            _ => out.1 += 1,
+        }
+    }
+    out
+}
+
+#[test]
+fn a_reward_of_three_times_the_weight_comes_first_three_times_in_four() {
+    let (a, b) = firsts(&weighted(100, 300));
+    assert_eq!(a + b, 10_000);
+    assert!(
+        (7_000..=8_000).contains(&b),
+        "b came first {b} of 10,000 times"
+    );
+}
+
+#[test]
+fn equal_weights_draw_what_the_uniform_draw_drew() {
+    // Weights 100 and 100, and weights 7 and 7, are the same draw as before weights existed:
+    // the same seeds give the same first candidates.
+    let a = firsts(&weighted(100, 100));
+    assert_eq!(a, firsts(&weighted(7, 7)));
+    assert_eq!(a, firsts(&commons_ab()));
+}
+
+/// Two commons with no weight given: the released form.
+fn commons_ab() -> Rewards {
+    let one = |id: &str| {
+        json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
+                "title": "Reward", "description": "" })
+    };
+    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [one("a"), one("b")] });
+    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+}
+
+// --- Named stars -------------------------------------------------------------------------------
+
+#[test]
+fn an_offer_names_its_named_candidate_and_only_that_one() {
+    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [
+        { "id": "vega", "rarity": "epic", "effects": [{ "effect": "attack_pct", "amount": 20 }],
+          "limit": 1, "named": true, "star": "Vega", "weight": 50,
+          "title": "Vega", "description": "" },
+        { "id": "plain", "rarity": "epic", "effect": "max_hp", "amount": 1, "limit": 2,
+          "title": "Plain", "description": "" },
+    ]});
+    let rewards = Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate");
+    let st = stars(json!({ "tiers": [{ "from_level": 1, "weights": { "epic": 1 } }] }));
+    let mut e = with(&starry(&[1000], st, vec![targets(1, 1, NEAR_Y)]), rewards);
+    until_offer(&mut e, idle());
+    let seen: Vec<(String, bool, Option<String>)> = offer(&e)
+        .candidates
+        .into_iter()
+        .map(|c| (c.reward.0, c.named, c.star))
+        .collect();
+    let mut sorted = seen.clone();
+    sorted.sort();
+    assert_eq!(
+        sorted,
+        [
+            ("plain".to_string(), false, None),
+            ("vega".to_string(), true, Some("Vega".to_string()))
+        ]
+    );
 }

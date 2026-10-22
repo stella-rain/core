@@ -64,7 +64,7 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
     for effect in StatEffect::ALL {
         let rarities: Vec<Rarity> = rewards
             .iter()
-            .filter(|r| r.effect.stat() == Some(effect))
+            .filter(|r| r.effect().stat() == Some(effect))
             .map(|r| r.rarity)
             .collect();
         // The three released rarities come first, then the six-rarity ladder's new ones
@@ -115,7 +115,7 @@ fn the_bundled_rewards_offer_every_bundled_stage_skill() {
     assert_eq!(bundled.stage_skills(), StageSkills::bundled());
     for skill in StageSkills::bundled().skills() {
         let gives = |r: &stella_rain_core::rewards::Reward| {
-            r.effect == RewardEffect::StageSkill && r.skill.as_ref() == Some(&skill.id)
+            r.effect() == RewardEffect::StageSkill && r.effects[0].skill.as_ref() == Some(&skill.id)
         };
         assert!(
             bundled.rewards().iter().any(gives),
@@ -171,23 +171,23 @@ fn a_stage_skill_reward_names_a_skill_of_the_stage_skills_file() {
         Some(1)
     );
     // Not in the bundled skills.
-    invalid_at(&with_skill(), "$.rewards[0].skill");
+    invalid_at(&with_skill(), "$.rewards[0].effects[0].skill");
     let mut v = with_skill();
     v["rewards"][0]["skill"] = json!("other");
-    invalid_with_skills_at(&v, "$.rewards[0].skill");
+    invalid_with_skills_at(&v, "$.rewards[0].effects[0].skill");
     let mut v = with_skill();
     v["rewards"][0].as_object_mut().unwrap().remove("skill");
-    invalid_with_skills_at(&v, "$.rewards[0].skill");
+    invalid_with_skills_at(&v, "$.rewards[0].effects[0].skill");
     // A stat reward names no skill.
     let mut v = with_skill();
     v["rewards"][0]["effect"] = json!("max_hp");
-    invalid_with_skills_at(&v, "$.rewards[0].skill");
+    invalid_with_skills_at(&v, "$.rewards[0].effects[0].skill");
     // Its amount is the levels it gives: 1 up to the most a skill has.
     let mut v = with_skill();
     v["rewards"][0]["amount"] = json!(MAX_SKILL_LEVELS);
     assert!(parse_with_skills(&v).is_ok());
     v["rewards"][0]["amount"] = json!(MAX_SKILL_LEVELS + 1);
-    invalid_with_skills_at(&v, "$.rewards[0].amount");
+    invalid_with_skills_at(&v, "$.rewards[0].effects[0].amount");
 }
 
 #[test]
@@ -282,9 +282,13 @@ fn ids_are_well_formed_and_unique() {
 fn amounts_limits_and_texts_are_bounded() {
     for (field, lo, hi) in [
         ("amount", 1, i64::from(MAX_AMOUNT)),
-        ("limit", 1, i64::from(MAX_STACK)),
+        // An unnamed reward stacks: its limit starts at 2.
+        ("limit", 2, i64::from(MAX_STACK)),
     ] {
-        let path = format!("$.rewards[0].{field}");
+        let path = match field {
+            "amount" => "$.rewards[0].effects[0].amount".to_string(),
+            _ => format!("$.rewards[0].{field}"),
+        };
         assert!(parse(&one_with(field, json!(lo))).is_ok(), "{field} {lo}");
         assert!(parse(&one_with(field, json!(hi))).is_ok(), "{field} {hi}");
         invalid_at(&one_with(field, json!(lo - 1)), &path);
@@ -318,10 +322,10 @@ fn a_hit_point_amount_has_the_scaled_bound_and_the_others_keep_theirs() {
         v
     };
     assert!(parse(&hp(MAX_HP_AMOUNT)).is_ok());
-    invalid_at(&hp(MAX_HP_AMOUNT + 1), "$.rewards[0].amount");
+    invalid_at(&hp(MAX_HP_AMOUNT + 1), "$.rewards[0].effects[0].amount");
     invalid_at(
         &one_with("amount", json!(MAX_AMOUNT + 1)),
-        "$.rewards[0].amount",
+        "$.rewards[0].effects[0].amount",
     );
 }
 
@@ -333,17 +337,17 @@ fn an_extra_charge_reward_adds_one_to_the_most_charges_and_names_no_skill() {
         v
     };
     let rewards = parse(&charge(1)).expect("one charge");
-    assert_eq!(rewards.rewards()[0].effect, RewardEffect::EvadeCharge);
+    assert_eq!(rewards.rewards()[0].effect(), RewardEffect::EvadeCharge);
     assert_eq!(RewardEffect::EvadeCharge.stat(), None);
     assert!(parse(&charge(u32::from(MAX_EVADE_CHARGES))).is_ok());
-    invalid_at(&charge(0), "$.rewards[0].amount");
+    invalid_at(&charge(0), "$.rewards[0].effects[0].amount");
     invalid_at(
         &charge(u32::from(MAX_EVADE_CHARGES) + 1),
-        "$.rewards[0].amount",
+        "$.rewards[0].effects[0].amount",
     );
     let mut named = charge(1);
     named["rewards"][0]["skill"] = json!("black_hole");
-    invalid_at(&named, "$.rewards[0].skill");
+    invalid_at(&named, "$.rewards[0].effects[0].skill");
 }
 
 /// A range reward `id`, `amount` percent wider, taken at most 5 times.
@@ -358,18 +362,18 @@ fn range(id: &str, amount: u32) -> Value {
 fn a_range_reward_is_no_stat_and_widens_within_bounds() {
     let one = |amount: u32| file(vec![range("reach", amount)]);
     let rewards = parse(&one(25)).expect("a range reward");
-    assert_eq!(rewards.rewards()[0].effect, RewardEffect::RangePct);
+    assert_eq!(rewards.rewards()[0].effect(), RewardEffect::RangePct);
     assert_eq!(RewardEffect::RangePct.stat(), None);
     assert!(parse(&one(MAX_RANGE_PCT)).is_ok());
-    invalid_at(&one(0), "$.rewards[0].amount");
-    invalid_at(&one(MAX_RANGE_PCT + 1), "$.rewards[0].amount");
+    invalid_at(&one(0), "$.rewards[0].effects[0].amount");
+    invalid_at(&one(MAX_RANGE_PCT + 1), "$.rewards[0].effects[0].amount");
 
     let mut most = one(25);
     most["rewards"][0]["limit"] = json!(MAX_STACK);
     assert!(parse(&most).is_ok());
     let mut named = one(25);
     named["rewards"][0]["skill"] = json!("black_hole");
-    invalid_at(&named, "$.rewards[0].skill");
+    invalid_at(&named, "$.rewards[0].effects[0].skill");
     let mut old = one(25);
     old["rewards"][0]["enchantment"] = json!({ "type": "range" });
     assert!(matches!(parse(&old), Err(Error::Parse { .. })));
@@ -396,23 +400,26 @@ fn orbit(id: &str, amount: u32) -> Value {
 fn an_orbit_reward_names_its_orbit_and_adds_one_to_the_most_orbs() {
     let one = |amount: u32| file(vec![orbit("ring", amount)]);
     let rewards = parse(&one(1)).expect("one orb");
-    assert_eq!(rewards.rewards()[0].effect, RewardEffect::Orbit);
+    assert_eq!(rewards.rewards()[0].effect(), RewardEffect::Orbit);
     assert_eq!(RewardEffect::Orbit.stat(), None);
-    let held = rewards.rewards()[0].orbit.as_ref().expect("its orbit");
+    let held = rewards.rewards()[0].orbit().expect("its orbit");
     assert_eq!((held.turn_per_tick, held.cooldown_ticks), (384, 120));
     assert!(parse(&one(u32::from(MAX_ORBS))).is_ok());
-    invalid_at(&one(0), "$.rewards[0].amount");
-    invalid_at(&one(u32::from(MAX_ORBS) + 1), "$.rewards[0].amount");
+    invalid_at(&one(0), "$.rewards[0].effects[0].amount");
+    invalid_at(
+        &one(u32::from(MAX_ORBS) + 1),
+        "$.rewards[0].effects[0].amount",
+    );
 
     let mut bare = one(1);
     bare["rewards"][0].as_object_mut().unwrap().remove("orbit");
-    invalid_at(&bare, "$.rewards[0].orbit");
+    invalid_at(&bare, "$.rewards[0].effects[0].orbit");
     let mut stray = one_with("orbit", orbit("x", 1)["orbit"].clone());
     stray["rewards"][0]["effect"] = json!("attack_pct");
-    invalid_at(&stray, "$.rewards[0].orbit");
+    invalid_at(&stray, "$.rewards[0].effects[0].orbit");
     let mut named = one(1);
     named["rewards"][0]["skill"] = json!("black_hole");
-    invalid_at(&named, "$.rewards[0].skill");
+    invalid_at(&named, "$.rewards[0].effects[0].skill");
 }
 
 #[test]
@@ -428,7 +435,7 @@ fn an_orbit_s_turn_cooldown_and_attack_are_bounded() {
     for turn in [-MAX_ORBIT_TURN - 1, MAX_ORBIT_TURN + 1] {
         invalid_at(
             &with("turn_per_tick", json!(turn)),
-            "$.rewards[0].orbit.turn_per_tick",
+            "$.rewards[0].effects[0].orbit.turn_per_tick",
         );
     }
     assert!(parse(&with("cooldown_ticks", json!(1))).is_ok());
@@ -436,7 +443,7 @@ fn an_orbit_s_turn_cooldown_and_attack_are_bounded() {
     for ticks in [0, MAX_ORBIT_COOLDOWN_TICKS + 1] {
         invalid_at(
             &with("cooldown_ticks", json!(ticks)),
-            "$.rewards[0].orbit.cooldown_ticks",
+            "$.rewards[0].effects[0].orbit.cooldown_ticks",
         );
     }
     let unknown = with(
@@ -447,7 +454,7 @@ fn an_orbit_s_turn_cooldown_and_attack_are_bounded() {
         Err(Error::Invalid(issues)) => assert!(
             issues
                 .iter()
-                .any(|i| i.path.starts_with("$.rewards[0].orbit.attack")),
+                .any(|i| i.path.starts_with("$.rewards[0].effects[0].orbit.attack")),
             "{issues:?}"
         ),
         other => panic!("expected invalid, got {other:?}"),
@@ -460,7 +467,7 @@ fn a_rewards_file_holds_at_most_four_orbits() {
     assert!(parse(&orbits(MAX_ORBITS)).is_ok());
     invalid_at(
         &orbits(MAX_ORBITS + 1),
-        &format!("$.rewards[{MAX_ORBITS}].effect"),
+        &format!("$.rewards[{MAX_ORBITS}].effects[0].effect"),
     );
 }
 
@@ -524,7 +531,7 @@ fn vigour_is_shown_hit_points_stored_times_100() {
         .rewards()
         .iter()
         .filter(|r| r.id.0.starts_with("max_hp_"))
-        .map(|r| (r.id.0.as_str(), r.amount.unwrap()))
+        .map(|r| (r.id.0.as_str(), r.amount().unwrap()))
         .collect();
     assert_eq!(
         amounts,
@@ -536,5 +543,217 @@ fn vigour_is_shown_hit_points_stored_times_100() {
             ("max_hp_epic", 70_000),
             ("max_hp_supernova", 160_000),
         ]
+    );
+}
+
+// --- Effect lists, named stars and weights (app#336) -------------------------------------------
+
+/// A reward whose `effects` list holds `effects`, with the single-effect fields left out.
+fn bundle(id: &str, effects: Vec<Value>) -> Value {
+    json!({
+        "id": id, "rarity": "epic", "effects": effects, "limit": 2,
+        "title": "Bundle", "description": ""
+    })
+}
+
+fn pct(effect: &str, amount: u32) -> Value {
+    json!({ "effect": effect, "amount": amount })
+}
+
+/// A named reward: one epic effect, limit 1, called `star`.
+fn named(id: &str, star: &str) -> Value {
+    let mut r = bundle(id, vec![pct("attack_pct", 10)]);
+    r["limit"] = json!(1);
+    r["named"] = json!(true);
+    r["star"] = json!(star);
+    r
+}
+
+fn message_at(v: &Value, path: &str) -> String {
+    match parse(v) {
+        Err(Error::Invalid(issues)) => issues
+            .iter()
+            .find(|i| i.path == path)
+            .unwrap_or_else(|| panic!("{path}: {issues:?}"))
+            .message
+            .clone(),
+        other => panic!("{path}: expected invalid, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_reward_holds_a_list_of_one_to_three_effects() {
+    let ok = file(vec![bundle(
+        "trio",
+        vec![pct("attack_pct", 10), pct("speed_pct", 5), pct("xp_pct", 5)],
+    )]);
+    let rewards = parse(&ok).expect("three effects parse");
+    let back = serde_json::to_value(&rewards.rewards()[0]).unwrap();
+    assert_eq!(back["effects"].as_array().map(Vec::len), Some(3), "{back}");
+    invalid_at(&file(vec![bundle("none", vec![])]), "$.rewards[0].effects");
+    let four = (0..4).map(|_| pct("attack_pct", 1)).collect();
+    invalid_at(&file(vec![bundle("four", four)]), "$.rewards[0].effects");
+}
+
+#[test]
+fn the_single_effect_form_parses_to_a_list_of_one() {
+    let rewards = parse(&file(vec![reward("might")])).expect("the released form parses");
+    let back = serde_json::to_value(&rewards.rewards()[0]).unwrap();
+    assert_eq!(
+        back["effects"],
+        json!([{ "effect": "attack_pct", "amount": 10 }]),
+        "{back}"
+    );
+    assert!(
+        back.get("effect").is_none() && back.get("amount").is_none(),
+        "{back}"
+    );
+    // The released form and the list form together, or neither, are not a reward.
+    let mut both = reward("might");
+    both["effects"] = json!([pct("attack_pct", 10)]);
+    assert!(parse(&file(vec![both])).is_err());
+    let mut neither = reward("might");
+    neither.as_object_mut().unwrap().remove("effect");
+    assert!(parse(&file(vec![neither])).is_err());
+}
+
+#[test]
+fn every_entry_of_a_list_is_checked_as_a_single_effect_is() {
+    let bad = |entry: Value, path: &str| {
+        invalid_at(
+            &file(vec![bundle("b", vec![pct("attack_pct", 1), entry])]),
+            path,
+        )
+    };
+    bad(pct("attack_pct", 0), "$.rewards[0].effects[1].amount");
+    bad(
+        pct("attack_pct", MAX_AMOUNT + 1),
+        "$.rewards[0].effects[1].amount",
+    );
+    bad(
+        json!({ "effect": "stage_skill", "amount": 1 }),
+        "$.rewards[0].effects[1].skill",
+    );
+    bad(
+        json!({ "effect": "attack_pct", "amount": 1, "skill": "x" }),
+        "$.rewards[0].effects[1].skill",
+    );
+    bad(pct("type_bonus_pct", 5), "$.rewards[0].effects[1].type");
+}
+
+#[test]
+fn the_caps_that_sum_hold_over_a_whole_bundle() {
+    let sum = |effect: &str, half: u32, over: u32| {
+        let ok = file(vec![bundle(
+            "b",
+            vec![pct(effect, half), pct(effect, half)],
+        )]);
+        assert!(parse(&ok).is_ok(), "{effect}: {half} twice");
+        let bad = file(vec![bundle(
+            "b",
+            vec![pct(effect, half), pct(effect, over)],
+        )]);
+        invalid_at(&bad, "$.rewards[0].effects");
+    };
+    sum("range_pct", MAX_RANGE_PCT / 2, MAX_RANGE_PCT / 2 + 1);
+    sum("rune_haste", 150, 151);
+    sum("max_hp", MAX_HP_AMOUNT / 2, MAX_HP_AMOUNT / 2 + 1);
+    sum("attack_pct", MAX_AMOUNT / 2, MAX_AMOUNT / 2 + 1);
+}
+
+#[test]
+fn a_random_rune_stands_alone_and_a_bundle_holds_one_orbit_at_most() {
+    let rune = json!({ "effect": "random_rune" });
+    invalid_at(
+        &file(vec![bundle("b", vec![pct("attack_pct", 1), rune])]),
+        "$.rewards[0].effects",
+    );
+    let entry = {
+        let o = orbit("o", 1);
+        json!({ "effect": "orbit", "amount": 1, "orbit": o["orbit"] })
+    };
+    let two = vec![entry.clone(), entry];
+    invalid_at(&file(vec![bundle("b", two)]), "$.rewards[0].effects");
+}
+
+#[test]
+fn a_named_reward_is_one_of_a_kind_and_epic_or_above() {
+    let ok = file(vec![named("vega_star", "Vega")]);
+    let rewards = parse(&ok).expect("a named epic reward with limit 1 parses");
+    let back = serde_json::to_value(&rewards.rewards()[0]).unwrap();
+    assert_eq!(
+        (back["named"].clone(), back["star"].clone()),
+        (json!(true), json!("Vega"))
+    );
+    for rarity in ["epic", "legendary", "supernova"] {
+        let mut r = named("vega_star", "Vega");
+        r["rarity"] = json!(rarity);
+        assert!(parse(&file(vec![r])).is_ok(), "{rarity}");
+    }
+    let mut stacking = named("vega_star", "Vega");
+    stacking["limit"] = json!(2);
+    assert!(message_at(&file(vec![stacking]), "$.rewards[0].limit").contains("named"));
+    for rarity in ["common", "uncommon", "rare"] {
+        let mut r = named("vega_star", "Vega");
+        r["rarity"] = json!(rarity);
+        assert!(
+            message_at(&file(vec![r]), "$.rewards[0].rarity").contains("named"),
+            "{rarity}"
+        );
+    }
+}
+
+#[test]
+fn a_named_reward_has_a_star_name_and_an_unnamed_one_has_none_and_stacks() {
+    let mut nameless = named("vega_star", "Vega");
+    nameless.as_object_mut().unwrap().remove("star");
+    invalid_at(&file(vec![nameless]), "$.rewards[0].star");
+    let mut stray = reward("might");
+    stray["star"] = json!("Vega");
+    invalid_at(&file(vec![stray]), "$.rewards[0].star");
+    let mut empty = named("vega_star", "");
+    invalid_at(&file(vec![empty.clone()]), "$.rewards[0].star");
+    empty["star"] = json!("x".repeat(MAX_TITLE_CHARS + 1));
+    invalid_at(&file(vec![empty]), "$.rewards[0].star");
+    // An unnamed reward stacks: limit 2 or more.
+    let mut single = reward("might");
+    single["limit"] = json!(1);
+    assert!(message_at(&file(vec![single]), "$.rewards[0].limit").contains("unnamed"));
+    let mut explicit = reward("might");
+    explicit["named"] = json!(false);
+    assert!(parse(&file(vec![explicit])).is_ok());
+}
+
+#[test]
+fn star_names_are_unique_and_a_file_holds_at_most_32_named_rewards() {
+    let two = file(vec![named("one", "Vega"), named("two", "Vega")]);
+    invalid_at(&two, "$.rewards[1].star");
+    let many = |n: usize| {
+        file(
+            (0..n)
+                .map(|i| named(&format!("star_{i}"), &format!("Star {i}")))
+                .collect(),
+        )
+    };
+    assert!(parse(&many(32)).is_ok());
+    invalid_at(&many(33), "$.rewards");
+}
+
+#[test]
+fn a_weight_is_1_to_1000_and_defaults_to_100() {
+    for weight in [1, 100, 1000] {
+        assert!(
+            parse(&one_with("weight", json!(weight))).is_ok(),
+            "{weight}"
+        );
+    }
+    for weight in [0, 1001] {
+        invalid_at(&one_with("weight", json!(weight)), "$.rewards[0].weight");
+    }
+    let rewards = parse(&file(vec![reward("might")])).unwrap();
+    let back = serde_json::to_value(&rewards.rewards()[0]).unwrap();
+    assert!(
+        back.get("weight").is_none() || back["weight"] == json!(100),
+        "{back}"
     );
 }
