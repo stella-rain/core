@@ -1,0 +1,154 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "constellations": [
+    {
+      "id": "summer_triangle",
+      "name": "Summer Triangle",
+      "members": [
+        "star_altair",
+        "star_deneb",
+        "star_vega"
+      ],
+      "tiers": [
+        {
+          "threshold": 2,
+          "effects": [
+            {
+              "effect": "attack_speed_pct",
+              "amount": 12
+            },
+            {
+              "effect": "speed_pct",
+              "amount": 8
+            }
+          ]
+        },
+        {
+          "threshold": 3,
+          "effects": [
+            {
+              "effect": "attack_speed_pct",
+              "amount": 25
+            },
+            {
+              "effect": "speed_pct",
+              "amount": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orions_belt",
+      "name": "Orion's Belt",
+      "members": [
+        "star_alnitak",
+        "star_alnilam",
+        "star_mintaka"
+      ],
+      "tiers": [
+        {
+          "threshold": 2,
+          "effects": [
+            {
+              "effect": "element_bonus_pct",
+              "amount": 15
+            },
+            {
+              "effect": "rune_haste",
+              "amount": 30
+            }
+          ]
+        },
+        {
+          "threshold": 3,
+          "effects": [
+            {
+              "effect": "element_bonus_pct",
+              "amount": 35
+            },
+            {
+              "effect": "rune_haste",
+              "amount": 80
+            },
+            {
+              "effect": "regen",
+              "amount": 4000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "big_dipper",
+      "name": "Big Dipper",
+      "members": [
+        "star_dubhe",
+        "star_mizar",
+        "star_alkaid"
+      ],
+      "tiers": [
+        {
+          "threshold": 2,
+          "effects": [
+            {
+              "effect": "xp_pct",
+              "amount": 20
+            }
+          ]
+        },
+        {
+          "threshold": 3,
+          "effects": [
+            {
+              "effect": "xp_pct",
+              "amount": 60
+            },
+            {
+              "effect": "rerolls",
+              "amount": 2
+            },
+            {
+              "effect": "banishes",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "winter_triangle",
+      "name": "Winter Triangle",
+      "members": [
+        "star_procyon",
+        "star_sirius",
+        "star_betelgeuse"
+      ],
+      "tiers": [
+        {
+          "threshold": 2,
+          "effects": [
+            {
+              "effect": "attack_pct",
+              "amount": 15
+            }
+          ]
+        },
+        {
+          "threshold": 3,
+          "effects": [
+            {
+              "effect": "attack_pct",
+              "amount": 35
+            },
+            {
+              "effect": "max_hp",
+              "amount": 150000
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

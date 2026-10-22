@@ -142,3 +142,15 @@ fn the_bundled_rewards_file_validates_with_its_named_stars() {
     assert_eq!(stars.len(), 15);
     assert_eq!(rewards.rewards().len(), 62);
 }
+
+#[test]
+fn the_bundled_constellations_file_validates_against_the_bundled_rewards() {
+    use stella_rain_core::constellations::Constellations;
+    let rewards = Rewards::parse(Rewards::BUNDLED).unwrap();
+    let sets = Constellations::parse_with(Constellations::BUNDLED, &rewards)
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(sets.sets().len(), 4);
+    for set in sets.sets() {
+        assert_eq!(set.members.len(), 3, "{}", set.id.0);
+    }
+}
