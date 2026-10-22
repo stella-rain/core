@@ -66,6 +66,7 @@ mod rarities;
 mod recording;
 mod registry;
 mod replay;
+mod reward_kinds;
 mod rewards;
 mod rng;
 mod run_loadout;
