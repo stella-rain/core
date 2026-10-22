@@ -132,6 +132,10 @@ fn a_real_pack_gets_past_the_loader_and_runs() {
         pack_load(&pack::export_bundled()),
         "pack_load rejects the bundled pack"
     );
+    assert!(
+        pack_load(&pack_with_constellations()),
+        "pack_load rejects the pack with a set"
+    );
 }
 
 #[test]
@@ -158,6 +162,38 @@ fn garbage_is_rejected_without_a_panic() {
     }
 }
 
+/// The bundled pack with two named stars and a set of them (core#NS3): a seed that reaches the
+/// constellations file's parser, which the bundled pack, holding none yet, does not.
+fn pack_with_constellations() -> Vec<u8> {
+    let mut pack: serde_json::Value =
+        serde_json::from_slice(&pack::export_bundled()).expect("the exported pack is JSON");
+    for id in ["star_a", "star_b"] {
+        pack["rewards"]["rewards"]
+            .as_array_mut()
+            .expect("rewards")
+            .push(serde_json::json!({
+                "id": id, "rarity": "epic", "named": true, "star": id, "limit": 1,
+                "effects": [{ "effect": "attack_pct", "amount": 1 }],
+                "title": id, "description": ""
+            }));
+        pack["introduced"]["rewards"]
+            .as_array_mut()
+            .expect("introduced rewards")
+            .push(serde_json::json!({ "id": id, "sim_version": 0 }));
+    }
+    pack["constellations"] = serde_json::json!({
+        "schema_version": 0, "sim_version": 0,
+        "constellations": [{
+            "id": "pair", "name": "The Pair", "members": ["star_a", "star_b"],
+            "tiers": [
+                { "threshold": 1, "effects": [{ "effect": "rerolls", "amount": 1 }] },
+                { "threshold": 2, "effects": [{ "effect": "rerolls", "amount": 3 }] }
+            ]
+        }]
+    });
+    serde_json::to_vec(&pack).expect("a pack serialises")
+}
+
 /// The files each target is given: stages for the stage targets, and for `stage_parse` also the
 /// bundled rewards (with their stage skills), run stats and expertise, which it reads too; stage
 /// and run replays for the replay target, share codes (of the corpus pairs) for the share target
@@ -167,7 +203,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
         return setups();
     }
     if target == "pack_load" {
-        return vec![pack::export_bundled()];
+        return vec![pack::export_bundled(), pack_with_constellations()];
     }
     let mut seeds: Vec<Vec<u8>> = corpus()
         .into_iter()
