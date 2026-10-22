@@ -322,7 +322,7 @@ pub fn plain_content() -> RunContent {
         .push(serde_json::json!({
             "id": "plain", "title": "Plain", "description": "", "effects": []
         }));
-    RunContent::bundled().clone().with_perk_sets(
+    super::design_content().with_perk_sets(
         stella_rain_core::perk_sets::PerkSets::parse(file.to_string().as_bytes()).unwrap(),
     )
 }

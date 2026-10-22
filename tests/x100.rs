@@ -40,7 +40,7 @@ fn a_stage_scaled_by_100_ends_as_it_did_at_design_values() {
     for (name, bytes, inputs) in cases {
         let scaled = common::scaled_bytes(&bytes, SCALE);
         let stage = parse_and_validate(&scaled).unwrap();
-        let mut engine = Engine::new(&stage).unwrap();
+        let mut engine = common::engine(&stage);
         let mut died = 0;
         for input in &inputs {
             engine.step(*input);
