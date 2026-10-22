@@ -112,7 +112,11 @@ fn unpacking_the_bundled_pack_and_exporting_gives_its_bytes() {
 fn a_pack_with_one_changed_number_unpacks_and_exports_as_it_was() {
     let tree = Tree::new("changed");
     let bytes = edited(|s| s.replacen("\"step\": 8,", "\"step\": 9,", 1));
-    assert_ne!(bytes, pack::export_bundled(), "the edit must change the pack");
+    assert_ne!(
+        bytes,
+        pack::export_bundled(),
+        "the edit must change the pack"
+    );
     let out = unpack(&tree.pack(&bytes), &tree.content());
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     assert_eq!(tree.read().export().unwrap(), bytes);
@@ -125,7 +129,10 @@ fn an_invalid_pack_is_refused_and_nothing_is_written() {
     let tree = Tree::new("invalid");
     let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
     v["introduced"]["rewards"][0]["sim_version"] = json!(1);
-    let out = unpack(&tree.pack(&serde_json::to_vec(&v).unwrap()), &tree.content());
+    let out = unpack(
+        &tree.pack(&serde_json::to_vec(&v).unwrap()),
+        &tree.content(),
+    );
     assert_eq!(out.status.code(), Some(1));
     let err = text(&out.stderr);
     assert!(err.contains("$.introduced.rewards[0].sim_version"), "{err}");
@@ -155,8 +162,8 @@ fn a_valid_pack_that_export_would_not_write_is_refused_with_a_path() {
 fn an_optional_file_the_pack_lacks_is_not_written_and_a_stale_one_is_removed() {
     let tree = Tree::new("optional");
     let full = text(&pack::export_bundled());
-    let start = full.find("  \"stardust\": ").unwrap();
-    let end = full.find("  \"modes\"").unwrap();
+    let start = full.rfind("\n  \"stardust\": ").unwrap() + 1;
+    let end = full.rfind("\n  \"modes\"").unwrap() + 1;
     let bytes = format!("{}{}", &full[..start], &full[end..]).into_bytes();
     // A stale stardust.json from an earlier unpack, and a file that is not the pack's at all.
     std::fs::write(tree.content().join("stardust.json"), b"stale\n").unwrap();

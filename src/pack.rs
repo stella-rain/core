@@ -20,6 +20,7 @@
 //! bundled files (`export_bundled`) so gives each file the bundled file's SHA-256, and a run of
 //! its content the bundled content hash.
 
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use schemars::JsonSchema;
@@ -210,6 +211,11 @@ pub enum PackError {
     File { file: &'static str, error: Error },
     /// The `introduced` table does not match the files, or names an ID newer than the pack.
     Introduced(Vec<Issue>),
+    /// A file the pack needs is not among the files (`ContentFiles::export` only).
+    Missing { file: &'static str },
+    /// The pack is valid but is not the bytes `ContentFiles::export` writes for its files
+    /// (`ContentFiles::from_pack`); `path` is the first member that differs.
+    NotExportForm { path: String },
 }
 
 impl PackError {
@@ -242,6 +248,11 @@ impl std::fmt::Display for PackError {
                 f,
                 "the pack needs a newer version of the game (schema_version {schema_version}, \
                  sim_version {sim_version})"
+            ),
+            PackError::Missing { file } => write!(f, "{}: the file is missing", location(file)),
+            PackError::NotExportForm { path } => write!(
+                f,
+                "{path}: not written as `content-pack export` writes it (LF, the files as they are)"
             ),
             PackError::Introduced(issues) => {
                 for (i, issue) in issues.iter().enumerate() {
@@ -974,82 +985,243 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
     }
 }
 
-/// The bundled content files as a pack: what the content repository's first pack is made
-/// from. Each file is written as it is, without its final newline, so that the pack gives the
-/// bundled files' hashes (see the module's documentation).
-pub fn export_bundled() -> Vec<u8> {
-    let file = |bytes: &[u8]| String::from_utf8_lossy(bytes.trim_ascii_end()).into_owned();
-    let trial: &[u8] = include_bytes!("../modes/trial.json");
-    let tutorial: &[u8] = include_bytes!("../modes/tutorial.json");
-    let mut out = String::new();
-    out.push_str(&format!(
-        "{{\n  \"schema_version\": {SCHEMA_VERSION},\n  \"sim_version\": {SIM_VERSION},\n"
-    ));
-    // Every bundled ID is version 0's (ADR-035).
-    let starting_unlocks = StartingUnlocks::parse_with(
-        StartingUnlocks::BUNDLED,
-        &PerkSets::parse(PerkSets::BUNDLED).expect("the bundled perk sets"),
-        &StageSkills::parse(StageSkills::BUNDLED).expect("the bundled stage skills"),
-        &Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
-    )
-    .expect("the bundled starting unlocks");
-    let bundled_rewards = Rewards::parse_with(
-        Rewards::BUNDLED,
-        &StageSkills::parse(StageSkills::BUNDLED).expect("the bundled stage skills"),
-    )
-    .expect("the bundled rewards");
-    let sets = Constellations::parse_with(Constellations::BUNDLED, &bundled_rewards)
-        .expect("the bundled constellations");
-    let bundled_rewards = bundled_rewards.with_constellations(sets);
-    let content = RunContent::from_parts(
-        RunStats::parse(RunStats::BUNDLED).expect("the bundled run stats"),
-        bundled_rewards,
-        Expertise::parse(Expertise::BUNDLED).expect("the bundled expertise"),
-        MatchUps::parse(MatchUps::BUNDLED).expect("the bundled match-ups"),
-        Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
-        PerkSets::parse(PerkSets::BUNDLED).expect("the bundled perk sets"),
-        Difficulties::parse(Difficulties::BUNDLED).expect("the bundled difficulties"),
-        Some(starting_unlocks),
-        Stardust::bundled().clone(),
-        TimeLimit::parse(TimeLimit::BUNDLED).expect("the bundled mode"),
-        validate::parse_and_validate(trial).expect("the bundled trial"),
-        trial.to_vec(),
-        validate::parse_and_validate(tutorial).expect("the bundled tutorial"),
-        tutorial.to_vec(),
-        None,
-    );
-    let introduced = introduced_at(&content, SIM_VERSION);
-    let table = serde_json::to_string_pretty(&introduced).expect("the table serialises");
-    out.push_str(&format!(
-        "  \"introduced\": {},\n",
-        table.replace('\n', "\n  ")
-    ));
-    for (name, bytes) in [
-        ("run_stats", RunStats::BUNDLED),
-        ("rewards", Rewards::BUNDLED),
-        ("stage_skills", StageSkills::BUNDLED),
-        ("expertise", Expertise::BUNDLED),
-        ("match_ups", MatchUps::BUNDLED),
-        ("runes", Runes::BUNDLED),
-        ("perk_sets", PerkSets::BUNDLED),
-        ("difficulties", Difficulties::BUNDLED),
-    ] {
-        out.push_str(&format!("  \"{name}\": {},\n", file(bytes)));
+/// Where a content file sits in core's tree, and whether a pack may leave it out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FileSlot {
+    /// The pack's key for the file, and its name there: `<name>.json`.
+    pub name: &'static str,
+    /// `modes/` (beside `content/`) rather than `content/`.
+    pub in_modes: bool,
+    /// A pack released before the file may lack it.
+    pub optional: bool,
+}
+
+const fn slot(name: &'static str, in_modes: bool, optional: bool) -> FileSlot {
+    FileSlot {
+        name,
+        in_modes,
+        optional,
     }
-    out.push_str(&format!(
-        "  \"starting_unlocks\": {},\n",
-        file(StartingUnlocks::BUNDLED)
-    ));
-    out.push_str(&format!(
-        "  \"constellations\": {},\n",
-        file(Constellations::BUNDLED)
-    ));
-    out.push_str(&format!("  \"stardust\": {},\n", file(Stardust::BUNDLED)));
-    out.push_str(&format!(
-        "  \"modes\": {{\n    \"trial\": {},\n    \"time_limit\": {},\n    \"tutorial\": {}\n  }}\n}}\n",
-        file(trial),
-        file(TimeLimit::BUNDLED),
-        file(tutorial)
-    ));
-    out.into_bytes()
+}
+
+/// The content files of a pack, as the bytes of the file on its own (a final newline included):
+/// what `content/` and `modes/` hold, and what a pack is made from and unpacked into (ADR-131).
+#[derive(Clone, Debug, Default)]
+pub struct ContentFiles {
+    files: BTreeMap<&'static str, Vec<u8>>,
+}
+
+impl ContentFiles {
+    /// Every file, in the order the pack lists them.
+    pub const LAYOUT: [FileSlot; 14] = [
+        slot("run_stats", false, false),
+        slot("rewards", false, false),
+        slot("stage_skills", false, false),
+        slot("expertise", false, false),
+        slot("match_ups", false, false),
+        slot("runes", false, false),
+        slot("perk_sets", false, false),
+        slot("difficulties", false, false),
+        slot("starting_unlocks", false, true),
+        slot("constellations", false, true),
+        slot("stardust", false, true),
+        slot("trial", true, false),
+        slot("time_limit", true, false),
+        slot("tutorial", true, false),
+    ];
+
+    /// Sets a file; false for a name the layout does not have.
+    pub fn insert(&mut self, name: &str, bytes: Vec<u8>) -> bool {
+        match Self::LAYOUT.iter().find(|s| s.name == name) {
+            Some(s) => {
+                self.files.insert(s.name, bytes);
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub fn get(&self, name: &str) -> Option<&[u8]> {
+        self.files.get(name).map(Vec::as_slice)
+    }
+
+    /// The bundled files.
+    pub fn bundled() -> ContentFiles {
+        let mut files = ContentFiles::default();
+        let bundled: [(&str, &[u8]); 14] = [
+            ("run_stats", RunStats::BUNDLED),
+            ("rewards", Rewards::BUNDLED),
+            ("stage_skills", StageSkills::BUNDLED),
+            ("expertise", Expertise::BUNDLED),
+            ("match_ups", MatchUps::BUNDLED),
+            ("runes", Runes::BUNDLED),
+            ("perk_sets", PerkSets::BUNDLED),
+            ("difficulties", Difficulties::BUNDLED),
+            ("starting_unlocks", StartingUnlocks::BUNDLED),
+            ("constellations", Constellations::BUNDLED),
+            ("stardust", Stardust::BUNDLED),
+            ("trial", include_bytes!("../modes/trial.json")),
+            ("time_limit", TimeLimit::BUNDLED),
+            ("tutorial", include_bytes!("../modes/tutorial.json")),
+        ];
+        for (name, bytes) in bundled {
+            files.insert(name, bytes.to_vec());
+        }
+        files
+    }
+
+    /// The files of a pack, read with the checks of `Pack::from_bytes`. It is refused when
+    /// `export` would not write these bytes back (other whitespace or order, a different
+    /// `introduced` table, CRLF), so that the files give the same pack and so the same hash.
+    pub fn from_pack(bytes: &[u8]) -> Result<ContentFiles, PackError> {
+        Pack::from_bytes(bytes)?;
+        let parse_error = |e: serde_json::Error| PackError::Parse {
+            line: e.line(),
+            column: e.column(),
+        };
+        let pack: PackFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let mut files = ContentFiles::default();
+        for (name, raw) in members(&pack) {
+            files.insert(name, file_bytes(raw));
+        }
+        for slot in Self::LAYOUT {
+            if files.get(slot.name).is_some_and(|b| b.contains(&b'\r')) {
+                return Err(PackError::NotExportForm {
+                    path: location(slot.name),
+                });
+            }
+        }
+        let exported = files.export()?;
+        if exported != bytes {
+            let other: PackFile = serde_json::from_slice(&exported).map_err(parse_error)?;
+            let same_table = serde_json::to_string(&pack.introduced).ok()
+                == serde_json::to_string(&other.introduced).ok();
+            let path = if !same_table {
+                "$.introduced".to_string()
+            } else {
+                members(&pack)
+                    .into_iter()
+                    .zip(members(&other))
+                    .find(|((_, a), (_, b))| a.get() != b.get())
+                    .map_or("$".to_string(), |((name, _), _)| location(name))
+            };
+            return Err(PackError::NotExportForm { path });
+        }
+        Ok(files)
+    }
+
+    /// The files as a pack: what the content repository's first pack is made from. Each file is
+    /// written as it is, without its final newline, so that the pack gives the files' hashes
+    /// (see the module's documentation). A file an optional slot lacks is left out of the
+    /// pack. The result is checked as `Pack::from_bytes` checks any pack.
+    pub fn export(&self) -> Result<Vec<u8>, PackError> {
+        let get = |name: &'static str| self.get(name).ok_or(PackError::Missing { file: name });
+        let optional = |name: &'static str| self.get(name);
+        let file = |bytes: &[u8]| String::from_utf8_lossy(bytes.trim_ascii_end()).into_owned();
+
+        let stage_skills =
+            StageSkills::parse(get("stage_skills")?).map_err(PackError::in_file("stage_skills"))?;
+        let rewards = Rewards::parse_with(get("rewards")?, &stage_skills)
+            .map_err(PackError::in_file("rewards"))?;
+        let rewards = match optional("constellations") {
+            Some(bytes) => {
+                let sets = Constellations::parse_with(bytes, &rewards)
+                    .map_err(PackError::in_file("constellations"))?;
+                rewards.with_constellations(sets)
+            }
+            None => rewards,
+        };
+        let perk_sets =
+            PerkSets::parse(get("perk_sets")?).map_err(PackError::in_file("perk_sets"))?;
+        let runes = Runes::parse(get("runes")?).map_err(PackError::in_file("runes"))?;
+        let starting_unlocks = optional("starting_unlocks")
+            .map(|bytes| StartingUnlocks::parse_with(bytes, &perk_sets, &stage_skills, &runes))
+            .transpose()
+            .map_err(PackError::in_file("starting_unlocks"))?;
+        let stardust = optional("stardust")
+            .map(Stardust::parse)
+            .transpose()
+            .map_err(PackError::in_file("stardust"))?
+            .unwrap_or_else(|| Stardust::bundled().clone());
+        let trial = get("trial")?;
+        let tutorial = get("tutorial")?;
+        let content = RunContent::from_parts(
+            RunStats::parse(get("run_stats")?).map_err(PackError::in_file("run_stats"))?,
+            rewards,
+            Expertise::parse(get("expertise")?).map_err(PackError::in_file("expertise"))?,
+            MatchUps::parse(get("match_ups")?).map_err(PackError::in_file("match_ups"))?,
+            runes,
+            perk_sets,
+            Difficulties::parse(get("difficulties")?)
+                .map_err(PackError::in_file("difficulties"))?,
+            starting_unlocks,
+            stardust,
+            TimeLimit::parse(get("time_limit")?).map_err(PackError::in_file("time_limit"))?,
+            validate::parse_and_validate(trial).map_err(PackError::in_file("trial"))?,
+            trial.to_vec(),
+            validate::parse_and_validate(tutorial).map_err(PackError::in_file("tutorial"))?,
+            tutorial.to_vec(),
+            None,
+        );
+        let introduced = introduced_at(&content, SIM_VERSION);
+        let table = serde_json::to_string_pretty(&introduced).expect("the table serialises");
+
+        let mut out = String::new();
+        out.push_str(&format!(
+            "{{\n  \"schema_version\": {SCHEMA_VERSION},\n  \"sim_version\": {SIM_VERSION},\n"
+        ));
+        out.push_str(&format!(
+            "  \"introduced\": {},\n",
+            table.replace('\n', "\n  ")
+        ));
+        for slot in Self::LAYOUT.iter().filter(|s| !s.in_modes) {
+            if let Some(bytes) = self.get(slot.name) {
+                out.push_str(&format!("  \"{}\": {},\n", slot.name, file(bytes)));
+            }
+        }
+        out.push_str(&format!(
+            "  \"modes\": {{\n    \"trial\": {},\n    \"time_limit\": {},\n    \"tutorial\": {}\n  }}\n}}\n",
+            file(trial),
+            file(get("time_limit")?),
+            file(tutorial)
+        ));
+        let out = out.into_bytes();
+        Pack::from_bytes(&out)?;
+        Ok(out)
+    }
+}
+
+/// A pack's content files by name, in the layout's order.
+fn members(pack: &PackFile) -> Vec<(&'static str, &RawValue)> {
+    let mut out: Vec<(&'static str, &RawValue)> = vec![
+        ("run_stats", &pack.run_stats),
+        ("rewards", &pack.rewards),
+        ("stage_skills", &pack.stage_skills),
+        ("expertise", &pack.expertise),
+        ("match_ups", &pack.match_ups),
+        ("runes", &pack.runes),
+        ("perk_sets", &pack.perk_sets),
+        ("difficulties", &pack.difficulties),
+    ];
+    for (name, raw) in [
+        ("starting_unlocks", &pack.starting_unlocks),
+        ("constellations", &pack.constellations),
+        ("stardust", &pack.stardust),
+    ] {
+        if let Some(raw) = raw {
+            out.push((name, raw));
+        }
+    }
+    out.push(("trial", &pack.modes.trial));
+    out.push(("time_limit", &pack.modes.time_limit));
+    out.push(("tutorial", &pack.modes.tutorial));
+    out
+}
+
+/// The bundled content files as a pack: what the content repository's first pack is made
+/// from (`ContentFiles::export` of the bundled files).
+pub fn export_bundled() -> Vec<u8> {
+    ContentFiles::bundled()
+        .export()
+        .expect("the bundled files make a pack")
 }
