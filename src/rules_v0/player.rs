@@ -227,6 +227,17 @@ fn step_at<'a>(main: &'a Weapon, c: &ComboState) -> Option<&'a Step> {
     step
 }
 
+/// The charge level recorded for the combo's step at `index` in `levels` (4 bits a step).
+fn level_of(levels: u32, index: u8) -> u8 {
+    (levels >> (4 * u32::from(index)) & 0xf) as u8
+}
+
+/// `levels` with the step at `index` recorded as released at `level`.
+fn with_level(levels: u32, index: u8, level: u8) -> u32 {
+    let shift = 4 * u32::from(index);
+    levels & !(0xf << shift) | u32::from(level & 0xf) << shift
+}
+
 /// Whether the press that reached the current step was `smash`.
 fn last_press_smash(c: &ComboState) -> bool {
     c.depth > 0 && c.path >> (c.depth - 1) & 1 == 1
@@ -240,8 +251,10 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
         if c.hand && !c.dash {
             c.auto_path = c.path;
             c.auto_depth = c.depth;
+            c.auto_levels = c.levels;
         }
     }
+    c.levels = 0;
     c.hand = false;
     c.path = 0;
     c.depth = 0;
@@ -496,6 +509,14 @@ fn take_step(
     }
     c.hand |= by_hand;
     c.path |= u32::from(smash) << c.depth;
+    // A step auto mode plays carries the level the auto combo records for it (ADR-114); a
+    // press by hand starts at 0 and records its release.
+    let level = if by_hand {
+        0
+    } else {
+        level_of(c.auto_levels, c.depth)
+    };
+    c.levels = with_level(c.levels, c.depth, level);
     c.depth += 1;
     c.window_left = 0;
     events.push(DomainEvent::ComboStep {
@@ -667,6 +688,8 @@ fn release(
 ) {
     s.player.combo.charge = None;
     let level = level_at(charge, held);
+    let c = &mut s.player.combo;
+    c.levels = with_level(c.levels, c.depth.saturating_sub(1), level as u8);
     if level == 0 {
         strike(stage, s, &step.attack, 0, aim, events);
         return;
