@@ -232,7 +232,7 @@ fn rerolls_and_banishes_are_added_to_the_runs_counters() {
 
 #[test]
 fn an_offer_candidates_reward_makes_the_offer_four_and_never_more() {
-    let wide = |id: &str| kind(id, vec![entry("offer_candidates", 1)], 1_000, 1);
+    let wide = |id: &str| kind(id, vec![entry("offer_candidates", 1)], 1_000, 2);
     let mut list = vec![wide("wide_a"), wide("wide_b")];
     list.extend(["a", "b", "c", "d", "e"].map(|id| plain(id, 1)));
     let mut e = with(&near(4), list);

@@ -29,7 +29,7 @@ use crate::registry;
 use crate::run_stats::{self, StatEffect};
 use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use crate::trig::PER_DEGREE;
-use crate::validate::limits::{DAMAGE_SCALE, MAX_EVADE_CHARGES};
+use crate::validate::limits::{DAMAGE_SCALE, MAX_EVADE_CHARGES, MAX_HEAL_AMOUNT};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -64,6 +64,21 @@ pub const MAX_RUNE_HASTE_PCT: u32 = 300;
 /// bounds the match-up file's `max_type_bonus_pct`, where the bonuses that apply to an
 /// attack's type saturate (ADR-100, ADR-020).
 pub const MAX_TYPE_BONUS_PCT: u32 = 1_000;
+/// The most one reward widens the pickup circle, in percent (a placeholder bound, ADR-020).
+pub const MAX_PICKUP_RADIUS_PCT: u32 = 200;
+/// The most the picks of a run widen it: four times the stage's circle in all.
+pub const MAX_PICKUP_RADIUS_TOTAL_PCT: u32 = 300;
+/// The most one reward shortens the stage skill's cooldown, in percent.
+pub const MAX_SKILL_COOLDOWN_PCT: u32 = 50;
+/// The most the picks add up to: a cooldown is never below 40 percent of its base.
+pub const MAX_SKILL_COOLDOWN_TOTAL_PCT: u32 = 60;
+/// The most kills a heal-per-kills reward waits for between heals.
+pub const MAX_HEAL_KILLS: u32 = 100;
+/// The most rerolls or banishes one reward gives.
+pub const MAX_COUNTER_AMOUNT: u32 = 10;
+/// The most candidates an offer holds once offer-candidate rewards are taken: the base offer
+/// shows 3, and each such reward adds 1 (a placeholder bound, ADR-020).
+pub const MAX_OFFER_CANDIDATES: usize = 4;
 
 /// `ticks` shortened by `haste_pct` percent of Rune Haste (ADR-099 point 5): `ticks × 100 /
 /// (100 + h)` rounded up, at least 1. The haste is held to `MAX_RUNE_HASTE_PCT`, so an
@@ -145,6 +160,23 @@ pub enum RewardEffect {
     /// Hit points the main character regenerates each second, `amount` more (the perk
     /// `regen`'s counter).
     Regen,
+    /// The pickup circle of falling stars and heal pickups `amount` percent wider, adding up
+    /// over the picks to `MAX_PICKUP_RADIUS_TOTAL_PCT`.
+    PickupRadiusPct,
+    /// The stage skill's cooldown `amount` percent shorter, adding up over the picks to
+    /// `MAX_SKILL_COOLDOWN_TOTAL_PCT`.
+    SkillCooldownPct,
+    /// A heal of `amount` hit points (the stage's scale) each time the main character has
+    /// defeated `kills` enemies: kills that give credit only, not a self-destruct. The picks
+    /// add their amounts and heal at the shortest interval among them.
+    HealPerKills,
+    /// One more candidate in every offer, at most `MAX_OFFER_CANDIDATES` in all. Its `amount`
+    /// is 1.
+    OfferCandidates,
+    /// `amount` more rerolls for the run, as the perk `extra_rerolls` gives them.
+    Rerolls,
+    /// `amount` more banishes for the run, as the perk `extra_banishes` gives them.
+    Banishes,
 }
 
 impl RewardEffect {
@@ -166,6 +198,12 @@ impl RewardEffect {
             | RewardEffect::AttackTypeBonusPct
             | RewardEffect::ElementBonusPct
             | RewardEffect::Regen
+            | RewardEffect::PickupRadiusPct
+            | RewardEffect::SkillCooldownPct
+            | RewardEffect::HealPerKills
+            | RewardEffect::OfferCandidates
+            | RewardEffect::Rerolls
+            | RewardEffect::Banishes
             | RewardEffect::RandomRune => return None,
         })
     }
@@ -196,6 +234,10 @@ pub struct EffectEntry {
     /// has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub amount: Option<u32>,
+    /// The kills between two heals, from 1 to `MAX_HEAL_KILLS`: with the `heal_per_kills`
+    /// effect only, and required by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kills: Option<u32>,
 }
 
 /// The most effects one reward holds.
@@ -292,6 +334,8 @@ struct RawReward {
     #[serde(default)]
     amount: Option<u32>,
     #[serde(default)]
+    kills: Option<u32>,
+    #[serde(default)]
     limit: Option<u8>,
     #[serde(default)]
     named: bool,
@@ -311,7 +355,8 @@ impl TryFrom<RawReward> for Reward {
             || raw.skill.is_some()
             || raw.orbit.is_some()
             || raw.damage_type.is_some()
-            || raw.amount.is_some();
+            || raw.amount.is_some()
+            || raw.kills.is_some();
         let effects = match (raw.effects, raw.effect) {
             (Some(_), _) if single => {
                 return Err("a reward has `effects` or one effect's fields, not both".into());
@@ -323,6 +368,7 @@ impl TryFrom<RawReward> for Reward {
                 orbit: raw.orbit,
                 damage_type: raw.damage_type,
                 amount: raw.amount,
+                kills: raw.kills,
             }],
             (None, None) => return Err("a reward has `effects` or an `effect`".into()),
         };
@@ -455,11 +501,16 @@ fn most_of(effect: RewardEffect) -> u32 {
         RewardEffect::RangePct => MAX_RANGE_PCT,
         RewardEffect::RuneHaste => MAX_RUNE_HASTE_PCT,
         RewardEffect::MaxHp | RewardEffect::Regen => MAX_HP_AMOUNT,
+        RewardEffect::PickupRadiusPct => MAX_PICKUP_RADIUS_PCT,
+        RewardEffect::SkillCooldownPct => MAX_SKILL_COOLDOWN_PCT,
+        RewardEffect::HealPerKills => MAX_HEAL_AMOUNT,
+        RewardEffect::OfferCandidates => 1,
+        RewardEffect::Rerolls | RewardEffect::Banishes => MAX_COUNTER_AMOUNT,
         _ => MAX_AMOUNT,
     }
 }
 
-/// One effect entry on its own: its amount, skill, orbit and type, by its kind.
+/// One effect entry on its own: its amount, skill, orbit, type and kills, by its kind.
 fn validate_entry(
     entry: &EffectEntry,
     at: &dyn Fn(&str) -> String,
@@ -533,6 +584,24 @@ fn validate_entry(
         }
         (RewardEffect::TypeBonusPct, Some(_)) | (_, None) => {}
         (_, Some(_)) => issue(at("type"), "only a type bonus reward names a type".into()),
+    }
+    match (entry.effect, entry.kills) {
+        (RewardEffect::HealPerKills, None) => {
+            issue(at("kills"), format!("1 to {MAX_HEAL_KILLS} (missing)"))
+        }
+        (RewardEffect::HealPerKills, Some(kills)) => {
+            if !(1..=MAX_HEAL_KILLS).contains(&kills) {
+                issue(
+                    at("kills"),
+                    format!("1 to {MAX_HEAL_KILLS} (found {kills})"),
+                );
+            }
+        }
+        (_, Some(_)) => issue(
+            at("kills"),
+            "only a heal-per-kills reward names its kills".into(),
+        ),
+        (_, None) => {}
     }
 }
 
