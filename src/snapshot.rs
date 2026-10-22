@@ -60,6 +60,10 @@ pub struct Snapshot {
     /// Falling stars on the map, in the order they dropped (ADR-079 §2).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stars: Vec<StarView>,
+    /// The run's constellations and how many of each set's members are held (core#NS3); empty
+    /// without sets or without stars.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub constellations: Vec<ConstellationView>,
     /// Heal pickups on the map, in the order they dropped; empty without healing.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub heal_pickups: Vec<HealPickupView>,
@@ -224,6 +228,34 @@ pub enum OfferKind {
     Boss,
 }
 
+/// How far a set of named stars is (core#NS3).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConstellationView {
+    /// Its ID in the run's constellations file.
+    pub id: ContentId,
+    /// Its name.
+    pub name: String,
+    /// Members held, carried stars included.
+    pub held: u8,
+    /// The tier reached, counted from 1; 0 before the first.
+    pub tier: u8,
+    /// Members the next tier needs; the whole set once the top tier is reached.
+    pub needed: u8,
+}
+
+/// A candidate that is a member of a set: which one, what is held now and what the next tier
+/// needs (core#NS3).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConstellationProgress {
+    pub set: ContentId,
+    /// Members held now, before this candidate is taken.
+    pub held: u8,
+    /// Members the next tier needs; the whole set once the top tier is reached.
+    pub needed: u8,
+}
+
 /// A reward an offer holds.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -241,6 +273,9 @@ pub struct CandidateView {
     /// The named star's display name; with `named` only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub star: Option<String>,
+    /// The set a named star belongs to and how far it is; absent for a reward in no set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub constellation: Option<ConstellationProgress>,
 }
 
 /// One option of an open offer; `candidate` is a place in its candidates, from 0.

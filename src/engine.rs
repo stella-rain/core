@@ -612,6 +612,7 @@ impl Engine {
                     })
                     .collect()
             }),
+            constellations: rules_v0::constellation_views(self.content.rewards(), s),
             heal_pickups: s.heal_pickups.as_ref().map_or_else(Vec::new, |h| {
                 h.iter()
                     .map(|p| HealPickupView { id: p.id, at: p.at })
@@ -853,6 +854,9 @@ pub(crate) struct StarField {
     /// For each reward of the file: times taken, and whether it is banished.
     pub taken: Vec<u8>,
     pub banished: Vec<bool>,
+    /// For each set of the run's constellations: the members held, counted after every take
+    /// (core#NS3). The state hash writes the sets above 0 only.
+    pub set_counts: Vec<u8>,
 }
 
 /// A heal pickup on the map.

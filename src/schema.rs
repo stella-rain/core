@@ -4,6 +4,7 @@
 
 use schemars::schema_for;
 
+use crate::constellations::ConstellationsFile;
 use crate::difficulties::DifficultiesFile;
 use crate::event::DomainEvent;
 use crate::expertise::ExpertiseFile;
@@ -55,6 +56,10 @@ pub fn all() -> Vec<(&'static str, String)> {
         (
             "difficulties.schema.json",
             pretty(schema_for!(DifficultiesFile)),
+        ),
+        (
+            "constellations.schema.json",
+            pretty(schema_for!(ConstellationsFile)),
         ),
         ("runes.schema.json", pretty(schema_for!(RunesFile))),
         ("pack.schema.json", pretty(schema_for!(PackFile))),

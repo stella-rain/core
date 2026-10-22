@@ -137,7 +137,7 @@ pub(crate) use horde::spawn_boss;
 use horde::spawn_elite;
 pub(crate) use levels::{spend, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
-pub(crate) use stars::offer_view;
+pub(crate) use stars::{constellation_views, offer_view};
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
@@ -333,6 +333,7 @@ pub(crate) fn initial_state(
             pool: pool.rewards,
             taken: vec![0; rewards],
             banished: vec![false; rewards],
+            set_counts: vec![0; content.constellations().sets().len()],
         }),
         heal_pickups: stage.heal.as_ref().map(|_| Vec::new()),
         expertise: expertise::initial(stage, content.expertise()),
@@ -1532,6 +1533,18 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(count(&f.banished));
         for b in &f.banished {
             h.write_bool(*b);
+        }
+        // Then the sets with a member held, and nothing while none has, so that a run without
+        // sets hashes as it did before them.
+        let held = f.set_counts.iter().filter(|n| **n > 0).count();
+        if held > 0 {
+            h.write_u32(count(&f.set_counts));
+            for (i, n) in f.set_counts.iter().enumerate() {
+                if *n > 0 {
+                    h.write_u32(u32::try_from(i).unwrap_or(u32::MAX));
+                    h.write_u32(u32::from(*n));
+                }
+            }
         }
     }
     // After it, and only in a stage with healing, for the same reason: the heal pickups on the

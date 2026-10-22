@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::attack::{AttackRef, DamageType};
+use crate::constellations::Constellations;
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry;
@@ -478,6 +479,9 @@ pub struct RewardsFile {
 pub struct Rewards {
     rewards: Vec<Reward>,
     stage_skills: StageSkills,
+    /// The sets of named stars checked against these rewards (core#NS3): none unless a pack
+    /// or a caller gives them (`with_constellations`).
+    constellations: Constellations,
     sha256: [u8; 32],
 }
 
@@ -526,6 +530,7 @@ impl Rewards {
         Ok(Rewards {
             rewards: file.rewards,
             stage_skills: stage_skills.clone(),
+            constellations: Constellations::default(),
             sha256: Sha256::digest(bytes).into(),
         })
     }
@@ -543,6 +548,20 @@ impl Rewards {
     /// The stage skills its rewards were checked against.
     pub fn stage_skills(&self) -> &StageSkills {
         &self.stage_skills
+    }
+
+    /// The same rewards with `constellations`, which were read against them
+    /// (`Constellations::parse_with`).
+    pub fn with_constellations(self, constellations: Constellations) -> Rewards {
+        Rewards {
+            constellations,
+            ..self
+        }
+    }
+
+    /// The sets of named stars; empty for rewards read without the file.
+    pub fn constellations(&self) -> &Constellations {
+        &self.constellations
     }
 
     /// The SHA-256 of the bytes they were parsed from.
@@ -575,7 +594,7 @@ fn most_of(effect: RewardEffect) -> u32 {
 
 /// One effect entry on its own: its amount, skill, orbit, type, kills, radius and depth, by its
 /// kind.
-fn validate_entry(
+pub(crate) fn validate_entry(
     entry: &EffectEntry,
     at: &dyn Fn(&str) -> String,
     stage_skills: &StageSkills,
@@ -687,13 +706,13 @@ fn validate_entry(
 /// The caps over the entries of one reward: what a kind's entries add up to stays within the
 /// kind's largest amount, as the picks of a run do (ADR-020), a random rune stands alone, and
 /// a reward holds one orbit.
-fn validate_bundle(
-    reward: &Reward,
+pub(crate) fn validate_bundle(
+    effects: &[EffectEntry],
     at: &dyn Fn(&str) -> String,
     issue: &mut dyn FnMut(String, String),
 ) {
     let mut sums: Vec<(RewardEffect, Option<&ContentId>, Option<DamageType>, u64)> = Vec::new();
-    for e in &reward.effects {
+    for e in effects {
         let amount = u64::from(e.amount.unwrap_or(0));
         let key = (e.effect, e.skill.as_ref(), e.damage_type);
         match sums.iter_mut().find(|(k, s, t, _)| (*k, *s, *t) == key) {
@@ -712,20 +731,14 @@ fn validate_bundle(
             );
         }
     }
-    let orbits = reward
-        .effects
+    let orbits = effects
         .iter()
         .filter(|e| e.effect == RewardEffect::Orbit)
         .count();
     if orbits > 1 {
         issue(at("effects"), "a reward holds at most one orbit".into());
     }
-    if reward.effects.len() > 1
-        && reward
-            .effects
-            .iter()
-            .any(|e| e.effect == RewardEffect::RandomRune)
-    {
+    if effects.len() > 1 && effects.iter().any(|e| e.effect == RewardEffect::RandomRune) {
         issue(
             at("effects"),
             "a random rune is a reward of its own, with no other effect".into(),
@@ -840,7 +853,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
                 }
             }
         }
-        validate_bundle(reward, &at, &mut issue);
+        validate_bundle(&reward.effects, &at, &mut issue);
         validate_naming(&file.rewards[..i], reward, &at, &mut issue);
         if let Some(problem) = run_stats::text_problem(&reward.title, 1, run_stats::MAX_TITLE_CHARS)
         {

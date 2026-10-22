@@ -23,19 +23,22 @@
 //! once (`super::choose`). Every draw is from the run's generator, in this order.
 
 use crate::attack::DamageType;
+use crate::constellations;
 use crate::engine::{
     Due, HeldRune, OfferState, PlayerState, Progress, StarField, StarState, State,
 };
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::{
-    MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
+    EffectEntry, MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
     MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, Rarity, RewardEffect,
     Rewards,
 };
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
-use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
+use crate::snapshot::{
+    CandidateView, ConstellationProgress, ConstellationView, OfferKind, OfferOption, OfferView,
+};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
@@ -334,9 +337,20 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
     out
 }
 
-/// Takes the reward at `i` of the file: counts it toward its stack limit and does what it does.
-/// The rune a random rune drew, if it drew one. A pick from an open offer and a star the run
-/// starts with (ADR-107 point 3) go through here alike.
+/// What taking a reward gave besides its own effects.
+pub(super) struct Taken {
+    /// The rune a random rune drew, if it drew one.
+    pub rune: Option<Rune>,
+    /// The tiers its set newly reached (core#NS3): the set's place in the file and the tier,
+    /// counted from 1.
+    pub tiers: Vec<(usize, u8)>,
+}
+
+/// Takes the reward at `i` of the file: counts it toward its stack limit and does what it does,
+/// then, for a member of a set, counts the set's members held and applies each tier newly
+/// reached once: the difference from the tier before (`constellations::tier_delta`), so the full
+/// tier replaces the small one. A pick from an open offer and a star the run starts with
+/// (ADR-107 point 3, ADR-117) go through here alike.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn take(
     stage: &Stage,
@@ -347,12 +361,63 @@ pub(super) fn take(
     regen: &mut u32,
     f: &mut StarField,
     i: u16,
-) -> Option<Rune> {
+) -> Taken {
     let at = usize::from(i);
     f.taken[at] = f.taken[at].saturating_add(1);
     let reward = &rewards.rewards()[at];
+    let rune = apply_effects(
+        stage,
+        rewards,
+        rng,
+        progress,
+        player,
+        regen,
+        f,
+        i,
+        &reward.effects,
+    );
+    let mut tiers = Vec::new();
+    let sets = rewards.constellations();
+    if let Some(set) = sets.set_of(&reward.id) {
+        let c = &sets.sets()[set];
+        let held = c
+            .members
+            .iter()
+            .filter(|m| rewards.index_of(m).is_some_and(|p| f.taken[p] > 0))
+            .count();
+        let held = u8::try_from(held).unwrap_or(u8::MAX);
+        let before = f.set_counts.get(set).copied().unwrap_or(0);
+        if let Some(count) = f.set_counts.get_mut(set) {
+            *count = held;
+        }
+        for (t, tier) in c.tiers.iter().enumerate() {
+            if before < tier.threshold && tier.threshold <= held {
+                let lower = t.checked_sub(1).map(|p| &c.tiers[p]);
+                let delta = constellations::tier_delta(lower, tier);
+                apply_effects(stage, rewards, rng, progress, player, regen, f, i, &delta);
+                tiers.push((set, u8::try_from(t + 1).unwrap_or(u8::MAX)));
+            }
+        }
+    }
+    Taken { rune, tiers }
+}
+
+/// Does what `effects` do, once: the effects of the reward at `i` of the file (an orbit keys on
+/// that place), or of a constellation's tier.
+#[allow(clippy::too_many_arguments)]
+fn apply_effects(
+    stage: &Stage,
+    rewards: &Rewards,
+    rng: &mut SplitMix64,
+    progress: &mut Option<Progress>,
+    player: &mut PlayerState,
+    regen: &mut u32,
+    f: &mut StarField,
+    i: u16,
+    effects: &[EffectEntry],
+) -> Option<Rune> {
     let mut rune = None;
-    for entry in &reward.effects {
+    for entry in effects {
         // Every effect but the random rune's has an amount (`rewards::validate`).
         let amount = entry.amount.unwrap_or(0);
         match entry.effect {
@@ -474,13 +539,20 @@ pub(super) fn choose(
             let Some(&i) = o.candidates.get(usize::from(candidate)) else {
                 return;
             };
-            let rune = take(stage, rewards, rng, progress, player, regen, f, i);
+            let Taken { rune, tiers } = take(stage, rewards, rng, progress, player, regen, f, i);
             let at = usize::from(i);
             events.push(DomainEvent::RewardTaken {
                 reward: rewards.rewards()[at].id.clone(),
                 taken: f.taken[at],
                 rune,
+                star: rewards.rewards()[at].star.clone(),
             });
+            for (set, tier) in tiers {
+                events.push(DomainEvent::Constellation {
+                    set: rewards.constellations().sets()[set].id.clone(),
+                    tier,
+                });
+            }
             false
         }
         OfferOption::Reroll { candidate } => {
@@ -529,6 +601,38 @@ pub(super) fn choose(
     }
 }
 
+/// The set `reward` is a member of, with what is held and needed.
+fn progress(rewards: &Rewards, f: &StarField, reward: &ContentId) -> Option<ConstellationProgress> {
+    let sets = rewards.constellations();
+    let at = sets.set_of(reward)?;
+    let held = f.set_counts.get(at).copied().unwrap_or(0);
+    Some(ConstellationProgress {
+        set: sets.sets()[at].id.clone(),
+        held,
+        needed: sets.sets()[at].needed(held),
+    })
+}
+
+/// The run's sets and how far each is, for the snapshot.
+pub(crate) fn constellation_views(rewards: &Rewards, s: &State) -> Vec<ConstellationView> {
+    let Some(f) = s.stars.as_ref() else {
+        return Vec::new();
+    };
+    rewards
+        .constellations()
+        .sets()
+        .iter()
+        .zip(&f.set_counts)
+        .map(|(c, held)| ConstellationView {
+            id: c.id.clone(),
+            name: c.name.clone(),
+            held: *held,
+            tier: c.tier_reached(*held),
+            needed: c.needed(*held),
+        })
+        .collect()
+}
+
 /// What the frontend shows of the open offer.
 pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
     let f = s.stars.as_ref()?;
@@ -547,6 +651,7 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                     hidden: r.is_random_rune(),
                     named: r.named,
                     star: r.star.clone(),
+                    constellation: progress(rewards, f, &r.id),
                 }
             })
             .collect(),

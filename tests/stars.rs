@@ -336,6 +336,7 @@ fn taking_a_candidate_applies_its_reward_and_the_run_goes_on() {
             reward: ContentId(first),
             taken: 1,
             rune: None,
+            star: None,
         }]
     );
     assert_eq!(e.snapshot().player.hp, hp + 5);

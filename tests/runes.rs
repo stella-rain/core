@@ -259,6 +259,7 @@ fn the_pick_draws_a_rune_not_held_and_the_event_carries_it() {
             reward,
             taken: 1,
             rune: Some(rune),
+            ..
         },
     ] = e.events()
     else {

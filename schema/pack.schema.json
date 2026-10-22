@@ -4,6 +4,17 @@
   "description": "The pack file. Each content file is the JSON object its own schema describes.",
   "type": "object",
   "properties": {
+    "constellations": {
+      "description": "The sets of named stars (core#NS3), checked against the pack's own rewards. Optional: a\npack released before it has no sets.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConstellationsFile"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "difficulties": {
       "$ref": "#/$defs/DifficultiesFile"
     },
@@ -848,6 +859,94 @@
             "distance"
           ]
         }
+      ]
+    },
+    "Constellation": {
+      "description": "One set of named stars.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Unique within the file; lowercase snake_case, at most 32 characters.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "members": {
+          "description": "Named stars of the rewards file, 2 to `MAX_MEMBERS`, each in no other set.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          }
+        },
+        "name": {
+          "description": "The name the frontend shows, 1 to `MAX_TITLE_CHARS` characters.",
+          "type": "string"
+        },
+        "tiers": {
+          "description": "From the smallest threshold to the member count.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConstellationTier"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "members",
+        "tiers"
+      ]
+    },
+    "ConstellationTier": {
+      "description": "What a set gives once `threshold` of its members are held.",
+      "type": "object",
+      "properties": {
+        "effects": {
+          "description": "The effects the set has at this tier in all: the reward effect list, at most\n`MAX_TIER_EFFECTS`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EffectEntry"
+          }
+        },
+        "threshold": {
+          "description": "Members held, from 1 to the member count; ascending over the tiers, the last being the\nmember count.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "threshold",
+        "effects"
+      ]
+    },
+    "ConstellationsFile": {
+      "description": "The constellations file: the sets of named stars.",
+      "type": "object",
+      "properties": {
+        "constellations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Constellation"
+          }
+        },
+        "schema_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sim_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "sim_version",
+        "constellations"
       ]
     },
     "ContentId": {
