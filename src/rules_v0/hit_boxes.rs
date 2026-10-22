@@ -37,11 +37,7 @@ struct Swing {
     owner: EntityId,
     slot: u8,
     friendly: bool,
-    centre: Point,
-    facing: Dir,
-    radius: i32,
-    /// `None` for a circle, or an arc of 180 degrees or more to each side, which is one.
-    arc: Option<Sector>,
+    area: Area,
     damage: u32,
     damage_type: Option<DamageType>,
     rehit_ticks: Option<u32>,
@@ -51,6 +47,15 @@ struct Swing {
     rune: Option<Rune>,
     /// A homing missile's: one hit, then nothing.
     once: bool,
+}
+
+/// The ground a hit box covers: a circle at `centre`, narrowed to a sector when `arc` is set.
+struct Area {
+    centre: Point,
+    facing: Dir,
+    radius: i32,
+    /// `None` for a circle, or an arc of 180 degrees or more to each side, which is one.
+    arc: Option<Sector>,
 }
 
 /// What an arc's test needs, worked out once per swing rather than once per target: the cosine
@@ -120,15 +125,17 @@ fn active_swings(s: &State) -> Vec<Swing> {
             owner: r.owner,
             slot: r.slot,
             friendly: r.friendly,
-            centre: centre(
-                r.at.unwrap_or_else(|| s.at(owner)),
-                r.facing,
-                offset.forward.0,
-                offset.right.0,
-            ),
-            facing: r.facing,
-            radius: radius.0,
-            arc,
+            area: Area {
+                centre: centre(
+                    r.at.unwrap_or_else(|| s.at(owner)),
+                    r.facing,
+                    offset.forward.0,
+                    offset.right.0,
+                ),
+                facing: r.facing,
+                radius: radius.0,
+                arc,
+            },
             damage: super::attacks::phase_damage(r),
             damage_type: p.damage_type,
             rehit_ticks: p.rehit_ticks,
@@ -158,23 +165,29 @@ fn centre(at: Point, facing: Dir, forward: i32, right: i32) -> Point {
 
 /// Whether the swing's hit box overlaps the circle at `at` with `radius`.
 fn covers(w: &Swing, at: Point, radius: i32) -> bool {
-    if !overlaps(w.centre, w.radius, at, radius) {
-        return false;
+    w.area.covers(at, radius)
+}
+
+impl Area {
+    fn covers(&self, at: Point, radius: i32) -> bool {
+        if !overlaps(self.centre, self.radius, at, radius) {
+            return false;
+        }
+        let Some(arc) = &self.arc else {
+            return true;
+        };
+        let d = (
+            i128::from(at.x.0) - i128::from(self.centre.x.0),
+            i128::from(at.y.0) - i128::from(self.centre.y.0),
+        );
+        // A centre within the angle and within reach overlaps; one outside the angle overlaps only
+        // if its circle crosses one of the two edges, the nearest part of the sector to it.
+        within_angle(d, self.facing, arc.cos)
+            || arc
+                .edges
+                .iter()
+                .any(|&edge| touches_edge(d, edge, self.radius, radius))
     }
-    let Some(arc) = &w.arc else {
-        return true;
-    };
-    let d = (
-        i128::from(at.x.0) - i128::from(w.centre.x.0),
-        i128::from(at.y.0) - i128::from(w.centre.y.0),
-    );
-    // A centre within the angle and within reach overlaps; one outside the angle overlaps only
-    // if its circle crosses one of the two edges, the nearest part of the sector to it.
-    within_angle(d, w.facing, arc.cos)
-        || arc
-            .edges
-            .iter()
-            .any(|&edge| touches_edge(d, edge, w.radius, radius))
 }
 
 /// Whether `d` is at most the half angle whose cosine is `cos` from `facing`:
@@ -242,7 +255,7 @@ fn take_hit(s: &mut State, w: &Swing, target: EntityId) -> bool {
 
 fn shot(w: &Swing) -> Shot {
     Shot {
-        at: w.centre,
+        at: w.area.centre,
         owner: w.owner,
         friendly: w.friendly,
         damage: w.damage,
@@ -283,7 +296,7 @@ fn hit_enemy_side(
             }
         }
     }
-    grid.within(w.centre, w.radius, found);
+    grid.within(w.area.centre, w.area.radius, found);
     for &i in found.iter() {
         let e = &s.enemies[i];
         let (id, at, hp) = (e.id, e.at, e.hp);
