@@ -698,7 +698,9 @@ fn melee() -> Definition {
 /// the field. Auto mode alone for 100 ticks (the elite first, then the bats as they fall);
 /// combos by hand with assist for 100; then assist on while the main character walks up to the
 /// boss, pressing `main` twice and holding it from the third step's start for a charge (which
-/// halves its speed), with auto mode on again from tick 262, until the boss is the target.
+/// halves its speed), with auto mode on again from tick 302, until the boss is the target. The
+/// presses wait until the combos by hand have run out of their window (the Sword's chain is five
+/// A's deep), so they start from the root.
 fn assist() -> Definition {
     let bat = enemy(30, hold(0, 0), json!([]));
     let mut elite = enemy(40, hold(0, 0), json!([]));
@@ -718,7 +720,7 @@ fn assist() -> Definition {
         stage_full(600, Some(boss_at(1_000_000, 40_000)), waves, vec![]),
         json!({ "preset": { "id": "giant_sword" } }),
     );
-    let inputs = (0..320)
+    let inputs = (0..360)
         .map(|t| match t {
             0..100 => Input {
                 auto: true,
@@ -729,9 +731,9 @@ fn assist() -> Definition {
                 ..combos(t, idle())
             },
             _ => Input {
-                main: t == 205 || t == 225 || t == 240 || (250..285).contains(&t),
+                main: t == 245 || t == 265 || (280..325).contains(&t),
                 assist: true,
-                auto: t >= 262,
+                auto: t >= 302,
                 ..moving(0, -127)
             },
         })
