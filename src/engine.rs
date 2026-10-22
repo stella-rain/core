@@ -507,6 +507,7 @@ impl Engine {
                         perfect,
                     }
                 }),
+                auto_charge: rules_v0::auto_charge_view(s),
                 hold: rules_v0::hold_view(&self.stage, s)
                     .map(|(held, max_ticks)| HoldView { held, max_ticks }),
                 target: s.player.target,

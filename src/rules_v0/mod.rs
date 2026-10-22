@@ -101,7 +101,7 @@ mod stardust;
 mod stars;
 mod stun;
 
-pub(crate) use player::{charge_view, combo_view, hold_view};
+pub(crate) use player::{auto_charge_view, charge_view, combo_view, hold_view};
 mod select;
 
 use crate::attack::{DamageType, MatchUp, Profile};
