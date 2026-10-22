@@ -29,7 +29,7 @@ use crate::engine::{
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::{
-    MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
+    EffectEntry, MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
     MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, Rarity, RewardEffect,
     Rewards,
 };
@@ -351,8 +351,35 @@ pub(super) fn take(
     let at = usize::from(i);
     f.taken[at] = f.taken[at].saturating_add(1);
     let reward = &rewards.rewards()[at];
+    apply_effects(
+        stage,
+        rewards,
+        rng,
+        progress,
+        player,
+        regen,
+        f,
+        i,
+        &reward.effects,
+    )
+}
+
+/// Does what `effects` do, once: the effects of the reward at `i` of the file (an orbit keys on
+/// that place), or of a constellation's tier.
+#[allow(clippy::too_many_arguments)]
+fn apply_effects(
+    stage: &Stage,
+    rewards: &Rewards,
+    rng: &mut SplitMix64,
+    progress: &mut Option<Progress>,
+    player: &mut PlayerState,
+    regen: &mut u32,
+    f: &mut StarField,
+    i: u16,
+    effects: &[EffectEntry],
+) -> Option<Rune> {
     let mut rune = None;
-    for entry in &reward.effects {
+    for entry in effects {
         // Every effect but the random rune's has an amount (`rewards::validate`).
         let amount = entry.amount.unwrap_or(0);
         match entry.effect {
