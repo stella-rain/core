@@ -13,7 +13,6 @@ use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{
     self, CarriedStar, DEFAULT_PERK_SET, MAX_CARRIED_STARS, MAX_LUMINE, MAX_RUNE_POOL, RunSetup,
 };
-use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::validate::limits::DAMAGE_SCALE;
 use stella_rain_core::validate::{Error, Issue};
@@ -254,7 +253,7 @@ fn a_reward_is_carried_no_more_times_than_it_stacks() {
         .as_bytes(),
     )
     .unwrap();
-    let content = RunContent::new(RunStats::bundled().clone(), rewards);
+    let content = RunContent::new(common::design_run_stats(), rewards);
     let setup = |n: usize| RunSetup {
         carried: carry(&vec!["once"; n]),
         lumine: 5,
@@ -278,7 +277,7 @@ fn the_random_rune_is_not_a_carried_star() {
         .as_bytes(),
     )
     .unwrap();
-    let content = RunContent::new(RunStats::bundled().clone(), rewards);
+    let content = RunContent::new(common::design_run_stats(), rewards);
     let setup = RunSetup {
         carried: carry(&["random_rune"]),
         lumine: 1,
@@ -536,7 +535,7 @@ fn random_rune_content() -> RunContent {
         .as_bytes(),
     )
     .unwrap();
-    RunContent::new(RunStats::bundled().clone(), rewards)
+    RunContent::new(common::design_run_stats(), rewards)
         .with_perk_sets(plain_content().perk_sets().clone())
 }
 

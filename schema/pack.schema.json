@@ -3452,6 +3452,15 @@
       "description": "The run stats file.",
       "type": "object",
       "properties": {
+        "enemy_attack_damage": {
+          "description": "The damage an enemy's or the boss's attack does when it names none, in stored hit points,\n1 to `MAX_PLAYER_HP`; absent, `DEFAULT_ENEMY_ATTACK_DAMAGE`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
         "max_attack_speed_pct": {
           "description": "The most the attack speed total reaches, in percent, 1 to `MAX_ATTACK_SPEED_PCT`\n(app#298); absent, `DEFAULT_MAX_ATTACK_SPEED_PCT`.",
           "type": [

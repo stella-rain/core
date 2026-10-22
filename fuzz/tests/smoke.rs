@@ -56,7 +56,9 @@ fn run_replays() -> Vec<Vec<u8>> {
     let mut cases: Vec<_> = fs::read_dir(&dir)
         .expect("the run corpus directory")
         .map(|e| e.expect("a run case").path())
-        .filter(|case| !case.join("mode.json").exists())
+        // The `stage_skill` case plays with an enemy attack of its own (see `tests/corpus.rs`),
+        // so it does not verify with the bundled content.
+        .filter(|case| !case.join("mode.json").exists() && !case.ends_with("stage_skill"))
         .collect();
     cases.sort();
     assert!(!cases.is_empty(), "the corpus has no run cases");

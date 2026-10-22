@@ -715,6 +715,9 @@ pub(crate) struct State {
     pub stun: crate::run_stats::StunRules,
     /// The cap of the attack speed total (app#298): content, as the stun rules are.
     pub max_attack_speed_pct: u32,
+    /// The damage an attack does when an enemy or the boss makes it and the attack names none:
+    /// the run stats file's, content as the stun rules are.
+    pub enemy_attack_damage: u32,
     /// The cap of Rune Haste (app#298): the rewards file's, held to the sum of the picks where
     /// it applies.
     pub max_rune_haste_pct: u32,

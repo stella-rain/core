@@ -34,6 +34,7 @@ mod elite_pack_leader;
 mod elite_shrine;
 mod elite_traits;
 mod elites;
+mod enemy_damage;
 mod enemy_role_content;
 mod enemy_roles;
 mod engine;

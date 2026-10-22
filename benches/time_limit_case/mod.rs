@@ -7,6 +7,7 @@ use stella_rain_core::engine::{Engine, Load};
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::{self, RunSetup};
+use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate;
@@ -138,9 +139,18 @@ pub fn input(tick: u32) -> Input {
     }
 }
 
+/// The bundled content with an enemy's attack at 100 stored, as the case was measured: the
+/// scripted input does not dodge, and the bundled 10,000 would end the run before the tick.
+fn content() -> RunContent {
+    let mut v: serde_json::Value = serde_json::from_slice(RunStats::BUNDLED).unwrap();
+    v["enemy_attack_damage"] = serde_json::json!(100);
+    let stats = RunStats::parse(v.to_string().as_bytes()).unwrap();
+    RunContent::new(stats, RunContent::bundled().rewards().clone())
+}
+
 /// An engine `WARMUP_TICKS` ticks into the run: the next `step` is the measured tick.
 pub fn warmed_up() -> Engine {
-    let mut engine = Engine::new_with(&stage(), RunContent::bundled()).expect("the run starts");
+    let mut engine = Engine::new_with(&stage(), &content()).expect("the run starts");
     for tick in 1..=WARMUP_TICKS {
         engine.step(input(tick));
     }

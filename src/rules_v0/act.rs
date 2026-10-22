@@ -8,7 +8,7 @@ use crate::stage::Stage;
 use super::agents::{agent_def, agent_mut};
 use super::attacks;
 use super::entity::Who;
-use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, ENEMY_ATTACK_DAMAGE, spawn_enemy};
+use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, spawn_enemy};
 
 /// Does the action for rule `rule_index` of `me`, aimed at `target`. False if this version
 /// cannot do it, in which case the rule does not fire and the next one gets its turn.
@@ -23,12 +23,12 @@ pub(super) fn perform(
 ) -> bool {
     match action {
         // An attack does as much as the main character's weapons (its attack stat) if an ally
-        // makes it, and `ENEMY_ATTACK_DAMAGE` (1 at the design values) if an enemy does.
+        // makes it, and the run stats file's `enemy_attack_damage` if an enemy does.
         Action::Attack { attack } => {
             let base = if State::is_ally(me) {
                 stage.player.atk
             } else {
-                ENEMY_ATTACK_DAMAGE
+                s.enemy_attack_damage
             };
             // The boss's clock is its phase's, so `phase_time` is the phase's time.
             let age = match (me, s.boss.as_ref()) {

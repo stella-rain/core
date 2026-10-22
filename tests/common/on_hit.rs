@@ -9,7 +9,6 @@ use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::OfferOption;
@@ -111,7 +110,7 @@ pub fn content(rewards: Vec<Value>, skills: Option<Value>, runes: Runes) -> RunC
         None => Rewards::parse(file.as_bytes()),
     }
     .expect("the test rewards validate");
-    RunContent::new(RunStats::bundled().clone(), rewards).with_runes(runes)
+    RunContent::new(super::design_run_stats(), rewards).with_runes(runes)
 }
 
 pub fn with(stage: &Stage, content: &RunContent) -> Engine {

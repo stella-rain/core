@@ -244,7 +244,7 @@ fn a_boss_kill_heals_a_quarter_of_the_most_hit_points_as_far_as_the_most_allows(
     // The shooters' bullets hurt the main character once: the invulnerability after a hit
     // absorbs the rest. The heal is 25 percent of the most (250) as far as the most leaves room
     // for the hit points it had before the heal.
-    let mut e = Engine::new(&boss_stage_with(3, 100, heal_json(25, 150, 5))).unwrap();
+    let mut e = engine(&boss_stage_with(3, 100, heal_json(25, 150, 5)));
     let seen = run(&mut e, 600, boss_dead);
     assert!(boss_dead(&e), "the boss falls within 600 ticks");
     let amount = healed(&seen)[0];
@@ -256,7 +256,7 @@ fn a_boss_kill_heals_a_quarter_of_the_most_hit_points_as_far_as_the_most_allows(
 #[test]
 fn a_boss_kill_heals_up_to_the_most_hit_points_and_no_further() {
     // One bullet: 900 on the kill's tick; 250 more would be 1150, so it heals 100 to the most.
-    let mut e = Engine::new(&boss_stage_with(1, 100, heal_json(25, 150, 5))).unwrap();
+    let mut e = engine(&boss_stage_with(1, 100, heal_json(25, 150, 5)));
     let seen = run(&mut e, 600, boss_dead);
     assert_eq!(healed(&seen), vec![100]);
     assert_eq!(hp(&e), MAX_HP, "never above the most");
@@ -266,7 +266,7 @@ fn a_boss_kill_heals_up_to_the_most_hit_points_and_no_further() {
 fn a_boss_kill_heals_nothing_in_a_stage_without_healing() {
     let mut stage = boss_stage_with(3, 100, heal_json(25, 150, 5));
     stage.heal = None;
-    let mut e = Engine::new(&stage).unwrap();
+    let mut e = engine(&stage);
     let seen = run(&mut e, 600, boss_dead);
     assert!(boss_dead(&e), "the boss falls within 600 ticks");
     assert!(healed(&seen).is_empty(), "no heal without the config");
@@ -287,7 +287,7 @@ fn a_regular_kill_drops_a_pickup_at_one_in_one_and_the_first_heals_on_touch() {
         ),
         heal_json(25, 1, 5),
     );
-    let mut e = Engine::new(&stage).unwrap();
+    let mut e = engine(&stage);
     let seen = run(&mut e, 300, |e| e.tick() >= 200);
     assert_eq!(count(&seen, is_drop), 3, "every regular kill drops one");
     assert_eq!(healed(&seen)[0], 100, "the first pickup heals to the most");
@@ -308,7 +308,7 @@ fn a_pickup_heals_300_shown_hit_points_as_far_as_the_most_allows() {
         ),
         heal_json(25, 1, 5),
     );
-    let mut e = Engine::new(&stage).unwrap();
+    let mut e = engine(&stage);
     let seen = run(&mut e, 300, |e| e.tick() >= 90);
     assert_eq!(healed(&seen), vec![100]);
     assert_eq!(hp(&e), MAX_HP, "at the most, never above");
@@ -328,7 +328,7 @@ fn a_pickup_heals_far_more_than_300_raw_hit_points() {
         heal_json(25, 1, 5),
     );
     stage.player.hp = MAX_PLAYER_HP;
-    let mut e = Engine::new(&stage).unwrap();
+    let mut e = engine(&stage);
     let seen = run(&mut e, 300, |e| e.tick() >= 90);
     assert_eq!(healed(&seen), vec![90 * DAMAGE_SCALE]);
     assert_eq!(hp(&e), MAX_PLAYER_HP, "at the most, never above");
@@ -357,8 +357,8 @@ fn the_pickup_draw_is_one_in_150_and_the_same_per_seed() {
         ),
         heal_json(25, 150, 16),
     );
-    let mut a = Engine::new(&stage).unwrap();
-    let mut b = Engine::new(&stage).unwrap();
+    let mut a = engine(&stage);
+    let mut b = engine(&stage);
     let mut kills = 0_usize;
     let mut drops = 0_usize;
     for _ in 0..1_500 {
@@ -385,7 +385,7 @@ fn the_pickups_on_the_map_stay_within_the_cap() {
         stage_full(600, Some(far_boss()), vec![targets(1, 6)], vec![]),
         heal,
     );
-    let mut e = Engine::new(&stage).unwrap();
+    let mut e = engine(&stage);
     let seen = run(&mut e, 300, |e| e.tick() >= 200);
     assert_eq!(e.snapshot().heal_pickups.len(), 2, "held to the cap");
     assert_eq!(count(&seen, is_drop), 2, "the kills past the cap drop none");

@@ -34,7 +34,6 @@ use crate::snapshot::PatternView;
 use crate::stage::Stage;
 use crate::stage::{Step, Transition};
 
-use super::ENEMY_ATTACK_DAMAGE;
 use super::agents::{condition_holds, fire_first_rule, new_rule_states, step_order};
 use super::attacks;
 use super::entity::Who;
@@ -315,18 +314,10 @@ fn timeline(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     }
 }
 
-/// An attack of the boss's own, aimed at the main character, `ENEMY_ATTACK_DAMAGE` a bullet (1
-/// at the design values), on the phase's clock: `phase_time` is 0 on the first tick of the phase.
+/// An attack of the boss's own, aimed at the main character, the run stats file's
+/// `enemy_attack_damage` a bullet, on the phase's clock: `phase_time` is 0 on the first tick of the phase.
 fn start_attack(s: &mut State, attack: &AttackRef, events: &mut Vec<DomainEvent>) -> bool {
     let age = s.boss.as_ref().map_or(0, |b| b.phase_age.saturating_sub(1));
-    attacks::start_aged(
-        s,
-        Who::Boss,
-        0,
-        Who::Player,
-        attack,
-        ENEMY_ATTACK_DAMAGE,
-        age,
-        events,
-    )
+    let damage = s.enemy_attack_damage;
+    attacks::start_aged(s, Who::Boss, 0, Who::Player, attack, damage, age, events)
 }

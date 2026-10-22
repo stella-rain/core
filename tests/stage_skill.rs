@@ -12,7 +12,6 @@ use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::{EntityKind, OfferOption};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
@@ -118,7 +117,7 @@ fn content(skills: Vec<Value>, rewards: &[(&str, &str, u32)]) -> Rewards {
 }
 
 fn with(stage: &Stage, rewards: Rewards) -> Engine {
-    let content = RunContent::new(RunStats::bundled().clone(), rewards);
+    let content = RunContent::new(common::design_run_stats(), rewards);
     Engine::new_with(stage, &content).expect("the test stage is valid")
 }
 

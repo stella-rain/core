@@ -47,5 +47,6 @@
     "immune_ticks": 60,
     "elite_pct": 50
   },
-  "max_attack_speed_pct": 500
+  "max_attack_speed_pct": 500,
+  "enemy_attack_damage": 10000
 }

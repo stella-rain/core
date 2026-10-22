@@ -38,9 +38,18 @@ fn a_stage_scaled_by_100_ends_as_it_did_at_design_values() {
     let cases = definitions();
     assert_eq!(cases.len(), STAGES.len());
     for (name, bytes, inputs) in cases {
+        // The corpus's evade stage holds the most hit points a stage may, for the bundled hit of
+        // 10,000; at design values it holds the 99 the table above was recorded with.
+        let bytes = if name == "evade" {
+            let mut v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            v["player"]["hp"] = serde_json::json!(99);
+            v.to_string().into_bytes()
+        } else {
+            bytes
+        };
         let scaled = common::scaled_bytes(&bytes, SCALE);
         let stage = parse_and_validate(&scaled).unwrap();
-        let mut engine = Engine::new(&stage).unwrap();
+        let mut engine = common::engine(&stage);
         let mut died = 0;
         for input in &inputs {
             engine.step(*input);

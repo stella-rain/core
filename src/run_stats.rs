@@ -20,6 +20,7 @@ use sha2::{Digest, Sha256};
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry;
+use crate::validate::limits::MAX_PLAYER_HP;
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -47,6 +48,11 @@ pub const MAX_STUN_IMMUNE_TICKS: u32 = 600;
 /// weighed in app#298 allowed. Expertise options have no stack limit, so the total saturates
 /// at the file's cap (ADR-099).
 pub const MAX_ATTACK_SPEED_PCT: u32 = 800;
+
+/// What an attack does when an enemy or the boss makes it and the attack names none, when the
+/// file names none: 100 shown hit points, scaled (ADR-103). The file's value is bounded by
+/// `MAX_PLAYER_HP`, the most the main character holds.
+pub const DEFAULT_ENEMY_ATTACK_DAMAGE: u32 = 100 * crate::validate::limits::DAMAGE_SCALE;
 
 /// The cap of a file that names none: the cap before it was content (app#298 kept it).
 pub const DEFAULT_MAX_ATTACK_SPEED_PCT: u32 = 500;
@@ -135,6 +141,10 @@ pub struct RunStatsFile {
     /// (app#298); absent, `DEFAULT_MAX_ATTACK_SPEED_PCT`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_attack_speed_pct: Option<u32>,
+    /// The damage an enemy's or the boss's attack does when it names none, in stored hit points,
+    /// 1 to `MAX_PLAYER_HP`; absent, `DEFAULT_ENEMY_ATTACK_DAMAGE`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enemy_attack_damage: Option<u32>,
 }
 
 /// Run stats that passed validation, and the SHA-256 of the bytes they came from.
@@ -143,6 +153,7 @@ pub struct RunStats {
     stats: Vec<RunStat>,
     stun: StunRules,
     max_attack_speed_pct: u32,
+    enemy_attack_damage: u32,
     sha256: [u8; 32],
 }
 
@@ -188,6 +199,9 @@ impl RunStats {
             max_attack_speed_pct: file
                 .max_attack_speed_pct
                 .unwrap_or(DEFAULT_MAX_ATTACK_SPEED_PCT),
+            enemy_attack_damage: file
+                .enemy_attack_damage
+                .unwrap_or(DEFAULT_ENEMY_ATTACK_DAMAGE),
             sha256: Sha256::digest(bytes).into(),
         })
     }
@@ -205,6 +219,12 @@ impl RunStats {
     /// The most the attack speed total reaches, in percent: the file's, or the default.
     pub fn max_attack_speed_pct(&self) -> u32 {
         self.max_attack_speed_pct
+    }
+
+    /// The damage an enemy's or the boss's attack does when it names none: the file's, or the
+    /// default.
+    pub fn enemy_attack_damage(&self) -> u32 {
+        self.enemy_attack_damage
     }
 
     /// The SHA-256 of the bytes they were parsed from.
@@ -277,6 +297,14 @@ pub fn validate(file: &RunStatsFile) -> Result<(), Error> {
         issue(
             "$.max_attack_speed_pct".into(),
             format!("1 to {MAX_ATTACK_SPEED_PCT} (found {cap})"),
+        );
+    }
+    if let Some(damage) = file.enemy_attack_damage
+        && !(1..=MAX_PLAYER_HP).contains(&damage)
+    {
+        issue(
+            "$.enemy_attack_damage".into(),
+            format!("1 to {MAX_PLAYER_HP} (found {damage})"),
         );
     }
     if issues.is_empty() {
