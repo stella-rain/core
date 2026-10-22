@@ -4,21 +4,21 @@
   "on_hit": [
     {
       "rune": "explosion",
-      "cooldown_ticks": 120,
-      "damage": 1500,
+      "cooldown_ticks": 90,
+      "damage": 2500,
       "attack": [
         {
           "kind": "active",
           "ticks": 6,
           "type": "pyro",
-          "hit_box": { "type": "circle", "radius": 10240 }
+          "hit_box": { "type": "circle", "radius": 12288 }
         }
       ]
     },
     {
       "rune": "thunder",
-      "cooldown_ticks": 90,
-      "damage": 2000,
+      "cooldown_ticks": 60,
+      "damage": 3000,
       "attack": [
         {
           "kind": "wind_up",
@@ -35,8 +35,8 @@
     },
     {
       "rune": "boomerang",
-      "cooldown_ticks": 150,
-      "damage": 1200,
+      "cooldown_ticks": 120,
+      "damage": 1800,
       "attack": [
         {
           "kind": "active",
@@ -52,9 +52,9 @@
     },
     {
       "rune": "homing_missiles",
-      "cooldown_ticks": 180,
-      "damage": 800,
-      "missiles": 3,
+      "cooldown_ticks": 150,
+      "damage": 1000,
+      "missiles": 4,
       "range": 40960,
       "attack": [
         {
@@ -68,26 +68,26 @@
   "damage_over_time": [
     {
       "rune": "bleed",
-      "interval_ticks": 30,
+      "interval_ticks": 20,
       "duration_ticks": 180,
       "damage": 300,
-      "max_stacks": 5,
+      "max_stacks": 6,
       "type": "slash"
     },
     {
       "rune": "poison",
-      "interval_ticks": 30,
+      "interval_ticks": 20,
       "duration_ticks": 180,
       "damage": 300,
-      "max_stacks": 5,
+      "max_stacks": 6,
       "type": "dendro"
     },
     {
       "rune": "burn",
-      "interval_ticks": 30,
+      "interval_ticks": 20,
       "duration_ticks": 180,
       "damage": 300,
-      "max_stacks": 5,
+      "max_stacks": 6,
       "type": "pyro"
     }
   ]
