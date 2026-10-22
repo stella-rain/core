@@ -166,6 +166,22 @@ class ChecksPassed(unittest.TestCase):
         for name in names:
             r.checks_passed([run("tests", run_id=1), run(name, conclusion="failure", run_id=3)], "9")
 
+    def test_auto_merges_job_is_not_a_gate_whatever_its_conclusion(self):
+        # Candidate run 39693572498: auto-merge's runs on main's commit were cancelled by its
+        # concurrency group when a newer run started.
+        name = "merge / merge when every check is green"
+        for conclusion in ("cancelled", "failure", "success"):
+            r.checks_passed([run("tests", run_id=1), run(name, conclusion=conclusion, run_id=5)], "9")
+        r.checks_passed([run(name, status="in_progress", conclusion=None, run_id=5)], "9")
+        r.checks_passed([run(name, conclusion="cancelled", run_id=5)], "9")
+
+    def test_a_real_gate_still_fails_beside_auto_merges_cancelled_job(self):
+        merge = run("merge / merge when every check is green", conclusion="cancelled", run_id=5)
+        with self.assertRaises(r.ReleaseError) as caught:
+            r.checks_passed([merge, run("rust checks", conclusion="cancelled", run_id=1)], "9")
+        self.assertIn("rust checks: cancelled", str(caught.exception))
+        self.assertNotIn("merge when every check", str(caught.exception))
+
     def test_a_manual_run_of_the_same_workflows_is_a_check(self):
         with self.assertRaises(r.ReleaseError):
             r.checks_passed([run("tests", run_id=1),
