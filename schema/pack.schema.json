@@ -1106,6 +1106,61 @@
         }
       ]
     },
+    "EffectEntry": {
+      "description": "One effect of a reward: an effect kind with the fields that kind takes.",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune\nHaste, the percent of haste, from 1 to `MAX_RUNE_HASTE_PCT`; for a type bonus, the\npercent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which\nhas none.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "effect": {
+          "$ref": "#/$defs/RewardEffect"
+        },
+        "orbit": {
+          "description": "The orbit it gives: with the `orbit` effect only, and required by it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Orbit"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "skill": {
+          "description": "The stage skill it gives, one of the stage skills file's: with the `stage_skill` effect\nonly, and required by it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
+          "description": "The damage type its bonus raises: with the `type_bonus_pct` effect only, and required\nby it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DamageType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "effect"
+      ]
+    },
     "Elite": {
       "description": "What makes an enemy an elite.",
       "type": "object",
@@ -2858,41 +2913,62 @@
       "additionalProperties": false
     },
     "Reward": {
-      "description": "One reward an offer can hold.",
+      "description": "One reward an offer can hold. In a file it is written with an `effects` list of 1 to\n`MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the\nreward itself, which reads as a list of one (ADR-026).",
       "type": "object",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune\nHaste, the percent of haste, from 1 to `MAX_RUNE_HASTE_PCT`; for a type bonus, the\npercent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which\nhas none.",
           "type": [
             "integer",
             "null"
           ],
           "format": "uint32",
+          "default": null,
           "minimum": 0
         },
         "description": {
-          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
           "type": "string"
         },
         "effect": {
-          "$ref": "#/$defs/RewardEffect"
+          "description": "The released form's single effect: with its `skill`, `orbit`, `type` and `amount`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RewardEffect"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "effects": {
+          "description": "The effects, 1 to `MAX_REWARD_EFFECTS`: instead of `effect` and the fields of one.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "items": {
+            "$ref": "#/$defs/EffectEntry"
+          }
         },
         "id": {
-          "description": "The reward's own ID, unique within the file.",
           "$ref": "#/$defs/ContentId"
         },
         "limit": {
-          "description": "The most times one run takes it, from 1 to `MAX_STACK`. Required by every effect but\nthe random rune, which has none of its own.",
           "type": [
             "integer",
             "null"
           ],
           "format": "uint8",
+          "default": null,
           "maximum": 255,
           "minimum": 0
         },
+        "named": {
+          "type": "boolean",
+          "default": false
+        },
         "orbit": {
-          "description": "The orbit it gives: with the `orbit` effect only, and required by it.",
           "anyOf": [
             {
               "$ref": "#/$defs/Orbit"
@@ -2900,13 +2976,13 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "default": null
         },
         "rarity": {
           "$ref": "#/$defs/Rarity"
         },
         "skill": {
-          "description": "The stage skill it gives, one of the stage skills file's: with the `stage_skill` effect\nonly, and required by it.",
           "anyOf": [
             {
               "$ref": "#/$defs/ContentId"
@@ -2914,14 +2990,20 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "default": null
+        },
+        "star": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
         },
         "title": {
-          "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
           "type": "string"
         },
         "type": {
-          "description": "The damage type its bonus raises: with the `type_bonus_pct` effect only, and required\nby it.",
           "anyOf": [
             {
               "$ref": "#/$defs/DamageType"
@@ -2929,14 +3011,21 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "default": null
+        },
+        "weight": {
+          "type": "integer",
+          "format": "uint16",
+          "default": 100,
+          "maximum": 65535,
+          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
         "rarity",
-        "effect",
         "title",
         "description"
       ]
