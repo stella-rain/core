@@ -116,6 +116,7 @@ use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::fixed::{Fx, Point};
 use crate::hash::StateHasher;
+use crate::id::ContentId;
 use crate::id::EntityId;
 use crate::input::Input;
 use crate::rewards::{Rarity, Rewards};
@@ -667,7 +668,7 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     // friendly hit box or bullet, serves all of them; a tick without either never builds it.
     let mut grid: Option<Grid> = None;
     let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
-    combat::deal_echoes(s, events);
+    combat::deal_echoes(stage, s, events);
     hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = Vec::with_capacity(s.bullets.len());
     for i in 0..s.bullets.len() {
@@ -755,14 +756,16 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     events.push(DomainEvent::Hit {
         source: b.owner,
         target: id,
+        target_kind: kind_id(stage, s, target),
         damage: dealt,
+        damage_type: b.damage_type,
         match_up,
         rune: b.rune,
         crit,
         echo: false,
     });
     if dead {
-        events.push(death_event(s, target, id));
+        events.push(death_event(stage, s, target, id));
     } else if s.player.echo_hit_pct != 0 {
         combat::queue_echo(s, &b, id, dealt, !State::is_ally(target));
     }
@@ -791,12 +794,31 @@ fn damageable(s: &State, target: Who) -> bool {
 }
 
 /// What a death is reported as: a part breaks, everything else dies.
-fn death_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
+fn death_event(stage: &Stage, s: &State, target: Who, id: EntityId) -> DomainEvent {
     match (target, s.boss.as_ref()) {
         (Who::BossPart(i), Some(boss)) => DomainEvent::PartBroken {
             part: boss.parts[i].name.clone(),
         },
-        _ => DomainEvent::Died { entity: id },
+        _ => DomainEvent::Died {
+            entity: id,
+            kind: kind_id(stage, s, target),
+        },
+    }
+}
+
+/// The kind id of a target (`EntityView::kind_id`): the content ID the Bestiary keys on. An
+/// enemy's, an elite's or a companion's is its sprite ID, the boss's is its own, a boss part's
+/// is the part's ID. The main character has none, and a mimic still in disguise shows none.
+pub(super) fn kind_id(stage: &Stage, s: &State, who: Who) -> Option<ContentId> {
+    match who {
+        Who::Player => None,
+        Who::Boss => Some(stage.boss.as_ref()?.base.clone()),
+        Who::BossPart(i) => Some(stage.boss.as_ref()?.parts.get(i)?.id.clone()),
+        Who::Companion(i) => Some(agent_def(stage, s.companions[i].key).base.clone()),
+        Who::Enemy(i) => {
+            let e = &s.enemies[i];
+            (!e.hidden()).then(|| agent_def(stage, e.key).base.clone())
+        }
     }
 }
 

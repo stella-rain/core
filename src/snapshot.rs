@@ -537,6 +537,11 @@ pub struct EntityView {
     pub id: EntityId,
     pub kind: EntityKind,
     pub asset: ContentId,
+    /// The content ID that names its kind, the one the Bestiary keys on: an enemy's, an elite's,
+    /// a boss's or a companion's sprite ID, a boss part's own ID. Absent for a mimic still in
+    /// disguise (`asset` is then its disguise).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind_id: Option<ContentId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette: Option<ContentId>,
     pub at: Point,

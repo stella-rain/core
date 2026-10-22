@@ -103,7 +103,9 @@ fn an_unmarked_hit_leaves_the_field_out_of_the_event() {
     let hit = DomainEvent::Hit {
         source: stella_rain_core::id::EntityId(0),
         target: stella_rain_core::id::EntityId(1),
+        target_kind: None,
         damage: 1,
+        damage_type: None,
         match_up: Default::default(),
         rune: None,
         crit: false,

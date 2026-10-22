@@ -992,7 +992,7 @@ fn a_companion_that_is_hit_enough_dies_and_stops_being_selected() {
     let died: Vec<u32> = events
         .iter()
         .filter_map(|(t, ev)| {
-            matches!(ev, DomainEvent::Died { entity } if *entity == id(2)).then_some(*t)
+            matches!(ev, DomainEvent::Died { entity, .. } if *entity == id(2)).then_some(*t)
         })
         .collect();
     assert_eq!(died.len(), 1);

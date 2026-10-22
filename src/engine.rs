@@ -364,6 +364,7 @@ impl Engine {
                     id: b.id,
                     kind: EntityKind::Boss,
                     asset: boss.base.clone(),
+                    kind_id: Some(boss.base.clone()),
                     palette: boss.palette.clone(),
                     at: b.at,
                     radius: boss.radius,
@@ -395,6 +396,7 @@ impl Engine {
                             Some(m) if hidden => m.disguise.clone(),
                             _ => ContentId(def.base.0.clone()),
                         },
+                        kind_id: (!hidden).then(|| ContentId(def.base.0.clone())),
                         palette: def.palette.clone(),
                         at: a.at,
                         radius: def.radius,
@@ -434,6 +436,7 @@ impl Engine {
                         id: part.id,
                         kind: EntityKind::BossPart,
                         asset: ContentId(def.asset.0.clone()),
+                        kind_id: Some(ContentId(def.id.0.clone())),
                         palette: None,
                         at: Point {
                             x: b.at.x.saturating_add(part.offset.x),
@@ -749,6 +752,8 @@ pub(crate) struct Echo {
     pub target: EntityId,
     /// Hit points taken, already the hit's percent of its damage.
     pub damage: u32,
+    /// The type of the hit it echoes, which the echo's `Hit` event reports.
+    pub damage_type: Option<DamageType>,
 }
 
 /// What a `time_limit` run brings to its bosses (core#212): the times, the pool they are drawn

@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::EntityId;
+use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::input::Input;
 use stella_rain_core::rng::SplitMix64;
 use stella_rain_core::snapshot::{EntityKind, Snapshot};
@@ -156,13 +156,15 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
             DomainEvent::Hit {
                 source: EntityId(0),
                 target: EntityId(2),
+                target_kind: Some(ContentId(bat)),
                 damage: 10,
+                damage_type: None,
                 match_up: MatchUp::None,
                 rune: None,
                 crit: false,
                 echo: false,
             }
-        ))
+        )) if bat == "bat"
     ));
     assert_eq!(enemies(&e.snapshot()), 0);
 }
@@ -238,14 +240,17 @@ fn beating_the_boss_clears_the_stage() {
             &DomainEvent::Hit {
                 source: EntityId(0),
                 target: EntityId(1),
+                target_kind: Some(ContentId("golem".into())),
                 damage: 10,
+                damage_type: None,
                 match_up: MatchUp::None,
                 rune: None,
                 crit: false,
                 echo: false,
             },
             &DomainEvent::Died {
-                entity: EntityId(1)
+                entity: EntityId(1),
+                kind: Some(ContentId("golem".into())),
             },
             &DomainEvent::StageCleared,
         ]

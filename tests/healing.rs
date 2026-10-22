@@ -172,7 +172,7 @@ fn is_drop(ev: &DomainEvent) -> bool {
 fn boss_dead(e: &Engine) -> bool {
     e.events()
         .iter()
-        .any(|ev| matches!(ev, DomainEvent::Died { entity } if entity.0 == 1))
+        .any(|ev| matches!(ev, DomainEvent::Died { entity, .. } if entity.0 == 1))
 }
 
 // Validation: the caps of the heal config and of the regen amount (ADR-020).

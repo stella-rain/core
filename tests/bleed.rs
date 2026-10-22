@@ -636,7 +636,7 @@ fn a_smash_that_kills_applies_no_bleed() {
     e.step(smash_presses(start, &[0])(start));
     assert!(e.events().iter().any(|ev| matches!(
         ev,
-        DomainEvent::Died { entity } if *entity == id
+        DomainEvent::Died { entity, .. } if *entity == id
     )));
     assert!(statuses(&e, id).is_empty());
 }

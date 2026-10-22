@@ -5,7 +5,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::attack::MatchUp;
+use crate::attack::{DamageType, MatchUp};
 use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::Rarity;
@@ -27,7 +27,15 @@ pub enum DomainEvent {
     Hit {
         source: EntityId,
         target: EntityId,
+        /// The kind id of `target` (`EntityView::kind_id`): left out for the main character and
+        /// for a mimic still in disguise.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target_kind: Option<ContentId>,
         damage: u32,
+        /// The damage type the hit was dealt in (ADR-100), whatever its source: a weapon, a rune,
+        /// the stage skill, a burst or a damage-over-time tick; left out when neutral.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        damage_type: Option<DamageType>,
         /// The match-up the hit got (ADR-100); left out when none.
         #[serde(default, skip_serializing_if = "MatchUp::is_none")]
         match_up: MatchUp,
@@ -119,6 +127,10 @@ pub enum DomainEvent {
     },
     Died {
         entity: EntityId,
+        /// The kind id of the victim (`EntityView::kind_id`); left out for a mimic still in
+        /// disguise.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        kind: Option<ContentId>,
     },
     StageCleared,
     StageFailed,
@@ -157,6 +169,9 @@ pub enum DomainEvent {
     EliteSpawned {
         elite: EntityId,
         asset: ContentId,
+        /// The elite's kind id (`EntityView::kind_id`); left out for a mimic, which is disguised.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        kind: Option<ContentId>,
     },
     /// The elite `elite` left the map without dying: no kill, no reward (ADR-090).
     EliteLeft {

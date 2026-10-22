@@ -245,7 +245,7 @@ fn an_attacker_killed_earlier_in_the_tick_still_lands_its_hit() {
     let died: Vec<EntityId> = events
         .iter()
         .filter_map(|(_, ev)| match ev {
-            DomainEvent::Died { entity } => Some(*entity),
+            DomainEvent::Died { entity, .. } => Some(*entity),
             _ => None,
         })
         .collect();

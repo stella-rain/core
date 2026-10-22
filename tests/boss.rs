@@ -589,7 +589,7 @@ fn a_part_has_its_own_hp_and_a_shot_that_hits_it_hurts_only_it() {
     // A broken part is not a death, and is gone from the snapshot.
     assert!(!events.iter().any(|(_, ev)| matches!(
         ev,
-        DomainEvent::Died { entity } if *entity == horn
+        DomainEvent::Died { entity, .. } if *entity == horn
     )));
     assert!(
         e.snapshot()
@@ -633,7 +633,7 @@ fn a_dead_boss_takes_its_unbroken_parts_out_of_the_snapshot() {
     let events = play(&mut e, 200, idle());
     assert!(events.iter().any(|(_, ev)| matches!(
         ev,
-        DomainEvent::Died { entity } if *entity == BOSS
+        DomainEvent::Died { entity, .. } if *entity == BOSS
     )));
     assert!(
         !events

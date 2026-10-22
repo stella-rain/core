@@ -189,6 +189,11 @@ pub(super) fn spawn_elite(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
                 .as_ref()
                 .and_then(|e| e.mimic.as_ref())
                 .map_or_else(|| def.base.clone(), |m| m.disguise.clone()),
+            kind: def
+                .elite
+                .as_ref()
+                .is_none_or(|e| e.mimic.is_none())
+                .then(|| def.base.clone()),
         });
     }
 }

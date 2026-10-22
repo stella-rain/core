@@ -202,7 +202,10 @@ fn shrines(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
         });
         if cleared {
             s.enemies[i].hp = 0;
-            events.push(DomainEvent::Died { entity: id });
+            events.push(DomainEvent::Died {
+                entity: id,
+                kind: super::kind_id(stage, s, Who::Enemy(i)),
+            });
         } else if fight >= *fight_ticks {
             s.enemies.remove(i);
             events.push(DomainEvent::EliteLeft { elite: id });
