@@ -81,7 +81,7 @@ expression: recording
 {"dir":"be>fe","tick":32,"type":"ComboReset"}
 {"data":"7c1296ce4c0dc832","dir":"be>fe","tick":32,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":33,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2},"dir":"be>fe","tick":33,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":"horn"},"dir":"be>fe","tick":33,"type":"Hit"}
 {"data":"14136568bd855640","dir":"be>fe","tick":33,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":34,"type":"Input"}
 {"data":"4c2a3fa759615ad3","dir":"be>fe","tick":34,"type":"StateHash"}
@@ -96,7 +96,7 @@ expression: recording
 {"dir":"be>fe","tick":38,"type":"ComboReset"}
 {"data":"7cfcd75fdd883133","dir":"be>fe","tick":38,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":39,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2},"dir":"be>fe","tick":39,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":"horn"},"dir":"be>fe","tick":39,"type":"Hit"}
 {"data":"8106c9bdc1e885ba","dir":"be>fe","tick":39,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":40,"type":"Input"}
 {"data":{"source":1,"ticks":1},"dir":"be>fe","tick":40,"type":"Telegraph"}
@@ -124,7 +124,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":45,"type":"Input"}
 {"data":{"source":1,"ticks":1},"dir":"be>fe","tick":45,"type":"Telegraph"}
 {"data":{"agent":1,"rule":0,"target":1},"dir":"be>fe","tick":45,"type":"RuleFired"}
-{"data":{"damage":10,"source":0,"target":2},"dir":"be>fe","tick":45,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":"horn"},"dir":"be>fe","tick":45,"type":"Hit"}
 {"data":{"part":"horn"},"dir":"be>fe","tick":45,"type":"PartBroken"}
 {"data":"7a242dbc928e3f64","dir":"be>fe","tick":45,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":46,"type":"Input"}
@@ -155,7 +155,7 @@ expression: recording
 {"dir":"be>fe","tick":56,"type":"ComboReset"}
 {"data":"703fd8320094649d","dir":"be>fe","tick":56,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":57,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":57,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":57,"type":"Hit"}
 {"data":"7897d9ff05fe3498","dir":"be>fe","tick":57,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":58,"type":"Input"}
 {"data":"c099884ba5b727a5","dir":"be>fe","tick":58,"type":"StateHash"}
@@ -170,7 +170,7 @@ expression: recording
 {"dir":"be>fe","tick":62,"type":"ComboReset"}
 {"data":"883c601a61e423e2","dir":"be>fe","tick":62,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":63,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":63,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":63,"type":"Hit"}
 {"data":"84281ce9fdd08a97","dir":"be>fe","tick":63,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":64,"type":"Input"}
 {"data":"203edd8cfff80232","dir":"be>fe","tick":64,"type":"StateHash"}
@@ -185,7 +185,7 @@ expression: recording
 {"dir":"be>fe","tick":68,"type":"ComboReset"}
 {"data":"61c52908e4bb50bc","dir":"be>fe","tick":68,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":69,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":69,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":69,"type":"Hit"}
 {"data":"6c69e58d38de5c0f","dir":"be>fe","tick":69,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":70,"type":"Input"}
 {"data":"6981ee32097e470e","dir":"be>fe","tick":70,"type":"StateHash"}
@@ -200,7 +200,7 @@ expression: recording
 {"dir":"be>fe","tick":74,"type":"ComboReset"}
 {"data":"5a41f34c1a08946f","dir":"be>fe","tick":74,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":75,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":75,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":75,"type":"Hit"}
 {"data":"34b15c771a176e38","dir":"be>fe","tick":75,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":76,"type":"Input"}
 {"data":"76ada501eea620b3","dir":"be>fe","tick":76,"type":"StateHash"}
@@ -215,7 +215,7 @@ expression: recording
 {"dir":"be>fe","tick":80,"type":"ComboReset"}
 {"data":"1f64a1b62949b4a2","dir":"be>fe","tick":80,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":81,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":81,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":81,"type":"Hit"}
 {"data":"43305228ddca7191","dir":"be>fe","tick":81,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":82,"type":"Input"}
 {"data":"45c770cd8a1dcd78","dir":"be>fe","tick":82,"type":"StateHash"}
@@ -230,7 +230,7 @@ expression: recording
 {"dir":"be>fe","tick":86,"type":"ComboReset"}
 {"data":"231eea85ce2043ec","dir":"be>fe","tick":86,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":87,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":87,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":87,"type":"Hit"}
 {"data":"e4733e632df174bd","dir":"be>fe","tick":87,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":88,"type":"Input"}
 {"data":"636afc9e02226826","dir":"be>fe","tick":88,"type":"StateHash"}
@@ -245,7 +245,7 @@ expression: recording
 {"dir":"be>fe","tick":92,"type":"ComboReset"}
 {"data":"44268c4822b82d4d","dir":"be>fe","tick":92,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":93,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":93,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":93,"type":"Hit"}
 {"data":"759bce0b1048e910","dir":"be>fe","tick":93,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":94,"type":"Input"}
 {"data":"2b60137f4f812891","dir":"be>fe","tick":94,"type":"StateHash"}
@@ -260,7 +260,7 @@ expression: recording
 {"dir":"be>fe","tick":98,"type":"ComboReset"}
 {"data":"cc6ed4b2f77ed3ac","dir":"be>fe","tick":98,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":99,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":99,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":99,"type":"Hit"}
 {"data":"f8eb6480983aeb2d","dir":"be>fe","tick":99,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":100,"type":"Input"}
 {"data":"c1cba547b9bf2707","dir":"be>fe","tick":100,"type":"StateHash"}
@@ -275,7 +275,7 @@ expression: recording
 {"dir":"be>fe","tick":104,"type":"ComboReset"}
 {"data":"b3ef789589f839ec","dir":"be>fe","tick":104,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":105,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":105,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":105,"type":"Hit"}
 {"data":"8ae8f1bf1eff0ecf","dir":"be>fe","tick":105,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":106,"type":"Input"}
 {"data":"72bfbcbe228ca2c2","dir":"be>fe","tick":106,"type":"StateHash"}
@@ -290,7 +290,7 @@ expression: recording
 {"dir":"be>fe","tick":110,"type":"ComboReset"}
 {"data":"fb0a323497f98158","dir":"be>fe","tick":110,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":111,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":1},"dir":"be>fe","tick":111,"type":"Hit"}
-{"data":{"entity":1},"dir":"be>fe","tick":111,"type":"Died"}
+{"data":{"damage":10,"source":0,"target":1,"target_kind":"golem"},"dir":"be>fe","tick":111,"type":"Hit"}
+{"data":{"entity":1,"kind":"golem"},"dir":"be>fe","tick":111,"type":"Died"}
 {"dir":"be>fe","tick":111,"type":"StageCleared"}
 {"data":"812b80209822458f","dir":"be>fe","tick":111,"type":"StateHash"}
