@@ -140,6 +140,15 @@ impl RunContent {
         }
     }
 
+    /// The same content with `run_stats` in place of its run stats.
+    pub fn with_run_stats(self, run_stats: RunStats) -> RunContent {
+        RunContent {
+            run_stats,
+            pack_sha256: None,
+            ..self
+        }
+    }
+
     /// The same content with `difficulties` in place of its difficulties.
     pub fn with_difficulties(self, difficulties: Difficulties) -> RunContent {
         RunContent {

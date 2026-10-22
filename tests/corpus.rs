@@ -169,13 +169,29 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
 /// own when the case has a `mode.json` (a short mode, so that a run ends by the final boss's
 /// kill or by the overtime without 20 minutes of play).
 fn case_content(case: &Path) -> Result<RunContent, String> {
-    match fs::read(case.join("mode.json")) {
+    let content = match fs::read(case.join("mode.json")) {
         Ok(bytes) => {
             let mode = TimeLimit::parse(&bytes).map_err(|e| e.to_string())?;
-            Ok(RunContent::bundled().clone().with_time_limit(mode))
+            RunContent::bundled().clone().with_time_limit(mode)
         }
-        Err(_) => Ok(RunContent::bundled().clone()),
-    }
+        Err(_) => RunContent::bundled().clone(),
+    };
+    Ok(if hurts_at_design_value(case) {
+        content.with_run_stats(common::design_run_stats())
+    } else {
+        content
+    })
+}
+
+/// The run cases whose bot cannot get out of the way of the bundled hit of 10,000 (five hits
+/// end a trial run): the `elites` and `stage_skill` cases play with an enemy's attack at 100
+/// stored, as they were made, so that they reach what their names say. The other run cases
+/// play on the bundled content.
+fn hurts_at_design_value(case: &Path) -> bool {
+    matches!(
+        case.file_name().and_then(|n| n.to_str()),
+        Some("elites" | "stage_skill")
+    )
 }
 
 /// The hash after every tick of a run replay, before the commands that follow it.
@@ -203,7 +219,7 @@ fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[
             fs::write(dir.join("mode.json"), json).unwrap();
             case_content(dir).unwrap()
         }
-        None => RunContent::bundled().clone(),
+        None => case_content(dir).unwrap(),
     };
     let recorded = run_replay::record_run_with(setup, &content, commands).unwrap();
     let hashes: String = run_hashes(&recorded, &content)
@@ -765,6 +781,8 @@ fn evade_charges() -> Definition {
     );
     let mut v = serde_json::to_value(stage).unwrap();
     v["player"]["evade"]["charges"] = json!(3);
+    // A hit is 100 shown (the bundled run stats): the most hit points a stage may hold last the cycle.
+    v["player"]["hp"] = json!(999);
     let inputs = (0..300)
         .map(|t| {
             let c = t % 100;
@@ -848,13 +866,16 @@ pub(crate) fn definitions() -> Vec<Definition> {
 fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command>)> {
     use common::run::{
         ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from,
-        time_limit_setup, trial_setup,
+        play_run_in, time_limit_setup, trial_setup,
     };
     let stage_skill = RunSetup {
         seed: STAGE_SKILL_SEED,
         ..trial_setup()
     };
-    let stage_skill_commands = play_run_from(&stage_skill, TRIAL_LENGTH);
+    let stage_skill_content = RunContent::bundled()
+        .clone()
+        .with_run_stats(common::design_run_stats());
+    let stage_skill_commands = play_run_in(&stage_skill, &stage_skill_content, TRIAL_LENGTH);
     // The time_limit mode's waves around the main character, played until it falls (it does
     // before the first boss time; the bosses are in `tests/time_limit_run.rs`).
     let time_limit = time_limit_setup();
@@ -976,7 +997,8 @@ fn elites_time_limit() -> (String, RunContent) {
     let json = serde_json::to_string_pretty(&v).unwrap() + "\n";
     let content = RunContent::bundled()
         .clone()
-        .with_time_limit(TimeLimit::parse(json.as_bytes()).unwrap());
+        .with_time_limit(TimeLimit::parse(json.as_bytes()).unwrap())
+        .with_run_stats(common::design_run_stats());
     (json, content)
 }
 
@@ -1159,7 +1181,8 @@ fn replay_run_case(name: &str) -> RunCase {
 /// A run case re-simulated from its file, which must verify and end in `outcome`.
 fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
     let bytes = fs::read(runs_dir().join(name).join("run.replay")).unwrap();
-    let verified = run_replay::verify_run(&bytes).unwrap();
+    let content = case_content(&runs_dir().join(name)).unwrap();
+    let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
     assert_eq!(verified.outcome, outcome, "the outcome of `{name}`");
     let replay = RunReplay::from_bytes(&bytes).unwrap();
     let commands = replay.unpack_commands().unwrap();
@@ -1168,7 +1191,7 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
         "points are spent in `{name}`: {commands:?}"
     );
     assert_eq!(verified.commands, u32::try_from(commands.len()).unwrap());
-    let mut engine = Engine::start(&replay.setup).unwrap();
+    let mut engine = Engine::start_with(&replay.setup, &content).unwrap();
     let mut next = commands.iter().peekable();
     let (mut kinds, mut used, mut match_ups) = (Vec::new(), Vec::new(), [0; 4]);
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
