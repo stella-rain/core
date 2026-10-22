@@ -8,9 +8,13 @@ use serde_json::json;
 use stella_rain_core::engine::Outcome;
 use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{RunRecorder, RunReplay};
+use stella_rain_core::run_replay::{
+    CommandKind, MAX_COMMANDS, RunRecorder, RunReplay, RunReplayError, TickCommand, pack_commands,
+    verify_run_with,
+};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{EntityKind, OfferOption};
+use stella_rain_core::time_limit::TimeLimit;
 
 /// The perk set the bot plays with: the most hit points and regeneration a set may hold (the
 /// engine has no invulnerability switch), the most extra rerolls and banishes, and the
@@ -124,6 +128,87 @@ fn answer_and_spend(run: &mut RunRecorder, bot: Bot) {
     }
 }
 
+/// The most commands the measurement found (`measure_the_longest_run`), pinned: `MAX_COMMANDS`
+/// is at least twice it.
+const MEASURED_MOST: usize = 188;
+
+/// The bundled mode cut to 20 seconds with a boss at 10 and at 20 and 5 of overtime, a run
+/// that a debug build plays in seconds.
+fn short_content() -> RunContent {
+    let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    v["length_ticks"] = json!(1200);
+    v["boss_ticks"] = json!([600, 1200]);
+    v["no_call_ticks"] = json!([]);
+    v["overtime_ticks"] = json!(300);
+    v["waves"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|w| w["at_tick"].as_u64().unwrap() < 1200);
+    v["elite_table"] =
+        json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
+    let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    undying_content().with_time_limit(mode)
+}
+
+#[test]
+fn the_cap_is_twice_the_longest_run_or_more() {
+    assert!(
+        2 * MEASURED_MOST <= MAX_COMMANDS as usize,
+        "MAX_COMMANDS {MAX_COMMANDS} is under twice {MEASURED_MOST}"
+    );
+}
+
+#[test]
+fn a_bot_s_short_run_records_and_verifies_within_the_cap() {
+    let content = short_content();
+    for bot in [Bot::Takes, Bot::Spends] {
+        let played = play(&content, &setup(1, "normal", 20), bot);
+        assert!(
+            played.commands > 0,
+            "{bot:?} answers an offer or spends a point"
+        );
+        assert!(played.commands <= MAX_COMMANDS as usize);
+        let verified = verify_run_with(&played.replay.to_bytes(), &content)
+            .unwrap_or_else(|e| panic!("{bot:?}: {e}"));
+        assert_eq!(verified.commands as usize, played.commands);
+        assert_eq!(verified.outcome, played.outcome);
+    }
+}
+
+#[test]
+fn a_crafted_replay_with_one_command_over_the_cap_is_refused() {
+    let content = short_content();
+    let mut replay = play(&content, &setup(1, "normal", 20), Bot::Takes).replay;
+    let spends = |n: u32| -> String {
+        let commands: Vec<TickCommand> = (0..n)
+            .map(|_| TickCommand {
+                tick: 0,
+                kind: CommandKind::Spend,
+                index: 0,
+            })
+            .collect();
+        pack_commands(&commands)
+    };
+    // At the cap the file loads (the spends are then refused by the engine for lack of points,
+    // not for their number); one over it never gets that far.
+    replay.commands = spends(MAX_COMMANDS);
+    assert_eq!(
+        RunReplay::from_bytes(&replay.to_bytes())
+            .unwrap()
+            .unpack_commands()
+            .unwrap()
+            .len(),
+        MAX_COMMANDS as usize
+    );
+    replay.commands = spends(MAX_COMMANDS + 1);
+    assert_eq!(
+        verify_run_with(&replay.to_bytes(), &content),
+        Err(RunReplayError::TooManyCommands {
+            limit: MAX_COMMANDS
+        })
+    );
+}
+
 /// The difficulties that keep the mode's full length (`easy` halves it).
 const LONG: [&str; 3] = ["normal", "hard", "rainy"];
 
@@ -135,6 +220,7 @@ const LONG: [&str; 3] = ["normal", "hard", "rainy"];
 fn measure_the_longest_run() {
     let content = undying_content();
     let mut most = 0;
+    let mut longest = None;
     for difficulty in LONG {
         for seed in 1..=5 {
             for bot in [Bot::Takes, Bot::Spends] {
@@ -143,13 +229,23 @@ fn measure_the_longest_run() {
                     "difficulty {difficulty} seed {seed} {bot:?}: {} commands, {} ticks, {:?}",
                     played.commands, played.replay.ticks, played.outcome
                 );
-                most = most.max(played.commands);
+                if played.commands > most {
+                    most = played.commands;
+                    longest = Some(played.replay);
+                }
             }
         }
     }
     println!("most commands: {most}");
     assert!(
-        2 * most <= stella_rain_core::run_replay::MAX_COMMANDS as usize,
+        most <= MEASURED_MOST,
+        "a run takes {most} commands: re-pin MEASURED_MOST"
+    );
+    assert!(
+        2 * most <= MAX_COMMANDS as usize,
         "MAX_COMMANDS is under twice {most}"
     );
+    // The longest run records within the cap and verifies from its file.
+    let verified = verify_run_with(&longest.unwrap().to_bytes(), &content).unwrap();
+    assert_eq!(verified.commands as usize, most);
 }
