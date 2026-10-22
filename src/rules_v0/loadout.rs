@@ -22,7 +22,6 @@ pub(super) const REGEN_TICKS: u32 = 60;
 /// A validated setup's grants, resolved against the run's content.
 pub(crate) struct Loadout {
     perk: Vec<PerkEntry>,
-    auto_combo: bool,
     rune_pool: u8,
     /// The carried stars, as places in the rewards file.
     carried: Vec<u16>,
@@ -39,7 +38,6 @@ impl Loadout {
             .unwrap_or_default();
         Loadout {
             perk,
-            auto_combo: setup.auto_combo,
             rune_pool: runes::pool_mask(&setup.rune_pool),
             carried: setup
                 .carried
@@ -57,7 +55,6 @@ impl Loadout {
 
 /// Applies `loadout` to the state before the first tick.
 pub(crate) fn apply(stage: &Stage, rewards: &Rewards, s: &mut State, loadout: &Loadout) {
-    s.auto_combo = loadout.auto_combo;
     if let Some(f) = s.stars.as_mut() {
         f.rune_pool = loadout.rune_pool;
     }

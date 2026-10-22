@@ -66,7 +66,7 @@ pub struct CarriedStar {
 
 /// What a run starts from: built by the app from local storage when a run starts, and stored
 /// in the run's replay (ADR-051).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunSetup {
     pub schema_version: u32,
@@ -93,11 +93,6 @@ pub struct RunSetup {
     /// sets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`.
     #[serde(default = "default_perk_set")]
     pub perk_set: ContentId,
-    /// The run starts with auto mode on (ADR-073, ADR-107). The input's `auto` switch still
-    /// toggles it: on a tick, auto mode is on when `auto` differs from this field, so a run
-    /// that keeps the preset records `auto: false` on every tick.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub auto_combo: bool,
     /// The difficulty the run is played on (ADR-110), by the ID of the run's difficulties file:
     /// it scales the enemies, bounds the rarities and may set the mode's length. A setup written
     /// before difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing.
@@ -122,6 +117,100 @@ pub struct RunSetup {
     pub starting_rune: Option<ContentId>,
 }
 
+/// A setup as a file holds it: a `RunSetup` plus `auto_combo`, a field the game dropped (DS5 Q1):
+/// auto mode is only the player's switch, recorded as input. A setup or replay written before
+/// that carries `"auto_combo": false`, which is ignored; `true` asked for a run that no longer
+/// exists, so it is refused (ADR-020).
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RunSetupFile {
+    schema_version: u32,
+    sim_version: u32,
+    /// A mode ID: the content the run plays.
+    mode: ContentId,
+    /// A weapon preset: the one weapon the run's main character carries (ADR-107).
+    weapon: ContentId,
+    /// Seeds the run's SplitMix64 (ADR-033), all 64 bits.
+    seed: u64,
+    /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
+    /// in the Star Chart (ADR-079 §1), each at most once. Absent: every reward in the file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    star_pool: Option<Vec<ContentId>>,
+    /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    extra_rerolls: u8,
+    /// The permanent upgrades the player holds (ADR-079), which open the combo steps that name
+    /// them (ADR-084 point 7): registered upgrade IDs, sorted, each once, at most
+    /// `registry::MAX_UPGRADES`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    upgrades: Vec<ContentId>,
+    /// The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk
+    /// sets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`.
+    #[serde(default = "default_perk_set")]
+    perk_set: ContentId,
+    /// The difficulty the run is played on (ADR-110), by the ID of the run's difficulties file:
+    /// it scales the enemies, bounds the rarities and may set the mode's length. A setup written
+    /// before difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing.
+    #[serde(default = "default_difficulty")]
+    difficulty: ContentId,
+    /// The runes the random rune may draw (ADR-099 point 4a, ADR-107): rune IDs, sorted, each
+    /// once, at most `MAX_RUNE_POOL`. Empty: every rune.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    rune_pool: Vec<ContentId>,
+    /// The stars the run starts holding (ADR-107 point 3), at most `MAX_CARRIED_STARS`: each
+    /// applies at tick 0 as if picked from an offer, in this order, and counts toward its
+    /// reward's stack limit. Their costs (`lumine_cost`) add up to at most `lumine`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    carried: Vec<CarriedStar>,
+    /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE` (ADR-107
+    /// point 2).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    lumine: u8,
+    /// A rune the run starts holding (ADR-107 point 3): in the rune pool when there is one. It
+    /// costs no Lumine, and the random rune never draws it again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    starting_rune: Option<ContentId>,
+    #[serde(default)]
+    auto_combo: bool,
+}
+
+/// The message for a setup that still starts with auto mode on.
+const AUTO_COMBO_REMOVED: &str =
+    "the field `auto_combo` was removed: auto mode is the player's switch, recorded as input";
+
+impl<'de> Deserialize<'de> for RunSetup {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<RunSetup, D::Error> {
+        RunSetup::try_from(RunSetupFile::deserialize(deserializer)?)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+impl TryFrom<RunSetupFile> for RunSetup {
+    type Error = &'static str;
+
+    fn try_from(f: RunSetupFile) -> Result<RunSetup, Self::Error> {
+        if f.auto_combo {
+            return Err(AUTO_COMBO_REMOVED);
+        }
+        Ok(RunSetup {
+            schema_version: f.schema_version,
+            sim_version: f.sim_version,
+            mode: f.mode,
+            weapon: f.weapon,
+            seed: f.seed,
+            star_pool: f.star_pool,
+            extra_rerolls: f.extra_rerolls,
+            upgrades: f.upgrades,
+            perk_set: f.perk_set,
+            difficulty: f.difficulty,
+            rune_pool: f.rune_pool,
+            carried: f.carried,
+            lumine: f.lumine,
+            starting_rune: f.starting_rune,
+        })
+    }
+}
+
 fn default_perk_set() -> ContentId {
     ContentId(DEFAULT_PERK_SET.to_owned())
 }
@@ -132,10 +221,6 @@ fn default_difficulty() -> ContentId {
 
 fn is_zero(n: &u8) -> bool {
     *n == 0
-}
-
-fn is_false(b: &bool) -> bool {
-    !*b
 }
 
 /// Checks the size, parses strictly and validates: the one call for a setup file's bytes.
@@ -158,7 +243,14 @@ pub fn parse_and_validate(bytes: &[u8]) -> Result<RunSetup, Error> {
     };
     let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
     check_versions(versions.schema_version, versions.sim_version)?;
-    let setup: RunSetup = serde_json::from_slice(bytes).map_err(parse_error)?;
+    let file: RunSetupFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+    if file.auto_combo {
+        return Err(Error::Invalid(vec![Issue {
+            path: "$.auto_combo".into(),
+            message: AUTO_COMBO_REMOVED.into(),
+        }]));
+    }
+    let setup = RunSetup::try_from(file).expect("auto_combo is false");
     validate(&setup)?;
     Ok(setup)
 }
