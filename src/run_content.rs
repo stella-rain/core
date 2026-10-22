@@ -15,6 +15,7 @@ use crate::run_stats::RunStats;
 use crate::runes::Runes;
 use crate::stage::Stage;
 use crate::stage_skill::StageSkills;
+use crate::starting_unlocks::StartingUnlocks;
 use crate::time_limit::TimeLimit;
 
 /// Content files that passed validation, each with the SHA-256 of its bytes.
@@ -27,6 +28,10 @@ pub struct RunContent {
     runes: Runes,
     perk_sets: PerkSets,
     difficulties: Difficulties,
+    /// What a new save begins with, if the pack holds the file (a pack released before it does
+    /// not). Not part of any run: nothing in the simulation reads it, and the pack's hash covers
+    /// it with the rest of the pack.
+    starting_unlocks: Option<StartingUnlocks>,
     time_limit: TimeLimit,
     /// The `trial` mode's stage, and its file's bytes as they are in the pack.
     trial: Stage,
@@ -52,6 +57,7 @@ impl RunContent {
             runes: Runes::bundled().clone(),
             perk_sets: PerkSets::bundled().clone(),
             difficulties: Difficulties::bundled().clone(),
+            starting_unlocks: bundled.starting_unlocks.clone(),
             time_limit: TimeLimit::bundled().clone(),
             trial: bundled.trial.clone(),
             trial_bytes: bundled.trial_bytes.clone(),
@@ -71,6 +77,7 @@ impl RunContent {
         runes: Runes,
         perk_sets: PerkSets,
         difficulties: Difficulties,
+        starting_unlocks: Option<StartingUnlocks>,
         time_limit: TimeLimit,
         trial: Stage,
         trial_bytes: Vec<u8>,
@@ -86,6 +93,7 @@ impl RunContent {
             runes,
             perk_sets,
             difficulties,
+            starting_unlocks,
             time_limit,
             trial,
             trial_bytes,
@@ -214,6 +222,12 @@ impl RunContent {
     /// The difficulties a setup picks from (ADR-110).
     pub fn difficulties(&self) -> &Difficulties {
         &self.difficulties
+    }
+
+    /// What a new save begins with (DS5 Q10), `None` when the pack was released without the file:
+    /// unknown, never a guessed list.
+    pub fn starting_unlocks(&self) -> Option<&StartingUnlocks> {
+        self.starting_unlocks.as_ref()
     }
 
     /// The `time_limit` mode's file.

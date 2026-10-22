@@ -39,6 +39,7 @@ use crate::run_stats::{RunStats, RunStatsFile};
 use crate::runes::{Runes, RunesFile};
 use crate::stage::Stage;
 use crate::stage_skill::{StageSkills, StageSkillsFile};
+use crate::starting_unlocks::{StartingUnlocks, StartingUnlocksFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
 use crate::validate::{self, Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -76,6 +77,9 @@ pub const MAX_ELITE_TYPE_DEFINITIONS: usize = crate::time_limit::MAX_ELITE_DEFIN
 /// The most bosses in the `time_limit` mode's mid-boss pool (3 today; held to the file's own
 /// cap).
 pub const MAX_MID_BOSS_POOL: usize = crate::time_limit::MAX_POOL;
+/// The most IDs one list of the starting unlocks holds (6 across the lists today; held to the
+/// file's own cap).
+pub const MAX_STARTING_UNLOCKS: usize = crate::starting_unlocks::MAX_STARTING_UNLOCKS;
 /// The most IDs one weapon's expertise introduces: its styles, their choices and its common
 /// options (15 today).
 pub const MAX_EXPERTISE_IDS: usize = 64;
@@ -105,6 +109,11 @@ pub struct PackFile {
     pub perk_sets: Box<RawValue>,
     #[schemars(with = "DifficultiesFile")]
     pub difficulties: Box<RawValue>,
+    /// What a new save begins with (DS5 Q10). Optional: a pack released before it has none, and
+    /// reports the starting unlocks as unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<StartingUnlocksFile>")]
+    pub starting_unlocks: Option<Box<RawValue>>,
     pub modes: PackModes,
 }
 
@@ -322,6 +331,14 @@ impl Pack {
             .map_err(PackError::in_file("perk_sets"))?;
         let difficulties = Difficulties::parse(&file_bytes(&pack.difficulties))
             .map_err(PackError::in_file("difficulties"))?;
+        let starting_unlocks = pack
+            .starting_unlocks
+            .as_deref()
+            .map(|raw| {
+                StartingUnlocks::parse_with(&file_bytes(raw), &perk_sets, &stage_skills, &runes)
+            })
+            .transpose()
+            .map_err(PackError::in_file("starting_unlocks"))?;
         let trial = validate::parse_and_validate(&file_bytes(&pack.modes.trial))
             .map_err(PackError::in_file("trial"))?;
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit))
@@ -353,6 +370,7 @@ impl Pack {
             runes,
             perk_sets,
             difficulties,
+            starting_unlocks,
             time_limit,
             trial,
             file_bytes(&pack.modes.trial),
@@ -388,6 +406,12 @@ impl Pack {
     pub fn bundled() -> &'static Pack {
         static BUNDLED: OnceLock<Pack> = OnceLock::new();
         BUNDLED.get_or_init(|| Pack::from_bytes(Pack::BUNDLED).expect("the bundled pack"))
+    }
+
+    /// What a new save begins with, `None` for a pack released without the file: unknown,
+    /// never a guessed list.
+    pub fn starting_unlocks(&self) -> Option<&StartingUnlocks> {
+        self.content.starting_unlocks()
     }
 
     /// The `trial` mode's stage.
@@ -446,6 +470,19 @@ struct Lists {
     elite_table: Vec<IgnoredAny>,
     #[serde(default)]
     elite_types: Vec<IgnoredAny>,
+}
+
+/// The lists of the starting unlocks file, counted.
+#[derive(Deserialize)]
+struct UnlockLists {
+    #[serde(default)]
+    weapons: Vec<IgnoredAny>,
+    #[serde(default)]
+    perk_sets: Vec<IgnoredAny>,
+    #[serde(default)]
+    stage_skills: Vec<IgnoredAny>,
+    #[serde(default)]
+    runes: Vec<IgnoredAny>,
 }
 
 #[derive(Deserialize)]
@@ -549,6 +586,24 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
             l.difficulties.len(),
             MAX_DIFFICULTIES,
         )?;
+    }
+    if let Some(l) = pack
+        .starting_unlocks
+        .as_deref()
+        .and_then(counts::<UnlockLists>)
+    {
+        for (name, found) in [
+            ("weapons", l.weapons.len()),
+            ("perk_sets", l.perk_sets.len()),
+            ("stage_skills", l.stage_skills.len()),
+            ("runes", l.runes.len()),
+        ] {
+            budget(
+                format!("$.starting_unlocks.{name}"),
+                found,
+                MAX_STARTING_UNLOCKS,
+            )?;
+        }
     }
     if let Some(l) = counts::<Lists>(&pack.modes.time_limit) {
         budget(
@@ -833,6 +888,13 @@ pub fn export_bundled() -> Vec<u8> {
         "{{\n  \"schema_version\": {SCHEMA_VERSION},\n  \"sim_version\": {SIM_VERSION},\n"
     ));
     // Every bundled ID is version 0's (ADR-035).
+    let starting_unlocks = StartingUnlocks::parse_with(
+        StartingUnlocks::BUNDLED,
+        &PerkSets::parse(PerkSets::BUNDLED).expect("the bundled perk sets"),
+        &StageSkills::parse(StageSkills::BUNDLED).expect("the bundled stage skills"),
+        &Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
+    )
+    .expect("the bundled starting unlocks");
     let content = RunContent::from_parts(
         RunStats::parse(RunStats::BUNDLED).expect("the bundled run stats"),
         Rewards::parse_with(
@@ -845,6 +907,7 @@ pub fn export_bundled() -> Vec<u8> {
         Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
         PerkSets::parse(PerkSets::BUNDLED).expect("the bundled perk sets"),
         Difficulties::parse(Difficulties::BUNDLED).expect("the bundled difficulties"),
+        Some(starting_unlocks),
         TimeLimit::parse(TimeLimit::BUNDLED).expect("the bundled mode"),
         validate::parse_and_validate(trial).expect("the bundled trial"),
         trial.to_vec(),
@@ -870,6 +933,10 @@ pub fn export_bundled() -> Vec<u8> {
     ] {
         out.push_str(&format!("  \"{name}\": {},\n", file(bytes)));
     }
+    out.push_str(&format!(
+        "  \"starting_unlocks\": {},\n",
+        file(StartingUnlocks::BUNDLED)
+    ));
     out.push_str(&format!(
         "  \"modes\": {{\n    \"trial\": {},\n    \"time_limit\": {},\n    \"tutorial\": {}\n  }}\n}}\n",
         file(trial),
