@@ -121,6 +121,7 @@ use crate::fixed::{Fx, Point};
 use crate::hash::StateHasher;
 use crate::id::EntityId;
 use crate::input::Input;
+use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::run_content::RunContent;
@@ -223,6 +224,7 @@ pub(crate) fn initial_state(
     content: &RunContent,
     pool: RunPool,
     seed: u64,
+    kinds: KindTable,
 ) -> State {
     let run_stats = content.run_stats();
     let rewards = content.rewards().rewards().len();
@@ -247,7 +249,7 @@ pub(crate) fn initial_state(
             };
             // Orbiting companions start a quarter turn apart.
             let angle = i32::try_from(i).unwrap_or(0) * 90 * trig::PER_DEGREE;
-            agents::new_agent(id, key, def, start, angle)
+            agents::new_agent(id, kinds.of(&def.base), key, def, start, angle)
         })
         .collect();
     // The boss's parts come after the companions in the order of entity IDs.
@@ -255,7 +257,7 @@ pub(crate) fn initial_state(
         .boss
         .as_ref()
         .zip(boss_id)
-        .map(|(b, id)| boss_state(b, id, &mut next_id, pool.difficulty.hp_pct));
+        .map(|(b, id)| boss_state(b, id, &mut next_id, pool.difficulty.hp_pct, &kinds));
     State {
         tick: 0,
         rng: SplitMix64::new(seed),
@@ -352,6 +354,7 @@ pub(crate) fn initial_state(
         damage_pct: pool.difficulty.damage_pct,
         crit_seed: seed,
         echoes: Vec::new(),
+        kinds,
     }
 }
 
@@ -368,10 +371,12 @@ pub(crate) fn boss_state(
     id: EntityId,
     next_id: &mut u32,
     hp_pct: u32,
+    kinds: &KindTable,
 ) -> BossState {
     let hp = |hp: u32| scale_hp(hp, hp_pct);
     BossState {
         id,
+        kind: kinds.of(&b.base),
         at: b.spawn,
         hp: hp(b.hp),
         max_hp: hp(b.hp),
@@ -395,6 +400,7 @@ pub(crate) fn boss_state(
                 PartState {
                     id: part_id,
                     name: p.id.clone(),
+                    kind: kinds.of(&p.id),
                     hp: hp(p.hp),
                     max_hp: hp(p.hp),
                     defence: p.defence,
@@ -579,7 +585,7 @@ pub(super) fn spawn_enemy(
     }
     let id = EntityId(s.next_id);
     s.next_id += 1;
-    let mut enemy = agents::new_agent(id, key, def, at, 0);
+    let mut enemy = agents::new_agent(id, s.kinds.of(&def.base), key, def, at, 0);
     enemy.hp = scale_hp(enemy.hp, s.hp_pct);
     enemy.max_hp = enemy.hp;
     if let Some(el) = enemy.elite.as_mut() {
@@ -765,7 +771,9 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     events.push(DomainEvent::Hit {
         source: b.owner,
         target: id,
+        target_kind: kind_of(s, target),
         damage: dealt,
+        damage_type: b.damage_type,
         match_up,
         rune: b.rune,
         crit,
@@ -806,7 +814,27 @@ fn death_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
         (Who::BossPart(i), Some(boss)) => DomainEvent::PartBroken {
             part: boss.parts[i].name.clone(),
         },
-        _ => DomainEvent::Died { entity: id },
+        _ => DomainEvent::Died {
+            entity: id,
+            kind: kind_of(s, target),
+        },
+    }
+}
+
+/// The kind of a target (`EntityView::kind_index`): the index of the content ID the Bestiary keys
+/// on. An
+/// enemy's, an elite's or a companion's is its sprite ID, the boss's is its own, a boss part's
+/// is the part's ID. The main character has none, and a mimic still in disguise shows none.
+pub(super) fn kind_of(s: &State, who: Who) -> Option<KindIndex> {
+    match who {
+        Who::Player => None,
+        Who::Boss => Some(s.boss_state().kind),
+        Who::BossPart(i) => Some(s.boss_state().parts[i].kind),
+        Who::Companion(i) => Some(s.companions[i].kind),
+        Who::Enemy(i) => {
+            let e = &s.enemies[i];
+            (!e.hidden()).then_some(e.kind)
+        }
     }
 }
 

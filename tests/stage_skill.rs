@@ -630,3 +630,39 @@ fn a_new_pull_shield_or_attack_replaces_the_one_still_going() {
         .collect();
     assert_eq!(skill_runs, [0], "one attack in the slot, the new one");
 }
+
+#[test]
+fn a_stage_skill_attack_names_its_damage_type_in_the_hit() {
+    let area = json!({ "type": "attack", "attack": { "inline": [
+        { "kind": "active", "ticks": 20, "damage": 7, "type": "cryo",
+          "hit_box": { "type": "circle", "offset": { "forward": AHEAD }, "radius": 8_192 } }
+    ] } });
+    let point_y = START_Y - AHEAD;
+    let mut e = with(
+        &starry(vec![targets(1), standing(40, 50, START_X, point_y)]),
+        content(vec![skill("nova", &[area])], &[("nova_r", "nova", 1)]),
+    );
+    take(&mut e, "nova_r");
+    while enemies_at(&e).is_empty() {
+        e.step(idle());
+    }
+    e.step(pressing_skill());
+    let types: Vec<_> = e
+        .events()
+        .iter()
+        .filter_map(|ev| match ev {
+            DomainEvent::Hit {
+                damage: 7,
+                damage_type,
+                ..
+            } => Some(*damage_type),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        types,
+        [Some(stella_rain_core::attack::DamageType::Cryo)],
+        "{:?}",
+        e.events()
+    );
+}

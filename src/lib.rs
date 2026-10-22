@@ -16,6 +16,7 @@ pub mod fixed;
 pub mod hash;
 pub mod id;
 pub mod input;
+pub mod kinds;
 pub mod match_ups;
 pub mod pack;
 pub mod parsed_stage_hash;

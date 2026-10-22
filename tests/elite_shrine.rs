@@ -323,7 +323,7 @@ fn clearing_the_guardians_in_time_gives_the_elite_reward_and_the_shrine_goes() {
     let died: Vec<_> = events
         .iter()
         .filter_map(|(_, ev)| match ev {
-            DomainEvent::Died { entity } => Some(*entity),
+            DomainEvent::Died { entity, .. } => Some(*entity),
             _ => None,
         })
         .collect();

@@ -792,7 +792,13 @@ mod tests {
                 rarity: (Rarity::Common, Rarity::Rare),
             },
         };
-        let mut s = initial_state(&stage, RunContent::bundled(), pool, 1);
+        let mut s = initial_state(
+            &stage,
+            RunContent::bundled(),
+            pool,
+            1,
+            crate::kinds::KindTable::of_stage(&stage).unwrap(),
+        );
         boss_killed(&stage, &mut s);
         let due = &s.stars.as_ref().expect("a star field").due;
         assert_eq!(due.len(), 1, "{due:?}");
@@ -822,7 +828,13 @@ mod tests {
                 rarity: ALL,
             },
         };
-        let mut s = initial_state(&stage, RunContent::bundled(), pool, 1);
+        let mut s = initial_state(
+            &stage,
+            RunContent::bundled(),
+            pool,
+            1,
+            crate::kinds::KindTable::of_stage(&stage).unwrap(),
+        );
         let State {
             rng,
             stars,

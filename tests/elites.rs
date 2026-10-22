@@ -342,7 +342,7 @@ fn the_trial_run_meets_elites_so_the_corpus_covers_them() {
                 DomainEvent::RuleFired { agent, .. } if ids.contains(&agent.0) && called == 0 => {
                     fired_before_call = true;
                 }
-                DomainEvent::Died { entity } if ids.contains(&entity.0) => killed = true,
+                DomainEvent::Died { entity, .. } if ids.contains(&entity.0) => killed = true,
                 DomainEvent::ElitesCalled { elites } => called = *elites,
                 _ => {}
             }

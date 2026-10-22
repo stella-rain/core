@@ -82,6 +82,7 @@ pub(super) fn queue_echo(s: &mut State, b: &Shot, target: EntityId, dealt: u32, 
         source: b.owner,
         target,
         damage,
+        damage_type: b.damage_type,
     });
 }
 
@@ -106,7 +107,9 @@ pub(super) fn deal_echoes(s: &mut State, events: &mut Vec<DomainEvent>) {
         events.push(DomainEvent::Hit {
             source: echo.source,
             target: echo.target,
+            target_kind: super::kind_of(s, target),
             damage: echo.damage,
+            damage_type: echo.damage_type,
             match_up: MatchUp::None,
             rune: None,
             crit: false,
@@ -217,7 +220,13 @@ mod tests {
                 rarity: (Rarity::Common, Rarity::Supernova),
             },
         };
-        initial_state(&stage, RunContent::bundled(), pool, 1)
+        initial_state(
+            &stage,
+            RunContent::bundled(),
+            pool,
+            1,
+            crate::kinds::KindTable::of_stage(&stage).unwrap(),
+        )
     }
 
     fn shot(owner: EntityId) -> Shot {
@@ -297,6 +306,7 @@ mod tests {
         };
         let mut e = new_agent(
             EntityId(id),
+            crate::kinds::KindIndex(0),
             key,
             &stage.waves[0].enemy,
             Point::default(),
@@ -347,6 +357,7 @@ mod tests {
                 source: PLAYER_ID,
                 target: EntityId(target),
                 damage,
+                damage_type: None,
             });
         }
         let mut events = Vec::new();

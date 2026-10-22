@@ -8,6 +8,7 @@ use crate::attack::{DamageType, HitBox, PhaseKind, ZoneShape};
 use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
+use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
 
@@ -558,6 +559,11 @@ pub struct EntityView {
     pub id: EntityId,
     pub kind: EntityKind,
     pub asset: ContentId,
+    /// Its kind, the one the Bestiary keys on: an index into the run's `KindTable`
+    /// (`Engine::kinds`) of an enemy's, an elite's, a boss's or a companion's sprite ID, or of a
+    /// boss part's own ID. Absent for a mimic still in disguise (`asset` is then its disguise).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind_index: Option<KindIndex>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette: Option<ContentId>,
     pub at: Point,

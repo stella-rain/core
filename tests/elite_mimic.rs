@@ -797,3 +797,21 @@ fn a_mimic_must_be_an_enemy_with_an_elite() {
     m["mimic"] = json!({ "disguise": DISGUISE, "reveal_radius": 100 });
     assert!(serde_json::from_value::<stella_rain_core::behaviour::Agent>(m).is_err());
 }
+
+// --- Kind (core#271) ---------------------------------------------------------------------------
+
+#[test]
+fn a_disguised_mimic_carries_no_kind_and_a_revealed_one_its_own() {
+    let mut e = engine(&quiet_stage(vec![wave(
+        1,
+        1,
+        0,
+        mimic(REVEAL),
+        AHEAD.0,
+        AHEAD.1,
+    )]));
+    e.step(idle());
+    let v = mimic_view(&e);
+    assert!(disguised(&v));
+    assert_eq!(v.kind_index, None, "nothing leaks while it is disguised");
+}

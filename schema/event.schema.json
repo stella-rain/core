@@ -18,6 +18,17 @@
               "format": "uint32",
               "minimum": 0
             },
+            "damage_type": {
+              "description": "The damage type the hit was dealt in (ADR-100), whatever its source: a weapon, a rune,\nthe stage skill, a burst or a damage-over-time tick; left out when neutral.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/DamageType"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "echo": {
               "description": "The hit is an echo of an earlier one, a tick later; left out when not.",
               "type": "boolean"
@@ -42,6 +53,17 @@
             },
             "target": {
               "$ref": "#/$defs/EntityId"
+            },
+            "target_kind": {
+              "description": "The kind of `target` (`EntityView::kind_index`), an index into the run's `KindTable`: left out for the main character and\nfor a mimic still in disguise.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/KindIndex"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "additionalProperties": false,
@@ -561,6 +583,17 @@
           "properties": {
             "entity": {
               "$ref": "#/$defs/EntityId"
+            },
+            "kind": {
+              "description": "The kind of the victim (`EntityView::kind_index`), an index into the run's `KindTable`; left out for a mimic still in\ndisguise.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/KindIndex"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "additionalProperties": false,
@@ -798,6 +831,17 @@
             },
             "elite": {
               "$ref": "#/$defs/EntityId"
+            },
+            "kind": {
+              "description": "The elite's kind (`EntityView::kind_index`), an index into the run's `KindTable`; left out for a mimic, which is disguised.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/KindIndex"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "additionalProperties": false,
@@ -1210,6 +1254,22 @@
       "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
+    "DamageType": {
+      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
+      "type": "string",
+      "enum": [
+        "slash",
+        "pierce",
+        "strike",
+        "pyro",
+        "hydro",
+        "electro",
+        "cryo",
+        "anemo",
+        "geo",
+        "dendro"
+      ]
+    },
     "EntityId": {
       "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).",
       "type": "integer",
@@ -1245,6 +1305,13 @@
       "description": "A length in 1/256 pixel units. In files it is the plain integer.",
       "type": "integer",
       "format": "int32"
+    },
+    "KindIndex": {
+      "description": "The index of a kind in the run's `KindTable`. It is only meaningful with that run's table:\nkey anything that outlives the run on the ID.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
     },
     "MatchUp": {
       "description": "The match-up a hit got (ADR-100), which the `Hit` event reports.",

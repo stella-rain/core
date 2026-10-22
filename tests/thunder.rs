@@ -8,6 +8,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::attack::PhaseKind;
 use stella_rain_core::engine::Engine;
+use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
@@ -297,4 +298,35 @@ fn a_run_holding_thunder_records_and_verifies() {
     assert!(fired, "thunder fired in the run");
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());
+}
+
+#[test]
+fn a_thunder_strike_names_its_own_damage_type_and_the_kind_it_struck() {
+    let mut e = holding(runes(60, STRIKE, Some("electro")), tough(0, None, None));
+    let target = wait_for_target(&mut e);
+    let start = e.tick();
+    let mut strikes = Vec::new();
+    for _ in 0..20 {
+        e.step(once(start)(e.tick()));
+        for ev in e.events() {
+            if let DomainEvent::Hit {
+                target: t,
+                damage: STRIKE,
+                damage_type,
+                target_kind,
+                ..
+            } = ev
+            {
+                if *t == target {
+                    strikes.push((*damage_type, *target_kind));
+                }
+            }
+        }
+    }
+    assert_eq!(strikes.len(), 1, "{strikes:?}");
+    assert_eq!(
+        strikes[0].0,
+        Some(stella_rain_core::attack::DamageType::Electro)
+    );
+    assert!(strikes[0].1.is_some(), "the target's kind");
 }

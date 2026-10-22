@@ -11,6 +11,7 @@ use crate::engine::{
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::kinds::KindIndex;
 use crate::stage::Stage;
 use crate::trig;
 
@@ -67,6 +68,7 @@ pub(crate) fn agent_def(stage: &Stage, key: AgentKey) -> &Agent {
 
 pub(super) fn new_agent(
     id: EntityId,
+    kind: KindIndex,
     key: AgentKey,
     def: &Agent,
     at: Point,
@@ -74,6 +76,7 @@ pub(super) fn new_agent(
 ) -> AgentState {
     AgentState {
         id,
+        kind,
         key,
         at,
         hp: def.hp,
@@ -202,7 +205,10 @@ fn shrines(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
         });
         if cleared {
             s.enemies[i].hp = 0;
-            events.push(DomainEvent::Died { entity: id });
+            events.push(DomainEvent::Died {
+                entity: id,
+                kind: super::kind_of(s, Who::Enemy(i)),
+            });
         } else if fight >= *fight_ticks {
             s.enemies.remove(i);
             events.push(DomainEvent::EliteLeft { elite: id });
