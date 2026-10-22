@@ -1,0 +1,8 @@
+{
+  "schema_version": 0,
+  "sim_version": 0,
+  "modes": [
+    { "id": "time_limit", "bank": true, "pay_pct": 50, "bank_pct": 50, "bank_cap": 1000 },
+    { "id": "trial", "bank": true, "pay_pct": 50, "bank_pct": 50, "bank_cap": 1000 }
+  ]
+}

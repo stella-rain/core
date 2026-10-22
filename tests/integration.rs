@@ -90,6 +90,7 @@ mod stage_skill_file;
 mod stage_verify;
 mod stardust;
 mod stardust_earners;
+mod stardust_file;
 mod stardust_tiers;
 mod stars;
 mod starting_unlocks;
