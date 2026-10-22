@@ -49,6 +49,7 @@
 //! `MAX_DOT_DURATION_TICKS` and `MAX_DAMAGE`; so an entity carries at most one status of each
 //! of `StatusKind`'s kinds, and the enemies at most `MAX_ENEMIES_ALIVE` of each.
 
+use super::Run;
 use std::sync::Arc;
 
 use crate::attack::AttackPhase;
@@ -63,7 +64,6 @@ use crate::runes::{
     MAX_DOT_DURATION_TICKS, MAX_DOT_INTERVAL_TICKS, MAX_DOT_STACKS, MAX_HOMING_MISSILES,
     MAX_RUNE_COOLDOWN_TICKS,
 };
-use crate::stage::Stage;
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 
 use super::entity::{Who, status_pct};
@@ -100,7 +100,7 @@ pub(super) fn tick(s: &mut State) {
 /// A combo step hit `hit` at `at`: each on-hit rune held and ready fires its attack there, at
 /// its base damage, and waits out its cooldown.
 pub(super) fn on_hit(
-    stage: &Stage,
+    stage: &Run,
     s: &mut State,
     hit: EntityId,
     at: Point,
@@ -205,7 +205,7 @@ fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEven
 /// `damage`. False, launching none, if a missile's slot is busy.
 #[allow(clippy::too_many_arguments)]
 fn launch(
-    stage: &Stage,
+    stage: &Run,
     s: &mut State,
     hit: EntityId,
     at: Point,

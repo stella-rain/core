@@ -21,6 +21,7 @@ use crate::match_ups::MatchUps;
 use crate::rewards::{MAX_BURST_DEPTH, Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
+use crate::rules_v0::Run;
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
@@ -118,7 +119,7 @@ fn horde_kinds(stage: &Stage, horde: &Horde) -> Result<KindTable, crate::validat
 /// A run of one stage.
 #[derive(Clone, Debug)]
 pub struct Engine {
-    stage: Stage,
+    stage: Run,
     /// The content files the run reads (ADR-067), fixed for the run.
     content: RunContent,
     state: State,
@@ -144,15 +145,15 @@ impl Engine {
             extra_rerolls: 0,
             difficulty: rules_v0::RunDifficulty::NONE,
         };
+        let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
+        let stage = Run::new(
+            stage.clone(),
+            &stage.boss.iter().collect::<Vec<_>>(),
+            &kinds,
+        );
         Ok(Engine {
-            state: rules_v0::initial_state(
-                stage,
-                content,
-                pool,
-                u64::from(stage.seed),
-                KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?,
-            ),
-            stage: stage.clone(),
+            state: rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds),
+            stage,
             content: content.clone(),
             events: Vec::new(),
             load: Load::default(),
@@ -178,6 +179,8 @@ impl Engine {
             difficulty: run_difficulty(setup, content)?,
         };
         let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
+        let bosses: Vec<&crate::stage::Boss> = stage.boss.iter().collect();
+        let stage = Run::new(stage.clone(), &bosses, &kinds);
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
@@ -206,6 +209,12 @@ impl Engine {
             difficulty: run_difficulty(setup, content)?,
         };
         let kinds = horde_kinds(&stage, &horde).map_err(|i| Error::Invalid(vec![i]))?;
+        let bosses: Vec<&crate::stage::Boss> = horde
+            .bosses
+            .iter()
+            .chain(std::iter::once(&horde.template))
+            .collect();
+        let stage = Run::new(stage.clone(), &bosses, &kinds);
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
         let loadout = rules_v0::Loadout::of(setup, content);
@@ -230,7 +239,7 @@ impl Engine {
         }
         match self.stage.sim_version {
             0 => {
-                rules_v0::spawn_boss(&mut self.stage, &mut self.state);
+                rules_v0::spawn_boss(&self.stage, &mut self.state);
                 rules_v0::step(
                     &self.stage,
                     self.content.rewards(),
@@ -397,7 +406,7 @@ impl Engine {
         // The auras of the elites, read once: an enemy within reach of one is strengthened.
         let auras: Vec<_> = rules_v0::aura_sources(&self.stage, s).collect();
         let mut entities = Vec::new();
-        if let (Some(b), Some(boss)) = (&s.boss, &self.stage.boss) {
+        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&*b.def, b)) {
             if b.hp > 0 {
                 entities.push(EntityView {
                     id: b.id,
@@ -422,7 +431,7 @@ impl Engine {
         let agent_views =
             |kind, agents: &[crate::engine::AgentState], out: &mut Vec<EntityView>| {
                 for a in agents {
-                    let def = rules_v0::agent_def(&self.stage, a.key);
+                    let def = self.stage.defs.agent(a.def);
                     let hidden = a.hidden();
                     // Only a non-elite enemy is strengthened by an aura (ADR-090).
                     let reached = kind == EntityKind::Enemy
@@ -468,7 +477,7 @@ impl Engine {
         agent_views(EntityKind::Companion, &s.companions, &mut entities);
         // A part is drawn while it and its boss are alive: a dead boss takes its unbroken
         // parts with it (core#60).
-        if let (Some(b), Some(boss)) = (&s.boss, &self.stage.boss) {
+        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&*b.def, b)) {
             for (part, def) in b.parts.iter().zip(&boss.parts) {
                 if b.hp > 0 && part.hp > 0 {
                     entities.push(EntityView {
@@ -1177,6 +1186,11 @@ pub(crate) struct DashState {
 #[derive(Clone, Debug)]
 pub(crate) struct BossState {
     pub id: EntityId,
+    /// The boss as it came: the stage's, or a `time_limit` boss moved to the main character and
+    /// scaled (`spawn_boss`). The stage itself is never changed in a run.
+    pub def: std::sync::Arc<crate::stage::Boss>,
+    /// Which of the run's boss definitions (`AgentDefs`) it was made from.
+    pub boss_index: u32,
     /// The boss's kind (its sprite), an index into the run's `KindTable` made at spawn.
     pub kind: KindIndex,
     pub at: Point,
@@ -1227,7 +1241,7 @@ pub(crate) struct PartState {
 }
 
 /// Which definition an agent runs: its `Agent` in the stage.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct AgentKey {
     pub source: AgentSource,
     /// The companion index, or the wave index.
@@ -1236,7 +1250,7 @@ pub(crate) struct AgentKey {
     pub rule: u32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum AgentSource {
     Companion,
     Wave,
@@ -1253,6 +1267,8 @@ pub(crate) enum AgentSource {
 #[derive(Clone, Debug)]
 pub(crate) struct AgentState {
     pub id: EntityId,
+    /// Its definition in the run's `AgentDefs`.
+    pub def: u32,
     /// Its kind (its sprite), an index into the run's `KindTable` made at spawn; a hit copies it.
     pub kind: KindIndex,
     pub key: AgentKey,
@@ -1836,10 +1852,22 @@ mod horde_tests {
     }
 
     #[test]
+    fn a_boss_coming_leaves_the_stage_as_it_was() {
+        let mut e = engine(&[50, 100]);
+        let before = e.stage.stage.clone();
+        run_to(&mut e, 100);
+        assert!(e.state.boss.is_some(), "a boss has come");
+        assert_eq!(
+            e.stage.stage, before,
+            "the stage is read-only for a run (core#271)"
+        );
+    }
+
+    #[test]
     fn the_final_boss_is_the_core_pair_and_its_death_clears_the_run() {
         let mut e = engine(&[50, 100]);
         run_to(&mut e, 100);
-        assert_eq!(e.stage.boss.as_ref().unwrap().base.0, "core_pair");
+        assert_eq!(e.state.boss.as_ref().unwrap().def.base.0, "core_pair");
         assert_eq!(e.state.boss.as_ref().unwrap().parts.len(), 2);
         e.state.boss.as_mut().unwrap().hp = 0;
         e.step(Input::default());
@@ -2202,7 +2230,7 @@ mod horde_tests {
             let def = mode
                 .bosses()
                 .iter()
-                .find(|b| b.base == e.stage.boss.as_ref().unwrap().base)
+                .find(|b| b.base == e.state.boss.as_ref().unwrap().def.base)
                 .unwrap();
             assert_eq!(boss.max_hp, def.hp * pct / 100, "at {t}");
             let parts: Vec<u32> = boss.parts.iter().map(|p| p.hp).collect();

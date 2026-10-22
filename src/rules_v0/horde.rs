@@ -21,12 +21,13 @@
 //! whoever spawned them) and the cap on enemies hold it back after the draws, so the generator
 //! never depends on either. An elite is built from the definition of the type drawn (`elite_types` of the mode file); its sprite is the type's.
 
+use super::Run;
 use crate::behaviour::{Action, BossCall};
 use crate::engine::{AgentKey, AgentSource, Outcome, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
-use crate::stage::{Stage, Step};
+use crate::stage::Step;
 
 use super::scale_hp;
 
@@ -40,7 +41,7 @@ const ELITE_RING: Fx = Fx::px(400);
 const ABOVE: i32 = Fx::px(120).0;
 
 /// Brings the boss whose time the next tick reaches, if any. Called before the tick runs.
-pub(crate) fn spawn_boss(stage: &mut Stage, s: &mut State) {
+pub(crate) fn spawn_boss(stage: &Run, s: &mut State) {
     if s.outcome != Outcome::Running {
         return;
     }
@@ -126,14 +127,22 @@ pub(crate) fn spawn_boss(stage: &mut Stage, s: &mut State) {
     }
     let id = EntityId(s.next_id);
     s.next_id += 1;
+    let boss_index = u32::try_from(
+        horde
+            .bosses
+            .iter()
+            .position(|b| b.base == def.base)
+            .unwrap_or(horde.bosses.len()),
+    )
+    .unwrap_or(u32::MAX);
     s.boss = Some(super::boss_state(
-        &def,
+        def,
+        boss_index,
         id,
         &mut s.next_id,
         s.hp_pct,
         &s.kinds,
     ));
-    stage.boss = Some(def);
 }
 
 /// The final boss has come and is dead.
@@ -145,7 +154,7 @@ pub(super) fn final_boss_dead(s: &State) -> bool {
 }
 
 /// Brings the elite of this tick's minute, if it is one (see the module).
-pub(super) fn spawn_elite(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn spawn_elite(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     let tick = s.tick;
     let Some(horde) = s.horde.as_ref() else {
         return;
@@ -186,7 +195,7 @@ pub(super) fn spawn_elite(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
         rule: 0,
     };
     let def = &stage.waves[index as usize].enemy;
-    if super::spawn_enemy(stage, s, key, def, at) {
+    if super::spawn_enemy(stage, s, key, at) {
         events.push(DomainEvent::EliteSpawned {
             elite: id,
             // A mimic is announced as what it is disguised as.

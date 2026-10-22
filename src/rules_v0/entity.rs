@@ -2,13 +2,13 @@
 //! companion or an enemy. Statuses and aggro live here too, since every kind of entity has
 //! them.
 
+use super::Run;
 use crate::engine::{DotState, State, StatusKind, StatusState};
 use crate::event::DomainEvent;
 use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::rune::Rune;
-use crate::stage::Stage;
 use crate::validate::limits::DAMAGE_SCALE;
 
 use super::{MAX_AGGRO, PLAYER_ID, Shot};
@@ -32,6 +32,16 @@ const MAX_BONUS_PCT: u32 = 1000;
 const MAX_SLOW_PCT: u32 = 90;
 
 impl State {
+    /// The boss that is on the field, or was the last: its definition as it came (a `time_limit`
+    /// boss is moved to the main character and scaled when it comes).
+    pub(super) fn boss_def(&self) -> Option<&crate::stage::Boss> {
+        self.boss.as_ref().map(|b| &*b.def)
+    }
+
+    pub(super) fn boss_pair(&self) -> Option<(&crate::stage::Boss, &crate::engine::BossState)> {
+        self.boss.as_ref().map(|b| (&*b.def, b))
+    }
+
     pub(super) fn boss_state(&self) -> &crate::engine::BossState {
         self.boss
             .as_ref()
@@ -336,7 +346,7 @@ impl State {
 /// fires no rune and applies no status. While the boss is invulnerable, the tick does it and
 /// its parts no harm. Then its duration runs down, and at 0 it is gone. One that ends the
 /// entity, or finds it already at 0 hit points (a broken part), goes with it.
-pub(super) fn tick_dots(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn tick_dots(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     if s.boss.as_ref().is_some_and(|b| b.hp > 0) {
         tick_dots_of(stage, s, Who::Boss, events);
         let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
@@ -349,7 +359,7 @@ pub(super) fn tick_dots(stage: &Stage, s: &mut State, events: &mut Vec<DomainEve
     }
 }
 
-fn tick_dots_of(stage: &Stage, s: &mut State, who: Who, events: &mut Vec<DomainEvent>) {
+fn tick_dots_of(stage: &Run, s: &mut State, who: Who, events: &mut Vec<DomainEvent>) {
     if s.statuses(who).iter().all(|st| st.dot.is_none()) {
         return;
     }

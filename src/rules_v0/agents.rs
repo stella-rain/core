@@ -3,7 +3,8 @@
 //! fires; the others wait. Agents are evaluated in entity-ID order (companions, then enemies),
 //! each rule list in order.
 
-use crate::behaviour::{Action, Agent, BossCall, Condition, Elite, Guardians, Movement, Rule};
+use super::Run;
+use crate::behaviour::{Agent, BossCall, Condition, Guardians, Movement, Rule};
 use crate::engine::{
     AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, ShrineState,
     State, UNLIMITED,
@@ -11,8 +12,6 @@ use crate::engine::{
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
-use crate::kinds::KindIndex;
-use crate::stage::Stage;
 use crate::trig;
 
 use super::act::perform;
@@ -24,59 +23,19 @@ const ORBIT_STEP: i32 = 384;
 /// A following agent moves at most this far a tick: 4 pixels.
 const FOLLOW_SPEED: i64 = Fx::px(4).0 as i64;
 
-/// The definition an agent runs.
-pub(crate) fn agent_def(stage: &Stage, key: AgentKey) -> &Agent {
-    let wave_enemy = |i: u32| &stage.waves[i as usize].enemy;
-    match key.source {
-        AgentSource::Companion => &stage.companions[key.index as usize],
-        AgentSource::Wave => wave_enemy(key.index),
-        AgentSource::BossRule => {
-            let action = stage
-                .boss
-                .as_ref()
-                .and_then(|b| b.phases.get(key.index as usize))
-                .and_then(|p| p.rules.get(key.rule as usize))
-                .map(|r| &r.action);
-            match action {
-                Some(Action::Summon { agent, .. }) => agent,
-                _ => unreachable!("a boss summon names the summon rule that made it"),
-            }
-        }
-        AgentSource::Guardian => match &wave_enemy(key.index).movement {
-            Movement::Shrine { guardians, .. } => &guardians.enemy,
-            _ => unreachable!("a guardian names the shrine that rang it"),
-        },
-        AgentSource::Escort => match &wave_enemy(key.index).elite {
-            Some(Elite {
-                escort: Some(escort),
-                ..
-            }) => &escort.enemy,
-            _ => unreachable!("an escort names the leader that brought it"),
-        },
-        AgentSource::Summoned => {
-            match wave_enemy(key.index)
-                .rules
-                .get(key.rule as usize)
-                .map(|r| &r.action)
-            {
-                Some(Action::Summon { agent, .. }) => agent,
-                _ => wave_enemy(key.index),
-            }
-        }
-    }
-}
-
 pub(super) fn new_agent(
     id: EntityId,
-    kind: KindIndex,
+    index: u32,
+    d: &super::defs::AgentDef,
     key: AgentKey,
-    def: &Agent,
     at: Point,
     angle: i32,
 ) -> AgentState {
+    let def = &d.agent;
     AgentState {
         id,
-        kind,
+        def: index,
+        kind: d.kind,
         key,
         at,
         hp: def.hp,
@@ -136,7 +95,7 @@ pub(super) fn agent_mut(s: &mut State, who: Who) -> &mut AgentState {
 }
 
 /// Every agent moves, then acts, in entity-ID order. Agents summoned this tick start next tick.
-pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn act(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     for i in 0..s.companions.len() {
         act_one(stage, s, Who::Companion(i), events);
     }
@@ -158,7 +117,7 @@ pub(super) fn act(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
 /// timer counts one more; when no guardian that spawned is alive the shrine is done (its hit
 /// points go to 0 and the tick's hits credit the elite's kill), else when the timer reaches
 /// `fight_ticks` it leaves unkilled. No random number is drawn.
-fn shrines(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+fn shrines(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     let ids: Vec<EntityId> = s
         .enemies
         .iter()
@@ -170,7 +129,7 @@ fn shrines(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
             continue;
         };
         let e = &s.enemies[i];
-        let def = agent_def(stage, e.key);
+        let def = stage.defs.agent(e.def);
         let Movement::Shrine {
             fight_ticks,
             guardians,
@@ -222,7 +181,7 @@ fn shrines(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
 /// order, through the usual spawn path: the cap on enemies refuses the ones that do not fit and
 /// the first refusal ends the ring. Returns the ones that spawned. No random number is drawn.
 pub(super) fn ring_up(
-    stage: &Stage,
+    stage: &Run,
     s: &mut State,
     key: AgentKey,
     guardians: &Guardians,
@@ -232,7 +191,7 @@ pub(super) fn ring_up(
     for k in 0..u32::from(guardians.count) {
         let at = ring_point(stage, home, guardians.radius, k, u32::from(guardians.count));
         let next = EntityId(s.next_id);
-        if !super::spawn_enemy(stage, s, key, &guardians.enemy, at) {
+        if !super::spawn_enemy(stage, s, key, at) {
             break;
         }
         rung.push(next);
@@ -242,7 +201,7 @@ pub(super) fn ring_up(
 
 /// Guardian `k` of `count`: on the ring of `radius` around `at`, evenly spaced from the east,
 /// moved onto the map.
-fn ring_point(stage: &Stage, at: Point, radius: Fx, k: u32, count: u32) -> Point {
+fn ring_point(stage: &Run, at: Point, radius: Fx, k: u32, count: u32) -> Point {
     let angle = i64::from(k) * i64::from(trig::PER_TURN) / i64::from(count.max(1));
     let (sin, cos) = trig::sin_cos(i32::try_from(angle).unwrap_or(0));
     let offset = |unit: i32| {
@@ -257,13 +216,13 @@ fn ring_point(stage: &Stage, at: Point, radius: Fx, k: u32, count: u32) -> Point
 /// Elites that leave go, unkilled: a boss came or called, or they were disturbed long enough
 /// ago (ADR-090). They are gone before any hit of this tick lands, so a leaving elite gives no
 /// kill reward.
-fn leave(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+fn leave(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     let mut gone = Vec::new();
     for e in &s.enemies {
         let Some(state) = e.leave else {
             continue;
         };
-        let timed_out = match agent_def(stage, e.key).movement {
+        let timed_out = match stage.defs.agent(e.def).movement {
             Movement::FleeWhenDisturbed {
                 leave_after_ticks, ..
             } => state.disturbed.is_some_and(|t| t >= leave_after_ticks),
@@ -283,8 +242,8 @@ fn leave(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
     );
 }
 
-fn act_one(stage: &Stage, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
-    let def = agent_def(stage, agent(s, me).key);
+fn act_one(stage: &Run, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
+    let def = stage.defs.agent(agent(s, me).def);
     {
         let a = agent_mut(s, me);
         a.age = a.age.saturating_add(1);
@@ -350,7 +309,7 @@ fn rule_states(s: &mut State, me: Who) -> &mut Vec<RuleState> {
 /// charges allow it, its selector finds a target and its action can be done. Agents and the
 /// boss's phases use the same rule lists, so they share this.
 pub(super) fn fire_first_rule(
-    stage: &Stage,
+    stage: &Run,
     s: &mut State,
     me: Who,
     rules: &[Rule],
@@ -361,10 +320,10 @@ pub(super) fn fire_first_rule(
         if st.cooldown_left > 0 || st.charges_left == 0 || (rule.once && st.fired) {
             continue;
         }
-        if !condition_holds(s, me, &rule.when, stage) {
+        if !condition_holds(s, me, &rule.when) {
             continue;
         }
-        let Some(target) = select(stage, s, me, &rule.target) else {
+        let Some(target) = select(s, me, &rule.target) else {
             continue;
         };
         if !perform(stage, s, me, target, i, &rule.action, events) {
@@ -411,24 +370,24 @@ fn time_since_start(s: &State, me: Who) -> u32 {
     }
 }
 
-pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition, stage: &Stage) -> bool {
+pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition) -> bool {
     match cond {
         Condition::Always => true,
-        Condition::HpBelow { who, pct } => select(stage, s, me, who).is_some_and(|w| {
+        Condition::HpBelow { who, pct } => select(s, me, who).is_some_and(|w| {
             // Strictly below `pct` percent of the maximum.
             u64::from(s.hp(w)) * 100 < u64::from(*pct) * u64::from(s.max_hp(w))
         }),
-        Condition::HasStatus { who, status } => select(stage, s, me, who)
+        Condition::HasStatus { who, status } => select(s, me, who)
             .is_some_and(|w| s.statuses(w).iter().any(|st| st.kind.name() == status.0)),
         Condition::AggroAbove { who, value } => {
-            select(stage, s, me, who).is_some_and(|w| s.aggro(w) > *value)
+            select(s, me, who).is_some_and(|w| s.aggro(w) > *value)
         }
         Condition::TimeAbove { ticks } => time_since_start(s, me) > *ticks,
         Condition::NearTarget { distance } => super::overlaps(s.at(me), distance.0, s.player.at, 0),
         Condition::PartBroken { part } => {
-            let index = stage
-                .boss
-                .iter()
+            let index = s
+                .boss_def()
+                .into_iter()
                 .flat_map(|b| &b.parts)
                 .position(|p| p.id == *part);
             match (index, &s.boss) {
@@ -483,7 +442,7 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 /// pixels a tick (`Orbit`: its orbit step plus 4 pixels), so that a push carries over to the
 /// next tick (ADR-058). An enemy that the last push-apart found crowded does not take that step;
 /// `Straight` and a `move_to` order are not held back.
-fn move_agent(stage: &Stage, s: &mut State, me: Who, def: &Agent) {
+fn move_agent(stage: &Run, s: &mut State, me: Who, def: &Agent) {
     let map = stage.map();
     let player_at = s.player.at;
     let attacking = super::attacks::move_pct(s, s.id_of(me));

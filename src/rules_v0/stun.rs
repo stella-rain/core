@@ -3,13 +3,12 @@
 //! character's and the companions' hits never stun anything. An elite takes its share of the
 //! ticks (ADR-085 point 6), and a stun of no ticks does nothing.
 
+use super::Run;
 use crate::engine::{State, StatusKind, StatusState};
 use crate::event::DomainEvent;
 use crate::id::EntityId;
-use crate::stage::Stage;
 use crate::validate::limits::MAX_STUN_TICKS;
 
-use super::agents::agent_def;
 use super::attacks;
 use super::entity::Who;
 
@@ -21,7 +20,7 @@ pub(super) fn stunned(statuses: &[StatusState]) -> bool {
 /// Stuns `target` for a smash's `ticks`: all of them on a regular enemy, the elite's share on an
 /// elite, nothing on any other target.
 pub(super) fn apply(
-    stage: &Stage,
+    stage: &Run,
     s: &mut State,
     target: Who,
     source: EntityId,
@@ -35,7 +34,7 @@ pub(super) fn apply(
         return;
     }
     let ticks = ticks.min(MAX_STUN_TICKS);
-    let elite = agent_def(stage, s.enemies[i].key).elite.is_some();
+    let elite = stage.defs.agent(s.enemies[i].def).elite.is_some();
     let ticks = if elite {
         ticks.saturating_mul(s.stun.elite_pct) / 100
     } else {
