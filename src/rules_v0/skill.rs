@@ -17,16 +17,15 @@
 //!
 //! A new pull or shield replaces the one there; statuses refresh as any status does (ADR-036).
 
+use super::Run;
 use crate::engine::{Dir, PlayerState, PullState, ShieldState, SkillSlot, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::input::Input;
 use crate::rewards::Rewards;
-use crate::stage::Stage;
 use crate::stage_skill::{MAX_SKILL_EFFECTS, MAX_SKILL_LEVELS, SkillEffect};
 use crate::trig::SCALE;
 
-use super::agent_def;
 use super::attacks;
 use super::entity::Who;
 use super::levels;
@@ -103,7 +102,7 @@ pub(crate) fn shortened(ticks: u32, pct: u32) -> u32 {
 
 /// A press of `skill`: the skill in the slot acts, if it is ready.
 pub(super) fn press(
-    stage: &Stage,
+    stage: &Run,
     rewards: &Rewards,
     s: &mut State,
     input: Input,
@@ -151,7 +150,7 @@ pub(super) fn press(
 
 /// One effect of a use, at `point`, along the aim `dir`.
 fn apply(
-    stage: &Stage,
+    stage: &Run,
     s: &mut State,
     effect: &SkillEffect,
     point: Point,
@@ -226,17 +225,17 @@ fn apply(
 
 /// The live enemies, then the boss and its unbroken parts, whose circle reaches within
 /// `radius` of `at`, in that order.
-fn within(stage: &Stage, s: &State, at: Point, radius: i32) -> Vec<Who> {
+fn within(stage: &Run, s: &State, at: Point, radius: i32) -> Vec<Who> {
     let mut out: Vec<Who> = s
         .enemies
         .iter()
         .enumerate()
         .filter(|(_, e)| {
-            e.hp > 0 && !e.hidden() && overlaps(at, radius, e.at, agent_def(stage, e.key).radius.0)
+            e.hp > 0 && !e.hidden() && overlaps(at, radius, e.at, stage.defs.agent(e.def).radius.0)
         })
         .map(|(i, _)| Who::Enemy(i))
         .collect();
-    if let Some((def, boss)) = stage.boss.as_ref().zip(s.boss.as_ref()) {
+    if let Some((def, boss)) = s.boss_pair() {
         if boss.hp > 0 && overlaps(at, radius, boss.at, def.radius.0) {
             out.push(Who::Boss);
         }
@@ -250,7 +249,7 @@ fn within(stage: &Stage, s: &State, at: Point, radius: i32) -> Vec<Who> {
 }
 
 /// The pull's step for this tick, after the enemies have moved and pushed apart.
-pub(super) fn pull(stage: &Stage, s: &mut State) {
+pub(super) fn pull(stage: &Run, s: &mut State) {
     let Some(b) = s.player.pull else {
         return;
     };
@@ -259,7 +258,7 @@ pub(super) fn pull(stage: &Stage, s: &mut State) {
         if e.hp == 0
             || e.shrine.is_some()
             || e.hidden()
-            || !overlaps(b.at, b.radius, e.at, agent_def(stage, e.key).radius.0)
+            || !overlaps(b.at, b.radius, e.at, stage.defs.agent(e.def).radius.0)
         {
             continue;
         }

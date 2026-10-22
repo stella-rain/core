@@ -21,18 +21,18 @@
 //! - Attackers resolve in entity-ID order, and every hit box active at the start of the step
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
+use super::Run;
 use crate::attack::{Anchor, DamageType, HitBox, Offset, PhaseKind, ZoneShape};
 use crate::engine::{Dir, Smash, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::rune::Rune;
-use crate::stage::Stage;
 use crate::trig;
 
 use super::entity::Who;
 use super::grid::Grid;
-use super::{PLAYER_RADIUS, Shot, agent_def, damage, enemy_grid, hurt_player, overlaps};
+use super::{PLAYER_RADIUS, Shot, damage, enemy_grid, hurt_player, overlaps};
 
 /// What a swing is made by, and so where the targets it has hit are kept.
 #[derive(Clone, Copy)]
@@ -140,7 +140,7 @@ impl Sector {
 // (ADR-058).
 #[inline(never)]
 pub(super) fn resolve(
-    stage: &Stage,
+    stage: &Run,
     s: &mut State,
     grid: &mut Option<Grid>,
     events: &mut Vec<DomainEvent>,
@@ -397,14 +397,14 @@ fn shot(w: &Swing) -> Shot {
 /// The boss, its parts and the enemies, in entity-ID order. An invulnerable boss shields its
 /// parts, as it does from bullets.
 fn hit_enemy_side(
-    stage: &Stage,
+    stage: &Run,
     s: &mut State,
     grid: &Grid,
     w: &Swing,
     found: &mut Vec<usize>,
     events: &mut Vec<DomainEvent>,
 ) {
-    if let Some((def, boss)) = stage.boss.as_ref().zip(s.boss.as_ref()) {
+    if let Some((def, boss)) = s.boss_pair() {
         if boss.invulnerable == 0 {
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
@@ -426,7 +426,7 @@ fn hit_enemy_side(
     for &i in found.iter() {
         let e = &s.enemies[i];
         let (id, at, hp) = (e.id, e.at, e.hp);
-        let radius = agent_def(stage, e.key).radius.0;
+        let radius = stage.defs.agent(e.def).radius.0;
         // A shrine is not hurt, nor a mimic in disguise: the hit passes through them.
         if hp > 0
             && e.shrine.is_none()
@@ -445,7 +445,7 @@ fn hit_enemy_side(
 }
 
 /// The main character (unless it is invulnerable), then the companions in ID order.
-fn hit_ally_side(stage: &Stage, s: &mut State, w: &Swing, events: &mut Vec<DomainEvent>) {
+fn hit_ally_side(stage: &Run, s: &mut State, w: &Swing, events: &mut Vec<DomainEvent>) {
     let p = &s.player;
     if p.hp > 0
         && p.invulnerable == 0
@@ -457,7 +457,7 @@ fn hit_ally_side(stage: &Stage, s: &mut State, w: &Swing, events: &mut Vec<Domai
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let (id, at, hp) = (c.id, c.at, c.hp);
-        let radius = agent_def(stage, c.key).radius.0;
+        let radius = stage.defs.agent(c.def).radius.0;
         if hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
             damage(
                 stage,

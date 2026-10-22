@@ -13,12 +13,11 @@
 //! The main character, companions, the boss and its parts are neither pushed nor push. Every
 //! enemy is, one held still by an attack phase included.
 
+use super::Run;
 use crate::engine::State;
 use crate::fixed::{Fx, Point};
-use crate::stage::Stage;
 use crate::trig;
 
-use super::agent_def;
 use super::grid::Grid;
 
 /// A sum of pushes is clamped to this length: 4 pixels a tick, the speed of `Follow`, so a
@@ -135,7 +134,7 @@ pub(super) fn offsets(bodies: &[Body]) -> Vec<(i32, i32, bool)> {
 // Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
 // (ADR-058).
 #[inline(never)]
-pub(super) fn apply(stage: &Stage, s: &mut State) {
+pub(super) fn apply(stage: &Run, s: &mut State) {
     if s.enemies.len() < 2 {
         for e in &mut s.enemies {
             e.crowded = false;
@@ -148,7 +147,7 @@ pub(super) fn apply(stage: &Stage, s: &mut State) {
         .map(|e| Body {
             id: e.id.0,
             at: e.at,
-            radius: push_radius(agent_def(stage, e.key).radius),
+            radius: push_radius(stage.defs.agent(e.def).radius),
         })
         .collect();
     let map = stage.map();

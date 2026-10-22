@@ -37,6 +37,7 @@
 //! Past the table's last level (at most 10) every level is a common offer; with no pool the
 //! levels due are passed over at once, so the offers' cost stays bounded too.
 
+use super::Run;
 use crate::engine::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
 use crate::event::DomainEvent;
 use crate::expertise::{
@@ -47,7 +48,7 @@ use crate::rng::SplitMix64;
 use crate::snapshot::{
     ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption,
 };
-use crate::stage::{ExpertisePoints, LevelTable, Stage};
+use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::WeaponRef;
 
 use super::entity::Who;
@@ -55,13 +56,13 @@ use super::levels;
 use super::stars::OFFER_SIZE;
 
 /// Whether a run of `stage` has the gauge: some wave or the boss gives points.
-fn gives_points(stage: &Stage) -> bool {
+fn gives_points(stage: &Run) -> bool {
     stage.waves.iter().any(|w| w.expertise.is_some())
         || stage.boss.as_ref().is_some_and(|b| b.expertise.is_some())
 }
 
 /// The gauge a run of `stage` starts with, at level 0.
-pub(super) fn initial(stage: &Stage, expertise: &Expertise) -> Option<ExpertiseGauge> {
+pub(super) fn initial(stage: &Run, expertise: &Expertise) -> Option<ExpertiseGauge> {
     let taken = || vec![0; pool(stage, expertise).len()];
     gives_points(stage).then(|| ExpertiseGauge {
         level: 0,
@@ -91,7 +92,7 @@ fn need(expertise: &Expertise, level: u32, before: u32) -> u32 {
 }
 
 /// A combo step's hit on `target`, which `killed`, adds its points to the gauge.
-pub(super) fn credit(stage: &Stage, s: &mut State, target: Who, killed: bool) {
+pub(super) fn credit(stage: &Run, s: &mut State, target: Who, killed: bool) {
     let points = match target {
         Who::Enemy(i) => s.enemies.get(i).and_then(|e| match e.key.source {
             AgentSource::Wave => usize::try_from(e.key.index)
@@ -100,10 +101,9 @@ pub(super) fn credit(stage: &Stage, s: &mut State, target: Who, killed: bool) {
                 .and_then(|w| w.expertise),
             _ => None,
         }),
-        Who::Boss => stage.boss.as_ref().and_then(|b| b.expertise),
-        Who::BossPart(_) => stage
-            .boss
-            .as_ref()
+        Who::Boss => s.boss_def().and_then(|b| b.expertise),
+        Who::BossPart(_) => s
+            .boss_def()
             .and_then(|b| b.expertise)
             .map(|p| ExpertisePoints { kill: 0, ..p }),
         Who::Player | Who::Companion(_) => None,
@@ -156,7 +156,7 @@ fn slot(table: &LevelTable, level: u32) -> Option<ExpertiseOfferKind> {
 }
 
 /// The expertise content of the one weapon: none for an inline weapon.
-fn content<'a>(stage: &Stage, expertise: &'a Expertise) -> Option<&'a WeaponExpertise> {
+fn content<'a>(stage: &Run, expertise: &'a Expertise) -> Option<&'a WeaponExpertise> {
     match &stage.player.weapon {
         WeaponRef::Preset { id, .. } => expertise.weapon(id),
         WeaponRef::Inline(_) => None,
@@ -164,7 +164,7 @@ fn content<'a>(stage: &Stage, expertise: &'a Expertise) -> Option<&'a WeaponExpe
 }
 
 /// The common pool of the weapon: empty for an inline weapon, which has no expertise content.
-fn pool<'a>(stage: &Stage, expertise: &'a Expertise) -> &'a [ExpertiseOption] {
+fn pool<'a>(stage: &Run, expertise: &'a Expertise) -> &'a [ExpertiseOption] {
     content(stage, expertise).map_or(&[], |w| &w.common)
 }
 
@@ -189,7 +189,7 @@ impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
 /// order: the styles, or the chosen style's upgrades or capstone. Empty with no content, at a
 /// common level, or at an upgrade or capstone level with no style chosen.
 fn fixed<'a>(
-    stage: &Stage,
+    stage: &Run,
     expertise: &'a Expertise,
     g: &ExpertiseGauge,
     level: u32,
@@ -225,7 +225,7 @@ fn fixed<'a>(
 /// The choice at place `i` of the offer `o`: in the weapon's common pool, or among the fixed
 /// choices.
 fn choice_of<'a>(
-    stage: &Stage,
+    stage: &Run,
     expertise: &'a Expertise,
     g: &ExpertiseGauge,
     o: &ExpertiseOffer,
@@ -259,14 +259,14 @@ fn draw(pool: &[ExpertiseOption], rng: &mut SplitMix64, held: &[u8]) -> Option<u
 }
 
 /// Whether some option besides `held` could still be offered from the weapon.
-fn any_left(stage: &Stage, expertise: &Expertise, held: &[u8]) -> bool {
+fn any_left(stage: &Run, expertise: &Expertise, held: &[u8]) -> bool {
     let pool = pool(stage, expertise);
     places(pool).any(|i| eligible(pool, i, held))
 }
 
 /// Opens the offer of the first level due that has a candidate, unless an offer is open.
 pub(super) fn open_due(
-    stage: &Stage,
+    stage: &Run,
     expertise: &Expertise,
     s: &mut State,
     events: &mut Vec<DomainEvent>,
@@ -334,7 +334,7 @@ fn rerolls_left(s: &State) -> u32 {
 }
 
 /// The options of the open expertise offer, in index order; empty without one.
-pub(crate) fn options(stage: &Stage, expertise: &Expertise, s: &State) -> Vec<OfferOption> {
+pub(crate) fn options(stage: &Run, expertise: &Expertise, s: &State) -> Vec<OfferOption> {
     let Some((_, o)) = s
         .expertise
         .as_ref()
@@ -357,7 +357,7 @@ pub(crate) fn options(stage: &Stage, expertise: &Expertise, s: &State) -> Vec<Of
 
 /// Carries out `option`, one of `options`, on the open expertise offer.
 pub(super) fn choose(
-    stage: &Stage,
+    stage: &Run,
     expertise: &Expertise,
     s: &mut State,
     option: OfferOption,
@@ -467,7 +467,7 @@ fn apply(
 
 /// The ID of the style chosen, and of the style's path taken, in level order.
 pub(crate) fn styles_view(
-    stage: &Stage,
+    stage: &Run,
     expertise: &Expertise,
     g: &ExpertiseGauge,
 ) -> (Option<ContentId>, Vec<ContentId>) {
@@ -492,7 +492,7 @@ pub(crate) fn styles_view(
 
 /// What the frontend shows of the open expertise offer.
 pub(crate) fn offer_view(
-    stage: &Stage,
+    stage: &Run,
     expertise: &Expertise,
     s: &State,
 ) -> Option<ExpertiseOfferView> {

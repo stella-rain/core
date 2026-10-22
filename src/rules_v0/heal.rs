@@ -10,16 +10,16 @@
 //! boss kill draws nothing. Then the main character takes every pickup inside its pickup circle,
 //! in the order they dropped. Nothing heals a main character at 0 hit points.
 
+use super::Run;
 use crate::engine::{HealPickup, PlayerState, State};
 use crate::event::DomainEvent;
 use crate::id::EntityId;
-use crate::stage::Stage;
 use crate::validate::limits::MAX_HEAL_AMOUNT;
 
 use super::{PLAYER_ID, overlaps, widened};
 
 /// The boss died this tick: it heals the main character `boss_pct` percent of its most.
-pub(super) fn boss_killed(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn boss_killed(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(cfg) = &stage.heal else {
         return;
     };
@@ -33,7 +33,7 @@ pub(super) fn boss_killed(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
 
 /// Stars and pickups for the regular enemies at 0 hp, before they are removed (see the module
 /// doc): one draw each.
-pub(super) fn drop_from_defeated(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn drop_from_defeated(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(cfg) = &stage.heal else {
         return;
     };
@@ -63,7 +63,7 @@ pub(super) fn drop_from_defeated(stage: &Stage, s: &mut State, events: &mut Vec<
 }
 
 /// The main character takes the pickups inside its circle, in the order they dropped.
-pub(super) fn pick_up(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn pick_up(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(cfg) = &stage.heal else {
         return;
     };
@@ -126,7 +126,7 @@ mod tests {
     use crate::run_content::RunContent;
 
     fn state() -> State {
-        let stage = RunContent::bundled().trial().clone();
+        let stage = super::super::Run::for_test(RunContent::bundled().trial().clone());
         let pool = RunPool {
             rewards: Vec::new(),
             extra_rerolls: 0,
@@ -172,7 +172,7 @@ mod tests {
         use crate::fixed::Point;
         use crate::id::EntityId;
         use crate::rules_v0::agents::new_agent;
-        let stage = RunContent::bundled().trial().clone();
+        let stage = super::super::Run::for_test(RunContent::bundled().trial().clone());
         let key = AgentKey {
             source: AgentSource::Wave,
             index: 0,
@@ -181,9 +181,9 @@ mod tests {
         for n in 0..=credited {
             let mut e = new_agent(
                 EntityId(100 + n),
-                crate::kinds::KindIndex(0),
+                stage.defs.of_key(key),
+                stage.defs.get(stage.defs.of_key(key)),
                 key,
-                &stage.waves[0].enemy,
                 Point::default(),
                 0,
             );

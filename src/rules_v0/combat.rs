@@ -5,6 +5,7 @@
 //! A run without any of the rewards runs none of this: every entry point returns at once, the
 //! state writes nothing for them to the hash and no random number is drawn.
 
+use super::Run;
 use super::entity::Who;
 use crate::attack::MatchUp;
 use crate::engine::{Echo, PlayerState};
@@ -16,9 +17,7 @@ use crate::rewards::{
     MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_ECHOES_PER_TICK,
 };
 use crate::rng::SplitMix64;
-use crate::stage::Stage;
 
-use super::agents::agent_def;
 use super::{PLAYER_ID, Shot, State, overlaps};
 
 /// Whether any combat reward is held: what the state hash writes them for.
@@ -135,7 +134,7 @@ pub(super) fn deal_echoes(s: &mut State, events: &mut Vec<DomainEvent>) {
 /// bursts go off in a tick; a kill past that is still credited, it just does not burst. A
 /// burst's kills are credited like any other (experience, drops, kills for a heal); the depth
 /// is all that stops the chain. The boss and its parts are not hurt by a burst.
-pub(super) fn bursts(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn bursts(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     let p = &s.player;
     if p.burst_pct == 0 {
         return;
@@ -186,7 +185,7 @@ pub(super) fn bursts(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>
                 let e = &s.enemies[j];
                 if j == i
                     || e.hp == 0
-                    || !overlaps(at, radius, e.at, agent_def(stage, e.key).radius.0)
+                    || !overlaps(at, radius, e.at, stage.defs.agent(e.def).radius.0)
                 {
                     continue;
                 }
@@ -210,7 +209,7 @@ mod tests {
     use crate::run_content::RunContent;
 
     fn state() -> State {
-        let stage = RunContent::bundled().trial().clone();
+        let stage = super::super::Run::for_test(RunContent::bundled().trial().clone());
         let pool = RunPool {
             rewards: Vec::new(),
             extra_rerolls: 0,
@@ -298,7 +297,7 @@ mod tests {
     fn with_enemy(s: &mut State, id: u32, hp: u32) {
         use crate::engine::{AgentKey, AgentSource};
         use crate::rules_v0::agents::new_agent;
-        let stage = RunContent::bundled().trial().clone();
+        let stage = super::super::Run::for_test(RunContent::bundled().trial().clone());
         let key = AgentKey {
             source: AgentSource::Wave,
             index: 0,
@@ -306,9 +305,9 @@ mod tests {
         };
         let mut e = new_agent(
             EntityId(id),
-            crate::kinds::KindIndex(0),
+            stage.defs.of_key(key),
+            stage.defs.get(stage.defs.of_key(key)),
             key,
-            &stage.waves[0].enemy,
             Point::default(),
             0,
         );
@@ -400,7 +399,7 @@ mod tests {
     }
 
     fn run(s: &mut State) -> Vec<DomainEvent> {
-        let stage = RunContent::bundled().trial().clone();
+        let stage = super::super::Run::for_test(RunContent::bundled().trial().clone());
         let mut events = Vec::new();
         bursts(&stage, s, &mut events);
         events
