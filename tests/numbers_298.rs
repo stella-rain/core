@@ -193,7 +193,7 @@ fn the_first_match_up_profiles_are_the_decided_ones() {
                 .map(|e| &e["enemy"]),
         );
         enemies.extend(file["bosses"].as_array().into_iter().flatten());
-        enemies.extend(file.get("boss").into_iter());
+        enemies.extend(file.get("boss"));
         for e in enemies {
             let profile = &e["profile"];
             match e["hp"].as_u64() {
