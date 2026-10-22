@@ -4,6 +4,15 @@
   "description": "The rewards file.",
   "type": "object",
   "properties": {
+    "max_rune_haste_pct": {
+      "description": "The most Rune Haste the picks add up to, in percent, 1 to `MAX_RUNE_HASTE_PCT`\n(app#298); absent, `DEFAULT_MAX_RUNE_HASTE_PCT`. A reward gives at most this.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0
+    },
     "rewards": {
       "description": "The rewards, in the order offers draw them from.",
       "type": "array",
@@ -258,7 +267,7 @@
       "type": "object",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune\nHaste, the percent of haste, from 1 to `MAX_RUNE_HASTE_PCT`; for a type bonus, the\npercent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which\nhas none.",
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune\nHaste, the percent of haste, from 1 to the file's `max_rune_haste_pct`; for a type bonus, the\npercent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which\nhas none.",
           "type": [
             "integer",
             "null"

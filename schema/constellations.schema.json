@@ -317,7 +317,7 @@
       "type": "object",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune\nHaste, the percent of haste, from 1 to `MAX_RUNE_HASTE_PCT`; for a type bonus, the\npercent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which\nhas none.",
+          "description": "What taking it adds to the effect's total, from 1 to `MAX_AMOUNT`; for a stage skill,\nthe levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it\nadds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to\n`MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune\nHaste, the percent of haste, from 1 to the file's `max_rune_haste_pct`; for a type bonus, the\npercent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which\nhas none.",
           "type": [
             "integer",
             "null"
