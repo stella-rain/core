@@ -363,6 +363,15 @@ pub(super) fn take(
             RewardEffect::SkillCooldownPct => {
                 player.skill_cooldown_pct = player.skill_cooldown_pct.saturating_add(amount)
             }
+            RewardEffect::HealPerKills => {
+                // Every pick adds its amount and heals at the shortest interval among them.
+                let every = entry.kills.unwrap_or(0).max(1);
+                player.kill_heal = player.kill_heal.saturating_add(amount);
+                player.kill_heal_every = match player.kill_heal_every {
+                    0 => every,
+                    held => held.min(every),
+                };
+            }
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
             // The perks' counters (`loadout::perk`), added to for the rest of the run.
             RewardEffect::Rerolls => f.rerolls_left = f.rerolls_left.saturating_add(amount),
@@ -589,5 +598,42 @@ mod tests {
             (due[0].kind, due[0].rarity),
             (OfferKind::Boss, Rarity::Rare)
         );
+    }
+
+    #[test]
+    fn heal_per_kills_picks_add_their_amounts_and_heal_at_the_shortest_interval() {
+        let heal = |id: &str, amount: u32, kills: u32| {
+            serde_json::json!({ "id": id, "rarity": "epic", "named": true, "star": id,
+                "limit": 1, "effects": [{ "effect": "heal_per_kills", "amount": amount,
+                "kills": kills }], "title": "Heal", "description": "" })
+        };
+        let file = serde_json::json!({ "schema_version": 0, "sim_version": 0,
+            "rewards": [heal("a", 300, 10), heal("b", 200, 4)] });
+        let rewards = Rewards::parse(file.to_string().as_bytes()).expect("valid");
+        let stage = RunContent::bundled().trial().clone();
+        let pool = RunPool {
+            rewards: vec![0, 1],
+            extra_rerolls: 0,
+            upgrades: 0,
+            difficulty: RunDifficulty {
+                hp_pct: 100,
+                damage_pct: 100,
+                rarity: ALL,
+            },
+        };
+        let mut s = initial_state(&stage, RunContent::bundled(), pool, 1);
+        let State {
+            rng,
+            stars,
+            progress,
+            player,
+            regen,
+            ..
+        } = &mut s;
+        let f = stars.as_mut().expect("a star field");
+        take(&stage, &rewards, rng, progress, player, regen, f, 0);
+        assert_eq!((player.kill_heal, player.kill_heal_every), (300, 10));
+        take(&stage, &rewards, rng, progress, player, regen, f, 1);
+        assert_eq!((player.kill_heal, player.kill_heal_every), (500, 4));
     }
 }

@@ -325,6 +325,12 @@ pub struct PlayerView {
     /// `MAX_SKILL_COOLDOWN_TOTAL_PCT`: the stage skill's cooldown is already that much shorter.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub skill_cooldown_pct: u32,
+    /// Hit points (the stage's scale) the heal-per-kills rewards taken heal together every
+    /// `kill_heal_every` kills; both 0 while none is held.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub kill_heal: u32,
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub kill_heal_every: u32,
     /// What the type bonus rewards taken add up to, for each damage type that has any, in the
     /// order of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`
     /// (ADR-100).

@@ -289,6 +289,9 @@ pub(crate) fn initial_state(
             rune_haste_pct: 0,
             pickup_radius_pct: 0,
             skill_cooldown_pct: 0,
+            kill_heal: 0,
+            kill_heal_every: 0,
+            kills_counted: 0,
             type_bonus_pct: [0; DamageType::ALL.len()],
             runes: Vec::new(),
             aggro: 0,
@@ -683,6 +686,7 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     stardust::credit_defeated(stage, s);
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
+    heal::kills_heal(s, events);
     s.enemies.retain(|e| e.hp > 0);
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         stars::boss_killed(stage, s);
@@ -1647,6 +1651,11 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     }
     if s.player.skill_cooldown_pct > 0 {
         h.write_u32(s.player.skill_cooldown_pct);
+    }
+    if s.player.kill_heal_every > 0 {
+        h.write_u32(s.player.kill_heal);
+        h.write_u32(s.player.kill_heal_every);
+        h.write_u32(s.player.kills_counted);
     }
     // Last of all, and only in a run with a horde: the bosses come so far, and which pool
     // entries are drawn.

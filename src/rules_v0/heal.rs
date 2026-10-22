@@ -14,6 +14,7 @@ use crate::engine::{HealPickup, PlayerState, State};
 use crate::event::DomainEvent;
 use crate::id::EntityId;
 use crate::stage::Stage;
+use crate::validate::limits::MAX_HEAL_AMOUNT;
 
 use super::{PLAYER_ID, overlaps, widened};
 
@@ -86,6 +87,26 @@ pub(super) fn pick_up(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent
     }
 }
 
+/// The enemies at 0 hp this tick that give credit (not a self-destruct) count toward the
+/// heal-per-kills rewards: every `kill_heal_every` kills the main character heals `kill_heal`
+/// hit points, held to `MAX_HEAL_AMOUNT`, once for each interval counted. A main character at 0
+/// hit points heals nothing but still counts.
+pub(super) fn kills_heal(s: &mut State, events: &mut Vec<DomainEvent>) {
+    let every = s.player.kill_heal_every;
+    if every == 0 {
+        return;
+    }
+    let kills = s.enemies.iter().filter(|e| e.hp == 0 && !e.burst).count();
+    let counted = u64::from(s.player.kills_counted) + u64::try_from(kills).unwrap_or(u64::MAX);
+    let heals = counted / u64::from(every);
+    s.player.kills_counted = u32::try_from(counted % u64::from(every)).unwrap_or(0);
+    if heals == 0 || s.player.hp == 0 {
+        return;
+    }
+    let each = u64::from(s.player.kill_heal.min(MAX_HEAL_AMOUNT));
+    heal(&mut s.player, each * heals, events);
+}
+
 /// Heals `player` by `want` hit points, as far as its most allows, and reports what it healed.
 fn heal(player: &mut PlayerState, want: u64, events: &mut Vec<DomainEvent>) {
     let before = player.hp;
@@ -95,4 +116,102 @@ fn heal(player: &mut PlayerState, want: u64, events: &mut Vec<DomainEvent>) {
         target: PLAYER_ID,
         amount: player.hp.saturating_sub(before),
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rewards::Rarity;
+    use crate::rules_v0::{RunDifficulty, RunPool, initial_state};
+    use crate::run_content::RunContent;
+
+    fn state() -> State {
+        let stage = RunContent::bundled().trial().clone();
+        let pool = RunPool {
+            rewards: Vec::new(),
+            extra_rerolls: 0,
+            upgrades: 0,
+            difficulty: RunDifficulty {
+                hp_pct: 100,
+                damage_pct: 100,
+                rarity: (Rarity::Common, Rarity::Supernova),
+            },
+        };
+        let mut s = initial_state(&stage, RunContent::bundled(), pool, 1);
+        s.player.max_hp = 100_000;
+        s.player.hp = 1_000;
+        s
+    }
+
+    fn healed(events: &[DomainEvent]) -> Vec<u32> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                DomainEvent::Healed { amount, .. } => Some(*amount),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn nothing_is_counted_or_healed_without_the_reward() {
+        let mut s = state();
+        let mut events = Vec::new();
+        kills_heal(&mut s, &mut events);
+        assert_eq!((s.player.kills_counted, healed(&events)), (0, vec![]));
+    }
+
+    /// `credited` defeated enemies and one that blew itself up, all at 0 hit points.
+    fn defeated(s: &mut State, credited: u32) {
+        use crate::engine::{AgentKey, AgentSource};
+        use crate::fixed::Point;
+        use crate::id::EntityId;
+        use crate::rules_v0::agents::new_agent;
+        let stage = RunContent::bundled().trial().clone();
+        let key = AgentKey {
+            source: AgentSource::Wave,
+            index: 0,
+            rule: 0,
+        };
+        for n in 0..=credited {
+            let mut e = new_agent(
+                EntityId(100 + n),
+                key,
+                &stage.waves[0].enemy,
+                Point::default(),
+                0,
+            );
+            e.hp = 0;
+            e.burst = n == credited;
+            s.enemies.push(e);
+        }
+    }
+
+    #[test]
+    fn it_heals_every_n_kills_that_give_credit_and_carries_the_rest() {
+        let mut s = state();
+        (s.player.kill_heal, s.player.kill_heal_every) = (500, 3);
+        let mut events = Vec::new();
+        defeated(&mut s, 2);
+        kills_heal(&mut s, &mut events);
+        // Two kills and a self-destruct: two counted, no heal yet.
+        assert_eq!((s.player.kills_counted, healed(&events)), (2, vec![]));
+        s.enemies.clear();
+        defeated(&mut s, 5);
+        kills_heal(&mut s, &mut events);
+        // Seven in all: two intervals of three, one carried.
+        assert_eq!(healed(&events), vec![1_000]);
+        assert_eq!((s.player.hp, s.player.kills_counted), (2_000, 1));
+    }
+
+    #[test]
+    fn a_main_character_at_0_hit_points_counts_but_is_not_healed() {
+        let mut s = state();
+        (s.player.kill_heal, s.player.kill_heal_every) = (500, 1);
+        s.player.hp = 0;
+        let mut events = Vec::new();
+        defeated(&mut s, 2);
+        kills_heal(&mut s, &mut events);
+        assert_eq!((s.player.hp, healed(&events)), (0, vec![]));
+    }
 }

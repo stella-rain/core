@@ -552,6 +552,8 @@ impl Engine {
                 rune_haste_pct: s.player.rune_haste_pct,
                 pickup_radius_pct: s.player.pickup_radius_pct,
                 skill_cooldown_pct: s.player.skill_cooldown_pct,
+                kill_heal: s.player.kill_heal,
+                kill_heal_every: s.player.kill_heal_every,
                 type_bonuses: DamageType::ALL
                     .iter()
                     .zip(s.player.type_bonus_pct)
@@ -918,6 +920,15 @@ pub(crate) struct PlayerState {
     /// What the skill cooldown rewards taken add up to, in percent, saturating: the stage
     /// skill's cooldown is that much shorter, held to `MAX_SKILL_COOLDOWN_TOTAL_PCT`.
     pub skill_cooldown_pct: u32,
+    /// Hit points (the stage's scale) the heal-per-kills rewards taken heal together each time
+    /// `kill_heal_every` kills have been counted; their amounts add up, held to
+    /// `MAX_HEAL_AMOUNT` where it is used.
+    pub kill_heal: u32,
+    /// The kills between two such heals: the shortest interval among the picks, 0 while none
+    /// is held.
+    pub kill_heal_every: u32,
+    /// Kills counted since the last such heal, below `kill_heal_every` between ticks.
+    pub kills_counted: u32,
     /// What the type bonus rewards taken add up to for each damage type, by its place in
     /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
     /// type of its group.
