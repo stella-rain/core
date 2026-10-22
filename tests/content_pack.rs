@@ -65,7 +65,8 @@ fn verify_prints_the_hash_and_sim_version_of_a_valid_pack() {
     let expected = format!(
         "sha256: {sha}\nsim_version: 0\n\
          starting_unlocks: 1 weapons, 1 perk_sets, 1 stage_skills, 3 runes\n\
-         constellations: 4 sets\n"
+         constellations: 4 sets\n\
+         stardust: 2 modes\n"
     );
     let file = Scratch::new("valid.json", &bytes);
     let out = run(&["verify", file.path()], b"");
@@ -139,7 +140,8 @@ fn verify_says_when_a_pack_lists_no_starting_unlocks() {
     let out = run(&["verify", "-"], &serde_json::to_vec(&v).unwrap());
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     assert!(
-        text(&out.stdout).ends_with("starting_unlocks: none\nconstellations: 4 sets\n"),
+        text(&out.stdout)
+            .ends_with("starting_unlocks: none\nconstellations: 4 sets\nstardust: 2 modes\n"),
         "{}",
         text(&out.stdout)
     );

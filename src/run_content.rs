@@ -16,6 +16,7 @@ use crate::run_stats::RunStats;
 use crate::runes::Runes;
 use crate::stage::Stage;
 use crate::stage_skill::StageSkills;
+use crate::stardust::Stardust;
 use crate::starting_unlocks::StartingUnlocks;
 use crate::time_limit::TimeLimit;
 
@@ -33,6 +34,10 @@ pub struct RunContent {
     /// not). Not part of any run: nothing in the simulation reads it, and the pack's hash covers
     /// it with the rest of the pack.
     starting_unlocks: Option<StartingUnlocks>,
+    /// The rules the app pays a failed run's Stardust by (ADR-101 point 4): the pack's file, or
+    /// the bundled one for a pack released without it. Outside what a run reads, as
+    /// `starting_unlocks`: the pack's hash covers it, no derived content hash does.
+    stardust: Stardust,
     time_limit: TimeLimit,
     /// The `trial` mode's stage, and its file's bytes as they are in the pack.
     trial: Stage,
@@ -59,6 +64,7 @@ impl RunContent {
             perk_sets: PerkSets::bundled().clone(),
             difficulties: Difficulties::bundled().clone(),
             starting_unlocks: bundled.starting_unlocks.clone(),
+            stardust: bundled.stardust.clone(),
             time_limit: TimeLimit::bundled().clone(),
             trial: bundled.trial.clone(),
             trial_bytes: bundled.trial_bytes.clone(),
@@ -79,6 +85,7 @@ impl RunContent {
         perk_sets: PerkSets,
         difficulties: Difficulties,
         starting_unlocks: Option<StartingUnlocks>,
+        stardust: Stardust,
         time_limit: TimeLimit,
         trial: Stage,
         trial_bytes: Vec<u8>,
@@ -95,6 +102,7 @@ impl RunContent {
             perk_sets,
             difficulties,
             starting_unlocks,
+            stardust,
             time_limit,
             trial,
             trial_bytes,
@@ -238,6 +246,12 @@ impl RunContent {
     /// unknown, never a guessed list.
     pub fn starting_unlocks(&self) -> Option<&StartingUnlocks> {
         self.starting_unlocks.as_ref()
+    }
+
+    /// The Stardust rules (ADR-101 point 4): the pack's file, or the bundled one for content
+    /// from a pack released without it.
+    pub fn stardust(&self) -> &Stardust {
+        &self.stardust
     }
 
     /// The sets of named stars (core#NS3): those of the pack the rewards were read from, none

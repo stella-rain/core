@@ -57,6 +57,17 @@
     "stage_skills": {
       "$ref": "#/$defs/StageSkillsFile"
     },
+    "stardust": {
+      "description": "The rules the app pays a failed run's Stardust by (ADR-101 point 4). Optional: a pack\nreleased before it yields the bundled file.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StardustFile"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "starting_unlocks": {
       "description": "What a new save begins with (DS5 Q10). Optional: a pack released before it has none, and\nreports the starting unlocks as unknown.",
       "anyOf": [
@@ -2462,6 +2473,46 @@
         "reveal_radius"
       ]
     },
+    "ModeStardust": {
+      "description": "One mode's Stardust rules.",
+      "type": "object",
+      "properties": {
+        "bank": {
+          "description": "Whether a fail banks anything and a clear pays a bank. Off: a fail pays `pay_pct` and\nbanks nothing; a bank already saved stays until it is on again.",
+          "type": "boolean"
+        },
+        "bank_cap": {
+          "description": "The most a bank of this mode (at each difficulty) holds, at most `MAX_BANK_CAP`;\nStardust that would pass it is lost.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "bank_pct": {
+          "description": "The percent of a fail's Stardust that is banked, rounded up and never more than what the\npay leaves, from 0 to 100; with `pay_pct` at most 100.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "id": {
+          "description": "A mode ID of the registry, once in the file.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "pay_pct": {
+          "description": "The percent of a fail's Stardust that is paid at once, rounded down, from 0 to 100.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "bank",
+        "pay_pct",
+        "bank_pct",
+        "bank_cap"
+      ]
+    },
     "Movement": {
       "oneOf": [
         {
@@ -4233,6 +4284,35 @@
       "additionalProperties": false,
       "required": [
         "tiers"
+      ]
+    },
+    "StardustFile": {
+      "description": "The Stardust file: one entry per mode.",
+      "type": "object",
+      "properties": {
+        "modes": {
+          "description": "At most `MAX_MODES` entries, one per mode.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ModeStardust"
+          }
+        },
+        "schema_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sim_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "sim_version",
+        "modes"
       ]
     },
     "StardustTier": {

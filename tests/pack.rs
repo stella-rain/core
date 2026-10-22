@@ -118,6 +118,8 @@ fn the_exported_pack_has_its_fields_in_order() {
         "\"perk_sets\": {",
         "\"difficulties\": {",
         "\"starting_unlocks\": {",
+        "\"constellations\": {",
+        "\"stardust\": {",
         "\"modes\"",
     ];
     let at: Vec<usize> = keys.iter().map(|k| text.find(k).unwrap()).collect();

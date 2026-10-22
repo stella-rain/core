@@ -10,7 +10,8 @@
 //! Exit status: 0 valid (or exported); 1 not valid (the pack is at fault); 2 the command line
 //! or the file could not be read. On success, `verify` prints `sha256` (the pack's hash, the
 //! SHA-256 of its bytes), `sim_version` and `starting_unlocks` (the counts of its lists, or
-//! `none` for a pack released without them) as `name: value` lines, and `export` writes the pack
+//! `none` for a pack released without them), `constellations` and `stardust` (its mode count)
+//! as `name: value` lines, and `export` writes the pack
 //! to standard output. Messages never repeat text from the pack.
 
 use std::fs::File;
@@ -88,6 +89,7 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
                 "constellations: {} sets",
                 pack.content().constellations().sets().len()
             );
+            println!("stardust: {} modes", pack.stardust().modes().len());
             Ok(())
         }
         ["export"] => std::io::stdout()
