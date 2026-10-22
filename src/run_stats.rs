@@ -42,13 +42,19 @@ pub const MAX_DESCRIPTION_CHARS: usize = 160;
 /// bound, as the other limits are (ADR-020 decides that one exists).
 pub const MAX_STUN_IMMUNE_TICKS: u32 = 600;
 
-/// The most the attack speed total can reach, in percent: a placeholder (expertise options have
-/// no stack limit, so the total is held here, ADR-099). The total saturates at it.
-pub const MAX_ATTACK_SPEED_PCT: u32 = 500;
+/// The most the attack speed total's cap can be, in percent: the ceiling the run stats file's
+/// `max_attack_speed_pct` may not pass (ADR-020), and the largest total one of the options
+/// weighed in app#298 allowed. Expertise options have no stack limit, so the total saturates
+/// at the file's cap (ADR-099).
+pub const MAX_ATTACK_SPEED_PCT: u32 = 800;
 
-/// The attack speed total `total` held to `MAX_ATTACK_SPEED_PCT`.
-pub fn capped_attack_speed_pct(total: u32) -> u32 {
-    total.min(MAX_ATTACK_SPEED_PCT)
+/// The cap of a file that names none: the cap before it was content (app#298 kept it).
+pub const DEFAULT_MAX_ATTACK_SPEED_PCT: u32 = 500;
+
+/// The attack speed total `total` held to `cap`, and `cap` to `MAX_ATTACK_SPEED_PCT`, so that
+/// an unvalidated cap cannot pass the ceiling.
+pub fn capped_attack_speed_pct(total: u32, cap: u32) -> u32 {
+    total.min(cap.min(MAX_ATTACK_SPEED_PCT))
 }
 
 /// What a point in a stat does, `step` times over. The closed list of version 0's effects;
@@ -125,6 +131,10 @@ pub struct RunStatsFile {
     pub stats: Vec<RunStat>,
     /// The stun rules.
     pub stun: StunRules,
+    /// The most the attack speed total reaches, in percent, 1 to `MAX_ATTACK_SPEED_PCT`
+    /// (app#298); absent, `DEFAULT_MAX_ATTACK_SPEED_PCT`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_attack_speed_pct: Option<u32>,
 }
 
 /// Run stats that passed validation, and the SHA-256 of the bytes they came from.
@@ -132,6 +142,7 @@ pub struct RunStatsFile {
 pub struct RunStats {
     stats: Vec<RunStat>,
     stun: StunRules,
+    max_attack_speed_pct: u32,
     sha256: [u8; 32],
 }
 
@@ -174,6 +185,9 @@ impl RunStats {
         Ok(RunStats {
             stats: file.stats,
             stun: file.stun,
+            max_attack_speed_pct: file
+                .max_attack_speed_pct
+                .unwrap_or(DEFAULT_MAX_ATTACK_SPEED_PCT),
             sha256: Sha256::digest(bytes).into(),
         })
     }
@@ -186,6 +200,11 @@ impl RunStats {
     /// The stun rules of the file.
     pub fn stun(&self) -> StunRules {
         self.stun
+    }
+
+    /// The most the attack speed total reaches, in percent: the file's, or the default.
+    pub fn max_attack_speed_pct(&self) -> u32 {
+        self.max_attack_speed_pct
     }
 
     /// The SHA-256 of the bytes they were parsed from.
@@ -250,6 +269,14 @@ pub fn validate(file: &RunStatsFile) -> Result<(), Error> {
         issue(
             "$.stun.elite_pct".into(),
             format!("0 to {MAX_STEP} (found {})", file.stun.elite_pct),
+        );
+    }
+    if let Some(cap) = file.max_attack_speed_pct
+        && !(1..=MAX_ATTACK_SPEED_PCT).contains(&cap)
+    {
+        issue(
+            "$.max_attack_speed_pct".into(),
+            format!("1 to {MAX_ATTACK_SPEED_PCT} (found {cap})"),
         );
     }
     if issues.is_empty() {

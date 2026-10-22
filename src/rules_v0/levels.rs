@@ -133,7 +133,7 @@ pub(super) fn attack(s: &State, atk: u32) -> u32 {
 
 /// The main character's attack speed, in percent, with the points spent on it.
 pub(super) fn attack_speed(s: &State) -> u32 {
-    run_stats::capped_attack_speed_pct(total(s, StatEffect::AttackSpeedPct))
+    run_stats::capped_attack_speed_pct(total(s, StatEffect::AttackSpeedPct), s.max_attack_speed_pct)
 }
 
 /// The evade's cooldown with the points spent on evading.

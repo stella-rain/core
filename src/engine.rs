@@ -728,6 +728,8 @@ pub(crate) struct State {
     pub runes: Runes,
     /// The stun rules (ADR-085 points 4 and 6): content, as the match-ups are.
     pub stun: crate::run_stats::StunRules,
+    /// The cap of the attack speed total (app#298): content, as the stun rules are.
+    pub max_attack_speed_pct: u32,
     /// The bosses of a `time_limit` run, as they come; `None` in any other run, which hashes
     /// nothing for it.
     pub horde: Option<Horde>,
