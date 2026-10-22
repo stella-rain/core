@@ -83,10 +83,10 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
         );
     }
     assert!(rewards.iter().all(|r| !r.title.is_empty()));
-    assert_eq!(
-        Rewards::parse(Rewards::BUNDLED).as_ref(),
-        Ok(Rewards::bundled())
-    );
+    // The pack's rewards are the file's, with the sets of the constellations file beside them.
+    let file = Rewards::parse(Rewards::BUNDLED).unwrap();
+    assert_eq!(file.rewards(), Rewards::bundled().rewards());
+    assert_eq!(file.sha256(), Rewards::bundled().sha256());
 }
 
 #[test]
