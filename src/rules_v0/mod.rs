@@ -101,7 +101,7 @@ mod stardust;
 mod stars;
 mod stun;
 
-pub(crate) use player::{charge_view, combo_view, hold_view};
+pub(crate) use player::{auto_charge_view, charge_view, combo_view, hold_view};
 mod select;
 
 use crate::attack::{DamageType, MatchUp, Profile};
@@ -1311,6 +1311,13 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     h.write_bool(c.hand);
     h.write_u32(c.auto_path);
     h.write_u32(u32::from(c.auto_depth));
+    // The charge levels (ADR-114), only once a step was charged, so that the hashes of other
+    // runs stay as they were.
+    if c.levels != 0 || c.auto_levels != 0 {
+        h.write_u32(c.levels);
+        h.write_u32(c.auto_levels);
+        h.write_bool(c.charge_auto);
+    }
     // The hold, only while one is held (ADR-084 point 6), so that the hashes of other runs stay
     // as they were.
     if c.hold.is_some() || c.released {

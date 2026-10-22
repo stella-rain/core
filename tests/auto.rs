@@ -231,3 +231,160 @@ fn auto_mode_faces_the_target_with_assist_off_and_the_hand_does_not() {
     let f = e.snapshot().player.facing;
     assert_eq!((f.x, f.y), (0, -SCALE));
 }
+
+// --- Charged steps (ADR-114) -------------------------------------------------------------------
+
+/// A, then AA that charges (level 1 at 5 ticks held, level 2 at 10, both with a perfect window
+/// that would add damage), then AAA, a leaf.
+fn charged_chain() -> Value {
+    let level = |at: u32| json!({ "at_ticks": at, "attack": swing(), "perfect_ticks": 3, "perfect_pct": 50 });
+    json!({ "inline": {
+        "combo": { "main": { "attack": swing(), "next": { "main": {
+            "attack": swing(),
+            "charge": { "max_ticks": 60, "levels": [level(5), level(10)] },
+            "next": { "main": step(swing()) }
+        } } }, "smash": step(swing()) },
+        "dash": { "main": step(swing()) },
+        "window_ticks": WINDOW, "dash_strike_ticks": 5, "assist_range": RANGE
+    } })
+}
+
+fn charged_stage() -> Stage {
+    armed(
+        stage_with(600, Some(far_boss()), vec![bat_at(0, -RANGE / 2)]),
+        charged_chain(),
+    )
+}
+
+/// The auto field of the snapshot, read from its JSON so that these tests state the contract
+/// (absent when auto mode is not charging) and not the Rust type.
+fn auto_charge(e: &Engine) -> Option<u64> {
+    let player = serde_json::to_value(e.snapshot().player).unwrap();
+    player.get("auto_charge").and_then(Value::as_u64)
+}
+
+/// Ticks 1 to 40 by hand with `auto` off: A, then AA with `main` held through tick 15 (level 2
+/// at its release, let go on tick 16), then AAA on tick 20; the window ends after tick 39.
+fn hand_released_at_level_2() -> Vec<Input> {
+    (1..=40)
+        .map(|t| Input {
+            main: t == 1 || (5..=15).contains(&t) || t == 20,
+            ..idle()
+        })
+        .collect()
+}
+
+/// An engine whose hand combo has been played and has reset, so that it is the auto combo.
+fn after_the_hand_combo(hand: &[Input]) -> (Engine, Vec<(u32, DomainEvent)>) {
+    let mut e = engine(&charged_stage());
+    let events = play(&mut e, hand);
+    (e, events)
+}
+
+/// Auto mode for `ticks` ticks, one at a time: the events with their tick, and per tick the
+/// hand charge's level and the auto field.
+#[allow(clippy::type_complexity)]
+fn auto_run(
+    e: &mut Engine,
+    inputs: &[Input],
+) -> (Vec<(u32, DomainEvent)>, Vec<(Option<u8>, Option<u64>)>) {
+    let (mut events, mut views) = (Vec::new(), Vec::new());
+    for input in inputs {
+        e.step(*input);
+        events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
+        views.push((e.snapshot().player.charge.map(|c| c.level), auto_charge(e)));
+    }
+    (events, views)
+}
+
+fn released(events: &[(u32, DomainEvent)]) -> Vec<(u32, u8, bool)> {
+    events
+        .iter()
+        .filter_map(|(t, ev)| match ev {
+            DomainEvent::ChargeReleased { level, perfect } => Some((*t, *level, *perfect)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_step_the_hand_released_at_level_2_is_charged_to_level_2_by_auto_mode() {
+    let (mut e, hand) = after_the_hand_combo(&hand_released_at_level_2());
+    // The hand let go inside level 2's perfect window; auto mode must not get that bonus.
+    assert_eq!(released(&hand), [(16, 2, true)]);
+    let (events, _) = auto_run(&mut e, &auto(&[], 40));
+    // Auto mode takes A on tick 41, AA on 45 and charges it: 10 ticks to level 2, released on
+    // the tick that reaches it, then AAA four ticks into the release and A again after its leaf.
+    assert_eq!(released(&events).len(), 1, "{events:?}");
+    let (t, level, perfect) = released(&events)[0];
+    assert_eq!((t, level, perfect), (55, 2, false));
+    let steps = steps(&events);
+    assert_eq!(steps[0].2, 1);
+    assert_eq!(steps[1].2, 2);
+    assert_eq!(steps[2].2, 3);
+}
+
+#[test]
+fn during_the_auto_charge_the_hand_charge_is_none_and_the_auto_field_shows_the_level() {
+    let (mut e, _) = after_the_hand_combo(&hand_released_at_level_2());
+    let (events, views) = auto_run(&mut e, &auto(&[], 30));
+    let charging: Vec<usize> = (0..views.len()).filter(|&i| views[i].1.is_some()).collect();
+    assert!(!charging.is_empty(), "auto mode never charged: {events:?}");
+    assert!(charging.iter().all(|&i| views[i] == (None, Some(2))));
+    // The charge shows from the tick AA starts to the tick before its release.
+    assert_eq!(charging.len(), 10);
+    assert_eq!(auto_charge(&e), None);
+}
+
+#[test]
+fn an_auto_release_is_never_perfect() {
+    let (mut e, _) = after_the_hand_combo(&hand_released_at_level_2());
+    let (events, _) = auto_run(&mut e, &auto(&[], 100));
+    let all = released(&events);
+    assert!(all.len() >= 2, "{all:?}");
+    assert!(
+        all.iter()
+            .all(|&(_, level, perfect)| level == 2 && !perfect)
+    );
+}
+
+#[test]
+fn the_initial_auto_combo_plays_no_charge() {
+    let mut e = engine(&charged_stage());
+    let (events, views) = auto_run(&mut e, &auto(&[], 40));
+    assert!(released(&events).is_empty());
+    assert!(views.iter().all(|v| *v == (None, None)));
+}
+
+#[test]
+fn a_hand_tap_of_the_charged_step_leaves_the_auto_combo_without_a_charge() {
+    // AA tapped by hand is level 0: the auto combo plays it plain.
+    let hand: Vec<Input> = (1..=40)
+        .map(|t| Input {
+            main: matches!(t, 1 | 5 | 9),
+            ..idle()
+        })
+        .collect();
+    let (mut e, _) = after_the_hand_combo(&hand);
+    let (events, views) = auto_run(&mut e, &auto(&[], 30));
+    assert!(released(&events).is_empty());
+    assert!(views.iter().all(|v| v.1.is_none()));
+}
+
+#[test]
+fn a_press_by_hand_during_the_auto_charge_takes_over() {
+    let (mut e, _) = after_the_hand_combo(&hand_released_at_level_2());
+    // Auto mode charges AA from tick 45 (5 of the run); the hand presses A on tick 8 of the run.
+    let inputs = auto(&[(8, "a")], 30);
+    let (events, _) = auto_run(&mut e, &inputs);
+    // The charge runs on to its level; the press is kept, takes AAA once the step can be
+    // followed, and the combo is then the hand's: auto mode waits.
+    assert_eq!(released(&events).len(), 1, "{events:?}");
+    let by_hand = steps(&events);
+    assert_eq!(
+        by_hand.iter().filter(|s| s.2 == 3).count(),
+        1,
+        "{by_hand:?}"
+    );
+    assert_eq!(resets(&events).len(), 0, "{events:?}");
+}

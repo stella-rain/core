@@ -277,6 +277,11 @@ pub struct PlayerView {
     /// The current step charging, if it is (ADR-070).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub charge: Option<ChargeView>,
+    /// The level auto mode is charging the current step to, while it is (ADR-114): its own
+    /// field, so `charge` stays the player's and the frontend slows only for that (ADR-071
+    /// point 3), never for auto mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_charge: Option<u8>,
     /// The current step held, if it is (ADR-084 point 6).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hold: Option<HoldView>,

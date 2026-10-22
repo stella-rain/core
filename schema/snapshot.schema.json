@@ -1071,6 +1071,16 @@
             "$ref": "#/$defs/AttackView"
           }
         },
+        "auto_charge": {
+          "description": "The level auto mode is charging the current step to, while it is (ADR-114): its own\nfield, so `charge` stays the player's and the frontend slows only for that (ADR-071\npoint 3), never for auto mode.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
         "charge": {
           "description": "The current step charging, if it is (ADR-070).",
           "anyOf": [

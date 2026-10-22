@@ -507,6 +507,7 @@ impl Engine {
                         perfect,
                     }
                 }),
+                auto_charge: rules_v0::auto_charge_view(s),
                 hold: rules_v0::hold_view(&self.stage, s)
                     .map(|(held, max_ticks)| HoldView { held, max_ticks }),
                 target: s.player.target,
@@ -962,6 +963,15 @@ pub(crate) struct ComboState {
     /// `smash`), and how many; at most the tree's depth.
     pub auto_path: u32,
     pub auto_depth: u8,
+    /// The charge level each step of the combo was released at (ADR-114), 4 bits a step from
+    /// the root, the first in the low bits (a charge has at most `MAX_CHARGE_LEVELS` = 8
+    /// levels): by hand, the level the player let go at; for a step auto mode played, the level
+    /// it played. 0 for a plain step.
+    pub levels: u32,
+    /// The same for the auto combo: the level auto mode charges each of its steps to.
+    pub auto_levels: u32,
+    /// The current charge is auto mode's: it needs no button and is never perfect.
+    pub charge_auto: bool,
     /// The permanent upgrades the run holds, as a mask (`registry::upgrade_mask`): fixed for the
     /// run, so it is not part of the state hash. A step needing one that is not here is absent.
     pub upgrades: u32,
