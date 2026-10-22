@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StartingUnlocksFile",
+  "description": "The starting unlocks file: the IDs a new save begins with, by kind.",
+  "type": "object",
+  "properties": {
+    "perk_sets": {
+      "description": "Perk sets of the pack's perk sets file.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentId"
+      }
+    },
+    "runes": {
+      "description": "Runes of the pack's runes file.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentId"
+      }
+    },
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "sim_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "stage_skills": {
+      "description": "Stage skills of the pack's stage skills file.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentId"
+      }
+    },
+    "weapons": {
+      "description": "Weapon presets, at most `MAX_STARTING_UNLOCKS`.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentId"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim_version",
+    "weapons",
+    "perk_sets",
+    "stage_skills",
+    "runes"
+  ],
+  "$defs": {
+    "ContentId": {
+      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    }
+  }
+}
