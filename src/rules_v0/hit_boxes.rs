@@ -6,6 +6,9 @@
 //!   offset is forward along that facing and to the attacker's right as seen from above: a
 //!   quarter turn clockwise on the screen, so facing down the screen its right is the screen's
 //!   left.
+//! - A hit box is anchored at its attacker, or at the target's spot (where the target stood when
+//!   the attack began); a line is a rectangle from its start along the facing turned by its
+//!   angle. Zones (`zones`) are tested the same way, after the hit boxes, each target once.
 //! - A circle hits a target whose circle overlaps it; an arc, a target whose circle overlaps
 //!   the sector `half_angle` to each side of the facing. Integer only: squared distances in 64
 //!   or 128 bits, and the arc's edges and angle from the sine table.

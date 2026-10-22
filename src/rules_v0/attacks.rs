@@ -18,6 +18,9 @@
 //!   step's; the bullet's own direction for an `on_bullet` child), and `sequential` turns the last bullet's
 //!   direction by `step`. The first three also turn by every `rotate`, `ring` and `spread`
 //!   round them. Positive angles turn from straight down toward the right.
+//! - `zone` places an area that does not move (`zones`) instead of a bullet: at the attacker's
+//!   spot or where the target stood when the attack began, moved by its `offset` along its
+//!   direction, which `rotate`, `ring` and `spread` turn as they turn a bullet's.
 //! - `repeat` runs its body `count` times; the next round starts `interval_ticks` ticks after
 //!   the body of the last one ends. `ring` runs its body `count` times at once, round after
 //!   round turned a full turn / `count` further; `spread` the same, fanned evenly across

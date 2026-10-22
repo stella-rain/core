@@ -15,10 +15,12 @@
 //!    ADR-058), and one found crowded does not step to its place on the next tick. An elite
 //!    (ADR-068) holds where it spawned instead of its movement, and its rules fire only while
 //!    the main character is within its range;
-//! 4. bullets whose `on_bullet` wait is over start their attacks, then every running attack
-//!    is carried out up to its next wait (`attacks`), making bullets;
+//! 4. zones go on by a tick (`zones`); bullets whose `on_bullet` wait is over start their
+//!    attacks, then every running attack is carried out up to its next wait (`attacks`), making
+//!    bullets and zones;
 //! 5. bullets move and leave the map;
-//! 6. collisions: first the hit boxes of active phases (`hit_boxes`), then bullets; those of
+//! 6. collisions: first the hit boxes of active phases and then the active zones
+//!    (`hit_boxes`), then bullets; those of
 //!    allies hurt enemies and the boss, those of enemies the main character and the companions;
 //! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears;
 //! 8. if the run goes on or is cleared, the first offer due opens, and the world stops until it
