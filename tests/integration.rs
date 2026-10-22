@@ -69,6 +69,7 @@ mod properties;
 mod push_apart;
 mod range_reward;
 mod rarities;
+mod rarity_rows_d6c;
 mod recording;
 mod registry;
 mod replay;
@@ -110,6 +111,7 @@ mod weapon_tree;
 mod weapons;
 mod worst_case;
 mod x100;
+mod zones;
 
 /// With `autotests = false`, a new file in `tests/` builds and runs only once it is a module
 /// here; a missing `mod` line would leave its tests out silently.

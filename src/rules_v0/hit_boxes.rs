@@ -6,6 +6,9 @@
 //!   offset is forward along that facing and to the attacker's right as seen from above: a
 //!   quarter turn clockwise on the screen, so facing down the screen its right is the screen's
 //!   left.
+//! - A hit box is anchored at its attacker, or at the target's spot (where the target stood when
+//!   the attack began); a line is a rectangle from its start along the facing turned by its
+//!   angle. Zones (`zones`) are tested the same way, after the hit boxes, each target once.
 //! - A circle hits a target whose circle overlaps it; an arc, a target whose circle overlaps
 //!   the sector `half_angle` to each side of the facing. Integer only: squared distances in 64
 //!   or 128 bits, and the arc's edges and angle from the sine table.
@@ -18,7 +21,7 @@
 //! - Attackers resolve in entity-ID order, and every hit box active at the start of the step
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
-use crate::attack::{DamageType, HitBox, PhaseKind};
+use crate::attack::{Anchor, DamageType, HitBox, Offset, PhaseKind, ZoneShape};
 use crate::engine::{Dir, Smash, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -31,17 +34,22 @@ use super::entity::Who;
 use super::grid::Grid;
 use super::{PLAYER_RADIUS, Shot, agent_def, damage, enemy_grid, hurt_player, overlaps};
 
-/// One hit box that is active this tick.
+/// What a swing is made by, and so where the targets it has hit are kept.
+#[derive(Clone, Copy)]
+enum Source {
+    /// The attack run at this place in `State::runs`.
+    Run(usize),
+    /// The zone at this place in `State::zones` (core Z1).
+    Zone(usize),
+}
+
+/// One hit box or zone that is active this tick.
 struct Swing {
-    run: usize,
+    source: Source,
     owner: EntityId,
     slot: u8,
     friendly: bool,
-    centre: Point,
-    facing: Dir,
-    radius: i32,
-    /// `None` for a circle, or an arc of 180 degrees or more to each side, which is one.
-    arc: Option<Sector>,
+    area: Area,
     damage: u32,
     damage_type: Option<DamageType>,
     rehit_ticks: Option<u32>,
@@ -51,6 +59,63 @@ struct Swing {
     rune: Option<Rune>,
     /// A homing missile's: one hit, then nothing.
     once: bool,
+}
+
+/// The ground a hit box covers: a circle at `centre`, narrowed to a sector when `arc` is set.
+struct Area {
+    centre: Point,
+    facing: Dir,
+    /// The circle's radius; a line's reach from its start: its length and half its width, which
+    /// holds every point of it.
+    radius: i32,
+    /// `None` for a circle, or an arc of 180 degrees or more to each side, which is one.
+    arc: Option<Sector>,
+    /// A rectangle instead of a circle or an arc.
+    line: Option<Line>,
+}
+
+/// A rectangle from `Area::centre` along `dir`.
+struct Line {
+    dir: Dir,
+    length: i32,
+    /// Half the width: the reach to each side.
+    half_width: i32,
+}
+
+impl Line {
+    fn new(dir: Dir, length: Fx, width: Fx) -> Line {
+        Line {
+            dir,
+            length: length.0,
+            half_width: width.0 / 2,
+        }
+    }
+
+    /// The area of a line starting at `centre`.
+    fn area(self, centre: Point) -> Area {
+        Area {
+            centre,
+            facing: self.dir,
+            radius: self.length.saturating_add(self.half_width),
+            arc: None,
+            line: Some(self),
+        }
+    }
+
+    /// Whether the circle at `d` (from the line's start) with `radius` touches the rectangle:
+    /// the nearest point of it to the circle's centre is within `radius`. Squared and scaled by
+    /// `trig::SCALE`, so no root is taken.
+    fn touches(&self, d: (i128, i128), radius: i32) -> bool {
+        let (ex, ey) = (i128::from(self.dir.x), i128::from(self.dir.y));
+        let scale = i128::from(trig::SCALE);
+        let along = d.0 * ex + d.1 * ey;
+        let across = d.0 * ey - d.1 * ex;
+        let reach = i128::from(self.half_width) * scale;
+        let past_along = along - along.clamp(0, i128::from(self.length) * scale);
+        let past_across = across - across.clamp(-reach, reach);
+        let r = i128::from(radius) * scale;
+        past_along * past_along + past_across * past_across <= r * r
+    }
 }
 
 /// What an arc's test needs, worked out once per swing rather than once per target: the cosine
@@ -81,10 +146,12 @@ pub(super) fn resolve(
     events: &mut Vec<DomainEvent>,
 ) {
     let mut swings = active_swings(s);
+    swings.sort_by_key(|w| (w.owner.0, w.slot));
+    // The zones land after the hit boxes, in the order they were placed.
+    zone_swings(s, &mut swings);
     if swings.is_empty() {
         return;
     }
-    swings.sort_by_key(|w| (w.owner.0, w.slot));
     let mut found = Vec::new();
     for w in &swings {
         if w.friendly {
@@ -110,25 +177,41 @@ fn active_swings(s: &State) -> Vec<Swing> {
         let Some(owner) = s.find(r.owner) else {
             continue;
         };
-        let (HitBox::Circle { offset, radius } | HitBox::Arc { offset, radius, .. }) = h;
-        let arc = match h {
-            HitBox::Circle { .. } => None,
-            HitBox::Arc { half_angle, .. } => Sector::new(r.facing, *half_angle),
+        let from = match (h.anchor(), r.spot) {
+            (Anchor::Target, Some(spot)) => spot,
+            _ => r.at.unwrap_or_else(|| s.at(owner)),
+        };
+        let at_offset = |offset: &Offset| centre(from, r.facing, offset.forward.0, offset.right.0);
+        let area = match h {
+            HitBox::Circle { offset, radius, .. } => {
+                circle(at_offset(offset), r.facing, radius.0, None)
+            }
+            HitBox::Arc {
+                offset,
+                radius,
+                half_angle,
+                ..
+            } => circle(
+                at_offset(offset),
+                r.facing,
+                radius.0,
+                Sector::new(r.facing, *half_angle),
+            ),
+            HitBox::Line {
+                offset,
+                angle,
+                length,
+                width,
+                ..
+            } => Line::new(super::attacks::rotate(r.facing, *angle), *length, *width)
+                .area(at_offset(offset)),
         };
         swings.push(Swing {
-            run: i,
+            source: Source::Run(i),
             owner: r.owner,
             slot: r.slot,
             friendly: r.friendly,
-            centre: centre(
-                r.at.unwrap_or_else(|| s.at(owner)),
-                r.facing,
-                offset.forward.0,
-                offset.right.0,
-            ),
-            facing: r.facing,
-            radius: radius.0,
-            arc,
+            area,
             damage: super::attacks::phase_damage(r),
             damage_type: p.damage_type,
             rehit_ticks: p.rehit_ticks,
@@ -142,8 +225,49 @@ fn active_swings(s: &State) -> Vec<Swing> {
     swings
 }
 
+/// Adds a swing for each zone that is active this tick.
+fn zone_swings(s: &State, swings: &mut Vec<Swing>) {
+    for (i, z) in s.zones.iter().enumerate() {
+        if z.wind_left > 0 {
+            continue;
+        }
+        let area = match &z.shape {
+            ZoneShape::Circle { radius } => circle(z.at, z.dir, radius.0, None),
+            ZoneShape::Arc { radius, half_angle } => {
+                circle(z.at, z.dir, radius.0, Sector::new(z.dir, *half_angle))
+            }
+            ZoneShape::Line { length, width } => Line::new(z.dir, *length, *width).area(z.at),
+        };
+        swings.push(Swing {
+            source: Source::Zone(i),
+            owner: z.owner,
+            slot: 0,
+            friendly: z.friendly,
+            area,
+            damage: z.damage,
+            damage_type: z.damage_type,
+            rehit_ticks: None,
+            breaks_charge: z.breaks_charge,
+            smash: None,
+            combo: false,
+            rune: None,
+            once: false,
+        });
+    }
+}
+
+fn circle(centre: Point, facing: Dir, radius: i32, arc: Option<Sector>) -> Area {
+    Area {
+        centre,
+        facing,
+        radius,
+        arc,
+        line: None,
+    }
+}
+
 /// The hit box's centre: `forward` along `facing` and `right` a quarter turn clockwise from it.
-fn centre(at: Point, facing: Dir, forward: i32, right: i32) -> Point {
+pub(super) fn centre(at: Point, facing: Dir, forward: i32, right: i32) -> Point {
     let (fx, fy) = (i64::from(facing.x), i64::from(facing.y));
     let (fw, rt) = (i64::from(forward), i64::from(right));
     let scale = i64::from(trig::SCALE);
@@ -158,23 +282,35 @@ fn centre(at: Point, facing: Dir, forward: i32, right: i32) -> Point {
 
 /// Whether the swing's hit box overlaps the circle at `at` with `radius`.
 fn covers(w: &Swing, at: Point, radius: i32) -> bool {
-    if !overlaps(w.centre, w.radius, at, radius) {
-        return false;
+    w.area.covers(at, radius)
+}
+
+impl Area {
+    fn covers(&self, at: Point, radius: i32) -> bool {
+        if !overlaps(self.centre, self.radius, at, radius) {
+            return false;
+        }
+        if self.arc.is_none() && self.line.is_none() {
+            return true;
+        }
+        let d = (
+            i128::from(at.x.0) - i128::from(self.centre.x.0),
+            i128::from(at.y.0) - i128::from(self.centre.y.0),
+        );
+        let Some(arc) = &self.arc else {
+            return self
+                .line
+                .as_ref()
+                .is_some_and(|line| line.touches(d, radius));
+        };
+        // A centre within the angle and within reach overlaps; one outside the angle overlaps only
+        // if its circle crosses one of the two edges, the nearest part of the sector to it.
+        within_angle(d, self.facing, arc.cos)
+            || arc
+                .edges
+                .iter()
+                .any(|&edge| touches_edge(d, edge, self.radius, radius))
     }
-    let Some(arc) = &w.arc else {
-        return true;
-    };
-    let d = (
-        i128::from(at.x.0) - i128::from(w.centre.x.0),
-        i128::from(at.y.0) - i128::from(w.centre.y.0),
-    );
-    // A centre within the angle and within reach overlaps; one outside the angle overlaps only
-    // if its circle crosses one of the two edges, the nearest part of the sector to it.
-    within_angle(d, w.facing, arc.cos)
-        || arc
-            .edges
-            .iter()
-            .any(|&edge| touches_edge(d, edge, w.radius, radius))
 }
 
 /// Whether `d` is at most the half angle whose cosine is `cos` from `facing`:
@@ -219,7 +355,10 @@ fn touches_edge(d: (i128, i128), edge: Dir, length: i32, radius: i32) -> bool {
 /// Whether the swing may hit `target` now, and if so, counts the hit.
 fn take_hit(s: &mut State, w: &Swing, target: EntityId) -> bool {
     let tick = s.tick;
-    let hits = &mut s.runs[w.run].hits;
+    let hits = match w.source {
+        Source::Run(i) => &mut s.runs[i].hits,
+        Source::Zone(i) => &mut s.zones[i].hits,
+    };
     if w.once && !hits.is_empty() {
         return false;
     }
@@ -242,7 +381,7 @@ fn take_hit(s: &mut State, w: &Swing, target: EntityId) -> bool {
 
 fn shot(w: &Swing) -> Shot {
     Shot {
-        at: w.centre,
+        at: w.area.centre,
         owner: w.owner,
         friendly: w.friendly,
         damage: w.damage,
@@ -283,7 +422,7 @@ fn hit_enemy_side(
             }
         }
     }
-    grid.within(w.centre, w.radius, found);
+    grid.within(w.area.centre, w.area.radius, found);
     for &i in found.iter() {
         let e = &s.enemies[i];
         let (id, at, hp) = (e.id, e.at, e.hp);

@@ -86,6 +86,14 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// companions (`MAX_COMPANIONS`) stand 78 pixels to the right of the enemies, behind every
 /// arc, so each arc tests each of them against its angle and both edges and misses. They cleave
 /// all 500 enemies every tick with an arc of their own (`rehit_ticks` 1, 1 damage a hit).
+///
+/// Zones (core Z1, `MAX_ZONES_ALIVE`): on the first tick the boss places 112 and each companion 4
+/// (16 friendly), all active for 600 ticks, so 128 are alive and active on every measured tick.
+/// The boss's are enemy zones at the map's corner, out of reach of everyone: each is tested
+/// against the main character and the four companions and misses. The companions' are circles of
+/// 100 pixels round the companion, which cover all 500 enemies: each of the 16 is looked up
+/// through the enemy grid and tests, on every tick, the 500 enemies it has hit already (each
+/// once, long before the measured tick). Later attempts to place more are dropped at the cap.
 pub fn stage() -> Stage {
     let burst = json!({
         "type": "repeat", "count": 100, "interval_ticks": 0, "body": [{
@@ -121,9 +129,22 @@ pub fn stage() -> Stage {
         NEAR_Y,
     )];
     waves.extend((0..5).map(|_| common::wave(WAVES_AT, 100, 1, enemy.clone(), x, y)));
+    let zone = |radius: i32| {
+        json!({ "type": "zone", "shape": { "type": "circle", "radius": radius },
+                "wind_up_ticks": 0, "active_ticks": 600 })
+    };
     let cleave = json!([{ "kind": "active", "ticks": 30, "damage": 1, "rehit_ticks": 1,
                           "hit_box": { "type": "arc", "offset": { "forward": 10_000 },
-                                       "radius": 65_536, "half_angle": 90 * 256 } }]);
+                                       "radius": 65_536, "half_angle": 90 * 256 },
+                          "spawn": [{ "type": "ring", "count": 4, "body": [zone(25_600)] }] }]);
+    let corner = json!([{ "kind": "active", "ticks": 1, "spawn": [{
+        "type": "repeat", "count": 2, "interval_ticks": 0,
+        "body": [{ "type": "ring", "count": 56, "body": [zone(2_048)] }]
+    }] }]);
+    let mut boss = common::far_boss();
+    boss["phases"] = json!([{ "timeline": [
+        { "type": "attack", "attack": { "inline": corner } },
+    ] }]);
     let guard = common::companion(
         50,
         common::hold(x + 20_000, y),
@@ -149,7 +170,7 @@ pub fn stage() -> Stage {
     let mut main = common::weapon_combo(json!({ "main": charged }));
     main["inline"]["assist_range"] = json!(MAX_ASSIST_RANGE);
     let mut stage = common::armed(
-        common::stage_full(18_000, Some(common::far_boss()), waves, vec![guard; 4]),
+        common::stage_full(18_000, Some(boss), waves, vec![guard; 4]),
         main,
     );
     stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());

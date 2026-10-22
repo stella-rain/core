@@ -222,9 +222,12 @@ fn the_three_effects_parse_and_a_one_type_bonus_names_its_type() {
 #[test]
 fn a_type_bonus_reward_is_bounded_like_the_others() {
     let bad = |r: Value| Rewards::parse(file(vec![r]).as_bytes()).is_err();
-    assert!(!bad(pyro(100)), "the most a reward adds");
+    assert!(
+        !bad(pyro(200)),
+        "the most a reward adds (MAX_TYPE_BONUS_AMOUNT)"
+    );
     assert!(bad(pyro(0)), "an amount of 0");
-    assert!(bad(pyro(101)), "an amount past MAX_AMOUNT");
+    assert!(bad(pyro(201)), "an amount past MAX_TYPE_BONUS_AMOUNT");
     assert!(
         bad(bonus("pyro", "type_bonus_pct", Some("pyro"), 10, 0)),
         "a limit of 0"

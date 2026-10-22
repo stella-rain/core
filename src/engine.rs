@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use crate::attack::{AttackPhase, DamageType, Emitter};
+use crate::attack::{Anchor, AttackPhase, DamageType, Emitter, PhaseKind, ZoneShape};
 use crate::behaviour::{BossCall, Movement};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -29,7 +29,7 @@ use crate::snapshot::{
     AttackView, BulletView, ChargeView, ComboView, Countdown, DamageOverTimeView, EntityKind,
     EntityView, EvadeView, ExpertiseOfferKind, ExpertiseView, Facing, HealPickupView, HoldView,
     MapView, OfferKind, OrbitView, PlayerView, ProgressView, PullView, RuneView, ShieldView,
-    SkillView, Snapshot, StarView, StatusView, TypeBonusView,
+    SkillView, Snapshot, StarView, StatusView, TypeBonusView, ZoneView,
 };
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
@@ -78,6 +78,8 @@ pub struct Load {
     pub tasks: u32,
     /// Bullets alive after the attacks fired, before the tick moved and removed any.
     pub bullets: u32,
+    /// Zones alive after the attacks placed theirs, before the tick advanced any.
+    pub zones: u32,
     /// Bullets made in the tick.
     pub bullet_spawns: u32,
     /// Emitter nodes carried out in the tick, across all attacks.
@@ -90,6 +92,7 @@ impl Load {
         enemies: rules_v0::MAX_ENEMIES_ALIVE,
         tasks: rules_v0::MAX_ATTACK_TASKS,
         bullets: rules_v0::MAX_BULLETS_ALIVE,
+        zones: rules_v0::MAX_ZONES_ALIVE,
         bullet_spawns: rules_v0::MAX_BULLET_SPAWNS_PER_TICK,
         emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
     };
@@ -351,7 +354,12 @@ impl Engine {
                     x: r.facing.x,
                     y: r.facing.y,
                 },
-                at: r.at,
+                at: r.at.or_else(|| {
+                    p.hit_box
+                        .as_ref()
+                        .filter(|h| h.anchor() == Anchor::Target)
+                        .and(r.spot)
+                }),
             }
         };
         let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
@@ -576,6 +584,29 @@ impl Engine {
                 statuses: status_views(&s.player.statuses, false),
             },
             entities,
+            zones: s
+                .zones
+                .iter()
+                .map(|z| ZoneView {
+                    shape: z.shape.clone(),
+                    at: z.at,
+                    direction: Facing {
+                        x: z.dir.x,
+                        y: z.dir.y,
+                    },
+                    phase: if z.wind_left > 0 {
+                        PhaseKind::WindUp
+                    } else {
+                        PhaseKind::Active
+                    },
+                    ticks_left: if z.wind_left > 0 {
+                        z.wind_left
+                    } else {
+                        z.active_left
+                    },
+                    friendly: z.friendly,
+                })
+                .collect(),
             bullets: s
                 .bullets
                 .iter()
@@ -694,6 +725,8 @@ pub(crate) struct State {
     pub move_index: MoveIndex,
     /// In spawn order.
     pub bullets: Vec<BulletState>,
+    /// Zones placed and not yet over, in the order they were placed (core Z1).
+    pub zones: Vec<ZoneState>,
     /// Enemies spawned so far, per wave.
     pub spawned: Vec<u16>,
     pub next_id: u32,
@@ -1464,6 +1497,29 @@ pub(crate) struct BulletState {
     pub life: u32,
 }
 
+/// A zone (core Z1): an area that does not move. It warns for `wind_left` ticks, then hurts for
+/// `active_left`, then is gone. It has no ID: nothing refers to one.
+#[derive(Clone, Debug)]
+pub(crate) struct ZoneState {
+    /// Who placed it, for the hit event and for aggro.
+    pub owner: EntityId,
+    pub friendly: bool,
+    pub shape: ZoneShape,
+    /// The centre, fixed when it was placed.
+    pub at: Point,
+    /// The direction an arc or a line points, a unit vector.
+    pub dir: Dir,
+    /// Ticks left of the warning; 0 once it is active.
+    pub wind_left: u32,
+    /// Ticks left of the hurting, counted down once the warning is over.
+    pub active_left: u32,
+    pub damage: u32,
+    pub damage_type: Option<DamageType>,
+    pub breaks_charge: bool,
+    /// Who it has hit, and on which tick, sorted by entity ID: each once.
+    pub hits: Vec<(EntityId, u32)>,
+}
+
 /// An `on_bullet` waiting on a bullet.
 #[derive(Clone, Debug)]
 pub(crate) struct Hook {
@@ -1564,6 +1620,9 @@ pub(crate) struct AttackRun {
     /// A homing missile's target (ADR-099): `throw` follows it while it is alive, and the
     /// missile is gone once it hits anything.
     pub homing: Option<EntityId>,
+    /// Where its target stood when it began, for the hit boxes and zones anchored at the target
+    /// (core Z1); only an attack that has one holds it.
+    pub spot: Option<Point>,
 }
 
 /// The movement speed, in percent, that the running attacks leave each attacker: the lowest
@@ -1640,6 +1699,9 @@ pub(crate) struct AttackTask {
     pub parent_dir: Dir,
     /// The direction of the last bullet, which `sequential` directions turn from.
     pub last_dir: Dir,
+    /// The spot of the attack that started it (`AttackRun::spot`), for its zones anchored at the
+    /// target.
+    pub spot: Option<Point>,
 }
 
 #[cfg(test)]
@@ -2172,6 +2234,7 @@ mod move_index_tests {
             at: None,
             throw: None,
             homing: None,
+            spot: None,
         }
     }
 

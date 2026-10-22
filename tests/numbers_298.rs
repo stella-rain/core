@@ -91,17 +91,15 @@ fn the_star_rewards_have_the_decided_amounts() {
         amounts("attack_speed", &["uncommon", "epic", "supernova"]),
         [12, 28, 64].map(Value::from)
     );
+    // Rune Haste, range and the type bonus hold the decided three; the six-rarity rows around
+    // them are tested in `rarity_rows_d6c`.
     assert_eq!(
         amounts("rune_haste", &three),
         [25, 50, 100].map(Value::from)
     );
     assert_eq!(amounts("range", &three), [15, 30, 50].map(Value::from));
     assert_eq!(
-        amounts("attack_type_bonus", &three),
-        [25, 50, 80].map(Value::from)
-    );
-    assert_eq!(
-        amounts("element_bonus", &three),
+        amounts("type_bonus_slash", &three),
         [25, 50, 80].map(Value::from)
     );
     assert_eq!(file["max_rune_haste_pct"], 500);
@@ -118,12 +116,7 @@ fn the_run_stats_and_match_ups_hold_their_caps() {
 #[test]
 fn the_new_rewards_are_ordinary_ones_the_random_rune_apart() {
     let file = bundled(include_str!("../content/rewards.json"));
-    for (effect, kinds) in [
-        ("rune_haste", 3),
-        ("range_pct", 3),
-        ("attack_type_bonus_pct", 3),
-        ("element_bonus_pct", 3),
-    ] {
+    for (effect, kinds) in [("rune_haste", 6), ("range_pct", 6), ("type_bonus_pct", 60)] {
         let found: Vec<&Value> = file["rewards"]
             .as_array()
             .unwrap()
@@ -165,7 +158,7 @@ fn a_rewards_file_may_hold_the_most_rewards_and_not_one_more() {
         let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": list });
         Rewards::parse(file.to_string().as_bytes())
     };
-    assert_eq!(MAX_REWARDS, 128);
+    assert_eq!(MAX_REWARDS, 192);
     assert!(parse(MAX_REWARDS).is_ok());
     assert!(parse(MAX_REWARDS + 1).is_err());
 }
@@ -242,13 +235,12 @@ fn offered(seeds: std::ops::Range<u64>, ticks: u32) -> BTreeSet<String> {
 #[test]
 fn a_run_can_be_offered_each_new_reward_kind() {
     let seen = offered(1..25, 2400);
-    for id in [
-        "random_rune",
-        "rune_haste_common",
-        "range_common",
-        "attack_type_bonus_common",
-        "element_bonus_common",
-    ] {
+    for id in ["random_rune", "rune_haste_common", "range_common"] {
         assert!(seen.contains(id), "{id} is offered in some run: {seen:?}");
     }
+    // Ten families weigh 10 each, so which damage type comes first is a matter of the seeds.
+    assert!(
+        seen.iter().any(|id| id.starts_with("type_bonus_")),
+        "a type bonus is offered in some run: {seen:?}"
+    );
 }
