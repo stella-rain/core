@@ -345,6 +345,7 @@ pub(crate) fn initial_state(
         hp_pct: pool.difficulty.hp_pct,
         damage_pct: pool.difficulty.damage_pct,
         crit_seed: seed,
+        echoes: Vec::new(),
     }
 }
 
@@ -668,6 +669,7 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     // friendly hit box or bullet, serves all of them; a tick without either never builds it.
     let mut grid: Option<Grid> = None;
     let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
+    combat::deal_echoes(s, events);
     hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = Vec::with_capacity(s.bullets.len());
     for i in 0..s.bullets.len() {
@@ -726,7 +728,7 @@ fn enemy_grid(stage: &Stage, s: &State) -> Grid {
 /// that are ready (`runes`).
 fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     // A shrine, or a mimic in disguise, is an object: nothing damages it (ADR-090).
-    if matches!(target, Who::Enemy(i) if s.enemies[i].shrine.is_some() || s.enemies[i].hidden()) {
+    if !damageable(s, target) {
         return;
     }
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
@@ -759,13 +761,9 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         echo: false,
     });
     if dead {
-        // A part breaks; everything else dies.
-        events.push(match (target, s.boss.as_ref()) {
-            (Who::BossPart(i), Some(boss)) => DomainEvent::PartBroken {
-                part: boss.parts[i].name.clone(),
-            },
-            _ => DomainEvent::Died { entity: id },
-        });
+        events.push(death_event(s, target, id));
+    } else {
+        combat::queue_echo(s, &b, id, dealt, !State::is_ally(target));
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
     if b.combo {
@@ -783,6 +781,21 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
             let at = s.at(target);
             runes::on_hit(stage, s, id, at, events);
         }
+    }
+}
+
+/// Whether anything can damage `target`: a shrine and a mimic in disguise are objects (ADR-090).
+fn damageable(s: &State, target: Who) -> bool {
+    !matches!(target, Who::Enemy(i) if s.enemies[i].shrine.is_some() || s.enemies[i].hidden())
+}
+
+/// What a death is reported as: a part breaks, everything else dies.
+fn death_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
+    match (target, s.boss.as_ref()) {
+        (Who::BossPart(i), Some(boss)) => DomainEvent::PartBroken {
+            part: boss.parts[i].name.clone(),
+        },
+        _ => DomainEvent::Died { entity: id },
     }
 }
 
@@ -1679,6 +1692,12 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(s.player.burst_pct);
         h.write_u32(s.player.burst_radius);
         h.write_u32(s.player.burst_depth);
+        h.write_u32(u32::try_from(s.echoes.len()).unwrap_or(u32::MAX));
+        for echo in &s.echoes {
+            h.write_u32(echo.source.0);
+            h.write_u32(echo.target.0);
+            h.write_u32(echo.damage);
+        }
     }
     if let Some(f) = s.stars.as_ref().filter(|f| f.extra_candidates > 0) {
         h.write_u32(u32::from(f.extra_candidates));

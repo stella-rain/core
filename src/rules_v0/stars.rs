@@ -29,8 +29,8 @@ use crate::engine::{
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::{
-    MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_OFFER_CANDIDATES, Rarity,
-    RewardEffect, Rewards,
+    MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES,
+    Rarity, RewardEffect, Rewards,
 };
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
@@ -393,6 +393,12 @@ pub(super) fn take(
                     .crit_damage_pct
                     .saturating_add(amount)
                     .min(MAX_CRIT_DAMAGE_TOTAL_PCT)
+            }
+            RewardEffect::EchoHitPct => {
+                player.echo_hit_pct = player
+                    .echo_hit_pct
+                    .saturating_add(amount)
+                    .min(MAX_ECHO_HIT_PCT)
             }
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
             // The perks' counters (`loadout::perk`), added to for the rest of the run.

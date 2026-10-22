@@ -5,9 +5,13 @@
 //! A run without any of the rewards runs none of this: every entry point returns at once, the
 //! state writes nothing for them to the hash and no random number is drawn.
 
-use crate::engine::PlayerState;
+use crate::attack::MatchUp;
+use crate::engine::{Echo, PlayerState};
+use crate::event::DomainEvent;
 use crate::id::EntityId;
-use crate::rewards::{MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT};
+use crate::rewards::{
+    MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_ECHOES_PER_TICK,
+};
 use crate::rng::SplitMix64;
 
 use super::{PLAYER_ID, Shot, State};
@@ -46,6 +50,71 @@ pub(super) fn crits(s: &State, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bo
 pub(super) fn crit_damage(damage: u32, bonus_pct: u32) -> u32 {
     let pct = 200 + u64::from(bonus_pct.min(MAX_CRIT_DAMAGE_TOTAL_PCT));
     u32::try_from(u64::from(damage) * pct / 100).unwrap_or(u32::MAX)
+}
+
+/// Queues the echo of a hit that landed: `dealt` hit points on the foe `target`, which stayed
+/// standing. Only the main character's own hits echo, as only they crit; an echo, a burst, a
+/// rune's hit and a damage-over-time tick do not. The echo is the reward's percent of what the
+/// hit dealt, at least 1, and is dealt a tick later, at the start of `collide`. The queue holds
+/// `MAX_ECHOES_PER_TICK`: the hits after that, in the order they landed, echo nothing.
+pub(super) fn queue_echo(s: &mut State, b: &Shot, target: EntityId, dealt: u32, foe: bool) {
+    let pct = s.player.echo_hit_pct.min(MAX_ECHO_HIT_PCT);
+    if pct == 0
+        || dealt == 0
+        || b.chain
+        || b.rune.is_some()
+        || !b.friendly
+        || b.owner != PLAYER_ID
+        || !foe
+        || s.echoes.len() >= MAX_ECHOES_PER_TICK
+    {
+        return;
+    }
+    let damage = u32::try_from(u64::from(dealt) * u64::from(pct) / 100)
+        .unwrap_or(u32::MAX)
+        .max(1);
+    s.echoes.push(Echo {
+        source: b.owner,
+        target,
+        damage,
+    });
+}
+
+/// Deals last tick's echoes, in the order they were queued, before this tick's hit boxes and
+/// bullets land. An echo takes its hit points from the target it was queued on, if that is
+/// still standing, and nothing else: it neither crits, echoes, fires a rune nor adds expertise.
+/// What it defeats is credited with the rest of the tick's kills.
+pub(super) fn deal_echoes(s: &mut State, events: &mut Vec<DomainEvent>) {
+    if s.echoes.is_empty() {
+        return;
+    }
+    for echo in std::mem::take(&mut s.echoes) {
+        let Some(target) = s.find(echo.target).filter(|t| !State::is_ally(*t)) else {
+            continue;
+        };
+        if s.hp(target) == 0 || !super::damageable(s, target) {
+            continue;
+        }
+        let hp = s.hp_mut(target);
+        *hp = hp.saturating_sub(echo.damage);
+        let dead = *hp == 0;
+        events.push(DomainEvent::Hit {
+            source: echo.source,
+            target: echo.target,
+            damage: echo.damage,
+            match_up: MatchUp::None,
+            rune: None,
+            crit: false,
+            echo: true,
+        });
+        if dead {
+            events.push(super::death_event(s, target, echo.target));
+        }
+        s.raise_aggro(
+            echo.source,
+            echo.damage.saturating_mul(super::AGGRO_PER_DAMAGE),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -135,5 +204,86 @@ mod tests {
             !crits(&s, &shot(PLAYER_ID), EntityId(1), 500, false),
             "nor on an ally"
         );
+    }
+
+    fn with_enemy(s: &mut State, id: u32, hp: u32) {
+        use crate::engine::{AgentKey, AgentSource};
+        use crate::rules_v0::agents::new_agent;
+        let stage = RunContent::bundled().trial().clone();
+        let key = AgentKey {
+            source: AgentSource::Wave,
+            index: 0,
+            rule: 0,
+        };
+        let mut e = new_agent(
+            EntityId(id),
+            key,
+            &stage.waves[0].enemy,
+            Point::default(),
+            0,
+        );
+        e.hp = hp;
+        s.enemies.push(e);
+    }
+
+    #[test]
+    fn echoes_are_queued_at_their_percent_and_capped_per_tick() {
+        let mut s = state();
+        queue_echo(&mut s, &shot(PLAYER_ID), EntityId(5), 100, true);
+        assert!(s.echoes.is_empty(), "no echo reward held");
+        s.player.echo_hit_pct = 35;
+        queue_echo(&mut s, &shot(PLAYER_ID), EntityId(5), 100, true);
+        queue_echo(&mut s, &shot(PLAYER_ID), EntityId(5), 1, true);
+        assert_eq!(
+            s.echoes.iter().map(|e| e.damage).collect::<Vec<_>>(),
+            [35, 1],
+            "35 percent, and at least 1"
+        );
+        let mut chained = shot(PLAYER_ID);
+        chained.chain = true;
+        queue_echo(&mut s, &chained, EntityId(5), 100, true);
+        queue_echo(&mut s, &shot(EntityId(9)), EntityId(5), 100, true);
+        queue_echo(&mut s, &shot(PLAYER_ID), EntityId(5), 100, false);
+        queue_echo(&mut s, &shot(PLAYER_ID), EntityId(5), 0, true);
+        assert_eq!(
+            s.echoes.len(),
+            2,
+            "no echo of an echo, a stranger's hit or an ally"
+        );
+        for i in 0..100 {
+            queue_echo(&mut s, &shot(PLAYER_ID), EntityId(i), 100, true);
+        }
+        assert_eq!(s.echoes.len(), MAX_ECHOES_PER_TICK);
+        // The first to land are the ones kept.
+        assert_eq!(s.echoes[2].target, EntityId(0));
+    }
+
+    #[test]
+    fn echoes_are_dealt_in_order_once_and_dropped_when_their_target_is_gone() {
+        let mut s = state();
+        with_enemy(&mut s, 7, 50);
+        for (target, damage) in [(7, 20), (8, 5), (7, 40)] {
+            s.echoes.push(Echo {
+                source: PLAYER_ID,
+                target: EntityId(target),
+                damage,
+            });
+        }
+        let mut events = Vec::new();
+        deal_echoes(&mut s, &mut events);
+        assert!(s.echoes.is_empty());
+        assert_eq!(s.enemies[0].hp, 0, "20 then 40 of 50");
+        let types: Vec<_> = events
+            .iter()
+            .map(|e| match e {
+                DomainEvent::Hit { damage, echo, .. } => (*damage, *echo),
+                DomainEvent::Died { .. } => (0, false),
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        // The echo of 5 on the missing enemy is dropped; the last one is dealt in full.
+        assert_eq!(types, [(20, true), (40, true), (0, false)]);
+        deal_echoes(&mut s, &mut events);
+        assert_eq!(events.len(), 3, "nothing is dealt twice");
     }
 }

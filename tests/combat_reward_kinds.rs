@@ -204,7 +204,8 @@ fn an_echo_repeats_each_hit_once_a_tick_later_at_its_percent() {
     let echoes: Vec<_> = hits.iter().filter(|h| flag(h, "echo")).collect();
     let firsts: Vec<_> = hits.iter().filter(|h| !flag(h, "echo")).collect();
     assert!(!firsts.is_empty());
-    assert_eq!(echoes.len(), firsts.len(), "one echo for each hit");
+    // One echo for each hit, but for the last hit's, which lands after the run's last tick.
+    assert_eq!(echoes.len() + 1, firsts.len(), "one echo for each hit");
     for (hit, echo) in firsts.iter().zip(&echoes) {
         assert_eq!(echo.0, hit.0 + 1, "one tick later");
         assert_eq!(echo.1["data"]["target"], hit.1["data"]["target"]);
@@ -214,13 +215,13 @@ fn an_echo_repeats_each_hit_once_a_tick_later_at_its_percent() {
 }
 
 #[test]
-fn an_echo_that_kills_does_not_echo_and_an_echo_never_echoes() {
-    // Ten hit points and a hit of base damage: the echo finishes nothing it should not.
+fn an_echo_never_echoes() {
     let stage = two_waves(vec![holder(50_000, 0)]);
     let events = play(&stage, vec![entry("echo_hit_pct", 100)], 600);
     let hits = of_type(&events, "Hit");
     let echoes = hits.iter().filter(|h| flag(h, "echo")).count();
-    assert_eq!(echoes * 2, hits.len(), "never an echo of an echo");
+    // As many echoes as hits (less the last, still to come), never an echo of an echo.
+    assert_eq!(echoes * 2 + 1, hits.len());
 }
 
 fn pack(dy_px: &[i32]) -> Vec<Value> {

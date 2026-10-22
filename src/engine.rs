@@ -737,6 +737,18 @@ pub(crate) struct State {
     /// The run's seed, which the critical-hit rolls are hashed from: they draw nothing from
     /// `rng`, so a run without crit chance spends the same random numbers as before.
     pub crit_seed: u64,
+    /// The echoes of last tick's hits, waiting for this tick's `collide`, in the order the hits
+    /// landed; at most `MAX_ECHOES_PER_TICK`.
+    pub echoes: Vec<Echo>,
+}
+
+/// One hit's echo, queued when the hit lands and dealt a tick later (core#NS2b).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Echo {
+    pub source: EntityId,
+    pub target: EntityId,
+    /// Hit points taken, already the hit's percent of its damage.
+    pub damage: u32,
 }
 
 /// What a `time_limit` run brings to its bosses (core#212): the times, the pool they are drawn
