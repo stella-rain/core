@@ -92,7 +92,12 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
 #[test]
 fn the_bundled_rewards_have_the_stack_limit_of_their_rarity() {
     // app#336: how many times one run takes an ordinary reward, by rarity.
-    for reward in Rewards::bundled().rewards().iter().filter(|r| !r.named) {
+    // (The random rune has none: it leaves the offers once every rune is held.)
+    for reward in Rewards::bundled()
+        .rewards()
+        .iter()
+        .filter(|r| !r.named && !r.is_random_rune())
+    {
         let limit = match reward.rarity {
             Rarity::Common => 5,
             Rarity::Uncommon => 4,

@@ -140,7 +140,9 @@ fn the_bundled_rewards_file_validates_with_its_named_stars() {
     let rewards = Rewards::parse(Rewards::BUNDLED).unwrap_or_else(|e| panic!("{e}"));
     let stars: Vec<_> = rewards.rewards().iter().filter(|r| r.named).collect();
     assert_eq!(stars.len(), 15);
-    assert_eq!(rewards.rewards().len(), 62);
+    // The 15 named stars come after the ordinary rewards (47, and app#298's 13).
+    assert_eq!(rewards.rewards().len(), 75);
+    assert!(rewards.rewards()[60..].iter().all(|r| r.named));
 }
 
 #[test]
