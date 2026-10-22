@@ -120,12 +120,16 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-latest
+            debug: true
           - arch: arm64
             runner: ubuntu-24.04-arm
+            debug: true
           - arch: windows-x86_64
             runner: windows-latest
+            debug: false
           - arch: macos-arm64
             runner: macos-latest
+            debug: false
     steps:
       - uses: actions/checkout@v7
         with:
@@ -135,11 +139,14 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: uname -m && rustc -vV
-      - run: cargo test --locked
+      # `record` (ADR-016) only adds code, so --all-features is a superset of the default build's
+      # tests, and it also runs the recording tests that the default build skips. The debug build
+      # (overflow checks on) runs on the two Linux runners; the slower Windows and macOS runners
+      # run the release build only.
+      - if: matrix.debug
+        run: cargo test --locked --all-features
+      # The corpus and the pinned hashes are not behind `record`: they run here on all four runners.
       - run: cargo test --locked --release
-      # The `record` feature (ADR-016) is off by default and must keep working.
-      - run: cargo test --locked --all-features
-      - run: cargo test --locked --release --all-features
       # A corpus mismatch writes the snapshots of the first diverging tick and the one before to
       # target/corpus-diff (tests/corpus.rs); one artifact per architecture to compare them.
       - name: Upload the corpus diff
@@ -354,8 +361,10 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-latest
+            debug: true
           - arch: arm64
             runner: ubuntu-24.04-arm
+            debug: true
     steps:
       - uses: actions/checkout@v7
         with:
