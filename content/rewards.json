@@ -432,6 +432,122 @@
       "description": "Hit points come back every second, a huge amount"
     },
     {
+      "id": "rune_haste_common",
+      "rarity": "common",
+      "effect": "rune_haste",
+      "amount": 25,
+      "limit": 5,
+      "title": "Quickening (Common)",
+      "description": "Runes recover 25 percent sooner"
+    },
+    {
+      "id": "rune_haste_rare",
+      "rarity": "rare",
+      "effect": "rune_haste",
+      "amount": 50,
+      "limit": 3,
+      "title": "Quickening (Rare)",
+      "description": "Runes recover 50 percent sooner"
+    },
+    {
+      "id": "rune_haste_legendary",
+      "rarity": "legendary",
+      "effect": "rune_haste",
+      "amount": 100,
+      "limit": 2,
+      "title": "Quickening (Legendary)",
+      "description": "Runes recover 100 percent sooner"
+    },
+    {
+      "id": "range_common",
+      "rarity": "common",
+      "effect": "range_pct",
+      "amount": 15,
+      "limit": 5,
+      "title": "Reach (Common)",
+      "description": "Attacks reach 15 percent wider"
+    },
+    {
+      "id": "range_rare",
+      "rarity": "rare",
+      "effect": "range_pct",
+      "amount": 30,
+      "limit": 3,
+      "title": "Reach (Rare)",
+      "description": "Attacks reach 30 percent wider"
+    },
+    {
+      "id": "range_legendary",
+      "rarity": "legendary",
+      "effect": "range_pct",
+      "amount": 50,
+      "limit": 2,
+      "title": "Reach (Legendary)",
+      "description": "Attacks reach 50 percent wider"
+    },
+    {
+      "id": "attack_type_bonus_common",
+      "rarity": "common",
+      "effect": "attack_type_bonus_pct",
+      "amount": 25,
+      "limit": 5,
+      "title": "Mastery (Common)",
+      "description": "25 percent more Slash, Pierce and Strike damage"
+    },
+    {
+      "id": "attack_type_bonus_rare",
+      "rarity": "rare",
+      "effect": "attack_type_bonus_pct",
+      "amount": 50,
+      "limit": 3,
+      "title": "Mastery (Rare)",
+      "description": "50 percent more Slash, Pierce and Strike damage"
+    },
+    {
+      "id": "attack_type_bonus_legendary",
+      "rarity": "legendary",
+      "effect": "attack_type_bonus_pct",
+      "amount": 80,
+      "limit": 2,
+      "title": "Mastery (Legendary)",
+      "description": "80 percent more Slash, Pierce and Strike damage"
+    },
+    {
+      "id": "element_bonus_common",
+      "rarity": "common",
+      "effect": "element_bonus_pct",
+      "amount": 25,
+      "limit": 5,
+      "title": "Attunement (Common)",
+      "description": "25 percent more elemental damage"
+    },
+    {
+      "id": "element_bonus_rare",
+      "rarity": "rare",
+      "effect": "element_bonus_pct",
+      "amount": 50,
+      "limit": 3,
+      "title": "Attunement (Rare)",
+      "description": "50 percent more elemental damage"
+    },
+    {
+      "id": "element_bonus_legendary",
+      "rarity": "legendary",
+      "effect": "element_bonus_pct",
+      "amount": 80,
+      "limit": 2,
+      "title": "Attunement (Legendary)",
+      "description": "80 percent more elemental damage"
+    },
+    {
+      "id": "random_rune",
+      "rarity": "common",
+      "effect": "random_rune",
+      "weight": 200,
+      "title": "Rune",
+      "description": "A rune you do not hold yet, drawn when you take it"
+    },
+    {
       "id": "star_altair",
       "rarity": "epic",
       "effects": [
