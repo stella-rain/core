@@ -118,7 +118,7 @@ fn the_exported_pack_has_its_fields_in_order() {
         "\"perk_sets\": {",
         "\"difficulties\": {",
         "\"starting_unlocks\": {",
-        "\"constellations\"",
+        "\"constellations\": {",
         "\"stardust\": {",
         "\"modes\"",
     ];
