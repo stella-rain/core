@@ -314,6 +314,7 @@ pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]>
         &content.runes().sha256(),
         &content.perk_sets().sha256(),
         &content.difficulties().sha256(),
+        content.constellations().sha256().as_ref(),
         presets::sources(),
     ))
 }
@@ -330,6 +331,7 @@ fn hash_content<'a>(
     runes_sha256: &[u8; 32],
     perk_sets_sha256: &[u8; 32],
     difficulties_sha256: &[u8; 32],
+    constellations_sha256: Option<&[u8; 32]>,
     sources: impl Iterator<Item = (u8, &'a str, &'a str)>,
 ) -> [u8; 32] {
     fn part(sha: &mut Sha256, kind: u8, id: &[u8], body: &[u8]) {
@@ -351,6 +353,10 @@ fn hash_content<'a>(
     part(&mut sha, b'n', b"runes", runes_sha256);
     part(&mut sha, b'p', b"perk_sets", perk_sets_sha256);
     part(&mut sha, b'd', b"difficulties", difficulties_sha256);
+    // Only with the file, so that content without sets hashes as it did before it.
+    if let Some(constellations) = constellations_sha256 {
+        part(&mut sha, b'c', b"constellations", constellations);
+    }
     for (kind, id, definition) in sources {
         part(&mut sha, kind, id.as_bytes(), definition.as_bytes());
     }
@@ -764,6 +770,7 @@ mod tests {
             &RUNES,
             &PERKS,
             &DIFFICULTIES,
+            None,
             sources.iter().copied(),
         )
     }
@@ -785,6 +792,7 @@ mod tests {
             &RUNES,
             &PERKS,
             &DIFFICULTIES,
+            None,
             SOURCES.iter().copied(),
         )
     }
@@ -829,6 +837,7 @@ mod tests {
                 &RUNES,
                 &PERKS,
                 &DIFFICULTIES,
+                None,
                 SOURCES.iter().copied(),
             ),
             "the match-ups"
@@ -846,6 +855,7 @@ mod tests {
                 &[8; 32],
                 &PERKS,
                 &DIFFICULTIES,
+                None,
                 SOURCES.iter().copied(),
             ),
             "the runes"
@@ -863,6 +873,7 @@ mod tests {
                 &RUNES,
                 &[8; 32],
                 &DIFFICULTIES,
+                None,
                 SOURCES.iter().copied(),
             ),
             "the perk sets"
@@ -880,10 +891,31 @@ mod tests {
                 &RUNES,
                 &PERKS,
                 &[8; 32],
+                None,
                 SOURCES.iter().copied(),
             ),
             "the difficulties"
         );
+        // Sets of named stars change it, and no file leaves it as it was.
+        let with = |sets: Option<&[u8; 32]>| {
+            hash_content(
+                "trial",
+                b"{}",
+                &STATS,
+                &REWARDS,
+                &SKILLS,
+                &EXPERTISE,
+                &MATCH_UPS,
+                &RUNES,
+                &PERKS,
+                &DIFFICULTIES,
+                sets,
+                SOURCES.iter().copied(),
+            )
+        };
+        assert_eq!(base, with(None));
+        assert_ne!(base, with(Some(&[9; 32])), "the constellations");
+        assert_ne!(with(Some(&[9; 32])), with(Some(&[10; 32])));
         assert_ne!(
             base,
             files(&REWARDS, &STATS, &SKILLS, &EXPERTISE),

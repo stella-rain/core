@@ -84,6 +84,10 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
                 ),
                 None => println!("starting_unlocks: none"),
             }
+            println!(
+                "constellations: {} sets",
+                pack.content().constellations().sets().len()
+            );
             Ok(())
         }
         ["export"] => std::io::stdout()

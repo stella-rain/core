@@ -5,6 +5,7 @@
 //! that a run's engine, its recorder and its verification read the same files, and the replay's
 //! content hash covers each of them (ADR-079 §5).
 
+use crate::constellations::Constellations;
 use crate::difficulties::Difficulties;
 use crate::expertise::Expertise;
 use crate::match_ups::MatchUps;
@@ -228,6 +229,12 @@ impl RunContent {
     /// unknown, never a guessed list.
     pub fn starting_unlocks(&self) -> Option<&StartingUnlocks> {
         self.starting_unlocks.as_ref()
+    }
+
+    /// The sets of named stars (core#NS3): those of the pack the rewards were read from, none
+    /// for content without the file.
+    pub fn constellations(&self) -> &Constellations {
+        self.rewards.constellations()
     }
 
     /// The `time_limit` mode's file.

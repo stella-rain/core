@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use sha2::{Digest, Sha256};
 
+use crate::constellations::{Constellations, ConstellationsFile};
 use crate::difficulties::{Difficulties, DifficultiesFile};
 use crate::expertise::{Expertise, ExpertiseFile, WeaponExpertise};
 use crate::id::ContentId;
@@ -80,6 +81,8 @@ pub const MAX_MID_BOSS_POOL: usize = crate::time_limit::MAX_POOL;
 /// The most IDs one list of the starting unlocks holds (6 across the lists today; held to the
 /// file's own cap).
 pub const MAX_STARTING_UNLOCKS: usize = crate::starting_unlocks::MAX_STARTING_UNLOCKS;
+/// The most sets of named stars (none today; held to the file's own cap).
+pub const MAX_CONSTELLATIONS: usize = crate::constellations::MAX_CONSTELLATIONS;
 /// The most IDs one weapon's expertise introduces: its styles, their choices and its common
 /// options (15 today).
 pub const MAX_EXPERTISE_IDS: usize = 64;
@@ -114,6 +117,11 @@ pub struct PackFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<StartingUnlocksFile>")]
     pub starting_unlocks: Option<Box<RawValue>>,
+    /// The sets of named stars (core#NS3), checked against the pack's own rewards. Optional: a
+    /// pack released before it has no sets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<ConstellationsFile>")]
+    pub constellations: Option<Box<RawValue>>,
     pub modes: PackModes,
 }
 
@@ -322,6 +330,14 @@ impl Pack {
             .map_err(PackError::in_file("stage_skills"))?;
         let rewards = Rewards::parse_with(&file_bytes(&pack.rewards), &stage_skills)
             .map_err(PackError::in_file("rewards"))?;
+        let rewards = match pack.constellations.as_deref() {
+            Some(raw) => {
+                let sets = Constellations::parse_with(&file_bytes(raw), &rewards)
+                    .map_err(PackError::in_file("constellations"))?;
+                rewards.with_constellations(sets)
+            }
+            None => rewards,
+        };
         let expertise = Expertise::parse(&file_bytes(&pack.expertise))
             .map_err(PackError::in_file("expertise"))?;
         let match_ups = MatchUps::parse(&file_bytes(&pack.match_ups))
@@ -440,6 +456,12 @@ fn file_bytes(raw: &RawValue) -> Vec<u8> {
 /// parser, which refuses it.
 fn counts<'a, T: Deserialize<'a>>(raw: &'a RawValue) -> Option<T> {
     serde_json::from_str(raw.get()).ok()
+}
+
+#[derive(Deserialize)]
+struct ConstellationLists {
+    #[serde(default)]
+    constellations: Vec<IgnoredAny>,
 }
 
 #[derive(Deserialize)]
@@ -604,6 +626,17 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
                 MAX_STARTING_UNLOCKS,
             )?;
         }
+    }
+    if let Some(l) = pack
+        .constellations
+        .as_deref()
+        .and_then(counts::<ConstellationLists>)
+    {
+        budget(
+            "$.constellations.constellations",
+            l.constellations.len(),
+            MAX_CONSTELLATIONS,
+        )?;
     }
     if let Some(l) = counts::<Lists>(&pack.modes.time_limit) {
         budget(
