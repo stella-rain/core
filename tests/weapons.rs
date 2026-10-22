@@ -650,10 +650,12 @@ fn the_giant_sword_takes_the_vindictus_shape() {
 
 #[test]
 fn the_giant_hammer_spins_wider_with_each_normal_attack() {
-    // A, AA and AAA, each a spin wider than the last; AAA holds (ADR-084 point 6); the smashes
-    // B and AB, and AAB and AAAB, which `giant_hammer_aab` and `giant_hammer_aaab` open.
+    // A to AAAAA, each a spin wider than the last; AAA holds (ADR-084 point 6); the smashes
+    // B and AB, and AAB, AAAB, AAAAB and AAAAAB.
     let w = weapon_of("giant_hammer");
-    for presses in ["A", "AA", "AAA", "B", "AB", "AAB", "AAAB"] {
+    for presses in [
+        "A", "AA", "AAA", "AAAA", "AAAAA", "B", "AB", "AAB", "AAAB", "AAAAB", "AAAAAB",
+    ] {
         assert!(step_at(&w.combo, presses).is_some(), "{presses}");
     }
     let unlock = |presses: &str| step_at(&w.combo, presses).unwrap().unlock.clone();
@@ -663,10 +665,11 @@ fn the_giant_hammer_spins_wider_with_each_normal_attack() {
         assert_eq!(unlock(presses), None, "{presses}");
     }
     let radius = |presses: &str| active_radius(&step_at(&w.combo, presses).unwrap().attack);
-    assert!(radius("A") < radius("AA") && radius("AA") < radius("AAA"));
+    let widths: Vec<_> = ["A", "AA", "AAA", "AAAA", "AAAAA"].map(radius).into();
+    assert!(widths.windows(2).all(|w| w[0] < w[1]), "{widths:?}");
     assert!(step_at(&w.combo, "AAA").unwrap().charge.is_none());
-    // AAA's only next step is the smash AAAB.
-    let next = &step_at(&w.combo, "AAA").unwrap().next;
+    // AAAAA, the last normal attack, has only its smash AAAAAB after it.
+    let next = &step_at(&w.combo, "AAAAA").unwrap().next;
     assert!(next.main.is_none() && next.smash.is_some());
 }
 

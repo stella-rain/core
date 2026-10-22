@@ -127,7 +127,29 @@ const WEAPONS: &[(&str, &[(&str, &str)])] = &[
                                     {"kind":"active","ticks":6,"type":"strike",
                                      "hit_box":{"type":"circle","radius":12288}},
                                     {"kind":"recovery","ticks":20}]},
-                                "hold":{"loop":{"inline":[{"kind":"active","ticks":8,"rehit_ticks":8,"type":"strike","hit_box":{"type":"circle","radius":12288}}]},"release":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":5,"type":"strike","damage":10000,"hit_box":{"type":"circle","offset":{"forward":4096},"radius":16384}},{"kind":"recovery","ticks":24}]},"max_ticks":180,"move_pct":50},"next":{"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":16,"move_pct":50},{"kind":"active","ticks":5,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"circle","radius":16384}},{"kind":"recovery","ticks":26,"move_pct":50}]},"unlock":"giant_hammer_aaab"}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":12,"move_pct":50},{"kind":"active","ticks":4,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"arc","offset":{"forward":4096},"radius":14336,"half_angle":24576}},{"kind":"recovery","ticks":22,"move_pct":50}]},"unlock":"giant_hammer_aab"}}},
+                                "hold":{"loop":{"inline":[{"kind":"active","ticks":8,"rehit_ticks":8,"type":"strike","hit_box":{"type":"circle","radius":12288}}]},"release":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":5,"type":"strike","damage":10000,"hit_box":{"type":"circle","offset":{"forward":4096},"radius":16384}},{"kind":"recovery","ticks":24}]},"max_ticks":180,"move_pct":50},"next":{
+                            "main":{"attack":{"inline":[
+                                        {"kind":"wind_up","ticks":8},
+                                        {"kind":"active","ticks":6,"type":"strike",
+                                         "hit_box":{"type":"circle","radius":14336}},
+                                        {"kind":"recovery","ticks":20}]},
+                                    "next":{
+                                "main":{"attack":{"inline":[
+                                            {"kind":"wind_up","ticks":10},
+                                            {"kind":"active","ticks":6,"type":"strike",
+                                             "hit_box":{"type":"circle","radius":16384}},
+                                            {"kind":"recovery","ticks":24}]},
+                                        "next":{"smash":{"attack":{"inline":[
+                                            {"kind":"wind_up","ticks":22,"move_pct":50},
+                                            {"kind":"active","ticks":6,"move_pct":50,"type":"strike","damage":16000,
+                                             "hit_box":{"type":"circle","radius":22528}},
+                                            {"kind":"recovery","ticks":30,"move_pct":50}]}}}},
+                                "smash":{"attack":{"inline":[
+                                    {"kind":"wind_up","ticks":18,"move_pct":50},
+                                    {"kind":"active","ticks":5,"move_pct":50,"type":"strike","damage":12000,
+                                     "hit_box":{"type":"circle","radius":18432}},
+                                    {"kind":"recovery","ticks":28,"move_pct":50}]}}}},
+                            "smash":{"attack":{"inline":[{"kind":"wind_up","ticks":16,"move_pct":50},{"kind":"active","ticks":5,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"circle","radius":16384}},{"kind":"recovery","ticks":26,"move_pct":50}]},"unlock":"giant_hammer_aaab"}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":12,"move_pct":50},{"kind":"active","ticks":4,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"arc","offset":{"forward":4096},"radius":14336,"half_angle":24576}},{"kind":"recovery","ticks":22,"move_pct":50}]},"unlock":"giant_hammer_aab"}}},
                     "smash":{"attack":{"inline":[
                                 {"kind":"wind_up","ticks":14,"move_pct":50},
                                 {"kind":"active","ticks":4,"move_pct":50,"type":"strike",
