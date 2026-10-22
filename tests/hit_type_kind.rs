@@ -143,3 +143,17 @@ fn every_entity_in_the_snapshot_carries_its_kind_id() {
         Some(ContentId("fairy_a".into()))
     );
 }
+
+#[test]
+fn a_kind_id_is_a_content_id_in_json_and_cuts_a_too_long_string_at_a_character() {
+    let id = KindId::from("goblin_a");
+    assert_eq!(serde_json::to_string(&id).unwrap(), "\"goblin_a\"");
+    let back: KindId = serde_json::from_str("\"goblin_a\"").unwrap();
+    assert_eq!(back, id);
+    assert_eq!(id, ContentId("goblin_a".into()));
+    // 32 bytes fit; a longer string (which no validated stage holds) is cut on a character.
+    let longest = "a".repeat(32);
+    assert_eq!(KindId::from(longest.as_str()).as_str(), longest);
+    let long = format!("{}é", "a".repeat(31));
+    assert_eq!(KindId::from(long.as_str()).as_str(), "a".repeat(31));
+}

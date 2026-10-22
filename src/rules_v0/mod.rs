@@ -815,12 +815,12 @@ fn death_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
 pub(super) fn kind_id(s: &State, who: Who) -> Option<KindId> {
     match who {
         Who::Player => None,
-        Who::Boss => Some(s.boss_state().kind.clone()),
-        Who::BossPart(i) => Some(s.boss_state().parts[i].kind.clone()),
-        Who::Companion(i) => Some(s.companions[i].kind.clone()),
+        Who::Boss => Some(s.boss_state().kind),
+        Who::BossPart(i) => Some(s.boss_state().parts[i].kind),
+        Who::Companion(i) => Some(s.companions[i].kind),
         Who::Enemy(i) => {
             let e = &s.enemies[i];
-            (!e.hidden()).then(|| e.kind.clone())
+            (!e.hidden()).then(|| e.kind)
         }
     }
 }
