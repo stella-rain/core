@@ -43,7 +43,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "slash"
+            "slash",
+            "electro"
           ]
         },
         "movement": {
@@ -94,7 +95,8 @@
         "radius": 3072,
         "profile": {
           "weak": [
-            "strike"
+            "strike",
+            "dendro"
           ]
         },
         "movement": {
@@ -364,7 +366,8 @@
         "radius": 3072,
         "profile": {
           "weak": [
-            "strike"
+            "strike",
+            "dendro"
           ]
         },
         "movement": {
@@ -462,7 +465,7 @@
           "strong": [
             "pierce"
           ],
-          "resist": "physical"
+          "resist": "elements"
         },
         "movement": {
           "type": "follow",
@@ -867,7 +870,7 @@
     {"base": "lantern_choir", "hp": 150000, "radius": 8192, "profile": {"weak": ["slash"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "phases": [{"until": {"type": "hp_below", "who": "self", "pct": 50}, "transition": [], "timeline": [{"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [768]}}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"inline": [{"kind": "active", "ticks": 1, "spawn": [{"type": "ring", "count": 8, "body": [{"type": "spread", "count": 3, "angle": 2560, "body": [{"type": "fire", "speed": 768, "direction": {"type": "aimed", "offset": 0}}]}]}]}]}}, {"type": "wait", "ticks": 90}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 30}, {"type": "attack", "attack": {"inline": [{"kind": "active", "ticks": 1, "spawn": [{"type": "ring", "count": 12, "body": [{"type": "spread", "count": 3, "angle": 2560, "body": [{"type": "fire", "speed": 896, "direction": {"type": "aimed", "offset": 0}}]}]}]}]}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [896]}}}, {"type": "wait", "ticks": 60}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000},
     {"base": "horn_charger", "hp": 150000, "radius": 8192, "profile": {"weak": ["pierce"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "phases": [{"until": {"type": "hp_below", "who": "self", "pct": 50}, "transition": [], "timeline": [{"type": "telegraph", "ticks": 40}, {"type": "move_to", "to": {"x": 163840, "y": 180000}, "ticks": 30}, {"type": "attack", "attack": {"preset": {"id": "spread_5", "args": []}}}, {"type": "wait", "ticks": 30}, {"type": "move_to", "to": {"x": 163840, "y": 35840}, "ticks": 60}, {"type": "wait", "ticks": 30}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 20}, {"type": "move_to", "to": {"x": 163840, "y": 180000}, "ticks": 20}, {"type": "attack", "attack": {"preset": {"id": "twin_shot", "args": []}}}, {"type": "wait", "ticks": 20}, {"type": "move_to", "to": {"x": 163840, "y": 35840}, "ticks": 40}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000},
     {"base": "weaver", "hp": 150000, "radius": 8192, "profile": {"weak": ["pierce"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "phases": [{"until": {"type": "hp_below", "who": "self", "pct": 66}, "transition": [], "timeline": [{"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_single", "args": [640]}}}, {"type": "wait", "ticks": 60}, {"type": "loop"}], "rules": []}, {"until": {"type": "hp_below", "who": "self", "pct": 33}, "transition": [{"type": "clear_bullets"}], "timeline": [{"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [768]}}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "aimed_single", "args": [640]}}}, {"type": "wait", "ticks": 40}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 30}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [896]}}}, {"type": "wait", "ticks": 40}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000},
-    {"base": "core_pair", "hp": 300000, "radius": 8192, "profile": {"weak": ["strike"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "parts": [{"id": "core_left", "asset": "horns_2", "hp": 60000, "offset": {"x": -3840, "y": -2048}, "radius": 4096}, {"id": "core_right", "asset": "horns_2", "hp": 60000, "offset": {"x": 3840, "y": -2048}, "radius": 4096}], "phases": [{"until": {"type": "part_broken", "part": "core_left"}, "transition": [], "timeline": [{"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [768]}}}, {"type": "wait", "ticks": 60}, {"type": "loop"}], "rules": []}, {"until": {"type": "part_broken", "part": "core_right"}, "transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 40}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 150}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [896]}}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 120}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000}
+    {"base": "core_pair", "hp": 300000, "radius": 8192, "profile": {"weak": ["strike", "pyro"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "parts": [{"id": "core_left", "asset": "horns_2", "hp": 60000, "offset": {"x": -3840, "y": -2048}, "radius": 4096}, {"id": "core_right", "asset": "horns_2", "hp": 60000, "offset": {"x": 3840, "y": -2048}, "radius": 4096}], "phases": [{"until": {"type": "part_broken", "part": "core_left"}, "transition": [], "timeline": [{"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [768]}}}, {"type": "wait", "ticks": 60}, {"type": "loop"}], "rules": []}, {"until": {"type": "part_broken", "part": "core_right"}, "transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 40}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 150}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [896]}}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 120}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000}
   ],
   "stardust_summon_base": 10,
   "stardust_tiers": [

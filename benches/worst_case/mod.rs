@@ -37,7 +37,7 @@ const TAP_FROM: u32 = WALK_FROM + WALK_LEFT_TICKS + WALK_UP_TICKS + 4;
 /// Ticks the main character charges before it lets go on the measured tick.
 const CHARGE_TICKS: u32 = 24;
 
-/// The Rune Haste reward: the most one gives (`MAX_RUNE_HASTE_PCT`), so that the picks reach
+/// The Rune Haste reward: the most one gives (`DEFAULT_MAX_RUNE_HASTE_PCT`), so that the picks reach
 /// the cap.
 const HASTE: &str = "haste";
 
@@ -68,7 +68,7 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 ///
 /// The main character is a run that holds every rune (ADR-099): before the enemies arrive it
 /// kills eight small ones in front of it and takes the seven runes and Rune Haste of 300 percent
-/// (`MAX_RUNE_HASTE_PCT`) from their stars, as a run does, through `Engine::new_with`. It then
+/// (`DEFAULT_MAX_RUNE_HASTE_PCT`) from their stars, as a run does, through `Engine::new_with`. It then
 /// walks to the left of the enemies, about 36,000 units from them (out of the 128-pixel arcs of their
 /// attacks, and of their bullets' column), where its Main weapon's step, a circle of 256
 /// pixels, lands on all 500 of them every tick: each hit puts a stack of bleed, poison and burn
@@ -168,7 +168,7 @@ pub fn stage() -> Stage {
 /// Haste: seven runes, then the Rune Haste reward.
 const PICKS: u16 = 8;
 
-/// The run's content: the random rune and Rune Haste of 300 percent (`MAX_RUNE_HASTE_PCT`) to
+/// The run's content: the random rune and Rune Haste of 300 percent (`DEFAULT_MAX_RUNE_HASTE_PCT`) to
 /// pick from, the bundled on-hit runes, and damage-over-time runes that stack to the cap
 /// (`MAX_DOT_STACKS`), last for 600 ticks and tick every 4, which full Rune Haste makes every
 /// tick.

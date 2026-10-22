@@ -69,7 +69,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "slash"
+            "slash",
+            "electro"
           ]
         },
         "movement": {
@@ -118,7 +119,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "slash"
+            "slash",
+            "electro"
           ]
         },
         "movement": {
@@ -217,7 +219,7 @@
           "strong": [
             "pierce"
           ],
-          "resist": "physical"
+          "resist": "elements"
         },
         "movement": {
           "type": "follow",
@@ -320,7 +322,8 @@
     "radius": 8192,
     "profile": {
       "weak": [
-        "strike"
+        "strike",
+        "pyro"
       ],
       "resist": "physical"
     },

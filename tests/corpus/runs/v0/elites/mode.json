@@ -762,7 +762,8 @@
       "profile": {
         "resist": "physical",
         "weak": [
-          "strike"
+          "strike",
+          "pyro"
         ]
       },
       "radius": 8192,
@@ -906,7 +907,7 @@
           "type": "follow"
         },
         "profile": {
-          "resist": "physical",
+          "resist": "elements",
           "strong": [
             "pierce"
           ]

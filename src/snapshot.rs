@@ -347,7 +347,7 @@ pub struct PlayerView {
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub range_pct: u32,
     /// What the Rune Haste rewards taken add up to, in percent, before the clamp at
-    /// `MAX_RUNE_HASTE_PCT` (ADR-099). The shorter cooldowns and intervals are already in the
+    /// the rewards file's `max_rune_haste_pct` (ADR-099). The shorter cooldowns and intervals are already in the
     /// runes' cooldowns and the statuses' timers.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub rune_haste_pct: u32,

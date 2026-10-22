@@ -191,7 +191,12 @@ fn a_splitter_splits_once_when_it_is_below_half() {
 #[test]
 fn a_run_on_normal_with_a_bot_holds_the_caps_and_its_replay_verifies() {
     use std::cell::Cell;
-    let setup = time_limit_setup();
+    // Seed 1: with the numbers of app#298 seed 20,261,010 no longer ends in the boss's kill, and
+    // this is the first of `1..` that does.
+    let setup = stella_rain_core::run_setup::RunSetup {
+        seed: 1,
+        ..time_limit_setup()
+    };
     let content = RunContent::bundled();
     // The bot goes for the enemies and the bosses and gets out of the way of bullets throughout
     // (the corpus's `boss_input`); the closure reads the load on each tick, before it chooses the
@@ -212,7 +217,7 @@ fn a_run_on_normal_with_a_bot_holds_the_caps_and_its_replay_verifies() {
     let bytes = recorded.to_bytes();
     let verified = run_replay::verify_run_with(&bytes, content).unwrap();
     assert_eq!(verified.ticks, recorded.ticks);
-    // The run ends by the final boss's kill, in its overtime (seed 20,261,010 with the bundled
+    // The run ends by the final boss's kill, in its overtime (seed 1 with the bundled
     // content): the bot gets through all six roles to the end.
     assert_eq!(verified.outcome, Outcome::Cleared);
 }

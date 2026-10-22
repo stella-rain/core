@@ -52,8 +52,8 @@ pub const MAX_HOMING_MISSILES: u32 = 4;
 pub const MAX_DOT_INTERVAL_TICKS: u32 = 600;
 /// The longest duration of a damage-over-time status: a minute.
 pub const MAX_DOT_DURATION_TICKS: u32 = 3_600;
-/// The most stacks of a damage-over-time status: room for the game design document's 5 and an
-/// upgrade's +3.
+/// The most stacks of a damage-over-time status: room above the design's 6 stacks (app#298).
+/// Runes are never upgraded (ADR-099 point 1), so no upgrade adds to them.
 pub const MAX_DOT_STACKS: u32 = 10;
 
 /// The runes file.

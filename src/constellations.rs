@@ -316,10 +316,21 @@ fn validate_tiers(
                     "a set's tier cannot give an orbit or a random rune".into(),
                 );
             } else {
-                validate_entry(entry, &entry_at, rewards.stage_skills(), issue);
+                validate_entry(
+                    entry,
+                    &entry_at,
+                    rewards.stage_skills(),
+                    rewards.max_rune_haste_pct(),
+                    issue,
+                );
             }
         }
-        validate_bundle(&tier.effects, &|field: &str| tier_at(field), issue);
+        validate_bundle(
+            &tier.effects,
+            rewards.max_rune_haste_pct(),
+            &|field: &str| tier_at(field),
+            issue,
+        );
         if t > 0 {
             let (low, high) = (totals(&set.tiers[t - 1].effects), totals(&tier.effects));
             let holds_less = low.iter().any(|l| {

@@ -38,7 +38,7 @@ use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 /// The largest rewards file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_REWARDS_BYTES: usize = 32 * 1024;
 /// The most rewards a file lists.
-pub const MAX_REWARDS: usize = 64;
+pub const MAX_REWARDS: usize = 128;
 /// The largest amount: a percentage or a count; for hit points, `MAX_HP_AMOUNT`.
 pub const MAX_AMOUNT: u32 = 100;
 /// The largest amount of hit points: 5,000 shown hit points, scaled (ADR-103); Vigour (Supernova)
@@ -58,10 +58,14 @@ pub const MAX_ORBIT_COOLDOWN_TICKS: u32 = 3_600;
 /// reward's amount and holds what the range rewards and the expertise range options add up to
 /// (ADR-099, ADR-020).
 pub const MAX_RANGE_PCT: u32 = 100;
-/// The most Rune Haste one reward gives, in percent, and the most the picks add up to: a
-/// cooldown or tick interval is then a quarter as long, and never less than a tick
-/// (ADR-099 point 5, ADR-020).
-pub const MAX_RUNE_HASTE_PCT: u32 = 300;
+/// The ceiling of Rune Haste, in percent: the most the rewards file's `max_rune_haste_pct` may
+/// name, and so the most one reward gives and the picks add up to, a cooldown or tick interval
+/// then being a ninth as long, and never less than a tick (ADR-099 point 5, ADR-020). The
+/// file's cap (500 in the bundle, app#298) is the number; this is the bound on it.
+pub const MAX_RUNE_HASTE_PCT: u32 = 1_000;
+/// The cap of a rewards file that names none: the cap before it was content (app#298 raised
+/// the bundle's to 500).
+pub const DEFAULT_MAX_RUNE_HASTE_PCT: u32 = 300;
 /// The most the type bonuses add to one attack's damage, in percent: eleven times as much. It
 /// bounds the match-up file's `max_type_bonus_pct`, where the bonuses that apply to an
 /// attack's type saturate (ADR-100, ADR-020).
@@ -109,8 +113,8 @@ pub const MAX_BURST_DEPTH: u32 = 3;
 pub const MAX_BURSTS_PER_TICK: usize = 8;
 
 /// `ticks` shortened by `haste_pct` percent of Rune Haste (ADR-099 point 5): `ticks × 100 /
-/// (100 + h)` rounded up, at least 1. The haste is held to `MAX_RUNE_HASTE_PCT`, so an
-/// unvalidated sum cannot pass it.
+/// (100 + h)` rounded up, at least 1. The haste is held to `MAX_RUNE_HASTE_PCT`, the ceiling,
+/// so an unvalidated sum cannot pass it; a run holds its sum to the file's cap first.
 pub fn rune_haste_ticks(ticks: u32, haste_pct: u32) -> u32 {
     let h = u64::from(haste_pct.min(MAX_RUNE_HASTE_PCT));
     let shortened = (u64::from(ticks) * 100).div_ceil(100 + h);
@@ -274,7 +278,7 @@ pub struct EffectEntry {
     /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it
     /// adds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to
     /// `MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune
-    /// Haste, the percent of haste, from 1 to `MAX_RUNE_HASTE_PCT`; for a type bonus, the
+    /// Haste, the percent of haste, from 1 to the file's `max_rune_haste_pct`; for a type bonus, the
     /// percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which
     /// has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -470,6 +474,10 @@ pub struct Orbit {
 pub struct RewardsFile {
     pub schema_version: u32,
     pub sim_version: u32,
+    /// The most Rune Haste the picks add up to, in percent, 1 to `MAX_RUNE_HASTE_PCT`
+    /// (app#298); absent, `DEFAULT_MAX_RUNE_HASTE_PCT`. A reward gives at most this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_rune_haste_pct: Option<u32>,
     /// The rewards, in the order offers draw them from.
     pub rewards: Vec<Reward>,
 }
@@ -479,6 +487,7 @@ pub struct RewardsFile {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Rewards {
     rewards: Vec<Reward>,
+    max_rune_haste_pct: u32,
     stage_skills: StageSkills,
     /// The sets of named stars checked against these rewards (core#NS3): none unless a pack
     /// or a caller gives them (`with_constellations`).
@@ -530,10 +539,18 @@ impl Rewards {
         validate(&file, stage_skills)?;
         Ok(Rewards {
             rewards: file.rewards,
+            max_rune_haste_pct: file
+                .max_rune_haste_pct
+                .unwrap_or(DEFAULT_MAX_RUNE_HASTE_PCT),
             stage_skills: stage_skills.clone(),
             constellations: Constellations::default(),
             sha256: Sha256::digest(bytes).into(),
         })
+    }
+
+    /// The most Rune Haste the picks add up to, in percent: the file's, or the default.
+    pub fn max_rune_haste_pct(&self) -> u32 {
+        self.max_rune_haste_pct
     }
 
     /// The rewards, in the file's order.
@@ -571,14 +588,14 @@ impl Rewards {
     }
 }
 
-/// The largest amount of one effect.
-fn most_of(effect: RewardEffect) -> u32 {
+/// The largest amount of one effect; for Rune Haste, the file's cap `haste_cap`.
+fn most_of(effect: RewardEffect, haste_cap: u32) -> u32 {
     match effect {
         RewardEffect::StageSkill => MAX_SKILL_LEVELS as u32,
         RewardEffect::EvadeCharge => u32::from(MAX_EVADE_CHARGES),
         RewardEffect::Orbit => u32::from(MAX_ORBS),
         RewardEffect::RangePct => MAX_RANGE_PCT,
-        RewardEffect::RuneHaste => MAX_RUNE_HASTE_PCT,
+        RewardEffect::RuneHaste => haste_cap.min(MAX_RUNE_HASTE_PCT),
         RewardEffect::MaxHp | RewardEffect::Regen => MAX_HP_AMOUNT,
         RewardEffect::PickupRadiusPct => MAX_PICKUP_RADIUS_PCT,
         RewardEffect::SkillCooldownPct => MAX_SKILL_COOLDOWN_PCT,
@@ -599,9 +616,10 @@ pub(crate) fn validate_entry(
     entry: &EffectEntry,
     at: &dyn Fn(&str) -> String,
     stage_skills: &StageSkills,
+    haste_cap: u32,
     issue: &mut dyn FnMut(String, String),
 ) {
-    let most = most_of(entry.effect);
+    let most = most_of(entry.effect, haste_cap);
     match (entry.effect, entry.amount) {
         (RewardEffect::RandomRune, None) => {}
         (RewardEffect::RandomRune, Some(_)) => {
@@ -709,6 +727,7 @@ pub(crate) fn validate_entry(
 /// one random rune.
 pub(crate) fn validate_bundle(
     effects: &[EffectEntry],
+    haste_cap: u32,
     at: &dyn Fn(&str) -> String,
     issue: &mut dyn FnMut(String, String),
 ) {
@@ -722,7 +741,7 @@ pub(crate) fn validate_bundle(
         }
     }
     for (effect, _, _, sum) in &sums {
-        let most = most_of(*effect);
+        let most = most_of(*effect, haste_cap);
         if *sum > u64::from(most) {
             issue(
                 at("effects"),
@@ -804,6 +823,15 @@ fn validate_naming(
 pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Error> {
     let mut issues = Vec::new();
     let mut issue = |path: String, message: String| issues.push(Issue { path, message });
+    let haste_cap = file
+        .max_rune_haste_pct
+        .unwrap_or(DEFAULT_MAX_RUNE_HASTE_PCT);
+    if !(1..=MAX_RUNE_HASTE_PCT).contains(&haste_cap) {
+        issue(
+            "$.max_rune_haste_pct".into(),
+            format!("1 to {MAX_RUNE_HASTE_PCT} (found {haste_cap})"),
+        );
+    }
     if file.rewards.is_empty() || file.rewards.len() > MAX_REWARDS {
         issue(
             "$.rewards".into(),
@@ -831,7 +859,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
         }
         for (k, entry) in reward.effects.iter().enumerate() {
             let at = |field: &str| format!("$.rewards[{i}].effects[{k}].{field}");
-            validate_entry(entry, &at, stage_skills, &mut issue);
+            validate_entry(entry, &at, stage_skills, haste_cap, &mut issue);
             if entry.effect == RewardEffect::Orbit && entry.orbit.is_some() {
                 let earlier = file.rewards[..i]
                     .iter()
@@ -858,7 +886,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
                 }
             }
         }
-        validate_bundle(&reward.effects, &at, &mut issue);
+        validate_bundle(&reward.effects, haste_cap, &at, &mut issue);
         validate_naming(&file.rewards[..i], reward, &at, &mut issue);
         if let Some(problem) = run_stats::text_problem(&reward.title, 1, run_stats::MAX_TITLE_CHARS)
         {
