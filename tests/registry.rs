@@ -84,11 +84,7 @@ fn the_combo_upgrades_are_registered_in_version_0() {
 }
 
 #[test]
-fn the_upgrade_mask_has_room_for_every_upgrade() {
+fn the_upgrade_list_has_room_for_every_upgrade() {
     let n = ENTRIES.iter().filter(|e| e.kind == Kind::Upgrade).count();
     assert!(n <= stella_rain_core::registry::MAX_UPGRADES);
-    assert_eq!(
-        stella_rain_core::registry::upgrade_bit("giant_sword_aab"),
-        Some(3)
-    );
 }

@@ -29,6 +29,7 @@ fn setup(difficulty: &str) -> RunSetup {
         sim_version: 0,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
+        weapon_tree: None,
         seed: 5,
         star_pool: None,
         extra_rerolls: 0,

@@ -103,6 +103,7 @@ mod tutorial;
 mod type_bonuses;
 mod types;
 mod validate;
+mod weapon_tree;
 mod weapons;
 mod worst_case;
 mod x100;

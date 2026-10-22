@@ -20,6 +20,7 @@ fn setup() -> RunSetup {
         sim_version: 0,
         mode: "trial".into(),
         weapon: "giant_sword".into(),
+        weapon_tree: None,
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,
@@ -84,6 +85,7 @@ fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
         validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
     by_hand.player.weapon = WeaponRef::Preset {
         id: "giant_sword".into(),
+        tree: None,
     };
     by_hand.seed = 20_261_010;
     assert_eq!(run_setup::stage(&setup()), Ok(by_hand.clone()));

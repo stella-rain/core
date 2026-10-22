@@ -812,11 +812,10 @@ fn the_trial_s_enemies_and_boss_give_expertise_points() {
     );
 }
 
-// --- Permanent upgrades (ADR-084 point 7) -------------------------------------------------
+// --- Permanent upgrades, which open no step now (ADR-117) -------------------------------------------------
 
 /// The Sword's A, AA, then B: slash (4 + 3 ticks, recovery 10) pressed on ticks 0 and 6 and
-/// the smash on tick 14. With `giant_sword_aab` the last is AAB (depth 3), without it a smash
-/// from the root.
+/// the smash on tick 14: AAB, depth 3.
 fn sword_aab_commands() -> Vec<Command> {
     (0..60)
         .map(|t| {
@@ -850,22 +849,18 @@ fn smash_depths(setup: &RunSetup) -> Vec<u8> {
 }
 
 #[test]
-fn the_setup_s_upgrades_open_the_combo_steps_that_name_them() {
+fn the_setup_s_upgrades_open_no_combo_step() {
+    // Every smash is open (ADR-117): the Sword's AAB is depth 3 whatever the setup holds.
     let held = RunSetup {
         upgrades: vec!["giant_sword_aab".into()],
         ..trial_setup()
     };
     assert_eq!(smash_depths(&held), [3]);
-    assert_eq!(smash_depths(&trial_setup()), [1]);
-    let other = RunSetup {
-        upgrades: vec!["giant_hammer_aab".into()],
-        ..trial_setup()
-    };
-    assert_eq!(smash_depths(&other), [1]);
+    assert_eq!(smash_depths(&trial_setup()), [3]);
 }
 
 #[test]
-fn a_run_with_upgrades_records_and_verifies_from_its_bytes_alone() {
+fn a_run_whose_setup_names_upgrades_records_and_verifies_and_runs_as_without_them() {
     let setup = RunSetup {
         upgrades: vec!["giant_sword_aaab".into(), "giant_sword_aab".into()],
         ..trial_setup()
@@ -874,12 +869,7 @@ fn a_run_with_upgrades_records_and_verifies_from_its_bytes_alone() {
     assert_eq!(replay.setup, setup);
     let verified = verify_run(&replay.to_bytes()).unwrap();
     assert_eq!(hash_to_hex(verified.final_hash), replay.final_hash);
-    // The same inputs without the upgrades end in another state: the upgrades are part of the run.
+    // The upgrades open nothing, so the same inputs end in the same state without them.
     let without = record_run(&trial_setup(), &sword_aab_commands()).unwrap();
-    assert_ne!(without.final_hash, replay.final_hash);
-    // A replay edited to hold no upgrades does not verify.
-    let edited = with(&replay, |v| v["setup"]["upgrades"] = json!([]));
-    assert!(
-        verify_run(&edited).map(|v| hash_to_hex(v.final_hash)) != Ok(replay.final_hash.clone())
-    );
+    assert_eq!(without.final_hash, replay.final_hash);
 }

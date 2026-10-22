@@ -123,23 +123,5 @@ pub fn bullet_style(id: &str) -> u16 {
         .map_or(0, |i| u16::try_from(i + 1).unwrap_or(0))
 }
 
-/// The bit of upgrade `id` in an upgrade mask: its position among the upgrades of `ENTRIES`.
-/// At most `MAX_UPGRADES` upgrades are registered (`tests/registry.rs`).
-pub fn upgrade_bit(id: &str) -> Option<u32> {
-    ENTRIES
-        .iter()
-        .filter(|e| e.kind == Kind::Upgrade)
-        .position(|e| e.id == id)
-        .and_then(|i| u32::try_from(i).ok())
-}
-
-/// The most upgrades the registry holds: the width of an upgrade mask.
+/// The most upgrades a setup names (ADR-079): the registry holds at most this many.
 pub const MAX_UPGRADES: usize = 32;
-
-/// The mask of the upgrades `ids` name: bit `upgrade_bit` for each registered one. An ID the
-/// registry does not hold sets no bit.
-pub fn upgrade_mask<'a>(ids: impl IntoIterator<Item = &'a str>) -> u32 {
-    ids.into_iter()
-        .filter_map(upgrade_bit)
-        .fold(0, |mask, bit| mask | 1 << bit)
-}

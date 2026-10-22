@@ -23,8 +23,10 @@ pub const SPEND_INDEX: u32 = 1;
 /// hit points (app#336) seed 11's run lives long enough to take and use the hex as well, and
 /// seed 66 is the first of `1..` that uses the black hole alone, at level 1, again. With the
 /// numbers of app#298 (the new rewards in the pool, the runes) seed 66 no longer does, and seed
-/// 10 is the first of `1..` that does.
-pub const STAGE_SKILL_SEED: u64 = 10;
+/// 10 is the first of `1..` that does. With the Sword's five-A tree and every smash open
+/// (ADR-117) seed 10's run uses the nova as well, and seed 35 is the first of `1..` that uses
+/// the black hole alone, at level 1, again.
+pub const STAGE_SKILL_SEED: u64 = 35;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
 /// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
@@ -46,6 +48,7 @@ pub fn trial_setup() -> RunSetup {
         sim_version: 0,
         mode: "trial".into(),
         weapon: "giant_sword".into(),
+        weapon_tree: None,
         seed: 20_261_010,
         star_pool: None,
         extra_rerolls: 0,
@@ -70,7 +73,7 @@ pub fn time_limit_setup() -> RunSetup {
 /// Side to side, and the `giant_sword`'s combos in a 60-tick cycle: `main` on its ticks 0, 8 and 16
 /// (slash, slash, thrust), the thrust held to tick 40 in every other cycle (a charge released at
 /// level 1, inside its perfect window), and `smash` on 44 and 52 (two smashes from the root, each a
-/// slash that pulls what it hits); the stage skill pressed on tick 30 of every cycle.
+/// slash that bleeds what it hits); the stage skill pressed on tick 30 of every cycle.
 pub fn run_script(tick: u32) -> Input {
     let c = tick % 60;
     let charging = (tick / 60) % 2 == 1 && (16..40).contains(&c);

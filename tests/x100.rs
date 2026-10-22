@@ -22,7 +22,7 @@ fn kills(engine: &Engine) -> usize {
 /// design values.
 const STAGES: [(&str, Outcome, u32, usize, u32); 10] = [
     ("agents", Outcome::Running, 80, 1, 99),
-    ("assist", Outcome::Running, 320, 0, 99),
+    ("assist", Outcome::Running, 360, 0, 99),
     ("boss", Outcome::Cleared, 111, 1, 99),
     ("bullets", Outcome::Running, 300, 0, 99),
     ("clear", Outcome::Cleared, 35, 1, 3),

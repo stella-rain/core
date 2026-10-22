@@ -1,5 +1,5 @@
 //! The run setup (ADR-051 §1): what a run of the launch game starts from, and all it starts
-//! from. The mode, the weapon (a content ID, ADR-026, ADR-107), and the seed of the
+//! from. The mode, the weapon (a content ID, ADR-026, ADR-107) and its tree (ADR-117), and the seed of the
 //! run's SplitMix64 (ADR-033). No expertise level: every run starts at level 0 (ADR-079 §1).
 //! The mode's content is bundled in `core` (`modes/`), so replaying a run never needs the
 //! player's save data or a stage file.
@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::difficulties::{Difficulties, Difficulty};
 use crate::id::ContentId;
+use crate::presets;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::Rarity;
 use crate::run_content::RunContent;
@@ -75,6 +76,11 @@ pub struct RunSetup {
     pub mode: ContentId,
     /// A weapon preset: the one weapon the run's main character carries (ADR-107).
     pub weapon: ContentId,
+    /// Which of the weapon's trees the run uses (ADR-117), by the tree's ID: it sets the combo
+    /// tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first
+    /// tree, so a setup written before trees existed reads as it always did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weapon_tree: Option<ContentId>,
     /// Seeds the run's SplitMix64 (ADR-033), all 64 bits.
     pub seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
@@ -84,9 +90,10 @@ pub struct RunSetup {
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub extra_rerolls: u8,
-    /// The permanent upgrades the player holds (ADR-079), which open the combo steps that name
-    /// them (ADR-084 point 7): registered upgrade IDs, sorted, each once, at most
-    /// `registry::MAX_UPGRADES`.
+    /// The permanent upgrades the player holds (ADR-079): registered upgrade IDs, sorted, each
+    /// once, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is
+    /// open, ADR-117): an old setup that names `giant_sword_aab` and the others still reads, and
+    /// they are ignored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub upgrades: Vec<ContentId>,
     /// The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk
@@ -130,6 +137,11 @@ struct RunSetupFile {
     mode: ContentId,
     /// A weapon preset: the one weapon the run's main character carries (ADR-107).
     weapon: ContentId,
+    /// Which of the weapon's trees the run uses (ADR-117), by the tree's ID: it sets the combo
+    /// tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first
+    /// tree, so a setup written before trees existed reads as it always did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    weapon_tree: Option<ContentId>,
     /// Seeds the run's SplitMix64 (ADR-033), all 64 bits.
     seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
@@ -139,9 +151,10 @@ struct RunSetupFile {
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
     #[serde(default, skip_serializing_if = "is_zero")]
     extra_rerolls: u8,
-    /// The permanent upgrades the player holds (ADR-079), which open the combo steps that name
-    /// them (ADR-084 point 7): registered upgrade IDs, sorted, each once, at most
-    /// `registry::MAX_UPGRADES`.
+    /// The permanent upgrades the player holds (ADR-079): registered upgrade IDs, sorted, each
+    /// once, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is
+    /// open, ADR-117): an old setup that names `giant_sword_aab` and the others still reads, and
+    /// they are ignored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     upgrades: Vec<ContentId>,
     /// The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk
@@ -197,6 +210,7 @@ impl TryFrom<RunSetupFile> for RunSetup {
             sim_version: f.sim_version,
             mode: f.mode,
             weapon: f.weapon,
+            weapon_tree: f.weapon_tree,
             seed: f.seed,
             star_pool: f.star_pool,
             extra_rerolls: f.extra_rerolls,
@@ -286,6 +300,16 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
     };
     id("mode", &setup.mode, Kind::Mode);
     id("weapon", &setup.weapon, Kind::Weapon);
+    if let Some(problem) = setup
+        .weapon_tree
+        .as_ref()
+        .and_then(|tree| presets::tree_problem(&setup.weapon.0, &tree.0))
+    {
+        issues.push(Issue {
+            path: "$.weapon_tree".into(),
+            message: problem.into(),
+        });
+    }
     if let Some(pool) = &setup.star_pool {
         if pool.len() > MAX_STAR_POOL {
             issues.push(Issue {
@@ -587,6 +611,7 @@ fn stage_on(
     let mut stage = base.clone();
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
+        tree: setup.weapon_tree.clone(),
     };
     validate::validate(&stage)?;
     Ok(stage)
@@ -648,6 +673,7 @@ pub(crate) fn time_limit_run(
     let mut stage = trial.clone();
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
+        tree: setup.weapon_tree.clone(),
     };
     validate::validate(&stage)?;
     check_bosses(&stage, mode)?;

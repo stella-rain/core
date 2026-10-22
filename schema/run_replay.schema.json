@@ -141,7 +141,7 @@
           ]
         },
         "upgrades": {
-          "description": "The permanent upgrades the player holds (ADR-079), which open the combo steps that name\nthem (ADR-084 point 7): registered upgrade IDs, sorted, each once, at most\n`registry::MAX_UPGRADES`.",
+          "description": "The permanent upgrades the player holds (ADR-079): registered upgrade IDs, sorted, each\nonce, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is\nopen, ADR-117): an old setup that names `giant_sword_aab` and the others still reads, and\nthey are ignored.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/ContentId"
@@ -150,6 +150,17 @@
         "weapon": {
           "description": "A weapon preset: the one weapon the run's main character carries (ADR-107).",
           "$ref": "#/$defs/ContentId"
+        },
+        "weapon_tree": {
+          "description": "Which of the weapon's trees the run uses (ADR-117), by the tree's ID: it sets the combo\ntree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first\ntree, so a setup written before trees existed reads as it always did.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,

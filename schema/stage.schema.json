@@ -2629,17 +2629,6 @@
         },
         "next": {
           "$ref": "#/$defs/Branches"
-        },
-        "unlock": {
-          "description": "The permanent upgrade that opens the step (ADR-084 point 7): without it in the run's\nsetup the step is absent, and so is every step below it. None: always open.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ContentId"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": false,
@@ -2941,6 +2930,7 @@
       "description": "A weapon preset by ID, or an inline weapon.",
       "oneOf": [
         {
+          "description": "A preset, in one of its trees (ADR-117): none is the weapon's first tree.",
           "type": "object",
           "properties": {
             "preset": {
@@ -2948,6 +2938,16 @@
               "properties": {
                 "id": {
                   "$ref": "#/$defs/ContentId"
+                },
+                "tree": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/ContentId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "additionalProperties": false,

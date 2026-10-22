@@ -158,7 +158,7 @@ fn slot(table: &LevelTable, level: u32) -> Option<ExpertiseOfferKind> {
 /// The expertise content of the one weapon: none for an inline weapon.
 fn content<'a>(stage: &Stage, expertise: &'a Expertise) -> Option<&'a WeaponExpertise> {
     match &stage.player.weapon {
-        WeaponRef::Preset { id } => expertise.weapon(id),
+        WeaponRef::Preset { id, .. } => expertise.weapon(id),
         WeaponRef::Inline(_) => None,
     }
 }

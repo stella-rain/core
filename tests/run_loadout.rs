@@ -322,6 +322,19 @@ fn script(tick: u32) -> Input {
     common::run::run_script(tick)
 }
 
+/// `script` with no press of `main` or `smash` by hand, and walking up the field for the first
+/// 120 ticks to the bats: auto mode has the combos to itself and a target within the Sword's
+/// reach. (With `script`'s own hand combos under the Sword's five-A tree, auto mode finds no
+/// target in the first 600 ticks, measured, so the two runs were the same run.)
+fn idle_script(tick: u32) -> Input {
+    Input {
+        main: false,
+        smash: false,
+        move_y: if tick < 120 { -127 } else { 0 },
+        ..script(tick)
+    }
+}
+
 #[test]
 fn a_perk_set_changes_the_run_and_the_same_one_always_runs_the_same() {
     let content = plain_content();
@@ -447,7 +460,7 @@ fn auto_mode_is_on_only_while_the_input_says_so() {
     let run = |auto: bool| {
         hashes(start(&plain()).unwrap(), 600, |t| Input {
             auto,
-            ..script(t)
+            ..idle_script(t)
         })
     };
     let off = run(false);
@@ -455,7 +468,7 @@ fn auto_mode_is_on_only_while_the_input_says_so() {
     assert_ne!(off, on, "auto mode changes the run");
     let from_tick_0 = hashes(start(&plain()).unwrap(), 600, |t| Input {
         auto: true,
-        ..script(t)
+        ..idle_script(t)
     });
     assert_eq!(on, from_tick_0);
 }

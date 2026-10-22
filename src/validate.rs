@@ -797,8 +797,14 @@ impl<'a> Ctx<'a> {
     /// A weapon preset's ID, or an inline weapon checked by `inline`.
     fn weapon_ref<W>(&mut self, w: &WeaponRef<W>, inline: impl FnOnce(&mut Self, &W)) {
         match w {
-            WeaponRef::Preset { id } => self.key("preset", |c| {
+            WeaponRef::Preset { id, tree } => self.key("preset", |c| {
                 c.content_id("id", id, Kind::Weapon);
+                if let Some(problem) = tree
+                    .as_ref()
+                    .and_then(|t| presets::tree_problem(&id.0, &t.0))
+                {
+                    c.key("tree", |c| c.fail(problem));
+                }
             }),
             WeaponRef::Inline(w) => self.key("inline", |c| inline(c, w)),
         }
@@ -852,9 +858,6 @@ impl<'a> Ctx<'a> {
                     return;
                 }
                 c.key("attack", |c| c.attack_ref(&step.attack));
-                if let Some(unlock) = &step.unlock {
-                    c.content_id("unlock", unlock, Kind::Upgrade);
-                }
                 if let Some(charge) = &step.charge {
                     c.key("charge", |c| c.charge(charge));
                 }
