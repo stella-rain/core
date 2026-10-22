@@ -39,8 +39,9 @@ pub const MAX_REWARDS_BYTES: usize = 32 * 1024;
 pub const MAX_REWARDS: usize = 64;
 /// The largest amount: a percentage or a count; for hit points, `MAX_HP_AMOUNT`.
 pub const MAX_AMOUNT: u32 = 100;
-/// The largest amount of hit points: `MAX_AMOUNT` at the design values, scaled (ADR-103).
-pub const MAX_HP_AMOUNT: u32 = MAX_AMOUNT * DAMAGE_SCALE;
+/// The largest amount of hit points: 5,000 shown hit points, scaled (ADR-103); Vigour (Supernova)
+/// gives 1,600 shown.
+pub const MAX_HP_AMOUNT: u32 = 5_000 * DAMAGE_SCALE;
 /// The most times one run takes one reward.
 pub const MAX_STACK: u8 = 20;
 /// The most orbs one orbit holds, however often its reward is taken.
