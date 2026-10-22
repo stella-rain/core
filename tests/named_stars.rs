@@ -114,3 +114,22 @@ fn easy_offers_no_named_star_by_its_rarity_range() {
     let normal = Difficulties::bundled().get(&id("normal")).unwrap();
     assert!(normal.rarity_max >= lowest);
 }
+
+#[test]
+fn taking_a_random_rune_bundle_gives_the_rune_and_the_haste() {
+    let list = vec![crate::reward_kinds::kind(
+        "dog",
+        vec![
+            serde_json::json!({ "effect": "random_rune" }),
+            crate::reward_kinds::entry("rune_haste", 100),
+        ],
+        1_000,
+        2,
+    )];
+    let mut e = crate::reward_kinds::with(&near(40), list);
+    next_offer(&mut e);
+    crate::reward_kinds::take(&mut e, "dog");
+    let player = e.snapshot().player;
+    assert_eq!(player.runes.len(), 1);
+    assert_eq!(player.rune_haste_pct, 100);
+}
