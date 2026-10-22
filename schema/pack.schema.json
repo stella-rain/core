@@ -275,6 +275,21 @@
         "movement"
       ]
     },
+    "Anchor": {
+      "description": "Where a hit box or a zone is anchored (core Z1).",
+      "oneOf": [
+        {
+          "description": "The attacker's own spot: a hit box follows its attacker, a zone stays where the attacker\nwas when the zone was placed.",
+          "type": "string",
+          "const": "attacker"
+        },
+        {
+          "description": "The target's spot: where the target stood when the attack began, so that a target that\nleaves during the wind-up leaves the area too.",
+          "type": "string",
+          "const": "target"
+        }
+      ]
+    },
     "AttackPhase": {
       "description": "One phase of an attack (ADR-055).",
       "type": "object",
@@ -1655,6 +1670,51 @@
             "body",
             "then"
           ]
+        },
+        {
+          "description": "A zone that does not move (core Z1): it is placed at the `anchor`, moved by `offset`\n(forward along its `direction`, and to the right of it), warns for `wind_up_ticks`,\nhurts each target at most once for `active_ticks`, then ends. `ring`, `spread` and\n`rotate` turn its direction, and with it the offset, as they turn a bullet's.",
+          "type": "object",
+          "properties": {
+            "active_ticks": {
+              "description": "1 to `MAX_ZONE_TICKS`.",
+              "$ref": "#/$defs/Expr"
+            },
+            "anchor": {
+              "$ref": "#/$defs/Anchor"
+            },
+            "direction": {
+              "$ref": "#/$defs/Direction",
+              "default": {
+                "offset": 0,
+                "type": "aimed"
+              }
+            },
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "shape": {
+              "$ref": "#/$defs/ZoneShape"
+            },
+            "type": {
+              "type": "string",
+              "const": "zone"
+            },
+            "wind_up_ticks": {
+              "description": "0 to `MAX_ZONE_TICKS`; 0 is a zone that hurts at once.",
+              "$ref": "#/$defs/Expr"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "shape",
+            "wind_up_ticks",
+            "active_ticks"
+          ]
         }
       ]
     },
@@ -2133,11 +2193,14 @@
       ]
     },
     "HitBox": {
-      "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right.",
+      "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right, from the `anchor`.",
       "oneOf": [
         {
           "type": "object",
           "properties": {
+            "anchor": {
+              "$ref": "#/$defs/Anchor"
+            },
             "offset": {
               "$ref": "#/$defs/Offset",
               "default": {
@@ -2163,6 +2226,9 @@
           "description": "A circle sector centred on the facing, `half_angle` to each side.",
           "type": "object",
           "properties": {
+            "anchor": {
+              "$ref": "#/$defs/Anchor"
+            },
             "half_angle": {
               "type": "integer",
               "format": "int32"
@@ -2187,6 +2253,44 @@
             "type",
             "radius",
             "half_angle"
+          ]
+        },
+        {
+          "description": "A rectangle from its starting point (the anchor and `offset`) along the facing turned by\n`angle`: `length` long and `width` wide, half of it to each side.",
+          "type": "object",
+          "properties": {
+            "anchor": {
+              "$ref": "#/$defs/Anchor"
+            },
+            "angle": {
+              "description": "Turn from the facing, in 1/256 degree; positive turns toward the right.",
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            },
+            "length": {
+              "$ref": "#/$defs/Fx"
+            },
+            "offset": {
+              "$ref": "#/$defs/Offset",
+              "default": {
+                "forward": 0,
+                "right": 0
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "line"
+            },
+            "width": {
+              "$ref": "#/$defs/Fx"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "length",
+            "width"
           ]
         }
       ]
@@ -4938,6 +5042,20 @@
           ]
         },
         {
+          "description": "Removes every enemy zone, as `clear_bullets` removes every enemy bullet (core Z1).",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "clear_zones"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
           "type": "object",
           "properties": {
             "ticks": {
@@ -5187,6 +5305,73 @@
           "additionalProperties": false,
           "required": [
             "inline"
+          ]
+        }
+      ]
+    },
+    "ZoneShape": {
+      "description": "The area of a zone (core Z1), laid out like a hit box but placed by its emitter node.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "circle"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius"
+          ]
+        },
+        {
+          "description": "A circle sector centred on the zone's direction, `half_angle` to each side.",
+          "type": "object",
+          "properties": {
+            "half_angle": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "radius": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "arc"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius",
+            "half_angle"
+          ]
+        },
+        {
+          "description": "A rectangle from the zone's centre along its direction.",
+          "type": "object",
+          "properties": {
+            "length": {
+              "$ref": "#/$defs/Fx"
+            },
+            "type": {
+              "type": "string",
+              "const": "line"
+            },
+            "width": {
+              "$ref": "#/$defs/Fx"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "length",
+            "width"
           ]
         }
       ]
