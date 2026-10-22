@@ -276,8 +276,24 @@ fn draw(
         .copied()
         .filter(|i| eligible(rewards, f, runes, *i, rarity, held))
         .collect();
-    let at = rng.below(u32::try_from(list.len()).unwrap_or(u32::MAX));
-    list.get(usize::try_from(at).unwrap_or(usize::MAX)).copied()
+    // One draw over the weights, divided by their greatest common divisor: equal weights are
+    // one each, so the draw is `below(len)` as it was before rewards had weights.
+    let weight = |i: u16| u32::from(rewards.rewards()[usize::from(i)].weight).max(1);
+    let step = list.iter().fold(0, |g, i| gcd(g, weight(*i)));
+    let total: u32 = list.iter().map(|i| weight(*i) / step).sum();
+    let mut at = rng.below(total);
+    for i in &list {
+        let w = weight(*i) / step;
+        if at < w {
+            return Some(*i);
+        }
+        at -= w;
+    }
+    None
+}
+
+fn gcd(a: u32, b: u32) -> u32 {
+    if b == 0 { a } else { gcd(b, a % b) }
 }
 
 fn id(rewards: &Rewards, i: u16) -> ContentId {
