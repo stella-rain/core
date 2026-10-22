@@ -46,7 +46,12 @@ use crate::validate;
 
 /// The most commands a run replay holds (a tuning value; ADR-079 decides that a cap exists).
 /// Version 0 gives at most 99 points in a run; the rest is room for the offers' choices, a few
-/// per falling star taken.
+/// per falling star taken. Measured (core#258, `tests/command_cap.rs`): the longest run, a
+/// `time_limit` run on normal, hard or rainy through its full overtime (90,000 ticks), played by
+/// a bot that cannot die, takes every offer or rerolls and banishes at each, with 20 extra
+/// rerolls, and spends every point at once, takes 188 commands at most (seeds 1 to 5). That is
+/// under 500, so the cap stays at 1000, over five times the measure; it is the guard against a
+/// crafted file, which `tests/command_cap.rs` pins at twice the measure or more.
 pub const MAX_COMMANDS: u32 = 1000;
 
 /// A run replay file is at most this big (ADR-020). Placeholder (R2): 1 MiB, because a
