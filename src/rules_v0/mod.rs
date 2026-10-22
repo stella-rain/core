@@ -321,6 +321,7 @@ pub(crate) fn initial_state(
             rarity: pool.difficulty.rarity,
             rerolls_left: u32::from(st.rerolls) + u32::from(pool.extra_rerolls),
             banishes_left: u32::from(st.banishes),
+            extra_candidates: 0,
             rune_pool: runes::FULL_POOL,
             pool: pool.rewards,
             taken: vec![0; rewards],
@@ -1651,6 +1652,9 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     }
     if s.player.skill_cooldown_pct > 0 {
         h.write_u32(s.player.skill_cooldown_pct);
+    }
+    if let Some(f) = s.stars.as_ref().filter(|f| f.extra_candidates > 0) {
+        h.write_u32(u32::from(f.extra_candidates));
     }
     if s.player.kill_heal_every > 0 {
         h.write_u32(s.player.kill_heal);
