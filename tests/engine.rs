@@ -159,6 +159,8 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
                 damage: 10,
                 match_up: MatchUp::None,
                 rune: None,
+                crit: false,
+                echo: false,
             }
         ))
     ));
@@ -239,6 +241,8 @@ fn beating_the_boss_clears_the_stage() {
                 damage: 10,
                 match_up: MatchUp::None,
                 rune: None,
+                crit: false,
+                echo: false,
             },
             &DomainEvent::Died {
                 entity: EntityId(1)

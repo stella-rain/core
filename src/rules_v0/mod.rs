@@ -84,6 +84,7 @@ mod act;
 mod agents;
 mod attacks;
 mod boss;
+mod combat;
 mod entity;
 mod expertise;
 mod grid;
@@ -292,6 +293,12 @@ pub(crate) fn initial_state(
             kill_heal: 0,
             kill_heal_every: 0,
             kills_counted: 0,
+            crit_chance_pct: 0,
+            crit_damage_pct: 0,
+            echo_hit_pct: 0,
+            burst_pct: 0,
+            burst_radius: 0,
+            burst_depth: 0,
             type_bonus_pct: [0; DamageType::ALL.len()],
             runes: Vec::new(),
             aggro: 0,
@@ -337,6 +344,7 @@ pub(crate) fn initial_state(
         regen: 0,
         hp_pct: pool.difficulty.hp_pct,
         damage_pct: pool.difficulty.damage_pct,
+        crit_seed: seed,
     }
 }
 
@@ -648,6 +656,8 @@ struct Shot {
     combo: bool,
     /// The rune that dealt it (ADR-099), which the `Hit` event reports.
     rune: Option<Rune>,
+    /// A hit the combat rewards make (a kill burst), which neither crits nor echoes.
+    chain: bool,
 }
 
 fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEvent>) {
@@ -672,6 +682,7 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             smash: b.smash,
             combo: b.combo,
             rune: None,
+            chain: false,
         };
         consumed.push(if shot.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
@@ -720,15 +731,21 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     }
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
+    let id = s.id_of(target);
+    let crit = combat::crits(s, &b, id, s.hp(target), !State::is_ally(target));
+    let base = if crit {
+        combat::crit_damage(b.damage, s.player.crit_damage_pct)
+    } else {
+        b.damage
+    };
     let dealt = scale_damage(
-        b.damage,
+        base,
         0,
         0,
         vulnerable,
         s.match_ups.pct(match_up),
         s.defence(target),
     );
-    let id = s.id_of(target);
     let hp = s.hp_mut(target);
     *hp = hp.saturating_sub(dealt);
     let dead = *hp == 0;
@@ -738,6 +755,8 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         damage: dealt,
         match_up,
         rune: b.rune,
+        crit,
+        echo: false,
     });
     if dead {
         // A part breaks; everything else dies.
@@ -1652,6 +1671,14 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     }
     if s.player.skill_cooldown_pct > 0 {
         h.write_u32(s.player.skill_cooldown_pct);
+    }
+    if combat::held(&s.player) {
+        h.write_u32(s.player.crit_chance_pct);
+        h.write_u32(s.player.crit_damage_pct);
+        h.write_u32(s.player.echo_hit_pct);
+        h.write_u32(s.player.burst_pct);
+        h.write_u32(s.player.burst_radius);
+        h.write_u32(s.player.burst_depth);
     }
     if let Some(f) = s.stars.as_ref().filter(|f| f.extra_candidates > 0) {
         h.write_u32(u32::from(f.extra_candidates));

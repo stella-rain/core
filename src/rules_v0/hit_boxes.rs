@@ -251,6 +251,7 @@ fn shot(w: &Swing) -> Shot {
         smash: w.smash,
         combo: w.combo,
         rune: w.rune,
+        chain: false,
     }
 }
 

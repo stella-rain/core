@@ -114,7 +114,7 @@ fn play(stage: &Stage, effects: Vec<Value>, ticks: u32) -> Vec<(u32, Value)> {
     let taken = if effects.is_empty() {
         "a"
     } else {
-        list.push(kind("k", effects, 1_000, 1));
+        list.push(kind("k", effects, 1_000, 2));
         "k"
     };
     let mut e = with(stage, list);

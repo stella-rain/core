@@ -34,6 +34,12 @@ pub enum DomainEvent {
         /// damage-over-time rune whose status ticked; left out for every other hit.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         rune: Option<Rune>,
+        /// The main character's hit was a critical hit (core#NS2b); left out when not.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        crit: bool,
+        /// The hit is an echo of an earlier one, a tick later; left out when not.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        echo: bool,
     },
     /// The main character was hit.
     PlayerHit {
