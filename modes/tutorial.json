@@ -323,7 +323,8 @@
         "from_level": 1,
         "weights": {
           "common": 100
-        }
+        },
+        "random_rune_weight": 53
       },
       {
         "from_level": 3,
@@ -331,7 +332,8 @@
           "common": 70,
           "uncommon": 15,
           "rare": 30
-        }
+        },
+        "random_rune_weight": 176
       },
       {
         "from_level": 5,
@@ -342,7 +344,8 @@
           "epic": 10,
           "legendary": 15,
           "supernova": 5
-        }
+        },
+        "random_rune_weight": 333
       }
     ]
   },

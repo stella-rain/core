@@ -441,6 +441,15 @@
       "description": "Runes recover 25 percent sooner"
     },
     {
+      "id": "rune_haste_uncommon",
+      "rarity": "uncommon",
+      "effect": "rune_haste",
+      "amount": 38,
+      "limit": 4,
+      "title": "Quickening (Uncommon)",
+      "description": "Runes recover 38 percent sooner"
+    },
+    {
       "id": "rune_haste_rare",
       "rarity": "rare",
       "effect": "rune_haste",
@@ -448,6 +457,15 @@
       "limit": 3,
       "title": "Quickening (Rare)",
       "description": "Runes recover 50 percent sooner"
+    },
+    {
+      "id": "rune_haste_epic",
+      "rarity": "epic",
+      "effect": "rune_haste",
+      "amount": 70,
+      "limit": 2,
+      "title": "Quickening (Epic)",
+      "description": "Runes recover 70 percent sooner"
     },
     {
       "id": "rune_haste_legendary",
@@ -459,6 +477,15 @@
       "description": "Runes recover 100 percent sooner"
     },
     {
+      "id": "rune_haste_supernova",
+      "rarity": "supernova",
+      "effect": "rune_haste",
+      "amount": 160,
+      "limit": 2,
+      "title": "Quickening (Supernova)",
+      "description": "Runes recover 160 percent sooner"
+    },
+    {
       "id": "range_common",
       "rarity": "common",
       "effect": "range_pct",
@@ -466,6 +493,15 @@
       "limit": 5,
       "title": "Reach (Common)",
       "description": "Attacks reach 15 percent wider"
+    },
+    {
+      "id": "range_uncommon",
+      "rarity": "uncommon",
+      "effect": "range_pct",
+      "amount": 23,
+      "limit": 4,
+      "title": "Reach (Uncommon)",
+      "description": "Attacks reach 23 percent wider"
     },
     {
       "id": "range_rare",
@@ -477,6 +513,15 @@
       "description": "Attacks reach 30 percent wider"
     },
     {
+      "id": "range_epic",
+      "rarity": "epic",
+      "effect": "range_pct",
+      "amount": 42,
+      "limit": 2,
+      "title": "Reach (Epic)",
+      "description": "Attacks reach 42 percent wider"
+    },
+    {
       "id": "range_legendary",
       "rarity": "legendary",
       "effect": "range_pct",
@@ -486,58 +531,673 @@
       "description": "Attacks reach 50 percent wider"
     },
     {
-      "id": "attack_type_bonus_common",
-      "rarity": "common",
-      "effect": "attack_type_bonus_pct",
-      "amount": 25,
-      "limit": 5,
-      "title": "Mastery (Common)",
-      "description": "25 percent more Slash, Pierce and Strike damage"
-    },
-    {
-      "id": "attack_type_bonus_rare",
-      "rarity": "rare",
-      "effect": "attack_type_bonus_pct",
-      "amount": 50,
-      "limit": 3,
-      "title": "Mastery (Rare)",
-      "description": "50 percent more Slash, Pierce and Strike damage"
-    },
-    {
-      "id": "attack_type_bonus_legendary",
-      "rarity": "legendary",
-      "effect": "attack_type_bonus_pct",
+      "id": "range_supernova",
+      "rarity": "supernova",
+      "effect": "range_pct",
       "amount": 80,
       "limit": 2,
-      "title": "Mastery (Legendary)",
-      "description": "80 percent more Slash, Pierce and Strike damage"
+      "title": "Reach (Supernova)",
+      "description": "Attacks reach 80 percent wider"
     },
     {
-      "id": "element_bonus_common",
+      "id": "type_bonus_slash_common",
       "rarity": "common",
-      "effect": "element_bonus_pct",
+      "effect": "type_bonus_pct",
+      "type": "slash",
       "amount": 25,
       "limit": 5,
-      "title": "Attunement (Common)",
-      "description": "25 percent more elemental damage"
+      "weight": 10,
+      "title": "Slash Mastery (Common)",
+      "description": "25 percent more Slash damage"
     },
     {
-      "id": "element_bonus_rare",
+      "id": "type_bonus_slash_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "slash",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Slash Mastery (Uncommon)",
+      "description": "38 percent more Slash damage"
+    },
+    {
+      "id": "type_bonus_slash_rare",
       "rarity": "rare",
-      "effect": "element_bonus_pct",
+      "effect": "type_bonus_pct",
+      "type": "slash",
       "amount": 50,
       "limit": 3,
-      "title": "Attunement (Rare)",
-      "description": "50 percent more elemental damage"
+      "weight": 10,
+      "title": "Slash Mastery (Rare)",
+      "description": "50 percent more Slash damage"
     },
     {
-      "id": "element_bonus_legendary",
+      "id": "type_bonus_slash_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "slash",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Slash Mastery (Epic)",
+      "description": "70 percent more Slash damage"
+    },
+    {
+      "id": "type_bonus_slash_legendary",
       "rarity": "legendary",
-      "effect": "element_bonus_pct",
+      "effect": "type_bonus_pct",
+      "type": "slash",
       "amount": 80,
       "limit": 2,
-      "title": "Attunement (Legendary)",
-      "description": "80 percent more elemental damage"
+      "weight": 10,
+      "title": "Slash Mastery (Legendary)",
+      "description": "80 percent more Slash damage"
+    },
+    {
+      "id": "type_bonus_slash_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "slash",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Slash Mastery (Supernova)",
+      "description": "128 percent more Slash damage"
+    },
+    {
+      "id": "type_bonus_pierce_common",
+      "rarity": "common",
+      "effect": "type_bonus_pct",
+      "type": "pierce",
+      "amount": 25,
+      "limit": 5,
+      "weight": 10,
+      "title": "Pierce Mastery (Common)",
+      "description": "25 percent more Pierce damage"
+    },
+    {
+      "id": "type_bonus_pierce_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "pierce",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Pierce Mastery (Uncommon)",
+      "description": "38 percent more Pierce damage"
+    },
+    {
+      "id": "type_bonus_pierce_rare",
+      "rarity": "rare",
+      "effect": "type_bonus_pct",
+      "type": "pierce",
+      "amount": 50,
+      "limit": 3,
+      "weight": 10,
+      "title": "Pierce Mastery (Rare)",
+      "description": "50 percent more Pierce damage"
+    },
+    {
+      "id": "type_bonus_pierce_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "pierce",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Pierce Mastery (Epic)",
+      "description": "70 percent more Pierce damage"
+    },
+    {
+      "id": "type_bonus_pierce_legendary",
+      "rarity": "legendary",
+      "effect": "type_bonus_pct",
+      "type": "pierce",
+      "amount": 80,
+      "limit": 2,
+      "weight": 10,
+      "title": "Pierce Mastery (Legendary)",
+      "description": "80 percent more Pierce damage"
+    },
+    {
+      "id": "type_bonus_pierce_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "pierce",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Pierce Mastery (Supernova)",
+      "description": "128 percent more Pierce damage"
+    },
+    {
+      "id": "type_bonus_strike_common",
+      "rarity": "common",
+      "effect": "type_bonus_pct",
+      "type": "strike",
+      "amount": 25,
+      "limit": 5,
+      "weight": 10,
+      "title": "Strike Mastery (Common)",
+      "description": "25 percent more Strike damage"
+    },
+    {
+      "id": "type_bonus_strike_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "strike",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Strike Mastery (Uncommon)",
+      "description": "38 percent more Strike damage"
+    },
+    {
+      "id": "type_bonus_strike_rare",
+      "rarity": "rare",
+      "effect": "type_bonus_pct",
+      "type": "strike",
+      "amount": 50,
+      "limit": 3,
+      "weight": 10,
+      "title": "Strike Mastery (Rare)",
+      "description": "50 percent more Strike damage"
+    },
+    {
+      "id": "type_bonus_strike_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "strike",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Strike Mastery (Epic)",
+      "description": "70 percent more Strike damage"
+    },
+    {
+      "id": "type_bonus_strike_legendary",
+      "rarity": "legendary",
+      "effect": "type_bonus_pct",
+      "type": "strike",
+      "amount": 80,
+      "limit": 2,
+      "weight": 10,
+      "title": "Strike Mastery (Legendary)",
+      "description": "80 percent more Strike damage"
+    },
+    {
+      "id": "type_bonus_strike_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "strike",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Strike Mastery (Supernova)",
+      "description": "128 percent more Strike damage"
+    },
+    {
+      "id": "type_bonus_pyro_common",
+      "rarity": "common",
+      "effect": "type_bonus_pct",
+      "type": "pyro",
+      "amount": 25,
+      "limit": 5,
+      "weight": 10,
+      "title": "Pyro Mastery (Common)",
+      "description": "25 percent more Pyro damage"
+    },
+    {
+      "id": "type_bonus_pyro_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "pyro",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Pyro Mastery (Uncommon)",
+      "description": "38 percent more Pyro damage"
+    },
+    {
+      "id": "type_bonus_pyro_rare",
+      "rarity": "rare",
+      "effect": "type_bonus_pct",
+      "type": "pyro",
+      "amount": 50,
+      "limit": 3,
+      "weight": 10,
+      "title": "Pyro Mastery (Rare)",
+      "description": "50 percent more Pyro damage"
+    },
+    {
+      "id": "type_bonus_pyro_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "pyro",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Pyro Mastery (Epic)",
+      "description": "70 percent more Pyro damage"
+    },
+    {
+      "id": "type_bonus_pyro_legendary",
+      "rarity": "legendary",
+      "effect": "type_bonus_pct",
+      "type": "pyro",
+      "amount": 80,
+      "limit": 2,
+      "weight": 10,
+      "title": "Pyro Mastery (Legendary)",
+      "description": "80 percent more Pyro damage"
+    },
+    {
+      "id": "type_bonus_pyro_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "pyro",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Pyro Mastery (Supernova)",
+      "description": "128 percent more Pyro damage"
+    },
+    {
+      "id": "type_bonus_hydro_common",
+      "rarity": "common",
+      "effect": "type_bonus_pct",
+      "type": "hydro",
+      "amount": 25,
+      "limit": 5,
+      "weight": 10,
+      "title": "Hydro Mastery (Common)",
+      "description": "25 percent more Hydro damage"
+    },
+    {
+      "id": "type_bonus_hydro_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "hydro",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Hydro Mastery (Uncommon)",
+      "description": "38 percent more Hydro damage"
+    },
+    {
+      "id": "type_bonus_hydro_rare",
+      "rarity": "rare",
+      "effect": "type_bonus_pct",
+      "type": "hydro",
+      "amount": 50,
+      "limit": 3,
+      "weight": 10,
+      "title": "Hydro Mastery (Rare)",
+      "description": "50 percent more Hydro damage"
+    },
+    {
+      "id": "type_bonus_hydro_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "hydro",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Hydro Mastery (Epic)",
+      "description": "70 percent more Hydro damage"
+    },
+    {
+      "id": "type_bonus_hydro_legendary",
+      "rarity": "legendary",
+      "effect": "type_bonus_pct",
+      "type": "hydro",
+      "amount": 80,
+      "limit": 2,
+      "weight": 10,
+      "title": "Hydro Mastery (Legendary)",
+      "description": "80 percent more Hydro damage"
+    },
+    {
+      "id": "type_bonus_hydro_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "hydro",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Hydro Mastery (Supernova)",
+      "description": "128 percent more Hydro damage"
+    },
+    {
+      "id": "type_bonus_electro_common",
+      "rarity": "common",
+      "effect": "type_bonus_pct",
+      "type": "electro",
+      "amount": 25,
+      "limit": 5,
+      "weight": 10,
+      "title": "Electro Mastery (Common)",
+      "description": "25 percent more Electro damage"
+    },
+    {
+      "id": "type_bonus_electro_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "electro",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Electro Mastery (Uncommon)",
+      "description": "38 percent more Electro damage"
+    },
+    {
+      "id": "type_bonus_electro_rare",
+      "rarity": "rare",
+      "effect": "type_bonus_pct",
+      "type": "electro",
+      "amount": 50,
+      "limit": 3,
+      "weight": 10,
+      "title": "Electro Mastery (Rare)",
+      "description": "50 percent more Electro damage"
+    },
+    {
+      "id": "type_bonus_electro_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "electro",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Electro Mastery (Epic)",
+      "description": "70 percent more Electro damage"
+    },
+    {
+      "id": "type_bonus_electro_legendary",
+      "rarity": "legendary",
+      "effect": "type_bonus_pct",
+      "type": "electro",
+      "amount": 80,
+      "limit": 2,
+      "weight": 10,
+      "title": "Electro Mastery (Legendary)",
+      "description": "80 percent more Electro damage"
+    },
+    {
+      "id": "type_bonus_electro_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "electro",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Electro Mastery (Supernova)",
+      "description": "128 percent more Electro damage"
+    },
+    {
+      "id": "type_bonus_cryo_common",
+      "rarity": "common",
+      "effect": "type_bonus_pct",
+      "type": "cryo",
+      "amount": 25,
+      "limit": 5,
+      "weight": 10,
+      "title": "Cryo Mastery (Common)",
+      "description": "25 percent more Cryo damage"
+    },
+    {
+      "id": "type_bonus_cryo_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "cryo",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Cryo Mastery (Uncommon)",
+      "description": "38 percent more Cryo damage"
+    },
+    {
+      "id": "type_bonus_cryo_rare",
+      "rarity": "rare",
+      "effect": "type_bonus_pct",
+      "type": "cryo",
+      "amount": 50,
+      "limit": 3,
+      "weight": 10,
+      "title": "Cryo Mastery (Rare)",
+      "description": "50 percent more Cryo damage"
+    },
+    {
+      "id": "type_bonus_cryo_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "cryo",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Cryo Mastery (Epic)",
+      "description": "70 percent more Cryo damage"
+    },
+    {
+      "id": "type_bonus_cryo_legendary",
+      "rarity": "legendary",
+      "effect": "type_bonus_pct",
+      "type": "cryo",
+      "amount": 80,
+      "limit": 2,
+      "weight": 10,
+      "title": "Cryo Mastery (Legendary)",
+      "description": "80 percent more Cryo damage"
+    },
+    {
+      "id": "type_bonus_cryo_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "cryo",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Cryo Mastery (Supernova)",
+      "description": "128 percent more Cryo damage"
+    },
+    {
+      "id": "type_bonus_anemo_common",
+      "rarity": "common",
+      "effect": "type_bonus_pct",
+      "type": "anemo",
+      "amount": 25,
+      "limit": 5,
+      "weight": 10,
+      "title": "Anemo Mastery (Common)",
+      "description": "25 percent more Anemo damage"
+    },
+    {
+      "id": "type_bonus_anemo_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "anemo",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Anemo Mastery (Uncommon)",
+      "description": "38 percent more Anemo damage"
+    },
+    {
+      "id": "type_bonus_anemo_rare",
+      "rarity": "rare",
+      "effect": "type_bonus_pct",
+      "type": "anemo",
+      "amount": 50,
+      "limit": 3,
+      "weight": 10,
+      "title": "Anemo Mastery (Rare)",
+      "description": "50 percent more Anemo damage"
+    },
+    {
+      "id": "type_bonus_anemo_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "anemo",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Anemo Mastery (Epic)",
+      "description": "70 percent more Anemo damage"
+    },
+    {
+      "id": "type_bonus_anemo_legendary",
+      "rarity": "legendary",
+      "effect": "type_bonus_pct",
+      "type": "anemo",
+      "amount": 80,
+      "limit": 2,
+      "weight": 10,
+      "title": "Anemo Mastery (Legendary)",
+      "description": "80 percent more Anemo damage"
+    },
+    {
+      "id": "type_bonus_anemo_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "anemo",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Anemo Mastery (Supernova)",
+      "description": "128 percent more Anemo damage"
+    },
+    {
+      "id": "type_bonus_geo_common",
+      "rarity": "common",
+      "effect": "type_bonus_pct",
+      "type": "geo",
+      "amount": 25,
+      "limit": 5,
+      "weight": 10,
+      "title": "Geo Mastery (Common)",
+      "description": "25 percent more Geo damage"
+    },
+    {
+      "id": "type_bonus_geo_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "geo",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Geo Mastery (Uncommon)",
+      "description": "38 percent more Geo damage"
+    },
+    {
+      "id": "type_bonus_geo_rare",
+      "rarity": "rare",
+      "effect": "type_bonus_pct",
+      "type": "geo",
+      "amount": 50,
+      "limit": 3,
+      "weight": 10,
+      "title": "Geo Mastery (Rare)",
+      "description": "50 percent more Geo damage"
+    },
+    {
+      "id": "type_bonus_geo_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "geo",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Geo Mastery (Epic)",
+      "description": "70 percent more Geo damage"
+    },
+    {
+      "id": "type_bonus_geo_legendary",
+      "rarity": "legendary",
+      "effect": "type_bonus_pct",
+      "type": "geo",
+      "amount": 80,
+      "limit": 2,
+      "weight": 10,
+      "title": "Geo Mastery (Legendary)",
+      "description": "80 percent more Geo damage"
+    },
+    {
+      "id": "type_bonus_geo_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "geo",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Geo Mastery (Supernova)",
+      "description": "128 percent more Geo damage"
+    },
+    {
+      "id": "type_bonus_dendro_common",
+      "rarity": "common",
+      "effect": "type_bonus_pct",
+      "type": "dendro",
+      "amount": 25,
+      "limit": 5,
+      "weight": 10,
+      "title": "Dendro Mastery (Common)",
+      "description": "25 percent more Dendro damage"
+    },
+    {
+      "id": "type_bonus_dendro_uncommon",
+      "rarity": "uncommon",
+      "effect": "type_bonus_pct",
+      "type": "dendro",
+      "amount": 38,
+      "limit": 4,
+      "weight": 10,
+      "title": "Dendro Mastery (Uncommon)",
+      "description": "38 percent more Dendro damage"
+    },
+    {
+      "id": "type_bonus_dendro_rare",
+      "rarity": "rare",
+      "effect": "type_bonus_pct",
+      "type": "dendro",
+      "amount": 50,
+      "limit": 3,
+      "weight": 10,
+      "title": "Dendro Mastery (Rare)",
+      "description": "50 percent more Dendro damage"
+    },
+    {
+      "id": "type_bonus_dendro_epic",
+      "rarity": "epic",
+      "effect": "type_bonus_pct",
+      "type": "dendro",
+      "amount": 70,
+      "limit": 2,
+      "weight": 10,
+      "title": "Dendro Mastery (Epic)",
+      "description": "70 percent more Dendro damage"
+    },
+    {
+      "id": "type_bonus_dendro_legendary",
+      "rarity": "legendary",
+      "effect": "type_bonus_pct",
+      "type": "dendro",
+      "amount": 80,
+      "limit": 2,
+      "weight": 10,
+      "title": "Dendro Mastery (Legendary)",
+      "description": "80 percent more Dendro damage"
+    },
+    {
+      "id": "type_bonus_dendro_supernova",
+      "rarity": "supernova",
+      "effect": "type_bonus_pct",
+      "type": "dendro",
+      "amount": 128,
+      "limit": 2,
+      "weight": 10,
+      "title": "Dendro Mastery (Supernova)",
+      "description": "128 percent more Dendro damage"
     },
     {
       "id": "random_rune",

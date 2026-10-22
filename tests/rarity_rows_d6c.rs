@@ -129,16 +129,16 @@ fn there_is_one_type_bonus_family_per_damage_type_and_no_group_family() {
         // Ten families together are offered about as often as one ordinary family.
         assert!(found.iter().all(|f| f.3 == 10), "{ty:?}");
     }
-    let effects: Vec<&str> = rows(&file)
-        .iter()
-        .flat_map(|r| {
-            r.get("effects")
-                .map_or(vec![r], |l| l.as_array().unwrap().iter().collect())
-        })
-        .map(|e| e["effect"].as_str().unwrap())
-        .collect();
-    for gone in ["attack_type_bonus_pct", "element_bonus_pct"] {
-        assert!(!effects.contains(&gone), "{gone} is no longer in content");
+    // The two group effects stay in code: a named star (Alkaid) and a constellation tier use
+    // them. No ordinary reward does.
+    for (effect, _) in all.keys() {
+        assert!(
+            !matches!(
+                effect.as_str(),
+                "attack_type_bonus_pct" | "element_bonus_pct"
+            ),
+            "{effect} is no longer an ordinary reward"
+        );
     }
     // 75 - 6 + 60 + 6 rows.
     assert_eq!(rows(&file).len(), 135);
