@@ -10,7 +10,9 @@
 //! `MAX_MEMBERS` members, each a named star of the rewards the file is read with and in no
 //! other set; its tiers ascend strictly from 1 to the member count, the top tier being the
 //! whole set; a tier's effects obey the caps of a reward's (`rewards::validate_entry` and
-//! `validate_bundle`), they cannot be an orbit or a random rune (those key on a reward), and a
+//! `validate_bundle`), they cannot be a random rune (which keys on a reward); an orbit is keyed on its set, the
+//! same orbit at every tier and the orbs adding up, and counts toward `MAX_ORBITS` with the
+//! orbit rewards, and a
 //! higher tier holds at least what the lower one does. At most `MAX_CONSTELLATIONS` sets.
 //!
 //! `Rewards` holds the sets beside the rewards they were read against, as it holds its stage
@@ -24,7 +26,9 @@ use sha2::{Digest, Sha256};
 
 use crate::id::ContentId;
 use crate::registry;
-use crate::rewards::{EffectEntry, RewardEffect, Rewards, validate_bundle, validate_entry};
+use crate::rewards::{
+    EffectEntry, MAX_ORBITS, RewardEffect, Rewards, validate_bundle, validate_entry,
+};
 use crate::run_stats;
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -259,6 +263,36 @@ pub fn validate(file: &ConstellationsFile, rewards: &Rewards) -> Result<(), Erro
             }
         }
         validate_tiers(set, &at, rewards, &mut issue);
+        let mut orbits = set
+            .tiers
+            .iter()
+            .flat_map(|t| &t.effects)
+            .filter_map(|e| e.orbit.as_ref());
+        if let Some(first) = orbits.next() {
+            if orbits.any(|o| o != first) {
+                issue(
+                    at("tiers"),
+                    "a set's tiers give the same orbit, with more orbs".into(),
+                );
+            }
+        }
+    }
+    let gives_orbit = |e: &EffectEntry| e.effect == RewardEffect::Orbit;
+    let orbits = rewards
+        .rewards()
+        .iter()
+        .filter(|r| r.effects.iter().any(gives_orbit))
+        .count()
+        + file
+            .constellations
+            .iter()
+            .filter(|s| s.tiers.iter().flat_map(|t| &t.effects).any(gives_orbit))
+            .count();
+    if orbits > MAX_ORBITS {
+        issue(
+            "$.constellations".into(),
+            format!("at most {MAX_ORBITS} orbits in all, rewards and sets together"),
+        );
     }
     if issues.is_empty() {
         Ok(())
@@ -310,10 +344,10 @@ fn validate_tiers(
         }
         for (k, entry) in tier.effects.iter().enumerate() {
             let entry_at = |field: &str| at(&format!("tiers[{t}].effects[{k}].{field}"));
-            if matches!(entry.effect, RewardEffect::Orbit | RewardEffect::RandomRune) {
+            if entry.effect == RewardEffect::RandomRune {
                 issue(
                     entry_at("effect"),
-                    "a set's tier cannot give an orbit or a random rune".into(),
+                    "a set's tier cannot give a random rune".into(),
                 );
             } else {
                 validate_entry(

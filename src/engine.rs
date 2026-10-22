@@ -521,13 +521,7 @@ impl Engine {
                     .iter()
                     .filter_map(|o| {
                         Some(OrbitView {
-                            reward: self
-                                .content
-                                .rewards()
-                                .rewards()
-                                .get(usize::from(o.reward))?
-                                .id
-                                .clone(),
+                            reward: self.content.rewards().orbit_id(o.reward)?,
                             orbs: o.orbs,
                             cooldown_left: o.cooldown_left,
                         })

@@ -240,9 +240,16 @@ fn a_tiers_effects_are_the_reward_effects_with_the_same_caps() {
     let of = |effects: Vec<Value>| file(vec![set("s", &["n1", "n2"], vec![tier(2, effects)])]);
     invalid_at(&of(vec![]), "$.constellations[0].tiers[0].effects");
     invalid_at(
-        &of(vec![rerolls(1), rerolls(1), rerolls(1), rerolls(1)]),
+        &of(vec![
+            rerolls(1),
+            rerolls(1),
+            rerolls(1),
+            rerolls(1),
+            rerolls(1),
+        ]),
         "$.constellations[0].tiers[0].effects",
     );
+    parse(&of(vec![rerolls(1), rerolls(1), rerolls(1), rerolls(1)])).expect("four effects");
     // One entry beyond its kind's largest amount.
     invalid_at(
         &of(vec![rerolls(11)]),
@@ -254,7 +261,7 @@ fn a_tiers_effects_are_the_reward_effects_with_the_same_caps() {
         "$.constellations[0].tiers[0].effects",
     );
     parse(&of(vec![rerolls(5), max_hp(1_000)])).expect("two kinds");
-    // An orbit and a random rune key on a reward, not on a set.
+    // A random rune keys on a reward, not on a set.
     invalid_at(
         &of(vec![json!({ "effect": "random_rune" })]),
         "$.constellations[0].tiers[0].effects[0].effect",
@@ -719,4 +726,27 @@ fn a_tier_that_adds_burst_depth_applies_once() {
         take(&mut e, star);
     }
     assert_eq!(e.snapshot().player.burst_depth, 5);
+}
+
+#[test]
+fn a_sets_tiers_give_one_orbit_and_orbits_are_counted_with_the_rewards() {
+    // The same orbit at both tiers, 1 orb then 3.
+    let both = set(
+        "trio",
+        &["n1", "n2", "n3"],
+        vec![
+            tier(2, vec![orbit_effect(1)]),
+            tier(3, vec![orbit_effect(3)]),
+        ],
+    );
+    parse(&file(vec![both])).expect("the same orbit with more orbs");
+    // Another orbit at the top tier is refused.
+    let mut other = orbit_effect(3);
+    other["orbit"]["cooldown_ticks"] = json!(90);
+    let differs = set(
+        "trio",
+        &["n1", "n2", "n3"],
+        vec![tier(2, vec![orbit_effect(1)]), tier(3, vec![other])],
+    );
+    invalid_at(&file(vec![differs]), "$.constellations[0].tiers");
 }

@@ -50,6 +50,9 @@ pub const MAX_STACK: u8 = 20;
 pub const MAX_ORBS: u8 = 8;
 /// The most orbit rewards a file lists, and so the most orbits a run holds.
 pub const MAX_ORBITS: usize = 4;
+/// Where the orbit keys of constellations start: a set's orbit is keyed `ORBIT_SET_BASE` plus its
+/// place in the file, above any place of a reward (`MAX_REWARDS` is 128).
+pub const ORBIT_SET_BASE: u16 = 0x8000;
 /// The fastest an orbit turns: 15 degrees a tick, either way.
 pub const MAX_ORBIT_TURN: i32 = 15 * PER_DEGREE;
 /// The longest cooldown of an orbit: one minute.
@@ -590,6 +593,30 @@ impl Rewards {
     /// The SHA-256 of the bytes they were parsed from.
     pub fn sha256(&self) -> [u8; 32] {
         self.sha256
+    }
+
+    /// The orbit a run's orbit key names: the key of an orbit reward is its place in the file,
+    /// that of a constellation's orbit is `ORBIT_SET_BASE` and the set's place.
+    pub fn orbit_def(&self, key: u16) -> Option<&Orbit> {
+        match key.checked_sub(ORBIT_SET_BASE) {
+            None => self.rewards.get(usize::from(key))?.orbit(),
+            Some(set) => self
+                .constellations
+                .sets()
+                .get(usize::from(set))?
+                .tiers
+                .iter()
+                .flat_map(|t| &t.effects)
+                .find_map(|e| e.orbit.as_ref()),
+        }
+    }
+
+    /// The ID an orbit key shows under: its reward's, or its set's.
+    pub fn orbit_id(&self, key: u16) -> Option<ContentId> {
+        match key.checked_sub(ORBIT_SET_BASE) {
+            None => Some(self.rewards.get(usize::from(key))?.id.clone()),
+            Some(set) => Some(self.constellations.sets().get(usize::from(set))?.id.clone()),
+        }
     }
 }
 
