@@ -9,7 +9,8 @@
 //!
 //! Exit status: 0 valid (or exported); 1 not valid (the pack is at fault); 2 the command line
 //! or the file could not be read. On success, `verify` prints `sha256` (the pack's hash, the
-//! SHA-256 of its bytes) and `sim_version` as `name: value` lines, and `export` writes the pack
+//! SHA-256 of its bytes), `sim_version` and `starting_unlocks` (the counts of its lists, or
+//! `none` for a pack released without them) as `name: value` lines, and `export` writes the pack
 //! to standard output. Messages never repeat text from the pack.
 
 use std::fs::File;
@@ -73,6 +74,16 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
             let pack = Pack::from_bytes(&bytes).map_err(|e| Failure::NotValid(e.to_string()))?;
             println!("sha256: {}", to_hex(&pack.sha256()));
             println!("sim_version: {}", pack.sim_version());
+            match pack.starting_unlocks() {
+                Some(u) => println!(
+                    "starting_unlocks: {} weapons, {} perk_sets, {} stage_skills, {} runes",
+                    u.weapons().len(),
+                    u.perk_sets().len(),
+                    u.stage_skills().len(),
+                    u.runes().len()
+                ),
+                None => println!("starting_unlocks: none"),
+            }
             Ok(())
         }
         ["export"] => std::io::stdout()

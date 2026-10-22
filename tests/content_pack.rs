@@ -62,7 +62,10 @@ fn export_writes_the_bundled_pack() {
 fn verify_prints_the_hash_and_sim_version_of_a_valid_pack() {
     let bytes = pack::export_bundled();
     let sha = to_hex(&Pack::from_bytes(&bytes).unwrap().sha256());
-    let expected = format!("sha256: {sha}\nsim_version: 0\n");
+    let expected = format!(
+        "sha256: {sha}\nsim_version: 0\n\
+         starting_unlocks: 1 weapons, 1 perk_sets, 1 stage_skills, 3 runes\n"
+    );
     let file = Scratch::new("valid.json", &bytes);
     let out = run(&["verify", file.path()], b"");
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
@@ -126,4 +129,17 @@ fn a_bad_command_line_or_a_missing_file_exits_2() {
     let out = run(&["--help"], b"");
     assert_eq!(out.status.code(), Some(0));
     assert!(text(&out.stdout).contains("usage: content-pack"));
+}
+
+#[test]
+fn verify_says_when_a_pack_lists_no_starting_unlocks() {
+    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    v.as_object_mut().unwrap().remove("starting_unlocks");
+    let out = run(&["verify", "-"], &serde_json::to_vec(&v).unwrap());
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    assert!(
+        text(&out.stdout).ends_with("starting_unlocks: none\n"),
+        "{}",
+        text(&out.stdout)
+    );
 }

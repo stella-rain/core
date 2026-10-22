@@ -1736,6 +1736,14 @@
     }
   ]
 },
+  "starting_unlocks": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "weapons": ["giant_sword"],
+  "perk_sets": ["duelist"],
+  "stage_skills": ["nova"],
+  "runes": ["explosion", "bleed", "boomerang"]
+},
   "modes": {
     "trial": {
   "schema_version": 0,
