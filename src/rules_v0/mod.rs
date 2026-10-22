@@ -472,9 +472,9 @@ fn open_offers(
     s: &mut State,
     events: &mut Vec<DomainEvent>,
 ) {
-    stars::open_due(rewards, s, events, true);
+    stars::open_due(stage, rewards, s, events, true);
     expertise::open_due(stage, expertise, s, events);
-    stars::open_due(rewards, s, events, false);
+    stars::open_due(stage, rewards, s, events, false);
 }
 
 /// The options of the open offer, in index order; empty without one.

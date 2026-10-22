@@ -217,6 +217,10 @@ pub struct Tier {
     /// The level the tier starts at.
     pub from_level: u32,
     pub weights: RarityWeights,
+    /// The draw weight of the `random_rune` reward among its rarity while this tier applies, from
+    /// 1 to `MAX_WEIGHT`; left out, the reward's own `weight`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub random_rune_weight: Option<u16>,
 }
 
 /// The weight of each rarity in a draw; a rarity left out weighs 0. A tier's highest rarity is

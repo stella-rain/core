@@ -12,7 +12,7 @@ use stella_rain_core::rewards::{MAX_REWARDS, MAX_WEIGHT, Rewards};
 use stella_rain_core::stage::Tier;
 use stella_rain_core::validate::{self, Error};
 
-use crate::reward_kinds::{kind, near, next_offer, offer, plain, with};
+use crate::reward_kinds::{near, next_offer, offer, plain, with};
 
 const RARITIES: [&str; 6] = [
     "common",
@@ -153,12 +153,8 @@ fn rune_first(tier_weight: Option<u16>, rune_weight: u32, seeds: u32) -> u32 {
         stage.seed = seed;
         stage.stars.as_mut().unwrap().tiers[0].random_rune_weight = tier_weight;
         let list = vec![
-            kind(
-                "rune",
-                vec![json!({ "effect": "random_rune" })],
-                rune_weight,
-                2,
-            ),
+            json!({ "id": "rune", "rarity": "common", "effect": "random_rune",
+                    "weight": rune_weight, "title": "Rune", "description": "" }),
             plain("other", 1),
         ];
         let mut e = with(&stage, list);
@@ -212,7 +208,7 @@ fn the_tiers_random_rune_weight_is_validated_like_a_weight() {
 
 #[test]
 fn a_tier_without_the_field_round_trips_to_the_same_bytes() {
-    let old = r#"{"from_level":3,"weights":{"common":70,"uncommon":15,"rare":30}}"#;
+    let old = r#"{"from_level":3,"weights":{"common":70,"uncommon":15,"rare":30,"epic":0,"legendary":0,"supernova":0}}"#;
     let tier: Tier = serde_json::from_str(old).unwrap();
     assert_eq!(tier.random_rune_weight, None);
     assert_eq!(serde_json::to_string(&tier).unwrap(), old);

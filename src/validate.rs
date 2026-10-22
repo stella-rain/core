@@ -24,7 +24,7 @@ use crate::behaviour::{
 use crate::id::ContentId;
 use crate::presets;
 use crate::registry::{self, Entry, Kind};
-use crate::rewards::Rarity;
+use crate::rewards::{MAX_WEIGHT, Rarity};
 use crate::stage::{
     Boss, BossPart, Evade, ExpertisePoints, Healing, Levels, Phase, Player, Stage, Stars, Step,
     Tier, Transition, Wave, stardust_tiers_problem,
@@ -767,6 +767,14 @@ impl<'a> Ctx<'a> {
                 c.fail("at least one rarity must weigh more than 0".to_owned());
             }
         });
+        if let Some(weight) = tier.random_rune_weight {
+            self.within(
+                "random_rune_weight",
+                i64::from(weight),
+                1,
+                i64::from(MAX_WEIGHT),
+            );
+        }
     }
 
     fn levels(&mut self, l: &Levels) {
