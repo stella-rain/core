@@ -40,6 +40,7 @@ use crate::run_stats::{RunStats, RunStatsFile};
 use crate::runes::{Runes, RunesFile};
 use crate::stage::Stage;
 use crate::stage_skill::{StageSkills, StageSkillsFile};
+use crate::stardust::{Stardust, StardustFile};
 use crate::starting_unlocks::{StartingUnlocks, StartingUnlocksFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
 use crate::validate::{self, Error, Issue};
@@ -81,6 +82,8 @@ pub const MAX_MID_BOSS_POOL: usize = crate::time_limit::MAX_POOL;
 /// The most IDs one list of the starting unlocks holds (6 across the lists today; held to the
 /// file's own cap).
 pub const MAX_STARTING_UNLOCKS: usize = crate::starting_unlocks::MAX_STARTING_UNLOCKS;
+/// The most modes the Stardust file has entries for (2 today; held to the file's own cap).
+pub const MAX_STARDUST_MODES: usize = crate::stardust::MAX_MODES;
 /// The most sets of named stars (none today; held to the file's own cap).
 pub const MAX_CONSTELLATIONS: usize = crate::constellations::MAX_CONSTELLATIONS;
 /// The most IDs one weapon's expertise introduces: its styles, their choices and its common
@@ -122,6 +125,11 @@ pub struct PackFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<ConstellationsFile>")]
     pub constellations: Option<Box<RawValue>>,
+    /// The rules the app pays a failed run's Stardust by (ADR-101 point 4). Optional: a pack
+    /// released before it yields the bundled file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<StardustFile>")]
+    pub stardust: Option<Box<RawValue>>,
     pub modes: PackModes,
 }
 
@@ -360,6 +368,13 @@ impl Pack {
             })
             .transpose()
             .map_err(PackError::in_file("starting_unlocks"))?;
+        let stardust = pack
+            .stardust
+            .as_deref()
+            .map(|raw| Stardust::parse(&file_bytes(raw)))
+            .transpose()
+            .map_err(PackError::in_file("stardust"))?
+            .unwrap_or_else(|| Stardust::bundled().clone());
         let trial = validate::parse_and_validate(&file_bytes(&pack.modes.trial))
             .map_err(PackError::in_file("trial"))?;
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit))
@@ -392,6 +407,7 @@ impl Pack {
             perk_sets,
             difficulties,
             starting_unlocks,
+            stardust,
             time_limit,
             trial,
             file_bytes(&pack.modes.trial),
@@ -435,6 +451,12 @@ impl Pack {
         self.content.starting_unlocks()
     }
 
+    /// The Stardust rules (ADR-101 point 4): the pack's file, or the bundled one for a pack
+    /// released without it.
+    pub fn stardust(&self) -> &Stardust {
+        self.content.stardust()
+    }
+
     /// The `trial` mode's stage.
     pub fn trial(&self) -> &Stage {
         self.content.trial()
@@ -461,6 +483,12 @@ fn file_bytes(raw: &RawValue) -> Vec<u8> {
 /// parser, which refuses it.
 fn counts<'a, T: Deserialize<'a>>(raw: &'a RawValue) -> Option<T> {
     serde_json::from_str(raw.get()).ok()
+}
+
+#[derive(Deserialize)]
+struct ModeLists {
+    #[serde(default)]
+    modes: Vec<IgnoredAny>,
 }
 
 #[derive(Deserialize)]
@@ -638,6 +666,9 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
                 MAX_STARTING_UNLOCKS,
             )?;
         }
+    }
+    if let Some(l) = pack.stardust.as_deref().and_then(counts::<ModeLists>) {
+        budget("$.stardust.modes", l.modes.len(), MAX_STARDUST_MODES)?;
     }
     if let Some(l) = pack
         .constellations
@@ -979,6 +1010,7 @@ pub fn export_bundled() -> Vec<u8> {
         PerkSets::parse(PerkSets::BUNDLED).expect("the bundled perk sets"),
         Difficulties::parse(Difficulties::BUNDLED).expect("the bundled difficulties"),
         Some(starting_unlocks),
+        Stardust::bundled().clone(),
         TimeLimit::parse(TimeLimit::BUNDLED).expect("the bundled mode"),
         validate::parse_and_validate(trial).expect("the bundled trial"),
         trial.to_vec(),
@@ -1012,6 +1044,7 @@ pub fn export_bundled() -> Vec<u8> {
         "  \"constellations\": {},\n",
         file(Constellations::BUNDLED)
     ));
+    out.push_str(&format!("  \"stardust\": {},\n", file(Stardust::BUNDLED)));
     out.push_str(&format!(
         "  \"modes\": {{\n    \"trial\": {},\n    \"time_limit\": {},\n    \"tutorial\": {}\n  }}\n}}\n",
         file(trial),
