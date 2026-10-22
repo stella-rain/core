@@ -357,6 +357,9 @@ pub(super) fn take(
             RewardEffect::Orbit => orbit::take(player, i, amount),
             RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
+            // The perks' counters (`loadout::perk`), added to for the rest of the run.
+            RewardEffect::Rerolls => f.rerolls_left = f.rerolls_left.saturating_add(amount),
+            RewardEffect::Banishes => f.banishes_left = f.banishes_left.saturating_add(amount),
             RewardEffect::RuneHaste => {
                 player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
             }
