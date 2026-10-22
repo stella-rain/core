@@ -709,6 +709,120 @@ fn melee() -> Definition {
     ("melee", bytes(&stage), inputs)
 }
 
+/// Zones (core Z1): three enemies and a boss lay out telegraphed areas that do not move, and a
+/// companion lays out one of its own. One enemy puts a circle on the spot where the main character
+/// stands, with a ring of eight round it, and swings a hit box anchored at that spot after a
+/// wind-up; one fans five lines at the main character; one sweeps a line. The boss rings
+/// circles round itself, and its second phase begins with `clear_zones`. The main character
+/// stands still, then walks from side to side, so some zones catch it and some find it gone.
+fn zones() -> Definition {
+    let zone = |shape: Value, anchor: &str, wind_up: u32, active: u32| {
+        json!({ "type": "zone", "shape": shape, "anchor": anchor,
+                "wind_up_ticks": wind_up, "active_ticks": active })
+    };
+    let circle = |radius: i32| json!({ "type": "circle", "radius": radius });
+    let line =
+        |length: i32, width: i32| json!({ "type": "line", "length": length, "width": width });
+    let attack = |phases: Value| {
+        json!([rule(
+            always(),
+            json!("player"),
+            json!({ "type": "attack", "attack": { "inline": phases } }),
+            90
+        )])
+    };
+    let mut round = zone(circle(3_072), "target", 30, 4);
+    round["offset"] = json!({ "forward": 12_288 });
+    let spotter = enemy(
+        20,
+        hold(30_000, 120_000),
+        attack(json!([
+            { "kind": "wind_up", "ticks": 2, "damage": 2, "spawn": [
+                zone(circle(6_144), "target", 30, 6),
+                { "type": "ring", "count": 8, "body": [round] },
+            ] },
+            { "kind": "recovery", "ticks": 20 },
+            { "kind": "wind_up", "ticks": 10 },
+            { "kind": "active", "ticks": 3, "damage": 2,
+              "hit_box": { "type": "circle", "anchor": "target", "radius": 5_120 } },
+        ])),
+    );
+    let fanner = enemy(
+        20,
+        hold(60_000, 110_000),
+        attack(json!([
+            { "kind": "wind_up", "ticks": 2, "damage": 2, "spawn": [
+                { "type": "spread", "count": 5, "angle": 40 * 256,
+                  "body": [zone(line(48_000, 3_072), "attacker", 24, 6)] },
+            ] },
+            { "kind": "recovery", "ticks": 40 },
+        ])),
+    );
+    let sweeper = enemy(
+        20,
+        hold(46_080, 100_000),
+        attack(json!([
+            { "kind": "wind_up", "ticks": 12 },
+            { "kind": "active", "ticks": 3, "damage": 2,
+              "hit_box": { "type": "line", "angle": 10 * 256, "length": 40_000,
+                           "width": 2_048 } },
+            { "kind": "recovery", "ticks": 15 },
+        ])),
+    );
+    let mut arc_zone = zone(
+        json!({ "type": "arc", "radius": 12_288, "half_angle": 60 * 256 }),
+        "attacker",
+        6,
+        10,
+    );
+    arc_zone["direction"] = json!({ "type": "aimed", "offset": 0 });
+    let guard = companion(
+        30,
+        json!({ "type": "orbit", "radius": 6_144 }),
+        json!([rule(
+            always(),
+            json!("nearest_enemy"),
+            json!({ "type": "attack", "attack": { "inline": [
+                { "kind": "wind_up", "ticks": 2, "damage": 3, "spawn": [arc_zone] },
+                { "kind": "recovery", "ticks": 10 },
+            ] } }),
+            40
+        )]),
+    );
+    // The first phase's rings warn for a long time, so that they are still alive when the
+    // phase ends; the second phase's are short.
+    let boss_attack = |wind_up: u32| {
+        let mut ring = zone(circle(4_096), "attacker", wind_up, 10);
+        ring["offset"] = json!({ "forward": 20_480 });
+        json!({ "type": "attack", "attack": { "inline": [
+            { "kind": "active", "ticks": 1, "damage": 2, "spawn": [
+                { "type": "ring", "count": 6, "body": [ring] },
+            ] },
+        ] } })
+    };
+    let mut boss = far_boss();
+    boss["phases"] = json!([
+        { "until": { "type": "time_above", "ticks": 149 },
+          "timeline": [boss_attack(300), { "type": "wait", "ticks": 60 }, { "type": "loop" }] },
+        { "transition": [{ "type": "clear_zones" }],
+          "timeline": [boss_attack(40), { "type": "wait", "ticks": 90 }, { "type": "loop" }] },
+    ]);
+    let waves = vec![
+        wave(1, 1, 0, spotter, 30_000, 120_000),
+        wave(1, 1, 0, fanner, 60_000, 110_000),
+        wave(1, 1, 0, sweeper, 46_080, 100_000),
+    ];
+    let stage = quiet(stage_full(600, Some(boss), waves, vec![guard]));
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..60 => idle(),
+            _ if (t / 40) % 2 == 0 => moving(60, 0),
+            _ => moving(-60, 0),
+        })
+        .collect();
+    ("zones", bytes(&stage), inputs)
+}
+
 /// Aim assist and auto mode (ADR-072, ADR-073) with the giant_sword, whose assist range is 160
 /// pixels: three bats to the left and an elite to the right, all within it, and a boss far up
 /// the field. Auto mode alone for 100 ticks (the elite first, then the bats as they fall);
@@ -857,6 +971,7 @@ pub(crate) fn definitions() -> Vec<Definition> {
         landscape(),
         melee(),
         timeout(),
+        zones(),
     ]
 }
 
@@ -1531,6 +1646,33 @@ fn what_happens(name: &str) -> (Outcome, u32, usize) {
     (engine.outcome(), engine.snapshot().player.hp, peak)
 }
 
+/// The most zones a recorded case has alive at once, and whether it empties them at the end of
+/// the boss's first phase.
+fn zone_peaks(name: &str) -> (usize, bool) {
+    let case = corpus_dir().join(name);
+    let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+    let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+    let (mut peak, mut cleared, mut before) = (0, false, 0);
+    for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
+        engine.step(input);
+        let alive = engine
+            .snapshot()
+            .zones
+            .iter()
+            .filter(|z| !z.friendly)
+            .count();
+        peak = peak.max(alive);
+        // The boss's phase 1 begins on tick 150 and its first zones of phase 1 warn for 40
+        // ticks: right then only those it has just placed are alive.
+        if engine.tick() == 149 {
+            before = alive;
+        }
+        cleared |= engine.tick() == 150 && alive <= 6 && before > 6;
+    }
+    (peak, cleared)
+}
+
 #[test]
 fn the_cases_are_what_their_names_say() {
     assert_eq!(what_happens("clear").0, Outcome::Cleared);
@@ -1555,6 +1697,14 @@ fn the_cases_are_what_their_names_say() {
     assert_eq!((outcome, peak), (Outcome::Running, 0));
     assert!(hp < 9_900, "the swings land: {hp} hp left");
     assert!(deaths("melee") >= 2, "the companion cleaves");
+    // Zones alone: no bullet flies, a good many zones are alive at once, the clear takes the
+    // boss's with the phase, and the main character is hurt by them.
+    let (outcome, hp, peak) = what_happens("zones");
+    assert_eq!((outcome, peak), (Outcome::Running, 0));
+    assert!(hp < 9_900, "the zones land: {hp} hp left");
+    let (zones, cleared) = zone_peaks("zones");
+    assert!(zones >= 16, "{zones} zones at most alive at once");
+    assert!(cleared, "clear_zones leaves only the new phase's zones");
     // The map, not the portrait field: the corner holds the main character, and shots and
     // enemies get past where the portrait field's margin would have removed them.
     let (corner, farthest) = landscape_reach();
