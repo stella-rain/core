@@ -30,7 +30,7 @@
       "invulnerable_ticks": 10,
       "ticks": 8
     },
-    "hp": 9900,
+    "hp": 99900,
     "weapon": {
       "inline": {
         "assist_range": 0,
