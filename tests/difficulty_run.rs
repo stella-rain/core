@@ -35,7 +35,6 @@ fn setup(difficulty: &str) -> RunSetup {
         upgrades: Vec::new(),
         perk_set: "duelist".into(),
         difficulty: difficulty.into(),
-        auto_combo: false,
         rune_pool: Vec::new(),
         carried: Vec::new(),
         lumine: 0,

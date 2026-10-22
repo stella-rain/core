@@ -726,9 +726,6 @@ pub(crate) struct State {
     /// Hit points the main character regenerates each second (a perk, ADR-105): fixed for the
     /// run, part of the setup, so the state hash writes nothing for it.
     pub regen: u32,
-    /// The setup's auto combo (ADR-107): auto mode is on when the input's `auto` differs from
-    /// it. Fixed for the run, like `regen`.
-    pub auto_combo: bool,
     /// The percents the run's difficulty scales enemies' hit points and attacks' damage by
     /// (ADR-110): fixed for the run, part of the setup, so the state hash writes nothing for them.
     pub hp_pct: u32,
@@ -1610,7 +1607,6 @@ mod horde_tests {
             extra_rerolls: 0,
             upgrades: Vec::new(),
             perk_set: "duelist".into(),
-            auto_combo: false,
             rune_pool: Vec::new(),
             carried: Vec::new(),
             lumine: 0,
@@ -1757,7 +1753,6 @@ mod horde_tests {
             extra_rerolls: 0,
             upgrades: Vec::new(),
             perk_set: "duelist".into(),
-            auto_combo: false,
             rune_pool: Vec::new(),
             carried: Vec::new(),
             lumine: 0,
@@ -1975,7 +1970,6 @@ mod horde_tests {
             extra_rerolls: 0,
             upgrades: Vec::new(),
             perk_set: "duelist".into(),
-            auto_combo: false,
             rune_pool: Vec::new(),
             carried: Vec::new(),
             lumine: 0,

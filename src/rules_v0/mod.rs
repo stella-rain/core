@@ -329,7 +329,6 @@ pub(crate) fn initial_state(
         horde: None,
         stardust: stage.stardust.as_ref().map(|_| 0),
         regen: 0,
-        auto_combo: false,
         hp_pct: pool.difficulty.hp_pct,
         damage_pct: pool.difficulty.damage_pct,
     }
@@ -400,11 +399,6 @@ pub(crate) fn step(
         return;
     }
     s.tick += 1;
-    // The setup's auto combo starts auto mode on; the input's switch turns it off (ADR-107).
-    let input = Input {
-        auto: input.auto != s.auto_combo,
-        ..input
-    };
     loadout::regen(s);
     let mut spawns_left = MAX_BULLET_SPAWNS_PER_TICK;
 
