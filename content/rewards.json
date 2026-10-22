@@ -61,28 +61,28 @@
       "id": "attack_speed_common",
       "rarity": "common",
       "effect": "attack_speed_pct",
-      "amount": 4,
+      "amount": 8,
       "limit": 5,
       "title": "Swiftness (Common)",
-      "description": "Attacks 4 percent faster"
+      "description": "Attacks 8 percent faster"
     },
     {
       "id": "attack_speed_rare",
       "rarity": "rare",
       "effect": "attack_speed_pct",
-      "amount": 10,
+      "amount": 20,
       "limit": 3,
       "title": "Swiftness (Rare)",
-      "description": "Attacks 10 percent faster"
+      "description": "Attacks 20 percent faster"
     },
     {
       "id": "attack_speed_legendary",
       "rarity": "legendary",
       "effect": "attack_speed_pct",
-      "amount": 20,
+      "amount": 40,
       "limit": 2,
       "title": "Swiftness (Legendary)",
-      "description": "Attacks 20 percent faster"
+      "description": "Attacks 40 percent faster"
     },
     {
       "id": "evade_common",
@@ -300,28 +300,28 @@
       "id": "attack_speed_uncommon",
       "rarity": "uncommon",
       "effect": "attack_speed_pct",
-      "amount": 6,
+      "amount": 12,
       "limit": 4,
       "title": "Swiftness (Uncommon)",
-      "description": "Attacks 6 percent faster"
+      "description": "Attacks 12 percent faster"
     },
     {
       "id": "attack_speed_epic",
       "rarity": "epic",
       "effect": "attack_speed_pct",
-      "amount": 14,
+      "amount": 28,
       "limit": 2,
       "title": "Swiftness (Epic)",
-      "description": "Attacks 14 percent faster"
+      "description": "Attacks 28 percent faster"
     },
     {
       "id": "attack_speed_supernova",
       "rarity": "supernova",
       "effect": "attack_speed_pct",
-      "amount": 32,
+      "amount": 64,
       "limit": 2,
       "title": "Swiftness (Supernova)",
-      "description": "Attacks 32 percent faster"
+      "description": "Attacks 64 percent faster"
     },
     {
       "id": "evade_uncommon",
