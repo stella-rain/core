@@ -63,6 +63,10 @@ CANDIDATE_JOBS = frozenset({
     "candidate branch unchanged",
 })
 CALLED_PREFIX = "release "
+# auto-merge.yml's job ("<caller job> / <called job>"): it runs on main's commit after a merge,
+# not as a gate, and its concurrency group cancels it when a newer run starts. Candidate run
+# 39693572498 failed on four such cancelled runs. Left out whatever its conclusion.
+AUTO_MERGE_JOBS = frozenset({"merge / merge when every check is green"})
 FAILED = frozenset({"failure", "timed_out", "cancelled", "action_required", "stale", "startup_failure"})
 
 
@@ -157,6 +161,7 @@ def checks_passed(runs, run_id):
     own = f"/actions/runs/{run_id}/"
     others = [c for c in runs
               if own not in (c.get("details_url") or "") and c["name"] not in CANDIDATE_JOBS
+              and c["name"] not in AUTO_MERGE_JOBS
               and not c["name"].startswith(CALLED_PREFIX)]
     bad = [f"{c['name']}: {c['conclusion'] if c['status'] == 'completed' else c['status']}"
            for c in others if c["status"] != "completed" or c.get("conclusion") in FAILED]
