@@ -554,6 +554,12 @@ impl Engine {
                 skill_cooldown_pct: s.player.skill_cooldown_pct,
                 kill_heal: s.player.kill_heal,
                 kill_heal_every: s.player.kill_heal_every,
+                crit_chance_pct: s.player.crit_chance_pct,
+                crit_damage_pct: s.player.crit_damage_pct,
+                echo_hit_pct: s.player.echo_hit_pct,
+                burst_pct: s.player.burst_pct,
+                burst_radius: s.player.burst_radius,
+                burst_depth: s.player.burst_depth,
                 type_bonuses: DamageType::ALL
                     .iter()
                     .zip(s.player.type_bonus_pct)

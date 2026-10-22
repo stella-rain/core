@@ -9,7 +9,7 @@ use stella_rain_core::stage::Stage;
 
 use crate::common::*;
 use crate::reward_kinds::{
-    AMOUNT, NEAR_Y, entry, file_of, invalid_at, kind, next_offer, parse, plain, starry, take,
+    AMOUNT, NEAR_Y, entry, file_of, invalid_at, kind, near, next_offer, parse, plain, starry, take,
     weapon, with,
 };
 
@@ -267,4 +267,65 @@ fn a_burst_deals_its_percent_of_the_dead_enemys_max_hit_points() {
     let hits = of_type(&events, "Hit");
     let same_tick: Vec<_> = hits.iter().filter(|h| h.0 == at).collect();
     assert!(same_tick.iter().any(|h| damage(h) == 4), "{same_tick:?}");
+}
+
+#[test]
+fn the_snapshot_shows_the_totals_held_to_their_bounds() {
+    let stage = near(4);
+    let view = |effects: Vec<Value>, times: u32| {
+        let mut list = vec![plain("a", 1), plain("b", 1), plain("c", 1)];
+        list.push(kind("k", effects, 1_000, 20));
+        let mut e = with(&stage, list);
+        for _ in 0..times {
+            next_offer(&mut e);
+            take(&mut e, "k");
+        }
+        serde_json::to_value(e.snapshot().player).unwrap()
+    };
+    let none = view(vec![entry("attack_pct", 1)], 1);
+    for field in [
+        "crit_chance_pct",
+        "crit_damage_pct",
+        "echo_hit_pct",
+        "burst_pct",
+    ] {
+        assert!(
+            none.get(field).is_none(),
+            "{field} is left out while unheld"
+        );
+    }
+    let crit = view(
+        vec![entry("crit_chance_pct", 50), entry("crit_damage_pct", 200)],
+        1,
+    );
+    assert_eq!(
+        (
+            crit["crit_chance_pct"].as_u64(),
+            crit["crit_damage_pct"].as_u64()
+        ),
+        (Some(50), Some(200))
+    );
+    // Taken again, the totals stop at 75 and 300.
+    let more = view(
+        vec![entry("crit_chance_pct", 50), entry("crit_damage_pct", 200)],
+        2,
+    );
+    assert_eq!(
+        (
+            more["crit_chance_pct"].as_u64(),
+            more["crit_damage_pct"].as_u64()
+        ),
+        (Some(75), Some(300))
+    );
+    let echo = view(vec![entry("echo_hit_pct", 60)], 2);
+    assert_eq!(echo["echo_hit_pct"], 100);
+    let b = view(vec![burst(70, Some(150), Some(2))], 2);
+    assert_eq!(
+        (
+            b["burst_pct"].as_u64(),
+            b["burst_radius"].as_u64(),
+            b["burst_depth"].as_u64()
+        ),
+        (Some(100), Some(240), Some(2))
+    );
 }
