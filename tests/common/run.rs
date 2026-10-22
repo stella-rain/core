@@ -21,8 +21,10 @@ pub const SPEND_INDEX: u32 = 1;
 /// With the six rarities (ADR-110) seed 73 no longer does: the elite's star now draws from the
 /// higher rarities, and seed 11 is the first of `1..` that does again. With the heals in shown
 /// hit points (app#336) seed 11's run lives long enough to take and use the hex as well, and
-/// seed 66 is the first of `1..` that uses the black hole alone, at level 1, again.
-pub const STAGE_SKILL_SEED: u64 = 66;
+/// seed 66 is the first of `1..` that uses the black hole alone, at level 1, again. With the
+/// numbers of app#298 (the new rewards in the pool, the runes) seed 66 no longer does, and seed
+/// 10 is the first of `1..` that does.
+pub const STAGE_SKILL_SEED: u64 = 10;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
 /// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
@@ -34,8 +36,9 @@ pub const KILL_SEED: u64 = 1;
 /// mimic on the map when the boss calls. With the one weapon's level table and a pool of five
 /// (ADR-106) the main character's build differs and seed 20261010 no longer does; under the
 /// default perk set (ADR-105) seed 15 no longer does either; this one is the first of `1..`
-/// that does.
-pub const ELITES_SEED: u64 = 5;
+/// that does. With the numbers of app#298 seed 5 no longer does (the run ends in a clear, or
+/// no middle-grade elite lives to shoot); seed 32 is the first of `1..` that does.
+pub const ELITES_SEED: u64 = 32;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {

@@ -214,6 +214,58 @@
         "sim_version": 0
       },
       {
+        "id": "rune_haste_common",
+        "sim_version": 0
+      },
+      {
+        "id": "rune_haste_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "rune_haste_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "range_common",
+        "sim_version": 0
+      },
+      {
+        "id": "range_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "range_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_type_bonus_common",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_type_bonus_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "attack_type_bonus_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "element_bonus_common",
+        "sim_version": 0
+      },
+      {
+        "id": "element_bonus_rare",
+        "sim_version": 0
+      },
+      {
+        "id": "element_bonus_legendary",
+        "sim_version": 0
+      },
+      {
+        "id": "random_rune",
+        "sim_version": 0
+      },
+      {
         "id": "star_altair",
         "sim_version": 0
       },
@@ -577,11 +629,13 @@
   "stun": {
     "immune_ticks": 60,
     "elite_pct": 50
-  }
+  },
+  "max_attack_speed_pct": 500
 },
   "rewards": {
   "schema_version": 0,
   "sim_version": 0,
+  "max_rune_haste_pct": 500,
   "rewards": [
     {
       "id": "max_hp_common",
@@ -641,28 +695,28 @@
       "id": "attack_speed_common",
       "rarity": "common",
       "effect": "attack_speed_pct",
-      "amount": 4,
+      "amount": 8,
       "limit": 5,
       "title": "Swiftness (Common)",
-      "description": "Attacks 4 percent faster"
+      "description": "Attacks 8 percent faster"
     },
     {
       "id": "attack_speed_rare",
       "rarity": "rare",
       "effect": "attack_speed_pct",
-      "amount": 10,
+      "amount": 20,
       "limit": 3,
       "title": "Swiftness (Rare)",
-      "description": "Attacks 10 percent faster"
+      "description": "Attacks 20 percent faster"
     },
     {
       "id": "attack_speed_legendary",
       "rarity": "legendary",
       "effect": "attack_speed_pct",
-      "amount": 20,
+      "amount": 40,
       "limit": 2,
       "title": "Swiftness (Legendary)",
-      "description": "Attacks 20 percent faster"
+      "description": "Attacks 40 percent faster"
     },
     {
       "id": "evade_common",
@@ -880,28 +934,28 @@
       "id": "attack_speed_uncommon",
       "rarity": "uncommon",
       "effect": "attack_speed_pct",
-      "amount": 6,
+      "amount": 12,
       "limit": 4,
       "title": "Swiftness (Uncommon)",
-      "description": "Attacks 6 percent faster"
+      "description": "Attacks 12 percent faster"
     },
     {
       "id": "attack_speed_epic",
       "rarity": "epic",
       "effect": "attack_speed_pct",
-      "amount": 14,
+      "amount": 28,
       "limit": 2,
       "title": "Swiftness (Epic)",
-      "description": "Attacks 14 percent faster"
+      "description": "Attacks 28 percent faster"
     },
     {
       "id": "attack_speed_supernova",
       "rarity": "supernova",
       "effect": "attack_speed_pct",
-      "amount": 32,
+      "amount": 64,
       "limit": 2,
       "title": "Swiftness (Supernova)",
-      "description": "Attacks 32 percent faster"
+      "description": "Attacks 64 percent faster"
     },
     {
       "id": "evade_uncommon",
@@ -1010,6 +1064,122 @@
       "limit": 2,
       "title": "Regeneration (Supernova)",
       "description": "Hit points come back every second, a huge amount"
+    },
+    {
+      "id": "rune_haste_common",
+      "rarity": "common",
+      "effect": "rune_haste",
+      "amount": 25,
+      "limit": 5,
+      "title": "Quickening (Common)",
+      "description": "Runes recover 25 percent sooner"
+    },
+    {
+      "id": "rune_haste_rare",
+      "rarity": "rare",
+      "effect": "rune_haste",
+      "amount": 50,
+      "limit": 3,
+      "title": "Quickening (Rare)",
+      "description": "Runes recover 50 percent sooner"
+    },
+    {
+      "id": "rune_haste_legendary",
+      "rarity": "legendary",
+      "effect": "rune_haste",
+      "amount": 100,
+      "limit": 2,
+      "title": "Quickening (Legendary)",
+      "description": "Runes recover 100 percent sooner"
+    },
+    {
+      "id": "range_common",
+      "rarity": "common",
+      "effect": "range_pct",
+      "amount": 15,
+      "limit": 5,
+      "title": "Reach (Common)",
+      "description": "Attacks reach 15 percent wider"
+    },
+    {
+      "id": "range_rare",
+      "rarity": "rare",
+      "effect": "range_pct",
+      "amount": 30,
+      "limit": 3,
+      "title": "Reach (Rare)",
+      "description": "Attacks reach 30 percent wider"
+    },
+    {
+      "id": "range_legendary",
+      "rarity": "legendary",
+      "effect": "range_pct",
+      "amount": 50,
+      "limit": 2,
+      "title": "Reach (Legendary)",
+      "description": "Attacks reach 50 percent wider"
+    },
+    {
+      "id": "attack_type_bonus_common",
+      "rarity": "common",
+      "effect": "attack_type_bonus_pct",
+      "amount": 25,
+      "limit": 5,
+      "title": "Mastery (Common)",
+      "description": "25 percent more Slash, Pierce and Strike damage"
+    },
+    {
+      "id": "attack_type_bonus_rare",
+      "rarity": "rare",
+      "effect": "attack_type_bonus_pct",
+      "amount": 50,
+      "limit": 3,
+      "title": "Mastery (Rare)",
+      "description": "50 percent more Slash, Pierce and Strike damage"
+    },
+    {
+      "id": "attack_type_bonus_legendary",
+      "rarity": "legendary",
+      "effect": "attack_type_bonus_pct",
+      "amount": 80,
+      "limit": 2,
+      "title": "Mastery (Legendary)",
+      "description": "80 percent more Slash, Pierce and Strike damage"
+    },
+    {
+      "id": "element_bonus_common",
+      "rarity": "common",
+      "effect": "element_bonus_pct",
+      "amount": 25,
+      "limit": 5,
+      "title": "Attunement (Common)",
+      "description": "25 percent more elemental damage"
+    },
+    {
+      "id": "element_bonus_rare",
+      "rarity": "rare",
+      "effect": "element_bonus_pct",
+      "amount": 50,
+      "limit": 3,
+      "title": "Attunement (Rare)",
+      "description": "50 percent more elemental damage"
+    },
+    {
+      "id": "element_bonus_legendary",
+      "rarity": "legendary",
+      "effect": "element_bonus_pct",
+      "amount": 80,
+      "limit": 2,
+      "title": "Attunement (Legendary)",
+      "description": "80 percent more elemental damage"
+    },
+    {
+      "id": "random_rune",
+      "rarity": "common",
+      "effect": "random_rune",
+      "weight": 200,
+      "title": "Rune",
+      "description": "A rune you do not hold yet, drawn when you take it"
     },
     {
       "id": "star_altair",
@@ -1957,21 +2127,21 @@
   "on_hit": [
     {
       "rune": "explosion",
-      "cooldown_ticks": 120,
-      "damage": 1500,
+      "cooldown_ticks": 90,
+      "damage": 2500,
       "attack": [
         {
           "kind": "active",
           "ticks": 6,
           "type": "pyro",
-          "hit_box": { "type": "circle", "radius": 10240 }
+          "hit_box": { "type": "circle", "radius": 12288 }
         }
       ]
     },
     {
       "rune": "thunder",
-      "cooldown_ticks": 90,
-      "damage": 2000,
+      "cooldown_ticks": 60,
+      "damage": 3000,
       "attack": [
         {
           "kind": "wind_up",
@@ -1988,8 +2158,8 @@
     },
     {
       "rune": "boomerang",
-      "cooldown_ticks": 150,
-      "damage": 1200,
+      "cooldown_ticks": 120,
+      "damage": 1800,
       "attack": [
         {
           "kind": "active",
@@ -2005,9 +2175,9 @@
     },
     {
       "rune": "homing_missiles",
-      "cooldown_ticks": 180,
-      "damage": 800,
-      "missiles": 3,
+      "cooldown_ticks": 150,
+      "damage": 1000,
+      "missiles": 4,
       "range": 40960,
       "attack": [
         {
@@ -2021,26 +2191,26 @@
   "damage_over_time": [
     {
       "rune": "bleed",
-      "interval_ticks": 30,
+      "interval_ticks": 20,
       "duration_ticks": 180,
       "damage": 300,
-      "max_stacks": 5,
+      "max_stacks": 6,
       "type": "slash"
     },
     {
       "rune": "poison",
-      "interval_ticks": 30,
+      "interval_ticks": 20,
       "duration_ticks": 180,
       "damage": 300,
-      "max_stacks": 5,
+      "max_stacks": 6,
       "type": "dendro"
     },
     {
       "rune": "burn",
-      "interval_ticks": 30,
+      "interval_ticks": 20,
       "duration_ticks": 180,
       "damage": 300,
-      "max_stacks": 5,
+      "max_stacks": 6,
       "type": "pyro"
     }
   ]
@@ -2373,7 +2543,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "slash"
+            "slash",
+            "electro"
           ]
         },
         "movement": {
@@ -2422,7 +2593,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "slash"
+            "slash",
+            "electro"
           ]
         },
         "movement": {
@@ -2521,7 +2693,7 @@
           "strong": [
             "pierce"
           ],
-          "resist": "physical"
+          "resist": "elements"
         },
         "movement": {
           "type": "follow",
@@ -2624,7 +2796,8 @@
     "radius": 8192,
     "profile": {
       "weak": [
-        "strike"
+        "strike",
+        "pyro"
       ],
       "resist": "physical"
     },
@@ -2890,7 +3063,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "slash"
+            "slash",
+            "electro"
           ]
         },
         "movement": {
@@ -2941,7 +3115,8 @@
         "radius": 3072,
         "profile": {
           "weak": [
-            "strike"
+            "strike",
+            "dendro"
           ]
         },
         "movement": {
@@ -3211,7 +3386,8 @@
         "radius": 3072,
         "profile": {
           "weak": [
-            "strike"
+            "strike",
+            "dendro"
           ]
         },
         "movement": {
@@ -3309,7 +3485,7 @@
           "strong": [
             "pierce"
           ],
-          "resist": "physical"
+          "resist": "elements"
         },
         "movement": {
           "type": "follow",
@@ -3714,7 +3890,7 @@
     {"base": "lantern_choir", "hp": 150000, "radius": 8192, "profile": {"weak": ["slash"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "phases": [{"until": {"type": "hp_below", "who": "self", "pct": 50}, "transition": [], "timeline": [{"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [768]}}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"inline": [{"kind": "active", "ticks": 1, "spawn": [{"type": "ring", "count": 8, "body": [{"type": "spread", "count": 3, "angle": 2560, "body": [{"type": "fire", "speed": 768, "direction": {"type": "aimed", "offset": 0}}]}]}]}]}}, {"type": "wait", "ticks": 90}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 30}, {"type": "attack", "attack": {"inline": [{"kind": "active", "ticks": 1, "spawn": [{"type": "ring", "count": 12, "body": [{"type": "spread", "count": 3, "angle": 2560, "body": [{"type": "fire", "speed": 896, "direction": {"type": "aimed", "offset": 0}}]}]}]}]}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [896]}}}, {"type": "wait", "ticks": 60}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000},
     {"base": "horn_charger", "hp": 150000, "radius": 8192, "profile": {"weak": ["pierce"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "phases": [{"until": {"type": "hp_below", "who": "self", "pct": 50}, "transition": [], "timeline": [{"type": "telegraph", "ticks": 40}, {"type": "move_to", "to": {"x": 163840, "y": 180000}, "ticks": 30}, {"type": "attack", "attack": {"preset": {"id": "spread_5", "args": []}}}, {"type": "wait", "ticks": 30}, {"type": "move_to", "to": {"x": 163840, "y": 35840}, "ticks": 60}, {"type": "wait", "ticks": 30}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 20}, {"type": "move_to", "to": {"x": 163840, "y": 180000}, "ticks": 20}, {"type": "attack", "attack": {"preset": {"id": "twin_shot", "args": []}}}, {"type": "wait", "ticks": 20}, {"type": "move_to", "to": {"x": 163840, "y": 35840}, "ticks": 40}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000},
     {"base": "weaver", "hp": 150000, "radius": 8192, "profile": {"weak": ["pierce"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "phases": [{"until": {"type": "hp_below", "who": "self", "pct": 66}, "transition": [], "timeline": [{"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_single", "args": [640]}}}, {"type": "wait", "ticks": 60}, {"type": "loop"}], "rules": []}, {"until": {"type": "hp_below", "who": "self", "pct": 33}, "transition": [{"type": "clear_bullets"}], "timeline": [{"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [768]}}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "aimed_single", "args": [640]}}}, {"type": "wait", "ticks": 40}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 30}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [896]}}}, {"type": "wait", "ticks": 40}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000},
-    {"base": "core_pair", "hp": 300000, "radius": 8192, "profile": {"weak": ["strike"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "parts": [{"id": "core_left", "asset": "horns_2", "hp": 60000, "offset": {"x": -3840, "y": -2048}, "radius": 4096}, {"id": "core_right", "asset": "horns_2", "hp": 60000, "offset": {"x": 3840, "y": -2048}, "radius": 4096}], "phases": [{"until": {"type": "part_broken", "part": "core_left"}, "transition": [], "timeline": [{"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [768]}}}, {"type": "wait", "ticks": 60}, {"type": "loop"}], "rules": []}, {"until": {"type": "part_broken", "part": "core_right"}, "transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 40}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 150}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [896]}}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 120}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000}
+    {"base": "core_pair", "hp": 300000, "radius": 8192, "profile": {"weak": ["strike", "pyro"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "parts": [{"id": "core_left", "asset": "horns_2", "hp": 60000, "offset": {"x": -3840, "y": -2048}, "radius": 4096}, {"id": "core_right", "asset": "horns_2", "hp": 60000, "offset": {"x": 3840, "y": -2048}, "radius": 4096}], "phases": [{"until": {"type": "part_broken", "part": "core_left"}, "transition": [], "timeline": [{"type": "wait", "ticks": 90}, {"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [768]}}}, {"type": "wait", "ticks": 60}, {"type": "loop"}], "rules": []}, {"until": {"type": "part_broken", "part": "core_right"}, "transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 40}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 150}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "attack", "attack": {"preset": {"id": "aimed_spread", "args": [896]}}}, {"type": "wait", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 120}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000}
   ],
   "stardust_summon_base": 10,
   "stardust_tiers": [

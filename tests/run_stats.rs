@@ -12,9 +12,9 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::run_stats::{
-    MAX_ATTACK_SPEED_PCT, MAX_DESCRIPTION_CHARS, MAX_HP_STEP, MAX_LIMIT, MAX_RUN_STATS_BYTES,
-    MAX_STATS, MAX_STEP, MAX_STUN_IMMUNE_TICKS, MAX_TITLE_CHARS, RunStats, StatEffect,
-    capped_attack_speed_pct,
+    DEFAULT_MAX_ATTACK_SPEED_PCT, MAX_ATTACK_SPEED_PCT, MAX_DESCRIPTION_CHARS, MAX_HP_STEP,
+    MAX_LIMIT, MAX_RUN_STATS_BYTES, MAX_STATS, MAX_STEP, MAX_STUN_IMMUNE_TICKS, MAX_TITLE_CHARS,
+    RunStats, StatEffect, capped_attack_speed_pct,
 };
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::DAMAGE_SCALE;
@@ -283,17 +283,39 @@ fn an_engine_started_with_other_stats_uses_them() {
 
 #[test]
 fn the_attack_speed_total_saturates_at_its_cap() {
-    // Expertise options have no stack limit, so the total is bounded here instead.
-    assert_eq!(capped_attack_speed_pct(0), 0);
+    // Expertise options have no stack limit, so the total is bounded here instead; the cap is
+    // the file's, held to the code ceiling.
+    assert_eq!(capped_attack_speed_pct(0, 500), 0);
+    assert_eq!(capped_attack_speed_pct(500, 500), 500);
+    assert_eq!(capped_attack_speed_pct(501, 500), 500);
+    assert_eq!(capped_attack_speed_pct(u32::MAX, 500), 500);
+    assert_eq!(capped_attack_speed_pct(300, 300), 300);
     assert_eq!(
-        capped_attack_speed_pct(MAX_ATTACK_SPEED_PCT),
-        MAX_ATTACK_SPEED_PCT
+        capped_attack_speed_pct(u32::MAX, u32::MAX),
+        MAX_ATTACK_SPEED_PCT,
+        "an unvalidated cap is held to the ceiling"
     );
+}
+
+#[test]
+fn the_attack_speed_cap_is_the_files_and_the_code_ceiling_bounds_it() {
+    assert_eq!(RunStats::bundled().max_attack_speed_pct(), 500, "core#298");
+    assert_eq!(DEFAULT_MAX_ATTACK_SPEED_PCT, 500, "a file naming none");
+    let with_cap = |cap: Value| {
+        let mut v = file(vec![stat("a")]);
+        v["max_attack_speed_pct"] = cap;
+        parse(&v)
+    };
+    let none = parse(&file(vec![stat("a")])).unwrap();
+    assert_eq!(none.max_attack_speed_pct(), DEFAULT_MAX_ATTACK_SPEED_PCT);
     assert_eq!(
-        capped_attack_speed_pct(MAX_ATTACK_SPEED_PCT + 1),
-        MAX_ATTACK_SPEED_PCT
+        with_cap(json!(300)).unwrap().max_attack_speed_pct(),
+        300,
+        "read from the file"
     );
-    assert_eq!(capped_attack_speed_pct(u32::MAX), MAX_ATTACK_SPEED_PCT);
+    assert!(with_cap(json!(MAX_ATTACK_SPEED_PCT)).is_ok());
+    assert!(with_cap(json!(MAX_ATTACK_SPEED_PCT + 1)).is_err());
+    assert!(with_cap(json!(0)).is_err());
 }
 
 #[test]

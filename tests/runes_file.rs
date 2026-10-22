@@ -129,12 +129,12 @@ fn paths(e: Error) -> Vec<String> {
 
 #[test]
 fn the_bundled_explosion_is_a_pyro_circle_on_its_own_cooldown() {
-    // Placeholder numbers: Kade tunes them.
+    // The numbers of app#298 ("C spiky").
     let explosion = Runes::bundled()
         .on_hit(Rune::Explosion)
         .expect("explosion's entry");
-    assert_eq!(explosion.cooldown_ticks, 120);
-    assert_eq!(explosion.damage, 1_500);
+    assert_eq!(explosion.cooldown_ticks, 90);
+    assert_eq!(explosion.damage, 2_500);
     assert_eq!(explosion.attack.len(), 1);
     assert_eq!(explosion.attack[0].damage_type, Some(DamageType::Pyro));
     assert!(explosion.attack[0].hit_box.is_some());
@@ -147,8 +147,8 @@ fn the_bundled_thunder_is_an_electro_strike_after_a_wind_up_on_its_own_cooldown(
     let thunder = Runes::bundled()
         .on_hit(Rune::Thunder)
         .expect("thunder's entry");
-    assert_eq!(thunder.cooldown_ticks, 90);
-    assert_eq!(thunder.damage, 2_000);
+    assert_eq!(thunder.cooldown_ticks, 60);
+    assert_eq!(thunder.damage, 3_000);
     let kinds: Vec<PhaseKind> = thunder.attack.iter().map(|p| p.kind).collect();
     assert_eq!(kinds, [PhaseKind::WindUp, PhaseKind::Active]);
     assert_eq!(thunder.attack[0].ticks, 12);
@@ -171,8 +171,8 @@ fn the_bundled_boomerang_is_a_neutral_throw_out_and_back_on_its_own_cooldown() {
     let boomerang = Runes::bundled()
         .on_hit(Rune::Boomerang)
         .expect("boomerang's entry");
-    assert_eq!(boomerang.cooldown_ticks, 150);
-    assert_eq!(boomerang.damage, 1_200);
+    assert_eq!(boomerang.cooldown_ticks, 120);
+    assert_eq!(boomerang.damage, 1_800);
     let kinds: Vec<PhaseKind> = boomerang.attack.iter().map(|p| p.kind).collect();
     assert_eq!(
         kinds,
@@ -262,9 +262,9 @@ fn the_bundled_homing_missiles_are_neutral_missiles_on_their_own_cooldown() {
     let homing = Runes::bundled()
         .on_hit(Rune::HomingMissiles)
         .expect("homing missiles' entry");
-    assert_eq!(homing.cooldown_ticks, 180);
-    assert_eq!(homing.damage, 800);
-    assert_eq!(homing.missiles, Some(3));
+    assert_eq!(homing.cooldown_ticks, 150);
+    assert_eq!(homing.damage, 1_000);
+    assert_eq!(homing.missiles, Some(4));
     assert_eq!(
         homing.range.map(|r| r.0),
         Some(40_960),
@@ -366,8 +366,8 @@ fn homing_missiles_attack_is_one_flight_an_active_phase_with_a_hit_box() {
 
 #[test]
 fn the_bundled_bleed_is_slash_damage_over_time_in_stacks() {
-    // PLACEHOLDER numbers, Kade's to set: the game design document's bleed, 3 damage a stack
-    // (300 after the scale of ADR-103) every 30 ticks for 180 ticks, up to 5 stacks, Slash.
+    // The numbers of app#298 ("C spiky"): 3 damage a stack (300 after the scale of ADR-103)
+    // every 20 ticks for 180 ticks, up to 6 stacks, Slash.
     let bleed = Runes::bundled()
         .damage_over_time(Rune::Bleed)
         .expect("bleed's entry");
@@ -378,7 +378,7 @@ fn the_bundled_bleed_is_slash_damage_over_time_in_stacks() {
             bleed.damage,
             bleed.max_stacks
         ),
-        (30, 180, 300, 5)
+        (20, 180, 300, 6)
     );
     assert_eq!(bleed.damage_type, Some(DamageType::Slash));
     assert!(Runes::bundled().on_hit(Rune::Bleed).is_none());
@@ -387,8 +387,8 @@ fn the_bundled_bleed_is_slash_damage_over_time_in_stacks() {
 
 #[test]
 fn the_bundled_poison_is_dendro_and_burn_pyro_damage_over_time_in_stacks() {
-    // PLACEHOLDER numbers, Kade's to set: bleed's, 300 damage a stack every 30 ticks for 180
-    // ticks, up to 5 stacks; only the types differ.
+    // Bleed's numbers: 300 damage a stack every 20 ticks for 180 ticks, up to 6 stacks; only
+    // the types differ.
     for (rune, ty) in [
         (Rune::Poison, DamageType::Dendro),
         (Rune::Burn, DamageType::Pyro),
@@ -403,7 +403,7 @@ fn the_bundled_poison_is_dendro_and_burn_pyro_damage_over_time_in_stacks() {
                 entry.damage,
                 entry.max_stacks
             ),
-            (30, 180, 300, 5),
+            (20, 180, 300, 6),
             "{rune:?}"
         );
         assert_eq!(entry.damage_type, Some(ty), "{rune:?}");
