@@ -2746,6 +2746,16 @@
           "format": "uint32",
           "minimum": 0
         },
+        "random_rune_weight": {
+          "description": "The draw weight of the `random_rune` reward among its rarity while this tier applies, from\n1 to `MAX_WEIGHT`; left out, the reward's own `weight`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
         "weights": {
           "$ref": "#/$defs/RarityWeights"
         }
