@@ -261,7 +261,7 @@ fn a_file_of_another_version_is_refused() {
 /// the file itself is read (the extra entries are copies, which the file would refuse too).
 #[test]
 fn each_count_budget_is_enforced() {
-    let lists: [(&str, usize); 24] = [
+    let lists: [(&str, usize); 25] = [
         ("/run_stats/stats", pack::MAX_RUN_STATS),
         ("/rewards/rewards", pack::MAX_REWARDS),
         ("/stage_skills/stage_skills", pack::MAX_STAGE_SKILLS),
@@ -286,6 +286,7 @@ fn each_count_budget_is_enforced() {
         ("/introduced/difficulties", pack::MAX_DIFFICULTIES),
         ("/introduced/expertise", pack::MAX_EXPERTISE_WEAPONS),
         ("/introduced/expertise/0/ids", pack::MAX_EXPERTISE_IDS),
+        ("/introduced/constellations", pack::MAX_CONSTELLATIONS),
     ];
     for (pointer, limit) in lists {
         let mut v = value();
@@ -437,6 +438,80 @@ fn every_id_a_pack_introduces_is_listed_once() {
 }
 
 #[test]
+fn the_bundled_pack_introduces_each_constellation_in_the_current_version() {
+    let v = value();
+    let listed: Vec<(&str, u64)> = v["introduced"]["constellations"]
+        .as_array()
+        .expect("the export lists its sets")
+        .iter()
+        .map(|e| {
+            (
+                e["id"].as_str().unwrap(),
+                e["sim_version"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            ("summer_triangle", 0),
+            ("orions_belt", 0),
+            ("big_dipper", 0),
+            ("winter_triangle", 0)
+        ]
+    );
+    assert_eq!(
+        v["constellations"]["constellations"]
+            .as_array()
+            .map(Vec::len),
+        Some(4)
+    );
+}
+
+#[test]
+fn a_pack_released_without_a_constellation_list_still_loads() {
+    // Packs released with the file (core#NS3) have no `introduced.constellations`: they stay
+    // valid, their sets simply have no recorded version (ADR-026).
+    let mut v = value();
+    v["introduced"]
+        .as_object_mut()
+        .unwrap()
+        .remove("constellations");
+    let pack = load(&v).expect("a pack without the list loads");
+    assert_eq!(pack.content().constellations().sets().len(), 4);
+}
+
+#[test]
+fn the_constellation_list_names_each_set_once_and_none_newer_than_the_pack() {
+    let mut v = value();
+    v["introduced"]["constellations"][0]["id"] = json!("no_such_set");
+    assert!(matches!(load(&v), Err(PackError::Introduced(_))));
+    let mut v = value();
+    v["introduced"]["constellations"]
+        .as_array_mut()
+        .unwrap()
+        .remove(0);
+    assert!(matches!(load(&v), Err(PackError::Introduced(_))));
+    let mut v = value();
+    let first = v["introduced"]["constellations"][0].clone();
+    v["introduced"]["constellations"]
+        .as_array_mut()
+        .unwrap()
+        .push(first);
+    assert!(matches!(load(&v), Err(PackError::Introduced(_))));
+    let mut v = value();
+    v["introduced"]["constellations"][1]["sim_version"] = json!(1);
+    let Err(PackError::Introduced(issues)) = load(&v) else {
+        panic!("not refused as newer");
+    };
+    assert_eq!(issues[0].path, "$.introduced.constellations[1].sim_version");
+    // A list for a pack with no file names nothing.
+    let mut v = value();
+    v.as_object_mut().unwrap().remove("constellations");
+    assert!(matches!(load(&v), Err(PackError::Introduced(_))));
+}
+
+#[test]
 fn refusals_never_repeat_the_pack() {
     let marker = "zq_secret_marker";
     let mut cases = Vec::new();
@@ -495,7 +570,14 @@ fn a_file_is_found_whatever_the_pack_s_layout() {
     // The modes first, the versions last.
     let v = value();
     let mut moved = serde_json::Map::new();
-    for key in ["modes", "runes", "introduced", "run_stats", "rewards"] {
+    for key in [
+        "modes",
+        "runes",
+        "introduced",
+        "run_stats",
+        "rewards",
+        "constellations",
+    ] {
         moved.insert(key.into(), v[key].clone());
     }
     for key in [

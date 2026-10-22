@@ -344,6 +344,13 @@ fn the_file_is_read_as_untrusted_bytes() {
 /// The bundled pack with the named stars and a set added, as a value.
 fn pack_value(sets: Option<Value>) -> Value {
     let mut v: Value = serde_json::from_slice(&stella_rain_core::pack::export_bundled()).unwrap();
+    // The bundled pack holds the real sets: a pack as released before them has neither the file
+    // nor the list of its ids.
+    v.as_object_mut().unwrap().remove("constellations");
+    v["introduced"]
+        .as_object_mut()
+        .unwrap()
+        .remove("constellations");
     for id in ["n1", "n2"] {
         v["rewards"]["rewards"]
             .as_array_mut()
@@ -375,10 +382,7 @@ fn a_pack_may_hold_the_file_and_one_released_without_it_has_no_sets() {
     assert_eq!(with.content().rewards().constellations().sets().len(), 1);
     let without = load(&pack_value(None)).expect("a pack released before the file");
     assert!(without.content().constellations().is_empty());
-    assert!(
-        Pack::bundled().content().constellations().is_empty(),
-        "the bundled pack holds no sets yet"
-    );
+    assert_eq!(Pack::bundled().content().constellations().sets().len(), 4);
     // Not the same pack: the file is part of its hash.
     assert_ne!(with.sha256(), without.sha256());
 }

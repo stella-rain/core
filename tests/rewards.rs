@@ -64,7 +64,7 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
     for effect in StatEffect::ALL {
         let rarities: Vec<Rarity> = rewards
             .iter()
-            .filter(|r| r.effect().stat() == Some(effect))
+            .filter(|r| !r.named && r.effect().stat() == Some(effect))
             .map(|r| r.rarity)
             .collect();
         // The three released rarities come first, then the six-rarity ladder's new ones
@@ -92,7 +92,7 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
 #[test]
 fn the_bundled_rewards_have_the_stack_limit_of_their_rarity() {
     // app#336: how many times one run takes an ordinary reward, by rarity.
-    for reward in Rewards::bundled().rewards() {
+    for reward in Rewards::bundled().rewards().iter().filter(|r| !r.named) {
         let limit = match reward.rarity {
             Rarity::Common => 5,
             Rarity::Uncommon => 4,
