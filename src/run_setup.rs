@@ -90,9 +90,10 @@ pub struct RunSetup {
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub extra_rerolls: u8,
-    /// The permanent upgrades the player holds (ADR-079), which open the combo steps that name
-    /// them (ADR-084 point 7): registered upgrade IDs, sorted, each once, at most
-    /// `registry::MAX_UPGRADES`.
+    /// The permanent upgrades the player holds (ADR-079): registered upgrade IDs, sorted, each
+    /// once, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is
+    /// open, ADR-117): an old setup that names `giant_sword_aab` and the others still reads, and
+    /// they are ignored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub upgrades: Vec<ContentId>,
     /// The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk
@@ -150,9 +151,10 @@ struct RunSetupFile {
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
     #[serde(default, skip_serializing_if = "is_zero")]
     extra_rerolls: u8,
-    /// The permanent upgrades the player holds (ADR-079), which open the combo steps that name
-    /// them (ADR-084 point 7): registered upgrade IDs, sorted, each once, at most
-    /// `registry::MAX_UPGRADES`.
+    /// The permanent upgrades the player holds (ADR-079): registered upgrade IDs, sorted, each
+    /// once, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is
+    /// open, ADR-117): an old setup that names `giant_sword_aab` and the others still reads, and
+    /// they are ignored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     upgrades: Vec<ContentId>,
     /// The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk

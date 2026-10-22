@@ -731,7 +731,6 @@ mod tests {
         let pool = RunPool {
             rewards: (0..3).collect(),
             extra_rerolls: 0,
-            upgrades: 0,
             difficulty: RunDifficulty {
                 hp_pct: 70,
                 damage_pct: 75,
@@ -762,7 +761,6 @@ mod tests {
         let pool = RunPool {
             rewards: vec![0, 1],
             extra_rerolls: 0,
-            upgrades: 0,
             difficulty: RunDifficulty {
                 hp_pct: 100,
                 damage_pct: 100,

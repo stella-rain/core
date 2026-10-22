@@ -179,12 +179,10 @@ pub(crate) fn bullet_radius(friendly: bool) -> i32 {
 }
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
-/// the rerolls its setup adds to the stage's (ADR-079 §1) and the permanent upgrades it holds,
-/// as a mask (`registry::upgrade_mask`, ADR-084 point 7).
+/// and the rerolls its setup adds to the stage's (ADR-079 §1).
 pub(crate) struct RunPool {
     pub rewards: Vec<u16>,
     pub extra_rerolls: u8,
-    pub upgrades: u32,
     pub difficulty: RunDifficulty,
 }
 
@@ -280,7 +278,7 @@ pub(crate) fn initial_state(
                 .clamp(1, crate::validate::limits::MAX_EVADE_CHARGES),
             evade_recovering: Vec::new(),
             held: 0,
-            combo: player::initial_combo(stage, pool.upgrades),
+            combo: player::initial_combo(stage),
             dash: None,
             skill: None,
             pull: None,

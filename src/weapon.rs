@@ -72,12 +72,6 @@ impl Branches {
     pub fn get(&self, smash: bool) -> Option<&Step> {
         if smash { &self.smash } else { &self.main }.as_deref()
     }
-
-    /// As `get`, but a step whose upgrade is not in `upgrades` (a mask, `registry::upgrade_mask`)
-    /// counts as absent (ADR-084 point 7); so does everything below it, as no path leads there.
-    pub fn get_open(&self, smash: bool, upgrades: u32) -> Option<&Step> {
-        self.get(smash).filter(|step| step.is_open(upgrades))
-    }
 }
 
 /// One step of a combo (ADR-070).
@@ -96,19 +90,6 @@ pub struct Step {
     pub hold: Option<Hold>,
     #[serde(default, skip_serializing_if = "Branches::is_empty")]
     pub next: Branches,
-    /// The permanent upgrade that opens the step (ADR-084 point 7): without it in the run's
-    /// setup the step is absent, and so is every step below it. None: always open.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub unlock: Option<ContentId>,
-}
-
-impl Step {
-    /// Whether the step is open: it needs no upgrade, or `upgrades` holds the one it names.
-    pub fn is_open(&self, upgrades: u32) -> bool {
-        self.unlock.as_ref().is_none_or(|id| {
-            crate::registry::upgrade_bit(&id.0).is_some_and(|bit| upgrades >> bit & 1 == 1)
-        })
-    }
 }
 
 /// A held step (ADR-084 point 6): an attack that goes on while the button stays held, then a

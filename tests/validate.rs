@@ -1201,30 +1201,18 @@ fn a_smash_is_the_weapon_s_field_not_a_step_s() {
 }
 
 #[test]
-fn a_step_s_unlock_names_a_registered_upgrade() {
-    // ADR-084 point 10: an unlock the registry does not hold, or of another kind, is refused,
-    // in the dash branch too.
-    let unlocked = |id: &str| {
-        with_combo(chain(1), |w| {
-            w["combo"]["main"]["next"]["smash"] = json!({
-                "attack": slash(), "unlock": id });
-        })
-    };
-    assert_valid(&unlocked("giant_sword_aab"));
-    for bad in ["no_such_upgrade", "giant_sword", "Giant"] {
-        assert_eq!(
-            first_issue(&unlocked(bad)).path,
-            "$.player.weapon.inline.combo.main.next.smash.unlock",
-            "{bad}"
-        );
-    }
+fn a_step_has_no_unlock_any_more() {
+    // Every smash is open (ADR-117): the field the steps once took is refused like any other
+    // unknown field, in the combo and in the dash branch.
+    let unlocked = with_combo(chain(1), |w| {
+        w["combo"]["main"]["next"]["smash"] =
+            json!({ "attack": slash(), "unlock": "giant_sword_aab" });
+    });
+    assert!(serde_json::from_value::<Stage>(unlocked).is_err());
     let dash = with_combo(chain(1), |w| {
         w["dash"] = json!({ "main": { "attack": slash(), "unlock": "slash" } })
     });
-    assert_eq!(
-        first_issue(&dash).path,
-        "$.player.weapon.inline.dash.main.unlock"
-    );
+    assert!(serde_json::from_value::<Stage>(dash).is_err());
 }
 
 #[test]

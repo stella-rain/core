@@ -123,10 +123,13 @@ fn the_sword_and_the_hammer_have_the_five_a_shape_with_no_smash_locked() {
         }
         // Nothing sits under a smash, and AAAAA is the last normal attack.
         assert!(step_at(&w.combo, "AAAAAA").is_none(), "{weapon}");
+        // No step names an unlock: the field is gone from the type, and from the content.
+        let text = serde_json::to_string(w).unwrap();
+        assert!(!text.contains("unlock"), "{weapon}: a lock");
         let mut all = Vec::new();
         every_step(&w.combo, &mut all);
         every_step(&w.dash, &mut all);
-        assert!(all.iter().all(|s| s.unlock.is_none()), "{weapon}: a lock");
+        assert!(all.len() >= 11, "{weapon}: {} steps", all.len());
     }
 }
 

@@ -103,8 +103,7 @@ const WEAPONS: &[(&str, &[(&str, &str)])] = &[
     // after 8 ticks, and the release is a heavy slam at 100 times the default damage (ADR-103). B is an overhead smash (`slam`) and AB a ground shock, a forward
     // arc; a smash ends the combo. The dash-strike is a short spin, the dash smash `slam`. Smashes
     // pull what they hit by up to 40 pixels over 8 ticks; assist looks 128 pixels away. AAB (an
-    // arc) and AAAB (a wide circle) are Strike smashes at 100 times the default damage, placeholders,
-    // opened by the permanent upgrades `giant_hammer_aab` and `giant_hammer_aaab` (ADR-084 point 7).
+    // arc) and AAAB (a wide circle) are Strike smashes at 100 times the default damage, placeholders.
     (
         "giant_hammer",
         &[(
@@ -149,7 +148,7 @@ const WEAPONS: &[(&str, &[(&str, &str)])] = &[
                                     {"kind":"active","ticks":5,"move_pct":50,"type":"strike","damage":12000,
                                      "hit_box":{"type":"circle","radius":18432}},
                                     {"kind":"recovery","ticks":28,"move_pct":50}]}}}},
-                            "smash":{"attack":{"inline":[{"kind":"wind_up","ticks":16,"move_pct":50},{"kind":"active","ticks":5,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"circle","radius":16384}},{"kind":"recovery","ticks":26,"move_pct":50}]},"unlock":"giant_hammer_aaab"}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":12,"move_pct":50},{"kind":"active","ticks":4,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"arc","offset":{"forward":4096},"radius":14336,"half_angle":24576}},{"kind":"recovery","ticks":22,"move_pct":50}]},"unlock":"giant_hammer_aab"}}},
+                            "smash":{"attack":{"inline":[{"kind":"wind_up","ticks":16,"move_pct":50},{"kind":"active","ticks":5,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"circle","radius":16384}},{"kind":"recovery","ticks":26,"move_pct":50}]}}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":12,"move_pct":50},{"kind":"active","ticks":4,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"arc","offset":{"forward":4096},"radius":14336,"half_angle":24576}},{"kind":"recovery","ticks":22,"move_pct":50}]}}}},
                     "smash":{"attack":{"inline":[
                                 {"kind":"wind_up","ticks":14,"move_pct":50},
                                 {"kind":"active","ticks":4,"move_pct":50,"type":"strike",
@@ -175,8 +174,7 @@ const WEAPONS: &[(&str, &[(&str, &str)])] = &[
     // dash-strike is a lunge thrust, the dash smash a slash. Assist looks 160 pixels away.
     // Smashes put the bleed on what they hit, the bleed rune's numbers (ADR-084 point 8). AAB (a
     // wide Slash) and AAAB (a long Pierce) are smashes at 100 times the default damage,
-    // placeholders, opened by the permanent upgrades `giant_sword_aab` and `giant_sword_aaab`
-    // (ADR-084 point 7).
+    // placeholders. No smash is locked (ADR-117).
     (
         "giant_sword",
         &[(
@@ -211,7 +209,7 @@ const WEAPONS: &[(&str, &[(&str, &str)])] = &[
                                     {"kind":"active","ticks":4,"type":"slash","damage":12000,
                                      "hit_box":{"type":"arc","offset":{"forward":2048},"radius":12288,"half_angle":24576}},
                                     {"kind":"recovery","ticks":16}]}}}},
-                            "smash":{"attack":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":3,"type":"pierce","damage":10000,"hit_box":{"type":"circle","offset":{"forward":8192},"radius":4096}},{"kind":"recovery","ticks":18}]},"unlock":"giant_sword_aaab"}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":8},{"kind":"active","ticks":4,"type":"slash","damage":10000,"hit_box":{"type":"arc","offset":{"forward":2048},"radius":10240,"half_angle":20480}},{"kind":"recovery","ticks":14}]},"unlock":"giant_sword_aab"}}},
+                            "smash":{"attack":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":3,"type":"pierce","damage":10000,"hit_box":{"type":"circle","offset":{"forward":8192},"radius":4096}},{"kind":"recovery","ticks":18}]}}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":8},{"kind":"active","ticks":4,"type":"slash","damage":10000,"hit_box":{"type":"arc","offset":{"forward":2048},"radius":10240,"half_angle":20480}},{"kind":"recovery","ticks":14}]}}}},
                         "smash":{"attack":{"preset":{"id":"thrust"}}}}},
                 "smash":{"attack":{"preset":{"id":"slash"}}}},
             "dash":{"main":{"attack":{"preset":{"id":"thrust"}}},
