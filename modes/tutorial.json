@@ -16,7 +16,7 @@
   },
   "player": {
     "base": "pilot_a",
-    "hp": 500,
+    "hp": 50000,
     "atk": 1000,
     "weapon": {
       "preset": {

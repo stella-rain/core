@@ -444,7 +444,7 @@ fn a_carried_star_applies_at_tick_0_as_if_picked() {
         ..plain()
     };
     let e = start(&setup).unwrap();
-    assert_eq!(hp(&e), base + 200 + 200 + 500);
+    assert_eq!(hp(&e), base + (200 + 200 + 500) * DAMAGE_SCALE);
     assert_eq!(e.tick(), 0);
     assert!(e.events().is_empty());
 }

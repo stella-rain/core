@@ -460,3 +460,11 @@ fn upgrades_are_at_most_max_upgrades() {
         )
     );
 }
+
+#[test]
+fn the_modes_main_characters_hold_shown_hit_points_stored_times_100() {
+    for mode in ["trial", "tutorial"] {
+        let stage = validate::parse_and_validate(run_setup::mode_stage(mode).unwrap()).unwrap();
+        assert_eq!(stage.player.hp, 500 * 100, "{mode}");
+    }
+}

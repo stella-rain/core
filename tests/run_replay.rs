@@ -8,42 +8,51 @@ use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome, SpendError};
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{hash_to_hex, pack_inputs};
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::MAX_RUN_REPLAY_BYTES;
 use stella_rain_core::run_replay::{
     Command, CommandKind, MAX_COMMANDS, RunRecorder, RunReplay, RunReplayError, TickCommand,
-    content_sha256, pack_commands, record_run, verify_run, verify_run_against,
+    content_sha256, pack_commands, record_run, record_run_with, verify_run, verify_run_against,
+    verify_run_with,
 };
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::run_stats::RunStats;
+use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::Error;
 
 use crate::common;
 
 use common::run::{
-    SPEND_INDEX, TRIAL_LENGTH, first_point_tick, play_run, play_run_from, run_input, run_script,
-    trial_setup,
+    SPEND_INDEX, TRIAL_LENGTH, first_point_tick, play_run, play_run_in, run_input, run_script,
+    time_limit_setup, trial_setup,
 };
 
 fn recorded(ticks: u32) -> RunReplay {
     record_run(&trial_setup(), &play_run(ticks)).unwrap()
 }
 
-/// The seed of a trial run the script falls in before the length: since the heals hold shown hit
-/// points (app#336) the default seed's run lasts the whole length, and seed 1's ends at tick 2553.
-const FALLING_SEED: u64 = 1;
-
-/// The trial setup from `FALLING_SEED`.
-fn falling_setup() -> RunSetup {
-    RunSetup {
-        seed: FALLING_SEED,
-        ..trial_setup()
-    }
+/// A `time_limit` run that fails at tick 600: the final boss comes at tick 60 and the script never
+/// kills it in the 540 ticks of overtime. The trial's main character holds shown hit points
+/// (app#336), so no trial run falls on the script before its length.
+fn falling_content() -> RunContent {
+    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    v["length_ticks"] = json!(60);
+    v["boss_ticks"] = json!([60]);
+    v["overtime_ticks"] = json!(540);
+    v["waves"] = json!([]);
+    v["elite_table"] =
+        json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
+    let json = serde_json::to_string(&v).unwrap();
+    RunContent::bundled()
+        .clone()
+        .with_time_limit(TimeLimit::parse(json.as_bytes()).unwrap())
 }
 
-/// The trial run of `FALLING_SEED`, played to the length: it ends before it.
+/// The time_limit run of `falling_content`, played past its end: it ends before the length.
 fn fallen() -> RunReplay {
-    let setup = falling_setup();
-    record_run(&setup, &play_run_from(&setup, TRIAL_LENGTH)).unwrap()
+    let (setup, content) = (time_limit_setup(), falling_content());
+    let commands = play_run_in(&setup, &content, TRIAL_LENGTH);
+    record_run_with(&setup, &content, &commands).unwrap()
 }
 
 /// The replay's bytes with one field changed.
@@ -144,15 +153,16 @@ fn the_content_hash_is_the_same_every_time_and_only_modes_have_one() {
 #[test]
 fn a_run_that_ends_is_recorded_to_the_tick_it_ends() {
     let replay = fallen();
-    let verified = verify_run(&replay.to_bytes()).unwrap();
+    let verified = verify_run_with(&replay.to_bytes(), &falling_content()).unwrap();
     assert_eq!(verified.outcome, Outcome::Failed);
     assert!(replay.ticks < TRIAL_LENGTH, "the script's run ends early");
     assert_eq!(verified.ticks, replay.ticks);
 
     // Commands after the end are left out, as a stage replay leaves them out.
-    let mut more = play_run_from(&falling_setup(), TRIAL_LENGTH);
+    let (setup, content) = (time_limit_setup(), falling_content());
+    let mut more = play_run_in(&setup, &content, TRIAL_LENGTH);
     more.extend([Command::Step(run_script(0)), Command::Spend(0)]);
-    assert_eq!(record_run(&falling_setup(), &more).unwrap(), replay);
+    assert_eq!(record_run_with(&setup, &content, &more).unwrap(), replay);
 }
 
 #[test]
@@ -488,7 +498,7 @@ fn inputs_after_the_run_ended_are_refused() {
         v["inputs"] = json!(pack_inputs(&inputs));
     });
     assert_eq!(
-        verify_run(&bytes),
+        verify_run_with(&bytes, &falling_content()),
         Err(RunReplayError::InputsAfterEnd { ended_at: ended })
     );
 }

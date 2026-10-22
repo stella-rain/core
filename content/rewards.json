@@ -6,7 +6,7 @@
       "id": "max_hp_common",
       "rarity": "common",
       "effect": "max_hp",
-      "amount": 200,
+      "amount": 20000,
       "limit": 5,
       "title": "Vigour (Common)",
       "description": "200 more hit points at most, and as many healed"
@@ -15,7 +15,7 @@
       "id": "max_hp_rare",
       "rarity": "rare",
       "effect": "max_hp",
-      "amount": 500,
+      "amount": 50000,
       "limit": 3,
       "title": "Vigour (Rare)",
       "description": "500 more hit points at most, and as many healed"
@@ -24,7 +24,7 @@
       "id": "max_hp_legendary",
       "rarity": "legendary",
       "effect": "max_hp",
-      "amount": 1000,
+      "amount": 100000,
       "limit": 2,
       "title": "Vigour (Legendary)",
       "description": "1000 more hit points at most, and as many healed"
@@ -245,7 +245,7 @@
       "id": "max_hp_uncommon",
       "rarity": "uncommon",
       "effect": "max_hp",
-      "amount": 300,
+      "amount": 30000,
       "limit": 4,
       "title": "Vigour (Uncommon)",
       "description": "300 more hit points at most, and as many healed"
@@ -254,7 +254,7 @@
       "id": "max_hp_epic",
       "rarity": "epic",
       "effect": "max_hp",
-      "amount": 700,
+      "amount": 70000,
       "limit": 2,
       "title": "Vigour (Epic)",
       "description": "700 more hit points at most, and as many healed"
@@ -263,7 +263,7 @@
       "id": "max_hp_supernova",
       "rarity": "supernova",
       "effect": "max_hp",
-      "amount": 1600,
+      "amount": 160000,
       "limit": 2,
       "title": "Vigour (Supernova)",
       "description": "1600 more hit points at most, and as many healed"
