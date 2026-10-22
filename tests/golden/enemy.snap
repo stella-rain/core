@@ -106,7 +106,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":41,"type":"Input"}
 {"data":"5a4370270c170df4","dir":"be>fe","tick":41,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":42,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2,"target_kind":"bat"},"dir":"be>fe","tick":42,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":0},"dir":"be>fe","tick":42,"type":"Hit"}
 {"data":"cc3523d8d03f742f","dir":"be>fe","tick":42,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":true,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":43,"type":"Input"}
 {"data":{"depth":1,"press":"main"},"dir":"be>fe","tick":43,"type":"ComboStep"}
@@ -121,7 +121,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":47,"type":"Input"}
 {"data":"775c6069272ee0c4","dir":"be>fe","tick":47,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":48,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2,"target_kind":"bat"},"dir":"be>fe","tick":48,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":0},"dir":"be>fe","tick":48,"type":"Hit"}
 {"data":"cdcc3ba76d95821c","dir":"be>fe","tick":48,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":true,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":49,"type":"Input"}
 {"data":{"depth":1,"press":"main"},"dir":"be>fe","tick":49,"type":"ComboStep"}
@@ -137,7 +137,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":53,"type":"Input"}
 {"data":"634c7e4921cf2df6","dir":"be>fe","tick":53,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":54,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2,"target_kind":"bat"},"dir":"be>fe","tick":54,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":0},"dir":"be>fe","tick":54,"type":"Hit"}
 {"data":"4002d511a5beeb64","dir":"be>fe","tick":54,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":true,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":55,"type":"Input"}
 {"data":{"depth":1,"press":"main"},"dir":"be>fe","tick":55,"type":"ComboStep"}
@@ -152,7 +152,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":59,"type":"Input"}
 {"data":"c71a48372b89c838","dir":"be>fe","tick":59,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":60,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2,"target_kind":"bat"},"dir":"be>fe","tick":60,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":0},"dir":"be>fe","tick":60,"type":"Hit"}
 {"data":"f12e2338d3f863ae","dir":"be>fe","tick":60,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":true,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":61,"type":"Input"}
 {"data":{"depth":1,"press":"main"},"dir":"be>fe","tick":61,"type":"ComboStep"}
@@ -168,7 +168,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":65,"type":"Input"}
 {"data":"5cdf6a5533815896","dir":"be>fe","tick":65,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":66,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2,"target_kind":"bat"},"dir":"be>fe","tick":66,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":0},"dir":"be>fe","tick":66,"type":"Hit"}
 {"data":"e55452db04a10822","dir":"be>fe","tick":66,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":true,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":67,"type":"Input"}
 {"data":{"depth":1,"press":"main"},"dir":"be>fe","tick":67,"type":"ComboStep"}
@@ -183,7 +183,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":71,"type":"Input"}
 {"data":"2bc659d2874c2934","dir":"be>fe","tick":71,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":72,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2,"target_kind":"bat"},"dir":"be>fe","tick":72,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":0},"dir":"be>fe","tick":72,"type":"Hit"}
 {"data":"b5abfdf33bf89890","dir":"be>fe","tick":72,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":true,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":73,"type":"Input"}
 {"data":{"depth":1,"press":"main"},"dir":"be>fe","tick":73,"type":"ComboStep"}
@@ -199,7 +199,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":77,"type":"Input"}
 {"data":"8a0e1c138ff11b04","dir":"be>fe","tick":77,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":78,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2,"target_kind":"bat"},"dir":"be>fe","tick":78,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":0},"dir":"be>fe","tick":78,"type":"Hit"}
 {"data":"24e0e5bde3a1c260","dir":"be>fe","tick":78,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":true,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":79,"type":"Input"}
 {"data":{"depth":1,"press":"main"},"dir":"be>fe","tick":79,"type":"ComboStep"}
@@ -214,7 +214,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":83,"type":"Input"}
 {"data":"842b46a740a55fec","dir":"be>fe","tick":83,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":84,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2,"target_kind":"bat"},"dir":"be>fe","tick":84,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":0},"dir":"be>fe","tick":84,"type":"Hit"}
 {"data":"f17e9138e167718b","dir":"be>fe","tick":84,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":true,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":85,"type":"Input"}
 {"data":{"depth":1,"press":"main"},"dir":"be>fe","tick":85,"type":"ComboStep"}
@@ -230,5 +230,5 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":89,"type":"Input"}
 {"data":"c8da270157a1028f","dir":"be>fe","tick":89,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":90,"type":"Input"}
-{"data":{"damage":10,"source":0,"target":2,"target_kind":"bat"},"dir":"be>fe","tick":90,"type":"Hit"}
+{"data":{"damage":10,"source":0,"target":2,"target_kind":0},"dir":"be>fe","tick":90,"type":"Hit"}
 {"data":"636c32490209c334","dir":"be>fe","tick":90,"type":"StateHash"}
