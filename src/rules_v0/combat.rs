@@ -5,16 +5,21 @@
 //! A run without any of the rewards runs none of this: every entry point returns at once, the
 //! state writes nothing for them to the hash and no random number is drawn.
 
+use super::entity::Who;
 use crate::attack::MatchUp;
 use crate::engine::{Echo, PlayerState};
 use crate::event::DomainEvent;
+use crate::fixed::Fx;
 use crate::id::EntityId;
 use crate::rewards::{
+    MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_BURSTS_PER_TICK,
     MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_ECHOES_PER_TICK,
 };
 use crate::rng::SplitMix64;
+use crate::stage::Stage;
 
-use super::{PLAYER_ID, Shot, State};
+use super::agents::agent_def;
+use super::{PLAYER_ID, Shot, State, overlaps};
 
 /// Whether any combat reward is held: what the state hash writes them for.
 pub(super) fn held(p: &PlayerState) -> bool {
@@ -114,6 +119,79 @@ pub(super) fn deal_echoes(s: &mut State, events: &mut Vec<DomainEvent>) {
             echo.source,
             echo.damage.saturating_mul(super::AGGRO_PER_DAMAGE),
         );
+    }
+}
+
+/// Kill bursts, after the tick's hits and echoes have landed and before the kills are credited.
+/// Each enemy at 0 hit points that was defeated (not a self-destruct) bursts, in entity-ID
+/// order: the other enemies within the burst's radius of it (the edge of their circle counts)
+/// take the reward's percent of its maximum hit points (at least 1) as the main character's
+/// damage, which defence and vulnerability change as for any hit but which neither crits nor
+/// echoes. What a burst defeats bursts in the next round, in entity-ID order, down to the
+/// reward's depth: a chain of at most `MAX_BURST_DEPTH` links. At most `MAX_BURSTS_PER_TICK`
+/// bursts go off in a tick; a kill past that is still credited, it just does not burst. A
+/// burst's kills are credited like any other (experience, drops, kills for a heal); the depth
+/// is all that stops the chain. The boss and its parts are not hurt by a burst.
+pub(super) fn bursts(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let p = &s.player;
+    if p.burst_pct == 0 {
+        return;
+    }
+    let pct = u64::from(p.burst_pct.min(MAX_BURST_PCT));
+    let radius = i64::from(p.burst_radius.min(MAX_BURST_RADIUS_PX)) * i64::from(Fx::px(1).0);
+    let radius = i32::try_from(radius).unwrap_or(i32::MAX);
+    let depth = p.burst_depth.clamp(1, MAX_BURST_DEPTH);
+    let fallen = |s: &State| -> Vec<usize> {
+        (0..s.enemies.len())
+            .filter(|&i| s.enemies[i].hp == 0 && !s.enemies[i].burst)
+            .collect()
+    };
+    let mut round = fallen(s);
+    let mut gone_off = 0;
+    for link in 1..=depth {
+        let mut next = Vec::new();
+        for &i in &round {
+            if gone_off == MAX_BURSTS_PER_TICK {
+                return;
+            }
+            gone_off += 1;
+            let (at, max_hp) = (s.enemies[i].at, s.enemies[i].max_hp);
+            events.push(DomainEvent::KillBurst {
+                at,
+                radius,
+                depth: u8::try_from(link).unwrap_or(u8::MAX),
+            });
+            let amount = u32::try_from(u64::from(max_hp) * pct / 100)
+                .unwrap_or(u32::MAX)
+                .max(1);
+            let shot = Shot {
+                at,
+                owner: PLAYER_ID,
+                friendly: true,
+                damage: amount,
+                damage_type: None,
+                breaks_charge: false,
+                smash: None,
+                combo: false,
+                rune: None,
+                chain: true,
+            };
+            for j in 0..s.enemies.len() {
+                let e = &s.enemies[j];
+                if j == i
+                    || e.hp == 0
+                    || !overlaps(at, radius, e.at, agent_def(stage, e.key).radius.0)
+                {
+                    continue;
+                }
+                super::damage(stage, s, shot, Who::Enemy(j), events);
+                if s.enemies[j].hp == 0 {
+                    next.push(j);
+                }
+            }
+        }
+        round = next;
+        round.sort_unstable();
     }
 }
 
@@ -285,5 +363,120 @@ mod tests {
         assert_eq!(types, [(20, true), (40, true), (0, false)]);
         deal_echoes(&mut s, &mut events);
         assert_eq!(events.len(), 3, "nothing is dealt twice");
+    }
+
+    fn burst_state(pct: u32, radius: u32, depth: u32) -> State {
+        let mut s = state();
+        (
+            s.player.burst_pct,
+            s.player.burst_radius,
+            s.player.burst_depth,
+        ) = (pct, radius, depth);
+        s
+    }
+
+    /// An enemy of `max_hp` at `x` pixels along the top edge, at `hp`.
+    fn at_px(s: &mut State, id: u32, x: i32, hp: u32, max_hp: u32) {
+        with_enemy(s, id, hp);
+        let e = s.enemies.last_mut().unwrap();
+        e.at = Point {
+            x: Fx::px(x),
+            y: Fx::px(0),
+        };
+        e.max_hp = max_hp;
+    }
+
+    fn run(s: &mut State) -> Vec<DomainEvent> {
+        let stage = RunContent::bundled().trial().clone();
+        let mut events = Vec::new();
+        bursts(&stage, s, &mut events);
+        events
+    }
+
+    fn depths(events: &[DomainEvent]) -> Vec<u8> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                DomainEvent::KillBurst { depth, .. } => Some(*depth),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_run_without_the_reward_bursts_nothing() {
+        let mut s = state();
+        at_px(&mut s, 1, 0, 0, 100);
+        at_px(&mut s, 2, 10, 50, 100);
+        assert!(run(&mut s).is_empty());
+        assert_eq!(s.enemies[1].hp, 50);
+    }
+
+    #[test]
+    fn a_burst_takes_its_percent_of_max_hit_points_from_those_in_reach_only() {
+        let mut s = burst_state(40, 100, 1);
+        at_px(&mut s, 1, 0, 0, 100);
+        at_px(&mut s, 2, 90, 500, 500);
+        at_px(&mut s, 3, 400, 500, 500);
+        let events = run(&mut s);
+        assert_eq!(depths(&events), [1]);
+        // 40 of 100; the one 400 px away is untouched. No defence in the trial's enemies.
+        assert_eq!((s.enemies[1].hp, s.enemies[2].hp), (460, 500));
+        assert_eq!(s.enemies[0].hp, 0, "the dead are not hurt again");
+    }
+
+    #[test]
+    fn a_self_destruct_does_not_burst() {
+        let mut s = burst_state(100, 240, 3);
+        at_px(&mut s, 1, 0, 0, 100);
+        s.enemies[0].burst = true;
+        at_px(&mut s, 2, 10, 50, 100);
+        assert!(run(&mut s).is_empty());
+    }
+
+    #[test]
+    fn a_chain_stops_at_its_depth() {
+        for depth in 1..=3u32 {
+            let mut s = burst_state(100, 100, depth);
+            at_px(&mut s, 1, 0, 0, 100);
+            for n in 1..=4 {
+                at_px(&mut s, 1 + n, 90 * i32::try_from(n).unwrap(), 10, 100);
+            }
+            let events = run(&mut s);
+            let dead = s.enemies.iter().filter(|e| e.hp == 0).count();
+            assert_eq!(dead, 1 + depth as usize, "depth {depth}");
+            assert_eq!(depths(&events), (1..=depth as u8).collect::<Vec<_>>());
+        }
+    }
+
+    #[test]
+    fn at_most_eight_bursts_go_off_in_a_tick_and_the_earliest_ids_first() {
+        let mut s = burst_state(100, 1, 3);
+        // Ten fallen enemies far apart: each its own root.
+        for n in 0..10 {
+            at_px(&mut s, 1 + n, 1_000 * i32::try_from(n).unwrap(), 0, 100);
+        }
+        let events = run(&mut s);
+        assert_eq!(depths(&events), [1; MAX_BURSTS_PER_TICK]);
+        let places: Vec<i32> = events
+            .iter()
+            .filter_map(|e| match e {
+                DomainEvent::KillBurst { at, .. } => Some(at.x.0 / 256),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(places, (0..8).map(|n| 1_000 * n).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn the_totals_are_held_to_their_bounds() {
+        let mut s = burst_state(u32::MAX, u32::MAX, u32::MAX);
+        at_px(&mut s, 1, 0, 0, 100);
+        at_px(&mut s, 2, 239, 1_000, 1_000);
+        at_px(&mut s, 3, 241 + 8, 1_000, 1_000);
+        run(&mut s);
+        // 100 percent of 100, 240 px (+8 px of the enemy's own circle) of reach.
+        assert_eq!(s.enemies[1].hp, 900);
+        assert_eq!(s.enemies[2].hp, 1_000);
     }
 }

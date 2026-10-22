@@ -696,6 +696,7 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     let mut flags = consumed.into_iter();
     s.bullets.retain(|_| !flags.next().unwrap_or(false));
     s.companions.retain(|c| c.hp > 0);
+    combat::bursts(stage, s, events);
     levels::credit_defeated(stage, s, events);
     stardust::credit_defeated(stage, s);
     stars::drop_from_defeated(stage, s, events);
