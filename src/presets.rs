@@ -97,13 +97,14 @@ const DEFINITIONS: &[(&str, &str)] = &[
 /// Placeholders until the game design's weapons are written (Giant Sword and the others,
 /// app#209).
 const WEAPONS: &[(&str, &[(&str, &str)])] = &[
-    // The Vindictus shape (ADR-084): A, AA and AAA are spins around the main character, each
+    // The Vindictus shape (ADR-084): A to AAAAA are spins around the main character, each
     // wider than the last, and every Hammer step is Strike (ADR-100). AAA holds (ADR-084 point 6):
     // its loop spins on at half speed while A stays held, each loop a new attack that hits again
     // after 8 ticks, and the release is a heavy slam at 100 times the default damage (ADR-103). B is an overhead smash (`slam`) and AB a ground shock, a forward
     // arc; a smash ends the combo. The dash-strike is a short spin, the dash smash `slam`. Smashes
     // stun what they hit for 30 ticks (ADR-085); assist looks 128 pixels away. AAB (an
-    // arc) and AAAB (a wide circle) are Strike smashes at 100 times the default damage, placeholders.
+    // arc) and AAAB (a wide circle) are Strike smashes at 100 times the default damage, AAAAB (a
+    // wider circle) at 120 and AAAAAB (a crater, the strongest) at 160; placeholders.
     (
         "giant_hammer",
         &[(
