@@ -1,5 +1,5 @@
 //! What a run setup carries in besides its mode, weapon and seed (ADR-107): a perk set, the
-//! auto combo, the rune pool, the carried stars under the Lumine budget and the starting rune.
+//! rune pool, the carried stars under the Lumine budget and the starting rune.
 //! The setup is untrusted (ADR-020): known IDs, sorted and unique where a list says so, the
 //! budget kept, and anything else fails closed with one issue per problem and its path.
 
@@ -66,7 +66,6 @@ fn a_setup_from_before_these_fields_reads_with_the_defaults() {
     let setup = run_setup::parse_and_validate(old).unwrap();
     assert_eq!(setup.perk_set.0, DEFAULT_PERK_SET);
     assert_eq!(DEFAULT_PERK_SET, "duelist");
-    assert!(!setup.auto_combo);
     assert!(setup.rune_pool.is_empty());
     assert!(setup.carried.is_empty());
     assert_eq!(setup.lumine, 0);
@@ -77,17 +76,10 @@ fn a_setup_from_before_these_fields_reads_with_the_defaults() {
 fn a_new_setup_writes_its_perk_set_and_only_the_fields_it_uses() {
     let text = serde_json::to_string(&trial_setup()).unwrap();
     assert!(text.contains("\"perk_set\":\"duelist\""), "{text}");
-    for field in [
-        "auto_combo",
-        "rune_pool",
-        "carried",
-        "lumine",
-        "starting_rune",
-    ] {
+    for field in ["rune_pool", "carried", "lumine", "starting_rune"] {
         assert!(!text.contains(field), "{field} in {text}");
     }
     let full = RunSetup {
-        auto_combo: true,
         rune_pool: names(&["bleed", "explosion"]),
         carried: carry(&["max_hp_common"]),
         lumine: 1,
@@ -414,26 +406,7 @@ fn scholar_adds_two_rerolls_and_a_banish_to_an_offer() {
     assert_eq!(offer("scholar"), (rerolls + 2, banishes + 1));
 }
 
-// --- Auto combo, rune pool, carried stars, starting rune -------------------------------------
-
-#[test]
-fn the_auto_combo_starts_the_run_with_auto_mode_on_and_the_switch_turns_it_off() {
-    let run = |auto_combo: bool, switch: bool| {
-        let setup = RunSetup {
-            auto_combo,
-            ..plain()
-        };
-        hashes(start(&setup).unwrap(), 600, |t| Input {
-            auto: switch,
-            ..script(t)
-        })
-    };
-    let off = run(false, false);
-    let on_by_switch = run(false, true);
-    assert_ne!(off, on_by_switch, "auto mode changes the run");
-    assert_eq!(run(true, false), on_by_switch, "on from the first tick");
-    assert_eq!(run(true, true), off, "the switch turns it off");
-}
+// --- Rune pool, carried stars, starting rune -------------------------------------
 
 /// The setup's bytes with `"auto_combo":<value>` added, as a setup written before the field was
 /// removed carries it.
@@ -614,7 +587,6 @@ fn the_random_rune_draws_only_from_the_rune_pool_and_never_the_starting_rune_aga
 fn a_setup_with_all_of_it_runs_deterministically() {
     let setup = RunSetup {
         perk_set: "vanguard".into(),
-        auto_combo: true,
         rune_pool: names(&["bleed", "explosion", "thunder"]),
         carried: carry(&["attack_common", "speed_rare"]),
         lumine: 4,

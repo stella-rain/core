@@ -310,7 +310,6 @@ pub fn pack_load(data: &[u8]) -> bool {
             extra_rerolls: 0,
             upgrades: Vec::new(),
             perk_set: "duelist".into(),
-            auto_combo: false,
             rune_pool: Vec::new(),
             carried: Vec::new(),
             lumine: 0,

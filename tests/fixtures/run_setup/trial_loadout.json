@@ -1,1 +1,1 @@
-{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"giant_sword","seed":20261010,"perk_set":"vanguard","auto_combo":true,"rune_pool":["bleed","explosion","thunder"],"carried":[{"reward":"attack_common"},{"reward":"speed_rare"}],"lumine":4,"starting_rune":"thunder"}
+{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"giant_sword","seed":20261010,"perk_set":"vanguard","rune_pool":["bleed","explosion","thunder"],"carried":[{"reward":"attack_common"},{"reward":"speed_rare"}],"lumine":4,"starting_rune":"thunder"}
