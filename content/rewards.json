@@ -429,6 +429,331 @@
       "limit": 2,
       "title": "Regeneration (Supernova)",
       "description": "Hit points come back every second, a huge amount"
+    },
+    {
+      "id": "star_altair",
+      "rarity": "epic",
+      "effects": [
+        {
+          "effect": "speed_pct",
+          "amount": 20
+        },
+        {
+          "effect": "evade_charge",
+          "amount": 1
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Altair",
+      "weight": 50,
+      "title": "Altair",
+      "description": "The flier: 20 percent faster, and one more evade charge"
+    },
+    {
+      "id": "star_alnitak",
+      "rarity": "epic",
+      "effects": [
+        {
+          "effect": "type_bonus_pct",
+          "amount": 30,
+          "type": "pyro"
+        },
+        {
+          "effect": "rune_haste",
+          "amount": 40
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Alnitak",
+      "weight": 50,
+      "title": "Alnitak",
+      "description": "The flame: 30 percent more Pyro damage, and runes recover 40 percent sooner"
+    },
+    {
+      "id": "star_alnilam",
+      "rarity": "epic",
+      "effects": [
+        {
+          "effect": "attack_pct",
+          "amount": 20
+        },
+        {
+          "effect": "range_pct",
+          "amount": 15
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Alnilam",
+      "weight": 50,
+      "title": "Alnilam",
+      "description": "The brightest of the Belt: 20 percent more damage and 15 percent more range"
+    },
+    {
+      "id": "star_mintaka",
+      "rarity": "epic",
+      "effects": [
+        {
+          "effect": "max_hp",
+          "amount": 50000
+        },
+        {
+          "effect": "regen",
+          "amount": 3000
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Mintaka",
+      "weight": 50,
+      "title": "Mintaka",
+      "description": "The sturdy one: 500 more hit points at most, and 30 hit points a second"
+    },
+    {
+      "id": "star_dubhe",
+      "rarity": "epic",
+      "effects": [
+        {
+          "effect": "pickup_radius_pct",
+          "amount": 60
+        },
+        {
+          "effect": "xp_pct",
+          "amount": 25
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Dubhe",
+      "weight": 50,
+      "title": "Dubhe",
+      "description": "A pointer: falling stars are picked up from 60 percent farther, and 25 percent more experience"
+    },
+    {
+      "id": "star_rigel",
+      "rarity": "epic",
+      "effects": [
+        {
+          "effect": "type_bonus_pct",
+          "amount": 30,
+          "type": "cryo"
+        },
+        {
+          "effect": "attack_speed_pct",
+          "amount": 10
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Rigel",
+      "weight": 50,
+      "title": "Rigel",
+      "description": "The blue giant: 30 percent more Cryo damage and 10 percent faster attacks"
+    },
+    {
+      "id": "star_deneb",
+      "rarity": "legendary",
+      "effects": [
+        {
+          "effect": "crit_chance_pct",
+          "amount": 15
+        },
+        {
+          "effect": "crit_damage_pct",
+          "amount": 50
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Deneb",
+      "weight": 50,
+      "title": "Deneb",
+      "description": "The far lamp: a 15 percent chance of a critical hit, and 50 percent more damage on one"
+    },
+    {
+      "id": "star_vega",
+      "rarity": "legendary",
+      "effects": [
+        {
+          "effect": "skill_cooldown_pct",
+          "amount": 30
+        },
+        {
+          "effect": "attack_pct",
+          "amount": 12
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Vega",
+      "weight": 50,
+      "title": "Vega",
+      "description": "The standard star: stage skills recover 30 percent sooner, and 12 percent more damage"
+    },
+    {
+      "id": "star_mizar",
+      "rarity": "legendary",
+      "effects": [
+        {
+          "effect": "echo_hit_pct",
+          "amount": 35
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Mizar",
+      "weight": 50,
+      "title": "Mizar",
+      "description": "The double star: each hit lands again as an echo of 35 percent"
+    },
+    {
+      "id": "star_alkaid",
+      "rarity": "legendary",
+      "effects": [
+        {
+          "effect": "range_pct",
+          "amount": 35
+        },
+        {
+          "effect": "attack_type_bonus_pct",
+          "amount": 25
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Alkaid",
+      "weight": 50,
+      "title": "Alkaid",
+      "description": "The tail of the Dipper: 35 percent more range, and 25 percent more Slash, Pierce and Strike damage"
+    },
+    {
+      "id": "star_procyon",
+      "rarity": "legendary",
+      "effects": [
+        {
+          "effect": "random_rune"
+        },
+        {
+          "effect": "rune_haste",
+          "amount": 100
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Procyon",
+      "weight": 50,
+      "title": "Procyon",
+      "description": "Before the dog: a rune for free, and runes recover twice as fast"
+    },
+    {
+      "id": "star_antares",
+      "rarity": "legendary",
+      "effects": [
+        {
+          "effect": "heal_per_kills",
+          "amount": 10000,
+          "kills": 20
+        },
+        {
+          "effect": "max_hp",
+          "amount": 80000
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Antares",
+      "weight": 50,
+      "title": "Antares",
+      "description": "The red heart: 100 hit points back every 20 kills, and 800 more hit points at most"
+    },
+    {
+      "id": "star_sirius",
+      "rarity": "supernova",
+      "effects": [
+        {
+          "effect": "orbit",
+          "amount": 4,
+          "orbit": {
+            "attack": {
+              "inline": [
+                {
+                  "kind": "active",
+                  "ticks": 20,
+                  "type": "slash",
+                  "damage": 1500,
+                  "hit_box": {
+                    "type": "circle",
+                    "offset": {
+                      "forward": 15360
+                    },
+                    "radius": 3072
+                  }
+                }
+              ]
+            },
+            "turn_per_tick": 1280,
+            "cooldown_ticks": 120
+          }
+        },
+        {
+          "effect": "attack_pct",
+          "amount": 30
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Sirius",
+      "weight": 50,
+      "title": "Sirius",
+      "description": "The Dog Star: a companion of four orbs that attack on their own, and 30 percent more damage"
+    },
+    {
+      "id": "star_betelgeuse",
+      "rarity": "supernova",
+      "effects": [
+        {
+          "effect": "kill_burst",
+          "amount": 40,
+          "radius": 120,
+          "depth": 3
+        },
+        {
+          "effect": "max_hp",
+          "amount": 80000
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Betelgeuse",
+      "weight": 50,
+      "title": "Betelgeuse",
+      "description": "The dying giant: a kill bursts for 40 percent of its hit points in 120 pixels, chaining 3 times, and 800 more hit points at most"
+    },
+    {
+      "id": "star_polaris",
+      "rarity": "supernova",
+      "effects": [
+        {
+          "effect": "offer_candidates",
+          "amount": 1
+        },
+        {
+          "effect": "rerolls",
+          "amount": 3
+        },
+        {
+          "effect": "banishes",
+          "amount": 2
+        }
+      ],
+      "limit": 1,
+      "named": true,
+      "star": "Polaris",
+      "weight": 50,
+      "title": "Polaris",
+      "description": "The guide: a fourth candidate in every offer, 3 rerolls and 2 banishes"
     }
   ]
 }

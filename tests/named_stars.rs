@@ -133,3 +133,12 @@ fn taking_a_random_rune_bundle_gives_the_rune_and_the_haste() {
     assert_eq!(player.runes.len(), 1);
     assert_eq!(player.rune_haste_pct, 100);
 }
+
+#[test]
+fn the_bundled_rewards_file_validates_with_its_named_stars() {
+    // The file itself, before it is copied into the pack: every cap of NS1 and NS2 applies.
+    let rewards = Rewards::parse(Rewards::BUNDLED).unwrap_or_else(|e| panic!("{e}"));
+    let stars: Vec<_> = rewards.rewards().iter().filter(|r| r.named).collect();
+    assert_eq!(stars.len(), 15);
+    assert_eq!(rewards.rewards().len(), 62);
+}
