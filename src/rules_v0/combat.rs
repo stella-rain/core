@@ -140,7 +140,10 @@ pub(super) fn bursts(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>
     let pct = u64::from(p.burst_pct.min(MAX_BURST_PCT));
     let radius = i64::from(p.burst_radius.min(MAX_BURST_RADIUS_PX)) * i64::from(Fx::px(1).0);
     let radius = i32::try_from(radius).unwrap_or(i32::MAX);
-    let depth = p.burst_depth.clamp(1, MAX_BURST_DEPTH);
+    let depth = p
+        .burst_depth
+        .saturating_add(p.burst_depth_extra)
+        .clamp(1, MAX_BURST_DEPTH);
     let fallen = |s: &State| -> Vec<usize> {
         (0..s.enemies.len())
             .filter(|&i| s.enemies[i].hp == 0 && !s.enemies[i].burst)

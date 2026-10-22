@@ -240,9 +240,16 @@ fn a_tiers_effects_are_the_reward_effects_with_the_same_caps() {
     let of = |effects: Vec<Value>| file(vec![set("s", &["n1", "n2"], vec![tier(2, effects)])]);
     invalid_at(&of(vec![]), "$.constellations[0].tiers[0].effects");
     invalid_at(
-        &of(vec![rerolls(1), rerolls(1), rerolls(1), rerolls(1)]),
+        &of(vec![
+            rerolls(1),
+            rerolls(1),
+            rerolls(1),
+            rerolls(1),
+            rerolls(1),
+        ]),
         "$.constellations[0].tiers[0].effects",
     );
+    parse(&of(vec![rerolls(1), rerolls(1), rerolls(1), rerolls(1)])).expect("four effects");
     // One entry beyond its kind's largest amount.
     invalid_at(
         &of(vec![rerolls(11)]),
@@ -254,7 +261,7 @@ fn a_tiers_effects_are_the_reward_effects_with_the_same_caps() {
         "$.constellations[0].tiers[0].effects",
     );
     parse(&of(vec![rerolls(5), max_hp(1_000)])).expect("two kinds");
-    // An orbit and a random rune key on a reward, not on a set.
+    // A random rune keys on a reward, not on a set.
     invalid_at(
         &of(vec![json!({ "effect": "random_rune" })]),
         "$.constellations[0].tiers[0].effects[0].effect",
@@ -632,4 +639,114 @@ fn carried_stars_count_at_the_start_and_the_full_tier_replaces_the_small() {
     assert_eq!(both.snapshot().player.hp, base + 3_000);
     let view = &both.snapshot().constellations[0];
     assert_eq!((view.held, view.tier), (2, 2));
+}
+
+/// An orbit of `amount` orbs for a set's tier: each orb one active phase.
+fn orbit_effect(amount: u32) -> Value {
+    json!({
+        "effect": "orbit", "amount": amount,
+        "orbit": {
+            "attack": { "inline": [
+                { "kind": "active", "ticks": 4, "damage": 7,
+                  "hit_box": { "type": "circle", "offset": { "forward": 10_240 },
+                               "radius": 1_024 } }
+            ] },
+            "turn_per_tick": 3_840,
+            "cooldown_ticks": 60
+        }
+    })
+}
+
+fn orbit_trio() -> Value {
+    set(
+        "trio",
+        &["n1", "n2", "n3"],
+        vec![
+            tier(2, vec![rerolls(1)]),
+            tier(3, vec![rerolls(1), orbit_effect(3)]),
+        ],
+    )
+}
+
+#[test]
+fn a_tier_may_give_an_orbit_but_not_a_random_rune() {
+    parse(&file(vec![orbit_trio()])).expect("a tier with an orbit validates");
+    let mut bare = orbit_trio();
+    bare["tiers"][1]["effects"][1]["orbit"] = Value::Null;
+    invalid_at(
+        &file(vec![bare]),
+        "$.constellations[0].tiers[1].effects[1].orbit",
+    );
+    let rune = set(
+        "trio",
+        &["n1", "n2", "n3"],
+        vec![
+            tier(2, vec![rerolls(1)]),
+            tier(3, vec![rerolls(1), json!({ "effect": "random_rune" })]),
+        ],
+    );
+    invalid_at(
+        &file(vec![rune]),
+        "$.constellations[0].tiers[1].effects[1].effect",
+    );
+}
+
+#[test]
+fn reaching_a_tier_with_an_orbit_gives_its_orbs() {
+    let mut e = engine(&epic_near(), trio_list(), Some(file(vec![orbit_trio()])));
+    for star in ["n1", "n2", "n3"] {
+        assert!(e.snapshot().player.orbits.is_empty(), "before {star}");
+        next_offer(&mut e);
+        take(&mut e, star);
+    }
+    let orbits = &e.snapshot().player.orbits;
+    assert_eq!(orbits.len(), 1);
+    assert_eq!((orbits[0].reward.0.as_str(), orbits[0].orbs), ("trio", 3));
+}
+
+#[test]
+fn a_tier_that_adds_burst_depth_applies_once() {
+    let burst = json!({ "effect": "kill_burst", "amount": 10, "radius": 50, "depth": 3 });
+    let trio = set(
+        "trio",
+        &["n1", "n2", "n3"],
+        vec![
+            tier(2, vec![rerolls(1)]),
+            tier(
+                3,
+                vec![rerolls(1), json!({ "effect": "burst_depth", "amount": 2 })],
+            ),
+        ],
+    );
+    let mut list = trio_list();
+    list[0]["effects"] = json!([burst]);
+    let mut e = engine(&epic_near(), list, Some(file(vec![trio])));
+    for star in ["n1", "n2", "n3"] {
+        next_offer(&mut e);
+        take(&mut e, star);
+    }
+    assert_eq!(e.snapshot().player.burst_depth, 5);
+}
+
+#[test]
+fn a_sets_tiers_give_one_orbit_and_orbits_are_counted_with_the_rewards() {
+    // The same orbit at both tiers, 1 orb then 3.
+    let both = set(
+        "trio",
+        &["n1", "n2", "n3"],
+        vec![
+            tier(2, vec![orbit_effect(1)]),
+            tier(3, vec![orbit_effect(3)]),
+        ],
+    );
+    parse(&file(vec![both])).expect("the same orbit with more orbs");
+    // Another orbit at the top tier is refused.
+    let mut other = orbit_effect(3);
+    other["orbit"]["cooldown_ticks"] = json!(90);
+    let differs = set(
+        "trio",
+        &["n1", "n2", "n3"],
+        vec![tier(2, vec![orbit_effect(1)]), tier(3, vec![other])],
+    );
+    invalid_at(&file(vec![differs]), "$.constellations[0].tiers");
 }

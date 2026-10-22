@@ -1498,6 +1498,10 @@
         {
           "effect": "banishes",
           "amount": 2
+        },
+        {
+          "effect": "xp_pct",
+          "amount": 40
         }
       ],
       "limit": 1,
@@ -1505,7 +1509,7 @@
       "star": "Polaris",
       "weight": 50,
       "title": "Polaris",
-      "description": "The guide: a fourth candidate in every offer, 3 rerolls and 2 banishes"
+      "description": "The guide: a fourth candidate in every offer, 3 rerolls, 2 banishes and 40 percent more experience"
     }
   ]
 },
@@ -2354,6 +2358,31 @@
             {
               "effect": "speed_pct",
               "amount": 15
+            },
+            {
+              "effect": "orbit",
+              "amount": 3,
+              "orbit": {
+                "attack": {
+                  "inline": [
+                    {
+                      "kind": "active",
+                      "ticks": 20,
+                      "type": "slash",
+                      "damage": 1000,
+                      "hit_box": {
+                        "type": "circle",
+                        "offset": {
+                          "forward": 15360
+                        },
+                        "radius": 3072
+                      }
+                    }
+                  ]
+                },
+                "turn_per_tick": 1280,
+                "cooldown_ticks": 120
+              }
             }
           ]
         }
@@ -2465,6 +2494,10 @@
             {
               "effect": "max_hp",
               "amount": 150000
+            },
+            {
+              "effect": "burst_depth",
+              "amount": 2
             }
           ]
         }

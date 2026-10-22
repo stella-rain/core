@@ -50,6 +50,9 @@ pub const MAX_STACK: u8 = 20;
 pub const MAX_ORBS: u8 = 8;
 /// The most orbit rewards a file lists, and so the most orbits a run holds.
 pub const MAX_ORBITS: usize = 4;
+/// Where the orbit keys of constellations start: a set's orbit is keyed `ORBIT_SET_BASE` plus its
+/// place in the file, above any place of a reward (`MAX_REWARDS` is 128).
+pub const ORBIT_SET_BASE: u16 = 0x8000;
 /// The fastest an orbit turns: 15 degrees a tick, either way.
 pub const MAX_ORBIT_TURN: i32 = 15 * PER_DEGREE;
 /// The longest cooldown of an orbit: one minute.
@@ -108,7 +111,7 @@ pub const MAX_BURST_PCT: u32 = 100;
 /// add up to.
 pub const MAX_BURST_RADIUS_PX: u32 = 240;
 /// The most links of a chain of bursts (a reward's `depth`): the first burst is the first link.
-pub const MAX_BURST_DEPTH: u32 = 3;
+pub const MAX_BURST_DEPTH: u32 = 5;
 /// The most bursts one tick resolves, as ADR-058's contagion cap; the rest are dropped.
 pub const MAX_BURSTS_PER_TICK: usize = 8;
 
@@ -222,6 +225,10 @@ pub enum RewardEffect {
     /// pixels for `amount` percent of the dead enemy's maximum hit points, and a burst kill
     /// bursts again, down to `depth` links.
     KillBurst,
+    /// `amount` more links on the chain of kill bursts, up to `MAX_BURST_DEPTH` in all: it adds
+    /// to the depth of a `kill_burst` held, in whatever order they came, and does nothing
+    /// alone.
+    BurstDepth,
 }
 
 impl RewardEffect {
@@ -253,6 +260,7 @@ impl RewardEffect {
             | RewardEffect::CritDamagePct
             | RewardEffect::EchoHitPct
             | RewardEffect::KillBurst
+            | RewardEffect::BurstDepth
             | RewardEffect::RandomRune => return None,
         })
     }
@@ -298,7 +306,7 @@ pub struct EffectEntry {
 }
 
 /// The most effects one reward holds.
-pub const MAX_REWARD_EFFECTS: usize = 3;
+pub const MAX_REWARD_EFFECTS: usize = 4;
 /// The most named rewards a file lists (a placeholder bound, ADR-020).
 pub const MAX_NAMED_REWARDS: usize = 32;
 /// The weight a reward has when its file gives none.
@@ -586,6 +594,30 @@ impl Rewards {
     pub fn sha256(&self) -> [u8; 32] {
         self.sha256
     }
+
+    /// The orbit a run's orbit key names: the key of an orbit reward is its place in the file,
+    /// that of a constellation's orbit is `ORBIT_SET_BASE` and the set's place.
+    pub fn orbit_def(&self, key: u16) -> Option<&Orbit> {
+        match key.checked_sub(ORBIT_SET_BASE) {
+            None => self.rewards.get(usize::from(key))?.orbit(),
+            Some(set) => self
+                .constellations
+                .sets()
+                .get(usize::from(set))?
+                .tiers
+                .iter()
+                .flat_map(|t| &t.effects)
+                .find_map(|e| e.orbit.as_ref()),
+        }
+    }
+
+    /// The ID an orbit key shows under: its reward's, or its set's.
+    pub fn orbit_id(&self, key: u16) -> Option<ContentId> {
+        match key.checked_sub(ORBIT_SET_BASE) {
+            None => Some(self.rewards.get(usize::from(key))?.id.clone()),
+            Some(set) => Some(self.constellations.sets().get(usize::from(set))?.id.clone()),
+        }
+    }
 }
 
 /// The largest amount of one effect; for Rune Haste, the file's cap `haste_cap`.
@@ -606,6 +638,7 @@ fn most_of(effect: RewardEffect, haste_cap: u32) -> u32 {
         RewardEffect::CritDamagePct => MAX_CRIT_DAMAGE_PCT,
         RewardEffect::EchoHitPct => MAX_ECHO_HIT_PCT,
         RewardEffect::KillBurst => MAX_BURST_PCT,
+        RewardEffect::BurstDepth => MAX_BURST_DEPTH,
         _ => MAX_AMOUNT,
     }
 }

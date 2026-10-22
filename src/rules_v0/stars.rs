@@ -31,8 +31,8 @@ use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::{
     EffectEntry, MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
-    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, Rarity, RewardEffect,
-    Rewards,
+    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, ORBIT_SET_BASE, Rarity,
+    RewardEffect, Rewards,
 };
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
@@ -394,7 +394,9 @@ pub(super) fn take(
             if before < tier.threshold && tier.threshold <= held {
                 let lower = t.checked_sub(1).map(|p| &c.tiers[p]);
                 let delta = constellations::tier_delta(lower, tier);
-                apply_effects(stage, rewards, rng, progress, player, regen, f, i, &delta);
+                // A tier's orbit is keyed on its set (`Rewards::orbit_def`).
+                let key = ORBIT_SET_BASE + u16::try_from(set).unwrap_or(0);
+                apply_effects(stage, rewards, rng, progress, player, regen, f, key, &delta);
                 tiers.push((set, u8::try_from(t + 1).unwrap_or(u8::MAX)));
             }
         }
@@ -474,6 +476,12 @@ fn apply_effects(
                     .saturating_add(radius)
                     .min(MAX_BURST_RADIUS_PX);
                 player.burst_depth = player.burst_depth.max(depth).min(MAX_BURST_DEPTH);
+            }
+            RewardEffect::BurstDepth => {
+                player.burst_depth_extra = player
+                    .burst_depth_extra
+                    .saturating_add(amount)
+                    .min(MAX_BURST_DEPTH)
             }
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
             // The perks' counters (`loadout::perk`), added to for the rest of the run.

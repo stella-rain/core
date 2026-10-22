@@ -3368,6 +3368,11 @@
           "description": "A kill by the main character bursts: it damages the other enemies within `radius`\npixels for `amount` percent of the dead enemy's maximum hit points, and a burst kill\nbursts again, down to `depth` links.",
           "type": "string",
           "const": "kill_burst"
+        },
+        {
+          "description": "`amount` more links on the chain of kill bursts, up to `MAX_BURST_DEPTH` in all: it adds\nto the depth of a `kill_burst` held, in whatever order they came, and does nothing\nalone.",
+          "type": "string",
+          "const": "burst_depth"
         }
       ]
     },

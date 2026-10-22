@@ -65,11 +65,7 @@ fn facing(angle: i32, j: u8, round: u8) -> Dir {
 pub(super) fn act(stage: &Stage, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
     for k in 0..s.player.orbits.len() {
         let mut o = s.player.orbits[k];
-        let Some(def) = rewards
-            .rewards()
-            .get(usize::from(o.reward))
-            .and_then(|r| r.orbit())
-        else {
+        let Some(def) = rewards.orbit_def(o.reward) else {
             continue;
         };
         o.cooldown_left = o.cooldown_left.saturating_sub(1);
