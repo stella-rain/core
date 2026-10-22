@@ -122,6 +122,10 @@ impl StartingUnlocks {
     }
 }
 
+/// Whether an ID is one the game holds.
+trait KnownId: Fn(&ContentId) -> bool {}
+impl<F: Fn(&ContentId) -> bool> KnownId for F {}
+
 /// Validates a parsed file: one issue per problem, with its path, never text from the file.
 pub fn validate(
     file: &StartingUnlocksFile,
@@ -138,7 +142,7 @@ pub fn validate(
             runes.on_hit(rune).is_some() || runes.damage_over_time(rune).is_some()
         })
     };
-    let lists: [(&str, &[ContentId], &dyn Fn(&ContentId) -> bool); 4] = [
+    let lists: [(&str, &[ContentId], &dyn KnownId); 4] = [
         ("weapons", &file.weapons, &weapon_known),
         ("perk_sets", &file.perk_sets, &perk_set_known),
         ("stage_skills", &file.stage_skills, &stage_skill_known),
