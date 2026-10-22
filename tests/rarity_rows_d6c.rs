@@ -40,7 +40,9 @@ fn effect_of(r: &Value) -> &Value {
 
 /// The ordinary rewards (no named star, no stage skill, no random rune) by family: the effect
 /// and its damage type, each with its rows in file order as `(rarity, amount, limit, weight)`.
-fn families(file: &Value) -> BTreeMap<(String, String), Vec<(String, u64, u64, u64)>> {
+type Rows = Vec<(String, u64, u64, u64)>;
+
+fn families(file: &Value) -> BTreeMap<(String, String), Rows> {
     let mut out: BTreeMap<_, Vec<_>> = BTreeMap::new();
     for r in rows(file) {
         let e = effect_of(r);
