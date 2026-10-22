@@ -25,8 +25,10 @@ pub const SPEND_INDEX: u32 = 1;
 /// numbers of app#298 (the new rewards in the pool, the runes) seed 66 no longer does, and seed
 /// 10 is the first of `1..` that does. With the Sword's five-A tree and every smash open
 /// (ADR-117) seed 10's run uses the nova as well, and seed 35 is the first of `1..` that uses
-/// the black hole alone, at level 1, again.
-pub const STAGE_SKILL_SEED: u64 = 35;
+/// the black hole alone, at level 1, again. With the six-rarity rows and a type bonus per
+/// damage type (D6c, 135 rewards) seed 35 no longer does; seeds 1 to 15 fail the same assertion
+/// and 16 is the first of `1..` that passes it.
+pub const STAGE_SKILL_SEED: u64 = 16;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
 /// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
@@ -39,8 +41,9 @@ pub const KILL_SEED: u64 = 1;
 /// (ADR-106) the main character's build differs and seed 20261010 no longer does; under the
 /// default perk set (ADR-105) seed 15 no longer does either; this one is the first of `1..`
 /// that does. With the numbers of app#298 seed 5 no longer does (the run ends in a clear, or
-/// no middle-grade elite lives to shoot); seed 32 is the first of `1..` that does.
-pub const ELITES_SEED: u64 = 32;
+/// no middle-grade elite lives to shoot); seed 32 is the first of `1..` that does. With D6c's 135 rewards seed 32's run ends in a clear;
+/// seeds 1 to 21 fail the same assertion and 22 is the first of `1..` that passes it.
+pub const ELITES_SEED: u64 = 22;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {

@@ -36,11 +36,15 @@ use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
 /// The largest rewards file read (a tuning value; ADR-020 decides that one exists).
-pub const MAX_REWARDS_BYTES: usize = 32 * 1024;
+pub const MAX_REWARDS_BYTES: usize = 64 * 1024;
 /// The most rewards a file lists.
-pub const MAX_REWARDS: usize = 128;
+pub const MAX_REWARDS: usize = 192;
 /// The largest amount: a percentage or a count; for hit points, `MAX_HP_AMOUNT`.
 pub const MAX_AMOUNT: u32 = 100;
+/// The largest amount of one type bonus reward, in percent: twice `MAX_AMOUNT`, so that the
+/// supernova row (128, D6c) fits. The bonuses that apply to an attack's type saturate at the
+/// match-up file's `max_type_bonus_pct` (a placeholder bound, ADR-020).
+pub const MAX_TYPE_BONUS_AMOUNT: u32 = 200;
 /// The largest amount of hit points: 5,000 shown hit points, scaled (ADR-103); Vigour (Supernova)
 /// gives 1,600 shown.
 pub const MAX_HP_AMOUNT: u32 = 5_000 * DAMAGE_SCALE;
@@ -51,7 +55,7 @@ pub const MAX_ORBS: u8 = 8;
 /// The most orbit rewards a file lists, and so the most orbits a run holds.
 pub const MAX_ORBITS: usize = 4;
 /// Where the orbit keys of constellations start: a set's orbit is keyed `ORBIT_SET_BASE` plus its
-/// place in the file, above any place of a reward (`MAX_REWARDS` is 128).
+/// place in the file, above any place of a reward (`MAX_REWARDS` is 192).
 pub const ORBIT_SET_BASE: u16 = 0x8000;
 /// The fastest an orbit turns: 15 degrees a tick, either way.
 pub const MAX_ORBIT_TURN: i32 = 15 * PER_DEGREE;
@@ -286,9 +290,9 @@ pub struct EffectEntry {
     /// the levels it gives, from 1 to `MAX_SKILL_LEVELS`; for evade charges, the charges it
     /// adds, from 1 to `MAX_EVADE_CHARGES`; for an orbit, the orbs it adds, from 1 to
     /// `MAX_ORBS`; for range, how much wider, from 1 to `MAX_RANGE_PCT` percent; for Rune
-    /// Haste, the percent of haste, from 1 to the file's `max_rune_haste_pct`; for a type bonus, the
-    /// percent, from 1 to `MAX_AMOUNT`. Required by every effect but the random rune, which
-    /// has none.
+    /// Haste, the percent of haste, from 1 to the file's `max_rune_haste_pct`; for a type bonus,
+    /// the percent, from 1 to `MAX_TYPE_BONUS_AMOUNT`. Required by every effect but the random
+    /// rune, which has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub amount: Option<u32>,
     /// The kills between two heals, from 1 to `MAX_HEAL_KILLS`: with the `heal_per_kills`
@@ -627,6 +631,7 @@ fn most_of(effect: RewardEffect, haste_cap: u32) -> u32 {
         RewardEffect::EvadeCharge => u32::from(MAX_EVADE_CHARGES),
         RewardEffect::Orbit => u32::from(MAX_ORBS),
         RewardEffect::RangePct => MAX_RANGE_PCT,
+        RewardEffect::TypeBonusPct => MAX_TYPE_BONUS_AMOUNT,
         RewardEffect::RuneHaste => haste_cap.min(MAX_RUNE_HASTE_PCT),
         RewardEffect::MaxHp | RewardEffect::Regen => MAX_HP_AMOUNT,
         RewardEffect::PickupRadiusPct => MAX_PICKUP_RADIUS_PCT,

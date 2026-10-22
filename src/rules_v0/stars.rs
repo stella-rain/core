@@ -188,6 +188,7 @@ pub(super) fn pick_up(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent
 /// Opens the first offer due that has a candidate, unless an offer is open; with `boss_only`,
 /// only while the first due is the boss offer.
 pub(super) fn open_due(
+    stage: &Stage,
     rewards: &Rewards,
     s: &mut State,
     events: &mut Vec<DomainEvent>,
@@ -196,6 +197,7 @@ pub(super) fn open_due(
     if super::offer_open(s) {
         return;
     }
+    let rune_weight = random_rune_weight(stage, s);
     let State {
         rng, stars, player, ..
     } = s;
@@ -212,7 +214,15 @@ pub(super) fn open_due(
         let size = offer_size(f);
         let mut candidates = Vec::with_capacity(size);
         while candidates.len() < size {
-            match draw(rewards, f, held_runes, rng, rarity, &candidates) {
+            match draw(
+                rewards,
+                f,
+                held_runes,
+                rng,
+                rarity,
+                &candidates,
+                rune_weight,
+            ) {
                 Some(i) => candidates.push(i),
                 None => break,
             }
@@ -274,8 +284,18 @@ fn first_rarity(
         })
 }
 
+/// The random rune's draw weight set by the drop table's tier for the player's level, if it
+/// sets one: it replaces the reward's own `weight` in the draws of an offer.
+fn random_rune_weight(stage: &Stage, s: &State) -> Option<u16> {
+    stage
+        .stars
+        .as_ref()
+        .and_then(|cfg| tier_of(cfg, s))
+        .and_then(|t| t.random_rune_weight)
+}
+
 /// Draws one reward from the pool at `top`, or the rarest rarity below it with one left,
-/// leaving out `held`.
+/// leaving out `held`. The random rune weighs `rune_weight` when given.
 fn draw(
     rewards: &Rewards,
     f: &StarField,
@@ -283,6 +303,7 @@ fn draw(
     rng: &mut SplitMix64,
     top: Rarity,
     held: &[u16],
+    rune_weight: Option<u16>,
 ) -> Option<u16> {
     let rarity = first_rarity(rewards, f, runes, top, held)?;
     let list: Vec<u16> = f
@@ -293,7 +314,15 @@ fn draw(
         .collect();
     // One draw over the weights, divided by their greatest common divisor: equal weights are
     // one each, so the draw is `below(len)` as it was before rewards had weights.
-    let weight = |i: u16| u32::from(rewards.rewards()[usize::from(i)].weight).max(1);
+    let weight = |i: u16| {
+        let r = &rewards.rewards()[usize::from(i)];
+        let own = if r.is_random_rune() {
+            rune_weight.unwrap_or(r.weight)
+        } else {
+            r.weight
+        };
+        u32::from(own).max(1)
+    };
     let step = list.iter().fold(0, |g, i| gcd(g, weight(*i)));
     let total: u32 = list.iter().map(|i| weight(*i) / step).sum();
     let mut at = rng.below(total);
@@ -528,6 +557,7 @@ pub(super) fn choose(
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
+    let rune_weight = random_rune_weight(stage, s);
     let State {
         rng,
         stars,
@@ -565,7 +595,15 @@ pub(super) fn choose(
         }
         OfferOption::Reroll { candidate } => {
             let slot = usize::from(candidate);
-            if let Some(new) = draw(rewards, f, &player.runes, rng, o.rarity, &o.candidates) {
+            if let Some(new) = draw(
+                rewards,
+                f,
+                &player.runes,
+                rng,
+                o.rarity,
+                &o.candidates,
+                rune_weight,
+            ) {
                 f.rerolls_left = f.rerolls_left.saturating_sub(1);
                 o.candidates[slot] = new;
                 events.push(DomainEvent::CandidateReplaced {
@@ -589,7 +627,15 @@ pub(super) fn choose(
             events.push(DomainEvent::RewardBanished {
                 reward: id(rewards, i),
             });
-            match draw(rewards, f, &player.runes, rng, o.rarity, &o.candidates) {
+            match draw(
+                rewards,
+                f,
+                &player.runes,
+                rng,
+                o.rarity,
+                &o.candidates,
+                rune_weight,
+            ) {
                 Some(new) => {
                     o.candidates[slot] = new;
                     events.push(DomainEvent::CandidateReplaced {
@@ -735,6 +781,7 @@ mod tests {
                 supernova: 1,
                 ..RarityWeights::default()
             },
+            random_rune_weight: None,
         }];
         let pool = RunPool {
             rewards: (0..3).collect(),

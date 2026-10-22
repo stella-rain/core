@@ -430,6 +430,7 @@ fn epic_near() -> Stage {
             epic: 1,
             ..RarityWeights::default()
         },
+        random_rune_weight: None,
     }];
     stage
 }

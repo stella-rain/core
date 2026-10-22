@@ -68,6 +68,7 @@ mod properties;
 mod push_apart;
 mod range_reward;
 mod rarities;
+mod rarity_rows_d6c;
 mod recording;
 mod registry;
 mod replay;
