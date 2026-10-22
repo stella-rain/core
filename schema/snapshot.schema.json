@@ -567,6 +567,17 @@
         "kind": {
           "$ref": "#/$defs/EntityKind"
         },
+        "kind_id": {
+          "description": "The content ID that names its kind, the one the Bestiary keys on: an enemy's, an elite's,\na boss's or a companion's sprite ID, a boss part's own ID. Absent for a mimic still in\ndisguise (`asset` is then its disguise).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "palette": {
           "anyOf": [
             {
