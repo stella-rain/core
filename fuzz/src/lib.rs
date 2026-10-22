@@ -305,6 +305,7 @@ pub fn pack_load(data: &[u8]) -> bool {
             sim_version: pack.sim_version(),
             mode: mode.into(),
             weapon: "giant_sword".into(),
+            weapon_tree: None,
             seed: u64::from(pick(data, 0)),
             star_pool: None,
             extra_rerolls: 0,

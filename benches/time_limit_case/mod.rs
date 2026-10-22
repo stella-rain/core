@@ -34,6 +34,7 @@ pub fn setup() -> RunSetup {
         sim_version: 0,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
+        weapon_tree: None,
         seed: 1,
         star_pool: None,
         extra_rerolls: 0,
