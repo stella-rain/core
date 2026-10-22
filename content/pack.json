@@ -630,7 +630,8 @@
     "immune_ticks": 60,
     "elite_pct": 50
   },
-  "max_attack_speed_pct": 500
+  "max_attack_speed_pct": 500,
+  "enemy_attack_damage": 10000
 },
   "rewards": {
   "schema_version": 0,
@@ -1845,7 +1846,7 @@
             {
               "id": "crush_9",
               "effect": "max_hp",
-              "amount": 200,
+              "amount": 20000,
               "title": "Iron Grip",
               "description": "200 more hit points at most, and as many healed"
             }
@@ -1897,7 +1898,7 @@
         {
           "id": "bulwark",
           "effect": "max_hp",
-          "amount": 200,
+          "amount": 20000,
           "title": "Bulwark",
           "description": "200 more hit points at most, and as many healed",
           "upgrade_1": [
@@ -1913,7 +1914,7 @@
             {
               "id": "bulwark_9",
               "effect": "max_hp",
-              "amount": 300,
+              "amount": 30000,
               "title": "Stone Skin",
               "description": "300 more hit points at most, and as many healed"
             }
@@ -1954,7 +1955,7 @@
         {
           "id": "vitality",
           "effect": "max_hp",
-          "amount": 100,
+          "amount": 10000,
           "title": "Vitality",
           "description": "100 more hit points at most, and as many healed"
         },
@@ -2098,7 +2099,7 @@
         {
           "id": "vitality",
           "effect": "max_hp",
-          "amount": 100,
+          "amount": 10000,
           "title": "Vitality",
           "description": "100 more hit points at most, and as many healed"
         },
