@@ -131,7 +131,7 @@ fn answer_and_spend(run: &mut RunRecorder, bot: Bot) {
 
 /// The most commands the measurement found (`measure_the_longest_run`), pinned: `MAX_COMMANDS`
 /// is at least twice it.
-const MEASURED_MOST: usize = 188;
+const MEASURED_MOST: usize = 244;
 
 /// The bundled mode cut to 20 seconds with a boss at 10 and at 20 and 5 of overtime, a run
 /// that a debug build plays in seconds.
