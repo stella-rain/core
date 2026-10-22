@@ -117,6 +117,7 @@ fn the_exported_pack_has_its_fields_in_order() {
         "\"runes\"",
         "\"perk_sets\": {",
         "\"difficulties\": {",
+        "\"starting_unlocks\": {",
         "\"modes\"",
     ];
     let at: Vec<usize> = keys.iter().map(|k| text.find(k).unwrap()).collect();
@@ -260,7 +261,7 @@ fn a_file_of_another_version_is_refused() {
 /// the file itself is read (the extra entries are copies, which the file would refuse too).
 #[test]
 fn each_count_budget_is_enforced() {
-    let lists: [(&str, usize); 20] = [
+    let lists: [(&str, usize); 24] = [
         ("/run_stats/stats", pack::MAX_RUN_STATS),
         ("/rewards/rewards", pack::MAX_REWARDS),
         ("/stage_skills/stage_skills", pack::MAX_STAGE_SKILLS),
@@ -270,6 +271,10 @@ fn each_count_budget_is_enforced() {
         ("/runes/damage_over_time", pack::MAX_DAMAGE_OVER_TIME_RUNES),
         ("/perk_sets/perk_sets", pack::MAX_PERK_SETS),
         ("/difficulties/difficulties", pack::MAX_DIFFICULTIES),
+        ("/starting_unlocks/weapons", pack::MAX_STARTING_UNLOCKS),
+        ("/starting_unlocks/perk_sets", pack::MAX_STARTING_UNLOCKS),
+        ("/starting_unlocks/stage_skills", pack::MAX_STARTING_UNLOCKS),
+        ("/starting_unlocks/runes", pack::MAX_STARTING_UNLOCKS),
         ("/modes/time_limit/waves", pack::MAX_TIME_LIMIT_WAVES),
         ("/modes/time_limit/boss_ticks", pack::MAX_BOSS_TICKS),
         ("/modes/time_limit/mid_boss_pool", pack::MAX_MID_BOSS_POOL),

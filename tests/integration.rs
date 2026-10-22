@@ -86,6 +86,7 @@ mod stardust;
 mod stardust_earners;
 mod stardust_tiers;
 mod stars;
+mod starting_unlocks;
 mod statuses;
 mod stun;
 mod thunder;
