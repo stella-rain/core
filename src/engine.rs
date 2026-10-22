@@ -550,6 +550,10 @@ impl Engine {
                     .collect(),
                 range_pct: s.player.range_pct,
                 rune_haste_pct: s.player.rune_haste_pct,
+                pickup_radius_pct: s.player.pickup_radius_pct,
+                skill_cooldown_pct: s.player.skill_cooldown_pct,
+                kill_heal: s.player.kill_heal,
+                kill_heal_every: s.player.kill_heal_every,
                 type_bonuses: DamageType::ALL
                     .iter()
                     .zip(s.player.type_bonus_pct)
@@ -814,6 +818,9 @@ pub(crate) struct StarField {
     pub offer: Option<OfferState>,
     pub rerolls_left: u32,
     pub banishes_left: u32,
+    /// Candidates the offer-candidates rewards taken add to every offer, held to
+    /// `MAX_OFFER_CANDIDATES` less the base `OFFER_SIZE`.
+    pub extra_candidates: u8,
     /// The rarities its stars and offers may have, lowest and highest (ADR-110): fixed for the
     /// run, so the state hash writes nothing for it.
     pub rarity: (Rarity, Rarity),
@@ -909,6 +916,22 @@ pub(crate) struct PlayerState {
     pub range_pct: u32,
     /// What the Rune Haste rewards taken add up to, in percent, saturating (ADR-099).
     pub rune_haste_pct: u32,
+    /// What the pickup radius rewards taken add up to, in percent, saturating: the pickup
+    /// circle of stars and heal pickups is that much wider, held to
+    /// `MAX_PICKUP_RADIUS_TOTAL_PCT` where it is used.
+    pub pickup_radius_pct: u32,
+    /// What the skill cooldown rewards taken add up to, in percent, saturating: the stage
+    /// skill's cooldown is that much shorter, held to `MAX_SKILL_COOLDOWN_TOTAL_PCT`.
+    pub skill_cooldown_pct: u32,
+    /// Hit points (the stage's scale) the heal-per-kills rewards taken heal together each time
+    /// `kill_heal_every` kills have been counted; their amounts add up, held to
+    /// `MAX_HEAL_AMOUNT` where it is used.
+    pub kill_heal: u32,
+    /// The kills between two such heals: the shortest interval among the picks, 0 while none
+    /// is held.
+    pub kill_heal_every: u32,
+    /// Kills counted since the last such heal, below `kill_heal_every` between ticks.
+    pub kills_counted: u32,
     /// What the type bonus rewards taken add up to for each damage type, by its place in
     /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
     /// type of its group.

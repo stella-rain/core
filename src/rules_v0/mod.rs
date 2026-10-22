@@ -287,6 +287,11 @@ pub(crate) fn initial_state(
             orbits: Vec::new(),
             range_pct: 0,
             rune_haste_pct: 0,
+            pickup_radius_pct: 0,
+            skill_cooldown_pct: 0,
+            kill_heal: 0,
+            kill_heal_every: 0,
+            kills_counted: 0,
             type_bonus_pct: [0; DamageType::ALL.len()],
             runes: Vec::new(),
             aggro: 0,
@@ -316,6 +321,7 @@ pub(crate) fn initial_state(
             rarity: pool.difficulty.rarity,
             rerolls_left: u32::from(st.rerolls) + u32::from(pool.extra_rerolls),
             banishes_left: u32::from(st.banishes),
+            extra_candidates: 0,
             rune_pool: runes::FULL_POOL,
             pool: pool.rewards,
             taken: vec![0; rewards],
@@ -619,6 +625,13 @@ fn overlaps(a: Point, ra: i32, b: Point, rb: i32) -> bool {
     dx * dx + dy * dy <= r * r
 }
 
+/// A pickup circle of `radius` widened by `pct` percent, the percent held to
+/// `MAX_PICKUP_RADIUS_TOTAL_PCT` (the pickup radius rewards).
+fn widened(radius: i32, pct: u32) -> i32 {
+    let pct = i64::from(pct.min(crate::rewards::MAX_PICKUP_RADIUS_TOTAL_PCT));
+    i32::try_from(i64::from(radius) * (100 + pct) / 100).unwrap_or(i32::MAX)
+}
+
 /// What a hit needs to know about the bullet that made it.
 #[derive(Clone, Copy)]
 struct Shot {
@@ -674,6 +687,7 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     stardust::credit_defeated(stage, s);
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
+    heal::kills_heal(s, events);
     s.enemies.retain(|e| e.hp > 0);
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         stars::boss_killed(stage, s);
@@ -1631,6 +1645,21 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     // runs without it stay as they were: what the picks add up to. Haste never goes.
     if s.player.rune_haste_pct > 0 {
         h.write_u32(s.player.rune_haste_pct);
+    }
+    // The same for the pickup radius and the skill cooldown rewards (core NS2a).
+    if s.player.pickup_radius_pct > 0 {
+        h.write_u32(s.player.pickup_radius_pct);
+    }
+    if s.player.skill_cooldown_pct > 0 {
+        h.write_u32(s.player.skill_cooldown_pct);
+    }
+    if let Some(f) = s.stars.as_ref().filter(|f| f.extra_candidates > 0) {
+        h.write_u32(u32::from(f.extra_candidates));
+    }
+    if s.player.kill_heal_every > 0 {
+        h.write_u32(s.player.kill_heal);
+        h.write_u32(s.player.kill_heal_every);
+        h.write_u32(s.player.kills_counted);
     }
     // Last of all, and only in a run with a horde: the bosses come so far, and which pool
     // entries are drawn.

@@ -1136,12 +1136,29 @@
           "format": "uint32",
           "minimum": 0
         },
+        "kill_heal": {
+          "description": "Hit points (the stage's scale) the heal-per-kills rewards taken heal together every\n`kill_heal_every` kills; both 0 while none is held.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "kill_heal_every": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "orbits": {
           "description": "The orbits rewards gave, in the order they came (ADR-069).",
           "type": "array",
           "items": {
             "$ref": "#/$defs/OrbitView"
           }
+        },
+        "pickup_radius_pct": {
+          "description": "What the pickup radius rewards taken add up to, in percent, before the clamp at\n`MAX_PICKUP_RADIUS_TOTAL_PCT`: the pickup circle of stars and heal pickups is that\nmuch wider.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         },
         "pull": {
           "description": "The stage skill's pull while it pulls.",
@@ -1198,6 +1215,12 @@
               "type": "null"
             }
           ]
+        },
+        "skill_cooldown_pct": {
+          "description": "What the skill cooldown rewards taken add up to, in percent, before the clamp at\n`MAX_SKILL_COOLDOWN_TOTAL_PCT`: the stage skill's cooldown is already that much shorter.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         },
         "statuses": {
           "description": "Its statuses, sorted by ID (ADR-103 decision 3): the timed buffs and debuffs it holds.",

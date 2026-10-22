@@ -14,8 +14,8 @@
 //! opens even though the kill clears the stage, and the stars' offers due then open after it.
 //!
 //! At the end of a tick the run survives or clears, the first offer due opens, after the boss offer and
-//! the expertise levels' (`expertise`). It draws `OFFER_SIZE` candidates from the run's pool
-//! at the star's rarity, then from the rarities below while too few are left. It leaves out banished rewards, rewards at their limit and rewards it already
+//! the expertise levels' (`expertise`). It draws `offer_size` candidates (`OFFER_SIZE`, one more for each
+//! offer-candidates reward taken, at most 4) from the run's pool at the star's rarity, then from the rarities below while too few are left. It leaves out banished rewards, rewards at their limit and rewards it already
 //! holds, and the random rune once the Main weapon holds every rune (ADR-099), whose rune is
 //! drawn only when it is taken. An offer with no candidate does not open, and the next one due is tried. While an
 //! offer is open the world stops. A choice (`choose`) takes a candidate, rerolls one, skips (a
@@ -28,17 +28,23 @@ use crate::engine::{
 };
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
-use crate::rewards::{Rarity, RewardEffect, Rewards};
+use crate::rewards::{MAX_OFFER_CANDIDATES, Rarity, RewardEffect, Rewards};
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
 use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
-use super::{levels, orbit, overlaps, player, runes, skill};
+use super::{levels, orbit, overlaps, player, runes, skill, widened};
 
 /// The candidates an offer holds (a tuning value, ADR-079 §3).
 pub(crate) const OFFER_SIZE: usize = 3;
+/// The candidates a star's offer holds: the base, and one more for each offer-candidates reward
+/// taken, at most `MAX_OFFER_CANDIDATES`.
+fn offer_size(f: &StarField) -> usize {
+    (OFFER_SIZE + usize::from(f.extra_candidates)).min(MAX_OFFER_CANDIDATES)
+}
+
 /// The drop chance is out of this.
 const PER_MILLE: u32 = 1000;
 
@@ -151,12 +157,13 @@ pub(super) fn pick_up(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent
         return;
     }
     let at = s.player.at;
+    let pickup_pct = s.player.pickup_radius_pct;
     let Some(f) = s.stars.as_mut() else {
         return;
     };
     let stars = std::mem::take(&mut f.on_map);
     for star in stars {
-        if overlaps(at, cfg.pickup_radius.0, star.at, 0) {
+        if overlaps(at, widened(cfg.pickup_radius.0, pickup_pct), star.at, 0) {
             f.due.push(Due {
                 kind: OfferKind::Star,
                 rarity: star.rarity,
@@ -195,8 +202,9 @@ pub(super) fn open_due(
             .is_some_and(|d| !boss_only || d.kind == OfferKind::Boss)
     {
         let Due { kind, rarity } = f.due.remove(0);
-        let mut candidates = Vec::with_capacity(OFFER_SIZE);
-        while candidates.len() < OFFER_SIZE {
+        let size = offer_size(f);
+        let mut candidates = Vec::with_capacity(size);
+        while candidates.len() < size {
             match draw(rewards, f, held_runes, rng, rarity, &candidates) {
                 Some(i) => candidates.push(i),
                 None => break,
@@ -356,7 +364,30 @@ pub(super) fn take(
             RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
             RewardEffect::Orbit => orbit::take(player, i, amount),
             RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
+            RewardEffect::PickupRadiusPct => {
+                player.pickup_radius_pct = player.pickup_radius_pct.saturating_add(amount)
+            }
+            RewardEffect::SkillCooldownPct => {
+                player.skill_cooldown_pct = player.skill_cooldown_pct.saturating_add(amount)
+            }
+            RewardEffect::HealPerKills => {
+                // Every pick adds its amount and heals at the shortest interval among them.
+                let every = entry.kills.unwrap_or(0).max(1);
+                player.kill_heal = player.kill_heal.saturating_add(amount);
+                player.kill_heal_every = match player.kill_heal_every {
+                    0 => every,
+                    held => held.min(every),
+                };
+            }
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
+            // The perks' counters (`loadout::perk`), added to for the rest of the run.
+            RewardEffect::OfferCandidates => {
+                let room = u8::try_from(MAX_OFFER_CANDIDATES - OFFER_SIZE).unwrap_or(u8::MAX);
+                let more = u8::try_from(amount).unwrap_or(u8::MAX);
+                f.extra_candidates = f.extra_candidates.saturating_add(more).min(room);
+            }
+            RewardEffect::Rerolls => f.rerolls_left = f.rerolls_left.saturating_add(amount),
+            RewardEffect::Banishes => f.banishes_left = f.banishes_left.saturating_add(amount),
             RewardEffect::RuneHaste => {
                 player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
             }
@@ -579,5 +610,42 @@ mod tests {
             (due[0].kind, due[0].rarity),
             (OfferKind::Boss, Rarity::Rare)
         );
+    }
+
+    #[test]
+    fn heal_per_kills_picks_add_their_amounts_and_heal_at_the_shortest_interval() {
+        let heal = |id: &str, amount: u32, kills: u32| {
+            serde_json::json!({ "id": id, "rarity": "epic", "named": true, "star": id,
+                "limit": 1, "effects": [{ "effect": "heal_per_kills", "amount": amount,
+                "kills": kills }], "title": "Heal", "description": "" })
+        };
+        let file = serde_json::json!({ "schema_version": 0, "sim_version": 0,
+            "rewards": [heal("a", 300, 10), heal("b", 200, 4)] });
+        let rewards = Rewards::parse(file.to_string().as_bytes()).expect("valid");
+        let stage = RunContent::bundled().trial().clone();
+        let pool = RunPool {
+            rewards: vec![0, 1],
+            extra_rerolls: 0,
+            upgrades: 0,
+            difficulty: RunDifficulty {
+                hp_pct: 100,
+                damage_pct: 100,
+                rarity: ALL,
+            },
+        };
+        let mut s = initial_state(&stage, RunContent::bundled(), pool, 1);
+        let State {
+            rng,
+            stars,
+            progress,
+            player,
+            regen,
+            ..
+        } = &mut s;
+        let f = stars.as_mut().expect("a star field");
+        take(&stage, &rewards, rng, progress, player, regen, f, 0);
+        assert_eq!((player.kill_heal, player.kill_heal_every), (300, 10));
+        take(&stage, &rewards, rng, progress, player, regen, f, 1);
+        assert_eq!((player.kill_heal, player.kill_heal_every), (500, 4));
     }
 }
