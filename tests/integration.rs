@@ -17,6 +17,7 @@ mod boss;
 mod bosses;
 mod charge;
 mod collide_case;
+mod combat_reward_kinds;
 mod command_cap;
 mod content_hash;
 mod content_pack;

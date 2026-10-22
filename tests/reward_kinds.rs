@@ -17,22 +17,22 @@ use stella_rain_core::validate::limits::MAX_HEAL_AMOUNT;
 
 use crate::common::*;
 
-fn entry(effect: &str, amount: u32) -> Value {
+pub(crate) fn entry(effect: &str, amount: u32) -> Value {
     json!({ "effect": effect, "amount": amount })
 }
 
-fn file_of(effects: Vec<Value>) -> Value {
+pub(crate) fn file_of(effects: Vec<Value>) -> Value {
     json!({ "schema_version": 0, "sim_version": 0, "rewards": [{
         "id": "kind", "rarity": "rare", "effects": effects, "limit": 3,
         "title": "Kind", "description": ""
     }] })
 }
 
-fn parse(v: &Value) -> Result<Rewards, Error> {
+pub(crate) fn parse(v: &Value) -> Result<Rewards, Error> {
     Rewards::parse(v.to_string().as_bytes())
 }
 
-fn invalid_at(v: &Value, path: &str) {
+pub(crate) fn invalid_at(v: &Value, path: &str) {
     match parse(v) {
         Err(Error::Invalid(issues)) => {
             assert!(issues.iter().any(|i| i.path == path), "{path}: {issues:?}")
@@ -41,7 +41,7 @@ fn invalid_at(v: &Value, path: &str) {
     }
 }
 
-const AMOUNT: &str = "$.rewards[0].effects[0].amount";
+pub(crate) const AMOUNT: &str = "$.rewards[0].effects[0].amount";
 
 #[test]
 fn the_new_kinds_parse_with_no_stat_and_are_bounded() {
@@ -117,12 +117,12 @@ fn heal_per_kills_holds_an_amount_and_a_kill_interval() {
 // The effects in a short run.
 
 /// 32 pixels above the main character: inside the pickup circle (48 pixels).
-const NEAR_Y: i32 = START_Y - 8_192;
+pub(crate) const NEAR_Y: i32 = START_Y - 8_192;
 /// 60 pixels above it: outside the circle, inside the weapon's reach.
 const FAR_Y: i32 = START_Y - 15_360;
 
 /// A Main weapon of one step, a circle of 64 pixels, 10 damage.
-fn weapon() -> Value {
+pub(crate) fn weapon() -> Value {
     json!({ "inline": {
         "combo": { "main": { "attack": { "inline": [
             { "kind": "active", "ticks": 1, "damage": 10,
@@ -135,7 +135,7 @@ fn weapon() -> Value {
 }
 
 /// Levels of 1000 experience and stars that every kill drops as common.
-fn starry(stage: Stage) -> Stage {
+pub(crate) fn starry(stage: Stage) -> Stage {
     let mut stage = stage;
     stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
     stage.stars = Some(
@@ -150,7 +150,7 @@ fn starry(stage: Stage) -> Stage {
 }
 
 /// `count` enemies of 10 hp, one every 6 ticks from tick 1, at `NEAR_Y`.
-fn near(count: u16) -> Stage {
+pub(crate) fn near(count: u16) -> Stage {
     let waves = vec![wave(
         1,
         count,
@@ -165,24 +165,24 @@ fn near(count: u16) -> Stage {
     ))
 }
 
-fn plain(id: &str, weight: u32) -> Value {
+pub(crate) fn plain(id: &str, weight: u32) -> Value {
     json!({ "id": id, "rarity": "common", "effect": "attack_pct", "amount": 1, "limit": 5,
             "weight": weight, "title": "Might", "description": "" })
 }
 
-fn kind(id: &str, effects: Vec<Value>, weight: u32, limit: u8) -> Value {
+pub(crate) fn kind(id: &str, effects: Vec<Value>, weight: u32, limit: u8) -> Value {
     json!({ "id": id, "rarity": "common", "effects": effects, "limit": limit,
             "weight": weight, "title": "Kind", "description": "" })
 }
 
-fn with(stage: &Stage, list: Vec<Value>) -> Engine {
+pub(crate) fn with(stage: &Stage, list: Vec<Value>) -> Engine {
     let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": list });
     let rewards = Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate");
     let content = RunContent::new(RunStats::bundled().clone(), rewards);
     Engine::new_with(stage, &content).expect("the test stage is valid")
 }
 
-fn take(e: &mut Engine, reward: &str) {
+pub(crate) fn take(e: &mut Engine, reward: &str) {
     let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
     let candidate = offer
         .candidates
@@ -196,12 +196,12 @@ fn take(e: &mut Engine, reward: &str) {
     e.choose(u32::try_from(index).unwrap()).unwrap();
 }
 
-fn next_offer(e: &mut Engine) {
+pub(crate) fn next_offer(e: &mut Engine) {
     fire_until(e, idle(), 600, Engine::offer_open);
     assert!(e.offer_open(), "no offer within 600 ticks");
 }
 
-fn offer(e: &Engine) -> stella_rain_core::snapshot::OfferView {
+pub(crate) fn offer(e: &Engine) -> stella_rain_core::snapshot::OfferView {
     e.snapshot().progress.unwrap().offer.expect("an open offer")
 }
 
