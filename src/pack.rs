@@ -10,7 +10,7 @@
 //! from the pack.
 //!
 //! A content ID a pack introduces, the file's own ID of a run stat, a reward, a stage skill, or
-//! a style or option of a weapon's expertise, or an elite type of the `time_limit` mode, records the `sim_version` that introduced it in
+//! a style or option of a weapon's expertise, an elite type of the `time_limit` mode, or a constellation (listed only when the pack has the list), records the `sim_version` that introduced it in
 //! the pack's `introduced` table, each exactly once, and is refused when that is newer than the
 //! pack's own (ADR-080, as the registry's IDs are for a stage, ADR-017). The registry's IDs a
 //! file names are checked against the registry by the file's own parser.
@@ -142,6 +142,11 @@ pub struct Introduced {
     pub expertise: Vec<WeaponIds>,
     /// The elite types of the `time_limit` mode file (ADR-090).
     pub elite_types: Vec<IntroducedId>,
+    /// The constellations (core#NS4). Optional: a pack released with the file but before the
+    /// list has none, stays valid and records no version for its sets. A list names each set of
+    /// the pack's file once.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub constellations: Option<Vec<IntroducedId>>,
 }
 
 /// An ID and the `sim_version` that introduced it: at most the pack's.
@@ -557,6 +562,13 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
         introduced.expertise.len(),
         MAX_EXPERTISE_WEAPONS,
     )?;
+    if let Some(listed) = &introduced.constellations {
+        budget(
+            "$.introduced.constellations",
+            listed.len(),
+            MAX_CONSTELLATIONS,
+        )?;
+    }
     for (w, weapon) in introduced.expertise.iter().enumerate() {
         budget(
             format!("$.introduced.expertise[{w}].ids"),
@@ -804,6 +816,19 @@ fn check_introduced(
         &elites,
         sim_version,
     );
+    if let Some(listed) = &introduced.constellations {
+        let sets = paths(
+            "constellations.constellations",
+            rewards.constellations().sets().iter().map(|c| &c.id),
+        );
+        check_ids(
+            &mut issues,
+            "$.introduced.constellations",
+            listed,
+            &sets,
+            sim_version,
+        );
+    }
     for (k, entry) in introduced.expertise.iter().enumerate() {
         let at = format!("$.introduced.expertise[{k}]");
         let found = expertise
@@ -906,6 +931,15 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
                 .map(|t| &t.id)
                 .collect(),
         ),
+        constellations: Some(list(
+            content
+                .constellations()
+                .sets()
+                .iter()
+                .map(|c| &c.id)
+                .collect(),
+        ))
+        .filter(|l| !l.is_empty()),
     }
 }
 
@@ -928,13 +962,17 @@ pub fn export_bundled() -> Vec<u8> {
         &Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
     )
     .expect("the bundled starting unlocks");
+    let bundled_rewards = Rewards::parse_with(
+        Rewards::BUNDLED,
+        &StageSkills::parse(StageSkills::BUNDLED).expect("the bundled stage skills"),
+    )
+    .expect("the bundled rewards");
+    let sets = Constellations::parse_with(Constellations::BUNDLED, &bundled_rewards)
+        .expect("the bundled constellations");
+    let bundled_rewards = bundled_rewards.with_constellations(sets);
     let content = RunContent::from_parts(
         RunStats::parse(RunStats::BUNDLED).expect("the bundled run stats"),
-        Rewards::parse_with(
-            Rewards::BUNDLED,
-            &StageSkills::parse(StageSkills::BUNDLED).expect("the bundled stage skills"),
-        )
-        .expect("the bundled rewards"),
+        bundled_rewards,
         Expertise::parse(Expertise::BUNDLED).expect("the bundled expertise"),
         MatchUps::parse(MatchUps::BUNDLED).expect("the bundled match-ups"),
         Runes::parse(Runes::BUNDLED).expect("the bundled runes"),
@@ -969,6 +1007,10 @@ pub fn export_bundled() -> Vec<u8> {
     out.push_str(&format!(
         "  \"starting_unlocks\": {},\n",
         file(StartingUnlocks::BUNDLED)
+    ));
+    out.push_str(&format!(
+        "  \"constellations\": {},\n",
+        file(Constellations::BUNDLED)
     ));
     out.push_str(&format!(
         "  \"modes\": {{\n    \"trial\": {},\n    \"time_limit\": {},\n    \"tutorial\": {}\n  }}\n}}\n",

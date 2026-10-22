@@ -102,6 +102,9 @@ pub struct Constellations {
 }
 
 impl Constellations {
+    /// The bundled file's bytes: the sets of the bundled named stars.
+    pub const BUNDLED: &'static [u8] = include_bytes!("../content/constellations.json");
+
     /// Checks the size, parses strictly and validates against `rewards`, whose named stars the
     /// members must be: the one call for a file's bytes.
     pub fn parse_with(bytes: &[u8], rewards: &Rewards) -> Result<Constellations, Error> {

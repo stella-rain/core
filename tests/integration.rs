@@ -54,6 +54,7 @@ mod level_table;
 mod levels;
 mod map;
 mod match_ups;
+mod named_stars;
 mod orbit;
 mod overflow;
 mod pack;

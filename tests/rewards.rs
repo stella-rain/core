@@ -64,7 +64,7 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
     for effect in StatEffect::ALL {
         let rarities: Vec<Rarity> = rewards
             .iter()
-            .filter(|r| r.effect().stat() == Some(effect))
+            .filter(|r| !r.named && r.effect().stat() == Some(effect))
             .map(|r| r.rarity)
             .collect();
         // The three released rarities come first, then the six-rarity ladder's new ones
@@ -83,16 +83,16 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
         );
     }
     assert!(rewards.iter().all(|r| !r.title.is_empty()));
-    assert_eq!(
-        Rewards::parse(Rewards::BUNDLED).as_ref(),
-        Ok(Rewards::bundled())
-    );
+    // The pack's rewards are the file's, with the sets of the constellations file beside them.
+    let file = Rewards::parse(Rewards::BUNDLED).unwrap();
+    assert_eq!(file.rewards(), Rewards::bundled().rewards());
+    assert_eq!(file.sha256(), Rewards::bundled().sha256());
 }
 
 #[test]
 fn the_bundled_rewards_have_the_stack_limit_of_their_rarity() {
     // app#336: how many times one run takes an ordinary reward, by rarity.
-    for reward in Rewards::bundled().rewards() {
+    for reward in Rewards::bundled().rewards().iter().filter(|r| !r.named) {
         let limit = match reward.rarity {
             Rarity::Common => 5,
             Rarity::Uncommon => 4,
@@ -662,10 +662,23 @@ fn the_caps_that_sum_hold_over_a_whole_bundle() {
 }
 
 #[test]
-fn a_random_rune_stands_alone_and_a_bundle_holds_one_orbit_at_most() {
+fn a_bundle_holds_at_most_one_random_rune_and_at_most_one_orbit() {
     let rune = json!({ "effect": "random_rune" });
+    // With another effect it is a reward with a limit, like any bundle.
+    let with_haste = bundle("b", vec![rune.clone(), pct("rune_haste", 50)]);
+    let rewards = parse(&file(vec![with_haste])).expect("a random rune and a haste parse");
+    assert!(!rewards.rewards()[0].is_random_rune());
+    assert_eq!(rewards.rewards()[0].limit, Some(2));
+    // Alone it keeps its own rules: no limit.
+    let mut alone = bundle("r", vec![rune.clone()]);
+    alone.as_object_mut().unwrap().remove("limit");
+    assert!(parse(&file(vec![alone])).is_ok());
+    // A second one in the same reward is refused.
     invalid_at(
-        &file(vec![bundle("b", vec![pct("attack_pct", 1), rune])]),
+        &file(vec![bundle(
+            "b",
+            vec![rune.clone(), pct("attack_pct", 1), rune],
+        )]),
         "$.rewards[0].effects",
     );
     let entry = {

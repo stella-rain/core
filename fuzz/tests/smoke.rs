@@ -162,11 +162,16 @@ fn garbage_is_rejected_without_a_panic() {
     }
 }
 
-/// The bundled pack with two named stars and a set of them (core#NS3): a seed that reaches the
-/// constellations file's parser, which the bundled pack, holding none yet, does not.
+/// The bundled pack with two named stars and a set of them in place of its own sets, and no
+/// list of the sets' ids, as a pack released with the file but before the list (core#NS3,
+/// core#NS4): a seed for the form the bundled pack does not have.
 fn pack_with_constellations() -> Vec<u8> {
     let mut pack: serde_json::Value =
         serde_json::from_slice(&pack::export_bundled()).expect("the exported pack is JSON");
+    pack["introduced"]
+        .as_object_mut()
+        .expect("introduced")
+        .remove("constellations");
     for id in ["star_a", "star_b"] {
         pack["rewards"]["rewards"]
             .as_array_mut()

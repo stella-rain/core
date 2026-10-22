@@ -9,8 +9,9 @@
 //! Main weapon (ADR-099), or a type bonus: `amount` percent more damage for the main
 //! character's attacks of one damage type, of every attack type or of every element (ADR-100),
 //! or a random rune: one of the runes the Main weapon does not hold, drawn when it is picked
-//! (ADR-099). A random rune has no amount and no stack limit of its own: it leaves the offers
-//! once the Main holds every rune.
+//! (ADR-099). A random rune alone has no amount and no stack limit of its own: it leaves the
+//! offers once the Main holds every rune. In a bundle with other effects (a named star's) it is
+//! one entry of a reward that has its limit, and a reward holds at most one.
 //!
 //! The file is untrusted (ADR-020), as the run stats are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. Reward IDs are the file's own,
@@ -704,8 +705,8 @@ pub(crate) fn validate_entry(
 }
 
 /// The caps over the entries of one reward: what a kind's entries add up to stays within the
-/// kind's largest amount, as the picks of a run do (ADR-020), a random rune stands alone, and
-/// a reward holds one orbit.
+/// kind's largest amount, as the picks of a run do (ADR-020), and a reward holds one orbit and
+/// one random rune.
 pub(crate) fn validate_bundle(
     effects: &[EffectEntry],
     at: &dyn Fn(&str) -> String,
@@ -738,10 +739,14 @@ pub(crate) fn validate_bundle(
     if orbits > 1 {
         issue(at("effects"), "a reward holds at most one orbit".into());
     }
-    if effects.len() > 1 && effects.iter().any(|e| e.effect == RewardEffect::RandomRune) {
+    let runes = effects
+        .iter()
+        .filter(|e| e.effect == RewardEffect::RandomRune)
+        .count();
+    if runes > 1 {
         issue(
             at("effects"),
-            "a random rune is a reward of its own, with no other effect".into(),
+            "a reward holds at most one random rune".into(),
         );
     }
 }

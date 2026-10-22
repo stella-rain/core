@@ -72,7 +72,7 @@ fn every_scaling_effect_has_a_reward_at_all_six_rarities() {
             let found = Rewards::bundled()
                 .rewards()
                 .iter()
-                .filter(|r| r.effect() == effect && r.rarity == rarity)
+                .filter(|r| !r.named && r.effect() == effect && r.rarity == rarity)
                 .count();
             assert_eq!(found, 1, "{effect:?} at {rarity:?}");
         }
