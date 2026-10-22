@@ -17,6 +17,7 @@ use stella_rain_core::run_stats::{
     capped_attack_speed_pct,
 };
 use stella_rain_core::validate::Error;
+use stella_rain_core::validate::limits::DAMAGE_SCALE;
 
 use crate::common;
 
@@ -79,7 +80,7 @@ fn the_bundled_stats_are_the_five_of_version_0() {
     assert_eq!(
         got,
         [
-            ("max_hp", StatEffect::MaxHp, 100, 5),
+            ("max_hp", StatEffect::MaxHp, 100 * DAMAGE_SCALE, 5),
             ("attack", StatEffect::AttackPct, 10, 5),
             ("attack_speed", StatEffect::AttackSpeedPct, 8, 5),
             ("evade", StatEffect::EvadePct, 10, 5),

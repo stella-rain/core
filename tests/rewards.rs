@@ -517,3 +517,24 @@ fn a_run_with_other_rewards_verifies_only_with_those_rewards() {
     assert!(verify_run_with(&bytes, &content).is_ok());
     assert_eq!(verify_run(&bytes), Err(RunReplayError::ContentChanged));
 }
+
+#[test]
+fn vigour_is_shown_hit_points_stored_times_100() {
+    let amounts: Vec<(&str, u32)> = Rewards::bundled()
+        .rewards()
+        .iter()
+        .filter(|r| r.id.0.starts_with("max_hp_"))
+        .map(|r| (r.id.0.as_str(), r.amount.unwrap()))
+        .collect();
+    assert_eq!(
+        amounts,
+        [
+            ("max_hp_common", 20_000),
+            ("max_hp_rare", 50_000),
+            ("max_hp_legendary", 100_000),
+            ("max_hp_uncommon", 30_000),
+            ("max_hp_epic", 70_000),
+            ("max_hp_supernova", 160_000),
+        ]
+    );
+}
