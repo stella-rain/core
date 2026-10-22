@@ -34,6 +34,31 @@
             {
               "effect": "speed_pct",
               "amount": 15
+            },
+            {
+              "effect": "orbit",
+              "amount": 3,
+              "orbit": {
+                "attack": {
+                  "inline": [
+                    {
+                      "kind": "active",
+                      "ticks": 20,
+                      "type": "slash",
+                      "damage": 1000,
+                      "hit_box": {
+                        "type": "circle",
+                        "offset": {
+                          "forward": 15360
+                        },
+                        "radius": 3072
+                      }
+                    }
+                  ]
+                },
+                "turn_per_tick": 1280,
+                "cooldown_ticks": 120
+              }
             }
           ]
         }
@@ -145,6 +170,10 @@
             {
               "effect": "max_hp",
               "amount": 150000
+            },
+            {
+              "effect": "burst_depth",
+              "amount": 2
             }
           ]
         }
