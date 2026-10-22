@@ -165,7 +165,7 @@ fn a_rewards_file_may_hold_the_most_rewards_and_not_one_more() {
         let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": list });
         Rewards::parse(file.to_string().as_bytes())
     };
-    assert_eq!(MAX_REWARDS, 128);
+    assert_eq!(MAX_REWARDS, 192);
     assert!(parse(MAX_REWARDS).is_ok());
     assert!(parse(MAX_REWARDS + 1).is_err());
 }

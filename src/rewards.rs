@@ -36,9 +36,9 @@ use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
 /// The largest rewards file read (a tuning value; ADR-020 decides that one exists).
-pub const MAX_REWARDS_BYTES: usize = 32 * 1024;
+pub const MAX_REWARDS_BYTES: usize = 64 * 1024;
 /// The most rewards a file lists.
-pub const MAX_REWARDS: usize = 128;
+pub const MAX_REWARDS: usize = 192;
 /// The largest amount: a percentage or a count; for hit points, `MAX_HP_AMOUNT`.
 pub const MAX_AMOUNT: u32 = 100;
 /// The largest amount of hit points: 5,000 shown hit points, scaled (ADR-103); Vigour (Supernova)
@@ -51,7 +51,7 @@ pub const MAX_ORBS: u8 = 8;
 /// The most orbit rewards a file lists, and so the most orbits a run holds.
 pub const MAX_ORBITS: usize = 4;
 /// Where the orbit keys of constellations start: a set's orbit is keyed `ORBIT_SET_BASE` plus its
-/// place in the file, above any place of a reward (`MAX_REWARDS` is 128).
+/// place in the file, above any place of a reward (`MAX_REWARDS` is 192).
 pub const ORBIT_SET_BASE: u16 = 0x8000;
 /// The fastest an orbit turns: 15 degrees a tick, either way.
 pub const MAX_ORBIT_TURN: i32 = 15 * PER_DEGREE;
