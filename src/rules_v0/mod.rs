@@ -735,7 +735,9 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
-    let crit = combat::crits(s, &b, id, s.hp(target), !State::is_ally(target));
+    // The common case, with no combat reward held, pays for one comparison (ADR-058).
+    let crit = s.player.crit_chance_pct != 0
+        && combat::crits(s, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
         combat::crit_damage(b.damage, s.player.crit_damage_pct)
     } else {
@@ -763,7 +765,7 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     });
     if dead {
         events.push(death_event(s, target, id));
-    } else {
+    } else if s.player.echo_hit_pct != 0 {
         combat::queue_echo(s, &b, id, dealt, !State::is_ally(target));
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
