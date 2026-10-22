@@ -145,9 +145,11 @@ const WEAPONS: &[(&str, &[(&str, &str)])] = &[
             "smash":{"type":"stun","ticks":30}}"#,
         )],
     ),
-    // The Vindictus shape (ADR-084): A, AA and AAA are a slash, a slash and a thrust (Pierce,
-    // ADR-100); AAA charges, at level 1 a wide slash and at level 2 a spin all round, each with
-    // the +50% perfect bonus. B is a slash and AB a thrust, both smashes that end the combo. The
+    // The Vindictus shape (ADR-084): A, AA, AAA, AAAA and AAAAA are a slash, a slash, a thrust
+    // (Pierce, ADR-100), a slash and a finishing thrust; AAA charges, at level 1 a wide slash and at level 2 a spin all round, each with
+    // the +50% perfect bonus. B is a slash and AB a thrust, both smashes that end the combo; AAB, AAAB, AAAAB and AAAAAB
+    // are smashes too, a wide Slash, a Pierce, a wider Slash and a long Pierce (AAAAAB the
+    // strongest, at 160 times the default damage), the numbers placeholders. The
     // dash-strike is a lunge thrust, the dash smash a slash. Assist looks 160 pixels away.
     // Smashes put the bleed on what they hit, the bleed rune's numbers (ADR-084 point 8). AAB (a
     // wide Slash) and AAAB (a long Pierce) are smashes at 100 times the default damage,
@@ -174,7 +176,20 @@ const WEAPONS: &[(&str, &[(&str, &str)])] = &[
                                         {"kind":"wind_up","ticks":12,"move_pct":50},
                                         {"kind":"active","ticks":4,"move_pct":50,"type":"slash",
                                          "hit_box":{"type":"circle","radius":10240}},
-                                        {"kind":"recovery","ticks":20,"move_pct":50}]}}]},"next":{"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":3,"type":"pierce","damage":10000,"hit_box":{"type":"circle","offset":{"forward":8192},"radius":4096}},{"kind":"recovery","ticks":18}]},"unlock":"giant_sword_aaab"}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":8},{"kind":"active","ticks":4,"type":"slash","damage":10000,"hit_box":{"type":"arc","offset":{"forward":2048},"radius":10240,"half_angle":20480}},{"kind":"recovery","ticks":14}]},"unlock":"giant_sword_aab"}}},
+                                        {"kind":"recovery","ticks":20,"move_pct":50}]}}]},"next":{
+                            "main":{"attack":{"preset":{"id":"slash"}},"next":{
+                                "main":{"attack":{"preset":{"id":"thrust"}},"next":{
+                                    "smash":{"attack":{"inline":[
+                                        {"kind":"wind_up","ticks":12},
+                                        {"kind":"active","ticks":4,"type":"pierce","damage":16000,
+                                         "hit_box":{"type":"circle","offset":{"forward":10240},"radius":6144}},
+                                        {"kind":"recovery","ticks":22}]}}}},
+                                "smash":{"attack":{"inline":[
+                                    {"kind":"wind_up","ticks":10},
+                                    {"kind":"active","ticks":4,"type":"slash","damage":12000,
+                                     "hit_box":{"type":"arc","offset":{"forward":2048},"radius":12288,"half_angle":24576}},
+                                    {"kind":"recovery","ticks":16}]}}}},
+                            "smash":{"attack":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":3,"type":"pierce","damage":10000,"hit_box":{"type":"circle","offset":{"forward":8192},"radius":4096}},{"kind":"recovery","ticks":18}]},"unlock":"giant_sword_aaab"}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":8},{"kind":"active","ticks":4,"type":"slash","damage":10000,"hit_box":{"type":"arc","offset":{"forward":2048},"radius":10240,"half_angle":20480}},{"kind":"recovery","ticks":14}]},"unlock":"giant_sword_aab"}}},
                         "smash":{"attack":{"preset":{"id":"thrust"}}}}},
                 "smash":{"attack":{"preset":{"id":"slash"}}}},
             "dash":{"main":{"attack":{"preset":{"id":"thrust"}}},
