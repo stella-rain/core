@@ -2217,6 +2217,16 @@
       "description": "The `sim_version` of every ID the pack's files introduce, per file. Each list names each of\nits file's IDs once, in any order, and nothing else; the run stats', rewards' and stage\nskills' lists share their file's count budget.",
       "type": "object",
       "properties": {
+        "constellations": {
+          "description": "The constellations (core#NS4). Optional: a pack released with the file but before the\nlist has none, stays valid and records no version for its sets. A list names each set of\nthe pack's file once.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/IntroducedId"
+          }
+        },
         "difficulties": {
           "description": "The difficulties (ADR-110).",
           "type": "array",
