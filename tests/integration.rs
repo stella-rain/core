@@ -49,6 +49,7 @@ mod hash;
 mod healing;
 mod hit_boxes;
 mod hit_marks;
+mod hit_type_kind;
 mod hold;
 mod homing_missiles;
 mod level_table;
