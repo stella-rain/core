@@ -166,10 +166,6 @@ const AGGRO_PER_BUFF: u32 = 40 * DAMAGE_SCALE;
 const AGGRO_PER_HEAL_POINT: u32 = 2;
 const AGGRO_DECAY: u32 = DAMAGE_SCALE;
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
-/// The damage an attack does when an enemy or the boss makes it and the attack names none: 1 at
-/// the design values, scaled (ADR-103).
-const ENEMY_ATTACK_DAMAGE: u32 = DAMAGE_SCALE;
-
 pub(crate) fn bullet_radius(friendly: bool) -> i32 {
     if friendly {
         PLAYER_BULLET_RADIUS
@@ -339,6 +335,7 @@ pub(crate) fn initial_state(
         runes: content.runes().clone(),
         stun: run_stats.stun(),
         max_attack_speed_pct: run_stats.max_attack_speed_pct(),
+        enemy_attack_damage: run_stats.enemy_attack_damage(),
         max_rune_haste_pct: content.rewards().max_rune_haste_pct(),
         horde: None,
         stardust: stage.stardust.as_ref().map(|_| 0),
