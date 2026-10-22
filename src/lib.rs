@@ -39,6 +39,7 @@ pub mod snapshot;
 pub mod spike;
 pub mod stage;
 pub mod stage_skill;
+pub mod starting_unlocks;
 pub mod time_limit;
 pub mod trig;
 pub mod validate;
