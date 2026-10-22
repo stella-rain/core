@@ -36,7 +36,9 @@ use crate::rewards::{
 };
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
-use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
+use crate::snapshot::{
+    CandidateView, ConstellationProgress, ConstellationView, OfferKind, OfferOption, OfferView,
+};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
@@ -543,6 +545,7 @@ pub(super) fn choose(
                 reward: rewards.rewards()[at].id.clone(),
                 taken: f.taken[at],
                 rune,
+                star: rewards.rewards()[at].star.clone(),
             });
             for (set, tier) in tiers {
                 events.push(DomainEvent::Constellation {
@@ -598,6 +601,38 @@ pub(super) fn choose(
     }
 }
 
+/// The set `reward` is a member of, with what is held and needed.
+fn progress(rewards: &Rewards, f: &StarField, reward: &ContentId) -> Option<ConstellationProgress> {
+    let sets = rewards.constellations();
+    let at = sets.set_of(reward)?;
+    let held = f.set_counts.get(at).copied().unwrap_or(0);
+    Some(ConstellationProgress {
+        set: sets.sets()[at].id.clone(),
+        held,
+        needed: sets.sets()[at].needed(held),
+    })
+}
+
+/// The run's sets and how far each is, for the snapshot.
+pub(crate) fn constellation_views(rewards: &Rewards, s: &State) -> Vec<ConstellationView> {
+    let Some(f) = s.stars.as_ref() else {
+        return Vec::new();
+    };
+    rewards
+        .constellations()
+        .sets()
+        .iter()
+        .zip(&f.set_counts)
+        .map(|(c, held)| ConstellationView {
+            id: c.id.clone(),
+            name: c.name.clone(),
+            held: *held,
+            tier: c.tier_reached(*held),
+            needed: c.needed(*held),
+        })
+        .collect()
+}
+
 /// What the frontend shows of the open offer.
 pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
     let f = s.stars.as_ref()?;
@@ -616,6 +651,7 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                     hidden: r.is_random_rune(),
                     named: r.named,
                     star: r.star.clone(),
+                    constellation: progress(rewards, f, &r.id),
                 }
             })
             .collect(),

@@ -137,7 +137,7 @@ pub(crate) use horde::spawn_boss;
 use horde::spawn_elite;
 pub(crate) use levels::{spend, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
-pub(crate) use stars::offer_view;
+pub(crate) use stars::{constellation_views, offer_view};
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;

@@ -612,6 +612,7 @@ impl Engine {
                     })
                     .collect()
             }),
+            constellations: rules_v0::constellation_views(self.content.rewards(), s),
             heal_pickups: s.heal_pickups.as_ref().map_or_else(Vec::new, |h| {
                 h.iter()
                     .map(|p| HealPickupView { id: p.id, at: p.at })
