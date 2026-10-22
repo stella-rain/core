@@ -8,9 +8,13 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
-use stella_rain_core::rewards::{Rewards, rune_haste_ticks};
+use stella_rain_core::rewards::{
+    DEFAULT_MAX_RUNE_HASTE_PCT, MAX_RUNE_HASTE_PCT, Rewards, rune_haste_ticks,
+};
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
 use stella_rain_core::run_setup::RunSetup;
+use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::DamageOverTimeView;
@@ -21,8 +25,9 @@ use common::on_hit::*;
 use common::run::{run_input, trial_setup};
 use common::*;
 
-/// The most one Rune Haste reward gives, and the most the picks add up to.
-const MAX_HASTE: u32 = 300;
+/// The most one Rune Haste reward gives, and the most the picks add up to, in a rewards file
+/// that names no cap (the cap before it was content).
+const MAX_HASTE: u32 = DEFAULT_MAX_RUNE_HASTE_PCT;
 
 fn haste(id: &str, pct: u32, limit: u8) -> Value {
     json!({
@@ -296,4 +301,67 @@ fn a_run_with_haste_records_and_verifies() {
     assert!(recorder.engine().snapshot().player.rune_haste_pct > 0);
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());
+}
+
+/// A rewards file with the cap `cap` for Rune Haste (`max_rune_haste_pct`).
+fn capped(cap: u32, rewards: Vec<Value>) -> Result<Rewards, stella_rain_core::validate::Error> {
+    let file = json!({
+        "schema_version": 0, "sim_version": 0, "max_rune_haste_pct": cap, "rewards": rewards
+    });
+    Rewards::parse(file.to_string().as_bytes())
+}
+
+#[test]
+fn the_cap_is_the_rewards_file_s_and_the_code_ceiling_bounds_it() {
+    assert_eq!(Rewards::bundled().max_rune_haste_pct(), 500, "core#298");
+    assert_eq!(DEFAULT_MAX_RUNE_HASTE_PCT, 300, "a file naming none");
+    let none = json!({ "schema_version": 0, "sim_version": 0, "rewards": [haste("h", 1, 2)] });
+    let none = Rewards::parse(none.to_string().as_bytes()).unwrap();
+    assert_eq!(none.max_rune_haste_pct(), DEFAULT_MAX_RUNE_HASTE_PCT);
+    // The file's cap is 1 to the ceiling.
+    assert!(capped(MAX_RUNE_HASTE_PCT, vec![haste("h", 1, 2)]).is_ok());
+    assert!(capped(MAX_RUNE_HASTE_PCT + 1, vec![haste("h", 1, 2)]).is_err());
+    assert!(capped(0, vec![haste("h", 1, 2)]).is_err());
+    // A reward gives at most the file's cap.
+    assert!(capped(500, vec![haste("h", 500, 2)]).is_ok());
+    assert!(capped(500, vec![haste("h", 501, 2)]).is_err());
+    assert!(capped(100, vec![haste("h", 101, 2)]).is_err());
+}
+
+#[test]
+fn the_picks_add_up_to_the_files_cap_where_it_applies() {
+    // Cap 500: 200 + 200 + 200 = 600 is held to 500, 120 × 100 / 600 = 20; at 400 it is 24.
+    let run = |cap: u32, picks: &[&str]| {
+        let mut list = vec![random_rune()];
+        list.push(haste("h1", 200, 3));
+        let file = json!({
+            "schema_version": 0, "sim_version": 0, "max_rune_haste_pct": cap, "rewards": list
+        });
+        let rewards = Rewards::parse(file.to_string().as_bytes()).unwrap();
+        let content =
+            RunContent::new(RunStats::bundled().clone(), rewards).with_runes(runes(120, 30));
+        let mut e = with(
+            &stage(
+                7 + u16::try_from(picks.len()).unwrap(),
+                tough(0, None, None),
+            ),
+            &content,
+        );
+        take_all(&mut e);
+        for p in picks {
+            take(&mut e, p);
+        }
+        cooldowns_after_a_hit(&mut e)
+    };
+    assert_eq!(run(500, &["h1", "h1", "h1"]), [20; 4], "600 held to 500");
+    assert_eq!(run(400, &["h1", "h1", "h1"]), [24; 4], "600 held to 400");
+    assert_eq!(run(500, &["h1", "h1"]), [24; 4], "400 under the cap");
+}
+
+#[test]
+fn the_ceiling_holds_whatever_the_sum() {
+    assert_eq!(
+        rune_haste_ticks(3_600, MAX_RUNE_HASTE_PCT + 1),
+        rune_haste_ticks(3_600, MAX_RUNE_HASTE_PCT)
+    );
 }
