@@ -136,7 +136,13 @@ mod tests {
                 rarity: (Rarity::Common, Rarity::Supernova),
             },
         };
-        let mut s = initial_state(&stage, RunContent::bundled(), pool, 1);
+        let mut s = initial_state(
+            &stage,
+            RunContent::bundled(),
+            pool,
+            1,
+            crate::kinds::KindTable::of_stage(&stage).unwrap(),
+        );
         s.player.max_hp = 100_000;
         s.player.hp = 1_000;
         s
@@ -175,6 +181,7 @@ mod tests {
         for n in 0..=credited {
             let mut e = new_agent(
                 EntityId(100 + n),
+                crate::kinds::KindIndex(0),
                 key,
                 &stage.waves[0].enemy,
                 Point::default(),

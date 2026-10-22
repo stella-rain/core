@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::attack::{DamageType, MatchUp};
 use crate::fixed::Point;
-use crate::id::{ContentId, EntityId, KindId};
+use crate::id::{ContentId, EntityId};
+use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind};
@@ -27,10 +28,10 @@ pub enum DomainEvent {
     Hit {
         source: EntityId,
         target: EntityId,
-        /// The kind id of `target` (`EntityView::kind_id`): left out for the main character and
+        /// The kind of `target` (`EntityView::kind_index`), an index into the run's `KindTable`: left out for the main character and
         /// for a mimic still in disguise.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        target_kind: Option<KindId>,
+        target_kind: Option<KindIndex>,
         damage: u32,
         /// The damage type the hit was dealt in (ADR-100), whatever its source: a weapon, a rune,
         /// the stage skill, a burst or a damage-over-time tick; left out when neutral.
@@ -127,10 +128,10 @@ pub enum DomainEvent {
     },
     Died {
         entity: EntityId,
-        /// The kind id of the victim (`EntityView::kind_id`); left out for a mimic still in
+        /// The kind of the victim (`EntityView::kind_index`), an index into the run's `KindTable`; left out for a mimic still in
         /// disguise.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        kind: Option<KindId>,
+        kind: Option<KindIndex>,
     },
     StageCleared,
     StageFailed,
@@ -169,9 +170,9 @@ pub enum DomainEvent {
     EliteSpawned {
         elite: EntityId,
         asset: ContentId,
-        /// The elite's kind id (`EntityView::kind_id`); left out for a mimic, which is disguised.
+        /// The elite's kind (`EntityView::kind_index`), an index into the run's `KindTable`; left out for a mimic, which is disguised.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        kind: Option<KindId>,
+        kind: Option<KindIndex>,
     },
     /// The elite `elite` left the map without dying: no kill, no reward (ADR-090).
     EliteLeft {

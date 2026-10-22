@@ -318,7 +318,7 @@ fn a_thunder_strike_names_its_own_damage_type_and_the_kind_it_struck() {
             } = ev
             {
                 if *t == target {
-                    strikes.push((*damage_type, target_kind.clone()));
+                    strikes.push((*damage_type, *target_kind));
                 }
             }
         }

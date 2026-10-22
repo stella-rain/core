@@ -469,3 +469,24 @@ fn the_modes_main_characters_hold_shown_hit_points_stored_times_100() {
         assert_eq!(stage.player.hp, 500 * 100, "{mode}");
     }
 }
+
+#[test]
+fn every_mode_of_the_bundled_pack_builds_a_kind_table_that_holds_what_it_spawns() {
+    // A spawn looks its kind up in the table and stops if it is missing (core#271), so a run
+    // through the heaviest modes, bosses included, proves the table holds every kind they bring.
+    for mode in ["trial", "time_limit"] {
+        let mut s = setup();
+        s.mode = mode.into();
+        let mut e = Engine::start(&s).unwrap();
+        assert!(!e.kinds().is_empty(), "{mode}");
+        for tick in 0..7_200 {
+            e.step(script(tick));
+        }
+        let ids = e.kinds().ids();
+        assert!(ids.windows(2).all(|w| w[0].0 < w[1].0), "{mode}: sorted");
+        for v in e.snapshot().entities {
+            let index = v.kind_index.expect("a kind");
+            assert!(e.kinds().id(index).is_some(), "{mode}");
+        }
+    }
+}

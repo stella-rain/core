@@ -14,8 +14,9 @@ use crate::attack::{Anchor, AttackPhase, DamageType, Emitter, PhaseKind, ZoneSha
 use crate::behaviour::{BossCall, Movement};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
-use crate::id::{ContentId, EntityId, KindId};
+use crate::id::{ContentId, EntityId};
 use crate::input::Input;
+use crate::kinds::{KindIndex, KindTable};
 use crate::match_ups::MatchUps;
 use crate::rewards::{MAX_BURST_DEPTH, Rarity, Rewards};
 use crate::rng::SplitMix64;
@@ -98,6 +99,22 @@ impl Load {
     };
 }
 
+/// The kinds of a `time_limit` run: its stage's, and those of the bosses it brings later.
+fn horde_kinds(stage: &Stage, horde: &Horde) -> Result<KindTable, crate::validate::Issue> {
+    let bosses: Vec<&crate::stage::Boss> = horde
+        .bosses
+        .iter()
+        .chain(std::iter::once(&horde.template))
+        .collect();
+    let sprites: Vec<ContentId> = horde
+        .pool
+        .iter()
+        .chain(std::iter::once(&horde.final_boss))
+        .cloned()
+        .collect();
+    KindTable::of_stage_and(stage, &bosses, &sprites, crate::kinds::MAX_KINDS)
+}
+
 /// A run of one stage.
 #[derive(Clone, Debug)]
 pub struct Engine {
@@ -128,7 +145,13 @@ impl Engine {
             difficulty: rules_v0::RunDifficulty::NONE,
         };
         Ok(Engine {
-            state: rules_v0::initial_state(stage, content, pool, u64::from(stage.seed)),
+            state: rules_v0::initial_state(
+                stage,
+                content,
+                pool,
+                u64::from(stage.seed),
+                KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?,
+            ),
             stage: stage.clone(),
             content: content.clone(),
             events: Vec::new(),
@@ -154,7 +177,8 @@ impl Engine {
             extra_rerolls: setup.extra_rerolls,
             difficulty: run_difficulty(setup, content)?,
         };
-        let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed);
+        let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
+        let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         Ok(Engine {
@@ -181,7 +205,8 @@ impl Engine {
             extra_rerolls: setup.extra_rerolls,
             difficulty: run_difficulty(setup, content)?,
         };
-        let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed);
+        let kinds = horde_kinds(&stage, &horde).map_err(|i| Error::Invalid(vec![i]))?;
+        let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
@@ -304,6 +329,12 @@ impl Engine {
         &self.content
     }
 
+    /// The run's kind table: what every `KindIndex` in its events and snapshots names. Fixed for
+    /// the run, so read it once; key anything kept past the run on the ID, not the index.
+    pub fn kinds(&self) -> &KindTable {
+        &self.state.kinds
+    }
+
     pub fn tick(&self) -> u32 {
         self.state.tick
     }
@@ -372,7 +403,7 @@ impl Engine {
                     id: b.id,
                     kind: EntityKind::Boss,
                     asset: boss.base.clone(),
-                    kind_id: Some(boss.base.clone()),
+                    kind_index: Some(b.kind),
                     palette: boss.palette.clone(),
                     at: b.at,
                     radius: boss.radius,
@@ -404,7 +435,7 @@ impl Engine {
                             Some(m) if hidden => m.disguise.clone(),
                             _ => ContentId(def.base.0.clone()),
                         },
-                        kind_id: (!hidden).then(|| ContentId(def.base.0.clone())),
+                        kind_index: (!hidden).then_some(a.kind),
                         palette: def.palette.clone(),
                         at: a.at,
                         radius: def.radius,
@@ -444,7 +475,7 @@ impl Engine {
                         id: part.id,
                         kind: EntityKind::BossPart,
                         asset: ContentId(def.asset.0.clone()),
-                        kind_id: Some(ContentId(def.id.0.clone())),
+                        kind_index: Some(part.kind),
                         palette: None,
                         at: Point {
                             x: b.at.x.saturating_add(part.offset.x),
@@ -708,6 +739,8 @@ pub(crate) const UNLIMITED: u32 = u32::MAX;
 /// at fixed widths and in this order.
 #[derive(Clone, Debug)]
 pub(crate) struct State {
+    /// The run's kinds, fixed at its start (core#271).
+    pub kinds: KindTable,
     pub tick: u32,
     pub rng: SplitMix64,
     pub outcome: Outcome,
@@ -1144,8 +1177,8 @@ pub(crate) struct DashState {
 #[derive(Clone, Debug)]
 pub(crate) struct BossState {
     pub id: EntityId,
-    /// The boss's kind id (its sprite), made once so each hit on it shares it.
-    pub kind: KindId,
+    /// The boss's kind (its sprite), an index into the run's `KindTable` made at spawn.
+    pub kind: KindIndex,
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
@@ -1181,8 +1214,8 @@ pub(crate) struct PartState {
     pub id: EntityId,
     /// The ID the stage gave it, which `part_broken` and the `part` selector name.
     pub name: ContentId,
-    /// `name` as a kind id, made once so each hit on the part shares it.
-    pub kind: KindId,
+    /// `name` as a kind, an index into the run's `KindTable` made at spawn.
+    pub kind: KindIndex,
     pub hp: u32,
     pub max_hp: u32,
     /// Copied from the stage when it appears (ADR-056).
@@ -1220,8 +1253,8 @@ pub(crate) enum AgentSource {
 #[derive(Clone, Debug)]
 pub(crate) struct AgentState {
     pub id: EntityId,
-    /// Its kind id (its sprite), made once at spawn so each hit on it shares it (ADR-058).
-    pub kind: KindId,
+    /// Its kind (its sprite), an index into the run's `KindTable` made at spawn; a hit copies it.
+    pub kind: KindIndex,
     pub key: AgentKey,
     pub at: Point,
     pub hp: u32,
