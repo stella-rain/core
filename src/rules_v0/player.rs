@@ -23,7 +23,8 @@
 //! target and no press by hand is in the combo, it presses for the player, the next press of
 //! the auto combo, taken as a buffered press would be; after the auto combo's last step, or
 //! anywhere else, it starts again from the root once the step has run out. Its presses never
-//! hold, never take the dash branch and always face the target. A combo with a press by hand
+//! hold; a step with a charge is charged to the level the player released it at by hand in the
+//! combo it came from (ADR-114), with no perfect bonus; they never take the dash branch and always face the target. A combo with a press by hand
 //! becomes the auto combo when it resets, unless it began in the dash branch.
 
 use crate::attack::AttackRef;
@@ -255,6 +256,7 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
         }
     }
     c.levels = 0;
+    c.charge_auto = false;
     c.hand = false;
     c.path = 0;
     c.depth = 0;
@@ -273,7 +275,7 @@ fn combo(
     events: &mut Vec<DomainEvent>,
 ) {
     if let Some(ticks) = s.player.combo.charge {
-        charging(stage, s, main, input, ticks, events);
+        charging(stage, s, main, input, pressed, ticks, events);
         return;
     }
     if let Some(ticks) = s.player.combo.hold {
@@ -338,7 +340,7 @@ fn press_of_pressed(pressed: u8) -> Option<bool> {
 }
 
 /// Whether the step whose recovery begins now holds (ADR-084 point 6): it has a hold, its press
-/// was by hand (auto mode never holds, ADR-073), the button that reached it is still held, and
+/// was by hand (auto mode never holds, ADR-073, ADR-114), the button that reached it is still held, and
 /// no buffered press takes a next step, which cancels the recovery instead (point 3).
 fn begins_hold(main: &Weapon, c: &ComboState, input: Input) -> bool {
     let Some(step) = step_at(main, c) else {
@@ -484,7 +486,7 @@ pub(super) fn initial_combo(stage: &Stage, upgrades: u32) -> ComboState {
 
 /// The press `smash`, buffered `by_hand` or auto mode's, takes its step: the next one from where
 /// the combo is, or else the first from the root, in the dash branch while a dash-strike may
-/// start and it has one (by hand only). Auto mode's step never charges and faces the target.
+/// start and it has one (by hand only). Auto mode's step charges only to its recorded level (ADR-114) and faces the target.
 #[allow(clippy::too_many_arguments)]
 fn take_step(
     stage: &Stage,
@@ -527,8 +529,13 @@ fn take_step(
         return;
     };
     let held = by_hand && if smash { input.smash } else { input.main };
-    if step.charge.is_some() && held {
+    // Auto mode charges a step to the level recorded for it, with no button (ADR-114).
+    let auto_level = step.charge.as_ref().filter(|_| !by_hand).map_or(0, |_| {
+        level_of(s.player.combo.levels, s.player.combo.depth - 1)
+    });
+    if step.charge.is_some() && (held || auto_level > 0) {
         s.player.combo.charge = Some(0);
+        s.player.combo.charge_auto = !held;
     } else {
         strike(stage, s, &step.attack, 0, input.assist || !by_hand, events);
     }
@@ -628,12 +635,22 @@ fn current_charge<'a>(stage: &'a Stage, s: &State) -> Option<&'a Charge> {
 /// this tick is inside a perfect window.
 pub(crate) fn charge_view(stage: &Stage, s: &State) -> Option<(u8, u32, bool)> {
     let held = s.player.combo.charge?;
+    if s.player.combo.charge_auto {
+        return None;
+    }
     let charge = current_charge(stage, s)?;
     Some((
         u8::try_from(level_at(charge, held)).unwrap_or(u8::MAX),
         held,
         in_perfect_window(charge, held),
     ))
+}
+
+/// The level auto mode is charging the current step to (ADR-114), if it is charging: the
+/// snapshot's `auto_charge`, which leaves `charge` for hand charges only.
+pub(crate) fn auto_charge_view(s: &State) -> Option<u8> {
+    let c = &s.player.combo;
+    (c.charge.is_some() && c.charge_auto).then(|| level_of(c.levels, c.depth.saturating_sub(1)))
 }
 
 /// A charge held rises a tick; let go, judged on the last held tick (the one whose snapshot
@@ -643,18 +660,37 @@ fn charging(
     s: &mut State,
     main: &Weapon,
     input: Input,
+    pressed: u8,
     held: u32,
     events: &mut Vec<DomainEvent>,
 ) {
     let c = s.player.combo;
     let Some(step) = step_at(main, &c) else {
         s.player.combo.charge = None;
+        s.player.combo.charge_auto = false;
         return;
     };
     let Some(charge) = &step.charge else {
         s.player.combo.charge = None;
+        s.player.combo.charge_auto = false;
         return;
     };
+    if c.charge_auto {
+        // Auto mode's charge (ADR-114): a press by hand is buffered, as during any auto step;
+        // the button does not matter; it lets go on the tick the recorded level is reached,
+        // never judged for the perfect bonus.
+        if let Some(press) = press_of_pressed(pressed) {
+            s.player.combo.buffered = Some(press);
+        }
+        let held = held.saturating_add(1);
+        let target = usize::from(level_of(c.levels, c.depth - 1)).min(charge.levels.len());
+        if level_at(charge, held) >= target || held >= charge.max_ticks {
+            release(stage, s, step, charge, held, false, true, events);
+        } else {
+            s.player.combo.charge = Some(held);
+        }
+        return;
+    }
     let still = if last_press_smash(&c) {
         input.smash
     } else {
@@ -687,6 +723,7 @@ fn release(
     events: &mut Vec<DomainEvent>,
 ) {
     s.player.combo.charge = None;
+    s.player.combo.charge_auto = false;
     let level = level_at(charge, held);
     let c = &mut s.player.combo;
     c.levels = with_level(c.levels, c.depth.saturating_sub(1), level as u8);

@@ -317,7 +317,7 @@ fn a_step_the_hand_released_at_level_2_is_charged_to_level_2_by_auto_mode() {
     // the tick that reaches it, then AAA four ticks into the release and A again after its leaf.
     assert_eq!(released(&events).len(), 1, "{events:?}");
     let (t, level, perfect) = released(&events)[0];
-    assert_eq!((t, level, perfect), (e.tick() - 40 + 45 + 10, 2, false));
+    assert_eq!((t, level, perfect), (55, 2, false));
     let steps = steps(&events);
     assert_eq!(steps[0].2, 1);
     assert_eq!(steps[1].2, 2);
