@@ -17,7 +17,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId, KindId};
 use crate::input::Input;
 use crate::match_ups::MatchUps;
-use crate::rewards::{Rarity, Rewards};
+use crate::rewards::{MAX_BURST_DEPTH, Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
 use crate::run_content::RunContent;
@@ -524,13 +524,7 @@ impl Engine {
                     .iter()
                     .filter_map(|o| {
                         Some(OrbitView {
-                            reward: self
-                                .content
-                                .rewards()
-                                .rewards()
-                                .get(usize::from(o.reward))?
-                                .id
-                                .clone(),
+                            reward: self.content.rewards().orbit_id(o.reward)?,
                             orbs: o.orbs,
                             cooldown_left: o.cooldown_left,
                         })
@@ -547,7 +541,11 @@ impl Engine {
                 echo_hit_pct: s.player.echo_hit_pct,
                 burst_pct: s.player.burst_pct,
                 burst_radius: s.player.burst_radius,
-                burst_depth: s.player.burst_depth,
+                burst_depth: s
+                    .player
+                    .burst_depth
+                    .saturating_add(s.player.burst_depth_extra)
+                    .min(MAX_BURST_DEPTH),
                 type_bonuses: DamageType::ALL
                     .iter()
                     .zip(s.player.type_bonus_pct)
@@ -969,6 +967,8 @@ pub(crate) struct PlayerState {
     pub burst_pct: u32,
     pub burst_radius: u32,
     pub burst_depth: u32,
+    /// Links more on the chain, from `burst_depth` rewards.
+    pub burst_depth_extra: u32,
     /// What the type bonus rewards taken add up to for each damage type, by its place in
     /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
     /// type of its group.

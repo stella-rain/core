@@ -863,6 +863,10 @@
         {
           "effect": "banishes",
           "amount": 2
+        },
+        {
+          "effect": "xp_pct",
+          "amount": 40
         }
       ],
       "limit": 1,
@@ -870,7 +874,7 @@
       "star": "Polaris",
       "weight": 50,
       "title": "Polaris",
-      "description": "The guide: a fourth candidate in every offer, 3 rerolls and 2 banishes"
+      "description": "The guide: a fourth candidate in every offer, 3 rerolls, 2 banishes and 40 percent more experience"
     }
   ]
 }

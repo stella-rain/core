@@ -294,6 +294,7 @@ pub(crate) fn initial_state(
             burst_pct: 0,
             burst_radius: 0,
             burst_depth: 0,
+            burst_depth_extra: 0,
             type_bonus_pct: [0; DamageType::ALL.len()],
             runes: Vec::new(),
             aggro: 0,
@@ -1729,6 +1730,10 @@ pub(crate) fn state_hash(s: &State) -> u64 {
         h.write_u32(s.player.burst_pct);
         h.write_u32(s.player.burst_radius);
         h.write_u32(s.player.burst_depth);
+        // Only a run that holds some, so every other hash is what it was.
+        if s.player.burst_depth_extra != 0 {
+            h.write_u32(s.player.burst_depth_extra);
+        }
         h.write_u32(u32::try_from(s.echoes.len()).unwrap_or(u32::MAX));
         for echo in &s.echoes {
             h.write_u32(echo.source.0);
