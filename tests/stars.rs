@@ -954,3 +954,34 @@ fn commons_ab() -> Rewards {
     let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [one("a"), one("b")] });
     Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
 }
+
+// --- Named stars -------------------------------------------------------------------------------
+
+#[test]
+fn an_offer_names_its_named_candidate_and_only_that_one() {
+    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [
+        { "id": "vega", "rarity": "epic", "effects": [{ "effect": "attack_pct", "amount": 20 }],
+          "limit": 1, "named": true, "star": "Vega", "weight": 50,
+          "title": "Vega", "description": "" },
+        { "id": "plain", "rarity": "epic", "effect": "max_hp", "amount": 1, "limit": 2,
+          "title": "Plain", "description": "" },
+    ]});
+    let rewards = Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate");
+    let st = stars(json!({ "tiers": [{ "from_level": 1, "weights": { "epic": 1 } }] }));
+    let mut e = with(&starry(&[1000], st, vec![targets(1, 1, NEAR_Y)]), rewards);
+    until_offer(&mut e, idle());
+    let seen: Vec<(String, bool, Option<String>)> = offer(&e)
+        .candidates
+        .into_iter()
+        .map(|c| (c.reward.0, c.named, c.star))
+        .collect();
+    let mut sorted = seen.clone();
+    sorted.sort();
+    assert_eq!(
+        sorted,
+        [
+            ("plain".to_string(), false, None),
+            ("vega".to_string(), true, Some("Vega".to_string()))
+        ]
+    );
+}

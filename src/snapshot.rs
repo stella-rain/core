@@ -235,6 +235,12 @@ pub struct CandidateView {
     /// frontend shows it face down.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hidden: bool,
+    /// A named star: the frontend shows `star` as its name.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub named: bool,
+    /// The named star's display name; with `named` only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub star: Option<String>,
 }
 
 /// One option of an open offer; `candidate` is a place in its candidates, from 0.

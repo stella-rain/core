@@ -483,6 +483,8 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                     reward: r.id.clone(),
                     rarity: r.rarity,
                     hidden: r.is_random_rune(),
+                    named: r.named,
+                    star: r.star.clone(),
                 }
             })
             .collect(),
