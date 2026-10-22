@@ -32,7 +32,7 @@ const MAX_BONUS_PCT: u32 = 1000;
 const MAX_SLOW_PCT: u32 = 90;
 
 impl State {
-    fn boss_state(&self) -> &crate::engine::BossState {
+    pub(super) fn boss_state(&self) -> &crate::engine::BossState {
         self.boss
             .as_ref()
             .expect("Who::Boss only exists while there is a boss")

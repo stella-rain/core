@@ -25,7 +25,7 @@ use crate::behaviour::{Action, BossCall};
 use crate::engine::{AgentKey, AgentSource, Outcome, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
-use crate::id::EntityId;
+use crate::id::{EntityId, KindId};
 use crate::stage::{Stage, Step};
 
 use super::scale_hp;
@@ -193,7 +193,7 @@ pub(super) fn spawn_elite(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
                 .elite
                 .as_ref()
                 .is_none_or(|e| e.mimic.is_none())
-                .then(|| def.base.clone()),
+                .then(|| KindId::from(&def.base)),
         });
     }
 }

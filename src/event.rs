@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::attack::{DamageType, MatchUp};
 use crate::fixed::Point;
-use crate::id::{ContentId, EntityId};
+use crate::id::{ContentId, EntityId, KindId};
 use crate::rewards::Rarity;
 use crate::rune::Rune;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind};
@@ -30,7 +30,7 @@ pub enum DomainEvent {
         /// The kind id of `target` (`EntityView::kind_id`): left out for the main character and
         /// for a mimic still in disguise.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        target_kind: Option<ContentId>,
+        target_kind: Option<KindId>,
         damage: u32,
         /// The damage type the hit was dealt in (ADR-100), whatever its source: a weapon, a rune,
         /// the stage skill, a burst or a damage-over-time tick; left out when neutral.
@@ -130,7 +130,7 @@ pub enum DomainEvent {
         /// The kind id of the victim (`EntityView::kind_id`); left out for a mimic still in
         /// disguise.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        kind: Option<ContentId>,
+        kind: Option<KindId>,
     },
     StageCleared,
     StageFailed,
@@ -171,7 +171,7 @@ pub enum DomainEvent {
         asset: ContentId,
         /// The elite's kind id (`EntityView::kind_id`); left out for a mimic, which is disguised.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        kind: Option<ContentId>,
+        kind: Option<KindId>,
     },
     /// The elite `elite` left the map without dying: no kill, no reward (ADR-090).
     EliteLeft {

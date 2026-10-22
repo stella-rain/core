@@ -116,8 +116,8 @@ use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::fixed::{Fx, Point};
 use crate::hash::StateHasher;
-use crate::id::ContentId;
 use crate::id::EntityId;
+use crate::id::KindId;
 use crate::input::Input;
 use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
@@ -365,6 +365,7 @@ pub(crate) fn boss_state(
     let hp = |hp: u32| scale_hp(hp, hp_pct);
     BossState {
         id,
+        kind: KindId::from(&b.base),
         at: b.spawn,
         hp: hp(b.hp),
         max_hp: hp(b.hp),
@@ -388,6 +389,7 @@ pub(crate) fn boss_state(
                 PartState {
                     id: part_id,
                     name: p.id.clone(),
+                    kind: KindId::from(&p.id),
                     hp: hp(p.hp),
                     max_hp: hp(p.hp),
                     defence: p.defence,
@@ -668,7 +670,7 @@ fn collide(stage: &Stage, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     // friendly hit box or bullet, serves all of them; a tick without either never builds it.
     let mut grid: Option<Grid> = None;
     let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
-    combat::deal_echoes(stage, s, events);
+    combat::deal_echoes(s, events);
     hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = Vec::with_capacity(s.bullets.len());
     for i in 0..s.bullets.len() {
@@ -756,7 +758,7 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     events.push(DomainEvent::Hit {
         source: b.owner,
         target: id,
-        target_kind: kind_id(stage, s, target),
+        target_kind: kind_id(s, target),
         damage: dealt,
         damage_type: b.damage_type,
         match_up,
@@ -765,7 +767,7 @@ fn damage(stage: &Stage, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         echo: false,
     });
     if dead {
-        events.push(death_event(stage, s, target, id));
+        events.push(death_event(s, target, id));
     } else if s.player.echo_hit_pct != 0 {
         combat::queue_echo(s, &b, id, dealt, !State::is_ally(target));
     }
@@ -794,14 +796,14 @@ fn damageable(s: &State, target: Who) -> bool {
 }
 
 /// What a death is reported as: a part breaks, everything else dies.
-fn death_event(stage: &Stage, s: &State, target: Who, id: EntityId) -> DomainEvent {
+fn death_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
     match (target, s.boss.as_ref()) {
         (Who::BossPart(i), Some(boss)) => DomainEvent::PartBroken {
             part: boss.parts[i].name.clone(),
         },
         _ => DomainEvent::Died {
             entity: id,
-            kind: kind_id(stage, s, target),
+            kind: kind_id(s, target),
         },
     }
 }
@@ -809,15 +811,15 @@ fn death_event(stage: &Stage, s: &State, target: Who, id: EntityId) -> DomainEve
 /// The kind id of a target (`EntityView::kind_id`): the content ID the Bestiary keys on. An
 /// enemy's, an elite's or a companion's is its sprite ID, the boss's is its own, a boss part's
 /// is the part's ID. The main character has none, and a mimic still in disguise shows none.
-pub(super) fn kind_id(stage: &Stage, s: &State, who: Who) -> Option<ContentId> {
+pub(super) fn kind_id(s: &State, who: Who) -> Option<KindId> {
     match who {
         Who::Player => None,
-        Who::Boss => Some(stage.boss.as_ref()?.base.clone()),
-        Who::BossPart(i) => Some(stage.boss.as_ref()?.parts.get(i)?.id.clone()),
-        Who::Companion(i) => Some(agent_def(stage, s.companions[i].key).base.clone()),
+        Who::Boss => Some(s.boss_state().kind.clone()),
+        Who::BossPart(i) => Some(s.boss_state().parts[i].kind.clone()),
+        Who::Companion(i) => Some(s.companions[i].kind.clone()),
         Who::Enemy(i) => {
             let e = &s.enemies[i];
-            (!e.hidden()).then(|| agent_def(stage, e.key).base.clone())
+            (!e.hidden()).then(|| e.kind.clone())
         }
     }
 }

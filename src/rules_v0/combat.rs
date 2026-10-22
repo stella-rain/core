@@ -90,7 +90,7 @@ pub(super) fn queue_echo(s: &mut State, b: &Shot, target: EntityId, dealt: u32, 
 /// bullets land. An echo takes its hit points from the target it was queued on, if that is
 /// still standing, and nothing else: it neither crits, echoes, fires a rune nor adds expertise.
 /// What it defeats is credited with the rest of the tick's kills.
-pub(super) fn deal_echoes(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn deal_echoes(s: &mut State, events: &mut Vec<DomainEvent>) {
     if s.echoes.is_empty() {
         return;
     }
@@ -107,7 +107,7 @@ pub(super) fn deal_echoes(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
         events.push(DomainEvent::Hit {
             source: echo.source,
             target: echo.target,
-            target_kind: super::kind_id(stage, s, target),
+            target_kind: super::kind_id(s, target),
             damage: echo.damage,
             damage_type: echo.damage_type,
             match_up: MatchUp::None,
@@ -116,7 +116,7 @@ pub(super) fn deal_echoes(stage: &Stage, s: &mut State, events: &mut Vec<DomainE
             echo: true,
         });
         if dead {
-            events.push(super::death_event(stage, s, target, echo.target));
+            events.push(super::death_event(s, target, echo.target));
         }
         s.raise_aggro(
             echo.source,
@@ -350,9 +350,8 @@ mod tests {
                 damage_type: None,
             });
         }
-        let stage = RunContent::bundled().trial().clone();
         let mut events = Vec::new();
-        deal_echoes(&stage, &mut s, &mut events);
+        deal_echoes(&mut s, &mut events);
         assert!(s.echoes.is_empty());
         assert_eq!(s.enemies[0].hp, 0, "20 then 40 of 50");
         let types: Vec<_> = events
@@ -365,7 +364,7 @@ mod tests {
             .collect();
         // The echo of 5 on the missing enemy is dropped; the last one is dealt in full.
         assert_eq!(types, [(20, true), (40, true), (0, false)]);
-        deal_echoes(&stage, &mut s, &mut events);
+        deal_echoes(&mut s, &mut events);
         assert_eq!(events.len(), 3, "nothing is dealt twice");
     }
 

@@ -14,7 +14,7 @@ use crate::attack::{AttackPhase, DamageType, Emitter};
 use crate::behaviour::{BossCall, Movement};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
-use crate::id::{ContentId, EntityId};
+use crate::id::{ContentId, EntityId, KindId};
 use crate::input::Input;
 use crate::match_ups::MatchUps;
 use crate::rewards::{Rarity, Rewards};
@@ -1111,6 +1111,8 @@ pub(crate) struct DashState {
 #[derive(Clone, Debug)]
 pub(crate) struct BossState {
     pub id: EntityId,
+    /// The boss's kind id (its sprite), made once so each hit on it shares it.
+    pub kind: KindId,
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
@@ -1146,6 +1148,8 @@ pub(crate) struct PartState {
     pub id: EntityId,
     /// The ID the stage gave it, which `part_broken` and the `part` selector name.
     pub name: ContentId,
+    /// `name` as a kind id, made once so each hit on the part shares it.
+    pub kind: KindId,
     pub hp: u32,
     pub max_hp: u32,
     /// Copied from the stage when it appears (ADR-056).
@@ -1183,6 +1187,8 @@ pub(crate) enum AgentSource {
 #[derive(Clone, Debug)]
 pub(crate) struct AgentState {
     pub id: EntityId,
+    /// Its kind id (its sprite), made once at spawn so each hit on it shares it (ADR-058).
+    pub kind: KindId,
     pub key: AgentKey,
     pub at: Point,
     pub hp: u32,

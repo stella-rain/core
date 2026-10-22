@@ -9,7 +9,7 @@ use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::attack::DamageType;
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::{ContentId, EntityId};
+use stella_rain_core::id::{ContentId, EntityId, KindId};
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::stage::Stage;
 
@@ -107,7 +107,7 @@ fn a_hit_names_the_kind_of_its_target() {
             _ => None,
         })
         .collect();
-    assert_eq!(kinds, [Some(ContentId("bat".into()))]);
+    assert_eq!(kinds, [Some(KindId::from("bat"))]);
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn a_kill_names_the_kind_of_the_victim() {
             _ => None,
         })
         .collect();
-    assert_eq!(died, [(FOE, Some(ContentId("bat".into())))]);
+    assert_eq!(died, [(FOE, Some(KindId::from("bat")))]);
 }
 
 #[test]
