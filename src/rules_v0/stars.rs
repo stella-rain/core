@@ -475,6 +475,12 @@ fn apply_effects(
                     .min(MAX_BURST_RADIUS_PX);
                 player.burst_depth = player.burst_depth.max(depth).min(MAX_BURST_DEPTH);
             }
+            RewardEffect::BurstDepth => {
+                player.burst_depth_extra = player
+                    .burst_depth_extra
+                    .saturating_add(amount)
+                    .min(MAX_BURST_DEPTH)
+            }
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
             // The perks' counters (`loadout::perk`), added to for the rest of the run.
             RewardEffect::OfferCandidates => {

@@ -108,7 +108,7 @@ pub const MAX_BURST_PCT: u32 = 100;
 /// add up to.
 pub const MAX_BURST_RADIUS_PX: u32 = 240;
 /// The most links of a chain of bursts (a reward's `depth`): the first burst is the first link.
-pub const MAX_BURST_DEPTH: u32 = 3;
+pub const MAX_BURST_DEPTH: u32 = 5;
 /// The most bursts one tick resolves, as ADR-058's contagion cap; the rest are dropped.
 pub const MAX_BURSTS_PER_TICK: usize = 8;
 
@@ -222,6 +222,10 @@ pub enum RewardEffect {
     /// pixels for `amount` percent of the dead enemy's maximum hit points, and a burst kill
     /// bursts again, down to `depth` links.
     KillBurst,
+    /// `amount` more links on the chain of kill bursts, up to `MAX_BURST_DEPTH` in all: it adds
+    /// to the depth of a `kill_burst` held, in whatever order they came, and does nothing
+    /// alone.
+    BurstDepth,
 }
 
 impl RewardEffect {
@@ -253,6 +257,7 @@ impl RewardEffect {
             | RewardEffect::CritDamagePct
             | RewardEffect::EchoHitPct
             | RewardEffect::KillBurst
+            | RewardEffect::BurstDepth
             | RewardEffect::RandomRune => return None,
         })
     }
@@ -298,7 +303,7 @@ pub struct EffectEntry {
 }
 
 /// The most effects one reward holds.
-pub const MAX_REWARD_EFFECTS: usize = 3;
+pub const MAX_REWARD_EFFECTS: usize = 4;
 /// The most named rewards a file lists (a placeholder bound, ADR-020).
 pub const MAX_NAMED_REWARDS: usize = 32;
 /// The weight a reward has when its file gives none.
@@ -606,6 +611,7 @@ fn most_of(effect: RewardEffect, haste_cap: u32) -> u32 {
         RewardEffect::CritDamagePct => MAX_CRIT_DAMAGE_PCT,
         RewardEffect::EchoHitPct => MAX_ECHO_HIT_PCT,
         RewardEffect::KillBurst => MAX_BURST_PCT,
+        RewardEffect::BurstDepth => MAX_BURST_DEPTH,
         _ => MAX_AMOUNT,
     }
 }
