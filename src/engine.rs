@@ -550,6 +550,8 @@ impl Engine {
                     .collect(),
                 range_pct: s.player.range_pct,
                 rune_haste_pct: s.player.rune_haste_pct,
+                pickup_radius_pct: s.player.pickup_radius_pct,
+                skill_cooldown_pct: s.player.skill_cooldown_pct,
                 type_bonuses: DamageType::ALL
                     .iter()
                     .zip(s.player.type_bonus_pct)
@@ -909,6 +911,13 @@ pub(crate) struct PlayerState {
     pub range_pct: u32,
     /// What the Rune Haste rewards taken add up to, in percent, saturating (ADR-099).
     pub rune_haste_pct: u32,
+    /// What the pickup radius rewards taken add up to, in percent, saturating: the pickup
+    /// circle of stars and heal pickups is that much wider, held to
+    /// `MAX_PICKUP_RADIUS_TOTAL_PCT` where it is used.
+    pub pickup_radius_pct: u32,
+    /// What the skill cooldown rewards taken add up to, in percent, saturating: the stage
+    /// skill's cooldown is that much shorter, held to `MAX_SKILL_COOLDOWN_TOTAL_PCT`.
+    pub skill_cooldown_pct: u32,
     /// What the type bonus rewards taken add up to for each damage type, by its place in
     /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
     /// type of its group.

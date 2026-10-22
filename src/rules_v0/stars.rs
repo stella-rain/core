@@ -35,7 +35,7 @@ use crate::snapshot::{CandidateView, OfferKind, OfferOption, OfferView};
 use crate::stage::{RarityWeights, Stage, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
-use super::{levels, orbit, overlaps, player, runes, skill};
+use super::{levels, orbit, overlaps, player, runes, skill, widened};
 
 /// The candidates an offer holds (a tuning value, ADR-079 §3).
 pub(crate) const OFFER_SIZE: usize = 3;
@@ -151,12 +151,13 @@ pub(super) fn pick_up(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent
         return;
     }
     let at = s.player.at;
+    let pickup_pct = s.player.pickup_radius_pct;
     let Some(f) = s.stars.as_mut() else {
         return;
     };
     let stars = std::mem::take(&mut f.on_map);
     for star in stars {
-        if overlaps(at, cfg.pickup_radius.0, star.at, 0) {
+        if overlaps(at, widened(cfg.pickup_radius.0, pickup_pct), star.at, 0) {
             f.due.push(Due {
                 kind: OfferKind::Star,
                 rarity: star.rarity,
@@ -356,6 +357,12 @@ pub(super) fn take(
             RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
             RewardEffect::Orbit => orbit::take(player, i, amount),
             RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
+            RewardEffect::PickupRadiusPct => {
+                player.pickup_radius_pct = player.pickup_radius_pct.saturating_add(amount)
+            }
+            RewardEffect::SkillCooldownPct => {
+                player.skill_cooldown_pct = player.skill_cooldown_pct.saturating_add(amount)
+            }
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
             // The perks' counters (`loadout::perk`), added to for the rest of the run.
             RewardEffect::Rerolls => f.rerolls_left = f.rerolls_left.saturating_add(amount),

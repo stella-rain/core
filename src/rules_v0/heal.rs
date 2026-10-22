@@ -15,7 +15,7 @@ use crate::event::DomainEvent;
 use crate::id::EntityId;
 use crate::stage::Stage;
 
-use super::{PLAYER_ID, overlaps};
+use super::{PLAYER_ID, overlaps, widened};
 
 /// The boss died this tick: it heals the main character `boss_pct` percent of its most.
 pub(super) fn boss_killed(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent>) {
@@ -70,13 +70,14 @@ pub(super) fn pick_up(stage: &Stage, s: &mut State, events: &mut Vec<DomainEvent
         return;
     }
     let at = s.player.at;
+    let radius = widened(cfg.pickup_radius.0, s.player.pickup_radius_pct);
     let taken = {
         let Some(pickups) = s.heal_pickups.as_mut() else {
             return;
         };
         let (taken, kept): (Vec<HealPickup>, Vec<HealPickup>) = std::mem::take(pickups)
             .into_iter()
-            .partition(|p| overlaps(at, cfg.pickup_radius.0, p.at, 0));
+            .partition(|p| overlaps(at, radius, p.at, 0));
         *pickups = kept;
         taken
     };

@@ -90,6 +90,17 @@ fn aim(s: &State, input: Input) -> Dir {
     s.player.facing
 }
 
+/// `ticks` shortened by `pct` percent, the percent held to `MAX_SKILL_COOLDOWN_TOTAL_PCT` so a
+/// cooldown is never below 40 percent of its base; rounded up, at least 1 for a cooldown that has any.
+pub(crate) fn shortened(ticks: u32, pct: u32) -> u32 {
+    if ticks == 0 {
+        return 0;
+    }
+    let pct = u64::from(pct.min(crate::rewards::MAX_SKILL_COOLDOWN_TOTAL_PCT));
+    let left = (u64::from(ticks) * (100 - pct)).div_ceil(100);
+    u32::try_from(left).unwrap_or(u32::MAX).max(1)
+}
+
 /// A press of `skill`: the skill in the slot acts, if it is ready.
 pub(super) fn press(
     stage: &Stage,
@@ -125,7 +136,7 @@ pub(super) fn press(
             .saturating_add(Fx((i64::from(dir.y) * ahead / scale) as i32)),
     });
     s.player.skill = Some(SkillSlot {
-        cooldown_left: level.cooldown_ticks,
+        cooldown_left: shortened(level.cooldown_ticks, s.player.skill_cooldown_pct),
         ..slot
     });
     events.push(DomainEvent::StageSkillUsed {
@@ -280,4 +291,20 @@ pub(super) fn absorb(s: &mut State, damage: u32) -> u32 {
         p.shield = None;
     }
     damage - absorbed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shortened;
+
+    #[test]
+    fn a_cooldown_is_shortened_by_the_percent_and_never_below_40_percent() {
+        assert_eq!(shortened(120, 0), 120);
+        assert_eq!(shortened(120, 25), 90);
+        assert_eq!(shortened(120, 60), 48);
+        assert_eq!(shortened(120, 400), 48, "held to the sum cap of 60");
+        assert_eq!(shortened(7, 50), 4, "rounded up");
+        assert_eq!(shortened(1, 60), 1, "never below a tick");
+        assert_eq!(shortened(0, 60), 0, "no cooldown stays none");
+    }
 }

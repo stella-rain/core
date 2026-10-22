@@ -287,6 +287,8 @@ pub(crate) fn initial_state(
             orbits: Vec::new(),
             range_pct: 0,
             rune_haste_pct: 0,
+            pickup_radius_pct: 0,
+            skill_cooldown_pct: 0,
             type_bonus_pct: [0; DamageType::ALL.len()],
             runes: Vec::new(),
             aggro: 0,
@@ -617,6 +619,13 @@ fn overlaps(a: Point, ra: i32, b: Point, rb: i32) -> bool {
     let dy = i64::from(a.y.0) - i64::from(b.y.0);
     let r = i64::from(ra) + i64::from(rb);
     dx * dx + dy * dy <= r * r
+}
+
+/// A pickup circle of `radius` widened by `pct` percent, the percent held to
+/// `MAX_PICKUP_RADIUS_TOTAL_PCT` (the pickup radius rewards).
+fn widened(radius: i32, pct: u32) -> i32 {
+    let pct = i64::from(pct.min(crate::rewards::MAX_PICKUP_RADIUS_TOTAL_PCT));
+    i32::try_from(i64::from(radius) * (100 + pct) / 100).unwrap_or(i32::MAX)
 }
 
 /// What a hit needs to know about the bullet that made it.
@@ -1631,6 +1640,13 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     // runs without it stay as they were: what the picks add up to. Haste never goes.
     if s.player.rune_haste_pct > 0 {
         h.write_u32(s.player.rune_haste_pct);
+    }
+    // The same for the pickup radius and the skill cooldown rewards (core NS2a).
+    if s.player.pickup_radius_pct > 0 {
+        h.write_u32(s.player.pickup_radius_pct);
+    }
+    if s.player.skill_cooldown_pct > 0 {
+        h.write_u32(s.player.skill_cooldown_pct);
     }
     // Last of all, and only in a run with a horde: the bosses come so far, and which pool
     // entries are drawn.
