@@ -3,7 +3,7 @@
 //! tick that does not would pass without measuring the worst case. Every attacker also holds an
 //! active hit box (ADR-055). The main character holds every rune at full Rune Haste, its combo
 //! steps hit all 500 enemies each tick, and each enemy carries all three damage-over-time
-//! statuses at their stack cap (ADR-099).
+//! statuses at their stack cap (ADR-099). 128 zones are alive and active (core Z1).
 
 // The benchmark's own module, which brings its own copy of `tests/common`; in the one test
 // binary that copy sits beside `crate::common`, as it did when this file was a binary of its own.
@@ -49,6 +49,15 @@ fn assert_hit_boxes(engine: &Engine) {
         .filter(|ev| matches!(ev, DomainEvent::Hit { source, .. } if companions.contains(source)))
         .count();
     assert_eq!(hits, 4 * 500);
+}
+
+/// Every zone cap is held (core Z1): 128 zones alive and active, 16 of them the companions',
+/// which cover the 500 enemies.
+fn assert_zones(engine: &Engine) {
+    let zones = engine.snapshot().zones;
+    assert_eq!(zones.len(), 128);
+    assert!(zones.iter().all(|z| z.phase == PhaseKind::Active));
+    assert_eq!(zones.iter().filter(|z| z.friendly).count(), 16);
 }
 
 /// The main character holds all seven runes at full Rune Haste, and every enemy carries bleed,
@@ -146,6 +155,7 @@ fn the_measured_tick_reaches_every_dynamic_cap() {
     assert_eq!(engine.outcome(), Outcome::Running, "the run ended");
     assert_eq!(engine.load(), Load::CAPS);
     assert_hit_boxes(&engine);
+    assert_zones(&engine);
     assert_fresh_stack(&engine);
     assert_runes_and_statuses(&engine);
     assert_steps_and_ticks_land(&engine);
@@ -166,6 +176,7 @@ fn the_caps_are_held_tick_after_tick() {
         );
         assert_eq!(engine.load(), Load::CAPS, "on tick {tick}");
         assert_hit_boxes(&engine);
+        assert_zones(&engine);
         assert_fresh_stack(&engine);
         assert_runes_and_statuses(&engine);
         assert_steps_and_ticks_land(&engine);
