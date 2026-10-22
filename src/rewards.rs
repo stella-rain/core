@@ -536,6 +536,103 @@ fn validate_entry(
     }
 }
 
+/// The caps over the entries of one reward: what a kind's entries add up to stays within the
+/// kind's largest amount, as the picks of a run do (ADR-020), a random rune stands alone, and
+/// a reward holds one orbit.
+fn validate_bundle(
+    reward: &Reward,
+    at: &dyn Fn(&str) -> String,
+    issue: &mut dyn FnMut(String, String),
+) {
+    let mut sums: Vec<(RewardEffect, Option<&ContentId>, Option<DamageType>, u64)> = Vec::new();
+    for e in &reward.effects {
+        let amount = u64::from(e.amount.unwrap_or(0));
+        let key = (e.effect, e.skill.as_ref(), e.damage_type);
+        match sums.iter_mut().find(|(k, s, t, _)| (*k, *s, *t) == key) {
+            Some(sum) => sum.3 += amount,
+            None => sums.push((key.0, key.1, key.2, amount)),
+        }
+    }
+    for (effect, _, _, sum) in &sums {
+        let most = most_of(*effect);
+        if *sum > u64::from(most) {
+            issue(
+                at("effects"),
+                format!(
+                    "the {effect:?} amounts of one reward add up to at most {most} (found {sum})"
+                ),
+            );
+        }
+    }
+    let orbits = reward
+        .effects
+        .iter()
+        .filter(|e| e.effect == RewardEffect::Orbit)
+        .count();
+    if orbits > 1 {
+        issue(at("effects"), "a reward holds at most one orbit".into());
+    }
+    if reward.effects.len() > 1
+        && reward
+            .effects
+            .iter()
+            .any(|e| e.effect == RewardEffect::RandomRune)
+    {
+        issue(
+            at("effects"),
+            "a random rune is a reward of its own, with no other effect".into(),
+        );
+    }
+}
+
+/// The named-star rules for one reward, given the rewards before it: a named reward is taken
+/// once and is epic or above, an unnamed one stacks, the star's name is bounded and unique,
+/// and the draw weight is within its bounds.
+fn validate_naming(
+    earlier: &[Reward],
+    reward: &Reward,
+    at: &dyn Fn(&str) -> String,
+    issue: &mut dyn FnMut(String, String),
+) {
+    if reward.named {
+        if reward.limit != Some(1) {
+            issue(
+                at("limit"),
+                "a named reward is taken once: its limit is 1".into(),
+            );
+        }
+        if reward.rarity < Rarity::Epic {
+            issue(
+                at("rarity"),
+                "a named reward is epic, legendary or supernova".into(),
+            );
+        }
+    } else if !reward.is_random_rune() && reward.limit.is_some_and(|l| l < MIN_UNNAMED_LIMIT) {
+        issue(
+            at("limit"),
+            format!("an unnamed reward stacks: its limit is {MIN_UNNAMED_LIMIT} or more"),
+        );
+    }
+    match (&reward.star, reward.named) {
+        (None, true) => issue(at("star"), "a named reward has a star name".into()),
+        (Some(_), false) => issue(at("star"), "only a named reward has a star name".into()),
+        (Some(star), true) => {
+            if let Some(problem) = run_stats::text_problem(star, 1, run_stats::MAX_TITLE_CHARS) {
+                issue(at("star"), problem);
+            } else if earlier.iter().any(|r| r.star.as_ref() == Some(star)) {
+                issue(at("star"), "the same star name as an earlier reward".into());
+            }
+        }
+        (None, false) => {}
+    }
+    if !(1..=MAX_WEIGHT).contains(&reward.weight) {
+        issue(
+            at("weight"),
+            format!("1 to {MAX_WEIGHT} (found {})", reward.weight),
+        );
+    }
+}
+
 /// Validates a parsed file, each reward's skill in `stage_skills`: one issue per problem, with
 /// its path, never text from the file.
 pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Error> {
@@ -595,6 +692,8 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
                 }
             }
         }
+        validate_bundle(reward, &at, &mut issue);
+        validate_naming(&file.rewards[..i], reward, &at, &mut issue);
         if let Some(problem) = run_stats::text_problem(&reward.title, 1, run_stats::MAX_TITLE_CHARS)
         {
             issue(at("title"), problem);
@@ -604,6 +703,13 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
         {
             issue(at("description"), problem);
         }
+    }
+    let named = file.rewards.iter().filter(|r| r.named).count();
+    if named > MAX_NAMED_REWARDS {
+        issue(
+            "$.rewards".into(),
+            format!("at most {MAX_NAMED_REWARDS} named rewards (found {named})"),
+        );
     }
     if issues.is_empty() {
         Ok(())

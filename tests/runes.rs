@@ -354,9 +354,9 @@ fn a_random_rune_alone_with_every_rune_held_opens_no_offer() {
 
 #[test]
 fn a_random_rune_candidate_is_rerolled_like_any_reward() {
-    // `a` taken once is at its limit, so the next offer holds the three others.
-    let list = vec![random_rune(), inert_limited("a", 1), inert("b"), inert("c")];
-    let mut e = with(&targets(2, 1, 0), list);
+    // `a` taken twice is at its limit, so the next offer holds the three others.
+    let list = vec![random_rune(), inert_limited("a", 2), inert("b"), inert("c")];
+    let mut e = with(&targets(3, 1, 0), list);
     next_offer(&mut e);
     let candidate = slot(&e, "random_rune");
     pick(&mut e, OfferOption::Reroll { candidate });
@@ -364,6 +364,9 @@ fn a_random_rune_candidate_is_rerolled_like_any_reward() {
     assert_eq!(offered(&e), ["a", "b", "c"]);
     assert!(e.snapshot().player.runes.is_empty(), "no rune drawn");
     // It stays in the pool.
+    take(&mut e, "a");
+    next_offer(&mut e);
+    assert_eq!(offered(&e), ["a", "b", "c"]);
     take(&mut e, "a");
     next_offer(&mut e);
     assert_eq!(offered(&e), ["b", "c", "random_rune"]);

@@ -473,28 +473,28 @@ fn banishing_the_last_reward_closes_the_offer_and_an_empty_pool_opens_none() {
 #[test]
 fn a_reward_at_its_stack_limit_is_offered_no_more() {
     let list = rewards(&[
-        ("once", "common", "max_hp", 1, 1),
+        ("once", "common", "max_hp", 1, 2),
         ("b", "common", "max_hp", 1, 9),
         ("c", "common", "max_hp", 1, 9),
         ("d", "common", "max_hp", 1, 9),
     ]);
     let st = stars(json!({ "rerolls": 0, "banishes": 0 }));
     let mut e = with(&starry(&[1000], st, vec![targets(1, 12, NEAR_Y)]), list);
-    let mut taken = false;
+    let mut times = 0;
     let mut after = Vec::new();
     for _ in 0..12 {
         if fire_until(&mut e, idle(), 600, Engine::offer_open).is_empty() && !e.offer_open() {
             break;
         }
         let c = candidates(&e);
-        if taken {
+        if times == 2 {
             after.extend(c.clone());
         }
         let pick = c.iter().position(|id| id == "once").unwrap_or(0);
-        taken |= c[pick] == "once";
+        times += usize::from(c[pick] == "once");
         e.choose(u32::try_from(pick).unwrap()).unwrap();
     }
-    assert!(taken && after.len() >= 9, "{after:?}");
+    assert!(times == 2 && after.len() >= 9, "{after:?}");
     assert!(!after.iter().any(|id| id == "once"), "{after:?}");
 }
 
@@ -556,8 +556,8 @@ fn experience_rewards_raise_the_experience_of_every_kill() {
     // The first kill drops a star at once; with +50% experience, each later kill of a 2-xp
     // enemy gives 3.
     let list = rewards(&[
-        ("insight", "common", "xp_pct", 50, 1),
-        ("x", "common", "max_hp", 1, 1),
+        ("insight", "common", "xp_pct", 50, 2),
+        ("x", "common", "max_hp", 1, 2),
     ]);
     let mut first = targets(1, 1, NEAR_Y);
     first["xp"] = json!(2);

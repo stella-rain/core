@@ -551,7 +551,7 @@ fn vigour_is_shown_hit_points_stored_times_100() {
 /// A reward whose `effects` list holds `effects`, with the single-effect fields left out.
 fn bundle(id: &str, effects: Vec<Value>) -> Value {
     json!({
-        "id": id, "rarity": "epic", "effects": effects, "limit": 1,
+        "id": id, "rarity": "epic", "effects": effects, "limit": 2,
         "title": "Bundle", "description": ""
     })
 }
@@ -563,6 +563,7 @@ fn pct(effect: &str, amount: u32) -> Value {
 /// A named reward: one epic effect, limit 1, called `star`.
 fn named(id: &str, star: &str) -> Value {
     let mut r = bundle(id, vec![pct("attack_pct", 10)]);
+    r["limit"] = json!(1);
     r["named"] = json!(true);
     r["star"] = json!(star);
     r
@@ -667,10 +668,11 @@ fn a_random_rune_stands_alone_and_a_bundle_holds_one_orbit_at_most() {
         &file(vec![bundle("b", vec![pct("attack_pct", 1), rune])]),
         "$.rewards[0].effects",
     );
-    let two = vec![
-        orbit("o", 1)["effects"][0].clone(),
-        orbit("o", 1)["effects"][0].clone(),
-    ];
+    let entry = {
+        let o = orbit("o", 1);
+        json!({ "effect": "orbit", "amount": 1, "orbit": o["orbit"] })
+    };
+    let two = vec![entry.clone(), entry];
     invalid_at(&file(vec![bundle("b", two)]), "$.rewards[0].effects");
 }
 

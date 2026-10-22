@@ -266,7 +266,7 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
     let expertise = Expertise::parse(file.to_string().as_bytes()).expect("the test expertise");
     let content = RunContent::new(
         RunStats::bundled().clone(),
-        rewards(vec![range("reach", 30, 1)]),
+        rewards(vec![range("reach", 30, 2)]),
     )
     .with_expertise(expertise);
     let mut e = Engine::new_with(&stage, &content).expect("the test stage is valid");
@@ -311,11 +311,11 @@ fn the_enchantment_effect_is_gone() {
         json!({ "schema_version": 0, "sim_version": 0, "rewards": [reward] }).to_string()
     };
     let old = json!({
-        "id": "reach", "rarity": "common", "effect": "enchantment", "amount": 20, "limit": 1,
+        "id": "reach", "rarity": "common", "effect": "enchantment", "amount": 20, "limit": 2,
         "title": "Reach", "description": "", "enchantment": { "type": "range" }
     });
     assert!(Rewards::parse(file(old).as_bytes()).is_err());
-    let mut field = range("reach", 20, 1);
+    let mut field = range("reach", 20, 2);
     field["enchantment"] = json!({ "type": "range" });
     assert!(Rewards::parse(file(field).as_bytes()).is_err());
 }

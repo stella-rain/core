@@ -304,10 +304,10 @@ fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
     let rewards = vec![
         random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
-                "skill": "war_cry", "amount": 1, "limit": 1, "title": "Skill",
+                "skill": "war_cry", "amount": 1, "limit": 2, "title": "Skill",
                 "description": "" }),
         json!({ "id": "bonus", "rarity": "common", "effect": "type_bonus_pct",
-                "type": ty, "amount": 50, "limit": 1, "title": "Type",
+                "type": ty, "amount": 50, "limit": 2, "title": "Type",
                 "description": "" }),
     ];
     let mut e = with(

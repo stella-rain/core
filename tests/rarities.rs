@@ -288,7 +288,7 @@ const NEAR_Y: i32 = START_Y - 8_192;
 /// An attack reward `id` of `amount` percent at `rarity`, taken at most once.
 fn once(id: &str, rarity: &str, amount: u32) -> Value {
     json!({
-        "id": id, "rarity": rarity, "effect": "attack_pct", "amount": amount, "limit": 1,
+        "id": id, "rarity": rarity, "effect": "attack_pct", "amount": amount, "limit": 2,
         "title": "Might", "description": ""
     })
 }
@@ -346,14 +346,18 @@ fn kill(e: &mut Engine) {
 
 #[test]
 fn an_offer_at_supernova_falls_to_legendary_once_the_supernova_reward_is_taken() {
-    // One supernova reward and one legendary: the first offer holds only the supernova, and once
-    // it is taken (limit 1) the next offer falls to the rarity below.
+    // One supernova reward and one legendary: the offers hold the supernova until it is taken
+    // as often as it stacks (limit 2), and then the next offer falls to the rarity below.
     let mut e = with(
         &targets("supernova"),
         vec![once("sup", "supernova", 40), once("leg", "legendary", 25)],
     );
     e.step(idle());
     e.step(idle());
+    kill(&mut e);
+    next_offer(&mut e);
+    assert!(offered(&e).contains(&"sup".to_owned()), "{:?}", offered(&e));
+    take(&mut e, "sup");
     kill(&mut e);
     next_offer(&mut e);
     assert!(offered(&e).contains(&"sup".to_owned()), "{:?}", offered(&e));

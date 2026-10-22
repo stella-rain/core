@@ -103,12 +103,12 @@ fn a_rune_haste_reward_is_a_stat_like_effect_bounded_like_the_others() {
         Rewards::parse(file.to_string().as_bytes())
     };
     assert!(parse(haste("h", MAX_HASTE, 20)).is_ok());
-    assert!(parse(haste("h", 1, 1)).is_ok());
+    assert!(parse(haste("h", 1, 2)).is_ok());
     assert!(parse(haste("h", 0, 1)).is_err(), "an amount of 0");
     assert!(parse(haste("h", MAX_HASTE + 1, 1)).is_err(), "past the cap");
     assert!(parse(haste("h", 10, 0)).is_err(), "a limit of 0");
     assert!(parse(haste("h", 10, 21)).is_err(), "a limit past MAX_STACK");
-    let mut no_amount = haste("h", 10, 1);
+    let mut no_amount = haste("h", 10, 2);
     no_amount.as_object_mut().unwrap().remove("amount");
     assert!(parse(no_amount).is_err(), "no amount");
 }
@@ -125,7 +125,7 @@ fn without_haste_the_cooldowns_and_the_interval_are_the_files() {
 fn haste_shortens_each_on_hit_rune_s_cooldown_to_ticks_times_100_over_100_plus_h() {
     // 120 × 100 / 150 = 80; 7 × 100 / 200 = 3.5, up to 4; 30 × 100 / 125 = 24.
     for (cooldown, h, left) in [(120, 50, 80), (7, 100, 4), (30, 25, 24), (31, 25, 25)] {
-        let mut e = holding(runes(cooldown, 30), vec![haste("h1", h, 1)], &["h1"]);
+        let mut e = holding(runes(cooldown, 30), vec![haste("h1", h, 2)], &["h1"]);
         assert_eq!(
             cooldowns_after_a_hit(&mut e),
             [left; 4],
@@ -154,14 +154,14 @@ fn the_formula_rounds_up_and_floors_at_one_tick() {
 #[test]
 fn a_cooldown_never_reaches_zero() {
     // The shortest cooldown a file allows here, its attack's 4 ticks: 4 × 100 / 400 = 1.
-    let mut e = holding(runes(4, 30), vec![haste("h1", MAX_HASTE, 1)], &["h1"]);
+    let mut e = holding(runes(4, 30), vec![haste("h1", MAX_HASTE, 2)], &["h1"]);
     assert_eq!(cooldowns_after_a_hit(&mut e), [1; 4]);
 }
 
 #[test]
 fn haste_shortens_a_damage_over_time_interval_as_it_is_applied() {
     // 30 × 100 / 150 = 20: the first tick 20 after the hit, then every 20.
-    let mut e = holding(runes(120, 30), vec![haste("h1", 50, 1)], &["h1"]);
+    let mut e = holding(runes(120, 30), vec![haste("h1", 50, 2)], &["h1"]);
     let target = wait_for_target(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 100, once(start));
@@ -173,7 +173,7 @@ fn haste_shortens_a_damage_over_time_interval_as_it_is_applied() {
 #[test]
 fn every_damage_over_time_kind_is_shortened() {
     // Poison and burn, 600 ticks: 600 × 100 / 150 = 400.
-    let mut e = holding(runes(120, 30), vec![haste("h1", 50, 1)], &["h1"]);
+    let mut e = holding(runes(120, 30), vec![haste("h1", 50, 2)], &["h1"]);
     let target = wait_for_target(&mut e);
     let start = e.tick();
     e.step(once(start)(start));
@@ -194,7 +194,7 @@ fn every_damage_over_time_kind_is_shortened() {
 #[test]
 fn haste_taken_several_times_sums_up_to_the_cap() {
     // Two of 200 add up to 400, held to 300 where it applies: 120 × 100 / 400 would be 30.
-    let rewards = vec![haste("h1", 200, 3), haste("h2", 100, 1)];
+    let rewards = vec![haste("h1", 200, 3), haste("h2", 100, 2)];
     let mut e = holding(runes(120, 30), rewards.clone(), &["h1"]);
     assert_eq!(e.snapshot().player.rune_haste_pct, 200);
     assert_eq!(cooldowns_after_a_hit(&mut e), [40; 4], "120 × 100 / 300");
@@ -218,8 +218,8 @@ fn haste_leaves_the_combo_the_evade_and_the_stage_skill_alone() {
                   "duration_ticks": 20 }
             ] }] }]);
         let skill = json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
-            "skill": "war_cry", "amount": 1, "limit": 1, "title": "Skill", "description": "" });
-        let mut list = vec![random_rune(), skill, haste("h1", 100, 1)];
+            "skill": "war_cry", "amount": 1, "limit": 2, "title": "Skill", "description": "" });
+        let mut list = vec![random_rune(), skill, haste("h1", 100, 2)];
         list.truncate(3);
         let small = 8 + u16::try_from(haste_picks.len()).unwrap();
         let mut e = with(
