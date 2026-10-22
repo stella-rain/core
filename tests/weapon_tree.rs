@@ -169,3 +169,42 @@ fn a_recorded_input_reaches_aaaaa_and_aaaaab_in_the_sword_and_the_hammer() {
         );
     }
 }
+
+#[test]
+fn a_weapon_lists_its_trees_first_one_first() {
+    assert_eq!(
+        presets::tree_ids("giant_sword").collect::<Vec<_>>(),
+        ["giant_sword_base"]
+    );
+    assert_eq!(presets::tree_ids("no_such_weapon").count(), 0);
+    assert_eq!(
+        presets::weapon_tree("giant_hammer", Some("giant_hammer_base")),
+        presets::weapon_preset("giant_hammer")
+    );
+    assert_eq!(
+        presets::weapon_tree("giant_hammer", Some("giant_sword_base")),
+        None
+    );
+}
+
+#[test]
+fn a_stage_that_names_an_unknown_tree_is_refused() {
+    use stella_rain_core::validate;
+    let mut stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
+    let preset = |tree: Option<&str>| stella_rain_core::weapon::WeaponRef::Preset {
+        id: "giant_sword".into(),
+        tree: tree.map(Into::into),
+    };
+    stage.player.weapon = preset(Some("giant_sword_base"));
+    assert_eq!(validate::validate(&stage), Ok(()));
+    stage.player.weapon = preset(Some("giant_sword_nope"));
+    match validate::validate(&stage) {
+        Err(Error::Invalid(issues)) => {
+            assert!(
+                issues.iter().any(|i| i.path.ends_with("preset.tree")
+                    && i.message == "no such tree for this weapon")
+            );
+        }
+        other => panic!("not refused: {other:?}"),
+    }
+}

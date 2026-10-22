@@ -516,7 +516,10 @@ fn every_weapon_preset_is_registered_and_both_roles_are_valid() {
         let w = presets::weapon_preset(id).expect("a definition");
         assert_eq!(validate_weapon_preset(w, registry::ENTRIES), Ok(()), "{id}");
         assert_eq!(
-            presets::weapon(&WeaponRef::Preset { id: id.into() }),
+            presets::weapon(&WeaponRef::Preset {
+                id: id.into(),
+                tree: None
+            }),
             Some(w)
         );
     }

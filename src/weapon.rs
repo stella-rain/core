@@ -17,7 +17,12 @@ use crate::id::ContentId;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum WeaponRef<W> {
-    Preset { id: ContentId },
+    /// A preset, in one of its trees (ADR-117): none is the weapon's first tree.
+    Preset {
+        id: ContentId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tree: Option<ContentId>,
+    },
     Inline(Box<W>),
 }
 

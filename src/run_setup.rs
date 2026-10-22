@@ -587,6 +587,7 @@ fn stage_on(
     let mut stage = base.clone();
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
+        tree: None,
     };
     validate::validate(&stage)?;
     Ok(stage)
@@ -648,6 +649,7 @@ pub(crate) fn time_limit_run(
     let mut stage = trial.clone();
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
+        tree: None,
     };
     validate::validate(&stage)?;
     check_bosses(&stage, mode)?;

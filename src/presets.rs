@@ -91,9 +91,12 @@ const DEFINITIONS: &[(&str, &str)] = &[
     ),
 ];
 
-/// `(id, definition)` of the weapon presets, in the stage format's own JSON. Placeholders until
-/// the game design's weapons are written (Giant Sword and the others, app#209).
-const WEAPONS: &[(&str, &str)] = &[
+/// `(id, trees)` of the weapon presets: each weapon's trees in order, tree 1 first (ADR-117), as
+/// `(tree ID, definition)` in the stage format's own JSON. A tree ID is lowercase snake_case, a
+/// placeholder name: `<weapon>_base` for tree 1. Trees 2 and 3 are added per weapon as content.
+/// Placeholders until the game design's weapons are written (Giant Sword and the others,
+/// app#209).
+const WEAPONS: &[(&str, &[(&str, &str)])] = &[
     // The Vindictus shape (ADR-084): A, AA and AAA are spins around the main character, each
     // wider than the last, and every Hammer step is Strike (ADR-100). AAA holds (ADR-084 point 6):
     // its loop spins on at half speed while A stays held, each loop a new attack that hits again
@@ -104,7 +107,9 @@ const WEAPONS: &[(&str, &str)] = &[
     // opened by the permanent upgrades `giant_hammer_aab` and `giant_hammer_aaab` (ADR-084 point 7).
     (
         "giant_hammer",
-        r#"{"combo":{
+        &[(
+            "giant_hammer_base",
+            r#"{"combo":{
                 "main":{"attack":{"inline":[
                             {"kind":"wind_up","ticks":6},
                             {"kind":"active","ticks":4,"type":"strike",
@@ -138,6 +143,7 @@ const WEAPONS: &[(&str, &str)] = &[
                     "smash":{"attack":{"preset":{"id":"slam"}}}},
             "window_ticks":24,"dash_strike_ticks":10,"assist_range":32768,
             "smash":{"type":"stun","ticks":30}}"#,
+        )],
     ),
     // The Vindictus shape (ADR-084): A, AA and AAA are a slash, a slash and a thrust (Pierce,
     // ADR-100); AAA charges, at level 1 a wide slash and at level 2 a spin all round, each with
@@ -149,7 +155,9 @@ const WEAPONS: &[(&str, &str)] = &[
     // (ADR-084 point 7).
     (
         "giant_sword",
-        r#"{"combo":{
+        &[(
+            "giant_sword_base",
+            r#"{"combo":{
                 "main":{"attack":{"preset":{"id":"slash"}},"next":{
                     "main":{"attack":{"preset":{"id":"slash"}},"next":{
                         "main":{"attack":{"preset":{"id":"thrust"}},
@@ -173,28 +181,49 @@ const WEAPONS: &[(&str, &str)] = &[
                     "smash":{"attack":{"preset":{"id":"slash"}}}},
             "window_ticks":20,"dash_strike_ticks":10,"assist_range":40960,
             "smash":{"type":"bleed"}}"#,
+        )],
     ),
 ];
 
-fn parsed_weapons() -> &'static [(&'static str, Weapon)] {
-    static PARSED: OnceLock<Vec<(&'static str, Weapon)>> = OnceLock::new();
+/// A weapon's trees, parsed: `(weapon ID, [(tree ID, definition)])`.
+type ParsedTrees = Vec<(&'static str, Vec<(&'static str, Weapon)>)>;
+
+fn parsed_weapons() -> &'static ParsedTrees {
+    static PARSED: OnceLock<ParsedTrees> = OnceLock::new();
     PARSED.get_or_init(|| {
         WEAPONS
             .iter()
-            .map(|(id, json)| {
-                let preset = serde_json::from_str(json)
-                    .unwrap_or_else(|e| panic!("the built-in weapon {id} does not parse: {e}"));
-                (*id, preset)
+            .map(|(id, trees)| {
+                let trees = trees
+                    .iter()
+                    .map(|(tree, json)| {
+                        let weapon = serde_json::from_str(json).unwrap_or_else(|e| {
+                            panic!("the built-in weapon tree {tree} does not parse: {e}")
+                        });
+                        (*tree, weapon)
+                    })
+                    .collect();
+                (*id, trees)
             })
             .collect()
     })
 }
 
-/// Every preset's source as `(kind, id, definition)`, attacks (`b'a'`) then weapons (`b'w'`),
-/// each in its list's order: what the run replay's content hash covers (ADR-051).
+/// Every preset's source as `(kind, id, definition)`, attacks (`b'a'`) then weapons (`b'w'`:
+/// tree 1 under the weapon's ID, `b't'`: each other tree under its tree ID), each in its list's
+/// order: what the run replay's content hash covers (ADR-051).
 pub(crate) fn sources() -> impl Iterator<Item = (u8, &'static str, &'static str)> {
     let attacks = DEFINITIONS.iter().map(|(id, json)| (b'a', *id, *json));
-    attacks.chain(WEAPONS.iter().map(|(id, json)| (b'w', *id, *json)))
+    let weapons = WEAPONS.iter().flat_map(|(id, trees)| {
+        trees.iter().enumerate().map(move |(i, (tree, json))| {
+            if i == 0 {
+                (b'w', *id, *json)
+            } else {
+                (b't', *tree, *json)
+            }
+        })
+    });
+    attacks.chain(weapons)
 }
 
 /// The ID of every weapon preset that has a definition.
@@ -202,19 +231,49 @@ pub fn weapon_ids() -> impl Iterator<Item = &'static str> {
     WEAPONS.iter().map(|(id, _)| *id)
 }
 
-/// A weapon preset's definition.
-pub fn weapon_preset(id: &str) -> Option<&'static Weapon> {
-    parsed_weapons()
+/// The IDs of a weapon's trees, tree 1 first (ADR-117); none for an ID that is no weapon.
+pub fn tree_ids(weapon: &str) -> impl Iterator<Item = &'static str> {
+    WEAPONS
         .iter()
-        .find(|(i, _)| *i == id)
-        .map(|(_, w)| w)
+        .find(|(id, _)| *id == weapon)
+        .into_iter()
+        .flat_map(|(_, trees)| trees.iter().map(|(tree, _)| *tree))
 }
 
-/// The weapon a reference names: the preset's definition, or the inline weapon itself. `None`
-/// for a preset that has no definition.
+/// What is wrong with naming `tree` for the weapon `weapon`, if anything (ADR-020: fail closed,
+/// and never echo the file's text): not a well-formed ID, or not one of the weapon's trees. A
+/// weapon with no definition is left to the weapon's own check.
+pub fn tree_problem(weapon: &str, tree: &str) -> Option<&'static str> {
+    if !registry::is_well_formed(tree) {
+        Some("not a valid ID (lowercase snake_case, at most 32 characters)")
+    } else if tree_ids(weapon).next().is_some() && !tree_ids(weapon).any(|t| t == tree) {
+        Some("no such tree for this weapon")
+    } else {
+        None
+    }
+}
+
+/// A weapon preset's definition: its first tree.
+pub fn weapon_preset(id: &str) -> Option<&'static Weapon> {
+    weapon_tree(id, None)
+}
+
+/// A weapon's tree: the one `tree` names, or the first when `None`. `None` for a weapon with no
+/// definition or a tree it does not have.
+pub fn weapon_tree(id: &str, tree: Option<&str>) -> Option<&'static Weapon> {
+    let (_, trees) = parsed_weapons().iter().find(|(i, _)| *i == id)?;
+    match tree {
+        None => trees.first(),
+        Some(tree) => trees.iter().find(|(t, _)| *t == tree),
+    }
+    .map(|(_, w)| w)
+}
+
+/// The weapon a reference names: the preset's definition (in its tree), or the inline weapon
+/// itself. `None` for a preset that has no definition, or a tree it does not have.
 pub fn weapon(weapon: &WeaponRef<Weapon>) -> Option<&Weapon> {
     match weapon {
-        WeaponRef::Preset { id } => weapon_preset(&id.0),
+        WeaponRef::Preset { id, tree } => weapon_tree(&id.0, tree.as_ref().map(|t| t.0.as_str())),
         WeaponRef::Inline(w) => Some(w),
     }
 }
