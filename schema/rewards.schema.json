@@ -269,6 +269,15 @@
         "effect": {
           "$ref": "#/$defs/RewardEffect"
         },
+        "kills": {
+          "description": "The kills between two heals, from 1 to `MAX_HEAL_KILLS`: with the `heal_per_kills`\neffect only, and required by it.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
         "orbit": {
           "description": "The orbit it gives: with the `orbit` effect only, and required by it.",
           "anyOf": [
@@ -909,6 +918,15 @@
         "id": {
           "$ref": "#/$defs/ContentId"
         },
+        "kills": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
         "limit": {
           "type": [
             "integer",
@@ -1048,6 +1066,36 @@
           "description": "Hit points the main character regenerates each second, `amount` more (the perk\n`regen`'s counter).",
           "type": "string",
           "const": "regen"
+        },
+        {
+          "description": "The pickup circle of falling stars and heal pickups `amount` percent wider, adding up\nover the picks to `MAX_PICKUP_RADIUS_TOTAL_PCT`.",
+          "type": "string",
+          "const": "pickup_radius_pct"
+        },
+        {
+          "description": "The stage skill's cooldown `amount` percent shorter, adding up over the picks to\n`MAX_SKILL_COOLDOWN_TOTAL_PCT`.",
+          "type": "string",
+          "const": "skill_cooldown_pct"
+        },
+        {
+          "description": "A heal of `amount` hit points (the stage's scale) each time the main character has\ndefeated `kills` enemies: kills that give credit only, not a self-destruct. The picks\nadd their amounts and heal at the shortest interval among them.",
+          "type": "string",
+          "const": "heal_per_kills"
+        },
+        {
+          "description": "One more candidate in every offer, at most `MAX_OFFER_CANDIDATES` in all. Its `amount`\nis 1.",
+          "type": "string",
+          "const": "offer_candidates"
+        },
+        {
+          "description": "`amount` more rerolls for the run, as the perk `extra_rerolls` gives them.",
+          "type": "string",
+          "const": "rerolls"
+        },
+        {
+          "description": "`amount` more banishes for the run, as the perk `extra_banishes` gives them.",
+          "type": "string",
+          "const": "banishes"
         }
       ]
     }
