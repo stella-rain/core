@@ -4,7 +4,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::attack::{DamageType, HitBox, PhaseKind};
+use crate::attack::{DamageType, HitBox, PhaseKind, ZoneShape};
 use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
@@ -39,6 +39,23 @@ pub struct AttackView {
     pub at: Option<Point>,
 }
 
+/// A zone (core Z1): where it is, which way an arc or a line points, and how long its current
+/// phase has left. It does not move.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ZoneView {
+    pub shape: ZoneShape,
+    /// The centre of a circle or an arc, the starting end of a line.
+    pub at: Point,
+    pub direction: Facing,
+    /// `wind_up` while it warns, `active` while it hurts.
+    pub phase: PhaseKind,
+    /// Ticks left of that phase, at least 1.
+    pub ticks_left: u32,
+    /// Placed by the main character or a companion, rather than an enemy.
+    pub friendly: bool,
+}
+
 /// A direction as a unit vector times `trig::SCALE`; `y` grows down the screen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -57,6 +74,10 @@ pub struct Snapshot {
     /// Companions, enemies, the boss and its parts, in entity-ID order.
     pub entities: Vec<EntityView>,
     pub bullets: Vec<BulletView>,
+    /// Zones placed and not yet over, in the order they were placed (core Z1); the frontend draws
+    /// each as a telegraph while it warns and as a hit while it is active.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub zones: Vec<ZoneView>,
     /// Falling stars on the map, in the order they dropped (ADR-079 §2).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stars: Vec<StarView>,

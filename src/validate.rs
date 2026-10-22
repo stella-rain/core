@@ -16,7 +16,8 @@ use std::fmt;
 use serde::Deserialize;
 
 use crate::attack::{
-    AttackPhase, AttackRef, DamageType, Direction, Emitter, Expr, HitBox, PhaseKind, Profile,
+    AttackPhase, AttackRef, DamageType, Direction, Emitter, Expr, HitBox, Offset, PhaseKind,
+    Profile, ZoneShape,
 };
 use crate::behaviour::{
     Action, Agent, BossCall, Condition, Elite, Guardians, Movement, Rule, Selector, Skill,
@@ -86,6 +87,8 @@ pub mod limits {
     /// Twenty seconds: a bullet at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
     /// so a lifetime is a shorter one than the margin's (core#147).
     pub const MAX_BULLET_TICKS: u32 = 1_200;
+    /// A zone warns, and then hurts, for at most 10 seconds each (core Z1, a placeholder bound).
+    pub const MAX_ZONE_TICKS: u32 = 600;
     pub const MAX_PERFECT_PCT: u16 = 1000;
     pub const MAX_BOSS_PARTS: usize = 8;
     pub const MAX_TRANSITIONS: usize = 4;
@@ -1515,23 +1518,87 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// A hit box's radius and offset are at most `MAX_RADIUS`, and an arc's half angle is 0 to
-    /// 180 degrees.
+    /// A hit box's radius, length, width and offset are at most `MAX_RADIUS`, and an arc's half
+    /// angle is 0 to 180 degrees.
     fn hit_box(&mut self, h: &HitBox) {
-        let (HitBox::Circle { offset, radius } | HitBox::Arc { offset, radius, .. }) = h;
+        match h {
+            HitBox::Circle { offset, radius, .. } => {
+                self.within("radius", i64::from(radius.0), 1, i64::from(MAX_RADIUS));
+                self.offset(offset);
+            }
+            HitBox::Arc {
+                offset,
+                radius,
+                half_angle,
+                ..
+            } => {
+                self.within("radius", i64::from(radius.0), 1, i64::from(MAX_RADIUS));
+                self.offset(offset);
+                self.half_angle(*half_angle);
+            }
+            HitBox::Line {
+                offset,
+                length,
+                width,
+                ..
+            } => {
+                self.within("length", i64::from(length.0), 1, i64::from(MAX_RADIUS));
+                self.within("width", i64::from(width.0), 1, i64::from(MAX_RADIUS));
+                self.offset(offset);
+            }
+        }
+    }
+
+    /// A bullet's or a zone's direction: its expression is checked.
+    fn direction(&mut self, direction: &Direction) {
+        self.key("direction", |c| match direction {
+            Direction::Aimed { offset } => c.key("offset", |c| c.expr(offset)),
+            Direction::Absolute { angle } | Direction::Relative { angle } => {
+                c.key("angle", |c| c.expr(angle))
+            }
+            Direction::Sequential { step } => c.key("step", |c| c.expr(step)),
+        });
+    }
+
+    fn offset(&mut self, offset: &Offset) {
         let r = i64::from(MAX_RADIUS);
-        self.within("radius", i64::from(radius.0), 1, r);
         self.key("offset", |c| {
             c.within("forward", i64::from(offset.forward.0), -r, r);
             c.within("right", i64::from(offset.right.0), -r, r);
         });
-        if let HitBox::Arc { half_angle, .. } = h {
-            self.within(
-                "half_angle",
-                i64::from(*half_angle),
-                0,
-                i64::from(180 * trig::PER_DEGREE),
-            );
+    }
+
+    fn half_angle(&mut self, half_angle: i32) {
+        self.within(
+            "half_angle",
+            i64::from(half_angle),
+            0,
+            i64::from(180 * trig::PER_DEGREE),
+        );
+    }
+
+    /// A zone's shape, as a hit box's, and the ticks it warns and hurts for.
+    fn zone_shape(&mut self, shape: &ZoneShape) {
+        let r = i64::from(MAX_RADIUS);
+        match shape {
+            ZoneShape::Circle { radius } => self.within("radius", i64::from(radius.0), 1, r),
+            ZoneShape::Arc { radius, half_angle } => {
+                self.within("radius", i64::from(radius.0), 1, r);
+                self.half_angle(*half_angle);
+            }
+            ZoneShape::Line { length, width } => {
+                self.within("length", i64::from(length.0), 1, r);
+                self.within("width", i64::from(width.0), 1, r);
+            }
+        }
+    }
+
+    /// A zone's tick count: a constant must be in `lo..=MAX_ZONE_TICKS`; a computed one is
+    /// clamped by the engine.
+    fn zone_ticks(&mut self, key: &'static str, e: &Expr, lo: u32) {
+        self.key(key, |c| c.expr(e));
+        if let Expr::Const(v) = e {
+            self.within(key, i64::from(*v), i64::from(lo), i64::from(MAX_ZONE_TICKS));
         }
     }
 
@@ -1590,13 +1657,7 @@ impl<'a> Ctx<'a> {
                     }
                 }
                 self.key("speed", |c| c.expr(speed));
-                self.key("direction", |c| match direction {
-                    Direction::Aimed { offset } => c.key("offset", |c| c.expr(offset)),
-                    Direction::Absolute { angle } | Direction::Relative { angle } => {
-                        c.key("angle", |c| c.expr(angle))
-                    }
-                    Direction::Sequential { step } => c.key("step", |c| c.expr(step)),
-                });
+                self.direction(direction);
                 if let Some(b) = bullet {
                     self.content_id("bullet", b, Kind::Bullet);
                 }
@@ -1640,6 +1701,21 @@ impl<'a> Ctx<'a> {
                 self.constant_ticks("after_ticks", after_ticks);
                 self.key("body", |c| c.emitters(body, depth + 1, count))
                     && self.key("then", |c| c.emitters(then, depth + 1, count))
+            }
+            Emitter::Zone {
+                shape,
+                offset,
+                direction,
+                wind_up_ticks,
+                active_ticks,
+                ..
+            } => {
+                self.key("shape", |c| c.zone_shape(shape));
+                self.offset(offset);
+                self.direction(direction);
+                self.zone_ticks("wind_up_ticks", wind_up_ticks, 0);
+                self.zone_ticks("active_ticks", active_ticks, 1);
+                true
             }
         }
     }

@@ -19,8 +19,8 @@ fn kills(engine: &Engine) -> usize {
 }
 
 /// Outcome, end tick, deaths and the main character's hit points per corpus stage, at the
-/// design values.
-const STAGES: [(&str, Outcome, u32, usize, u32); 10] = [
+/// design values. `zones` came after the scale: its row is what it ended as when it was added.
+const STAGES: [(&str, Outcome, u32, usize, u32); 11] = [
     ("agents", Outcome::Running, 80, 1, 99),
     ("assist", Outcome::Running, 360, 0, 99),
     ("boss", Outcome::Cleared, 111, 1, 99),
@@ -31,6 +31,7 @@ const STAGES: [(&str, Outcome, u32, usize, u32); 10] = [
     ("landscape", Outcome::Failed, 300, 1, 98),
     ("melee", Outcome::Running, 300, 3, 97),
     ("timeout", Outcome::Failed, 90, 0, 3),
+    ("zones", Outcome::Running, 300, 0, 93),
 ];
 
 #[test]

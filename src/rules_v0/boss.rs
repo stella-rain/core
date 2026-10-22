@@ -238,6 +238,7 @@ fn begin_phase(
     for transition in &phase.transition {
         match transition {
             Transition::ClearBullets => s.bullets.retain(|b| b.friendly),
+            Transition::ClearZones => s.zones.retain(|z| z.friendly),
             Transition::InvulnerableTicks { ticks } => {
                 if let Some(b) = s.boss.as_mut() {
                     b.invulnerable = b.invulnerable.max(*ticks);
