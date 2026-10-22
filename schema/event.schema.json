@@ -55,10 +55,10 @@
               "$ref": "#/$defs/EntityId"
             },
             "target_kind": {
-              "description": "The kind id of `target` (`EntityView::kind_id`): left out for the main character and\nfor a mimic still in disguise.",
+              "description": "The kind of `target` (`EntityView::kind_index`), an index into the run's `KindTable`: left out for the main character and\nfor a mimic still in disguise.",
               "anyOf": [
                 {
-                  "$ref": "#/$defs/ContentId"
+                  "$ref": "#/$defs/KindIndex"
                 },
                 {
                   "type": "null"
@@ -585,10 +585,10 @@
               "$ref": "#/$defs/EntityId"
             },
             "kind": {
-              "description": "The kind id of the victim (`EntityView::kind_id`); left out for a mimic still in\ndisguise.",
+              "description": "The kind of the victim (`EntityView::kind_index`), an index into the run's `KindTable`; left out for a mimic still in\ndisguise.",
               "anyOf": [
                 {
-                  "$ref": "#/$defs/ContentId"
+                  "$ref": "#/$defs/KindIndex"
                 },
                 {
                   "type": "null"
@@ -833,10 +833,10 @@
               "$ref": "#/$defs/EntityId"
             },
             "kind": {
-              "description": "The elite's kind id (`EntityView::kind_id`); left out for a mimic, which is disguised.",
+              "description": "The elite's kind (`EntityView::kind_index`), an index into the run's `KindTable`; left out for a mimic, which is disguised.",
               "anyOf": [
                 {
-                  "$ref": "#/$defs/ContentId"
+                  "$ref": "#/$defs/KindIndex"
                 },
                 {
                   "type": "null"
@@ -1305,6 +1305,13 @@
       "description": "A length in 1/256 pixel units. In files it is the plain integer.",
       "type": "integer",
       "format": "int32"
+    },
+    "KindIndex": {
+      "description": "The index of a kind in the run's `KindTable`. It is only meaningful with that run's table:\nkey anything that outlives the run on the ID.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
     },
     "MatchUp": {
       "description": "The match-up a hit got (ADR-100), which the `Hit` event reports.",

@@ -589,11 +589,11 @@
         "kind": {
           "$ref": "#/$defs/EntityKind"
         },
-        "kind_id": {
-          "description": "The content ID that names its kind, the one the Bestiary keys on: an enemy's, an elite's,\na boss's or a companion's sprite ID, a boss part's own ID. Absent for a mimic still in\ndisguise (`asset` is then its disguise).",
+        "kind_index": {
+          "description": "Its kind, the one the Bestiary keys on: an index into the run's `KindTable`\n(`Engine::kinds`) of an enemy's, an elite's, a boss's or a companion's sprite ID, or of a\nboss part's own ID. Absent for a mimic still in disguise (`asset` is then its disguise).",
           "anyOf": [
             {
-              "$ref": "#/$defs/ContentId"
+              "$ref": "#/$defs/KindIndex"
             },
             {
               "type": "null"
@@ -987,6 +987,13 @@
         "held",
         "max_ticks"
       ]
+    },
+    "KindIndex": {
+      "description": "The index of a kind in the run's `KindTable`. It is only meaningful with that run's table:\nkey anything that outlives the run on the ID.",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
     },
     "MapView": {
       "description": "The map's width and height, from its top-left corner.",
