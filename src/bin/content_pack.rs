@@ -5,6 +5,7 @@
 //! ```text
 //! content-pack verify FILE      (FILE may be - for standard input)
 //! content-pack export
+//! content-pack unpack PACK DIR
 //! ```
 //!
 //! Exit status: 0 valid (or exported); 1 not valid (the pack is at fault); 2 the command line
@@ -12,19 +13,28 @@
 //! SHA-256 of its bytes), `sim_version` and `starting_unlocks` (the counts of its lists, or
 //! `none` for a pack released without them), `constellations` and `stardust` (its mode count)
 //! as `name: value` lines, and `export` writes the pack
-//! to standard output. Messages never repeat text from the pack.
+//! to standard output. `unpack` (ADR-131) checks PACK as `verify` does, then writes the files it
+//! holds into DIR (core's `content/`; the three mode files into `modes/` beside it), each as the
+//! file on its own, LF, so that `export` of those files gives PACK byte for byte; a pack that
+//! `export` would not write that way is refused. A file an optional slot of the pack lacks is
+//! not written, and a stale one in DIR is removed; no other file is touched, and
+//! `content/pack.json` is left to `export`. Messages never repeat text from the pack.
 
 use std::fs::File;
 use std::io::{Read, Write};
+use std::path::Path;
 use std::process::ExitCode;
 
 use stella_rain_core::content_hash::to_hex;
-use stella_rain_core::pack::{self, Pack};
+use stella_rain_core::pack::{self, ContentFiles, Pack};
 
 const USAGE: &str = "usage: content-pack verify FILE\n       \
-                     content-pack export\n\
-                     FILE may be - for standard input. Exit status: 0 valid, \
-                     1 not valid, 2 could not run.";
+                     content-pack export\n       \
+                     content-pack unpack PACK DIR\n\
+                     FILE and PACK may be - for standard input. unpack writes the pack's \
+                     files into DIR (core's content/) and its mode files into modes/ beside \
+                     it, and leaves content/pack.json to export. Exit status: 0 valid or \
+                     done, 1 not valid, 2 could not run.";
 
 enum Failure {
     /// Exit 2.
@@ -96,6 +106,35 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
             .lock()
             .write_all(&pack::export_bundled())
             .map_err(|e| Failure::Usage(format!("cannot write the pack: {}", e.kind()))),
+        ["unpack", path, dir] => unpack(path, Path::new(dir)),
         _ => Err(Failure::Usage(USAGE.into())),
     }
+}
+
+/// Writes the files of the pack at `path` into `dir` and `dir/../modes`. Everything is checked
+/// before the first write, so a refused pack leaves `dir` as it was.
+fn unpack(path: &str, dir: &Path) -> Result<(), Failure> {
+    let bytes = read_pack(path)?;
+    let files = ContentFiles::from_pack(&bytes).map_err(|e| Failure::NotValid(e.to_string()))?;
+    if !dir.is_dir() {
+        return Err(Failure::Usage("DIR is not a directory".into()));
+    }
+    let modes = dir.join("..").join("modes");
+    std::fs::create_dir_all(&modes)
+        .map_err(|e| Failure::Usage(format!("cannot create modes: {}", e.kind())))?;
+    for slot in ContentFiles::LAYOUT {
+        let target = if slot.in_modes { &modes } else { dir }.join(format!("{}.json", slot.name));
+        let result = match files.get(slot.name) {
+            Some(bytes) => std::fs::write(&target, bytes),
+            // An optional file the pack lacks: a stale copy would make `export` write it.
+            None => match std::fs::remove_file(&target) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                other => other,
+            },
+        };
+        result.map_err(|e| {
+            Failure::Usage(format!("cannot write {}.json: {}", slot.name, e.kind()))
+        })?;
+    }
+    Ok(())
 }
