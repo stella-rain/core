@@ -435,6 +435,58 @@ fn the_auto_combo_starts_the_run_with_auto_mode_on_and_the_switch_turns_it_off()
     assert_eq!(run(true, true), off, "the switch turns it off");
 }
 
+/// The setup's bytes with `"auto_combo":<value>` added, as a setup written before the field was
+/// removed carries it.
+fn with_legacy_auto_combo(setup: &RunSetup, value: bool) -> Vec<u8> {
+    let mut json: Value = serde_json::to_value(setup).unwrap();
+    json["auto_combo"] = Value::Bool(value);
+    serde_json::to_vec(&json).unwrap()
+}
+
+#[test]
+fn a_setup_still_carrying_auto_combo_false_parses_and_plays_as_before() {
+    let setup = plain();
+    let old = with_legacy_auto_combo(&setup, false);
+    let parsed = run_setup::parse_and_validate(&old).unwrap();
+    assert_eq!(parsed, setup);
+    assert_eq!(serde_json::from_slice::<RunSetup>(&old).unwrap(), setup);
+    let text = serde_json::to_string(&parsed).unwrap();
+    assert!(!text.contains("auto_combo"), "{text}");
+    assert_eq!(
+        hashes(start(&parsed).unwrap(), 300, script),
+        hashes(start(&setup).unwrap(), 300, script)
+    );
+}
+
+#[test]
+fn a_setup_carrying_auto_combo_true_is_refused_naming_the_field() {
+    let old = with_legacy_auto_combo(&plain(), true);
+    assert_eq!(
+        paths(run_setup::parse_and_validate(&old).unwrap_err()),
+        ["$.auto_combo"]
+    );
+    let error = serde_json::from_slice::<RunSetup>(&old).unwrap_err();
+    assert!(error.to_string().contains("auto_combo"), "{error}");
+}
+
+#[test]
+fn auto_mode_is_on_only_while_the_input_says_so() {
+    let run = |auto: bool| {
+        hashes(start(&plain()).unwrap(), 600, |t| Input {
+            auto,
+            ..script(t)
+        })
+    };
+    let off = run(false);
+    let on = run(true);
+    assert_ne!(off, on, "auto mode changes the run");
+    let from_tick_0 = hashes(start(&plain()).unwrap(), 600, |t| Input {
+        auto: true,
+        ..script(t)
+    });
+    assert_eq!(on, from_tick_0);
+}
+
 #[test]
 fn a_carried_star_applies_at_tick_0_as_if_picked() {
     let base = hp(&start(&plain()).unwrap());
