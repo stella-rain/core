@@ -68,7 +68,7 @@ pub fn time_limit_setup() -> RunSetup {
 /// Side to side, and the `giant_sword`'s combos in a 60-tick cycle: `main` on its ticks 0, 8 and 16
 /// (slash, slash, thrust), the thrust held to tick 40 in every other cycle (a charge released at
 /// level 1, inside its perfect window), and `smash` on 44 and 52 (two smashes from the root, each a
-/// slash that pulls what it hits); the stage skill pressed on tick 30 of every cycle.
+/// slash that bleeds what it hits); the stage skill pressed on tick 30 of every cycle.
 pub fn run_script(tick: u32) -> Input {
     let c = tick % 60;
     let charging = (tick / 60) % 2 == 1 && (16..40).contains(&c);

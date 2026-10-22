@@ -102,7 +102,7 @@ const WEAPONS: &[(&str, &[(&str, &str)])] = &[
     // its loop spins on at half speed while A stays held, each loop a new attack that hits again
     // after 8 ticks, and the release is a heavy slam at 100 times the default damage (ADR-103). B is an overhead smash (`slam`) and AB a ground shock, a forward
     // arc; a smash ends the combo. The dash-strike is a short spin, the dash smash `slam`. Smashes
-    // pull what they hit by up to 40 pixels over 8 ticks; assist looks 128 pixels away. AAB (an
+    // stun what they hit for 30 ticks (ADR-085); assist looks 128 pixels away. AAB (an
     // arc) and AAAB (a wide circle) are Strike smashes at 100 times the default damage, placeholders.
     (
         "giant_hammer",
