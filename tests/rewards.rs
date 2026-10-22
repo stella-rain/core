@@ -538,3 +538,213 @@ fn vigour_is_shown_hit_points_stored_times_100() {
         ]
     );
 }
+
+// --- Effect lists, named stars and weights (app#336) -------------------------------------------
+
+/// A reward whose `effects` list holds `effects`, with the single-effect fields left out.
+fn bundle(id: &str, effects: Vec<Value>) -> Value {
+    json!({
+        "id": id, "rarity": "epic", "effects": effects, "limit": 1,
+        "title": "Bundle", "description": ""
+    })
+}
+
+fn pct(effect: &str, amount: u32) -> Value {
+    json!({ "effect": effect, "amount": amount })
+}
+
+/// A named reward: one epic effect, limit 1, called `star`.
+fn named(id: &str, star: &str) -> Value {
+    let mut r = bundle(id, vec![pct("attack_pct", 10)]);
+    r["named"] = json!(true);
+    r["star"] = json!(star);
+    r
+}
+
+fn message_at(v: &Value, path: &str) -> String {
+    match parse(v) {
+        Err(Error::Invalid(issues)) => issues
+            .iter()
+            .find(|i| i.path == path)
+            .unwrap_or_else(|| panic!("{path}: {issues:?}"))
+            .message
+            .clone(),
+        other => panic!("{path}: expected invalid, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_reward_holds_a_list_of_one_to_three_effects() {
+    let ok = file(vec![bundle(
+        "trio",
+        vec![pct("attack_pct", 10), pct("speed_pct", 5), pct("xp_pct", 5)],
+    )]);
+    let rewards = parse(&ok).expect("three effects parse");
+    let back = serde_json::to_value(&rewards.rewards()[0]).unwrap();
+    assert_eq!(back["effects"].as_array().map(Vec::len), Some(3), "{back}");
+    invalid_at(&file(vec![bundle("none", vec![])]), "$.rewards[0].effects");
+    let four = (0..4).map(|_| pct("attack_pct", 1)).collect();
+    invalid_at(&file(vec![bundle("four", four)]), "$.rewards[0].effects");
+}
+
+#[test]
+fn the_single_effect_form_parses_to_a_list_of_one() {
+    let rewards = parse(&file(vec![reward("might")])).expect("the released form parses");
+    let back = serde_json::to_value(&rewards.rewards()[0]).unwrap();
+    assert_eq!(
+        back["effects"],
+        json!([{ "effect": "attack_pct", "amount": 10 }]),
+        "{back}"
+    );
+    assert!(
+        back.get("effect").is_none() && back.get("amount").is_none(),
+        "{back}"
+    );
+    // The released form and the list form together, or neither, are not a reward.
+    let mut both = reward("might");
+    both["effects"] = json!([pct("attack_pct", 10)]);
+    assert!(parse(&file(vec![both])).is_err());
+    let mut neither = reward("might");
+    neither.as_object_mut().unwrap().remove("effect");
+    assert!(parse(&file(vec![neither])).is_err());
+}
+
+#[test]
+fn every_entry_of_a_list_is_checked_as_a_single_effect_is() {
+    let bad = |entry: Value, path: &str| {
+        invalid_at(
+            &file(vec![bundle("b", vec![pct("attack_pct", 1), entry])]),
+            path,
+        )
+    };
+    bad(pct("attack_pct", 0), "$.rewards[0].effects[1].amount");
+    bad(
+        pct("attack_pct", MAX_AMOUNT + 1),
+        "$.rewards[0].effects[1].amount",
+    );
+    bad(
+        json!({ "effect": "stage_skill", "amount": 1 }),
+        "$.rewards[0].effects[1].skill",
+    );
+    bad(
+        json!({ "effect": "attack_pct", "amount": 1, "skill": "x" }),
+        "$.rewards[0].effects[1].skill",
+    );
+    bad(pct("type_bonus_pct", 5), "$.rewards[0].effects[1].type");
+}
+
+#[test]
+fn the_caps_that_sum_hold_over_a_whole_bundle() {
+    let sum = |effect: &str, half: u32, over: u32| {
+        let ok = file(vec![bundle(
+            "b",
+            vec![pct(effect, half), pct(effect, half)],
+        )]);
+        assert!(parse(&ok).is_ok(), "{effect}: {half} twice");
+        let bad = file(vec![bundle(
+            "b",
+            vec![pct(effect, half), pct(effect, over)],
+        )]);
+        invalid_at(&bad, "$.rewards[0].effects");
+    };
+    sum("range_pct", MAX_RANGE_PCT / 2, MAX_RANGE_PCT / 2 + 1);
+    sum("rune_haste", 150, 151);
+    sum("max_hp", MAX_HP_AMOUNT / 2, MAX_HP_AMOUNT / 2 + 1);
+    sum("attack_pct", MAX_AMOUNT / 2, MAX_AMOUNT / 2 + 1);
+}
+
+#[test]
+fn a_random_rune_stands_alone_and_a_bundle_holds_one_orbit_at_most() {
+    let rune = json!({ "effect": "random_rune" });
+    invalid_at(
+        &file(vec![bundle("b", vec![pct("attack_pct", 1), rune])]),
+        "$.rewards[0].effects",
+    );
+    let two = vec![
+        orbit("o", 1)["effects"][0].clone(),
+        orbit("o", 1)["effects"][0].clone(),
+    ];
+    invalid_at(&file(vec![bundle("b", two)]), "$.rewards[0].effects");
+}
+
+#[test]
+fn a_named_reward_is_one_of_a_kind_and_epic_or_above() {
+    let ok = file(vec![named("vega_star", "Vega")]);
+    let rewards = parse(&ok).expect("a named epic reward with limit 1 parses");
+    let back = serde_json::to_value(&rewards.rewards()[0]).unwrap();
+    assert_eq!(
+        (back["named"].clone(), back["star"].clone()),
+        (json!(true), json!("Vega"))
+    );
+    for rarity in ["epic", "legendary", "supernova"] {
+        let mut r = named("vega_star", "Vega");
+        r["rarity"] = json!(rarity);
+        assert!(parse(&file(vec![r])).is_ok(), "{rarity}");
+    }
+    let mut stacking = named("vega_star", "Vega");
+    stacking["limit"] = json!(2);
+    assert!(message_at(&file(vec![stacking]), "$.rewards[0].limit").contains("named"));
+    for rarity in ["common", "uncommon", "rare"] {
+        let mut r = named("vega_star", "Vega");
+        r["rarity"] = json!(rarity);
+        assert!(
+            message_at(&file(vec![r]), "$.rewards[0].rarity").contains("named"),
+            "{rarity}"
+        );
+    }
+}
+
+#[test]
+fn a_named_reward_has_a_star_name_and_an_unnamed_one_has_none_and_stacks() {
+    let mut nameless = named("vega_star", "Vega");
+    nameless.as_object_mut().unwrap().remove("star");
+    invalid_at(&file(vec![nameless]), "$.rewards[0].star");
+    let mut stray = reward("might");
+    stray["star"] = json!("Vega");
+    invalid_at(&file(vec![stray]), "$.rewards[0].star");
+    let mut empty = named("vega_star", "");
+    invalid_at(&file(vec![empty.clone()]), "$.rewards[0].star");
+    empty["star"] = json!("x".repeat(MAX_TITLE_CHARS + 1));
+    invalid_at(&file(vec![empty]), "$.rewards[0].star");
+    // An unnamed reward stacks: limit 2 or more.
+    let mut single = reward("might");
+    single["limit"] = json!(1);
+    assert!(message_at(&file(vec![single]), "$.rewards[0].limit").contains("unnamed"));
+    let mut explicit = reward("might");
+    explicit["named"] = json!(false);
+    assert!(parse(&file(vec![explicit])).is_ok());
+}
+
+#[test]
+fn star_names_are_unique_and_a_file_holds_at_most_32_named_rewards() {
+    let two = file(vec![named("one", "Vega"), named("two", "Vega")]);
+    invalid_at(&two, "$.rewards[1].star");
+    let many = |n: usize| {
+        file(
+            (0..n)
+                .map(|i| named(&format!("star_{i}"), &format!("Star {i}")))
+                .collect(),
+        )
+    };
+    assert!(parse(&many(32)).is_ok());
+    invalid_at(&many(33), "$.rewards");
+}
+
+#[test]
+fn a_weight_is_1_to_1000_and_defaults_to_100() {
+    for weight in [1, 100, 1000] {
+        assert!(
+            parse(&one_with("weight", json!(weight))).is_ok(),
+            "{weight}"
+        );
+    }
+    for weight in [0, 1001] {
+        invalid_at(&one_with("weight", json!(weight)), "$.rewards[0].weight");
+    }
+    let rewards = parse(&file(vec![reward("might")])).unwrap();
+    let back = serde_json::to_value(&rewards.rewards()[0]).unwrap();
+    assert!(
+        back.get("weight").is_none() || back["weight"] == json!(100),
+        "{back}"
+    );
+}

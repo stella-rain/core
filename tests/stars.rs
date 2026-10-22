@@ -895,3 +895,62 @@ fn a_tier_weighs_something_and_no_rarity_weighs_too_much() {
     );
     assert_eq!(issues(stars(tier(json!({})))), ["$.stars.tiers[0].weights"]);
 }
+
+// --- Weights -----------------------------------------------------------------------------------
+
+/// Two common rewards `a` and `b` of the given draw weights.
+fn weighted(a: u16, b: u16) -> Rewards {
+    let one = |id: &str, weight: u16| {
+        json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
+                "weight": weight, "title": "Reward", "description": "" })
+    };
+    let file = json!({ "schema_version": 0, "sim_version": 0,
+                       "rewards": [one("a", a), one("b", b)] });
+    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+}
+
+/// The first candidate of the first offer of 10,000 runs of seeds 0.., counted for `b`, and
+/// how often `a` came first, as `(a, b)`.
+fn firsts(rewards: &Rewards) -> (u32, u32) {
+    let mut out = (0, 0);
+    for seed in 0..10_000 {
+        let mut stage = starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
+        stage.seed = seed;
+        let mut e = with(&stage, rewards.clone());
+        until_offer(&mut e, idle());
+        match candidates(&e)[0].as_str() {
+            "a" => out.0 += 1,
+            _ => out.1 += 1,
+        }
+    }
+    out
+}
+
+#[test]
+fn a_reward_of_three_times_the_weight_comes_first_three_times_in_four() {
+    let (a, b) = firsts(&weighted(100, 300));
+    assert_eq!(a + b, 10_000);
+    assert!(
+        (7_000..=8_000).contains(&b),
+        "b came first {b} of 10,000 times"
+    );
+}
+
+#[test]
+fn equal_weights_draw_what_the_uniform_draw_drew() {
+    // Weights 100 and 100, and weights 7 and 7, are the same draw as before weights existed:
+    // the same seeds give the same first candidates.
+    let a = firsts(&weighted(100, 100));
+    assert_eq!(a, firsts(&weighted(7, 7)));
+    assert_eq!(a, firsts(&commons_ab()));
+}
+
+/// Two commons with no weight given: the released form.
+fn commons_ab() -> Rewards {
+    let one = |id: &str| {
+        json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
+                "title": "Reward", "description": "" })
+    };
+    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [one("a"), one("b")] });
+    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+}
