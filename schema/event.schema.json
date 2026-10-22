@@ -956,6 +956,13 @@
                 }
               ]
             },
+            "star": {
+              "description": "The star's name when the reward is a named star (core#NS3).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "taken": {
               "type": "integer",
               "format": "uint8",
@@ -972,6 +979,40 @@
         "type": {
           "type": "string",
           "const": "RewardTaken"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "The reward taken just before completed enough of the constellation `set` to reach its\ntier `tier`, counted from 1: the tier's effects replace the lower tier's (core#NS3).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "set": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "tier": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "set",
+            "tier"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "Constellation"
         }
       },
       "additionalProperties": false,

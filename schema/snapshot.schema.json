@@ -9,6 +9,13 @@
         "$ref": "#/$defs/BulletView"
       }
     },
+    "constellations": {
+      "description": "The run's constellations and how many of each set's members are held (core#NS3); empty\nwithout sets or without stars.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ConstellationView"
+      }
+    },
     "entities": {
       "description": "Companions, enemies, the boss and its parts, in entity-ID order.",
       "type": "array",
@@ -213,6 +220,17 @@
       "description": "A reward an offer holds.",
       "type": "object",
       "properties": {
+        "constellation": {
+          "description": "The set a named star belongs to and how far it is; absent for a reward in no set.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConstellationProgress"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "hidden": {
           "description": "A random rune (ADR-099): which rune it gives is drawn only when it is taken, so the\nfrontend shows it face down.",
           "type": "boolean"
@@ -314,6 +332,78 @@
       "additionalProperties": false,
       "required": [
         "window_left"
+      ]
+    },
+    "ConstellationProgress": {
+      "description": "A candidate that is a member of a set: which one, what is held now and what the next tier\nneeds (core#NS3).",
+      "type": "object",
+      "properties": {
+        "held": {
+          "description": "Members held now, before this candidate is taken.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "needed": {
+          "description": "Members the next tier needs; the whole set once the top tier is reached.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "set": {
+          "$ref": "#/$defs/ContentId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "set",
+        "held",
+        "needed"
+      ]
+    },
+    "ConstellationView": {
+      "description": "How far a set of named stars is (core#NS3).",
+      "type": "object",
+      "properties": {
+        "held": {
+          "description": "Members held, carried stars included.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "id": {
+          "description": "Its ID in the run's constellations file.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "name": {
+          "description": "Its name.",
+          "type": "string"
+        },
+        "needed": {
+          "description": "Members the next tier needs; the whole set once the top tier is reached.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "tier": {
+          "description": "The tier reached, counted from 1; 0 before the first.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "held",
+        "tier",
+        "needed"
       ]
     },
     "ContentId": {
