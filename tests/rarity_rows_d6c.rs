@@ -272,3 +272,31 @@ fn the_bundled_file_fits_the_size_limit_with_room() {
         "{size}"
     );
 }
+
+// --- The bound of one type bonus ------------------------------------------------------------------
+
+#[test]
+fn one_type_bonus_reward_may_add_up_to_its_own_bound_above_max_amount() {
+    // Number set A's supernova type bonus is 128 percent, above `MAX_AMOUNT` (100), which the
+    // other percentage rewards keep. The saturation is the match-up file's `max_type_bonus_pct`.
+    use stella_rain_core::rewards::{MAX_AMOUNT, MAX_TYPE_BONUS_AMOUNT};
+    assert_eq!(MAX_TYPE_BONUS_AMOUNT, 200);
+    let parse = |effect: &str, amount: u32| {
+        let ty = if effect == "type_bonus_pct" {
+            json!("pyro")
+        } else {
+            Value::Null
+        };
+        let mut r = json!({ "id": "r", "rarity": "common", "effect": effect, "amount": amount,
+                            "limit": 5, "title": "T", "description": "" });
+        if !ty.is_null() {
+            r["type"] = ty;
+        }
+        let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [r] });
+        Rewards::parse(file.to_string().as_bytes()).is_ok()
+    };
+    assert!(parse("type_bonus_pct", MAX_TYPE_BONUS_AMOUNT));
+    assert!(!parse("type_bonus_pct", MAX_TYPE_BONUS_AMOUNT + 1));
+    assert!(parse("attack_pct", MAX_AMOUNT));
+    assert!(!parse("attack_pct", MAX_AMOUNT + 1));
+}
