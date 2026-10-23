@@ -60,6 +60,10 @@
       "description": "The expertise levels of the style path (ADR-106 §4): the style first, the levels rising\nstrictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The\nrun's stage takes it as its own.",
       "$ref": "#/$defs/LevelTable"
     },
+    "levels": {
+      "description": "The experience curve of the run (XP2): the experience each next level needs, as a\nstage's `levels` (1 to `limits::MAX_LEVELS` entries, each 1 to `limits::MAX_LEVEL_XP`),\nthe last repeating. Not `level_table`, which is the style path's expertise. The run's\nstage takes it as its own.",
+      "$ref": "#/$defs/Levels"
+    },
     "map": {
       "$ref": "#/$defs/TimeLimitMap"
     },
@@ -128,6 +132,10 @@
         "$ref": "#/$defs/StardustTier"
       }
     },
+    "stars": {
+      "description": "The falling stars' drop table of the run (XP2), as a stage's `stars`, checked the same\nway; its tiers follow `levels`. The run's stage takes it as its own.",
+      "$ref": "#/$defs/Stars"
+    },
     "waves": {
       "description": "The enemies that spawn over the run, 0 to `MAX_WAVES` waves of up to `MAX_SPAWN_COUNT`\nenemies, `MAX_TOTAL_SPAWNS` in all, none an elite, each starting before the length. A\nwave with `around` spawns that far from the main character; the placeholder content is\nthe trial's enemies.",
       "type": "array",
@@ -153,6 +161,8 @@
     "elite_types",
     "elite_cap",
     "level_table",
+    "levels",
+    "stars",
     "stardust_tiers"
   ],
   "$defs": {
@@ -1739,6 +1749,25 @@
         "capstone"
       ]
     },
+    "Levels": {
+      "description": "How much experience each level needs.",
+      "type": "object",
+      "properties": {
+        "xp": {
+          "description": "The experience each next level needs, the first from level 1 to 2; the last entry\nrepeats for every level after it.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "xp"
+      ]
+    },
     "Mimic": {
       "description": "What a mimic is (ADR-090). It starts disguised: it does not move or attack, nothing damages\nit, aim assist and the selectors pass it over, and it is drawn as `disguise`. The first tick\nthe main character's centre is within `reveal_radius` of its centre (the edge counts) it\nreveals, for good: from that tick's collisions on it takes damage, and from the next tick it\nacts by its movement and rules like a grade elite. The boss's call skips it while it is\ndisguised and calls it once it is revealed. Needs `boss_call` `join`, and no aura, escort,\nshrine or flee movement.",
       "type": "object",
@@ -2022,6 +2051,55 @@
       },
       "additionalProperties": false
     },
+    "RarityWeights": {
+      "description": "The weight of each rarity in a draw; a rarity left out weighs 0. A tier's highest rarity is\nthe highest one that weighs more than 0.",
+      "type": "object",
+      "properties": {
+        "common": {
+          "type": "integer",
+          "format": "uint16",
+          "default": 0,
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "epic": {
+          "type": "integer",
+          "format": "uint16",
+          "default": 0,
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "legendary": {
+          "type": "integer",
+          "format": "uint16",
+          "default": 0,
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "rare": {
+          "type": "integer",
+          "format": "uint16",
+          "default": 0,
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "supernova": {
+          "type": "integer",
+          "format": "uint16",
+          "default": 0,
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "uncommon": {
+          "type": "integer",
+          "format": "uint16",
+          "default": 0,
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
     "Rule": {
       "description": "`when <condition>` → `target <selector>` → `do <action>` (ADR-036).",
       "type": "object",
@@ -2247,6 +2325,68 @@
         "pct"
       ]
     },
+    "Stars": {
+      "description": "How kills drop falling stars, what rarity a star has, and what an offer allows.",
+      "type": "object",
+      "properties": {
+        "banishes": {
+          "description": "Rewards a run may banish.",
+          "type": "integer",
+          "format": "uint8",
+          "default": 0,
+          "maximum": 255,
+          "minimum": 0
+        },
+        "cap": {
+          "description": "The most stars on the map at once. A kill with the map full drops none, and does not\ncount toward the pity.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "drop_per_mille": {
+          "description": "The chance, in 1000, that a kill drops a star.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "pickup_radius": {
+          "description": "How near the main character's centre a star must come to be taken.",
+          "$ref": "#/$defs/Fx"
+        },
+        "pity": {
+          "description": "Kills in a row without a star after which the next kill drops one for sure.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "rerolls": {
+          "description": "Rerolls of one candidate a run gets, before the setup's extra rerolls.",
+          "type": "integer",
+          "format": "uint8",
+          "default": 0,
+          "maximum": 255,
+          "minimum": 0
+        },
+        "tiers": {
+          "description": "The drop table: tiers by the player's level, the first from level 1, each later one from\na higher level (ADR-068). A star draws its rarity from the tier of the level reached.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Tier"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "drop_per_mille",
+        "pity",
+        "cap",
+        "pickup_radius",
+        "tiers"
+      ]
+    },
     "Step": {
       "oneOf": [
         {
@@ -2345,6 +2485,36 @@
             "type"
           ]
         }
+      ]
+    },
+    "Tier": {
+      "description": "One tier of the drop table.",
+      "type": "object",
+      "properties": {
+        "from_level": {
+          "description": "The level the tier starts at.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "random_rune_weight": {
+          "description": "The draw weight of the `random_rune` reward among its rarity while this tier applies, from\n1 to `MAX_WEIGHT`; left out, the reward's own `weight`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "weights": {
+          "$ref": "#/$defs/RarityWeights"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from_level",
+        "weights"
       ]
     },
     "TimeLimitMap": {

@@ -4754,6 +4754,7 @@
       "around": 102400,
       "count": 1199,
       "every_ticks": 60,
+      "xp": 10,
       "expertise": {
         "hit": 1,
         "kill": 3
@@ -4805,6 +4806,7 @@
       "around": 115200,
       "count": 798,
       "every_ticks": 90,
+      "xp": 10,
       "expertise": {
         "hit": 1,
         "kill": 3
@@ -4837,7 +4839,7 @@
       "around": 102400,
       "count": 1200,
       "every_ticks": 60,
-      "xp": 1,
+      "xp": 10,
       "expertise": {
         "hit": 1,
         "kill": 3
@@ -4869,7 +4871,7 @@
       "around": 102400,
       "count": 400,
       "every_ticks": 180,
-      "xp": 1,
+      "xp": 10,
       "expertise": {
         "hit": 1,
         "kill": 3
@@ -4921,7 +4923,7 @@
       "around": 102400,
       "count": 204,
       "every_ticks": 300,
-      "xp": 1,
+      "xp": 10,
       "expertise": {
         "hit": 1,
         "kill": 3
@@ -4972,7 +4974,7 @@
       "around": 102400,
       "count": 84,
       "every_ticks": 600,
-      "xp": 1,
+      "xp": 10,
       "expertise": {
         "hit": 1,
         "kill": 3
@@ -5023,7 +5025,7 @@
       "around": 102400,
       "count": 132,
       "every_ticks": 300,
-      "xp": 1,
+      "xp": 10,
       "expertise": {
         "hit": 1,
         "kill": 3
@@ -5086,7 +5088,7 @@
       "around": 102400,
       "count": 48,
       "every_ticks": 600,
-      "xp": 1,
+      "xp": 10,
       "expertise": {
         "hit": 1,
         "kill": 3
@@ -5169,7 +5171,7 @@
           "range": 51200
         }
       },
-      "xp": 3,
+      "xp": 30,
       "expertise": {
         "hit": 4,
         "kill": 60
@@ -5247,7 +5249,7 @@
           "range": 51200
         }
       },
-      "xp": 3,
+      "xp": 30,
       "expertise": {
         "hit": 4,
         "kill": 60
@@ -5292,7 +5294,7 @@
           "range": 51200
         }
       },
-      "xp": 3,
+      "xp": 30,
       "expertise": {
         "hit": 4,
         "kill": 60
@@ -5316,7 +5318,7 @@
           "boss_call": "leave"
         }
       },
-      "xp": 3,
+      "xp": 30,
       "expertise": {
         "hit": 4,
         "kill": 60
@@ -5372,7 +5374,7 @@
           "boss_call": "stay"
         }
       },
-      "xp": 3,
+      "xp": 30,
       "expertise": {
         "hit": 4,
         "kill": 60
@@ -5458,7 +5460,7 @@
           }
         }
       },
-      "xp": 3,
+      "xp": 30,
       "expertise": {
         "hit": 4,
         "kill": 60
@@ -5521,7 +5523,7 @@
           }
         }
       },
-      "xp": 3,
+      "xp": 30,
       "expertise": {
         "hit": 4,
         "kill": 60
@@ -5537,6 +5539,73 @@
       9
     ],
     "capstone": 10
+  },
+  "levels": {
+    "xp": [
+      30,
+      120,
+      210,
+      300,
+      390,
+      480,
+      570,
+      660,
+      750,
+      840,
+      930,
+      1020,
+      1110,
+      1200,
+      1290,
+      1380,
+      1470,
+      1560,
+      1650,
+      1740,
+      1830,
+      1920,
+      2010,
+      2100,
+      2190
+    ]
+  },
+  "stars": {
+    "drop_per_mille": 500,
+    "pity": 2,
+    "cap": 16,
+    "pickup_radius": 6144,
+    "rerolls": 2,
+    "banishes": 1,
+    "tiers": [
+      {
+        "from_level": 1,
+        "weights": {
+          "common": 100
+        },
+        "random_rune_weight": 53
+      },
+      {
+        "from_level": 8,
+        "weights": {
+          "common": 70,
+          "uncommon": 15,
+          "rare": 30
+        },
+        "random_rune_weight": 176
+      },
+      {
+        "from_level": 13,
+        "weights": {
+          "common": 50,
+          "uncommon": 10,
+          "rare": 35,
+          "epic": 10,
+          "legendary": 15,
+          "supernova": 5
+        },
+        "random_rune_weight": 333
+      }
+    ]
   },
   "bosses": [
     {"base": "stone_warden", "hp": 150000, "radius": 8192, "profile": {"weak": ["strike"], "resist": "physical"}, "spawn": {"x": 163840, "y": 35840}, "phases": [{"until": {"type": "hp_below", "who": "self", "pct": 50}, "transition": [], "timeline": [{"type": "wait", "ticks": 120}, {"type": "telegraph", "ticks": 60}, {"type": "attack", "attack": {"preset": {"id": "elite_slam", "args": []}}, "big": true}, {"type": "wait", "ticks": 150}, {"type": "attack", "attack": {"inline": [{"kind": "active", "ticks": 1, "spawn": [{"type": "ring", "count": 16, "body": [{"type": "fire", "speed": 640, "direction": {"type": "absolute", "angle": 0}}]}]}]}}, {"type": "wait", "ticks": 90}, {"type": "loop"}], "rules": []}, {"transition": [{"type": "clear_bullets"}, {"type": "invulnerable_ticks", "ticks": 60}], "timeline": [{"type": "telegraph", "ticks": 30}, {"type": "attack", "attack": {"preset": {"id": "spiral", "args": [512]}}}, {"type": "wait", "ticks": 120}, {"type": "attack", "attack": {"preset": {"id": "slam", "args": []}}}, {"type": "wait", "ticks": 60}, {"type": "loop"}], "rules": []}], "call_elites": {"after_ticks": 1800, "below_pct": 70}, "expertise": {"hit": 5, "kill": 500}, "stardust": 2000},
