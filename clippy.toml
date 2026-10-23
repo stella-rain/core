@@ -5,3 +5,10 @@ disallowed-types = [
     { path = "std::collections::HashMap", reason = "iteration order is not deterministic (ADR-019)" },
     { path = "std::collections::HashSet", reason = "iteration order is not deterministic (ADR-019)" },
 ]
+disallowed-methods = [
+    { path = "std::time::Instant::now", reason = "no clocks in simulation code (ADR-SIM-1)" },
+    { path = "std::time::SystemTime::now", reason = "no clocks in simulation code (ADR-SIM-1)" },
+    { path = "std::thread::spawn", reason = "no threads in simulation code (ADR-SIM-1)" },
+    { path = "std::env::var", reason = "no environment reads in simulation code (ADR-SIM-1)" },
+    { path = "std::env::var_os", reason = "no environment reads in simulation code (ADR-SIM-1)" },
+]

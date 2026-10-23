@@ -3,14 +3,14 @@
 # <short sha>` (label `main-red`); later failures comment on it, and a later success comments
 # and closes it. Pull request runs and other branches change nothing.
 # Push runs on main exist because Auto-merge merges with the bridge App's token (a merge by
-# GITHUB_TOKEN starts none). Keep `workflows:` equal to Auto-merge's list; a new check
-# workflow is added to both in the same PR.
+# GITHUB_TOKEN starts none). Keep `workflows:` equal to Auto-merge's list plus `Deep`, the
+# weekly deep tier, which is no PR check; a new check workflow is added to both in the same PR.
 # `workflow_run` is read from main: a change to this file acts only after its own merge.
 name: Main red
 
 on:
   workflow_run:
-    workflows: ["CLAUDE.md check", "Line endings", "Repository check", "Rust", "Scripts"]
+    workflows: ["CLAUDE.md check", "Deep", "Line endings", "Repository check", "Rust", "Scripts"]
     types: [completed]
     branches: [main]
 

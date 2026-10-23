@@ -56,6 +56,12 @@ proptest = { version = "1.11", default-features = false, features = ["std"] }
 # simulation path. Needs the `iai-callgrind-runner` binary of the same version and `valgrind`.
 iai-callgrind = "0.16.1"
 
+# No `unsafe` in core (ADR-SIM-1): `deny`, not `forbid`, because `forbid` cannot be lifted and
+# `tests/alloc.rs` needs `unsafe` for its counting allocator, which has the one `expect`. Clocks,
+# threads and environment reads are banned in `clippy.toml`.
+[lints.rust]
+unsafe_code = "deny"
+
 [[test]]
 name = "integration"
 path = "tests/integration.rs"

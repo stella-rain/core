@@ -140,14 +140,53 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: uname -m && rustc -vV
+      # cargo-nextest runs each test in its own process, times it and writes a JUnit file
+      # (.config/nextest.toml, profile `ci`). The release binary, checked against the checksum
+      # pinned in install-action's manifest; never a build from another source.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+          fallback: none
       # `record` (ADR-016) only adds code, so --all-features is a superset of the default build's
       # tests, and it also runs the recording tests that the default build skips. The debug build
       # (overflow checks on) runs on the two Linux runners; the slower Windows and macOS runners
-      # run the release build only.
+      # run the release build only. Both runs write target/nextest/ci/junit.xml: the debug one is
+      # moved aside before the release one overwrites it.
       - if: matrix.debug
-        run: cargo test --locked --all-features
+        run: |
+          cargo nextest run --locked --all-features --profile ci
+          mv target/nextest/ci/junit.xml target/nextest/ci/junit-debug.xml
       # The corpus and the pinned hashes are not behind `record`: they run here on all four runners.
-      - run: cargo test --locked --release
+      - run: cargo nextest run --locked --release --profile ci
+      # nextest skips doctests; there are none today, and this fails the day one is added and
+      # breaks. Once is enough: a doctest does not depend on the architecture.
+      - if: matrix.arch == 'x86_64'
+        run: cargo test --doc --locked --all-features
+      # The ten slowest tests of each run and the tests counted, from the JUnit files (nextest's
+      # own log lists only those past `slow-timeout`, 30 s).
+      - name: List the slowest tests
+        if: always()
+        run: |
+          shopt -s nullglob
+          files=(target/nextest/ci/junit*.xml)
+          if [ ${#files[@]} -eq 0 ]; then echo "no JUnit file"; exit 0; fi
+          python3 -I - "${files[@]}" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          for path in sys.argv[1:]:
+              cases = list(ET.parse(path).iter("testcase"))
+              cases.sort(key=lambda c: float(c.get("time", 0)), reverse=True)
+              print(f"### {path.rsplit('/', 1)[-1]}: {len(cases)} tests, slowest first")
+              for c in cases[:10]:
+                  print(f"- {float(c.get('time', 0)):.2f} s {c.get('classname')} {c.get('name')}")
+          PY
+      - name: Upload the test times
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-${{ matrix.arch }}
+          path: target/nextest/ci/junit*.xml
+          if-no-files-found: ignore
       # A corpus mismatch writes the snapshots of the first diverging tick and the one before to
       # target/corpus-diff (tests/corpus.rs); one artifact per architecture to compare them.
       - name: Upload the corpus diff

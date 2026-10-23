@@ -33,6 +33,7 @@ fn config() -> ProptestConfig {
         ))),
         ..ProptestConfig::default()
     };
+    #[expect(clippy::disallowed_methods, reason = "test knob")]
     if std::env::var_os("PROPTEST_CASES").is_none() {
         config.cases = 64;
     }
