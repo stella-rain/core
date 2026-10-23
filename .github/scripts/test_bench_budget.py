@@ -104,7 +104,7 @@ class Check(unittest.TestCase):
 
 
 class Cli(unittest.TestCase):
-    def run_cli(self, arch, worst, summary=True):
+    def run_cli(self, arch, worst, summary=True, extra=()):
         with tempfile.TemporaryDirectory() as d:
             out, budgets, md = (os.path.join(d, n) for n in ("bench.txt", "budgets.toml", "sum.md"))
             for path, text in ((out, output(worst)), (budgets, BUDGETS)):
@@ -115,7 +115,7 @@ class Cli(unittest.TestCase):
             if summary:
                 env["GITHUB_STEP_SUMMARY"] = md
             p = subprocess.run(
-                [sys.executable, SCRIPT, "--arch", arch, "--bench-output", out, "--budgets", budgets],
+                [sys.executable, SCRIPT, "--arch", arch, "--bench-output", out, "--budgets", budgets, *extra],
                 capture_output=True, text=True, env=env, check=False,
             )
             text = open(md, encoding="utf-8").read() if summary and os.path.exists(md) else ""
@@ -133,6 +133,29 @@ class Cli(unittest.TestCase):
         self.assertIn("worst_tick", p.stderr)
         self.assertIn("100,000", p.stderr)
         self.assertIn("100.8%", md)
+
+    def test_warn_only_over_budget_exits_zero_with_a_warning_and_the_table(self):
+        p, md = self.run_cli("arm64", 14_106_310, extra=["--warn-only"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        warning = [l for l in p.stdout.splitlines() if l.startswith("::warning::")]
+        self.assertEqual(len(warning), 1, p.stdout)
+        for text in ("worst_tick", "14,106,310", "12,400,000", "1,706,310"):
+            self.assertIn(text, warning[0])
+        self.assertIn("| worst_tick | 14,106,310 | 12,400,000 | 113.8% |", md)
+
+    def test_warn_only_under_budget_prints_no_warning(self):
+        p, _ = self.run_cli("arm64", 12_232_020, extra=["--warn-only"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("::warning::", p.stdout)
+
+    def test_warn_only_still_fails_on_an_unknown_arch(self):
+        p, _ = self.run_cli("riscv", 1, extra=["--warn-only"])
+        self.assertEqual(p.returncode, 1)
+
+    def test_without_warn_only_over_budget_still_exits_one_and_does_not_warn(self):
+        p, _ = self.run_cli("arm64", 14_106_310)
+        self.assertEqual(p.returncode, 1)
+        self.assertNotIn("::warning::", p.stdout)
 
     def test_no_summary_file_is_fine(self):
         p, _ = self.run_cli("x86_64", 11_737_172, summary=False)
