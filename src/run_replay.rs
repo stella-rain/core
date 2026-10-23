@@ -760,7 +760,7 @@ mod tests {
     const RUNES: [u8; 32] = [2; 32];
     const PERKS: [u8; 32] = [4; 32];
     const DIFFICULTIES: [u8; 32] = [6; 32];
-    const WEAPONS: [u8; 32] = [8; 32];
+    const WEAPONS_SHA: [u8; 32] = [8; 32];
 
     fn hash(mode: &str, file: &[u8], sources: &[(u8, &'static str, &'static str)]) -> [u8; 32] {
         hash_content(
@@ -774,7 +774,7 @@ mod tests {
             &RUNES,
             &PERKS,
             &DIFFICULTIES,
-            &WEAPONS,
+            &WEAPONS_SHA,
             None,
             sources.iter().copied(),
         )
@@ -797,7 +797,7 @@ mod tests {
             &RUNES,
             &PERKS,
             &DIFFICULTIES,
-            &WEAPONS,
+            &WEAPONS_SHA,
             None,
             SOURCES.iter().copied(),
         )
@@ -843,7 +843,7 @@ mod tests {
                 &RUNES,
                 &PERKS,
                 &DIFFICULTIES,
-                &WEAPONS,
+                &WEAPONS_SHA,
                 None,
                 SOURCES.iter().copied(),
             ),
@@ -862,7 +862,7 @@ mod tests {
                 &[8; 32],
                 &PERKS,
                 &DIFFICULTIES,
-                &WEAPONS,
+                &WEAPONS_SHA,
                 None,
                 SOURCES.iter().copied(),
             ),
@@ -881,7 +881,7 @@ mod tests {
                 &RUNES,
                 &[8; 32],
                 &DIFFICULTIES,
-                &WEAPONS,
+                &WEAPONS_SHA,
                 None,
                 SOURCES.iter().copied(),
             ),
@@ -900,7 +900,7 @@ mod tests {
                 &RUNES,
                 &PERKS,
                 &[8; 32],
-                &WEAPONS,
+                &WEAPONS_SHA,
                 None,
                 SOURCES.iter().copied(),
             ),
@@ -938,7 +938,7 @@ mod tests {
                 &RUNES,
                 &PERKS,
                 &DIFFICULTIES,
-                &WEAPONS,
+                &WEAPONS_SHA,
                 sets,
                 SOURCES.iter().copied(),
             )

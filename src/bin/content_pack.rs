@@ -99,6 +99,16 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
                 "constellations: {} sets",
                 pack.content().constellations().sets().len()
             );
+            println!(
+                "weapons: {} ({} trees)",
+                pack.content().weapons().list().len(),
+                pack.content()
+                    .weapons()
+                    .list()
+                    .iter()
+                    .map(|w| w.trees.len())
+                    .sum::<usize>()
+            );
             println!("stardust: {} modes", pack.stardust().modes().len());
             Ok(())
         }
