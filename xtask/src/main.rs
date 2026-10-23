@@ -35,8 +35,8 @@ fn stale_sets(paths: &[String]) -> Vec<&'static str> {
 
 fn stale_message(sets: &[&str]) -> String {
     format!(
-        "stale generated sets: {}
-run `cargo xtask bless`, review the diff and commit it with          `Corpus regenerated: <why>` in the commit body",
+        "stale generated sets: {}\nrun `cargo xtask bless`, review the diff and commit it with \
+         `Corpus regenerated: <why>` in the commit body",
         sets.join(", ")
     )
 }
