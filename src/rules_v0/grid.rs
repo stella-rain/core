@@ -13,6 +13,7 @@ const MIN_CELL: i64 = 8192;
 /// Circles (centre, radius) bucketed into square cells, each cell listing its circles in index
 /// order. A cell is at least as wide as the probe radius plus the largest circle radius, so a
 /// probe can only overlap circles in its own cell or the 8 around it.
+#[derive(Debug, Default)]
 pub(super) struct Grid {
     circles: Vec<(Point, i32)>,
     /// The corner of cell (0, 0): the smallest x and y of the circles' centres.
@@ -26,49 +27,66 @@ pub(super) struct Grid {
     /// Cell `c` lists `members[start[c]..start[c + 1]]`, in ascending index order.
     start: Vec<u32>,
     members: Vec<u32>,
+    /// The cell of each circle and the next free place in each cell, kept between builds only so
+    /// that `rebuild` reuses their memory.
+    cells: Vec<usize>,
+    next: Vec<u32>,
 }
 
 impl Grid {
     /// The grid of `circles` for probes of at most `probe_radius`.
+    #[cfg(test)]
     pub(super) fn new(circles: Vec<(Point, i32)>, probe_radius: i32) -> Grid {
+        let mut grid = Grid::default();
+        grid.rebuild(circles.iter().copied(), probe_radius);
+        grid
+    }
+
+    /// Builds the grid of `circles` for probes of at most `probe_radius` in place, reusing the
+    /// memory of the grid it replaces: once the lists have grown to the largest crowd, a build
+    /// allocates nothing.
+    pub(super) fn rebuild(
+        &mut self,
+        circles: impl Iterator<Item = (Point, i32)>,
+        probe_radius: i32,
+    ) {
+        self.circles.clear();
+        self.circles.extend(circles);
+        let circles = &self.circles;
         let xs = circles.iter().map(|c| i64::from(c.0.x.0));
         let ys = circles.iter().map(|c| i64::from(c.0.y.0));
         let (min_x, max_x) = (xs.clone().min().unwrap_or(0), xs.max().unwrap_or(0));
         let (min_y, max_y) = (ys.clone().min().unwrap_or(0), ys.max().unwrap_or(0));
         let largest = circles.iter().map(|c| i64::from(c.1)).max().unwrap_or(0);
         let cell = (i64::from(probe_radius) + largest).max(MIN_CELL);
-        let cols = (max_x - min_x) / cell + 1;
-        let rows = (max_y - min_y) / cell + 1;
-        let mut grid = Grid {
-            circles,
-            min_x,
-            min_y,
-            largest,
-            cell,
-            cols,
-            rows,
-            start: Vec::new(),
-            members: Vec::new(),
-        };
+        self.min_x = min_x;
+        self.min_y = min_y;
+        self.largest = largest;
+        self.cell = cell;
+        self.cols = (max_x - min_x) / cell + 1;
+        self.rows = (max_y - min_y) / cell + 1;
         // A counting sort by cell: counts, then where each cell starts, then the members in
         // index order, so each cell's list ascends.
-        let cells: Vec<usize> = grid.circles.iter().map(|c| grid.cell_of(c.0)).collect();
-        let mut start = vec![0u32; (cols * rows) as usize + 1];
+        let mut cells = std::mem::take(&mut self.cells);
+        cells.clear();
+        cells.extend(self.circles.iter().map(|c| self.cell_of(c.0)));
+        self.start.clear();
+        self.start.resize((self.cols * self.rows) as usize + 1, 0);
         for &c in &cells {
-            start[c + 1] += 1;
+            self.start[c + 1] += 1;
         }
-        for c in 1..start.len() {
-            start[c] += start[c - 1];
+        for c in 1..self.start.len() {
+            self.start[c] += self.start[c - 1];
         }
-        let mut next = start.clone();
-        let mut members = vec![0u32; cells.len()];
+        self.next.clear();
+        self.next.extend_from_slice(&self.start);
+        self.members.clear();
+        self.members.resize(cells.len(), 0);
         for (i, &c) in cells.iter().enumerate() {
-            members[next[c] as usize] = i as u32;
-            next[c] += 1;
+            self.members[self.next[c] as usize] = i as u32;
+            self.next[c] += 1;
         }
-        grid.start = start;
-        grid.members = members;
-        grid
+        self.cells = cells;
     }
 
     /// The column and row of `at`, which may lie outside the grid.

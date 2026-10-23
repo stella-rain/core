@@ -15,6 +15,7 @@ pub mod expertise;
 pub mod fixed;
 pub mod hash;
 pub mod id;
+pub(crate) mod inline;
 pub mod input;
 pub mod kinds;
 pub mod match_ups;

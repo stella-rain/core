@@ -7,8 +7,8 @@ use super::DefIndex;
 use super::World;
 use crate::behaviour::{Agent, BossCall, Condition, Guardians, Movement, Rule};
 use crate::engine::{
-    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, ShrineState,
-    State, UNLIMITED,
+    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, Rules,
+    ShrineState, State, Statuses, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -44,7 +44,7 @@ pub(super) fn new_agent(
         defence: def.defence,
         age: 0,
         rules: new_rule_states(&def.rules),
-        statuses: Vec::new(),
+        statuses: Statuses::default(),
         aggro: 0,
         order: None,
         orbit_angle: angle,
@@ -299,7 +299,7 @@ fn waits(s: &State, me: Who, def: &Agent) -> bool {
 }
 
 /// The rule states of `me`: an agent's, or the boss's for the phase it is in.
-fn rule_states(s: &mut State, me: Who) -> &mut Vec<RuleState> {
+fn rule_states(s: &mut State, me: Who) -> &mut Rules {
     match me {
         Who::Boss => &mut s.boss.as_mut().expect("a boss").rules,
         _ => &mut agent_mut(s, me).rules,
@@ -351,7 +351,7 @@ pub(super) fn fire_first_rule(
 }
 
 /// Fresh rule states for a list of rules.
-pub(super) fn new_rule_states(rules: &[Rule]) -> Vec<RuleState> {
+pub(super) fn new_rule_states(rules: &[Rule]) -> Rules {
     rules
         .iter()
         .map(|r| RuleState {

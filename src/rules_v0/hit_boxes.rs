@@ -44,7 +44,7 @@ enum Source {
 }
 
 /// One hit box or zone that is active this tick.
-struct Swing {
+pub(super) struct Swing {
     source: Source,
     owner: EntityId,
     slot: u8,
@@ -145,14 +145,12 @@ pub(super) fn resolve(
     grid: &mut Option<Grid>,
     events: &mut Vec<DomainEvent>,
 ) {
-    let mut swings = active_swings(stage, s);
+    let mut swings = std::mem::take(&mut s.scratch.swings);
+    let mut found = std::mem::take(&mut s.scratch.found);
+    active_swings(stage, s, &mut swings);
     swings.sort_by_key(|w| (w.owner.0, w.slot));
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
-    if swings.is_empty() {
-        return;
-    }
-    let mut found = Vec::new();
     for w in &swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
@@ -162,13 +160,15 @@ pub(super) fn resolve(
         }
     }
     if swings.iter().any(|w| w.once) {
-        s.runs.retain(|r| r.homing.is_none() || r.hits.is_empty());
+        super::attacks::retain_runs(s, |r| r.homing.is_none() || r.hits.is_empty());
         s.move_index.rebuild(stage, &s.runs);
     }
+    s.scratch.swings = swings;
+    s.scratch.found = found;
 }
 
-fn active_swings(stage: &World, s: &State) -> Vec<Swing> {
-    let mut swings = Vec::new();
+fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {
+    swings.clear();
     for (i, r) in s.runs.iter().enumerate() {
         let p = super::attacks::phase(stage, r, r.phase as usize);
         let (PhaseKind::Active, Some(h)) = (p.kind, p.hit_box()) else {
@@ -222,7 +222,6 @@ fn active_swings(stage: &World, s: &State) -> Vec<Swing> {
             once: r.homing.is_some(),
         });
     }
-    swings
 }
 
 /// Adds a swing for each zone that is active this tick.
