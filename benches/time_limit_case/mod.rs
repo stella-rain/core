@@ -33,23 +33,9 @@ const WAVE_COUNT: u16 = 100;
 /// The setup of the run: the mode's weapons, as the app's first run uses them.
 pub fn setup() -> RunSetup {
     RunSetup {
-        schema_version: 0,
-        sim_version: 0,
         mode: "time_limit".into(),
-        weapon: "giant_sword".into(),
-        weapon_tree: None,
         seed: 1,
-        star_pool: None,
-        extra_rerolls: 0,
-        upgrades: Vec::new(),
-        perk_set: "duelist".into(),
-        rune_pool: Vec::new(),
-        carried: Vec::new(),
-        lumine: 0,
-        starting_rune: None,
-        stat_priority: Vec::new(),
-        pick_stats: false,
-        difficulty: "normal".into(),
+        ..RunSetup::default()
     }
 }
 

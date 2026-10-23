@@ -83,6 +83,7 @@ mod reward_kinds;
 mod rewards;
 mod rng;
 mod run_loadout;
+mod run_play;
 mod run_replay;
 mod run_setup;
 mod run_stats;

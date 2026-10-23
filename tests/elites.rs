@@ -324,7 +324,7 @@ fn the_trial_run_meets_elites_so_the_corpus_covers_them() {
     use stella_rain_core::run_replay::Command;
     let mut e = Engine::start(&run::trial_setup()).unwrap();
     let (mut fired_before_call, mut killed, mut called) = (false, false, 0);
-    for c in run::play_run(run::TRIAL_LENGTH) {
+    for c in crate::run_play::play_run(run::TRIAL_LENGTH) {
         let ids: Vec<u32> = e
             .snapshot()
             .entities

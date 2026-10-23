@@ -481,7 +481,8 @@ fn the_offer_and_the_picks_are_in_the_state_hash() {
 
 #[test]
 fn a_run_with_expertise_choices_replays_and_verifies() {
-    use common::run::{TRIAL_LENGTH, play_run, trial_setup};
+    use crate::run_play::play_run;
+    use common::run::{TRIAL_LENGTH, trial_setup};
     let commands = play_run(TRIAL_LENGTH);
     let mut e = Engine::start(&trial_setup()).unwrap();
     let (mut expertise_choices, mut style_choices) = (0, 0);

@@ -10,14 +10,14 @@ paths:
 
 # Benches and fuzz targets
 
-Sources: ADR-SIM-3, ADR-SIM-5, ADR-SVC-1, ADR-REPL-3, ADR-CONT-3.
+Sources: ADR-SIM-3, ADR-SIM-6, ADR-SVC-1, ADR-REPL-3, ADR-CONT-3.
 
 ## Benches (`benches/`)
 
 All count instructions with `iai-callgrind`.
 
 - `worst_tick.rs`: a worst-case tick in a run that holds every rune, with Rune Haste and a
-  damage-over-time status of each kind on every enemy (core#180), every cap of ADR-SIM-5's table
+  damage-over-time status of each kind on every enemy (core#180), every cap of ADR-SIM-6
   reached, a fresh stack of enemies to push apart and aim assist looking through all 500 enemies
   for a target. `worst_case/` builds the stage; `tests/worst_case.rs` checks it holds every cap
   (`Engine::load`).
@@ -31,10 +31,12 @@ All count instructions with `iai-callgrind`.
 
 - `cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick` needs `valgrind`
   and `iai-callgrind-runner` 0.16.1.
-- CI (`rust.yml`, ADR-SIM-5) compares all three with the base commit's on both architectures and
+- CI (`rust.yml`, ADR-SIM-6) compares all three with the base commit's on both architectures and
   fails on more than +2% instructions in any of them. It warns on `worst_tick` over its ceiling
   per arch in `benches/budgets.toml` (`bench_budget.py --warn-only` until the T1 refactor, DS27);
-  a PR changing a bench and `src/` fails (D-BUDGET).
+  a PR changing a bench (`benches/`
+  or the `tests/common/` they share) and `src/` fails, since no comparison could tell which moved
+  the count (D-BUDGET): change the bench in its own PR first.
 - The benches build at one codegen unit, base and head alike (`[profile.bench]`, core#192).
 - Locally: `-- --save-baseline=base`, then `-- --baseline=base --callgrind-limits=ir=2%`.
 

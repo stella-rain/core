@@ -401,7 +401,7 @@ fn scholar_adds_two_rerolls_and_a_banish_to_an_offer() {
             ..trial_setup()
         };
         let mut e = Engine::start_with(&setup, &plain_content()).unwrap();
-        for c in common::run::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
+        for c in crate::run_play::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
             match c {
                 Command::Step(input) => e.step(input),
                 Command::Choose(_) => break,
@@ -495,7 +495,7 @@ fn a_carried_star_counts_toward_its_stack_limit() {
         ..plain()
     };
     let mut e = start(&setup).unwrap();
-    for c in common::run::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
+    for c in crate::run_play::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
         match c {
             Command::Step(input) => e.step(input),
             Command::Choose(_) => break,
@@ -542,7 +542,7 @@ fn random_rune_content() -> RunContent {
 fn runes_after_the_run(setup: &RunSetup) -> Vec<Rune> {
     let content = random_rune_content();
     let mut e = Engine::start_with(setup, &content).unwrap();
-    for c in common::run::play_run_in(setup, &content, common::run::TRIAL_LENGTH) {
+    for c in crate::run_play::play_run_in(setup, &content, common::run::TRIAL_LENGTH) {
         match c {
             Command::Step(input) => e.step(input),
             Command::Choose(index) => e.choose(index).unwrap(),

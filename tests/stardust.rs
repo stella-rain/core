@@ -173,7 +173,8 @@ use stella_rain_core::engine::Outcome;
 use stella_rain_core::run_replay::{Command, record_run, verify_run};
 use stella_rain_core::run_setup::RunSetup;
 
-use common::run::{play_run_from, time_limit_setup};
+use crate::run_play::play_run_from;
+use common::run::time_limit_setup;
 
 fn setup(difficulty: &str) -> RunSetup {
     RunSetup {

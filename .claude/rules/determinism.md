@@ -21,8 +21,11 @@ published stages fail to verify.
 - Fixed-point integers for positions, velocities and angles (for example 1/256 pixel units).
   No `f32` or `f64` in simulation state; trigonometry through lookup tables.
 - Explicit integer widths: no `usize` or `isize` in simulation state or in the hash.
-- One PRNG per run, seeded from the stage: SplitMix64 written in `core` (ADR-SIM-2), never a
-  crate. No other randomness: no thread RNG, time, pointer addresses or thread scheduling.
+- SplitMix64 written in `core` (ADR-SIM-2), never a crate, seeded from the run setup, one stream
+  per purpose: spawn, attack, loot, offer, horde (`rng::derive(seed, TAG_*)`; `State.rng` holds
+  the five). A draw goes on the stream of the system that decides how many draws happen. The
+  number, order and stream of draws are frozen per `sim_version`; each stream's state is hashed.
+  No other randomness: no thread RNG, time, pointer addresses or thread scheduling.
 - Collision is our own code (circle vs point, circle vs circle); no engine physics.
 - Entities live in `Vec`s with stable IDs. Never iterate a `HashMap` or `HashSet` in
   simulation code; use `Vec`, `BTreeMap` or sorted keys.
@@ -40,14 +43,14 @@ published stages fail to verify.
 - Version 0 is a development version (ADR-REPL-1): rules, numbers and the state's byte encoding
   change in place, without a `rules_vN` copy, until the freeze at P3. The x86_64 and arm64
   hash check is not relaxed: a PR that changes an outcome on purpose regenerates the version 0
-  corpus and says `Corpus regenerated: <why>`; any other hash change is a bug. SplitMix64 and
+  corpus (`cargo xtask bless`) and says `Corpus regenerated: <why>`; any other hash change is a bug. SplitMix64 and
   FNV-1a 64 stay fixed under version 0.
 - From version 1 on, the rules below apply in full.
 - Released `rules_vN` modules are frozen. A change that can alter an outcome goes into a new
   version through the `schema-change` skill.
 - Shared helpers used by a frozen version keep their behaviour; copy before changing.
 - Frozen rules include the state hash and its byte encoding (ADR-SIM-3), and the dynamic budget
-  caps with their overflow rules (ADR-SIM-5): raising a cap is a new `sim_version`.
+  caps with their overflow rules (ADR-SIM-6): raising a cap is a new `sim_version`.
 
 ## Tests
 

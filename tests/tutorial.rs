@@ -2,7 +2,8 @@
 //! elites and no mid-boss, that every bundled weapon can be played in, and whose file is in the
 //! pack the run's content hash covers.
 
-use crate::common::run::{play_run_with, run_input_for, trial_setup};
+use crate::common::run::{run_input_for, trial_setup};
+use crate::run_play::play_run_with;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use stella_rain_core::engine::{Engine, Outcome};

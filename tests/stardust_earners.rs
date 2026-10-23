@@ -15,7 +15,8 @@ use stella_rain_core::validate::{self, Error, limits};
 
 use crate::common;
 
-use common::run::{play_run_from, time_limit_setup};
+use crate::run_play::play_run_from;
+use common::run::time_limit_setup;
 use common::*;
 
 const ENEMY_Y: i32 = 100_000;
