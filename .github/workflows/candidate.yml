@@ -9,9 +9,9 @@
 #     makes a GitHub prerelease with the four binaries, the JSON Schema and SHA256SUMS,
 #   - makes the branch rc/<rc tag> at that commit, for Promote (promote.yml) to run from (the
 #     GitHub app lists branches only), and deletes the same version's lower rc branches.
-# Whatever happens, the last job deletes the candidate/<sha> branch; a failed candidate is fixed
-# on main and starts again with a new branch. Only the tag and cleanup jobs can write, and they
-# run none of the repository's code.
+# A successful run deletes the candidate/<sha> branch; a failed or refused one keeps it, so
+# Candidate can run again on it. auto-candidate deletes it when main gets a newer candidate, or
+# Kade does. Only the tag and cleanup jobs can write, and they run none of the repository's code.
 name: Candidate
 
 on:
@@ -207,13 +207,13 @@ jobs:
   cleanup:
     name: delete the candidate branch
     needs: [check, ios-simulator, long-fuzz, build, tag]
-    if: always() && startsWith(github.ref, 'refs/heads/candidate/')
+    if: needs.tag.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write  # deleting the branch
     steps:
-      - name: Delete the branch, whatever the result
+      - name: Delete the branch, the candidate succeeded
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
