@@ -266,9 +266,9 @@ mod tests {
     fn a_roll_draws_nothing_from_the_runs_generator() {
         let mut s = state();
         s.player.crit_chance_pct = 50;
-        let before = s.rng.state();
+        let before = s.rng.states();
         assert!(rolls(&mut s, shot(PLAYER_ID)) > 0);
-        assert_eq!(s.rng.state(), before);
+        assert_eq!(s.rng.states(), before);
     }
 
     #[test]

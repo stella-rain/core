@@ -124,7 +124,7 @@ use crate::behaviour::BossCall;
 use crate::difficulties::scale_pct;
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
-    PartState, PlayerState, Progress, Pull, Smash, StarField, State, UNLIMITED,
+    PartState, PlayerState, Progress, Pull, Smash, StarField, State, Streams, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
@@ -282,7 +282,7 @@ pub(crate) fn initial_state(
     State {
         scratch: Scratch::default(),
         tick: 0,
-        rng: SplitMix64::new(seed),
+        rng: Streams::new(seed),
         outcome: Outcome::Running,
         player: PlayerState {
             at: start,
@@ -552,24 +552,24 @@ fn spawn_waves(stage: &World, s: &mut State) {
             rule: 0,
         };
         let at = match wave.around {
-            Some(ring) => around_player(stage, s, ring),
+            Some(ring) => around_player(stage, s.player.at, &mut s.rng.spawn, ring),
             None => wave.spawn,
         };
         spawn_enemy(stage, s, key, at);
     }
 }
 
-/// A point `ring` from the main character, at an angle drawn from the run's generator, moved
-/// onto the map.
-fn around_player(stage: &World, s: &mut State, ring: Fx) -> Point {
-    let angle = i32::try_from(s.rng.below(360)).unwrap_or(0) * trig::PER_DEGREE;
+/// A point `ring` from the main character at `from`, at an angle drawn from `rng` (the wave's
+/// stream for a wave, the horde's for an elite), moved onto the map.
+fn around_player(stage: &World, from: Point, rng: &mut SplitMix64, ring: Fx) -> Point {
+    let angle = i32::try_from(rng.below(360)).unwrap_or(0) * trig::PER_DEGREE;
     let (sin, cos) = trig::sin_cos(angle);
     let offset = |unit: i32| {
         i32::try_from(i64::from(ring.0) * i64::from(unit) / i64::from(trig::SCALE)).unwrap_or(0)
     };
     stage.map().clamp(Point {
-        x: s.player.at.x.saturating_add(Fx(offset(cos))),
-        y: s.player.at.y.saturating_add(Fx(offset(sin))),
+        x: from.x.saturating_add(Fx(offset(cos))),
+        y: from.y.saturating_add(Fx(offset(sin))),
     })
 }
 
@@ -1320,7 +1320,9 @@ fn hash_smash(h: &mut StateHasher, smash: Option<Smash>) {
 pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
     let mut h = StateHasher::new();
     h.write_u32(s.tick);
-    h.write_u64(s.rng.state());
+    for state in s.rng.states() {
+        h.write_u64(state);
+    }
     h.write_u32(match s.outcome {
         Outcome::Running => 0,
         Outcome::Cleared => 1,

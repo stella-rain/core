@@ -357,7 +357,10 @@ fn a_random_rune_alone_with_every_rune_held_opens_no_offer() {
 fn a_random_rune_candidate_is_rerolled_like_any_reward() {
     // `a` taken twice is at its limit, so the next offer holds the three others.
     let list = vec![random_rune(), inert_limited("a", 2), inert("b"), inert("c")];
-    let mut e = with(&targets(3, 1, 0), list);
+    let mut stage = targets(3, 1, 0);
+    // A seed whose first offer after the reroll is the three others (the draws are luck).
+    stage.seed = 9;
+    let mut e = with(&stage, list);
     next_offer(&mut e);
     let candidate = slot(&e, "random_rune");
     pick(&mut e, OfferOption::Reroll { candidate });

@@ -71,7 +71,16 @@ pub(crate) fn apply(stage: &World, rewards: &Rewards, s: &mut State, loadout: &L
     } = s;
     if let Some(f) = stars.as_mut() {
         for &i in &loadout.carried {
-            stars::take(stage, rewards, rng, progress, player, regen, f, i);
+            stars::take(
+                stage,
+                rewards,
+                &mut rng.offer,
+                progress,
+                player,
+                regen,
+                f,
+                i,
+            );
         }
     }
     if let Some(rune) = loadout.starting_rune

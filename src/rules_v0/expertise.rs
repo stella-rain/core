@@ -296,7 +296,7 @@ pub(super) fn open_due(
             let pool = pool(stage, expertise);
             let mut candidates = Vec::with_capacity(OFFER_SIZE);
             while candidates.len() < OFFER_SIZE {
-                match draw(pool, rng, &candidates) {
+                match draw(pool, &mut rng.offer, &candidates) {
                     Some(i) => candidates.push(i),
                     None => break,
                 }
@@ -425,7 +425,7 @@ pub(super) fn choose(
             let slot = usize::from(candidate);
             let left = stars.as_ref().is_some_and(|f| f.rerolls_left > 0);
             let new = if left {
-                draw(pool, rng, &o.candidates)
+                draw(pool, &mut rng.offer, &o.candidates)
             } else {
                 None
             };

@@ -94,14 +94,18 @@ pub(super) fn drop_from_defeated(stage: &World, s: &mut State, events: &mut Vec<
         // An elite drops its star for sure, and leaves the pity as it was.
         if !elite {
             let drops = f.misses >= u32::from(cfg.pity)
-                || rng.below(PER_MILLE) < u32::from(cfg.drop_per_mille);
+                || rng.loot.below(PER_MILLE) < u32::from(cfg.drop_per_mille);
             if !drops {
                 f.misses = f.misses.saturating_add(1);
                 continue;
             }
             f.misses = 0;
         }
-        let rarity = draw_rarity(rng, &if elite { up } else { tier }.weights, f.rarity);
+        let rarity = draw_rarity(
+            &mut rng.loot,
+            &if elite { up } else { tier }.weights,
+            f.rarity,
+        );
         let id = EntityId(*next_id);
         *next_id += 1;
         f.on_map.push(StarState { id, at, rarity });
@@ -219,7 +223,7 @@ pub(super) fn open_due(
                 rewards,
                 f,
                 held_runes,
-                rng,
+                &mut rng.offer,
                 rarity,
                 &candidates,
                 rune_weight,
@@ -578,7 +582,16 @@ pub(super) fn choose(
             let Some(&i) = o.candidates.get(usize::from(candidate)) else {
                 return;
             };
-            let Taken { rune, tiers } = take(stage, rewards, rng, progress, player, regen, f, i);
+            let Taken { rune, tiers } = take(
+                stage,
+                rewards,
+                &mut rng.offer,
+                progress,
+                player,
+                regen,
+                f,
+                i,
+            );
             let at = usize::from(i);
             events.push(DomainEvent::RewardTaken {
                 reward: rewards.rewards()[at].id.clone(),
@@ -600,7 +613,7 @@ pub(super) fn choose(
                 rewards,
                 f,
                 &player.runes,
-                rng,
+                &mut rng.offer,
                 o.rarity,
                 &o.candidates,
                 rune_weight,
@@ -632,7 +645,7 @@ pub(super) fn choose(
                 rewards,
                 f,
                 &player.runes,
-                rng,
+                &mut rng.offer,
                 o.rarity,
                 &o.candidates,
                 rune_weight,
@@ -846,9 +859,27 @@ mod tests {
             ..
         } = &mut s;
         let f = stars.as_mut().expect("a star field");
-        take(&stage, &rewards, rng, progress, player, regen, f, 0);
+        take(
+            &stage,
+            &rewards,
+            &mut rng.offer,
+            progress,
+            player,
+            regen,
+            f,
+            0,
+        );
         assert_eq!((player.kill_heal, player.kill_heal_every), (300, 10));
-        take(&stage, &rewards, rng, progress, player, regen, f, 1);
+        take(
+            &stage,
+            &rewards,
+            &mut rng.offer,
+            progress,
+            player,
+            regen,
+            f,
+            1,
+        );
         assert_eq!((player.kill_heal, player.kill_heal_every), (500, 4));
     }
 }

@@ -62,7 +62,7 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
         match unused.len() {
             0 => defs.final_boss,
             n => {
-                let pick = unused[s.rng.below(u32::try_from(n).unwrap_or(1)) as usize];
+                let pick = unused[s.rng.horde.below(u32::try_from(n).unwrap_or(1)) as usize];
                 horde.used[pick] = true;
                 defs.pool[pick]
             }
@@ -131,7 +131,7 @@ pub(super) fn spawn_elite(stage: &World, s: &mut State, events: &mut Vec<DomainE
         return;
     };
     let total: u32 = tier.weights.iter().map(|w| w.weight).sum();
-    let mut pick = s.rng.below(total.max(1));
+    let mut pick = s.rng.horde.below(total.max(1));
     let Some(chosen) = tier.weights.iter().find(|w| {
         let hit = pick < w.weight;
         pick = pick.saturating_sub(w.weight);
@@ -143,7 +143,7 @@ pub(super) fn spawn_elite(stage: &World, s: &mut State, events: &mut Vec<DomainE
     let Some(&(_, index)) = defs.elite_waves.iter().find(|(id, _)| *id == kind) else {
         return;
     };
-    let at = super::around_player(stage, s, ELITE_RING);
+    let at = super::around_player(stage, s.player.at, &mut s.rng.horde, ELITE_RING);
     let id = EntityId(s.next_id);
     let key = AgentKey {
         source: AgentSource::Wave,
