@@ -5,7 +5,11 @@
 
 mod common;
 
+#[global_allocator]
+static ALLOCATOR: alloc::Counting = alloc::Counting;
+
 mod agents;
+mod alloc;
 mod assist;
 mod attacks;
 mod auto;
