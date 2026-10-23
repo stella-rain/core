@@ -421,10 +421,9 @@ fn a_run_case_whose_stat_priority_changed_fails() {
     assert_ne!(replay.setup.stat_priority, ["speed".into()]);
     replay.setup.stat_priority = vec!["speed".into()];
     fs::write(&path, replay.to_bytes()).unwrap();
-    // The tick of the first level-up raises another stat than the one recorded.
+    // The priority is in the state from tick 0, so the run differs from the first tick on.
     let message = check_run_case(&case, &diff).unwrap_err();
-    let point = common::run::first_point_tick();
-    assert!(message.contains(&format!("tick {point}")), "{message}");
+    assert!(message.contains("diverges first on tick 1"), "{message}");
 }
 
 #[test]
