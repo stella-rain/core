@@ -87,7 +87,7 @@ mod agents;
 mod attacks;
 mod boss;
 mod world;
-pub(crate) use world::World;
+pub(crate) use world::{BossIndex, DefIndex, World};
 mod combat;
 mod entity;
 mod expertise;
@@ -257,7 +257,7 @@ pub(crate) fn initial_state(
     let boss = stage.boss.as_ref().zip(boss_id).map(|(b, id)| {
         boss_state(
             b.clone(),
-            0,
+            BossIndex(0),
             id,
             &mut next_id,
             pool.difficulty.hp_pct,
@@ -374,7 +374,7 @@ pub(crate) fn announced_patterns(stage: &World, s: &State) -> Vec<crate::snapsho
 /// The boss's state at its spawn, its hit points and its parts' scaled by `hp_pct` (ADR-110).
 pub(crate) fn boss_state(
     b: crate::stage::Boss,
-    boss_index: u32,
+    boss: BossIndex,
     id: EntityId,
     next_id: &mut u32,
     hp_pct: u32,
@@ -383,7 +383,7 @@ pub(crate) fn boss_state(
     let hp = |hp: u32| scale_hp(hp, hp_pct);
     BossState {
         id,
-        boss_index,
+        boss,
         kind: kinds.of(&b.base),
         at: b.spawn,
         hp: hp(b.hp),
@@ -582,9 +582,7 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
     let index = match key.source {
         AgentSource::BossRule => {
             let boss = s.boss.as_ref().expect("a boss summons its own agents");
-            stage
-                .defs
-                .of_boss_rule(boss.boss_index, key.index, key.rule)
+            stage.defs.of_boss_rule(boss.boss, key.index, key.rule)
         }
         _ => stage.defs.of_key(key),
     };

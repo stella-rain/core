@@ -21,7 +21,7 @@ use crate::match_ups::MatchUps;
 use crate::rewards::{MAX_BURST_DEPTH, Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
-use crate::rules_v0::World;
+use crate::rules_v0::{BossIndex, DefIndex, World};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
@@ -150,7 +150,8 @@ impl Engine {
             stage.clone(),
             &stage.boss.iter().collect::<Vec<_>>(),
             &kinds,
-        );
+        )
+        .map_err(|i| Error::Invalid(vec![i]))?;
         Ok(Engine {
             state: rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds),
             stage,
@@ -180,7 +181,8 @@ impl Engine {
         };
         let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
         let bosses: Vec<&crate::stage::Boss> = stage.boss.iter().collect();
-        let stage = World::new(stage.clone(), &bosses, &kinds);
+        let stage =
+            World::new(stage.clone(), &bosses, &kinds).map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
@@ -214,7 +216,8 @@ impl Engine {
             .iter()
             .chain(std::iter::once(&horde.template))
             .collect();
-        let stage = World::new(stage.clone(), &bosses, &kinds);
+        let stage =
+            World::new(stage.clone(), &bosses, &kinds).map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
         let loadout = rules_v0::Loadout::of(setup, content);
@@ -1190,7 +1193,7 @@ pub(crate) struct BossState {
     /// scaled (`spawn_boss`). The stage itself is never changed in a run.
     pub def: std::sync::Arc<crate::stage::Boss>,
     /// Which of the run's boss definitions (`AgentDefs`) it was made from.
-    pub boss_index: u32,
+    pub boss: BossIndex,
     /// The boss's kind (its sprite), an index into the run's `KindTable` made at spawn.
     pub kind: KindIndex,
     pub at: Point,
@@ -1268,7 +1271,7 @@ pub(crate) enum AgentSource {
 pub(crate) struct AgentState {
     pub id: EntityId,
     /// Its definition in the run's `AgentDefs`.
-    pub def: u32,
+    pub def: DefIndex,
     /// Its kind (its sprite), an index into the run's `KindTable` made at spawn; a hit copies it.
     pub kind: KindIndex,
     pub key: AgentKey,
@@ -1920,7 +1923,7 @@ mod horde_tests {
 
     /// The slot of the boss on the field in the run's list of boss definitions.
     fn boss_slot(e: &Engine) -> u32 {
-        e.state.boss.as_ref().unwrap().boss_index
+        e.state.boss.as_ref().unwrap().boss.0.into()
     }
 
     #[test]

@@ -3,6 +3,7 @@
 //! fires; the others wait. Agents are evaluated in entity-ID order (companions, then enemies),
 //! each rule list in order.
 
+use super::DefIndex;
 use super::World;
 use crate::behaviour::{Agent, BossCall, Condition, Guardians, Movement, Rule};
 use crate::engine::{
@@ -25,7 +26,7 @@ const FOLLOW_SPEED: i64 = Fx::px(4).0 as i64;
 
 pub(super) fn new_agent(
     id: EntityId,
-    index: u32,
+    index: DefIndex,
     d: &super::world::AgentDef,
     key: AgentKey,
     at: Point,

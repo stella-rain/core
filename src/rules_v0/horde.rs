@@ -21,7 +21,7 @@
 //! whoever spawned them) and the cap on enemies hold it back after the draws, so the generator
 //! never depends on either. An elite is built from the definition of the type drawn (`elite_types` of the mode file); its sprite is the type's.
 
-use super::World;
+use super::{BossIndex, World};
 use crate::behaviour::{Action, BossCall};
 use crate::engine::{AgentKey, AgentSource, Outcome, State};
 use crate::event::DomainEvent;
@@ -127,14 +127,16 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
     }
     let id = EntityId(s.next_id);
     s.next_id += 1;
-    let boss_index = u32::try_from(
-        horde
-            .bosses
-            .iter()
-            .position(|b| b.base == def.base)
-            .unwrap_or(horde.bosses.len()),
-    )
-    .unwrap_or(u32::MAX);
+    let boss_index = BossIndex(
+        u16::try_from(
+            horde
+                .bosses
+                .iter()
+                .position(|b| b.base == def.base)
+                .unwrap_or(horde.bosses.len()),
+        )
+        .unwrap_or(u16::MAX),
+    );
     s.boss = Some(super::boss_state(
         def,
         boss_index,
