@@ -34,7 +34,9 @@ All count instructions with `iai-callgrind`.
 - CI (`rust.yml`, ADR-SIM-6) compares all three with the base commit's on both architectures and
   fails on more than +2% instructions in any of them. It warns on `worst_tick` over its ceiling
   per arch in `benches/budgets.toml` (`bench_budget.py --warn-only` until the T1 refactor, DS27);
-  a PR changing a bench and `src/` fails (D-BUDGET).
+  a PR changing a bench (`benches/`
+  or the `tests/common/` they share) and `src/` fails, since no comparison could tell which moved
+  the count (D-BUDGET): change the bench in its own PR first.
 - The benches build at one codegen unit, base and head alike (`[profile.bench]`, core#192).
 - Locally: `-- --save-baseline=base`, then `-- --baseline=base --callgrind-limits=ir=2%`.
 
