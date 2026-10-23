@@ -615,6 +615,16 @@ impl Rewards {
         }
     }
 
+    /// Every orbit the rewards and the constellations give, for compiling their attacks.
+    pub fn orbits(&self) -> impl Iterator<Item = &Orbit> {
+        let sets = self.constellations.sets().iter();
+        self.rewards.iter().filter_map(Reward::orbit).chain(
+            sets.flat_map(|s| &s.tiers)
+                .flat_map(|t| &t.effects)
+                .filter_map(|e| e.orbit.as_ref()),
+        )
+    }
+
     /// The ID an orbit key shows under: its reward's, or its set's.
     pub fn orbit_id(&self, key: u16) -> Option<ContentId> {
         match key.checked_sub(ORBIT_SET_BASE) {

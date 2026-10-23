@@ -8,9 +8,7 @@
 //! changes in place until the freeze (ADR-035): see `rules_v0` for what it does and does not
 //! do yet.
 
-use std::sync::Arc;
-
-use crate::attack::{Anchor, AttackPhase, DamageType, Emitter, PhaseKind, ZoneShape};
+use crate::attack::{Anchor, DamageType, PhaseKind, ZoneShape};
 use crate::behaviour::{BossCall, Movement};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -21,7 +19,7 @@ use crate::match_ups::MatchUps;
 use crate::rewards::{MAX_BURST_DEPTH, Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
-use crate::rules_v0::{BossIndex, DefIndex, HordeSpec, World};
+use crate::rules_v0::{AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, World};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
@@ -146,7 +144,8 @@ impl Engine {
             difficulty: rules_v0::RunDifficulty::NONE,
         };
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = World::new(stage.clone(), None, &kinds).map_err(|i| Error::Invalid(vec![i]))?;
+        let stage = World::new(stage.clone(), None, &kinds, content)
+            .map_err(|i| Error::Invalid(vec![i]))?;
         Ok(Engine {
             state: rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds),
             stage,
@@ -175,7 +174,8 @@ impl Engine {
             difficulty: run_difficulty(setup, content)?,
         };
         let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = World::new(stage.clone(), None, &kinds).map_err(|i| Error::Invalid(vec![i]))?;
+        let stage = World::new(stage.clone(), None, &kinds, content)
+            .map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
@@ -205,7 +205,8 @@ impl Engine {
             difficulty: run_difficulty(setup, content)?,
         };
         let kinds = horde_kinds(&stage, &spec).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = World::new(stage, Some(spec), &kinds).map_err(|i| Error::Invalid(vec![i]))?;
+        let stage =
+            World::new(stage, Some(spec), &kinds, content).map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
         let loadout = rules_v0::Loadout::of(setup, content);
@@ -355,7 +356,7 @@ impl Engine {
 
     /// FNV-1a 64 over the whole state after the last tick (ADR-019).
     pub fn state_hash(&self) -> u64 {
-        rules_v0::state_hash(&self.state)
+        rules_v0::state_hash(&self.stage, &self.state)
     }
 
     /// The domain events of the last tick, in the order they happened.
@@ -372,22 +373,21 @@ impl Engine {
     pub fn snapshot(&self) -> Snapshot {
         let s = &self.state;
         let view = |r: &AttackRun| {
-            let p = &r.phases[r.phase as usize];
+            let p = rules_v0::phase(&self.stage, r, r.phase as usize);
             AttackView {
                 slot: r.slot,
-                preset: r.preset.clone(),
+                preset: self.stage.attacks[usize::from(r.attack.0)].preset.clone(),
                 phase: u8::try_from(r.phase).unwrap_or(u8::MAX),
                 kind: p.kind,
                 tick: r.tick,
                 ticks: p.ticks,
-                hit_box: p.hit_box.clone(),
+                hit_box: p.hit_box().cloned(),
                 facing: Facing {
                     x: r.facing.x,
                     y: r.facing.y,
                 },
                 at: r.at.or_else(|| {
-                    p.hit_box
-                        .as_ref()
+                    p.hit_box()
                         .filter(|h| h.anchor() == Anchor::Target)
                         .and(r.spot)
                 }),
@@ -1550,7 +1550,7 @@ pub(crate) struct ZoneState {
 /// An `on_bullet` waiting on a bullet.
 #[derive(Clone, Debug)]
 pub(crate) struct Hook {
-    pub program: Arc<Vec<Emitter>>,
+    pub program: ProgramIndex,
     /// The `on_bullet` node in the program: its `then` list is what the bullet starts.
     pub path: Vec<PathStep>,
     /// Ticks left before it starts.
@@ -1607,9 +1607,12 @@ pub(crate) struct AttackRun {
     pub owner: EntityId,
     /// 0 for an agent's or the boss's attacks and the main character's combo (ADR-069).
     pub slot: u8,
-    /// The preset it came from, for the frontend to pick its animation.
-    pub preset: Option<ContentId>,
-    pub phases: Arc<Vec<AttackPhase>>,
+    /// The attack it carries out, compiled when the run started (`World::attacks`).
+    pub attack: AttackIndex,
+    /// The attack speed that shortens its phases, in percent, and the range that widens its hit
+    /// boxes, fixed when it starts (ADR-070); read through `attacks::phase`.
+    pub speed_pct: u32,
+    pub width_pct: u32,
     pub phase: u32,
     /// Ticks done in the phase: 0 on its first tick.
     pub tick: u32,
@@ -1682,12 +1685,12 @@ impl MoveIndex {
     }
 
     /// Starts again from `runs`: after one ended or went on to another phase.
-    pub fn rebuild(&mut self, runs: &[AttackRun]) {
+    pub fn rebuild(&mut self, world: &World, runs: &[AttackRun]) {
         self.by_owner.clear();
-        self.by_owner.extend(
-            runs.iter()
-                .map(|r| (r.owner, i64::from(r.phases[r.phase as usize].move_pct))),
-        );
+        self.by_owner.extend(runs.iter().map(|r| {
+            let phase = &world.attacks[usize::from(r.attack.0)].phases[r.phase as usize];
+            (r.owner, i64::from(phase.move_pct))
+        }));
         // Lowest first within an owner, so that the entry `dedup_by_key` keeps is the lowest.
         self.by_owner.sort_unstable();
         self.by_owner.dedup_by_key(|e| e.0);
@@ -1700,7 +1703,7 @@ impl MoveIndex {
 #[derive(Clone, Debug)]
 pub(crate) struct AttackTask {
     pub owner: EntityId,
-    pub program: Arc<Vec<Emitter>>,
+    pub program: ProgramIndex,
     /// Where in the program this task starts; empty for the whole program.
     pub base: Vec<PathStep>,
     pub origin: Origin,
@@ -2404,7 +2407,7 @@ mod horde_tests {
 #[cfg(test)]
 mod move_index_tests {
     use super::*;
-    use crate::attack::PhaseKind;
+    use crate::attack::{AttackPhase, AttackRef, PhaseKind};
 
     fn phase(move_pct: u8) -> AttackPhase {
         AttackPhase {
@@ -2420,13 +2423,19 @@ mod move_index_tests {
         }
     }
 
+    fn world() -> World {
+        World::for_test(RunContent::bundled().trial().clone())
+    }
+
     /// A run of `owner` whose phases have these `move_pct`s, on its `phase`.
-    fn run(owner: u32, phase_at: u32, pcts: &[u8]) -> AttackRun {
+    fn run(world: &mut World, owner: u32, phase_at: u32, pcts: &[u8]) -> AttackRun {
+        let attack = AttackRef::Inline(pcts.iter().map(|p| phase(*p)).collect());
         AttackRun {
             owner: EntityId(owner),
             slot: 0,
-            preset: None,
-            phases: Arc::new(pcts.iter().map(|p| phase(*p)).collect()),
+            attack: world.compile_attack(&attack).unwrap(),
+            speed_pct: 0,
+            width_pct: 0,
             phase: phase_at,
             tick: 0,
             facing: Dir::DOWN,
@@ -2446,20 +2455,24 @@ mod move_index_tests {
         }
     }
 
+    fn move_pct_of(world: &World, r: &AttackRun) -> i64 {
+        i64::from(world.attacks[usize::from(r.attack.0)].phases[r.phase as usize].move_pct)
+    }
+
     /// The scan the index replaces, kept as the oracle.
-    fn scan(runs: &[AttackRun], owner: EntityId) -> i64 {
+    fn scan(world: &World, runs: &[AttackRun], owner: EntityId) -> i64 {
         runs.iter()
             .filter(|r| r.owner == owner)
-            .map(|r| i64::from(r.phases[r.phase as usize].move_pct))
+            .map(|r| move_pct_of(world, r))
             .min()
             .unwrap_or(100)
     }
 
-    fn assert_same(index: &MoveIndex, runs: &[AttackRun]) {
+    fn assert_same(world: &World, index: &MoveIndex, runs: &[AttackRun]) {
         for id in 0..8 {
             assert_eq!(
                 index.get(EntityId(id)),
-                scan(runs, EntityId(id)),
+                scan(world, runs, EntityId(id)),
                 "owner {id}"
             );
         }
@@ -2467,16 +2480,17 @@ mod move_index_tests {
 
     #[test]
     fn an_owner_with_several_runs_gets_the_lowest_move_pct() {
+        let mut w = world();
         let runs = vec![
-            run(3, 0, &[80, 10]),
-            run(5, 1, &[0, 100]),
-            run(3, 1, &[100, 40]),
-            run(3, 0, &[90]),
-            run(1, 0, &[0]),
+            run(&mut w, 3, 0, &[80, 10]),
+            run(&mut w, 5, 1, &[0, 100]),
+            run(&mut w, 3, 1, &[100, 40]),
+            run(&mut w, 3, 0, &[90]),
+            run(&mut w, 1, 0, &[0]),
         ];
         let mut index = MoveIndex::default();
-        index.rebuild(&runs);
-        assert_same(&index, &runs);
+        index.rebuild(&w, &runs);
+        assert_same(&w, &index, &runs);
         assert_eq!(index.get(EntityId(3)), 40);
         assert_eq!(index.get(EntityId(1)), 0);
         assert_eq!(index.get(EntityId(2)), 100);
@@ -2484,17 +2498,18 @@ mod move_index_tests {
 
     #[test]
     fn lowering_for_a_new_run_matches_a_rebuild() {
-        let mut runs = vec![run(4, 0, &[70]), run(2, 0, &[100])];
+        let mut w = world();
+        let mut runs = vec![run(&mut w, 4, 0, &[70]), run(&mut w, 2, 0, &[100])];
         let mut index = MoveIndex::default();
-        index.rebuild(&runs);
+        index.rebuild(&w, &runs);
         for (owner, pcts) in [(4, [30u8]), (6, [100]), (2, [55]), (6, [0]), (0, [90])] {
-            let r = run(owner, 0, &pcts);
-            index.lower(r.owner, i64::from(r.phases[0].move_pct));
+            let r = run(&mut w, owner, 0, &pcts);
+            index.lower(r.owner, move_pct_of(&w, &r));
             runs.push(r);
-            assert_same(&index, &runs);
+            assert_same(&w, &index, &runs);
         }
         let mut rebuilt = MoveIndex::default();
-        rebuilt.rebuild(&runs);
-        assert_same(&rebuilt, &runs);
+        rebuilt.rebuild(&w, &runs);
+        assert_same(&w, &rebuilt, &runs);
     }
 }

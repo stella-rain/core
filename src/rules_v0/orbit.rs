@@ -80,7 +80,16 @@ pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut 
             };
             for j in 0..o.orbs {
                 let dir = facing(o.angle, j, o.orbs);
-                attacks::start_player(s, slot(k, j), dir, &def.attack, damage, strike, events);
+                attacks::start_player(
+                    stage,
+                    s,
+                    slot(k, j),
+                    dir,
+                    &def.attack,
+                    damage,
+                    strike,
+                    events,
+                );
             }
             o.round = o.orbs;
             o.cooldown_left = def.cooldown_ticks;

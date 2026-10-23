@@ -443,7 +443,7 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
     let map = stage.map();
     let player_at = s.player.at;
-    let attacking = super::attacks::move_pct(s, s.id_of(me));
+    let attacking = super::attacks::move_pct(stage, s, s.id_of(me));
     if attacking == 0 {
         return;
     }

@@ -38,7 +38,7 @@
 //! `MAX_EMITTER_STEPS_PER_TICK` node steps across all of them, after which the rest wait for
 //! the next tick, in order. Bullets are capped as everywhere else.
 
-use std::sync::Arc;
+use std::ops::Deref;
 
 use crate::attack::{Anchor, AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::difficulties::scale_pct;
@@ -48,8 +48,7 @@ use crate::engine::{
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
-use crate::id::{ContentId, EntityId};
-use crate::presets;
+use crate::id::EntityId;
 use crate::registry;
 use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
@@ -57,7 +56,9 @@ use crate::trig;
 use crate::validate::limits::{MAX_BULLET_TICKS, MAX_LEN, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS};
 
 use super::entity::{Who, scale_damage, status_pct};
-use super::{MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, count, spawn_bullet};
+use super::{
+    AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, World, count, spawn_bullet,
+};
 
 /// Whether `owner` is running an attack in `slot`.
 pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
@@ -66,27 +67,33 @@ pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
 
 /// The movement speed, in percent, that `owner`'s running attacks leave it: the lowest
 /// `move_pct` of their current phases, 100 with none.
-pub(super) fn move_pct(s: &State, owner: EntityId) -> i64 {
+pub(super) fn move_pct(world: &World, s: &State, owner: EntityId) -> i64 {
     let pct = s.move_index.get(owner);
-    debug_assert_eq!(pct, scan_move_pct(s, owner), "the move index is stale");
+    debug_assert_eq!(
+        pct,
+        scan_move_pct(world, s, owner),
+        "the move index is stale"
+    );
     pct
 }
 
 /// What `move_pct` was before `State::move_index`: every run scanned. The index is checked
 /// against it in debug builds.
 #[cfg_attr(not(debug_assertions), allow(dead_code))]
-fn scan_move_pct(s: &State, owner: EntityId) -> i64 {
+fn scan_move_pct(world: &World, s: &State, owner: EntityId) -> i64 {
     s.runs
         .iter()
         .filter(|r| r.owner == owner)
-        .map(|r| i64::from(r.phases[r.phase as usize].move_pct))
+        .map(|r| i64::from(phase(world, r, r.phase as usize).move_pct))
         .min()
         .unwrap_or(100)
 }
 
 /// Starts `attack` for `owner` in `slot`, aimed at `target`. Bullets do `base_damage`, raised by
 /// the owner's atk-up as it is now. False, starting nothing, if the slot is busy.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn start(
+    world: &World,
     s: &mut State,
     owner: Who,
     slot: u8,
@@ -95,13 +102,24 @@ pub(super) fn start(
     base_damage: u32,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    start_aged(s, owner, slot, target, attack, base_damage, 0, events)
+    start_aged(
+        world,
+        s,
+        owner,
+        slot,
+        target,
+        attack,
+        base_damage,
+        0,
+        events,
+    )
 }
 
 /// As `start`, for an attack whose clock does not start at 0: the boss's attacks count the time
 /// since its phase began, so that `phase_time` is the phase's time (ADR-036).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn start_aged(
+    world: &World,
     s: &mut State,
     owner: Who,
     slot: u8,
@@ -112,12 +130,13 @@ pub(super) fn start_aged(
     events: &mut Vec<DomainEvent>,
 ) -> bool {
     let aim = Aim::Entity(s.id_of(target));
-    start_with(s, owner, slot, aim, attack, base_damage, age, events)
+    start_with(world, s, owner, slot, aim, attack, base_damage, age, events)
 }
 
 /// As `start_aged`, for any way of aiming.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn start_with(
+    world: &World,
     s: &mut State,
     owner: Who,
     slot: u8,
@@ -131,21 +150,26 @@ pub(super) fn start_with(
     if busy(s, id, slot) {
         return false;
     }
-    let Some(phases) = presets::phases(attack).filter(|p| !p.is_empty()) else {
+    let attack = world.attack_index(attack);
+    if world.attacks[usize::from(attack.0)].phases.is_empty() {
         return false;
-    };
+    }
     launch(
+        world,
         s,
-        owner,
-        slot,
-        aim,
-        attack,
-        phases,
-        base_damage,
-        age,
-        0,
-        None,
-        None,
+        Launch {
+            owner,
+            slot,
+            aim,
+            attack,
+            speed_pct: 0,
+            width_pct: 0,
+            base_damage,
+            age,
+            bonus_pct: 0,
+            smash: None,
+            at: None,
+        },
         events,
     );
     true
@@ -165,7 +189,9 @@ pub(super) struct Strike {
 
 /// Starts `attack` for the main character in `slot`, along `facing`, with its `strike`. False,
 /// starting nothing, if the slot is busy or the attack has no phases.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn start_player(
+    world: &World,
     s: &mut State,
     slot: u8,
     facing: Dir,
@@ -177,98 +203,176 @@ pub(super) fn start_player(
     if busy(s, s.id_of(Who::Player), slot) {
         return false;
     }
-    let Some(phases) = presets::phases(attack).filter(|p| !p.is_empty()) else {
+    let attack = world.attack_index(attack);
+    if world.attacks[usize::from(attack.0)].phases.is_empty() {
         return false;
-    };
-    let phases = if strike.speed_pct == 0 {
-        phases
-    } else {
-        Arc::new(faster(&phases, strike.speed_pct))
-    };
-    let phases = if strike.range_pct == 0 {
-        phases
-    } else {
-        Arc::new(wider(&phases, strike.range_pct))
-    };
-    let aim = Aim::Fixed(facing);
+    }
     launch(
+        world,
         s,
-        Who::Player,
-        slot,
-        aim,
-        attack,
-        phases,
-        base_damage,
-        0,
-        strike.bonus_pct,
-        strike.smash,
-        None,
+        Launch {
+            owner: Who::Player,
+            slot,
+            aim: Aim::Fixed(facing),
+            attack,
+            speed_pct: strike.speed_pct,
+            width_pct: strike.range_pct,
+            base_damage,
+            age: 0,
+            bonus_pct: strike.bonus_pct,
+            smash: strike.smash,
+            at: None,
+        },
         events,
     );
     true
 }
 
-/// Starts an on-hit rune's attack `phases` for the main character in `slot`, its hit boxes
+/// Starts an on-hit rune's `attack` for the main character in `slot`, its hit boxes
 /// centred on `at` and facing `facing`, at `base_damage` (ADR-099): raised by its atk-up and type
 /// bonuses as they are now, as any of its attacks, but no combo step's. False, starting
 /// nothing, if the slot is busy.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn start_rune(
+    world: &World,
     s: &mut State,
     slot: u8,
     at: Point,
     facing: Dir,
-    phases: Arc<Vec<AttackPhase>>,
+    attack: AttackIndex,
     base_damage: u32,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    if busy(s, s.id_of(Who::Player), slot) || phases.is_empty() {
+    if busy(s, s.id_of(Who::Player), slot) || world.attacks[usize::from(attack.0)].phases.is_empty()
+    {
         return false;
     }
     launch(
+        world,
         s,
-        Who::Player,
-        slot,
-        Aim::Fixed(facing),
-        &AttackRef::Inline(Vec::new()),
-        phases,
-        base_damage,
-        0,
-        0,
-        None,
-        Some(at),
+        Launch {
+            owner: Who::Player,
+            slot,
+            aim: Aim::Fixed(facing),
+            attack,
+            speed_pct: 0,
+            width_pct: 0,
+            base_damage,
+            age: 0,
+            bonus_pct: 0,
+            smash: None,
+            at: Some(at),
+        },
         events,
     );
     true
 }
 
-/// `phases` `pct` percent faster: the attack's length divided by `1 + pct / 100`, rounded to
-/// the nearest tick, and shared among the phases in proportion, each at least 1 tick. The ticks
-/// left over after rounding each phase down go to the phases with the largest remainders, the
-/// first of equal ones first.
-pub(super) fn faster(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
+/// What starts a run (`launch`).
+struct Launch {
+    owner: Who,
+    slot: u8,
+    aim: Aim,
+    attack: AttackIndex,
+    /// The attack speed and range that change the phases (`phase`), in percent.
+    speed_pct: u32,
+    width_pct: u32,
+    base_damage: u32,
+    age: u32,
+    bonus_pct: u32,
+    smash: Option<Smash>,
+    at: Option<Point>,
+}
+
+/// A phase of a run as it is carried out: the compiled phase with attack speed and range
+/// applied, which is read when needed instead of kept. It derefs to the compiled
+/// phase for everything they leave alone.
+pub(crate) struct PhaseView<'a> {
+    base: &'a AttackPhase,
+    /// The phase's length in ticks, shortened by attack speed.
+    pub ticks: u32,
+    widened: Option<HitBox>,
+}
+
+impl PhaseView<'_> {
+    /// The phase's hit box, widened by the range.
+    pub fn hit_box(&self) -> Option<&HitBox> {
+        self.widened.as_ref().or(self.base.hit_box.as_ref())
+    }
+}
+
+impl Deref for PhaseView<'_> {
+    type Target = AttackPhase;
+
+    fn deref(&self) -> &AttackPhase {
+        self.base
+    }
+}
+
+/// The compiled phases of run `r`'s attack, before attack speed and range.
+fn compiled<'a>(world: &'a World, r: &AttackRun) -> &'a [AttackPhase] {
+    &world.attacks[usize::from(r.attack.0)].phases
+}
+
+/// How many phases run `r` has.
+pub(super) fn phase_count(world: &World, r: &AttackRun) -> usize {
+    compiled(world, r).len()
+}
+
+/// Phase `i` of run `r`, `r.speed_pct` percent faster and `r.width_pct` percent wider.
+pub(crate) fn phase<'a>(world: &'a World, r: &AttackRun, i: usize) -> PhaseView<'a> {
+    let phases = compiled(world, r);
+    let base = &phases[i];
+    PhaseView {
+        base,
+        ticks: if r.speed_pct == 0 {
+            base.ticks
+        } else {
+            faster_ticks(phases, r.speed_pct, i)
+        },
+        widened: if r.width_pct == 0 {
+            None
+        } else {
+            base.hit_box.as_ref().map(|h| wider_box(h, r.width_pct))
+        },
+    }
+}
+
+/// The length of phase `i` of `phases` `pct` percent faster: the attack's length divided by
+/// `1 + pct / 100`, rounded to the nearest tick, and shared among the phases in proportion,
+/// each at least 1 tick. The ticks left over after rounding each phase down go to the phases
+/// with the largest remainders, the first of equal ones first.
+fn faster_ticks(phases: &[AttackPhase], pct: u32, i: usize) -> u32 {
     let per = 100 + u64::from(pct);
     let total: u64 = phases.iter().map(|p| u64::from(p.ticks)).sum();
     let target = ((total * 100 + per / 2) / per).max(phases.len() as u64);
-    let mut out: Vec<AttackPhase> = phases.to_vec();
-    let mut rests: Vec<(u64, usize)> = Vec::with_capacity(phases.len());
-    let mut sum = 0u64;
-    for (i, p) in phases.iter().enumerate() {
+    let rounded = |p: &AttackPhase| {
         let exact = u64::from(p.ticks) * 100;
         let ticks = (exact / per).max(1);
-        rests.push((exact.saturating_sub(ticks * per), i));
-        out[i].ticks = u32::try_from(ticks).unwrap_or(u32::MAX);
+        (ticks, exact.saturating_sub(ticks * per))
+    };
+    let (own, own_rest) = rounded(&phases[i]);
+    let mut sum = 0u64;
+    // Phases that come before this one in the order of the largest remainders.
+    let mut before = 0u64;
+    for (j, p) in phases.iter().enumerate() {
+        let (ticks, rest) = rounded(p);
         sum += ticks;
+        if rest > own_rest || (rest == own_rest && j < i) {
+            before += 1;
+        }
     }
-    rests.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
-    for &(_, i) in rests.iter().take(target.saturating_sub(sum) as usize) {
-        out[i].ticks = out[i].ticks.saturating_add(1);
+    let ticks = u32::try_from(own).unwrap_or(u32::MAX);
+    if before < target.saturating_sub(sum) {
+        ticks.saturating_add(1)
+    } else {
+        ticks
     }
-    out
 }
 
-/// `phases` with every hit box `pct` percent larger, at most `MAX_RANGE_PCT`: its radius and
-/// its offset, each rounded toward zero and held within `i32`; an arc's angle stays.
-pub(super) fn wider(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
+/// `hit_box` `pct` percent larger, at most `MAX_RANGE_PCT`: its radius and its offset, each
+/// rounded toward zero and held within `i32`; an arc's angle stays.
+fn wider_box(hit_box: &HitBox, pct: u32) -> HitBox {
     // The validator holds the amount to `MAX_RANGE_PCT`; the clamp keeps an unvalidated file there.
     let per = 100 + i64::from(pct.min(MAX_RANGE_PCT));
     let grow = |v: &mut Fx| {
@@ -278,47 +382,43 @@ pub(super) fn wider(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
             i32::MAX
         });
     };
-    let mut out = phases.to_vec();
-    for p in &mut out {
-        match &mut p.hit_box {
-            Some(HitBox::Circle { offset, radius, .. } | HitBox::Arc { offset, radius, .. }) => {
-                grow(radius);
-                grow(&mut offset.forward);
-                grow(&mut offset.right);
-            }
-            Some(HitBox::Line {
-                offset,
-                length,
-                width,
-                ..
-            }) => {
-                grow(length);
-                grow(width);
-                grow(&mut offset.forward);
-                grow(&mut offset.right);
-            }
-            None => {}
+    let mut out = hit_box.clone();
+    match &mut out {
+        HitBox::Circle { offset, radius, .. } | HitBox::Arc { offset, radius, .. } => {
+            grow(radius);
+            grow(&mut offset.forward);
+            grow(&mut offset.right);
+        }
+        HitBox::Line {
+            offset,
+            length,
+            width,
+            ..
+        } => {
+            grow(length);
+            grow(width);
+            grow(&mut offset.forward);
+            grow(&mut offset.right);
         }
     }
     out
 }
 
-/// Pushes a run of `phases` and begins its first phase.
-#[allow(clippy::too_many_arguments)]
-fn launch(
-    s: &mut State,
-    owner: Who,
-    slot: u8,
-    aim: Aim,
-    attack: &AttackRef,
-    phases: Arc<Vec<AttackPhase>>,
-    base_damage: u32,
-    age: u32,
-    bonus_pct: u32,
-    smash: Option<Smash>,
-    at: Option<Point>,
-    events: &mut Vec<DomainEvent>,
-) {
+/// Pushes a run of `launch.attack` and begins its first phase.
+fn launch(world: &World, s: &mut State, launch: Launch, events: &mut Vec<DomainEvent>) {
+    let Launch {
+        owner,
+        slot,
+        aim,
+        attack,
+        speed_pct,
+        width_pct,
+        base_damage,
+        age,
+        bonus_pct,
+        smash,
+        at,
+    } = launch;
     let id = s.id_of(owner);
     // A bonus (a perfect release's) adds to the atk-up, for every hit of the attack.
     let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp).saturating_add(bonus_pct);
@@ -328,20 +428,17 @@ fn launch(
     let held = &s.player.type_bonus_pct;
     let type_bonus_pct = (owner == Who::Player && held.iter().any(|pct| *pct > 0))
         .then(|| Box::new(held.map(|pct| pct.min(limit))));
-    let preset: Option<ContentId> = match attack {
-        AttackRef::Preset { id, .. } => Some(id.clone()),
-        AttackRef::Inline(_) => None,
-    };
     let facing = self::aim(s, s.at(owner), aim);
-    let spot = uses_spot(&phases).then(|| match aim {
+    let spot = uses_spot(&world.attacks[usize::from(attack.0)].phases).then(|| match aim {
         Aim::Entity(target) => s.find(target).map_or_else(|| s.at(owner), |w| s.at(w)),
         Aim::Fixed(_) => s.at(owner),
     });
     s.runs.push(AttackRun {
         owner: id,
         slot,
-        preset,
-        phases,
+        attack,
+        speed_pct,
+        width_pct,
         phase: 0,
         tick: 0,
         facing,
@@ -365,14 +462,14 @@ fn launch(
     });
     let first = &s.runs[s.runs.len() - 1];
     s.move_index
-        .lower(first.owner, i64::from(first.phases[0].move_pct));
-    begin_phase(s, s.runs.len() - 1, events);
+        .lower(first.owner, i64::from(phase(world, first, 0).move_pct));
+    begin_phase(world, s, s.runs.len() - 1, events);
 }
 
 /// Every run goes on by a tick: to its next phase once the current one has lasted its ticks,
 /// or away after its last phase or when its attacker is gone. Called at the start of a tick,
 /// before anyone acts, so that an attacker whose attack has ended can start the next one.
-pub(super) fn advance_runs(s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn advance_runs(world: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     // One pass that moves each run that stays down to the next free place, in the order they
     // had, instead of shifting every run behind each one that ends.
     let mut changed = false;
@@ -385,38 +482,38 @@ pub(super) fn advance_runs(s: &mut State, events: &mut Vec<DomainEvent>) {
         s.runs.swap(kept, i);
         let r = &mut s.runs[kept];
         r.tick = r.tick.saturating_add(1);
-        if r.tick >= r.phases[r.phase as usize].ticks {
+        if r.tick >= phase(world, r, r.phase as usize).ticks {
             r.phase += 1;
             r.tick = 0;
             changed = true;
-            if r.phase as usize >= r.phases.len() {
+            if r.phase as usize >= phase_count(world, r) {
                 continue;
             }
-            begin_phase(s, kept, events);
+            begin_phase(world, s, kept, events);
         }
         kept += 1;
     }
     s.runs.truncate(kept);
     if changed {
-        s.move_index.rebuild(&s.runs);
+        s.move_index.rebuild(world, &s.runs);
     }
 }
 
 /// Ends `owner`'s run in `slot`, if any: an evade cancels the main character's combo step, and
 /// a follow-up press its recovery (ADR-070, ADR-076). Bullets it spawned fly on.
-pub(super) fn end_run(s: &mut State, owner: EntityId, slot: u8) {
+pub(super) fn end_run(world: &World, s: &mut State, owner: EntityId, slot: u8) {
     s.runs.retain(|r| r.owner != owner || r.slot != slot);
-    s.move_index.rebuild(&s.runs);
+    s.move_index.rebuild(world, &s.runs);
 }
 
 /// Whether `owner`'s run in `slot` is in a `recovery` phase after its last `active` one: where
 /// a follow-up press may cancel it (ADR-076). False with no run, or no active phase.
-pub(super) fn in_end_recovery(s: &State, owner: EntityId, slot: u8) -> bool {
+pub(super) fn in_end_recovery(world: &World, s: &State, owner: EntityId, slot: u8) -> bool {
     s.runs.iter().any(|r| {
         r.owner == owner
             && r.slot == slot
-            && r.phases[r.phase as usize].kind == PhaseKind::Recovery
-            && r.phases
+            && compiled(world, r)[r.phase as usize].kind == PhaseKind::Recovery
+            && compiled(world, r)
                 .iter()
                 .rposition(|p| p.kind == PhaseKind::Active)
                 .is_some_and(|last| (r.phase as usize) > last)
@@ -425,24 +522,24 @@ pub(super) fn in_end_recovery(s: &State, owner: EntityId, slot: u8) -> bool {
 
 /// Whether `owner`'s run in `slot` has just reached the recovery after its last `active` phase,
 /// on its first tick: where a held step's hold begins (ADR-084 point 6).
-pub(super) fn hold_ready(s: &State, owner: EntityId, slot: u8) -> bool {
-    in_end_recovery(s, owner, slot)
+pub(super) fn hold_ready(world: &World, s: &State, owner: EntityId, slot: u8) -> bool {
+    in_end_recovery(world, s, owner, slot)
         && s.runs
             .iter()
             .any(|r| r.owner == owner && r.slot == slot && r.tick == 0)
 }
 
 /// Ends every run of `owner` (a boss leaving the phase that started them).
-pub(super) fn end_runs_of(s: &mut State, owner: EntityId) {
+pub(super) fn end_runs_of(world: &World, s: &mut State, owner: EntityId) {
     s.runs.retain(|r| r.owner != owner);
-    s.move_index.rebuild(&s.runs);
+    s.move_index.rebuild(world, &s.runs);
 }
 
 /// The damage of run `r`'s current phase, for its hit box and the bullets it spawns: the
 /// phase's own, or else the starter's, raised by the atk-up and by the type bonus of the
 /// phase's damage type (none for a neutral phase), both fixed at the attack's start.
-pub(super) fn phase_damage(r: &AttackRun) -> u32 {
-    let p = &r.phases[r.phase as usize];
+pub(super) fn phase_damage(world: &World, r: &AttackRun) -> u32 {
+    let p = &compiled(world, r)[r.phase as usize];
     let type_bonus = match (p.damage_type, &r.type_bonus_pct) {
         (Some(ty), Some(pct)) => pct[ty.index()],
         _ => 0,
@@ -465,12 +562,13 @@ pub(super) fn is_combo(r: &AttackRun) -> bool {
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase
 /// starts a new hit list, and the phase's nodes start as a task (unless too many attacks are
 /// going already).
-fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
-    if s.runs[i].phases[s.runs[i].phase as usize].kind == PhaseKind::Active {
+fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
+    let r = &s.runs[i];
+    if compiled(world, r)[r.phase as usize].kind == PhaseKind::Active {
         s.runs[i].hits.clear();
     }
     let r = &s.runs[i];
-    let p = &r.phases[r.phase as usize];
+    let p = phase(world, r, r.phase as usize);
     if p.kind == PhaseKind::WindUp {
         events.push(DomainEvent::Telegraph {
             source: r.owner,
@@ -481,17 +579,18 @@ fn begin_phase(s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
         return;
     }
     // `phase_time` counts from the attack's first tick.
-    let elapsed: u32 = r.phases[..r.phase as usize]
-        .iter()
-        .fold(0, |sum, q| sum.saturating_add(q.ticks.max(1)));
+    let elapsed: u32 = (0..r.phase as usize).fold(0, |sum, k| {
+        sum.saturating_add(phase(world, r, k).ticks.max(1))
+    });
+    let def = &world.attacks[usize::from(r.attack.0)];
     let task = AttackTask {
         owner: r.owner,
-        program: Arc::new(p.spawn.clone()),
+        program: def.programs[r.phase as usize],
         base: Vec::new(),
         origin: r.at.map_or(Origin::Owner, Origin::At),
         aim: r.aim,
         friendly: r.friendly,
-        damage: phase_damage(r),
+        damage: phase_damage(world, r),
         damage_type: p.damage_type,
         breaks_charge: p.breaks_charge,
         smash: r.smash,
@@ -551,17 +650,23 @@ pub(super) fn fire_hooks(s: &mut State) {
 
 /// Carries out every attack up to its next wait, in the order they started. Returns how many
 /// attacks there were and how many nodes were carried out (`Load`).
-pub(super) fn run(s: &mut State, spawns_left: &mut u32) -> (u32, u32) {
+pub(super) fn run(world: &World, s: &mut State, spawns_left: &mut u32) -> (u32, u32) {
     let mut tasks = std::mem::take(&mut s.tasks);
     let running = count(&tasks);
     let mut budget = MAX_EMITTER_STEPS_PER_TICK;
-    tasks.retain_mut(|t| step_task(s, t, &mut budget, spawns_left));
+    tasks.retain_mut(|t| step_task(world, s, t, &mut budget, spawns_left));
     s.tasks = tasks;
     (running, MAX_EMITTER_STEPS_PER_TICK - budget)
 }
 
 /// One tick of one attack. False once it has finished.
-fn step_task(s: &mut State, t: &mut AttackTask, budget: &mut u32, spawns_left: &mut u32) -> bool {
+fn step_task(
+    world: &World,
+    s: &mut State,
+    t: &mut AttackTask,
+    budget: &mut u32,
+    spawns_left: &mut u32,
+) -> bool {
     // An attack from an agent ends when the agent is gone.
     if t.origin == Origin::Owner && s.find(t.owner).is_none() {
         return false;
@@ -573,7 +678,7 @@ fn step_task(s: &mut State, t: &mut AttackTask, budget: &mut u32, spawns_left: &
             return true;
         }
     }
-    let going = exec(s, t, budget, spawns_left);
+    let going = exec(world, s, t, budget, spawns_left);
     t.age = t.age.saturating_add(1);
     going
 }
@@ -792,9 +897,15 @@ enum Advance {
 }
 
 /// Carries out nodes until the attack waits (true) or is over (false).
-fn exec(s: &mut State, t: &mut AttackTask, budget: &mut u32, spawns_left: &mut u32) -> bool {
-    let program = Arc::clone(&t.program);
-    let Some(root) = root_list(&program, &t.base) else {
+fn exec(
+    world: &World,
+    s: &mut State,
+    t: &mut AttackTask,
+    budget: &mut u32,
+    spawns_left: &mut u32,
+) -> bool {
+    let program = &world.emitters[t.program.0 as usize];
+    let Some(root) = root_list(program, &t.base) else {
         return false;
     };
     loop {
@@ -1076,7 +1187,7 @@ fn emit(
             }))
             .collect();
         Box::new(Hook {
-            program: Arc::clone(&t.program),
+            program: t.program,
             path,
             left: after,
             owner: t.owner,
@@ -1113,4 +1224,208 @@ fn emit(
     );
     t.last_dir = dir;
     true
+}
+
+#[cfg(test)]
+mod attack_table_tests {
+    use super::*;
+    use crate::attack::Offset;
+    use crate::engine::{Aim, Dir};
+    use crate::rules_v0::world::World;
+    use crate::run_content::RunContent;
+
+    // The two functions below are `faster` and `wider` as they were before attacks were compiled
+    // into the world's table, kept as the oracle for `phase`.
+    fn reference_faster(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
+        let per = 100 + u64::from(pct);
+        let total: u64 = phases.iter().map(|p| u64::from(p.ticks)).sum();
+        let target = ((total * 100 + per / 2) / per).max(phases.len() as u64);
+        let mut out: Vec<AttackPhase> = phases.to_vec();
+        let mut rests: Vec<(u64, usize)> = Vec::with_capacity(phases.len());
+        let mut sum = 0u64;
+        for (i, p) in phases.iter().enumerate() {
+            let exact = u64::from(p.ticks) * 100;
+            let ticks = (exact / per).max(1);
+            rests.push((exact.saturating_sub(ticks * per), i));
+            out[i].ticks = u32::try_from(ticks).unwrap_or(u32::MAX);
+            sum += ticks;
+        }
+        rests.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+        for &(_, i) in rests.iter().take(target.saturating_sub(sum) as usize) {
+            out[i].ticks = out[i].ticks.saturating_add(1);
+        }
+        out
+    }
+
+    fn reference_wider(phases: &[AttackPhase], pct: u32) -> Vec<AttackPhase> {
+        let per = 100 + i64::from(pct.min(MAX_RANGE_PCT));
+        let grow = |v: &mut Fx| {
+            v.0 = i32::try_from(i64::from(v.0) * per / 100).unwrap_or(if v.0 < 0 {
+                i32::MIN
+            } else {
+                i32::MAX
+            });
+        };
+        let mut out = phases.to_vec();
+        for p in &mut out {
+            match &mut p.hit_box {
+                Some(
+                    HitBox::Circle { offset, radius, .. } | HitBox::Arc { offset, radius, .. },
+                ) => {
+                    grow(radius);
+                    grow(&mut offset.forward);
+                    grow(&mut offset.right);
+                }
+                Some(HitBox::Line {
+                    offset,
+                    length,
+                    width,
+                    ..
+                }) => {
+                    grow(length);
+                    grow(width);
+                    grow(&mut offset.forward);
+                    grow(&mut offset.right);
+                }
+                None => {}
+            }
+        }
+        out
+    }
+
+    fn phase_of(kind: PhaseKind, ticks: u32, hit_box: Option<HitBox>) -> AttackPhase {
+        AttackPhase {
+            kind,
+            ticks,
+            hit_box,
+            damage: None,
+            damage_type: None,
+            rehit_ticks: None,
+            spawn: Vec::new(),
+            move_pct: 100,
+            breaks_charge: false,
+        }
+    }
+
+    fn offset(forward: i32, right: i32) -> Offset {
+        Offset {
+            forward: Fx(forward),
+            right: Fx(right),
+        }
+    }
+
+    /// A combo step of every hit box shape, with lengths that do not divide evenly.
+    fn combo_step() -> Vec<AttackPhase> {
+        vec![
+            phase_of(PhaseKind::WindUp, 7, None),
+            phase_of(
+                PhaseKind::Active,
+                5,
+                Some(HitBox::Circle {
+                    anchor: Default::default(),
+                    offset: offset(3_000, -1_000),
+                    radius: Fx(9_001),
+                }),
+            ),
+            phase_of(
+                PhaseKind::Active,
+                4,
+                Some(HitBox::Arc {
+                    anchor: Default::default(),
+                    offset: offset(0, 777),
+                    radius: Fx(20_000),
+                    half_angle: 5_000,
+                }),
+            ),
+            phase_of(
+                PhaseKind::Active,
+                3,
+                Some(HitBox::Line {
+                    anchor: Default::default(),
+                    offset: offset(-501, 2),
+                    angle: 100,
+                    length: Fx(30_001),
+                    width: Fx(7_777),
+                }),
+            ),
+            phase_of(PhaseKind::Recovery, 11, None),
+        ]
+    }
+
+    fn run_of(attack: AttackIndex, speed_pct: u32, width_pct: u32) -> AttackRun {
+        AttackRun {
+            owner: EntityId(1),
+            slot: 0,
+            attack,
+            speed_pct,
+            width_pct,
+            phase: 0,
+            tick: 0,
+            facing: Dir::DOWN,
+            aim: Aim::Fixed(Dir::DOWN),
+            friendly: true,
+            base: 1,
+            atk_up_pct: 0,
+            damage_pct: 100,
+            type_bonus_pct: None,
+            age: 0,
+            hits: Vec::new(),
+            smash: None,
+            at: None,
+            throw: None,
+            homing: None,
+            spot: None,
+        }
+    }
+
+    #[test]
+    fn a_phase_read_through_the_table_is_what_faster_and_wider_made() {
+        let attack = AttackRef::Inline(combo_step());
+        let mut world = World::for_test(RunContent::bundled().trial().clone());
+        let index = world.compile_attack(&attack).unwrap();
+        // (attack speed, range): none, the case of the task, each alone, and the cap.
+        let cases = [
+            (0, 0),
+            (30, 0),
+            (0, 25),
+            (30, 25),
+            (30, 33),
+            (100, 50),
+            (1, 1),
+            (250, MAX_RANGE_PCT),
+        ];
+        for (speed, range) in cases {
+            let mut oracle = combo_step();
+            if speed != 0 {
+                oracle = reference_faster(&oracle, speed);
+            }
+            if range != 0 {
+                oracle = reference_wider(&oracle, range);
+            }
+            let run = run_of(index, speed, range);
+            for (i, expected) in oracle.iter().enumerate() {
+                let got = phase(&world, &run, i);
+                assert_eq!(got.ticks, expected.ticks, "ticks of {i} at {speed}/{range}");
+                assert_eq!(
+                    got.hit_box(),
+                    expected.hit_box.as_ref(),
+                    "box of {i} at {speed}/{range}"
+                );
+                assert_eq!(got.kind, expected.kind);
+                assert_eq!(got.move_pct, expected.move_pct);
+            }
+            assert_eq!(phase_count(&world, &run), oracle.len());
+        }
+    }
+
+    #[test]
+    fn an_attack_compiles_once_and_a_preset_keeps_its_name() {
+        let mut world = World::for_test(RunContent::bundled().trial().clone());
+        let inline = AttackRef::Inline(combo_step());
+        let a = world.compile_attack(&inline).unwrap();
+        assert_eq!(world.compile_attack(&inline).unwrap(), a);
+        assert_eq!(world.attacks[usize::from(a.0)].preset, None);
+        let other = AttackRef::Inline(vec![phase_of(PhaseKind::Active, 2, None)]);
+        assert_ne!(world.compile_attack(&other).unwrap(), a);
+    }
 }

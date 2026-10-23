@@ -51,7 +51,7 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         let rooted = s
             .boss
             .as_ref()
-            .is_some_and(|b| attacks::move_pct(s, b.id) == 0);
+            .is_some_and(|b| attacks::move_pct(stage, s, b.id) == 0);
         let Some(b) = s.boss.as_mut() else {
             return;
         };
@@ -74,7 +74,7 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         .as_ref()
         .is_some_and(|b| b.phase == 0 && b.phase_age == 1)
     {
-        begin_phase(def, s, 0, events);
+        begin_phase(stage, def, s, 0, events);
     }
     maybe_end_phase(stage, s, events);
     timeline(stage, s, events);
@@ -213,12 +213,13 @@ fn maybe_end_phase(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) 
         return;
     };
     if phase + 1 < def.phases.len() && condition_holds(s, Who::Boss, until) {
-        begin_phase(def, s, phase + 1, events);
+        begin_phase(stage, def, s, phase + 1, events);
     }
 }
 
 /// Starts phase `index`: the old phase's attacks end, its rules are new, and its transitions run.
 fn begin_phase(
+    stage: &World,
     def: &crate::stage::Boss,
     s: &mut State,
     index: usize,
@@ -241,7 +242,7 @@ fn begin_phase(
     // The attacks the boss itself was making end with the phase.
     s.tasks
         .retain(|t| !(t.owner == id && t.origin == Origin::Owner));
-    attacks::end_runs_of(s, id);
+    attacks::end_runs_of(stage, s, id);
     if index > 0 {
         events.push(DomainEvent::PhaseChanged {
             phase: u8::try_from(index).unwrap_or(u8::MAX),
@@ -318,7 +319,7 @@ fn timeline(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
                 }
             }
             Step::Attack { attack, .. } => {
-                if start_attack(s, attack, events) {
+                if start_attack(stage, s, attack, events) {
                     return;
                 }
             }
@@ -329,8 +330,23 @@ fn timeline(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
 
 /// An attack of the boss's own, aimed at the main character, the run stats file's
 /// `enemy_attack_damage` a bullet, on the phase's clock: `phase_time` is 0 on the first tick of the phase.
-fn start_attack(s: &mut State, attack: &AttackRef, events: &mut Vec<DomainEvent>) -> bool {
+fn start_attack(
+    stage: &World,
+    s: &mut State,
+    attack: &AttackRef,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
     let age = s.boss.as_ref().map_or(0, |b| b.phase_age.saturating_sub(1));
     let damage = s.enemy_attack_damage;
-    attacks::start_aged(s, Who::Boss, 0, Who::Player, attack, damage, age, events)
+    attacks::start_aged(
+        stage,
+        s,
+        Who::Boss,
+        0,
+        Who::Player,
+        attack,
+        damage,
+        age,
+        events,
+    )
 }

@@ -5,13 +5,17 @@
 
 use std::ops::Deref;
 
+use crate::attack::{AttackPhase, AttackRef, Emitter};
 use crate::behaviour::{Action, Agent, Movement};
 use crate::engine::{AgentKey, AgentSource};
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
+use crate::run_content::RunContent;
 use crate::stage::{Boss, Stage};
 use crate::time_limit::EliteTier;
 use crate::validate::Issue;
+
+use super::attack_table::{self, AttackKeys};
 
 /// An agent definition of the run, by its place in `AgentDefs`: what an agent keeps of its
 /// definition (a `u16`, so a run brings at most `u16::MAX` of them).
@@ -21,6 +25,29 @@ pub(crate) struct DefIndex(pub u16);
 /// A boss definition of the run, by its place in `World::bosses`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct BossIndex(pub u16);
+
+/// An attack of the run, by its place in `World::attacks`: what a run of the attack keeps of
+/// its phases (a `u16`, so a run brings at most `u16::MAX` of them).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct AttackIndex(pub u16);
+
+/// One phase's emitter nodes, by their place in `World::emitters`: what an attack task keeps of
+/// its program.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct ProgramIndex(pub u32);
+
+/// An attack of the run, compiled once: a preset taken apart or the inline phases, as the
+/// attack is before attack speed or range changes it.
+#[derive(Clone, Debug)]
+pub(crate) struct AttackDef {
+    /// Empty for a preset the registry does not define or an attack with no phases: one that
+    /// starts nothing.
+    pub phases: Vec<AttackPhase>,
+    /// The preset it came from, for the frontend to pick its animation.
+    pub preset: Option<ContentId>,
+    /// The program of each phase's `spawn`, in the order of `phases`.
+    pub programs: Vec<ProgramIndex>,
+}
 
 impl DefIndex {
     fn at(self) -> usize {
@@ -44,6 +71,10 @@ pub(crate) struct AgentDefs {
 }
 
 impl AgentDefs {
+    pub(super) fn agents(&self) -> impl Iterator<Item = &Agent> {
+        self.defs.iter().map(|d| &d.agent)
+    }
+
     fn push(&mut self, kinds: &KindTable, agent: &Agent) -> Result<DefIndex, Issue> {
         let at = u16::try_from(self.defs.len()).map_err(|_| Issue {
             path: "$".into(),
@@ -191,11 +222,24 @@ pub(crate) struct World {
     /// own place in the mode file and the template's once for each sprite it stands in for.
     pub bosses: Vec<BossDef>,
     pub horde: Option<HordeDefs>,
+    /// Every attack the run can start, compiled once; found by `attack_index`.
+    pub attacks: Vec<AttackDef>,
+    attack_keys: AttackKeys,
+    /// The nodes of every phase's `spawn`, by `ProgramIndex`.
+    pub emitters: Vec<Vec<Emitter>>,
+    /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
+    /// not give an attack.
+    pub rune_attacks: Vec<Option<AttackIndex>>,
 }
 
 impl World {
     /// Compiles `stage` and, for a `time_limit` run, its `horde`.
-    pub fn new(stage: Stage, horde: Option<HordeSpec>, kinds: &KindTable) -> Result<World, Issue> {
+    pub fn new(
+        stage: Stage,
+        horde: Option<HordeSpec>,
+        kinds: &KindTable,
+        content: &RunContent,
+    ) -> Result<World, Issue> {
         let mut defs = AgentDefs::build(&stage, kinds)?;
         let mut bosses = Vec::new();
         let mut push = |defs: &mut AgentDefs, boss: Boss| -> Result<BossIndex, Issue> {
@@ -246,12 +290,31 @@ impl World {
                 })
             }
         };
-        Ok(World {
+        let mut world = World {
             stage,
             defs,
             bosses,
             horde,
-        })
+            attacks: Vec::new(),
+            attack_keys: AttackKeys::default(),
+            emitters: Vec::new(),
+            rune_attacks: Vec::new(),
+        };
+        attack_table::compile_run(&mut world, content)?;
+        Ok(world)
+    }
+
+    /// Compiles `attack` unless the run has it already, and returns its index.
+    pub fn compile_attack(&mut self, attack: &AttackRef) -> Result<AttackIndex, Issue> {
+        self.attack_keys
+            .compile(&mut self.attacks, &mut self.emitters, attack)
+    }
+
+    /// The index of `attack`, which the run compiled when it started.
+    pub fn attack_index(&self, attack: &AttackRef) -> AttackIndex {
+        self.attack_keys
+            .find(attack)
+            .expect("every attack a run can start was compiled")
     }
 
     pub fn boss(&self, index: BossIndex) -> &BossDef {
@@ -274,7 +337,7 @@ impl World {
     /// A run of `stage` for a unit test.
     pub fn for_test(stage: Stage) -> World {
         let kinds = KindTable::of_stage(&stage).unwrap();
-        World::new(stage, None, &kinds).unwrap()
+        World::new(stage, None, &kinds, RunContent::bundled()).unwrap()
     }
 }
 

@@ -45,6 +45,6 @@ pub(super) fn apply(
         // has spawned fly on (ADR-085 point 2).
         let id = s.id_of(target);
         s.add_stun(target, source, ticks, events);
-        attacks::end_runs_of(s, id);
+        attacks::end_runs_of(stage, s, id);
     }
 }
