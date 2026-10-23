@@ -2182,28 +2182,49 @@ mod horde_tests {
             .map(|v| v.asset.0.clone())
     }
 
-    fn assert_three_distinct_mid_bosses(difficulty: &str, times: [u32; 3]) {
+    /// The mid-bosses drawn from the pool come without repeating whatever the minute marks are
+    /// (`spawn_boss` marks each pick used), so the schedule is shortened to 60-tick steps.
+    fn assert_three_distinct_mid_bosses(seed: u64) {
         const POOL: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
-        for seed in 0..4 {
-            let mut e = bundled_run(difficulty, seed);
-            let drawn: Vec<String> = times
-                .iter()
-                .map(|&t| boss_sprite_at(&mut e, t).expect("a boss"))
-                .collect();
-            let mut unique = drawn.clone();
-            unique.sort();
-            unique.dedup();
-            assert_eq!(unique.len(), 3, "seed {seed}: {drawn:?}");
-            assert!(
-                drawn.iter().all(|d| POOL.contains(&d.as_str())),
-                "{drawn:?}"
-            );
-        }
+        let times = [60, 120, 180];
+        let mut e = run_of(seed, |v| {
+            v["length_ticks"] = serde_json::json!(240);
+            v["boss_ticks"] = serde_json::json!([60, 120, 180, 240]);
+            v["no_call_ticks"] = serde_json::json!([]);
+            v["elite_table"] = serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
+        });
+        let drawn: Vec<String> = times
+            .iter()
+            .map(|&t| boss_sprite_at(&mut e, t).expect("a boss"))
+            .collect();
+        let mut unique = drawn.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), 3, "seed {seed}: {drawn:?}");
+        assert!(
+            drawn.iter().all(|d| POOL.contains(&d.as_str())),
+            "{drawn:?}"
+        );
     }
 
     #[test]
-    fn the_20_minute_run_draws_three_distinct_mid_bosses_from_the_four() {
-        assert_three_distinct_mid_bosses("normal", [18_000, 36_000, 54_000]);
+    fn the_run_draws_three_distinct_mid_bosses_from_the_four_seed_0() {
+        assert_three_distinct_mid_bosses(0);
+    }
+
+    #[test]
+    fn the_run_draws_three_distinct_mid_bosses_from_the_four_seed_1() {
+        assert_three_distinct_mid_bosses(1);
+    }
+
+    #[test]
+    fn the_run_draws_three_distinct_mid_bosses_from_the_four_seed_2() {
+        assert_three_distinct_mid_bosses(2);
+    }
+
+    #[test]
+    fn the_run_draws_three_distinct_mid_bosses_from_the_four_seed_3() {
+        assert_three_distinct_mid_bosses(3);
     }
 
     #[test]
