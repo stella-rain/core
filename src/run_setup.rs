@@ -711,6 +711,8 @@ pub(crate) fn time_limit_run(
     });
     stage.waves = mode.waves().to_vec();
     stage.elite_cap = Some(mode.elite_cap());
+    stage.levels = Some(mode.levels().clone());
+    stage.stars = Some(mode.stars().clone());
     stage.level_table = Some(difficulty.level_table.unwrap_or(*mode.level_table()));
     stage.stardust = Some(StardustFactor {
         tiers: difficulty

@@ -321,6 +321,33 @@ pub fn validate_waves(
     }
 }
 
+/// Checks the experience curve and the star drop table of a run whose mode file holds its own
+/// (`time_limit`), as a stage's `levels` and `stars` are checked. Paths are from the file's
+/// fields: `$.levels.xp[0]`, `$.stars.tiers[1].from_level`.
+pub fn validate_levels_and_stars(
+    levels: &Levels,
+    stars: &Stars,
+    map: crate::stage::Map,
+) -> Result<(), Vec<Issue>> {
+    let mut ctx = Ctx {
+        registry: registry::ENTRIES,
+        sim_version: crate::version::SIM_VERSION,
+        map,
+        parts: Vec::new(),
+        path: Vec::new(),
+        issues: Vec::new(),
+        left_out: false,
+        arity: 0,
+    };
+    ctx.key("levels", |c| c.levels(levels));
+    ctx.key("stars", |c| c.stars(stars));
+    if ctx.issues.is_empty() {
+        Ok(())
+    } else {
+        Err(ctx.issues)
+    }
+}
+
 /// Checks an attack outside a stage, a preset by ID with its arguments or an inline one, against
 /// the same budgets as a stage's: a damage-area stage skill's (ADR-075). The problems are
 /// reported at paths from the attack: `$.preset.id`, `$.inline[0].ticks`.

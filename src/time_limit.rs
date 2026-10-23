@@ -23,7 +23,8 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::stage::{
-    Boss, ExpertisePoints, LevelTable, Map, StardustTier, Wave, stardust_tiers_problem,
+    Boss, ExpertisePoints, LevelTable, Levels, Map, StardustTier, Stars, Wave,
+    stardust_tiers_problem,
 };
 use crate::validate::limits::{self, MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
 use crate::validate::{Error, Issue};
@@ -120,6 +121,14 @@ pub struct TimeLimitFile {
     /// strictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The
     /// run's stage takes it as its own.
     pub level_table: LevelTable,
+    /// The experience curve of the run (XP2): the experience each next level needs, as a
+    /// stage's `levels` (1 to `limits::MAX_LEVELS` entries, each 1 to `limits::MAX_LEVEL_XP`),
+    /// the last repeating. Not `level_table`, which is the style path's expertise. The run's
+    /// stage takes it as its own.
+    pub levels: Levels,
+    /// The falling stars' drop table of the run (XP2), as a stage's `stars`, checked the same
+    /// way; its tiers follow `levels`. The run's stage takes it as its own.
+    pub stars: Stars,
     /// The Stardust time factor (ADR-109 decision 2): 1 to `limits::MAX_STARDUST_TIERS` tiers,
     /// the first at tick 0, the ticks rising strictly, each percent from 1 to
     /// `limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own (ADR-110).
@@ -298,6 +307,16 @@ impl TimeLimit {
     /// The expertise levels of the style path.
     pub fn level_table(&self) -> &LevelTable {
         &self.file.level_table
+    }
+
+    /// The run's experience curve (not the expertise `level_table`).
+    pub fn levels(&self) -> &Levels {
+        &self.file.levels
+    }
+
+    /// The run's falling-star drop table.
+    pub fn stars(&self) -> &Stars {
+        &self.file.stars
     }
 
     /// The Stardust time factor's tiers a run takes unless its difficulty gives its own.
@@ -546,6 +565,18 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
 
     if let Some(problem) = file.level_table.problem() {
         issue("$.level_table".into(), problem);
+    }
+    let field = Map {
+        width: file.map.width,
+        height: file.map.height,
+        start: Some(file.map.start),
+        facing: None,
+    };
+    if let Err(found) = crate::validate::validate_levels_and_stars(&file.levels, &file.stars, field)
+    {
+        for i in found {
+            issue(i.path, i.message);
+        }
     }
     if let Some(problem) = stardust_tiers_problem(&file.stardust_tiers) {
         issue("$.stardust_tiers".into(), problem);
