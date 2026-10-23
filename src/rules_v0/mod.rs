@@ -103,6 +103,7 @@ mod orbit;
 mod player;
 mod push;
 mod runes;
+mod scratch;
 mod skill;
 mod stardust;
 mod stars;
@@ -143,6 +144,7 @@ pub(crate) use horde::spawn_boss;
 use horde::spawn_elite;
 pub(crate) use levels::{spend, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
+pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
@@ -274,6 +276,7 @@ pub(crate) fn initial_state(
         )
     });
     State {
+        scratch: Scratch::default(),
         tick: 0,
         rng: SplitMix64::new(seed),
         outcome: Outcome::Running,
@@ -725,7 +728,8 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
     combat::deal_echoes(s, events);
     hit_boxes::resolve(stage, s, &mut grid, events);
-    let mut consumed = Vec::with_capacity(s.bullets.len());
+    let mut consumed = std::mem::take(&mut s.scratch.consumed);
+    consumed.clear();
     for i in 0..s.bullets.len() {
         let b = &s.bullets[i];
         let shot = Shot {
@@ -747,8 +751,13 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             hit_ally_side(stage, s, shot, events)
         });
     }
-    let mut flags = consumed.into_iter();
-    s.bullets.retain(|_| !flags.next().unwrap_or(false));
+    let mut flags = consumed.iter();
+    s.bullets
+        .retain(|_| !flags.next().copied().unwrap_or(false));
+    s.scratch.consumed = consumed;
+    if let Some(grid) = grid {
+        s.scratch.grid = grid;
+    }
     s.companions.retain(|c| c.hp > 0);
     combat::bursts(stage, s, events);
     levels::credit_defeated(stage, s, events);
@@ -767,13 +776,15 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
 }
 
 /// The enemies as circles, in index order, for friendly bullets to land on.
-fn enemy_grid(stage: &World, s: &State) -> Grid {
+/// It is built in the state's scratch grid, which the caller returns when it is done.
+fn enemy_grid(stage: &World, s: &mut State) -> Grid {
+    let mut grid = std::mem::take(&mut s.scratch.grid);
     let circles = s
         .enemies
         .iter()
-        .map(|e| (e.at, stage.defs.agent(e.def).radius.0))
-        .collect();
-    Grid::new(circles, PLAYER_BULLET_RADIUS)
+        .map(|e| (e.at, stage.defs.agent(e.def).radius.0));
+    grid.rebuild(circles, PLAYER_BULLET_RADIUS);
+    grid
 }
 
 /// Damage to an enemy, a companion or the boss: raised by its vulnerability, changed by its

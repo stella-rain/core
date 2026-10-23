@@ -739,6 +739,8 @@ pub(crate) const UNLIMITED: u32 = u32::MAX;
 /// at fixed widths and in this order.
 #[derive(Clone, Debug)]
 pub(crate) struct State {
+    /// Buffers reused from tick to tick; not part of the state (not hashed, not cloned).
+    pub scratch: crate::rules_v0::Scratch,
     /// The run's kinds, fixed at its start (core#271).
     pub kinds: KindTable,
     pub tick: u32,

@@ -13,7 +13,7 @@
 //! The main character, companions, the boss and its parts are neither pushed nor push. Every
 //! enemy is, one held still by an attack phase included.
 
-use super::World;
+use super::{Scratch, World};
 use crate::engine::State;
 use crate::fixed::{Fx, Point};
 use crate::trig;
@@ -77,19 +77,32 @@ fn push(a: &Body, b: &Body, dist: i64) -> (i64, i64) {
 /// For each body, at most `CANDIDATES` others are read from the grid: its own cell first, then
 /// the cells around it, each cell in the order of `bodies` (the engine's enemies are in entity-ID
 /// order). Of those that overlap it, the `NEIGHBOURS` nearest are counted, ties to the lower ID.
+#[cfg(test)]
 pub(super) fn offsets(bodies: &[Body]) -> Vec<(i32, i32, bool)> {
+    let (mut grid, mut near, mut out) = (Grid::default(), Vec::new(), Vec::new());
+    offsets_into(bodies, &mut grid, &mut near, &mut out);
+    out
+}
+
+/// As `offsets`, into `out` (cleared first), building the grid in `grid` and reading the
+/// candidates into `near`: the buffers keep their memory from tick to tick.
+pub(super) fn offsets_into(
+    bodies: &[Body],
+    grid: &mut Grid,
+    near: &mut Vec<u32>,
+    out: &mut Vec<(i32, i32, bool)>,
+) {
     let largest = bodies.iter().map(|b| b.radius).max().unwrap_or(0);
     // Cells as wide as two of the largest radius: whatever overlaps a body is in the 9 cells
     // round it.
-    let grid = Grid::new(bodies.iter().map(|b| (b.at, b.radius)).collect(), largest);
-    let mut near = Vec::with_capacity(CANDIDATES);
-    let mut out = Vec::with_capacity(bodies.len());
+    grid.rebuild(bodies.iter().map(|b| (b.at, b.radius)), largest);
+    out.clear();
     for (i, a) in bodies.iter().enumerate() {
-        grid.neighbours(i, CANDIDATES, &mut near);
+        grid.neighbours(i, CANDIDATES, near);
         // The nearest overlapping candidates so far, as (distance squared, ID, index), ascending.
         let mut counted = [(0i64, 0u32, 0u32); NEIGHBOURS];
         let mut n = 0;
-        for &j in &near {
+        for &j in near.iter() {
             let b = &bodies[j as usize];
             let dx = i64::from(a.at.x.0) - i64::from(b.at.x.0);
             let dy = i64::from(a.at.y.0) - i64::from(b.at.y.0);
@@ -125,7 +138,6 @@ pub(super) fn offsets(bodies: &[Body]) -> Vec<(i32, i32, bool)> {
         }
         out.push((sx as i32, sy as i32, overlap > CROWDED_OVER));
     }
-    out
 }
 
 /// The pass: every enemy moves by its sum. A push never carries an enemy from the map off it;
@@ -141,18 +153,24 @@ pub(super) fn apply(stage: &World, s: &mut State) {
         }
         return;
     }
-    let bodies: Vec<Body> = s
-        .enemies
-        .iter()
-        .map(|e| Body {
-            id: e.id.0,
-            at: e.at,
-            radius: push_radius(stage.defs.agent(e.def).radius),
-        })
-        .collect();
+    let mut scratch = std::mem::take(&mut s.scratch);
+    let Scratch {
+        grid,
+        bodies,
+        offsets,
+        near,
+        ..
+    } = &mut scratch;
+    bodies.clear();
+    bodies.extend(s.enemies.iter().map(|e| Body {
+        id: e.id.0,
+        at: e.at,
+        radius: push_radius(stage.defs.agent(e.def).radius),
+    }));
+    offsets_into(bodies, grid, near, offsets);
     let map = stage.map();
     let mut left = false;
-    for (e, (dx, dy, crowded)) in s.enemies.iter_mut().zip(offsets(&bodies)) {
+    for (e, &(dx, dy, crowded)) in s.enemies.iter_mut().zip(offsets.iter()) {
         e.crowded = crowded;
         // A shrine, or a mimic in disguise, is fixed; the others are pushed off it.
         if (dx, dy) == (0, 0) || e.shrine.is_some() || e.hidden() {
@@ -169,6 +187,7 @@ pub(super) fn apply(stage: &World, s: &mut State) {
             left = true;
         }
     }
+    s.scratch = scratch;
     if left {
         let holds = map.holds();
         s.enemies.retain(|e| holds(e.at));
