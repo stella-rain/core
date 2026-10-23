@@ -53,4 +53,4 @@ an event or a content ID starts with the `schema-change` skill.
   (ADR-CONT-3); `run_stats.json`, `rewards.json`, `stage_skills.json`, `expertise.json`,
   `match_ups.json` and `runes.json` are each read by their `src/` module (`include_bytes!`).
 - `schema/`: generated from the types (`pack.schema.json` is the content pack's);
-  `UPDATE_SCHEMA=1 cargo test --test integration schema::` regenerates it.
+  `cargo xtask bless` regenerates it (and the corpus, goldens and `content/pack.json`).
