@@ -2182,40 +2182,68 @@ mod horde_tests {
             .map(|v| v.asset.0.clone())
     }
 
-    fn assert_three_distinct_mid_bosses(difficulty: &str, times: [u32; 3]) {
+    /// The mid-bosses drawn from the pool come without repeating whatever the minute marks are
+    /// (`spawn_boss` marks each pick used), so the schedule is shortened to 60-tick steps.
+    fn assert_three_distinct_mid_bosses(seed: u64) {
         const POOL: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
-        for seed in 0..4 {
-            let mut e = bundled_run(difficulty, seed);
-            let drawn: Vec<String> = times
-                .iter()
-                .map(|&t| boss_sprite_at(&mut e, t).expect("a boss"))
-                .collect();
-            let mut unique = drawn.clone();
-            unique.sort();
-            unique.dedup();
-            assert_eq!(unique.len(), 3, "seed {seed}: {drawn:?}");
-            assert!(
-                drawn.iter().all(|d| POOL.contains(&d.as_str())),
-                "{drawn:?}"
-            );
-        }
+        let times = [60, 120, 180];
+        let mut e = run_of(seed, |v| {
+            v["length_ticks"] = serde_json::json!(240);
+            v["boss_ticks"] = serde_json::json!([60, 120, 180, 240]);
+            v["no_call_ticks"] = serde_json::json!([]);
+            v["elite_table"] = serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
+        });
+        let drawn: Vec<String> = times
+            .iter()
+            .map(|&t| boss_sprite_at(&mut e, t).expect("a boss"))
+            .collect();
+        let mut unique = drawn.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), 3, "seed {seed}: {drawn:?}");
+        assert!(
+            drawn.iter().all(|d| POOL.contains(&d.as_str())),
+            "{drawn:?}"
+        );
     }
 
     #[test]
-    fn the_20_minute_run_draws_three_distinct_mid_bosses_from_the_four() {
-        assert_three_distinct_mid_bosses("normal", [18_000, 36_000, 54_000]);
+    fn the_run_draws_three_distinct_mid_bosses_from_the_four_seed_0() {
+        assert_three_distinct_mid_bosses(0);
     }
 
     #[test]
-    fn the_easy_run_draws_one_mid_boss_from_the_four_and_then_the_final_boss() {
+    fn the_run_draws_three_distinct_mid_bosses_from_the_four_seed_1() {
+        assert_three_distinct_mid_bosses(1);
+    }
+
+    #[test]
+    fn the_run_draws_three_distinct_mid_bosses_from_the_four_seed_2() {
+        assert_three_distinct_mid_bosses(2);
+    }
+
+    #[test]
+    fn the_run_draws_three_distinct_mid_bosses_from_the_four_seed_3() {
+        assert_three_distinct_mid_bosses(3);
+    }
+
+    fn assert_easy_run_draws_one_mid_boss(seed: u64) {
         const POOL: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
-        for seed in 0..2 {
-            let mut e = bundled_run("easy", seed);
-            let horde = e.state.horde.as_ref().unwrap();
-            assert_eq!(horde.boss_ticks, [18_000, 36_000], "seed {seed}");
-            let drawn = boss_sprite_at(&mut e, 18_000).expect("a boss");
-            assert!(POOL.contains(&drawn.as_str()), "seed {seed}: {drawn}");
-        }
+        let mut e = bundled_run("easy", seed);
+        let horde = e.state.horde.as_ref().unwrap();
+        assert_eq!(horde.boss_ticks, [18_000, 36_000], "seed {seed}");
+        let drawn = boss_sprite_at(&mut e, 18_000).expect("a boss");
+        assert!(POOL.contains(&drawn.as_str()), "seed {seed}: {drawn}");
+    }
+
+    #[test]
+    fn the_easy_run_draws_one_mid_boss_from_the_four_and_then_the_final_boss_seed_0() {
+        assert_easy_run_draws_one_mid_boss(0);
+    }
+
+    #[test]
+    fn the_easy_run_draws_one_mid_boss_from_the_four_and_then_the_final_boss_seed_1() {
+        assert_easy_run_draws_one_mid_boss(1);
     }
 
     #[test]
@@ -2241,16 +2269,40 @@ mod horde_tests {
         assert_eq!(seen[3], "core_pair");
     }
 
+    /// The first boss calls nothing and the later ones call 1800 ticks after they come, on a
+    /// schedule a quarter as long as the real one: bosses at 4000, 8000 and 12000.
+    fn assert_calls_after_30_seconds(seed: u64) {
+        let mut e = run_of(seed, |v| {
+            v["length_ticks"] = serde_json::json!(20_000);
+            v["boss_ticks"] = serde_json::json!([4_000, 8_000, 12_000, 20_000]);
+            v["no_call_ticks"] = serde_json::json!([4_000]);
+            v["elite_cap"] = serde_json::json!(32);
+            v["elite_table"] = serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
+        });
+        let (arrived, called) = arrivals_and_calls(&mut e, 13_800);
+        assert_eq!(arrived, [4_000, 8_000, 12_000], "seed {seed}");
+        assert_eq!(called, [9_800, 13_800], "seed {seed}");
+    }
+
+    #[test]
+    fn the_first_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds_seed_0() {
+        assert_calls_after_30_seconds(0);
+    }
+
+    #[test]
+    fn the_first_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds_seed_1() {
+        assert_calls_after_30_seconds(1);
+    }
+
     #[test]
     fn the_five_minute_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds() {
-        // The 5-minute boss comes at 18000 and calls nothing; the 10-minute one at 36000 calls
-        // 1800 ticks after it came, and so does the 15-minute one at 54000.
-        for seed in 0..2 {
-            let mut e = bundled_run("normal", seed);
-            let (arrived, called) = arrivals_and_calls(&mut e, 55_800);
-            assert_eq!(arrived, [18_000, 36_000, 54_000], "seed {seed}");
-            assert_eq!(called, [37_800, 55_800], "seed {seed}");
-        }
+        // The only test of the real schedule: the 5-minute boss comes at 18000 and calls nothing;
+        // the 10-minute one at 36000 calls 1800 ticks after it came, and so does the 15-minute
+        // one at 54000.
+        let mut e = bundled_run("normal", 0);
+        let (arrived, called) = arrivals_and_calls(&mut e, 55_800);
+        assert_eq!(arrived, [18_000, 36_000, 54_000]);
+        assert_eq!(called, [37_800, 55_800]);
     }
 }
 
