@@ -1,4 +1,4 @@
-# Build output and generated fuzz data (CLAUDE.md "Never commit"); tests/corpus/ is committed.
+# Build output and generated fuzz data (AGENTS.md "Never commit"); tests/corpus/ is committed.
 /target/
 /fuzz/target/
 /fuzz/artifacts/

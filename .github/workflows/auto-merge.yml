@@ -33,6 +33,7 @@ jobs:
         script unit tests
         secrets / no secrets or key files
       protected: |
+        AGENTS.md
         CLAUDE.md
         .claude/rules/
     permissions:

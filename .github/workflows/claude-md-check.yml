@@ -4,9 +4,9 @@ name: CLAUDE.md check
 on:
   push:
     branches: [main]
-    paths: ["CLAUDE.md", ".claude/**", ".github/workflows/claude-md-check.yml"]
+    paths: ["AGENTS.md", "CLAUDE.md", ".claude/**", ".github/workflows/claude-md-check.yml"]
   pull_request:
-    paths: ["CLAUDE.md", ".claude/**", ".github/workflows/claude-md-check.yml"]
+    paths: ["AGENTS.md", "CLAUDE.md", ".claude/**", ".github/workflows/claude-md-check.yml"]
 
 permissions: {}
 
