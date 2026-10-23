@@ -1,0 +1,14 @@
+[package]
+name = "stella-rain-xtask"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Repository tasks for stella-rain-core: `cargo xtask bless`"
+publish = false
+
+# Its own package, not a member of a workspace: the root `cargo test`, clippy and `cargo package`
+# never see it. Std only; a dependency here is Kade's call.
+[workspace]
+
+[dependencies]

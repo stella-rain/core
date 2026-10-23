@@ -12,3 +12,4 @@
 
 # Python bytecode from running the script tests in .github/scripts
 __pycache__/
+/xtask/target/
