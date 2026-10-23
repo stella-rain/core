@@ -12,6 +12,16 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
 - Rust gates on x86_64 and arm64 (tests also on Windows and macOS), the mobile `cargo check`,
   the fuzz jobs and the worst-tick benchmark (`rust.yml`). A PR of only `*.md` files skips every
   Rust job, and `rust checks` passes when each job ran or was skipped by right.
+- `generated sets` (job `bless`) runs `cargo xtask bless --check` on Linux: it fails, naming the
+  stale sets (schema, corpus, goldens, content pack), when regenerating them changes a file.
+  `rust checks` requires it. Fix: `cargo xtask bless`, review the diff, commit it.
+- Tests run under cargo-nextest, profile `ci` (`.config/nextest.toml`): every failure is
+  reported, a test past 30 s is listed SLOW, and each run writes a JUnit file, uploaded as the
+  `junit-<arch>` artifact. nextest skips doctests, so `cargo test --doc` runs beside it
+  (x86_64 only) and fails the day one is added and breaks.
+- The deep tier (`deep.yml`): 2,000 property cases and the `#[ignore]`d measurements, in release,
+  weekly, on demand and on every `candidate/**` push; not a PR check. The nextest test group
+  `deep` runs those long tests one at a time so their times stay comparable.
 - The weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`, runner
   `.github/scripts/ios-sim-runner.sh`), both called by Candidate (ADR-REL-3).
 - Candidate, Promote and Candidate guard (`candidate.yml`, `promote.yml`,
