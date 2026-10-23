@@ -27,7 +27,7 @@
 //! combo it came from (ADR-114), with no perfect bonus; they never take the dash branch and always face the target. A combo with a press by hand
 //! becomes the auto combo when it resets, unless it began in the dash branch.
 
-use super::Run;
+use super::World;
 use crate::attack::AttackRef;
 use crate::engine::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
 use crate::event::{DomainEvent, Press};
@@ -86,7 +86,7 @@ fn stick_direction(x: i8, y: i8) -> Option<Dir> {
 /// One tick of the main character: timers run down, it turns to its stick, evades on a ready
 /// press (cancelling its combo step), walks its combo, then dashes or moves.
 pub(super) fn update(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     s: &mut State,
     input: Input,
@@ -134,7 +134,7 @@ pub(super) fn update(
     }
 }
 
-fn move_by(stage: &Run, p: &mut PlayerState, dx: i64, dy: i64) {
+fn move_by(stage: &World, p: &mut PlayerState, dx: i64, dy: i64) {
     // Both are within a speed cap or an evade's distance, which the validator bounds.
     p.at = stage.map().clamp(Point {
         x: p.at.x.saturating_add(Fx(dx as i32)),
@@ -142,7 +142,7 @@ fn move_by(stage: &Run, p: &mut PlayerState, dx: i64, dy: i64) {
     });
 }
 
-fn move_player(stage: &Run, s: &mut State, x: i8, y: i8) {
+fn move_player(stage: &World, s: &mut State, x: i8, y: i8) {
     let keep = speed_pct(&s.player.statuses) * attacks::move_pct(s, s.id_of(Who::Player)) / 100
         * held_move_pct(stage, s)
         / 100;
@@ -154,7 +154,7 @@ fn move_player(stage: &Run, s: &mut State, x: i8, y: i8) {
 /// A press with a charge ready dashes along the facing, which is the stick's direction when it
 /// is not centred (ADR-071), from where the main character is, a dash in progress or not
 /// (ADR-074). Invulnerability and the spent charge's `cooldown` count from the press.
-fn start_evade(stage: &Run, p: &mut PlayerState, cooldown: u32, events: &mut Vec<DomainEvent>) {
+fn start_evade(stage: &World, p: &mut PlayerState, cooldown: u32, events: &mut Vec<DomainEvent>) {
     let evade = &stage.player.evade;
     p.dash = Some(DashState {
         dir: p.facing,
@@ -170,7 +170,7 @@ fn start_evade(stage: &Run, p: &mut PlayerState, cooldown: u32, events: &mut Vec
 
 /// A reward's `amount` more evade charges, never beyond the stage's `max_charges` (ADR-074 §5).
 /// The new ones are ready: the spent ones keep their timers.
-pub(super) fn add_evade_charges(stage: &Run, p: &mut PlayerState, amount: u32) {
+pub(super) fn add_evade_charges(stage: &World, p: &mut PlayerState, amount: u32) {
     // The validator holds `max_charges` to `charges..=3`; the clamp keeps an unvalidated stage
     // there too, and never takes a charge away.
     let most = stage
@@ -186,7 +186,7 @@ pub(super) fn add_evade_charges(stage: &Run, p: &mut PlayerState, amount: u32) {
 /// One tick of the dash: the `k`th tick moves from `distance × (k − 1) / ticks` to
 /// `distance × k / ticks` along its direction, so the whole dash covers exactly its distance.
 /// Slowing and attacks do not slow it, and the stick does not steer it.
-fn dash(stage: &Run, p: &mut PlayerState) {
+fn dash(stage: &World, p: &mut PlayerState) {
     let Some(d) = p.dash else {
         return;
     };
@@ -267,7 +267,7 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
 
 /// One tick of the combo (ADR-070, ADR-076): see the module's description.
 fn combo(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     main: &Weapon,
     input: Input,
@@ -363,7 +363,7 @@ fn begins_hold(main: &Weapon, c: &ComboState, input: Input) -> bool {
 /// The hold begins on the tick the recovery would: the step's own recovery does not play, and
 /// the loop starts on this tick.
 fn begin_hold(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     main: &Weapon,
     input: Input,
@@ -377,7 +377,7 @@ fn begin_hold(
 
 /// The loop starts again, as a new attack: its facing is the main character's as it starts
 /// (ADR-069), or the target's with aim assist on (ADR-072).
-fn spin(stage: &Run, s: &mut State, main: &Weapon, input: Input, events: &mut Vec<DomainEvent>) {
+fn spin(stage: &World, s: &mut State, main: &Weapon, input: Input, events: &mut Vec<DomainEvent>) {
     let Some(hold) = step_at(main, &s.player.combo).and_then(|st| st.hold.as_ref()) else {
         return;
     };
@@ -388,7 +388,7 @@ fn spin(stage: &Run, s: &mut State, main: &Weapon, input: Input, events: &mut Ve
 /// or reaching `max_ticks`, releases with the ticks held; otherwise the hold goes on, and the
 /// loop starts again once the last one has ended.
 fn holding(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     main: &Weapon,
     input: Input,
@@ -427,7 +427,7 @@ fn holding(
 /// The release: the loop ends with the hold, and the release attack starts with its facing
 /// locked (ADR-069). Its recovery is the end lag, as any step's (point 3).
 fn release_hold(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     hold: &Hold,
     ticks: u32,
@@ -468,7 +468,7 @@ fn auto_press(c: &ComboState, input: Input, target: bool) -> Option<Auto> {
 
 /// The combo a run starts with: at the root, with the weapon's A chain as the auto combo,
 /// `main` pressed from the root until a step has no next step for it (ADR-073).
-pub(super) fn initial_combo(stage: &Run) -> ComboState {
+pub(super) fn initial_combo(stage: &World) -> ComboState {
     let mut depth = 0u8;
     if let Some(main) = presets::weapon(&stage.player.weapon) {
         let mut step = main.combo.get(false);
@@ -488,7 +488,7 @@ pub(super) fn initial_combo(stage: &Run) -> ComboState {
 /// start and it has one (by hand only). Auto mode's step charges only to its recorded level (ADR-114) and faces the target.
 #[allow(clippy::too_many_arguments)]
 fn take_step(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     main: &Weapon,
     smash: bool,
@@ -545,7 +545,7 @@ fn take_step(
 /// `bonus_pct` and, for a combo part, the Sub weapon's pull. When it `aim`s and there is a target, the facing first turns to it
 /// (ADR-072).
 fn strike(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     attack: &AttackRef,
     bonus_pct: u32,
@@ -623,7 +623,7 @@ fn in_perfect_window(charge: &Charge, held: u32) -> bool {
 }
 
 /// The current step's charge, if it is charging.
-fn current_charge<'a>(stage: &'a Run, s: &State) -> Option<&'a Charge> {
+fn current_charge<'a>(stage: &'a World, s: &State) -> Option<&'a Charge> {
     s.player.combo.charge?;
     let main = presets::weapon(&stage.player.weapon)?;
     step_at(main, &s.player.combo)?.charge.as_ref()
@@ -631,7 +631,7 @@ fn current_charge<'a>(stage: &'a Run, s: &State) -> Option<&'a Charge> {
 
 /// The charge's view for the snapshot: its level (0 before level 1), ticks held and whether
 /// this tick is inside a perfect window.
-pub(crate) fn charge_view(stage: &Run, s: &State) -> Option<(u8, u32, bool)> {
+pub(crate) fn charge_view(stage: &World, s: &State) -> Option<(u8, u32, bool)> {
     let held = s.player.combo.charge?;
     if s.player.combo.charge_auto {
         return None;
@@ -654,7 +654,7 @@ pub(crate) fn auto_charge_view(s: &State) -> Option<u8> {
 /// A charge held rises a tick; let go, judged on the last held tick (the one whose snapshot
 /// the player saw, ADR-005), or at `max_ticks` without the bonus, it releases.
 fn charging(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     main: &Weapon,
     input: Input,
@@ -711,7 +711,7 @@ fn charging(
 /// this tick when it `aim`s.
 #[allow(clippy::too_many_arguments)]
 fn release(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     step: &Step,
     charge: &Charge,
@@ -783,7 +783,7 @@ pub(super) fn break_charge(s: &mut State, events: &mut Vec<DomainEvent>) {
 
 /// The movement speed, in percent, a charge or a hold leaves the main character: its
 /// `move_pct`, 100 when neither is on.
-fn held_move_pct(stage: &Run, s: &State) -> i64 {
+fn held_move_pct(stage: &World, s: &State) -> i64 {
     if let Some(hold) = current_hold(stage, s) {
         return i64::from(hold.move_pct);
     }
@@ -791,14 +791,14 @@ fn held_move_pct(stage: &Run, s: &State) -> i64 {
 }
 
 /// The current step's hold, if it is held.
-fn current_hold<'a>(stage: &'a Run, s: &State) -> Option<&'a Hold> {
+fn current_hold<'a>(stage: &'a World, s: &State) -> Option<&'a Hold> {
     s.player.combo.hold?;
     let main = presets::weapon(&stage.player.weapon)?;
     step_at(main, &s.player.combo)?.hold.as_ref()
 }
 
 /// The hold's view for the snapshot (ADR-084 point 9): the ticks held and the most it can last.
-pub(crate) fn hold_view(stage: &Run, s: &State) -> Option<(u32, u32)> {
+pub(crate) fn hold_view(stage: &World, s: &State) -> Option<(u32, u32)> {
     let held = s.player.combo.hold?;
     Some((held, current_hold(stage, s)?.max_ticks))
 }

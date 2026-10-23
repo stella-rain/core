@@ -17,7 +17,7 @@
 //!
 //! A new pull or shield replaces the one there; statuses refresh as any status does (ADR-036).
 
-use super::Run;
+use super::World;
 use crate::engine::{Dir, PlayerState, PullState, ShieldState, SkillSlot, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -102,7 +102,7 @@ pub(crate) fn shortened(ticks: u32, pct: u32) -> u32 {
 
 /// A press of `skill`: the skill in the slot acts, if it is ready.
 pub(super) fn press(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     s: &mut State,
     input: Input,
@@ -150,7 +150,7 @@ pub(super) fn press(
 
 /// One effect of a use, at `point`, along the aim `dir`.
 fn apply(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     effect: &SkillEffect,
     point: Point,
@@ -225,7 +225,7 @@ fn apply(
 
 /// The live enemies, then the boss and its unbroken parts, whose circle reaches within
 /// `radius` of `at`, in that order.
-fn within(stage: &Run, s: &State, at: Point, radius: i32) -> Vec<Who> {
+fn within(stage: &World, s: &State, at: Point, radius: i32) -> Vec<Who> {
     let mut out: Vec<Who> = s
         .enemies
         .iter()
@@ -249,7 +249,7 @@ fn within(stage: &Run, s: &State, at: Point, radius: i32) -> Vec<Who> {
 }
 
 /// The pull's step for this tick, after the enemies have moved and pushed apart.
-pub(super) fn pull(stage: &Run, s: &mut State) {
+pub(super) fn pull(stage: &World, s: &mut State) {
     let Some(b) = s.player.pull else {
         return;
     };

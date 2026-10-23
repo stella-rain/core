@@ -6,7 +6,7 @@
 //! Regen, the auto combo and the rune pool are fixed for the run and part of the setup, which
 //! the replay stores: the state hash writes nothing for them.
 
-use super::Run;
+use super::World;
 use crate::engine::{HeldRune, State};
 use crate::perk_sets::{PerkEffect, PerkEntry};
 use crate::rewards::Rewards;
@@ -54,7 +54,7 @@ impl Loadout {
 }
 
 /// Applies `loadout` to the state before the first tick.
-pub(crate) fn apply(stage: &Run, rewards: &Rewards, s: &mut State, loadout: &Loadout) {
+pub(crate) fn apply(stage: &World, rewards: &Rewards, s: &mut State, loadout: &Loadout) {
     if let Some(f) = s.stars.as_mut() {
         f.rune_pool = loadout.rune_pool;
     }

@@ -86,8 +86,8 @@ mod act;
 mod agents;
 mod attacks;
 mod boss;
-mod defs;
-pub(crate) use defs::Run;
+mod world;
+pub(crate) use world::World;
 mod combat;
 mod entity;
 mod expertise;
@@ -220,7 +220,7 @@ impl RunDifficulty {
 /// The state before the first tick, its generator seeded with `seed`: the stage's own for a
 /// stage, the setup's for a run (ADR-051).
 pub(crate) fn initial_state(
-    stage: &Run,
+    stage: &World,
     content: &RunContent,
     pool: RunPool,
     seed: u64,
@@ -365,7 +365,7 @@ pub(crate) fn initial_state(
 }
 
 /// The big patterns the boss has announced (ADR-103), for the snapshot; an enemy's are not.
-pub(crate) fn announced_patterns(stage: &Run, s: &State) -> Vec<crate::snapshot::PatternView> {
+pub(crate) fn announced_patterns(stage: &World, s: &State) -> Vec<crate::snapshot::PatternView> {
     boss::announced(stage, s)
 }
 
@@ -423,7 +423,7 @@ pub(crate) fn boss_state(
 }
 
 pub(crate) fn step(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
     s: &mut State,
@@ -490,7 +490,7 @@ pub(crate) fn offer_open(s: &State) -> bool {
 /// Opens the first offer due, unless one is open: the boss offer, then the expertise levels'
 /// in level order, then the stars' in the order taken (ADR-079 §2).
 fn open_offers(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
     s: &mut State,
@@ -503,7 +503,7 @@ fn open_offers(
 
 /// The options of the open offer, in index order; empty without one.
 pub(crate) fn offer_options(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
     s: &State,
@@ -518,7 +518,7 @@ pub(crate) fn offer_options(
 /// Carries out `option`, one of `offer_options`, on the open offer; when that closes it, the
 /// next offer due opens.
 pub(crate) fn choose(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
     s: &mut State,
@@ -537,7 +537,7 @@ fn count<T>(items: &[T]) -> u32 {
     u32::try_from(items.len()).unwrap_or(u32::MAX)
 }
 
-fn spawn_waves(stage: &Run, s: &mut State) {
+fn spawn_waves(stage: &World, s: &mut State) {
     for (i, wave) in stage.waves.iter().enumerate() {
         let spawned = s.spawned[i];
         if spawned >= wave.count {
@@ -563,7 +563,7 @@ fn spawn_waves(stage: &Run, s: &mut State) {
 
 /// A point `ring` from the main character, at an angle drawn from the run's generator, moved
 /// onto the map.
-fn around_player(stage: &Run, s: &mut State, ring: Fx) -> Point {
+fn around_player(stage: &World, s: &mut State, ring: Fx) -> Point {
     let angle = i32::try_from(s.rng.below(360)).unwrap_or(0) * trig::PER_DEGREE;
     let (sin, cos) = trig::sin_cos(angle);
     let offset = |unit: i32| {
@@ -578,7 +578,7 @@ fn around_player(stage: &Run, s: &mut State, ring: Fx) -> Point {
 /// Spawns an enemy of `def` at `at`, unless the cap on enemies alive is reached, or for an
 /// elite the stage's cap on elites; an elite that comes after the boss's call is called at
 /// once. Returns whether it spawned.
-pub(super) fn spawn_enemy(stage: &Run, s: &mut State, key: AgentKey, at: Point) -> bool {
+pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point) -> bool {
     let index = match key.source {
         AgentSource::BossRule => {
             let boss = s.boss.as_ref().expect("a boss summons its own agents");
@@ -639,7 +639,7 @@ fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
 
 /// Moves every bullet a tick, and drops those that leave: one whose lifetime is up leaves
 /// before it moves, so a bullet with `n` ticks is on the map for `n` ticks (core#147).
-fn move_bullets(stage: &Run, s: &mut State) {
+fn move_bullets(stage: &World, s: &mut State) {
     let holds = stage.map().holds();
     s.bullets.retain_mut(|b| {
         if b.life == 0 {
@@ -689,7 +689,7 @@ struct Shot {
     chain: bool,
 }
 
-fn collide(stage: &Run, s: &mut State, dots: bool, events: &mut Vec<DomainEvent>) {
+fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEvent>) {
     if dots {
         entity::tick_dots(stage, s, events);
     }
@@ -741,7 +741,7 @@ fn collide(stage: &Run, s: &mut State, dots: bool, events: &mut Vec<DomainEvent>
 }
 
 /// The enemies as circles, in index order, for friendly bullets to land on.
-fn enemy_grid(stage: &Run, s: &State) -> Grid {
+fn enemy_grid(stage: &World, s: &State) -> Grid {
     let circles = s
         .enemies
         .iter()
@@ -755,7 +755,7 @@ fn enemy_grid(stage: &Run, s: &State) -> Grid {
 /// reported too. A combo step's hit adds expertise points (`expertise`), puts the
 /// damage-over-time runes' statuses on a target it leaves standing, and fires the on-hit runes
 /// that are ready (`runes`).
-fn damage(stage: &Run, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
+fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
     // A shrine, or a mimic in disguise, is an object: nothing damages it (ADR-090).
     if !damageable(s, target) {
         return;
@@ -854,7 +854,7 @@ pub(super) fn kind_of(s: &State, who: Who) -> Option<KindIndex> {
 
 /// The profile of a target (ADR-100): an enemy's or an elite's own, the boss's, or a part's own.
 /// The main character and the companions have none.
-fn profile<'a>(stage: &'a Run, s: &'a State, target: Who) -> Option<&'a Profile> {
+fn profile<'a>(stage: &'a World, s: &'a State, target: Who) -> Option<&'a Profile> {
     match target {
         Who::Enemy(i) => stage.defs.agent(s.enemies[i].def).profile.as_ref(),
         Who::Boss => s.boss_def()?.profile.as_ref(),
@@ -878,7 +878,7 @@ fn past_hidden(s: &State, grid: &Grid, at: Point, mut first: Option<usize>) -> O
 /// An ally's shot against the enemies in ID order, then the boss. Returns whether it was used up.
 /// `grid` holds the enemies of this tick, so only those near the shot are checked.
 fn hit_enemy_side(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     grid: &Grid,
     b: Shot,
@@ -937,7 +937,7 @@ fn hit_enemy_side(
 /// The Sub weapon's pull on enemy `i`, hit by a combo part (ADR-070): it is drawn toward the
 /// main character by at most `distance`, over `ticks`, as a move order that replaces its
 /// movement, and stops where their circles touch. A dead enemy and an elite are not pulled.
-pub(super) fn pull_enemy(stage: &Run, s: &mut State, i: usize, pull: Pull) {
+pub(super) fn pull_enemy(stage: &World, s: &mut State, i: usize, pull: Pull) {
     let e = &s.enemies[i];
     if e.hp == 0 || e.elite.is_some() {
         return;
@@ -969,7 +969,7 @@ pub(super) fn pull_enemy(stage: &Run, s: &mut State, i: usize, pull: Pull) {
 /// the main character by at most `distance`, over `ticks`, as a move order that replaces its
 /// movement, and ends inside the map. A dead enemy and an elite are not pushed, nor one on the
 /// main character's very centre (no direction); a boss and its parts are never enemies here.
-pub(super) fn knock_enemy(stage: &Run, s: &mut State, i: usize, push: Pull) {
+pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
     let e = &s.enemies[i];
     if e.hp == 0 || e.elite.is_some() {
         return;
@@ -1020,7 +1020,7 @@ fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
 /// the enemies counts, in index order, so a leader killed in this tick's collisions still gives
 /// its aura through the rest of the tick, and none from the next, when the dead are removed.
 /// An enemy that has since left the map or died earlier gets none. No random number is drawn.
-fn aided(stage: &Run, s: &State, b: Shot) -> Shot {
+fn aided(stage: &World, s: &State, b: Shot) -> Shot {
     let Ok(at) = s.enemies.binary_search_by_key(&b.owner, |e| e.id) else {
         return b;
     };
@@ -1037,7 +1037,7 @@ fn aided(stage: &Run, s: &State, b: Shot) -> Shot {
 
 /// The auras of the elites on the map, each with its leader's centre, in index order (ADR-090).
 pub(crate) fn aura_sources<'a>(
-    stage: &'a Run,
+    stage: &'a World,
     s: &'a State,
 ) -> impl Iterator<Item = (Point, crate::behaviour::Aura)> + 'a {
     s.enemies
@@ -1074,7 +1074,7 @@ pub(crate) fn aura_percent(
 
 /// An enemy's shot against the main character (unless it is invulnerable), then the
 /// companions in ID order.
-fn hit_ally_side(stage: &Run, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
+fn hit_ally_side(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
     if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
         hurt_player(s, aided(stage, s, b), events);
@@ -1092,7 +1092,7 @@ fn hit_ally_side(stage: &Run, s: &mut State, b: Shot, events: &mut Vec<DomainEve
 }
 
 /// The main character's death wins over a clear on the same tick.
-fn decide_outcome(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+fn decide_outcome(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     if s.player.hp == 0 {
         s.outcome = Outcome::Failed;
         events.push(DomainEvent::StageFailed);

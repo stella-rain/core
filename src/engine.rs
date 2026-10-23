@@ -21,7 +21,7 @@ use crate::match_ups::MatchUps;
 use crate::rewards::{MAX_BURST_DEPTH, Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
-use crate::rules_v0::Run;
+use crate::rules_v0::World;
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
@@ -119,7 +119,7 @@ fn horde_kinds(stage: &Stage, horde: &Horde) -> Result<KindTable, crate::validat
 /// A run of one stage.
 #[derive(Clone, Debug)]
 pub struct Engine {
-    stage: Run,
+    stage: World,
     /// The content files the run reads (ADR-067), fixed for the run.
     content: RunContent,
     state: State,
@@ -146,7 +146,7 @@ impl Engine {
             difficulty: rules_v0::RunDifficulty::NONE,
         };
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = Run::new(
+        let stage = World::new(
             stage.clone(),
             &stage.boss.iter().collect::<Vec<_>>(),
             &kinds,
@@ -180,7 +180,7 @@ impl Engine {
         };
         let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
         let bosses: Vec<&crate::stage::Boss> = stage.boss.iter().collect();
-        let stage = Run::new(stage.clone(), &bosses, &kinds);
+        let stage = World::new(stage.clone(), &bosses, &kinds);
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
@@ -214,7 +214,7 @@ impl Engine {
             .iter()
             .chain(std::iter::once(&horde.template))
             .collect();
-        let stage = Run::new(stage.clone(), &bosses, &kinds);
+        let stage = World::new(stage.clone(), &bosses, &kinds);
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
         let loadout = rules_v0::Loadout::of(setup, content);

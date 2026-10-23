@@ -1,6 +1,6 @@
 //! What a rule or a skill does once it fires: attacks, casts, summons, moves and telegraphs.
 
-use super::Run;
+use super::World;
 use crate::behaviour::{Action, Skill};
 use crate::engine::{AgentKey, AgentSource, MoveOrder, State, StatusKind};
 use crate::event::DomainEvent;
@@ -13,7 +13,7 @@ use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, spawn_enemy};
 /// Does the action for rule `rule_index` of `me`, aimed at `target`. False if this version
 /// cannot do it, in which case the rule does not fire and the next one gets its turn.
 pub(super) fn perform(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     me: Who,
     target: Who,
@@ -114,7 +114,7 @@ pub(super) fn cast(
 /// An enemy from a wave, or the boss, summons `n` more enemies where it stands. Companions and
 /// summoned agents cannot summon in this version (the validator already keeps summoned agents
 /// from it).
-fn summon(stage: &Run, s: &mut State, me: Who, rule_index: usize, n: u8) -> bool {
+fn summon(stage: &World, s: &mut State, me: Who, rule_index: usize, n: u8) -> bool {
     let rule = u32::try_from(rule_index).unwrap_or(u32::MAX);
     let (key, at) = match me {
         Who::Enemy(i) => {

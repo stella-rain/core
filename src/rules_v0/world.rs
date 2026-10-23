@@ -118,29 +118,29 @@ impl AgentDefs {
 
 /// The stage and the definitions resolved from it: what the rules read. It derefs to the stage.
 #[derive(Clone, Debug)]
-pub(crate) struct Run {
+pub(crate) struct World {
     pub stage: Stage,
     pub defs: AgentDefs,
 }
 
-impl Run {
-    pub fn new(stage: Stage, bosses: &[&Boss], kinds: &KindTable) -> Run {
+impl World {
+    pub fn new(stage: Stage, bosses: &[&Boss], kinds: &KindTable) -> World {
         let defs = AgentDefs::build(&stage, bosses, kinds);
-        Run { stage, defs }
+        World { stage, defs }
     }
 }
 
 #[cfg(test)]
-impl Run {
+impl World {
     /// A run of `stage` for a unit test.
-    pub fn for_test(stage: Stage) -> Run {
+    pub fn for_test(stage: Stage) -> World {
         let kinds = KindTable::of_stage(&stage).unwrap();
         let bosses: Vec<&Boss> = stage.boss.iter().collect();
-        Run::new(stage.clone(), &bosses, &kinds)
+        World::new(stage.clone(), &bosses, &kinds)
     }
 }
 
-impl Deref for Run {
+impl Deref for World {
     type Target = Stage;
 
     fn deref(&self) -> &Stage {

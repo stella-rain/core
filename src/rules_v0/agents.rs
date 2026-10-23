@@ -3,7 +3,7 @@
 //! fires; the others wait. Agents are evaluated in entity-ID order (companions, then enemies),
 //! each rule list in order.
 
-use super::Run;
+use super::World;
 use crate::behaviour::{Agent, BossCall, Condition, Guardians, Movement, Rule};
 use crate::engine::{
     AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, ShrineState,
@@ -26,7 +26,7 @@ const FOLLOW_SPEED: i64 = Fx::px(4).0 as i64;
 pub(super) fn new_agent(
     id: EntityId,
     index: u32,
-    d: &super::defs::AgentDef,
+    d: &super::world::AgentDef,
     key: AgentKey,
     at: Point,
     angle: i32,
@@ -95,7 +95,7 @@ pub(super) fn agent_mut(s: &mut State, who: Who) -> &mut AgentState {
 }
 
 /// Every agent moves, then acts, in entity-ID order. Agents summoned this tick start next tick.
-pub(super) fn act(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     for i in 0..s.companions.len() {
         act_one(stage, s, Who::Companion(i), events);
     }
@@ -117,7 +117,7 @@ pub(super) fn act(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
 /// timer counts one more; when no guardian that spawned is alive the shrine is done (its hit
 /// points go to 0 and the tick's hits credit the elite's kill), else when the timer reaches
 /// `fight_ticks` it leaves unkilled. No random number is drawn.
-fn shrines(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+fn shrines(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let ids: Vec<EntityId> = s
         .enemies
         .iter()
@@ -181,7 +181,7 @@ fn shrines(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
 /// order, through the usual spawn path: the cap on enemies refuses the ones that do not fit and
 /// the first refusal ends the ring. Returns the ones that spawned. No random number is drawn.
 pub(super) fn ring_up(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     key: AgentKey,
     guardians: &Guardians,
@@ -201,7 +201,7 @@ pub(super) fn ring_up(
 
 /// Guardian `k` of `count`: on the ring of `radius` around `at`, evenly spaced from the east,
 /// moved onto the map.
-fn ring_point(stage: &Run, at: Point, radius: Fx, k: u32, count: u32) -> Point {
+fn ring_point(stage: &World, at: Point, radius: Fx, k: u32, count: u32) -> Point {
     let angle = i64::from(k) * i64::from(trig::PER_TURN) / i64::from(count.max(1));
     let (sin, cos) = trig::sin_cos(i32::try_from(angle).unwrap_or(0));
     let offset = |unit: i32| {
@@ -216,7 +216,7 @@ fn ring_point(stage: &Run, at: Point, radius: Fx, k: u32, count: u32) -> Point {
 /// Elites that leave go, unkilled: a boss came or called, or they were disturbed long enough
 /// ago (ADR-090). They are gone before any hit of this tick lands, so a leaving elite gives no
 /// kill reward.
-fn leave(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+fn leave(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let mut gone = Vec::new();
     for e in &s.enemies {
         let Some(state) = e.leave else {
@@ -242,7 +242,7 @@ fn leave(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     );
 }
 
-fn act_one(stage: &Run, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
+fn act_one(stage: &World, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
     let def = stage.defs.agent(agent(s, me).def);
     {
         let a = agent_mut(s, me);
@@ -309,7 +309,7 @@ fn rule_states(s: &mut State, me: Who) -> &mut Vec<RuleState> {
 /// charges allow it, its selector finds a target and its action can be done. Agents and the
 /// boss's phases use the same rule lists, so they share this.
 pub(super) fn fire_first_rule(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     me: Who,
     rules: &[Rule],
@@ -442,7 +442,7 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 /// pixels a tick (`Orbit`: its orbit step plus 4 pixels), so that a push carries over to the
 /// next tick (ADR-058). An enemy that the last push-apart found crowded does not take that step;
 /// `Straight` and a `move_to` order are not held back.
-fn move_agent(stage: &Run, s: &mut State, me: Who, def: &Agent) {
+fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
     let map = stage.map();
     let player_at = s.player.at;
     let attacking = super::attacks::move_pct(s, s.id_of(me));

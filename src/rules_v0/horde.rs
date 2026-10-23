@@ -21,7 +21,7 @@
 //! whoever spawned them) and the cap on enemies hold it back after the draws, so the generator
 //! never depends on either. An elite is built from the definition of the type drawn (`elite_types` of the mode file); its sprite is the type's.
 
-use super::Run;
+use super::World;
 use crate::behaviour::{Action, BossCall};
 use crate::engine::{AgentKey, AgentSource, Outcome, State};
 use crate::event::DomainEvent;
@@ -41,7 +41,7 @@ const ELITE_RING: Fx = Fx::px(400);
 const ABOVE: i32 = Fx::px(120).0;
 
 /// Brings the boss whose time the next tick reaches, if any. Called before the tick runs.
-pub(crate) fn spawn_boss(stage: &Run, s: &mut State) {
+pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
     if s.outcome != Outcome::Running {
         return;
     }
@@ -154,7 +154,7 @@ pub(super) fn final_boss_dead(s: &State) -> bool {
 }
 
 /// Brings the elite of this tick's minute, if it is one (see the module).
-pub(super) fn spawn_elite(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn spawn_elite(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let tick = s.tick;
     let Some(horde) = s.horde.as_ref() else {
         return;

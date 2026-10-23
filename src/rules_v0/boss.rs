@@ -28,7 +28,7 @@
 
 use std::sync::Arc;
 
-use super::Run;
+use super::World;
 use crate::attack::AttackRef;
 use crate::behaviour::BossCall;
 use crate::engine::{BossState, MoveOrder, Origin, State};
@@ -43,7 +43,7 @@ use super::entity::Who;
 /// Timeline steps taken in one tick, so that a `loop` with nothing to wait for ends the tick.
 const MAX_TIMELINE_STEPS_PER_TICK: u32 = 16;
 
-pub(super) fn act(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(def) = s.boss.as_ref().map(|b| Arc::clone(&b.def)) else {
         return;
     };
@@ -87,7 +87,7 @@ pub(super) fn act(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
 }
 
 /// Calls the elites, once, when the boss's call is due.
-pub(super) fn call_elites(_stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn call_elites(_stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(call) = s.boss_def().and_then(|b| b.call_elites) else {
         return;
     };
@@ -133,7 +133,7 @@ pub(crate) const CALL_ELITES: &str = "call_elites";
 /// The big patterns announced now, the call of the elites first (ADR-103): each with the ticks
 /// its count-down started with and the ticks left until it starts. It is a view of the state;
 /// nothing is stored.
-pub(crate) fn announced(_stage: &Run, s: &State) -> Vec<PatternView> {
+pub(crate) fn announced(_stage: &World, s: &State) -> Vec<PatternView> {
     let Some((def, b)) = s.boss_pair() else {
         return Vec::new();
     };
@@ -253,7 +253,7 @@ fn begin_phase(
 }
 
 /// Carries out the timeline up to its next wait.
-fn timeline(_stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+fn timeline(_stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(def) = s.boss.as_ref().map(|b| Arc::clone(&b.def)) else {
         return;
     };

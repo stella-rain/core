@@ -5,7 +5,7 @@
 //! A run without any of the rewards runs none of this: every entry point returns at once, the
 //! state writes nothing for them to the hash and no random number is drawn.
 
-use super::Run;
+use super::World;
 use super::entity::Who;
 use crate::attack::MatchUp;
 use crate::engine::{Echo, PlayerState};
@@ -134,7 +134,7 @@ pub(super) fn deal_echoes(s: &mut State, events: &mut Vec<DomainEvent>) {
 /// bursts go off in a tick; a kill past that is still credited, it just does not burst. A
 /// burst's kills are credited like any other (experience, drops, kills for a heal); the depth
 /// is all that stops the chain. The boss and its parts are not hurt by a burst.
-pub(super) fn bursts(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn bursts(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let p = &s.player;
     if p.burst_pct == 0 {
         return;
@@ -209,7 +209,7 @@ mod tests {
     use crate::run_content::RunContent;
 
     fn state() -> State {
-        let stage = super::super::Run::for_test(RunContent::bundled().trial().clone());
+        let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let pool = RunPool {
             rewards: Vec::new(),
             extra_rerolls: 0,
@@ -297,7 +297,7 @@ mod tests {
     fn with_enemy(s: &mut State, id: u32, hp: u32) {
         use crate::engine::{AgentKey, AgentSource};
         use crate::rules_v0::agents::new_agent;
-        let stage = super::super::Run::for_test(RunContent::bundled().trial().clone());
+        let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let key = AgentKey {
             source: AgentSource::Wave,
             index: 0,
@@ -399,7 +399,7 @@ mod tests {
     }
 
     fn run(s: &mut State) -> Vec<DomainEvent> {
-        let stage = super::super::Run::for_test(RunContent::bundled().trial().clone());
+        let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let mut events = Vec::new();
         bursts(&stage, s, &mut events);
         events

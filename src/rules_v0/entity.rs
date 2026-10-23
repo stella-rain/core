@@ -2,7 +2,7 @@
 //! companion or an enemy. Statuses and aggro live here too, since every kind of entity has
 //! them.
 
-use super::Run;
+use super::World;
 use crate::engine::{DotState, State, StatusKind, StatusState};
 use crate::event::DomainEvent;
 use crate::fixed::Point;
@@ -346,7 +346,7 @@ impl State {
 /// fires no rune and applies no status. While the boss is invulnerable, the tick does it and
 /// its parts no harm. Then its duration runs down, and at 0 it is gone. One that ends the
 /// entity, or finds it already at 0 hit points (a broken part), goes with it.
-pub(super) fn tick_dots(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn tick_dots(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     if s.boss.as_ref().is_some_and(|b| b.hp > 0) {
         tick_dots_of(stage, s, Who::Boss, events);
         let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
@@ -359,7 +359,7 @@ pub(super) fn tick_dots(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent
     }
 }
 
-fn tick_dots_of(stage: &Run, s: &mut State, who: Who, events: &mut Vec<DomainEvent>) {
+fn tick_dots_of(stage: &World, s: &mut State, who: Who, events: &mut Vec<DomainEvent>) {
     if s.statuses(who).iter().all(|st| st.dot.is_none()) {
         return;
     }
