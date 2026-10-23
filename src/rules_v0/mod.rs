@@ -107,6 +107,7 @@ mod scratch;
 mod skill;
 mod stardust;
 mod stars;
+pub(crate) mod state;
 mod stun;
 mod zones;
 
