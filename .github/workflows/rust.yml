@@ -6,7 +6,8 @@
 # minute each when a PR touches parsing; and the instruction counts of the worst-case tick and of
 # the friendly-bullet collision tick and the heaviest tick of a time_limit run (ADR-021, ADR-058),
 # each compared with the base commit's on
-# both architectures. They are jobs of this workflow because
+# both architectures; and the dependency audit (`cargo deny`, deny.toml), whose advisories change
+# without a PR, which the weekly run catches. They are jobs of this workflow because
 # auto-merge.yml waits for the workflows it names.
 # A PR into main whose files are all `*.md` runs none of them: `what changed` says so, and every
 # Rust job waits on it (a push to main and every run off a PR run every job). `rust checks`
@@ -441,12 +442,35 @@ jobs:
       - name: Check the tick budgets
         run: python3 .github/scripts/bench_budget.py --warn-only --arch ${{ matrix.arch }} --bench-output "$RUNNER_TEMP/bench.txt"
 
+  # RustSec advisories, licences and sources of the whole graph (deny.toml), for this workspace and
+  # fuzz/. Runs on the weekly schedule too, because advisories change without a PR.
+  cargo-deny:
+    name: cargo deny
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        manifest: [Cargo.toml, fuzz/Cargo.toml]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: ${{ matrix.manifest }}
+          command: check
+
   # The one check auto-merge.yml requires from this workflow. A job may be skipped only when it
   # need not run: `parsing changed` off a PR, the short fuzz run when it says no, the others when
   # `what changed` says no; every other skipped, failed or cancelled job fails this one.
   checks:
     name: rust checks
-    needs: [changes, fuzz-changes, lint, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench]
+    needs: [changes, fuzz-changes, lint, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench, cargo-deny]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
