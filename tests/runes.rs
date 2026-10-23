@@ -21,7 +21,7 @@ use stella_rain_core::stage::Stage;
 
 use crate::common;
 
-use common::run::{TRIAL_LENGTH, run_input, trial_setup};
+use common::run::{RUNES_REROLL_SEED, TRIAL_LENGTH, run_input, trial_setup};
 use common::*;
 
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
@@ -359,7 +359,7 @@ fn a_random_rune_candidate_is_rerolled_like_any_reward() {
     let list = vec![random_rune(), inert_limited("a", 2), inert("b"), inert("c")];
     let mut stage = targets(3, 1, 0);
     // A seed whose first offer after the reroll is the three others (the draws are luck).
-    stage.seed = 9;
+    stage.seed = RUNES_REROLL_SEED;
     let mut e = with(&stage, list);
     next_offer(&mut e);
     let candidate = slot(&e, "random_rune");

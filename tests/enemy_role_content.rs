@@ -3,7 +3,7 @@
 //! `tests/enemy_roles.rs` covers; these tests read the bundled file, so they check the content.
 //! Every number is a tuning value.
 
-use crate::common::run::{play_run_with, run_input_for, time_limit_setup};
+use crate::common::run::{ENEMY_ROLE_BOT_SEED, play_run_with, run_input_for, time_limit_setup};
 use crate::common::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
@@ -195,7 +195,7 @@ fn a_run_on_normal_with_a_bot_holds_the_caps_and_its_replay_verifies() {
     // with the per-purpose streams (R1) seeds 1 and 2 no longer do either; this is the first of
     // `1..` that does.
     let setup = stella_rain_core::run_setup::RunSetup {
-        seed: 3,
+        seed: ENEMY_ROLE_BOT_SEED,
         ..time_limit_setup()
     };
     let content = RunContent::bundled();
