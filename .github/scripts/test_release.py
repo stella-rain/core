@@ -166,6 +166,13 @@ class ChecksPassed(unittest.TestCase):
         for name in names:
             r.checks_passed([run("tests", run_id=1), run(name, conclusion="failure", run_id=3)], "9")
 
+    def test_auto_candidates_jobs_are_not_a_gate_whatever_their_conclusion(self):
+        # A failed auto run must never make Candidate refuse the commit; a later run's own jobs
+        # on the same sha are left out of the decision too.
+        for name in ("decide on a candidate", "push the candidate branch"):
+            for status, conclusion in (("completed", "failure"), ("in_progress", None)):
+                r.checks_passed([run("tests", run_id=1), run(name, status=status, conclusion=conclusion, run_id=7)], "9")
+
     def test_auto_merges_job_is_not_a_gate_whatever_its_conclusion(self):
         # Candidate run 39693572498: auto-merge's runs on main's commit were cancelled by its
         # concurrency group when a newer run started.
@@ -389,6 +396,28 @@ class Cli(unittest.TestCase):
         bad = '{"check_runs": [{"name": "t", "status": "completed", "conclusion": "failure", "details_url": "x/runs/1/job/2"}]}'
         self.assertEqual(script(self.dev, "checks-passed", "9", stdin=bad).returncode, 1)
         self.assertEqual(script(self.dev, "checks-passed", "9", stdin='{"check_runs": []}').returncode, 0)
+
+    def test_should_candidate_is_true_for_an_unreleased_version(self):
+        out = script(self.dev, "should-candidate")
+        self.assertEqual((out.returncode, out.stdout.strip()), (0, "true"))
+
+    def test_should_candidate_is_false_for_a_version_already_tagged_final(self):
+        git(self.dev, "tag", "v0.0.4")
+        out = script(self.dev, "should-candidate")
+        self.assertEqual((out.returncode, out.stdout.strip()), (0, "false"))
+        self.assertIn("already tagged", out.stderr)
+
+    def test_should_candidate_is_false_for_a_version_below_the_latest_final_tag(self):
+        self.commit("0.0.2", "back")
+        out = script(self.dev, "should-candidate")
+        self.assertEqual((out.returncode, out.stdout.strip()), (0, "false"))
+        self.assertIn("not above", out.stderr)
+
+    def test_should_candidate_is_false_for_a_lock_that_disagrees(self):
+        self.commit("0.0.5", "bump", lock="0.0.4")
+        out = script(self.dev, "should-candidate")
+        self.assertEqual((out.returncode, out.stdout.strip()), (0, "false"))
+        self.assertIn("fuzz/Cargo.lock", out.stderr)
 
     def test_an_unknown_command_is_a_usage_error(self):
         self.assertEqual(script(self.dev, "nope").returncode, 2)
