@@ -1764,7 +1764,17 @@ mod horde_tests {
     }
 
     fn engine_with(boss_ticks: &[u32], no_call_ticks: &[u32]) -> Engine {
+        engine_edited(boss_ticks, no_call_ticks, |_| {})
+    }
+
+    /// As `engine_with`, the mode file edited by `edit` before it is parsed.
+    fn engine_edited(
+        boss_ticks: &[u32],
+        no_call_ticks: &[u32],
+        edit: impl FnOnce(&mut serde_json::Value),
+    ) -> Engine {
         let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+        edit(&mut v);
         v["no_call_ticks"] = serde_json::json!(no_call_ticks);
         v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
         v["boss_ticks"] = serde_json::json!(boss_ticks);
@@ -1849,6 +1859,96 @@ mod horde_tests {
         assert!(!calls_below_70_pct(&mut e), "a no-call boss never calls");
         run_to(&mut e, 210);
         assert!(calls_below_70_pct(&mut e), "well before its 30 seconds");
+    }
+
+    /// The first summon rule's agent of a mid-boss gets this many hit points, plus the boss's
+    /// place in the mode file's list, so each boss's summon tells which boss made it.
+    const SUMMON_HP: u32 = 50_000;
+
+    fn summoning_mode(v: &mut serde_json::Value) {
+        let agent = serde_json::json!({
+            "base": "fairy_a",
+            "hp": SUMMON_HP,
+            "radius": 2048,
+            "movement": {"type": "follow", "distance": 12288, "speed": 1},
+            "rules": []
+        });
+        for (i, boss) in v["bosses"].as_array_mut().unwrap().iter_mut().enumerate() {
+            let mut agent = agent.clone();
+            agent["hp"] = serde_json::json!(SUMMON_HP + i as u32);
+            boss["phases"][0]["rules"] = serde_json::json!([{
+                "when": {"type": "always"},
+                "target": "self",
+                "do": {"type": "summon", "count": 1, "agent": agent},
+                "once": true
+            }]);
+        }
+    }
+
+    #[test]
+    fn a_boss_summon_outlives_its_boss_and_keeps_its_definition() {
+        let mut e = engine_edited(&[50, 100, 150], &[], summoning_mode);
+        run_to(&mut e, 60);
+        let first = e.state.boss.as_ref().unwrap().id;
+        let summon_hp = |e: &Engine| -> Vec<u32> {
+            e.state
+                .enemies
+                .iter()
+                .map(|en| e.stage.defs.agent(en.def).hp)
+                .collect()
+        };
+        let made = summon_hp(&e);
+        assert_eq!(made.len(), 1, "the first boss has summoned");
+        e.state.boss.as_mut().unwrap().hp = 0;
+        for _ in 0..60 {
+            e.state.player.hp = e.state.player.max_hp;
+            e.step(Input::default());
+        }
+        assert_ne!(
+            e.state.boss.as_ref().unwrap().id,
+            first,
+            "the next boss has come"
+        );
+        let all = summon_hp(&e);
+        assert_eq!(
+            all[0], made[0],
+            "the first summon still resolves to the first boss's summon agent"
+        );
+        assert_eq!(all.len(), 2, "the second boss summoned its own");
+        assert_ne!(all[1], all[0], "from its own definition");
+    }
+
+    /// The slot of the boss on the field in the run's list of boss definitions.
+    fn boss_slot(e: &Engine) -> u32 {
+        e.state.boss.as_ref().unwrap().boss_index
+    }
+
+    #[test]
+    fn the_world_compiles_each_horde_boss_once() {
+        // Two sprites with no definition of their own are made from the template, and
+        // each is its own boss; the same sprite coming twice is one.
+        let mut e = engine_edited(&[50, 100, 150], &[], |v| {
+            let pool = ["horn_charger", "weaver"];
+            v["mid_boss_pool"] = serde_json::json!(pool);
+            v["final_boss"] = serde_json::json!("horn_charger");
+            v["bosses"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|b| !pool.contains(&b["base"].as_str().unwrap()));
+        });
+        let mut slots = Vec::new();
+        for until in [60, 110, 160] {
+            run_to(&mut e, until);
+            slots.push(boss_slot(&e));
+        }
+        assert_ne!(
+            slots[0], slots[1],
+            "two sprites, two definitions: {slots:?}"
+        );
+        assert!(
+            slots[2] == slots[0] || slots[2] == slots[1],
+            "the final boss shares the slot of its sprite's first arrival: {slots:?}"
+        );
     }
 
     #[test]
