@@ -5,10 +5,10 @@
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::{DomainEvent, Press};
 use stella_rain_core::input::Input;
-use stella_rain_core::presets;
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::validate::{Error, Issue};
 use stella_rain_core::weapon::{Branches, Step};
+use stella_rain_core::weapons::Weapons;
 
 fn file(weapon: &str, tree: Option<&str>) -> Vec<u8> {
     let tree = tree.map_or(String::new(), |t| format!(r#","weapon_tree":"{t}""#));
@@ -71,19 +71,32 @@ fn an_unknown_tree_for_the_weapon_is_refused() {
         path: "$.weapon_tree".into(),
         message: message.into(),
     };
-    let message = "no such tree for this weapon";
-    assert_eq!(refused("giant_sword", "giant_sword_nope"), [issue(message)]);
-    // Another weapon's tree is no tree of this one.
-    assert_eq!(
-        refused("giant_sword", "giant_hammer_base"),
-        [issue(message)]
-    );
+    // A tree ID that is not well formed is refused when the setup is read.
     assert_eq!(
         refused("giant_hammer", "Not A Tree!"),
         [issue(
             "not a valid ID (lowercase snake_case, at most 32 characters)"
         )]
     );
+    // Whether the weapon has the tree is the weapons file's to say: the run refuses it when it
+    // starts, another weapon's tree included.
+    for (weapon, tree) in [
+        ("giant_sword", "giant_sword_nope"),
+        ("giant_sword", "giant_hammer_base"),
+    ] {
+        let s = run_setup::parse_and_validate(&file(weapon, Some(tree))).unwrap();
+        match Engine::start(&s) {
+            Err(Error::Invalid(issues)) => assert_eq!(
+                issues,
+                [Issue {
+                    path: "$.player.weapon.preset.tree".into(),
+                    message: "no such tree for this weapon".into()
+                }],
+                "{weapon} {tree}"
+            ),
+            other => panic!("not refused: {:?}", other.map(|_| ())),
+        }
+    }
 }
 
 #[test]
@@ -115,7 +128,7 @@ fn every_step<'a>(branches: &'a Branches, out: &mut Vec<&'a Step>) {
 #[test]
 fn the_sword_and_the_hammer_have_the_five_a_shape_with_no_smash_locked() {
     for weapon in ["giant_sword", "giant_hammer"] {
-        let w = presets::weapon_preset(weapon).unwrap();
+        let w = Weapons::bundled().tree(weapon, None).unwrap();
         for presses in [
             "A", "AA", "AAA", "AAAA", "AAAAA", "B", "AB", "AAB", "AAAB", "AAAAB", "AAAAAB",
         ] {
@@ -176,16 +189,19 @@ fn a_recorded_input_reaches_aaaaa_and_aaaaab_in_the_sword_and_the_hammer() {
 #[test]
 fn a_weapon_lists_its_trees_first_one_first() {
     assert_eq!(
-        presets::tree_ids("giant_sword").collect::<Vec<_>>(),
+        Weapons::bundled()
+            .tree_ids("giant_sword")
+            .map(|t| t.0.as_str())
+            .collect::<Vec<_>>(),
         ["giant_sword_base"]
     );
-    assert_eq!(presets::tree_ids("no_such_weapon").count(), 0);
+    assert_eq!(Weapons::bundled().tree_ids("no_such_weapon").count(), 0);
     assert_eq!(
-        presets::weapon_tree("giant_hammer", Some("giant_hammer_base")),
-        presets::weapon_preset("giant_hammer")
+        Weapons::bundled().tree("giant_hammer", Some("giant_hammer_base")),
+        Weapons::bundled().tree("giant_hammer", None)
     );
     assert_eq!(
-        presets::weapon_tree("giant_hammer", Some("giant_sword_base")),
+        Weapons::bundled().tree("giant_hammer", Some("giant_sword_base")),
         None
     );
 }
@@ -199,15 +215,17 @@ fn a_stage_that_names_an_unknown_tree_is_refused() {
         tree: tree.map(Into::into),
     };
     stage.player.weapon = preset(Some("giant_sword_base"));
-    assert_eq!(validate::validate(&stage), Ok(()));
+    assert!(Engine::new(&stage).is_ok());
+    // The stage is valid on its own; the run's weapons file has no such tree.
     stage.player.weapon = preset(Some("giant_sword_nope"));
-    match validate::validate(&stage) {
+    assert_eq!(validate::validate(&stage), Ok(()));
+    match Engine::new(&stage) {
         Err(Error::Invalid(issues)) => {
             assert!(
                 issues.iter().any(|i| i.path.ends_with("preset.tree")
                     && i.message == "no such tree for this weapon")
             );
         }
-        other => panic!("not refused: {other:?}"),
+        other => panic!("not refused: {:?}", other.map(|_| ())),
     }
 }

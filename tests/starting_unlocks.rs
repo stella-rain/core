@@ -12,6 +12,7 @@ use stella_rain_core::starting_unlocks::{
     MAX_STARTING_UNLOCKS, MAX_STARTING_UNLOCKS_BYTES, StartingUnlocks,
 };
 use stella_rain_core::validate::Error;
+use stella_rain_core::weapons::Weapons;
 
 fn file() -> Value {
     json!({
@@ -30,6 +31,7 @@ fn parse(v: &Value) -> Result<StartingUnlocks, Error> {
         PerkSets::bundled(),
         StageSkills::bundled(),
         Runes::bundled(),
+        Weapons::bundled(),
     )
 }
 
@@ -103,7 +105,8 @@ fn a_file_that_is_too_large_is_refused_before_parsing() {
             &big,
             PerkSets::bundled(),
             StageSkills::bundled(),
-            Runes::bundled()
+            Runes::bundled(),
+            Weapons::bundled()
         ),
         Err(Error::TooLarge { .. })
     ));
@@ -138,6 +141,7 @@ fn the_bundled_pack_lists_todays_seed() {
         PerkSets::bundled(),
         StageSkills::bundled(),
         Runes::bundled(),
+        Weapons::bundled(),
     )
     .unwrap();
     assert_eq!(&on_its_own, u);

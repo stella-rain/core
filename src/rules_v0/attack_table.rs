@@ -161,7 +161,7 @@ pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(),
             }
         }
     }
-    if let Some(weapon) = presets::weapon(&world.stage.player.weapon) {
+    if let Some(weapon) = world.weapon() {
         branches(&weapon.combo, &mut refs);
         branches(&weapon.dash, &mut refs);
     }

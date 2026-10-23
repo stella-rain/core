@@ -46,6 +46,7 @@ use crate::starting_unlocks::{StartingUnlocks, StartingUnlocksFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
 use crate::validate::{self, Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::weapons::{Weapons, WeaponsFile};
 
 // The count budgets: about four times today's counts, rounded up to a multiple of 8 and held
 // to the file's own cap where that is lower (tuning values; ADR-020 decides that they exist).
@@ -85,6 +86,10 @@ pub const MAX_MID_BOSS_POOL: usize = crate::time_limit::MAX_POOL;
 pub const MAX_STARTING_UNLOCKS: usize = crate::starting_unlocks::MAX_STARTING_UNLOCKS;
 /// The most modes the Stardust file has entries for (2 today; held to the file's own cap).
 pub const MAX_STARDUST_MODES: usize = crate::stardust::MAX_MODES;
+/// The most weapons the weapons file lists (1 today; held to the file's own cap).
+pub const MAX_WEAPONS: usize = crate::weapons::MAX_WEAPONS;
+/// The most trees one weapon has (1 today; held to the file's own cap).
+pub const MAX_TREES: usize = crate::weapons::MAX_TREES;
 /// The most sets of named stars (none today; held to the file's own cap).
 pub const MAX_CONSTELLATIONS: usize = crate::constellations::MAX_CONSTELLATIONS;
 /// The most IDs one weapon's expertise introduces: its styles, their choices and its common
@@ -116,6 +121,9 @@ pub struct PackFile {
     pub perk_sets: Box<RawValue>,
     #[schemars(with = "DifficultiesFile")]
     pub difficulties: Box<RawValue>,
+    /// The weapons' combo trees (WP1).
+    #[schemars(with = "WeaponsFile")]
+    pub weapons: Box<RawValue>,
     /// What a new save begins with (DS5 Q10). Optional: a pack released before it has none, and
     /// reports the starting unlocks as unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -371,11 +379,19 @@ impl Pack {
             .map_err(PackError::in_file("perk_sets"))?;
         let difficulties = Difficulties::parse(&file_bytes(&pack.difficulties))
             .map_err(PackError::in_file("difficulties"))?;
+        let weapons =
+            Weapons::parse(&file_bytes(&pack.weapons)).map_err(PackError::in_file("weapons"))?;
         let starting_unlocks = pack
             .starting_unlocks
             .as_deref()
             .map(|raw| {
-                StartingUnlocks::parse_with(&file_bytes(raw), &perk_sets, &stage_skills, &runes)
+                StartingUnlocks::parse_with(
+                    &file_bytes(raw),
+                    &perk_sets,
+                    &stage_skills,
+                    &runes,
+                    &weapons,
+                )
             })
             .transpose()
             .map_err(PackError::in_file("starting_unlocks"))?;
@@ -417,6 +433,7 @@ impl Pack {
             runes,
             perk_sets,
             difficulties,
+            weapons,
             starting_unlocks,
             stardust,
             time_limit,
@@ -551,6 +568,19 @@ struct UnlockLists {
     runes: Vec<IgnoredAny>,
 }
 
+/// The lists of the weapons file, counted.
+#[derive(Deserialize)]
+struct WeaponsLists {
+    #[serde(default)]
+    weapons: Vec<TreeLists>,
+}
+
+#[derive(Deserialize)]
+struct TreeLists {
+    #[serde(default)]
+    trees: Vec<IgnoredAny>,
+}
+
 #[derive(Deserialize)]
 struct WeaponLists {
     #[serde(default)]
@@ -659,6 +689,16 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
             l.difficulties.len(),
             MAX_DIFFICULTIES,
         )?;
+    }
+    if let Some(l) = counts::<WeaponsLists>(&pack.weapons) {
+        budget("$.weapons.weapons", l.weapons.len(), MAX_WEAPONS)?;
+        for (w, weapon) in l.weapons.iter().enumerate() {
+            budget(
+                format!("$.weapons.weapons[{w}].trees"),
+                weapon.trees.len(),
+                MAX_TREES,
+            )?;
+        }
     }
     if let Some(l) = pack
         .starting_unlocks
@@ -1013,7 +1053,7 @@ pub struct ContentFiles {
 
 impl ContentFiles {
     /// Every file, in the order the pack lists them.
-    pub const LAYOUT: [FileSlot; 14] = [
+    pub const LAYOUT: [FileSlot; 15] = [
         slot("run_stats", false, false),
         slot("rewards", false, false),
         slot("stage_skills", false, false),
@@ -1022,6 +1062,7 @@ impl ContentFiles {
         slot("runes", false, false),
         slot("perk_sets", false, false),
         slot("difficulties", false, false),
+        slot("weapons", false, false),
         slot("starting_unlocks", false, true),
         slot("constellations", false, true),
         slot("stardust", false, true),
@@ -1048,7 +1089,7 @@ impl ContentFiles {
     /// The bundled files.
     pub fn bundled() -> ContentFiles {
         let mut files = ContentFiles::default();
-        let bundled: [(&str, &[u8]); 14] = [
+        let bundled: [(&str, &[u8]); 15] = [
             ("run_stats", RunStats::BUNDLED),
             ("rewards", Rewards::BUNDLED),
             ("stage_skills", StageSkills::BUNDLED),
@@ -1057,6 +1098,7 @@ impl ContentFiles {
             ("runes", Runes::BUNDLED),
             ("perk_sets", PerkSets::BUNDLED),
             ("difficulties", Difficulties::BUNDLED),
+            ("weapons", Weapons::BUNDLED),
             ("starting_unlocks", StartingUnlocks::BUNDLED),
             ("constellations", Constellations::BUNDLED),
             ("stardust", Stardust::BUNDLED),
@@ -1134,8 +1176,11 @@ impl ContentFiles {
         let perk_sets =
             PerkSets::parse(get("perk_sets")?).map_err(PackError::in_file("perk_sets"))?;
         let runes = Runes::parse(get("runes")?).map_err(PackError::in_file("runes"))?;
+        let weapons = Weapons::parse(get("weapons")?).map_err(PackError::in_file("weapons"))?;
         let starting_unlocks = optional("starting_unlocks")
-            .map(|bytes| StartingUnlocks::parse_with(bytes, &perk_sets, &stage_skills, &runes))
+            .map(|bytes| {
+                StartingUnlocks::parse_with(bytes, &perk_sets, &stage_skills, &runes, &weapons)
+            })
             .transpose()
             .map_err(PackError::in_file("starting_unlocks"))?;
         let stardust = optional("stardust")
@@ -1154,6 +1199,7 @@ impl ContentFiles {
             perk_sets,
             Difficulties::parse(get("difficulties")?)
                 .map_err(PackError::in_file("difficulties"))?,
+            weapons,
             starting_unlocks,
             stardust,
             TimeLimit::parse(get("time_limit")?).map_err(PackError::in_file("time_limit"))?,
@@ -1202,6 +1248,7 @@ fn members(pack: &PackFile) -> Vec<(&'static str, &RawValue)> {
         ("runes", &pack.runes),
         ("perk_sets", &pack.perk_sets),
         ("difficulties", &pack.difficulties),
+        ("weapons", &pack.weapons),
     ];
     for (name, raw) in [
         ("starting_unlocks", &pack.starting_unlocks),

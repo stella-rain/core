@@ -585,6 +585,7 @@ fn a_file_is_found_whatever_the_pack_s_layout() {
     for key in [
         "perk_sets",
         "difficulties",
+        "weapons",
         "expertise",
         "match_ups",
         "stage_skills",

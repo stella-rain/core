@@ -343,6 +343,10 @@ pub fn validate_attack_ref(attack: &AttackRef, registry: &[Entry]) -> Result<(),
     }
 }
 
+/// What is wrong with a tree ID that is not well formed.
+pub(crate) const TREE_ID_PROBLEM: &str =
+    "not a valid ID (lowercase snake_case, at most 32 characters)";
+
 /// Checks a weapon preset as a stage's inline weapon is checked, without a boss (so a part to
 /// aim at is never found): the developer's weapon presets. Paths are from the preset:
 /// `$.combo.main.charge.levels[0].at_ticks`.
@@ -810,11 +814,13 @@ impl<'a> Ctx<'a> {
         match w {
             WeaponRef::Preset { id, tree } => self.key("preset", |c| {
                 c.content_id("id", id, Kind::Weapon);
-                if let Some(problem) = tree
+                // Whether the weapon has that tree is the weapons file's to say: the run checks
+                // it against its own content (`World::new`).
+                if tree
                     .as_ref()
-                    .and_then(|t| presets::tree_problem(&id.0, &t.0))
+                    .is_some_and(|t| !registry::is_well_formed(&t.0))
                 {
-                    c.key("tree", |c| c.fail(problem));
+                    c.key("tree", |c| c.fail(TREE_ID_PROBLEM));
                 }
             }),
             WeaponRef::Inline(w) => self.key("inline", |c| inline(c, w)),

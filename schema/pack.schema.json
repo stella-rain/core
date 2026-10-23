@@ -78,6 +78,10 @@
           "type": "null"
         }
       ]
+    },
+    "weapons": {
+      "description": "The weapons' combo trees (WP1).",
+      "$ref": "#/$defs/WeaponsFile"
     }
   },
   "additionalProperties": false,
@@ -93,6 +97,7 @@
     "runes",
     "perk_sets",
     "difficulties",
+    "weapons",
     "modes"
   ],
   "$defs": {
@@ -5210,6 +5215,28 @@
         "assist_range"
       ]
     },
+    "WeaponEntry": {
+      "description": "A weapon and its trees.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "A registered weapon ID, unique within the file.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "trees": {
+          "description": "The trees in order, tree 1 first, 1 to `MAX_TREES`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WeaponTree"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "trees"
+      ]
+    },
     "WeaponExpertise": {
       "description": "One weapon's expertise.",
       "type": "object",
@@ -5307,6 +5334,53 @@
             "inline"
           ]
         }
+      ]
+    },
+    "WeaponTree": {
+      "description": "One tree of a weapon.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The tree's own ID, unique within its weapon: lowercase snake_case, `<weapon>_base` for\ntree 1 by convention.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "weapon": {
+          "$ref": "#/$defs/Weapon"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "weapon"
+      ]
+    },
+    "WeaponsFile": {
+      "description": "The weapons file.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sim_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "weapons": {
+          "description": "The weapons, 1 to `MAX_WEAPONS`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WeaponEntry"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "sim_version",
+        "weapons"
       ]
     },
     "ZoneShape": {
