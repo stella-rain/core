@@ -975,16 +975,25 @@ pub(crate) fn definitions() -> Vec<Definition> {
     ]
 }
 
+/// The seeds of the `stage_skill` and `elites` run cases since the per-purpose RNG streams (R1):
+/// the draws moved, so `tests/common/run.rs`'s `STAGE_SKILL_SEED` (16, where the run uses the
+/// black hole alone twice) and `ELITES_SEED` (22) no longer give those runs. 11 and 15 are the
+/// first of `1..` that do (checked 1 to 30 and 1 to 40). The common constants stay for a
+/// follow-up that moves these two there (`tests/common` is not touched together with `src/`).
+const STAGE_SKILL_SEED_R1: u64 = 11;
+const ELITES_SEED_R1: u64 = 15;
+const _: [u64; 2] = [common::run::STAGE_SKILL_SEED, common::run::ELITES_SEED];
+
 /// The run cases: the trial mode played until the main character falls, spending its points
 /// and answering its offers on the way, with every kind of option; and the same from another
 /// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command>)> {
     use common::run::{
-        ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from,
-        play_run_in, time_limit_setup, trial_setup,
+        KILL_SEED, TRIAL_LENGTH, play_run, play_run_from, play_run_in, time_limit_setup,
+        trial_setup,
     };
     let stage_skill = RunSetup {
-        seed: STAGE_SKILL_SEED,
+        seed: STAGE_SKILL_SEED_R1,
         ..trial_setup()
     };
     let stage_skill_content = RunContent::bundled()
@@ -1023,7 +1032,7 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     // mode file, below.
     let (elites_mode, elites_content) = elites_time_limit();
     let elites_setup = RunSetup {
-        seed: ELITES_SEED,
+        seed: ELITES_SEED_R1,
         ..time_limit_setup()
     };
     let elites_script = EliteScript::default();
