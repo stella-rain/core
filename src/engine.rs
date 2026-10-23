@@ -2262,16 +2262,40 @@ mod horde_tests {
         assert_eq!(seen[3], "core_pair");
     }
 
+    /// The first boss calls nothing and the later ones call 1800 ticks after they come, on a
+    /// schedule a quarter as long as the real one: bosses at 4000, 8000 and 12000.
+    fn assert_calls_after_30_seconds(seed: u64) {
+        let mut e = run_of(seed, |v| {
+            v["length_ticks"] = serde_json::json!(20_000);
+            v["boss_ticks"] = serde_json::json!([4_000, 8_000, 12_000, 20_000]);
+            v["no_call_ticks"] = serde_json::json!([4_000]);
+            v["elite_cap"] = serde_json::json!(32);
+            v["elite_table"] = serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
+        });
+        let (arrived, called) = arrivals_and_calls(&mut e, 13_800);
+        assert_eq!(arrived, [4_000, 8_000, 12_000], "seed {seed}");
+        assert_eq!(called, [9_800, 13_800], "seed {seed}");
+    }
+
+    #[test]
+    fn the_first_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds_seed_0() {
+        assert_calls_after_30_seconds(0);
+    }
+
+    #[test]
+    fn the_first_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds_seed_1() {
+        assert_calls_after_30_seconds(1);
+    }
+
     #[test]
     fn the_five_minute_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds() {
-        // The 5-minute boss comes at 18000 and calls nothing; the 10-minute one at 36000 calls
-        // 1800 ticks after it came, and so does the 15-minute one at 54000.
-        for seed in 0..2 {
-            let mut e = bundled_run("normal", seed);
-            let (arrived, called) = arrivals_and_calls(&mut e, 55_800);
-            assert_eq!(arrived, [18_000, 36_000, 54_000], "seed {seed}");
-            assert_eq!(called, [37_800, 55_800], "seed {seed}");
-        }
+        // The only test of the real schedule: the 5-minute boss comes at 18000 and calls nothing;
+        // the 10-minute one at 36000 calls 1800 ticks after it came, and so does the 15-minute
+        // one at 54000.
+        let mut e = bundled_run("normal", 0);
+        let (arrived, called) = arrivals_and_calls(&mut e, 55_800);
+        assert_eq!(arrived, [18_000, 36_000, 54_000]);
+        assert_eq!(called, [37_800, 55_800]);
     }
 }
 
