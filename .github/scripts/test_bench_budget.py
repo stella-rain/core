@@ -72,8 +72,9 @@ class Check(unittest.TestCase):
     def test_over_budget_names_bench_count_budget_and_overshoot(self):
         _, errors = self.rows("x86_64", 12_000_000)
         self.assertEqual(len(errors), 1)
-        for text in ("worst_tick", "12000000", "11900000", "100000"):
-            self.assertIn(text, errors[0].replace(",", "").replace("_", ""))
+        self.assertIn("worst_tick", errors[0])
+        for text in ("12000000", "11900000", "100000"):
+            self.assertIn(text, errors[0].replace(",", ""))
 
     def test_a_budgeted_bench_missing_from_the_output_fails(self):
         text = block("collide_tick::collide_group::collide_tick", 1)
