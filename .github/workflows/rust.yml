@@ -428,6 +428,10 @@ jobs:
             echo "### Worst-case, collision and time_limit ticks on ${{ matrix.arch }}"
             grep -E '^[a-z_]+::|Instructions' "$RUNNER_TEMP/bench.txt" | sed 's/^ */    /'
           } >> "$GITHUB_STEP_SUMMARY"
+      # The absolute ceiling (benches/budgets.toml, D-BUDGET): a count over the budget for this
+      # architecture fails, whether or not the step above compared with the base commit.
+      - name: Check the tick budgets
+        run: python3 .github/scripts/bench_budget.py --arch ${{ matrix.arch }} --bench-output "$RUNNER_TEMP/bench.txt"
 
   # The one check auto-merge.yml requires from this workflow. A job may be skipped only when it
   # need not run: `parsing changed` off a PR, the short fuzz run when it says no, the others when
