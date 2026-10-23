@@ -20,8 +20,6 @@
 //! not written, and a stale one in DIR is removed; no other file is touched, and
 //! `content/pack.json` is left to `export`. Messages never repeat text from the pack.
 
-#![forbid(unsafe_code)]
-
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;

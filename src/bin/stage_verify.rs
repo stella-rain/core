@@ -15,8 +15,6 @@
 //! `ticks`, `final_hash`, `content_hash` (ADR-034) and `parsed_stage_hash` (ADR-046) as
 //! `name: value` lines. Messages never repeat text from the files.
 
-#![forbid(unsafe_code)]
-
 use std::fs::File;
 use std::io::Read;
 use std::process::ExitCode;
