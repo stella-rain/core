@@ -1,0 +1,99 @@
+# Stella Rain: core
+
+Pure-Rust deterministic simulation for Stella Rain, an action shooter for phones and computers:
+fixed-tick simulation, the stage, event and replay types, and the `stage-verify` CLI that
+proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MIT or Apache-2.0.
+
+## This repository is public
+
+- Private planning (ads, moderation strategy, roadmap) goes in `stella-rain/app` issues, never here.
+- Architecture decisions live in the private app repository; cite them by number (ADR-SIM-1).
+  Rules about core's own behaviour (determinism, schema, input validation) may be summarised
+  here; nothing else from the app repository is copied in.
+
+## Hard rules
+
+- No dependency on Godot or gdext; `core` builds and tests with plain `cargo` (ADR-BRDG-1).
+- Deterministic: the same stage, seed and inputs give the same state hash every tick, on x86_64
+  and arm64 (ADR-SIM-1, ADR-SIM-3). Details in `.claude/rules/determinism.md`.
+- Stage files are untrusted: size limit before parsing, strict parsing, budgets, runtime
+  clamps, fail closed (ADR-SVC-1).
+- The Rust types here are the only schema; JSON Schema is generated from them (ADR-CONT-1).
+  Any change to stage, event or replay types, or to a simulation outcome, follows the
+  `schema-change` skill.
+- Released content IDs (assets, palettes, parts, blocks, skills, attack patterns) are never renamed or removed, only deprecated (ADR-CONT-2).
+- ADRs marked *Proposed* are the current plan: build on them, but raise a departure with Kade rather than depart silently.
+- Design: standard practice first; give Kade options, trade-offs, a pick; better ideas as options.
+
+## Layout
+
+So far: the ADR-PLAT-1 spike, the version 0 types, validator, engine, attacks, bosses and replays; the rest as it arrives.
+
+| Path | What |
+|---|---|
+| `src/` | Library: simulation, fixed-point math, RNG, collision, blocks, stage parsing, validation, replay |
+| `src/hash.rs`, `src/spike.rs` | The FNV-1a 64 state hash; the ADR-PLAT-1 spike simulation (not a frozen `rules_vN`) |
+| `src/content_hash.rs` | The stage content hash, SHA-256 of the two file hashes (ADR-SVC-6); `sha2` lives outside the simulation path |
+| `src/parsed_stage_hash.rs` | The parsed-stage hash the blocklist uses: SHA-256 of a tag and the parsed stage's compact JSON without `id` (ADR-SVC-6); its bytes are pinned in `tests/parsed_stage_hash.rs` |
+| `src/stage.rs`, `behaviour.rs`, `attack.rs`, `weapon.rs`, `input.rs`, `event.rs`, `snapshot.rs` | The version 0 types (ADR-REPL-1, ADR-SIM-4, ADR-REPL-3); `serde`, `serde_json` and `schemars` parse and describe them, outside the simulation path |
+| `src/replay.rs`, `run_replay.rs`, `share.rs`, `base64.rs`, `recording.rs` | The `.replay` file and its packed inputs, record and verify (ADR-REPL-4, ADR-BRDG-3); a run's replay: setup, content SHA-256, inputs and one packed stream of commands between ticks (`choose`, `spend`), verified from the file and its run stats (ADR-REPL-3); share codes (`miniz_oxide`, outside the simulation path); `recording` is the `record` feature's JSON Lines |
+| `src/engine.rs`, `src/rules_v0/`, `src/trig.rs`, `src/presets.rs` | The engine (`Engine`: step, choose, spend, events, snapshot, hash); the rules of `sim_version` 0 (agents, the enemies' push-apart, attacks and their hit boxes, skills, the main character's movement, facing, evade, the weapon's combos made by hand, their charged steps and smash effects (ADR-SIM-4), aim assist's target pick and auto mode, boss phases and parts, experience, levels and stat points, and the runes' effects in `rules_v0/runes.rs`, the falling stars and their offers in `rules_v0/stars.rs` (ADR-REPL-3), and the expertise offers in `rules_v0/expertise.rs`), which say what they do not do yet; the interpolated sine table; attack and weapon presets in the stage's own JSON |
+| `src/validate.rs`, `src/registry.rs`, `src/run_setup.rs`, `src/run_stats.rs`, `src/rewards.rs`, `src/match_ups.rs`, `src/rune.rs`, `src/runes.rs` | The validator (size limit, strict parse, registry, static budgets; ADR-SVC-1), the content-ID registry (ADR-CONT-2), the run setup a run starts from (ADR-REPL-3), with each mode's content bundled in `modes/`, the run stats a point raises (ADR-CONT-1): JSON read as untrusted bytes, an open list over effect kinds in code, `content/run_stats.json` by default, and the rewards a falling star's offer holds (ADR-CONT-1), `content/rewards.json` by default; the match-up table (`src/match_ups.rs`, `content/match_ups.json`) and the runes (`src/rune.rs` the closed list, `src/runes.rs` the file, `content/runes.json`) are read the same way |
+| `src/run_content.rs` | A run's content, read once (ADR-CONT-1): the run stats, rewards, expertise, match-ups, runes, stage skills and the `trial` and `time_limit` mode files, each with the SHA-256 of its bytes and the pack's SHA-256 (ADR-REPL-3, ADR-CONT-3); the engine, the recorder and the verifier read the same value |
+| `content/` | The bundled content, JSON read as data: `pack.json` is the content pack, one file holding the others, and a copy byte for byte of a `stella-rain/content` release (ADR-CONT-3; `src/pack.rs`); `run_stats.json`, `rewards.json`, `stage_skills.json`, `expertise.json`, `match_ups.json` and `runes.json` are each read by its `src/` module (`include_bytes!`) |
+| `schema/` | JSON Schema generated from the types (`pack.schema.json` is the content pack's); `UPDATE_SCHEMA=1 cargo test --test integration schema::` regenerates it |
+| `tests/` | Integration tests, one binary: `integration.rs` declares every other file as a module (`autotests = false`), so `cargo test --test integration <file>::` runs one file; `spike.rs` and `engine.rs` pin golden hashes every platform must match; `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/` (`cargo insta test --features record --review`); `properties.rs` checks `proptest` invariants on the corpus stages (`PROPTEST_CASES=2000` for a longer run) |
+| `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-SIM-3) |
+| `src/pack.rs`, `src/bin/content_pack.rs` | The content pack, the game's content files as one JSON file, hashed as its bytes and read as untrusted bytes (ADR-SVC-1, ADR-CONT-3); `content-pack verify FILE` checks one, `content-pack export` writes the bundled one |
+| `src/bin/stage_verify.rs` | `stage-verify`: re-simulates a replay, checks the clear and the final hash, and prints both stage hashes (ADR-REPL-4, ADR-SVC-6) |
+| `tests/corpus/` | Replay corpus per `sim_version`: `v0/<case>/` holds `stage.json`, `run.replay`, `hashes.txt`; `runs/v0/<case>/` holds a run's `run.replay` and `hashes.txt` (ADR-REPL-3); `corpus.rs` checks it (ADR-SIM-3) |
+| `benches/` | `worst_tick.rs`: `iai-callgrind` instruction count of a worst-case tick in a run that holds every rune, with Rune Haste and a damage-over-time status of each kind on every enemy (core#180), every cap of ADR-SIM-5's table reached, a fresh stack of enemies to push apart and aim assist looking through all 500 enemies for a target (ADR-SIM-3, ADR-SIM-5); `worst_case/` builds the stage and `tests/worst_case.rs` checks it holds every cap (`Engine::load`); `collide_tick.rs` counts friendly-bullet collision at the caps with the crowd at rest, clustered and spread over the map (`collide_tick_spread`; `collide_case/`, `tests/collide_case.rs`); `time_limit_tick.rs` counts the `time_limit` mode's horde at its heaviest: 500 enemies of the mode's kinds alive, about 3,950 bullets, a boss and the Main weapon hitting (`time_limit_case/`, `tests/time_limit_case.rs`, core#212) |
+| `fuzz/` | `cargo-fuzz` targets for the stage parser, the run after validation, the replay loader (stage and run replays), the share-code decoder, the run setup and the content pack (`pack_load`; ADR-SVC-1, ADR-REPL-3, ADR-CONT-3); its own workspace on nightly; `fuzz/tests/smoke.rs` runs them on stable, `regressions/<target>/` keeps the inputs of crashes that were fixed |
+| `.github/workflows/` | Rust gates on x86_64 and arm64 (tests also on Windows and macOS), mobile `cargo check`, the fuzz jobs, the weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`), both called by Candidate, the worst-tick benchmark, Project sync, `CLAUDE.md` check, auto-merge, branch cleanup, actionlint, the secret and key-file scan (`repo-check.yml`), Candidate, Promote and Candidate guard (`candidate.yml`, `promote.yml`, `candidate-guard.yml`) and the script tests (`scripts.yml`) |
+| `.github/scripts/` | `release.py` (the release's version, checks and notes) with tests; the iOS Simulator runner and the fuzz report |
+
+## Gates
+
+| Part | Gate |
+|---|---|
+| Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`; in CI (`rust.yml`) a PR of only `*.md` files skips every Rust job, and `rust checks` passes when each job ran or was skipped by right |
+| Simulation | Replay corpus: every tick's hash matches, on x86_64, on an arm64 runner, and (tests only) on Windows x86_64 and macOS arm64 runners, every PR and weekly on `main` (ADR-SIM-3, ADR-PLAT-1); an intended change: `UPDATE_CORPUS=1 cargo test --test integration corpus::` |
+| iOS readiness | `cargo check --target aarch64-apple-ios` on every PR (ADR-PLAT-1); the tests and the corpus run in the iOS Simulator by hand or from Candidate (`ios-sim.yml`, runner `.github/scripts/ios-sim-runner.sh`, ADR-REL-3) |
+| Parser, validator, replay loader, share codes, run setups | In `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo +nightly fuzz build`; a PR that touches parsing also runs `cargo +nightly fuzz run <target> -- -max_total_time=60` for each of the six targets, seeded from the corpus, the bundled content and `content-pack export` (CI: `rust.yml`); weekly, each target runs 7 minutes on a growing cached corpus, and a crash opens a hash-only issue (`fuzz-long.yml`, `.github/scripts/fuzz-report.sh`) |
+| Tick cost | `cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick` (needs `valgrind` and `iai-callgrind-runner` 0.16.1); CI compares all three with the base commit's on both architectures and fails on more than +2% instructions in any of the three, and warns on `worst_tick` over its ceiling per arch in `benches/budgets.toml` (`bench_budget.py --warn-only` until the T1 refactor, DS27; a PR changing a bench and `src/` fails, D-BUDGET) (`rust.yml`, ADR-SIM-5); the benches build at one codegen unit, base and head alike (`[profile.bench]`, core#192); `-- --save-baseline=base`, then `-- --baseline=base --callgrind-limits=ir=2%` runs the same comparison here |
+| `.github/scripts/*.py` | `python3 -m unittest discover -s .github/scripts` (CI: `scripts.yml`) |
+| `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too) |
+| Line endings | CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
+
+The corpus run on an Android device is a release gate (ADR-REL-3), tried on the prerelease, and so are the
+iOS Simulator and long fuzz runs, which Candidate runs; when a gate is needed and cannot run
+here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
+
+## State
+
+- Issues in this repo, with command labels (`cmd:status-now`, `cmd:verify-not-verified`, ...),
+  sync to the organization Project. No `MEMORY.md`, no `.memory/`, no handoff files.
+- The Project snapshot is `STATUS.md` on the `status` branch of `app`:
+  `git -C ../app fetch origin status && git -C ../app show origin/status:STATUS.md`.
+- What a change did, what was verified and the wrong turns: the PR, or the commit body.
+
+## Version control
+
+- **Local and cloud sessions** work on `claude/<task>`; a task may hold several commits and
+  gets one PR that says `Closes #N`. `auto-merge.yml` (not GitHub auto-merge) merges it once
+  every check on its head is green and deletes the branch. Drafts and PRs that touch
+  `.github/workflows/`, `CLAUDE.md` or `.claude/rules/` are left to Kade: open such a
+  PR as a draft, and he merges it; `branch-cleanup.yml` deletes their merged branches. Any other branch (Kade's own) is merged by hand. A local session opens
+  the PR with Kade's `gh` login; without it, it prints the commands for Kade.
+  `auto-merge.yml` is read from `main`, so a change to it acts only after its own merge.
+- Releases follow the `release-flow` skill. The version is `version` in `Cargo.toml` (`fuzz/Cargo.lock`
+  agrees); Candidate generates the release notes from the commits since the last release (`.github/scripts/release.py`).
+- Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app can use it (ADR-REL-2). Zip deliveries (Windows PC only) are laid out from the `stella-rain` root.
+
+## Overrides of global rules
+
+None.
+
+## Never commit
+
+- `target/`, fuzz `artifacts/` and generated fuzz corpora (the replay corpus in `tests/corpus/` is committed).
