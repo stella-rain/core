@@ -19,6 +19,7 @@ use crate::stage_skill::StageSkills;
 use crate::stardust::Stardust;
 use crate::starting_unlocks::StartingUnlocks;
 use crate::time_limit::TimeLimit;
+use crate::weapons::Weapons;
 
 /// Content files that passed validation, each with the SHA-256 of its bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -30,6 +31,8 @@ pub struct RunContent {
     runes: Runes,
     perk_sets: PerkSets,
     difficulties: Difficulties,
+    /// The weapons' combo trees (WP1).
+    weapons: Weapons,
     /// What a new save begins with, if the pack holds the file (a pack released before it does
     /// not). Not part of any run: nothing in the simulation reads it, and the pack's hash covers
     /// it with the rest of the pack.
@@ -63,6 +66,7 @@ impl RunContent {
             runes: Runes::bundled().clone(),
             perk_sets: PerkSets::bundled().clone(),
             difficulties: Difficulties::bundled().clone(),
+            weapons: bundled.weapons.clone(),
             starting_unlocks: bundled.starting_unlocks.clone(),
             stardust: bundled.stardust.clone(),
             time_limit: TimeLimit::bundled().clone(),
@@ -84,6 +88,7 @@ impl RunContent {
         runes: Runes,
         perk_sets: PerkSets,
         difficulties: Difficulties,
+        weapons: Weapons,
         starting_unlocks: Option<StartingUnlocks>,
         stardust: Stardust,
         time_limit: TimeLimit,
@@ -101,6 +106,7 @@ impl RunContent {
             runes,
             perk_sets,
             difficulties,
+            weapons,
             starting_unlocks,
             stardust,
             time_limit,
@@ -143,6 +149,15 @@ impl RunContent {
     pub fn with_perk_sets(self, perk_sets: PerkSets) -> RunContent {
         RunContent {
             perk_sets,
+            pack_sha256: None,
+            ..self
+        }
+    }
+
+    /// The same content with `weapons` in place of its weapons.
+    pub fn with_weapons(self, weapons: Weapons) -> RunContent {
+        RunContent {
+            weapons,
             pack_sha256: None,
             ..self
         }
@@ -240,6 +255,11 @@ impl RunContent {
     /// The difficulties a setup picks from (ADR-110).
     pub fn difficulties(&self) -> &Difficulties {
         &self.difficulties
+    }
+
+    /// The weapons' combo trees (WP1).
+    pub fn weapons(&self) -> &Weapons {
+        &self.weapons
     }
 
     /// What a new save begins with (DS5 Q10), `None` when the pack was released without the file:

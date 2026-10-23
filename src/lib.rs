@@ -49,3 +49,4 @@ pub mod trig;
 pub mod validate;
 pub mod version;
 pub mod weapon;
+pub mod weapons;

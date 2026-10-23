@@ -17,12 +17,12 @@ use sha2::{Digest, Sha256};
 
 use crate::id::ContentId;
 use crate::perk_sets::PerkSets;
-use crate::presets;
 use crate::registry;
 use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::stage_skill::StageSkills;
 use crate::validate::{Error, Issue};
+use crate::weapons::Weapons;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
 /// The largest starting unlocks file read (a tuning value; ADR-020 decides that one exists).
@@ -64,6 +64,7 @@ impl StartingUnlocks {
         perk_sets: &PerkSets,
         stage_skills: &StageSkills,
         runes: &Runes,
+        weapons: &Weapons,
     ) -> Result<StartingUnlocks, Error> {
         if bytes.len() > MAX_STARTING_UNLOCKS_BYTES {
             return Err(Error::TooLarge {
@@ -89,7 +90,7 @@ impl StartingUnlocks {
             });
         }
         let file: StartingUnlocksFile = serde_json::from_slice(bytes).map_err(parse_error)?;
-        validate(&file, perk_sets, stage_skills, runes)?;
+        validate(&file, perk_sets, stage_skills, runes, weapons)?;
         Ok(StartingUnlocks {
             file,
             sha256: Sha256::digest(bytes).into(),
@@ -132,9 +133,10 @@ pub fn validate(
     perk_sets: &PerkSets,
     stage_skills: &StageSkills,
     runes: &Runes,
+    weapons: &Weapons,
 ) -> Result<(), Error> {
     let mut issues = Vec::new();
-    let weapon_known = |id: &ContentId| presets::weapon_ids().any(|w| w == id.0);
+    let weapon_known = |id: &ContentId| weapons.ids().any(|w| w == id);
     let perk_set_known = |id: &ContentId| perk_sets.index_of(id).is_some();
     let stage_skill_known = |id: &ContentId| stage_skills.index_of(id).is_some();
     let rune_known = |id: &ContentId| {
