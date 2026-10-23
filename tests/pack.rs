@@ -625,7 +625,8 @@ fn hex(sha: &[u8]) -> String {
 #[test]
 fn a_run_replay_records_the_sha256_of_the_pack_s_bytes() {
     let replay =
-        run_replay::record_run(&common::run::trial_setup(), &common::run::play_run(60)).unwrap();
+        run_replay::record_run(&common::run::trial_setup(), &crate::run_play::play_run(60))
+            .unwrap();
     assert_eq!(replay.content_sha256, hex(&Sha256::digest(Pack::BUNDLED)));
     assert_eq!(replay.content_sha256, hex(&Pack::bundled().sha256()));
     for mode in ["trial", "time_limit"] {
@@ -640,7 +641,7 @@ fn a_run_replay_recorded_with_a_pack_records_that_pack_s_hash() {
     let replay = run_replay::record_run_with_pack(
         &common::run::trial_setup(),
         &pack,
-        &common::run::play_run(60),
+        &crate::run_play::play_run(60),
     )
     .unwrap();
     assert_eq!(replay.content_sha256, hex(&Sha256::digest(&kept)));
@@ -661,7 +662,7 @@ fn verification_works_with_a_pack_the_caller_supplies() {
     let bytes = run_replay::record_run_with_pack(
         &common::run::trial_setup(),
         &pack,
-        &common::run::play_run(120),
+        &crate::run_play::play_run(120),
     )
     .unwrap()
     .to_bytes();
@@ -688,7 +689,7 @@ fn verification_works_with_a_pack_the_caller_supplies() {
 fn verification_refuses_a_replay_that_names_another_pack() {
     let (_, pack) = kept_pack();
     let setup = common::run::trial_setup();
-    let play = common::run::play_run(60);
+    let play = crate::run_play::play_run(60);
     let bundled_replay = run_replay::record_run(&setup, &play).unwrap().to_bytes();
     let kept_replay = run_replay::record_run_with_pack(&setup, &pack, &play)
         .unwrap()

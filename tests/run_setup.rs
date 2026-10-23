@@ -336,7 +336,7 @@ fn validate_in_refuses_a_pool_naming_a_reward_the_file_does_not_hold() {
 /// The trial run of `common::run` up to its first offer, from `setup`.
 fn to_first_offer(setup: &RunSetup) -> Engine {
     let mut engine = Engine::start(setup).unwrap();
-    for c in common::run::play_run(common::run::TRIAL_LENGTH) {
+    for c in crate::run_play::play_run(common::run::TRIAL_LENGTH) {
         match c {
             Command::Step(input) => engine.step(input),
             Command::Spend(index) => engine.spend(index).unwrap(),
