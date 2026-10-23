@@ -9,6 +9,8 @@
 # every PR waiting. Rust's jobs are skipped on a PR of only `*.md` files, so only its
 # always-run `rust checks`, which fails when one of them did, is required. A renamed check
 # changes here in the same PR.
+# The merge uses the bridge App's token (the secret below, vars.BRIDGE_APP_CLIENT_ID), so it
+# starts the `push` runs on main, which `main-red.yml` watches.
 # `workflow_run` is read from main: a change to this file acts only after its own merge.
 name: Auto-merge
 
@@ -22,6 +24,8 @@ permissions: {}
 jobs:
   merge:
     uses: stella-rain/.github/.github/workflows/auto-merge.yml@main
+    secrets:
+      BRIDGE_APP_PRIVATE_KEY: ${{ secrets.BRIDGE_APP_PRIVATE_KEY }}
     with:
       require: |
         rust checks
