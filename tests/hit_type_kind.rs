@@ -127,7 +127,7 @@ fn a_kill_names_the_kind_of_the_victim() {
     let died: Vec<_> = events_of(&stage, 3)
         .into_iter()
         .filter_map(|ev| match ev {
-            DomainEvent::Died { entity, kind } => Some((entity, kind)),
+            DomainEvent::Died { entity, kind, .. } => Some((entity, kind)),
             _ => None,
         })
         .collect();
@@ -223,13 +223,18 @@ fn an_event_without_the_kind_fields_still_loads() {
             ..
         }
     ));
-    let died: DomainEvent =
-        serde_json::from_value(json!({ "type": "Died", "data": { "entity": 1 } })).unwrap();
+    let died: DomainEvent = serde_json::from_value(
+        json!({ "type": "Died", "data": { "entity": 1, "class": "enemy" } }),
+    )
+    .unwrap();
     assert!(matches!(died, DomainEvent::Died { kind: None, .. }));
     // A kind is a bare number in the JSON.
     let with = DomainEvent::Died {
         entity: EntityId(1),
         kind: Some(KindIndex(7)),
+        class: EntityKind::Enemy,
+        elite: false,
+        shrine: false,
     };
     assert_eq!(
         serde_json::to_value(&with).unwrap()["data"]["kind"],

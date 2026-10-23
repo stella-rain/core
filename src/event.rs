@@ -11,7 +11,7 @@ use crate::id::{ContentId, EntityId};
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
-use crate::snapshot::{ExpertiseOfferKind, OfferKind};
+use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind};
 
 /// Which button's press took a combo step (ADR-070): A or B.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -132,6 +132,15 @@ pub enum DomainEvent {
         /// disguise.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         kind: Option<KindIndex>,
+        /// What died, as the snapshot classifies it (`EntityView::kind`), so a reader never
+        /// guesses it from earlier snapshots: not even for an elite that dies on its first tick.
+        class: EntityKind,
+        /// An elite (`EntityView::elite`). Absent when false.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        elite: bool,
+        /// A shrine, an elite object that dies when its guardians are cleared. Absent when false.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        shrine: bool,
     },
     StageCleared,
     StageFailed,
