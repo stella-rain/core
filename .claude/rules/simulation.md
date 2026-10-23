@@ -12,7 +12,7 @@ paths:
 
 # Simulation code
 
-Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-5, ADR-REPL-3. The determinism rules are in
+Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-6, ADR-REPL-3. The determinism rules are in
 `determinism.md`; changes to outcomes follow the `schema-change` skill.
 
 ## What is where
@@ -43,7 +43,7 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-5, ADR-REPL-3. The determinism
   ticks. `tests/alloc.rs` counts allocations; a new per-tick `Vec` goes into `Scratch`, a
   bounded per-entity list into `InlineVec`.
 
-- The horde caps, the push-apart and the collision cost are ADR-SIM-5's; the benches in
+- The caps (enemies, zones, orbs), the push-apart and the collision cost are ADR-SIM-6's; the benches in
   `benches-fuzz.md` count them.
 - `tests/spike.rs` and `tests/engine.rs` pin golden hashes every platform must match.
 - `tests/properties.rs` checks `proptest` invariants on the corpus stages
