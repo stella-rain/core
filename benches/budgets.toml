@@ -1,0 +1,7 @@
+# Instructions per tick, the most a bench may count (ADR-021: 4 ms of a 16.7 ms frame on the
+# reference phone; ADR-058: ~3.1 G instructions/s on the Lenovo Tab P11 = 12.4 M).
+# x86_64 is scaled by the measured x86_64/arm64 ratio of worst_tick (11.74 / 12.23 on f108f4f).
+# Warn-only until the T1 refactor lands (DS27); then re-measure and make it blocking.
+[worst_tick]
+arm64 = 12_400_000
+x86_64 = 11_900_000
