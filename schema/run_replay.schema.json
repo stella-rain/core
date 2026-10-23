@@ -96,6 +96,10 @@
           "$ref": "#/$defs/ContentId",
           "default": "duelist"
         },
+        "pick_stats": {
+          "description": "Each level reached opens an offer of the stats below their limit, answered through\n`Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.",
+          "type": "boolean"
+        },
         "rune_pool": {
           "description": "The runes the random rune may draw (ADR-099 point 4a, ADR-107): rune IDs, sorted, each\nonce, at most `MAX_RUNE_POOL`. Empty: every rune.",
           "type": "array",
@@ -139,6 +143,13 @@
               "type": "null"
             }
           ]
+        },
+        "stat_priority": {
+          "description": "The run stats a level-up is spent on, most wanted first (DS18): run stat IDs, each once,\nat most `MAX_RUN_STATS`. Each level reached raises the first of them below its limit,\nthen the stats this list leaves out in the run stats file's order; empty is that order\nalone. With `pick_stats` the stats are offered instead.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          }
         },
         "upgrades": {
           "description": "The permanent upgrades the player holds (ADR-079): registered upgrade IDs, sorted, each\nonce, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is\nopen, ADR-117): an old setup that names `giant_sword_aab` and the others still reads, and\nthey are ignored.",
