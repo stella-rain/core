@@ -222,7 +222,7 @@ pub(crate) struct World {
     /// own place in the mode file and the template's once for each sprite it stands in for.
     pub bosses: Vec<BossDef>,
     pub horde: Option<HordeDefs>,
-    /// Every attack the run can start, compiled once (core#281); found by `attack_index`.
+    /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
     attack_keys: AttackKeys,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.

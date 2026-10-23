@@ -88,6 +88,7 @@ mod attack_table;
 mod attacks;
 mod boss;
 mod world;
+pub(crate) use attacks::phase;
 pub(crate) use world::{AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, World};
 mod combat;
 mod entity;
@@ -469,10 +470,10 @@ pub(crate) fn step(
     spawn_elite(stage, s, events);
     let dots = entity::tick_statuses_and_aggro(s, events);
     runes::tick(s);
-    attacks::advance_runs(s, events);
+    attacks::advance_runs(stage, s, events);
     player::update(stage, rewards, s, input, events);
     if !s.player.runes.is_empty() {
-        runes::fly(s);
+        runes::fly(stage, s);
     }
     orbit::act(stage, rewards, s, events);
     boss::act(stage, s, events);
@@ -481,11 +482,11 @@ pub(crate) fn step(
     push::apply(stage, s);
     skill::pull(stage, s);
     if !s.player.runes.is_empty() {
-        runes::steer(s);
+        runes::steer(stage, s);
     }
     zones::advance(s);
     attacks::fire_hooks(s);
-    let (tasks, emitter_steps) = attacks::run(s, &mut spawns_left);
+    let (tasks, emitter_steps) = attacks::run(stage, s, &mut spawns_left);
     *load = Load {
         enemies: count(&s.enemies),
         tasks,
@@ -1023,7 +1024,7 @@ pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
 
 /// Damage to the main character, raised by its vulnerability and reduced by its defence; it is
 /// then invulnerable for a while.
-fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
+fn hurt_player(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
     // The main character has no profile (ADR-100): every hit on it is neutral.
     let dealt = scale_damage(b.damage, 0, 0, vulnerable, 0, s.player.defence);
@@ -1034,7 +1035,7 @@ fn hurt_player(s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     events.push(DomainEvent::PlayerHit { hp_left: p.hp });
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
-        player::break_charge(s, events);
+        player::break_charge(stage, s, events);
     }
 }
 
@@ -1102,7 +1103,7 @@ pub(crate) fn aura_percent(
 fn hit_ally_side(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
     if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
-        hurt_player(s, aided(stage, s, b), events);
+        hurt_player(stage, s, aided(stage, s, b), events);
         return true;
     }
     for i in 0..s.companions.len() {
@@ -1288,14 +1289,14 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
 
 /// A phased attack in progress (ADR-055). Like a task's program, its phases are not written:
 /// they come from the stage, and where the run has got to is.
-fn hash_run(h: &mut StateHasher, r: &crate::engine::AttackRun) {
+fn hash_run(h: &mut StateHasher, world: &World, r: &crate::engine::AttackRun) {
     h.write_u32(r.owner.0);
     h.write_u32(u32::from(r.slot));
     // A combo step's phases may be shortened by attack speed (ADR-070), so their lengths are
     // written.
-    h.write_u32(count(&r.phases));
-    for p in r.phases.iter() {
-        h.write_u32(p.ticks);
+    h.write_u32(u32::try_from(attacks::phase_count(world, r)).unwrap_or(u32::MAX));
+    for i in 0..attacks::phase_count(world, r) {
+        h.write_u32(attacks::phase(world, r, i).ticks);
     }
     h.write_u32(r.phase);
     h.write_u32(r.tick);
@@ -1338,7 +1339,7 @@ fn hash_smash(h: &mut StateHasher, smash: Option<Smash>) {
 
 /// The state hash: FNV-1a 64 over the whole state at fixed widths, field by field in the order
 /// of the `State` types, with each list preceded by its length (ADR-019).
-pub(crate) fn state_hash(s: &State) -> u64 {
+pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
     let mut h = StateHasher::new();
     h.write_u32(s.tick);
     h.write_u64(s.rng.state());
@@ -1521,7 +1522,7 @@ pub(crate) fn state_hash(s: &State) -> u64 {
     }
     h.write_u32(count(&s.runs));
     for r in &s.runs {
-        hash_run(&mut h, r);
+        hash_run(&mut h, world, r);
     }
     h.write_u32(count(&s.bullets));
     for b in &s.bullets {

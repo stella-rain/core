@@ -201,7 +201,7 @@ fn apply(
             }
         }
         SkillEffect::Attack { attack } => {
-            attacks::end_run(s, PLAYER_ID, SKILL_SLOT);
+            attacks::end_run(stage, s, PLAYER_ID, SKILL_SLOT);
             let strike = attacks::Strike {
                 bonus_pct: 0,
                 speed_pct: 0,
@@ -209,7 +209,7 @@ fn apply(
                 smash: None,
             };
             let damage = levels::attack(s, stage.player.atk);
-            attacks::start_player(s, SKILL_SLOT, dir, attack, damage, strike, events);
+            attacks::start_player(stage, s, SKILL_SLOT, dir, attack, damage, strike, events);
         }
         SkillEffect::Shield {
             amount,

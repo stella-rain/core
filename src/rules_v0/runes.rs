@@ -50,9 +50,7 @@
 //! of `StatusKind`'s kinds, and the enemies at most `MAX_ENEMIES_ALIVE` of each.
 
 use super::World;
-use std::sync::Arc;
 
-use crate::attack::AttackPhase;
 use crate::engine::{DotState, HeldRune, PlayerState, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -67,7 +65,7 @@ use crate::runes::{
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 
 use super::entity::{Who, status_pct};
-use super::{attacks, select};
+use super::{AttackIndex, attacks, select};
 
 /// The first on-hit rune's slot: after the combo (0), the stage skill (1) and the orbits' orbs
 /// (2 to 33); each rune's is this plus its place in `Rune::ALL`.
@@ -124,26 +122,28 @@ pub(super) fn on_hit(
             s.player.rune_haste_pct.min(s.max_rune_haste_pct),
         );
         let damage = entry.damage;
-        let phases = Arc::new(entry.attack.clone());
+        let Some(attack) = stage.rune_attacks[usize::from(rune.index())] else {
+            continue;
+        };
         let slot = FIRST_SLOT.saturating_add(rune.index());
         let facing = s.player.facing;
         if rune == Rune::HomingMissiles {
             let (missiles, range) = (entry.missiles.unwrap_or(1), entry.range.unwrap_or(Fx(0)));
-            if launch(stage, s, hit, at, missiles, range, phases, damage, events) {
+            if launch(stage, s, hit, at, missiles, range, attack, damage, events) {
                 s.player.runes[i].cooldown_left = cooldown;
             }
             continue;
         }
         let thrown = rune == Rune::Boomerang;
         let from = if thrown { s.player.at } else { at };
-        if attacks::start_rune(s, slot, from, facing, phases, damage, events) {
+        if attacks::start_rune(stage, s, slot, from, facing, attack, damage, events) {
             if thrown {
                 // It was pushed last; its first step counts the tick it is thrown on.
                 if let Some(r) = s.runs.last_mut() {
                     r.throw = Some(at);
                 }
                 if let Some(r) = s.runs.len().checked_sub(1) {
-                    fly_one(s, r);
+                    fly_one(stage, s, r);
                 }
             }
             s.player.runes[i].cooldown_left = cooldown;
@@ -211,7 +211,7 @@ fn launch(
     at: Point,
     missiles: u32,
     range: Fx,
-    phases: Arc<Vec<AttackPhase>>,
+    attack: AttackIndex,
     damage: u32,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
@@ -231,14 +231,14 @@ fn launch(
         };
         let goal = s.find(target).map_or(at, |w| s.at(w));
         let slot = MISSILE_SLOT.saturating_add(k);
-        if attacks::start_rune(s, slot, from, facing, phases.clone(), damage, events) {
+        if attacks::start_rune(stage, s, slot, from, facing, attack, damage, events) {
             // It was pushed last; its first step counts the tick it launches on.
             if let Some(r) = s.runs.last_mut() {
                 r.throw = Some(goal);
                 r.homing = Some(target);
             }
             if let Some(r) = s.runs.len().checked_sub(1) {
-                fly_one(s, r);
+                fly_one(stage, s, r);
             }
         }
     }
@@ -247,16 +247,16 @@ fn launch(
 
 /// Every thrown rune's hit boxes go a step: out to its turn point in its first phase, back to
 /// the main character in the others. Homing missiles steer later (`steer`).
-pub(super) fn fly(s: &mut State) {
+pub(super) fn fly(stage: &World, s: &mut State) {
     for i in 0..s.runs.len() {
         if s.runs[i].throw.is_some() && s.runs[i].homing.is_none() {
-            fly_one(s, i);
+            fly_one(stage, s, i);
         }
     }
 }
 
 /// Every homing missile goes a step toward where its target is now, or was last.
-pub(super) fn steer(s: &mut State) {
+pub(super) fn steer(stage: &World, s: &mut State) {
     for i in 0..s.runs.len() {
         let Some(target) = s.runs[i].homing else {
             continue;
@@ -264,20 +264,24 @@ pub(super) fn steer(s: &mut State) {
         if let Some(w) = s.find(target).filter(|w| s.is_alive(*w)) {
             s.runs[i].throw = Some(s.at(w));
         }
-        fly_one(s, i);
+        fly_one(stage, s, i);
     }
 }
 
 /// Run `i`'s centre goes the distance left to its goal over the phase's ticks left, this one
 /// counted, so that it is there on the phase's last tick.
-fn fly_one(s: &mut State, i: usize) {
+fn fly_one(stage: &World, s: &mut State, i: usize) {
     let to_player = s.player.at;
     let r = &mut s.runs[i];
     let (Some(at), Some(turn)) = (r.at, r.throw) else {
         return;
     };
     let goal = if r.phase == 0 { turn } else { to_player };
-    let ticks = r.phases.get(r.phase as usize).map_or(1, |p| p.ticks);
+    let ticks = if (r.phase as usize) < attacks::phase_count(stage, r) {
+        attacks::phase(stage, r, r.phase as usize).ticks
+    } else {
+        1
+    };
     let left = i64::from(ticks.saturating_sub(r.tick).max(1));
     let step = |from: Fx, to: Fx| {
         let d = (i64::from(to.0) - i64::from(from.0)) / left;

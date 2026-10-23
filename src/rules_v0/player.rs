@@ -117,7 +117,7 @@ pub(super) fn update(
     if pressed & input::EVADE != 0 && s.player.evade_ready() > 0 {
         let cooldown = levels::evade_cooldown(s, stage.player.evade.cooldown_ticks);
         start_evade(stage, &mut s.player, cooldown, events);
-        cancel(s, events);
+        cancel(stage, s, events);
         let strike = main.map_or(0, |m| m.dash_strike_ticks);
         s.player.combo.dash_strike_left = stage.player.evade.ticks.saturating_add(strike);
     }
@@ -143,7 +143,8 @@ fn move_by(stage: &World, p: &mut PlayerState, dx: i64, dy: i64) {
 }
 
 fn move_player(stage: &World, s: &mut State, x: i8, y: i8) {
-    let keep = speed_pct(&s.player.statuses) * attacks::move_pct(s, s.id_of(Who::Player)) / 100
+    let keep = speed_pct(&s.player.statuses) * attacks::move_pct(stage, s, s.id_of(Who::Player))
+        / 100
         * held_move_pct(stage, s)
         / 100;
     let cap = levels::speed(s, i64::from(PLAYER_SPEED) * keep / 100);
@@ -289,7 +290,10 @@ fn combo(
     let busy = attacks::busy(s, me, COMBO_SLOT);
     // A held step holds where its recovery would begin, unless a buffered press takes its next
     // step first (ADR-084 points 3 and 6).
-    if busy && attacks::hold_ready(s, me, COMBO_SLOT) && begins_hold(main, &s.player.combo, input) {
+    if busy
+        && attacks::hold_ready(stage, s, me, COMBO_SLOT)
+        && begins_hold(main, &s.player.combo, input)
+    {
         begin_hold(stage, s, main, input, events);
         return;
     }
@@ -322,8 +326,8 @@ fn combo(
         return;
     }
     let next = step_at(main, &c).is_some_and(|st| st.next.get(smash).is_some());
-    if next && attacks::in_end_recovery(s, me, COMBO_SLOT) {
-        attacks::end_run(s, me, COMBO_SLOT);
+    if next && attacks::in_end_recovery(stage, s, me, COMBO_SLOT) {
+        attacks::end_run(stage, s, me, COMBO_SLOT);
         take_step(stage, s, main, smash, by_hand, input, events);
     }
 }
@@ -370,7 +374,7 @@ fn begin_hold(
     events: &mut Vec<DomainEvent>,
 ) {
     let me = s.id_of(Who::Player);
-    attacks::end_run(s, me, COMBO_SLOT);
+    attacks::end_run(stage, s, me, COMBO_SLOT);
     s.player.combo.hold = Some(0);
     spin(stage, s, main, input, events);
 }
@@ -435,7 +439,7 @@ fn release_hold(
     events: &mut Vec<DomainEvent>,
 ) {
     let me = s.id_of(Who::Player);
-    attacks::end_run(s, me, COMBO_SLOT);
+    attacks::end_run(stage, s, me, COMBO_SLOT);
     s.player.combo.hold = None;
     s.player.combo.released = true;
     strike(stage, s, &hold.release, 0, input.assist, events);
@@ -587,7 +591,7 @@ fn strike(
     let facing = s.player.facing;
     let damage = levels::attack(s, stage.player.atk);
     s.player.combo.running =
-        attacks::start_player(s, COMBO_SLOT, facing, attack, damage, strike, events);
+        attacks::start_player(stage, s, COMBO_SLOT, facing, attack, damage, strike, events);
 }
 
 /// The direction from the main character to the entity `target`, if it is there and not on
@@ -744,9 +748,9 @@ fn release(
 }
 
 /// An evade cancels the running step, breaks a charge and clears the buffer (ADR-070).
-fn cancel(s: &mut State, events: &mut Vec<DomainEvent>) {
+fn cancel(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let me = s.id_of(Who::Player);
-    attacks::end_run(s, me, COMBO_SLOT);
+    attacks::end_run(stage, s, me, COMBO_SLOT);
     let c = &mut s.player.combo;
     if c.charge.take().is_some() {
         events.push(DomainEvent::ChargeBroken);
@@ -762,7 +766,7 @@ fn cancel(s: &mut State, events: &mut Vec<DomainEvent>) {
 /// A hit from a phase that breaks charges ends a charge or a hold in progress without an
 /// attack (a hold's loop ends with it), and the combo starts again from the root (ADR-070,
 /// ADR-084 point 6).
-pub(super) fn break_charge(s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn break_charge(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let me = s.id_of(Who::Player);
     let charging = s.player.combo.charge.take().is_some();
     let holding = s.player.combo.hold.take().is_some();
@@ -770,7 +774,7 @@ pub(super) fn break_charge(s: &mut State, events: &mut Vec<DomainEvent>) {
         return;
     }
     if holding {
-        attacks::end_run(s, me, COMBO_SLOT);
+        attacks::end_run(stage, s, me, COMBO_SLOT);
         events.push(DomainEvent::HoldBroken);
     }
     if charging {

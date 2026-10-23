@@ -145,7 +145,7 @@ pub(super) fn resolve(
     grid: &mut Option<Grid>,
     events: &mut Vec<DomainEvent>,
 ) {
-    let mut swings = active_swings(s);
+    let mut swings = active_swings(stage, s);
     swings.sort_by_key(|w| (w.owner.0, w.slot));
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
@@ -163,15 +163,15 @@ pub(super) fn resolve(
     }
     if swings.iter().any(|w| w.once) {
         s.runs.retain(|r| r.homing.is_none() || r.hits.is_empty());
-        s.move_index.rebuild(&s.runs);
+        s.move_index.rebuild(stage, &s.runs);
     }
 }
 
-fn active_swings(s: &State) -> Vec<Swing> {
+fn active_swings(stage: &World, s: &State) -> Vec<Swing> {
     let mut swings = Vec::new();
     for (i, r) in s.runs.iter().enumerate() {
-        let p = &r.phases[r.phase as usize];
-        let (PhaseKind::Active, Some(h)) = (p.kind, &p.hit_box) else {
+        let p = super::attacks::phase(stage, r, r.phase as usize);
+        let (PhaseKind::Active, Some(h)) = (p.kind, p.hit_box()) else {
             continue;
         };
         let Some(owner) = s.find(r.owner) else {
@@ -212,7 +212,7 @@ fn active_swings(s: &State) -> Vec<Swing> {
             slot: r.slot,
             friendly: r.friendly,
             area,
-            damage: super::attacks::phase_damage(r),
+            damage: super::attacks::phase_damage(stage, r),
             damage_type: p.damage_type,
             rehit_ticks: p.rehit_ticks,
             breaks_charge: p.breaks_charge,
@@ -452,7 +452,7 @@ fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Domai
         && covers(w, p.at, PLAYER_RADIUS)
         && take_hit(s, w, super::PLAYER_ID)
     {
-        hurt_player(s, super::aided(stage, s, shot(w)), events);
+        hurt_player(stage, s, super::aided(stage, s, shot(w)), events);
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];

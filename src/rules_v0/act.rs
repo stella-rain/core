@@ -37,13 +37,13 @@ pub(super) fn perform(
                 _ => 0,
             };
             // Not ready while its last attack runs (ADR-055): the next rule gets its turn.
-            attacks::start_aged(s, me, 0, target, attack, base, age, events)
+            attacks::start_aged(stage, s, me, 0, target, attack, base, age, events)
         }
         Action::Cast { skill } => {
             if matches!(skill, Skill::Shot { .. }) && attacks::busy(s, s.id_of(me), 0) {
                 return false;
             }
-            cast(s, me, target, skill, events);
+            cast(stage, s, me, target, skill, events);
             true
         }
         Action::Summon { count: n, .. } => summon(stage, s, me, rule_index, *n),
@@ -74,6 +74,7 @@ pub(super) fn perform(
 
 /// Casts `skill` from `caster` at `target`. Allies gain aggro for buffs and heals.
 pub(super) fn cast(
+    stage: &World,
     s: &mut State,
     caster: Who,
     target: Who,
@@ -87,7 +88,7 @@ pub(super) fn cast(
     };
     match skill {
         Skill::Shot { pattern, damage } => {
-            attacks::start(s, caster, 0, target, pattern, *damage, events);
+            attacks::start(stage, s, caster, 0, target, pattern, *damage, events);
         }
         Skill::AtkUp {
             value_pct,

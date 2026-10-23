@@ -1,4 +1,4 @@
-//! The run's attacks, compiled once when it starts (core#281): every attack reference the run
+//! The run's attacks, compiled once when it starts: every attack reference the run
 //! can reach is expanded through `presets::phases` into an `AttackDef` of `World::attacks`, and
 //! the nodes of each phase into `World::emitters`, so an attack that starts keeps an index
 //! instead of a copy of its phases. An attack is found again by its reference (`AttackKeys`),
