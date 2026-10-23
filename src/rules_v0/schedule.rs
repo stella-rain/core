@@ -55,11 +55,13 @@ impl<'a> Ctx<'a> {
     }
 }
 
+/// One step of a tick.
+pub(super) type Step = fn(&mut Ctx);
+
 /// Every step of a tick, in order. A step that applies only sometimes tests its condition
 /// itself. `spawn_boss` comes first: the boss whose time the tick reaches is there before the
 /// tick counter advances.
-#[cfg_attr(not(test), allow(dead_code))] // `step` loops over it from the next commit
-pub(super) const TICK: &[(&str, fn(&mut Ctx))] = &[
+pub(super) const TICK: &[(&str, Step)] = &[
     ("spawn_boss", |c| horde::spawn_boss(c.world, c.s)),
     ("advance_tick", |c| c.s.tick += 1),
     ("regen", |c| loadout::regen(c.s)),

@@ -176,7 +176,7 @@ impl Engine {
     }
 
     /// Starts a run of the `time_limit` mode from `mode` in place of the bundled file: its
-    /// waves, and its bosses as they come (`rules_v0::spawn_boss`).
+    /// waves, and its bosses as they come (`TICK`'s first step).
     pub fn start_time_limit(
         setup: &RunSetup,
         content: &RunContent,
@@ -217,18 +217,15 @@ impl Engine {
             return;
         }
         match self.stage.sim_version {
-            0 => {
-                rules_v0::spawn_boss(&self.stage, &mut self.state);
-                rules_v0::step(
-                    &self.stage,
-                    self.content.rewards(),
-                    self.content.expertise(),
-                    &mut self.state,
-                    input,
-                    &mut self.events,
-                    &mut self.load,
-                );
-            }
+            0 => rules_v0::step(
+                &self.stage,
+                self.content.rewards(),
+                self.content.expertise(),
+                &mut self.state,
+                input,
+                &mut self.events,
+                &mut self.load,
+            ),
             // `new` validated the version; fail closed if that ever stops being true.
             _ => self.state.outcome = Outcome::Failed,
         }

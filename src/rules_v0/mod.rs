@@ -142,8 +142,6 @@ use entity::{Who, scale_damage, status_pct};
 pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
 use grid::Grid;
-pub(crate) use horde::spawn_boss;
-use horde::spawn_elite;
 pub(crate) use levels::{spend, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
@@ -467,46 +465,9 @@ pub(crate) fn step(
     if s.outcome != Outcome::Running {
         return;
     }
-    s.tick += 1;
-    loadout::regen(s);
-    let mut spawns_left = MAX_BULLET_SPAWNS_PER_TICK;
-
-    spawn_waves(stage, s);
-    spawn_elite(stage, s, events);
-    let dots = entity::tick_statuses_and_aggro(s, events);
-    runes::tick(s);
-    attacks::advance_runs(stage, s, events);
-    player::update(stage, rewards, s, input, events);
-    if !s.player.runes.is_empty() {
-        runes::fly(stage, s);
-    }
-    orbit::act(stage, rewards, s, events);
-    boss::act(stage, s, events);
-    boss::call_elites(stage, s, events);
-    agents::act(stage, s, events);
-    push::apply(stage, s);
-    skill::pull(stage, s);
-    if !s.player.runes.is_empty() {
-        runes::steer(stage, s);
-    }
-    zones::advance(s);
-    attacks::fire_hooks(s);
-    let (tasks, emitter_steps) = attacks::run(stage, s, &mut spawns_left);
-    *load = Load {
-        enemies: count(&s.enemies),
-        tasks,
-        bullets: count(&s.bullets),
-        zones: count(&s.zones),
-        bullet_spawns: MAX_BULLET_SPAWNS_PER_TICK - spawns_left,
-        emitter_steps,
-    };
-    move_bullets(stage, s);
-    collide(stage, s, dots, events);
-    expertise::level_up(expertise, s);
-    decide_outcome(stage, s, events);
-    match s.outcome {
-        Outcome::Running | Outcome::Cleared => open_offers(stage, rewards, expertise, s, events),
-        Outcome::Failed => {}
+    let mut ctx = schedule::Ctx::new(stage, rewards, expertise, s, input, events, load);
+    for (_, run) in schedule::TICK {
+        run(&mut ctx);
     }
     debug_assert!(
         entity::enemies_in_id_order(s),
