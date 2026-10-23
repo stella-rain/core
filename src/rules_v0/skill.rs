@@ -235,7 +235,7 @@ fn within(stage: &World, s: &State, at: Point, radius: i32) -> Vec<Who> {
         })
         .map(|(i, _)| Who::Enemy(i))
         .collect();
-    if let Some((def, boss)) = s.boss_pair() {
+    if let Some((def, boss)) = s.boss_pair(stage) {
         if boss.hp > 0 && overlaps(at, radius, boss.at, def.radius.0) {
             out.push(Who::Boss);
         }

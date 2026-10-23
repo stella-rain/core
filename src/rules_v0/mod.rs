@@ -87,7 +87,7 @@ mod agents;
 mod attacks;
 mod boss;
 mod world;
-pub(crate) use world::{BossIndex, DefIndex, World};
+pub(crate) use world::{BossIndex, DefIndex, HordeSpec, World};
 mod combat;
 mod entity;
 mod expertise;
@@ -254,13 +254,20 @@ pub(crate) fn initial_state(
         })
         .collect();
     // The boss's parts come after the companions in the order of entity IDs.
-    let boss = stage.boss.as_ref().zip(boss_id).map(|(b, id)| {
+    let boss = boss_id.map(|id| {
+        let arrival = Arrival {
+            at: stage.boss(BossIndex(0)).boss.spawn,
+            origin: Point::default(),
+            no_call: false,
+            mid_pct: None,
+        };
         boss_state(
-            b.clone(),
+            stage,
             BossIndex(0),
             id,
             &mut next_id,
             pool.difficulty.hp_pct,
+            arrival,
             &kinds,
         )
     });
@@ -369,23 +376,42 @@ pub(crate) fn announced_patterns(stage: &World, s: &State) -> Vec<crate::snapsho
     boss::announced(stage, s)
 }
 
+/// What differs between the arrivals of one boss definition: where it stands, how far its
+/// `move_to` targets are moved, whether it calls elites, and the percent its hit points and its
+/// parts' are scaled by first (a `time_limit` mid-boss's, core#336).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Arrival {
+    pub at: Point,
+    pub origin: Point,
+    pub no_call: bool,
+    pub mid_pct: Option<u32>,
+}
+
 /// The boss before its first tick, its parts taking the entity IDs from `next_id` on. The
 /// first phase begins on the first tick (see `boss::act`).
 /// The boss's state at its spawn, its hit points and its parts' scaled by `hp_pct` (ADR-110).
 pub(crate) fn boss_state(
-    b: crate::stage::Boss,
+    stage: &World,
     boss: BossIndex,
     id: EntityId,
     next_id: &mut u32,
     hp_pct: u32,
+    arrival: Arrival,
     kinds: &KindTable,
 ) -> BossState {
-    let hp = |hp: u32| scale_hp(hp, hp_pct);
+    let def = stage.boss(boss);
+    let b = &def.boss;
+    let hp = |hp: u32| {
+        let hp = arrival.mid_pct.map_or(hp, |pct| scale_hp(hp, pct));
+        scale_hp(hp, hp_pct)
+    };
     BossState {
         id,
         boss,
-        kind: kinds.of(&b.base),
-        at: b.spawn,
+        origin: arrival.origin,
+        no_call: arrival.no_call,
+        kind: def.kind,
+        at: arrival.at,
         hp: hp(b.hp),
         max_hp: hp(b.hp),
         defence: b.defence,
@@ -397,7 +423,8 @@ pub(crate) fn boss_state(
         wait_left: 0,
         order: None,
         rules: Vec::new(),
-        elites_called: b.call_elites.map(|_| false),
+        // A boss that calls no elites hashes nothing for it, a no-call boss too.
+        elites_called: b.call_elites.filter(|_| !arrival.no_call).map(|_| false),
         age: 0,
         parts: b
             .parts
@@ -418,7 +445,6 @@ pub(crate) fn boss_state(
                 }
             })
             .collect(),
-        def: std::sync::Arc::new(b),
     }
 }
 
@@ -582,7 +608,7 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
     let index = match key.source {
         AgentSource::BossRule => {
             let boss = s.boss.as_ref().expect("a boss summons its own agents");
-            stage.defs.of_boss_rule(boss.boss, key.index, key.rule)
+            stage.boss_summon(boss.boss, key.index, key.rule)
         }
         _ => stage.defs.of_key(key),
     };
@@ -855,8 +881,8 @@ pub(super) fn kind_of(s: &State, who: Who) -> Option<KindIndex> {
 fn profile<'a>(stage: &'a World, s: &'a State, target: Who) -> Option<&'a Profile> {
     match target {
         Who::Enemy(i) => stage.defs.agent(s.enemies[i].def).profile.as_ref(),
-        Who::Boss => s.boss_def()?.profile.as_ref(),
-        Who::BossPart(i) => s.boss_def()?.parts.get(i)?.profile.as_ref(),
+        Who::Boss => s.boss_def(stage)?.profile.as_ref(),
+        Who::BossPart(i) => s.boss_def(stage)?.parts.get(i)?.profile.as_ref(),
         Who::Player | Who::Companion(_) => None,
     }
 }
@@ -899,7 +925,7 @@ fn hit_enemy_side(
         }
         return true;
     }
-    let Some((def, state)) = s.boss_pair() else {
+    let Some((def, state)) = s.boss_pair(stage) else {
         return false;
     };
     if state.hp == 0 {

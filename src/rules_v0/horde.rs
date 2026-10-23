@@ -5,9 +5,10 @@
 //!
 //! Every boss is the mode file's definition of the drawn sprite (core#336), or, for a sprite with
 //! none, the horde's template with its sprite set to the one drawn; the template is a placeholder
-//! (the trial's golem). Either stands 120 pixels above the main character, its `move_to` steps
-//! moved with it, and takes the boss's place in the stage, so the rules that read the stage's
-//! boss read it, and the state's boss starts fresh at its time. A boss at a `no_call_ticks` time
+//! (the trial's golem). The world compiles each once when the run starts (`World::bosses`); a
+//! boss coming is an index and an offset: it stands 120 pixels above the main character, its
+//! `move_to` points moved by the same offset (`boss::boss_point`), and the state's boss starts
+//! fresh at its time. A boss at a `no_call_ticks` time
 //! calls no elites, and the k-th mid-boss's hit points are scaled by the file's k-th
 //! `mid_boss_hp_pct`. A boss's death opens the boss offer as any boss's does; the run clears only
 //! on the final boss's.
@@ -21,15 +22,12 @@
 //! whoever spawned them) and the cap on enemies hold it back after the draws, so the generator
 //! never depends on either. An elite is built from the definition of the type drawn (`elite_types` of the mode file); its sprite is the type's.
 
-use super::{BossIndex, World};
-use crate::behaviour::{Action, BossCall};
+use super::{Arrival, World};
+use crate::behaviour::BossCall;
 use crate::engine::{AgentKey, AgentSource, Outcome, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
-use crate::stage::Step;
-
-use super::scale_hp;
 
 /// 60 ticks a second, 60 seconds.
 const TICKS_PER_MINUTE: u32 = 3_600;
@@ -46,7 +44,7 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
         return;
     }
     let tick = s.tick.saturating_add(1);
-    let Some(horde) = s.horde.as_mut() else {
+    let (Some(horde), Some(defs)) = (s.horde.as_mut(), stage.horde.as_ref()) else {
         return;
     };
     let Some(&due) = horde.boss_ticks.get(horde.spawned as usize) else {
@@ -57,16 +55,16 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
     }
     let slot = horde.spawned as usize;
     let is_final = slot + 1 == horde.boss_ticks.len();
-    let base = if is_final {
-        horde.final_boss.clone()
+    let boss = if is_final {
+        defs.final_boss
     } else {
         let unused: Vec<usize> = (0..horde.used.len()).filter(|&i| !horde.used[i]).collect();
         match unused.len() {
-            0 => horde.final_boss.clone(),
+            0 => defs.final_boss,
             n => {
                 let pick = unused[s.rng.below(u32::try_from(n).unwrap_or(1)) as usize];
                 horde.used[pick] = true;
-                horde.pool[pick].clone()
+                defs.pool[pick]
             }
         }
     };
@@ -78,71 +76,32 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
         }
     }
 
-    let mut def = horde
-        .bosses
-        .iter()
-        .find(|b| b.base == base)
-        .unwrap_or(&horde.template)
-        .clone();
-    def.base = base;
-    // A boss time the mode file lists calls no elites (core#336).
-    if horde.no_call_ticks.contains(&due) {
-        def.call_elites = None;
-    }
-    // A mid-boss's hit points rise by its slot (core#336); the difficulty scales them after.
-    if !is_final {
-        let pct = horde.mid_boss_hp_pct.get(slot).copied().unwrap_or(100);
-        def.hp = scale_hp(def.hp, pct);
-        for part in &mut def.parts {
-            part.hp = scale_hp(part.hp, pct);
-        }
-    }
+    let spawn = stage.boss(boss).boss.spawn;
     let to = stage.map().clamp(Point {
         x: s.player.at.x,
         y: s.player.at.y.saturating_add(Fx(-ABOVE)),
     });
-    let (dx, dy) = (
-        i64::from(to.x.0) - i64::from(def.spawn.x.0),
-        i64::from(to.y.0) - i64::from(def.spawn.y.0),
-    );
-    let shift = |p: &mut Point| {
-        let at = |v: Fx, d: i64| Fx(i32::try_from(i64::from(v.0) + d).unwrap_or(v.0));
-        *p = Point {
-            x: at(p.x, dx),
-            y: at(p.y, dy),
-        };
+    let arrival = Arrival {
+        at: to,
+        // How far the definition's points move for this arrival (`boss::boss_point`).
+        origin: Point {
+            x: Fx(to.x.0.saturating_sub(spawn.x.0)),
+            y: Fx(to.y.0.saturating_sub(spawn.y.0)),
+        },
+        // A boss time the mode file lists calls no elites (core#336).
+        no_call: horde.no_call_ticks.contains(&due),
+        // A mid-boss's hit points rise by its slot (core#336); the difficulty scales them after.
+        mid_pct: (!is_final).then(|| horde.mid_boss_hp_pct.get(slot).copied().unwrap_or(100)),
     };
-    def.spawn = to;
-    for phase in &mut def.phases {
-        for step in &mut phase.timeline {
-            if let Step::MoveTo { to, .. } = step {
-                shift(to);
-            }
-        }
-        for rule in &mut phase.rules {
-            if let Action::MoveTo { to, .. } = &mut rule.action {
-                shift(to);
-            }
-        }
-    }
     let id = EntityId(s.next_id);
     s.next_id += 1;
-    let boss_index = BossIndex(
-        u16::try_from(
-            horde
-                .bosses
-                .iter()
-                .position(|b| b.base == def.base)
-                .unwrap_or(horde.bosses.len()),
-        )
-        .unwrap_or(u16::MAX),
-    );
     s.boss = Some(super::boss_state(
-        def,
-        boss_index,
+        stage,
+        boss,
         id,
         &mut s.next_id,
         s.hp_pct,
+        arrival,
         &s.kinds,
     ));
 }
@@ -158,22 +117,17 @@ pub(super) fn final_boss_dead(s: &State) -> bool {
 /// Brings the elite of this tick's minute, if it is one (see the module).
 pub(super) fn spawn_elite(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let tick = s.tick;
-    let Some(horde) = s.horde.as_ref() else {
+    let (Some(horde), Some(defs)) = (s.horde.as_ref(), stage.horde.as_ref()) else {
         return;
     };
     if tick == 0
         || tick % TICKS_PER_MINUTE != 0
-        || tick >= horde.length_ticks
+        || tick >= defs.length_ticks
         || horde.boss_ticks.contains(&tick)
     {
         return;
     }
-    let Some(tier) = horde
-        .elite_table
-        .iter()
-        .rev()
-        .find(|t| t.start_tick <= tick)
-    else {
+    let Some(tier) = defs.elite_table.iter().rev().find(|t| t.start_tick <= tick) else {
         return;
     };
     let total: u32 = tier.weights.iter().map(|w| w.weight).sum();
@@ -186,7 +140,7 @@ pub(super) fn spawn_elite(stage: &World, s: &mut State, events: &mut Vec<DomainE
         return;
     };
     let kind = chosen.elite.clone();
-    let Some(&(_, index)) = horde.elite_waves.iter().find(|(id, _)| *id == kind) else {
+    let Some(&(_, index)) = defs.elite_waves.iter().find(|(id, _)| *id == kind) else {
         return;
     };
     let at = super::around_player(stage, s, ELITE_RING);

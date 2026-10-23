@@ -61,7 +61,7 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State) {
 
 /// The boss has just died.
 pub(super) fn boss_killed(stage: &World, s: &mut State) {
-    if let Some(base) = s.boss_def().and_then(|b| b.stardust) {
+    if let Some(base) = s.boss_def(stage).and_then(|b| b.stardust) {
         earn(stage, s, base);
     }
 }

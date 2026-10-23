@@ -101,9 +101,9 @@ pub(super) fn credit(stage: &World, s: &mut State, target: Who, killed: bool) {
                 .and_then(|w| w.expertise),
             _ => None,
         }),
-        Who::Boss => s.boss_def().and_then(|b| b.expertise),
+        Who::Boss => s.boss_def(stage).and_then(|b| b.expertise),
         Who::BossPart(_) => s
-            .boss_def()
+            .boss_def(stage)
             .and_then(|b| b.expertise)
             .map(|p| ExpertisePoints { kill: 0, ..p }),
         Who::Player | Who::Companion(_) => None,

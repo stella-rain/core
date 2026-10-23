@@ -34,12 +34,15 @@ const MAX_SLOW_PCT: u32 = 90;
 impl State {
     /// The boss that is on the field, or was the last: its definition as it came (a `time_limit`
     /// boss is moved to the main character and scaled when it comes).
-    pub(super) fn boss_def(&self) -> Option<&crate::stage::Boss> {
-        self.boss.as_ref().map(|b| &*b.def)
+    pub(super) fn boss_def<'a>(&self, stage: &'a World) -> Option<&'a crate::stage::Boss> {
+        self.boss.as_ref().map(|b| &stage.boss(b.boss).boss)
     }
 
-    pub(super) fn boss_pair(&self) -> Option<(&crate::stage::Boss, &crate::engine::BossState)> {
-        self.boss.as_ref().map(|b| (&*b.def, b))
+    pub(super) fn boss_pair<'a>(
+        &'a self,
+        stage: &'a World,
+    ) -> Option<(&'a crate::stage::Boss, &'a crate::engine::BossState)> {
+        self.boss.as_ref().map(|b| (&stage.boss(b.boss).boss, b))
     }
 
     pub(super) fn boss_state(&self) -> &crate::engine::BossState {

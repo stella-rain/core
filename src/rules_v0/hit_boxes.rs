@@ -404,7 +404,7 @@ fn hit_enemy_side(
     found: &mut Vec<usize>,
     events: &mut Vec<DomainEvent>,
 ) {
-    if let Some((def, boss)) = s.boss_pair() {
+    if let Some((def, boss)) = s.boss_pair(stage) {
         if boss.invulnerable == 0 {
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {

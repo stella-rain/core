@@ -58,11 +58,7 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
         }
         // A part of the boss that has not broken yet.
         Selector::Part(id) => {
-            let index = s
-                .boss_def()
-                .into_iter()
-                .flat_map(|b| &b.parts)
-                .position(|p| p.id == *id)?;
+            let index = s.boss.as_ref()?.parts.iter().position(|p| p.name == *id)?;
             let part = s.boss.as_ref()?.parts.get(index)?;
             (part.hp > 0).then_some(Who::BossPart(index))
         }
@@ -85,7 +81,7 @@ pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<Enti
             best = Some(key);
         }
     };
-    if let Some((def, boss)) = s.boss_pair() {
+    if let Some((def, boss)) = s.boss_pair(stage) {
         if boss.hp > 0 {
             consider(0, boss.at, def.radius.0, boss.id);
         }
@@ -122,7 +118,7 @@ pub(super) fn assist_targets(stage: &World, s: &State, range: i32, n: usize) -> 
         kept.insert(at, key);
         kept.truncate(n);
     };
-    if let Some((def, boss)) = s.boss_pair() {
+    if let Some((def, boss)) = s.boss_pair(stage) {
         if boss.hp > 0 {
             consider(0, boss.at, def.radius.0, boss.id);
         }

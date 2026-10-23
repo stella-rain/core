@@ -385,17 +385,14 @@ pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition) -> bool {
         }
         Condition::TimeAbove { ticks } => time_since_start(s, me) > *ticks,
         Condition::NearTarget { distance } => super::overlaps(s.at(me), distance.0, s.player.at, 0),
-        Condition::PartBroken { part } => {
-            let index = s
-                .boss_def()
-                .into_iter()
-                .flat_map(|b| &b.parts)
-                .position(|p| p.id == *part);
-            match (index, &s.boss) {
-                (Some(i), Some(boss)) => boss.parts.get(i).is_some_and(|p| p.hp == 0),
-                _ => false,
-            }
-        }
+        Condition::PartBroken { part } => match &s.boss {
+            Some(boss) => boss
+                .parts
+                .iter()
+                .find(|p| p.name == *part)
+                .is_some_and(|p| p.hp == 0),
+            None => false,
+        },
     }
 }
 

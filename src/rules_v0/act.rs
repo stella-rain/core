@@ -7,6 +7,7 @@ use crate::event::DomainEvent;
 
 use super::agents::agent_mut;
 use super::attacks;
+use super::boss;
 use super::entity::Who;
 use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, spawn_enemy};
 
@@ -47,13 +48,17 @@ pub(super) fn perform(
         }
         Action::Summon { count: n, .. } => summon(stage, s, me, rule_index, *n),
         Action::MoveTo { to, ticks } => {
-            let order = Some(MoveOrder {
+            let mut order = MoveOrder {
                 to: *to,
                 ticks_left: (*ticks).max(1),
-            });
+            };
             match me {
-                Who::Boss => s.boss.as_mut().expect("a boss").order = order,
-                _ => agent_mut(s, me).order = order,
+                Who::Boss => {
+                    let b = s.boss.as_mut().expect("a boss");
+                    order.to = boss::boss_point(b, order.to);
+                    b.order = Some(order);
+                }
+                _ => agent_mut(s, me).order = Some(order),
             }
             true
         }
