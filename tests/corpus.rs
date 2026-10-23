@@ -972,8 +972,10 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     use common::run::{
         ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, time_limit_setup, trial_setup,
     };
+    // `STAGE_SKILL_SEED` was found with every point on attack: the priority keeps that run.
     let stage_skill = RunSetup {
         seed: STAGE_SKILL_SEED,
+        stat_priority: vec!["attack".into()],
         ..trial_setup()
     };
     let stage_skill_content = RunContent::bundled()
