@@ -1,50 +1,56 @@
 //! The rules of `sim_version` 0 (ADR-035): a development version that changes in place until
 //! the freeze at P3, with the hash check across CPUs never relaxed (ADR-019).
 //!
-//! What a tick does, in this order:
-//! 1. the tick counter advances; waves spawn enemies; statuses run out and aggro fades;
-//! 2. the main character turns to its stick and, while aim assist or auto mode is on, picks a
-//!    target (ADR-072, `select`); its spent evade charges recover, and a press with a charge
-//!    ready starts an evade, during a dash too (ADR-074; cancelling its combo step and breaking
-//!    a charge), walks its combo: a buffered press, or else auto mode's
-//!    (ADR-073), takes the next step, a charge rises or releases (ADR-070, ADR-076; see
-//!    `player`), then it dashes or moves (speed cap, slowing, playfield);
-//! 3. the boss (phases, timeline, rules: `boss`), then companions, then enemies, in entity-ID
-//!    order: move, then the first rule that can fire, fires (ADR-036), which for an attack or
-//!    a shot skill starts an attack task; then the enemies push apart, all at once (`push`,
-//!    ADR-058), and one found crowded does not step to its place on the next tick. An elite
-//!    (ADR-068) holds where it spawned instead of its movement, and its rules fire only while
-//!    the main character is within its range;
-//! 4. zones go on by a tick (`zones`); bullets whose `on_bullet` wait is over start their
-//!    attacks, then every running attack is carried out up to its next wait (`attacks`), making
-//!    bullets and zones;
-//! 5. bullets move and leave the map;
-//! 6. collisions: first the hit boxes of active phases and then the active zones
-//!    (`hit_boxes`), then bullets; those of
-//!    allies hurt enemies and the boss, those of enemies the main character and the companions;
-//! 7. the outcome is decided: death or running out of ticks fails, an empty stage clears;
-//! 8. if the run goes on or is cleared, the first offer due opens, and the world stops until it
-//!    is answered: the boss offer, then the expertise levels' in level order, then the stars' in
-//!    the order taken; a fail opens none.
+//! What a tick does, in this order (`schedule::TICK` is the order in code, and a test keeps this
+//! table equal to it):
+//!
+//! <!-- tick -->
+//! | step | what it does |
+//! |---|---|
+//! | `spawn_boss` | the boss of a `time_limit` run whose time the tick reaches comes, before the counter advances (`horde`) |
+//! | `advance_tick` | the tick counter advances |
+//! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
+//! | `spawn_waves` | the waves that are due spawn enemies |
+//! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
+//! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
+//! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
+//! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
+//! | `player_update` | the main character turns to its stick, picks a target while aim assist or auto mode is on (ADR-072, `select`), recovers evade charges, evades, uses its stage skill (ADR-075, `skill`), walks its combo (ADR-073, ADR-070, ADR-076), then dashes or moves (`player`) |
+//! | `runes_fly` | thrown runes' hit boxes (boomerang) fly a step, after the main character has moved (`runes`) |
+//! | `orbits` | each orbit starts a round of its orbs' attacks when its cooldown and the round before are over, and turns them (ADR-069, `orbit`) |
+//! | `boss_act` | the boss: phases, timeline, rules (`boss`) |
+//! | `call_elites` | a boss that calls elites does so when its time comes (`boss`) |
+//! | `agents_act` | companions, then enemies, in entity-ID order: move, then the first rule that can fire, fires (ADR-036); an elite (ADR-068) holds where it spawned, and its rules fire only while the main character is in range (`agents`) |
+//! | `push_apart` | the enemies push apart, all at once, and one found crowded does not step to its place on the next tick (ADR-058, `push`) |
+//! | `skill_pull` | the stage skill's black hole pulls (`skill`) |
+//! | `runes_steer` | homing missiles' hit boxes steer toward where their targets are now (`runes`) |
+//! | `zones_advance` | the zones age and run out (`zones`) |
+//! | `fire_hooks` | bullets whose `on_bullet` wait is over start their attacks (`attacks`) |
+//! | `run_attacks` | every running attack is carried out up to its next wait, making bullets; the tick's `Load` is read here (`attacks`) |
+//! | `move_bullets` | bullets move and leave the map |
+//! | `collide` | damage-over-time statuses tick, then the hit boxes of active phases (`hit_boxes`), then bullets land: allies' hurt enemies and the boss, enemies' the main character and the companions; the shield takes from the main character's damage; experience, expertise points, runes' effects and drops follow the hits (`combat`) |
+//! | `level_up` | the expertise gauge's levels are reached (`expertise`) |
+//! | `decide_outcome` | death or running out of ticks fails, an empty stage clears |
+//! | `open_offers` | if the run goes on or is cleared, the first offer due opens, and the world stops until it is answered: the boss offer, then the expertise levels' in level order, then the stars' in the order taken; a fail opens none |
+//! <!-- /tick -->
 //!
 //! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
-//! step 6 adds them to the one expertise gauge, and its levels are reached at the end of step 6
+//! `collide` adds them to the one expertise gauge, and its levels are reached in `level_up`
 //! (`expertise`). Each level reached is due an offer of the kind the stage's level table gives
 //! (ADR-106 §4): common options, the weapon's three styles, or the chosen style's upgrades or
 //! capstone.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
-//! step 6, and each level-up gives a stat point (`levels`); points are spent between ticks. In
-//! a stage with stars, defeated enemies then drop falling stars, and the main character takes
-//! those it reaches; each opens an offer in step 8, answered between ticks (`stars`).
+//! `collide`, and each level-up gives a stat point (`levels`); points are spent between ticks.
+//! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
+//! those it reaches; each opens an offer in `open_offers`, answered between ticks (`stars`).
 //!
-//! The stage skill (ADR-075, `skill`) acts in step 2 on a press, after the evade and before the
-//! combo; its black hole pulls after the push-apart of step 3, and its shield takes from the
-//! main character's damage in step 6.
+//! The stage skill (ADR-075, `skill`) acts in `player_update` on a press, after the evade and
+//! before the combo; its black hole pulls in `skill_pull`, and its shield takes from the main
+//! character's damage in `collide`.
 //!
-//! Orbits (ADR-069, `orbit`) act at the end of step 2: each starts a round of its orbs'
-//! attacks when its cooldown has run out and the round before has ended, and turns them; their
-//! hit boxes land in step 6. A run holds at most `MAX_ORBITS` orbits of `MAX_ORBS` orbs.
+//! Orbits (ADR-069, `orbit`) act in `orbits`: their hit boxes land in `collide`. A run holds at
+//! most `MAX_ORBITS` orbits of `MAX_ORBS` orbs.
 //!
 //! Range rewards (ADR-099) widen the hit boxes of the combo steps started after they are taken,
 //! adding up over the picks (`player`).
@@ -55,22 +61,20 @@
 //! that type's, after atk-up (`attacks::phase_damage`), and the match-up multiplies it at the
 //! hit.
 //!
-//! On-hit runes (ADR-099, `runes`): each cooldown counts down in step 1; a combo step's hit in
-//! step 6 fires each one held and ready, an attack in its own slot whose hit boxes stay on the
-//! point hit and land from the next tick, and sets its cooldown. Its hits are no combo step's.
-//! A thrown rune's hit boxes (boomerang) fly a step at the end of step 2, after the main
-//! character has moved: out to the point hit, then back to the main character. Homing
-//! missiles' hit boxes steer a step at the end of step 3, after the push-apart and the pull,
-//! toward where their targets are now; one that hits anything in step 6 is gone once the hit
-//! boxes have landed.
+//! On-hit runes (ADR-099, `runes`): each cooldown counts down in `runes_tick`; a combo step's
+//! hit in `collide` fires each one held and ready, an attack in its own slot whose hit boxes
+//! stay on the point hit and land from the next tick, and sets its cooldown. Its hits are no
+//! combo step's. A thrown rune's hit boxes (boomerang) fly in `runes_fly`: out to the point hit,
+//! then back to the main character. Homing missiles' hit boxes steer in `runes_steer`, after
+//! the push-apart and the pull; one that hits anything in `collide` is gone once the hit boxes
+//! have landed.
 //!
-//! Damage-over-time runes (ADR-099, `runes`): a combo step's hit in step 6 that leaves its
-//! target standing puts each one's status on it, bleed's `bleed`, poison's `poison`, burn's `burn`, or a stack
-//! more up to its
-//! maximum, its duration starting again. Statuses of that kind do not run out in step 1: at
-//! the start of step 6, before any hit lands, each counts down to its next tick and deals its
-//! damage on it, then its duration runs down (`entity::tick_dots`); a tick without one on
-//! anyone skips that pass.
+//! Damage-over-time runes (ADR-099, `runes`): a combo step's hit in `collide` that leaves its
+//! target standing puts each one's status on it, bleed's `bleed`, poison's `poison`, burn's
+//! `burn`, or a stack more up to its maximum, its duration starting again. Statuses of that
+//! kind do not run out in `statuses_and_aggro`: at the start of `collide`, before any hit
+//! lands, each counts down to its next tick and deals its damage on it, then its duration runs
+//! down (`entity::tick_dots`); a tick without one on anyone skips that pass.
 //!
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.

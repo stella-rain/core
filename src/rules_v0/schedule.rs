@@ -133,7 +133,7 @@ mod tests {
         table
             .lines()
             .filter_map(|l| l.trim_start_matches("//!").trim().strip_prefix('|'))
-            .filter_map(|row| row.split('|').nth(1))
+            .filter_map(|row| row.split('|').next())
             .filter_map(|cell| cell.trim().strip_prefix('`')?.strip_suffix('`'))
             .map(str::to_owned)
             .collect()
