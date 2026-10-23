@@ -401,7 +401,8 @@ jobs:
             echo "compare=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if ! git diff --quiet "$BASE" HEAD -- benches tests/common; then
+          # benches/budgets.toml is not a bench: a changed budget leaves the counts comparable.
+          if ! git diff --quiet "$BASE" HEAD -- benches ':(exclude)benches/budgets.toml' tests/common; then
             # A changed bench and changed code together: no comparison could tell which of the two
             # moved the count, so the PR must not slip past the +2% limit this way (D-BUDGET).
             if ! git diff --quiet "$BASE" HEAD -- src Cargo.toml Cargo.lock; then
