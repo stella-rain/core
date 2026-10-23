@@ -402,7 +402,13 @@ jobs:
             exit 0
           fi
           if ! git diff --quiet "$BASE" HEAD -- benches tests/common; then
-            echo "This PR changes the benchmark itself: its count cannot be compared with the base's."
+            # A changed bench and changed code together: no comparison could tell which of the two
+            # moved the count, so the PR must not slip past the +2% limit this way (D-BUDGET).
+            if ! git diff --quiet "$BASE" HEAD -- src Cargo.toml Cargo.lock; then
+              echo "::error::Change the bench in its own PR first; this PR's code cannot be compared."
+              exit 1
+            fi
+            echo "This PR changes only the benchmark: its count cannot be compared with the base's."
             echo "compare=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
