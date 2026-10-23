@@ -16,6 +16,7 @@ use stella_rain_core::validate::{self, Error, limits};
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 
 use crate::common;
+use crate::common::run::time_limit_setup;
 
 use common::*;
 
@@ -490,4 +491,58 @@ fn a_wave_s_experience_is_at_most_the_limit() {
         &leveled(&[5], vec![targets(1, Some(at + 1))]),
         "$.waves[0].xp",
     );
+}
+
+// --- Time Limit's own curve and experience (XP2, DS21) ------------------------------------------
+
+#[test]
+fn time_limit_reads_its_own_curve() {
+    let e = Engine::start(&time_limit_setup()).expect("a Time Limit run starts");
+    let p = e.snapshot().progress.expect("a Time Limit run has levels");
+    assert_eq!((p.level, p.xp_next), (1, 30));
+}
+
+/// The bundled run stats with `xp_plus`: 10% more experience a point, at most 1 point.
+fn with_xp_plus() -> RunStats {
+    let mut file: Value =
+        serde_json::from_slice(RunStats::BUNDLED).expect("the bundled stats are JSON");
+    file["stats"].as_array_mut().unwrap().push(json!({
+        "id": "xp_plus",
+        "effect": "xp_pct",
+        "step": 10,
+        "limit": 1,
+        "title": "Experience+",
+        "description": "More experience from every kill"
+    }));
+    RunStats::parse(file.to_string().as_bytes()).expect("the stats validate")
+}
+
+#[test]
+fn xp_pct_acts_on_one_kill() {
+    let stats = with_xp_plus();
+    let plus = u32::try_from(stats.stats().len() - 1).unwrap();
+    let mut stage = leveled(
+        &[1, 1000],
+        vec![
+            targets(1, Some(1)),
+            wave(
+                300,
+                1,
+                0,
+                enemy(10, hold(START_X, ENEMY_Y), json!([])),
+                START_X,
+                ENEMY_Y,
+            ),
+        ],
+    );
+    stage.waves[1].xp = Some(10);
+    let mut e =
+        Engine::new_with(&stage, &RunContent::new(stats, Rewards::bundled().clone())).unwrap();
+    fire_until(&mut e, idle(), 200, |e| points(e) >= 1);
+    e.spend(plus).unwrap();
+    fire_until(&mut e, idle(), 600, |e| {
+        e.snapshot().progress.unwrap().xp > 0
+    });
+    // A kill worth 10, with +10%: 11.
+    assert_eq!(e.snapshot().progress.unwrap().xp, 11);
 }
