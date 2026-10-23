@@ -5,15 +5,15 @@ description: Change a Stella Rain stage, event or replay type, or anything that 
 
 # Schema change
 
-The Rust types in `stella-rain/core` are the only schema (ADR-018). Stages and replays already
-published in creators' repositories must keep loading and verifying forever (ADR-017, ADR-026).
+The Rust types in `stella-rain/core` are the only schema (ADR-CONT-1). Stages and replays already
+published in creators' repositories must keep loading and verifying forever (ADR-REPL-1, ADR-CONT-2).
 This file is identical in `app` and `core`; change both copies in the same task.
 
 ## 1. Classify the change
 
 | Change | Bump | What else |
 |---|---|---|
-| Any of the changes below while the version is still 0 (ADR-035) | none | Change in place: no migration, no `rules_vN` copy, no deprecation. If outcomes change, regenerate the version 0 corpus and write `Corpus regenerated: <why>` in the PR |
+| Any of the changes below while the version is still 0 (ADR-REPL-1) | none | Change in place: no migration, no `rules_vN` copy, no deprecation. If outcomes change, regenerate the version 0 corpus and write `Corpus regenerated: <why>` in the PR |
 | File structure of stages, events or recordings: a field added, removed, renamed or retyped | `schema_version` | Forward migration on load |
 | Anything that can alter an outcome: rules, numbers, RNG use, math, what a content ID does | `sim_version` | A new frozen `rules_vN`; older versions untouched |
 | New content ID (asset, palette, part, block, targeting, skill, attack pattern) | none | Registry entry; permanent once released |
@@ -23,7 +23,7 @@ This file is identical in `app` and `core`; change both copies in the same task.
 Not sure whether outcomes change? Run the replay corpus: any hash difference means `sim_version`
 (under version 0: a corpus regeneration, named in the PR). Version 0 never relaxes determinism:
 the corpus must still match on x86_64 and arm64, and SplitMix64, FNV-1a 64 and the content hash
-stay fixed (ADR-019, ADR-033, ADR-034). Version 0 ends with the freeze at P3.
+stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-SVC-6). Version 0 ends with the freeze at P3.
 
 ## 2. Test first
 
@@ -32,7 +32,7 @@ stay fixed (ADR-019, ADR-033, ADR-034). Version 0 ends with the freeze at P3.
   passing under the old versions without changes.
 - Version 0: tests for the new behaviour; the regenerated corpus passing on both architectures.
 - If the change adds size or count (more entities, a longer list), adjust the budget in both the
-  validator and the runtime clamp (ADR-020), with a test at the limit and one past it.
+  validator and the runtime clamp (ADR-SVC-1), with a test at the limit and one past it.
 
 ## 3. Change `core`
 
@@ -42,7 +42,7 @@ stay fixed (ADR-019, ADR-033, ADR-034). Version 0 ends with the freeze at P3.
 3. `sim_version`: copy the current rules into a new `rules_vN`, change only the new copy, and
    add its arm to the dispatch. New stages always get the latest version.
 4. Content ID: add it to the registry with the version that introduces it, its status
-   (active or deprecated) and its asset source (ADR-027). Deprecated IDs stay loadable.
+   (active or deprecated) and its asset source (ADR-REL-1). Deprecated IDs stay loadable.
 5. Regenerate the JSON Schema and commit its diff with the change.
 6. If parsing changed, make sure the fuzz targets build and run them briefly.
 
@@ -53,10 +53,10 @@ corpus. Name any that could not run: `NOT VERIFIED: <gate>: <reason>`.
 
 ## 5. Reach the app
 
-- Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-029), in its own commit
+- Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-REL-2), in its own commit
   or PR that refers to the `core` change.
 - Editor fields come from the generated JSON Schema; never hand-edit a copy. Validation is
-  core's alone: GDScript calls it through gdext and never validates against the schema (ADR-018).
+  core's alone: GDScript calls it through gdext and never validates against the schema (ADR-CONT-1).
 - Work spanning both repositories is an epic issue in `app` with a sub-issue in `core`.
 
 ## 6. Commit
