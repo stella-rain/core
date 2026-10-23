@@ -31,8 +31,11 @@ def counts(text):
     return found
 
 
-def check(arch, found, budgets):
-    """Rows (bench, count, budget) and the error lines."""
+def check(arch, found, budgets, warn_only=False):
+    """Rows (bench, count, budget) and the error lines.
+
+    An over-budget count is an error unless warn_only; `overshoots` lists them for a warning.
+    """
     rows, errors = [], []
     for bench, per_arch in budgets.items():
         if arch not in per_arch:
@@ -44,12 +47,17 @@ def check(arch, found, budgets):
             errors.append(f"{bench}: missing from the bench output, so its budget of {budget:,} was not checked")
             continue
         rows.append((bench, found[bench], budget))
-        if found[bench] > budget:
-            over = found[bench] - budget
-            errors.append(
-                f"{bench}: {found[bench]:,} instructions on {arch}, over the budget of {budget:,} by {over:,}"
-            )
+    if not warn_only:
+        errors += overshoots(arch, rows)
     return rows, errors
+
+
+def overshoots(arch, rows):
+    return [
+        f"{bench}: {count:,} instructions on {arch}, over the budget of {budget:,} by {count - budget:,}"
+        for bench, count, budget in rows
+        if count > budget
+    ]
 
 
 def table(arch, rows):
@@ -68,16 +76,24 @@ def main():
     parser.add_argument("--arch", required=True)
     parser.add_argument("--bench-output", required=True)
     parser.add_argument("--budgets", default="benches/budgets.toml")
+    parser.add_argument(
+        "--warn-only",
+        action="store_true",
+        help="print a ::warning:: for a count over budget instead of failing (DS27)",
+    )
     args = parser.parse_args()
     with open(args.bench_output, encoding="utf-8") as f:
         found = counts(f.read())
     with open(args.budgets, "rb") as f:
         budgets = tomllib.load(f)
-    rows, errors = check(args.arch, found, budgets)
+    rows, errors = check(args.arch, found, budgets, args.warn_only)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary and rows:
         with open(summary, "a", encoding="utf-8") as f:
             f.write(table(args.arch, rows))
+    if args.warn_only:
+        for warning in overshoots(args.arch, rows):
+            print(f"::warning::{warning}")
     for error in errors:
         print(f"error: {error}", file=sys.stderr)
     return 1 if errors else 0
