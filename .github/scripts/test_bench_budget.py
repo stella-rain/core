@@ -57,6 +57,20 @@ class Counts(unittest.TestCase):
         self.assertEqual(b.counts(output())["collide_tick"], 4_800_100)
 
 
+class Coloured(unittest.TestCase):
+    """CARGO_TERM_COLOR=always makes the CI output carry ANSI escapes (seen in the bench job log)."""
+
+    LOG = (
+        "\x1b[32mworst_tick::worst_case_group::worst_tick\x1b[0m \x1b[36mworst_tick\x1b[0m\x1b[36m:\x1b[0m"
+        "\x1b[1;34mworst_case :: warmed_up()\x1b[0m\n"
+        "\x1b[90m  \x1b[0mInstructions:                    \x1b[1m14106310\x1b[0m|N/A"
+        "                  (\x1b[90m*********\x1b[0m)\n"
+    )
+
+    def test_counts_through_ansi_escapes(self):
+        self.assertEqual(b.counts(self.LOG), {"worst_tick": 14_106_310})
+
+
 class Check(unittest.TestCase):
     def rows(self, arch, worst):
         return b.check(arch, b.counts(output(worst)), b.tomllib.loads(BUDGETS))
