@@ -10,7 +10,7 @@ use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::presets;
 use stella_rain_core::registry::{self, Kind};
-use stella_rain_core::rng::SplitMix64;
+use stella_rain_core::rng::{TAG_ATTACK, derive};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::trig::{PER_DEGREE, PER_TURN};
 use stella_rain_core::validate::validate_attack;
@@ -448,10 +448,10 @@ fn dividing_the_smallest_value_by_minus_one_saturates() {
 
 #[test]
 fn rand_draws_from_the_runs_generator_left_to_right() {
-    // The stage's seed is 7: the two draws of one expression are the generator's first two.
+    // The stage's seed is 7: the two draws of one expression are the attack stream's first two.
     let both = json!({ "add": [{ "rand": [0, 1000] }, { "rand": [0, 1000] }] });
     let got = velocities(&inline(vec![fire(both, absolute(0))], 1))[0].1;
-    let mut rng = SplitMix64::new(7);
+    let mut rng = derive(7, TAG_ATTACK);
     let expected = i32::try_from(rng.below(1001) + rng.below(1001)).unwrap();
     assert_eq!(got, expected);
 
@@ -462,7 +462,7 @@ fn rand_draws_from_the_runs_generator_left_to_right() {
         .map(|v| v.1)
         .collect();
     assert!(speeds.iter().all(|s| (100..=200).contains(s)));
-    let mut rng = SplitMix64::new(7);
+    let mut rng = derive(7, TAG_ATTACK);
     let again: Vec<i32> = (0..40)
         .map(|_| 100 + i32::try_from(rng.below(101)).unwrap())
         .collect();
@@ -481,7 +481,7 @@ fn rand_draws_from_the_runs_generator_left_to_right() {
 #[test]
 fn an_empty_range_takes_no_draw_and_fields_draw_in_order() {
     let first_two = || {
-        let mut rng = SplitMix64::new(7);
+        let mut rng = derive(7, TAG_ATTACK);
         (
             i32::try_from(rng.below(1001)).unwrap(),
             i32::try_from(rng.below(1001)).unwrap(),

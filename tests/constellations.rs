@@ -478,7 +478,10 @@ fn star_taken(e: &Engine) -> Option<String> {
 
 #[test]
 fn the_small_tier_applies_at_two_of_three_and_the_full_one_replaces_it() {
-    let mut e = engine(&epic_near(), trio_list(), Some(file(vec![trio()])));
+    let mut stage = epic_near();
+    // A seed whose first offer holds Alpha (n1); the offers are drawn.
+    stage.seed = 1;
+    let mut e = engine(&stage, trio_list(), Some(file(vec![trio()])));
     next_offer(&mut e);
     assert_eq!(offer(&e).rerolls_left, 0);
     // A member shows its set and what is held and needed; a common shows none.
