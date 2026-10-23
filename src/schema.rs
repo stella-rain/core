@@ -24,6 +24,7 @@ use crate::stage_skill::StageSkillsFile;
 use crate::stardust::StardustFile;
 use crate::starting_unlocks::StartingUnlocksFile;
 use crate::time_limit::TimeLimitFile;
+use crate::weapons::WeaponsFile;
 
 /// Each schema's file name in `schema/` and its pretty-printed JSON, ending in a newline.
 pub fn all() -> Vec<(&'static str, String)> {
@@ -59,6 +60,7 @@ pub fn all() -> Vec<(&'static str, String)> {
             "difficulties.schema.json",
             pretty(schema_for!(DifficultiesFile)),
         ),
+        ("weapons.schema.json", pretty(schema_for!(WeaponsFile))),
         (
             "constellations.schema.json",
             pretty(schema_for!(ConstellationsFile)),
