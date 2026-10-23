@@ -3,6 +3,8 @@
 //! be in the crate root); its counters are per thread, so parallel tests do not disturb each
 //! other.
 
+#![expect(unsafe_code, reason = "the counting allocator forwards to System")]
+
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
