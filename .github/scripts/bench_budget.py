@@ -12,6 +12,7 @@ import re
 import sys
 import tomllib
 
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
 HEADER = re.compile(r"^([a-z_][a-z0-9_]*)::\S+")
 INSTRUCTIONS = re.compile(r"^\s*Instructions:\s*(\d+)")
 
@@ -19,7 +20,7 @@ INSTRUCTIONS = re.compile(r"^\s*Instructions:\s*(\d+)")
 def counts(text):
     """The instruction count per bench target: the largest of its blocks."""
     found, current = {}, None
-    for line in text.splitlines():
+    for line in ANSI.sub("", text).splitlines():
         header = HEADER.match(line)
         if header:
             current = header.group(1)
