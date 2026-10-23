@@ -1158,7 +1158,9 @@ mod attack_table_tests {
         let mut out = phases.to_vec();
         for p in &mut out {
             match &mut p.hit_box {
-                Some(HitBox::Circle { offset, radius, .. } | HitBox::Arc { offset, radius, .. }) => {
+                Some(
+                    HitBox::Circle { offset, radius, .. } | HitBox::Arc { offset, radius, .. },
+                ) => {
                     grow(radius);
                     grow(&mut offset.forward);
                     grow(&mut offset.right);
@@ -1293,7 +1295,10 @@ mod attack_table_tests {
             for (i, expected) in oracle.iter().enumerate() {
                 let got = phase(&world, &run, i);
                 assert_eq!(got.ticks, expected.ticks, "ticks of {i} at {speed}/{range}");
-                assert_eq!(got.hit_box, expected.hit_box, "box of {i} at {speed}/{range}");
+                assert_eq!(
+                    got.hit_box, expected.hit_box,
+                    "box of {i} at {speed}/{range}"
+                );
                 assert_eq!(got.kind, expected.kind);
                 assert_eq!(got.move_pct, expected.move_pct);
             }

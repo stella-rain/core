@@ -146,7 +146,8 @@ impl Engine {
             difficulty: rules_v0::RunDifficulty::NONE,
         };
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = World::new(stage.clone(), None, &kinds).map_err(|i| Error::Invalid(vec![i]))?;
+        let stage = World::new(stage.clone(), None, &kinds, content)
+            .map_err(|i| Error::Invalid(vec![i]))?;
         Ok(Engine {
             state: rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds),
             stage,
@@ -175,7 +176,8 @@ impl Engine {
             difficulty: run_difficulty(setup, content)?,
         };
         let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = World::new(stage.clone(), None, &kinds).map_err(|i| Error::Invalid(vec![i]))?;
+        let stage = World::new(stage.clone(), None, &kinds, content)
+            .map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
@@ -205,7 +207,8 @@ impl Engine {
             difficulty: run_difficulty(setup, content)?,
         };
         let kinds = horde_kinds(&stage, &spec).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = World::new(stage, Some(spec), &kinds).map_err(|i| Error::Invalid(vec![i]))?;
+        let stage =
+            World::new(stage, Some(spec), &kinds, content).map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
         let loadout = rules_v0::Loadout::of(setup, content);

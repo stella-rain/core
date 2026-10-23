@@ -84,10 +84,11 @@
 
 mod act;
 mod agents;
+mod attack_table;
 mod attacks;
 mod boss;
 mod world;
-pub(crate) use world::{BossIndex, DefIndex, HordeSpec, World};
+pub(crate) use world::{AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, World};
 mod combat;
 mod entity;
 mod expertise;
