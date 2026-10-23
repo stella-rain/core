@@ -1,0 +1,120 @@
+# Auto-candidate (release-flow, step 2). Once every workflow below has finished and passed on a
+# push to main (release.py ci-done), and Cargo.toml's version is unreleased (release.py
+# should-candidate), this workflow pushes candidate/<12-character sha> at that commit, so no
+# agent has to push it by hand. Kade still starts Candidate and Promote.
+#   - Runs after each workflow below completes; the run that finds all of them finished decides.
+#     Still running -> it pushes nothing; a failure -> no candidate. Only the listed workflows
+#     count, not Auto-merge or Main red, which run after them (a push to main is made by
+#     Auto-merge's App token, so these push runs exist).
+#   - Only the newest main is a candidate: a run whose commit is no longer main's head does
+#     nothing, and an unused candidate branch at an older commit is deleted first.
+#   - While Candidate is running or queued it pushes nothing and fails, so the branch Candidate
+#     reads is never deleted under it; an agent pushes the branch by hand afterwards.
+#   - It fails only when it could not push; that is when Kade asks an agent to push by hand.
+# Keep `workflows:` equal to the workflows that run on push to main and post the check runs
+# `release.py checks-passed` reads (Main red's list, plus actionlint, which is path-filtered).
+# Its own concurrency group is not `release`: a queued run there would cancel Candidate's.
+# The branch is created with GITHUB_TOKEN, which starts no workflow, so the guard does not run
+# on it; Candidate checks the name, main, the head and the checks again. Only the push job can
+# write, and it checks nothing out.
+# `workflow_run` is read from main: a change to this file acts only after its own merge.
+name: Auto-candidate
+
+on:
+  workflow_run:
+    workflows: ["actionlint", "CLAUDE.md check", "Line endings", "Repository check", "Rust", "Scripts"]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: auto-candidate
+  cancel-in-progress: false
+
+jobs:
+  decide:
+    name: decide on a candidate
+    if: github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read  # the workflow runs on the commit
+    outputs:
+      push: ${{ steps.decide.outputs.push }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: An unreleased version, and main's CI passed
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          echo "push=false" >> "$GITHUB_OUTPUT"
+          # Exactly the `workflows:` of the trigger. Auto-merge and Main red run after them and
+          # are not in it: their runs, still going, must not hold the decision back.
+          workflows=("actionlint" "CLAUDE.md check" "Line endings" "Repository check" "Rust" "Scripts")
+          if [ "$(python3 .github/scripts/release.py should-candidate 2> "$RUNNER_TEMP/why.txt")" != true ]; then
+            { echo "No candidate: the version at ${SHA:0:12} is not unreleased."; echo; echo '```'; cat "$RUNNER_TEMP/why.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh api "repos/$REPO/actions/runs?head_sha=$SHA&per_page=100" > "$RUNNER_TEMP/runs.json"
+          ci=$(python3 .github/scripts/release.py ci-done "${workflows[@]}" < "$RUNNER_TEMP/runs.json")
+          if [ "$ci" = waiting ]; then
+            echo "Checks are still running at ${SHA:0:12}: a later workflow's completion decides." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          elif [ "$ci" = red ]; then
+            echo "main is red at ${SHA:0:12}: no candidate." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "Version unreleased and main's CI passed at ${SHA:0:12}: pushing a candidate branch." >> "$GITHUB_STEP_SUMMARY"
+          echo "push=true" >> "$GITHUB_OUTPUT"
+
+  push:
+    name: push the candidate branch
+    needs: decide
+    if: needs.decide.outputs.push == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # creating the candidate branch, deleting an unused one
+      actions: read    # whether Candidate is running
+    steps:
+      - name: Push candidate/<sha> at main, replacing an unused candidate branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          branch="candidate/${SHA:0:12}"
+          main=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
+          if [ "$main" != "$SHA" ]; then
+            echo "main has moved on to $main; its own checks decide on a candidate." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          running=$(gh api "repos/$REPO/actions/workflows/candidate.yml/runs?per_page=20" \
+            --jq '[.workflow_runs[] | select(.status != "completed")] | length')
+          if [ "$running" != 0 ]; then
+            echo "::error::Candidate is running; once it has finished, push $branch by hand (release-flow, step 2)"
+            exit 1
+          fi
+          exists=false
+          for ref in $(gh api "repos/$REPO/git/matching-refs/heads/candidate/" --jq '.[].ref'); do
+            old=${ref#refs/heads/}
+            if [ "$old" = "$branch" ]; then exists=true; continue; fi
+            gh api -X DELETE "repos/$REPO/git/refs/heads/$old" > /dev/null
+            echo "Deleted the unused $old." >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ "$exists" = false ]; then
+            gh api -X POST "repos/$REPO/git/refs" -f ref="refs/heads/$branch" -f sha="$SHA" > /dev/null
+          fi
+          echo "Ready: Actions > Candidate > Run workflow > branch \`$branch\`." >> "$GITHUB_STEP_SUMMARY"

@@ -10,6 +10,14 @@ Usage (run inside the repository; commands that list branches ask origin):
   release.py version                  the final tag for Cargo.toml's version; refuses a version
                                       already tagged or not above the latest release, and a
                                       fuzz/Cargo.lock that disagrees
+  release.py should-candidate         prints true when Cargo.toml's version at HEAD is unreleased
+                                      (the checks of `version`), else false with the reason on
+                                      standard error; auto-candidate.yml pushes a candidate branch
+                                      on true
+  release.py ci-done NAME...          reads a commit's Actions runs (the API's JSON) on stdin and
+                                      prints ready, waiting or red for the runs of the workflows
+                                      NAME... with event push or workflow_dispatch; other
+                                      workflows (Auto-merge, Main red) never count
   release.py rc TAG                   the next candidate tag of TAG: TAG-rc.1, TAG-rc.2, ...
   release.py check-candidate BRANCH   refuses unless BRANCH is candidate/<12-character sha of
                                       HEAD>, HEAD is on origin/main and origin has no other
@@ -61,6 +69,9 @@ CANDIDATE_JOBS = frozenset({
     "delete the candidate branch",
     "tag and GitHub release",
     "candidate branch unchanged",
+    # auto-candidate.yml: a failed or unfinished auto run never makes Candidate refuse the commit.
+    "decide on a candidate",
+    "push the candidate branch",
 })
 CALLED_PREFIX = "release "
 # auto-merge.yml's job ("<caller job> / <called job>"): it runs on main's commit after a merge,
@@ -167,6 +178,18 @@ def checks_passed(runs, run_id):
            for c in others if c["status"] != "completed" or c.get("conclusion") in FAILED]
     if bad:
         raise ReleaseError(f"checks not passed: {'; '.join(bad)}")
+
+
+def ci_done(runs, names):
+    """The state of main's CI from a commit's workflow runs. Only the named workflows, run by a
+    push or a dispatch, count: the workflow_run workflows (Auto-merge, Main red) start after them
+    and may still be running when the last of them triggers auto-candidate.yml."""
+    ours = [w for w in runs if w.get("name") in names and w.get("event") in ("push", "workflow_dispatch")]
+    if any(w["status"] == "completed" and w.get("conclusion") in FAILED for w in ours):
+        return "red"
+    if not ours or any(w["status"] != "completed" for w in ours):
+        return "waiting"
+    return "ready"
 
 
 def check_promote(rc, tags, version_at_rc):
@@ -277,14 +300,26 @@ def _notes(rc, commit, prev, log_file):
     return notes(rc, commit, prev, _read(log_file).splitlines(), changed)
 
 
-USAGE = ("usage: release.py version | rc TAG | check-candidate BRANCH | checks-passed RUN_ID | "
+def _should_candidate():
+    try:
+        _version()
+    except ReleaseError as e:
+        print(f"release: {e}", file=sys.stderr)
+        return "false"
+    return "true"
+
+
+USAGE = ("usage: release.py version | should-candidate | rc TAG | check-candidate BRANCH | checks-passed RUN_ID | ci-done NAME... | "
          "check-promote RC_TAG | rc-branch BRANCH | superseded RC_TAG | released TAG | "
          "notes RC_TAG COMMIT PREVIOUS|- LOG_FILE | previous")
 
 
 def main(argv):
     cmd, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
-    arity = {"version": 0, "rc": 1, "check-candidate": 1, "checks-passed": 1, "check-promote": 1,
+    if cmd == "ci-done" and args:
+        print(ci_done(json.load(sys.stdin).get("workflow_runs", []), args))
+        return 0
+    arity = {"version": 0, "should-candidate": 0, "rc": 1, "check-candidate": 1, "checks-passed": 1, "check-promote": 1,
              "rc-branch": 1, "superseded": 1, "released": 1, "notes": 4, "previous": 0}
     if arity.get(cmd) != len(args):
         print(USAGE, file=sys.stderr)
@@ -292,6 +327,8 @@ def main(argv):
     try:
         if cmd == "version":
             print(_version())
+        elif cmd == "should-candidate":
+            print(_should_candidate())
         elif cmd == "rc":
             print(rc_tag(args[0], _tags()))
         elif cmd == "check-candidate":
