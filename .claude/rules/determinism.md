@@ -21,8 +21,11 @@ published stages fail to verify.
 - Fixed-point integers for positions, velocities and angles (for example 1/256 pixel units).
   No `f32` or `f64` in simulation state; trigonometry through lookup tables.
 - Explicit integer widths: no `usize` or `isize` in simulation state or in the hash.
-- One PRNG per run, seeded from the stage: SplitMix64 written in `core` (ADR-SIM-2), never a
-  crate. No other randomness: no thread RNG, time, pointer addresses or thread scheduling.
+- SplitMix64 written in `core` (ADR-SIM-2), never a crate, seeded from the run setup, one stream
+  per purpose: spawn, attack, loot, offer, horde (`rng::derive(seed, TAG_*)`; `State.rng` holds
+  the five). A draw goes on the stream of the system that decides how many draws happen. The
+  number, order and stream of draws are frozen per `sim_version`; each stream's state is hashed.
+  No other randomness: no thread RNG, time, pointer addresses or thread scheduling.
 - Collision is our own code (circle vs point, circle vs circle); no engine physics.
 - Entities live in `Vec`s with stable IDs. Never iterate a `HashMap` or `HashSet` in
   simulation code; use `Vec`, `BTreeMap` or sorted keys.
