@@ -103,6 +103,26 @@ jobs:
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
 
+  # Every generated set (schema, corpus, goldens, content pack) is as committed: `cargo xtask
+  # bless --check` regenerates them and fails, naming the stale sets, when a diff appears.
+  bless:
+    name: generated sets
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo xtask bless --check
+
   test:
     name: tests on ${{ matrix.arch }}
     needs: changes
@@ -509,7 +529,7 @@ jobs:
   # `what changed` says no; every other skipped, failed or cancelled job fails this one.
   checks:
     name: rust checks
-    needs: [changes, fuzz-changes, lint, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench, cargo-deny]
+    needs: [changes, fuzz-changes, lint, bless, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench, cargo-deny]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
