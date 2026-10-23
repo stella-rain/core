@@ -497,7 +497,6 @@ fn a_run_with_expertise_choices_replays_and_verifies() {
                 }
                 e.choose(*i).unwrap();
             }
-            Command::Spend(i) => e.spend(*i).unwrap(),
         }
     }
     assert!(

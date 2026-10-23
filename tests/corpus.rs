@@ -118,7 +118,6 @@ fn read_hashes(case: &Path, name: &str) -> Result<Vec<u64>, String> {
 fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> {
     match c.kind {
         CommandKind::Choose => engine.choose(c.index).map_err(|e| format!("{e:?}")),
-        CommandKind::Spend => engine.spend(c.index).map_err(|e| format!("{e:?}")),
     }
 }
 
@@ -415,26 +414,17 @@ fn a_changed_hash_in_a_run_case_fails_naming_its_tick() {
 }
 
 #[test]
-fn a_run_case_whose_spend_changed_fails() {
-    let (case, diff) = changed_run_case("spend");
+fn a_run_case_whose_stat_priority_changed_fails() {
+    let (case, diff) = changed_run_case("priority");
     let path = case.join("run.replay");
     let mut replay = RunReplay::from_bytes(&fs::read(&path).unwrap()).unwrap();
-    let mut commands = replay.unpack_commands().unwrap();
-    let spend = commands
-        .iter()
-        .position(|c| c.kind == CommandKind::Spend)
-        .expect("the run spends a point");
-    assert_ne!(commands[spend].index, 0);
-    commands[spend].index = 0;
-    replay.commands = run_replay::pack_commands(&commands);
+    assert_ne!(replay.setup.stat_priority, ["speed".into()]);
+    replay.setup.stat_priority = vec!["speed".into()];
     fs::write(&path, replay.to_bytes()).unwrap();
-    // The tick after the spend differs from the one recorded.
+    // The tick of the first level-up raises another stat than the one recorded.
     let message = check_run_case(&case, &diff).unwrap_err();
-    let after_point = commands[spend].tick + 1;
-    assert!(
-        message.contains(&format!("tick {after_point}")),
-        "{message}"
-    );
+    let point = common::run::first_point_tick();
+    assert!(message.contains(&format!("tick {point}")), "{message}");
 }
 
 #[test]
@@ -975,7 +965,7 @@ pub(crate) fn definitions() -> Vec<Definition> {
     ]
 }
 
-/// The run cases: the trial mode played until the main character falls, spending its points
+/// The run cases: the trial mode played until the main character falls, raising its stats by priority
 /// and answering its offers on the way, with every kind of option; and the same from another
 /// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command>)> {
@@ -1301,14 +1291,11 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
     assert_eq!(verified.outcome, outcome, "the outcome of `{name}`");
     let replay = RunReplay::from_bytes(&bytes).unwrap();
     let commands = replay.unpack_commands().unwrap();
-    assert!(
-        commands.iter().any(|c| c.kind == CommandKind::Spend),
-        "points are spent in `{name}`: {commands:?}"
-    );
     assert_eq!(verified.commands, u32::try_from(commands.len()).unwrap());
     let mut engine = Engine::start_with(&replay.setup, &content).unwrap();
     let mut next = commands.iter().peekable();
     let (mut kinds, mut used, mut match_ups) = (Vec::new(), Vec::new(), [0; 4]);
+    let mut raised = false;
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             if c.kind == CommandKind::Choose {
@@ -1319,8 +1306,6 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
                 };
                 kinds.push(std::mem::discriminant(&options[c.index as usize]));
                 engine.choose(c.index).unwrap();
-            } else {
-                engine.spend(c.index).unwrap();
             }
         }
         engine.step(input);
@@ -1338,10 +1323,12 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
                     };
                     match_ups[i] += 1;
                 }
+                DomainEvent::StatRaised { .. } => raised = true,
                 _ => {}
             }
         }
     }
+    assert!(raised, "level-ups raise stats in `{name}`");
     RunCase {
         kinds,
         used,
@@ -1365,7 +1352,7 @@ fn the_run_cases_are_what_their_names_say() {
             "no {kind:?} in the run case"
         );
     }
-    // The time_limit run ends with the main character falling, after spends.
+    // The time_limit run ends with the main character falling, after level-ups.
     // The healing keeps the scripted main character alive to the end of its script (MAX_TICKS,
     // the most ticks a replay the fuzz targets read may hold), where it used to fall.
     replay_run_case_ending("time_limit", Outcome::Running);

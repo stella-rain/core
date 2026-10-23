@@ -335,7 +335,6 @@ fn the_trial_run_meets_elites_so_the_corpus_covers_them() {
         match c {
             Command::Step(input) => e.step(input),
             Command::Choose(i) => e.choose(i).unwrap(),
-            Command::Spend(i) => e.spend(i).unwrap(),
         }
         for ev in e.events() {
             match ev {

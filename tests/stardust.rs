@@ -191,7 +191,6 @@ fn mode_kills(setup: &RunSetup, commands: &[Command]) -> Vec<(u32, u32)> {
         match c {
             Command::Step(input) => e.step(*input),
             Command::Choose(i) => e.choose(*i).unwrap(),
-            Command::Spend(i) => e.spend(*i).unwrap(),
         }
         if e.stardust() > before {
             out.push((e.tick(), e.stardust() - before));
@@ -223,7 +222,6 @@ fn a_verified_run_reports_the_stardust_it_earned() {
         match c {
             Command::Step(input) => e.step(*input),
             Command::Choose(i) => e.choose(*i).unwrap(),
-            Command::Spend(i) => e.spend(*i).unwrap(),
         }
     }
     assert!(e.stardust() > 0);

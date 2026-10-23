@@ -4,7 +4,7 @@
 //! rarity follows the player's level. Only a stage with `levels` and `stars` has them.
 
 use serde_json::{Value, json};
-use stella_rain_core::engine::{ChoiceError, Engine, Outcome, SpendError};
+use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::ContentId;
 use stella_rain_core::rewards::{Rarity, Rewards};
@@ -760,19 +760,19 @@ fn a_choice_outside_the_offer_is_refused_and_changes_nothing() {
 }
 
 #[test]
-fn a_spend_while_an_offer_is_open_is_refused() {
-    // Level 2 at 1 experience: the kill gives a point and the star at once.
-    let mut e = with(
-        &starry(&[1], stars(json!({})), vec![targets(1, 1, NEAR_Y)]),
-        commons(4),
-    );
+fn a_stat_offer_opens_before_the_stars_offer() {
+    // Level 2 at 1 experience: the kill gives a stat offer and the star at once.
+    let content = RunContent::new(RunStats::bundled().clone(), commons(4));
+    let stage = starry(&[1], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
+    let mut e = Engine::new_with_stats(&stage, &content, &[], true).unwrap();
     until_offer(&mut e, idle());
-    assert_eq!(e.snapshot().progress.unwrap().points, 1);
-    let hash = e.state_hash();
-    assert_eq!(e.spend(0), Err(SpendError::OfferOpen));
-    assert_eq!(e.state_hash(), hash);
+    let progress = e.snapshot().progress.unwrap();
+    assert!(progress.stat_offer.is_some() && progress.offer.is_none());
+    e.choose(0).unwrap();
+    // The star's offer opens as the stat offer closes.
+    assert!(offer(&e).options.contains(&OfferOption::Skip));
     e.choose(index_of(&e, OfferOption::Skip)).unwrap();
-    assert_eq!(e.spend(0), Ok(()));
+    assert!(!e.offer_open());
 }
 
 #[test]

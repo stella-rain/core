@@ -30,6 +30,8 @@ fn setup() -> RunSetup {
         carried: Vec::new(),
         lumine: 0,
         starting_rune: None,
+        stat_priority: Vec::new(),
+        pick_stats: false,
         difficulty: "normal".into(),
     }
 }
@@ -339,7 +341,6 @@ fn to_first_offer(setup: &RunSetup) -> Engine {
     for c in common::run::play_run(common::run::TRIAL_LENGTH) {
         match c {
             Command::Step(input) => engine.step(input),
-            Command::Spend(index) => engine.spend(index).unwrap(),
             Command::Choose(_) => break,
         }
         if engine.offer_open() {

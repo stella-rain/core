@@ -10,8 +10,9 @@ use stella_rain_core::snapshot::{EntityKind, OfferOption};
 /// The trial mode's length.
 pub const TRIAL_LENGTH: u32 = 5400;
 
-/// The run stat `play_run` spends every point on.
-pub const SPEND_INDEX: u32 = 1;
+/// The run stat the trial setup's level-ups go to first (DS18): `attack`, the second of the
+/// bundled run stats.
+pub const PRIORITY_STAT: &str = "attack";
 
 /// The seed of the `stage_skill` run case: the first seed under R1's streams where the run kills
 /// an elite whose rare star offers the black hole, takes it, and uses it twice (checked 1 to 30).
@@ -55,6 +56,8 @@ pub fn trial_setup() -> RunSetup {
         carried: Vec::new(),
         lumine: 0,
         starting_rune: None,
+        stat_priority: vec![PRIORITY_STAT.into()],
+        pick_stats: false,
         difficulty: "normal".into(),
     }
 }
@@ -82,10 +85,6 @@ pub fn run_script(tick: u32) -> Input {
         skill: c == 30,
         ..Input::default()
     }
-}
-
-fn points(engine: &Engine) -> u32 {
-    engine.snapshot().progress.map_or(0, |p| p.points)
 }
 
 /// The tick from which `run_input` walks to the falling stars and goes for the weaker elite.
@@ -247,9 +246,9 @@ fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command>) {
     }
 }
 
-/// The commands of a run of `run_input` for up to `ticks` ticks, spending every point on
-/// `SPEND_INDEX` as it comes, between that tick and the next (and after the last), until the
-/// stat is at its limit, and answering every offer as `answer_all` does.
+/// The commands of a run of `run_input` for up to `ticks` ticks, answering every offer as
+/// `answer_all` does, between a tick and the next (and after the last). The setup's stat
+/// priority spends the level-ups as they come.
 pub fn play_run(ticks: u32) -> Vec<Command> {
     play_run_from(&trial_setup(), ticks)
 }
@@ -276,9 +275,6 @@ pub fn play_run_with(
     let mut offers = 0;
     let between = |engine: &mut Engine, out: &mut Vec<Command>, offers: &mut usize| {
         answer_all(engine, offers, out);
-        while points(engine) > 0 && engine.spend(SPEND_INDEX).is_ok() {
-            out.push(Command::Spend(SPEND_INDEX));
-        }
     };
     for t in 0..ticks {
         if engine.outcome() != Outcome::Running {
@@ -293,19 +289,20 @@ pub fn play_run_with(
     out
 }
 
-/// The tick at whose end the run's first point comes: the one `play_run` spends it after.
-/// Offers may open before it.
+/// The tick at whose end the run's first level-up comes: the one `play_run` raises its priority
+/// stat on. Offers may open before it.
 pub fn first_point_tick() -> u32 {
-    let commands = play_run(STEER_FROM);
-    let at = commands
-        .iter()
-        .position(|c| matches!(c, Command::Spend(_)))
-        .unwrap_or_else(|| panic!("the script gains no point before tick {STEER_FROM}"));
-    let steps = commands[..at]
-        .iter()
-        .filter(|c| matches!(c, Command::Step(_)))
-        .count();
-    u32::try_from(steps).unwrap()
+    let mut engine = Engine::start(&trial_setup()).unwrap();
+    for command in play_run(STEER_FROM) {
+        match command {
+            Command::Step(input) => engine.step(input),
+            Command::Choose(index) => engine.choose(index).unwrap(),
+        }
+        if engine.snapshot().progress.is_some_and(|p| p.level > 1) {
+            return engine.tick();
+        }
+    }
+    panic!("the script gains no level before tick {STEER_FROM}");
 }
 
 /// The bundled perk sets and a `plain` one with no effects: a run that differs from the same
@@ -324,10 +321,12 @@ pub fn plain_content() -> RunContent {
     )
 }
 
-/// The trial setup under the `plain` perk set (`plain_content`).
+/// The trial setup under the `plain` perk set (`plain_content`), with no stat priority: as a run
+/// is without a setup.
 pub fn plain_setup() -> RunSetup {
     RunSetup {
         perk_set: "plain".into(),
+        stat_priority: Vec::new(),
         ..trial_setup()
     }
 }

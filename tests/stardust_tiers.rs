@@ -183,7 +183,6 @@ fn a_mode_run_earns_by_its_tier_and_its_replay_verifies() {
             match c {
                 Command::Step(input) => e.step(*input),
                 Command::Choose(i) => e.choose(*i).unwrap(),
-                Command::Spend(i) => e.spend(*i).unwrap(),
             }
             if e.stardust() > before {
                 gains.push(e.stardust() - before);
