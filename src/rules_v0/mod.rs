@@ -103,6 +103,7 @@ mod orbit;
 mod player;
 mod push;
 mod runes;
+mod schedule;
 mod scratch;
 mod skill;
 mod stardust;
