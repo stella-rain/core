@@ -268,6 +268,48 @@ def script(cwd, *args, stdin=None):
     return subprocess.run([sys.executable, SCRIPT, *args], cwd=cwd, input=stdin, capture_output=True, text=True)
 
 
+def wf(name, status="completed", conclusion="success", event="push"):
+    return {"name": name, "status": status, "conclusion": conclusion, "event": event}
+
+
+class CiDone(unittest.TestCase):
+    NAMES = ["Rust", "Scripts"]
+
+    def test_ready_when_every_matching_run_succeeded_or_was_skipped(self):
+        runs = [wf("Rust"), wf("Scripts", conclusion="skipped"), wf("Scripts", conclusion="neutral")]
+        self.assertEqual(r.ci_done(runs, self.NAMES), "ready")
+
+    def test_waiting_while_a_matching_run_is_not_completed(self):
+        runs = [wf("Scripts"), wf("Rust", status="in_progress", conclusion=None)]
+        self.assertEqual(r.ci_done(runs, self.NAMES), "waiting")
+
+    def test_a_run_of_another_event_is_ignored_while_running(self):
+        # Auto-merge and Main red run on main's commit as workflow_run runs and may be unfinished.
+        runs = [wf("Rust"), wf("Auto-merge", status="in_progress", conclusion=None, event="workflow_run"),
+                wf("Rust", status="in_progress", conclusion=None, event="workflow_run")]
+        self.assertEqual(r.ci_done(runs, self.NAMES), "ready")
+
+    def test_a_workflow_that_is_not_named_never_counts(self):
+        runs = [wf("Scripts"), wf("Main red", conclusion="failure"), wf("Project sync", status="queued", conclusion=None)]
+        self.assertEqual(r.ci_done(runs, self.NAMES), "ready")
+
+    def test_a_dispatched_run_counts(self):
+        runs = [wf("Rust", event="workflow_dispatch", conclusion="failure")]
+        self.assertEqual(r.ci_done(runs, self.NAMES), "red")
+
+    def test_red_when_a_run_finished_otherwise(self):
+        for conclusion in ("failure", "cancelled", "timed_out", "action_required", "stale", "startup_failure"):
+            self.assertEqual(r.ci_done([wf("Rust", conclusion=conclusion), wf("Scripts")], self.NAMES), "red", conclusion)
+
+    def test_waiting_when_no_matching_run_exists(self):
+        self.assertEqual(r.ci_done([], self.NAMES), "waiting")
+        self.assertEqual(r.ci_done([wf("Main red")], self.NAMES), "waiting")
+
+    def test_a_failure_wins_over_a_run_still_going(self):
+        runs = [wf("Rust", conclusion="failure"), wf("Scripts", status="queued", conclusion=None)]
+        self.assertEqual(r.ci_done(runs, self.NAMES), "red")
+
+
 class Cli(unittest.TestCase):
     """The commands against a real clone of a real origin."""
 
@@ -418,6 +460,14 @@ class Cli(unittest.TestCase):
         out = script(self.dev, "should-candidate")
         self.assertEqual((out.returncode, out.stdout.strip()), (0, "false"))
         self.assertIn("fuzz/Cargo.lock", out.stderr)
+
+    def test_ci_done_reads_the_runs_json_on_stdin(self):
+        runs = '{"workflow_runs": [{"name": "Rust", "event": "push", "status": "completed", "conclusion": "success"}]}'
+        out = script(self.dev, "ci-done", "Rust", "Scripts", stdin=runs)
+        self.assertEqual((out.returncode, out.stdout.strip()), (0, "ready"))
+        out = script(self.dev, "ci-done", "Rust", stdin='{"workflow_runs": []}')
+        self.assertEqual((out.returncode, out.stdout.strip()), (0, "waiting"))
+        self.assertEqual(script(self.dev, "ci-done").returncode, 2)
 
     def test_an_unknown_command_is_a_usage_error(self):
         self.assertEqual(script(self.dev, "nope").returncode, 2)
