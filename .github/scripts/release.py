@@ -10,6 +10,10 @@ Usage (run inside the repository; commands that list branches ask origin):
   release.py version                  the final tag for Cargo.toml's version; refuses a version
                                       already tagged or not above the latest release, and a
                                       fuzz/Cargo.lock that disagrees
+  release.py should-candidate         prints true when Cargo.toml's version at HEAD is unreleased
+                                      (the checks of `version`), else false with the reason on
+                                      standard error; auto-candidate.yml pushes a candidate branch
+                                      on true
   release.py rc TAG                   the next candidate tag of TAG: TAG-rc.1, TAG-rc.2, ...
   release.py check-candidate BRANCH   refuses unless BRANCH is candidate/<12-character sha of
                                       HEAD>, HEAD is on origin/main and origin has no other
@@ -61,6 +65,9 @@ CANDIDATE_JOBS = frozenset({
     "delete the candidate branch",
     "tag and GitHub release",
     "candidate branch unchanged",
+    # auto-candidate.yml: a failed or unfinished auto run never makes Candidate refuse the commit.
+    "decide on a candidate",
+    "push the candidate branch",
 })
 CALLED_PREFIX = "release "
 # auto-merge.yml's job ("<caller job> / <called job>"): it runs on main's commit after a merge,
@@ -277,14 +284,23 @@ def _notes(rc, commit, prev, log_file):
     return notes(rc, commit, prev, _read(log_file).splitlines(), changed)
 
 
-USAGE = ("usage: release.py version | rc TAG | check-candidate BRANCH | checks-passed RUN_ID | "
+def _should_candidate():
+    try:
+        _version()
+    except ReleaseError as e:
+        print(f"release: {e}", file=sys.stderr)
+        return "false"
+    return "true"
+
+
+USAGE = ("usage: release.py version | should-candidate | rc TAG | check-candidate BRANCH | checks-passed RUN_ID | "
          "check-promote RC_TAG | rc-branch BRANCH | superseded RC_TAG | released TAG | "
          "notes RC_TAG COMMIT PREVIOUS|- LOG_FILE | previous")
 
 
 def main(argv):
     cmd, args = (argv[1], argv[2:]) if len(argv) > 1 else ("", [])
-    arity = {"version": 0, "rc": 1, "check-candidate": 1, "checks-passed": 1, "check-promote": 1,
+    arity = {"version": 0, "should-candidate": 0, "rc": 1, "check-candidate": 1, "checks-passed": 1, "check-promote": 1,
              "rc-branch": 1, "superseded": 1, "released": 1, "notes": 4, "previous": 0}
     if arity.get(cmd) != len(args):
         print(USAGE, file=sys.stderr)
@@ -292,6 +308,8 @@ def main(argv):
     try:
         if cmd == "version":
             print(_version())
+        elif cmd == "should-candidate":
+            print(_should_candidate())
         elif cmd == "rc":
             print(rc_tag(args[0], _tags()))
         elif cmd == "check-candidate":
