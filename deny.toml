@@ -1,0 +1,44 @@
+# Dependency audit (cargo-deny): RustSec advisories, licences and sources of the whole graph,
+# dev-dependencies included. CI runs it on every PR and weekly (`cargo-deny` job in rust.yml),
+# for this workspace and for fuzz/. An exception needs a reason line.
+
+[graph]
+all-features = true
+
+[advisories]
+yanked = "deny"
+ignore = [
+    # Both come in only through `iai-callgrind`, a dev-dependency of the benches (ADR-058); no
+    # shipped code links them. Dropped when iai-callgrind moves off bincode 1 and
+    # proc-macro-error2.
+    { id = "RUSTSEC-2025-0141", reason = "bincode 1.3.3 unmaintained; dev-only via iai-callgrind" },
+    { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2 unmaintained; dev-only via iai-callgrind-macros" },
+]
+
+# ADR-027. A crate offered under several licences passes when one of them is listed (adler2 is
+# 0BSD OR MIT OR Apache-2.0; r-efi adds LGPL, memchr Unlicense). MPL-2.0 is
+# not listed: no crate needs it.
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+exceptions = [
+    # "(MIT OR Apache-2.0) AND NCSA": NCSA is permissive (OSI approved) and applies to LLVM's
+    # libFuzzer code. fuzz/ is a test harness that is never shipped. Unused in the main workspace.
+    { crate = "libfuzzer-sys", allow = ["NCSA"] },
+]
+
+[bans]
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
