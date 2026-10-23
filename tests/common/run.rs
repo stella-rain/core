@@ -13,22 +13,9 @@ pub const TRIAL_LENGTH: u32 = 5400;
 /// The run stat `play_run` spends every point on.
 pub const SPEND_INDEX: u32 = 1;
 
-/// The seed of the `stage_skill` run case: with it, the run kills an elite whose rare star
-/// offers the black hole, takes it, and uses it twice. Under the Sword's smashes bleeding
-/// (ADR-084 point 8) seed 186 no longer does, and with the one weapon's level table (ADR-106)
-/// seed 61 no longer does; with the default perk set (ADR-105) seed 2 no longer does; with the
-/// healing (core#336) seed 57 no longer does, and this one is the first of `1..` that does.
-/// With the six rarities (ADR-110) seed 73 no longer does: the elite's star now draws from the
-/// higher rarities, and seed 11 is the first of `1..` that does again. With the heals in shown
-/// hit points (app#336) seed 11's run lives long enough to take and use the hex as well, and
-/// seed 66 is the first of `1..` that uses the black hole alone, at level 1, again. With the
-/// numbers of app#298 (the new rewards in the pool, the runes) seed 66 no longer does, and seed
-/// 10 is the first of `1..` that does. With the Sword's five-A tree and every smash open
-/// (ADR-117) seed 10's run uses the nova as well, and seed 35 is the first of `1..` that uses
-/// the black hole alone, at level 1, again. With the six-rarity rows and a type bonus per
-/// damage type (D6c, 135 rewards) seed 35 no longer does; seeds 1 to 15 fail the same assertion
-/// and 16 is the first of `1..` that passes it.
-pub const STAGE_SKILL_SEED: u64 = 16;
+/// The seed of the `stage_skill` run case: the first seed under R1's streams where the run kills
+/// an elite whose rare star offers the black hole, takes it, and uses it twice (checked 1 to 30).
+pub const STAGE_SKILL_SEED: u64 = 11;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
 /// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
@@ -36,14 +23,21 @@ pub const STAGE_SKILL_SEED: u64 = 16;
 /// a kill; this one is the lowest.
 pub const KILL_SEED: u64 = 1;
 
-/// The seed of the `elites` run case: with it the scripted run still leaves a shrine and a
-/// mimic on the map when the boss calls. With the one weapon's level table and a pool of five
-/// (ADR-106) the main character's build differs and seed 20261010 no longer does; under the
-/// default perk set (ADR-105) seed 15 no longer does either; this one is the first of `1..`
-/// that does. With the numbers of app#298 seed 5 no longer does (the run ends in a clear, or
-/// no middle-grade elite lives to shoot); seed 32 is the first of `1..` that does. With D6c's 135 rewards seed 32's run ends in a clear;
-/// seeds 1 to 21 fail the same assertion and 22 is the first of `1..` that passes it.
-pub const ELITES_SEED: u64 = 22;
+/// The seed of the `elites` run case: the first seed under R1's streams where the scripted run
+/// still leaves a shrine and a mimic on the map when the boss calls (checked 1 to 40).
+pub const ELITES_SEED: u64 = 15;
+
+/// The seed of the runes reroll test: the first seed under R1's streams where the first offer
+/// after the reroll holds the three other rewards.
+pub const RUNES_REROLL_SEED: u32 = 9;
+
+/// The seed of the constellations trio test: the first seed under R1's streams where the first
+/// offer holds Alpha (n1).
+pub const CONSTELLATIONS_TRIO_SEED: u32 = 1;
+
+/// The seed of the enemy-role bot run: the first seed under R1's streams where the run on Normal
+/// ends in the boss's kill.
+pub const ENEMY_ROLE_BOT_SEED: u64 = 3;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {
