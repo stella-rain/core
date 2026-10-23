@@ -47,7 +47,7 @@ What is inside these folders loads from `.claude/rules/` when those files are to
 | Part | Gate |
 |---|---|
 | Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` |
-| Simulation | The replay corpus on x86_64 and arm64 (ADR-SIM-3, ADR-PLAT-1); an intended change: `UPDATE_CORPUS=1 cargo test --test integration corpus::` |
+| Simulation | The replay corpus on x86_64 and arm64 (ADR-SIM-3, ADR-PLAT-1); an intended change: `cargo xtask bless` regenerates every generated set; CI runs `cargo xtask bless --check` |
 | iOS readiness | `cargo check --target aarch64-apple-ios` on every PR (ADR-PLAT-1) |
 | Parser, validator, replay loader, share codes, run setups | In `fuzz/`: fmt, clippy, `cargo test`, `cargo +nightly fuzz build`; a short fuzz run per target in CI |
 | Tick cost | `cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick`; CI fails on more than +2% instructions (ADR-SIM-5) |
