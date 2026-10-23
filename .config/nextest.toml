@@ -1,0 +1,28 @@
+# cargo-nextest settings (CI: rust.yml `tests on <arch>`, deep.yml). `cargo nextest run` locally
+# uses the default profile; CI passes `--profile ci`.
+#
+# Doctests are not run by nextest: CI runs `cargo test --doc` beside it (there are none today).
+
+[profile.default]
+fail-fast = true
+
+[profile.ci]
+# Every failing test is reported, not only the first.
+fail-fast = false
+# A test running past 30 s is listed as SLOW in the log (it is not killed); the slowest tests
+# of a run are the ones to look at (core#247).
+slow-timeout = { period = "30s" }
+
+[profile.ci.junit]
+# target/nextest/ci/junit.xml: uploaded by CI, one file per run.
+path = "junit.xml"
+
+# The long tests, which `deep.yml` runs with PROPTEST_CASES=2000 and the ignored measurements:
+# one at a time, so that the property runs and the MAX_COMMANDS measurement do not slow each
+# other down and their times stay comparable between weeks.
+[test-groups.deep]
+max-threads = 1
+
+[[profile.ci.overrides]]
+filter = "test(/^(properties|command_cap)::/)"
+test-group = "deep"
