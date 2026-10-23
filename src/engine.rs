@@ -2227,16 +2227,23 @@ mod horde_tests {
         assert_three_distinct_mid_bosses(3);
     }
 
-    #[test]
-    fn the_easy_run_draws_one_mid_boss_from_the_four_and_then_the_final_boss() {
+    fn assert_easy_run_draws_one_mid_boss(seed: u64) {
         const POOL: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
-        for seed in 0..2 {
-            let mut e = bundled_run("easy", seed);
-            let horde = e.state.horde.as_ref().unwrap();
-            assert_eq!(horde.boss_ticks, [18_000, 36_000], "seed {seed}");
-            let drawn = boss_sprite_at(&mut e, 18_000).expect("a boss");
-            assert!(POOL.contains(&drawn.as_str()), "seed {seed}: {drawn}");
-        }
+        let mut e = bundled_run("easy", seed);
+        let horde = e.state.horde.as_ref().unwrap();
+        assert_eq!(horde.boss_ticks, [18_000, 36_000], "seed {seed}");
+        let drawn = boss_sprite_at(&mut e, 18_000).expect("a boss");
+        assert!(POOL.contains(&drawn.as_str()), "seed {seed}: {drawn}");
+    }
+
+    #[test]
+    fn the_easy_run_draws_one_mid_boss_from_the_four_and_then_the_final_boss_seed_0() {
+        assert_easy_run_draws_one_mid_boss(0);
+    }
+
+    #[test]
+    fn the_easy_run_draws_one_mid_boss_from_the_four_and_then_the_final_boss_seed_1() {
+        assert_easy_run_draws_one_mid_boss(1);
     }
 
     #[test]
