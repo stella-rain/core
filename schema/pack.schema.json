@@ -4911,6 +4911,10 @@
           "description": "The expertise levels of the style path (ADR-106 §4): the style first, the levels rising\nstrictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The\nrun's stage takes it as its own.",
           "$ref": "#/$defs/LevelTable"
         },
+        "levels": {
+          "description": "The experience curve of the run (XP2): the experience each next level needs, as a\nstage's `levels` (1 to `limits::MAX_LEVELS` entries, each 1 to `limits::MAX_LEVEL_XP`),\nthe last repeating. Not `level_table`, which is the style path's expertise. The run's\nstage takes it as its own.",
+          "$ref": "#/$defs/Levels"
+        },
         "map": {
           "$ref": "#/$defs/TimeLimitMap"
         },
@@ -4979,6 +4983,10 @@
             "$ref": "#/$defs/StardustTier"
           }
         },
+        "stars": {
+          "description": "The falling stars' drop table of the run (XP2), as a stage's `stars`, checked the same\nway; its tiers follow `levels`. The run's stage takes it as its own.",
+          "$ref": "#/$defs/Stars"
+        },
         "waves": {
           "description": "The enemies that spawn over the run, 0 to `MAX_WAVES` waves of up to `MAX_SPAWN_COUNT`\nenemies, `MAX_TOTAL_SPAWNS` in all, none an elite, each starting before the length. A\nwave with `around` spawns that far from the main character; the placeholder content is\nthe trial's enemies.",
           "type": "array",
@@ -5004,6 +5012,8 @@
         "elite_types",
         "elite_cap",
         "level_table",
+        "levels",
+        "stars",
         "stardust_tiers"
       ]
     },

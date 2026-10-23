@@ -833,7 +833,7 @@
       },
       "id": "elite_low",
       "stardust": 200,
-      "xp": 3
+      "xp": 30
     },
     {
       "enemy": {
@@ -911,7 +911,7 @@
       },
       "id": "elite_mid",
       "stardust": 200,
-      "xp": 3
+      "xp": 30
     },
     {
       "enemy": {
@@ -956,7 +956,7 @@
       },
       "id": "elite_high",
       "stardust": 200,
-      "xp": 3
+      "xp": 30
     },
     {
       "enemy": {
@@ -980,7 +980,7 @@
       },
       "id": "elite_goblin",
       "stardust": 10000,
-      "xp": 3
+      "xp": 30
     },
     {
       "enemy": {
@@ -1036,7 +1036,7 @@
       },
       "id": "elite_shrine",
       "stardust": 200,
-      "xp": 3
+      "xp": 30
     },
     {
       "enemy": {
@@ -1122,7 +1122,7 @@
       },
       "id": "elite_leader",
       "stardust": 200,
-      "xp": 3
+      "xp": 30
     },
     {
       "enemy": {
@@ -1185,7 +1185,7 @@
       },
       "id": "elite_mimic",
       "stardust": 200,
-      "xp": 3
+      "xp": 30
     }
   ],
   "final_boss": "core_pair",
@@ -1197,6 +1197,35 @@
     "upgrades": [
       6,
       9
+    ]
+  },
+  "levels": {
+    "xp": [
+      30,
+      120,
+      210,
+      300,
+      390,
+      480,
+      570,
+      660,
+      750,
+      840,
+      930,
+      1020,
+      1110,
+      1200,
+      1290,
+      1380,
+      1470,
+      1560,
+      1650,
+      1740,
+      1830,
+      1920,
+      2010,
+      2100,
+      2190
     ]
   },
   "map": {
@@ -1248,5 +1277,43 @@
       "start_tick": 72000
     }
   ],
+  "stars": {
+    "banishes": 1,
+    "cap": 16,
+    "drop_per_mille": 500,
+    "pickup_radius": 6144,
+    "pity": 2,
+    "rerolls": 2,
+    "tiers": [
+      {
+        "from_level": 1,
+        "random_rune_weight": 53,
+        "weights": {
+          "common": 100
+        }
+      },
+      {
+        "from_level": 8,
+        "random_rune_weight": 176,
+        "weights": {
+          "common": 70,
+          "rare": 30,
+          "uncommon": 15
+        }
+      },
+      {
+        "from_level": 13,
+        "random_rune_weight": 333,
+        "weights": {
+          "common": 50,
+          "epic": 10,
+          "legendary": 15,
+          "rare": 35,
+          "supernova": 5,
+          "uncommon": 10
+        }
+      }
+    ]
+  },
   "waves": []
 }
