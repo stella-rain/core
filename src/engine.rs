@@ -13,6 +13,7 @@ use crate::behaviour::{BossCall, Movement};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
+use crate::inline::InlineVec;
 use crate::input::Input;
 use crate::kinds::{KindIndex, KindTable};
 use crate::match_ups::MatchUps;
@@ -1029,7 +1030,7 @@ pub(crate) struct PlayerState {
     /// (ADR-099).
     pub runes: Vec<HeldRune>,
     pub aggro: u32,
-    pub statuses: Vec<StatusState>,
+    pub statuses: Statuses,
 }
 
 impl PlayerState {
@@ -1178,7 +1179,7 @@ pub(crate) struct BossState {
     pub max_hp: u32,
     /// Copied from the stage when it appears (ADR-056).
     pub defence: u32,
-    pub statuses: Vec<StatusState>,
+    pub statuses: Statuses,
     /// The phase being carried out, 0-based (ADR-036 tier 2).
     pub phase: u32,
     /// Ticks since the phase began.
@@ -1191,7 +1192,7 @@ pub(crate) struct BossState {
     /// A `move_to` in progress.
     pub order: Option<MoveOrder>,
     /// One per rule of the phase, in order.
-    pub rules: Vec<RuleState>,
+    pub rules: Rules,
     /// One per part of the stage's boss, in order.
     pub parts: Vec<PartState>,
     /// Whether it has called its elites; `None` for a boss that calls none, which hashes
@@ -1217,7 +1218,7 @@ pub(crate) struct PartState {
     /// From the boss's centre, and the hurt circle's radius: both from the stage.
     pub offset: Point,
     pub radius: i32,
-    pub statuses: Vec<StatusState>,
+    pub statuses: Statuses,
 }
 
 /// Which definition an agent runs: its `Agent` in the stage.
@@ -1260,8 +1261,8 @@ pub(crate) struct AgentState {
     /// Ticks since it spawned.
     pub age: u32,
     /// One per rule of its agent, in order.
-    pub rules: Vec<RuleState>,
-    pub statuses: Vec<StatusState>,
+    pub rules: Rules,
+    pub statuses: Statuses,
     /// Companions only; enemies stay at 0.
     pub aggro: u32,
     /// A `move_to` in progress, which replaces its movement.
@@ -1330,7 +1331,17 @@ pub(crate) struct MoveOrder {
     pub ticks_left: u32,
 }
 
-#[derive(Clone, Copy, Debug)]
+/// The rule states of an agent or a boss: at most `MAX_RULES`, which the validator holds.
+pub(crate) type Rules = InlineVec<RuleState, { validate::limits::MAX_RULES }>;
+/// The statuses on one entity: one of each kind at most (`add_status`, `add_stun`, `add_dot` add
+/// a stack to the one there), so no more than there are kinds.
+pub(crate) type Statuses = InlineVec<StatusState, { StatusKind::COUNT }>;
+/// The frames of an attack task: one for the pattern and one for each level of nesting, at most
+/// `MAX_PATTERN_DEPTH` of them, and some to spare.
+pub(crate) type Frames = InlineVec<Frame, MAX_FRAMES>;
+const MAX_FRAMES: usize = 8;
+
+#[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct RuleState {
     pub cooldown_left: u32,
     /// Firings left; `UNLIMITED` if there is no limit.
@@ -1371,6 +1382,19 @@ impl StatusKind {
             .find(|k| k.name() == name)
     }
 
+    /// Every kind. `COUNT` sizes the lists of statuses; a kind added without a place here fails
+    /// the test `every_status_kind_is_listed`.
+    pub const ALL: [StatusKind; 7] = [
+        StatusKind::AtkUp,
+        StatusKind::Vulnerable,
+        StatusKind::Slow,
+        StatusKind::Bleed,
+        StatusKind::Poison,
+        StatusKind::Burn,
+        StatusKind::Stun,
+    ];
+    pub const COUNT: usize = StatusKind::ALL.len();
+
     pub fn name(self) -> &'static str {
         match self {
             StatusKind::AtkUp => "atk_up",
@@ -1400,6 +1424,21 @@ pub(crate) struct StatusState {
     /// A damage-over-time status's own state; `None` for every other status, which hashes
     /// nothing for it.
     pub dot: Option<DotState>,
+}
+
+/// The filler of the unused places of a list of statuses; never read.
+impl Default for StatusState {
+    fn default() -> Self {
+        StatusState {
+            kind: StatusKind::AtkUp,
+            source: EntityId(0),
+            remaining: 0,
+            total: 0,
+            stacks: 0,
+            value_pct: 0,
+            dot: None,
+        }
+    }
 }
 
 /// The damage-over-time statuses of `statuses`, for the snapshot.
@@ -1726,7 +1765,7 @@ pub(crate) struct AttackTask {
     /// Ticks to wait before going on.
     pub wait_left: u32,
     /// The stack of lists being carried out, outermost first.
-    pub frames: Vec<Frame>,
+    pub frames: Frames,
     /// The direction `relative` directions start from.
     pub parent_dir: Dir,
     /// The direction of the last bullet, which `sequential` directions turn from.
@@ -2513,5 +2552,27 @@ mod move_index_tests {
         let mut rebuilt = MoveIndex::default();
         rebuilt.rebuild(&w, &runs);
         assert_same(&w, &rebuilt, &runs);
+    }
+}
+
+#[cfg(test)]
+mod status_kind_tests {
+    use super::StatusKind;
+
+    #[test]
+    fn every_status_kind_is_listed() {
+        // An exhaustive match: a kind added without a number here does not compile, and one
+        // without a place in `ALL` fails the assert below, so `Statuses` is sized for all.
+        let number = |k: StatusKind| match k {
+            StatusKind::AtkUp => 0,
+            StatusKind::Vulnerable => 1,
+            StatusKind::Slow => 2,
+            StatusKind::Bleed => 3,
+            StatusKind::Poison => 4,
+            StatusKind::Burn => 5,
+            StatusKind::Stun => 6,
+        };
+        let numbers: Vec<usize> = StatusKind::ALL.into_iter().map(number).collect();
+        assert_eq!(numbers, (0..StatusKind::COUNT).collect::<Vec<_>>());
     }
 }

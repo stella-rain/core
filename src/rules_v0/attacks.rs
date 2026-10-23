@@ -43,8 +43,8 @@ use std::ops::Deref;
 use crate::attack::{Anchor, AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::difficulties::scale_pct;
 use crate::engine::{
-    Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Hook, Origin, PathStep, Smash, State,
-    StatusKind, UNLIMITED, ZoneState,
+    Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Frames, Hook, Origin, PathStep, Smash,
+    State, StatusKind, UNLIMITED, ZoneState,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -55,6 +55,7 @@ use crate::rng::SplitMix64;
 use crate::trig;
 use crate::validate::limits::{MAX_BULLET_TICKS, MAX_LEN, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS};
 
+use super::Scratch;
 use super::entity::{Who, scale_damage, status_pct};
 use super::{
     AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, World, count, spawn_bullet,
@@ -453,7 +454,7 @@ fn launch(world: &World, s: &mut State, launch: Launch, events: &mut Vec<DomainE
         },
         type_bonus_pct,
         age,
-        hits: Vec::new(),
+        hits: s.scratch.take_hit_list(),
         smash,
         at,
         throw: None,
@@ -493,16 +494,31 @@ pub(super) fn advance_runs(world: &World, s: &mut State, events: &mut Vec<Domain
         }
         kept += 1;
     }
+    // The hit lists of the runs that ended wait in the scratch for the next runs to start with.
+    for r in &mut s.runs[kept..] {
+        Scratch::recycle_hits(&mut s.scratch.hit_lists, std::mem::take(&mut r.hits));
+    }
     s.runs.truncate(kept);
     if changed {
         s.move_index.rebuild(world, &s.runs);
     }
 }
 
+/// Keeps the runs `keep` accepts; the hit lists of the others are kept for later runs.
+pub(super) fn retain_runs(s: &mut State, keep: impl Fn(&AttackRun) -> bool) {
+    s.runs.retain_mut(|r| {
+        let kept = keep(r);
+        if !kept {
+            Scratch::recycle_hits(&mut s.scratch.hit_lists, std::mem::take(&mut r.hits));
+        }
+        kept
+    });
+}
+
 /// Ends `owner`'s run in `slot`, if any: an evade cancels the main character's combo step, and
 /// a follow-up press its recovery (ADR-070, ADR-076). Bullets it spawned fly on.
 pub(super) fn end_run(world: &World, s: &mut State, owner: EntityId, slot: u8) {
-    s.runs.retain(|r| r.owner != owner || r.slot != slot);
+    retain_runs(s, |r| r.owner != owner || r.slot != slot);
     s.move_index.rebuild(world, &s.runs);
 }
 
@@ -531,7 +547,7 @@ pub(super) fn hold_ready(world: &World, s: &State, owner: EntityId, slot: u8) ->
 
 /// Ends every run of `owner` (a boss leaving the phase that started them).
 pub(super) fn end_runs_of(world: &World, s: &mut State, owner: EntityId) {
-    s.runs.retain(|r| r.owner != owner);
+    retain_runs(s, |r| r.owner != owner);
     s.move_index.rebuild(world, &s.runs);
 }
 
@@ -597,7 +613,7 @@ fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEv
         combo: is_combo(r),
         age: r.age.saturating_add(elapsed),
         wait_left: 0,
-        frames: vec![Frame::default()],
+        frames: Frames::from_iter([Frame::default()]),
         parent_dir: r.aim.heading(),
         last_dir: r.aim.heading(),
         spot: r.spot,
@@ -640,7 +656,7 @@ pub(super) fn fire_hooks(s: &mut State) {
             combo: hook.combo,
             age: 0,
             wait_left: 0,
-            frames: vec![Frame::default()],
+            frames: Frames::from_iter([Frame::default()]),
             parent_dir: dir,
             last_dir: dir,
             spot: None,

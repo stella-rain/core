@@ -71,7 +71,7 @@ const STEADY_TICKS: u32 = 60;
 fn a_steady_tick_allocates_nothing() {
     let mut engine = time_limit_case::warmed_up();
     let from = time_limit_case::WARMUP_TICKS + 1;
-    let mut per_tick = Vec::new();
+    let mut per_tick = Vec::with_capacity(STEADY_TICKS as usize);
     for tick in from..from + STEADY_TICKS {
         let before = allocations();
         engine.step(time_limit_case::input(tick));

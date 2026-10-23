@@ -3,7 +3,7 @@
 //! them.
 
 use super::World;
-use crate::engine::{DotState, State, StatusKind, StatusState};
+use crate::engine::{DotState, State, StatusKind, StatusState, Statuses};
 use crate::event::DomainEvent;
 use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
@@ -141,7 +141,7 @@ impl State {
         }
     }
 
-    fn statuses_mut(&mut self, who: Who) -> &mut Vec<StatusState> {
+    fn statuses_mut(&mut self, who: Who) -> &mut Statuses {
         match who {
             Who::Player => &mut self.player.statuses,
             Who::Boss => &mut self.boss.as_mut().expect("a boss").statuses,
@@ -471,7 +471,7 @@ pub(super) fn scale_damage(
 /// tick instead (`tick_dots`); whether there is one on anyone is returned, so a tick without
 /// one skips that pass.
 pub(super) fn tick_statuses_and_aggro(s: &mut State, events: &mut Vec<DomainEvent>) -> bool {
-    fn age(list: &mut Vec<StatusState>) -> bool {
+    fn age(list: &mut Statuses) -> bool {
         let mut dots = false;
         for st in list.iter_mut() {
             if st.dot.is_some() {
