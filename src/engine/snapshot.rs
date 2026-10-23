@@ -89,7 +89,7 @@ impl Engine {
                         hp: a.hp,
                         attack: attack_of(a.id),
                         disguised: hidden,
-                        elite: a.elite.is_some() && !hidden,
+                        elite: a.shows_elite(),
                         aura_radius: def
                             .elite
                             .as_ref()

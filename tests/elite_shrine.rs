@@ -343,6 +343,34 @@ fn clearing_the_guardians_in_time_gives_the_elite_reward_and_the_shrine_goes() {
 }
 
 #[test]
+fn a_shrine_death_reports_its_class() {
+    let mut e = with(&shrine_stage(SIDE, shrine(600, 2, 5), vec![]));
+    let mut events = touch(&mut e);
+    let shrine_id = e.snapshot().entities.iter().find(|v| v.elite).unwrap().id;
+    events.extend(fire_until(&mut e, idle(), 60, |e| {
+        positions(e, false).len() == 1
+    }));
+    events.extend(fire_until(&mut e, moving(-127, 0), 120, |e| {
+        positions(e, true).is_empty()
+    }));
+    let died: Vec<_> = crate::died_class::deaths(&events);
+    let shrine_died: Vec<_> = died.iter().filter(|d| d.0 == shrine_id).collect();
+    assert_eq!(
+        shrine_died,
+        [&(shrine_id, EntityKind::Enemy, true, true)],
+        "{events:?}"
+    );
+    // The guardians are ordinary enemies.
+    assert_eq!(
+        died.iter()
+            .filter(|d| *d == &(d.0, EntityKind::Enemy, false, false))
+            .count(),
+        2,
+        "{died:?}"
+    );
+}
+
+#[test]
 fn running_out_of_time_with_guardians_alive_leaves_the_shrine_without_a_reward() {
     let mut e = with(&shrine_stage(SIDE, shrine(120, 3, 100_000), vec![]));
     let mut events = touch(&mut e);

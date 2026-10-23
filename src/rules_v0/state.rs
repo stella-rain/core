@@ -618,6 +618,12 @@ impl AgentState {
     pub(crate) fn hidden(&self) -> bool {
         self.elite.is_some_and(|el| el.disguised)
     }
+
+    /// An elite that shows as one: `EntityView::elite` and `DomainEvent::Died::elite`. A mimic in
+    /// disguise does not, until it reveals.
+    pub(crate) fn shows_elite(&self) -> bool {
+        self.elite.is_some() && !self.hidden()
+    }
 }
 
 /// A shrine's fight (ADR-090).

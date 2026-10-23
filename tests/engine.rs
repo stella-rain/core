@@ -251,6 +251,9 @@ fn beating_the_boss_clears_the_stage() {
             &DomainEvent::Died {
                 entity: EntityId(1),
                 kind: e.kinds().index_of(&ContentId("golem".into())),
+                class: stella_rain_core::snapshot::EntityKind::Boss,
+                elite: false,
+                shrine: false,
             },
             &DomainEvent::StageCleared,
         ]

@@ -122,6 +122,7 @@ mod select;
 use crate::attack::{DamageType, MatchUp, Profile, ZoneShape};
 use crate::behaviour::BossCall;
 use crate::difficulties::scale_pct;
+use crate::engine::AgentState;
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
     PartState, PlayerState, Progress, Pull, Smash, StarField, State, Streams, UNLIMITED,
@@ -138,7 +139,7 @@ use crate::rng::SplitMix64;
 use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
-use crate::snapshot::OfferOption;
+use crate::snapshot::{EntityKind, OfferOption};
 use crate::trig;
 use crate::validate::limits::DAMAGE_SCALE;
 
@@ -832,10 +833,27 @@ fn death_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
         (Who::BossPart(i), Some(boss)) => DomainEvent::PartBroken {
             part: boss.parts[i].name.clone(),
         },
-        _ => DomainEvent::Died {
-            entity: id,
-            kind: kind_of(s, target),
-        },
+        _ => died_event(s, target, id),
+    }
+}
+
+/// A death, with what died: the class `EntityView::kind` gives it, and whether it is an elite or
+/// a shrine. The one place a `Died` is built.
+pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
+    let (class, agent) = match target {
+        Who::Boss => (EntityKind::Boss, None),
+        Who::BossPart(_) => (EntityKind::BossPart, None),
+        Who::Companion(i) => (EntityKind::Companion, Some(&s.companions[i])),
+        Who::Enemy(i) => (EntityKind::Enemy, Some(&s.enemies[i])),
+        // The main character is not reported by a `Died`; it counts with its allies.
+        Who::Player => (EntityKind::Companion, None),
+    };
+    DomainEvent::Died {
+        entity: id,
+        kind: kind_of(s, target),
+        class,
+        elite: agent.is_some_and(AgentState::shows_elite),
+        shrine: agent.is_some_and(|a| a.shrine.is_some()),
     }
 }
 

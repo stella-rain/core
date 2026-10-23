@@ -581,6 +581,14 @@
         "data": {
           "type": "object",
           "properties": {
+            "class": {
+              "description": "What died, as the snapshot classifies it (`EntityView::kind`), so a reader never\nguesses it from earlier snapshots: not even for an elite that dies on its first tick.",
+              "$ref": "#/$defs/EntityKind"
+            },
+            "elite": {
+              "description": "An elite (`EntityView::elite`). Absent when false.",
+              "type": "boolean"
+            },
             "entity": {
               "$ref": "#/$defs/EntityId"
             },
@@ -594,11 +602,16 @@
                   "type": "null"
                 }
               ]
+            },
+            "shrine": {
+              "description": "A shrine, an elite object that dies when its guardians are cleared. Absent when false.",
+              "type": "boolean"
             }
           },
           "additionalProperties": false,
           "required": [
-            "entity"
+            "entity",
+            "class"
           ]
         },
         "type": {
@@ -1275,6 +1288,15 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0
+    },
+    "EntityKind": {
+      "type": "string",
+      "enum": [
+        "companion",
+        "enemy",
+        "boss",
+        "boss_part"
+      ]
     },
     "ExpertiseOfferKind": {
       "description": "What an expertise level offers (ADR-078 §4, §5).",

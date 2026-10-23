@@ -291,6 +291,6 @@ expression: recording
 {"data":"4e400a6d55482bda","dir":"be>fe","tick":110,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":111,"type":"Input"}
 {"data":{"damage":10,"source":0,"target":1,"target_kind":0},"dir":"be>fe","tick":111,"type":"Hit"}
-{"data":{"entity":1,"kind":0},"dir":"be>fe","tick":111,"type":"Died"}
+{"data":{"class":"boss","entity":1,"kind":0},"dir":"be>fe","tick":111,"type":"Died"}
 {"dir":"be>fe","tick":111,"type":"StageCleared"}
 {"data":"ca3d2b5597db5e75","dir":"be>fe","tick":111,"type":"StateHash"}
