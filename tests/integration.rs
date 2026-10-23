@@ -31,6 +31,7 @@ mod controls;
 mod corpus;
 mod damage_types;
 mod defence;
+mod died_class;
 mod difficulties;
 mod difficulty_run;
 mod elite_goblin;
