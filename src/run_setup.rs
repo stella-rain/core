@@ -124,6 +124,31 @@ pub struct RunSetup {
     pub starting_rune: Option<ContentId>,
 }
 
+/// The plainest setup: the trial mode with the giant sword, seed 0, the default perk set and
+/// difficulty, and nothing carried, pooled or prioritised. Build a setup with
+/// `RunSetup { field: .., ..RunSetup::default() }` so that a new field changes no caller.
+impl Default for RunSetup {
+    fn default() -> RunSetup {
+        RunSetup {
+            schema_version: SCHEMA_VERSION,
+            sim_version: SIM_VERSION,
+            mode: "trial".into(),
+            weapon: "giant_sword".into(),
+            weapon_tree: None,
+            seed: 0,
+            star_pool: None,
+            extra_rerolls: 0,
+            upgrades: Vec::new(),
+            perk_set: default_perk_set(),
+            difficulty: default_difficulty(),
+            rune_pool: Vec::new(),
+            carried: Vec::new(),
+            lumine: 0,
+            starting_rune: None,
+        }
+    }
+}
+
 /// A setup as a file holds it: a `RunSetup` plus `auto_combo`, a field the game dropped (DS5 Q1):
 /// auto mode is only the player's switch, recorded as input. A setup or replay written before
 /// that carries `"auto_combo": false`, which is ignored; `true` asked for a run that no longer
@@ -781,5 +806,30 @@ fn check_versions(schema_version: u32, sim_version: u32) -> Result<(), Error> {
             schema_version,
             sim_version,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_setup_is_valid_and_starts_a_run() {
+        let setup = RunSetup::default();
+        assert_eq!(validate(&setup), Ok(()));
+        assert_eq!(validate_in(&setup, RunContent::bundled()), Ok(()));
+        assert!(crate::engine::Engine::start(&setup).is_ok());
+    }
+
+    #[test]
+    fn a_setup_built_from_the_default_changes_only_what_it_names() {
+        let setup = RunSetup {
+            seed: 7,
+            weapon: "giant_sword".into(),
+            ..RunSetup::default()
+        };
+        assert_eq!((setup.seed, setup.mode.0.as_str()), (7, "trial"));
+        let bytes = serde_json::to_vec(&setup).unwrap();
+        assert_eq!(serde_json::from_slice::<RunSetup>(&bytes).unwrap(), setup);
     }
 }
