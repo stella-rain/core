@@ -53,11 +53,11 @@ fn first_three(tag: u64) -> [u64; 3] {
 #[test]
 fn each_stream_is_pinned() {
     // The tags are the stream's name padded with zeros to 8 bytes, read little-endian.
-    assert_eq!(TAG_SPAWN, 0x6e_7761_7073);
+    assert_eq!(TAG_SPAWN, 0x006e_7761_7073);
     assert_eq!(TAG_ATTACK, 0x6b63_6174_7461);
     assert_eq!(TAG_LOOT, 0x746f_6f6c);
-    assert_eq!(TAG_OFFER, 0x72_6566_666f);
-    assert_eq!(TAG_HORDE, 0x6564_726f_68);
+    assert_eq!(TAG_OFFER, 0x0072_6566_666f);
+    assert_eq!(TAG_HORDE, 0x0065_6472_6f68);
     assert_eq!(
         first_three(TAG_SPAWN),
         [

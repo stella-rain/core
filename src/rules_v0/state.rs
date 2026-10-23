@@ -9,7 +9,7 @@ use crate::inline::InlineVec;
 use crate::kinds::{KindIndex, KindTable};
 use crate::match_ups::MatchUps;
 use crate::rewards::Rarity;
-use crate::rng::SplitMix64;
+use crate::rng::{SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_OFFER, TAG_SPAWN, derive};
 use crate::rules_v0::{AttackIndex, BossIndex, DefIndex, ProgramIndex, World};
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
@@ -20,6 +20,46 @@ use crate::validate::{self};
 /// Firings or casts left when there is no limit.
 pub(crate) const UNLIMITED: u32 = u32::MAX;
 
+/// The run's generators, one per purpose, so a change to one kind of draw leaves the others
+/// where they were (ADR-SIM-2). Each is `rng::derive(seed, tag)`; the hash writes them in this
+/// order.
+#[derive(Clone, Debug)]
+pub(crate) struct Streams {
+    /// The angle of a wave's ring spawn.
+    pub spawn: SplitMix64,
+    /// An attack's random numbers.
+    pub attack: SplitMix64,
+    /// Heal drops, star drops and a star's rarity.
+    pub loot: SplitMix64,
+    /// The star, expertise and rune offers.
+    pub offer: SplitMix64,
+    /// The horde's boss and elite draws.
+    pub horde: SplitMix64,
+}
+
+impl Streams {
+    pub fn new(seed: u64) -> Self {
+        Self {
+            spawn: derive(seed, TAG_SPAWN),
+            attack: derive(seed, TAG_ATTACK),
+            loot: derive(seed, TAG_LOOT),
+            offer: derive(seed, TAG_OFFER),
+            horde: derive(seed, TAG_HORDE),
+        }
+    }
+
+    /// The five states, in hash order.
+    pub fn states(&self) -> [u64; 5] {
+        [
+            self.spawn.state(),
+            self.attack.state(),
+            self.loot.state(),
+            self.offer.state(),
+            self.horde.state(),
+        ]
+    }
+}
+
 /// The whole state of a run. Everything here is in the state hash (`rules_v0::state_hash`),
 /// at fixed widths and in this order.
 #[derive(Clone, Debug)]
@@ -29,7 +69,7 @@ pub(crate) struct State {
     /// The run's kinds, fixed at its start (core#271).
     pub kinds: KindTable,
     pub tick: u32,
-    pub rng: SplitMix64,
+    pub rng: Streams,
     pub outcome: Outcome,
     pub player: PlayerState,
     pub boss: Option<BossState>,

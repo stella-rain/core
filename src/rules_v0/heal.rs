@@ -51,7 +51,7 @@ pub(super) fn drop_from_defeated(stage: &World, s: &mut State, events: &mut Vec<
         .iter()
         .filter(|e| e.hp == 0 && !e.burst && e.elite.is_none())
     {
-        let drops = rng.below(cfg.drop_one_in) == 0;
+        let drops = rng.loot.below(cfg.drop_one_in) == 0;
         if !drops || pickups.len() >= usize::from(cfg.cap) {
             continue;
         }

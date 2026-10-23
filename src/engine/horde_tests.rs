@@ -372,7 +372,8 @@ fn a_tier_boundary_on_an_elite_minute_picks_the_later_tier() {
 #[test]
 fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() {
     // Recorded before elite types became content: same weights, same seed. The positions are
-    // those after the boss's call counts from its arrival (ADR-103); the draws are the same.
+    // those after the boss's call counts from its arrival (ADR-103). Re-recorded on the horde
+    // stream when the generator split per purpose (R1): the weights and the seed are the same.
     let table = serde_json::json!([{ "start_tick": 0, "weights": [
         { "elite": "elite_low", "weight": 1 }, { "elite": "elite_mid", "weight": 2 } ] },
         { "start_tick": 10_800, "weights": [
@@ -386,13 +387,13 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
     assert_eq!(
         sprites,
         [
-            (3_600, "bat"),
-            (7_200, "bat"),
+            (3_600, "fairy_a"),
+            (7_200, "fairy_a"),
             (10_800, "bat"),
             (14_400, "bat")
         ]
     );
-    assert_eq!(e.state.rng.state(), 10_372_713_005_361_028_292);
+    assert_eq!(e.state.rng.horde.state(), 15_227_162_336_133_205_109);
     let at: Vec<(i32, i32)> = e
         .state
         .enemies
@@ -402,10 +403,10 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
     assert_eq!(
         at,
         [
-            (430_742, 482_638),
-            (468_518, 610_167),
-            (623_198, 497_785),
-            (502_998, 624_450)
+            (626_298, 533_213),
+            (479_399, 616_323),
+            (423_770, 543_827),
+            (547_322, 424_513)
         ]
     );
 }
@@ -465,8 +466,8 @@ fn the_cap_holds_an_elite_back_but_the_generator_is_drawn_the_same() {
         few += elites_spawned(&mut tight, at).len();
         many += elites_spawned(&mut roomy, at).len();
         assert_eq!(
-            tight.state.rng.state(),
-            roomy.state.rng.state(),
+            tight.state.rng.horde.state(),
+            roomy.state.rng.horde.state(),
             "the generator after minute {minute}"
         );
     }

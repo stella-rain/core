@@ -842,7 +842,7 @@ fn eval(e: &Expr, c: &mut Eval) -> i32 {
 /// Evaluates `e` for a node whose frame is `top`.
 fn value(s: &mut State, t: &AttackTask, ab: &Above, e: &Expr) -> i32 {
     let mut c = Eval {
-        rng: &mut s.rng,
+        rng: &mut s.rng.attack,
         loop_index: ab.loop_index,
         phase_time: i32::try_from(t.age).unwrap_or(i32::MAX),
     };
