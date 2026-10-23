@@ -550,3 +550,141 @@ fn xp_pct_acts_on_one_kill() {
     // A kill worth 10, with +10%: 11.
     assert_eq!(e.snapshot().progress.unwrap().xp, 11);
 }
+
+// --- The stat priority and the stat offer (DS18) -----------------------------------------------
+
+/// An engine on `stage` whose level-ups follow `priority` (run stat IDs), opening an offer per
+/// level with `pick_stats`.
+fn engine_with_stats(stage: &Stage, priority: &[&str], pick_stats: bool) -> Engine {
+    let priority: Vec<ContentId> = priority.iter().map(|id| (*id).into()).collect();
+    Engine::new_with_stats(stage, RunContent::bundled(), &priority, pick_stats).unwrap()
+}
+
+fn level(e: &Engine) -> u32 {
+    e.snapshot().progress.expect("a stage with levels").level
+}
+
+fn stat_offer(e: &Engine) -> Option<Vec<ContentId>> {
+    e.snapshot()
+        .progress
+        .expect("a stage with levels")
+        .stat_offer
+        .map(|o| o.options)
+}
+
+fn stat_ids() -> Vec<ContentId> {
+    RunStats::bundled()
+        .stats()
+        .iter()
+        .map(|s| s.id.clone())
+        .collect()
+}
+
+#[test]
+fn a_level_up_spends_on_the_first_priority_stat_below_its_limit() {
+    let ids = stat_ids();
+    let (speed, attack) = (4, 1);
+    let limit = RunStats::bundled().stats()[speed].limit;
+    let stage = leveled(&[1], vec![targets(u16::from(limit) + 2, None)]);
+    let mut e = engine_with_stats(&stage, &["speed", "attack"], false);
+    let seen = fire_until(&mut e, idle(), 1200, |e| level(e) > u32::from(limit) + 1);
+    let raised: Vec<&ContentId> = seen
+        .iter()
+        .filter_map(|(_, ev)| match ev {
+            DomainEvent::StatRaised { stat, .. } => Some(stat),
+            _ => None,
+        })
+        .collect();
+    // The first `limit` levels raise speed, the next raises attack; nothing pauses the run.
+    let mut expected = vec![&ids[speed]; usize::from(limit)];
+    expected.push(&ids[attack]);
+    assert_eq!(raised, expected);
+    let mut want = vec![0; ids.len()];
+    want[speed] = limit;
+    want[attack] = 1;
+    assert_eq!(spent(&e), want);
+    assert!(!e.offer_open());
+    assert_eq!(stat_offer(&e), None);
+}
+
+#[test]
+fn pick_stats_opens_one_offer_per_level_in_order() {
+    let ids = stat_ids();
+    // One kill worth 2 experience: two levels in one tick, so two offers, one after the other.
+    let stage = leveled(&[1], vec![targets(1, Some(2))]);
+    let mut e = engine_with_stats(&stage, &["speed"], true);
+    fire_until(&mut e, idle(), 600, |e| e.offer_open());
+    assert_eq!(level(&e), 3);
+    assert_eq!(stat_offer(&e), Some(ids.clone()), "every stat, in file order");
+    assert_eq!(spent(&e), vec![0; ids.len()], "nothing is spent on its own");
+    assert!(
+        e.events()
+            .iter()
+            .any(|ev| matches!(ev, DomainEvent::StatOfferOpened { options } if *options == ids))
+    );
+    let tick = e.tick();
+    e.step(idle());
+    assert_eq!(e.tick(), tick, "the world is stopped while the offer is open");
+    assert_eq!(e.choose(u32::try_from(ids.len()).unwrap()).map_err(|_| ()), Err(()));
+    // Choosing closes it, raises that stat, and opens the second level's offer.
+    e.choose(1).unwrap();
+    assert!(matches!(
+        e.events(),
+        [
+            DomainEvent::StatRaised { stat, spent: 1 },
+            DomainEvent::StatOfferOpened { .. }
+        ] if *stat == ids[1]
+    ));
+    assert!(e.offer_open());
+    e.choose(0).unwrap();
+    assert!(!e.offer_open());
+    assert_eq!(stat_offer(&e), None);
+    let mut want = vec![0; ids.len()];
+    (want[0], want[1]) = (1, 1);
+    assert_eq!(spent(&e), want);
+    assert_eq!(e.choose(0), Err(ChoiceError::NoOffer));
+}
+
+#[test]
+fn every_stat_at_its_limit_gives_nothing() {
+    let stats = RunStats::bundled().stats();
+    let all: u32 = stats.iter().map(|s| u32::from(s.limit)).sum();
+    // One kill worth all the points and 5 levels more.
+    let stage = leveled(&[1], vec![targets(1, Some(all + 5))]);
+    for pick_stats in [false, true] {
+        let mut e = engine_with_stats(&stage, &[], pick_stats);
+        fire_until(&mut e, idle(), 600, |e| level(e) > 1);
+        let mut offers = 0;
+        while e.offer_open() {
+            e.choose(0).unwrap();
+            offers += 1;
+        }
+        assert_eq!(level(&e), all + 6, "pick_stats {pick_stats}");
+        assert_eq!(
+            spent(&e),
+            stats.iter().map(|s| s.limit).collect::<Vec<u8>>()
+        );
+        assert_eq!(offers, if pick_stats { all - 1 } else { 0 });
+        assert_eq!(stat_offer(&e), None);
+        e.step(idle());
+        assert!(!e.offer_open(), "no offer opens for the levels past the limits");
+    }
+}
+
+#[test]
+fn a_replay_with_a_spend_command_is_refused() {
+    use stella_rain_core::base64;
+    use stella_rain_core::run_replay::{RunReplayError, record_run, verify_run};
+    use stella_rain_core::run_replay::Command;
+    let mut replay = record_run(&common::run::trial_setup(), &[Command::Step(idle())]).unwrap();
+    // The retired kind 1: tick 0, spend, stat 0.
+    replay.commands = base64::encode(&[0x00, 0x01, 0x00]);
+    assert!(matches!(
+        verify_run(&replay.to_bytes()),
+        Err(RunReplayError::BadCommands(_))
+    ));
+    assert!(matches!(
+        replay.unpack_commands(),
+        Err(RunReplayError::BadCommands(_))
+    ));
+}
