@@ -47,6 +47,8 @@ pub fn setup() -> RunSetup {
         carried: Vec::new(),
         lumine: 0,
         starting_rune: None,
+        stat_priority: Vec::new(),
+        pick_stats: false,
         difficulty: "normal".into(),
     }
 }

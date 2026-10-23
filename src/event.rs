@@ -144,15 +144,22 @@ pub enum DomainEvent {
     },
     StageCleared,
     StageFailed,
-    /// The main character reached `level`, and gained a stat point (ADR-079 §2).
+    /// The main character reached `level` (ADR-079 §2): a stat is raised by the run's priority,
+    /// or a stat offer is due (DS18).
     LeveledUp {
         level: u32,
     },
-    /// A stat point was spent on the run stat `stat`, between ticks: it now has `spent`
-    /// points (ADR-079 §4).
+    /// A level-up raised the run stat `stat`, by the priority or by a choice: it now has
+    /// `spent` points (ADR-079 §4, DS18).
     StatRaised {
         stat: ContentId,
         spent: u8,
+    },
+    /// A stat offer opened for a level reached with `pick_stats`, and the world stopped until a
+    /// choice closes it: `options` are the stats below their limit, in the run stats' order
+    /// (DS18).
+    StatOfferOpened {
+        options: Vec<ContentId>,
     },
     /// A kill dropped the falling star `star` (ADR-079 §2).
     StarDropped {

@@ -1,6 +1,6 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
 //! (ADR-004, ADR-015). The only external influence is one `Input` per tick and the commands
-//! between ticks (ADR-079: `choose` and `spend`); everything else comes from the stage and its
+//! between ticks (ADR-079: `choose`); everything else comes from the stage and its
 //! seed, or from a run setup, and from the run stats (ADR-067), so the state hash after each
 //! tick is the same on every platform (ADR-019).
 //!
@@ -28,21 +28,6 @@ pub enum ChoiceError {
     NoOffer,
     /// `index` is not below the number of the open offer's `options`.
     OutOfRange { index: u32, options: u32 },
-}
-
-/// Why `Engine::spend` refused to spend a stat point; the run is unchanged.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SpendError {
-    /// The run has ended: its unspent points are lost.
-    RunOver,
-    /// An offer is open: it is answered first (ADR-079 §4).
-    OfferOpen,
-    /// No point is left (or the stage has no levels).
-    NoPoint,
-    /// `index` is not below the number of run `stats`.
-    OutOfRange { index: u32, stats: u32 },
-    /// The stat at `index` already has its `limit` of points.
-    AtLimit { index: u32, limit: u8 },
 }
 
 /// How a run stands.
@@ -117,13 +102,24 @@ pub struct Engine {
 impl Engine {
     /// Starts a run. The stage is validated first (ADR-020), so the rules below only ever see
     /// stages inside the budgets.
-    /// A stage with levels spends its points on the bundled run stats.
+    /// A stage with levels raises the bundled run stats, in their order.
     pub fn new(stage: &Stage) -> Result<Engine, Error> {
         Engine::new_with(stage, RunContent::bundled())
     }
 
     /// As `new`, with `content` in place of the bundled files (ADR-067).
     pub fn new_with(stage: &Stage, content: &RunContent) -> Result<Engine, Error> {
+        Engine::new_with_stats(stage, content, &[], false)
+    }
+
+    /// As `new_with`, with the level-ups spent as a setup's `stat_priority` and `pick_stats` say
+    /// (DS18): for a stage that has no setup. The IDs are those of `content`'s run stats.
+    pub fn new_with_stats(
+        stage: &Stage,
+        content: &RunContent,
+        stat_priority: &[ContentId],
+        pick_stats: bool,
+    ) -> Result<Engine, Error> {
         validate::validate(stage)?;
         let pool = rules_v0::RunPool {
             rewards: pool(None, content.rewards())?,
@@ -133,8 +129,11 @@ impl Engine {
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
         let stage = World::new(stage.clone(), None, &kinds, content)
             .map_err(|i| Error::Invalid(vec![i]))?;
+        let mut state =
+            rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
+        rules_v0::set_policy(&mut state, content.run_stats(), stat_priority, pick_stats);
         Ok(Engine {
-            state: rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds),
+            state,
             stage,
             content: content.clone(),
             events: Vec::new(),
@@ -164,6 +163,12 @@ impl Engine {
         let stage = World::new(stage.clone(), None, &kinds, content)
             .map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
+        rules_v0::set_policy(
+            &mut state,
+            content.run_stats(),
+            &setup.stat_priority,
+            setup.pick_stats,
+        );
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         Ok(Engine {
@@ -196,6 +201,12 @@ impl Engine {
             World::new(stage, Some(spec), &kinds, content).map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
+        rules_v0::set_policy(
+            &mut state,
+            content.run_stats(),
+            &setup.stat_priority,
+            setup.pick_stats,
+        );
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         Ok(Engine {
@@ -265,46 +276,7 @@ impl Engine {
         Ok(())
     }
 
-    /// Spends a stat point on the run stat at `index`, between ticks (ADR-079 §4): the stat
-    /// rises by its step at once, and the events are then this spend's. Refused, changing
-    /// nothing, once the run has ended, while an offer is open, with no point left, an index
-    /// outside the run stats, or the stat at its limit.
-    pub fn spend(&mut self, index: u32) -> Result<(), SpendError> {
-        if self.state.outcome != Outcome::Running {
-            return Err(SpendError::RunOver);
-        }
-        if self.offer_open() {
-            return Err(SpendError::OfferOpen);
-        }
-        let p = self
-            .state
-            .progress
-            .as_ref()
-            .filter(|p| p.points > 0)
-            .ok_or(SpendError::NoPoint)?;
-        let stats = self.content.run_stats().stats();
-        let Some(at) = usize::try_from(index).ok().filter(|i| *i < stats.len()) else {
-            return Err(SpendError::OutOfRange {
-                index,
-                stats: u32::try_from(stats.len()).unwrap_or(u32::MAX),
-            });
-        };
-        let stat = &stats[at];
-        if p.spent[at] >= stat.limit {
-            return Err(SpendError::AtLimit {
-                index,
-                limit: stat.limit,
-            });
-        }
-        self.events.clear();
-        match self.stage.sim_version {
-            0 => rules_v0::spend(&mut self.state, at, stat, &mut self.events),
-            _ => self.state.outcome = Outcome::Failed,
-        }
-        Ok(())
-    }
-
-    /// The run stats this run spends its points on.
+    /// The run stats this run raises with its level-ups.
     pub fn run_stats(&self) -> &RunStats {
         self.content.run_stats()
     }

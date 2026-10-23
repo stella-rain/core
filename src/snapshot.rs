@@ -195,14 +195,25 @@ pub struct ProgressView {
     pub xp: u32,
     /// Experience the next level needs; 0 at the highest level.
     pub xp_next: u32,
-    /// Stat points not spent yet.
-    pub points: u32,
     /// Points spent on each run stat, in the run stats' order (ADR-067).
     pub spent: Vec<u8>,
+    /// The open stat offer (`pick_stats`, DS18): while it is open the world is stopped, and
+    /// `Engine::choose` takes one of its options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stat_offer: Option<StatOfferView>,
     /// The open offer: while it is open the world is stopped, and `Engine::choose` takes one
     /// of its options (ADR-079 §3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offer: Option<OfferView>,
+}
+
+/// A stat offer: a level reached with `pick_stats` (DS18). No reroll, skip or banish.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StatOfferView {
+    /// The run stats below their limit, in the run stats' order: option `i` of
+    /// `Engine::choose` raises `options[i]`.
+    pub options: Vec<ContentId>,
 }
 
 /// A falling star waiting on the map to be taken.

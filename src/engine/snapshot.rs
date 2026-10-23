@@ -317,8 +317,8 @@ impl Engine {
                 level: p.level,
                 xp: p.xp,
                 xp_next: rules_v0::xp_next(&self.stage, p.level),
-                points: p.points,
                 spent: p.spent.clone(),
+                stat_offer: rules_v0::stat_offer_view(s),
                 offer: rules_v0::offer_view(self.content.rewards(), s),
             }),
             expertise: s.expertise.as_ref().map(|g| {

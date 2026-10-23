@@ -31,7 +31,7 @@
 //! | `collide` | damage-over-time statuses tick, then the hit boxes of active phases (`hit_boxes`), then bullets land: allies' hurt enemies and the boss, enemies' the main character and the companions; the shield takes from the main character's damage; experience, expertise points, runes' effects and drops follow the hits (`combat`) |
 //! | `level_up` | the expertise gauge's levels are reached (`expertise`) |
 //! | `decide_outcome` | death or running out of ticks fails, an empty stage clears |
-//! | `open_offers` | if the run goes on or is cleared, the first offer due opens, and the world stops until it is answered: the boss offer, then the expertise levels' in level order, then the stars' in the order taken; a fail opens none |
+//! | `open_offers` | if the run goes on or is cleared, the first offer due opens, and the world stops until it is answered: the boss offer, then the expertise levels' in level order, then the stat offers' in level order, then the stars' in the order taken; a fail opens none |
 //! <!-- /tick -->
 //!
 //! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
@@ -41,7 +41,7 @@
 //! capstone.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
-//! `collide`, and each level-up gives a stat point (`levels`); points are spent between ticks.
+//! `collide`, and each level-up raises a stat or opens a stat offer (`levels`).
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in `open_offers`, answered between ticks (`stars`).
 //!
@@ -125,7 +125,7 @@ use crate::difficulties::scale_pct;
 use crate::engine::AgentState;
 use crate::engine::{
     AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
-    PartState, PlayerState, Progress, Pull, Smash, StarField, State, Streams, UNLIMITED,
+    PartState, PlayerState, Progress, Pull, Smash, StarField, StatRule, State, Streams, UNLIMITED,
 };
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
@@ -147,7 +147,7 @@ use entity::{Who, scale_damage, status_pct};
 pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
 use grid::Grid;
-pub(crate) use levels::{spend, xp_next};
+pub(crate) use levels::{offer_view as stat_offer_view, set_policy, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
@@ -343,7 +343,22 @@ pub(crate) fn initial_state(
         progress: stage.levels.as_ref().map(|_| Progress {
             level: 1,
             xp: 0,
-            points: 0,
+            stats: run_stats
+                .stats()
+                .iter()
+                .map(|s| StatRule {
+                    id: s.id.clone(),
+                    effect: s.effect,
+                    step: s.step,
+                    limit: s.limit,
+                })
+                .collect(),
+            priority: (0..run_stats.stats().len())
+                .map(|i| u8::try_from(i).unwrap_or(u8::MAX))
+                .collect(),
+            pick_stats: false,
+            offers_due: 0,
+            offer_open: false,
             spent: vec![0; run_stats.stats().len()],
             totals: [0; StatEffect::ALL.len()],
         }),
@@ -480,14 +495,17 @@ pub(crate) fn step(
     );
 }
 
-/// An offer is open, a star's, a boss's or an expertise level's: the world is stopped.
+/// An offer is open, a star's, a boss's, an expertise level's or a stat offer: the world is
+/// stopped.
 pub(crate) fn offer_open(s: &State) -> bool {
     s.stars.as_ref().is_some_and(|f| f.offer.is_some())
         || s.expertise.as_ref().is_some_and(|g| g.offer.is_some())
+        || s.progress.as_ref().is_some_and(|p| p.offer_open)
 }
 
 /// Opens the first offer due, unless one is open: the boss offer, then the expertise levels'
-/// in level order, then the stars' in the order taken (ADR-079 §2).
+/// in level order, then the stat offers in level order, then the stars' in the order taken
+/// (ADR-079 §2, DS18).
 fn open_offers(
     stage: &World,
     rewards: &Rewards,
@@ -497,6 +515,7 @@ fn open_offers(
 ) {
     stars::open_due(stage, rewards, s, events, true);
     expertise::open_due(stage, expertise, s, events);
+    levels::open_due(s, events);
     stars::open_due(stage, rewards, s, events, false);
 }
 
@@ -509,6 +528,8 @@ pub(crate) fn offer_options(
 ) -> Vec<OfferOption> {
     if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
         expertise::options(stage, expertise, s)
+    } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
+        levels::options(s)
     } else {
         stars::options(rewards, s)
     }
@@ -526,6 +547,8 @@ pub(crate) fn choose(
 ) {
     if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
         expertise::choose(stage, expertise, s, option, events);
+    } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
+        levels::choose(s, option, events);
     } else {
         stars::choose(stage, rewards, s, option, events);
     }
@@ -1556,7 +1579,13 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
     if let Some(p) = &s.progress {
         h.write_u32(p.level);
         h.write_u32(p.xp);
-        h.write_u32(p.points);
+        h.write_bool(p.pick_stats);
+        h.write_u32(p.offers_due);
+        h.write_bool(p.offer_open);
+        h.write_u32(count(&p.priority));
+        for i in &p.priority {
+            h.write_u32(u32::from(*i));
+        }
         h.write_u32(count(&p.spent));
         for n in &p.spent {
             h.write_u32(u32::from(*n));

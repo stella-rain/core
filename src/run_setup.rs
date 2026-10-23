@@ -44,6 +44,8 @@ pub const MAX_RUNE_POOL: usize = Rune::ALL.len();
 pub const MAX_CARRIED_STARS: usize = 5;
 /// The largest Lumine budget, the level of the Lumine upgrade at its most (ADR-107 point 2).
 pub const MAX_LUMINE: u8 = 10;
+/// The most run stats a stat priority names: the run stats file's own cap.
+pub const MAX_STAT_PRIORITY: usize = crate::pack::MAX_RUN_STATS;
 
 /// What carrying a star of `rarity` costs, in Lumine (ADR-107 point 2): 1, 2, 3, 4, 6 and 10
 /// from common to supernova. Tuning values, as the budget's maximum and the count are.
@@ -122,6 +124,16 @@ pub struct RunSetup {
     /// costs no Lumine, and the random rune never draws it again.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub starting_rune: Option<ContentId>,
+    /// The run stats a level-up is spent on, most wanted first (DS18): run stat IDs, each once,
+    /// at most `MAX_RUN_STATS`. Each level reached raises the first of them below its limit,
+    /// then the stats this list leaves out in the run stats file's order; empty is that order
+    /// alone. With `pick_stats` the stats are offered instead.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stat_priority: Vec<ContentId>,
+    /// Each level reached opens an offer of the stats below their limit, answered through
+    /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pick_stats: bool,
 }
 
 /// A setup as a file holds it: a `RunSetup` plus `auto_combo`, a field the game dropped (DS5 Q1):
@@ -183,6 +195,16 @@ struct RunSetupFile {
     /// costs no Lumine, and the random rune never draws it again.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     starting_rune: Option<ContentId>,
+    /// The run stats a level-up is spent on, most wanted first (DS18): run stat IDs, each once,
+    /// at most `MAX_RUN_STATS`. Each level reached raises the first of them below its limit,
+    /// then the stats this list leaves out in the run stats file's order; empty is that order
+    /// alone. With `pick_stats` the stats are offered instead.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    stat_priority: Vec<ContentId>,
+    /// Each level reached opens an offer of the stats below their limit, answered through
+    /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pick_stats: bool,
     #[serde(default)]
     auto_combo: bool,
 }
@@ -221,6 +243,8 @@ impl TryFrom<RunSetupFile> for RunSetup {
             carried: f.carried,
             lumine: f.lumine,
             starting_rune: f.starting_rune,
+            stat_priority: f.stat_priority,
+            pick_stats: f.pick_stats,
         })
     }
 }
@@ -426,6 +450,30 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
             issue(format!("$.carried[{i}].reward"), ill_formed.into());
         }
     }
+    if setup.stat_priority.len() > MAX_STAT_PRIORITY {
+        issue(
+            "$.stat_priority".into(),
+            format!(
+                "at most {MAX_STAT_PRIORITY} stats (found {})",
+                setup.stat_priority.len()
+            ),
+        );
+    }
+    for (i, stat) in setup
+        .stat_priority
+        .iter()
+        .enumerate()
+        .take(MAX_STAT_PRIORITY)
+    {
+        if !registry::is_well_formed(&stat.0) {
+            issue(format!("$.stat_priority[{i}]"), ill_formed.into());
+        } else if setup.stat_priority[..i].contains(stat) {
+            issue(
+                format!("$.stat_priority[{i}]"),
+                "the same stat as an earlier entry".into(),
+            );
+        }
+    }
     if setup.lumine > MAX_LUMINE {
         issue(
             "$.lumine".into(),
@@ -461,6 +509,14 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
             path: "$.difficulty".into(),
             message: "no such difficulty in the run's difficulties file".into(),
         });
+    }
+    for (i, id) in setup.stat_priority.iter().enumerate() {
+        if !content.run_stats().stats().iter().any(|s| s.id == *id) {
+            issues.push(Issue {
+                path: format!("$.stat_priority[{i}]"),
+                message: "no such stat in the run's run stats file".into(),
+            });
+        }
     }
     let rewards = content.rewards();
     for (i, id) in setup.star_pool.iter().flatten().enumerate() {

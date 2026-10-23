@@ -8,15 +8,14 @@
 //! A `.replay` of a run is one JSON object. Its inputs are packed as a stage replay's are (see
 //! `replay`). Its commands are packed in the order they applied, each as the tick (a LEB128
 //! delta from the previous command's tick, from 0 for the first), the kind (one byte: 0
-//! `choose`, 1 `spend`) and the index (LEB128). A command carries the number of ticks completed
+//! `choose`; 1 was `spend`, removed with DS18 and refused) and the index (LEB128). A command carries the number of ticks completed
 //! when it applied, so several commands between the same two ticks have deltas of 0.
 //!
 //! Replays are untrusted (ADR-020): a size limit before parsing, strict parsing, no more ticks
 //! than the mode is long and no more than `MAX_COMMANDS` commands. Re-simulation steps tick by
 //! tick; before each tick it applies the commands carrying the current tick, in order, and fails
 //! closed on an unknown kind, a command the engine refuses (a choice with no offer open or
-//! outside its options, a spend after the run ended, while an offer is open or with no point
-//! left, an index outside the run stats, a stat at its limit), an input while an offer is open,
+//! outside its options), an input while an offer is open,
 //! a command left over at the end, an input after the run ended, and a final hash that differs.
 //! A replay may end on an open offer: a bug report may stop while the player looks at one.
 //!
@@ -35,7 +34,7 @@ use sha2::{Digest, Sha256};
 
 use crate::base64;
 use crate::content_hash::to_hex;
-use crate::engine::{ChoiceError, Engine, Outcome, SpendError};
+use crate::engine::{ChoiceError, Engine, Outcome};
 use crate::input::Input;
 use crate::pack::Pack;
 use crate::presets;
@@ -84,27 +83,26 @@ pub struct RunReplay {
     pub commands: String,
 }
 
+/// The byte `spend` had in the packed stream (DS18 removed it): refused, never reused.
+const RETIRED_SPEND: u8 = 1;
+
 /// The kind of a command between ticks, and its byte in the packed stream.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
     /// Option `index` of the open offer (ADR-079 §3).
     Choose,
-    /// A stat point on the run stat at `index` (ADR-079 §4).
-    Spend,
 }
 
 impl CommandKind {
     fn byte(self) -> u8 {
         match self {
             CommandKind::Choose => 0,
-            CommandKind::Spend => 1,
         }
     }
 
     fn from_byte(byte: u8) -> Option<CommandKind> {
         match byte {
             0 => Some(CommandKind::Choose),
-            1 => Some(CommandKind::Spend),
             _ => None,
         }
     }
@@ -124,7 +122,6 @@ pub struct TickCommand {
 pub enum Command {
     Step(Input),
     Choose(u32),
-    Spend(u32),
 }
 
 /// Why a run replay was not recorded or not accepted. Messages never repeat text from files.
@@ -162,11 +159,6 @@ pub enum RunReplayError {
     ChoiceRefused {
         tick: u32,
         error: ChoiceError,
-    },
-    /// A spend carrying this tick was refused by the engine.
-    SpendRefused {
-        tick: u32,
-        error: SpendError,
     },
     /// The run ended on this tick, before the inputs did.
     InputsAfterEnd {
@@ -221,23 +213,6 @@ impl fmt::Display for RunReplayError {
                 ChoiceError::OutOfRange { index, options } => write!(
                     f,
                     "a choice on tick {tick} is option {index} of an offer of {options}"
-                ),
-            },
-            RunReplayError::SpendRefused { tick, error } => match error {
-                SpendError::RunOver => {
-                    write!(f, "a spend on tick {tick} comes after the run ended")
-                }
-                SpendError::OfferOpen => {
-                    write!(f, "a spend on tick {tick} comes while an offer is open")
-                }
-                SpendError::NoPoint => write!(f, "a spend on tick {tick} has no point to spend"),
-                SpendError::OutOfRange { index, stats } => write!(
-                    f,
-                    "a spend on tick {tick} is on stat {index} of {stats} run stats"
-                ),
-                SpendError::AtLimit { index, limit } => write!(
-                    f,
-                    "a spend on tick {tick} is on stat {index}, already at its limit of {limit}"
                 ),
             },
             RunReplayError::InputsAfterEnd { ended_at } => {
@@ -420,6 +395,9 @@ impl RunReplay {
                 .get(pos)
                 .ok_or(bad("ends in the middle of a command"))?;
             pos += 1;
+            if kind == RETIRED_SPEND {
+                return Err(bad("a spend command, which DS18 removed"));
+            }
             let kind = CommandKind::from_byte(kind).ok_or(bad("an unknown command kind"))?;
             if pos == bytes.len() {
                 return Err(bad("ends in the middle of a command"));
@@ -524,18 +502,6 @@ impl RunRecorder {
         Ok(())
     }
 
-    /// Spends a stat point on the run stat at `index`. Refused, recording nothing, when the
-    /// engine refuses it or the replay already holds `MAX_COMMANDS` commands.
-    pub fn spend(&mut self, index: u32) -> Result<(), RunReplayError> {
-        self.room()?;
-        let tick = self.engine.tick();
-        self.engine
-            .spend(index)
-            .map_err(|error| RunReplayError::SpendRefused { tick, error })?;
-        self.record(tick, CommandKind::Spend, index);
-        Ok(())
-    }
-
     fn room(&self) -> Result<(), RunReplayError> {
         if self.commands.len() >= MAX_COMMANDS as usize {
             return Err(RunReplayError::TooManyCommands {
@@ -583,7 +549,6 @@ pub fn record_run_with(
         match *command {
             Command::Step(input) => recorder.step(input)?,
             Command::Choose(index) => recorder.choose(index)?,
-            Command::Spend(index) => recorder.spend(index)?,
         }
     }
     Ok(recorder.replay())
@@ -738,9 +703,6 @@ fn apply_commands(
             CommandKind::Choose => engine
                 .choose(c.index)
                 .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?,
-            CommandKind::Spend => engine
-                .spend(c.index)
-                .map_err(|error| RunReplayError::SpendRefused { tick, error })?,
         }
         *next += 1;
     }

@@ -40,6 +40,8 @@ fn engine_edited(
         carried: Vec::new(),
         lumine: 0,
         starting_rune: None,
+        stat_priority: Vec::new(),
+        pick_stats: false,
         difficulty: "normal".into(),
     };
     Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
@@ -306,6 +308,8 @@ fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
         carried: Vec::new(),
         lumine: 0,
         starting_rune: None,
+        stat_priority: Vec::new(),
+        pick_stats: false,
         difficulty: "normal".into(),
     };
     let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
@@ -525,6 +529,8 @@ fn bundled_run(difficulty: &str, seed: u64) -> Engine {
         carried: Vec::new(),
         lumine: 0,
         starting_rune: None,
+        stat_priority: Vec::new(),
+        pick_stats: false,
         difficulty: difficulty.into(),
     };
     let mode = TimeLimit::bundled();
