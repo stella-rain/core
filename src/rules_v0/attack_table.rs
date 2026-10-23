@@ -149,11 +149,11 @@ impl AttackKeys {
 pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(), Issue> {
     let mut refs: Vec<AttackRef> = Vec::new();
     for agent in world.defs.agents() {
-        rules(&agent.rules, &mut refs);
+        from_rules(&agent.rules, &mut refs);
     }
     for def in &world.bosses {
         for phase in &def.boss.phases {
-            rules(&phase.rules, &mut refs);
+            from_rules(&phase.rules, &mut refs);
             for step in &phase.timeline {
                 if let BossStep::Attack { attack, .. } = step {
                     refs.push(attack.clone());
@@ -190,14 +190,14 @@ pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(),
     Ok(())
 }
 
-fn rules(rules: &[Rule], out: &mut Vec<AttackRef>) {
-    for rule in rules {
+fn from_rules(list: &[Rule], out: &mut Vec<AttackRef>) {
+    for rule in list {
         match &rule.action {
             Action::Attack { attack } => out.push(attack.clone()),
             Action::Cast {
                 skill: Skill::Shot { pattern, .. },
             } => out.push(pattern.clone()),
-            Action::Summon { agent, .. } => rules(&agent.rules, out),
+            Action::Summon { agent, .. } => from_rules(&agent.rules, out),
             _ => {}
         }
     }
