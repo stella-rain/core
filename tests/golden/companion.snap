@@ -104,7 +104,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":true,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":37,"type":"Input"}
 {"data":{"depth":1,"press":"main"},"dir":"be>fe","tick":37,"type":"ComboStep"}
 {"data":{"damage":10000,"source":4,"target":2,"target_kind":1},"dir":"be>fe","tick":37,"type":"Hit"}
-{"data":{"entity":2,"kind":1},"dir":"be>fe","tick":37,"type":"Died"}
+{"data":{"class":"companion","entity":2,"kind":1},"dir":"be>fe","tick":37,"type":"Died"}
 {"data":"cf317efe0dea4269","dir":"be>fe","tick":37,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":38,"type":"Input"}
 {"dir":"be>fe","tick":38,"type":"ComboReset"}
@@ -130,7 +130,7 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":64,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":46,"type":"Input"}
 {"data":{"agent":4,"rule":0,"target":0},"dir":"be>fe","tick":46,"type":"RuleFired"}
 {"data":{"damage":12,"source":0,"target":4,"target_kind":0},"dir":"be>fe","tick":46,"type":"Hit"}
-{"data":{"entity":4,"kind":0},"dir":"be>fe","tick":46,"type":"Died"}
+{"data":{"class":"enemy","entity":4,"kind":0},"dir":"be>fe","tick":46,"type":"Died"}
 {"data":"4c7168442c44bbee","dir":"be>fe","tick":46,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":64,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":47,"type":"Input"}
 {"data":"4dbcda76e1c5e9c3","dir":"be>fe","tick":47,"type":"StateHash"}
