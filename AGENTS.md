@@ -22,7 +22,7 @@ proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MI
   Any change to stage, event or replay types, or to a simulation outcome, follows the
   `schema-change` skill.
 - Released content IDs (assets, palettes, parts, blocks, skills, attack patterns) are never renamed or removed, only deprecated (ADR-CONT-2).
-- ADRs marked *Proposed* are the current plan: build on them, but raise a departure with Kade rather than depart silently.
+- An open ADR PR is the current plan: build on it, raise a departure with Kade rather than depart silently.
 - Design: standard practice first; give Kade options, trade-offs, a pick; better ideas as options.
 
 ## Layout
