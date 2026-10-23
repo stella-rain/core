@@ -7,6 +7,8 @@ license = "MIT OR Apache-2.0"
 description = "Deterministic simulation for Stella Rain"
 repository = "https://github.com/stella-rain/core"
 publish = false
+# The repository-task crate is its own package; a package of core never carries it.
+exclude = ["/xtask/"]
 # The integration tests build as one binary, `tests/integration.rs`, not one per file: each
 # binary re-optimises and links the engine on its own, which made a release test build spend
 # 85% of its time on 62 copies of the same work.
