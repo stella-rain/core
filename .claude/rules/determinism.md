@@ -47,7 +47,7 @@ published stages fail to verify.
   version through the `schema-change` skill.
 - Shared helpers used by a frozen version keep their behaviour; copy before changing.
 - Frozen rules include the state hash and its byte encoding (ADR-SIM-3), and the dynamic budget
-  caps with their overflow rules (ADR-SVC-1): raising a cap is a new `sim_version`.
+  caps with their overflow rules (ADR-SIM-5): raising a cap is a new `sim_version`.
 
 ## Tests
 
