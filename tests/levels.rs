@@ -500,6 +500,10 @@ fn time_limit_reads_its_own_curve() {
     let e = Engine::start(&time_limit_setup()).expect("a Time Limit run starts");
     let p = e.snapshot().progress.expect("a Time Limit run has levels");
     assert_eq!((p.level, p.xp_next), (1, 30));
+    // The curve is 30, then 90 more for each level; the 26th level takes 27,750 in all.
+    let xp = &RunContent::bundled().time_limit().levels().xp;
+    assert_eq!((xp[0], xp[1], xp.len()), (30, 120, 25));
+    assert_eq!(xp.iter().sum::<u32>(), 27_750);
 }
 
 /// The bundled run stats with `xp_plus`: 10% more experience a point, at most 1 point.
