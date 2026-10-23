@@ -6,6 +6,7 @@ use std::path::Path;
 #[test]
 fn checked_in_schema_is_current() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("schema");
+    #[expect(clippy::disallowed_methods, reason = "test knob")]
     let update = std::env::var_os("UPDATE_SCHEMA").is_some();
     let mut stale = Vec::new();
     for (name, json) in stella_rain_core::schema::all() {

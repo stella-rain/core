@@ -1857,6 +1857,7 @@ fn deaths(name: &str) -> usize {
 
 #[test]
 fn the_corpus_matches() {
+    #[expect(clippy::disallowed_methods, reason = "test knob")]
     if std::env::var_os("UPDATE_CORPUS").is_some() {
         // The stages are written at design values and scaled here (ADR-103).
         for (name, stage_bytes, inputs) in definitions() {
