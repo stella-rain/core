@@ -14,7 +14,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::difficulties::{Difficulties, Difficulty};
 use crate::id::ContentId;
-use crate::presets;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::Rarity;
 use crate::run_content::RunContent;
@@ -301,14 +300,16 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
     };
     id("mode", &setup.mode, Kind::Mode);
     id("weapon", &setup.weapon, Kind::Weapon);
-    if let Some(problem) = setup
+    // Whether the weapon has that tree is the weapons file's to say: the run checks it against
+    // its own content (`World::new`).
+    if setup
         .weapon_tree
         .as_ref()
-        .and_then(|tree| presets::tree_problem(&setup.weapon.0, &tree.0))
+        .is_some_and(|tree| !registry::is_well_formed(&tree.0))
     {
         issues.push(Issue {
             path: "$.weapon_tree".into(),
-            message: problem.into(),
+            message: validate::TREE_ID_PROBLEM.into(),
         });
     }
     if let Some(pool) = &setup.star_pool {

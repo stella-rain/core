@@ -20,6 +20,7 @@ use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::validate_weapon_preset;
 use stella_rain_core::weapon::{Branches, Step, WeaponRef};
+use stella_rain_core::weapons::Weapons;
 
 // --- Builders --------------------------------------------------------------------------------
 
@@ -476,7 +477,7 @@ fn a_preset_is_the_one_weapon_both_buttons_play() {
 
 #[test]
 fn a_preset_and_its_inline_copy_run_the_same() {
-    let preset_of = |id: &str| presets::weapon_preset(id).expect("a weapon preset");
+    let preset_of = |id: &str| Weapons::bundled().tree(id, None).expect("a weapon preset");
     let copy = |w: Value| json!({ "inline": w });
     let waves = || vec![wave(1, 3, 20, still(40), START_X, START_Y - 9_216)];
     let by_id = armed(
@@ -509,13 +510,13 @@ fn every_weapon_preset_is_registered_and_both_roles_are_valid() {
         .filter(|e| e.kind == Kind::Weapon)
         .map(|e| e.id)
         .collect();
-    let defined: Vec<_> = presets::weapon_ids().collect();
+    let defined: Vec<_> = Weapons::bundled().ids().map(|i| i.0.as_str()).collect();
     assert_eq!(registered, defined);
     for id in defined {
-        let w = presets::weapon_preset(id).expect("a definition");
+        let w = Weapons::bundled().tree(id, None).expect("a definition");
         assert_eq!(validate_weapon_preset(w, registry::ENTRIES), Ok(()), "{id}");
         assert_eq!(
-            presets::weapon(&WeaponRef::Preset {
+            Weapons::bundled().resolve(&WeaponRef::Preset {
                 id: id.into(),
                 tree: None
             }),
@@ -528,7 +529,7 @@ fn every_weapon_preset_is_registered_and_both_roles_are_valid() {
 
 /// The weapon preset `id`.
 fn weapon_of(id: &str) -> &'static stella_rain_core::weapon::Weapon {
-    presets::weapon_preset(id).expect("a weapon preset")
+    Weapons::bundled().tree(id, None).expect("a weapon preset")
 }
 
 /// The step that a press sequence reaches from `branches`: `A` for `main`, `B` for `smash`.
@@ -581,7 +582,7 @@ fn active_radius(attack: &AttackRef) -> i32 {
 #[test]
 fn a_smash_ends_its_combo_in_every_weapon() {
     // ADR-084 point 2: after a B press the combo ends, the dash branch included.
-    for id in presets::weapon_ids() {
+    for id in Weapons::bundled().ids().map(|i| i.0.as_str()) {
         let w = weapon_of(id);
         for (smash, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
             if smash {

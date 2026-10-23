@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc cd91192de86917fcaaefa1531af4d6a793201082683dcf1ee92f93cd75ea85cc # shrinks to horde = [(Object {"at": Object {"x": Number(30000), "y": Number(40000)}, "type": String("hold")}, 1024, 256, 1, 40000, 50000)], inputs = [Input { move_x: 0, move_y: 0, main: false, smash: false, evade: false, skill: false, assist: false, auto: false }]

@@ -34,7 +34,6 @@ use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
-use crate::presets;
 use crate::rewards::Rewards;
 use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
@@ -109,7 +108,7 @@ pub(super) fn update(
         p.facing = dir;
     }
     // The validator lets only defined presets through.
-    let main = presets::weapon(&stage.player.weapon);
+    let main = stage.weapon();
     s.player.target = match main {
         Some(m) if input.assist || input.auto => select::assist_target(stage, s, m.assist_range.0),
         _ => None,
@@ -474,7 +473,7 @@ fn auto_press(c: &ComboState, input: Input, target: bool) -> Option<Auto> {
 /// `main` pressed from the root until a step has no next step for it (ADR-073).
 pub(super) fn initial_combo(stage: &World) -> ComboState {
     let mut depth = 0u8;
-    if let Some(main) = presets::weapon(&stage.player.weapon) {
+    if let Some(main) = stage.weapon() {
         let mut step = main.combo.get(false);
         while let Some(st) = step {
             depth = depth.saturating_add(1);
@@ -562,7 +561,8 @@ fn strike(
         }
     }
     let smash = if last_press_smash(&s.player.combo) {
-        presets::weapon(&stage.player.weapon)
+        stage
+            .weapon()
             .and_then(|w| w.smash)
             .map(|effect| match effect {
                 SmashEffect::Pull { distance, ticks } => Smash::Pull(Pull {
@@ -629,7 +629,7 @@ fn in_perfect_window(charge: &Charge, held: u32) -> bool {
 /// The current step's charge, if it is charging.
 fn current_charge<'a>(stage: &'a World, s: &State) -> Option<&'a Charge> {
     s.player.combo.charge?;
-    let main = presets::weapon(&stage.player.weapon)?;
+    let main = stage.weapon()?;
     step_at(main, &s.player.combo)?.charge.as_ref()
 }
 
@@ -797,7 +797,7 @@ fn held_move_pct(stage: &World, s: &State) -> i64 {
 /// The current step's hold, if it is held.
 fn current_hold<'a>(stage: &'a World, s: &State) -> Option<&'a Hold> {
     s.player.combo.hold?;
-    let main = presets::weapon(&stage.player.weapon)?;
+    let main = stage.weapon()?;
     step_at(main, &s.player.combo)?.hold.as_ref()
 }
 

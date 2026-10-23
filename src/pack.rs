@@ -45,8 +45,8 @@ use crate::stardust::{Stardust, StardustFile};
 use crate::starting_unlocks::{StartingUnlocks, StartingUnlocksFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
 use crate::validate::{self, Error, Issue};
-use crate::weapons::{Weapons, WeaponsFile};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::weapons::{Weapons, WeaponsFile};
 
 // The count budgets: about four times today's counts, rounded up to a multiple of 8 and held
 // to the file's own cap where that is lower (tuning values; ADR-020 decides that they exist).

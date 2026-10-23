@@ -14,6 +14,7 @@ use crate::run_content::RunContent;
 use crate::stage::{Boss, Stage};
 use crate::time_limit::EliteTier;
 use crate::validate::Issue;
+use crate::weapon::{Weapon, WeaponRef};
 
 use super::attack_table::{self, AttackKeys};
 
@@ -230,6 +231,9 @@ pub(crate) struct World {
     /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
     /// not give an attack.
     pub rune_attacks: Vec<Option<AttackIndex>>,
+    /// The main character's weapon, resolved from the run's weapons file once (WP1): none for a
+    /// weapon the file does not define.
+    weapon: Option<Weapon>,
 }
 
 impl World {
@@ -290,6 +294,20 @@ impl World {
                 })
             }
         };
+        let main = &stage.player.weapon;
+        if let WeaponRef::Preset {
+            id,
+            tree: Some(tree),
+        } = main
+        {
+            if let Some(message) = content.weapons().tree_problem(&id.0, &tree.0) {
+                return Err(Issue {
+                    path: "$.player.weapon.preset.tree".into(),
+                    message: message.into(),
+                });
+            }
+        }
+        let weapon = content.weapons().resolve(main).cloned();
         let mut world = World {
             stage,
             defs,
@@ -299,9 +317,15 @@ impl World {
             attack_keys: AttackKeys::default(),
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
+            weapon,
         };
         attack_table::compile_run(&mut world, content)?;
         Ok(world)
+    }
+
+    /// The main character's weapon: the file's definition, or the stage's inline one.
+    pub fn weapon(&self) -> Option<&Weapon> {
+        self.weapon.as_ref()
     }
 
     /// Compiles `attack` unless the run has it already, and returns its index.

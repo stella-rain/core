@@ -5,8 +5,8 @@
 //! freely and no longer depends on the ID. The engine runs a preset by that same expansion, so a preset and
 //! its inline copy run the same program and reach the same state hashes.
 //!
-//! Weapon presets (ADR-084) are the developer's weapons, each a combo tree with its smash effect,
-//! written the same way; a stage uses one by ID, without arguments, or holds an inline weapon.
+//! The developer's weapons (ADR-084) are content, not code (WP1): `content/weapons.json`, read
+//! through `weapons::Weapons`.
 //!
 //! Under version 0 (ADR-035) these definitions are placeholders and change in place.
 
@@ -14,7 +14,6 @@ use std::sync::{Arc, OnceLock};
 
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr};
 use crate::registry::{self, Kind};
-use crate::weapon::{Weapon, WeaponRef};
 
 /// `(id, definition)`: the definitions are JSON, the stage format's own, with `{"arg": n}` for
 /// the preset's arguments. Angles are in 1/256 degree, lengths in 1/256 pixel and speeds in 1/256
@@ -91,227 +90,10 @@ const DEFINITIONS: &[(&str, &str)] = &[
     ),
 ];
 
-/// `(id, trees)` of the weapon presets: each weapon's trees in order, tree 1 first (ADR-117), as
-/// `(tree ID, definition)` in the stage format's own JSON. A tree ID is lowercase snake_case, a
-/// placeholder name: `<weapon>_base` for tree 1. Trees 2 and 3 are added per weapon as content.
-/// Placeholders until the game design's weapons are written (Giant Sword and the others,
-/// app#209).
-const WEAPONS: &[(&str, &[(&str, &str)])] = &[
-    // The Vindictus shape (ADR-084): A to AAAAA are spins around the main character, each
-    // wider than the last, and every Hammer step is Strike (ADR-100). AAA holds (ADR-084 point 6):
-    // its loop spins on at half speed while A stays held, each loop a new attack that hits again
-    // after 8 ticks, and the release is a heavy slam at 100 times the default damage (ADR-103). B is an overhead smash (`slam`) and AB a ground shock, a forward
-    // arc; a smash ends the combo. The dash-strike is a short spin, the dash smash `slam`. Smashes
-    // stun what they hit for 30 ticks (ADR-085); assist looks 128 pixels away. AAB (an
-    // arc) and AAAB (a wide circle) are Strike smashes at 100 times the default damage, AAAAB (a
-    // wider circle) at 120 and AAAAAB (a crater, the strongest) at 160; placeholders.
-    (
-        "giant_hammer",
-        &[(
-            "giant_hammer_base",
-            r#"{"combo":{
-                "main":{"attack":{"inline":[
-                            {"kind":"wind_up","ticks":6},
-                            {"kind":"active","ticks":4,"type":"strike",
-                             "hit_box":{"type":"circle","radius":8192}},
-                            {"kind":"recovery","ticks":14}]},
-                        "next":{
-                    "main":{"attack":{"inline":[
-                                {"kind":"wind_up","ticks":6},
-                                {"kind":"active","ticks":5,"type":"strike",
-                                 "hit_box":{"type":"circle","radius":10240}},
-                                {"kind":"recovery","ticks":14}]},
-                            "next":{
-                        "main":{"attack":{"inline":[
-                                    {"kind":"wind_up","ticks":8},
-                                    {"kind":"active","ticks":6,"type":"strike",
-                                     "hit_box":{"type":"circle","radius":12288}},
-                                    {"kind":"recovery","ticks":20}]},
-                                "hold":{"loop":{"inline":[{"kind":"active","ticks":8,"rehit_ticks":8,"type":"strike","hit_box":{"type":"circle","radius":12288}}]},"release":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":5,"type":"strike","damage":10000,"hit_box":{"type":"circle","offset":{"forward":4096},"radius":16384}},{"kind":"recovery","ticks":24}]},"max_ticks":180,"move_pct":50},"next":{
-                            "main":{"attack":{"inline":[
-                                        {"kind":"wind_up","ticks":8},
-                                        {"kind":"active","ticks":6,"type":"strike",
-                                         "hit_box":{"type":"circle","radius":14336}},
-                                        {"kind":"recovery","ticks":20}]},
-                                    "next":{
-                                "main":{"attack":{"inline":[
-                                            {"kind":"wind_up","ticks":10},
-                                            {"kind":"active","ticks":6,"type":"strike",
-                                             "hit_box":{"type":"circle","radius":16384}},
-                                            {"kind":"recovery","ticks":24}]},
-                                        "next":{"smash":{"attack":{"inline":[
-                                            {"kind":"wind_up","ticks":22,"move_pct":50},
-                                            {"kind":"active","ticks":6,"move_pct":50,"type":"strike","damage":16000,
-                                             "hit_box":{"type":"circle","radius":22528}},
-                                            {"kind":"recovery","ticks":30,"move_pct":50}]}}}},
-                                "smash":{"attack":{"inline":[
-                                    {"kind":"wind_up","ticks":18,"move_pct":50},
-                                    {"kind":"active","ticks":5,"move_pct":50,"type":"strike","damage":12000,
-                                     "hit_box":{"type":"circle","radius":18432}},
-                                    {"kind":"recovery","ticks":28,"move_pct":50}]}}}},
-                            "smash":{"attack":{"inline":[{"kind":"wind_up","ticks":16,"move_pct":50},{"kind":"active","ticks":5,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"circle","radius":16384}},{"kind":"recovery","ticks":26,"move_pct":50}]}}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":12,"move_pct":50},{"kind":"active","ticks":4,"move_pct":50,"type":"strike","damage":10000,"hit_box":{"type":"arc","offset":{"forward":4096},"radius":14336,"half_angle":24576}},{"kind":"recovery","ticks":22,"move_pct":50}]}}}},
-                    "smash":{"attack":{"inline":[
-                                {"kind":"wind_up","ticks":14,"move_pct":50},
-                                {"kind":"active","ticks":4,"move_pct":50,"type":"strike",
-                                 "hit_box":{"type":"arc","offset":{"forward":4096},
-                                            "radius":12288,"half_angle":20480}},
-                                {"kind":"recovery","ticks":22,"move_pct":50}]}}}},
-                "smash":{"attack":{"preset":{"id":"slam"}}}},
-            "dash":{"main":{"attack":{"inline":[
-                        {"kind":"wind_up","ticks":2},
-                        {"kind":"active","ticks":3,"type":"strike",
-                         "hit_box":{"type":"circle","radius":8192}},
-                        {"kind":"recovery","ticks":8}]}},
-                    "smash":{"attack":{"preset":{"id":"slam"}}}},
-            "window_ticks":24,"dash_strike_ticks":10,"assist_range":32768,
-            "smash":{"type":"stun","ticks":30}}"#,
-        )],
-    ),
-    // The Vindictus shape (ADR-084): A, AA, AAA, AAAA and AAAAA are a slash, a slash, a thrust
-    // (Pierce, ADR-100), a slash and a finishing thrust; AAA charges, at level 1 a wide slash and at level 2 a spin all round, each with
-    // the +50% perfect bonus. B is a slash and AB a thrust, both smashes that end the combo; AAB, AAAB, AAAAB and AAAAAB
-    // are smashes too, a wide Slash, a Pierce, a wider Slash and a long Pierce (AAAAAB the
-    // strongest, at 160 times the default damage), the numbers placeholders. The
-    // dash-strike is a lunge thrust, the dash smash a slash. Assist looks 160 pixels away.
-    // Smashes put the bleed on what they hit, the bleed rune's numbers (ADR-084 point 8). AAB (a
-    // wide Slash) and AAAB (a long Pierce) are smashes at 100 times the default damage,
-    // placeholders. No smash is locked (ADR-117).
-    (
-        "giant_sword",
-        &[(
-            "giant_sword_base",
-            r#"{"combo":{
-                "main":{"attack":{"preset":{"id":"slash"}},"next":{
-                    "main":{"attack":{"preset":{"id":"slash"}},"next":{
-                        "main":{"attack":{"preset":{"id":"thrust"}},
-                                "charge":{"max_ticks":90,"move_pct":50,"levels":[
-                                    {"at_ticks":20,"perfect_ticks":6,"perfect_pct":50,
-                                     "attack":{"inline":[
-                                        {"kind":"wind_up","ticks":8,"move_pct":50},
-                                        {"kind":"active","ticks":4,"move_pct":50,"type":"slash",
-                                         "hit_box":{"type":"arc","offset":{"forward":2048},
-                                                    "radius":8192,"half_angle":22528}},
-                                        {"kind":"recovery","ticks":14,"move_pct":50}]}},
-                                    {"at_ticks":50,"perfect_ticks":6,"perfect_pct":50,
-                                     "attack":{"inline":[
-                                        {"kind":"wind_up","ticks":12,"move_pct":50},
-                                        {"kind":"active","ticks":4,"move_pct":50,"type":"slash",
-                                         "hit_box":{"type":"circle","radius":10240}},
-                                        {"kind":"recovery","ticks":20,"move_pct":50}]}}]},"next":{
-                            "main":{"attack":{"preset":{"id":"slash"}},"next":{
-                                "main":{"attack":{"preset":{"id":"thrust"}},"next":{
-                                    "smash":{"attack":{"inline":[
-                                        {"kind":"wind_up","ticks":12},
-                                        {"kind":"active","ticks":4,"type":"pierce","damage":16000,
-                                         "hit_box":{"type":"circle","offset":{"forward":10240},"radius":6144}},
-                                        {"kind":"recovery","ticks":22}]}}}},
-                                "smash":{"attack":{"inline":[
-                                    {"kind":"wind_up","ticks":10},
-                                    {"kind":"active","ticks":4,"type":"slash","damage":12000,
-                                     "hit_box":{"type":"arc","offset":{"forward":2048},"radius":12288,"half_angle":24576}},
-                                    {"kind":"recovery","ticks":16}]}}}},
-                            "smash":{"attack":{"inline":[{"kind":"wind_up","ticks":10},{"kind":"active","ticks":3,"type":"pierce","damage":10000,"hit_box":{"type":"circle","offset":{"forward":8192},"radius":4096}},{"kind":"recovery","ticks":18}]}}}},"smash":{"attack":{"inline":[{"kind":"wind_up","ticks":8},{"kind":"active","ticks":4,"type":"slash","damage":10000,"hit_box":{"type":"arc","offset":{"forward":2048},"radius":10240,"half_angle":20480}},{"kind":"recovery","ticks":14}]}}}},
-                        "smash":{"attack":{"preset":{"id":"thrust"}}}}},
-                "smash":{"attack":{"preset":{"id":"slash"}}}},
-            "dash":{"main":{"attack":{"preset":{"id":"thrust"}}},
-                    "smash":{"attack":{"preset":{"id":"slash"}}}},
-            "window_ticks":20,"dash_strike_ticks":10,"assist_range":40960,
-            "smash":{"type":"bleed"}}"#,
-        )],
-    ),
-];
-
-/// A weapon's trees, parsed: `(weapon ID, [(tree ID, definition)])`.
-type ParsedTrees = Vec<(&'static str, Vec<(&'static str, Weapon)>)>;
-
-fn parsed_weapons() -> &'static ParsedTrees {
-    static PARSED: OnceLock<ParsedTrees> = OnceLock::new();
-    PARSED.get_or_init(|| {
-        WEAPONS
-            .iter()
-            .map(|(id, trees)| {
-                let trees = trees
-                    .iter()
-                    .map(|(tree, json)| {
-                        let weapon = serde_json::from_str(json).unwrap_or_else(|e| {
-                            panic!("the built-in weapon tree {tree} does not parse: {e}")
-                        });
-                        (*tree, weapon)
-                    })
-                    .collect();
-                (*id, trees)
-            })
-            .collect()
-    })
-}
-
-/// Every preset's source as `(kind, id, definition)`, attacks (`b'a'`) then weapons (`b'w'`:
-/// tree 1 under the weapon's ID, `b't'`: each other tree under its tree ID), each in its list's
-/// order: what the run replay's content hash covers (ADR-051).
+/// Every attack preset's source as `(kind, id, definition)` (`b'a'`), in the list's order: what
+/// the run replay's content hash covers (ADR-051). The weapons are in the pack's hash (WP1).
 pub(crate) fn sources() -> impl Iterator<Item = (u8, &'static str, &'static str)> {
-    let attacks = DEFINITIONS.iter().map(|(id, json)| (b'a', *id, *json));
-    let weapons = WEAPONS.iter().flat_map(|(id, trees)| {
-        trees.iter().enumerate().map(move |(i, (tree, json))| {
-            if i == 0 {
-                (b'w', *id, *json)
-            } else {
-                (b't', *tree, *json)
-            }
-        })
-    });
-    attacks.chain(weapons)
-}
-
-/// The ID of every weapon preset that has a definition.
-pub fn weapon_ids() -> impl Iterator<Item = &'static str> {
-    WEAPONS.iter().map(|(id, _)| *id)
-}
-
-/// The IDs of a weapon's trees, tree 1 first (ADR-117); none for an ID that is no weapon.
-pub fn tree_ids(weapon: &str) -> impl Iterator<Item = &'static str> {
-    WEAPONS
-        .iter()
-        .find(|(id, _)| *id == weapon)
-        .into_iter()
-        .flat_map(|(_, trees)| trees.iter().map(|(tree, _)| *tree))
-}
-
-/// What is wrong with naming `tree` for the weapon `weapon`, if anything (ADR-020: fail closed,
-/// and never echo the file's text): not a well-formed ID, or not one of the weapon's trees. A
-/// weapon with no definition is left to the weapon's own check.
-pub fn tree_problem(weapon: &str, tree: &str) -> Option<&'static str> {
-    if !registry::is_well_formed(tree) {
-        Some("not a valid ID (lowercase snake_case, at most 32 characters)")
-    } else if tree_ids(weapon).next().is_some() && !tree_ids(weapon).any(|t| t == tree) {
-        Some("no such tree for this weapon")
-    } else {
-        None
-    }
-}
-
-/// A weapon preset's definition: its first tree.
-pub fn weapon_preset(id: &str) -> Option<&'static Weapon> {
-    weapon_tree(id, None)
-}
-
-/// A weapon's tree: the one `tree` names, or the first when `None`. `None` for a weapon with no
-/// definition or a tree it does not have.
-pub fn weapon_tree(id: &str, tree: Option<&str>) -> Option<&'static Weapon> {
-    let (_, trees) = parsed_weapons().iter().find(|(i, _)| *i == id)?;
-    match tree {
-        None => trees.first(),
-        Some(tree) => trees.iter().find(|(t, _)| *t == tree),
-    }
-    .map(|(_, w)| w)
-}
-
-/// The weapon a reference names: the preset's definition (in its tree), or the inline weapon
-/// itself. `None` for a preset that has no definition, or a tree it does not have.
-pub fn weapon(weapon: &WeaponRef<Weapon>) -> Option<&Weapon> {
-    match weapon {
-        WeaponRef::Preset { id, tree } => weapon_tree(&id.0, tree.as_ref().map(|t| t.0.as_str())),
-        WeaponRef::Inline(w) => Some(w),
-    }
+    DEFINITIONS.iter().map(|(id, json)| (b'a', *id, *json))
 }
 
 fn parsed() -> &'static [(&'static str, Vec<AttackPhase>)] {

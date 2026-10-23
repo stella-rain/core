@@ -22,8 +22,8 @@ use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::stage_skill::StageSkills;
 use crate::validate::{Error, Issue};
-use crate::weapons::Weapons;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::weapons::Weapons;
 
 /// The largest starting unlocks file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_STARTING_UNLOCKS_BYTES: usize = 4 * 1024;

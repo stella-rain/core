@@ -184,7 +184,10 @@ pub fn validate(file: &WeaponsFile) -> Result<(), Error> {
         if registry::find(registry::ENTRIES, Kind::Weapon, &w.id.0).is_none() {
             issue(format!("{at}.id"), "not a registered weapon".into());
         } else if file.weapons[..i].iter().any(|x| x.id == w.id) {
-            issue(format!("{at}.id"), "the same ID as an earlier weapon".into());
+            issue(
+                format!("{at}.id"),
+                "the same ID as an earlier weapon".into(),
+            );
         }
         if w.trees.is_empty() || w.trees.len() > MAX_TREES {
             issue(
