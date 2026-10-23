@@ -31,7 +31,7 @@ allow = [
 exceptions = [
     # "(MIT OR Apache-2.0) AND NCSA": NCSA is permissive (OSI approved) and applies to LLVM's
     # libFuzzer code. fuzz/ is a test harness that is never shipped. Unused in the main workspace.
-    { crate = "libfuzzer-sys", allow = ["NCSA"], reason = "AND NCSA; fuzz harness only, never shipped" },
+    { crate = "libfuzzer-sys", allow = ["NCSA"] },
 ]
 
 [bans]
