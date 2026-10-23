@@ -6,6 +6,10 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
+use stella_rain_core::engine::Engine;
+use stella_rain_core::run_content::RunContent;
+use stella_rain_core::run_replay::{CommandKind, RunReplay};
+
 thread_local! {
     static COUNT: Cell<u64> = const { Cell::new(0) };
     static LIVE: Cell<i64> = const { Cell::new(0) };
@@ -81,5 +85,74 @@ fn a_steady_tick_allocates_nothing() {
     assert_eq!(
         total, 0,
         "allocations in {STEADY_TICKS} steady ticks, per tick: {per_tick:?}"
+    );
+}
+
+/// The most memory the engine may hold at once in the worst minute of a run (DS22 item 3).
+const PEAK_HEAP_LIMIT: i64 = 16 * 1024 * 1024;
+const MINUTE_TICKS: usize = 3600;
+
+/// The bytes this thread holds now, and the most it has held since `reset_peak`.
+fn live_bytes() -> i64 {
+    LIVE.with(Cell::get)
+}
+
+fn reset_peak() {
+    PEAK.with(|p| p.set(LIVE.with(Cell::get)));
+}
+
+fn peak_bytes() -> i64 {
+    PEAK.with(Cell::get)
+}
+
+#[test]
+fn peak_heap_of_the_worst_minute_is_under_16_mib() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/runs/v0/time_limit");
+    let replay = RunReplay::from_bytes(&std::fs::read(dir.join("run.replay")).unwrap()).unwrap();
+    let commands = replay.unpack_commands().unwrap();
+    let inputs = replay.unpack_inputs(u32::MAX).unwrap();
+    let start = live_bytes();
+    let mut engine = Engine::start_with(&replay.setup, RunContent::bundled()).unwrap();
+    let mut next = commands.iter().peekable();
+    // The peak of each minute of the run, in bytes held beyond what the test held before.
+    let mut minutes = Vec::new();
+    reset_peak();
+    for (i, input) in inputs.into_iter().enumerate() {
+        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
+            match c.kind {
+                CommandKind::Choose => engine.choose(c.index).unwrap(),
+                CommandKind::Spend => engine.spend(c.index).unwrap(),
+            }
+        }
+        engine.step(input);
+        if (i + 1) % MINUTE_TICKS == 0 {
+            minutes.push(peak_bytes() - start);
+            reset_peak();
+        }
+    }
+    minutes.push(peak_bytes() - start);
+    let worst = minutes.iter().copied().max().unwrap();
+    eprintln!("peak heap per minute of the time_limit run: {minutes:?} bytes; worst {worst}");
+    assert!(
+        worst < PEAK_HEAP_LIMIT,
+        "peak heap {worst} bytes in the worst minute, limit {PEAK_HEAP_LIMIT}: {minutes:?}"
+    );
+}
+
+#[test]
+fn peak_heap_of_a_minute_of_the_saturated_horde_is_under_16_mib() {
+    let start = live_bytes();
+    let mut engine = time_limit_case::warmed_up();
+    let from = time_limit_case::WARMUP_TICKS + 1;
+    reset_peak();
+    for tick in from..from + MINUTE_TICKS as u32 {
+        engine.step(time_limit_case::input(tick));
+    }
+    let peak = peak_bytes() - start;
+    eprintln!("peak heap of a minute of the saturated horde: {peak} bytes");
+    assert!(
+        peak < PEAK_HEAP_LIMIT,
+        "peak heap {peak} bytes, limit {PEAK_HEAP_LIMIT}"
     );
 }
