@@ -133,7 +133,7 @@ pub struct StunRules {
 pub struct RunStatsFile {
     pub schema_version: u32,
     pub sim_version: u32,
-    /// The stats, in the order the pause screen lists them and `spend` numbers them.
+    /// The stats, in the order a stat offer lists them and the setup's priority falls back on.
     pub stats: Vec<RunStat>,
     /// The stun rules.
     pub stun: StunRules,

@@ -124,35 +124,27 @@ pub fn run_setup(data: &[u8]) -> bool {
 }
 
 /// One tick of `input`, after the commands between ticks (ADR-079): a choice with `pick` as it
-/// is, then a spend of `pick` as it is and one of `pick` inside the stats, each of which may be
-/// refused and must then change nothing; then, while an offer is open, a choice of `pick`
-/// inside its options, which is never refused, so the world goes on.
+/// is, which may be refused and must then change nothing; then, while an offer is open, a choice
+/// of `pick` inside its options, which is never refused, so the world goes on.
 fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
-    let stats = u32::try_from(engine.run_stats().stats().len()).expect("few run stats");
-    for (kind, index) in [
-        (CommandKind::Choose, u32::from(pick)),
-        (CommandKind::Spend, u32::from(pick)),
-        (CommandKind::Spend, u32::from(pick) % stats),
-    ] {
-        let hash = engine.state_hash();
-        let refused = match kind {
-            CommandKind::Choose => engine.choose(index).is_err(),
-            CommandKind::Spend => engine.spend(index).is_err(),
-        };
-        if refused {
-            assert_eq!(
-                engine.state_hash(),
-                hash,
-                "a refused command changed the run"
-            );
-        }
+    let hash = engine.state_hash();
+    if engine.choose(u32::from(pick)).is_err() {
+        assert_eq!(
+            engine.state_hash(),
+            hash,
+            "a refused command changed the run"
+        );
     }
     // Each choice spends a reroll or a banish, or closes the offer; a run has few of either.
     for _ in 0..64 {
-        let Some(offer) = engine.snapshot().progress.and_then(|p| p.offer) else {
+        let Some(options) = engine.snapshot().progress.and_then(|p| {
+            p.offer
+                .map(|o| o.options.len())
+                .or(p.stat_offer.map(|o| o.options.len()))
+        }) else {
             break;
         };
-        let options = u32::try_from(offer.options.len()).expect("few options");
+        let options = u32::try_from(options).expect("few options");
         engine
             .choose(u32::from(pick) % options)
             .expect("an option of the open offer is taken");
@@ -232,7 +224,6 @@ fn commands(run: &RunReplay) -> Vec<Command> {
     let mut next = between.iter().peekable();
     let command = |c: &run_replay::TickCommand| match c.kind {
         CommandKind::Choose => Command::Choose(c.index),
-        CommandKind::Spend => Command::Spend(c.index),
     };
     let mut out = Vec::new();
     for (tick, input) in (0u32..).zip(inputs) {
@@ -315,6 +306,8 @@ pub fn pack_load(data: &[u8]) -> bool {
             carried: Vec::new(),
             lumine: 0,
             starting_rune: None,
+            stat_priority: Vec::new(),
+            pick_stats: false,
             difficulty: "normal".into(),
         };
         let mut engine = Engine::start_with(&setup, pack.content())

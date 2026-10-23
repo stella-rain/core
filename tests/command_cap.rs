@@ -56,6 +56,9 @@ pub fn setup(seed: u64, difficulty: &str, extra_rerolls: u8) -> RunSetup {
         carried: Vec::new(),
         lumine: 0,
         starting_rune: None,
+        stat_priority: Vec::new(),
+        // Every level-up opens a stat offer: the most commands a run can cost.
+        pick_stats: true,
         difficulty: difficulty.into(),
     }
 }
@@ -82,12 +85,12 @@ pub fn play(content: &RunContent, setup: &RunSetup, bot: Bot) -> Played {
     let mut run = RunRecorder::start_with(setup, content).unwrap();
     let mut tick = 0;
     while run.engine().outcome() == Outcome::Running {
-        answer_and_spend(&mut run, bot);
+        answer_offers(&mut run, bot);
         let input = run_input_for(run.engine(), tick, &[EntityKind::Enemy], u32::MAX);
         run.step(input).unwrap();
         tick += 1;
     }
-    answer_and_spend(&mut run, bot);
+    answer_offers(&mut run, bot);
     let replay = run.replay();
     let commands = replay.unpack_commands().unwrap().len();
     Played {
@@ -97,10 +100,15 @@ pub fn play(content: &RunContent, setup: &RunSetup, bot: Bot) -> Played {
     }
 }
 
-fn answer_and_spend(run: &mut RunRecorder, bot: Bot) {
+fn answer_offers(run: &mut RunRecorder, bot: Bot) {
     while run.engine().offer_open() {
         let snapshot = run.engine().snapshot();
-        if snapshot.expertise.and_then(|g| g.offer).is_some() {
+        if snapshot.expertise.and_then(|g| g.offer).is_some()
+            || snapshot
+                .progress
+                .as_ref()
+                .is_some_and(|p| p.stat_offer.is_some())
+        {
             run.choose(0).unwrap();
             continue;
         }
@@ -115,17 +123,6 @@ fn answer_and_spend(run: &mut RunRecorder, bot: Bot) {
             .or_else(|| find(|o| *o == OfferOption::Take { candidate: 0 }))
             .unwrap_or(0);
         run.choose(u32::try_from(pick).unwrap()).unwrap();
-    }
-    while run
-        .engine()
-        .snapshot()
-        .progress
-        .is_some_and(|p| p.points > 0)
-    {
-        // Every stat at its limit leaves the points unspent, and they cost no command.
-        if !(0..5).any(|stat| run.spend(stat).is_ok()) {
-            break;
-        }
     }
 }
 
@@ -180,19 +177,19 @@ fn a_bot_s_short_run_records_and_verifies_within_the_cap() {
 fn a_crafted_replay_with_one_command_over_the_cap_is_refused() {
     let content = short_content();
     let mut replay = play(&content, &setup(1, "normal", 20), Bot::Takes).replay;
-    let spends = |n: u32| -> String {
+    let choices = |n: u32| -> String {
         let commands: Vec<TickCommand> = (0..n)
             .map(|_| TickCommand {
                 tick: 0,
-                kind: CommandKind::Spend,
+                kind: CommandKind::Choose,
                 index: 0,
             })
             .collect();
         pack_commands(&commands)
     };
-    // At the cap the file loads (the spends are then refused by the engine for lack of points,
-    // not for their number); one over it never gets that far.
-    replay.commands = spends(MAX_COMMANDS);
+    // At the cap the file loads (the choices are then refused by the engine for lack of an
+    // offer, not for their number); one over it never gets that far.
+    replay.commands = choices(MAX_COMMANDS);
     assert_eq!(
         RunReplay::from_bytes(&replay.to_bytes())
             .unwrap()
@@ -201,7 +198,7 @@ fn a_crafted_replay_with_one_command_over_the_cap_is_refused() {
             .len(),
         MAX_COMMANDS as usize
     );
-    replay.commands = spends(MAX_COMMANDS + 1);
+    replay.commands = choices(MAX_COMMANDS + 1);
     assert_eq!(
         verify_run_with(&replay.to_bytes(), &content),
         Err(RunReplayError::TooManyCommands {

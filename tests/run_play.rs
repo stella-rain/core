@@ -1,6 +1,6 @@
 //! The scripted run of the trial and the other modes as a list of commands: `run_input`'s
-//! ticks, every offer answered (`common::run::answer_all`), and every stat point spent on
-//! `SPEND_INDEX` as it comes. Beside the common fixtures, not in them, so that the benches that
+//! ticks and every offer answered (`common::run::answer_all`); the setup's stat priority spends the
+//! level-ups. Beside the common fixtures, not in them, so that the benches that
 //! share `tests/common/` do not build it.
 
 use crate::common::run::{STEER_FROM, answer_all, run_input, trial_setup};
@@ -10,16 +10,8 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::RunSetup;
 
-/// The run stat `play_run` spends every point on.
-pub const SPEND_INDEX: u32 = 1;
-
-fn points(engine: &Engine) -> u32 {
-    engine.snapshot().progress.map_or(0, |p| p.points)
-}
-
-/// The commands of a run of `run_input` for up to `ticks` ticks, spending every point on
-/// `SPEND_INDEX` as it comes, between that tick and the next (and after the last), until the
-/// stat is at its limit, and answering every offer as `answer_all` does.
+/// The commands of a run of `run_input` for up to `ticks` ticks, answering every offer as
+/// `answer_all` does, between a tick and the next (and after the last).
 pub fn play_run(ticks: u32) -> Vec<Command> {
     play_run_from(&trial_setup(), ticks)
 }
@@ -46,9 +38,6 @@ pub fn play_run_with(
     let mut offers = 0;
     let between = |engine: &mut Engine, out: &mut Vec<Command>, offers: &mut usize| {
         answer_all(engine, offers, out);
-        while points(engine) > 0 && engine.spend(SPEND_INDEX).is_ok() {
-            out.push(Command::Spend(SPEND_INDEX));
-        }
     };
     for t in 0..ticks {
         if engine.outcome() != Outcome::Running {
@@ -63,17 +52,18 @@ pub fn play_run_with(
     out
 }
 
-/// The tick at whose end the run's first point comes: the one `play_run` spends it after.
+/// The tick at whose end the run's first level-up comes: the one that raises the first stat.
 /// Offers may open before it.
 pub fn first_point_tick() -> u32 {
-    let commands = play_run(STEER_FROM);
-    let at = commands
-        .iter()
-        .position(|c| matches!(c, Command::Spend(_)))
-        .unwrap_or_else(|| panic!("the script gains no point before tick {STEER_FROM}"));
-    let steps = commands[..at]
-        .iter()
-        .filter(|c| matches!(c, Command::Step(_)))
-        .count();
-    u32::try_from(steps).unwrap()
+    let mut engine = Engine::start(&trial_setup()).unwrap();
+    for command in play_run(STEER_FROM) {
+        match command {
+            Command::Step(input) => engine.step(input),
+            Command::Choose(index) => engine.choose(index).unwrap(),
+        }
+        if engine.snapshot().progress.is_some_and(|p| p.level > 1) {
+            return engine.tick();
+        }
+    }
+    panic!("the script gains no level before tick {STEER_FROM}");
 }

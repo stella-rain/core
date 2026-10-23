@@ -155,7 +155,6 @@ fn the_tutorial_earns_no_stardust() {
                     .count();
             }
             Command::Choose(index) => engine.choose(index).unwrap(),
-            Command::Spend(index) => engine.spend(index).unwrap(),
         }
     }
     assert!(

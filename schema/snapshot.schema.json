@@ -1510,12 +1510,6 @@
             }
           ]
         },
-        "points": {
-          "description": "Stat points not spent yet.",
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "spent": {
           "description": "Points spent on each run stat, in the run stats' order (ADR-067).",
           "type": "array",
@@ -1525,6 +1519,17 @@
             "maximum": 255,
             "minimum": 0
           }
+        },
+        "stat_offer": {
+          "description": "The open stat offer (`pick_stats`, DS18): while it is open the world is stopped, and\n`Engine::choose` takes one of its options.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatOfferView"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "xp": {
           "description": "Experience gained toward the next level.",
@@ -1544,7 +1549,6 @@
         "level",
         "xp",
         "xp_next",
-        "points",
         "spent"
       ]
     },
@@ -1725,6 +1729,23 @@
         "id",
         "at",
         "rarity"
+      ]
+    },
+    "StatOfferView": {
+      "description": "A stat offer: a level reached with `pick_stats` (DS18). No reroll, skip or banish.",
+      "type": "object",
+      "properties": {
+        "options": {
+          "description": "The run stats below their limit, in the run stats' order: option `i` of\n`Engine::choose` raises `options[i]`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "options"
       ]
     },
     "StatusView": {

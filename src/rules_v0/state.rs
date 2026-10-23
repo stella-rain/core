@@ -262,15 +262,33 @@ pub(crate) struct OfferState {
     pub candidates: Vec<u16>,
 }
 
-/// Experience, levels and stat points (ADR-079 §2, §4).
+/// What a run stat does, from the run stats file.
+#[derive(Clone, Debug)]
+pub(crate) struct StatRule {
+    pub id: ContentId,
+    pub effect: StatEffect,
+    pub step: u32,
+    pub limit: u8,
+}
+
+/// Experience, levels and stat points (ADR-079 §2, §4; DS18).
 #[derive(Clone, Debug)]
 pub(crate) struct Progress {
     /// From 1.
     pub level: u32,
     /// Experience toward the next level.
     pub xp: u32,
-    /// Stat points not spent yet: one per level-up.
-    pub points: u32,
+    /// The run stats' rules, in the run stats' order: content, fixed for the run, not hashed.
+    pub stats: Vec<StatRule>,
+    /// Every stat's place in `stats`, in the order a level-up spends its point on them: the
+    /// setup's stat priority, then the stats it leaves out in their own order.
+    pub priority: Vec<u8>,
+    /// A level-up opens a stat offer instead of spending by `priority`.
+    pub pick_stats: bool,
+    /// Levels reached whose stat offers have not opened yet.
+    pub offers_due: u32,
+    /// A stat offer is open: `Engine::choose` takes one of the stats below their limit.
+    pub offer_open: bool,
     /// Points spent on each run stat, in the run stats' order.
     pub spent: Vec<u8>,
     /// What the points spent add up to for each effect, in `StatEffect::ALL` order.

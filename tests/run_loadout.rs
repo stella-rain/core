@@ -404,7 +404,6 @@ fn scholar_adds_two_rerolls_and_a_banish_to_an_offer() {
         for c in crate::run_play::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
             match c {
                 Command::Step(input) => e.step(input),
-                Command::Spend(index) => e.spend(index).unwrap(),
                 Command::Choose(_) => break,
             }
             if e.offer_open() {
@@ -499,7 +498,6 @@ fn a_carried_star_counts_toward_its_stack_limit() {
     for c in crate::run_play::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
         match c {
             Command::Step(input) => e.step(input),
-            Command::Spend(index) => e.spend(index).unwrap(),
             Command::Choose(_) => break,
         }
         if e.offer_open() {
@@ -547,7 +545,6 @@ fn runes_after_the_run(setup: &RunSetup) -> Vec<Rune> {
     for c in crate::run_play::play_run_in(setup, &content, common::run::TRIAL_LENGTH) {
         match c {
             Command::Step(input) => e.step(input),
-            Command::Spend(index) => e.spend(index).unwrap(),
             Command::Choose(index) => e.choose(index).unwrap(),
         }
     }

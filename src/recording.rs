@@ -8,14 +8,14 @@
 //! {"tick":1203,"dir":"be>fe","type":"StateHash","data":"9f3a0c12aa55bb66"}
 //! ```
 //!
-//! A run (ADR-079 §5) also has commands between ticks: a `Choose` or a `Spend` line, `fe>be`,
+//! A run (ADR-079 §5) also has commands between ticks: a `Choose` line, `fe>be`,
 //! after the hash of the tick they follow, then the events the command caused, all on that
 //! tick. The next `StateHash` is the next tick's, so there is still one hash a tick.
 //!
 //! ```text
-//! {"tick":996,"dir":"be>fe","type":"LeveledUp","data":{"level":2}}
+//! {"tick":996,"dir":"be>fe","type":"StatOfferOpened","data":{"options":["max_hp","attack"]}}
 //! {"tick":996,"dir":"be>fe","type":"StateHash","data":"41109eebb5db56d4"}
-//! {"tick":996,"dir":"fe>be","type":"Spend","data":{"index":1}}
+//! {"tick":996,"dir":"fe>be","type":"Choose","data":{"index":1}}
 //! {"tick":996,"dir":"be>fe","type":"StatRaised","data":{"stat":"attack","spent":1}}
 //! ```
 
@@ -80,8 +80,8 @@ pub fn record(stage: &Stage, inputs: &[Input]) -> Result<String, validate::Error
 }
 
 /// Runs `commands` from a setup (ADR-079), with the bundled run stats, and returns the
-/// recording: each tick as `record` writes it, and each command between ticks as a `Choose` or
-/// `Spend` line followed by the events it caused. Like the run replay it stops on the tick the
+/// recording: each tick as `record` writes it, and each command between ticks as a `Choose`
+/// line followed by the events it caused. Like the run replay it stops on the tick the
 /// run ends, and fails closed on a command the engine refuses (`run_replay::record_run`).
 pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<String, RunReplayError> {
     let mut recorder = RunRecorder::start(setup)?;
@@ -98,10 +98,6 @@ pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<String, RunR
             Command::Choose(index) => {
                 recorder.choose(index)?;
                 json!({ "type": "Choose", "data": { "index": index } })
-            }
-            Command::Spend(index) => {
-                recorder.spend(index)?;
-                json!({ "type": "Spend", "data": { "index": index } })
             }
         };
         let engine = recorder.engine();
@@ -154,7 +150,7 @@ pub fn inputs_from_jsonl(text: &str) -> Result<Vec<Input>, RecordingError> {
     Ok(inputs)
 }
 
-/// The `Input`, `Choose` and `Spend` lines, in order, as the commands of a run. Ticks must
+/// The `Input` and `Choose` lines, in order, as the commands of a run. Ticks must
 /// count up from 1 without gaps, and a command between ticks must carry the tick of the input
 /// before it (0 before any).
 pub fn commands_from_jsonl(text: &str) -> Result<Vec<Command>, RecordingError> {
@@ -184,14 +180,7 @@ pub fn commands_from_jsonl(text: &str) -> Result<Vec<Command>, RecordingError> {
                     serde_json::from_value(line.data).map_err(|_| error("not a choice"))?;
                 commands.push(Command::Choose(choose.index));
             }
-            "Spend" => {
-                if line.tick != ticks {
-                    return Err(error("a spend is not after its tick"));
-                }
-                let spend: Index =
-                    serde_json::from_value(line.data).map_err(|_| error("not a spend"))?;
-                commands.push(Command::Spend(spend.index));
-            }
+            "Spend" => return Err(error("a spend, which DS18 removed")),
             _ => {}
         }
     }

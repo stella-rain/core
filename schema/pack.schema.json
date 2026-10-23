@@ -3646,7 +3646,7 @@
           "minimum": 0
         },
         "stats": {
-          "description": "The stats, in the order the pause screen lists them and `spend` numbers them.",
+          "description": "The stats, in the order a stat offer lists them and the setup's priority falls back on.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/RunStat"

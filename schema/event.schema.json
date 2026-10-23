@@ -652,7 +652,7 @@
       ]
     },
     {
-      "description": "The main character reached `level`, and gained a stat point (ADR-079 §2).",
+      "description": "The main character reached `level` (ADR-079 §2): a stat is raised by the run's priority,\nor a stat offer is due (DS18).",
       "type": "object",
       "properties": {
         "data": {
@@ -681,7 +681,7 @@
       ]
     },
     {
-      "description": "A stat point was spent on the run stat `stat`, between ticks: it now has `spent`\npoints (ADR-079 §4).",
+      "description": "A level-up raised the run stat `stat`, by the priority or by a choice: it now has\n`spent` points (ADR-079 §4, DS18).",
       "type": "object",
       "properties": {
         "data": {
@@ -706,6 +706,36 @@
         "type": {
           "type": "string",
           "const": "StatRaised"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
+      "description": "A stat offer opened for a level reached with `pick_stats`, and the world stopped until a\nchoice closes it: `options` are the stats below their limit, in the run stats' order\n(DS18).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "options": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ContentId"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "options"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "StatOfferOpened"
         }
       },
       "additionalProperties": false,

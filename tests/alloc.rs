@@ -131,7 +131,6 @@ fn peak_heap_of_the_worst_minute_is_under_16_mib() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             match c.kind {
                 CommandKind::Choose => engine.choose(c.index).unwrap(),
-                CommandKind::Spend => engine.spend(c.index).unwrap(),
             }
         }
         engine.step(input);

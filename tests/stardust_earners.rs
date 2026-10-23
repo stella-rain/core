@@ -395,7 +395,6 @@ fn a_full_time_limit_run_verifies_and_pays_the_new_earners() {
         match c {
             Command::Step(input) => e.step(*input),
             Command::Choose(i) => e.choose(*i).unwrap(),
-            Command::Spend(i) => e.spend(*i).unwrap(),
         }
     }
     let replay = record_run(&setup, &commands).unwrap();
