@@ -20,7 +20,7 @@ use crate::common;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use common::run::play_run_with;
+use crate::run_play::play_run_with;
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
@@ -383,12 +383,12 @@ fn a_replay_that_is_not_the_stages_fails() {
 fn changed_run_case(name: &str) -> (PathBuf, PathBuf) {
     let dir = scratch(&format!("run-{name}"));
     let case = dir.join("case");
-    let point = common::run::first_point_tick();
+    let point = crate::run_play::first_point_tick();
     write_run_case(
         &case,
         &common::run::trial_setup(),
         None,
-        &common::run::play_run(point + 20),
+        &crate::run_play::play_run(point + 20),
     );
     (case, dir.join("diff"))
 }
@@ -403,7 +403,7 @@ fn an_unchanged_run_case_passes() {
 #[test]
 fn a_changed_hash_in_a_run_case_fails_naming_its_tick() {
     let (case, diff) = changed_run_case("tick-n");
-    let after_point = common::run::first_point_tick() as usize + 1;
+    let after_point = crate::run_play::first_point_tick() as usize + 1;
     change_hash(&case, after_point);
     let message = check_run_case(&case, &diff).unwrap_err();
     assert!(
@@ -979,9 +979,9 @@ pub(crate) fn definitions() -> Vec<Definition> {
 /// and answering its offers on the way, with every kind of option; and the same from another
 /// seed, whose run takes a stage skill from an elite's star and uses it.
 fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command>)> {
+    use crate::run_play::{play_run, play_run_from, play_run_in};
     use common::run::{
-        ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, play_run, play_run_from,
-        play_run_in, time_limit_setup, trial_setup,
+        ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, time_limit_setup, trial_setup,
     };
     let stage_skill = RunSetup {
         seed: STAGE_SKILL_SEED,

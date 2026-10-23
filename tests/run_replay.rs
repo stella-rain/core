@@ -22,10 +22,8 @@ use stella_rain_core::validate::Error;
 
 use crate::common;
 
-use common::run::{
-    SPEND_INDEX, TRIAL_LENGTH, first_point_tick, play_run, play_run_in, run_input, run_script,
-    time_limit_setup, trial_setup,
-};
+use crate::run_play::{SPEND_INDEX, first_point_tick, play_run, play_run_in};
+use common::run::{TRIAL_LENGTH, run_input, run_script, time_limit_setup, trial_setup};
 
 fn recorded(ticks: u32) -> RunReplay {
     record_run(&trial_setup(), &play_run(ticks)).unwrap()

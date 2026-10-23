@@ -1,5 +1,5 @@
 //! A run of the trial mode (ADR-079), shared by the run replay, recording and corpus tests.
-use stella_rain_core::engine::{Engine, Outcome};
+use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
@@ -9,9 +9,6 @@ use stella_rain_core::snapshot::{EntityKind, OfferOption};
 
 /// The trial mode's length.
 pub const TRIAL_LENGTH: u32 = 5400;
-
-/// The run stat `play_run` spends every point on.
-pub const SPEND_INDEX: u32 = 1;
 
 /// The seed of the `stage_skill` run case: the first seed under R1's streams where the run kills
 /// an elite whose rare star offers the black hole, takes it, and uses it twice (checked 1 to 30).
@@ -41,21 +38,8 @@ pub const ENEMY_ROLE_BOT_SEED: u64 = 3;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {
-        schema_version: 0,
-        sim_version: 0,
-        mode: "trial".into(),
-        weapon: "giant_sword".into(),
-        weapon_tree: None,
         seed: 20_261_010,
-        star_pool: None,
-        extra_rerolls: 0,
-        upgrades: Vec::new(),
-        perk_set: "duelist".into(),
-        rune_pool: Vec::new(),
-        carried: Vec::new(),
-        lumine: 0,
-        starting_rune: None,
-        difficulty: "normal".into(),
+        ..RunSetup::default()
     }
 }
 
@@ -82,10 +66,6 @@ pub fn run_script(tick: u32) -> Input {
         skill: c == 30,
         ..Input::default()
     }
-}
-
-fn points(engine: &Engine) -> u32 {
-    engine.snapshot().progress.map_or(0, |p| p.points)
 }
 
 /// The tick from which `run_input` walks to the falling stars and goes for the weaker elite.
@@ -235,7 +215,7 @@ fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
 
 /// Answers the open offers: an expertise offer with a take of candidate 0, a star or boss offer
 /// as `answer` does, counting those in `offers`.
-fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command>) {
+pub fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command>) {
     while engine.offer_open() {
         if engine.snapshot().expertise.and_then(|g| g.offer).is_some() {
             engine.choose(0).unwrap();
@@ -245,67 +225,6 @@ fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command>) {
             *offers += 1;
         }
     }
-}
-
-/// The commands of a run of `run_input` for up to `ticks` ticks, spending every point on
-/// `SPEND_INDEX` as it comes, between that tick and the next (and after the last), until the
-/// stat is at its limit, and answering every offer as `answer_all` does.
-pub fn play_run(ticks: u32) -> Vec<Command> {
-    play_run_from(&trial_setup(), ticks)
-}
-
-/// `play_run` from `setup` instead of the trial's.
-pub fn play_run_from(setup: &RunSetup, ticks: u32) -> Vec<Command> {
-    play_run_in(setup, RunContent::bundled(), ticks)
-}
-
-/// `play_run_from` with `content` in place of the bundled files.
-pub fn play_run_in(setup: &RunSetup, content: &RunContent, ticks: u32) -> Vec<Command> {
-    play_run_with(setup, content, ticks, run_input)
-}
-
-/// `play_run_in` with `input` choosing each tick's buttons.
-pub fn play_run_with(
-    setup: &RunSetup,
-    content: &RunContent,
-    ticks: u32,
-    input: impl Fn(&Engine, u32) -> Input,
-) -> Vec<Command> {
-    let mut engine = Engine::start_with(setup, content).unwrap();
-    let mut out = Vec::new();
-    let mut offers = 0;
-    let between = |engine: &mut Engine, out: &mut Vec<Command>, offers: &mut usize| {
-        answer_all(engine, offers, out);
-        while points(engine) > 0 && engine.spend(SPEND_INDEX).is_ok() {
-            out.push(Command::Spend(SPEND_INDEX));
-        }
-    };
-    for t in 0..ticks {
-        if engine.outcome() != Outcome::Running {
-            break;
-        }
-        between(&mut engine, &mut out, &mut offers);
-        let input = input(&engine, t);
-        engine.step(input);
-        out.push(Command::Step(input));
-    }
-    between(&mut engine, &mut out, &mut offers);
-    out
-}
-
-/// The tick at whose end the run's first point comes: the one `play_run` spends it after.
-/// Offers may open before it.
-pub fn first_point_tick() -> u32 {
-    let commands = play_run(STEER_FROM);
-    let at = commands
-        .iter()
-        .position(|c| matches!(c, Command::Spend(_)))
-        .unwrap_or_else(|| panic!("the script gains no point before tick {STEER_FROM}"));
-    let steps = commands[..at]
-        .iter()
-        .filter(|c| matches!(c, Command::Step(_)))
-        .count();
-    u32::try_from(steps).unwrap()
 }
 
 /// The bundled perk sets and a `plain` one with no effects: a run that differs from the same

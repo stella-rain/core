@@ -3,7 +3,8 @@
 
 use crate::common;
 
-use common::run::{SPEND_INDEX, first_point_tick, play_run, trial_setup};
+use crate::run_play::{SPEND_INDEX, first_point_tick, play_run};
+use common::run::trial_setup;
 use common::{CLEAR_TICK, clearing_inputs, stage_bytes};
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
