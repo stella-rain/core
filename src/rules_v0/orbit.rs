@@ -13,7 +13,7 @@
 //! An orbit arrives ready, at angle 0. Taking it again adds its orbs, up to `MAX_ORBS`; they join
 //! at the next round, and the round going on keeps its own.
 
-use super::Run;
+use super::World;
 use crate::engine::{Dir, OrbitState, PlayerState, State};
 use crate::event::DomainEvent;
 use crate::rewards::{MAX_ORBITS, MAX_ORBS, Rewards};
@@ -62,7 +62,7 @@ fn facing(angle: i32, j: u8, round: u8) -> Dir {
 }
 
 /// One tick of every orbit held.
-pub(super) fn act(stage: &Run, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
     for k in 0..s.player.orbits.len() {
         let mut o = s.player.orbits[k];
         let Some(def) = rewards.orbit_def(o.reward) else {

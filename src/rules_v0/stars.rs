@@ -22,7 +22,7 @@
 //! star's offer only), or banishes one; when it closes the offer, the next one due opens at
 //! once (`super::choose`). Every draw is from the run's generator, in this order.
 
-use super::Run;
+use super::World;
 use crate::attack::DamageType;
 use crate::constellations;
 use crate::engine::{
@@ -57,7 +57,7 @@ fn offer_size(f: &StarField) -> usize {
 const PER_MILLE: u32 = 1000;
 
 /// Stars for the enemies at 0 hp, before they are removed.
-pub(super) fn drop_from_defeated(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn drop_from_defeated(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(cfg) = &stage.stars else {
         return;
     };
@@ -120,7 +120,7 @@ fn tier_of<'a>(cfg: &'a Stars, s: &State) -> Option<&'a Tier> {
 }
 
 /// The boss died this tick: its offer is due first, at the highest rarity of the player's tier.
-pub(super) fn boss_killed(stage: &Run, s: &mut State) {
+pub(super) fn boss_killed(stage: &World, s: &mut State) {
     let Some(rarity) = stage
         .stars
         .as_ref()
@@ -157,7 +157,7 @@ fn draw_rarity(rng: &mut SplitMix64, weights: &RarityWeights, range: (Rarity, Ra
 }
 
 /// The main character takes the stars inside its pickup circle; their offers are due.
-pub(super) fn pick_up(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn pick_up(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(cfg) = &stage.stars else {
         return;
     };
@@ -189,7 +189,7 @@ pub(super) fn pick_up(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>)
 /// Opens the first offer due that has a candidate, unless an offer is open; with `boss_only`,
 /// only while the first due is the boss offer.
 pub(super) fn open_due(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     s: &mut State,
     events: &mut Vec<DomainEvent>,
@@ -287,7 +287,7 @@ fn first_rarity(
 
 /// The random rune's draw weight set by the drop table's tier for the player's level, if it
 /// sets one: it replaces the reward's own `weight` in the draws of an offer.
-fn random_rune_weight(stage: &Run, s: &State) -> Option<u16> {
+fn random_rune_weight(stage: &World, s: &State) -> Option<u16> {
     stage
         .stars
         .as_ref()
@@ -383,7 +383,7 @@ pub(super) struct Taken {
 /// (ADR-107 point 3, ADR-117) go through here alike.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn take(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     rng: &mut SplitMix64,
     progress: &mut Option<Progress>,
@@ -438,7 +438,7 @@ pub(super) fn take(
 /// that place), or of a constellation's tier.
 #[allow(clippy::too_many_arguments)]
 fn apply_effects(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     rng: &mut SplitMix64,
     progress: &mut Option<Progress>,
@@ -552,7 +552,7 @@ fn apply_effects(
 
 /// Carries out `option`, one of `options`, on the open offer.
 pub(super) fn choose(
-    stage: &Run,
+    stage: &World,
     rewards: &Rewards,
     s: &mut State,
     option: OfferOption,
@@ -793,7 +793,7 @@ mod tests {
                 rarity: (Rarity::Common, Rarity::Rare),
             },
         };
-        let stage = super::super::Run::for_test(stage);
+        let stage = super::super::World::for_test(stage);
         let mut s = initial_state(
             &stage,
             RunContent::bundled(),
@@ -820,7 +820,7 @@ mod tests {
         let file = serde_json::json!({ "schema_version": 0, "sim_version": 0,
             "rewards": [heal("a", 300, 10), heal("b", 200, 4)] });
         let rewards = Rewards::parse(file.to_string().as_bytes()).expect("valid");
-        let stage = super::super::Run::for_test(RunContent::bundled().trial().clone());
+        let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let pool = RunPool {
             rewards: vec![0, 1],
             extra_rerolls: 0,

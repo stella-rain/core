@@ -9,7 +9,7 @@
 //! `summon_base`. Guardians, escorts and a boss's parts earn nothing. A stage without a factor
 //! counts nothing.
 
-use super::Run;
+use super::World;
 use crate::engine::{AgentSource, State};
 use crate::stage::StardustFactor;
 use crate::validate::limits::MAX_RUN_STARDUST;
@@ -25,7 +25,7 @@ pub(crate) fn factor_pct(f: &StardustFactor, tick: u32) -> u32 {
 }
 
 /// Adds a kill of base `base` at this tick to the counter.
-fn earn(stage: &Run, s: &mut State, base: u32) {
+fn earn(stage: &World, s: &mut State, base: u32) {
     let (Some(f), Some(total)) = (stage.stardust.as_ref(), s.stardust) else {
         return;
     };
@@ -36,7 +36,7 @@ fn earn(stage: &Run, s: &mut State, base: u32) {
 }
 
 /// The enemies at 0 hp, before they are removed.
-pub(super) fn credit_defeated(stage: &Run, s: &mut State) {
+pub(super) fn credit_defeated(stage: &World, s: &mut State) {
     if s.stardust.is_none() {
         return;
     }
@@ -60,8 +60,8 @@ pub(super) fn credit_defeated(stage: &Run, s: &mut State) {
 }
 
 /// The boss has just died.
-pub(super) fn boss_killed(stage: &Run, s: &mut State) {
-    if let Some(base) = s.boss_def().and_then(|b| b.stardust) {
+pub(super) fn boss_killed(stage: &World, s: &mut State) {
+    if let Some(base) = s.boss_def(stage).and_then(|b| b.stardust) {
         earn(stage, s, base);
     }
 }

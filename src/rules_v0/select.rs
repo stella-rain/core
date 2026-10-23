@@ -5,7 +5,7 @@
 //! Allies are the main character and the companions, whichever side the acting entity is on:
 //! an enemy's `nearest_ally` is the nearest of them. Enemies are the enemies and the boss.
 
-use super::Run;
+use super::World;
 use std::cmp::Reverse;
 
 use crate::behaviour::Selector;
@@ -58,11 +58,7 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
         }
         // A part of the boss that has not broken yet.
         Selector::Part(id) => {
-            let index = s
-                .boss_def()
-                .into_iter()
-                .flat_map(|b| &b.parts)
-                .position(|p| p.id == *id)?;
+            let index = s.boss.as_ref()?.parts.iter().position(|p| p.name == *id)?;
             let part = s.boss.as_ref()?.parts.get(index)?;
             (part.hp > 0).then_some(Who::BossPart(index))
         }
@@ -73,7 +69,7 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
 /// circle reaches within `range` of the main character, the boss or a part first, then an
 /// elite, then any other enemy; within a class the nearest, then the lower entity ID. One pass
 /// over the enemies, at most the enemy cap (ADR-020).
-pub(super) fn assist_target(stage: &Run, s: &State, range: i32) -> Option<EntityId> {
+pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<EntityId> {
     let from = s.player.at;
     let mut best: Option<(u8, u64, EntityId)> = None;
     let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
@@ -85,7 +81,7 @@ pub(super) fn assist_target(stage: &Run, s: &State, range: i32) -> Option<Entity
             best = Some(key);
         }
     };
-    if let Some((def, boss)) = s.boss_pair() {
+    if let Some((def, boss)) = s.boss_pair(stage) {
         if boss.hp > 0 {
             consider(0, boss.at, def.radius.0, boss.id);
         }
@@ -107,7 +103,7 @@ pub(super) fn assist_target(stage: &Run, s: &State, range: i32) -> Option<Entity
 /// Aim assist's first `n` targets, in its order (`assist_target`'s first): homing missiles'
 /// (ADR-099). One pass over the enemies, each set against at most `n` kept. Its own walk, so
 /// that aim assist's stays as the tick-cost gate measures it (ADR-058).
-pub(super) fn assist_targets(stage: &Run, s: &State, range: i32, n: usize) -> Vec<EntityId> {
+pub(super) fn assist_targets(stage: &World, s: &State, range: i32, n: usize) -> Vec<EntityId> {
     let from = s.player.at;
     let mut kept: Vec<(u8, u64, EntityId)> = Vec::with_capacity(n.saturating_add(1));
     let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
@@ -122,7 +118,7 @@ pub(super) fn assist_targets(stage: &Run, s: &State, range: i32, n: usize) -> Ve
         kept.insert(at, key);
         kept.truncate(n);
     };
-    if let Some((def, boss)) = s.boss_pair() {
+    if let Some((def, boss)) = s.boss_pair(stage) {
         if boss.hp > 0 {
             consider(0, boss.at, def.radius.0, boss.id);
         }

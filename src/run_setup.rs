@@ -22,6 +22,7 @@ use crate::rune::Rune;
 use std::sync::OnceLock;
 
 use crate::engine::Horde;
+use crate::rules_v0::HordeSpec;
 use crate::stage::{Map, Stage, StardustFactor, Wave};
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
@@ -635,9 +636,9 @@ pub(crate) fn difficulty_of<'a>(
 /// A run start checks them, and so does a pack's load, so a pack that loads starts a run.
 pub(crate) fn check_bosses(placeholder: &Stage, mode: &TimeLimit) -> Result<(), Error> {
     for (k, def) in mode.bosses().iter().enumerate() {
-        let mut as_stage = placeholder.clone();
-        as_stage.boss = Some(def.clone());
-        validate::validate(&as_stage).map_err(|e| match e {
+        let mut with_boss = placeholder.clone();
+        with_boss.boss = Some(def.clone());
+        validate::validate(&with_boss).map_err(|e| match e {
             Error::Invalid(issues) => Error::Invalid(
                 issues
                     .into_iter()
@@ -663,7 +664,7 @@ pub(crate) fn time_limit_run(
     mode: &TimeLimit,
     difficulty: &Difficulty,
     trial: &Stage,
-) -> Result<(Stage, Horde), Error> {
+) -> Result<(Stage, HordeSpec, Horde), Error> {
     if setup.mode.0 != "time_limit" {
         return Err(Error::Invalid(vec![Issue {
             path: "$.mode".into(),
@@ -738,21 +739,23 @@ pub(crate) fn time_limit_run(
             stardust: t.stardust,
         });
     }
-    let horde = Horde {
-        boss_ticks,
+    let spec = HordeSpec {
         pool: mode.mid_boss_pool().to_vec(),
         final_boss: mode.final_boss().clone(),
         template,
         bosses: mode.bosses().to_vec(),
-        no_call_ticks: mode.no_call_ticks().to_vec(),
-        mid_boss_hp_pct: mode.mid_boss_hp_pct().to_vec(),
-        spawned: 0,
-        used: vec![false; mode.mid_boss_pool().len()],
         length_ticks,
         elite_table: mode.elite_table().to_vec(),
         elite_waves,
     };
-    Ok((stage, horde))
+    let horde = Horde {
+        boss_ticks,
+        no_call_ticks: mode.no_call_ticks().to_vec(),
+        mid_boss_hp_pct: mode.mid_boss_hp_pct().to_vec(),
+        spawned: 0,
+        used: vec![false; mode.mid_boss_pool().len()],
+    };
+    Ok((stage, spec, horde))
 }
 
 /// The most ticks a replay of `stage` may hold. A `time_limit` run's stage ends at the length

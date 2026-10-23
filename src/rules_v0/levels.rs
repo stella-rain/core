@@ -11,7 +11,7 @@
 //! taken from an offer adds its amount to its effect's total the same way (`add_effect`).
 //! Percentages round down.
 
-use super::Run;
+use super::World;
 use crate::engine::{AgentSource, PlayerState, Progress, State};
 use crate::event::DomainEvent;
 use crate::run_stats::{self, RunStat, StatEffect};
@@ -22,7 +22,7 @@ pub(crate) const MAX_LEVEL: u32 = 100;
 const DEFAULT_XP: u32 = 1;
 
 /// The experience level `level` needs to reach the next; 0 at `MAX_LEVEL` or without levels.
-pub(crate) fn xp_next(stage: &Run, level: u32) -> u32 {
+pub(crate) fn xp_next(stage: &World, level: u32) -> u32 {
     let Some(levels) = &stage.levels else {
         return 0;
     };
@@ -34,7 +34,7 @@ pub(crate) fn xp_next(stage: &Run, level: u32) -> u32 {
 }
 
 /// Experience for the enemies at 0 hp, before they are removed.
-pub(super) fn credit_defeated(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     if s.progress.is_none() {
         return;
     }
@@ -54,7 +54,7 @@ pub(super) fn credit_defeated(stage: &Run, s: &mut State, events: &mut Vec<Domai
     gain(stage, s, xp, events);
 }
 
-fn gain(stage: &Run, s: &mut State, xp: u32, events: &mut Vec<DomainEvent>) {
+fn gain(stage: &World, s: &mut State, xp: u32, events: &mut Vec<DomainEvent>) {
     let xp = raised(xp, total(s, StatEffect::XpPct));
     let Some(p) = s.progress.as_mut() else {
         return;

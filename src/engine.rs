@@ -21,7 +21,7 @@ use crate::match_ups::MatchUps;
 use crate::rewards::{MAX_BURST_DEPTH, Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rules_v0;
-use crate::rules_v0::Run;
+use crate::rules_v0::{BossIndex, DefIndex, HordeSpec, World};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::{RunStats, StatEffect};
@@ -101,7 +101,7 @@ impl Load {
 }
 
 /// The kinds of a `time_limit` run: its stage's, and those of the bosses it brings later.
-fn horde_kinds(stage: &Stage, horde: &Horde) -> Result<KindTable, crate::validate::Issue> {
+fn horde_kinds(stage: &Stage, horde: &HordeSpec) -> Result<KindTable, crate::validate::Issue> {
     let bosses: Vec<&crate::stage::Boss> = horde
         .bosses
         .iter()
@@ -119,7 +119,7 @@ fn horde_kinds(stage: &Stage, horde: &Horde) -> Result<KindTable, crate::validat
 /// A run of one stage.
 #[derive(Clone, Debug)]
 pub struct Engine {
-    stage: Run,
+    stage: World,
     /// The content files the run reads (ADR-067), fixed for the run.
     content: RunContent,
     state: State,
@@ -146,11 +146,7 @@ impl Engine {
             difficulty: rules_v0::RunDifficulty::NONE,
         };
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = Run::new(
-            stage.clone(),
-            &stage.boss.iter().collect::<Vec<_>>(),
-            &kinds,
-        );
+        let stage = World::new(stage.clone(), None, &kinds).map_err(|i| Error::Invalid(vec![i]))?;
         Ok(Engine {
             state: rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds),
             stage,
@@ -179,8 +175,7 @@ impl Engine {
             difficulty: run_difficulty(setup, content)?,
         };
         let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
-        let bosses: Vec<&crate::stage::Boss> = stage.boss.iter().collect();
-        let stage = Run::new(stage.clone(), &bosses, &kinds);
+        let stage = World::new(stage.clone(), None, &kinds).map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
@@ -202,19 +197,15 @@ impl Engine {
     ) -> Result<Engine, Error> {
         run_setup::validate_in(setup, content)?;
         let difficulty = run_setup::difficulty_of(setup, content.difficulties())?;
-        let (stage, horde) = run_setup::time_limit_run(setup, mode, difficulty, content.trial())?;
+        let (stage, spec, horde) =
+            run_setup::time_limit_run(setup, mode, difficulty, content.trial())?;
         let pool = rules_v0::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
             extra_rerolls: setup.extra_rerolls,
             difficulty: run_difficulty(setup, content)?,
         };
-        let kinds = horde_kinds(&stage, &horde).map_err(|i| Error::Invalid(vec![i]))?;
-        let bosses: Vec<&crate::stage::Boss> = horde
-            .bosses
-            .iter()
-            .chain(std::iter::once(&horde.template))
-            .collect();
-        let stage = Run::new(stage.clone(), &bosses, &kinds);
+        let kinds = horde_kinds(&stage, &spec).map_err(|i| Error::Invalid(vec![i]))?;
+        let stage = World::new(stage, Some(spec), &kinds).map_err(|i| Error::Invalid(vec![i]))?;
         let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
         let loadout = rules_v0::Loadout::of(setup, content);
@@ -406,7 +397,7 @@ impl Engine {
         // The auras of the elites, read once: an enemy within reach of one is strengthened.
         let auras: Vec<_> = rules_v0::aura_sources(&self.stage, s).collect();
         let mut entities = Vec::new();
-        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&*b.def, b)) {
+        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&self.stage.boss(b.boss).boss, b)) {
             if b.hp > 0 {
                 entities.push(EntityView {
                     id: b.id,
@@ -477,7 +468,7 @@ impl Engine {
         agent_views(EntityKind::Companion, &s.companions, &mut entities);
         // A part is drawn while it and its boss are alive: a dead boss takes its unbroken
         // parts with it (core#60).
-        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&*b.def, b)) {
+        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&self.stage.boss(b.boss).boss, b)) {
             for (part, def) in b.parts.iter().zip(&boss.parts) {
                 if b.hp > 0 && part.hp > 0 {
                     entities.push(EntityView {
@@ -829,19 +820,11 @@ pub(crate) struct Echo {
     pub damage_type: Option<DamageType>,
 }
 
-/// What a `time_limit` run brings to its bosses (core#212): the times, the pool they are drawn
-/// from and the boss they are drawn as, all content fixed for the run (covered by the content
-/// hash); what changes is how many have come and which pool entries are used up.
+/// How far a `time_limit` run's bosses have come (core#212): the times, and which pool entries
+/// are used up. What the bosses are is `World::horde` and `World::bosses`, fixed for the run.
 #[derive(Clone, Debug)]
 pub(crate) struct Horde {
     pub boss_ticks: Vec<u32>,
-    pub pool: Vec<ContentId>,
-    pub final_boss: ContentId,
-    /// The boss every one is made from, with its sprite replaced, when the mode file gives no
-    /// definition for its sprite: a placeholder.
-    pub template: crate::stage::Boss,
-    /// The mode file's boss definitions (core#336), by sprite.
-    pub bosses: Vec<crate::stage::Boss>,
     /// The boss times at which the boss calls no elites (core#336).
     pub no_call_ticks: Vec<u32>,
     /// The mid-bosses' hit points by slot, in percent (core#336).
@@ -850,14 +833,6 @@ pub(crate) struct Horde {
     pub spawned: u32,
     /// One per pool entry: drawn already.
     pub used: Vec<bool>,
-    /// The run's length: an elite minute comes only before it.
-    pub length_ticks: u32,
-    /// The mode's elite table (ADR-090), by start.
-    pub elite_table: Vec<crate::time_limit::EliteTier>,
-    /// For each elite type of the mode file, the stage wave that holds its definition: the
-    /// type's enemy, experience and expertise, never spawned as a wave (count 0). A kill's
-    /// experience and expertise are the wave's.
-    pub elite_waves: Vec<(ContentId, u32)>,
 }
 
 /// The one expertise gauge of the one weapon (ADR-106 §1 to §3), and its offers (ADR-079 §2, §3).
@@ -1186,11 +1161,14 @@ pub(crate) struct DashState {
 #[derive(Clone, Debug)]
 pub(crate) struct BossState {
     pub id: EntityId,
-    /// The boss as it came: the stage's, or a `time_limit` boss moved to the main character and
-    /// scaled (`spawn_boss`). The stage itself is never changed in a run.
-    pub def: std::sync::Arc<crate::stage::Boss>,
-    /// Which of the run's boss definitions (`AgentDefs`) it was made from.
-    pub boss_index: u32,
+    /// Which of the run's boss definitions (`World::bosses`) it was made from. The definition
+    /// is never changed; what differs by arrival is below.
+    pub boss: BossIndex,
+    /// How far the boss's points (its `move_to` targets) are from the definition's: a
+    /// `time_limit` boss arrives 120 pixels above the main character; zero for the stage's own.
+    pub origin: Point,
+    /// A `time_limit` boss at a no-call time calls no elites (core#336).
+    pub no_call: bool,
     /// The boss's kind (its sprite), an index into the run's `KindTable` made at spawn.
     pub kind: KindIndex,
     pub at: Point,
@@ -1268,7 +1246,7 @@ pub(crate) enum AgentSource {
 pub(crate) struct AgentState {
     pub id: EntityId,
     /// Its definition in the run's `AgentDefs`.
-    pub def: u32,
+    pub def: DefIndex,
     /// Its kind (its sprite), an index into the run's `KindTable` made at spawn; a hit copies it.
     pub kind: KindIndex,
     pub key: AgentKey,
@@ -1764,7 +1742,17 @@ mod horde_tests {
     }
 
     fn engine_with(boss_ticks: &[u32], no_call_ticks: &[u32]) -> Engine {
+        engine_edited(boss_ticks, no_call_ticks, |_| {})
+    }
+
+    /// As `engine_with`, the mode file edited by `edit` before it is parsed.
+    fn engine_edited(
+        boss_ticks: &[u32],
+        no_call_ticks: &[u32],
+        edit: impl FnOnce(&mut serde_json::Value),
+    ) -> Engine {
         let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+        edit(&mut v);
         v["no_call_ticks"] = serde_json::json!(no_call_ticks);
         v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
         v["boss_ticks"] = serde_json::json!(boss_ticks);
@@ -1851,6 +1839,113 @@ mod horde_tests {
         assert!(calls_below_70_pct(&mut e), "well before its 30 seconds");
     }
 
+    /// The first summon rule's agent of a mid-boss gets this many hit points, plus the boss's
+    /// place in the mode file's list, so each boss's summon tells which boss made it.
+    const SUMMON_HP: u32 = 50_000;
+
+    fn summoning_mode(v: &mut serde_json::Value) {
+        let agent = serde_json::json!({
+            "base": "fairy_a",
+            "hp": SUMMON_HP,
+            "radius": 2048,
+            "movement": {"type": "follow", "distance": 12288, "speed": 1},
+            "rules": []
+        });
+        for (i, boss) in v["bosses"].as_array_mut().unwrap().iter_mut().enumerate() {
+            let mut agent = agent.clone();
+            agent["hp"] = serde_json::json!(SUMMON_HP + i as u32);
+            boss["phases"][0]["rules"] = serde_json::json!([{
+                "when": {"type": "always"},
+                "target": "self",
+                "do": {"type": "summon", "count": 1, "agent": agent},
+                "once": true
+            }]);
+        }
+    }
+
+    #[test]
+    fn a_boss_summon_outlives_its_boss_and_keeps_its_definition() {
+        let mut e = engine_edited(&[50, 100, 150], &[], summoning_mode);
+        run_to(&mut e, 60);
+        let first = e.state.boss.as_ref().unwrap().id;
+        let summon_hp = |e: &Engine| -> Vec<u32> {
+            e.state
+                .enemies
+                .iter()
+                .map(|en| e.stage.defs.agent(en.def).hp)
+                .collect()
+        };
+        let made = summon_hp(&e);
+        assert_eq!(made.len(), 1, "the first boss has summoned");
+        e.state.boss.as_mut().unwrap().hp = 0;
+        for _ in 0..60 {
+            e.state.player.hp = e.state.player.max_hp;
+            e.step(Input::default());
+        }
+        assert_ne!(
+            e.state.boss.as_ref().unwrap().id,
+            first,
+            "the next boss has come"
+        );
+        let all = summon_hp(&e);
+        assert_eq!(
+            all[0], made[0],
+            "the first summon still resolves to the first boss's summon agent"
+        );
+        assert_eq!(all.len(), 2, "the second boss summoned its own");
+        assert_ne!(all[1], all[0], "from its own definition");
+    }
+
+    /// The definition of the boss on the field.
+    fn boss_def(e: &Engine) -> &crate::stage::Boss {
+        &e.stage.boss(e.state.boss.as_ref().unwrap().boss).boss
+    }
+
+    /// The slot of the boss on the field in the run's list of boss definitions.
+    fn boss_slot(e: &Engine) -> u32 {
+        u32::from(e.state.boss.as_ref().unwrap().boss.0)
+    }
+
+    #[test]
+    fn the_world_compiles_each_horde_boss_once() {
+        // Two sprites with no definition of their own are made from the template, and
+        // each is its own boss; the same sprite coming twice is one.
+        let mut e = engine_edited(&[50, 100, 150], &[], |v| {
+            let pool = ["horn_charger", "weaver"];
+            v["mid_boss_pool"] = serde_json::json!(pool);
+            v["final_boss"] = serde_json::json!("horn_charger");
+            v["bosses"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|b| !pool.contains(&b["base"].as_str().unwrap()));
+        });
+        // Three definitions of the file, and the template once for each of the two sprites.
+        let bases: Vec<&str> = e
+            .stage
+            .bosses
+            .iter()
+            .map(|b| b.boss.base.0.as_str())
+            .collect();
+        assert_eq!(bases.len(), 5, "{bases:?}");
+        let mut distinct = bases.clone();
+        distinct.sort_unstable();
+        distinct.dedup();
+        assert_eq!(distinct.len(), 5, "one definition per sprite: {bases:?}");
+        let mut slots = Vec::new();
+        for until in [60, 110, 160] {
+            run_to(&mut e, until);
+            slots.push(boss_slot(&e));
+        }
+        assert_ne!(
+            slots[0], slots[1],
+            "two sprites, two definitions: {slots:?}"
+        );
+        assert!(
+            slots[2] == slots[0] || slots[2] == slots[1],
+            "the final boss shares the slot of its sprite's first arrival: {slots:?}"
+        );
+    }
+
     #[test]
     fn a_boss_coming_leaves_the_stage_as_it_was() {
         let mut e = engine(&[50, 100]);
@@ -1867,7 +1962,7 @@ mod horde_tests {
     fn the_final_boss_is_the_core_pair_and_its_death_clears_the_run() {
         let mut e = engine(&[50, 100]);
         run_to(&mut e, 100);
-        assert_eq!(e.state.boss.as_ref().unwrap().def.base.0, "core_pair");
+        assert_eq!(boss_def(&e).base.0, "core_pair");
         assert_eq!(e.state.boss.as_ref().unwrap().parts.len(), 2);
         e.state.boss.as_mut().unwrap().hp = 0;
         e.step(Input::default());
@@ -2258,7 +2353,7 @@ mod horde_tests {
             let def = mode
                 .bosses()
                 .iter()
-                .find(|b| b.base == e.state.boss.as_ref().unwrap().def.base)
+                .find(|b| b.base == boss_def(&e).base)
                 .unwrap();
             assert_eq!(boss.max_hp, def.hp * pct / 100, "at {t}");
             let parts: Vec<u32> = boss.parts.iter().map(|p| p.hp).collect();

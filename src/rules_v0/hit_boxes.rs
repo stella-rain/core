@@ -21,7 +21,7 @@
 //! - Attackers resolve in entity-ID order, and every hit box active at the start of the step
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
-use super::Run;
+use super::World;
 use crate::attack::{Anchor, DamageType, HitBox, Offset, PhaseKind, ZoneShape};
 use crate::engine::{Dir, Smash, State};
 use crate::event::DomainEvent;
@@ -140,7 +140,7 @@ impl Sector {
 // (ADR-058).
 #[inline(never)]
 pub(super) fn resolve(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     grid: &mut Option<Grid>,
     events: &mut Vec<DomainEvent>,
@@ -397,14 +397,14 @@ fn shot(w: &Swing) -> Shot {
 /// The boss, its parts and the enemies, in entity-ID order. An invulnerable boss shields its
 /// parts, as it does from bullets.
 fn hit_enemy_side(
-    stage: &Run,
+    stage: &World,
     s: &mut State,
     grid: &Grid,
     w: &Swing,
     found: &mut Vec<usize>,
     events: &mut Vec<DomainEvent>,
 ) {
-    if let Some((def, boss)) = s.boss_pair() {
+    if let Some((def, boss)) = s.boss_pair(stage) {
         if boss.invulnerable == 0 {
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
@@ -445,7 +445,7 @@ fn hit_enemy_side(
 }
 
 /// The main character (unless it is invulnerable), then the companions in ID order.
-fn hit_ally_side(stage: &Run, s: &mut State, w: &Swing, events: &mut Vec<DomainEvent>) {
+fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<DomainEvent>) {
     let p = &s.player;
     if p.hp > 0
         && p.invulnerable == 0

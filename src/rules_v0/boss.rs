@@ -26,13 +26,12 @@
 //! `boss_call` is `leave` is not called: it leaves the map; one whose `boss_call` is `stay` (the shrine)
 //! is not called and stays (ADR-090).
 
-use std::sync::Arc;
-
-use super::Run;
+use super::World;
 use crate::attack::AttackRef;
 use crate::behaviour::BossCall;
 use crate::engine::{BossState, MoveOrder, Origin, State};
 use crate::event::DomainEvent;
+use crate::fixed::{Fx, Point};
 use crate::snapshot::PatternView;
 use crate::stage::{Step, Transition};
 
@@ -43,11 +42,10 @@ use super::entity::Who;
 /// Timeline steps taken in one tick, so that a `loop` with nothing to wait for ends the tick.
 const MAX_TIMELINE_STEPS_PER_TICK: u32 = 16;
 
-pub(super) fn act(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let Some(def) = s.boss.as_ref().map(|b| Arc::clone(&b.def)) else {
+pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let Some(def) = s.boss_def(stage) else {
         return;
     };
-    let def = &*def;
     {
         // An attack phase with `move_pct` 0 holds the boss where it is (ADR-055).
         let rooted = s
@@ -78,7 +76,7 @@ pub(super) fn act(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     {
         begin_phase(def, s, 0, events);
     }
-    maybe_end_phase(s, events);
+    maybe_end_phase(stage, s, events);
     timeline(stage, s, events);
     let phase = s.boss.as_ref().map_or(0, |b| b.phase as usize);
     if let Some(p) = def.phases.get(phase) {
@@ -86,15 +84,26 @@ pub(super) fn act(stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
     }
 }
 
+/// `p`, a point of the boss's definition, where it is for this arrival: moved by the boss's
+/// origin, in `i64` as the move was made when a `time_limit` boss was cloned and moved. A sum
+/// outside `i32` leaves `p` where it was.
+pub(super) fn boss_point(b: &BossState, p: Point) -> Point {
+    let at = |v: Fx, d: Fx| Fx(i32::try_from(i64::from(v.0) + i64::from(d.0)).unwrap_or(v.0));
+    Point {
+        x: at(p.x, b.origin.x),
+        y: at(p.y, b.origin.y),
+    }
+}
+
 /// Calls the elites, once, when the boss's call is due.
-pub(super) fn call_elites(_stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let Some(call) = s.boss_def().and_then(|b| b.call_elites) else {
+pub(super) fn call_elites(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let Some(call) = s.boss_def(stage).and_then(|b| b.call_elites) else {
         return;
     };
     let Some(b) = s.boss.as_mut() else {
         return;
     };
-    if b.hp == 0 || b.elites_called != Some(false) {
+    if b.hp == 0 || b.no_call || b.elites_called != Some(false) {
         return;
     }
     // The boss's first tick is its age 1, so its time is up on its tick `after_ticks + 1`:
@@ -133,8 +142,8 @@ pub(crate) const CALL_ELITES: &str = "call_elites";
 /// The big patterns announced now, the call of the elites first (ADR-103): each with the ticks
 /// its count-down started with and the ticks left until it starts. It is a view of the state;
 /// nothing is stored.
-pub(crate) fn announced(_stage: &Run, s: &State) -> Vec<PatternView> {
-    let Some((def, b)) = s.boss_pair() else {
+pub(crate) fn announced(stage: &World, s: &State) -> Vec<PatternView> {
+    let Some((def, b)) = s.boss_pair(stage) else {
         return Vec::new();
     };
     if b.hp == 0 {
@@ -193,11 +202,10 @@ fn next_big_attack(def: &crate::stage::Boss, b: &BossState) -> Option<PatternVie
 }
 
 /// Ends the phase if its `until` holds and there is a phase to go on to.
-fn maybe_end_phase(s: &mut State, events: &mut Vec<DomainEvent>) {
-    let Some(def) = s.boss.as_ref().map(|b| Arc::clone(&b.def)) else {
+fn maybe_end_phase(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let Some(def) = s.boss_def(stage) else {
         return;
     };
-    let def = &*def;
     let Some(phase) = s.boss.as_ref().map(|b| b.phase as usize) else {
         return;
     };
@@ -253,11 +261,10 @@ fn begin_phase(
 }
 
 /// Carries out the timeline up to its next wait.
-fn timeline(_stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let Some(def) = s.boss.as_ref().map(|b| Arc::clone(&b.def)) else {
+fn timeline(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let Some(def) = s.boss_def(stage) else {
         return;
     };
-    let def = &*def;
     // An `attack` step lasts as long as its attack (ADR-055), and so does any attack the
     // boss's rules started: one attack at a time.
     if s.boss.as_ref().is_some_and(|b| attacks::busy(s, b.id, 0)) {
@@ -288,7 +295,7 @@ fn timeline(_stage: &Run, s: &mut State, events: &mut Vec<DomainEvent>) {
             Step::MoveTo { to, ticks } => {
                 let ticks = (*ticks).max(1);
                 b.order = Some(MoveOrder {
-                    to: *to,
+                    to: boss_point(b, *to),
                     ticks_left: ticks,
                 });
                 b.wait_left = ticks;
