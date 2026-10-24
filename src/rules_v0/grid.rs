@@ -195,6 +195,52 @@ mod tests {
             .collect()
     }
 
+    /// A fixed-seed generator (SplitMix64 steps), so the layouts below are the same every run.
+    struct Lcg(u64);
+
+    impl Lcg {
+        fn below(&mut self, n: i32) -> i32 {
+            self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = self.0;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) % n as u64) as i32
+        }
+    }
+
+    /// Layouts of the kinds the hit case has: a clump, a spread over a map, and circles on
+    /// cell boundaries. Probes on boundaries (one unit either side), at the circles themselves
+    /// and wider than a cell: the query finds what a plain scan finds, in index order.
+    #[test]
+    fn the_query_matches_the_scan_on_seeded_layouts() {
+        let mut rng = Lcg(7);
+        for seed in 0..40 {
+            let (span, kind) = [(40_000, 0), (1_000_000, 1), (200_000, 2)][seed % 3];
+            let shapes: Vec<(Point, i32)> = (0..150)
+                .map(|_| {
+                    let (x, y) = match kind {
+                        2 => (rng.below(25) * 8_192, rng.below(25) * 8_192),
+                        _ => (rng.below(span), rng.below(span)),
+                    };
+                    (Point { x: Fx(x), y: Fx(y) }, 1_000 + rng.below(3_000))
+                })
+                .collect();
+            let grid = Grid::new(shapes.clone(), 512);
+            let mut bits = Vec::new();
+            let mut probes: Vec<(Point, i32)> = shapes.iter().map(|c| (c.0, 65_536)).collect();
+            for _ in 0..60 {
+                let edge = rng.below(25) * 8_192 + rng.below(3) - 1;
+                let reach = [1_000, 8_192, 8_193, 65_536, 300_000][rng.below(5) as usize];
+                probes.push((Point { x: Fx(edge), y: Fx(rng.below(span)) }, reach));
+            }
+            for (at, reach) in probes {
+                let mut found = Vec::new();
+                grid.within(at, reach, &mut bits, &mut found);
+                assert_eq!(found, scan_all(&shapes, at, reach), "seed {seed}");
+            }
+        }
+    }
+
     proptest! {
         // A range query for any reach, whatever probe radius the grid was built for: small
         // reaches, and reaches far wider than a cell.
@@ -216,7 +262,7 @@ mod tests {
             let near = shapes.iter().map(|c| (c.0, 1));
             for (at, reach) in probes.into_iter().chain(near) {
                 let mut found = Vec::new();
-                grid.within(at, reach, &mut found);
+                grid.within(at, reach, &mut Vec::new(), &mut found);
                 prop_assert_eq!(found, scan_all(&shapes, at, reach));
             }
         }
