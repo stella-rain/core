@@ -213,7 +213,7 @@ fn a_run_on_normal_with_a_bot_holds_the_caps_and_its_replay_verifies() {
     let bot = |e: &Engine, t: u32| {
         let load = e.load();
         let (enemies, bullets) = peak.get();
-        peak.set((enemies.max(load.enemies), bullets.max(load.bullets)));
+        peak.set((enemies.max(load.enemies), bullets.max(load.orbs)));
         run_input_for(e, t, &[EntityKind::Enemy, EntityKind::Boss], u32::MAX)
     };
     // The mode's length and its overtime: 20 minutes and 5 more while the final boss lives.

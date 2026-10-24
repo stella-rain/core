@@ -153,7 +153,6 @@ fn worst(engine: &Engine) -> Load {
     let steps = engine.load().emitter_steps;
     assert!((1..100).contains(&steps), "{steps} emitter steps");
     Load {
-        bullets: Load::CAPS.orbs,
         emitter_steps: steps,
         ..Load::CAPS
     }

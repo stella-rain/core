@@ -48,9 +48,6 @@ pub struct Load {
     pub enemies: u32,
     /// Attacks being carried out, counted before any of them finished.
     pub tasks: u32,
-    /// Projectiles alive after the attacks fired, before the tick moved and removed any: the
-    /// orbs, so the same count as `orbs`.
-    pub bullets: u32,
     /// Zones alive after the attacks placed theirs, before the tick advanced any.
     pub zones: u32,
     /// Orbs alive after the attacks fired theirs, before the tick moved and removed any.
@@ -64,7 +61,6 @@ impl Load {
     pub const CAPS: Load = Load {
         enemies: rules_v0::MAX_ENEMIES_ALIVE,
         tasks: rules_v0::MAX_ATTACK_TASKS,
-        bullets: rules_v0::MAX_ORBS_ALIVE,
         zones: rules_v0::MAX_ZONES_ALIVE,
         orbs: rules_v0::MAX_ORBS_ALIVE,
         emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,

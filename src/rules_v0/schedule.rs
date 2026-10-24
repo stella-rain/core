@@ -98,7 +98,6 @@ pub(super) const TICK: &[(&str, Step)] = &[
         *c.load = Load {
             enemies: count(&c.s.enemies),
             tasks,
-            bullets: count(&c.s.bullets),
             zones: count(&c.s.zones),
             orbs: count(&c.s.bullets),
             emitter_steps,
