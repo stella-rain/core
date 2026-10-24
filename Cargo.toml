@@ -87,6 +87,14 @@ harness = false
 name = "time_limit_tick"
 harness = false
 
+[[bench]]
+name = "worst_minute"
+harness = false
+
+[[bench]]
+name = "worst_minute_peak"
+harness = false
+
 # Overflow behaves the same in every profile (ADR-019): it panics unless the code says
 # `wrapping_*` or `saturating_*`. Release and bench would otherwise wrap silently.
 # Debug builds (and the test profile, which inherits from dev) optimise a little: a whole

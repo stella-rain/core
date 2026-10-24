@@ -9,6 +9,7 @@
 pub mod hit_case;
 pub mod time_limit_case;
 pub mod worst_case;
+pub mod worst_minute_case;
 
 use crate::engine::Engine;
 use crate::input::Input;
@@ -55,3 +56,13 @@ pub fn time_limit_tick() -> Case {
 /// The builders of the stages: the subset of `tests/common/` that the cases use, copied because
 /// the tests' helpers are not reachable from `src/`. `tests/bench_fixture_pins.rs` pins what they build.
 mod common;
+
+/// The densest minute of the `time_limit` corpus run (`benches/worst_minute.rs`).
+pub fn worst_minute() -> worst_minute_case::Run {
+    worst_minute_case::worst_minute()
+}
+
+/// The heaviest tick of that minute (`benches/worst_minute_peak.rs`).
+pub fn worst_minute_peak() -> worst_minute_case::Run {
+    worst_minute_case::worst_minute_peak()
+}

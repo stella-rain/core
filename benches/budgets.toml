@@ -7,6 +7,11 @@
 # time_limit_tick is about 10% above its measured count (DS50: 1,610,205 arm64, 1,447,649 x86_64).
 # hit_tick is about 10% above the larger of its two cases (HB1: 7,997,568 arm64, 8,072,866 x86_64). A key is a
 # bench target, so hit_tick_spread (3.6 M / 3.7 M, inside the same target) has no budget of its own.
+# BR1e: worst_minute counts the 3,600 ticks of the densest minute of the time_limit corpus run
+# (summed load 128,594, from tick 1,684), worst_minute_peak its heaviest tick (tick 2,699).
+# worst_minute_peak is the ceiling of worst_tick (12.4 M arm64; x86_64 scaled as above).
+# worst_minute is a PLACEHOLDER: 3,600 ticks at the 1.8 M of time_limit_tick, the most a minute could
+# count; DS50 sets it about 10% above the measured total once CI has measured it (not measured yet).
 [worst_tick]
 arm64 = 12_400_000
 x86_64 = 11_900_000
@@ -18,3 +23,11 @@ x86_64 = 8_900_000
 [time_limit_tick]
 arm64 = 1_800_000
 x86_64 = 1_600_000
+
+[worst_minute]
+arm64 = 6_500_000_000
+x86_64 = 5_800_000_000
+
+[worst_minute_peak]
+arm64 = 12_400_000
+x86_64 = 11_900_000
