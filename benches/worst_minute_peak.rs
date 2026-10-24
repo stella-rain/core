@@ -1,0 +1,22 @@
+//! The instruction count of the heaviest tick of that minute (BR1e,
+//! `bench_fixtures::worst_minute_case::WORST_TICK_IN_MINUTE`), by the same load. Its own target so
+//! that it has a budget of its own: a key of `benches/budgets.toml` is a bench target. Run it
+//! with `cargo bench --bench worst_minute_peak`.
+
+use iai_callgrind::{library_benchmark, library_benchmark_group, main};
+use stella_rain_core::bench_fixtures;
+use stella_rain_core::bench_fixtures::worst_minute_case::Run;
+
+#[library_benchmark]
+#[bench::worst_minute_peak(bench_fixtures::worst_minute_peak())]
+fn worst_minute_peak(mut run: Run) -> Run {
+    run.play(1);
+    run
+}
+
+library_benchmark_group!(
+    name = worst_minute_peak_group;
+    benchmarks = worst_minute_peak
+);
+
+main!(library_benchmark_groups = worst_minute_peak_group);
