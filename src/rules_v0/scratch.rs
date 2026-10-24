@@ -19,6 +19,8 @@ pub(crate) struct Scratch {
     /// The hit boxes and zones active this tick, and the enemies one of them covers.
     pub(super) swings: Vec<Swing>,
     pub(super) found: Vec<usize>,
+    /// One bit per enemy, for the grid to collect and order the enemies one swing reaches.
+    pub(super) found_bits: Vec<u64>,
     /// Emptied hit lists of ended attack runs (`AttackRun::hits`), for new runs to take.
     pub(super) hit_lists: Vec<Vec<(EntityId, u32)>>,
     /// Whether each bullet of the tick was used up.

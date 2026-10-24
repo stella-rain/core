@@ -156,3 +156,29 @@ fn the_spread_tick_has_its_load() {
     assert!(min_y <= Some(65_536), "{min_y:?}");
     assert!(max_y >= Some(SIDE - 65_536), "{max_y:?}");
 }
+
+/// The state hash of each of the ticks `WARMUP_TICKS + 1` to `+ 3` (the measured tick and two
+/// after it), which a change to how hits are found must not move (core HB1).
+fn hashes_after_warmup(mut engine: Engine) -> Vec<u64> {
+    (1..=3)
+        .map(|k| {
+            engine.step(hit_case::input(hit_case::WARMUP_TICKS + k));
+            engine.state_hash()
+        })
+        .collect()
+}
+
+#[test]
+fn the_clustered_ticks_hash_as_they_did_with_every_enemy_tested() {
+    let hashes = hashes_after_warmup(hit_case::warmed_up());
+    assert_eq!(hashes, PINNED_CLUSTERED, "{hashes:x?}");
+}
+
+#[test]
+fn the_spread_ticks_hash_as_they_did_with_every_enemy_tested() {
+    let hashes = hashes_after_warmup(hit_case::spread_warmed_up());
+    assert_eq!(hashes, PINNED_SPREAD, "{hashes:x?}");
+}
+
+const PINNED_CLUSTERED: [u64; 3] = [0x95527ebc68a22c23, 0x87e3b4b6e281d125, 0xe528b8947fab1e1d];
+const PINNED_SPREAD: [u64; 3] = [0xf143b972e536a94b, 0x68a658586f58ecbb, 0x315dfccca33e4832];

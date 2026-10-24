@@ -147,6 +147,7 @@ pub(super) fn resolve(
 ) {
     let mut swings = std::mem::take(&mut s.scratch.swings);
     let mut found = std::mem::take(&mut s.scratch.found);
+    let mut bits = std::mem::take(&mut s.scratch.found_bits);
     active_swings(stage, s, &mut swings);
     swings.sort_by_key(|w| (w.owner.0, w.slot));
     // The zones land after the hit boxes, in the order they were placed.
@@ -157,7 +158,7 @@ pub(super) fn resolve(
     for w in &swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
-            hit_enemy_side(stage, s, grid, w, &mut found, events);
+            hit_enemy_side(stage, s, grid, w, (&mut bits, &mut found), events);
         } else {
             hit_ally_side(stage, s, w, events);
         }
@@ -168,6 +169,7 @@ pub(super) fn resolve(
     }
     s.scratch.swings = swings;
     s.scratch.found = found;
+    s.scratch.found_bits = bits;
 }
 
 /// A breakable enemy orb that a hit box of the main character covers is removed, with no burst,
@@ -380,6 +382,14 @@ fn touches_edge(d: (i128, i128), edge: Dir, length: i32, radius: i32) -> bool {
     across * across <= r2 * scale * scale
 }
 
+/// The targets the swing has hit, by ID.
+fn hits_of<'a>(s: &'a State, w: &Swing) -> &'a [(EntityId, u32)] {
+    match w.source {
+        Source::Run(i) => &s.runs[i].hits,
+        Source::Zone(i) => &s.zones[i].hits,
+    }
+}
+
 /// Whether the swing may hit `target` now, and if so, counts the hit.
 fn take_hit(s: &mut State, w: &Swing, target: EntityId) -> bool {
     let tick = s.tick;
@@ -435,7 +445,7 @@ fn hit_enemy_side(
     s: &mut State,
     grid: &Grid,
     w: &Swing,
-    found: &mut Vec<usize>,
+    (bits, found): (&mut Vec<u64>, &mut Vec<usize>),
     events: &mut Vec<DomainEvent>,
 ) {
     if let Some((def, boss)) = s.boss_pair(stage) {
@@ -456,10 +466,25 @@ fn hit_enemy_side(
             }
         }
     }
-    grid.within(w.area.centre, w.area.radius, found);
+    grid.within(w.area.centre, w.area.radius, bits, found);
+    // A swing that never hits a target again (a zone, or a hit box with no `rehit_ticks`) passes
+    // over the ones it has hit with nothing else to find out, so those are told from its hit
+    // list, sorted by ID like `found`, with a cursor that only moves forward. A cursor that has
+    // gone past a target only sends it down the full path, which decides alone.
+    let hit_once = w.rehit_ticks.is_none() && !w.once;
+    let mut seen = 0;
     for &i in found.iter() {
         let e = &s.enemies[i];
         let (id, at, hp) = (e.id, e.at, e.hp);
+        if hit_once {
+            let hits = hits_of(s, w);
+            while seen < hits.len() && hits[seen].0.0 < id.0 {
+                seen += 1;
+            }
+            if hits.get(seen).is_some_and(|h| h.0 == id) {
+                continue;
+            }
+        }
         let radius = stage.defs.agent(e.def).radius.0;
         // A shrine is not hurt, nor a mimic in disguise: the hit passes through them.
         if hp > 0
