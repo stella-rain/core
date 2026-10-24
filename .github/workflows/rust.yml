@@ -477,11 +477,10 @@ jobs:
             fi
           done
           # benches/budgets.toml is not a bench: a changed budget leaves the counts comparable.
-          # The cases live in src/bench_fixtures: they are bench inputs, not code.
-          if ! git diff --quiet "$BASE" HEAD -- benches ':(exclude)benches/budgets.toml' tests/common src/bench_fixtures; then
+          if ! git diff --quiet "$BASE" HEAD -- benches ':(exclude)benches/budgets.toml' tests/common; then
             # A changed bench and changed code together: no comparison could tell which of the two
             # moved the count, so the PR must not slip past the +2% limit this way (D-BUDGET).
-            if ! git diff --quiet "$BASE" HEAD -- src ':(exclude)src/bench_fixtures' Cargo.toml Cargo.lock; then
+            if ! git diff --quiet "$BASE" HEAD -- src Cargo.toml Cargo.lock; then
               echo "::error::Change the bench in its own PR first; this PR's code cannot be compared."
               exit 1
             fi
