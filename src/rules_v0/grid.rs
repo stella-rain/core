@@ -144,7 +144,12 @@ impl Grid {
     /// order, into `out` (cleared first). Any reach works: the cells searched are those a
     /// circle overlapping the probe can have its centre in, at most `reach` plus the largest
     /// radius away on each axis.
-    pub(super) fn within(&self, at: Point, reach: i32, out: &mut Vec<usize>) {
+    ///
+    /// The cells are walked in any order: each circle found sets its bit in `bits` (scratch
+    /// memory, one bit per circle), and the bits read back in ascending order. That dedups and
+    /// sorts in one pass over the circles' count divided by 64, where sorting the list would cost
+    /// a comparison per step of its log, so the order can never depend on the cell walk.
+    pub(super) fn within(&self, at: Point, reach: i32, bits: &mut Vec<u64>, out: &mut Vec<usize>) {
         out.clear();
         if self.circles.is_empty() {
             return;
@@ -158,22 +163,27 @@ impl Grid {
         if c0 > c1 || r0 > r1 {
             return;
         }
+        bits.clear();
+        bits.resize(self.circles.len().div_ceil(64), 0);
         for r in r0..=r1 {
-            for c in c0..=c1 {
-                let cell = (r * self.cols + c) as usize;
-                let (from, to) = (self.start[cell] as usize, self.start[cell + 1] as usize);
-                out.extend(
-                    self.members[from..to]
-                        .iter()
-                        .map(|&i| i as usize)
-                        .filter(|&i| {
-                            let (centre, radius) = self.circles[i];
-                            super::overlaps(at, reach, centre, radius)
-                        }),
-                );
+            // The cells of a row are one run of the member list: they are laid out cell by cell.
+            let first = (r * self.cols + c0) as usize;
+            let last = (r * self.cols + c1) as usize;
+            let (from, to) = (self.start[first] as usize, self.start[last + 1] as usize);
+            for &i in &self.members[from..to] {
+                let (centre, radius) = self.circles[i as usize];
+                if super::overlaps(at, reach, centre, radius) {
+                    bits[(i / 64) as usize] |= 1 << (i % 64);
+                }
             }
         }
-        out.sort_unstable();
+        for (w, &word) in bits.iter().enumerate() {
+            let mut word = word;
+            while word != 0 {
+                out.push(w * 64 + word.trailing_zeros() as usize);
+                word &= word - 1;
+            }
+        }
     }
 }
 

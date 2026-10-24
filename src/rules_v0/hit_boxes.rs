@@ -147,6 +147,7 @@ pub(super) fn resolve(
 ) {
     let mut swings = std::mem::take(&mut s.scratch.swings);
     let mut found = std::mem::take(&mut s.scratch.found);
+    let mut bits = std::mem::take(&mut s.scratch.found_bits);
     active_swings(stage, s, &mut swings);
     swings.sort_by_key(|w| (w.owner.0, w.slot));
     // The zones land after the hit boxes, in the order they were placed.
@@ -157,7 +158,7 @@ pub(super) fn resolve(
     for w in &swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
-            hit_enemy_side(stage, s, grid, w, &mut found, events);
+            hit_enemy_side(stage, s, grid, w, (&mut bits, &mut found), events);
         } else {
             hit_ally_side(stage, s, w, events);
         }
@@ -168,6 +169,7 @@ pub(super) fn resolve(
     }
     s.scratch.swings = swings;
     s.scratch.found = found;
+    s.scratch.found_bits = bits;
 }
 
 /// A breakable enemy orb that a hit box of the main character covers is removed, with no burst,
@@ -435,7 +437,7 @@ fn hit_enemy_side(
     s: &mut State,
     grid: &Grid,
     w: &Swing,
-    found: &mut Vec<usize>,
+    (bits, found): (&mut Vec<u64>, &mut Vec<usize>),
     events: &mut Vec<DomainEvent>,
 ) {
     if let Some((def, boss)) = s.boss_pair(stage) {
@@ -456,7 +458,7 @@ fn hit_enemy_side(
             }
         }
     }
-    grid.within(w.area.centre, w.area.radius, found);
+    grid.within(w.area.centre, w.area.radius, bits, found);
     for &i in found.iter() {
         let e = &s.enemies[i];
         let (id, at, hp) = (e.id, e.at, e.hp);
