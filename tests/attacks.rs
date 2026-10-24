@@ -668,7 +668,8 @@ fn every_registered_preset_has_a_definition_that_passes_the_validator() {
 fn the_validator_holds_a_preset_to_the_budgets_of_an_inline_attack() {
     let phases: Vec<stella_rain_core::attack::AttackPhase> =
         serde_json::from_value(spawned(json!([
-            { "type": "fire", "speed": { "arg": 1 }, "direction": { "type": "aimed", "offset": 0 } }
+            { "type": "orb", "speed": { "arg": 1 }, "ticks": 100,
+              "direction": { "type": "aimed", "offset": 0 } }
         ])))
         .unwrap();
     assert!(validate_attack(&phases, 2, registry::ENTRIES).is_ok());

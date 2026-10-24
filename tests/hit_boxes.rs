@@ -280,11 +280,11 @@ fn invulnerability_stops_a_hit_without_using_it_up() {
 }
 
 #[test]
-fn a_phases_damage_is_the_base_damage_of_the_bullets_it_spawns() {
+fn a_phases_damage_is_the_base_damage_of_the_zones_it_spawns() {
     let shot = |damage: Option<u32>| {
         let mut p = phase("active", 1, None, damage);
-        p["spawn"] = json!([{ "type": "fire", "speed": 768,
-                              "direction": { "type": "aimed", "offset": 0 } }]);
+        p["spawn"] = json!([{ "type": "zone", "shape": { "type": "circle", "radius": 3_072 },
+                              "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }]);
         let foe = still_enemy(
             50,
             START_X,

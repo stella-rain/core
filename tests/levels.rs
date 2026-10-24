@@ -246,14 +246,14 @@ fn evade_shortens_the_evade_s_cooldown() {
 
 #[test]
 fn attack_speed_shortens_a_combo_step_spread_over_its_phases() {
-    // A step of 36 ticks: a wind-up of 12, an active phase of 4 that fires on its first tick, a
+    // A step of 36 ticks: a wind-up of 12, an active phase of 4 with a hit box, a
     // recovery of 20. One step of attack speed, 8%: 36 / 1.08 = 33.3, so 33 ticks; each phase
     // rounded down (11, 3, 18) and the tick left over to the largest remainder, the active
     // phase's (0.70 against 0.11 and 0.52).
     let step = json!({ "inline": [
         { "kind": "wind_up", "ticks": 12 },
-        { "kind": "active", "ticks": 4, "spawn": [{ "type": "fire", "speed": 2048,
-            "direction": { "type": "aimed", "offset": 0 } }] },
+        { "kind": "active", "ticks": 4,
+          "hit_box": { "type": "line", "length": 65_536, "width": 2_048 } },
         { "kind": "recovery", "ticks": 20 }
     ] });
     let stage = armed(effect_stage(), weapon_ref(step));

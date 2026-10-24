@@ -494,7 +494,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x18d0_69fd_da7d_d942;
+const GOLDEN_HASH: u64 = 0xcfdd_cbb8_b382_0e0e;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {

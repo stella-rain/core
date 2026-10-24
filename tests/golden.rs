@@ -130,8 +130,9 @@ fn a_boss_breaks_a_part_and_changes_phase() {
     check("boss", &recording::record(&stage, &inputs).unwrap());
 }
 
-/// The main shot is the stage's attack, along the facing: a wait-and-fire attack at a boss in
-/// front of the main character, which carries on after the main character turns away.
+/// The main shot is the stage's attack, along the facing: a wait-and-place attack of friendly
+/// zones at a boss in front of the main character, which carries on after the main character
+/// turns away.
 /// Entities: boss 1.
 #[test]
 fn the_main_shot_is_the_stages_attack() {
@@ -139,10 +140,13 @@ fn the_main_shot_is_the_stages_attack() {
     stage.player.weapon = serde_json::from_value(weapon_ref(json!({
         "inline": spawned(json!([
             { "type": "spread", "count": 2, "angle": 1280, "body": [
-                { "type": "fire", "speed": 2048,
-                  "direction": { "type": "aimed", "offset": 0 } } ] },
+                { "type": "zone", "shape": { "type": "circle", "radius": 2048 },
+                  "offset": { "forward": 2048 }, "direction": { "type": "aimed", "offset": 0 },
+                  "wind_up_ticks": 0, "active_ticks": 8 } ] },
             { "type": "wait", "ticks": 4 },
-            { "type": "fire", "speed": 2048, "direction": { "type": "aimed", "offset": 0 } }
+            { "type": "zone", "shape": { "type": "circle", "radius": 2048 },
+              "offset": { "forward": 2048 }, "direction": { "type": "aimed", "offset": 0 },
+              "wind_up_ticks": 0, "active_ticks": 8 }
         ]))
     })))
     .unwrap();

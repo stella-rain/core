@@ -30,11 +30,11 @@ fn strike(damage: u32, ty: Option<&str>) -> Value {
     json!({ "type": "attack", "attack": { "inline": [phase] } })
 }
 
-/// One bullet of `damage`, typed `ty`, aimed at the target.
+/// One zone of `damage`, typed `ty`, on the target.
 fn shoot(damage: u32, ty: &str) -> Value {
     json!({ "type": "attack", "attack": { "inline": [
         { "kind": "active", "ticks": 1, "damage": damage, "type": ty, "spawn": [
-            { "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }
+            { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }
         ] }] } })
 }
 
@@ -198,11 +198,13 @@ fn a_bullet_carries_its_phases_type() {
 }
 
 #[test]
-fn a_bullets_type_is_part_of_the_state_hash() {
+fn a_zones_type_is_part_of_the_state_hash() {
     // The same shot, typed or not, at an enemy with no profile: the hit deals the same, but
-    // while the bullet flies the states differ by its type.
+    // while the zone warns the states differ by its type.
     let hash_after = |ty: Option<&str>, ticks: u32| {
         let mut shot = shoot(10, "pyro");
+        // The zone warns for 20 ticks, in which the states differ by its type.
+        shot["attack"]["inline"][0]["spawn"][0]["wind_up_ticks"] = json!(20);
         match ty {
             Some(ty) => shot["attack"]["inline"][0]["type"] = json!(ty),
             None => {
@@ -212,7 +214,6 @@ fn a_bullets_type_is_part_of_the_state_hash() {
                     .remove("type");
             }
         }
-        // 100 pixels away, so that the bullet flies for a while.
         let far = enemy(100_000, hold(CX + 25_600, CY), json!([]));
         let mut e = engine(&striker(once(shot), wave(1, 1, 0, far, CX + 25_600, CY)));
         for _ in 0..ticks {
@@ -222,7 +223,7 @@ fn a_bullets_type_is_part_of_the_state_hash() {
     };
     assert_ne!(hash_after(Some("pyro"), 5), hash_after(None, 5));
     assert_ne!(hash_after(Some("pyro"), 5), hash_after(Some("cryo"), 5));
-    // Once the bullet has hit, nothing typed is left.
+    // Once the zone has hurt, nothing typed is left.
     assert_eq!(hash_after(Some("pyro"), 100), hash_after(None, 100));
 }
 

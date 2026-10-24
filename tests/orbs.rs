@@ -251,15 +251,14 @@ fn the_validator_refuses_a_friendly_orb() {
 }
 
 #[test]
-fn the_validator_refuses_a_fire_node_in_a_burst() {
-    let fire =
-        json!({ "type": "fire", "speed": 64, "direction": { "type": "aimed", "offset": 0 } });
-    let nested = json!({ "type": "ring", "count": 2, "body": [fire.clone()] });
-    for node in [fire, nested] {
+fn the_validator_refuses_an_orb_in_a_burst() {
+    let inner = orb(30, false, vec![]);
+    let nested = json!({ "type": "ring", "count": 2, "body": [inner.clone()] });
+    for node in [inner, nested] {
         let st = stage(vec![foe(START_X, 100, vec![orb(30, false, vec![node])])]);
         assert!(
             issues(&st).iter().any(|i| i.message.contains("burst")),
-            "a burst holds no fire"
+            "a burst holds no orb"
         );
     }
 }

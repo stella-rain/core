@@ -18,16 +18,18 @@ use stella_rain_core::stage::Stage;
 const RANGE: i32 = 25_600;
 /// A bat's radius.
 const BAT: i32 = 2048;
-/// The speed of a step's bullet, which shows where the step faced.
+/// How far ahead a step's zone is placed, which shows where the step faced.
 const SHOT: i32 = 2048;
 /// `trig::SCALE`: a facing's length.
 const SCALE: i32 = 65_536;
 
-/// One bullet along the step's facing on its first tick, then one tick of recovery.
+/// One zone ahead along the step's facing on its first tick, then one tick of recovery.
 fn shot() -> Value {
     json!({ "inline": [
-        { "kind": "active", "ticks": 1, "spawn": [{ "type": "fire", "speed": SHOT,
-            "direction": { "type": "aimed", "offset": 0 } }] },
+        { "kind": "active", "ticks": 1, "spawn": [{ "type": "zone",
+            "shape": { "type": "circle", "radius": 512 }, "offset": { "forward": SHOT },
+            "direction": { "type": "aimed", "offset": 0 }, "wind_up_ticks": 0,
+            "active_ticks": 100 }] },
         { "kind": "recovery", "ticks": 1 }
     ] })
 }
@@ -92,12 +94,15 @@ fn target_after_one_tick(stage: &Stage) -> Option<(i32, i32)> {
     target(&e)
 }
 
-/// The velocity of the main character's one bullet.
+/// Where the main character's one zone points: its direction, `SHOT` long.
 fn shot_velocity(e: &Engine) -> (i32, i32) {
     let s = e.snapshot();
-    let mine: Vec<_> = s.bullets.iter().filter(|b| b.friendly).collect();
-    assert_eq!(mine.len(), 1, "one bullet from the step");
-    (mine[0].vx.0, mine[0].vy.0)
+    let mine: Vec<_> = s.zones.iter().filter(|z| z.friendly).collect();
+    assert_eq!(mine.len(), 1, "one zone from the step");
+    (
+        mine[0].direction.x * SHOT / SCALE,
+        mine[0].direction.y * SHOT / SCALE,
+    )
 }
 
 fn facing(e: &Engine) -> (i32, i32) {

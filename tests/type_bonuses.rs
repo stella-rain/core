@@ -46,7 +46,9 @@ fn weapon(damage: u32, ty: Option<&str>, shoots: bool) -> Value {
     }
     if shoots {
         active["spawn"] = json!([
-            { "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }
+            { "type": "zone", "shape": { "type": "circle", "radius": 3_072 },
+              "offset": { "forward": START_Y - FAR_Y }, "direction": { "type": "aimed", "offset": 0 },
+              "wind_up_ticks": 20, "active_ticks": 2 }
         ]);
     }
     json!({ "inline": {
@@ -444,9 +446,9 @@ fn the_snapshot_holds_the_bonuses_taken_before_the_cap() {
 
 #[test]
 fn the_bonus_is_fixed_when_the_attack_starts() {
-    // The step kills a small enemy with its hit box and fires a bullet at the target far
-    // ahead; the kill's star opens an offer while the bullet flies, and the Pyro bonus taken
-    // then leaves that bullet as it was. The next step's bullet has it.
+    // The step kills a small enemy with its hit box and places a zone on the target far
+    // ahead; the kill's star opens an offer while the zone warns, and the Pyro bonus taken
+    // then leaves that zone as it was. The next step's zone has it.
     let small = wave(
         1,
         1,
@@ -472,8 +474,8 @@ fn the_bonus_is_fixed_when_the_attack_starts() {
     events.extend(run_until(&mut e, idle(), 30, Engine::offer_open));
     assert!(e.offer_open(), "the small enemy's star");
     assert!(
-        !e.snapshot().bullets.is_empty(),
-        "the bullet is in flight while the offer is open"
+        !e.snapshot().zones.is_empty(),
+        "the zone is warning while the offer is open"
     );
     take(&mut e, "pyro");
     events.extend(run_until(&mut e, idle(), 200, |_| false));

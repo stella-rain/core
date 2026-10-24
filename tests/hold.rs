@@ -16,9 +16,12 @@ use stella_rain_core::input::Input;
 use stella_rain_core::snapshot::HoldView;
 use stella_rain_core::stage::Stage;
 
-/// One bullet at `speed` along the aim, spawned by an active phase of one tick.
+/// One zone `speed` ahead along the aim, spawned by an active phase of one tick; it stays for
+/// 200 ticks.
 fn bullet(speed: i32) -> Value {
-    json!({ "type": "fire", "speed": speed, "direction": { "type": "aimed", "offset": 0 } })
+    json!({ "type": "zone", "shape": { "type": "circle", "radius": 512 },
+            "offset": { "forward": speed }, "direction": { "type": "aimed", "offset": 0 },
+            "wind_up_ticks": 0, "active_ticks": 200 })
 }
 
 /// The held step's own attack: a bullet at speed 0 on its first tick, then its recovery.
@@ -103,7 +106,7 @@ fn run(stage: &Stage, inputs: impl IntoIterator<Item = Input>) -> (Engine, Trace
         e.step(input);
         let tick = e.tick();
         let snap = e.snapshot();
-        let now = snap.bullets.iter().filter(|b| b.friendly).count();
+        let now = snap.zones.iter().filter(|z| z.friendly).count();
         if now > alive {
             trace.spawns.push((tick, now - alive));
         }
@@ -126,10 +129,10 @@ fn pressing(main: impl Fn(u32) -> bool) -> impl Iterator<Item = Input> {
 
 fn friendly(e: &Engine) -> Vec<(i32, i32)> {
     e.snapshot()
-        .bullets
+        .zones
         .iter()
-        .filter(|b| b.friendly)
-        .map(|b| (b.vx.0, b.vy.0))
+        .filter(|z| z.friendly)
+        .map(|z| (z.at.x.0 - START_X, z.at.y.0 - START_Y))
         .collect()
 }
 
@@ -219,12 +222,12 @@ fn an_evade_breaks_the_hold_with_no_release_and_the_combo_starts_again() {
     assert_eq!(e.snapshot().player.hold, None);
 }
 
-/// A stage where an enemy 40 pixels above fires one bullet at the main character on tick 1,
-/// reaching it on tick 9; `breaks` marks the bullet's attack as one that breaks charges.
+/// A stage where an enemy 40 pixels above places a zone on the main character on tick 1,
+/// hurting it on tick 9; `breaks` marks the zone's attack as one that breaks charges.
 fn shot_stage(breaks: bool) -> Stage {
     let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "breaks_charge": breaks,
-        "spawn": [{ "type": "fire", "speed": 1024,
-                    "direction": { "type": "aimed", "offset": 0 } }] }] });
+        "spawn": [{ "type": "zone", "shape": { "type": "circle", "radius": 3_072 },
+                    "anchor": "target", "wind_up_ticks": 8, "active_ticks": 2 }] }] });
     let shooter = enemy(
         1000,
         hold(START_X, START_Y - 10_240),

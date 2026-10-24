@@ -425,8 +425,10 @@ fn assisted_stage(reveal_radius: i32) -> Stage {
     let (mx, my) = near(RANGE / 4);
     let (bx, by) = near(-RANGE / 2);
     let shot = json!({ "inline": [
-        { "kind": "active", "ticks": 1, "spawn": [{ "type": "fire", "speed": 2048,
-            "direction": { "type": "aimed", "offset": 0 } }] },
+        { "kind": "active", "ticks": 1, "spawn": [{ "type": "zone",
+            "shape": { "type": "circle", "radius": 512 }, "offset": { "forward": 2048 },
+            "direction": { "type": "aimed", "offset": 0 }, "wind_up_ticks": 0,
+            "active_ticks": 4 }] },
         { "kind": "recovery", "ticks": 1 }
     ] });
     let weapon = json!({ "inline": { "combo": { "main": { "attack": shot } },

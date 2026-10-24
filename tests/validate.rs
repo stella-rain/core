@@ -53,28 +53,6 @@ fn first_issue(v: &Value) -> Issue {
         .expect("expected the stage to be rejected")
 }
 
-/// The fixture with the first `fire` given `ticks`.
-fn fire_with_ticks(ticks: u32) -> Value {
-    let text = STAGE.replacen(
-        "\"type\": \"fire\",",
-        &format!("\"type\": \"fire\", \"ticks\": {ticks},"),
-        1,
-    );
-    serde_json::from_str(&text).unwrap()
-}
-
-#[test]
-fn a_fire_s_ticks_are_at_least_one_and_at_most_the_limit() {
-    assert_valid(&fire_with_ticks(1));
-    assert_valid(&fire_with_ticks(MAX_BULLET_TICKS));
-    assert!(first_issue(&fire_with_ticks(0)).path.ends_with(".ticks"));
-    assert!(
-        first_issue(&fire_with_ticks(MAX_BULLET_TICKS + 1))
-            .path
-            .ends_with(".ticks")
-    );
-}
-
 #[test]
 fn a_map_s_facing_is_an_angle_from_0_to_a_full_turn() {
     let with_facing = |facing: i32| {
@@ -113,8 +91,10 @@ fn spawning(emitters: Value) -> Value {
     json!({ "inline": [{ "kind": "active", "ticks": 1, "spawn": emitters }] })
 }
 
+/// An orb that lives 100 ticks, for the tests that need a node with a `speed`.
 fn fire(speed: Value) -> Value {
-    json!({ "type": "fire", "speed": speed, "direction": { "type": "absolute", "angle": 0 } })
+    json!({ "type": "orb", "speed": speed, "ticks": 100,
+            "direction": { "type": "absolute", "angle": 0 } })
 }
 
 /// An expression with exactly `n` nodes (n >= 1, n != 2).
@@ -603,11 +583,11 @@ fn registry_ids_must_exist_with_the_right_kind() {
     );
     assert_eq!(
         bad(
-            "/boss/phases/1/timeline/1/attack/inline/0/spawn/0/then/0/body/0/bullet",
+            "/boss/phases/1/timeline/1/attack/inline/0/spawn/0/body/0/style",
             "orb_huge"
         )
         .path,
-        "$.boss.phases[1].timeline[1].attack.inline[0].spawn[0].then[0].body[0].bullet"
+        "$.boss.phases[1].timeline[1].attack.inline[0].spawn[0].body[0].style"
     );
 }
 

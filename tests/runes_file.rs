@@ -230,7 +230,7 @@ fn boomerang_s_attack_is_its_throw_two_active_phases() {
     // It is checked as the others are: bullets, its first leg's ticks, the cooldown.
     let mut spawning = active(4);
     spawning["spawn"] = json!([
-        { "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }
+        { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }
     ]);
     assert_eq!(
         at(with(json!([active(4), spawning]))),
@@ -342,7 +342,7 @@ fn homing_missiles_attack_is_one_flight_an_active_phase_with_a_hit_box() {
     // It is checked as the others are: bullets, its first phase's ticks, the cooldown.
     let mut spawning = active(4);
     spawning["spawn"] = json!([
-        { "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }
+        { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }
     ]);
     assert_eq!(at(with(json!([spawning]))), ["$.on_hit[3].attack[0].spawn"]);
     assert_eq!(
@@ -701,7 +701,7 @@ fn the_attack_lands_somewhere_and_from_the_tick_after_it_fires() {
 fn the_attack_fires_no_bullets_sets_no_damage_and_never_slows_the_main_character() {
     let mut spawning = active(4);
     spawning["spawn"] = json!([
-        { "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }
+        { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }
     ]);
     let mut own_damage = active(4);
     own_damage["damage"] = json!(9);

@@ -3,9 +3,10 @@
 //! 147456), facing up the field.
 //!
 //! The test weapon's steps are all the same swing: a wind-up of 2 ticks, an active phase of 2
-//! that fires one bullet up the field on its first tick, and a recovery of 6, 10 ticks in all;
-//! each step's bullet has its own speed, so the bullets say which steps ran. A step pressed on
-//! tick t winds up on t and t + 1, fires on t + 2 and recovers from t + 4 to t + 9.
+//! that places one friendly zone up the field on its first tick, and a recovery of 6, 10 ticks in
+//! all; each step's zone is placed its own distance ahead, so the zones say which steps ran. A
+//! step pressed on tick t winds up on t and t + 1, places its zone on t + 2 and recovers from
+//! t + 4 to t + 9.
 
 use crate::common;
 
@@ -24,7 +25,7 @@ use stella_rain_core::weapons::Weapons;
 
 // --- Builders --------------------------------------------------------------------------------
 
-/// The steps, by the speed of their bullet: A, then AA, then AAA (a leaf); AB after A; B from
+/// The steps, by the distance of their zone: A, then AA, then AAA (a leaf); AB after A; B from
 /// the root; D, the dash-strike.
 const A: i32 = 256;
 const AA: i32 = 512;
@@ -39,8 +40,10 @@ const DASH_STRIKE: u32 = 5;
 fn swing(speed: i32) -> Value {
     json!({ "inline": [
         { "kind": "wind_up", "ticks": 2 },
-        { "kind": "active", "ticks": 2, "spawn": [{ "type": "fire", "speed": speed,
-            "direction": { "type": "aimed", "offset": 0 } }] },
+        { "kind": "active", "ticks": 2, "spawn": [{ "type": "zone",
+            "shape": { "type": "circle", "radius": 256 }, "offset": { "forward": speed },
+            "direction": { "type": "aimed", "offset": 0 }, "wind_up_ticks": 0,
+            "active_ticks": 200 }] },
         { "kind": "recovery", "ticks": 6 }
     ] })
 }
@@ -87,8 +90,8 @@ fn presses(presses: &[(u32, &str)], ticks: u32) -> Vec<Input> {
         .collect()
 }
 
-/// What a run of `inputs` did: every event with its tick, and the speed of every friendly
-/// bullet with the tick it was made.
+/// What a run of `inputs` did: every event with its tick, and the distance ahead of the main
+/// character of every friendly zone with the tick it was made.
 struct Played {
     events: Vec<(u32, DomainEvent)>,
     shots: Vec<(u32, i32)>,
@@ -105,12 +108,12 @@ fn play(e: &mut Engine, inputs: &[Input]) -> Played {
         played
             .events
             .extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
-        let bullets: Vec<i32> = e
-            .snapshot()
-            .bullets
+        let snapshot = e.snapshot();
+        let bullets: Vec<i32> = snapshot
+            .zones
             .iter()
-            .filter(|b| b.friendly)
-            .map(|b| -b.vy.0)
+            .filter(|z| z.friendly)
+            .map(|z| snapshot.player.at.y.0 - z.at.y.0)
             .collect();
         played
             .shots

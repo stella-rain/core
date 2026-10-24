@@ -776,7 +776,7 @@ fn ranged_cap() -> Definition {
     let shot = |ranged: bool| {
         let mut action = json!({ "type": "attack", "attack": { "inline": [
             { "kind": "wind_up", "ticks": 12, "damage": 2, "spawn": [
-                { "type": "fire", "speed": 768, "ticks": 200,
+                { "type": "orb", "speed": 768, "ticks": 200,
                   "direction": { "type": "aimed", "offset": 0 } } ] },
             { "kind": "active", "ticks": 8 },
             { "kind": "recovery", "ticks": 10 },
@@ -1775,7 +1775,8 @@ fn orb_and_token_reach(name: &str) -> (usize, usize, usize, bool) {
 fn the_ranged_cap_and_orbs_cases_are_what_their_names_say() {
     // Ten shooters want to fire, eight of them marked: four hold a token at the most.
     let (held, orbs, _, _) = orb_and_token_reach("ranged_cap");
-    assert_eq!((held, orbs), (4, 0));
+    assert_eq!(held, 4);
+    assert!(orbs > 0, "their shots are orbs");
     // The orbs fill the field up to the cap, the sword breaks some, and bursts place zones.
     let (_, orbs, broken, zoned) = orb_and_token_reach("orbs");
     assert_eq!(orbs, 32, "the orb cap is reached");

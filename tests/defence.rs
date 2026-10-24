@@ -103,11 +103,11 @@ fn defence_comes_after_the_targets_vulnerability() {
 }
 
 #[test]
-fn bullets_meet_the_same_defence() {
+fn zones_meet_the_same_defence() {
     let shot = |defence: Option<u32>| {
         let mut st = striker(once(json!({ "type": "attack", "attack": { "inline": [
             { "kind": "active", "ticks": 1, "damage": 10, "spawn": [
-                { "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }
+                { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }
             ] }] } })));
         st.waves = vec![serde_json::from_value(target(defence)).unwrap()];
         dealt(&st, COMPANION, 20)
