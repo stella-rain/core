@@ -20,7 +20,7 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
   `junit-<arch>` artifact. nextest skips doctests, so `cargo test --doc` runs beside it
   (x86_64 only) and fails the day one is added and breaks.
 - The deep tier (`deep.yml`): 2,000 property cases and the `#[ignore]`d measurements, in release,
-  weekly, on demand and on every `candidate/**` push; not a PR check. The nextest test group
+  weekly, on demand and called by Candidate; not a PR check. The nextest test group
   `deep` runs those long tests one at a time so their times stay comparable.
 - The weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`, runner
   `.github/scripts/ios-sim-runner.sh`), both called by Candidate (ADR-REL-3).

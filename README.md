@@ -14,6 +14,16 @@ core <version>", in the content repository. It sets `pack.json` and `core-versio
 The flow is one way: content never writes back, and its release follows the merge of that
 pull request.
 
+## How a release is made
+
+Candidate is run on `main` (Actions, Candidate, Run workflow) and makes the prerelease
+`vX.Y.Z-rc.N`; Promote, run on the branch `rc/vX.Y.Z-rc.N`, tags the same commit `vX.Y.Z`.
+The `version` in `Cargo.toml` is a floor, not the release: above the latest release it is the
+release, at or below it the release is the next patch (`0.1.0` with `v0.1.0` out gives
+`v0.1.1`), and Candidate stamps that version into a release commit on top of the `main` commit.
+`main` itself is never written to, so its `Cargo.toml` can lag the latest release; the tag is
+the version. A minor or major release needs a version PR.
+
 ## License
 
 Licensed under either of
