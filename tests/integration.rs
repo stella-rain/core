@@ -123,6 +123,7 @@ mod weapon_tree;
 mod weapons;
 mod weapons_content;
 mod worst_case;
+mod worst_minute;
 mod x100;
 mod zone_bot;
 mod zones;
