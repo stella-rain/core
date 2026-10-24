@@ -6,6 +6,7 @@
 //! The values are those of the benches' own case modules (built on `tests/common/`) when the
 //! fixtures were written: the fixtures must build the same engine, or the instruction counts move.
 
+use stella_rain_core::bench_fixtures::worst_minute_case::{MINUTE_TICKS, Run};
 use stella_rain_core::bench_fixtures::{self, Case};
 
 fn pinned(case: Case, before: u64, after: u64) {
@@ -48,5 +49,33 @@ fn the_time_limit_tick_is_the_benches_case() {
         bench_fixtures::time_limit_tick(),
         0xb8352ca01a24a44c,
         0x3b62752b8bc228ce,
+    );
+}
+
+fn pinned_run(mut run: Run, ticks: u32, before: u64, after: u64) {
+    assert_eq!(run.engine.state_hash(), before, "the fast-forwarded engine");
+    run.play(ticks);
+    assert_eq!(run.engine.state_hash(), after, "after the measured ticks");
+}
+
+// The two constants of the densest minute are re-pinned together with these hashes after any
+// outcome change (`src/bench_fixtures/worst_minute_case.rs`).
+#[test]
+fn the_worst_minute_is_the_benches_case() {
+    pinned_run(
+        bench_fixtures::worst_minute(),
+        MINUTE_TICKS,
+        0x2b85c4c853394830,
+        0x1aa6920e0583ffbe,
+    );
+}
+
+#[test]
+fn the_worst_minute_peak_tick_is_the_benches_case() {
+    pinned_run(
+        bench_fixtures::worst_minute_peak(),
+        1,
+        0x79fb17fd67a76c65,
+        0x6536ac56cf143e34,
     );
 }
