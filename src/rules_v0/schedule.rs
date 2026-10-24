@@ -4,9 +4,8 @@
 //! `TICK` equal.
 
 use super::{
-    MAX_BULLET_SPAWNS_PER_TICK, World, agents, attacks, boss, collide, count, decide_outcome,
-    entity, expertise, horde, loadout, move_bullets, open_offers, orbit, player, push, runes,
-    skill, spawn_waves, zones,
+    World, agents, attacks, boss, collide, count, decide_outcome, entity, expertise, horde,
+    loadout, move_bullets, open_offers, orbit, player, push, runes, skill, spawn_waves, zones,
 };
 use crate::engine::{Load, Outcome, State};
 use crate::event::DomainEvent;
@@ -24,8 +23,6 @@ pub(super) struct Ctx<'a> {
     pub(super) input: Input,
     pub(super) events: &'a mut Vec<DomainEvent>,
     pub(super) load: &'a mut Load,
-    /// New bullets the tick may still spawn (`MAX_BULLET_SPAWNS_PER_TICK`).
-    pub(super) spawns_left: u32,
     /// A status that deals damage over time is on someone: set by `statuses_and_aggro`, read by
     /// `collide`.
     pub(super) dots: bool,
@@ -49,7 +46,6 @@ impl<'a> Ctx<'a> {
             input,
             events,
             load,
-            spawns_left: MAX_BULLET_SPAWNS_PER_TICK,
             dots: false,
         }
     }
@@ -98,14 +94,13 @@ pub(super) const TICK: &[(&str, Step)] = &[
     ("zones_advance", |c| zones::advance(c.s)),
     ("fire_hooks", |c| attacks::fire_hooks(c.s)),
     ("run_attacks", |c| {
-        let (tasks, emitter_steps) = attacks::run(c.world, c.s, &mut c.spawns_left);
+        let (tasks, emitter_steps) = attacks::run(c.world, c.s);
         *c.load = Load {
             enemies: count(&c.s.enemies),
             tasks,
             bullets: count(&c.s.bullets),
             zones: count(&c.s.zones),
             orbs: c.s.orbs,
-            bullet_spawns: MAX_BULLET_SPAWNS_PER_TICK - c.spawns_left,
             emitter_steps,
         };
     }),

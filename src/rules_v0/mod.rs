@@ -25,10 +25,10 @@
 //! | `skill_pull` | the stage skill's black hole pulls (`skill`) |
 //! | `runes_steer` | homing missiles' hit boxes steer toward where their targets are now (`runes`) |
 //! | `zones_advance` | the zones age and run out (`zones`) |
-//! | `fire_hooks` | bullets whose `on_bullet` wait is over start their attacks (`attacks`) |
-//! | `run_attacks` | every running attack is carried out up to its next wait, making bullets; the tick's `Load` is read here (`attacks`) |
-//! | `move_bullets` | bullets move and leave the map |
-//! | `collide` | damage-over-time statuses tick, then the hit boxes of active phases (`hit_boxes`), then bullets land: allies' hurt enemies and the boss, enemies' the main character and the companions; the shield takes from the main character's damage; experience, expertise points, runes' effects and drops follow the hits (`combat`) |
+//! | `fire_hooks` | orbs whose lifetime is over start their bursts (`attacks`) |
+//! | `run_attacks` | every running attack is carried out up to its next wait, making orbs and zones; the tick's `Load` is read here (`attacks`) |
+//! | `move_bullets` | orbs move and leave the map |
+//! | `collide` | damage-over-time statuses tick, then the hit boxes of active phases (`hit_boxes`), then orbs land on the main character and the companions; the shield takes from the main character's damage; experience, expertise points, runes' effects and drops follow the hits (`combat`) |
 //! | `level_up` | the expertise gauge's levels are reached (`expertise`) |
 //! | `decide_outcome` | death or running out of ticks fails, an empty stage clears |
 //! | `open_offers` | if the run goes on or is cleared, the first offer due opens, and the world stops until it is answered: the boss offer, then the expertise levels' in level order, then the stat offers' in level order, then the stars' in the order taken; a fail opens none |
@@ -80,8 +80,8 @@
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
 //! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, the stage's elite cap of
-//! them elites (at most `MAX_ELITES_ALIVE`), `MAX_BULLETS_ALIVE` bullets,
-//! `MAX_BULLET_SPAWNS_PER_TICK` new bullets per tick, `MAX_ATTACK_TASKS` attacks at once and
+//! them elites (at most `MAX_ELITES_ALIVE`), `MAX_ZONES_ALIVE` zones, `MAX_ORBS_ALIVE` orbs,
+//! `MAX_ATTACK_TASKS` attacks at once and
 //! `MAX_EMITTER_STEPS_PER_TICK` steps of them per tick. A spawn past a cap is dropped, in
 //! spawn order, and a wave spawn that is dropped still counts as spawned; attacks past the
 //! step budget wait for the next tick.
@@ -124,8 +124,8 @@ use crate::behaviour::BossCall;
 use crate::difficulties::scale_pct;
 use crate::engine::AgentState;
 use crate::engine::{
-    AgentKey, AgentSource, BossState, BulletState, DashState, Dir, Load, MoveOrder, Outcome,
-    PartState, PlayerState, Progress, Pull, Smash, StarField, StatRule, State, Streams, UNLIMITED,
+    AgentKey, AgentSource, BossState, DashState, Dir, Load, MoveOrder, Outcome, PartState,
+    PlayerState, Progress, Pull, Smash, StarField, StatRule, State, Streams,
 };
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
@@ -153,16 +153,14 @@ pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
-pub(crate) const MAX_BULLETS_ALIVE: u32 = 4000;
-pub(crate) const MAX_BULLET_SPAWNS_PER_TICK: u32 = 200;
 /// Zones alive at once (core Z1, a placeholder cap pending ADR-058); a zone placed over it is
-/// dropped, as a bullet over `MAX_BULLETS_ALIVE` is.
+/// dropped, as an orb over `MAX_ORBS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
 /// it is in its wind-up or active phase, and a rule whose start would take a fifth waits.
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// Orbs alive per attacker and in all (core Z2, DS11, tuning rows); an orb over either cap is
-/// dropped in node order, as a bullet over `MAX_BULLETS_ALIVE` is.
+/// dropped in node order.
 pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;
 pub(crate) const MAX_ORBS_ALIVE: u32 = 32;
 /// Attacks being carried out at once (ADR-036 tier 3), and the node steps they may take in a
@@ -176,8 +174,11 @@ pub(crate) const PLAYER_ID: EntityId = EntityId(0);
 const PLAYER_SPEED: i32 = Fx::px(3).0;
 /// The hurt circle, a tiny one (ADR-050).
 pub(crate) const PLAYER_RADIUS: i32 = Fx::px(2).0;
-const PLAYER_BULLET_RADIUS: i32 = Fx::px(2).0;
-const ENEMY_BULLET_RADIUS: i32 = Fx::px(3).0;
+/// The radius the enemy grid is built for (`Grid::rebuild`'s probe radius); it sets the cell side
+/// with the largest enemy, so it stays what the friendly bullets' radius was.
+const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
+/// An orb's hit circle.
+const ORB_RADIUS: i32 = Fx::px(3).0;
 /// Ticks of invulnerability after the main character is hit.
 const HIT_INVULNERABLE_TICKS: u32 = 60;
 
@@ -189,12 +190,8 @@ const AGGRO_PER_BUFF: u32 = 40 * DAMAGE_SCALE;
 const AGGRO_PER_HEAL_POINT: u32 = 2;
 const AGGRO_DECAY: u32 = DAMAGE_SCALE;
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
-pub(crate) fn bullet_radius(friendly: bool) -> i32 {
-    if friendly {
-        PLAYER_BULLET_RADIUS
-    } else {
-        ENEMY_BULLET_RADIUS
-    }
+pub(crate) const fn orb_radius() -> i32 {
+    ORB_RADIUS
 }
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
@@ -657,14 +654,6 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
     true
 }
 
-fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
-    if *spawns_left == 0 || count(&s.bullets) >= MAX_BULLETS_ALIVE {
-        return;
-    }
-    *spawns_left -= 1;
-    s.bullets.push(bullet);
-}
-
 /// Moves every bullet a tick, and drops those that leave: one whose lifetime is up leaves
 /// before it moves, so a bullet with `n` ticks is on the map for `n` ticks (core#147).
 fn move_bullets(stage: &World, s: &mut State) {
@@ -677,9 +666,7 @@ fn move_bullets(stage: &World, s: &mut State) {
         } else {
             b.at.x = b.at.x.saturating_add(b.vx);
             b.at.y = b.at.y.saturating_add(b.vy);
-            if b.life != UNLIMITED {
-                b.life -= 1;
-            }
+            b.life -= 1;
             holds(b.at)
         };
         if counting && !keep && b.orb {
@@ -729,8 +716,8 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     if dots {
         entity::tick_dots(stage, s, events);
     }
-    // The enemies do not move while hit boxes and bullets land, so one grid, built for the first
-    // friendly hit box or bullet, serves all of them; a tick without either never builds it.
+    // The enemies do not move while hit boxes land, so one grid, built for the first friendly hit
+    // box, serves all of them; a tick without one never builds it.
     let mut grid: Option<Grid> = None;
     let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
     combat::deal_echoes(s, events);
@@ -742,7 +729,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         let shot = Shot {
             at: b.at,
             owner: b.owner,
-            friendly: b.friendly,
+            friendly: false,
             damage: b.damage,
             damage_type: b.damage_type,
             breaks_charge: b.breaks_charge,
@@ -751,12 +738,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             rune: None,
             chain: false,
         };
-        consumed.push(if shot.friendly {
-            let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
-            hit_enemy_side(stage, s, grid, shot, events)
-        } else {
-            hit_ally_side(stage, s, shot, events)
-        });
+        consumed.push(hit_ally_side(stage, s, shot, events));
     }
     let mut flags = consumed.iter();
     if s.orbs == 0 {
@@ -797,15 +779,15 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     heal::pick_up(stage, s, events);
 }
 
-/// The enemies as circles, in index order, for friendly bullets to land on.
-/// It is built in the state's scratch grid, which the caller returns when it is done.
+/// The enemies as circles, in index order, for friendly hit boxes to land on and for the
+/// push-apart. It is built in the state's scratch grid, which the caller returns when it is done.
 fn enemy_grid(stage: &World, s: &mut State) -> Grid {
     let mut grid = std::mem::take(&mut s.scratch.grid);
     let circles = s
         .enemies
         .iter()
         .map(|e| (e.at, stage.defs.agent(e.def).radius.0));
-    grid.rebuild(circles, PLAYER_BULLET_RADIUS);
+    grid.rebuild(circles, GRID_PROBE_RADIUS);
     grid
 }
 
@@ -939,77 +921,6 @@ fn profile<'a>(stage: &'a World, s: &'a State, target: Who) -> Option<&'a Profil
         Who::BossPart(i) => s.boss_def(stage)?.parts.get(i)?.profile.as_ref(),
         Who::Player | Who::Companion(_) => None,
     }
-}
-
-/// The lowest live enemy a shot at `at` lands on past the mimics in disguise from `first` on:
-/// the rare shot that lands on one.
-#[cold]
-fn past_hidden(s: &State, grid: &Grid, at: Point, mut first: Option<usize>) -> Option<usize> {
-    while let Some(i) = first.filter(|&i| s.enemies[i].hidden()) {
-        first = grid.first_hit(at, PLAYER_BULLET_RADIUS, |j| {
-            j > i && s.enemies[j].hp > 0 && s.enemies[j].shrine.is_none()
-        });
-    }
-    first
-}
-
-/// An ally's shot against the enemies in ID order, then the boss. Returns whether it was used up.
-/// `grid` holds the enemies of this tick, so only those near the shot are checked.
-fn hit_enemy_side(
-    stage: &World,
-    s: &mut State,
-    grid: &Grid,
-    b: Shot,
-    events: &mut Vec<DomainEvent>,
-) -> bool {
-    // A shot passes through a shrine.
-    let hittable = |i: usize| s.enemies[i].hp > 0 && s.enemies[i].shrine.is_none();
-    let mut first = grid.first_hit(b.at, PLAYER_BULLET_RADIUS, hittable);
-    // And through a mimic in disguise. Checked on the one found rather than in `hittable`, which
-    // runs for every enemy near every bullet (ADR-058).
-    if first.is_some_and(|i| s.enemies[i].hidden()) {
-        first = past_hidden(s, grid, b.at, first);
-    }
-    if let Some(i) = first {
-        damage(stage, s, b, Who::Enemy(i), events);
-        match b.smash {
-            Some(Smash::Pull(pull)) => pull_enemy(stage, s, i, pull),
-            Some(Smash::Knockback(push)) => knock_enemy(stage, s, i, push),
-            _ => {}
-        }
-        return true;
-    }
-    let Some((def, state)) = s.boss_pair(stage) else {
-        return false;
-    };
-    if state.hp == 0 {
-        return false;
-    }
-    // The parts are in front of the body. While the boss is invulnerable a shot that lands is
-    // used up and does no harm.
-    let absorbed = state.invulnerable > 0;
-    for (i, part) in state.parts.iter().enumerate() {
-        if part.hp > 0
-            && overlaps(
-                b.at,
-                PLAYER_BULLET_RADIUS,
-                s.at(Who::BossPart(i)),
-                part.radius,
-            )
-        {
-            if !absorbed {
-                damage(stage, s, b, Who::BossPart(i), events);
-            }
-            return true;
-        }
-    }
-    if overlaps(b.at, PLAYER_BULLET_RADIUS, state.at, def.radius.0) {
-        if !absorbed {
-            damage(stage, s, b, Who::Boss, events);
-        }
-        return true;
-    }
-    false
 }
 
 /// The Sub weapon's pull on enemy `i`, hit by a combo part (ADR-070): it is drawn toward the
@@ -1150,18 +1061,18 @@ pub(crate) fn aura_percent(
         .unwrap_or(0)
 }
 
-/// An enemy's shot against the main character (unless it is invulnerable), then the
-/// companions in ID order.
+/// An orb against the main character (unless it is invulnerable), then the companions in ID
+/// order.
 fn hit_ally_side(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
-    if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, p.at, PLAYER_RADIUS) {
+    if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ORB_RADIUS, p.at, PLAYER_RADIUS) {
         hurt_player(stage, s, aided(stage, s, b), events);
         return true;
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = stage.defs.agent(c.def).radius.0;
-        if c.hp > 0 && overlaps(b.at, ENEMY_BULLET_RADIUS, c.at, radius) {
+        if c.hp > 0 && overlaps(b.at, ORB_RADIUS, c.at, radius) {
             damage(stage, s, aided(stage, s, b), Who::Companion(i), events);
             return true;
         }
@@ -1335,7 +1246,9 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
         h.write_u32(f.loop_n);
         h.write_i32(f.param);
         h.write_i32(f.offset);
-        h.write_u32(f.hook_after);
+        // The wait of an `on_bullet`'s bullets, gone with the node (BR1c); the byte stays so that
+        // the hashes pinned by the bench fixtures do not move.
+        h.write_u32(0);
     }
 }
 
@@ -1588,7 +1501,8 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         h.write_i32(b.dir.y);
         h.write_u32(u32::from(b.style));
         h.write_u32(b.owner.0);
-        h.write_bool(b.friendly);
+        // No projectile is friendly any more (BR1c); the byte stays, as above.
+        h.write_bool(false);
         h.write_u32(b.damage);
         h.write_bool(b.breaks_charge);
         hash_smash(&mut h, b.smash);
@@ -1599,7 +1513,7 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
                 h.write_u32(hook.left);
                 h.write_u32(hook.owner.0);
                 hash_aim(&mut h, hook.aim);
-                h.write_bool(hook.friendly);
+                h.write_bool(false);
                 h.write_u32(hook.damage);
                 h.write_bool(hook.breaks_charge);
                 hash_smash(&mut h, hook.smash);
@@ -1752,9 +1666,9 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
             h.write_u32(b.hook.as_ref().map_or(0, |k| type_code(k.damage_type)));
         }
     }
-    // Each bullet's ticks left, and only while one has a lifetime (core#147), so that the hashes
-    // of runs without one stay as they were.
-    if s.bullets.iter().any(|b| b.life != UNLIMITED) {
+    // Each bullet's ticks left (core#147), and only while one is alive, so that the hashes of
+    // runs without any stay as they were.
+    if !s.bullets.is_empty() {
         h.write_u32(count(&s.bullets));
         for b in &s.bullets {
             h.write_u32(b.life);

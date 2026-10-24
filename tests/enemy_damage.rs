@@ -55,7 +55,7 @@ fn shooter_mode() -> TimeLimit {
             "movement": { "type": "straight", "vx": 0, "vy": 0 },
             "rules": [{ "when": { "type": "always" }, "target": "nearest_ally",
                 "do": { "type": "attack", "attack": { "preset": {
-                    "id": "aimed_single", "args": [640] } } } }]
+                    "id": "aimed_single", "args": [15] } } } }]
         },
         "spawn": { "x": 0, "y": 0 }, "count": 1, "every_ticks": 0, "around": 30_000
     }]);

@@ -52,7 +52,7 @@
           {
             "when": { "type": "time_above", "ticks": 30 },
             "target": "player",
-            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [512] } } },
+            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } },
             "once": true
           }
         ]
@@ -90,7 +90,8 @@
                       "count": { "add": [12, 4] },
                       "body": [
                         {
-                          "type": "fire",
+                          "type": "orb",
+                          "ticks": 60,
                           "speed": { "clamp": [{ "rand": [384, 640] }, 256, 768] },
                           "direction": { "type": "relative", "angle": { "mul": ["loop_index", 1280] } }
                         }
@@ -121,18 +122,25 @@
             "type": "attack",
             "attack": {
               "inline": [{ "kind": "active", "ticks": 1, "spawn": [
-                {
-                  "type": "on_bullet",
-                  "after_ticks": 40,
+                { "type": "spread", "count": 7, "angle": 15360,
                   "body": [
-                    { "type": "spread", "count": 7, "angle": 15360,
-                      "body": [{ "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }] }
-                  ],
-                  "then": [
-                    { "type": "rotate", "angle": "phase_time",
-                      "body": [{ "type": "fire", "speed": 256, "direction": { "type": "sequential", "step": 2560 }, "bullet": "orb_small" }] }
-                  ]
-                }
+                    {
+                      "type": "orb",
+                      "speed": 512,
+                      "ticks": 40,
+                      "style": "orb_small",
+                      "breakable": true,
+                      "direction": { "type": "aimed", "offset": 0 },
+                      "burst": [
+                        { "type": "rotate", "angle": "phase_time",
+                          "body": [
+                            { "type": "zone", "shape": { "type": "circle", "radius": 4096 },
+                              "direction": { "type": "sequential", "step": 2560 },
+                              "wind_up_ticks": 10, "active_ticks": 4 }
+                          ] }
+                      ]
+                    }
+                  ] }
               ]}]
             }
           },
@@ -148,7 +156,7 @@
           {
             "when": { "type": "aggro_above", "who": "highest_aggro_ally", "value": 100 },
             "target": "highest_aggro_ally",
-            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } },
+            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } },
             "charges": 3
           },
           {

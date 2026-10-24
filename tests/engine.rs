@@ -99,23 +99,6 @@ fn the_snapshot_gives_each_circle_the_radius_hits_use() {
     );
 }
 
-#[test]
-fn the_main_shot_fired_every_six_ticks_leaves_the_field() {
-    let mut e = running(vec![]);
-    for _ in 0..60 {
-        e.step(firing(idle(), e.tick()));
-    }
-    // Shots on ticks 1, 7, ..., 55; none has left the field yet.
-    let s = e.snapshot();
-    assert_eq!(s.bullets.len(), 10);
-    assert!(s.bullets.iter().all(|b| b.friendly));
-    // A shot is gone 80 ticks after it starts, so 14 are ever in the air at once.
-    for _ in 0..200 {
-        e.step(firing(idle(), e.tick()));
-    }
-    assert_eq!(e.snapshot().bullets.len(), 14);
-}
-
 // --- Collisions, damage and death ------------------------------------------------------------
 
 #[test]
@@ -142,11 +125,12 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
                 && e.tick() > 1
         }
     });
-    // A shot fired on tick 1 has moved 59 times when it touches the enemy: tick 59.
+    // The ray pressed on tick 1 reaches the enemy with its second line, on the attack's second
+    // tick; the press of tick 7 does the same six ticks later.
     let hits = ticks_of(&events, |ev| matches!(ev, DomainEvent::Hit { .. }));
-    assert_eq!(hits, [59, 65]);
+    assert_eq!(hits, [2, 8]);
     let died = ticks_of(&events, |ev| matches!(ev, DomainEvent::Died { .. }));
-    assert_eq!(died, [65]);
+    assert_eq!(died, [8]);
     assert!(matches!(
         events
             .iter()
@@ -170,7 +154,7 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
 }
 
 #[test]
-fn enemy_bullets_hurt_the_character_with_invulnerability_in_between() {
+fn enemy_zones_hurt_the_character_with_invulnerability_in_between() {
     let mut stage = stage_with(
         18_000,
         Some(far_boss()),
@@ -188,8 +172,8 @@ fn enemy_bullets_hurt_the_character_with_invulnerability_in_between() {
     // The weapons are quiet, so that the enemy lives.
     let mut e = engine(&quiet(stage));
     let events = run_until(&mut e, idle(), 400, |e| e.outcome() != Outcome::Running);
-    // The first bullet is fired on tick 1 and has moved 157 times when it touches the
-    // character; each hit grants 60 ticks without damage.
+    // The first zone is placed on tick 1, warns for 15 ticks and hurts on tick 16; each hit
+    // grants 60 ticks without damage.
     let hits: Vec<_> = events
         .iter()
         .filter_map(|(t, ev)| match ev {
@@ -197,8 +181,8 @@ fn enemy_bullets_hurt_the_character_with_invulnerability_in_between() {
             _ => None,
         })
         .collect();
-    assert_eq!(hits, [(157, 200), (217, 100), (277, 0)]);
-    assert_eq!((e.tick(), e.outcome()), (277, Outcome::Failed));
+    assert_eq!(hits, [(16, 200), (76, 100), (136, 0)]);
+    assert_eq!((e.tick(), e.outcome()), (136, Outcome::Failed));
     assert_eq!(
         events.last().map(|(_, ev)| ev),
         Some(&DomainEvent::StageFailed)
@@ -225,18 +209,17 @@ fn a_finished_run_ignores_further_ticks() {
 fn beating_the_boss_clears_the_stage() {
     let mut e = engine(&stage_with(18_000, Some(boss_at(20, 25_600)), vec![]));
     let events = fire_until(&mut e, idle(), 300, |e| e.outcome() != Outcome::Running);
-    // The first shot touches the boss on tick 56, the second (fired on tick 7) on tick 62. The
-    // step that fired on tick 61 has run out, and with no window the combo is back at the root.
-    assert_eq!((e.tick(), e.outcome()), (62, Outcome::Cleared));
+    // The first ray touches the boss on tick 2, the second (pressed on tick 7) on tick 8, where
+    // the step has run out and, with no window, the combo is back at the root.
+    assert_eq!((e.tick(), e.outcome()), (8, Outcome::Cleared));
     let last: Vec<_> = events
         .iter()
-        .filter(|(t, _)| *t == 62)
+        .filter(|(t, _)| *t == 8)
         .map(|(_, ev)| ev)
         .collect();
     assert_eq!(
         last,
         [
-            &DomainEvent::ComboReset,
             &DomainEvent::Hit {
                 source: EntityId(0),
                 target: EntityId(1),
@@ -339,35 +322,15 @@ fn at_most_five_hundred_enemies_are_alive_and_dropped_spawns_still_count() {
     assert_eq!(ids, (1..=501).collect::<Vec<u32>>());
 }
 
-#[test]
-fn bullet_caps_are_two_hundred_new_and_four_thousand_alive() {
-    let shooter = || enemy(5, hold(START_X, 0), json!([attack_rule(always(), 0)]));
-    let waves = (0..200)
-        .map(|_| wave(1, 100, 1, shooter(), START_X, 0))
-        .collect();
-    // Quiet weapons: the enemies spread from their point as they push apart, into the path of
-    // the main character's own bullets, which would count here and be used up there.
-    let mut e = engine(&quiet(stage_with(18_000, Some(far_boss()), waves)));
-    let mut before = 0;
-    for tick in 1..=60 {
-        e.step(idle());
-        let bullets = e.snapshot().bullets.len();
-        assert!(
-            bullets - before <= 200,
-            "tick {tick}: {} new bullets",
-            bullets - before
-        );
-        assert_eq!(bullets, (200 * tick).min(4000), "tick {tick}");
-        before = bullets;
-    }
-}
-
 // --- Rules (ADR-036) -------------------------------------------------------------------------
 
 /// One enemy standing far from the character, with `rules`; every `RuleFired` as (tick, rule).
 /// A running stage whose weapons are quiet, so that the enemies the tests set up live.
 fn quiet_running(waves: Vec<Value>) -> Engine {
-    engine(&quiet(stage_with(18_000, Some(far_boss()), waves)))
+    // A main character who outlives the zones the rules place at it.
+    let mut stage = stage_with(18_000, Some(far_boss()), waves);
+    stage.player.hp = 999;
+    engine(&quiet(stage))
 }
 
 fn rule_firings(rules: Value, input: Input, ticks: u32) -> Vec<(u32, u8)> {
@@ -430,7 +393,7 @@ fn only_the_first_ready_rule_fires_and_the_others_wait() {
 }
 
 #[test]
-fn an_attack_fires_one_bullet_aimed_at_the_character() {
+fn an_attack_places_one_zone_where_the_character_stands() {
     let mut e = quiet_running(vec![wave(
         1,
         1,
@@ -445,13 +408,9 @@ fn an_attack_fires_one_bullet_aimed_at_the_character() {
     )]);
     e.step(idle());
     let s = e.snapshot();
-    assert_eq!(s.bullets.len(), 1);
-    assert!(!s.bullets[0].friendly);
-    // Straight down at 3 pixels a tick, after one move.
-    assert_eq!(
-        (s.bullets[0].at.x.0, s.bullets[0].at.y.0),
-        (START_X, 25_600 + 768)
-    );
+    assert_eq!(s.zones.len(), 1);
+    assert!(!s.zones[0].friendly);
+    assert_eq!((s.zones[0].at.x.0, s.zones[0].at.y.0), (START_X, START_Y));
 }
 
 // --- Events and the snapshot -----------------------------------------------------------------
@@ -535,7 +494,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 /// rules of version 0, so a PR that changes it regenerates this value and says why
 /// (`Corpus regenerated: <why>`, ADR-035).
 const GOLDEN_TICKS: u32 = 900;
-const GOLDEN_HASH: u64 = 0x5462_f79b_20ae_aff3;
+const GOLDEN_HASH: u64 = 0xcfdd_cbb8_b382_0e0e;
 
 #[test]
 fn the_same_stage_and_inputs_give_the_same_hash_every_tick() {

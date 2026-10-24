@@ -6,7 +6,7 @@ use serde_json::Value;
 use stella_rain_core::run_setup::mode_stage;
 use stella_rain_core::time_limit::TimeLimit;
 
-/// The presets that fire bullets.
+/// The shot presets, which fired bullets until BR1c and now place zones.
 const BULLET_PRESETS: [&str; 5] = [
     "aimed_single",
     "aimed_spread",

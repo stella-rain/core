@@ -119,12 +119,13 @@ fn take(e: &mut Engine, reward: &str) {
     e.choose(u32::try_from(index).unwrap()).unwrap();
 }
 
-/// The main character's attacks: slot, tick in its phase and facing.
+/// The orbit's attacks, not the combo's: slot, tick in its phase and facing.
 fn attacks(e: &Engine) -> Vec<(u8, u32, Facing)> {
     e.snapshot()
         .player
         .attacks
         .iter()
+        .filter(|a| a.slot >= FIRST_SLOT)
         .map(|a| (a.slot, a.tick, a.facing))
         .collect()
 }

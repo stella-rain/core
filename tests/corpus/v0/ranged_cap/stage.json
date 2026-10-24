@@ -74,7 +74,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12
@@ -137,7 +137,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12
@@ -200,7 +200,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12
@@ -263,7 +263,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12
@@ -326,7 +326,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12
@@ -389,7 +389,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12
@@ -452,7 +452,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12
@@ -515,7 +515,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12
@@ -578,7 +578,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12
@@ -640,7 +640,7 @@
                         },
                         "speed": 768,
                         "ticks": 200,
-                        "type": "fire"
+                        "type": "orb"
                       }
                     ],
                     "ticks": 12

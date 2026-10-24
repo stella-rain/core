@@ -5,6 +5,7 @@
 use crate::common;
 
 use common::*;
+use serde_json::json;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
 use stella_rain_core::snapshot::Facing;
@@ -24,13 +25,22 @@ fn facing(e: &stella_rain_core::engine::Engine) -> (i32, i32) {
     (x, y)
 }
 
-/// Friendly bullets alive, with their velocities.
-fn shots(e: &stella_rain_core::engine::Engine) -> Vec<(i32, i32)> {
-    e.snapshot()
-        .bullets
+/// The presses of `main` the combo took on the last tick.
+fn steps(e: &stella_rain_core::engine::Engine) -> usize {
+    e.events()
         .iter()
-        .filter(|b| b.friendly)
-        .map(|b| (b.vx.0, b.vy.0))
+        .filter(|ev| matches!(ev, DomainEvent::ComboStep { .. }))
+        .count()
+}
+
+/// The targets the last tick's hits landed on.
+fn hit(e: &stella_rain_core::engine::Engine) -> Vec<u32> {
+    e.events()
+        .iter()
+        .filter_map(|ev| match ev {
+            DomainEvent::Hit { target, .. } => Some(target.0),
+            _ => None,
+        })
         .collect()
 }
 
@@ -95,29 +105,42 @@ fn the_facing_starts_up_the_field_and_follows_the_last_movement() {
 
 #[test]
 fn the_main_shot_attacks_on_each_press_of_main() {
-    // The test stage's Main weapon: one bullet at 8 pixels a tick, a one-tick step. Held, it
-    // fires once; let go and pressed again, it fires again.
+    // The test stage's Main weapon: a ray along the facing, a two-tick step. Held, it attacks
+    // once; let go and pressed again, it attacks again.
     let mut e = running(vec![]);
     e.step(idle());
-    assert!(shots(&e).is_empty(), "nothing without a press");
+    assert_eq!(steps(&e), 0, "nothing without a press");
+    e.step(pressing_main());
+    assert_eq!(steps(&e), 1);
     for _ in 0..5 {
         e.step(pressing_main());
+        assert_eq!(steps(&e), 0, "held, it presses once");
     }
-    assert_eq!(shots(&e), [(0, -2048)]);
     e.step(idle());
     e.step(pressing_main());
-    assert_eq!(shots(&e).len(), 2);
+    assert_eq!(steps(&e), 1);
 }
 
 #[test]
 fn the_main_shot_goes_along_the_facing() {
-    let mut e = running(vec![]);
-    // Turning left on the tick of the press.
-    e.step(Input {
-        main: true,
-        ..moving(-127, 0)
-    });
-    assert_eq!(shots(&e), [(-2048, 0)]);
+    // A bat 200 pixels to the left and one 200 pixels up: the ray hits the one the main
+    // character faces. It faces up until it moves, and turns left on the tick of the press.
+    let bat = |x: i32, y: i32| wave(1, 1, 0, enemy(50, hold(x, y), json!([])), x, y);
+    let waves = vec![
+        bat(START_X - 51_200, START_Y),
+        bat(START_X, START_Y - 51_200),
+    ];
+    let mut e = running(waves);
+    let mut hits = Vec::new();
+    for _ in 0..3 {
+        e.step(Input {
+            main: hits.is_empty(),
+            ..moving(-127, 0)
+        });
+        hits.extend(hit(&e));
+    }
+    // The ids: the boss is 1, then the left bat 2 and the upper bat 3.
+    assert_eq!(hits, [2]);
 }
 
 // --- Evade -----------------------------------------------------------------------------------

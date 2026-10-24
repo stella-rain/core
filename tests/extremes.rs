@@ -14,7 +14,7 @@ const OX: i32 = 46_080;
 const OY: i32 = 50_000;
 /// The length of a stage: five minutes of ticks (ADR-020).
 const FULL_LENGTH: u32 = 18_000;
-/// Long enough for several rounds of every attack and the bullets they start.
+/// Long enough for several rounds of every attack and the orbs and zones they start.
 const SHORT_RUN: u32 = 600;
 
 /// Every place an attack takes an expression.
@@ -119,7 +119,7 @@ fn stage(value: &dyn Fn(&str) -> Value) -> Stage {
         "body": [
             { "type": "ring", "count": v("ring_count"), "body": [
                 { "type": "spread", "count": v("spread_count"), "angle": v("spread_angle"),
-                  "body": [{ "type": "fire", "speed": v("speed"),
+                  "body": [{ "type": "orb", "speed": v("speed"), "ticks": 40,
                              "direction": { "type": "aimed", "offset": v("aimed_offset") } }] }
             ] },
             { "type": "wait", "ticks": v("wait_ticks") },
@@ -128,14 +128,15 @@ fn stage(value: &dyn Fn(&str) -> Value) -> Stage {
     let second = vec![json!({
         "type": "rotate", "angle": v("rotate_angle"),
         "body": [{
-            "type": "on_bullet", "after_ticks": v("after_ticks"),
-            "body": [{ "type": "fire", "speed": v("speed"),
-                       "direction": { "type": "sequential", "step": v("sequential_step") } }],
-            "then": [
-                { "type": "fire", "speed": v("speed"),
-                  "direction": { "type": "relative", "angle": v("relative_angle") } },
-                { "type": "wait", "ticks": v("wait_ticks") },
-            ],
+            "type": "orb", "speed": v("speed"), "ticks": v("after_ticks"),
+            "direction": { "type": "sequential", "step": v("sequential_step") },
+            "burst": [{
+                "type": "repeat", "count": v("repeat_count"), "interval_ticks": v("wait_ticks"),
+                "body": [{ "type": "zone", "shape": { "type": "circle", "radius": 4_096 },
+                           "anchor": "target",
+                           "direction": { "type": "relative", "angle": v("relative_angle") },
+                           "wind_up_ticks": v("wait_ticks"), "active_ticks": 5 }],
+            }],
         }],
     })];
     let waves = vec![
@@ -200,20 +201,23 @@ fn every_slot_at_once_survives_the_whole_stage() {
 /// Everything extreme except the bullets' speed and aim, so that bullets do stay in the field
 /// and the caps (ADR-020) and the emitter budget are what holds the load.
 fn busy(extreme: &Value) -> Stage {
-    stage(&|k| {
+    let mut stage = stage(&|k| {
         if k == "speed" || k == "aimed_offset" {
             ordinary(k)
         } else {
             extreme.clone()
         }
-    })
+    });
+    // Three hits end the run, so that the zones that land are seen to.
+    stage.player.hp = 300;
+    stage
 }
 
 #[test]
 fn busy_stages_survive_the_whole_stage() {
     // A run ends when the main character dies or the stage runs out of ticks; either way the
     // engine must get there without a panic. That some of them end early shows that the
-    // bullets did reach the character, so the runs are not empty.
+    // zones did reach the character, so the runs are not empty.
     let ends: Vec<u32> = extremes()
         .iter()
         .map(|(_, extreme)| run(&busy(extreme), FULL_LENGTH).0)
@@ -226,7 +230,7 @@ fn busy_stages_survive_the_whole_stage() {
 /// platform must produce exactly this (ADR-019): a difference in how overflow, saturation or
 /// division behaves on another architecture would show here. Under version 0 a change to the
 /// rules may change it (ADR-035); then it is regenerated and the PR says so.
-const MIXED_HASH: u64 = 0x0e2b_0c65_0cb4_14e4;
+const MIXED_HASH: u64 = 0x4562_1af1_f1e5_a032;
 
 #[test]
 fn a_mixed_extreme_run_gives_the_same_hash_on_every_platform() {

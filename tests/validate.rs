@@ -53,26 +53,30 @@ fn first_issue(v: &Value) -> Issue {
         .expect("expected the stage to be rejected")
 }
 
-/// The fixture with the first `fire` given `ticks`.
-fn fire_with_ticks(ticks: u32) -> Value {
-    let text = STAGE.replacen(
-        "\"type\": \"fire\",",
-        &format!("\"type\": \"fire\", \"ticks\": {ticks},"),
-        1,
-    );
-    serde_json::from_str(&text).unwrap()
-}
-
 #[test]
-fn a_fire_s_ticks_are_at_least_one_and_at_most_the_limit() {
-    assert_valid(&fire_with_ticks(1));
-    assert_valid(&fire_with_ticks(MAX_BULLET_TICKS));
-    assert!(first_issue(&fire_with_ticks(0)).path.ends_with(".ticks"));
-    assert!(
-        first_issue(&fire_with_ticks(MAX_BULLET_TICKS + 1))
-            .path
-            .ends_with(".ticks")
-    );
+fn the_free_flying_bullet_nodes_are_refused() {
+    // `fire` and `on_bullet` are gone (DS10): a stage that still holds one does not parse, in an
+    // enemy's attack or in the main character's weapon.
+    let fire = json!({ "type": "fire", "speed": 256,
+                       "direction": { "type": "aimed", "offset": 0 } });
+    let on_bullet = json!({ "type": "on_bullet", "after_ticks": 10,
+                            "body": [fire.clone()], "then": [fire.clone()] });
+    for node in [fire, on_bullet] {
+        let name = node["type"].as_str().unwrap().to_string();
+        let mut hostile = base();
+        *enemy_attack(&mut hostile) = spawning(json!([node.clone()]));
+        let mut friendly = base();
+        friendly["player"]["weapon"] = json!({ "inline": { "combo": {
+            "main": { "attack": spawning(json!([node.clone()])) } },
+            "window_ticks": 0, "assist_range": 0 } });
+        for stage in [hostile, friendly] {
+            let result = parse_and_validate(stage.to_string().as_bytes());
+            assert!(
+                matches!(result, Err(Error::Parse { .. })),
+                "{name} is refused, got {result:?}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -113,8 +117,10 @@ fn spawning(emitters: Value) -> Value {
     json!({ "inline": [{ "kind": "active", "ticks": 1, "spawn": emitters }] })
 }
 
+/// An orb that lives 100 ticks, for the tests that need a node with a `speed`.
 fn fire(speed: Value) -> Value {
-    json!({ "type": "fire", "speed": speed, "direction": { "type": "absolute", "angle": 0 } })
+    json!({ "type": "orb", "speed": speed, "ticks": 100,
+            "direction": { "type": "absolute", "angle": 0 } })
 }
 
 /// An expression with exactly `n` nodes (n >= 1, n != 2).
@@ -603,11 +609,11 @@ fn registry_ids_must_exist_with_the_right_kind() {
     );
     assert_eq!(
         bad(
-            "/boss/phases/1/timeline/1/attack/inline/0/spawn/0/then/0/body/0/bullet",
+            "/boss/phases/1/timeline/1/attack/inline/0/spawn/0/body/0/style",
             "orb_huge"
         )
         .path,
-        "$.boss.phases[1].timeline[1].attack.inline[0].spawn[0].then[0].body[0].bullet"
+        "$.boss.phases[1].timeline[1].attack.inline[0].spawn[0].body[0].style"
     );
 }
 

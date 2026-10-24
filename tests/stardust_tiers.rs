@@ -94,7 +94,7 @@ fn a_kill_earns_the_percent_of_its_tier_truncated() {
 #[test]
 fn past_the_last_tier_its_percent_holds() {
     let table = [(0, 100), (10, 200)];
-    let mut e = engine(&stage(&table, 20, 10));
+    let mut e = engine(&stage(&table, 40, 10));
     let got = kills(&mut e, 400);
     assert!(got.iter().filter(|&&(t, _)| t > 100).count() > 5, "{got:?}");
     assert!(

@@ -124,35 +124,6 @@ fn enemies_leave_past_the_maps_margin_not_the_portrait_fields() {
 }
 
 #[test]
-fn bullets_leave_past_the_maps_margin_not_the_portrait_fields() {
-    // The Main weapon fires along the facing at 8 pixels a tick, every 6 ticks; one tick of
-    // the stick turns it to the right.
-    let stage = wide(stage_with(600, Some(far_boss()), vec![]));
-    let mut e = engine(&stage);
-    e.step(moving(127, 0));
-    let mut most = 0;
-    for _ in 0..400 {
-        e.step(firing(idle(), e.tick()));
-        let s = e.snapshot();
-        for b in s.bullets.iter().filter(|b| b.friendly) {
-            most = most.max(b.at.x.0);
-        }
-    }
-    assert!(
-        most > 92_160 + FIELD_MARGIN,
-        "a shot passed the portrait field: {most}"
-    );
-    assert!(
-        most <= WIDTH + FIELD_MARGIN,
-        "no shot outlived the margin: {most}"
-    );
-    assert!(
-        most > WIDTH + FIELD_MARGIN - 2048,
-        "shots fly up to the margin: {most}"
-    );
-}
-
-#[test]
 fn companions_stay_on_the_map() {
     // A companion told to hold past the map's right edge, within the margin, is clamped to it.
     let stay = companion(10, hold(WIDTH + FIELD_MARGIN, 40_000), json!([]));
@@ -212,18 +183,15 @@ fn holds_is_exact_at_the_margin() {
     }
 }
 
-// --- A bullet's lifetime and the start facing (core#147) ----------------------------------
+// --- An orb's lifetime and the start facing (core#147) ------------------------------------
 
-/// An enemy at the top left of a landscape map that fires one bullet straight down, 2 pixels a
-/// tick, on its first tick: with `ticks` on the fire, if any. The bullet is off the main
-/// character's line, which is in the middle of the map, and the rest of the stage is quiet.
-fn one_bullet(ticks: Option<u32>) -> Stage {
-    let mut fire = json!({ "type": "fire", "speed": 512,
+/// An enemy at the top left of a landscape map that sends one orb straight down, 2 pixels a
+/// tick, on its first tick, living `ticks` ticks. The orb is off the main character's line,
+/// which is in the middle of the map, and the rest of the stage is quiet.
+fn one_bullet(ticks: u32) -> Stage {
+    let orb = json!({ "type": "orb", "speed": 512, "ticks": ticks,
         "direction": { "type": "absolute", "angle": 0 } });
-    if let Some(ticks) = ticks {
-        fire["ticks"] = json!(ticks);
-    }
-    let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "spawn": [fire] }] });
+    let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "spawn": [orb] }] });
     let rules = json!([{ "when": always(), "target": "player",
         "do": { "type": "attack", "attack": attack }, "once": true }]);
     let shooter = enemy(100_000, hold(LEFT, 16_384), rules);
@@ -238,7 +206,7 @@ fn one_bullet(ticks: Option<u32>) -> Stage {
 /// A column well left of the middle, 32,768 units from the left edge.
 const LEFT: i32 = 32_768;
 
-/// Whether the stage has a bullet on the map after each of `ticks` ticks.
+/// Whether the stage has an orb on the map after each of `ticks` ticks.
 fn on_the_map(e: &mut Engine, ticks: u32) -> Vec<bool> {
     (0..ticks)
         .map(|_| {
@@ -249,28 +217,16 @@ fn on_the_map(e: &mut Engine, ticks: u32) -> Vec<bool> {
 }
 
 #[test]
-fn a_bullet_with_ticks_lives_exactly_that_many_ticks() {
+fn an_orb_lives_exactly_its_ticks() {
     // 30 ticks at 2 pixels a tick is 60 pixels: the margin is 64 pixels past the edge, so it
-    // is not what removes the bullet.
-    let mut e = engine(&one_bullet(Some(30)));
+    // is not what removes the orb.
+    let mut e = engine(&one_bullet(30));
     let seen = on_the_map(&mut e, 60);
     assert_eq!(seen.iter().filter(|s| **s).count(), 30, "{seen:?}");
     assert!(
         seen.windows(2).filter(|w| w[0] && !w[1]).count() == 1,
         "{seen:?}"
     );
-}
-
-#[test]
-fn a_bullet_without_ticks_lives_until_it_is_past_the_margin() {
-    // From 16,384 units (64 pixels) inside the top edge, 2 pixels a tick, it passes the bottom
-    // margin after 512 ticks: well past the 240 a default lifetime would give.
-    let mut e = engine(&one_bullet(None));
-    let seen = on_the_map(&mut e, 600);
-    assert!(seen[299], "still there after 300 ticks");
-    assert!(!seen[599], "gone by 600 ticks");
-    let count = seen.iter().filter(|s| **s).count();
-    assert!((510..=514).contains(&count), "about 512 ticks: {count}");
 }
 
 fn facing_of(e: &Engine) -> (i32, i32) {
@@ -300,11 +256,11 @@ fn the_main_character_faces_up_unless_the_map_says_otherwise() {
 }
 
 #[test]
-fn a_bullet_s_lifetime_is_part_of_the_state_hash() {
-    // Two stages that differ only in a bullet's ticks hash differently while the bullet is out,
+fn an_orbs_lifetime_is_part_of_the_state_hash() {
+    // Two stages that differ only in an orb's ticks hash differently while the orb is out,
     // so a replay that drifts in its lifetimes fails to verify (core#147, determinism rules).
     let hash_after = |ticks: u32| {
-        let mut e = engine(&one_bullet(Some(ticks)));
+        let mut e = engine(&one_bullet(ticks));
         for _ in 0..5 {
             e.step(idle());
         }

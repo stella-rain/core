@@ -34,8 +34,10 @@ impl Seen {
     }
 }
 
+/// A projectile with nothing to show but its flight: an orb that lives 100 ticks and bursts
+/// into nothing (BR1c: the geometry of the emitters is read from orbs).
 fn fire(speed: Value, direction: Value) -> Value {
-    json!({ "type": "fire", "speed": speed, "direction": direction })
+    json!({ "type": "orb", "speed": speed, "direction": direction, "ticks": 100 })
 }
 
 fn aimed() -> Value {
@@ -68,10 +70,6 @@ fn spread(count: i32, angle: i32, body: Vec<Value>) -> Value {
 
 fn rotate(angle: i32, body: Vec<Value>) -> Value {
     json!({ "type": "rotate", "angle": angle, "body": body })
-}
-
-fn on_bullet(after: i32, body: Vec<Value>, then: Vec<Value>) -> Value {
-    json!({ "type": "on_bullet", "after_ticks": after, "body": body, "then": then })
 }
 
 fn add(a: Value, b: Value) -> Value {
@@ -254,19 +252,19 @@ fn a_ring_spreads_its_rounds_round_a_full_turn() {
         [(0, 768), (768, 0), (0, -768), (-768, 0)]
     );
 
-    let twelve = velocities(&inline(vec![ring(12, vec![down(768)])], 1));
-    assert_eq!(twelve.len(), 12);
-    // Twelve different directions of the same speed that cancel out.
+    let twelve = velocities(&inline(vec![ring(8, vec![down(768)])], 1));
+    assert_eq!(twelve.len(), 8);
+    // Eight different directions of the same speed that cancel out.
     for (x, y) in &twelve {
         let speed2 = i64::from(*x).pow(2) + i64::from(*y).pow(2);
         assert!((speed2 - 768i64.pow(2)).abs() < 3_000, "{x},{y}");
     }
     let (sx, sy): (i32, i32) = twelve.iter().fold((0, 0), |a, v| (a.0 + v.0, a.1 + v.1));
-    assert!(sx.abs() <= 12 && sy.abs() <= 12, "{sx},{sy}");
+    assert!(sx.abs() <= 8 && sy.abs() <= 8, "{sx},{sy}");
     let mut distinct = twelve.clone();
     distinct.sort_unstable();
     distinct.dedup();
-    assert_eq!(distinct.len(), 12);
+    assert_eq!(distinct.len(), 8);
 }
 
 #[test]
@@ -335,25 +333,34 @@ fn repeat_runs_its_body_again_after_the_interval_from_the_end_of_the_last_round(
 
 #[test]
 fn counts_are_clamped_and_empty_loops_do_nothing() {
-    let n = |count: i32| inline(vec![repeat(calc(count), json!(0), vec![down(768)])], 2).len();
+    // The rounds are counted in zones, of which 128 may be alive; orbs are capped at 8 an owner.
+    let mark = || {
+        json!({ "type": "zone", "shape": { "type": "circle", "radius": 256 },
+                "wind_up_ticks": 100, "active_ticks": 100 })
+    };
+    let marks = |nodes: Vec<Value>| {
+        let mut e = engine(&attack_stage(json!({ "inline": spawned(json!(nodes)) })));
+        e.step(idle());
+        e.step(idle());
+        e.snapshot().zones.len()
+    };
+    let n = |count: i32| marks(vec![repeat(calc(count), json!(0), vec![mark()])]);
     assert_eq!((n(0), n(1), n(100)), (0, 1, 100));
     // A count that an expression makes is clamped: negative to nothing, huge to 100.
     assert_eq!((n(-5), n(101), n(5_000)), (0, 100, 100));
     let big = mul(json!(1_000_000), json!(1_000_000));
     assert_eq!(
-        inline(vec![repeat(big.clone(), json!(0), vec![down(768)])], 2).len(),
+        marks(vec![repeat(big.clone(), json!(0), vec![mark()])]),
         100
     );
     let rings = |count: i32| {
-        let node = json!({ "type": "ring", "count": calc(count), "body": [down(768)] });
-        inline(vec![node], 2).len()
+        marks(vec![
+            json!({ "type": "ring", "count": calc(count), "body": [mark()] }),
+        ])
     };
     assert_eq!((rings(0), rings(-3), rings(7)), (0, 0, 7));
-    assert_eq!(inline(vec![repeat(json!(5), json!(0), vec![])], 2).len(), 0);
-    assert_eq!(
-        inline(vec![rotate(0, vec![]), spread(3, 0, vec![])], 2).len(),
-        0
-    );
+    assert_eq!(marks(vec![repeat(json!(5), json!(0), vec![])]), 0);
+    assert_eq!(marks(vec![rotate(0, vec![]), spread(3, 0, vec![])]), 0);
 }
 
 #[test]
@@ -457,13 +464,13 @@ fn rand_draws_from_the_runs_generator_left_to_right() {
 
     // A single draw per bullet, in the order the bullets are made, and in range.
     let body = fire(json!({ "rand": [100, 200] }), absolute(0));
-    let speeds: Vec<i32> = velocities(&inline(vec![repeat(json!(40), json!(0), vec![body])], 1))
+    let speeds: Vec<i32> = velocities(&inline(vec![repeat(json!(8), json!(0), vec![body])], 1))
         .iter()
         .map(|v| v.1)
         .collect();
     assert!(speeds.iter().all(|s| (100..=200).contains(s)));
     let mut rng = derive(7, TAG_ATTACK);
-    let again: Vec<i32> = (0..40)
+    let again: Vec<i32> = (0..8)
         .map(|_| 100 + i32::try_from(rng.below(101)).unwrap())
         .collect();
     assert_eq!(speeds, again);
@@ -542,188 +549,14 @@ fn bullets_start_where_the_attacks_owner_is_at_that_moment() {
 fn the_seed_changes_the_draws() {
     let body = || fire(json!({ "rand": [0, 100_000] }), absolute(0));
     let mut a = attack_stage(
-        json!({ "inline": spawned(json!([repeat(json!(20), json!(0), vec![body()])])) }),
+        json!({ "inline": spawned(json!([repeat(json!(8), json!(0), vec![body()])])) }),
     );
     let first = velocities(&shots_of(&a, 1));
     a.seed += 1;
     assert_ne!(first, velocities(&shots_of(&a, 1)));
 }
 
-// --- on_bullet -------------------------------------------------------------------------------
-
-#[test]
-fn on_bullet_starts_an_attack_from_where_the_bullet_is_after_a_while() {
-    // The bullet is fired down on tick 1; the child starts on tick 11, ten moves later, at the
-    // bullet's place (46080, 50000 + 10 * 768) and fires to the right.
-    let shots = inline(
-        vec![on_bullet(
-            10,
-            vec![down(768)],
-            vec![fire(json!(768), absolute(90 * DEG))],
-        )],
-        12,
-    );
-    assert_eq!(ticks(&shots), [1, 11]);
-    assert_eq!((shots[1].x, shots[1].y), (OX + 768, OY + 7_680));
-}
-
-#[test]
-fn a_child_turns_relative_to_the_direction_of_its_bullet() {
-    let right = fire(json!(768), absolute(90 * DEG));
-    let child = |angle: i32| {
-        let then = fire(json!(768), json!({ "type": "relative", "angle": angle }));
-        let shots = inline(vec![on_bullet(3, vec![right.clone()], vec![then])], 5);
-        assert_eq!(ticks(&shots), [1, 4]);
-        shots[1].v()
-    };
-    // The bullet goes right (768, 0); 3 moves later the child is at x + 3 * 768, then adds
-    // its own move: straight on, or a quarter turn from it (up).
-    assert_eq!(child(0), (3 * 768 + 768, 0));
-    assert_eq!(child(90 * DEG), (3 * 768, -768));
-}
-
-#[test]
-fn after_zero_ticks_the_child_starts_on_the_next_tick() {
-    let shots = inline(vec![on_bullet(0, vec![down(768)], vec![down(768)])], 3);
-    assert_eq!(ticks(&shots), [1, 2]);
-}
-
-#[test]
-fn a_bullet_that_is_gone_starts_nothing() {
-    // At 2048 a tick the bullet leaves the field in about 64 ticks; the child was due after 100.
-    let shots = inline(vec![on_bullet(100, vec![down(2048)], vec![down(768)])], 110);
-    assert_eq!(shots.len(), 1);
-}
-
-#[test]
-fn a_bullet_has_the_innermost_hook_only() {
-    let inner = on_bullet(
-        10,
-        vec![down(768)],
-        vec![fire(json!(768), absolute(90 * DEG))],
-    );
-    let outer = on_bullet(5, vec![inner], vec![fire(json!(768), absolute(270 * DEG))]);
-    let shots = inline(vec![outer], 20);
-    // The bullet, and the inner child to the right; never the outer one to the left.
-    assert_eq!(ticks(&shots), [1, 11]);
-    assert_eq!((shots[1].x, shots[1].y), (OX + 768, OY + 7_680));
-}
-
-#[test]
-fn children_can_have_children() {
-    // bullet on tick 1, its child on tick 4 (3 later) fires another, whose child fires on tick 6.
-    let grandchild = fire(json!(768), absolute(0));
-    let child = on_bullet(2, vec![down(768)], vec![grandchild]);
-    let shots = inline(vec![on_bullet(3, vec![down(768)], vec![child])], 10);
-    assert_eq!(ticks(&shots), [1, 4, 6]);
-}
-
-#[test]
-fn bullets_in_a_body_each_start_the_attack() {
-    let shots = inline(
-        vec![on_bullet(
-            2,
-            vec![ring(4, vec![down(768)])],
-            vec![down(100)],
-        )],
-        4,
-    );
-    assert_eq!(ticks(&shots), [1, 1, 1, 1, 3, 3, 3, 3]);
-}
-
-#[test]
-fn a_child_goes_on_after_its_owner_is_gone_and_a_parent_does_not() {
-    // The enemy stands in the main character's line of fire with 10 hit points and dies from
-    // the first shot to arrive, on tick 59. Its own attack was to fire again on tick 101; the
-    // bullet it fired on tick 1 starts a child on tick 81.
-    let target = |attack: Value| {
-        stage_full(
-            18_000,
-            Some(far_boss()),
-            vec![wave(
-                1,
-                1,
-                0,
-                enemy(
-                    10,
-                    hold(OX, 25_600),
-                    json!([{ "when": always(), "target": "player", "once": true,
-                             "do": { "type": "attack",
-                                     "attack": { "inline": spawned(json!([attack])) } } }]),
-                ),
-                OX,
-                25_600,
-            )],
-            vec![],
-        )
-    };
-    let hostile = |stage: &Stage| {
-        let mut e = engine(stage);
-        let mut fired = 0;
-        let mut last = 0;
-        for _ in 0..120 {
-            e.step(firing(idle(), e.tick()));
-            let now = e.snapshot().bullets.iter().filter(|b| !b.friendly).count();
-            if now > last {
-                fired += now - last;
-            }
-            last = now;
-        }
-        fired
-    };
-    // `down(768)` then wait 100 then again: the second never comes.
-    let parent = json!({ "type": "repeat", "count": 2, "interval_ticks": 99, "body": [down(768)] });
-    assert_eq!(hostile(&target(parent)), 1);
-    // The child outlives the enemy.
-    let child = on_bullet(80, vec![down(768)], vec![down(768)]);
-    assert_eq!(hostile(&target(child)), 2);
-}
-
 // --- Caps ------------------------------------------------------------------------------------
-
-#[test]
-fn at_most_two_hundred_new_bullets_a_tick_whatever_the_attacks() {
-    let waves = (0..3)
-        .map(|_| {
-            wave(
-                1,
-                1,
-                0,
-                shooter(json!({
-                    "inline": spawned(json!([repeat(json!(100), json!(0), vec![down(0)])]))
-                })),
-                OX,
-                OY,
-            )
-        })
-        .collect();
-    let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
-    e.step(idle());
-    assert_eq!(e.snapshot().bullets.len(), 200);
-}
-
-#[test]
-fn at_most_two_hundred_fifty_six_attacks_are_carried_out_at_once() {
-    // 200 enemies spawn on tick 1 and 200 more on tick 2 (the enemy cap is 500), and each starts an
-    // attack that makes a bullet ten ticks later. Only 256 of the 400 attacks can be going at
-    // once, so 56 of the 200 that start on tick 2 do: 200 bullets on tick 11 (the cap on new
-    // bullets a tick) and 56 on tick 12, where 200 would be made without the cap.
-    let attack = json!({ "inline": spawned(json!([wait(10), down(0)])) });
-    let waves = (0..200)
-        .map(|_| wave(1, 100, 1, shooter(attack.clone()), OX, OY))
-        .collect();
-    let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
-    let mut bullets = Vec::new();
-    for _ in 0..12 {
-        e.step(idle());
-        bullets.push(e.snapshot().bullets.len());
-    }
-    assert_eq!(
-        (bullets[9], bullets[10], bullets[11]),
-        (0, 200, 256),
-        "{bullets:?}"
-    );
-}
 
 #[test]
 fn a_huge_attack_is_spread_over_ticks_by_the_step_budget() {
@@ -758,9 +591,9 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 #[test]
 fn a_preset_and_its_inline_copy_reach_the_same_hashes() {
     for (id, args) in [
-        ("aimed_single", vec![768]),
-        ("aimed_spread", vec![640]),
-        ("spiral", vec![512]),
+        ("aimed_single", vec![15]),
+        ("aimed_spread", vec![20]),
+        ("spiral", vec![30]),
         ("spread_5", vec![]),
         ("twin_shot", vec![]),
     ] {
@@ -791,11 +624,14 @@ fn a_preset_and_its_inline_copy_reach_the_same_hashes() {
 
 #[test]
 fn taking_a_preset_apart_writes_its_arguments_in_as_constants() {
-    let apart = presets::take_apart("aimed_single", &[900]).unwrap();
+    let apart = presets::take_apart("aimed_single", &[20]).unwrap();
     assert_eq!(
         serde_json::to_value(&apart).unwrap(),
         spawned(
-            json!([{ "type": "fire", "speed": 900, "direction": { "type": "aimed", "offset": 0 } }])
+            json!([{ "type": "zone", "shape": { "type": "circle", "radius": 3_072 },
+                         "anchor": "target", "offset": { "forward": 0, "right": 0 },
+                         "direction": { "type": "aimed", "offset": 0 },
+                         "wind_up_ticks": 20, "active_ticks": 2 }])
         )
     );
     assert_eq!(presets::highest_arg(&apart), None);
@@ -832,7 +668,8 @@ fn every_registered_preset_has_a_definition_that_passes_the_validator() {
 fn the_validator_holds_a_preset_to_the_budgets_of_an_inline_attack() {
     let phases: Vec<stella_rain_core::attack::AttackPhase> =
         serde_json::from_value(spawned(json!([
-            { "type": "fire", "speed": { "arg": 1 }, "direction": { "type": "aimed", "offset": 0 } }
+            { "type": "orb", "speed": { "arg": 1 }, "ticks": 100,
+              "direction": { "type": "aimed", "offset": 0 } }
         ])))
         .unwrap();
     assert!(validate_attack(&phases, 2, registry::ENTRIES).is_ok());
@@ -842,60 +679,74 @@ fn the_validator_holds_a_preset_to_the_budgets_of_an_inline_attack() {
 
 // --- What the presets do ---------------------------------------------------------------------
 
-fn preset_shots(id: &str, args: Vec<i32>, ticks: u32) -> Vec<Seen> {
-    shots_of(
-        &attack_stage(json!({ "preset": { "id": id, "args": args } })),
-        ticks,
-    )
+/// The zones a preset places by tick `ticks`, as `(tick placed, direction)` with the direction
+/// as 256 times its unit vector. Run with a warning long enough for none to end first.
+fn preset_zones(id: &str, args: Vec<i32>, ticks: u32) -> Vec<(u32, (i32, i32))> {
+    let stage = attack_stage(json!({ "preset": { "id": id, "args": args } }));
+    let mut e = engine(&stage);
+    let mut seen = 0;
+    let mut out = Vec::new();
+    for _ in 0..ticks {
+        e.step(idle());
+        let zones = e.snapshot().zones;
+        out.extend(zones[seen..].iter().map(|z| {
+            let to256 = |c: i32| c * 256 / stella_rain_core::trig::SCALE;
+            (e.tick(), (to256(z.direction.x), to256(z.direction.y)))
+        }));
+        seen = zones.len();
+    }
+    out
 }
 
 #[test]
 fn the_aimed_presets_fan_out_round_the_aim() {
-    assert_eq!(
-        velocities(&preset_shots("aimed_single", vec![768], 1)),
-        [(0, 768)]
-    );
-    // Seven bullets over 30 degrees: 15 degrees either side.
-    let fan = velocities(&preset_shots("aimed_spread", vec![768], 1));
+    // One circle where the main character stands.
+    let mut e = engine(&attack_stage(
+        json!({ "preset": { "id": "aimed_single", "args": [20] } }),
+    ));
+    e.step(idle());
+    let zones = e.snapshot().zones;
+    assert_eq!(zones.len(), 1);
+    let player = e.snapshot().player.at;
+    assert_eq!((zones[0].at.x, zones[0].at.y), (player.x, player.y));
+    // Seven lines over 30 degrees: 15 degrees either side of straight down.
+    let fan: Vec<_> = preset_zones("aimed_spread", vec![600], 1)
+        .iter()
+        .map(|z| z.1)
+        .collect();
     assert_eq!(fan.len(), 7);
-    assert_eq!(fan[3], (0, 768));
-    near(&fan[..1], &[(-199, 742)], 1);
-    near(&fan[6..], &[(199, 742)], 1);
-    // Five over 20 degrees at 1,536; two 5 degrees apart at 2,048.
-    assert_eq!(preset_shots("spread_5", vec![], 1).len(), 5);
-    let twin = velocities(&preset_shots("twin_shot", vec![], 1));
+    assert_eq!(fan[3], (0, 256));
+    near(&fan[..1], &[(-66, 247)], 1);
+    near(&fan[6..], &[(66, 247)], 1);
+    // Five over 20 degrees; two 5 degrees apart.
+    assert_eq!(preset_zones("spread_5", vec![], 1).len(), 5);
+    let twin = preset_zones("twin_shot", vec![], 1);
     assert_eq!(twin.len(), 2);
-    assert_eq!(twin[0].0, -twin[1].0);
+    assert_eq!((twin[0].1).0, -(twin[1].1).0);
 }
 
 #[test]
-fn the_spiral_turns_six_degrees_a_bullet_every_three_ticks() {
-    // Slowly (256 a tick), so that no bullet leaves the field before the last is made.
-    let shots = preset_shots("spiral", vec![256], 125);
-    assert_eq!(shots.len(), 40);
-    assert_eq!(ticks(&shots)[..3], [1, 4, 7]);
-    assert_eq!(shots[39].tick, 118);
-    // The k-th bullet is turned 6 degrees * (k + 1) from straight down: x = 256 sin, y = 256 cos.
-    let v = velocities(&shots);
+fn the_spiral_turns_six_degrees_a_line_every_three_ticks() {
+    // A warning of 600 ticks, so that no line has gone before the last is placed.
+    let lines = preset_zones("spiral", vec![600], 125);
+    assert_eq!(lines.len(), 40);
+    let at: Vec<u32> = lines.iter().map(|l| l.0).collect();
+    assert_eq!(at[..3], [1, 4, 7]);
+    assert_eq!(at[39], 118);
+    // The k-th line is turned 6 degrees * (k + 1) from straight down: x = 256 sin, y = 256 cos.
+    let v: Vec<(i32, i32)> = lines.iter().map(|l| l.1).collect();
     near(&v[..1], &[(27, 255)], 2); // 6 degrees
     near(&v[14..15], &[(256, 0)], 2); // the 15th: 90 degrees, to the right
     near(&v[29..30], &[(0, -256)], 2); // the 30th: 180 degrees, up
     near(&v[39..40], &[(-222, -128)], 3); // the 40th: 240 degrees
-    // Turning does not wear the speed down: every bullet is within the truncation of its two
-    // components (a unit each, a little over one in all) of 256, the first and the last alike.
-    let all = speeds(&shots);
-    for speed in &all {
-        assert!((speed - 256).abs() <= 2, "{all:?}");
-    }
-    assert!((all[0] - all[39]).abs() <= 2, "{all:?}");
 }
 
 // --- The fixture and the rest of the engine --------------------------------------------------
 
 #[test]
 fn a_bullet_names_its_style() {
-    let styled =
-        json!({ "type": "fire", "speed": 768, "bullet": "orb_small", "direction": absolute(0) });
+    let styled = json!({ "type": "orb", "speed": 768, "style": "orb_small", "ticks": 100,
+                "direction": absolute(0) });
     let mut e = engine(&attack_stage(
         json!({ "inline": spawned(json!([styled, down(768)])) }),
     ));
@@ -904,54 +755,4 @@ fn a_bullet_names_its_style() {
     assert_eq!(styles, [1, 0]);
     assert_eq!(registry::bullet_style("orb_small"), 1);
     assert_eq!(registry::bullet_style("no_such_bullet"), 0);
-}
-
-#[test]
-fn a_bullet_shows_the_movement_it_makes_each_tick() {
-    // A slow ring of eight from an enemy to the left, and the main shot straight up: none
-    // leaves the field or hits anything in 30 ticks, so each snapshot's bullets begin with the
-    // previous snapshot's, in the same order.
-    let ring_of_eight = json!({ "inline": spawned(json!([ring(8, vec![down(256)])])) });
-    let left = enemy(
-        50,
-        hold(20_000, OY),
-        json!([{ "when": always(), "target": "player", "once": true,
-                 "do": { "type": "attack", "attack": ring_of_eight } }]),
-    );
-    let mut e = engine(&stage_full(
-        18_000,
-        Some(far_boss()),
-        vec![wave(1, 1, 0, left, 20_000, OY)],
-        vec![],
-    ));
-    let mut before = e.snapshot().bullets;
-    let (mut friendly, mut hostile) = (0, 0);
-    for _ in 0..30 {
-        e.step(firing(idle(), e.tick()));
-        let after = e.snapshot().bullets;
-        assert!(after.len() >= before.len(), "no bullet is gone");
-        for (old, new) in before.iter().zip(&after) {
-            assert_eq!(
-                (new.vx, new.vy),
-                (old.vx, old.vy),
-                "a bullet keeps its velocity"
-            );
-            assert_eq!(
-                (new.at.x.0 - old.at.x.0, new.at.y.0 - old.at.y.0),
-                (new.vx.0, new.vy.0),
-                "{new:?} moved by its velocity"
-            );
-            if new.friendly {
-                friendly += 1;
-            } else {
-                hostile += 1;
-            }
-        }
-        before = after;
-    }
-    assert!(friendly > 0 && hostile > 0, "{friendly} {hostile}");
-    // The ring goes every way, and the main shot straight up at 8 pixels a tick.
-    let v: Vec<(i32, i32)> = before.iter().map(|b| (b.vx.0, b.vy.0)).collect();
-    assert!(v.contains(&(0, -2048)), "{v:?}");
-    assert!(v.contains(&(256, 0)) && v.contains(&(-256, 0)), "{v:?}");
 }

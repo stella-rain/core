@@ -106,7 +106,7 @@ fn shooter() -> Value {
 /// As `shooter`, with a bullet of `damage`: enough to leave room for a heal of shown size.
 fn heavy_shooter(damage: u32) -> Value {
     let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "damage": damage, "spawn": [
-        { "type": "fire", "speed": 768, "direction": { "type": "aimed", "offset": 0 } }
+        { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }
     ] }] });
     let rules = json!([{ "when": always(), "target": "player",
                          "do": { "type": "attack", "attack": attack },

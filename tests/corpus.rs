@@ -483,7 +483,7 @@ fn agents() -> Definition {
             always(),
             json!(selector),
             json!({ "type": "attack",
-                    "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+                    "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
             cooldown,
         )
     };
@@ -507,76 +507,21 @@ fn agents() -> Definition {
         json!({ "type": "straight", "vx": 0, "vy": 96 }),
         json!([shoot("nearest_ally", 5)]),
     );
-    // The test stage's Main weapon: one bullet along the facing, fired every 6 ticks.
-    let stage = stage_full(
+    // The test stage's Main weapon: a ray along the facing, pressed every 6 ticks. The main
+    // character holds the most a stage may: a hit is 100 shown.
+    let mut stage = stage_full(
         600,
         Some(far_boss()),
         vec![wave(1, 1, 0, shooter, 46_080, 100_000)],
         vec![k, healer],
     );
+    stage.player.hp = 999;
     // Standing still for 40 ticks, shooting up at the enemy, then walking right, which turns
-    // the Main weapon's shots away from it.
+    // the Main weapon's ray away from it.
     let inputs = (0..80)
         .map(|t| firing(if t < 40 { idle() } else { moving(64, 0) }, t))
         .collect();
     ("agents", bytes(&stage), inputs)
-}
-
-/// A boss that lays rings of 24 bullets every 3 ticks and spirals between them, while the main
-/// character dodges from side to side.
-fn bullets() -> Definition {
-    let ring = json!({ "type": "repeat", "count": 20, "interval_ticks": 3, "body": [
-        { "type": "ring", "count": 24, "body": [
-            { "type": "fire", "speed": 1024, "direction": { "type": "relative",
-                                                            "angle": 0 } } ] } ] });
-    let spiral = json!({ "type": "repeat", "count": 40, "interval_ticks": 2, "body": [
-        { "type": "fire", "speed": 1536, "direction": { "type": "sequential", "step": 1792 } } ] });
-    let boss = json!({
-        "base": "golem", "hp": 1_000_000, "radius": 8192, "spawn": { "x": 46_080, "y": 40_000 },
-        "phases": [{ "timeline": [
-            { "type": "attack", "attack": { "inline": spawned(json!([ring])) } },
-            { "type": "wait", "ticks": 70 },
-            { "type": "attack", "attack": { "inline": spawned(json!([spiral])) } },
-            { "type": "wait", "ticks": 90 },
-            { "type": "loop" } ] }]
-    });
-    // The weapons are the `giant_sword` and the `giant_hammer`: the giant_sword's combos by hand, with the giant_hammer's
-    // pull on the steps reached by `smash`. The boss stands far out of reach.
-    let stage = armed(
-        stage_full(600, Some(boss), vec![], vec![]),
-        json!({ "preset": { "id": "giant_sword" } }),
-    );
-    // Half speed from side to side, turning to face up the field once a second, and evading
-    // twice. `main` on ticks 0 and 8 (slash, slash), then on 16 held to 68 (the thrust charged
-    // to level 2, 52 ticks, released inside its perfect window: a slam); `smash` on 100 and 108
-    // (thrust, slash); `main` on 133, during the evade of tick 130 (the dash-strike); `main` on
-    // 170 and 178, then on 186 held until the evade of tick 230 breaks the charge; and the
-    // switches and the stage skill pressed now and then. The boss stays out of the giant_sword's
-    // assist range, so the switches find no target here (`assist` is the case that does).
-    let inputs = (0..300)
-        .map(|t| {
-            let input = match t {
-                _ if t % 60 == 0 => moving(0, -1),
-                130 | 230 => Input {
-                    evade: true,
-                    ..moving(50, 0)
-                },
-                _ if (t / 25) % 2 == 0 => moving(50, 0),
-                _ => moving(-50, 0),
-            };
-            Input {
-                main: matches!(t, 0 | 8 | 133 | 170 | 178)
-                    || (16..68).contains(&t)
-                    || (186..240).contains(&t),
-                smash: t == 100 || t == 108,
-                skill: t % 50 == 7,
-                assist: (t / 70) % 2 == 1,
-                auto: (t / 90) % 2 == 1,
-                ..input
-            }
-        })
-        .collect();
-    ("bullets", bytes(&stage), inputs)
 }
 
 /// The boss of `tests/golden.rs`: a horn that breaks, two phases and a timeline, shot until it
@@ -585,7 +530,7 @@ fn boss() -> Definition {
     let horn = json!({ "id": "horn", "asset": "horns_2", "hp": 30,
                        "offset": { "x": 0, "y": 16_000 }, "radius": 6_000 });
     let shot = json!({ "type": "attack",
-                       "attack": { "preset": { "id": "aimed_single", "args": [768] } } });
+                       "attack": { "preset": { "id": "aimed_single", "args": [15] } } });
     let boss = json!({
         "base": "golem", "hp": 100, "radius": 8192, "spawn": { "x": 46_080, "y": 60_000 },
         "parts": [horn],
@@ -609,8 +554,10 @@ fn boss() -> Definition {
             }
         ]
     });
-    // The Main weapon fires up the field every 6 ticks, through the horn, then at the boss.
-    let stage = stage_full(600, Some(boss), vec![], vec![]);
+    // The Main weapon's ray hits the horn and the boss every 6 ticks. The main character stands
+    // in the boss's zones, and holds the most a stage may: a hit is 100 shown.
+    let mut stage = stage_full(600, Some(boss), vec![], vec![]);
+    stage.player.hp = 999;
     ("boss", bytes(&stage), firing_for(600))
 }
 
@@ -623,7 +570,7 @@ fn fail() -> Definition {
             always(),
             json!("player"),
             json!({ "type": "attack",
-                            "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+                            "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
             10
         )]),
     );
@@ -829,7 +776,7 @@ fn ranged_cap() -> Definition {
     let shot = |ranged: bool| {
         let mut action = json!({ "type": "attack", "attack": { "inline": [
             { "kind": "wind_up", "ticks": 12, "damage": 2, "spawn": [
-                { "type": "fire", "speed": 768, "ticks": 200,
+                { "type": "orb", "speed": 768, "ticks": 200,
                   "direction": { "type": "aimed", "offset": 0 } } ] },
             { "kind": "active", "ticks": 8 },
             { "kind": "recovery", "ticks": 10 },
@@ -986,7 +933,7 @@ fn evade_charges() -> Definition {
             always(),
             json!("player"),
             json!({ "type": "attack",
-                    "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+                    "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
             10
         )]),
     );
@@ -1034,6 +981,9 @@ fn landscape() -> Definition {
     .unwrap();
     stage["map"] = json!({ "width": width, "height": height,
                            "start": { "x": width - 30_720, "y": 20_000 } });
+    // The main character holds the most a stage may, so that the zones do not end the walk: a
+    // hit is 100 shown.
+    stage["player"]["hp"] = json!(999);
     let inputs = (0..300)
         .map(|t| {
             let input = match t {
@@ -1067,7 +1017,6 @@ pub(crate) fn definitions() -> Vec<Definition> {
         ),
         agents(),
         assist(),
-        bullets(),
         boss(),
         evade_charges(),
         fail(),
@@ -1826,7 +1775,8 @@ fn orb_and_token_reach(name: &str) -> (usize, usize, usize, bool) {
 fn the_ranged_cap_and_orbs_cases_are_what_their_names_say() {
     // Ten shooters want to fire, eight of them marked: four hold a token at the most.
     let (held, orbs, _, _) = orb_and_token_reach("ranged_cap");
-    assert_eq!((held, orbs), (4, 0));
+    assert_eq!(held, 4);
+    assert!(orbs > 0, "their shots are orbs");
     // The orbs fill the field up to the cap, the sword breaks some, and bursts place zones.
     let (_, orbs, broken, zoned) = orb_and_token_reach("orbs");
     assert_eq!(orbs, 32, "the orb cap is reached");
@@ -1847,11 +1797,6 @@ fn the_cases_are_what_their_names_say() {
     let (outcome, hp, _) = what_happens("timeout");
     assert_eq!(outcome, Outcome::Failed);
     assert!(hp > 0, "the main character is alive when the time runs out");
-    assert!(
-        what_happens("bullets").2 >= 300,
-        "{} bullets",
-        what_happens("bullets").2
-    );
     assert_eq!(what_happens("agents").0, Outcome::Running);
     // Hit boxes alone: no bullet ever flies, yet the main character is hurt and enemies die.
     let (outcome, hp, peak) = what_happens("melee");
@@ -1866,8 +1811,8 @@ fn the_cases_are_what_their_names_say() {
     let (zones, cleared) = zone_peaks("zones");
     assert!(zones >= 16, "{zones} zones at most alive at once");
     assert!(cleared, "clear_zones leaves only the new phase's zones");
-    // The map, not the portrait field: the corner holds the main character, and shots and
-    // enemies get past where the portrait field's margin would have removed them.
+    // The map, not the portrait field: the corner holds the main character, and enemies and
+    // zones get past where the portrait field's margin would have removed them.
     let (corner, farthest) = landscape_reach();
     assert!(corner, "the main character reaches the top-right corner");
     assert!(farthest > 92_160 + 16_384, "x {farthest}");
@@ -1979,7 +1924,7 @@ fn assist_reach() -> AssistReach {
 }
 
 /// Whether the landscape case's main character stands in the map's top-right corner on some
-/// tick, and the largest x any bullet or enemy reaches.
+/// tick, and the largest x any zone or enemy reaches.
 fn landscape_reach() -> (bool, i32) {
     let case = corpus_dir().join("landscape");
     let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
@@ -1990,7 +1935,7 @@ fn landscape_reach() -> (bool, i32) {
         engine.step(input);
         let s = engine.snapshot();
         corner |= (s.player.at.x.0, s.player.at.y.0) == (s.map.width.0, 0);
-        let xs = s.bullets.iter().map(|b| b.at.x.0);
+        let xs = s.zones.iter().map(|z| z.at.x.0);
         farthest = xs
             .chain(s.entities.iter().map(|e| e.at.x.0))
             .fold(farthest, i32::max);

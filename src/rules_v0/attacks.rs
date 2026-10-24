@@ -11,28 +11,24 @@
 //! before a task starts (see `presets`), so a preset and its inline copy are the same task.
 //!
 //! What the nodes mean:
-//! - `fire` makes one bullet at the attack's origin. Its direction is a unit vector: `aimed`
-//!   points at the target (along the facing for a combo step's) and turns by `offset`,
-//!   `absolute` is an angle from straight down, `relative` turns the direction the attack's
-//!   parent was going (straight down for an attack a rule started; the facing for a combo
-//!   step's; the bullet's own direction for an `on_bullet` child), and `sequential` turns the last bullet's
-//!   direction by `step`. The first three also turn by every `rotate`, `ring` and `spread`
-//!   round them. Positive angles turn from straight down toward the right.
-//! - `zone` places an area that does not move (`zones`) instead of a bullet: at the attacker's
-//!   spot or where the target stood when the attack began, moved by its `offset` along its
-//!   direction, which `rotate`, `ring` and `spread` turn as they turn a bullet's.
-//! - `orb` fires a slow bullet that lives `ticks` ticks (core Z2). When they are up its `burst` is
-//!   carried out from where it ended, as an `on_bullet`'s `then` is; the main character's hit
-//!   boxes break a `breakable` one with no burst. At most `MAX_ORBS_PER_OWNER` per attacker and
-//!   `MAX_ORBS_ALIVE` in all; one over a cap is dropped, in node order.
+//! - `zone` places an area that does not move (`zones`): at the attacker's spot or where the
+//!   target stood when the attack began, moved by its `offset` along its direction. A direction
+//!   is a unit vector: `aimed` points at the target (along the facing for a combo step's) and
+//!   turns by `offset`, `absolute` is an angle from straight down, `relative` turns the direction
+//!   the attack's parent was going (straight down for an attack a rule started; the facing for a
+//!   combo step's; the orb's own direction for its burst), and `sequential` turns the last
+//!   direction by `step`. The first three also turn by every `rotate`, `ring` and `spread` round
+//!   them. Positive angles turn from straight down toward the right.
+//! - `orb` fires a slow projectile that lives `ticks` ticks (core Z2), the one thing that flies.
+//!   When they are up its `burst` is carried out from where it ended, as an attack of its own;
+//!   the main character's hit boxes break a `breakable` one with no burst. At most
+//!   `MAX_ORBS_PER_OWNER` per attacker and `MAX_ORBS_ALIVE` in all; one over a cap is dropped, in
+//!   node order.
 //! - `repeat` runs its body `count` times; the next round starts `interval_ticks` ticks after
 //!   the body of the last one ends. `ring` runs its body `count` times at once, round after
 //!   round turned a full turn / `count` further; `spread` the same, fanned evenly across
 //!   `angle` and centred on the direction. A `wait` in their bodies delays the next round.
 //! - `rotate` turns everything in its body by `angle`; `wait` pauses the attack.
-//! - `on_bullet` runs `body`, and every bullet the body fires starts the `then` list as an
-//!   attack of its own, from where the bullet is, `after_ticks` ticks later (if the bullet is
-//!   still flying). A bullet carries one such hook, the innermost.
 //!
 //! Expressions are evaluated left to right when the node they belong to is carried out, with
 //! `rand` drawing from the run's SplitMix64 in that order. Arithmetic saturates, and dividing by
@@ -40,7 +36,7 @@
 //!
 //! Dynamic budgets (ADR-020): at most `MAX_ATTACK_TASKS` attacks at once, and every tick at most
 //! `MAX_EMITTER_STEPS_PER_TICK` node steps across all of them, after which the rest wait for
-//! the next tick, in order. Bullets are capped as everywhere else.
+//! the next tick, in order. Orbs and zones are capped as everywhere else.
 
 use std::ops::Deref;
 
@@ -48,7 +44,7 @@ use crate::attack::{Anchor, AttackPhase, AttackRef, Direction, Emitter, Expr, Hi
 use crate::difficulties::scale_pct;
 use crate::engine::{
     Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Frames, Hook, Origin, PathStep, Smash,
-    State, StatusKind, UNLIMITED, ZoneState,
+    State, StatusKind, ZoneState,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -57,15 +53,13 @@ use crate::registry;
 use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
 use crate::trig;
-use crate::validate::limits::{
-    MAX_BULLET_TICKS, MAX_LEN, MAX_ORB_TICKS, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS,
-};
+use crate::validate::limits::{MAX_LEN, MAX_ORB_TICKS, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS};
 
 use super::Scratch;
 use super::entity::{Who, scale_damage, status_pct};
 use super::{
     AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, MAX_ORBS_ALIVE, MAX_ORBS_PER_OWNER,
-    World, count, spawn_bullet,
+    World, count,
 };
 
 /// Whether `owner` is running an attack in `slot`.
@@ -645,7 +639,7 @@ fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEv
     s.tasks.push(task);
 }
 
-/// Bullets whose `on_bullet` wait is over start their attacks, to be carried out this tick.
+/// Orbs whose lifetime is over start their bursts, to be carried out this tick.
 // Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
 // (ADR-058).
 #[inline(never)]
@@ -672,7 +666,7 @@ pub(super) fn fire_hooks(s: &mut State) {
             base: hook.path,
             origin: Origin::At(at),
             aim: hook.aim,
-            friendly: hook.friendly,
+            friendly: false,
             damage: hook.damage,
             damage_type: hook.damage_type,
             breaks_charge: hook.breaks_charge,
@@ -690,23 +684,17 @@ pub(super) fn fire_hooks(s: &mut State) {
 
 /// Carries out every attack up to its next wait, in the order they started. Returns how many
 /// attacks there were and how many nodes were carried out (`Load`).
-pub(super) fn run(world: &World, s: &mut State, spawns_left: &mut u32) -> (u32, u32) {
+pub(super) fn run(world: &World, s: &mut State) -> (u32, u32) {
     let mut tasks = std::mem::take(&mut s.tasks);
     let running = count(&tasks);
     let mut budget = MAX_EMITTER_STEPS_PER_TICK;
-    tasks.retain_mut(|t| step_task(world, s, t, &mut budget, spawns_left));
+    tasks.retain_mut(|t| step_task(world, s, t, &mut budget));
     s.tasks = tasks;
     (running, MAX_EMITTER_STEPS_PER_TICK - budget)
 }
 
 /// One tick of one attack. False once it has finished.
-fn step_task(
-    world: &World,
-    s: &mut State,
-    t: &mut AttackTask,
-    budget: &mut u32,
-    spawns_left: &mut u32,
-) -> bool {
+fn step_task(world: &World, s: &mut State, t: &mut AttackTask, budget: &mut u32) -> bool {
     // An attack from an agent ends when the agent is gone.
     if t.origin == Origin::Owner && s.find(t.owner).is_none() {
         return false;
@@ -718,7 +706,7 @@ fn step_task(
             return true;
         }
     }
-    let going = exec(world, s, t, budget, spawns_left);
+    let going = exec(world, s, t, budget);
     t.age = t.age.saturating_add(1);
     going
 }
@@ -730,12 +718,8 @@ fn body_of(node: &Emitter) -> Option<&[Emitter]> {
         Emitter::Repeat { body, .. }
         | Emitter::Ring { body, .. }
         | Emitter::Spread { body, .. }
-        | Emitter::Rotate { body, .. }
-        | Emitter::OnBullet { body, .. } => Some(body),
-        Emitter::Fire { .. }
-        | Emitter::Wait { .. }
-        | Emitter::Zone { .. }
-        | Emitter::Orb { .. } => None,
+        | Emitter::Rotate { body, .. } => Some(body),
+        Emitter::Wait { .. } | Emitter::Zone { .. } | Emitter::Orb { .. } => None,
     }
 }
 
@@ -745,8 +729,7 @@ fn root_list<'a>(program: &'a [Emitter], base: &[PathStep]) -> Option<&'a [Emitt
     for step in base {
         let node = list.get(usize::from(step.node))?;
         list = match (step.then, node) {
-            (true, Emitter::OnBullet { then, .. }) => then,
-            // The burst of an orb is carried out as the `then` of an `on_bullet` is.
+            // The burst of an orb is carried out as an attack of its own.
             (true, Emitter::Orb { burst, .. }) => burst,
             (true, _) => return None,
             (false, node) => body_of(node)?,
@@ -770,8 +753,6 @@ struct Above {
     loop_index: i32,
     /// The turn of every `rotate`, `ring` and `spread` round it.
     turn: i32,
-    /// The innermost `on_bullet` round it: its frame, and how long its bullets wait.
-    hook: Option<(usize, u32)>,
 }
 
 fn above(root: &[Emitter], frames: &[Frame], depth: usize) -> Option<Above> {
@@ -779,9 +760,8 @@ fn above(root: &[Emitter], frames: &[Frame], depth: usize) -> Option<Above> {
     let mut out = Above {
         loop_index: 0,
         turn: 0,
-        hook: None,
     };
-    for (k, f) in frames.get(..depth)?.iter().enumerate() {
+    for f in frames.get(..depth)? {
         let node = list.get(usize::from(f.idx))?;
         match node {
             Emitter::Repeat { .. } => out.loop_index = i32::try_from(f.loop_i).unwrap_or(i32::MAX),
@@ -790,11 +770,7 @@ fn above(root: &[Emitter], frames: &[Frame], depth: usize) -> Option<Above> {
                 out.turn = out.turn.saturating_add(f.offset);
             }
             Emitter::Rotate { .. } => out.turn = out.turn.saturating_add(f.offset),
-            Emitter::OnBullet { .. } => out.hook = Some((k, f.hook_after)),
-            Emitter::Fire { .. }
-            | Emitter::Wait { .. }
-            | Emitter::Zone { .. }
-            | Emitter::Orb { .. } => {}
+            Emitter::Wait { .. } | Emitter::Zone { .. } | Emitter::Orb { .. } => {}
         }
         list = body_of(node)?;
     }
@@ -885,11 +861,6 @@ fn ticks(v: i32) -> u32 {
     u32::try_from(v.clamp(0, i32::try_from(MAX_TICKS).unwrap_or(i32::MAX))).unwrap_or(0)
 }
 
-/// A bullet's lifetime in ticks, from 1 to `MAX_BULLET_TICKS` (core#147).
-fn bullet_ticks(v: i32) -> u32 {
-    u32::try_from(v.clamp(1, i32::try_from(MAX_BULLET_TICKS).unwrap_or(i32::MAX))).unwrap_or(1)
-}
-
 fn rounds(v: i32) -> u32 {
     u32::try_from(v.clamp(0, MAX_REPEAT)).unwrap_or(0)
 }
@@ -945,13 +916,7 @@ enum Advance {
 }
 
 /// Carries out nodes until the attack waits (true) or is over (false).
-fn exec(
-    world: &World,
-    s: &mut State,
-    t: &mut AttackTask,
-    budget: &mut u32,
-    spawns_left: &mut u32,
-) -> bool {
+fn exec(world: &World, s: &mut State, t: &mut AttackTask, budget: &mut u32) -> bool {
     let program = &world.emitters[t.program.0 as usize];
     let Some(root) = root_list(program, &t.base) else {
         return false;
@@ -981,12 +946,6 @@ fn exec(
             }
         };
         match node {
-            Emitter::Fire { .. } => {
-                if !emit(s, t, &ab, node, spawns_left) {
-                    return false;
-                }
-                t.frames[top].idx += 1;
-            }
             Emitter::Zone { .. } => {
                 if !emit_zone(s, t, &ab, node) {
                     return false;
@@ -994,7 +953,7 @@ fn exec(
                 t.frames[top].idx += 1;
             }
             Emitter::Orb { .. } => {
-                if !emit_orb(s, t, &ab, node, top, spawns_left) {
+                if !emit_orb(s, t, &ab, node, top) {
                     return false;
                 }
                 t.frames[top].idx += 1;
@@ -1022,12 +981,6 @@ fn exec(
             }
             Emitter::Rotate { angle, body } => {
                 t.frames[top].offset = value(s, t, &ab, angle);
-                enter_body(t, top, body.is_empty());
-            }
-            Emitter::OnBullet {
-                after_ticks, body, ..
-            } => {
-                t.frames[top].hook_after = ticks(value(s, t, &ab, after_ticks));
                 enter_body(t, top, body.is_empty());
             }
         }
@@ -1100,18 +1053,15 @@ fn next_round(s: &mut State, t: &mut AttackTask, root: &[Emitter], parent: usize
             }
             Advance::Continue
         }
-        Emitter::Rotate { .. } | Emitter::OnBullet { .. } => {
+        Emitter::Rotate { .. } => {
             t.frames[parent].idx += 1;
             Advance::Continue
         }
-        Emitter::Fire { .. }
-        | Emitter::Wait { .. }
-        | Emitter::Zone { .. }
-        | Emitter::Orb { .. } => Advance::Broken,
+        Emitter::Wait { .. } | Emitter::Zone { .. } | Emitter::Orb { .. } => Advance::Broken,
     }
 }
 
-/// The direction a `fire` or `zone` node takes from `origin`, turned by the `rotate`, `ring` and
+/// The direction a `zone` or `orb` node takes from `origin`, turned by the `rotate`, `ring` and
 /// `spread` nodes round it.
 fn heading(s: &mut State, t: &AttackTask, ab: &Above, origin: Point, direction: &Direction) -> Dir {
     match direction {
@@ -1193,7 +1143,6 @@ fn uses_spot(phases: &[AttackPhase]) -> bool {
         list.iter().any(|n| match n {
             Emitter::Zone { anchor, .. } => *anchor == Anchor::Target,
             Emitter::Orb { burst, .. } => nodes(burst),
-            Emitter::OnBullet { body, then, .. } => nodes(body) || nodes(then),
             other => body_of(other).is_some_and(nodes),
         })
     }
@@ -1205,106 +1154,18 @@ fn uses_spot(phases: &[AttackPhase]) -> bool {
     })
 }
 
-/// Makes the bullet of a `fire` node. False if the attack's owner is gone.
-fn emit(
-    s: &mut State,
-    t: &mut AttackTask,
-    ab: &Above,
-    node: &Emitter,
-    spawns_left: &mut u32,
-) -> bool {
-    let Emitter::Fire {
-        speed,
-        direction,
-        bullet,
-        ticks,
-    } = node
-    else {
-        return true;
-    };
-    let origin = match t.origin {
-        Origin::At(p) => p,
-        Origin::Owner => match s.find(t.owner) {
-            Some(w) => s.at(w),
-            None => return false,
-        },
-    };
-    let speed = value(s, t, ab, speed).clamp(-MAX_LEN, MAX_LEN);
-    let life = ticks
-        .as_ref()
-        .map_or(UNLIMITED, |e| bullet_ticks(value(s, t, ab, e)));
-    let dir = heading(s, t, ab, origin, direction);
-    let hook = ab.hook.map(|(k, after)| {
-        let path = t
-            .base
-            .iter()
-            .copied()
-            .chain((0..=k).map(|j| PathStep {
-                node: t.frames[j].idx,
-                then: j == k,
-            }))
-            .collect();
-        Box::new(Hook {
-            program: t.program,
-            path,
-            left: after,
-            owner: t.owner,
-            aim: t.aim,
-            friendly: t.friendly,
-            damage: t.damage,
-            damage_type: t.damage_type,
-            breaks_charge: t.breaks_charge,
-            smash: t.smash,
-            combo: t.combo,
-        })
-    });
-    let scale = i64::from(trig::SCALE);
-    let velocity = |component: i32| Fx(saturate(i64::from(component) * i64::from(speed) / scale));
-    spawn_bullet(
-        s,
-        BulletState {
-            at: origin,
-            vx: velocity(dir.x),
-            vy: velocity(dir.y),
-            dir,
-            style: bullet.as_ref().map_or(0, |b| registry::bullet_style(&b.0)),
-            owner: t.owner,
-            friendly: t.friendly,
-            damage: t.damage,
-            damage_type: t.damage_type,
-            breaks_charge: t.breaks_charge,
-            smash: t.smash,
-            combo: t.combo,
-            hook,
-            orb: false,
-            breakable: false,
-            life,
-        },
-        spawns_left,
-    );
-    t.last_dir = dir;
-    true
-}
-
 /// An orb's lifetime in ticks, from 1 to `MAX_ORB_TICKS` (core Z2).
 fn orb_ticks(v: i32) -> u32 {
     u32::try_from(v.clamp(1, i32::try_from(MAX_ORB_TICKS).unwrap_or(i32::MAX))).unwrap_or(1)
 }
 
-/// Makes the orb of an `orb` node, a slow bullet with a lifetime whose burst is its hook: the
-/// `burst` list is carried out where the orb ended, `ticks` ticks on, as an `on_bullet`'s `then`
-/// is. False if the attack's owner is gone. Every expression is evaluated, in the order
+/// Makes the orb of an `orb` node, a slow projectile with a lifetime whose burst is its hook: the
+/// `burst` list is carried out where the orb ended, `ticks` ticks on, as an attack of its own.
+/// False if the attack's owner is gone. Every expression is evaluated, in the order
 /// speed, ticks, direction, whether or not a cap then drops the orb, so the draws of `rand` do
 /// not depend on the caps. An orb over `MAX_ORBS_PER_OWNER` or `MAX_ORBS_ALIVE` is dropped; so is
 /// any orb of an ally's attack (the validator refuses them, this keeps an unvalidated one out).
-fn emit_orb(
-    s: &mut State,
-    t: &mut AttackTask,
-    ab: &Above,
-    node: &Emitter,
-    top: usize,
-    spawns_left: &mut u32,
-) -> bool {
+fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: usize) -> bool {
     let Emitter::Orb {
         speed,
         direction,
@@ -1355,7 +1216,6 @@ fn emit_orb(
             left: life,
             owner: t.owner,
             aim: t.aim,
-            friendly: t.friendly,
             damage: t.damage,
             damage_type: t.damage_type,
             breaks_charge: t.breaks_charge,
@@ -1365,30 +1225,24 @@ fn emit_orb(
     });
     let scale = i64::from(trig::SCALE);
     let velocity = |component: i32| Fx(saturate(i64::from(component) * i64::from(speed) / scale));
-    let before = s.bullets.len();
-    spawn_bullet(
-        s,
-        BulletState {
-            at: origin,
-            vx: velocity(dir.x),
-            vy: velocity(dir.y),
-            dir,
-            style: style.as_ref().map_or(0, |b| registry::bullet_style(&b.0)),
-            owner: t.owner,
-            friendly: t.friendly,
-            damage: t.damage,
-            damage_type: t.damage_type,
-            breaks_charge: t.breaks_charge,
-            smash: t.smash,
-            combo: t.combo,
-            hook,
-            orb: true,
-            breakable: *breakable,
-            life,
-        },
-        spawns_left,
-    );
-    s.orbs += u32::from(s.bullets.len() > before);
+    s.bullets.push(BulletState {
+        at: origin,
+        vx: velocity(dir.x),
+        vy: velocity(dir.y),
+        dir,
+        style: style.as_ref().map_or(0, |b| registry::bullet_style(&b.0)),
+        owner: t.owner,
+        damage: t.damage,
+        damage_type: t.damage_type,
+        breaks_charge: t.breaks_charge,
+        smash: t.smash,
+        combo: t.combo,
+        hook,
+        orb: true,
+        breakable: *breakable,
+        life,
+    });
+    s.orbs += 1;
     true
 }
 

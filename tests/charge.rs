@@ -16,11 +16,16 @@ use stella_rain_core::input::Input;
 use stella_rain_core::snapshot::ChargeView;
 use stella_rain_core::stage::Stage;
 
-/// An attack that fires one bullet at `speed` along its aim on the tick it starts.
-fn one_bullet(speed: i32) -> Value {
-    json!({ "inline": spawned(json!([
-        { "type": "fire", "speed": speed, "direction": { "type": "aimed", "offset": 0 } }
-    ])) })
+/// An attack that places one zone `ahead` along its aim on the tick it starts.
+fn one_bullet(ahead: i32) -> Value {
+    json!({ "inline": spawned(json!([zone_ahead(ahead)])) })
+}
+
+/// A friendly zone `ahead` along the aim, there for 200 ticks.
+fn zone_ahead(ahead: i32) -> Value {
+    json!({ "type": "zone", "shape": { "type": "circle", "radius": 512 },
+            "offset": { "forward": ahead }, "direction": { "type": "aimed", "offset": 0 },
+            "wind_up_ticks": 0, "active_ticks": 200 })
 }
 
 /// A step whose own attack is a bullet at 1024 and which charges as the module says.
@@ -80,12 +85,13 @@ fn releases(events: &[(u32, DomainEvent)]) -> Vec<(u32, u8, bool)> {
         .collect()
 }
 
+/// Where the friendly zones are, from where the main character stands.
 fn friendly(e: &Engine) -> Vec<(i32, i32)> {
     e.snapshot()
-        .bullets
+        .zones
         .iter()
-        .filter(|b| b.friendly)
-        .map(|b| (b.vx.0, b.vy.0))
+        .filter(|z| z.friendly)
+        .map(|z| (z.at.x.0 - START_X, z.at.y.0 - START_Y))
         .collect()
 }
 
@@ -159,13 +165,13 @@ fn at_max_ticks_it_releases_by_itself_without_the_bonus() {
 
 #[test]
 fn the_perfect_bonus_raises_every_hit_of_the_release() {
-    // A sturdy enemy 80 pixels above; the release at level 1 reaches it in 10 ticks.
-    let target = enemy(1000, hold(START_X, START_Y - 20_480), json!([]));
+    // A sturdy enemy 12 pixels above, where the release at level 1 places its zone.
+    let target = enemy(1000, hold(START_X, START_Y - 3_072), json!([]));
     let stage = || {
         charging(stage_with(
             18_000,
             Some(far_boss()),
-            vec![wave(1, 1, 0, target.clone(), START_X, START_Y - 20_480)],
+            vec![wave(1, 1, 0, target.clone(), START_X, START_Y - 3_072)],
         ))
     };
     let hp_after = |last_held: u32| {
@@ -234,7 +240,7 @@ fn a_buffered_step_charges_only_if_its_button_is_held_as_it_starts() {
     let first = json!({ "inline": [
         { "kind": "wind_up", "ticks": 5 },
         { "kind": "active", "ticks": 1,
-          "spawn": [{ "type": "fire", "speed": 512, "direction": { "type": "aimed", "offset": 0 } }] },
+          "spawn": [zone_ahead(512)] },
         { "kind": "recovery", "ticks": 10 }
     ] });
     let stage = armed(
@@ -294,12 +300,12 @@ fn an_evade_breaks_the_charge_with_no_attack_and_the_combo_starts_again() {
     assert_eq!((p.charge, p.combo.presses.len()), (None, 0));
 }
 
-/// A stage where an enemy 40 pixels above fires one bullet at the main character on tick 1,
-/// which reaches it on tick 10; `breaks` marks the attack as one that breaks charges.
+/// A stage where an enemy 40 pixels above places a zone on the main character on tick 1,
+/// which hurts it on tick 10; `breaks` marks the attack as one that breaks charges.
 fn shot_at(breaks: bool) -> Stage {
     let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "breaks_charge": breaks,
-        "spawn": [{ "type": "fire", "speed": 1024,
-                    "direction": { "type": "aimed", "offset": 0 } }] }] });
+        "spawn": [{ "type": "zone", "shape": { "type": "circle", "radius": 3_072 },
+                    "anchor": "target", "wind_up_ticks": 9, "active_ticks": 2 }] }] });
     let shooter = enemy(
         1000,
         hold(START_X, START_Y - 10_240),

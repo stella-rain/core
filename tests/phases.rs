@@ -17,7 +17,8 @@ const OX: i32 = 46_080;
 const OY: i32 = 50_000;
 
 fn down() -> Value {
-    json!({ "type": "fire", "speed": 256, "direction": { "type": "absolute", "angle": 0 } })
+    json!({ "type": "orb", "speed": 256, "ticks": 100,
+            "direction": { "type": "absolute", "angle": 0 } })
 }
 
 fn phase(kind: &str, ticks: u32, spawn: Vec<Value>) -> Value {

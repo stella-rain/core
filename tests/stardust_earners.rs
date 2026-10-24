@@ -296,9 +296,10 @@ fn a_boss_summons_pay_the_regular_base_times_the_factor() {
                 "agent": enemy(10, hold(START_X, ENEMY_Y), json!([])) } }]);
     let mut e = engine(&boss_stage(json!([]), rules, Some(10)));
     let got = gains(&mut e, idle(), 400);
-    assert_eq!(got.len(), 3, "{got:?}");
+    // The three stand on one spot, so the one ray of the main weapon kills them on one tick.
+    assert_eq!(got.len(), 1, "{got:?}");
     for (tick, gained) in got {
-        assert_eq!(gained, 10 * pct_at(tick) / 100, "tick {tick}");
+        assert_eq!(gained, 3 * (10 * pct_at(tick) / 100), "tick {tick}");
     }
 }
 

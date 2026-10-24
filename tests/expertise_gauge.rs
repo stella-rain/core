@@ -21,17 +21,22 @@ use common::*;
 /// 32 pixels above the main character, where both steps below land.
 const NEAR_Y: i32 = START_Y - 8_192;
 
-/// A Main weapon whose A step (`main`) fires one bullet straight up at 8 pixels a tick, and
-/// whose B step (`smash`) is a hit box of 8 pixels 32 pixels ahead: 10 damage each, both from
-/// the root, so each press starts its own step.
+/// A Main weapon whose A step (`main`) is a line 64 pixels long straight ahead, and whose B step
+/// (`smash`) is a hit box of 8 pixels 32 pixels ahead: 10 damage each, both from the root, so
+/// each press starts its own step.
 fn weapon() -> Value {
     let swing = json!({ "inline": [
         { "kind": "active", "ticks": 1, "damage": 10,
           "hit_box": { "type": "circle", "offset": { "forward": 8_192 }, "radius": 2_048 } },
         { "kind": "recovery", "ticks": 4 }
     ] });
+    let line = json!({ "inline": [
+        { "kind": "active", "ticks": 1, "damage": 10,
+          "hit_box": { "type": "line", "length": 16_384, "width": 2_048 } },
+        { "kind": "recovery", "ticks": 4 }
+    ] });
     weapon_combo(json!({
-        "main": step(json!({ "preset": { "id": "aimed_single", "args": [2048] } })),
+        "main": step(line),
         "smash": step(swing),
     }))
 }
@@ -117,7 +122,7 @@ fn hits_by_a_and_b_steps_fill_the_one_gauge_to_a_level() {
     assert_eq!(gauge(&e), view(0, 0, 10), "every run starts at level 0");
 
     press(&mut e, false);
-    assert_eq!(gauge(&e), view(0, 4, 10), "the A step's bullet hit");
+    assert_eq!(gauge(&e), view(0, 4, 10), "the A step's line hit");
     press(&mut e, true);
     assert_eq!(
         gauge(&e),
