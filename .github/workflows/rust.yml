@@ -476,10 +476,10 @@ jobs:
               exit 0
             fi
           done
-          # Bench input: benches/ and the cases the benches build, src/bench_fixtures/ (and tests/common,
-          # which they share). benches/budgets.toml is not a bench: a changed budget leaves the counts
-          # comparable.
-          if ! git diff --quiet "$BASE" HEAD -- benches ':(exclude)benches/budgets.toml' src/bench_fixtures tests/common; then
+          # Bench input: benches/ and the cases the benches build, src/bench_fixtures/. Nothing a bench reads
+          # is under tests/ (BF1). benches/budgets.toml is not a bench: a changed budget leaves the
+          # counts comparable.
+          if ! git diff --quiet "$BASE" HEAD -- benches ':(exclude)benches/budgets.toml' src/bench_fixtures; then
             # A changed bench and changed code together: no comparison could tell which of the two
             # moved the count, so the PR must not slip past the +2% limit this way (D-BUDGET). The
             # fixtures are bench input, not code: a lighter case would hide a code regression.
