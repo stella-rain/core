@@ -1,17 +1,21 @@
-# Candidate (the release-flow skill). An agent pushes candidate/<12-character sha> at a commit
-# on main, adding no commit; Kade runs this workflow on that branch. It
-#   - refuses unless the branch names HEAD, HEAD is on main, no other candidate branch is left
-#     over, the branch has not moved, every check run on HEAD passed, and the crate version in
-#     Cargo.toml is new (.github/scripts/release.py),
-#   - runs the iOS Simulator tests and the long fuzz run (ADR-054) on that commit, builds
-#     `stage-verify` once on the four desktop runners and runs each build on a corpus replay,
-#   - tags vX.Y.Z-rc.N on HEAD itself (the version is Cargo.toml's, so there is no stamp commit),
-#     makes a GitHub prerelease with the four binaries, the JSON Schema and SHA256SUMS,
-#   - makes the branch rc/<rc tag> at that commit, for Promote (promote.yml) to run from (the
+# Candidate (the release-flow skill, plan section 9). Kade runs this workflow on main, in the
+# GitHub app too: main is the default branch, so there is nothing to type. The run keeps the
+# commit it started on (GITHUB_SHA); a push to main during the run changes nothing. It
+#   - refuses unless the ref is refs/heads/main, there is a commit since the latest release, the
+#     commit is not already a candidate and every check run on it passed (.github/scripts/release.py),
+#   - picks the final tag: Cargo.toml's version is a floor, so when it is at or below the latest
+#     final tag the release is that tag's next patch, and writes it into Cargo.toml, Cargo.lock and
+#     fuzz/Cargo.lock; main itself is never written to,
+#   - runs the iOS Simulator tests, the deep tier and the long fuzz run (ADR-054) on the main commit, builds
+#     `stage-verify` once on the four desktop runners from the stamped tree, so the binary carries
+#     the final version, and runs each build on a corpus replay,
+#   - tags vX.Y.Z-rc.N: the main commit itself when no stamp is needed, else one release commit
+#     whose parent is the main commit and which changes only those version files. It makes a GitHub
+#     prerelease with the four binaries, the JSON Schema and SHA256SUMS,
+#   - makes the branch rc/<rc tag> at the tagged commit, for Promote (promote.yml) to run from (the
 #     GitHub app lists branches only), and deletes the same version's lower rc branches.
-# A successful run deletes the candidate/<sha> branch; a failed or refused one keeps it, so
-# Candidate can run again on it. auto-candidate deletes it when main gets a newer candidate, or
-# Kade does. Only the tag and cleanup jobs can write, and they run none of the repository's code.
+# Only the tag job can write, and it runs none of the repository's code; it refuses unless the tree
+# it creates is the one the check job stamped and the builds tested.
 name: Candidate
 
 on:
@@ -30,41 +34,44 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      checks: read  # the check runs on HEAD
+      checks: read  # the check runs on the commit
     outputs:
       final: ${{ steps.check.outputs.final }}
       rc: ${{ steps.check.outputs.rc }}
       superseded: ${{ steps.check.outputs.superseded }}
+      stamped: ${{ steps.check.outputs.stamped }}
+      tree: ${{ steps.check.outputs.tree }}
+      cargo_toml: ${{ steps.check.outputs.cargo_toml }}
+      cargo_lock: ${{ steps.check.outputs.cargo_lock }}
+      fuzz_lock: ${{ steps.check.outputs.fuzz_lock }}
       notes: ${{ steps.check.outputs.notes }}
     steps:
-      - name: Only a candidate branch is a candidate
+      - name: Only main is a candidate
+        env:
+          REF: ${{ github.ref }}
         run: |
-          case "$GITHUB_REF" in
-            refs/heads/candidate/*) ;;
-            *) echo "::error::a candidate is made from a candidate/* branch only; this run is on $GITHUB_REF"; exit 1 ;;
-          esac
+          if [ "$REF" != refs/heads/main ]; then
+            echo "::error::a candidate is made from refs/heads/main only; this run is on $REF"
+            exit 1
+          fi
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
-      - name: The branch names a commit on main, has not moved, its checks passed, the version is new
+      - name: Main again, something new, not a candidate yet, checks passed; stamp the version
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          python3 .github/scripts/release.py check-candidate "$GITHUB_REF_NAME"
-          head=$(gh api "repos/$REPO/git/ref/heads/$GITHUB_REF_NAME" --jq .object.sha)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "::error::$GITHUB_REF_NAME moved from $GITHUB_SHA to $head"
-            exit 1
-          fi
+          python3 .github/scripts/release.py check-main "$GITHUB_REF"
+          python3 .github/scripts/release.py check-release
           gh api --paginate "repos/$REPO/commits/$GITHUB_SHA/check-runs?per_page=100" \
             --jq '.check_runs[]' | jq -s '{check_runs: .}' \
             | python3 .github/scripts/release.py checks-passed "$GITHUB_RUN_ID"
-          final=$(python3 .github/scripts/release.py version)
+          final=$(python3 .github/scripts/release.py final)
           rc=$(python3 .github/scripts/release.py rc "$final")
           superseded=$(python3 .github/scripts/release.py superseded "$rc")
           previous=$(python3 .github/scripts/release.py previous)
@@ -75,11 +82,26 @@ jobs:
           fi
           python3 .github/scripts/release.py notes "$rc" "$GITHUB_SHA" "${previous:--}" \
             "$RUNNER_TEMP/log.txt" > "$RUNNER_TEMP/notes.md"
+          # The version file is a floor: stamp the final tag; no change means Cargo.toml has it.
+          python3 .github/scripts/release.py stamp "$final"
+          git add -- Cargo.toml Cargo.lock fuzz/Cargo.lock
+          if git diff --cached --quiet; then
+            stamped=false
+            echo "$final is Cargo.toml's version: the tag goes on $GITHUB_SHA itself." >> "$RUNNER_TEMP/notes.md"
+          else
+            stamped=true
+            echo "$final is the next patch of the latest release: a release commit on $GITHUB_SHA stamps the version." >> "$RUNNER_TEMP/notes.md"
+          fi
           cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
           {
             echo "final=$final"
             echo "rc=$rc"
             echo "superseded=$superseded"
+            echo "stamped=$stamped"
+            echo "tree=$(git write-tree)"
+            echo "cargo_toml=$(base64 -w0 Cargo.toml)"
+            echo "cargo_lock=$(base64 -w0 Cargo.lock)"
+            echo "fuzz_lock=$(base64 -w0 fuzz/Cargo.lock)"
             echo "notes=$(base64 -w0 "$RUNNER_TEMP/notes.md")"
           } >> "$GITHUB_OUTPUT"
 
@@ -89,6 +111,13 @@ jobs:
     name: release iOS Simulator
     needs: check
     uses: ./.github/workflows/ios-sim.yml
+    permissions:
+      contents: read
+
+  deep:
+    name: release deep tests
+    needs: check
+    uses: ./.github/workflows/deep.yml
     permissions:
       contents: read
 
@@ -131,6 +160,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Stamp the version, and build only the tree that was checked
+        env:
+          FINAL: ${{ needs.check.outputs.final }}
+          TREE: ${{ needs.check.outputs.tree }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/release.py stamp "$FINAL"
+          git add -- Cargo.toml Cargo.lock fuzz/Cargo.lock
+          if [ "$(git write-tree)" != "$TREE" ]; then
+            echo "::error::the stamped tree $(git write-tree) is not the checked $TREE"
+            exit 1
+          fi
       - run: rustc -vV
       - run: cargo build --release --locked --bin stage-verify
       - name: The built binary clears a corpus replay with every tick's hash
@@ -158,31 +199,50 @@ jobs:
 
   tag:
     name: rc tag and prerelease
-    needs: [check, ios-simulator, long-fuzz, build]
+    needs: [check, ios-simulator, deep, long-fuzz, build]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write  # the rc tag, the prerelease and the rc branches
+      contents: write  # the release commit, the rc tag, the prerelease and the rc branches
     steps:
       - uses: actions/download-artifact@v8
         with:
           pattern: stage-verify-*
           path: dist
           merge-multiple: true
-      - name: Create the rc tag, the prerelease and the rc/ branch
+      - name: Create the release commit if needed, the rc tag, the prerelease and the rc/ branch
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           FINAL: ${{ needs.check.outputs.final }}
           RC: ${{ needs.check.outputs.rc }}
           SUPERSEDED: ${{ needs.check.outputs.superseded }}
+          STAMPED: ${{ needs.check.outputs.stamped }}
+          TREE: ${{ needs.check.outputs.tree }}
+          CARGO_TOML: ${{ needs.check.outputs.cargo_toml }}
+          CARGO_LOCK: ${{ needs.check.outputs.cargo_lock }}
+          FUZZ_LOCK: ${{ needs.check.outputs.fuzz_lock }}
           NOTES: ${{ needs.check.outputs.notes }}
         run: |
           set -euo pipefail
-          head=$(gh api "repos/$REPO/git/ref/heads/$GITHUB_REF_NAME" --jq .object.sha)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "::error::$GITHUB_REF_NAME moved from $GITHUB_SHA to $head"
-            exit 1
+          commit=$GITHUB_SHA
+          if [ "$STAMPED" = true ]; then
+            blob() { gh api "repos/$REPO/git/blobs" -f encoding=base64 -f content="$1" --jq .sha; }
+            base=$(gh api "repos/$REPO/git/commits/$GITHUB_SHA" --jq .tree.sha)
+            tree=$(jq -n --arg base "$base" --arg a "$(blob "$CARGO_TOML")" \
+                         --arg b "$(blob "$CARGO_LOCK")" --arg c "$(blob "$FUZZ_LOCK")" \
+                     '{base_tree: $base, tree: [
+                        {path: "Cargo.toml", mode: "100644", type: "blob", sha: $a},
+                        {path: "Cargo.lock", mode: "100644", type: "blob", sha: $b},
+                        {path: "fuzz/Cargo.lock", mode: "100644", type: "blob", sha: $c}]}' \
+                   | gh api "repos/$REPO/git/trees" --input - --jq .sha)
+            if [ "$tree" != "$TREE" ]; then
+              echo "::error::the tree $tree is not the tested $TREE"
+              exit 1
+            fi
+            commit=$(jq -n --arg msg "Release $FINAL" --arg tree "$tree" --arg parent "$GITHUB_SHA" \
+                       '{message: $msg, tree: $tree, parents: [$parent]}' \
+                     | gh api "repos/$REPO/git/commits" --input - --jq .sha)
           fi
           (cd dist && sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS")
           mv "$RUNNER_TEMP/SHA256SUMS" dist/SHA256SUMS
@@ -190,40 +250,16 @@ jobs:
           # An annotated tag object, then its ref; `gh release create` alone would make a
           # lightweight tag.
           object=$(gh api "repos/$REPO/git/tags" -f tag="$RC" -f message="$RC" \
-                     -f object="$GITHUB_SHA" -f type=commit --jq .sha)
+                     -f object="$commit" -f type=commit --jq .sha)
           gh api "repos/$REPO/git/refs" -f ref="refs/tags/$RC" -f sha="$object" > /dev/null
           gh release create "$RC" --repo "$REPO" --verify-tag --prerelease --title "$RC" \
             --notes-file "$RUNNER_TEMP/notes.md" dist/*
-          gh api "repos/$REPO/git/refs" -f ref="refs/heads/rc/$RC" -f sha="$GITHUB_SHA" > /dev/null
+          gh api "repos/$REPO/git/refs" -f ref="refs/heads/rc/$RC" -f sha="$commit" > /dev/null
           for b in $SUPERSEDED; do
             gh api -X DELETE "repos/$REPO/git/refs/heads/$b" > /dev/null || echo "::warning::could not delete $b"
           done
           {
-            echo "Candidate $RC of $FINAL at $GITHUB_SHA (on main)."
+            echo "Candidate $RC of $FINAL at $commit (main at $GITHUB_SHA)."
             if [ -n "$SUPERSEDED" ]; then echo "Deleted the superseded $SUPERSEDED."; fi
             echo "Try it, then Actions > Promote > Run workflow > branch rc/$RC."
           } >> "$GITHUB_STEP_SUMMARY"
-
-  cleanup:
-    name: delete the candidate branch
-    needs: [check, ios-simulator, long-fuzz, build, tag]
-    if: needs.tag.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write  # deleting the branch
-    steps:
-      - name: Delete the branch, the candidate succeeded
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          if gh api -X DELETE "repos/$REPO/git/refs/heads/$GITHUB_REF_NAME" > /dev/null; then
-            echo "Deleted $GITHUB_REF_NAME." >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$(gh api "repos/$REPO/git/matching-refs/heads/$GITHUB_REF_NAME" \
-                      --jq 'map(select(.ref == "refs/heads/" + env.GITHUB_REF_NAME)) | length')" = 0 ]; then
-            echo "$GITHUB_REF_NAME was already deleted." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::error::could not delete $GITHUB_REF_NAME; Kade deletes it"
-            exit 1
-          fi

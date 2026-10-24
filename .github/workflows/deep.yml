@@ -1,8 +1,8 @@
 # The deep tier: the tests that are too long for a PR. Every property runs 2,000 cases instead of
 # 64 (tests/properties.rs reads PROPTEST_CASES) and the `#[ignore]`d tests run too, the
 # MAX_COMMANDS measurement of tests/command_cap.rs among them; in release, on all tests of the
-# crate. Weekly, on demand, and on every `candidate/**` branch push. Not a PR check, so auto-merge.yml names
-# nothing from it; main-red.yml reports a failed weekly run.
+# crate. Weekly, on demand, and called by Candidate (candidate.yml) on the commit it makes a candidate of.
+# Not a PR check, so auto-merge.yml names nothing from it; main-red.yml reports a failed weekly run.
 # The times of every test are in the JUnit file of the run's artifact (.config/nextest.toml).
 name: Deep
 
@@ -11,8 +11,7 @@ on:
     # Saturdays 04:41 UTC, away from the Rust run (Sundays 04:17) and the long fuzz run (Mondays 03:23).
     - cron: "41 4 * * 6"
   workflow_dispatch:
-  push:
-    branches: ["candidate/**"]
+  workflow_call:
 
 permissions: {}
 
