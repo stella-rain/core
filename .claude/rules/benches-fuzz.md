@@ -33,7 +33,7 @@ All count instructions with `iai-callgrind`. They read their stages from `src/be
   fails on more than +2% instructions in any of them. It warns on `worst_tick` over its ceiling
   per arch in `benches/budgets.toml` (`bench_budget.py --warn-only` until the T1 refactor, DS27);
   a PR changing bench input
-  (`benches/`, `src/bench_fixtures/` or the `tests/common/` they share) and code (`src/` outside
+  (`benches/` or `src/bench_fixtures/`) and code (`src/` outside
   `bench_fixtures`, `Cargo.toml`, `Cargo.lock`) fails, since no comparison could tell which moved
   the count (D-BUDGET): change the bench in its own PR first. A PR of bench input alone is allowed,
   uncompared.
