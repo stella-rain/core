@@ -40,8 +40,8 @@ const HASTE: &str = "haste";
 /// Where the enemies stand.
 pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 
-/// 500 enemies (`MAX_ENEMIES_ALIVE`) stand in one place, five waves of 100 that spawn one enemy
-/// a tick each.
+/// 500 enemies (`MAX_ENEMIES_ALIVE`) stand in one place: four shooters, then 496 more in five
+/// waves that spawn one enemy a tick each (core BR1b: nothing here fires a bullet).
 ///
 /// The push-apart (ADR-058) parts a fresh stack on every tick: on each tick it does not start
 /// its attack, every enemy orders itself back to the point in one tick (`move_to`, which a
@@ -50,30 +50,26 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// enemy reads 32 others from the grid and counts 6. It also means every enemy fires a rule on
 /// every tick.
 ///
-/// Every enemy starts the same attack every 30 ticks: 100 rounds of 100 rounds of
-/// one bullet. Each start is refused once 256 attacks are going (`MAX_ATTACK_TASKS`), and the
-/// oldest attacks use up the 4,096 node steps of the tick (`MAX_EMITTER_STEPS_PER_TICK`) and
-/// ask for far more than 200 bullets (`MAX_BULLET_SPAWNS_PER_TICK`).
+/// Every crowd enemy starts the same attack every 30 ticks: an active phase of 30 ticks with a
+/// hit box that spawns a wait of 29 ticks, which holds an attack task. Each start is refused
+/// once 256 attacks are going (`MAX_ATTACK_TASKS`).
 ///
-/// The bullets fly straight down at 8,192 (32 pixels a tick) from where their enemy stands:
-/// y = 20,480, or up to 12 pixels (3,072) from it once the enemy has been pushed. The field is
-/// 163,840 high and its margin 16,384, so from 17,408 to 23,552 a bullet is gone on its 20th
-/// move, wherever in that range it started: 19 batches of 200
-/// are in the air when a tick starts, the tick makes the 20th, and 4,000 are alive
-/// (`MAX_BULLETS_ALIVE`) until the 200 that are about to leave go.
+/// The four shooters (`MAX_RANGED_ATTACKERS`) start first, with a `ranged` run each: one
+/// wind-up tick that sends a ring of eight orbs (`MAX_ORBS_PER_OWNER`), then an active phase
+/// longer than the case, so each holds its token. The 32 orbs (`MAX_ORBS_ALIVE`) fly slowly
+/// for 600 ticks and burst into nothing. No bullet is alive or made.
 ///
 /// The main character is a run that holds every rune (ADR-099): before the enemies arrive it
 /// kills eight small ones in front of it and takes the seven runes and Rune Haste of 300 percent
 /// (`DEFAULT_MAX_RUNE_HASTE_PCT`) from their stars, as a run does, through `Engine::new_with`. It then
 /// walks to the left of the enemies, about 36,000 units from them (out of the 128-pixel arcs of their
-/// attacks, and of their bullets' column), where its Main weapon's step, a circle of 256
+/// attacks), where its Main weapon's step, a circle of 256
 /// pixels, lands on all 500 of them every tick: each hit puts a stack of bleed, poison and burn
 /// on the enemy, to the stack cap (`MAX_DOT_STACKS`), and fires every on-hit rune that is ready.
 /// The statuses last 600 ticks and tick every 4, which full Rune Haste makes every tick; so on
 /// every tick 1,500 statuses deal damage, and each on-hit rune, whose cooldown the haste cuts to
 /// a quarter, fires again as soon as its attack is over. The step charges for the 24 ticks
-/// before the measured tick and lets go on it, and the release's bullet finds 256 attacks going
-/// and spawns nothing (ADR-070). From the measured tick aim assist and auto mode are on, with
+/// before the measured tick and lets go on it. From the measured tick aim assist and auto mode are on, with
 /// the longest assist range, so every tick looks through all 500 enemies for a target
 /// (ADR-072, ADR-073).
 ///
@@ -91,15 +87,8 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// through the enemy grid and tests, on every tick, the 500 enemies it has hit already (each
 /// once, long before the measured tick). Later attempts to place more are dropped at the cap.
 pub fn stage() -> Stage {
-    let burst = json!({
-        "type": "repeat", "count": 100, "interval_ticks": 0, "body": [{
-            "type": "repeat", "count": 100, "interval_ticks": 0, "body": [{
-                "type": "fire", "speed": 8192,
-                "direction": { "type": "absolute", "angle": 0 }
-            }]
-        }]
-    });
-    let swing = json!([{ "kind": "active", "ticks": 30, "spawn": [burst],
+    let swing = json!([{ "kind": "active", "ticks": 30,
+                         "spawn": [{ "type": "wait", "ticks": 29 }],
                          "hit_box": { "type": "arc", "radius": 32_768,
                                       "half_angle": 60 * 256 } }]);
     let attack = common::rule(
@@ -108,6 +97,25 @@ pub fn stage() -> Stage {
         json!({ "type": "attack", "attack": { "inline": swing } }),
         30,
     );
+    // A shooter's run: one wind-up tick that sends a ring of eight orbs, then an active phase
+    // that outlasts the measured ticks, so it holds a ranged token (`MAX_RANGED_ATTACKERS`) and
+    // an attack task for all of them. The orbs fly 32 units a tick, aimed at the main character
+    // 36,000 units away, and last 600 ticks: they stay alive, short of it.
+    let orb = json!({ "type": "orb", "speed": 32, "ticks": 600, "breakable": false,
+                      "direction": { "type": "aimed", "offset": 0 }, "burst": [] });
+    let shot = json!([
+        { "kind": "wind_up", "ticks": 1,
+          "spawn": [{ "type": "ring", "count": 8, "body": [orb] }] },
+        { "kind": "active", "ticks": 600, "hit_box": { "type": "arc", "radius": 32_768,
+                                                        "half_angle": 60 * 256 } },
+    ]);
+    let mut volley = common::rule(
+        common::always(),
+        json!("player"),
+        json!({ "type": "attack", "attack": { "inline": shot } }),
+        0,
+    );
+    volley["do"]["ranged"] = json!(true);
     let (x, y) = ENEMIES_AT;
     let back = common::rule(
         common::always(),
@@ -115,7 +123,8 @@ pub fn stage() -> Stage {
         json!({ "type": "move_to", "to": { "x": x, "y": y }, "ticks": 1 }),
         0,
     );
-    let enemy = common::enemy(100_000, common::hold(x, y), json!([attack, back]));
+    let enemy = common::enemy(100_000, common::hold(x, y), json!([attack, back.clone()]));
+    let shooter = common::enemy(100_000, common::hold(x, y), json!([volley, back]));
     let mut waves = vec![common::wave(
         1,
         PICKS,
@@ -124,7 +133,13 @@ pub fn stage() -> Stage {
         START_X,
         NEAR_Y,
     )];
-    waves.extend((0..5).map(|_| common::wave(WAVES_AT, 100, 1, enemy.clone(), x, y)));
+    // The shooters arrive first, so that their runs take their tokens and attack tasks before
+    // the crowd's swings fill the 256; then 496 enemies in five waves.
+    waves.push(common::wave(WAVES_AT, SHOOTERS, 1, shooter, x, y));
+    waves.extend((0..5).map(|i| {
+        let count = if i == 4 { 100 - SHOOTERS } else { 100 };
+        common::wave(WAVES_AT + 4, count, 1, enemy.clone(), x, y)
+    }));
     let zone = |radius: i32| {
         json!({ "type": "zone", "shape": { "type": "circle", "radius": radius },
                 "wind_up_ticks": 0, "active_ticks": 600 })
@@ -153,14 +168,11 @@ pub fn stage() -> Stage {
     );
     // The Main weapon's step: a circle of 256 pixels round the main character, active for two
     // ticks and hitting every tick, so that a tap every other tick lands on every enemy in it,
-    // every tick. Held, the charge lets go with the same step and a bullet, which finds 256
-    // attacks going and is refused.
+    // every tick. Held, the charge lets go with the same step.
     let step = json!([{ "kind": "active", "ticks": 2, "damage": 1, "rehit_ticks": 1,
                         "hit_box": { "type": "circle", "radius": 65_536 } }]);
     let released = json!({ "inline": [{ "kind": "active", "ticks": 2, "damage": 1,
-        "rehit_ticks": 1, "hit_box": { "type": "circle", "radius": 65_536 },
-        "spawn": [{ "type": "fire", "speed": 2048,
-                    "direction": { "type": "aimed", "offset": 0 } }] }] });
+        "rehit_ticks": 1, "hit_box": { "type": "circle", "radius": 65_536 } }] });
     let charged = json!({ "attack": { "inline": step }, "charge": {
         "levels": [{ "at_ticks": CHARGE_TICKS, "attack": released }], "max_ticks": 600 } });
     let mut main = common::weapon_combo(json!({ "main": charged }));
@@ -180,6 +192,10 @@ pub fn stage() -> Stage {
     );
     stage
 }
+
+/// The enemies that send orbs: `MAX_RANGED_ATTACKERS`, each with its eight (`MAX_ORBS_PER_OWNER`),
+/// 32 in all (`MAX_ORBS_ALIVE`).
+const SHOOTERS: u16 = 4;
 
 /// The first enemies the main character kills, for the stars that give it every rune and Rune
 /// Haste: seven runes, then the Rune Haste reward.
