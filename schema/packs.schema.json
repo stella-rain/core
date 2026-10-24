@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PacksFile",
+  "description": "The manifest as it sits in the file; `Packs::from_bytes` checks it.",
+  "type": "object",
+  "properties": {
+    "channels": {
+      "description": "One channel per core minor, keyed `\"<major>.<minor>\"`, at most 16.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/ChannelFile"
+      }
+    },
+    "schema": {
+      "description": "Always 1.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "seq": {
+      "description": "Rises with every release; a client never accepts a lower one than it has seen.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "seq",
+    "channels"
+  ],
+  "$defs": {
+    "ChannelFile": {
+      "description": "One channel as it sits in the file.",
+      "type": "object",
+      "properties": {
+        "pack_sha256": {
+          "description": "SHA-256 of the pack's bytes: 64 lowercase hex digits.",
+          "type": "string"
+        },
+        "tag": {
+          "description": "The release tag of the pack, such as `v0.2.0`.",
+          "type": "string"
+        },
+        "text_sha256": {
+          "description": "SHA-256 of the pack's text content: 64 lowercase hex digits, or null until it is made.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "url": {
+          "description": "Where the pack downloads from: `https://`, at most 512 bytes.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tag",
+        "pack_sha256",
+        "url"
+      ]
+    }
+  }
+}
