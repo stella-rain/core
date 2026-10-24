@@ -29,6 +29,9 @@ path = "src/bin/content_pack.rs"
 # The JSON Lines recorder of ADR-016: commands, domain events and state hashes, for tests and
 # debugging. Not in release builds; a bug report is a stage and a replay instead.
 record = []
+# The cases the tick benches count (ADR-SIM-6), built in `bench_fixtures` so that a change to the
+# simulation's API edits `src/` alone. Benches and their tests only; no dependency.
+bench = []
 
 [dependencies]
 # Share codes only (ADR-018): zlib compression with a limit on the decompressed size. Pure
