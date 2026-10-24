@@ -8,6 +8,9 @@
 pub mod attack;
 pub mod base64;
 pub mod behaviour;
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub mod bench_fixtures;
 pub mod constellations;
 pub mod content_hash;
 pub mod difficulties;
