@@ -113,13 +113,13 @@ fn the_constants_name_the_densest_minute_of_the_run() {
 #[test]
 fn the_densest_minute_holds_at_most_16_mib() {
     let run = run();
+    let held = live_bytes();
     let mut engine = Engine::start_with(&run.replay.setup, RunContent::bundled()).unwrap();
     let (start, end) = (
         WORST_MINUTE_START as usize,
         (WORST_MINUTE_START + MINUTE_TICKS) as usize,
     );
     play(&run, &mut engine, 0, start, |_, _| {});
-    let held = live_bytes();
     reset_peak();
     play(&run, &mut engine, start, end, |_, _| {});
     let peak = peak_bytes() - held;
