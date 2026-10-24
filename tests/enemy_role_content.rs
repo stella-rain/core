@@ -133,7 +133,11 @@ fn each_role_has_a_match_up_profile() {
 fn a_wave_id_is_a_well_formed_id_unique_in_the_schedule() {
     // An ID that no earlier wave has loads.
     let named = edited(|v| v["waves"][0]["id"] = json!("a_wave"));
-    assert!(TimeLimit::parse(&named).is_ok(), "{:?}", TimeLimit::parse(&named).err());
+    assert!(
+        TimeLimit::parse(&named).is_ok(),
+        "{:?}",
+        TimeLimit::parse(&named).err()
+    );
     // An ID that is not snake_case is refused at its wave.
     let bad = edited(|v| v["waves"][0]["id"] = json!("Not Snake"));
     assert_eq!(paths_of(&bad), ["$.waves[0].id"]);

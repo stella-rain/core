@@ -775,7 +775,7 @@
                               "type": "absolute",
                               "angle": 0
                             },
-                            "wind_up_ticks": 30,
+                            "wind_up_ticks": 40,
                             "active_ticks": 4
                           }
                         ]

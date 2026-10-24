@@ -175,7 +175,10 @@ fn the_line_caster_is_the_wave_ds11_names() {
         assert_eq!(lane["wind_up_ticks"], 90);
         assert_eq!(lane["active_ticks"], 6);
         assert!(lane.get("anchor").is_none());
-        assert_eq!(lane["offset"]["forward"], length, "line {i} starts where the last ended");
+        assert_eq!(
+            lane["offset"]["forward"], length,
+            "line {i} starts where the last ended"
+        );
         length += lane["shape"]["length"].as_i64().unwrap();
     }
     assert_eq!(length, 480 * 256);
@@ -269,4 +272,75 @@ fn the_mid_bosses_are_still_the_four() {
                 .any(|b| b["base"] == id)
         );
     }
+}
+
+/// The shortest warning of a zone: 40 ticks for a small one (BR1a, the boss and enemy docs'
+/// floor for a thumb on a phone). A big one warns for 90, as the boss's announced slam does.
+const WIND_UP_FLOOR: u64 = 40;
+
+#[test]
+fn no_zone_warns_for_less_than_the_floor() {
+    for (mode, v) in modes() {
+        for (path, o) in objects(&v) {
+            if o["type"] == "zone" {
+                let wind_up = o["wind_up_ticks"].as_u64().expect("constant ticks");
+                assert!(wind_up >= WIND_UP_FLOOR, "{mode} {path}: warns {wind_up}");
+            }
+        }
+    }
+}
+
+/// The most zones the player is warned of at once in any one phase run alone (the boss doc keeps
+/// a boss under about 24 markers; lines here are laid as two or three zones end to end, so the
+/// cap is counted in zones, not in lanes).
+const MOST_ZONES_AT_ONCE: usize = 64;
+
+/// Each phase of each boss, played alone against a main character who stands still: it places
+/// zones (and, where it throws them, orbs) within 15 seconds, and stays under the zone count.
+#[test]
+fn each_boss_phase_played_alone_places_zones_within_the_count() {
+    use crate::common::*;
+    let file = time_limit();
+    for boss in file["bosses"].as_array().unwrap() {
+        for (i, phase) in boss["phases"].as_array().unwrap().iter().enumerate() {
+            let mut one = boss.clone();
+            let mut p = phase.clone();
+            p.as_object_mut().unwrap().remove("until");
+            one["phases"] = serde_json::json!([p]);
+            one.as_object_mut().unwrap().remove("call_elites");
+            let mut trial: Value = serde_json::from_slice(mode_stage("trial").unwrap()).unwrap();
+            trial["boss"] = one;
+            trial["waves"] = serde_json::json!([]);
+            trial["player"]["hp"] = serde_json::json!(99_900);
+            let stage =
+                stella_rain_core::validate::parse_and_validate(trial.to_string().as_bytes())
+                    .unwrap_or_else(|e| panic!("{} phase {i}: {e:?}", boss["base"]));
+            let mut e = engine(&stage);
+            let (mut zones, mut orbs) = (0, 0);
+            for _ in 0..900 {
+                e.step(idle());
+                let snapshot = serde_json::to_value(e.snapshot()).unwrap();
+                zones = zones.max(snapshot["zones"].as_array().map_or(0, Vec::len));
+                let bullets = snapshot["bullets"].as_array().cloned().unwrap_or_default();
+                assert!(
+                    bullets.iter().all(|b| b["orb"] == true),
+                    "{} phase {i}: a bullet that is not an orb",
+                    boss["base"]
+                );
+                orbs = orbs.max(bullets.len());
+            }
+            let name = &boss["base"];
+            assert!(zones >= 1, "{name} phase {i} placed no zone");
+            assert!(
+                zones <= MOST_ZONES_AT_ONCE,
+                "{name} phase {i}: {zones} zones at once"
+            );
+            let throws_orbs = places_orbs(&phase["timeline"]);
+            assert_eq!(orbs > 0, throws_orbs, "{name} phase {i}: {orbs} orbs");
+        }
+    }
+}
+
+fn places_orbs(v: &Value) -> bool {
+    objects(v).iter().any(|(_, o)| o["type"] == "orb")
 }
