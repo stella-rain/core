@@ -215,7 +215,7 @@ fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[
     fs::create_dir_all(dir).unwrap();
     let content = match mode {
         Some(json) => {
-            fs::write(dir.join("mode.json"), json).unwrap();
+            write_atomic(&dir.join("mode.json"), json.as_bytes());
             case_content(dir).unwrap()
         }
         None => case_content(dir).unwrap(),
@@ -225,8 +225,8 @@ fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[
         .into_iter()
         .map(|h| hash_to_hex(h) + "\n")
         .collect();
-    fs::write(dir.join("run.replay"), recorded.to_bytes()).unwrap();
-    fs::write(dir.join("hashes.txt"), hashes).unwrap();
+    write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
+    write_atomic(&dir.join("hashes.txt"), hashes.as_bytes());
 }
 
 /// Writes the snapshots of the first diverging tick (`engine`'s) and of the one before to
@@ -269,6 +269,15 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
+/// Writes `bytes` to `path` so that no reader ever sees half of them: the other tests of this
+/// file read the cases while `UPDATE_CORPUS=1` rewrites them, and a plain `fs::write` truncates
+/// the file first.
+fn write_atomic(path: &Path, bytes: &[u8]) {
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, bytes).unwrap();
+    fs::rename(&tmp, path).unwrap();
+}
+
 /// Writes a case's three files from a stage and the inputs to run.
 fn write_case(dir: &Path, stage_bytes: &[u8], inputs: &[Input]) {
     let recorded = replay::record(stage_bytes, inputs).unwrap();
@@ -282,9 +291,9 @@ fn write_case(dir: &Path, stage_bytes: &[u8], inputs: &[Input]) {
         hashes.push('\n');
     }
     fs::create_dir_all(dir).unwrap();
-    fs::write(dir.join("stage.json"), stage_bytes).unwrap();
-    fs::write(dir.join("run.replay"), recorded.to_bytes()).unwrap();
-    fs::write(dir.join("hashes.txt"), hashes).unwrap();
+    write_atomic(&dir.join("stage.json"), stage_bytes);
+    write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
+    write_atomic(&dir.join("hashes.txt"), hashes.as_bytes());
 }
 
 fn changed_hash_case(name: &str) -> (PathBuf, PathBuf) {
