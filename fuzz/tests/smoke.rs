@@ -10,18 +10,19 @@ use std::path::{Path, PathBuf};
 use stella_rain_core::pack;
 use stella_rain_core::share;
 use stella_rain_core_fuzz::{
-    pack_load, replay_load, run_setup, share_decode, stage_parse, stage_run,
+    pack_load, packs_load, replay_load, run_setup, share_decode, stage_parse, stage_run,
 };
 
 type Target = fn(&[u8]) -> bool;
 
-const TARGETS: [(&str, Target); 6] = [
+const TARGETS: [(&str, Target); 7] = [
     ("stage_parse", stage_parse),
     ("stage_run", stage_run),
     ("replay_load", replay_load),
     ("share_decode", share_decode),
     ("run_setup", run_setup),
     ("pack_load", pack_load),
+    ("packs_load", packs_load),
 ];
 
 fn root() -> PathBuf {
@@ -209,6 +210,9 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
     if target == "run_setup" {
         return setups();
     }
+    if target == "packs_load" {
+        return vec![packs_manifest()];
+    }
     if target == "pack_load" {
         return vec![pack::export_bundled(), pack_with_constellations()];
     }
@@ -286,4 +290,25 @@ fn the_orb_and_ranged_stages_get_past_the_parser_and_run() {
         assert!(stage_parse(&stage), "stage_parse rejects the {name} stage");
         assert!(stage_run(&stage), "stage_run rejects the {name} stage");
     }
+}
+
+/// A two-channel manifest in the shape content's `release.cjs` writes: the seed of `packs_load`.
+fn packs_manifest() -> Vec<u8> {
+    let hash = "0123456789abcdef".repeat(4);
+    let channel = |minor: &str, text: &str| {
+        format!(
+            r#""{minor}": {{"pack_sha256": "{hash}", "tag": "v{minor}.0", "text_sha256": {text}, "url": "https://example.com/{minor}/pack.json"}}"#
+        )
+    };
+    format!(
+        "{{\"channels\": {{{}, {}}}, \"schema\": 1, \"seq\": 2}}\n",
+        channel("0.2", &format!("\"{hash}\"")),
+        channel("0.3", "null")
+    )
+    .into_bytes()
+}
+
+#[test]
+fn a_real_manifest_gets_past_the_loader() {
+    assert!(packs_load(&packs_manifest()), "packs_load rejects the seed");
 }

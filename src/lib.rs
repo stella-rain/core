@@ -25,6 +25,7 @@ pub mod input;
 pub mod kinds;
 pub mod match_ups;
 pub mod pack;
+pub mod packs;
 pub mod parsed_stage_hash;
 pub mod perk_sets;
 pub mod presets;
@@ -55,3 +56,12 @@ pub mod validate;
 pub mod version;
 pub mod weapon;
 pub mod weapons;
+
+/// The core minor this build is, as a packs.json channel key: "major.minor" of the package
+/// version, read at compile time. An app picks `packs::Packs::channel(CORE_MINOR)`, so it
+/// ignores a channel made for another minor.
+pub const CORE_MINOR: &str = concat!(
+    env!("CARGO_PKG_VERSION_MAJOR"),
+    ".",
+    env!("CARGO_PKG_VERSION_MINOR")
+);

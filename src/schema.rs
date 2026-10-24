@@ -11,6 +11,7 @@ use crate::expertise::ExpertiseFile;
 use crate::input::Input;
 use crate::match_ups::MatchUpsFile;
 use crate::pack::PackFile;
+use crate::packs::PacksFile;
 use crate::perk_sets::PerkSetsFile;
 use crate::replay::Replay;
 use crate::rewards::RewardsFile;
@@ -67,5 +68,6 @@ pub fn all() -> Vec<(&'static str, String)> {
         ),
         ("runes.schema.json", pretty(schema_for!(RunesFile))),
         ("pack.schema.json", pretty(schema_for!(PackFile))),
+        ("packs.schema.json", pretty(schema_for!(PacksFile))),
     ]
 }
