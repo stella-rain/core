@@ -1568,3 +1568,16 @@ fn a_knockback_is_0_to_the_pull_s_distance_over_1_to_its_ticks() {
         at("ticks")
     );
 }
+
+#[test]
+fn a_transition_is_clear_orbs_and_the_old_name_is_refused() {
+    // `clear_bullets` became `clear_orbs` with no alias (DS51): a stage with the old name does
+    // not parse.
+    let mut with_new = base();
+    with_new["boss"]["phases"][1]["transition"] = json!([{ "type": "clear_orbs" }]);
+    assert_valid(&with_new);
+
+    let mut with_old = base();
+    with_old["boss"]["phases"][1]["transition"] = json!([{ "type": "clear_bullets" }]);
+    assert!(serde_json::from_value::<Stage>(with_old).is_err());
+}
