@@ -65,6 +65,7 @@ mod match_ups;
 mod named_stars;
 mod numbers_298;
 mod orbit;
+mod orbs;
 mod overflow;
 mod pack;
 mod parsed_stage_hash;
