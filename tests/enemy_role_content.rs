@@ -3,9 +3,10 @@
 //! `tests/enemy_roles.rs` covers; these tests read the bundled file, so they check the content.
 //! Every number is a tuning value.
 
-use crate::common::run::{ENEMY_ROLE_BOT_SEED, run_input_for, time_limit_setup};
+use crate::common::run::time_limit_setup;
 use crate::common::*;
 use crate::run_play::play_run_with;
+use crate::zone_bot::{ENEMY_ROLE_BOT_SEED, run_input_for};
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;

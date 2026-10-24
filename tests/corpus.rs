@@ -1254,7 +1254,7 @@ impl EliteScript {
         {
             return wanted;
         }
-        common::run::avoid_bullets(engine, wanted, false)
+        crate::zone_bot::avoid(engine, common::run::avoid_bullets(engine, wanted, false))
     }
 
     fn wanted(&self, engine: &Engine, tick: u32) -> Input {
@@ -1267,7 +1267,7 @@ impl EliteScript {
         }
         let s = engine.snapshot();
         if s.entities.iter().any(|e| e.kind == EntityKind::Boss) {
-            return common::run::run_input_for(engine, tick, &[EntityKind::Boss], u32::MAX);
+            return crate::zone_bot::run_input_for(engine, tick, &[EntityKind::Boss], u32::MAX);
         }
         let me = s.player.at;
         let enemies = || {
@@ -1385,7 +1385,7 @@ fn short_time_limit(overtime: u32) -> (String, RunContent) {
 /// The run's buttons going for the boss as well as the enemies, getting out of the way of
 /// bullets throughout.
 fn boss_input(engine: &Engine, tick: u32) -> Input {
-    common::run::run_input_for(
+    crate::zone_bot::run_input_for(
         engine,
         tick,
         &[EntityKind::Enemy, EntityKind::Shrine, EntityKind::Boss],

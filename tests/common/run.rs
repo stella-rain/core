@@ -1,5 +1,4 @@
 //! A run of the trial mode (ADR-079), shared by the run replay, recording and corpus tests.
-use stella_rain_core::attack::{PhaseKind, ZoneShape};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
@@ -33,10 +32,9 @@ pub const RUNES_REROLL_SEED: u32 = 9;
 /// offer holds Alpha (n1).
 pub const CONSTELLATIONS_TRIO_SEED: u32 = 1;
 
-/// The seed of the enemy-role bot run: the first seed (checked 1 to 40, BR1a: the bot steps out of
-/// zones now) where the run on Normal
+/// The seed of the enemy-role bot run: the first seed under R1's streams where the run on Normal
 /// ends in the boss's kill.
-pub const ENEMY_ROLE_BOT_SEED: u64 = 5;
+pub const ENEMY_ROLE_BOT_SEED: u64 = 3;
 
 pub fn trial_setup() -> RunSetup {
     RunSetup {
@@ -186,70 +184,6 @@ pub fn avoid_bullets(engine: &Engine, mut input: Input, at_elite: bool) -> Input
             input.move_y = across(-vx);
         }
         input.evade |= k <= DODGE;
-    }
-    avoid_zones(engine, input)
-}
-
-/// Ticks before a zone hurts at which the bot starts to step out of it.
-const ZONE_SEE: u32 = 30;
-/// How far a `slash` reaches from its enemy, with the radii (1/256 pixel): 48 pixels.
-const SWING_REACH: i64 = 48 * 256;
-/// Pixels past a zone's edge the bot steps to (1/256 pixel).
-const ZONE_MARGIN: i64 = 12 * 256;
-
-/// `input` with the step out of the hostile zone the main character stands in, if it hurts within
-/// `ZONE_SEE` ticks (BR1a): away from a circle's or an arc's centre, across a line, and an
-/// evade at the last moment. It overrides the bullet and the chase steering.
-fn avoid_zones(engine: &Engine, mut input: Input) -> Input {
-    let s = engine.snapshot();
-    let me = s.player.at;
-    // A swing about to land within reach: the evade, which is invulnerable for a few ticks.
-    let swing = s.entities.iter().any(|v| {
-        v.kind == EntityKind::Enemy
-            && v.attack.as_ref().is_some_and(|a| {
-                a.kind == PhaseKind::WindUp && a.preset.as_ref().is_some_and(|p| p.0 == "slash")
-            })
-            && {
-                let (dx, dy) = (i64::from(me.x.0 - v.at.x.0), i64::from(me.y.0 - v.at.y.0));
-                dx * dx + dy * dy < SWING_REACH * SWING_REACH
-            }
-    });
-    input.evade |= swing;
-    let threat = s
-        .zones
-        .iter()
-        .filter(|z| !z.friendly)
-        .filter(|z| z.phase == PhaseKind::Active || z.ticks_left <= ZONE_SEE)
-        .filter_map(|z| {
-            let (dx, dy) = (i64::from(me.x.0 - z.at.x.0), i64::from(me.y.0 - z.at.y.0));
-            let away = match z.shape {
-                ZoneShape::Circle { radius } | ZoneShape::Arc { radius, .. } => (dx * dx + dy * dy
-                    < (i64::from(radius.0) + ZONE_MARGIN).pow(2))
-                .then_some((dx, dy))?,
-                ZoneShape::Line { length, width } => {
-                    let (fx, fy) = (i64::from(z.direction.x), i64::from(z.direction.y));
-                    let scale = i64::from(stella_rain_core::trig::SCALE);
-                    let along = (dx * fx + dy * fy) / scale;
-                    let across = (dx * -fy + dy * fx) / scale;
-                    let inside = (0..=i64::from(length.0)).contains(&along)
-                        && across.abs() < i64::from(width.0) / 2 + ZONE_MARGIN;
-                    inside.then_some((-fy * across.signum(), fx * across.signum()))?
-                }
-            };
-            Some((z.ticks_left, away))
-        })
-        .min_by_key(|(k, _)| *k);
-    if let Some((k, (ax, ay))) = threat {
-        let toward = |d: i64| match d {
-            d if d > 0 => 127,
-            d if d < 0 => -127,
-            _ => 0,
-        };
-        // Standing on the centre, any way out will do.
-        let (ax, ay) = if ax == 0 && ay == 0 { (1, 1) } else { (ax, ay) };
-        input.move_x = toward(ax);
-        input.move_y = toward(ay);
-        input.evade |= i32::try_from(k).is_ok_and(|k| k <= DODGE);
     }
     input
 }
