@@ -18,6 +18,7 @@ mod big_patterns;
 mod bleed;
 mod boomerang;
 mod boss;
+mod boss_zones;
 mod bosses;
 mod bullet_free_content;
 mod charge;
