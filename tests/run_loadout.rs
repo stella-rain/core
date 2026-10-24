@@ -370,12 +370,11 @@ fn regen_gives_back_its_hit_points_every_second_never_beyond_the_most() {
         let mut e = Engine::start_with(&setup, content).unwrap();
         let mut out = Vec::new();
         for t in 0..1200 {
-            e.step(Input::default());
+            e.step(idle_script(t));
             out.push(hp(&e));
             if e.offer_open() {
                 break;
             }
-            let _ = t;
         }
         out
     };

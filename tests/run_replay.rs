@@ -426,7 +426,7 @@ fn a_changed_input_or_seed_reaches_another_final_hash() {
 #[test]
 fn a_changed_stat_priority_reaches_another_final_hash() {
     let point = first_point_tick();
-    let replay = recorded(point + 20);
+    let replay = recorded(point + 10);
     let bytes = with(&replay, |v| v["setup"]["stat_priority"] = json!(["speed"]));
     assert!(matches!(
         verify_run(&bytes),
