@@ -84,6 +84,21 @@ class CandidateStamps(unittest.TestCase):
         self.assertIn('-f object="$commit"', self.tag)
 
 
+class CandidateKeepsTheDeepTier(unittest.TestCase):
+    """The deep tier ran on every candidate/** push and so gated Candidate through its check run;
+    with no such branch, Candidate calls it."""
+
+    def test_candidate_calls_deep_and_the_tag_job_waits_for_it(self):
+        text = read("candidate.yml")
+        self.assertIn("uses: ./.github/workflows/deep.yml", text)
+        self.assertRegex(job_block(text, "tag"), r"needs: \[check, [^\]]*deep")
+
+    def test_deep_can_be_called_and_has_no_candidate_branch_trigger(self):
+        text = read("deep.yml")
+        self.assertIn("workflow_call:", text)
+        self.assertNotIn("candidate/", text)
+
+
 class RemovedWorkflows(unittest.TestCase):
     def test_auto_candidate_is_gone(self):
         self.assertFalse(os.path.exists(os.path.join(WORKFLOWS, "auto-candidate.yml")))
