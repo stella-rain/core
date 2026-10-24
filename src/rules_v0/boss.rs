@@ -38,7 +38,6 @@ use crate::stage::{Step, Transition};
 use super::agents::{condition_holds, fire_first_rule, new_rule_states, step_order};
 use super::attacks;
 use super::entity::Who;
-use super::scratch::Scratch;
 
 /// Timeline steps taken in one tick, so that a `loop` with nothing to wait for ends the tick.
 const MAX_TIMELINE_STEPS_PER_TICK: u32 = 16;
@@ -256,15 +255,7 @@ fn begin_phase(
                 // Orbs are never friendly.
                 s.orbs = 0;
             }
-            Transition::ClearZones => {
-                let pool = &mut s.scratch.hit_lists;
-                s.zones.retain_mut(|z| {
-                    if !z.friendly {
-                        Scratch::recycle_hits(pool, std::mem::take(&mut z.hits));
-                    }
-                    z.friendly
-                });
-            }
+            Transition::ClearZones => s.zones.retain(|z| z.friendly),
             Transition::InvulnerableTicks { ticks } => {
                 if let Some(b) = s.boss.as_mut() {
                     b.invulnerable = b.invulnerable.max(*ticks);

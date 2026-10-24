@@ -401,12 +401,6 @@ fn take_hit(s: &mut State, w: &Swing, target: EntityId) -> bool {
             again
         }
         Err(i) => {
-            // The first hit of a run or a zone takes a list that has a room already, if one is
-            // waiting: only the runs and zones that hit hold one, so the pool settles at the
-            // most that hit at once and a steady tick allocates nothing (T1b).
-            if hits.capacity() == 0 {
-                *hits = s.scratch.take_hit_list();
-            }
             hits.insert(i, (target, tick));
             true
         }
