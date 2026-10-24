@@ -111,6 +111,7 @@ fn no_boss_phase_has_more_than_24_live_zones() {
             }
         }
     }
+    println!("peaks:{table}");
     assert!(
         over.is_empty(),
         "boss phases over {LIMIT} live zones: {over:?}\nall peaks:{table}"
