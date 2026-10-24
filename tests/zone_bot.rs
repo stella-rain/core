@@ -44,9 +44,14 @@ pub fn run_input_for(engine: &Engine, tick: u32, kinds: &[EntityKind], brave_fro
 }
 
 /// `input` with the evade of a swing about to land and the step out of the hostile zone the main
-/// character stands in, if it hurts within `ZONE_SEE` ticks: away from a circle's or an arc's
-/// centre, across a line. It overrides the bullet and the chase steering.
-pub fn avoid(engine: &Engine, mut input: Input) -> Input {
+/// character stands in: away from a circle's or an arc's centre, across a line. It overrides the
+/// bullet and the chase steering.
+pub fn avoid(engine: &Engine, input: Input) -> Input {
+    avoid_zones(engine, evade_swings(engine, input))
+}
+
+/// `input` with the evade of a `slash` about to land within reach.
+pub fn evade_swings(engine: &Engine, mut input: Input) -> Input {
     let s = engine.snapshot();
     let me = s.player.at;
     let swing = s.entities.iter().any(|v| {
@@ -60,6 +65,14 @@ pub fn avoid(engine: &Engine, mut input: Input) -> Input {
             }
     });
     input.evade |= swing;
+    input
+}
+
+/// `input` with the step out of the hostile zone the main character stands in, if it hurts within
+/// `ZONE_SEE` ticks.
+pub fn avoid_zones(engine: &Engine, mut input: Input) -> Input {
+    let s = engine.snapshot();
+    let me = s.player.at;
     let threat = s
         .zones
         .iter()

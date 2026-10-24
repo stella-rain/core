@@ -1193,7 +1193,7 @@ const ELITES_BY_MINUTE: [&str; 12] = [
 /// one elite that minute brings (so that the draws, which the seed still makes, never change
 /// what comes), the final boss as the only boss at minute 13, 1900 ticks of overtime (the boss's call is due 1800 ticks after it comes),
 /// and the leader's aura at 100%, so that its raise is plain: the escort shoots for the default
-/// 100, which 100% makes a hit of 200 (the bundled 25% makes 125, `tests/elite_pack_leader.rs`).
+/// 100 (its swing, since BR1a), which 100% makes a hit of 200 (the bundled 25% makes 125, `tests/elite_pack_leader.rs`).
 fn elites_time_limit() -> (String, RunContent) {
     let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
     v["length_ticks"] = json!(46_800);
@@ -1254,7 +1254,8 @@ impl EliteScript {
         {
             return wanted;
         }
-        crate::zone_bot::avoid(engine, common::run::avoid_bullets(engine, wanted, false))
+        // It does not evade the swings: its fight with the leader's escort is the point of the case.
+        crate::zone_bot::avoid_zones(engine, common::run::avoid_bullets(engine, wanted, false))
     }
 
     fn wanted(&self, engine: &Engine, tick: u32) -> Input {
@@ -1707,9 +1708,8 @@ fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
     );
     // A mimic is revealed.
     assert!(r.of("mimic").iter().any(|m| r.revealed.contains(&m.0)));
-    // A leader's aura raises a hit: an escort shot of 100 lands as 200 (100 * 200 / 100). Before
-    // the middle grade's elite comes (minute 8, the first to shoot for 200) nothing else deals
-    // 200.
+    // A leader's aura raises a hit: an escort swing of 100 lands as 200 (100 * 200 / 100). Before
+    // the middle grade's elite comes (minute 8) nothing else deals 200.
     assert!(
         r.hurts
             .iter()
