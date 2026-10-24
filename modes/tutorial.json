@@ -73,9 +73,8 @@
           ]
         },
         "movement": {
-          "type": "straight",
-          "vx": 0,
-          "vy": 192
+          "type": "follow",
+          "distance": 12288
         },
         "rules": [
           {
@@ -119,9 +118,8 @@
           ]
         },
         "movement": {
-          "type": "straight",
-          "vx": 0,
-          "vy": 192
+          "type": "follow",
+          "distance": 12288
         },
         "rules": [
           {

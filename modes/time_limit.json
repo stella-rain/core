@@ -604,7 +604,7 @@
                   {
                     "kind": "wind_up",
                     "ticks": 50,
-                    "damage": 4000,
+                    "damage": 3000,
                     "spawn": [
                       {
                         "type": "zone",
@@ -787,7 +787,7 @@
                     "ticks": 4,
                     "move_pct": 50,
                     "type": "strike",
-                    "damage": 300,
+                    "damage": 10000,
                     "hit_box": {
                       "type": "circle",
                       "radius": 10240
