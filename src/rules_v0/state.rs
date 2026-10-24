@@ -983,6 +983,8 @@ pub(crate) struct AttackRun {
     pub facing: Dir,
     pub aim: Aim,
     pub friendly: bool,
+    /// Started by a `ranged` rule: while in wind-up or active it holds a ranged token (core Z2).
+    pub ranged: bool,
     /// The damage its starter gives a phase that sets none (ADR-055): the main character's
     /// attack, a shot skill's own damage, 1 for an enemy or the boss.
     pub base: u32,

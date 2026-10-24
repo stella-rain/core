@@ -158,6 +158,9 @@ pub(crate) const MAX_BULLET_SPAWNS_PER_TICK: u32 = 200;
 /// Zones alive at once (core Z1, a placeholder cap pending ADR-058); a zone placed over it is
 /// dropped, as a bullet over `MAX_BULLETS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
+/// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
+/// it is in its wind-up or active phase, and a rule whose start would take a fifth waits.
+pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// Attacks being carried out at once (ADR-036 tier 3), and the node steps they may take in a
 /// tick between them. An attack that would take more waits for the next tick.
 pub(crate) const MAX_ATTACK_TASKS: u32 = 256;

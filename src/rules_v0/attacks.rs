@@ -66,6 +66,22 @@ pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
     s.runs.iter().any(|r| r.owner == owner && r.slot == slot)
 }
 
+/// The ranged tokens held now (core Z2): the `ranged` runs in their wind-up or active phase.
+pub(super) fn ranged_tokens(world: &World, s: &State) -> u32 {
+    let held = s
+        .runs
+        .iter()
+        .filter(|r| r.ranged && phase(world, r, r.phase as usize).kind != PhaseKind::Recovery);
+    u32::try_from(held.count()).unwrap_or(u32::MAX)
+}
+
+/// Marks the run that just started as a `ranged` one: it is the last in `runs`.
+pub(super) fn mark_ranged(s: &mut State) {
+    if let Some(r) = s.runs.last_mut() {
+        r.ranged = true;
+    }
+}
+
 /// The movement speed, in percent, that `owner`'s running attacks leave it: the lowest
 /// `move_pct` of their current phases, 100 with none.
 pub(super) fn move_pct(world: &World, s: &State, owner: EntityId) -> i64 {
@@ -445,6 +461,7 @@ fn launch(world: &World, s: &mut State, launch: Launch, events: &mut Vec<DomainE
         facing,
         aim,
         friendly: State::is_ally(owner),
+        ranged: false,
         base: base_damage,
         atk_up_pct,
         damage_pct: if State::is_ally(owner) {
@@ -1380,6 +1397,7 @@ mod attack_table_tests {
             facing: Dir::DOWN,
             aim: Aim::Fixed(Dir::DOWN),
             friendly: true,
+            ranged: false,
             base: 1,
             atk_up_pct: 0,
             damage_pct: 100,

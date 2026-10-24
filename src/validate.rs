@@ -282,6 +282,8 @@ pub fn validate_attack(
         issues: Vec::new(),
         left_out: false,
         arity,
+        foe: Foe::Enemy,
+        ranged_ok: false,
     };
     ctx.phases(phases);
     if ctx.issues.is_empty() {
@@ -310,6 +312,8 @@ pub fn validate_waves(
         issues: Vec::new(),
         left_out: false,
         arity: 0,
+        foe: Foe::Other,
+        ranged_ok: false,
     };
     for (i, w) in waves.iter().enumerate() {
         ctx.idx(i, |c| c.wave(w, length_ticks, max_count));
@@ -338,6 +342,8 @@ pub fn validate_levels_and_stars(
         issues: Vec::new(),
         left_out: false,
         arity: 0,
+        foe: Foe::Other,
+        ranged_ok: false,
     };
     ctx.key("levels", |c| c.levels(levels));
     ctx.key("stars", |c| c.stars(stars));
@@ -361,6 +367,8 @@ pub fn validate_attack_ref(attack: &AttackRef, registry: &[Entry]) -> Result<(),
         issues: Vec::new(),
         left_out: false,
         arity: 0,
+        foe: Foe::Other,
+        ranged_ok: false,
     };
     ctx.attack_ref(attack);
     if ctx.issues.is_empty() {
@@ -387,6 +395,8 @@ pub fn validate_weapon_preset(preset: &Weapon, registry: &[Entry]) -> Result<(),
         issues: Vec::new(),
         left_out: false,
         arity: 0,
+        foe: Foe::Other,
+        ranged_ok: false,
     };
     ctx.weapon(preset);
     if ctx.issues.is_empty() {
@@ -438,6 +448,8 @@ pub fn validate_with(stage: &Stage, registry: &[Entry]) -> Result<(), Error> {
         issues: Vec::new(),
         left_out: false,
         arity: 0,
+        foe: Foe::Other,
+        ranged_ok: false,
     };
     ctx.stage(stage);
     if ctx.left_out {
@@ -471,6 +483,21 @@ struct Ctx<'a> {
     left_out: bool,
     /// How many arguments the attack being checked takes: 0 for an inline attack in a stage.
     arity: u8,
+    /// Whose attacks are being checked (core Z2).
+    foe: Foe,
+    /// The rules being checked are a regular enemy's, which may be `ranged`.
+    ranged_ok: bool,
+}
+
+/// Whose attack the validator is in: orbs are only for enemies' and the boss's, `ranged` only for
+/// regular enemies' (core Z2).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Foe {
+    /// An ally's or the main character's: weapons, skills, runes, companions.
+    Other,
+    /// A regular enemy, or an elite.
+    Enemy,
+    Boss,
 }
 
 impl<'a> Ctx<'a> {
@@ -1076,7 +1103,10 @@ impl<'a> Ctx<'a> {
                 _ => {}
             }
         });
+        let was = self.ranged_ok;
+        self.ranged_ok = self.foe == Foe::Enemy && a.elite.is_none();
         self.rules("rules", &a.rules, summon_ok);
+        self.ranged_ok = was;
         if let Some(elite) = &a.elite {
             self.key("elite", |c| {
                 c.within("range", i64::from(elite.range.0), 1, i64::from(MAX_LEN));
@@ -1132,8 +1162,9 @@ impl<'a> Ctx<'a> {
             i64::from(MAX_SHRINE_GUARDIANS),
         );
         self.within("radius", i64::from(g.radius.0), 1, i64::from(MAX_LEN));
+        let foe = self.regular();
         self.key("enemy", |c| {
-            c.agent(&g.enemy, false);
+            c.as_foe(foe, |c| c.agent(&g.enemy, false));
             if g.enemy.elite.is_some() {
                 c.key("elite", |c| c.fail("a guardian is an ordinary enemy"));
             }
@@ -1234,14 +1265,22 @@ impl<'a> Ctx<'a> {
     fn action(&mut self, a: &Action, summon_ok: bool) {
         match a {
             Action::Cast { skill } => self.key("skill", |c| c.skill(skill)),
-            Action::Attack { attack } => self.key("attack", |c| c.attack_ref(attack)),
+            Action::Attack { attack, ranged } => {
+                if *ranged && !self.ranged_ok {
+                    self.key("ranged", |c| {
+                        c.fail("only a regular enemy's rule is ranged, not a companion's, an elite's or the boss's")
+                    });
+                }
+                self.key("attack", |c| c.attack_ref(attack))
+            }
             Action::Summon { agent, count } => {
                 if !summon_ok {
                     self.fail("a summoned agent cannot summon");
                     return;
                 }
                 self.within("count", i64::from(*count), 1, i64::from(MAX_SUMMON_COUNT));
-                self.key("agent", |c| c.agent(agent, false));
+                let foe = self.regular();
+                self.key("agent", |c| c.as_foe(foe, |c| c.agent(agent, false)));
             }
             Action::MoveTo { to, ticks } => {
                 self.point("to", to);
@@ -1290,7 +1329,9 @@ impl<'a> Ctx<'a> {
         if w.at_tick >= length_ticks {
             self.key("at_tick", |c| c.fail("must be before the stage ends"));
         }
-        self.key("enemy", |c| c.agent(&w.enemy, true));
+        self.key("enemy", |c| {
+            c.as_foe(Foe::Enemy, |c| c.agent(&w.enemy, true))
+        });
         self.point("spawn", &w.spawn);
         if let Some(around) = w.around {
             self.within("around", i64::from(around.0), 1, i64::from(MAX_LEN));
@@ -1325,7 +1366,28 @@ impl<'a> Ctx<'a> {
         });
     }
 
+    /// Runs `f` as the attacks of `foe`.
+    fn as_foe(&mut self, foe: Foe, f: impl FnOnce(&mut Self)) {
+        let was = std::mem::replace(&mut self.foe, foe);
+        f(self);
+        self.foe = was;
+    }
+
+    /// What an agent summoned or placed by the current one is: a regular enemy, unless the
+    /// current one is an ally's.
+    fn regular(&self) -> Foe {
+        if self.foe == Foe::Other {
+            Foe::Other
+        } else {
+            Foe::Enemy
+        }
+    }
+
     fn boss(&mut self, b: &Boss) {
+        self.as_foe(Foe::Boss, |c| c.boss_inner(b));
+    }
+
+    fn boss_inner(&mut self, b: &Boss) {
         self.content_id("base", &b.base, Kind::Asset);
         if let Some(p) = &b.palette {
             self.content_id("palette", p, Kind::Palette);

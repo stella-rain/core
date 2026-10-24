@@ -34,6 +34,7 @@ fn run(world: &mut World, owner: u32, phase_at: u32, pcts: &[u8]) -> AttackRun {
         facing: Dir::DOWN,
         aim: Aim::Fixed(Dir::DOWN),
         friendly: false,
+        ranged: false,
         base: 1,
         atk_up_pct: 0,
         damage_pct: 100,
