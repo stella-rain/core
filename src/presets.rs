@@ -17,10 +17,10 @@ use crate::registry::{self, Kind};
 
 /// `(id, definition)`: the definitions are JSON, the stage format's own, with `{"arg": n}` for
 /// the preset's arguments. Angles are in 1/256 degree, lengths in 1/256 pixel and speeds in 1/256
-/// pixel a tick. The bullet patterns are one active phase of one tick that spawns its bullets;
+/// pixel a tick. The orb patterns are one active phase of one tick that spawns its orbs;
 /// the melee swings (`slam`, `slash`, `thrust`) are a wind-up, an active hit box and a recovery.
 const DEFINITIONS: &[(&str, &str)] = &[
-    // The five shots below were bullet patterns until BR1c (DS10: nothing flies free any more);
+    // The five shots below were orb patterns until BR1c (DS10: nothing flies free any more);
     // their IDs and argument counts stay (ADR-CONT-2) and they are zones now: a circle where
     // the target stands, or lines from the attacker toward it. Argument 0 of the three that take one is the warning in ticks
     // (the other two warn for 15).

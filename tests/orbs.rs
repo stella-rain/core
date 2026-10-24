@@ -58,16 +58,9 @@ fn stage(waves: Vec<Value>) -> Stage {
     quiet(stage_with(600, Some(far_boss()), waves))
 }
 
-fn bullets(e: &Engine) -> Vec<Value> {
-    let snapshot = serde_json::to_value(e.snapshot()).unwrap();
-    snapshot["bullets"].as_array().cloned().unwrap_or_default()
-}
-
 fn orbs(e: &Engine) -> Vec<Value> {
-    bullets(e)
-        .into_iter()
-        .filter(|b| b["orb"] == json!(true))
-        .collect()
+    let snapshot = serde_json::to_value(e.snapshot()).unwrap();
+    snapshot["orbs"].as_array().cloned().unwrap_or_default()
 }
 
 fn zones(e: &Engine) -> Vec<Value> {

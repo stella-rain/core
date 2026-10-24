@@ -23,7 +23,7 @@ pub(crate) struct Scratch {
     pub(super) found_bits: Vec<u64>,
     /// Emptied hit lists of ended attack runs (`AttackRun::hits`), for new runs to take.
     pub(super) hit_lists: Vec<Vec<(EntityId, u32)>>,
-    /// Whether each bullet of the tick was used up.
+    /// Whether each orb of the tick was used up.
     pub(super) consumed: Vec<bool>,
 }
 

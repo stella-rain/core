@@ -43,8 +43,8 @@ use std::ops::Deref;
 use crate::attack::{Anchor, AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
 use crate::difficulties::scale_pct;
 use crate::engine::{
-    Aim, AttackRun, AttackTask, BulletState, Dir, Frame, Frames, Hook, Origin, PathStep, Smash,
-    State, StatusKind, ZoneState,
+    Aim, AttackRun, AttackTask, Dir, Frame, Frames, Hook, OrbState, Origin, PathStep, Smash, State,
+    StatusKind, ZoneState,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -107,7 +107,7 @@ fn scan_move_pct(world: &World, s: &State, owner: EntityId) -> i64 {
         .unwrap_or(100)
 }
 
-/// Starts `attack` for `owner` in `slot`, aimed at `target`. Bullets do `base_damage`, raised by
+/// Starts `attack` for `owner` in `slot`, aimed at `target`. Orbs do `base_damage`, raised by
 /// the owner's atk-up as it is now. False, starting nothing, if the slot is busy.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn start(
@@ -534,7 +534,7 @@ pub(super) fn retain_runs(s: &mut State, keep: impl Fn(&AttackRun) -> bool) {
 }
 
 /// Ends `owner`'s run in `slot`, if any: an evade cancels the main character's combo step, and
-/// a follow-up press its recovery (ADR-070, ADR-076). Bullets it spawned fly on.
+/// a follow-up press its recovery (ADR-070, ADR-076). Orbs it spawned fly on.
 pub(super) fn end_run(world: &World, s: &mut State, owner: EntityId, slot: u8) {
     retain_runs(s, |r| r.owner != owner || r.slot != slot);
     s.move_index.rebuild(world, &s.runs);
@@ -569,7 +569,7 @@ pub(super) fn end_runs_of(world: &World, s: &mut State, owner: EntityId) {
     s.move_index.rebuild(world, &s.runs);
 }
 
-/// The damage of run `r`'s current phase, for its hit box and the bullets it spawns: the
+/// The damage of run `r`'s current phase, for its hit box and the orbs it spawns: the
 /// phase's own, or else the starter's, raised by the atk-up and by the type bonus of the
 /// phase's damage type (none for a neutral phase), both fixed at the attack's start.
 pub(super) fn phase_damage(world: &World, r: &AttackRun) -> u32 {
@@ -645,7 +645,7 @@ fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEv
 #[inline(never)]
 pub(super) fn fire_hooks(s: &mut State) {
     let mut starts = Vec::new();
-    for b in &mut s.bullets {
+    for b in &mut s.orbs {
         let Some(hook) = b.hook.as_mut() else {
             continue;
         };
@@ -898,7 +898,7 @@ fn toward(s: &State, from: Point, target: EntityId) -> Option<Dir> {
     ))
 }
 
-/// The direction an `aimed` bullet takes from `from`: at the entity (straight down if it is
+/// The direction an `aimed` orb takes from `from`: at the entity (straight down if it is
 /// gone), or along the fixed direction.
 fn aim(s: &State, from: Point, aim: Aim) -> Dir {
     match aim {
@@ -1191,11 +1191,11 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
     if t.friendly {
         return true;
     }
-    if s.bullets.len() >= MAX_ORBS_ALIVE as usize {
+    if s.orbs.len() >= MAX_ORBS_ALIVE as usize {
         return true;
     }
-    if s.bullets.len() >= MAX_ORBS_PER_OWNER as usize {
-        let mine = s.bullets.iter().filter(|b| b.owner == t.owner);
+    if s.orbs.len() >= MAX_ORBS_PER_OWNER as usize {
+        let mine = s.orbs.iter().filter(|b| b.owner == t.owner);
         if mine.count() >= MAX_ORBS_PER_OWNER as usize {
             return true;
         }
@@ -1225,12 +1225,12 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
     });
     let scale = i64::from(trig::SCALE);
     let velocity = |component: i32| Fx(saturate(i64::from(component) * i64::from(speed) / scale));
-    s.bullets.push(BulletState {
+    s.orbs.push(OrbState {
         at: origin,
         vx: velocity(dir.x),
         vy: velocity(dir.y),
         dir,
-        style: style.as_ref().map_or(0, |b| registry::bullet_style(&b.0)),
+        style: style.as_ref().map_or(0, |b| registry::orb_style(&b.0)),
         owner: t.owner,
         damage: t.damage,
         damage_type: t.damage_type,

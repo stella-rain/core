@@ -3,8 +3,8 @@
 //! cooldown is 0, it is thrown: its hit box flies from the main character to the point hit over
 //! its first active phase, then back toward where the main character is over its second, a
 //! straight step each tick that reaches the point and then the main character on each leg's
-//! last tick. It hits each enemy once on the way out and once on the way back. No bullet: it
-//! is a hit box, so the bullets alive from runes stay at 0. Its damage is the main character's
+//! last tick. It hits each enemy once on the way out and once on the way back. No orb: it
+//! is a hit box, so the orbs alive from runes stay at 0. Its damage is the main character's
 //! without a combo step, through atk-up but no type bonus and no match-up; its hits give no
 //! expertise and fire no rune. Every number here is worked out by hand.
 
@@ -348,13 +348,13 @@ fn a_neutral_throw_gets_atk_up_but_no_type_bonus_or_match_up() {
 }
 
 #[test]
-fn no_bullet_comes_from_it() {
+fn no_orb_comes_from_it() {
     let mut e = holding(runes(60, THROW, 0), tough(0, None, None));
     wait_for_target(&mut e);
     let start = e.tick();
     for _ in 0..2 * LEG + 2 {
         e.step(once(start)(e.tick()));
-        assert!(e.snapshot().bullets.is_empty(), "a hit box, never a bullet");
+        assert!(e.snapshot().orbs.is_empty(), "a hit box, never an orb");
     }
 }
 

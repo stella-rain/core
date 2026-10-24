@@ -1,5 +1,5 @@
 //! Damage types and match-ups (ADR-100): an attack phase may have one damage type, which its
-//! hit box and its bullets carry; enemies, elites, bosses and boss parts may have a match-up
+//! hit box and its orbs carry; enemies, elites, bosses and boss parts may have a match-up
 //! profile. Each hit gets exactly one match-up, weak (+20), strong (−20), resisted (−20) or
 //! none, applied as a target's multiplier after vulnerability and before defence (ADR-056).
 
@@ -184,7 +184,7 @@ fn the_match_up_comes_after_vulnerability_and_before_defence() {
 }
 
 #[test]
-fn a_bullet_carries_its_phases_type() {
+fn an_orb_carries_its_phases_type() {
     let st = striker(
         once(shoot(10, "pyro")),
         target(Some(json!({ "weak": ["pyro"] })), 0),

@@ -1,4 +1,4 @@
-//! The bundled modes fire no bullet (BR1a, DS10, DS11): the crowd, the elites and the bosses
+//! The bundled modes fire no orb (BR1a, DS10, DS11): the crowd, the elites and the bosses
 //! attack with zones, orbs and melee. These tests read the bundled files, so they check the
 //! content; the rules they use are covered by `zones.rs`, `orbs.rs` and `ranged_cap.rs`.
 
@@ -6,8 +6,8 @@ use serde_json::Value;
 use stella_rain_core::run_setup::mode_stage;
 use stella_rain_core::time_limit::TimeLimit;
 
-/// The shot presets, which fired bullets until BR1c and now place zones.
-const BULLET_PRESETS: [&str; 5] = [
+/// The shot presets, which fired orbs until BR1c and now place zones.
+const ORB_PRESETS: [&str; 5] = [
     "aimed_single",
     "aimed_spread",
     "spread_5",
@@ -70,17 +70,17 @@ fn bosses_of(v: &Value) -> Vec<&Value> {
 }
 
 #[test]
-fn no_bundled_mode_fires_a_bullet() {
+fn no_bundled_mode_fires_an_orb() {
     for (mode, v) in modes() {
         for (path, o) in objects(&v) {
             assert_ne!(o["type"], "fire", "{mode} {path}: a fire node");
-            assert_ne!(o["type"], "clear_bullets", "{mode} {path}: clear_bullets");
+            assert_ne!(o["type"], "clear_orbs", "{mode} {path}: clear_orbs");
             if let Some(id) = o["id"].as_str()
                 && o.get("args").is_some()
             {
                 assert!(
-                    !BULLET_PRESETS.contains(&id),
-                    "{mode} {path}: the bullet preset {id}"
+                    !ORB_PRESETS.contains(&id),
+                    "{mode} {path}: the orb preset {id}"
                 );
             }
         }
@@ -321,13 +321,13 @@ fn each_boss_phase_played_alone_places_zones_within_the_count() {
                 e.step(idle());
                 let snapshot = serde_json::to_value(e.snapshot()).unwrap();
                 zones = zones.max(snapshot["zones"].as_array().map_or(0, Vec::len));
-                let bullets = snapshot["bullets"].as_array().cloned().unwrap_or_default();
+                let alive = snapshot["orbs"].as_array().cloned().unwrap_or_default();
                 assert!(
-                    bullets.iter().all(|b| b["orb"] == true),
-                    "{} phase {i}: a bullet that is not an orb",
+                    alive.iter().all(|b| b["orb"] == true),
+                    "{} phase {i}: an orb that is not an orb",
                     boss["base"]
                 );
-                orbs = orbs.max(bullets.len());
+                orbs = orbs.max(alive.len());
             }
             let name = &boss["base"];
             assert!(zones >= 1, "{name} phase {i} placed no zone");

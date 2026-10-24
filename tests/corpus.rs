@@ -548,7 +548,7 @@ fn boss() -> Definition {
                 )]
             },
             {
-                "transition": [{ "type": "clear_bullets" },
+                "transition": [{ "type": "clear_orbs" },
                                { "type": "invulnerable_ticks", "ticks": 10 }],
                 "timeline": [shot, { "type": "wait", "ticks": 8 }, { "type": "loop" }]
             }
@@ -590,7 +590,7 @@ fn fail() -> Definition {
 /// and a recovery, rooted while they wind up and swing; a companion orbiting it cleaves them
 /// with a wide arc that hits again every 2 ticks, through their defence. The main character
 /// stands still, then walks from side to side, playing the `giant_sword`'s combos, whose smashes
-/// pull what they hit. Nobody fires a bullet.
+/// pull what they hit. Nobody fires an orb.
 fn melee() -> Definition {
     let phase = |kind: &str, ticks: u32, hit_box: Value, damage: u32, move_pct: u8| {
         json!({ "kind": kind, "ticks": ticks, "hit_box": hit_box, "damage": damage,
@@ -1204,7 +1204,7 @@ impl EliteScript {
             return wanted;
         }
         // It does not evade the swings: its fight with the leader's escort is the point of the case.
-        crate::zone_bot::avoid_zones(engine, common::run::avoid_bullets(engine, wanted, false))
+        crate::zone_bot::avoid_zones(engine, common::run::avoid_orbs(engine, wanted, false))
     }
 
     fn wanted(&self, engine: &Engine, tick: u32) -> Input {
@@ -1333,7 +1333,7 @@ fn short_time_limit(overtime: u32) -> (String, RunContent) {
 }
 
 /// The run's buttons going for the boss as well as the enemies, getting out of the way of
-/// bullets throughout.
+/// orbs throughout.
 fn boss_input(engine: &Engine, tick: u32) -> Input {
     crate::zone_bot::run_input_for(
         engine,
@@ -1696,7 +1696,7 @@ fn the_trial_run_case_hits_every_match_up() {
     );
 }
 
-/// How a recorded case ends and the most bullets it ever has on screen.
+/// How a recorded case ends and the most orbs it ever has on screen.
 fn what_happens(name: &str) -> (Outcome, u32, usize) {
     let case = corpus_dir().join(name);
     let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
@@ -1705,7 +1705,7 @@ fn what_happens(name: &str) -> (Outcome, u32, usize) {
     let mut peak = 0;
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
         engine.step(input);
-        peak = peak.max(engine.snapshot().bullets.len());
+        peak = peak.max(engine.snapshot().orbs.len());
     }
     (engine.outcome(), engine.snapshot().player.hp, peak)
 }
@@ -1760,7 +1760,7 @@ fn orb_and_token_reach(name: &str) -> (usize, usize, usize, bool) {
             })
             .count();
         held = held.max(tokens);
-        orbs = orbs.max(snapshot.bullets.iter().filter(|b| b.orb).count());
+        orbs = orbs.max(snapshot.orbs.iter().filter(|b| b.orb).count());
         zoned |= !snapshot.zones.is_empty();
         broken += engine
             .events()
@@ -1798,12 +1798,12 @@ fn the_cases_are_what_their_names_say() {
     assert_eq!(outcome, Outcome::Failed);
     assert!(hp > 0, "the main character is alive when the time runs out");
     assert_eq!(what_happens("agents").0, Outcome::Running);
-    // Hit boxes alone: no bullet ever flies, yet the main character is hurt and enemies die.
+    // Hit boxes alone: no orb ever flies, yet the main character is hurt and enemies die.
     let (outcome, hp, peak) = what_happens("melee");
     assert_eq!((outcome, peak), (Outcome::Running, 0));
     assert!(hp < 9_900, "the swings land: {hp} hp left");
     assert!(deaths("melee") >= 2, "the companion cleaves");
-    // Zones alone: no bullet flies, a good many zones are alive at once, the clear takes the
+    // Zones alone: no orb flies, a good many zones are alive at once, the clear takes the
     // boss's with the phase, and the main character is hurt by them.
     let (outcome, hp, peak) = what_happens("zones");
     assert_eq!((outcome, peak), (Outcome::Running, 0));

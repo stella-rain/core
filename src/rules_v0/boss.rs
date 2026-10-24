@@ -5,9 +5,9 @@
 //! Each tick, in this order: the phase may end; the timeline goes on; the phase's rules fire
 //! (the same rules as an agent's, with the boss as the agent).
 //!
-//! - **Entering a phase** cancels the attacks the boss was carrying out (bullets already
+//! - **Entering a phase** cancels the attacks the boss was carrying out (orbs already
 //!   fired stay, and so do the attacks they will start), then runs its transitions:
-//!   `clear_bullets` removes every enemy bullet, `invulnerable_ticks` makes the boss and its
+//!   `clear_orbs` removes every enemy orb, `invulnerable_ticks` makes the boss and its
 //!   parts take no harm for that long. The first phase is entered on the first tick without a
 //!   `PhaseChanged` event; later ones announce themselves with one.
 //! - **The timeline** is carried out a step at a time. `move_to`, `wait` and `telegraph` hold
@@ -251,9 +251,9 @@ fn begin_phase(
     }
     for transition in &phase.transition {
         match transition {
-            Transition::ClearBullets => {
+            Transition::ClearOrbs => {
                 // Every projectile is an orb, and none is friendly.
-                s.bullets.clear();
+                s.orbs.clear();
             }
             Transition::ClearZones => {
                 let pool = &mut s.scratch.hit_lists;
@@ -341,7 +341,7 @@ fn timeline(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
 }
 
 /// An attack of the boss's own, aimed at the main character, the run stats file's
-/// `enemy_attack_damage` a bullet, on the phase's clock: `phase_time` is 0 on the first tick of the phase.
+/// `enemy_attack_damage` an orb, on the phase's clock: `phase_time` is 0 on the first tick of the phase.
 fn start_attack(
     stage: &World,
     s: &mut State,

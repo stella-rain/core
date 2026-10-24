@@ -295,7 +295,7 @@ impl Stage {
 }
 
 /// The rectangle the run plays on, from its top-left corner, and where the main character
-/// starts. The main character and companions are clamped to it; enemies and bullets leave once
+/// starts. The main character and companions are clamped to it; enemies and orbs leave once
 /// they are more than `FIELD_MARGIN` outside it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -342,7 +342,7 @@ impl Map {
     }
 
     /// Whether a point is on the map or at most `FIELD_MARGIN` outside it. It runs for every
-    /// bullet every tick, so each axis is one unsigned comparison, as the compiler made it when
+    /// orb every tick, so each axis is one unsigned comparison, as the compiler made it when
     /// the bounds were constants: `v + FIELD_MARGIN` wraps below 0 to above any span, and the
     /// validator keeps the spans far below `i32::MAX`.
     pub fn holds(&self) -> impl Fn(Point) -> bool + use<> {
@@ -535,8 +535,8 @@ pub struct Phase {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Transition {
-    ClearBullets,
-    /// Removes every enemy zone, as `clear_bullets` removes every enemy bullet (core Z1).
+    ClearOrbs,
+    /// Removes every enemy zone, as `clear_orbs` removes every enemy orb (core Z1).
     ClearZones,
     InvulnerableTicks {
         ticks: u32,

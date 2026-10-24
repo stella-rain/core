@@ -1,7 +1,7 @@
 //! Runes (ADR-099): the Main weapon's set, each rune at most once, the random rune's draw, and
 //! the on-hit runes' fire.
 //!
-//! When a combo step's hit lands (by hit box or bullet, as the expertise gauge counts it), each
+//! When a combo step's hit lands (by hit box or orb, as the expertise gauge counts it), each
 //! on-hit rune held whose cooldown is 0 fires its attack around the point hit, in the order
 //! held, and its cooldown is set to the runes file's; each cooldown counts down by 1 at the
 //! start of every tick. The attack runs in the rune's own slot, as the main character's but no
@@ -27,7 +27,7 @@
 //! character is now. Each tick, after the main character moves, the centre goes a straight
 //! step, the distance left over the ticks left in the phase, so that it is on the point hit on
 //! the first phase's last tick and on the main character on the second's; no steering, no
-//! bullet. Each phase is active and keeps its own hit list, so an enemy on the way is hit once
+//! orb. Each phase is active and keeps its own hit list, so an enemy on the way is hit once
 //! out and once back. The path is a placeholder.
 //!
 //! Homing missiles launch `missiles` hit boxes from the main character, missile k in slot
@@ -41,8 +41,8 @@
 //!
 //! Bounds (ADR-099 point 7): one attack at a time per rune, in its slot, the file holding each
 //! attack to its cooldown; a rune whose slot is still busy does not fire and keeps its cooldown
-//! at 0. A cooldown is held to `MAX_RUNE_COOLDOWN_TICKS`. No rune fires a bullet, a thrown one
-//! included: the bullets alive from runes stay at 0. Homing missiles launch at most
+//! at 0. A cooldown is held to `MAX_RUNE_COOLDOWN_TICKS`. No rune fires an orb, a thrown one
+//! included: the orbs alive from runes stay at 0. Homing missiles launch at most
 //! `MAX_HOMING_MISSILES`, all in their slots and the file holding each flight to the cooldown,
 //! so no more fly at once. A damage-over-time status is one per kind on an entity, its stacks,
 //! interval, duration and damage held to `MAX_DOT_STACKS`, `MAX_DOT_INTERVAL_TICKS`,

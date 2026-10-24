@@ -1,6 +1,6 @@
 //! Attacks (ADR-036 tier 3): emitter trees carried out over time, expressions, presets and
 //! their inline copies, and the runtime caps. An enemy standing at (46080, 50000) starts an
-//! attack straight above the main character, so "aimed" means straight down; the bullets that
+//! attack straight above the main character, so "aimed" means straight down; the orbs that
 //! come out are read from the snapshot, and their velocities from where they first appear (one
 //! move after they were fired).
 
@@ -19,7 +19,7 @@ const OX: i32 = 46_080;
 const OY: i32 = 50_000;
 const DEG: i32 = PER_DEGREE;
 
-/// A bullet as it first shows up: the tick, and where it is after its first move.
+/// An orb as it first shows up: the tick, and where it is after its first move.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Seen {
     tick: u32,
@@ -96,7 +96,7 @@ fn shooter(attack: Value) -> Value {
     )
 }
 
-/// The weapons are quiet, so that every bullet is the enemy's.
+/// The weapons are quiet, so that every orb is the enemy's.
 fn attack_stage(attack: Value) -> Stage {
     quiet(stage_full(
         18_000,
@@ -106,23 +106,23 @@ fn attack_stage(attack: Value) -> Stage {
     ))
 }
 
-/// Runs `ticks` ticks and lists every bullet the attack made, in the order they appeared. The
-/// bullets must all still be flying (short runs, slow bullets).
+/// Runs `ticks` ticks and lists every orb the attack made, in the order they appeared. The
+/// orbs must all still be flying (short runs, slow orbs).
 fn shots_of(stage: &Stage, ticks: u32) -> Vec<Seen> {
     let mut e = engine(stage);
     let mut seen = 0;
     let mut out = Vec::new();
     for _ in 0..ticks {
         e.step(idle());
-        let bullets = e.snapshot().bullets;
-        // Bullets that have left the field are gone from the list; start again from there.
-        seen = seen.min(bullets.len());
-        out.extend(bullets[seen..].iter().map(|b| Seen {
+        let orbs = e.snapshot().orbs;
+        // Orbs that have left the field are gone from the list; start again from there.
+        seen = seen.min(orbs.len());
+        out.extend(orbs[seen..].iter().map(|b| Seen {
             tick: e.tick(),
             x: b.at.x.0,
             y: b.at.y.0,
         }));
-        seen = bullets.len();
+        seen = orbs.len();
     }
     out
 }
@@ -138,7 +138,7 @@ fn velocities(shots: &[Seen]) -> Vec<(i32, i32)> {
     shots.iter().map(Seen::v).collect()
 }
 
-/// How fast each bullet goes, whichever way: the length of its velocity.
+/// How fast each orb goes, whichever way: the length of its velocity.
 fn speeds(shots: &[Seen]) -> Vec<i32> {
     shots
         .iter()
@@ -194,13 +194,13 @@ fn aimed_points_at_the_target_and_turns_by_its_offset() {
 
 #[test]
 fn aimed_follows_the_target_not_the_enemys_line() {
-    // The main character a little to the right: the bullet leans that way.
+    // The main character a little to the right: the orb leans that way.
     let mut e = engine(&attack_stage(
         json!({ "inline": spawned(json!([fire(json!(768), aimed())])) }),
     ));
     e.step(moving(127, 0));
-    let bullet = e.snapshot().bullets[0];
-    assert!(bullet.at.x.0 > OX, "{bullet:?}");
+    let orb = e.snapshot().orbs[0];
+    assert!(orb.at.x.0 > OX, "{orb:?}");
 }
 
 #[test]
@@ -229,14 +229,14 @@ fn relative_turns_from_the_direction_of_the_parent() {
 }
 
 #[test]
-fn sequential_turns_from_the_last_bullet() {
+fn sequential_turns_from_the_last_orb() {
     let step = |degrees: i32| {
         fire(
             json!(768),
             json!({ "type": "sequential", "step": degrees * DEG }),
         )
     };
-    // Down, then each bullet a quarter turn on: right, up, left, down.
+    // Down, then each orb a quarter turn on: right, up, left, down.
     let shots = inline(vec![step(90), step(90), step(90), step(90)], 1);
     assert_eq!(
         velocities(&shots),
@@ -275,10 +275,10 @@ fn a_spread_fans_its_rounds_evenly_across_its_angle_round_the_aim() {
             1,
         ))
     };
-    // Three bullets over 90 degrees: -45, 0, +45 from straight down. 768 / sqrt(2) = 543.
+    // Three orbs over 90 degrees: -45, 0, +45 from straight down. 768 / sqrt(2) = 543.
     near(&fan(3, 90), &[(-543, 543), (0, 768), (543, 543)], 1);
     near(&fan(2, 60), &[(-384, 665), (384, 665)], 1);
-    // A single bullet goes straight at the target, whatever the angle.
+    // A single orb goes straight at the target, whatever the angle.
     assert_eq!(fan(1, 90), [(0, 768)]);
     assert_eq!(fan(5, 0), [(0, 768); 5]);
 }
@@ -299,7 +299,7 @@ fn rotate_turns_everything_in_its_body_and_they_add_up() {
     // Turns also carry a ring or a spread round: 90 + 0/90/180/270.
     let shots = v(vec![rotate(90 * DEG, vec![ring(4, vec![down(768)])])]);
     assert_eq!(shots, [(768, 0), (0, -768), (-768, 0), (0, 768)]);
-    // `sequential` goes on from the last bullet and ignores the turns round it.
+    // `sequential` goes on from the last orb and ignores the turns round it.
     let seq = fire(json!(768), json!({ "type": "sequential", "step": 0 }));
     assert_eq!(v(vec![rotate(90 * DEG, vec![seq])]), [(0, 768)]);
 }
@@ -391,7 +391,7 @@ fn loop_index_phase_time_and_arithmetic() {
     );
     // The innermost loop's round, with a ring in a repeat.
     let inner = fire(mul(json!("loop_index"), json!(100)), absolute(0));
-    // (The ring turns the bullets, so their speeds are read from the length of the velocity.)
+    // (The ring turns the orbs, so their speeds are read from the length of the velocity.)
     let shots = inline(
         vec![repeat(json!(2), json!(0), vec![ring(3, vec![inner])])],
         2,
@@ -462,7 +462,7 @@ fn rand_draws_from_the_runs_generator_left_to_right() {
     let expected = i32::try_from(rng.below(1001) + rng.below(1001)).unwrap();
     assert_eq!(got, expected);
 
-    // A single draw per bullet, in the order the bullets are made, and in range.
+    // A single draw per orb, in the order the orbs are made, and in range.
     let body = fire(json!({ "rand": [100, 200] }), absolute(0));
     let speeds: Vec<i32> = velocities(&inline(vec![repeat(json!(8), json!(0), vec![body])], 1))
         .iter()
@@ -499,7 +499,7 @@ fn an_empty_range_takes_no_draw_and_fields_draw_in_order() {
     let got = velocities(&inline(vec![fire(sum, absolute(0))], 1))[0].1;
     assert_eq!(got, 5 + first_two().0);
     // The speed is worked out before the direction: a draw for each, in that order. The angle
-    // is a draw of 0 to 1000 units of 1/256 degree, and the speed another, so the bullet's
+    // is a draw of 0 to 1000 units of 1/256 degree, and the speed another, so the orb's
     // speed is the first draw and its turn the second.
     let rolled = fire(
         json!({ "rand": [0, 1000] }),
@@ -522,7 +522,7 @@ fn an_empty_range_takes_no_draw_and_fields_draw_in_order() {
 }
 
 #[test]
-fn bullets_start_where_the_attacks_owner_is_at_that_moment() {
+fn orbs_start_where_the_attacks_owner_is_at_that_moment() {
     // The enemy walks down 100 a tick; its attack fires on tick 1 and again on tick 11.
     let walker = enemy(
         50,
@@ -560,8 +560,8 @@ fn the_seed_changes_the_draws() {
 
 #[test]
 fn a_huge_attack_is_spread_over_ticks_by_the_step_budget() {
-    // 100 rounds of 100 rounds of nothing, then a bullet: 1 + 100 * 202 + 1 = 20,202 steps. At
-    // 4,096 a tick that is five ticks, so the bullet is made on tick 5, not tick 1.
+    // 100 rounds of 100 rounds of nothing, then an orb: 1 + 100 * 202 + 1 = 20,202 steps. At
+    // 4,096 a tick that is five ticks, so the orb is made on tick 5, not tick 1.
     let inner = repeat(json!(100), json!(0), vec![wait(0)]);
     let shots = inline(
         vec![repeat(json!(100), json!(0), vec![inner]), down(768)],
@@ -744,15 +744,15 @@ fn the_spiral_turns_six_degrees_a_line_every_three_ticks() {
 // --- The fixture and the rest of the engine --------------------------------------------------
 
 #[test]
-fn a_bullet_names_its_style() {
+fn an_orb_names_its_style() {
     let styled = json!({ "type": "orb", "speed": 768, "style": "orb_small", "ticks": 100,
                 "direction": absolute(0) });
     let mut e = engine(&attack_stage(
         json!({ "inline": spawned(json!([styled, down(768)])) }),
     ));
     e.step(idle());
-    let styles: Vec<u16> = e.snapshot().bullets.iter().map(|b| b.style).collect();
+    let styles: Vec<u16> = e.snapshot().orbs.iter().map(|b| b.style).collect();
     assert_eq!(styles, [1, 0]);
-    assert_eq!(registry::bullet_style("orb_small"), 1);
-    assert_eq!(registry::bullet_style("no_such_bullet"), 0);
+    assert_eq!(registry::orb_style("orb_small"), 1);
+    assert_eq!(registry::orb_style("no_such_orb"), 0);
 }

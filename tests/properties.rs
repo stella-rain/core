@@ -42,7 +42,7 @@ fn config() -> ProptestConfig {
 
 // --- Generators ------------------------------------------------------------------------------
 
-/// The stages of `tests/corpus/v0/`: agents, statuses, healing, bullets, a boss with a part,
+/// The stages of `tests/corpus/v0/`: agents, statuses, healing, orbs, a boss with a part,
 /// a run that fails and one that times out.
 fn corpus_stages() -> &'static [Stage] {
     static STAGES: OnceLock<Vec<Stage>> = OnceLock::new();
@@ -155,7 +155,7 @@ fn within(map: MapView, x: i32, y: i32, margin: i32) -> bool {
 proptest! {
     #![proptest_config(config())]
 
-    /// The main character is clamped to the stage's map. Everything else may spawn, and bullets
+    /// The main character is clamped to the stage's map. Everything else may spawn, and orbs
     /// may fly, up to the margin around it, and is gone beyond that.
     #[test]
     fn positions_stay_in_bounds(stage in 0..corpus_stages().len(), inputs in inputs()) {
@@ -169,9 +169,9 @@ proptest! {
                 let at = entity.at;
                 prop_assert!(within(s.map, at.x.0, at.y.0, FIELD_MARGIN), "entity {:?} on tick {}", entity, s.tick);
             }
-            for bullet in &s.bullets {
-                let at = bullet.at;
-                prop_assert!(within(s.map, at.x.0, at.y.0, FIELD_MARGIN), "bullet {:?} on tick {}", bullet, s.tick);
+            for orb in &s.orbs {
+                let at = orb.at;
+                prop_assert!(within(s.map, at.x.0, at.y.0, FIELD_MARGIN), "orb {:?} on tick {}", orb, s.tick);
             }
         }
     }

@@ -95,7 +95,7 @@ fn regen(id: &str, rarity: &str, amount: u32, limit: u8) -> Value {
 }
 
 /// A shooter 40 000 pixels to the side of the main character, out of the Main weapon's reach,
-/// that fires once at the first tick: its bullet hurts the main character by 100 hit points.
+/// that fires once at the first tick: its orb hurts the main character by 100 hit points.
 /// Its 10 000 hit points keep the weapon from killing it.
 fn shooter() -> Value {
     let rules = json!([attack_rule(always(), 10_000)]);
@@ -103,7 +103,7 @@ fn shooter() -> Value {
     wave(1, 1, 0, enemy(10_000, hold(x, y), rules), x, y)
 }
 
-/// As `shooter`, with a bullet of `damage`: enough to leave room for a heal of shown size.
+/// As `shooter`, with an orb of `damage`: enough to leave room for a heal of shown size.
 fn heavy_shooter(damage: u32) -> Value {
     let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "damage": damage, "spawn": [
         { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }
@@ -116,7 +116,7 @@ fn heavy_shooter(damage: u32) -> Value {
 }
 
 /// `count` enemies of 10 hp at `NEAR_Y`, one every 6 ticks from `at_tick`, standing still. The
-/// shooter's bullet takes about 20 ticks to arrive, so the targets wait for it.
+/// shooter's orb takes about 20 ticks to arrive, so the targets wait for it.
 fn targets(at_tick: u32, count: u16) -> Value {
     wave(
         at_tick,
@@ -241,7 +241,7 @@ fn a_regen_reward_is_bounded_like_the_max_hit_points_reward() {
 
 #[test]
 fn a_boss_kill_heals_a_quarter_of_the_most_hit_points_as_far_as_the_most_allows() {
-    // The shooters' bullets hurt the main character once: the invulnerability after a hit
+    // The shooters' orbs hurt the main character once: the invulnerability after a hit
     // absorbs the rest. The heal is 25 percent of the most (250) as far as the most leaves room
     // for the hit points it had before the heal.
     let mut e = engine(&boss_stage_with(3, 100, heal_json(25, 150, 5)));
@@ -255,7 +255,7 @@ fn a_boss_kill_heals_a_quarter_of_the_most_hit_points_as_far_as_the_most_allows(
 
 #[test]
 fn a_boss_kill_heals_up_to_the_most_hit_points_and_no_further() {
-    // One bullet: 900 on the kill's tick; 250 more would be 1150, so it heals 100 to the most.
+    // One orb: 900 on the kill's tick; 250 more would be 1150, so it heals 100 to the most.
     let mut e = engine(&boss_stage_with(1, 100, heal_json(25, 150, 5)));
     let seen = run(&mut e, 600, boss_dead);
     assert_eq!(healed(&seen), vec![100]);
@@ -276,7 +276,7 @@ fn a_boss_kill_heals_nothing_in_a_stage_without_healing() {
 
 #[test]
 fn a_regular_kill_drops_a_pickup_at_one_in_one_and_the_first_heals_on_touch() {
-    // One in one: every regular kill drops, and each pickup is taken where it fell. The bullet
+    // One in one: every regular kill drops, and each pickup is taken where it fell. The orb
     // hurts the main character to 900 first, so the first pickup heals 100 to the most.
     let stage = healing(
         stage_full(
@@ -297,7 +297,7 @@ fn a_regular_kill_drops_a_pickup_at_one_in_one_and_the_first_heals_on_touch() {
 #[test]
 fn a_pickup_heals_300_shown_hit_points_as_far_as_the_most_allows() {
     // The kill at `NEAR_Y` drops a pickup the main character takes at once, on the tick the
-    // shooter's bullet hurts it to 900: 300 shown more would be far past 1000, so it heals 100
+    // shooter's orb hurts it to 900: 300 shown more would be far past 1000, so it heals 100
     // to the most.
     let stage = healing(
         stage_full(
@@ -316,7 +316,7 @@ fn a_pickup_heals_300_shown_hit_points_as_far_as_the_most_allows() {
 
 #[test]
 fn a_pickup_heals_far_more_than_300_raw_hit_points() {
-    // At the most a stage allows (99 shown), a bullet of 90 shown hit points leaves 9 shown:
+    // At the most a stage allows (99 shown), an orb of 90 shown hit points leaves 9 shown:
     // the pickup's 300 shown hit points heal all 90 back, to the most and no further.
     let mut stage = healing(
         stage_full(

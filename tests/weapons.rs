@@ -109,7 +109,7 @@ fn play(e: &mut Engine, inputs: &[Input]) -> Played {
             .events
             .extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         let snapshot = e.snapshot();
-        let bullets: Vec<i32> = snapshot
+        let orbs: Vec<i32> = snapshot
             .zones
             .iter()
             .filter(|z| z.friendly)
@@ -117,8 +117,8 @@ fn play(e: &mut Engine, inputs: &[Input]) -> Played {
             .collect();
         played
             .shots
-            .extend(bullets[seen..].iter().map(|v| (e.tick(), *v)));
-        seen = bullets.len();
+            .extend(orbs[seen..].iter().map(|v| (e.tick(), *v)));
+        seen = orbs.len();
     }
     played
 }

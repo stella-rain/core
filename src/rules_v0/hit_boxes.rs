@@ -1,5 +1,5 @@
 //! Hit boxes (ADR-055): every active phase with a hit box hurts the targets inside it, in the
-//! collision step, before bullets.
+//! collision step, before orbs.
 //!
 //! - A hit box follows its attacker, or stays on the point an on-hit rune's attack fired at
 //!   (ADR-099), and faces the way the attack faced when it started. Its
@@ -135,7 +135,7 @@ impl Sector {
 }
 
 /// Every active hit box hurts what it covers. `grid` is the enemy grid, built here if a
-/// friendly hit box needs it and left for the bullets after.
+/// friendly hit box needs it and left for the orbs after.
 // Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
 // (ADR-058).
 #[inline(never)]
@@ -152,7 +152,7 @@ pub(super) fn resolve(
     swings.sort_by_key(|w| (w.owner.0, w.slot));
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
-    if !s.bullets.is_empty() {
+    if !s.orbs.is_empty() {
         break_orbs(s, &swings, events);
     }
     for w in &swings {
@@ -173,11 +173,11 @@ pub(super) fn resolve(
 }
 
 /// A breakable enemy orb that a hit box of the main character covers is removed, with no burst,
-/// and reported once (core Z2, C24). It is gone before the bullets land, so it hurts nobody this
+/// and reported once (core Z2, C24). It is gone before the orbs land, so it hurts nobody this
 /// tick.
 fn break_orbs(s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
     let mine = |w: &&Swing| w.friendly && w.owner == super::PLAYER_ID;
-    s.bullets.retain(|b| {
+    s.orbs.retain(|b| {
         if !b.breakable {
             return true;
         }
@@ -436,7 +436,7 @@ fn shot(w: &Swing) -> Shot {
 }
 
 /// The boss, its parts and the enemies, in entity-ID order. An invulnerable boss shields its
-/// parts, as it does from bullets.
+/// parts, as it does from orbs.
 fn hit_enemy_side(
     stage: &World,
     s: &mut State,

@@ -582,7 +582,7 @@ fn random_inputs_keep_every_invariant() {
             let s = e.snapshot();
             assert!((0..=92_160).contains(&s.player.at.x.0));
             assert!((0..=163_840).contains(&s.player.at.y.0));
-            assert!(s.bullets.len() <= 4000);
+            assert!(s.orbs.len() <= 4000);
             assert!(enemies(&s) <= 500);
             assert!(s.entities.windows(2).all(|w| w[0].id < w[1].id));
             // HP rises only by a heal (the fixture's companion heals the main character below

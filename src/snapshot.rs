@@ -74,7 +74,7 @@ pub struct Snapshot {
     pub player: PlayerView,
     /// Companions, enemies, the boss and its parts, in entity-ID order.
     pub entities: Vec<EntityView>,
-    pub bullets: Vec<BulletView>,
+    pub orbs: Vec<OrbView>,
     /// Zones placed and not yet over, in the order they were placed (core Z1); the frontend draws
     /// each as a telegraph while it warns and as a hit while it is active.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -657,18 +657,18 @@ pub enum EntityKind {
     Shrine,
 }
 
-/// Bullets carry no ID or asset name: thousands are drawn per tick, batched by `style`.
+/// Orbs carry no ID or asset name: thousands are drawn per tick, batched by `style`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct BulletView {
+pub struct OrbView {
     pub at: Point,
-    /// How far the bullet moves each tick, in 1/256 pixel: it moved by this to reach `at`, and
+    /// How far the orb moves each tick, in 1/256 pixel: it moved by this to reach `at`, and
     /// moves by it again on the next tick. The frontend draws it at `at` plus this times the
     /// fraction of the tick that has passed.
     pub vx: Fx,
     pub vy: Fx,
     pub radius: Fx,
-    /// The bullet asset, as an index into the bullet asset IDs the stage uses, in order of
+    /// The orb asset, as an index into the orb asset IDs the stage uses, in order of
     /// first appearance.
     pub style: u16,
     /// An orb (core Z2): slow, timed, and it bursts when its time is up.

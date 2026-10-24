@@ -341,7 +341,7 @@ fn a_revealed_mimic_shows_its_own_sprite_and_is_an_elite_to_the_minimap() {
 
 #[test]
 fn it_takes_damage_from_the_tick_it_reveals_and_is_never_hidden_again() {
-    // A bullet of the main character is on the mimic when it reveals: the walk is slow enough
+    // An orb of the main character is on the mimic when it reveals: the walk is slow enough
     // that the test shoots from where the mimic is. Simpler: the mimic reveals at once, on tick
     // 1, and the shots that reach it afterwards hurt it.
     let mut e = engine(&quiet_stage(vec![wave(

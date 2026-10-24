@@ -2,7 +2,7 @@
 //! JSON as untrusted bytes (ADR-020). Every on-hit rune of the closed list has its entry, once:
 //! a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS` ticks, a base damage of 1 to `MAX_DAMAGE`, and
 //! its attack, at most `MAX_RUNE_PHASES` phases whose hit boxes land around the hit point,
-//! over before the cooldown is, spawning no bullets. Explosion, thunder, boomerang and homing
+//! over before the cooldown is, spawning no orbs. Explosion, thunder, boomerang and homing
 //! missiles are the four; boomerang's attack is its throw, out and back, two active phases;
 //! homing missiles' is one missile's flight, one active phase, and only its entry has the
 //! missiles it launches, 1 to `MAX_HOMING_MISSILES`, and the range it picks targets within, 1
@@ -227,7 +227,7 @@ fn boomerang_s_attack_is_its_throw_two_active_phases() {
         at(with(json!([active(4), { "kind": "active", "ticks": 4 }]))),
         ["$.on_hit[2].attack[1].hit_box"]
     );
-    // It is checked as the others are: bullets, its first leg's ticks, the cooldown.
+    // It is checked as the others are: orbs, its first leg's ticks, the cooldown.
     let mut spawning = active(4);
     spawning["spawn"] = json!([
         { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }
@@ -339,7 +339,7 @@ fn homing_missiles_attack_is_one_flight_an_active_phase_with_a_hit_box() {
         at(with(json!([{ "kind": "active", "ticks": 4 }]))),
         ["$.on_hit[3].attack[0].hit_box"]
     );
-    // It is checked as the others are: bullets, its first phase's ticks, the cooldown.
+    // It is checked as the others are: orbs, its first phase's ticks, the cooldown.
     let mut spawning = active(4);
     spawning["spawn"] = json!([
         { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }
@@ -698,7 +698,7 @@ fn the_attack_lands_somewhere_and_from_the_tick_after_it_fires() {
 }
 
 #[test]
-fn the_attack_fires_no_bullets_sets_no_damage_and_never_slows_the_main_character() {
+fn the_attack_fires_no_orbs_sets_no_damage_and_never_slows_the_main_character() {
     let mut spawning = active(4);
     spawning["spawn"] = json!([
         { "type": "zone", "shape": { "type": "circle", "radius": 3_072 }, "anchor": "target", "wind_up_ticks": 0, "active_ticks": 2 }

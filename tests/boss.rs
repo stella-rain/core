@@ -117,8 +117,8 @@ fn hits(events: &[(u32, DomainEvent)]) -> Vec<(u32, EntityId, u32)> {
         .collect()
 }
 
-fn hostile_bullets(e: &Engine) -> usize {
-    e.snapshot().bullets.len()
+fn hostile_orbs(e: &Engine) -> usize {
+    e.snapshot().orbs.len()
 }
 
 fn hostile_zones(e: &Engine) -> usize {
@@ -273,7 +273,7 @@ fn a_phase_has_its_own_clock_and_its_own_rule_states() {
 // --- Transitions -----------------------------------------------------------------------------
 
 #[test]
-fn clear_bullets_removes_the_orbs_in_the_air() {
+fn clear_orbs_removes_the_orbs_in_the_air() {
     let orb = json!({ "type": "attack", "attack": { "inline": spawned(json!([
         { "type": "orb", "speed": 64, "ticks": 100, "direction": { "type": "aimed", "offset": 0 } }
     ])) } });
@@ -289,7 +289,7 @@ fn clear_bullets_removes_the_orbs_in_the_air() {
             ),
             phase(
                 None,
-                json!([{ "type": "clear_bullets" }]),
+                json!([{ "type": "clear_orbs" }]),
                 json!([]),
                 json!([]),
             ),
@@ -297,11 +297,11 @@ fn clear_bullets_removes_the_orbs_in_the_air() {
     ));
     let mut e = engine(&stage);
     play(&mut e, 29, idle());
-    assert!(hostile_bullets(&e) > 0, "the boss has been shooting");
+    assert!(hostile_orbs(&e) > 0, "the boss has been shooting");
     // Tick 30 begins phase 1.
     e.step(idle());
     assert_eq!(e.tick(), 30);
-    assert_eq!(hostile_bullets(&e), 0);
+    assert_eq!(hostile_orbs(&e), 0);
 }
 
 #[test]
@@ -872,7 +872,7 @@ fn a_boss_run_is_the_same_every_time() {
             ),
             phase(
                 None,
-                json!([{ "type": "clear_bullets" }, { "type": "invulnerable_ticks", "ticks": 10 }]),
+                json!([{ "type": "clear_orbs" }, { "type": "invulnerable_ticks", "ticks": 10 }]),
                 json!([
                     json!({ "type": "attack", "attack": { "preset": { "id": "spread_5", "args": [] } } }),
                     step_wait(15),
@@ -922,7 +922,7 @@ fn the_end_of_a_phase_ends_a_move_that_was_under_way() {
 #[test]
 fn an_attack_started_by_a_rule_runs_on_the_phase_clock() {
     // `phase_time` is 0 on the first tick of a phase. Phase 1 begins on tick 11; its rule fires
-    // when the phase is 6 ticks old, on tick 16, at phase time 5: the bullet's speed is
+    // when the phase is 6 ticks old, on tick 16, at phase time 5: the orb's speed is
     // 100 + 5 * 10 (aimed straight down).
     let speed = json!({ "add": [100, { "mul": ["phase_time", 10] }] });
     let attack = json!({ "inline": spawned(json!([{ "type": "orb", "ticks": 100, "speed": speed,
@@ -941,10 +941,10 @@ fn an_attack_started_by_a_rule_runs_on_the_phase_clock() {
     for _ in 0..16 {
         e.step(idle());
     }
-    assert_eq!(hostile_bullets(&e), 1);
-    let before = e.snapshot().bullets[0].at.y.0;
+    assert_eq!(hostile_orbs(&e), 1);
+    let before = e.snapshot().orbs[0].at.y.0;
     e.step(idle());
-    assert_eq!(e.snapshot().bullets[0].at.y.0 - before, 150);
+    assert_eq!(e.snapshot().orbs[0].at.y.0 - before, 150);
 }
 
 #[test]
