@@ -14,7 +14,7 @@
 //! bounds under hard caps (ADR-099 point 7): a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS`, a
 //! damage of 1 to `MAX_DAMAGE`, and an attack of 1 to `MAX_RUNE_PHASES` phases, checked as any
 //! attack, that lasts no longer than the cooldown, so each rune has at most one attack going.
-//! It spawns no bullets, so no bullet comes from a rune; it sets no damage of its own, the
+//! It spawns no orbs, so no orb comes from a rune; it sets no damage of its own, the
 //! rune's `damage` being its base; and it never slows the main character. Its first phase lasts
 //! at least 2 ticks: it counts the tick the rune fires on, whose hits have landed already.
 //!
@@ -353,7 +353,7 @@ fn attack(r: &OnHitRune, cooldown_ok: bool, path: &str, fail: &mut impl FnMut(St
     for (j, p) in phases.iter().enumerate() {
         let at = |field: &str| format!("{path}[{j}].{field}");
         if !p.spawn.is_empty() {
-            fail(at("spawn"), "no bullets from a rune".into());
+            fail(at("spawn"), "no orbs from a rune".into());
         }
         if p.damage.is_some() {
             fail(at("damage"), "the rune's damage is its base".into());

@@ -1,4 +1,4 @@
-//! An enemy's bullet does 100 shown hit points (10,000 stored) from the run stats file, bounded
+//! An enemy's orb does 100 shown hit points (10,000 stored) from the run stats file, bounded
 //! by a code ceiling, and the expertise hit point amounts are on the same scale (DS6 items 4
 //! and 5).
 
@@ -70,7 +70,7 @@ fn setup() -> RunSetup {
 }
 
 #[test]
-fn an_enemy_bullet_takes_10_000_and_five_hits_end_a_trial_run_from_50_000() {
+fn an_enemy_orb_takes_10_000_and_five_hits_end_a_trial_run_from_50_000() {
     let mode = shooter_mode();
     let mut e = Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap();
     let start = e.snapshot().player.hp;

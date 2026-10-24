@@ -15,7 +15,7 @@ fn entries_are_sorted_by_kind_then_id_without_duplicates() {
     let order = |k: Kind| match k {
         Kind::Asset => 0,
         Kind::Palette => 1,
-        Kind::Bullet => 2,
+        Kind::Orb => 2,
         Kind::Preset => 3,
         Kind::Status => 4,
         Kind::Weapon => 5,

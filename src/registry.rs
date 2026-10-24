@@ -12,8 +12,8 @@ pub enum Kind {
     /// (ADR-098).
     Asset,
     Palette,
-    /// A bullet sprite.
-    Bullet,
+    /// An orb sprite.
+    Orb,
     /// An attack preset (ADR-036); `args` is how many arguments it takes.
     Preset,
     /// A buff or debuff (ADR-036).
@@ -73,7 +73,7 @@ pub const ENTRIES: &[Entry] = &[
     entry("stone_warden", Kind::Asset, 0),
     entry("weaver", Kind::Asset, 0),
     entry("ice", Kind::Palette, 0),
-    entry("orb_small", Kind::Bullet, 0),
+    entry("orb_small", Kind::Orb, 0),
     entry("aimed_single", Kind::Preset, 1),
     entry("aimed_spread", Kind::Preset, 1),
     entry("elite_slam", Kind::Preset, 0),
@@ -113,12 +113,12 @@ pub fn find<'a>(entries: &'a [Entry], kind: Kind, id: &str) -> Option<&'a Entry>
     entries.iter().find(|e| e.kind == kind && e.id == id)
 }
 
-/// The style of a bullet asset for the renderer: 0 for the default bullet, otherwise 1 plus the
-/// position of the asset among the bullet assets of `ENTRIES`.
-pub fn bullet_style(id: &str) -> u16 {
+/// The style of an orb asset for the renderer: 0 for the default orb, otherwise 1 plus the
+/// position of the asset among the orb assets of `ENTRIES`.
+pub fn orb_style(id: &str) -> u16 {
     ENTRIES
         .iter()
-        .filter(|e| e.kind == Kind::Bullet)
+        .filter(|e| e.kind == Kind::Orb)
         .position(|e| e.id == id)
         .map_or(0, |i| u16::try_from(i + 1).unwrap_or(0))
 }

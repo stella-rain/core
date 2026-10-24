@@ -1,5 +1,5 @@
 //! The hit benchmark's tick (`bench_fixtures::hit_case`, core BR1b) has the load it claims: no
-//! bullet and no orb, 500 enemies alive and the crowd under the main character's melee hit
+//! orb and no orb, 500 enemies alive and the crowd under the main character's melee hit
 //! boxes (ADR-055) and 128 active zones (core Z1), clustered and spread over the largest map.
 //! Enemy zones hurt only the main character and the companions, so the zones that load the
 //! crowd are the friendly ones: 112 of the 128, the other 16 an enemy's.
@@ -50,14 +50,14 @@ fn hits_by(engine: &Engine, source: impl Fn(EntityId) -> bool) -> usize {
 fn assert_load(engine: &Engine) {
     let load = engine.load();
     assert_eq!(load.enemies, 500, "{load:?}");
-    assert_eq!(load.bullets, 0, "{load:?}");
+    assert_eq!(load.orbs, 0, "{load:?}");
     assert_eq!(load.orbs, 0, "{load:?}");
     assert_eq!(load.zones, 128, "{load:?}");
     let enemies = enemies(engine);
     assert_eq!(enemies.len(), 500);
     assert!(enemies.iter().all(|e| e.hp > 0), "the crowd is unbeaten");
     let snapshot = engine.snapshot();
-    assert!(snapshot.bullets.is_empty(), "nothing is in the air");
+    assert!(snapshot.orbs.is_empty(), "nothing is in the air");
     assert_eq!(snapshot.zones.len(), 128);
     assert!(snapshot.zones.iter().all(|z| z.phase == PhaseKind::Active));
     assert_eq!(snapshot.zones.iter().filter(|z| z.friendly).count(), 112);

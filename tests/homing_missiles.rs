@@ -6,8 +6,8 @@
 //! the main character: the boss and its parts first, then elites, then the nearest, then the
 //! lower entity ID; missile k takes the k-th, starting over when there are fewer targets than
 //! missiles, and with none in range every missile takes the enemy the step hit. Nothing is
-//! drawn from the generator. Each missile hits one enemy once, then is gone. No bullet: the
-//! bullets alive from runes stay at 0. Its damage is the main character's without a combo
+//! drawn from the generator. Each missile hits one enemy once, then is gone. No orb: the
+//! orbs alive from runes stay at 0. Its damage is the main character's without a combo
 //! step, through atk-up but no type bonus and no match-up; its hits give no expertise and fire
 //! no rune. Every number here is worked out by hand; explosion, thunder and boomerang never hit.
 
@@ -451,12 +451,12 @@ fn a_neutral_missile_gets_atk_up_but_no_type_bonus_or_match_up() {
 }
 
 #[test]
-fn no_bullet_comes_from_it() {
+fn no_orb_comes_from_it() {
     let mut e = holding(&arena(vec![]), runes(4, RANGE));
     let start = e.tick();
     for _ in 0..FLIGHT + 2 {
         e.step(once(start)(e.tick()));
-        assert!(e.snapshot().bullets.is_empty(), "hit boxes, never bullets");
+        assert!(e.snapshot().orbs.is_empty(), "hit boxes, never orbs");
     }
 }
 

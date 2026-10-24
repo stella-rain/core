@@ -2,8 +2,8 @@
 //! 147456), facing up the field; every attack goes along the facing.
 //!
 //! The test step charges while its button stays held from its start: level 0 is its own
-//! attack (a bullet at 1024); level 1 at 30 ticks (perfect for 8 ticks, +50%, a bullet at
-//! 2048); level 2 at 60 (perfect for 8 ticks, +100%, a bullet at 3072, or at 4096 when perfect);
+//! attack (an orb at 1024); level 1 at 30 ticks (perfect for 8 ticks, +50%, an orb at
+//! 2048); level 2 at 60 (perfect for 8 ticks, +100%, an orb at 3072, or at 4096 when perfect);
 //! released by itself at 90; half speed while charging. No cooldown.
 
 use crate::common;
@@ -17,7 +17,7 @@ use stella_rain_core::snapshot::ChargeView;
 use stella_rain_core::stage::Stage;
 
 /// An attack that places one zone `ahead` along its aim on the tick it starts.
-fn one_bullet(ahead: i32) -> Value {
+fn one_orb(ahead: i32) -> Value {
     json!({ "inline": spawned(json!([zone_ahead(ahead)])) })
 }
 
@@ -28,16 +28,16 @@ fn zone_ahead(ahead: i32) -> Value {
             "wind_up_ticks": 0, "active_ticks": 200 })
 }
 
-/// A step whose own attack is a bullet at 1024 and which charges as the module says.
+/// A step whose own attack is an orb at 1024 and which charges as the module says.
 fn charged() -> Value {
     json!({
-        "attack": one_bullet(1024),
+        "attack": one_orb(1024),
         "charge": {
             "levels": [
                 { "at_ticks": 30, "perfect_ticks": 8, "perfect_pct": 50,
-                  "attack": one_bullet(2048) },
+                  "attack": one_orb(2048) },
                 { "at_ticks": 60, "perfect_ticks": 8, "perfect_pct": 100,
-                  "attack": one_bullet(3072), "perfect_attack": one_bullet(4096) }
+                  "attack": one_orb(3072), "perfect_attack": one_orb(4096) }
             ],
             "max_ticks": 90, "move_pct": 50
         }
@@ -247,7 +247,7 @@ fn a_buffered_step_charges_only_if_its_button_is_held_as_it_starts() {
         stage_with(18_000, Some(far_boss()), vec![]),
         weapon_combo(json!({ "main": { "attack": first, "next": { "main": charged() } } })),
     );
-    // Let go before tick 7: a plain step, its bullet on tick 7.
+    // Let go before tick 7: a plain step, its orb on tick 7.
     let mut e = engine(&stage);
     play(&mut e, (1..=7).map(|t| held(t == 1 || t == 3)));
     assert_eq!(

@@ -328,7 +328,7 @@ pub enum Emitter {
     Orb {
         speed: Expr,
         direction: Direction,
-        /// Bullet asset; absent means the default bullet.
+        /// Orb asset; absent means the default orb.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         style: Option<ContentId>,
         ticks: Expr,

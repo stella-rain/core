@@ -41,7 +41,7 @@ pub(super) fn apply(
         ticks
     };
     if ticks > 0 {
-        // The stun cancels what the enemy was doing: its running attack, in any phase. Bullets it
+        // The stun cancels what the enemy was doing: its running attack, in any phase. Orbs it
         // has spawned fly on (ADR-085 point 2).
         let id = s.id_of(target);
         s.add_stun(target, source, ticks, events);

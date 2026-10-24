@@ -2,7 +2,7 @@
 //! `zone` node places a circle, an arc or a line at an anchor, the attacker's spot or where the
 //! target stood when the attack began; it warns for its wind-up ticks, hurts each target once
 //! while it is active, and ends. `ring`, `spread`, `rotate` and `repeat` place and time zones as
-//! they do bullets. At most 128 are alive at once (`MAX_ZONES_ALIVE`); `clear_zones` removes the
+//! they do orbs. At most 128 are alive at once (`MAX_ZONES_ALIVE`); `clear_zones` removes the
 //! enemy ones. A hit box may be anchored at the target's spot too, and may be a line.
 
 use crate::common;

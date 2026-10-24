@@ -1,4 +1,4 @@
-//! Defence (ADR-056): every hit, from a hit box or a bullet, on any target, is the base damage
+//! Defence (ADR-056): every hit, from a hit box or an orb, on any target, is the base damage
 //! times the attacker's and the target's multipliers, times `K / (K + defence)` with K = 10,000 (100 at the design values, scaled by 100 with
 //! the damage, ADR-103), truncated at each step and at least 1. The `Hit` event reports what is dealt.
 

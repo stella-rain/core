@@ -46,7 +46,7 @@ pub fn run_input_for(engine: &Engine, tick: u32, kinds: &[EntityKind], brave_fro
 
 /// `input` with the evade of a swing about to land and the step out of the hostile zone the main
 /// character stands in: away from a circle's or an arc's centre, across a line. It overrides the
-/// bullet and the chase steering.
+/// orb and the chase steering.
 pub fn avoid(engine: &Engine, input: Input) -> Input {
     avoid_zones(engine, evade_swings(engine, input))
 }
