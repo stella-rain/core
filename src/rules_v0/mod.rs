@@ -339,6 +339,7 @@ pub(crate) fn initial_state(
         },
         boss,
         companions,
+        orbs: 0,
         enemies: Vec::new(),
         tasks: Vec::new(),
         runs: Vec::new(),
@@ -668,17 +669,25 @@ fn spawn_bullet(s: &mut State, bullet: BulletState, spawns_left: &mut u32) {
 /// before it moves, so a bullet with `n` ticks is on the map for `n` ticks (core#147).
 fn move_bullets(stage: &World, s: &mut State) {
     let holds = stage.map().holds();
+    let mut orbs_gone = 0;
+    let counting = s.orbs > 0;
     s.bullets.retain_mut(|b| {
-        if b.life == 0 {
-            return false;
+        let keep = if b.life == 0 {
+            false
+        } else {
+            b.at.x = b.at.x.saturating_add(b.vx);
+            b.at.y = b.at.y.saturating_add(b.vy);
+            if b.life != UNLIMITED {
+                b.life -= 1;
+            }
+            holds(b.at)
+        };
+        if counting && !keep && b.orb {
+            orbs_gone += 1;
         }
-        b.at.x = b.at.x.saturating_add(b.vx);
-        b.at.y = b.at.y.saturating_add(b.vy);
-        if b.life != UNLIMITED {
-            b.life -= 1;
-        }
-        holds(b.at)
+        keep
     });
+    s.orbs -= orbs_gone;
 }
 
 /// Two circles overlap (touching counts), in 64-bit fixed point.
@@ -750,12 +759,27 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         });
     }
     let mut flags = consumed.iter();
-    s.bullets
-        .retain(|_| !flags.next().copied().unwrap_or(false));
+    if s.orbs == 0 {
+        s.bullets
+            .retain(|_| !flags.next().copied().unwrap_or(false));
+    } else {
+        let mut orbs_gone = 0;
+        s.bullets.retain(|b| {
+            let gone = flags.next().copied().unwrap_or(false);
+            orbs_gone += u32::from(gone && b.orb);
+            !gone
+        });
+        s.orbs -= orbs_gone;
+    }
     s.scratch.consumed = consumed;
     if let Some(grid) = grid {
         s.scratch.grid = grid;
     }
+    debug_assert_eq!(
+        s.orbs as usize,
+        s.bullets.iter().filter(|b| b.orb).count(),
+        "the orb count drifted"
+    );
     s.companions.retain(|c| c.hp > 0);
     combat::bursts(stage, s, events);
     levels::credit_defeated(stage, s, events);
@@ -1738,7 +1762,7 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
     }
     // Which bullets are orbs and which break, and only while one is alive (core Z2), so that the
     // hashes of runs without orbs stay as they were.
-    if s.bullets.iter().any(|b| b.orb) {
+    if s.orbs > 0 {
         h.write_u32(count(&s.bullets));
         for b in &s.bullets {
             h.write_bool(b.orb);

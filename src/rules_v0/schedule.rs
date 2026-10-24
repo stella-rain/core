@@ -104,7 +104,7 @@ pub(super) const TICK: &[(&str, Step)] = &[
             tasks,
             bullets: count(&c.s.bullets),
             zones: count(&c.s.zones),
-            orbs: attacks::orbs_alive(c.s),
+            orbs: c.s.orbs,
             bullet_spawns: MAX_BULLET_SPAWNS_PER_TICK - c.spawns_left,
             emitter_steps,
         };

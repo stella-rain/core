@@ -1291,11 +1291,6 @@ fn orb_ticks(v: i32) -> u32 {
     u32::try_from(v.clamp(1, i32::try_from(MAX_ORB_TICKS).unwrap_or(i32::MAX))).unwrap_or(1)
 }
 
-/// The orbs alive (`Load`).
-pub(super) fn orbs_alive(s: &State) -> u32 {
-    u32::try_from(s.bullets.iter().filter(|b| b.orb).count()).unwrap_or(u32::MAX)
-}
-
 /// Makes the orb of an `orb` node, a slow bullet with a lifetime whose burst is its hook: the
 /// `burst` list is carried out where the orb ended, `ticks` ticks on, as an `on_bullet`'s `then`
 /// is. False if the attack's owner is gone. Every expression is evaluated, in the order
@@ -1335,13 +1330,14 @@ fn emit_orb(
     if t.friendly {
         return true;
     }
-    let (mut all, mut mine) = (0, 0);
-    for b in s.bullets.iter().filter(|b| b.orb) {
-        all += 1;
-        mine += u32::from(b.owner == t.owner);
-    }
-    if all >= MAX_ORBS_ALIVE || mine >= MAX_ORBS_PER_OWNER {
+    if s.orbs >= MAX_ORBS_ALIVE {
         return true;
+    }
+    if s.orbs >= MAX_ORBS_PER_OWNER {
+        let mine = s.bullets.iter().filter(|b| b.orb && b.owner == t.owner);
+        if mine.count() >= MAX_ORBS_PER_OWNER as usize {
+            return true;
+        }
     }
     let hook = (!burst.is_empty()).then(|| {
         let path = t
@@ -1369,6 +1365,7 @@ fn emit_orb(
     });
     let scale = i64::from(trig::SCALE);
     let velocity = |component: i32| Fx(saturate(i64::from(component) * i64::from(speed) / scale));
+    let before = s.bullets.len();
     spawn_bullet(
         s,
         BulletState {
@@ -1391,6 +1388,7 @@ fn emit_orb(
         },
         spawns_left,
     );
+    s.orbs += u32::from(s.bullets.len() > before);
     true
 }
 

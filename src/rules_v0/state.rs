@@ -85,6 +85,9 @@ pub(crate) struct State {
     pub move_index: MoveIndex,
     /// In spawn order.
     pub bullets: Vec<BulletState>,
+    /// How many of `bullets` are orbs (core Z2): derived, not hashed, kept by every place that
+    /// adds or removes a bullet so that a tick without orbs pays no scan for them (ADR-058).
+    pub orbs: u32,
     /// Zones placed and not yet over, in the order they were placed (core Z1).
     pub zones: Vec<ZoneState>,
     /// Enemies spawned so far, per wave.
