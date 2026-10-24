@@ -3,9 +3,10 @@
 //! `tests/enemy_roles.rs` covers; these tests read the bundled file, so they check the content.
 //! Every number is a tuning value.
 
-use crate::common::run::{ENEMY_ROLE_BOT_SEED, run_input_for, time_limit_setup};
+use crate::common::run::time_limit_setup;
 use crate::common::*;
 use crate::run_play::play_run_with;
+use crate::zone_bot::{ENEMY_ROLE_BOT_SEED, run_input_for};
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
@@ -21,14 +22,15 @@ const MINUTE: u32 = 3_600;
 const PLAYER_X: i32 = 46_080;
 const PLAYER_Y: i32 = 147_456;
 
-/// The six roles, and the minute each first spawns (placeholders).
-const ROLES: [(&str, u32); 6] = [
+/// The seven roles, and the minute each first spawns (placeholders).
+const ROLES: [(&str, u32); 7] = [
     ("swarmer", 0),
     ("chaser", 0),
     ("ranged_shooter", 3),
     ("tank", 6),
     ("exploder", 9),
     ("splitter", 12),
+    ("line_caster", 7),
 ];
 
 /// The bundled mode file as JSON.
@@ -106,8 +108,8 @@ fn each_role_is_a_wave_of_the_bundled_schedule_with_its_own_id() {
     for (id, _) in ROLES {
         assert_eq!(role(id)["id"], id);
     }
-    // Two bat waves and the six roles fill the schedule's eight waves.
-    assert_eq!(mode()["waves"].as_array().expect("a schedule").len(), 8);
+    // Two bat waves and the seven roles fill the schedule's nine waves.
+    assert_eq!(mode()["waves"].as_array().expect("a schedule").len(), 9);
 }
 
 #[test]
@@ -132,7 +134,11 @@ fn each_role_has_a_match_up_profile() {
 fn a_wave_id_is_a_well_formed_id_unique_in_the_schedule() {
     // An ID that no earlier wave has loads.
     let named = edited(|v| v["waves"][0]["id"] = json!("a_wave"));
-    assert!(TimeLimit::parse(&named).is_ok());
+    assert!(
+        TimeLimit::parse(&named).is_ok(),
+        "{:?}",
+        TimeLimit::parse(&named).err()
+    );
     // An ID that is not snake_case is refused at its wave.
     let bad = edited(|v| v["waves"][0]["id"] = json!("Not Snake"));
     assert_eq!(paths_of(&bad), ["$.waves[0].id"]);
@@ -222,4 +228,21 @@ fn a_run_on_normal_with_a_bot_holds_the_caps_and_its_replay_verifies() {
     // The run ends by the final boss's kill, in its overtime (seed 3 with the bundled
     // content): the bot gets through all six roles to the end.
     assert_eq!(verified.outcome, Outcome::Cleared);
+}
+
+#[test]
+fn an_exploders_burst_zone_outlives_it_and_warns_where_it_died() {
+    // BR1a: the burst is a zone round the exploder; it removes itself on the tick it bursts, and
+    // its zone stays to warn and hurt.
+    let mut e = alone("exploder", PLAYER_X, PLAYER_Y - 20_000, |_| {});
+    let mut zones_after_death = 0;
+    for _ in 0..200 {
+        e.step(idle());
+        if enemies_alive(&e) == 0 {
+            let snapshot = serde_json::to_value(e.snapshot()).unwrap();
+            zones_after_death = snapshot["zones"].as_array().map_or(0, Vec::len);
+            break;
+        }
+    }
+    assert_eq!(zones_after_death, 1);
 }

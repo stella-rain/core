@@ -91,6 +91,6 @@ mod tests {
 
     #[test]
     fn the_time_limit_tick_is_the_benches_case() {
-        pinned(time_limit_tick(), 0xeb513bbe5097e6ee, 0x4a38345ebff180a8);
+        pinned(time_limit_tick(), 0xb8352ca01a24a44c, 0x3b62752b8bc228ce);
     }
 }

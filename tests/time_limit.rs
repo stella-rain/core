@@ -4,7 +4,6 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::difficulties::MAX_PCT;
-use stella_rain_core::presets;
 use stella_rain_core::registry::{ENTRIES, Kind};
 use stella_rain_core::run_replay::content_sha256;
 use stella_rain_core::run_setup;
@@ -420,9 +419,16 @@ fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
             .as_u64()
             .unwrap_or(1) as u32
     };
-    // The high elite's attack is its preset (ADR-103): its damage is the slam's, not an inline.
-    let slam = presets::definition("elite_slam").expect("the preset");
-    let slam_damage = slam.iter().find_map(|phase| phase.damage).unwrap_or(0);
+    // The high elite's blow is the hit box of its slam, after the wind-up (BR1a: inline, with an
+    // aftershock ring spawned from the wind-up).
+    let high = serde_json::to_value(&types[2].enemy).unwrap();
+    let slam_damage = high["rules"][0]["do"]["attack"]["inline"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|phase| phase["hit_box"].is_object())
+        .and_then(|phase| phase["damage"].as_u64())
+        .unwrap() as u32;
     assert!(damage(0) < damage(1) && damage(1) < slam_damage);
 }
 
@@ -544,7 +550,7 @@ fn an_elite_type_is_a_well_formed_unique_id_with_a_valid_elite_enemy() {
     assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].enemy.hp"]);
 
     let mut t = low();
-    t["enemy"]["rules"][0]["do"]["attack"]["preset"]["id"] = json!("nope");
+    t["enemy"]["rules"][0]["do"]["attack"] = json!({ "preset": { "id": "nope" } });
     assert!(
         paths(&only(vec![t]))
             .iter()

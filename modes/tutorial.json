@@ -73,9 +73,8 @@
           ]
         },
         "movement": {
-          "type": "straight",
-          "vx": 0,
-          "vy": 192
+          "type": "follow",
+          "distance": 12288
         },
         "rules": [
           {
@@ -87,10 +86,7 @@
               "type": "attack",
               "attack": {
                 "preset": {
-                  "id": "aimed_single",
-                  "args": [
-                    640
-                  ]
+                  "id": "slash"
                 }
               }
             },
@@ -122,9 +118,8 @@
           ]
         },
         "movement": {
-          "type": "straight",
-          "vx": 0,
-          "vy": 192
+          "type": "follow",
+          "distance": 12288
         },
         "rules": [
           {
@@ -136,10 +131,7 @@
               "type": "attack",
               "attack": {
                 "preset": {
-                  "id": "aimed_single",
-                  "args": [
-                    640
-                  ]
+                  "id": "slash"
                 }
               }
             },
@@ -181,15 +173,7 @@
               "type": "always"
             },
             "target": "nearest_ally",
-            "do": {
-              "type": "attack",
-              "attack": {
-                "preset": {
-                  "id": "spread_5",
-                  "args": []
-                }
-              }
-            },
+            "do": {"type": "attack", "attack": {"inline": [{"kind": "wind_up", "ticks": 45, "spawn": [{"type": "zone", "shape": {"type": "circle", "radius": 7168}, "anchor": "target", "wind_up_ticks": 45, "active_ticks": 4}]}, {"kind": "active", "ticks": 4}, {"kind": "recovery", "ticks": 15}]}, "ranged": true},
             "cooldown_ticks": 120,
             "once": false
           }
@@ -229,68 +213,93 @@
         "timeline": [
           {
             "type": "wait",
-            "ticks": 90
+            "ticks": 120
           },
           {
             "type": "telegraph",
-            "ticks": 30
-          },
-          {
-            "type": "attack",
-            "attack": {
-              "preset": {
-                "id": "aimed_spread",
-                "args": [
-                  768
-                ]
-              }
-            }
-          },
-          {
-            "type": "move_to",
-            "to": {
-              "x": 92160,
-              "y": 35840
-            },
             "ticks": 60
           },
           {
             "type": "attack",
             "attack": {
               "preset": {
-                "id": "aimed_spread",
-                "args": [
-                  768
-                ]
+                "id": "elite_slam",
+                "args": []
               }
+            },
+            "big": true
+          },
+          {
+            "type": "wait",
+            "ticks": 150
+          },
+          {
+            "type": "attack",
+            "attack": {
+              "inline": [
+                {
+                  "kind": "active",
+                  "ticks": 1,
+                  "damage": 5000,
+                  "spawn": [
+                    {
+                      "type": "spread",
+                      "count": 10,
+                      "angle": 69120,
+                      "body": [
+                        {
+                          "type": "zone",
+                          "shape": {
+                            "type": "circle",
+                            "radius": 7680
+                          },
+                          "offset": {
+                            "forward": 28672
+                          },
+                          "direction": {
+                            "type": "aimed",
+                            "offset": 46080
+                          },
+                          "wind_up_ticks": 45,
+                          "active_ticks": 4
+                        }
+                      ]
+                    },
+                    {
+                      "type": "wait",
+                      "ticks": 30
+                    },
+                    {
+                      "type": "spread",
+                      "count": 14,
+                      "angle": 69120,
+                      "body": [
+                        {
+                          "type": "zone",
+                          "shape": {
+                            "type": "circle",
+                            "radius": 8192
+                          },
+                          "offset": {
+                            "forward": 45056
+                          },
+                          "direction": {
+                            "type": "aimed",
+                            "offset": 46080
+                          },
+                          "wind_up_ticks": 45,
+                          "active_ticks": 4
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
           },
           {
-            "type": "move_to",
-            "to": {
-              "x": 235520,
-              "y": 35840
-            },
+            "type": "wait",
             "ticks": 90
-          },
-          {
-            "type": "attack",
-            "attack": {
-              "preset": {
-                "id": "aimed_spread",
-                "args": [
-                  768
-                ]
-              }
-            }
-          },
-          {
-            "type": "move_to",
-            "to": {
-              "x": 163840,
-              "y": 35840
-            },
-            "ticks": 60
           },
           {
             "type": "loop"

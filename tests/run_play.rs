@@ -3,7 +3,8 @@
 //! level-ups. Beside the common fixtures, not in them, so that the benches that
 //! share `tests/common/` do not build it.
 
-use crate::common::run::{STEER_FROM, answer_all, run_input, trial_setup};
+use crate::common::run::{STEER_FROM, answer_all, trial_setup};
+use crate::zone_bot::run_input;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;

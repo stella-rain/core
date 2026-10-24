@@ -19,6 +19,7 @@ mod bleed;
 mod boomerang;
 mod boss;
 mod bosses;
+mod bullet_free_content;
 mod charge;
 mod collide_case;
 mod combat_reward_kinds;
@@ -121,6 +122,7 @@ mod weapons;
 mod weapons_content;
 mod worst_case;
 mod x100;
+mod zone_bot;
 mod zones;
 
 /// With `autotests = false`, a new file in `tests/` builds and runs only once it is a module

@@ -91,8 +91,10 @@ fn the_measured_tick_holds_the_horde_a_boss_and_the_main_characters_hits() {
     assert!(!engine.offer_open());
     let load = engine.load();
     assert_eq!(load.enemies, 500, "the cap on enemies alive");
-    assert!(load.bullets >= 3_900, "{} bullets alive", load.bullets);
+    // BR1a: no bullet is fired any more; the horde attacks with zones and melee.
+    assert_eq!(load.bullets, 0, "no bullets alive");
     assert!(load.tasks >= 1, "enemies are attacking");
+    assert!(load.zones >= 1, "zones are placed");
     let snapshot = engine.snapshot();
     assert!(snapshot.player.hp > 0, "the main character is alive");
     let alive = |kind| snapshot.entities.iter().filter(|e| e.kind == kind).count();
