@@ -62,10 +62,7 @@ fn allocations() -> u64 {
     COUNT.with(Cell::get)
 }
 
-// The benchmark's own module, as in `tests/time_limit_case.rs`.
-#[path = "../benches/time_limit_case/mod.rs"]
-#[allow(clippy::duplicate_mod, clippy::module_inception)]
-mod time_limit_case;
+use stella_rain_core::bench_fixtures::time_limit_case;
 
 /// The steady window: the horde of the benchmark's case is at its cap of 500 from tick 1,962 on
 /// (`WARMUP_TICKS`), no wave is left to spawn, and the main character taps its weapon every other

@@ -1,18 +1,18 @@
 //! The instruction count of a `time_limit` run's heaviest tick (core#212 step d,
-//! `benches/time_limit_case`): the mode's horde at the cap of 500 enemies alive, of every kind the
+//! `bench_fixtures::time_limit_case`): the mode's horde at the cap of 500 enemies alive, of every kind the
 //! schedule spawns (the two bats and the six roles) in the ratio of its spawns, about 3,950
 //! bullets in the air (the cap is 4,000), a boss alive and the main character attacking. Run it with
 //! `cargo bench --bench time_limit_tick` (needs what `worst_tick` needs).
 
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};
+use stella_rain_core::bench_fixtures::{self, Case};
 use stella_rain_core::engine::Engine;
 
-mod time_limit_case;
-
 #[library_benchmark]
-#[bench::time_limit_tick(time_limit_case::warmed_up())]
-fn time_limit_tick(mut engine: Engine) -> Engine {
-    engine.step(time_limit_case::input(time_limit_case::WARMUP_TICKS + 1));
+#[bench::time_limit_tick(bench_fixtures::time_limit_tick())]
+fn time_limit_tick(case: Case) -> Engine {
+    let Case { mut engine, input } = case;
+    engine.step(input);
     engine
 }
 

@@ -1,12 +1,8 @@
-//! The collision benchmark's tick (`benches/collide_case`) has the load it claims: every enemy
+//! The collision benchmark's tick (`bench_fixtures::collide_case`) has the load it claims: every enemy
 //! alive and unhurt, nearly `MAX_BULLETS_ALIVE` friendly bullets in the air, and four friendly
 //! hit boxes active over the enemies (ADR-055).
 
-// The benchmark's own module, which brings its own copy of `tests/common`; in the one test
-// binary that copy sits beside `crate::common`, as it did when this file was a binary of its own.
-#[path = "../benches/collide_case/mod.rs"]
-#[allow(clippy::duplicate_mod, clippy::module_inception)]
-mod collide_case;
+use stella_rain_core::bench_fixtures::collide_case;
 
 use stella_rain_core::attack::PhaseKind;
 use stella_rain_core::engine::Engine;

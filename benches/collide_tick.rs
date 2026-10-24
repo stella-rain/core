@@ -1,20 +1,20 @@
 //! The instruction count of the worst friendly-bullet collision tick within the caps of ADR-020
-//! (`benches/collide_case`): 500 enemies and about 3,900 friendly bullets that hit none of them.
+//! (`bench_fixtures::collide_case`): 500 enemies and about 3,900 friendly bullets that hit none of them.
 //! `collide_tick_spread` is the same tick with the enemies spread over the largest map
-//! (`collide_case::spread_stage`).
+//! (`bench_fixtures::collide_case::spread_stage`).
 //! Run it with `cargo bench --bench collide_tick` (needs what `worst_tick` needs).
 
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};
+use stella_rain_core::bench_fixtures::{self, Case};
 use stella_rain_core::engine::Engine;
 
-mod collide_case;
-
 #[library_benchmark]
-#[bench::collide_tick(collide_case::warmed_up())]
+#[bench::collide_tick(bench_fixtures::collide_tick())]
 // The same horde over the largest map (core#146): the grid spans the map, and its build reads it.
-#[bench::collide_tick_spread(collide_case::spread_warmed_up())]
-fn collide_tick(mut engine: Engine) -> Engine {
-    engine.step(collide_case::input(collide_case::WARMUP_TICKS + 1));
+#[bench::collide_tick_spread(bench_fixtures::collide_tick_spread())]
+fn collide_tick(case: Case) -> Engine {
+    let Case { mut engine, input } = case;
+    engine.step(input);
     engine
 }
 

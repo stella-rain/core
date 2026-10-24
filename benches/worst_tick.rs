@@ -7,15 +7,15 @@
 //! 0.16.1 (`cargo install iai-callgrind-runner --version 0.16.1 --locked`).
 
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};
+use stella_rain_core::bench_fixtures::{self, Case};
 use stella_rain_core::engine::Engine;
-
-mod worst_case;
 
 #[library_benchmark]
 // The warm-up is the setup: it runs before the count starts, so only the one tick is counted.
-#[bench::worst_tick(worst_case::warmed_up())]
-fn worst_tick(mut engine: Engine) -> Engine {
-    engine.step(worst_case::input(worst_case::WARMUP_TICKS + 1));
+#[bench::worst_tick(bench_fixtures::worst_tick())]
+fn worst_tick(case: Case) -> Engine {
+    let Case { mut engine, input } = case;
+    engine.step(input);
     engine
 }
 

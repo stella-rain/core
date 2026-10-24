@@ -1,15 +1,11 @@
-//! The worst-case tick (ADR-020, ADR-021): the stage of `benches/worst_case/` holds every dynamic
+//! The worst-case tick (ADR-020, ADR-021): the stage of `bench_fixtures::worst_case` holds every dynamic
 //! cap at once, on the tick the benchmark counts and on the ticks after it. A benchmark of a
 //! tick that does not would pass without measuring the worst case. Every attacker also holds an
 //! active hit box (ADR-055). The main character holds every rune at full Rune Haste, its combo
 //! steps hit all 500 enemies each tick, and each enemy carries all three damage-over-time
 //! statuses at their stack cap (ADR-099). 128 zones are alive and active (core Z1).
 
-// The benchmark's own module, which brings its own copy of `tests/common`; in the one test
-// binary that copy sits beside `crate::common`, as it did when this file was a binary of its own.
-#[path = "../benches/worst_case/mod.rs"]
-#[allow(clippy::duplicate_mod, clippy::module_inception)]
-mod worst_case;
+use stella_rain_core::bench_fixtures::worst_case;
 
 use stella_rain_core::attack::PhaseKind;
 use stella_rain_core::engine::{Engine, Load, Outcome};
