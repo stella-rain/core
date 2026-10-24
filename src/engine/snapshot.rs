@@ -292,9 +292,9 @@ impl Engine {
                     at: b.at,
                     vx: b.vx,
                     vy: b.vy,
-                    radius: Fx(rules_v0::bullet_radius(b.friendly)),
+                    radius: Fx(rules_v0::orb_radius()),
                     style: b.style,
-                    friendly: b.friendly,
+                    friendly: false,
                     orb: b.orb,
                     breakable: b.breakable,
                 })

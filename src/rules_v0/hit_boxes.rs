@@ -177,13 +177,13 @@ fn break_orbs(s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
     let mine = |w: &&Swing| w.friendly && w.owner == super::PLAYER_ID;
     let mut gone = 0;
     s.bullets.retain(|b| {
-        if !b.breakable || b.friendly {
+        if !b.breakable {
             return true;
         }
         let hit = swings
             .iter()
             .filter(mine)
-            .any(|w| covers(w, b.at, super::ENEMY_BULLET_RADIUS));
+            .any(|w| covers(w, b.at, super::ORB_RADIUS));
         if hit {
             events.push(DomainEvent::OrbBroken {
                 owner: b.owner,

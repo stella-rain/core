@@ -52,7 +52,6 @@ fn assert_load(engine: &Engine) {
     assert_eq!(load.enemies, 500, "{load:?}");
     assert_eq!(load.bullets, 0, "{load:?}");
     assert_eq!(load.orbs, 0, "{load:?}");
-    assert_eq!(load.bullet_spawns, 0, "{load:?}");
     assert_eq!(load.zones, 128, "{load:?}");
     let enemies = enemies(engine);
     assert_eq!(enemies.len(), 500);

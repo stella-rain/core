@@ -154,7 +154,6 @@ fn worst(engine: &Engine) -> Load {
     assert!((1..100).contains(&steps), "{steps} emitter steps");
     Load {
         bullets: Load::CAPS.orbs,
-        bullet_spawns: 0,
         emitter_steps: steps,
         ..Load::CAPS
     }

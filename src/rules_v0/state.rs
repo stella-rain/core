@@ -872,8 +872,6 @@ pub(crate) struct BulletState {
     pub style: u16,
     /// Who fired it, for the hit event and for aggro.
     pub owner: EntityId,
-    /// Fired by an ally rather than an enemy.
-    pub friendly: bool,
     pub damage: u32,
     /// The type of the phase that fired it (ADR-100); `None` is neutral.
     pub damage_type: Option<DamageType>,
@@ -883,14 +881,15 @@ pub(crate) struct BulletState {
     pub smash: Option<Smash>,
     /// Fired by a combo step, A or B: its hit adds expertise points (ADR-078 §2).
     pub combo: bool,
-    /// Starts an attack of its own after a while (`on_bullet`).
+    /// Starts an attack of its own when it ends: an orb's burst.
     pub hook: Option<Box<Hook>>,
-    /// An orb (core Z2): a slow bullet with a lifetime whose `hook` is its burst.
+    /// An orb (core Z2): a slow projectile with a lifetime whose `hook` is its burst. Every
+    /// projectile is one since BR1c.
     pub orb: bool,
     /// An orb the main character's hit boxes break, with no burst.
     pub breakable: bool,
-    /// Ticks left before it leaves the map, `UNLIMITED` for a bullet with no lifetime (core#147).
-    /// It leaves when this runs out or when it is past the map's margin, whichever comes first.
+    /// Ticks left before it leaves the map (core#147). It leaves when this runs out or when it is
+    /// past the map's margin, whichever comes first.
     pub life: u32,
 }
 
@@ -917,17 +916,16 @@ pub(crate) struct ZoneState {
     pub hits: Vec<(EntityId, u32)>,
 }
 
-/// An `on_bullet` waiting on a bullet.
+/// An orb's burst, waiting for the orb to end.
 #[derive(Clone, Debug)]
 pub(crate) struct Hook {
     pub program: ProgramIndex,
-    /// The `on_bullet` node in the program: its `then` list is what the bullet starts.
+    /// The `orb` node in the program: its `burst` list is what the orb starts.
     pub path: Vec<PathStep>,
     /// Ticks left before it starts.
     pub left: u32,
     pub owner: EntityId,
     pub aim: Aim,
-    pub friendly: bool,
     pub damage: u32,
     pub damage_type: Option<DamageType>,
     pub breaks_charge: bool,
@@ -938,19 +936,19 @@ pub(crate) struct Hook {
 }
 
 /// One step down a program: the node at `node` in the current list, then its `body` list, or
-/// its `then` list if `then` is set.
+/// its `burst` list if `then` is set.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct PathStep {
     pub node: u16,
     pub then: bool,
 }
 
-/// Where an attack's bullets start from.
+/// Where an attack's orbs and zones start from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Origin {
     /// Wherever its owner is, for as long as the owner lives.
     Owner,
-    /// A fixed point: where a bullet was when it started this attack.
+    /// A fixed point: where an orb was when it started this attack.
     At(Point),
 }
 
@@ -966,8 +964,6 @@ pub(crate) struct Frame {
     pub param: i32,
     /// The turn this node adds to the directions of its body.
     pub offset: i32,
-    /// For `on_bullet`: ticks the bullets of its body wait before starting their attack.
-    pub hook_after: u32,
 }
 
 /// A phased attack an attacker is carrying out (ADR-055): one at a time per attacker and slot.

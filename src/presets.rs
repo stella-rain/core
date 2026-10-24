@@ -187,11 +187,6 @@ fn nodes_highest_arg(nodes: &[Emitter]) -> Option<u8> {
     nodes
         .iter()
         .map(|n| match n {
-            Emitter::Fire {
-                speed,
-                direction: d,
-                ..
-            } => expr(speed).max(direction(d)),
             Emitter::Repeat {
                 count,
                 interval_ticks,
@@ -205,13 +200,6 @@ fn nodes_highest_arg(nodes: &[Emitter]) -> Option<u8> {
             }
             Emitter::Rotate { angle, body } => expr(angle).max(nodes_highest_arg(body)),
             Emitter::Wait { ticks } => expr(ticks),
-            Emitter::OnBullet {
-                after_ticks,
-                body,
-                then,
-            } => expr(after_ticks)
-                .max(nodes_highest_arg(body))
-                .max(nodes_highest_arg(then)),
             Emitter::Orb {
                 speed,
                 direction: d,
@@ -279,17 +267,6 @@ fn emitters(nodes: &[Emitter], args: &[i32]) -> Vec<Emitter> {
     nodes
         .iter()
         .map(|n| match n {
-            Emitter::Fire {
-                speed,
-                direction: d,
-                bullet,
-                ticks,
-            } => Emitter::Fire {
-                speed: expr(speed, args),
-                direction: direction(d, args),
-                bullet: bullet.clone(),
-                ticks: ticks.as_ref().map(|t| expr(t, args)),
-            },
             Emitter::Repeat {
                 count,
                 interval_ticks,
@@ -314,15 +291,6 @@ fn emitters(nodes: &[Emitter], args: &[i32]) -> Vec<Emitter> {
             },
             Emitter::Wait { ticks } => Emitter::Wait {
                 ticks: expr(ticks, args),
-            },
-            Emitter::OnBullet {
-                after_ticks,
-                body,
-                then,
-            } => Emitter::OnBullet {
-                after_ticks: expr(after_ticks, args),
-                body: emitters(body, args),
-                then: emitters(then, args),
             },
             Emitter::Orb {
                 speed,

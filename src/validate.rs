@@ -86,7 +86,6 @@ pub mod limits {
     pub const MAX_STUN_TICKS: u32 = 120;
     /// Twenty seconds: a bullet at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
     /// so a lifetime is a shorter one than the margin's (core#147).
-    pub const MAX_BULLET_TICKS: u32 = 1_200;
     /// A zone warns, and then hurts, for at most 10 seconds each (core Z1, a placeholder bound).
     pub const MAX_ZONE_TICKS: u32 = 600;
     /// An orb flies for at most 10 seconds (core Z2, a tuning row).
@@ -1736,30 +1735,6 @@ impl<'a> Ctx<'a> {
 
     fn emitter(&mut self, e: &Emitter, depth: u32, count: &mut u32) -> bool {
         match e {
-            Emitter::Fire {
-                speed,
-                direction,
-                bullet,
-                ticks,
-            } => {
-                if let Some(t) = ticks {
-                    self.key("ticks", |c| c.expr(t));
-                    if let Expr::Const(v) = t {
-                        self.within(
-                            "ticks",
-                            i64::from(*v),
-                            1,
-                            i64::from(limits::MAX_BULLET_TICKS),
-                        );
-                    }
-                }
-                self.key("speed", |c| c.expr(speed));
-                self.direction(direction);
-                if let Some(b) = bullet {
-                    self.content_id("bullet", b, Kind::Bullet);
-                }
-                true
-            }
             Emitter::Repeat {
                 count: n,
                 interval_ticks,
@@ -1789,15 +1764,6 @@ impl<'a> Ctx<'a> {
             Emitter::Wait { ticks } => {
                 self.constant_ticks("ticks", ticks);
                 true
-            }
-            Emitter::OnBullet {
-                after_ticks,
-                body,
-                then,
-            } => {
-                self.constant_ticks("after_ticks", after_ticks);
-                self.key("body", |c| c.emitters(body, depth + 1, count))
-                    && self.key("then", |c| c.emitters(then, depth + 1, count))
             }
             Emitter::Orb {
                 speed,
@@ -1847,7 +1813,7 @@ impl<'a> Ctx<'a> {
     fn burst_nodes(&mut self, list: &[Emitter]) {
         for (i, e) in list.iter().enumerate() {
             self.idx(i, |c| match e {
-                Emitter::Fire { .. } | Emitter::Orb { .. } | Emitter::OnBullet { .. } => {
+                Emitter::Orb { .. } => {
                     c.fail("a burst holds only zone, ring, spread, repeat, rotate and wait nodes")
                 }
                 Emitter::Repeat { body, .. }

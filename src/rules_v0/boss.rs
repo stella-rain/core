@@ -252,8 +252,8 @@ fn begin_phase(
     for transition in &phase.transition {
         match transition {
             Transition::ClearBullets => {
-                s.bullets.retain(|b| b.friendly);
-                // Orbs are never friendly.
+                // Every projectile is an orb, and none is friendly.
+                s.bullets.clear();
                 s.orbs = 0;
             }
             Transition::ClearZones => {

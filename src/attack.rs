@@ -37,12 +37,12 @@ pub struct AttackPhase {
     /// The area the phase covers, attached to the attacker.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hit_box: Option<HitBox>,
-    /// Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is
+    /// Base damage of the phase's hits and of the zones it spawns (ADR-056). Absent, it is
     /// what the attacker's own attack does: the main character's `atk`, a `shot` skill's
     /// `damage`, or 100 (1 at the design values, ADR-103) for an enemy or the boss.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub damage: Option<u32>,
-    /// The damage type of the phase's hits and of the bullets it spawns (ADR-100); absent, they
+    /// The damage type of the phase's hits and of the zones it spawns (ADR-100); absent, they
     /// are neutral and never get a match-up.
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub damage_type: Option<DamageType>,
@@ -56,7 +56,7 @@ pub struct AttackPhase {
     /// The attacker's movement speed during the phase, in percent; 0 roots it.
     #[serde(default = "full_speed", skip_serializing_if = "is_full_speed")]
     pub move_pct: u8,
-    /// A powerful attack: its hits on the main character, by hit box or by the bullets the phase
+    /// A powerful attack: its hits on the main character, by hit box or by the zones the phase
     /// spawns, break a charge in progress (core#83).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub breaks_charge: bool,
@@ -291,18 +291,6 @@ pub struct Offset {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Emitter {
-    /// One bullet.
-    Fire {
-        speed: Expr,
-        direction: Direction,
-        /// Bullet asset; absent means the default bullet.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        bullet: Option<ContentId>,
-        /// How many ticks the bullet lives, at least 1 and at most `limits::MAX_BULLET_TICKS`;
-        /// absent means it lives until it is past the map's margin (core#147).
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        ticks: Option<Expr>,
-    },
     /// Runs `body` `count` times (at most 100). The next round starts `interval_ticks` ticks
     /// after the body of the last one ends.
     Repeat {
@@ -317,7 +305,7 @@ pub enum Emitter {
         body: Vec<Emitter>,
     },
     /// Runs `body` `count` times at once, fanned evenly across `angle` and centred on the
-    /// direction of the bullets.
+    /// direction of the attack.
     Spread {
         count: Expr,
         angle: Expr,
@@ -330,13 +318,6 @@ pub enum Emitter {
     },
     Wait {
         ticks: Expr,
-    },
-    /// Each bullet fired by `body` starts `then` as an attack of its own, from where the bullet
-    /// is, `after_ticks` ticks later (at the next tick if 0), if it is still flying.
-    OnBullet {
-        after_ticks: Expr,
-        body: Vec<Emitter>,
-        then: Vec<Emitter>,
     },
     /// A slow projectile with a required lifetime (core Z2, DS10): it flies for `ticks` ticks
     /// (1 to `limits::MAX_ORB_TICKS`), and then `burst` runs from where it ended, as an attack of
@@ -359,7 +340,7 @@ pub enum Emitter {
     /// A zone that does not move (core Z1): it is placed at the `anchor`, moved by `offset`
     /// (forward along its `direction`, and to the right of it), warns for `wind_up_ticks`,
     /// hurts each target at most once for `active_ticks`, then ends. `ring`, `spread` and
-    /// `rotate` turn its direction, and with it the offset, as they turn a bullet's.
+    /// `rotate` turn its direction, and with it the offset, as they turn an orb's.
     Zone {
         shape: ZoneShape,
         #[serde(default, skip_serializing_if = "Anchor::is_attacker")]
@@ -390,9 +371,9 @@ pub enum Direction {
     /// A fixed angle: 0 points down the screen, and positive angles turn toward the right.
     Absolute { angle: Expr },
     /// Turned by `angle` from the parent's direction: straight down for an attack that a rule
-    /// started, the direction of the bullet for a `then` list of `on_bullet`.
+    /// started, the orb's own direction for the zones of its `burst`.
     Relative { angle: Expr },
-    /// Turned by `step` from the previous bullet's direction; not affected by the turns of
+    /// Turned by `step` from the previous orb's or zone's direction; not affected by the turns of
     /// `rotate`, `ring` and `spread`.
     Sequential { step: Expr },
 }
