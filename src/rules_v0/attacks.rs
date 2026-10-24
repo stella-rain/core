@@ -21,6 +21,10 @@
 //! - `zone` places an area that does not move (`zones`) instead of a bullet: at the attacker's
 //!   spot or where the target stood when the attack began, moved by its `offset` along its
 //!   direction, which `rotate`, `ring` and `spread` turn as they turn a bullet's.
+//! - `orb` fires a slow bullet that lives `ticks` ticks (core Z2). When they are up its `burst` is
+//!   carried out from where it ended, as an `on_bullet`'s `then` is; the main character's hit
+//!   boxes break a `breakable` one with no burst. At most `MAX_ORBS_PER_OWNER` per attacker and
+//!   `MAX_ORBS_ALIVE` in all; one over a cap is dropped, in node order.
 //! - `repeat` runs its body `count` times; the next round starts `interval_ticks` ticks after
 //!   the body of the last one ends. `ring` runs its body `count` times at once, round after
 //!   round turned a full turn / `count` further; `spread` the same, fanned evenly across
