@@ -55,6 +55,7 @@ mod golden;
 mod hash;
 mod healing;
 mod hit_boxes;
+mod hit_case;
 mod hit_marks;
 mod hit_type_kind;
 mod hold;

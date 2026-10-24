@@ -144,13 +144,42 @@ fn assert_fresh_stack(engine: &Engine) {
     );
 }
 
-/// The caps the worst-case tick reaches: every one but the orbs' (core Z2), which its fixture,
-/// shared with the benches, does not fire yet.
-fn no_orbs() -> Load {
+/// What the worst-case tick holds (core BR1b): every cap of the rules but the bullets' and the
+/// emitter's. No bullet is alive and none is made; the load is 500 enemies, 256 attacks, 128
+/// zones and 32 orbs (core Z1, Z2). The emitter steps are the four ranged runs' first tick.
+fn worst() -> Load {
     Load {
-        orbs: 0,
+        bullets: 0,
+        bullet_spawns: 0,
+        emitter_steps: 0,
         ..Load::CAPS
     }
+}
+
+/// No bullet is in the air, 32 orbs are (4 shooters, 8 each, core Z2), and the four ranged runs
+/// (`MAX_RANGED_ATTACKERS`) are the stage's only ones: each of the 4 shooters holds a token.
+fn assert_orbs_and_ranged(engine: &Engine) {
+    let snapshot = serde_json::to_value(engine.snapshot()).unwrap();
+    let bullets = snapshot["bullets"].as_array().cloned().unwrap_or_default();
+    assert!(bullets.iter().all(|b| b["orb"] == true), "a bullet is alive");
+    assert_eq!(bullets.len(), 32);
+    let stage = serde_json::to_value(worst_case::stage()).unwrap();
+    let ranged = stage["waves"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|w| w["enemy"]["rules"].as_array().unwrap().iter())
+        .filter(|r| r["do"]["ranged"] == true)
+        .count();
+    assert_eq!(ranged, 1, "one rule is marked ranged");
+    let shooters: u16 = stage["waves"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|w| w["enemy"]["rules"].to_string().contains("\"ranged\":true"))
+        .map(|w| w["count"].as_u64().unwrap() as u16)
+        .sum();
+    assert_eq!(shooters, 4, "four shooters hold a ranged run");
 }
 
 #[test]
@@ -158,9 +187,10 @@ fn the_measured_tick_reaches_every_dynamic_cap() {
     let mut engine = worst_case::warmed_up();
     engine.step(worst_case::input(worst_case::WARMUP_TICKS + 1));
     assert_eq!(engine.outcome(), Outcome::Running, "the run ended");
-    assert_eq!(engine.load(), no_orbs());
+    assert_eq!(engine.load(), worst());
     assert_hit_boxes(&engine);
     assert_zones(&engine);
+    assert_orbs_and_ranged(&engine);
     assert_fresh_stack(&engine);
     assert_runes_and_statuses(&engine);
     assert_steps_and_ticks_land(&engine);
@@ -179,9 +209,10 @@ fn the_caps_are_held_tick_after_tick() {
             Outcome::Running,
             "the run ended on tick {tick}"
         );
-        assert_eq!(engine.load(), no_orbs(), "on tick {tick}");
+        assert_eq!(engine.load(), worst(), "on tick {tick}");
         assert_hit_boxes(&engine);
         assert_zones(&engine);
+        assert_orbs_and_ranged(&engine);
         assert_fresh_stack(&engine);
         assert_runes_and_statuses(&engine);
         assert_steps_and_ticks_land(&engine);
