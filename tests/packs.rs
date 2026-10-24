@@ -85,8 +85,8 @@ fn a_manifest_of_exactly_the_cap_is_parsed() {
 
 #[test]
 fn an_unknown_field_is_a_parse_error() {
-    let text = format!(r#"{{"schema":1,"seq":1,"channels":{{}},"extra":1}}"#);
-    assert!(matches!(load(&text), Err(PacksError::Parse { .. })));
+    let text = r#"{"schema":1,"seq":1,"channels":{},"extra":1}"#;
+    assert!(matches!(load(text), Err(PacksError::Parse { .. })));
     let in_channel = manifest(
         1,
         &format!(
