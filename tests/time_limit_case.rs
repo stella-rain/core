@@ -1,11 +1,8 @@
 //! The heaviest tick of a `time_limit` run (core#212 step d): the stage of
-//! `benches/time_limit_case/` holds the horde at its cap on the tick the benchmark counts. A
+//! `bench_fixtures::time_limit_case` holds the horde at its cap on the tick the benchmark counts. A
 //! benchmark of a tick that does not would pass without measuring the heavy case.
 
-// The benchmark's own module; see `tests/worst_case.rs` for why it is a module here.
-#[path = "../benches/time_limit_case/mod.rs"]
-#[allow(clippy::duplicate_mod, clippy::module_inception)]
-mod time_limit_case;
+use stella_rain_core::bench_fixtures::time_limit_case;
 
 use std::collections::BTreeSet;
 
