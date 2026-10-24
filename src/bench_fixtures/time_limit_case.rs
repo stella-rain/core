@@ -12,15 +12,16 @@ use crate::time_limit::TimeLimit;
 use crate::validate;
 use crate::validate::limits::{MAX_AGENT_HP, MAX_PLAYER_HP};
 
-/// Ticks before the measured tick: the 500 enemies have all arrived and shot for long enough
-/// that the bullets alive are about 3,950 (`MAX_BULLETS_ALIVE` is 4,000: 3,954 on the measured
-/// tick), and the measured tick is one on which the main character's Main weapon hits
-/// (`tests/time_limit_case.rs`). The six roles shoot less than the bats alone did, so the
-/// bullets take longer to build up than they did (tick 1,518 then, 1,957 now); the enemies
-/// start to fall to the Main weapon from about tick 2,300. The Sword's chain is five A's deep (ADR-117),
-/// so its tap-every-other-tick cycle is longer: the first tick from 1,957 on where a step lands a
-/// hit is 1,963, so the measured tick is that one.
-pub const WARMUP_TICKS: u32 = 1_962;
+/// Ticks before the measured tick: the 500 enemies have all arrived (cap reached on tick 1,963)
+/// and the measured tick is one on which the main character's Main weapon hits
+/// (`tests/time_limit_case.rs`) and the most attacks are in progress while the horde is still
+/// at the cap. Since BR1a nothing fires a bullet, so the load is zones, the crowd's rules and the
+/// melee: of the ticks from 1,963 on that the Main weapon hits and 500 enemies stand (the enemies
+/// start to fall to it from about tick 2,285), tick 2,139 has the most attacks running (2), then
+/// 4 emitter steps and 5 zones; tick 2,093 has the most zones (30) with one attack. Chosen by the
+/// engine's `Load`, not by an instruction count: valgrind was not at hand (BR1a). The Sword's
+/// chain is five A's deep (ADR-117), so its tap-every-other-tick cycle is long.
+pub const WARMUP_TICKS: u32 = 2_138;
 
 /// The longest stage there is: 5 minutes. The mode's run is longer, which only the mode may be.
 const STAGE_LENGTH_TICKS: u32 = 18_000;
