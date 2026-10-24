@@ -1,7 +1,7 @@
 //! The instruction count of a `time_limit` run's heaviest tick (core#212 step d,
 //! `bench_fixtures::time_limit_case`): the mode's horde at the cap of 500 enemies alive, of every kind the
-//! schedule spawns (the two bats and the six roles) in the ratio of its spawns, about 3,950
-//! bullets in the air (the cap is 4,000), a boss alive and the main character attacking. Run it with
+//! schedule spawns (the two bats and the six roles) in the ratio of its spawns, no bullet in the
+//! air (since BR1a the mode's content fires none), a boss alive and the main character attacking. Run it with
 //! `cargo bench --bench time_limit_tick` (needs what `worst_tick` needs).
 
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};

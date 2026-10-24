@@ -6,7 +6,6 @@
 //!
 //! Behind the `bench` feature; not part of the library's API.
 
-pub mod collide_case;
 pub mod hit_case;
 pub mod time_limit_case;
 pub mod worst_case;
@@ -26,22 +25,6 @@ pub fn worst_tick() -> Case {
     Case {
         engine: worst_case::warmed_up(),
         input: worst_case::input(worst_case::WARMUP_TICKS + 1),
-    }
-}
-
-/// The friendly-bullet collision tick with the crowd in a band (`benches/collide_tick.rs`).
-pub fn collide_tick() -> Case {
-    Case {
-        engine: collide_case::warmed_up(),
-        input: collide_case::input(collide_case::WARMUP_TICKS + 1),
-    }
-}
-
-/// The same tick with the crowd spread over the largest map (core#146).
-pub fn collide_tick_spread() -> Case {
-    Case {
-        engine: collide_case::spread_warmed_up(),
-        input: collide_case::input(collide_case::WARMUP_TICKS + 1),
     }
 }
 
@@ -90,20 +73,6 @@ mod tests {
     #[test]
     fn the_worst_tick_is_the_benches_case() {
         pinned(worst_tick(), 0x8da23ca6e42b539c, 0x4951b14566391b5d);
-    }
-
-    #[test]
-    fn the_collide_tick_is_the_benches_case() {
-        pinned(collide_tick(), 0x5b1c2042070114b0, 0xde5acb793efe056a);
-    }
-
-    #[test]
-    fn the_spread_collide_tick_is_the_benches_case() {
-        pinned(
-            collide_tick_spread(),
-            0x5bafda7f97d02b8f,
-            0x7c2fd37f1f149794,
-        );
     }
 
     #[test]

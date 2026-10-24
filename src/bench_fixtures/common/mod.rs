@@ -46,12 +46,6 @@ pub fn firing(input: Input, tick: u32) -> Input {
     }
 }
 
-/// The phases of an attack that spawns `nodes` on the tick it starts: one active phase of one
-/// tick (ADR-055).
-pub fn spawned(nodes: Value) -> Value {
-    json!([{ "kind": "active", "ticks": 1, "spawn": nodes }])
-}
-
 pub const START_X: i32 = 46_080;
 pub const START_Y: i32 = 147_456;
 
