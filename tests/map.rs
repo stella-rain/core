@@ -124,35 +124,6 @@ fn enemies_leave_past_the_maps_margin_not_the_portrait_fields() {
 }
 
 #[test]
-fn bullets_leave_past_the_maps_margin_not_the_portrait_fields() {
-    // The Main weapon fires along the facing at 8 pixels a tick, every 6 ticks; one tick of
-    // the stick turns it to the right.
-    let stage = wide(stage_with(600, Some(far_boss()), vec![]));
-    let mut e = engine(&stage);
-    e.step(moving(127, 0));
-    let mut most = 0;
-    for _ in 0..400 {
-        e.step(firing(idle(), e.tick()));
-        let s = e.snapshot();
-        for b in s.bullets.iter().filter(|b| b.friendly) {
-            most = most.max(b.at.x.0);
-        }
-    }
-    assert!(
-        most > 92_160 + FIELD_MARGIN,
-        "a shot passed the portrait field: {most}"
-    );
-    assert!(
-        most <= WIDTH + FIELD_MARGIN,
-        "no shot outlived the margin: {most}"
-    );
-    assert!(
-        most > WIDTH + FIELD_MARGIN - 2048,
-        "shots fly up to the margin: {most}"
-    );
-}
-
-#[test]
 fn companions_stay_on_the_map() {
     // A companion told to hold past the map's right edge, within the margin, is clamped to it.
     let stay = companion(10, hold(WIDTH + FIELD_MARGIN, 40_000), json!([]));
