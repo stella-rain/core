@@ -5,14 +5,15 @@
 # Each key is a bench target (`benches/<name>.rs`); the CI bench job builds and checks these.
 # BR1b: the three below are the benches off bullets.
 # time_limit_tick is about 10% above its measured count (DS50: 1,610,205 arm64, 1,447,649 x86_64).
-# hit_tick and hit_tick_spread stay at worst_tick's ceiling until HB1 sets them after its optimisation.
+# hit_tick is about 10% above the larger of its two cases (HB1: 7,997,568 arm64, 8,072,866 x86_64). A key is a
+# bench target, so hit_tick_spread (3.6 M / 3.7 M, inside the same target) has no budget of its own.
 [worst_tick]
 arm64 = 12_400_000
 x86_64 = 11_900_000
 
 [hit_tick]
-arm64 = 12_400_000
-x86_64 = 11_900_000
+arm64 = 8_800_000
+x86_64 = 8_900_000
 
 [time_limit_tick]
 arm64 = 1_800_000
