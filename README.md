@@ -26,3 +26,9 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion
 in this work, as defined in the Apache-2.0 license, shall be dual licensed as above, without
 any additional terms or conditions.
+
+## How a core merge reaches the app repository
+
+Every push to `main` runs the `Bump app` workflow, which sends a `repository_dispatch` to the
+app repository (`event_type: core-main`, `client_payload: {"sha": "<full commit SHA>"}`).
+App's bot answers with a pull request that moves its core pin to that commit.
