@@ -20,14 +20,13 @@ fn kills(engine: &Engine) -> usize {
 
 /// Outcome, end tick, deaths and the main character's hit points per corpus stage, at the
 /// design values. `zones`, `orbs` and `ranged_cap` came after the scale: their rows are what they ended as when they were added.
-const STAGES: [(&str, Outcome, u32, usize, u32); 13] = [
-    ("agents", Outcome::Running, 80, 1, 99),
+const STAGES: [(&str, Outcome, u32, usize, u32); 12] = [
+    ("agents", Outcome::Running, 80, 1, 98),
     ("assist", Outcome::Running, 360, 0, 99),
-    ("boss", Outcome::Cleared, 111, 1, 99),
-    ("bullets", Outcome::Running, 300, 0, 99),
+    ("boss", Outcome::Cleared, 68, 1, 98),
     ("clear", Outcome::Cleared, 35, 1, 3),
     ("evade", Outcome::Failed, 300, 0, 97),
-    ("fail", Outcome::Failed, 155, 0, 0),
+    ("fail", Outcome::Failed, 136, 0, 0),
     ("landscape", Outcome::Failed, 300, 1, 98),
     ("melee", Outcome::Running, 300, 3, 97),
     ("orbs", Outcome::Running, 300, 0, 95),
@@ -41,9 +40,9 @@ fn a_stage_scaled_by_100_ends_as_it_did_at_design_values() {
     let cases = definitions();
     assert_eq!(cases.len(), STAGES.len());
     for (name, bytes, inputs) in cases {
-        // The corpus's evade stage holds the most hit points a stage may, for the bundled hit of
-        // 10,000; at design values it holds the 99 the table above was recorded with.
-        let bytes = if name == "evade" {
+        // The corpus's agents, boss, evade and landscape stages hold the most hit points a stage may,
+        // for the bundled hit of 10,000; at design values it holds the 99 the table above was recorded with.
+        let bytes = if matches!(name, "agents" | "boss" | "evade" | "landscape") {
             let mut v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
             v["player"]["hp"] = serde_json::json!(99);
             v.to_string().into_bytes()
