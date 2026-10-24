@@ -390,7 +390,7 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
             always(),
             json!("player"),
             json!({ "type": "attack",
-                    "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+                    "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
             70
         )]),
     );

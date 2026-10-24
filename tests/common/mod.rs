@@ -55,6 +55,18 @@ pub fn weapon_ref(attack: Value) -> Value {
     weapon_combo(json!({ "main": step(attack) }))
 }
 
+/// The default test weapon's attack: two ticks of a thin line along the facing, the second
+/// starting where the first ends, so it hits what is in a line up to 512 pixels ahead (the
+/// longest reach a hit box has is 256 pixels, and the field is 576 pixels tall).
+pub fn ray() -> Value {
+    let line = |forward: i32| {
+        json!({ "kind": "active", "ticks": 1,
+                "hit_box": { "type": "line", "offset": { "forward": forward },
+                             "length": 65_536, "width": 2_048 } })
+    };
+    json!({ "inline": [line(0), line(65_536)] })
+}
+
 /// A weapon with no steps: presses do nothing.
 pub fn quiet_weapon() -> Value {
     weapon_combo(json!({}))
@@ -184,7 +196,7 @@ pub fn wave(at_tick: u32, count: u16, every_ticks: u32, enemy: Value, x: i32, y:
 
 pub fn attack_rule(when: Value, cooldown_ticks: u32) -> Value {
     json!({ "when": when, "target": "player",
-            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } },
+            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } },
             "cooldown_ticks": cooldown_ticks })
 }
 
@@ -214,7 +226,7 @@ pub fn stage_full(
         // are not about weapons stay simple (`tests/shot.rs` and `tests/weapons.rs` are about
         // them).
         "player": { "base": "pilot_a", "hp": 99, "atk": 10,
-                    "weapon": weapon_ref(json!({ "preset": { "id": "aimed_single", "args": [2048] } })),
+                    "weapon": weapon_ref(ray()),
                     "evade": evade() },
         "companions": companions,
         "waves": waves,

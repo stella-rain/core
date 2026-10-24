@@ -52,7 +52,7 @@
           {
             "when": { "type": "time_above", "ticks": 30 },
             "target": "player",
-            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [512] } } },
+            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } },
             "once": true
           }
         ]
@@ -148,7 +148,7 @@
           {
             "when": { "type": "aggro_above", "who": "highest_aggro_ally", "value": 100 },
             "target": "highest_aggro_ally",
-            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } },
+            "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } },
             "charges": 3
           },
           {

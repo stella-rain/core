@@ -85,7 +85,7 @@ fn a_companion_death_reports_companion() {
             always(),
             json!("nearest_ally"),
             json!({ "type": "attack",
-                    "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+                    "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
             0
         )]),
     );

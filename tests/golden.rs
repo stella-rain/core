@@ -26,7 +26,7 @@ fn shoot_at(selector: &str, cooldown: u32) -> Value {
     rule(
         always(),
         json!(selector),
-        json!({ "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+        json!({ "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
         cooldown,
     )
 }
@@ -101,7 +101,7 @@ fn a_boss_breaks_a_part_and_changes_phase() {
     let horn = json!({ "id": "horn", "asset": "horns_2", "hp": 30,
                        "offset": { "x": 0, "y": 16_000 }, "radius": 6_000 });
     let shot = json!({ "type": "attack",
-                       "attack": { "preset": { "id": "aimed_single", "args": [768] } } });
+                       "attack": { "preset": { "id": "aimed_single", "args": [15] } } });
     let boss = json!({
         "base": "golem", "hp": 100, "radius": 8192, "spawn": { "x": 46_080, "y": 60_000 },
         "parts": [horn],

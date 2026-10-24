@@ -20,18 +20,22 @@ use crate::registry::{self, Kind};
 /// pixel a tick. The bullet patterns are one active phase of one tick that spawns its bullets;
 /// the melee swings (`slam`, `slash`, `thrust`) are a wind-up, an active hit box and a recovery.
 const DEFINITIONS: &[(&str, &str)] = &[
-    // One bullet at the target; argument 0 is its speed.
+    // The five shots below were bullet patterns until BR1c (DS10: nothing flies free any more);
+    // their IDs and argument counts stay (ADR-CONT-2) and they are zones now: a circle where
+    // the target stands, or lines from the attacker toward it. Argument 0 of the three that take one is the warning in ticks
+    // (the other two warn for 15).
+    // One circle where the target stands.
     (
         "aimed_single",
         r#"[{"kind":"active","ticks":1,"spawn":[
-            {"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]}]"#,
+            {"type":"zone","shape":{"type":"circle","radius":3072},"anchor":"target","wind_up_ticks":{"arg":0},"active_ticks":2}]}]"#,
     ),
-    // Seven bullets in a 30 degree fan at the target; argument 0 is their speed.
+    // Seven lines in a 30 degree fan at the target.
     (
         "aimed_spread",
         r#"[{"kind":"active","ticks":1,"spawn":[
             {"type":"spread","count":7,"angle":7680,"body":[
-            {"type":"fire","speed":{"arg":0},"direction":{"type":"aimed","offset":0}}]}]}]"#,
+            {"type":"zone","shape":{"type":"line","length":65536,"width":3072},"wind_up_ticks":{"arg":0},"active_ticks":2,"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
     // The elite's slam: `slam`'s blow after a 90-tick wind-up, 300 damage, the
     // attack a high elite made with one inline shot before; the wind-up is the telegraph.
@@ -58,20 +62,19 @@ const DEFINITIONS: &[(&str, &str)] = &[
              "hit_box":{"type":"arc","offset":{"forward":2048},"radius":8192,"half_angle":15360}},
             {"kind":"recovery","ticks":10}]"#,
     ),
-    // Forty bullets, one every 3 ticks, each turned 6 degrees from the one before; argument 0
-    // is their speed.
+    // Forty lines, one every 3 ticks, each turned 6 degrees from the one before.
     (
         "spiral",
         r#"[{"kind":"active","ticks":1,"spawn":[
             {"type":"repeat","count":40,"interval_ticks":3,"body":[
-            {"type":"fire","speed":{"arg":0},"direction":{"type":"sequential","step":1536}}]}]}]"#,
+            {"type":"zone","shape":{"type":"line","length":65536,"width":3072},"wind_up_ticks":{"arg":0},"active_ticks":2,"direction":{"type":"sequential","step":1536}}]}]}]"#,
     ),
-    // Five bullets in a 20 degree fan at the target.
+    // Five lines in a 20 degree fan at the target.
     (
         "spread_5",
         r#"[{"kind":"active","ticks":1,"spawn":[
             {"type":"spread","count":5,"angle":5120,"body":[
-            {"type":"fire","speed":1536,"direction":{"type":"aimed","offset":0}}]}]}]"#,
+            {"type":"zone","shape":{"type":"line","length":65536,"width":3072},"wind_up_ticks":15,"active_ticks":2,"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
     // A reach forward: a 12-pixel circle 28 pixels ahead; Pierce.
     (
@@ -81,12 +84,12 @@ const DEFINITIONS: &[(&str, &str)] = &[
              "hit_box":{"type":"circle","offset":{"forward":7168},"radius":3072}},
             {"kind":"recovery","ticks":12}]"#,
     ),
-    // Two bullets side by side, 5 degrees apart, at the target.
+    // Two lines side by side, 5 degrees apart, at the target.
     (
         "twin_shot",
         r#"[{"kind":"active","ticks":1,"spawn":[
             {"type":"spread","count":2,"angle":1280,"body":[
-            {"type":"fire","speed":2048,"direction":{"type":"aimed","offset":0}}]}]}]"#,
+            {"type":"zone","shape":{"type":"line","length":65536,"width":3072},"wind_up_ticks":15,"active_ticks":2,"direction":{"type":"aimed","offset":0}}]}]}]"#,
     ),
 ];
 

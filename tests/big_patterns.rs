@@ -15,7 +15,7 @@ use stella_rain_core::validate::{self, Error};
 
 fn aimed(big: Option<bool>) -> Value {
     let mut step = json!({ "type": "attack",
-        "attack": { "preset": { "id": "aimed_single", "args": [768] } } });
+        "attack": { "preset": { "id": "aimed_single", "args": [15] } } });
     if let Some(big) = big {
         step["big"] = json!(big);
     }
