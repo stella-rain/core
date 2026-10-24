@@ -6,6 +6,14 @@ and the `stage-verify` CLI that proves a stage can be cleared.
 
 Architecture decisions are recorded in the app repository (ADR-003, ADR-004, ADR-009, ADR-029).
 
+## How a release reaches the content repository
+
+A published core release (and a manual run of the `Content publish` workflow with a ref) runs
+`content-pack export` at that ref and opens the pull request `bot/publish-<ref>`, "Publish
+core <version>", in the content repository. It sets `pack.json` and `core-version` there.
+The flow is one way: content never writes back, and its release follows the merge of that
+pull request.
+
 ## License
 
 Licensed under either of
