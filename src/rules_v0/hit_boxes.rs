@@ -152,7 +152,7 @@ pub(super) fn resolve(
     swings.sort_by_key(|w| (w.owner.0, w.slot));
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
-    if s.orbs > 0 {
+    if !s.bullets.is_empty() {
         break_orbs(s, &swings, events);
     }
     for w in &swings {
@@ -177,7 +177,6 @@ pub(super) fn resolve(
 /// tick.
 fn break_orbs(s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
     let mine = |w: &&Swing| w.friendly && w.owner == super::PLAYER_ID;
-    let mut gone = 0;
     s.bullets.retain(|b| {
         if !b.breakable {
             return true;
@@ -191,11 +190,9 @@ fn break_orbs(s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
                 owner: b.owner,
                 at: b.at,
             });
-            gone += 1;
         }
         !hit
     });
-    s.orbs -= gone;
 }
 
 fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {

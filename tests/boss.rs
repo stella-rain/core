@@ -118,7 +118,7 @@ fn hits(events: &[(u32, DomainEvent)]) -> Vec<(u32, EntityId, u32)> {
 }
 
 fn hostile_bullets(e: &Engine) -> usize {
-    e.snapshot().bullets.iter().filter(|b| !b.friendly).count()
+    e.snapshot().bullets.len()
 }
 
 fn hostile_zones(e: &Engine) -> usize {

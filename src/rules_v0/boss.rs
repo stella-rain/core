@@ -254,7 +254,6 @@ fn begin_phase(
             Transition::ClearBullets => {
                 // Every projectile is an orb, and none is friendly.
                 s.bullets.clear();
-                s.orbs = 0;
             }
             Transition::ClearZones => {
                 let pool = &mut s.scratch.hit_lists;

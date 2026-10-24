@@ -336,7 +336,6 @@ pub(crate) fn initial_state(
         },
         boss,
         companions,
-        orbs: 0,
         enemies: Vec::new(),
         tasks: Vec::new(),
         runs: Vec::new(),
@@ -658,23 +657,16 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
 /// before it moves, so a bullet with `n` ticks is on the map for `n` ticks (core#147).
 fn move_bullets(stage: &World, s: &mut State) {
     let holds = stage.map().holds();
-    let mut orbs_gone = 0;
-    let counting = s.orbs > 0;
     s.bullets.retain_mut(|b| {
-        let keep = if b.life == 0 {
+        if b.life == 0 {
             false
         } else {
             b.at.x = b.at.x.saturating_add(b.vx);
             b.at.y = b.at.y.saturating_add(b.vy);
             b.life -= 1;
             holds(b.at)
-        };
-        if counting && !keep && b.orb {
-            orbs_gone += 1;
         }
-        keep
     });
-    s.orbs -= orbs_gone;
 }
 
 /// Two circles overlap (touching counts), in 64-bit fixed point.
@@ -741,27 +733,12 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         consumed.push(hit_ally_side(stage, s, shot, events));
     }
     let mut flags = consumed.iter();
-    if s.orbs == 0 {
-        s.bullets
-            .retain(|_| !flags.next().copied().unwrap_or(false));
-    } else {
-        let mut orbs_gone = 0;
-        s.bullets.retain(|b| {
-            let gone = flags.next().copied().unwrap_or(false);
-            orbs_gone += u32::from(gone && b.orb);
-            !gone
-        });
-        s.orbs -= orbs_gone;
-    }
+    s.bullets
+        .retain(|_| !flags.next().copied().unwrap_or(false));
     s.scratch.consumed = consumed;
     if let Some(grid) = grid {
         s.scratch.grid = grid;
     }
-    debug_assert_eq!(
-        s.orbs as usize,
-        s.bullets.iter().filter(|b| b.orb).count(),
-        "the orb count drifted"
-    );
     s.companions.retain(|c| c.hp > 0);
     combat::bursts(stage, s, events);
     levels::credit_defeated(stage, s, events);
@@ -1501,7 +1478,7 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         h.write_i32(b.dir.y);
         h.write_u32(u32::from(b.style));
         h.write_u32(b.owner.0);
-        // No projectile is friendly any more (BR1c); the byte stays, as above.
+        // No projectile is friendly any more (BR1c); the byte stays until HS1 (core#361).
         h.write_bool(false);
         h.write_u32(b.damage);
         h.write_bool(b.breaks_charge);
@@ -1675,11 +1652,12 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         }
     }
     // Which bullets are orbs and which break, and only while one is alive (core Z2), so that the
-    // hashes of runs without orbs stay as they were.
-    if s.orbs > 0 {
+    // hashes of runs without orbs stay as they were. Every projectile is an orb since BR1c, so
+    // the orb byte is a constant; it stays until HS1 (core#361).
+    if !s.bullets.is_empty() {
         h.write_u32(count(&s.bullets));
         for b in &s.bullets {
-            h.write_bool(b.orb);
+            h.write_bool(true);
             h.write_bool(b.breakable);
         }
     }

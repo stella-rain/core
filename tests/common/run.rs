@@ -158,7 +158,6 @@ pub fn avoid_bullets(engine: &Engine, mut input: Input, at_elite: bool) -> Input
     let threat = s
         .bullets
         .iter()
-        .filter(|b| !b.friendly)
         .filter_map(|b| {
             let k = (1..=SEE).find(|&k| {
                 d2(Point {

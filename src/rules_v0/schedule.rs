@@ -100,7 +100,7 @@ pub(super) const TICK: &[(&str, Step)] = &[
             tasks,
             bullets: count(&c.s.bullets),
             zones: count(&c.s.zones),
-            orbs: c.s.orbs,
+            orbs: count(&c.s.bullets),
             emitter_steps,
         };
     }),

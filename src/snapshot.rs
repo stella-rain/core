@@ -671,8 +671,6 @@ pub struct BulletView {
     /// The bullet asset, as an index into the bullet asset IDs the stage uses, in order of
     /// first appearance.
     pub style: u16,
-    /// Fired by the main character or a companion, rather than an enemy.
-    pub friendly: bool,
     /// An orb (core Z2): slow, timed, and it bursts when its time is up.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub orb: bool,

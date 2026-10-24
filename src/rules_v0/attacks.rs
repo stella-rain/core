@@ -1191,11 +1191,11 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
     if t.friendly {
         return true;
     }
-    if s.orbs >= MAX_ORBS_ALIVE {
+    if s.bullets.len() >= MAX_ORBS_ALIVE as usize {
         return true;
     }
-    if s.orbs >= MAX_ORBS_PER_OWNER {
-        let mine = s.bullets.iter().filter(|b| b.orb && b.owner == t.owner);
+    if s.bullets.len() >= MAX_ORBS_PER_OWNER as usize {
+        let mine = s.bullets.iter().filter(|b| b.owner == t.owner);
         if mine.count() >= MAX_ORBS_PER_OWNER as usize {
             return true;
         }
@@ -1238,11 +1238,9 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
         smash: t.smash,
         combo: t.combo,
         hook,
-        orb: true,
         breakable: *breakable,
         life,
     });
-    s.orbs += 1;
     true
 }
 
