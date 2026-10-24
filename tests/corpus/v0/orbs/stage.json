@@ -1,0 +1,557 @@
+{
+  "boss": {
+    "base": "golem",
+    "hp": 100000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [
+          {
+            "attack": {
+              "inline": [
+                {
+                  "damage": 200,
+                  "kind": "active",
+                  "spawn": [
+                    {
+                      "body": [
+                        {
+                          "body": [
+                            {
+                              "breakable": true,
+                              "burst": [
+                                {
+                                  "active_ticks": 8,
+                                  "direction": {
+                                    "offset": 0,
+                                    "type": "aimed"
+                                  },
+                                  "offset": {
+                                    "forward": 0,
+                                    "right": 0
+                                  },
+                                  "shape": {
+                                    "radius": 4096,
+                                    "type": "circle"
+                                  },
+                                  "type": "zone",
+                                  "wind_up_ticks": 10
+                                }
+                              ],
+                              "direction": {
+                                "offset": 0,
+                                "type": "aimed"
+                              },
+                              "speed": 160,
+                              "ticks": 150,
+                              "type": "orb"
+                            }
+                          ],
+                          "count": 3,
+                          "type": "ring"
+                        }
+                      ],
+                      "count": 12,
+                      "interval_ticks": 3,
+                      "type": "repeat"
+                    }
+                  ],
+                  "ticks": 1
+                }
+              ]
+            },
+            "type": "attack"
+          },
+          {
+            "ticks": 200,
+            "type": "wait"
+          },
+          {
+            "type": "loop"
+          }
+        ],
+        "transition": []
+      }
+    ],
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "companions": [],
+  "description": "",
+  "id": "test",
+  "length_ticks": 600,
+  "player": {
+    "atk": 1000,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 9900,
+    "weapon": {
+      "preset": {
+        "id": "giant_sword"
+      }
+    }
+  },
+  "schema_version": 0,
+  "seed": 7,
+  "sim_version": 0,
+  "title": "Test",
+  "waves": [
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 10000000,
+        "movement": {
+          "at": {
+            "x": 46080,
+            "y": 142000
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 100,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 200,
+                    "kind": "wind_up",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "breakable": true,
+                            "burst": [
+                              {
+                                "body": [
+                                  {
+                                    "active_ticks": 8,
+                                    "direction": {
+                                      "offset": 0,
+                                      "type": "aimed"
+                                    },
+                                    "offset": {
+                                      "forward": 0,
+                                      "right": 0
+                                    },
+                                    "shape": {
+                                      "radius": 4096,
+                                      "type": "circle"
+                                    },
+                                    "type": "zone",
+                                    "wind_up_ticks": 10
+                                  }
+                                ],
+                                "count": 4,
+                                "type": "ring"
+                              }
+                            ],
+                            "direction": {
+                              "offset": 0,
+                              "type": "aimed"
+                            },
+                            "speed": 160,
+                            "ticks": 90,
+                            "type": "orb"
+                          }
+                        ],
+                        "count": 8,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 4
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 46080,
+        "y": 142000
+      }
+    },
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 5000,
+        "movement": {
+          "at": {
+            "x": 20000,
+            "y": 120000
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 100,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 200,
+                    "kind": "wind_up",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "breakable": true,
+                            "burst": [
+                              {
+                                "body": [
+                                  {
+                                    "active_ticks": 8,
+                                    "direction": {
+                                      "offset": 0,
+                                      "type": "aimed"
+                                    },
+                                    "offset": {
+                                      "forward": 0,
+                                      "right": 0
+                                    },
+                                    "shape": {
+                                      "radius": 4096,
+                                      "type": "circle"
+                                    },
+                                    "type": "zone",
+                                    "wind_up_ticks": 10
+                                  }
+                                ],
+                                "count": 4,
+                                "type": "ring"
+                              }
+                            ],
+                            "direction": {
+                              "offset": 0,
+                              "type": "aimed"
+                            },
+                            "speed": 160,
+                            "ticks": 90,
+                            "type": "orb"
+                          }
+                        ],
+                        "count": 8,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 4
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 20000,
+        "y": 120000
+      }
+    },
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 5000,
+        "movement": {
+          "at": {
+            "x": 40000,
+            "y": 120000
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 100,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 200,
+                    "kind": "wind_up",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "breakable": true,
+                            "burst": [
+                              {
+                                "body": [
+                                  {
+                                    "active_ticks": 8,
+                                    "direction": {
+                                      "offset": 0,
+                                      "type": "aimed"
+                                    },
+                                    "offset": {
+                                      "forward": 0,
+                                      "right": 0
+                                    },
+                                    "shape": {
+                                      "radius": 4096,
+                                      "type": "circle"
+                                    },
+                                    "type": "zone",
+                                    "wind_up_ticks": 10
+                                  }
+                                ],
+                                "count": 4,
+                                "type": "ring"
+                              }
+                            ],
+                            "direction": {
+                              "offset": 0,
+                              "type": "aimed"
+                            },
+                            "speed": 160,
+                            "ticks": 90,
+                            "type": "orb"
+                          }
+                        ],
+                        "count": 8,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 4
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 40000,
+        "y": 120000
+      }
+    },
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 5000,
+        "movement": {
+          "at": {
+            "x": 60000,
+            "y": 120000
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 100,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 200,
+                    "kind": "wind_up",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "burst": [
+                              {
+                                "body": [
+                                  {
+                                    "active_ticks": 8,
+                                    "direction": {
+                                      "offset": 0,
+                                      "type": "aimed"
+                                    },
+                                    "offset": {
+                                      "forward": 0,
+                                      "right": 0
+                                    },
+                                    "shape": {
+                                      "radius": 4096,
+                                      "type": "circle"
+                                    },
+                                    "type": "zone",
+                                    "wind_up_ticks": 10
+                                  }
+                                ],
+                                "count": 4,
+                                "type": "ring"
+                              }
+                            ],
+                            "direction": {
+                              "offset": 0,
+                              "type": "aimed"
+                            },
+                            "speed": 160,
+                            "ticks": 70,
+                            "type": "orb"
+                          }
+                        ],
+                        "count": 8,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 4
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 60000,
+        "y": 120000
+      }
+    },
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 5000,
+        "movement": {
+          "at": {
+            "x": 80000,
+            "y": 120000
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 100,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 200,
+                    "kind": "wind_up",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "burst": [
+                              {
+                                "body": [
+                                  {
+                                    "active_ticks": 8,
+                                    "direction": {
+                                      "offset": 0,
+                                      "type": "aimed"
+                                    },
+                                    "offset": {
+                                      "forward": 0,
+                                      "right": 0
+                                    },
+                                    "shape": {
+                                      "radius": 4096,
+                                      "type": "circle"
+                                    },
+                                    "type": "zone",
+                                    "wind_up_ticks": 10
+                                  }
+                                ],
+                                "count": 4,
+                                "type": "ring"
+                              }
+                            ],
+                            "direction": {
+                              "offset": 0,
+                              "type": "aimed"
+                            },
+                            "speed": 160,
+                            "ticks": 70,
+                            "type": "orb"
+                          }
+                        ],
+                        "count": 8,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 4
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 80000,
+        "y": 120000
+      }
+    }
+  ]
+}

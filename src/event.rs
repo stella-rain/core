@@ -201,6 +201,12 @@ pub enum DomainEvent {
     MimicRevealed {
         elite: EntityId,
     },
+    /// The main character's hit box broke the breakable orb of `owner` at `at`, and its burst did
+    /// not run (core Z2, ADR-127 point 37).
+    OrbBroken {
+        owner: EntityId,
+        at: Point,
+    },
     /// An offer opened, and the world stopped until a choice closes it (ADR-079 §3).
     OfferOpened {
         kind: OfferKind,

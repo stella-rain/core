@@ -85,6 +85,9 @@ pub(crate) struct State {
     pub move_index: MoveIndex,
     /// In spawn order.
     pub bullets: Vec<BulletState>,
+    /// How many of `bullets` are orbs (core Z2): derived, not hashed, kept by every place that
+    /// adds or removes a bullet so that a tick without orbs pays no scan for them (ADR-058).
+    pub orbs: u32,
     /// Zones placed and not yet over, in the order they were placed (core Z1).
     pub zones: Vec<ZoneState>,
     /// Enemies spawned so far, per wave.
@@ -882,6 +885,10 @@ pub(crate) struct BulletState {
     pub combo: bool,
     /// Starts an attack of its own after a while (`on_bullet`).
     pub hook: Option<Box<Hook>>,
+    /// An orb (core Z2): a slow bullet with a lifetime whose `hook` is its burst.
+    pub orb: bool,
+    /// An orb the main character's hit boxes break, with no burst.
+    pub breakable: bool,
     /// Ticks left before it leaves the map, `UNLIMITED` for a bullet with no lifetime (core#147).
     /// It leaves when this runs out or when it is past the map's margin, whichever comes first.
     pub life: u32,
@@ -983,6 +990,8 @@ pub(crate) struct AttackRun {
     pub facing: Dir,
     pub aim: Aim,
     pub friendly: bool,
+    /// Started by a `ranged` rule: while in wind-up or active it holds a ranged token (core Z2).
+    pub ranged: bool,
     /// The damage its starter gives a phase that sets none (ADR-055): the main character's
     /// attack, a shot skill's own damage, 1 for an enemy or the boss.
     pub base: u32,

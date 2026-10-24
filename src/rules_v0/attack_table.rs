@@ -193,7 +193,7 @@ pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(),
 fn from_rules(list: &[Rule], out: &mut Vec<AttackRef>) {
     for rule in list {
         match &rule.action {
-            Action::Attack { attack } => out.push(attack.clone()),
+            Action::Attack { attack, .. } => out.push(attack.clone()),
             Action::Cast {
                 skill: Skill::Shot { pattern, .. },
             } => out.push(pattern.clone()),

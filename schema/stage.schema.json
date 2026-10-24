@@ -178,6 +178,10 @@
             "attack": {
               "$ref": "#/$defs/AttackRef"
             },
+            "ranged": {
+              "description": "A regular enemy's attack at range (core Z2): the run holds one of the\n`MAX_RANGED_ATTACKERS` tokens while it winds up and is active, and a start that would\nexceed the cap waits for the next tick with its cooldown still ready. Not valid on a\ncompanion, an elite or the boss.",
+              "type": "boolean"
+            },
             "type": {
               "type": "string",
               "const": "attack"
@@ -1292,6 +1296,52 @@
             "after_ticks",
             "body",
             "then"
+          ]
+        },
+        {
+          "description": "A slow projectile with a required lifetime (core Z2, DS10): it flies for `ticks` ticks\n(1 to `limits::MAX_ORB_TICKS`), and then `burst` runs from where it ended, as an attack of\nits own. A `breakable` orb is destroyed, with no burst, by the main character's hit boxes.\nEnemy attacks only; the burst holds only `zone`, `ring`, `spread`, `repeat`, `rotate` and\n`wait` nodes. At most `MAX_ORBS_PER_OWNER` orbs per attacker and `MAX_ORBS_ALIVE` in all;\none over a cap is dropped.",
+          "type": "object",
+          "properties": {
+            "breakable": {
+              "type": "boolean"
+            },
+            "burst": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "direction": {
+              "$ref": "#/$defs/Direction"
+            },
+            "speed": {
+              "$ref": "#/$defs/Expr"
+            },
+            "style": {
+              "description": "Bullet asset; absent means the default bullet.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ContentId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "ticks": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "orb"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "speed",
+            "direction",
+            "ticks"
           ]
         },
         {

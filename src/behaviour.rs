@@ -239,11 +239,29 @@ pub enum Selector {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
-    Cast { skill: Skill },
-    Attack { attack: AttackRef },
-    Summon { agent: Box<Agent>, count: u8 },
-    MoveTo { to: Point, ticks: u32 },
-    Telegraph { ticks: u32 },
+    Cast {
+        skill: Skill,
+    },
+    Attack {
+        attack: AttackRef,
+        /// A regular enemy's attack at range (core Z2): the run holds one of the
+        /// `MAX_RANGED_ATTACKERS` tokens while it winds up and is active, and a start that would
+        /// exceed the cap waits for the next tick with its cooldown still ready. Not valid on a
+        /// companion, an elite or the boss.
+        #[serde(default, skip_serializing_if = "is_false")]
+        ranged: bool,
+    },
+    Summon {
+        agent: Box<Agent>,
+        count: u8,
+    },
+    MoveTo {
+        to: Point,
+        ticks: u32,
+    },
+    Telegraph {
+        ticks: u32,
+    },
 }
 
 /// A skill block (ADR-008, ADR-036). Percentages are whole percent.

@@ -52,6 +52,8 @@ pub struct Load {
     pub bullets: u32,
     /// Zones alive after the attacks placed theirs, before the tick advanced any.
     pub zones: u32,
+    /// Orbs alive after the attacks fired theirs, before the tick moved and removed any.
+    pub orbs: u32,
     /// Bullets made in the tick.
     pub bullet_spawns: u32,
     /// Emitter nodes carried out in the tick, across all attacks.
@@ -65,6 +67,7 @@ impl Load {
         tasks: rules_v0::MAX_ATTACK_TASKS,
         bullets: rules_v0::MAX_BULLETS_ALIVE,
         zones: rules_v0::MAX_ZONES_ALIVE,
+        orbs: rules_v0::MAX_ORBS_ALIVE,
         bullet_spawns: rules_v0::MAX_BULLET_SPAWNS_PER_TICK,
         emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
     };

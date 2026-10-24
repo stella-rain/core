@@ -215,7 +215,7 @@ fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[
     fs::create_dir_all(dir).unwrap();
     let content = match mode {
         Some(json) => {
-            fs::write(dir.join("mode.json"), json).unwrap();
+            write_atomic(&dir.join("mode.json"), json.as_bytes());
             case_content(dir).unwrap()
         }
         None => case_content(dir).unwrap(),
@@ -225,8 +225,8 @@ fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[
         .into_iter()
         .map(|h| hash_to_hex(h) + "\n")
         .collect();
-    fs::write(dir.join("run.replay"), recorded.to_bytes()).unwrap();
-    fs::write(dir.join("hashes.txt"), hashes).unwrap();
+    write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
+    write_atomic(&dir.join("hashes.txt"), hashes.as_bytes());
 }
 
 /// Writes the snapshots of the first diverging tick (`engine`'s) and of the one before to
@@ -269,6 +269,15 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
+/// Writes `bytes` to `path` so that no reader ever sees half of them: the other tests of this
+/// file read the cases while `UPDATE_CORPUS=1` rewrites them, and a plain `fs::write` truncates
+/// the file first.
+fn write_atomic(path: &Path, bytes: &[u8]) {
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, bytes).unwrap();
+    fs::rename(&tmp, path).unwrap();
+}
+
 /// Writes a case's three files from a stage and the inputs to run.
 fn write_case(dir: &Path, stage_bytes: &[u8], inputs: &[Input]) {
     let recorded = replay::record(stage_bytes, inputs).unwrap();
@@ -282,9 +291,9 @@ fn write_case(dir: &Path, stage_bytes: &[u8], inputs: &[Input]) {
         hashes.push('\n');
     }
     fs::create_dir_all(dir).unwrap();
-    fs::write(dir.join("stage.json"), stage_bytes).unwrap();
-    fs::write(dir.join("run.replay"), recorded.to_bytes()).unwrap();
-    fs::write(dir.join("hashes.txt"), hashes).unwrap();
+    write_atomic(&dir.join("stage.json"), stage_bytes);
+    write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
+    write_atomic(&dir.join("hashes.txt"), hashes.as_bytes());
 }
 
 fn changed_hash_case(name: &str) -> (PathBuf, PathBuf) {
@@ -812,6 +821,111 @@ fn zones() -> Definition {
     ("zones", bytes(&stage), inputs)
 }
 
+/// The ranged cap (core Z2): eight shooters line the top of the field and fire an aimed shot
+/// after a wind-up, each marked `ranged`, so that at most four are winding up or active at any
+/// tick and the others wait with their cooldown ready; two more shoot the same way without the
+/// mark and are never held back. The main character walks from side to side.
+fn ranged_cap() -> Definition {
+    let shot = |ranged: bool| {
+        let mut action = json!({ "type": "attack", "attack": { "inline": [
+            { "kind": "wind_up", "ticks": 12, "damage": 2, "spawn": [
+                { "type": "fire", "speed": 768, "ticks": 200,
+                  "direction": { "type": "aimed", "offset": 0 } } ] },
+            { "kind": "active", "ticks": 8 },
+            { "kind": "recovery", "ticks": 10 },
+        ] } });
+        if ranged {
+            action["ranged"] = json!(true);
+        }
+        json!([rule(always(), json!("player"), action, 30)])
+    };
+    let waves = (0..10)
+        .map(|i| {
+            let x = 10_000 + i * 8_000;
+            let shooter = enemy(20, hold(x, 110_000), shot(i < 8));
+            wave(1, 1, 0, shooter, x, 110_000)
+        })
+        .collect();
+    let stage = quiet(stage_full(600, Some(far_boss()), waves, vec![]));
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..40 => idle(),
+            _ if (t / 40) % 2 == 0 => moving(40, 0),
+            _ => moving(-40, 0),
+        })
+        .collect();
+    ("ranged_cap", bytes(&stage), inputs)
+}
+
+/// Orbs (core Z2): a breakable orb ring and a plain one, each bursting into zones where its orb
+/// ended, and a boss that fills the field past the caps. The main character swings the
+/// `giant_sword` while it walks, so some breakable orbs are cut before they burst.
+fn orbs() -> Definition {
+    let zone = json!({ "type": "zone", "shape": { "type": "circle", "radius": 4_096 },
+                       "anchor": "attacker", "wind_up_ticks": 10, "active_ticks": 8 });
+    // A pattern is at most four levels deep: a ring of four zones under an orb under a ring of
+    // orbs fits, a ring of orbs under a repeat does not, so the boss's orbs burst into one zone.
+    let orb = |breakable: bool, ticks: u32, burst: Value| {
+        json!({ "type": "orb", "speed": 160, "ticks": ticks, "breakable": breakable,
+                "direction": { "type": "aimed", "offset": 0 }, "burst": [burst] })
+    };
+    let four = json!({ "type": "ring", "count": 4, "body": [zone.clone()] });
+    let attack = |nodes: Value, cooldown: u32| {
+        json!([rule(
+            always(),
+            json!("player"),
+            json!({ "type": "attack", "attack": { "inline": [
+                { "kind": "wind_up", "ticks": 4, "damage": 2, "spawn": [nodes] },
+                { "kind": "recovery", "ticks": 10 },
+            ] } }),
+            cooldown
+        )])
+    };
+    let ring = |orb: Value| json!({ "type": "ring", "count": 8, "body": [orb] });
+    let shooter = |x: i32, y: i32, hp: u32, breakable: bool, ticks: u32| {
+        let e = enemy(
+            hp,
+            hold(x, y),
+            attack(ring(orb(breakable, ticks, four.clone())), 100),
+        );
+        wave(1, 1, 0, e, x, y)
+    };
+    let mut boss = far_boss();
+    boss["phases"] = json!([{ "timeline": [
+        { "type": "attack", "attack": { "inline": [
+            { "kind": "active", "ticks": 1, "damage": 2, "spawn": [
+                { "type": "repeat", "count": 12, "interval_ticks": 3, "body": [
+                    { "type": "ring", "count": 3, "body": [orb(true, 150, zone.clone())] } ] },
+            ] },
+        ] } },
+        { "type": "wait", "ticks": 200 },
+        { "type": "loop" },
+    ] }]);
+    let waves = vec![
+        // First, close to the main character, so that its sword reaches the orbs as they leave.
+        shooter(46_080, 142_000, 100_000, true, 90),
+        shooter(20_000, 120_000, 50, true, 90),
+        shooter(40_000, 120_000, 50, true, 90),
+        shooter(60_000, 120_000, 50, false, 70),
+        shooter(80_000, 120_000, 50, false, 70),
+    ];
+    let stage = armed(
+        stage_full(600, Some(boss), waves, vec![]),
+        json!({ "preset": { "id": "giant_sword" } }),
+    );
+    let inputs = (0..300)
+        .map(|t| {
+            let input = match t {
+                0..30 => idle(),
+                _ if (t / 40) % 2 == 0 => moving(30, 0),
+                _ => moving(-30, 0),
+            };
+            combos(t, input)
+        })
+        .collect();
+    ("orbs", bytes(&stage), inputs)
+}
+
 /// Aim assist and auto mode (ADR-072, ADR-073) with the giant_sword, whose assist range is 160
 /// pixels: three bats to the left and an elite to the right, all within it, and a boss far up
 /// the field. Auto mode alone for 100 ticks (the elite first, then the bats as they fall);
@@ -959,6 +1073,8 @@ pub(crate) fn definitions() -> Vec<Definition> {
         fail(),
         landscape(),
         melee(),
+        orbs(),
+        ranged_cap(),
         timeout(),
         zones(),
     ]
@@ -1670,6 +1786,52 @@ fn zone_peaks(name: &str) -> (usize, bool) {
         cleared |= engine.tick() == 150 && alive <= 6 && before > 6;
     }
     (peak, cleared)
+}
+
+/// What a recorded case does with ranged tokens and orbs: the most ranged shooters (entities 2
+/// to 9) winding up or active at once, the most orbs alive, the orbs broken, and whether a burst
+/// placed a zone.
+fn orb_and_token_reach(name: &str) -> (usize, usize, usize, bool) {
+    let case = corpus_dir().join(name);
+    let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+    let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+    let (mut held, mut orbs, mut broken, mut zoned) = (0, 0, 0, false);
+    for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
+        engine.step(input);
+        let snapshot = engine.snapshot();
+        let tokens = snapshot
+            .entities
+            .iter()
+            .filter(|e| (2..10).contains(&e.id.0))
+            .filter(|e| {
+                e.attack
+                    .as_ref()
+                    .is_some_and(|a| a.kind != stella_rain_core::attack::PhaseKind::Recovery)
+            })
+            .count();
+        held = held.max(tokens);
+        orbs = orbs.max(snapshot.bullets.iter().filter(|b| b.orb).count());
+        zoned |= !snapshot.zones.is_empty();
+        broken += engine
+            .events()
+            .iter()
+            .filter(|ev| matches!(ev, DomainEvent::OrbBroken { .. }))
+            .count();
+    }
+    (held, orbs, broken, zoned)
+}
+
+#[test]
+fn the_ranged_cap_and_orbs_cases_are_what_their_names_say() {
+    // Ten shooters want to fire, eight of them marked: four hold a token at the most.
+    let (held, orbs, _, _) = orb_and_token_reach("ranged_cap");
+    assert_eq!((held, orbs), (4, 0));
+    // The orbs fill the field up to the cap, the sword breaks some, and bursts place zones.
+    let (_, orbs, broken, zoned) = orb_and_token_reach("orbs");
+    assert_eq!(orbs, 32, "the orb cap is reached");
+    assert!(broken >= 1, "the sword breaks an orb");
+    assert!(zoned, "a burst places a zone");
 }
 
 #[test]

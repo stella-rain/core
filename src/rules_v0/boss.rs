@@ -250,7 +250,11 @@ fn begin_phase(
     }
     for transition in &phase.transition {
         match transition {
-            Transition::ClearBullets => s.bullets.retain(|b| b.friendly),
+            Transition::ClearBullets => {
+                s.bullets.retain(|b| b.friendly);
+                // Orbs are never friendly.
+                s.orbs = 0;
+            }
             Transition::ClearZones => s.zones.retain(|z| z.friendly),
             Transition::InvulnerableTicks { ticks } => {
                 if let Some(b) = s.boss.as_mut() {

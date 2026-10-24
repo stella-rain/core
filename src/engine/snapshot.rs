@@ -295,6 +295,8 @@ impl Engine {
                     radius: Fx(rules_v0::bullet_radius(b.friendly)),
                     style: b.style,
                     friendly: b.friendly,
+                    orb: b.orb,
+                    breakable: b.breakable,
                 })
                 .collect(),
             stars: s.stars.as_ref().map_or_else(Vec::new, |f| {

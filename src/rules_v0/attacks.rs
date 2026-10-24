@@ -21,6 +21,10 @@
 //! - `zone` places an area that does not move (`zones`) instead of a bullet: at the attacker's
 //!   spot or where the target stood when the attack began, moved by its `offset` along its
 //!   direction, which `rotate`, `ring` and `spread` turn as they turn a bullet's.
+//! - `orb` fires a slow bullet that lives `ticks` ticks (core Z2). When they are up its `burst` is
+//!   carried out from where it ended, as an `on_bullet`'s `then` is; the main character's hit
+//!   boxes break a `breakable` one with no burst. At most `MAX_ORBS_PER_OWNER` per attacker and
+//!   `MAX_ORBS_ALIVE` in all; one over a cap is dropped, in node order.
 //! - `repeat` runs its body `count` times; the next round starts `interval_ticks` ticks after
 //!   the body of the last one ends. `ring` runs its body `count` times at once, round after
 //!   round turned a full turn / `count` further; `spread` the same, fanned evenly across
@@ -53,17 +57,36 @@ use crate::registry;
 use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
 use crate::trig;
-use crate::validate::limits::{MAX_BULLET_TICKS, MAX_LEN, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS};
+use crate::validate::limits::{
+    MAX_BULLET_TICKS, MAX_LEN, MAX_ORB_TICKS, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS,
+};
 
 use super::Scratch;
 use super::entity::{Who, scale_damage, status_pct};
 use super::{
-    AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, World, count, spawn_bullet,
+    AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, MAX_ORBS_ALIVE, MAX_ORBS_PER_OWNER,
+    World, count, spawn_bullet,
 };
 
 /// Whether `owner` is running an attack in `slot`.
 pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
     s.runs.iter().any(|r| r.owner == owner && r.slot == slot)
+}
+
+/// The ranged tokens held now (core Z2): the `ranged` runs in their wind-up or active phase.
+pub(super) fn ranged_tokens(world: &World, s: &State) -> u32 {
+    let held = s
+        .runs
+        .iter()
+        .filter(|r| r.ranged && phase(world, r, r.phase as usize).kind != PhaseKind::Recovery);
+    u32::try_from(held.count()).unwrap_or(u32::MAX)
+}
+
+/// Marks the run that just started as a `ranged` one: it is the last in `runs`.
+pub(super) fn mark_ranged(s: &mut State) {
+    if let Some(r) = s.runs.last_mut() {
+        r.ranged = true;
+    }
 }
 
 /// The movement speed, in percent, that `owner`'s running attacks leave it: the lowest
@@ -445,6 +468,7 @@ fn launch(world: &World, s: &mut State, launch: Launch, events: &mut Vec<DomainE
         facing,
         aim,
         friendly: State::is_ally(owner),
+        ranged: false,
         base: base_damage,
         atk_up_pct,
         damage_pct: if State::is_ally(owner) {
@@ -708,7 +732,10 @@ fn body_of(node: &Emitter) -> Option<&[Emitter]> {
         | Emitter::Spread { body, .. }
         | Emitter::Rotate { body, .. }
         | Emitter::OnBullet { body, .. } => Some(body),
-        Emitter::Fire { .. } | Emitter::Wait { .. } | Emitter::Zone { .. } => None,
+        Emitter::Fire { .. }
+        | Emitter::Wait { .. }
+        | Emitter::Zone { .. }
+        | Emitter::Orb { .. } => None,
     }
 }
 
@@ -719,6 +746,8 @@ fn root_list<'a>(program: &'a [Emitter], base: &[PathStep]) -> Option<&'a [Emitt
         let node = list.get(usize::from(step.node))?;
         list = match (step.then, node) {
             (true, Emitter::OnBullet { then, .. }) => then,
+            // The burst of an orb is carried out as the `then` of an `on_bullet` is.
+            (true, Emitter::Orb { burst, .. }) => burst,
             (true, _) => return None,
             (false, node) => body_of(node)?,
         };
@@ -762,7 +791,10 @@ fn above(root: &[Emitter], frames: &[Frame], depth: usize) -> Option<Above> {
             }
             Emitter::Rotate { .. } => out.turn = out.turn.saturating_add(f.offset),
             Emitter::OnBullet { .. } => out.hook = Some((k, f.hook_after)),
-            Emitter::Fire { .. } | Emitter::Wait { .. } | Emitter::Zone { .. } => {}
+            Emitter::Fire { .. }
+            | Emitter::Wait { .. }
+            | Emitter::Zone { .. }
+            | Emitter::Orb { .. } => {}
         }
         list = body_of(node)?;
     }
@@ -961,6 +993,12 @@ fn exec(
                 }
                 t.frames[top].idx += 1;
             }
+            Emitter::Orb { .. } => {
+                if !emit_orb(s, t, &ab, node, top, spawns_left) {
+                    return false;
+                }
+                t.frames[top].idx += 1;
+            }
             Emitter::Wait { ticks: n } => {
                 let wait = ticks(value(s, t, &ab, n));
                 t.frames[top].idx += 1;
@@ -1066,7 +1104,10 @@ fn next_round(s: &mut State, t: &mut AttackTask, root: &[Emitter], parent: usize
             t.frames[parent].idx += 1;
             Advance::Continue
         }
-        Emitter::Fire { .. } | Emitter::Wait { .. } | Emitter::Zone { .. } => Advance::Broken,
+        Emitter::Fire { .. }
+        | Emitter::Wait { .. }
+        | Emitter::Zone { .. }
+        | Emitter::Orb { .. } => Advance::Broken,
     }
 }
 
@@ -1151,6 +1192,7 @@ fn uses_spot(phases: &[AttackPhase]) -> bool {
     fn nodes(list: &[Emitter]) -> bool {
         list.iter().any(|n| match n {
             Emitter::Zone { anchor, .. } => *anchor == Anchor::Target,
+            Emitter::Orb { burst, .. } => nodes(burst),
             Emitter::OnBullet { body, then, .. } => nodes(body) || nodes(then),
             other => body_of(other).is_some_and(nodes),
         })
@@ -1234,11 +1276,119 @@ fn emit(
             smash: t.smash,
             combo: t.combo,
             hook,
+            orb: false,
+            breakable: false,
             life,
         },
         spawns_left,
     );
     t.last_dir = dir;
+    true
+}
+
+/// An orb's lifetime in ticks, from 1 to `MAX_ORB_TICKS` (core Z2).
+fn orb_ticks(v: i32) -> u32 {
+    u32::try_from(v.clamp(1, i32::try_from(MAX_ORB_TICKS).unwrap_or(i32::MAX))).unwrap_or(1)
+}
+
+/// Makes the orb of an `orb` node, a slow bullet with a lifetime whose burst is its hook: the
+/// `burst` list is carried out where the orb ended, `ticks` ticks on, as an `on_bullet`'s `then`
+/// is. False if the attack's owner is gone. Every expression is evaluated, in the order
+/// speed, ticks, direction, whether or not a cap then drops the orb, so the draws of `rand` do
+/// not depend on the caps. An orb over `MAX_ORBS_PER_OWNER` or `MAX_ORBS_ALIVE` is dropped; so is
+/// any orb of an ally's attack (the validator refuses them, this keeps an unvalidated one out).
+fn emit_orb(
+    s: &mut State,
+    t: &mut AttackTask,
+    ab: &Above,
+    node: &Emitter,
+    top: usize,
+    spawns_left: &mut u32,
+) -> bool {
+    let Emitter::Orb {
+        speed,
+        direction,
+        style,
+        ticks,
+        breakable,
+        burst,
+    } = node
+    else {
+        return true;
+    };
+    let origin = match t.origin {
+        Origin::At(p) => p,
+        Origin::Owner => match s.find(t.owner) {
+            Some(w) => s.at(w),
+            None => return false,
+        },
+    };
+    let speed = value(s, t, ab, speed).clamp(-MAX_LEN, MAX_LEN);
+    let life = orb_ticks(value(s, t, ab, ticks));
+    let dir = heading(s, t, ab, origin, direction);
+    t.last_dir = dir;
+    if t.friendly {
+        return true;
+    }
+    if s.orbs >= MAX_ORBS_ALIVE {
+        return true;
+    }
+    if s.orbs >= MAX_ORBS_PER_OWNER {
+        let mine = s.bullets.iter().filter(|b| b.orb && b.owner == t.owner);
+        if mine.count() >= MAX_ORBS_PER_OWNER as usize {
+            return true;
+        }
+    }
+    let hook = (!burst.is_empty()).then(|| {
+        let path = t
+            .base
+            .iter()
+            .copied()
+            .chain((0..=top).map(|j| PathStep {
+                node: t.frames[j].idx,
+                then: j == top,
+            }))
+            .collect();
+        Box::new(Hook {
+            program: t.program,
+            path,
+            left: life,
+            owner: t.owner,
+            aim: t.aim,
+            friendly: t.friendly,
+            damage: t.damage,
+            damage_type: t.damage_type,
+            breaks_charge: t.breaks_charge,
+            smash: t.smash,
+            combo: t.combo,
+        })
+    });
+    let scale = i64::from(trig::SCALE);
+    let velocity = |component: i32| Fx(saturate(i64::from(component) * i64::from(speed) / scale));
+    let before = s.bullets.len();
+    spawn_bullet(
+        s,
+        BulletState {
+            at: origin,
+            vx: velocity(dir.x),
+            vy: velocity(dir.y),
+            dir,
+            style: style.as_ref().map_or(0, |b| registry::bullet_style(&b.0)),
+            owner: t.owner,
+            friendly: t.friendly,
+            damage: t.damage,
+            damage_type: t.damage_type,
+            breaks_charge: t.breaks_charge,
+            smash: t.smash,
+            combo: t.combo,
+            hook,
+            orb: true,
+            breakable: *breakable,
+            life,
+        },
+        spawns_left,
+    );
+    s.orbs += u32::from(s.bullets.len() > before);
     true
 }
 
@@ -1380,6 +1530,7 @@ mod attack_table_tests {
             facing: Dir::DOWN,
             aim: Aim::Fixed(Dir::DOWN),
             friendly: true,
+            ranged: false,
             base: 1,
             atk_up_pct: 0,
             damage_pct: 100,

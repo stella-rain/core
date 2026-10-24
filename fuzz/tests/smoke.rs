@@ -276,3 +276,14 @@ fn the_regressions_of_real_fuzz_runs_are_survived() {
         }
     }
 }
+
+/// The `orbs` and `ranged_cap` corpus stages (core Z2) seed the stage targets with an `orb` node
+/// and a `ranged` rule, which the parser, the validator and a run reach.
+#[test]
+fn the_orb_and_ranged_stages_get_past_the_parser_and_run() {
+    for name in ["orbs", "ranged_cap"] {
+        let (_, stage, _) = corpus().into_iter().find(|c| c.0 == name).unwrap();
+        assert!(stage_parse(&stage), "stage_parse rejects the {name} stage");
+        assert!(stage_run(&stage), "stage_run rejects the {name} stage");
+    }
+}

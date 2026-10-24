@@ -673,4 +673,10 @@ pub struct BulletView {
     pub style: u16,
     /// Fired by the main character or a companion, rather than an enemy.
     pub friendly: bool,
+    /// An orb (core Z2): slow, timed, and it bursts when its time is up.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub orb: bool,
+    /// An orb the main character's hit box breaks.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub breakable: bool,
 }

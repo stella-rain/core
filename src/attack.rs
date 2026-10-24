@@ -338,6 +338,24 @@ pub enum Emitter {
         body: Vec<Emitter>,
         then: Vec<Emitter>,
     },
+    /// A slow projectile with a required lifetime (core Z2, DS10): it flies for `ticks` ticks
+    /// (1 to `limits::MAX_ORB_TICKS`), and then `burst` runs from where it ended, as an attack of
+    /// its own. A `breakable` orb is destroyed, with no burst, by the main character's hit boxes.
+    /// Enemy attacks only; the burst holds only `zone`, `ring`, `spread`, `repeat`, `rotate` and
+    /// `wait` nodes. At most `MAX_ORBS_PER_OWNER` orbs per attacker and `MAX_ORBS_ALIVE` in all;
+    /// one over a cap is dropped.
+    Orb {
+        speed: Expr,
+        direction: Direction,
+        /// Bullet asset; absent means the default bullet.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        style: Option<ContentId>,
+        ticks: Expr,
+        #[serde(default, skip_serializing_if = "crate::behaviour::is_false")]
+        breakable: bool,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        burst: Vec<Emitter>,
+    },
     /// A zone that does not move (core Z1): it is placed at the `anchor`, moved by `offset`
     /// (forward along its `direction`, and to the right of it), warns for `wind_up_ticks`,
     /// hurts each target at most once for `active_ticks`, then ends. `ring`, `spread` and

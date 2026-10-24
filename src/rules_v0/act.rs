@@ -9,7 +9,7 @@ use super::agents::agent_mut;
 use super::attacks;
 use super::boss;
 use super::entity::Who;
-use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, spawn_enemy};
+use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, MAX_RANGED_ATTACKERS, spawn_enemy};
 
 /// Does the action for rule `rule_index` of `me`, aimed at `target`. False if this version
 /// cannot do it, in which case the rule does not fire and the next one gets its turn.
@@ -25,7 +25,13 @@ pub(super) fn perform(
     match action {
         // An attack does as much as the main character's weapons (its attack stat) if an ally
         // makes it, and the run stats file's `enemy_attack_damage` if an enemy does.
-        Action::Attack { attack } => {
+        Action::Attack { attack, ranged } => {
+            // A ranged start over the cap is refused here, so the rule keeps its cooldown and
+            // retries next tick (core Z2). Only enemies are held to the cap.
+            let ranged = *ranged && !State::is_ally(me);
+            if ranged && attacks::ranged_tokens(stage, s) >= MAX_RANGED_ATTACKERS {
+                return false;
+            }
             let base = if State::is_ally(me) {
                 stage.player.atk
             } else {
@@ -37,7 +43,11 @@ pub(super) fn perform(
                 _ => 0,
             };
             // Not ready while its last attack runs (ADR-055): the next rule gets its turn.
-            attacks::start_aged(stage, s, me, 0, target, attack, base, age, events)
+            let started = attacks::start_aged(stage, s, me, 0, target, attack, base, age, events);
+            if started && ranged {
+                attacks::mark_ranged(s);
+            }
+            started
         }
         Action::Cast { skill } => {
             if matches!(skill, Skill::Shot { .. }) && attacks::busy(s, s.id_of(me), 0) {
