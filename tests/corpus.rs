@@ -1203,10 +1203,12 @@ impl EliteScript {
                 Some(leader) if d2(leader.at) > 100 * 100 * 65_536 => {
                     return go(leader.at, 100 * 256, false);
                 }
-                Some(_) => match nearest(&|e| !e.elite && !e.disguised) {
-                    Some(escort) => return go(escort.at, FIGHT_NEAR, true),
-                    None => self.leader_met.set(true),
-                },
+                Some(_) => {
+                    match nearest(&|e| e.kind == EntityKind::Enemy && !e.elite && !e.disguised) {
+                        Some(escort) => return go(escort.at, FIGHT_NEAR, true),
+                        None => self.leader_met.set(true),
+                    }
+                }
                 None => self.leader_met.set(true),
             }
         }
@@ -1224,7 +1226,9 @@ impl EliteScript {
                     return go(shrine.at, 0, false);
                 }
             }
-            if let Some(guardian) = nearest(&|e| !e.elite && !e.disguised) {
+            if let Some(guardian) =
+                nearest(&|e| e.kind == EntityKind::Enemy && !e.elite && !e.disguised)
+            {
                 return go(guardian.at, FIGHT_NEAR, true);
             }
             if self.mimic_revealed.get().is_none() {
@@ -1492,7 +1496,8 @@ fn elite_reach(name: &str) -> EliteReach {
             .entities
             .iter()
             .filter(|e| {
-                matches!(e.kind, EntityKind::Enemy | EntityKind::Shrine) && (e.elite || e.disguised)
+                e.kind == EntityKind::Shrine
+                    || (e.kind == EntityKind::Enemy && (e.elite || e.disguised))
             })
             .collect();
         r.peak = r.peak.max(alive.len());

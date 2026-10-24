@@ -637,10 +637,12 @@ impl AgentState {
         self.elite.is_some_and(|el| el.disguised)
     }
 
-    /// An elite that shows as one: `EntityView::elite` and `DomainEvent::Died::elite`. A mimic in
-    /// disguise does not, until it reveals.
+    /// An elite enemy that shows as one: `EntityView::elite` and `DomainEvent::Died::elite`. A
+    /// mimic in disguise does not, until it reveals; a shrine never does, its kind (`Shrine`)
+    /// already says what it is (DS44 item 1). The elite machinery (cap, aura, guardians,
+    /// `ShrineActivated`) still reads `elite` itself.
     pub(crate) fn shows_elite(&self) -> bool {
-        self.elite.is_some() && !self.hidden()
+        self.elite.is_some() && !self.hidden() && self.shrine.is_none()
     }
 
     /// The class `EntityView::kind` and `DomainEvent::Died::class` give it: `listed`, the list it

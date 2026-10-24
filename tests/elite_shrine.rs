@@ -305,7 +305,13 @@ fn clearing_the_guardians_in_time_gives_the_elite_reward_and_the_shrine_goes() {
     // walked (east, onto the shrine), shoots the east one, then walks west and shoots the other.
     let mut e = with(&shrine_stage(SIDE, shrine(600, 2, 5), vec![]));
     let mut events = touch(&mut e);
-    let shrine_id = e.snapshot().entities.iter().find(|v| v.kind == EntityKind::Shrine).unwrap().id;
+    let shrine_id = e
+        .snapshot()
+        .entities
+        .iter()
+        .find(|v| v.kind == EntityKind::Shrine)
+        .unwrap()
+        .id;
     events.extend(fire_until(&mut e, idle(), 60, |e| {
         positions(e, false).len() == 1
     }));
@@ -395,7 +401,13 @@ fn a_shrine_is_not_an_elite_in_the_view_but_an_ordinary_elite_is() {
 fn a_shrine_death_reports_its_class() {
     let mut e = with(&shrine_stage(SIDE, shrine(600, 2, 5), vec![]));
     let mut events = touch(&mut e);
-    let shrine_id = e.snapshot().entities.iter().find(|v| v.kind == EntityKind::Shrine).unwrap().id;
+    let shrine_id = e
+        .snapshot()
+        .entities
+        .iter()
+        .find(|v| v.kind == EntityKind::Shrine)
+        .unwrap()
+        .id;
     events.extend(fire_until(&mut e, idle(), 60, |e| {
         positions(e, false).len() == 1
     }));
