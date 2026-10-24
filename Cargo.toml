@@ -80,7 +80,7 @@ name = "worst_tick"
 harness = false
 
 [[bench]]
-name = "collide_tick"
+name = "hit_tick"
 harness = false
 
 [[bench]]

@@ -6,7 +6,7 @@
 //!
 //! Behind the `bench` feature; not part of the library's API.
 
-pub mod collide_case;
+pub mod hit_case;
 pub mod time_limit_case;
 pub mod worst_case;
 
@@ -28,19 +28,19 @@ pub fn worst_tick() -> Case {
     }
 }
 
-/// The friendly-bullet collision tick with the crowd in a band (`benches/collide_tick.rs`).
-pub fn collide_tick() -> Case {
+/// The melee hit boxes and zones against the crowd in a clump (`benches/hit_tick.rs`).
+pub fn hit_tick() -> Case {
     Case {
-        engine: collide_case::warmed_up(),
-        input: collide_case::input(collide_case::WARMUP_TICKS + 1),
+        engine: hit_case::warmed_up(),
+        input: hit_case::input(hit_case::WARMUP_TICKS + 1),
     }
 }
 
 /// The same tick with the crowd spread over the largest map (core#146).
-pub fn collide_tick_spread() -> Case {
+pub fn hit_tick_spread() -> Case {
     Case {
-        engine: collide_case::spread_warmed_up(),
-        input: collide_case::input(collide_case::WARMUP_TICKS + 1),
+        engine: hit_case::spread_warmed_up(),
+        input: hit_case::input(hit_case::WARMUP_TICKS + 1),
     }
 }
 
@@ -72,21 +72,17 @@ mod tests {
 
     #[test]
     fn the_worst_tick_is_the_benches_case() {
-        pinned(worst_tick(), 0xa5a8364ffd3c7b25, 0xe9f69860cb91cc4e);
+        pinned(worst_tick(), 0x8da23ca6e42b539c, 0x4951b14566391b5d);
     }
 
     #[test]
-    fn the_collide_tick_is_the_benches_case() {
-        pinned(collide_tick(), 0x5b1c2042070114b0, 0xde5acb793efe056a);
+    fn the_hit_tick_is_the_benches_case() {
+        pinned(hit_tick(), 0xe85bd3364b22c9e5, 0x95527ebc68a22c23);
     }
 
     #[test]
-    fn the_spread_collide_tick_is_the_benches_case() {
-        pinned(
-            collide_tick_spread(),
-            0x5bafda7f97d02b8f,
-            0x7c2fd37f1f149794,
-        );
+    fn the_spread_hit_tick_is_the_benches_case() {
+        pinned(hit_tick_spread(), 0x3d264a19f06cff25, 0xf143b972e536a94b);
     }
 
     #[test]
