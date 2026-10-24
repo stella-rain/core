@@ -544,7 +544,7 @@ fn an_elite_type_is_a_well_formed_unique_id_with_a_valid_elite_enemy() {
     assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].enemy.hp"]);
 
     let mut t = low();
-    t["enemy"]["rules"][0]["do"]["attack"]["preset"]["id"] = json!("nope");
+    t["enemy"]["rules"][0]["do"]["attack"] = json!({ "preset": { "id": "nope" } });
     assert!(
         paths(&only(vec![t]))
             .iter()
