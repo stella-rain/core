@@ -161,6 +161,10 @@ pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
 /// it is in its wind-up or active phase, and a rule whose start would take a fifth waits.
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
+/// Orbs alive per attacker and in all (core Z2, DS11, tuning rows); an orb over either cap is
+/// dropped in node order, as a bullet over `MAX_BULLETS_ALIVE` is.
+pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;
+pub(crate) const MAX_ORBS_ALIVE: u32 = 32;
 /// Attacks being carried out at once (ADR-036 tier 3), and the node steps they may take in a
 /// tick between them. An attack that would take more waits for the next tick.
 pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
@@ -1730,6 +1734,15 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         h.write_u32(count(&s.bullets));
         for b in &s.bullets {
             h.write_u32(b.life);
+        }
+    }
+    // Which bullets are orbs and which break, and only while one is alive (core Z2), so that the
+    // hashes of runs without orbs stay as they were.
+    if s.bullets.iter().any(|b| b.orb) {
+        h.write_u32(count(&s.bullets));
+        for b in &s.bullets {
+            h.write_bool(b.orb);
+            h.write_bool(b.breakable);
         }
     }
     // Last, and only while the main character holds a type bonus (ADR-100), so that the hashes

@@ -151,6 +151,9 @@ pub(super) fn resolve(
     swings.sort_by_key(|w| (w.owner.0, w.slot));
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
+    if s.bullets.iter().any(|b| b.breakable) {
+        break_orbs(s, &swings, events);
+    }
     for w in &swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
@@ -165,6 +168,29 @@ pub(super) fn resolve(
     }
     s.scratch.swings = swings;
     s.scratch.found = found;
+}
+
+/// A breakable enemy orb that a hit box of the main character covers is removed, with no burst,
+/// and reported once (core Z2, C24). It is gone before the bullets land, so it hurts nobody this
+/// tick.
+fn break_orbs(s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
+    let mine = |w: &&Swing| w.friendly && w.owner == super::PLAYER_ID;
+    s.bullets.retain(|b| {
+        if !b.breakable || b.friendly {
+            return true;
+        }
+        let hit = swings
+            .iter()
+            .filter(mine)
+            .any(|w| covers(w, b.at, super::ENEMY_BULLET_RADIUS));
+        if hit {
+            events.push(DomainEvent::OrbBroken {
+                owner: b.owner,
+                at: b.at,
+            });
+        }
+        !hit
+    });
 }
 
 fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {

@@ -89,6 +89,8 @@ pub mod limits {
     pub const MAX_BULLET_TICKS: u32 = 1_200;
     /// A zone warns, and then hurts, for at most 10 seconds each (core Z1, a placeholder bound).
     pub const MAX_ZONE_TICKS: u32 = 600;
+    /// An orb flies for at most 10 seconds (core Z2, a tuning row).
+    pub const MAX_ORB_TICKS: u32 = 600;
     pub const MAX_PERFECT_PCT: u16 = 1000;
     pub const MAX_BOSS_PARTS: usize = 8;
     pub const MAX_TRANSITIONS: usize = 4;
@@ -1797,6 +1799,31 @@ impl<'a> Ctx<'a> {
                 self.key("body", |c| c.emitters(body, depth + 1, count))
                     && self.key("then", |c| c.emitters(then, depth + 1, count))
             }
+            Emitter::Orb {
+                speed,
+                direction,
+                style,
+                ticks,
+                burst,
+                ..
+            } => {
+                if self.foe == Foe::Other {
+                    self.fail("an orb is an enemy's attack, not an ally's or the main character's");
+                }
+                self.key("speed", |c| c.expr(speed));
+                self.direction(direction);
+                if let Some(b) = style {
+                    self.content_id("style", b, Kind::Bullet);
+                }
+                self.key("ticks", |c| c.expr(ticks));
+                if let Expr::Const(v) = ticks {
+                    self.within("ticks", i64::from(*v), 1, i64::from(limits::MAX_ORB_TICKS));
+                }
+                self.key("burst", |c| {
+                    c.burst_nodes(burst);
+                    c.emitters(burst, depth + 1, count)
+                })
+            }
             Emitter::Zone {
                 shape,
                 offset,
@@ -1812,6 +1839,23 @@ impl<'a> Ctx<'a> {
                 self.zone_ticks("active_ticks", active_ticks, 1);
                 true
             }
+        }
+    }
+
+    /// An orb's burst holds only the nodes that place zones and time them: `zone`, `ring`,
+    /// `spread`, `repeat`, `rotate` and `wait`.
+    fn burst_nodes(&mut self, list: &[Emitter]) {
+        for (i, e) in list.iter().enumerate() {
+            self.idx(i, |c| match e {
+                Emitter::Fire { .. } | Emitter::Orb { .. } | Emitter::OnBullet { .. } => {
+                    c.fail("a burst holds only zone, ring, spread, repeat, rotate and wait nodes")
+                }
+                Emitter::Repeat { body, .. }
+                | Emitter::Ring { body, .. }
+                | Emitter::Spread { body, .. }
+                | Emitter::Rotate { body, .. } => c.key("body", |c| c.burst_nodes(body)),
+                Emitter::Wait { .. } | Emitter::Zone { .. } => {}
+            });
         }
     }
 

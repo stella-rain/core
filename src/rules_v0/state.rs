@@ -882,6 +882,10 @@ pub(crate) struct BulletState {
     pub combo: bool,
     /// Starts an attack of its own after a while (`on_bullet`).
     pub hook: Option<Box<Hook>>,
+    /// An orb (core Z2): a slow bullet with a lifetime whose `hook` is its burst.
+    pub orb: bool,
+    /// An orb the main character's hit boxes break, with no burst.
+    pub breakable: bool,
     /// Ticks left before it leaves the map, `UNLIMITED` for a bullet with no lifetime (core#147).
     /// It leaves when this runs out or when it is past the map's margin, whichever comes first.
     pub life: u32,

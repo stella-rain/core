@@ -19,8 +19,8 @@ const PX: i32 = 256;
 const MAX_ORBS_PER_OWNER: usize = 8;
 const MAX_ORBS_ALIVE: usize = 32;
 
-/// The attack starts on tick 2, the tick after the enemy appears, and its orbs with it.
-const FIRST_TICK: u32 = 2;
+/// The enemy appears and attacks on tick 1, and its orbs with it.
+const FIRST_TICK: u32 = 1;
 
 fn orb(ticks: u32, breakable: bool, burst: Vec<Value>) -> Value {
     json!({ "type": "orb", "speed": 64, "direction": { "type": "aimed", "offset": 0 },
@@ -175,7 +175,8 @@ fn sword() -> Value {
     )
 }
 
-fn swung(breakable: bool) -> (Engine, Vec<(u32, DomainEvent)>) {
+/// The engine after 60 ticks, the events, and whether a zone was ever placed.
+fn swung(breakable: bool) -> (Engine, Vec<(u32, DomainEvent)>, bool) {
     // The foe stands 30 pixels above the main character, inside the swing, and its burst would
     // place a zone if the orb ended by its lifetime.
     let st = armed(
@@ -188,28 +189,30 @@ fn swung(breakable: bool) -> (Engine, Vec<(u32, DomainEvent)>) {
     );
     let mut e = engine(&st);
     let mut events = Vec::new();
+    let mut zoned = false;
     for tick in 0..60 {
         e.step(firing(idle(), tick));
         events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
+        zoned |= !zones(&e).is_empty();
     }
-    (e, events)
+    (e, events, zoned)
 }
 
 #[test]
 fn a_sword_hit_box_breaks_a_breakable_orb_without_a_burst() {
-    let (e, events) = swung(true);
+    let (e, events, zoned) = swung(true);
     assert_eq!(broken(&events).len(), 1, "{events:?}");
     assert!(orbs(&e).is_empty());
-    assert!(zones(&e).is_empty());
+    assert!(!zoned);
 }
 
 #[test]
 fn a_non_breakable_orb_survives_the_sword() {
-    let (e, events) = swung(false);
+    let (e, events, zoned) = swung(false);
     assert!(broken(&events).is_empty());
     // It lives its 40 ticks and then bursts.
     assert!(orbs(&e).is_empty());
-    assert!(!zones(&e).is_empty());
+    assert!(zoned);
 }
 
 // --- The validator ---------------------------------------------------------------------------
