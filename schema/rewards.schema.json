@@ -506,7 +506,7 @@
               "$ref": "#/$defs/Expr"
             },
             "style": {
-              "description": "Bullet asset; absent means the default bullet.",
+              "description": "Orb asset; absent means the default orb.",
               "anyOf": [
                 {
                   "$ref": "#/$defs/ContentId"
