@@ -187,7 +187,7 @@ fn a_url_must_be_https_and_short() {
 
 #[test]
 fn a_bad_tag_is_refused() {
-    for tag in ["", "v0.2.0 x", "v0.2.0\n", &"v".repeat(65)] {
+    for tag in ["", "v0.2.0 x", "v0.2.0/x", &"v".repeat(65)] {
         let text = manifest(
             1,
             &format!(
@@ -244,4 +244,10 @@ fn core_minor_is_the_major_and_minor_of_the_package_version() {
     // The key of the channel an app of this build reads is itself a valid channel key.
     let packs = load(&manifest(1, &good(CORE_MINOR))).unwrap();
     assert!(packs.channel(CORE_MINOR).is_some());
+}
+
+#[test]
+fn a_channel_key_twice_is_a_parse_error() {
+    let text = manifest(1, &format!("{},{}", good("0.2"), good("0.2")));
+    assert!(matches!(load(&text), Err(PacksError::Parse { .. })));
 }
