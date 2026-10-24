@@ -431,6 +431,8 @@ class Cli(unittest.TestCase):
         self.stamp_commit("v0.0.5")
         git(self.dev, "tag", "v0.0.5")
         git(self.dev, "reset", "-q", "--hard", main)
+        with open(os.path.join(self.dev, "later.txt"), "w") as f:
+            f.write("later")
         self.commit("0.0.4", "later")
         self.assertEqual(script(self.dev, "check-release").returncode, 0)
 
@@ -442,8 +444,8 @@ class Cli(unittest.TestCase):
 
     def test_check_release_refuses_a_commit_whose_stamped_child_is_a_candidate(self):
         main = git(self.dev, "rev-parse", "HEAD")
-        self.stamp_commit("v0.0.4")
-        git(self.dev, "tag", "v0.0.4-rc.1")
+        self.stamp_commit("v0.0.5")
+        git(self.dev, "tag", "v0.0.5-rc.1")
         git(self.dev, "reset", "-q", "--hard", main)
         out = script(self.dev, "check-release")
         self.assertEqual(out.returncode, 1)
@@ -457,8 +459,10 @@ class Cli(unittest.TestCase):
         git(self.dev, "add", "-A")
         git(self.dev, "commit", "-q", "--amend", "--no-edit")
         git(self.dev, "tag", "v0.0.4")
-        self.commit("0.0.4", "later")
-        self.assertEqual(script(self.dev, "check-release").returncode, 0)
+        # Taken for a release commit, its parent would be main's commit and HEAD one commit past it.
+        out = script(self.dev, "check-release")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("nothing to release", out.stderr)
 
     def test_rc_counts_up(self):
         self.assertEqual(script(self.dev, "rc", "v0.0.4").stdout.strip(), "v0.0.4-rc.1")
