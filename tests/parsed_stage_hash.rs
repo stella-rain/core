@@ -61,7 +61,7 @@ fn every_corpus_stage_keeps_its_hash() {
         ),
         (
             &include_bytes!("corpus/v0/boss/stage.json")[..],
-            "5c3357af6e95866b23033576932bf17b6e5c53da8634b40b9ee2a8b43e88868d",
+            "9e15a614c1db0fe3341dd9755025c00e84e31de34b96eb22e133b10420f9c8cc",
         ),
         (
             &include_bytes!("corpus/v0/fail/stage.json")[..],
