@@ -241,7 +241,13 @@ mod tests {
             for _ in 0..60 {
                 let edge = rng.below(25) * 8_192 + rng.below(3) - 1;
                 let reach = [1_000, 8_192, 8_193, 65_536, 300_000][rng.below(5) as usize];
-                probes.push((Point { x: Fx(edge), y: Fx(rng.below(span)) }, reach));
+                probes.push((
+                    Point {
+                        x: Fx(edge),
+                        y: Fx(rng.below(span)),
+                    },
+                    reach,
+                ));
             }
             for (at, reach) in probes {
                 let mut found = Vec::new();
