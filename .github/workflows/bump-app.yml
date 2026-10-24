@@ -1,0 +1,76 @@
+# Tells the app repository that core's `main` moved, so app's bot can open a bump PR of its core
+# pin (DS49 D-BUMP, core#336). One `repository_dispatch` per push to `main`:
+#   event_type: core-main
+#   client_payload: { "sha": "<full 40-hex core commit>" }
+# app's receiver (BOT1-2) relies on exactly this shape; do not change it without changing app.
+# The dispatch uses the bridge App's token (as content-publish.yml obtains it), scoped to app.
+# A manual run takes an optional `sha`; by default it sends the current tip of `main`.
+name: Bump app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full core commit SHA to announce (default is the current tip of main)
+        required: false
+        type: string
+
+permissions: {}
+
+# Only the newest push's dispatch matters: app bumps its pin to whatever sha it is told last.
+concurrency:
+  group: bump-app
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    name: dispatch / core-main to app
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Name the core commit
+        id: sha
+        env:
+          EVENT: ${{ github.event_name }}
+          PUSH_SHA: ${{ github.sha }}
+          INPUT_SHA: ${{ inputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            workflow_dispatch)
+              sha="${INPUT_SHA:-}"
+              if [ -z "$sha" ]; then
+                sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+              fi
+              ;;
+            *) sha="$PUSH_SHA" ;;
+          esac
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::not a full 40-hex commit SHA"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Get a token for the app repository from the bridge App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.BRIDGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BRIDGE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: app
+          permission-contents: write
+
+      - name: Send the core-main dispatch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY_OWNER/app/dispatches" \
+            -f event_type=core-main -f "client_payload[sha]=$SHA"
+          echo "Sent \`core-main\` with sha \`$SHA\` to \`$GITHUB_REPOSITORY_OWNER/app\`." >> "$GITHUB_STEP_SUMMARY"
