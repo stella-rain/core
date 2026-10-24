@@ -49,6 +49,10 @@ serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.11.0", default-features = false }
 
 [dev-dependencies]
+# The crate itself with its `bench` feature, so that tests and benches build the cases of
+# `bench_fixtures` (ADR-SIM-6) without a flag on the command line or in a workflow; a build of
+# the library alone does not carry the module. Adds no crate: the package is this one.
+stella-rain-core = { path = ".", features = ["bench"] }
 # Snapshot tests of the JSON Lines recordings (ADR-021), with `cargo insta review` to accept
 # an intended change. Tests only; never in the library or the simulation path.
 insta = "1.49"
