@@ -34,7 +34,7 @@ proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MI
 | `src/bin/` | `stage-verify` (re-simulates a replay, checks the clear and the final hash) and `content-pack` |
 | `tests/` | Integration tests in one binary (`integration.rs`); golden hashes, `insta` snapshots, `proptest` invariants |
 | `tests/corpus/` | The replay corpus per `sim_version`; every tick's hash is checked (ADR-SIM-3) |
-| `benches/` | `iai-callgrind` instruction counts of worst-case ticks (ADR-SIM-6) |
+| `benches/` | `iai-callgrind` instruction counts of worst-case ticks (ADR-SIM-6); the cases they run are `src/bench_fixtures/` (bench input, not code, for the bench guard) |
 | `fuzz/` | `cargo-fuzz` targets for the parsers and loaders; its own workspace on nightly |
 | `schema/` | JSON Schema generated from the types |
 | `content/` | The bundled content, JSON read as data |
@@ -50,7 +50,7 @@ What is inside these folders loads from `.claude/rules/` when those files are to
 | Simulation | The replay corpus on x86_64 and arm64 (ADR-SIM-3, ADR-PLAT-1); an intended change: `cargo xtask bless` regenerates every generated set; CI runs `cargo xtask bless --check` |
 | iOS readiness | `cargo check --target aarch64-apple-ios` on every PR (ADR-PLAT-1) |
 | Parser, validator, replay loader, share codes, run setups | In `fuzz/`: fmt, clippy, `cargo test`, `cargo +nightly fuzz build`; a short fuzz run per target in CI |
-| Tick cost | `cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick`; CI fails on more than +2% instructions (ADR-SIM-6) |
+| Tick cost | `cargo bench --bench worst_tick --bench hit_tick --bench time_limit_tick`; CI fails on more than +2% instructions (ADR-SIM-6) |
 | `.github/scripts/*.py` | `python3 -m unittest discover -s .github/scripts` (CI: `scripts.yml`) |
 | `AGENTS.md`, `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too); `AGENTS.md` at most 100 lines (`wc -l`) |
 | Line endings | CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
