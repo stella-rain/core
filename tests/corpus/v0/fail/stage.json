@@ -36,12 +36,36 @@
         "combo": {
           "main": {
             "attack": {
-              "preset": {
-                "args": [
-                  2048
-                ],
-                "id": "aimed_single"
-              }
+              "inline": [
+                {
+                  "hit_box": {
+                    "angle": 0,
+                    "length": 65536,
+                    "offset": {
+                      "forward": 0,
+                      "right": 0
+                    },
+                    "type": "line",
+                    "width": 2048
+                  },
+                  "kind": "active",
+                  "ticks": 1
+                },
+                {
+                  "hit_box": {
+                    "angle": 0,
+                    "length": 65536,
+                    "offset": {
+                      "forward": 65536,
+                      "right": 0
+                    },
+                    "type": "line",
+                    "width": 2048
+                  },
+                  "kind": "active",
+                  "ticks": 1
+                }
+              ]
             }
           }
         },
@@ -75,7 +99,7 @@
               "attack": {
                 "preset": {
                   "args": [
-                    768
+                    15
                   ],
                   "id": "aimed_single"
                 }
