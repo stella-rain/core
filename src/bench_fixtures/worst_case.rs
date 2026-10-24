@@ -41,7 +41,7 @@ const HASTE: &str = "haste";
 pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 
 /// 500 enemies (`MAX_ENEMIES_ALIVE`) stand in one place: four shooters, then 496 more in five
-/// waves that spawn one enemy a tick each (core BR1b: nothing here fires a bullet).
+/// waves that spawn one enemy a tick each (core BR1b: nothing here fires a projectile).
 ///
 /// The push-apart (ADR-058) parts a fresh stack on every tick: on each tick it does not start
 /// its attack, every enemy orders itself back to the point in one tick (`move_to`, which a
@@ -57,7 +57,7 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// The four shooters (`MAX_RANGED_ATTACKERS`) start first, with a `ranged` run each: one
 /// wind-up tick that sends a ring of eight orbs (`MAX_ORBS_PER_OWNER`), then an active phase
 /// longer than the case, so each holds its token. The 32 orbs (`MAX_ORBS_ALIVE`) fly slowly
-/// for 600 ticks and burst into nothing. No bullet is alive or made.
+/// for 600 ticks and burst into nothing. No other projectile is alive or made.
 ///
 /// The main character is a run that holds every rune (ADR-099): before the enemies arrive it
 /// kills eight small ones in front of it and takes the seven runes and Rune Haste of 300 percent

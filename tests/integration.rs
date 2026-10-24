@@ -14,6 +14,7 @@ mod assist;
 mod attacks;
 mod auto;
 mod base64;
+mod bench_fixture_pins;
 mod big_patterns;
 mod bleed;
 mod boomerang;
