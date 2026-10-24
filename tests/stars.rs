@@ -663,7 +663,9 @@ fn the_boss_offer_is_answered_after_the_clear_and_the_run_stays_over() {
 
 /// A stage without a boss whose one enemy's kill drops a star that is taken at once.
 fn clearing_star_stage() -> Stage {
-    let mut stage = starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
+    // The enemy comes on tick 2, so that the stage may end before it (a wave must come before
+    // the end), and the weapon kills it the tick it comes.
+    let mut stage = starry(&[1000], stars(json!({})), vec![targets(2, 1, NEAR_Y)]);
     stage.boss = None;
     stage
 }

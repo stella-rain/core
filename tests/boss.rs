@@ -69,8 +69,11 @@ fn step_loop() -> Value {
     json!({ "type": "loop" })
 }
 
+/// A stage whose main character outlives the zones the boss places at it (100 stored a hit).
 fn stage_of(boss: Value) -> Stage {
-    stage_full(18_000, Some(boss), vec![], vec![])
+    let mut stage = stage_full(18_000, Some(boss), vec![], vec![]);
+    stage.player.hp = 99_000;
+    stage
 }
 
 /// `ticks` ticks of `input`, the Main weapon firing every 6 ticks.
@@ -118,8 +121,8 @@ fn hostile_bullets(e: &Engine) -> usize {
     e.snapshot().bullets.iter().filter(|b| !b.friendly).count()
 }
 
-fn friendly_bullets(e: &Engine) -> usize {
-    e.snapshot().bullets.iter().filter(|b| b.friendly).count()
+fn hostile_zones(e: &Engine) -> usize {
+    e.snapshot().zones.iter().filter(|z| !z.friendly).count()
 }
 
 fn boss_at(e: &Engine) -> (i32, i32) {
@@ -270,7 +273,10 @@ fn a_phase_has_its_own_clock_and_its_own_rule_states() {
 // --- Transitions -----------------------------------------------------------------------------
 
 #[test]
-fn clear_bullets_removes_the_hostile_bullets_and_keeps_the_players() {
+fn clear_bullets_removes_the_orbs_in_the_air() {
+    let orb = json!({ "type": "attack", "attack": { "inline": spawned(json!([
+        { "type": "orb", "speed": 64, "ticks": 100, "direction": { "type": "aimed", "offset": 0 } }
+    ])) } });
     let stage = stage_of(boss(
         1_000_000,
         vec![],
@@ -278,7 +284,7 @@ fn clear_bullets_removes_the_hostile_bullets_and_keeps_the_players() {
             phase(
                 Some(time_above(29)),
                 json!([]),
-                json!([step_attack("aimed_single", 768), step_wait(5), step_loop()]),
+                json!([orb, step_wait(5), step_loop()]),
                 json!([]),
             ),
             phase(
@@ -292,14 +298,10 @@ fn clear_bullets_removes_the_hostile_bullets_and_keeps_the_players() {
     let mut e = engine(&stage);
     play(&mut e, 29, idle());
     assert!(hostile_bullets(&e) > 0, "the boss has been shooting");
-    let friendly = friendly_bullets(&e);
-    assert!(friendly > 0, "so has the main character");
     // Tick 30 begins phase 1.
     e.step(idle());
     assert_eq!(e.tick(), 30);
     assert_eq!(hostile_bullets(&e), 0);
-    assert!(friendly_bullets(&e) > 0);
-    assert!(friendly_bullets(&e) <= friendly + 2);
 }
 
 #[test]
@@ -451,44 +453,41 @@ fn a_loop_of_attack_steps_makes_one_attack_a_tick() {
         vec![phase(
             None,
             json!([]),
-            json!([step_attack("aimed_single", 256), step_loop()]),
+            json!([step_attack("aimed_single", 20), step_loop()]),
             json!([]),
         )],
     ));
     let mut e = engine(&stage);
     e.step(idle());
-    assert_eq!(hostile_bullets(&e), 1);
+    assert_eq!(hostile_zones(&e), 1);
     e.step(idle());
-    assert_eq!(hostile_bullets(&e), 2);
+    assert_eq!(hostile_zones(&e), 2);
 }
 
 #[test]
 fn a_timeline_attack_is_aimed_at_the_main_character() {
-    // The boss is straight above the main character: an aimed bullet only moves down.
+    // The boss is straight above the main character; the zone it aims is placed where the main
+    // character stands.
     let stage = stage_of(boss(
         1_000_000,
         vec![],
         vec![phase(
             None,
             json!([]),
-            json!([step_attack("aimed_single", 768)]),
+            json!([step_attack("aimed_single", 20)]),
             json!([]),
         )],
     ));
     let mut e = engine(&quiet(stage));
     e.step(idle());
-    let first = e.snapshot().bullets[0].at;
-    e.step(idle());
-    let second = e.snapshot().bullets[0].at;
-    assert_eq!(second.x, first.x);
-    assert_eq!(second.y.0 - first.y.0, 768);
-    assert_eq!(first.x.0, BOSS_X);
+    let zone = e.snapshot().zones[0].at;
+    assert_eq!((zone.x.0, zone.y.0), (BOSS_X, START_Y));
 }
 
 #[test]
 fn the_end_of_a_phase_ends_the_attacks_the_boss_was_making() {
-    // A spiral shoots every 3 ticks for 120 ticks. Phase 1 begins on tick 21; no bullet is
-    // fired after that, though the ones in the air fly on.
+    // A spiral places a line every 3 ticks for 120 ticks (each warns for 600). Phase 1 begins on
+    // tick 21; no line is placed after that, though the ones there stay.
     let build = |until: Option<Value>| {
         stage_of(boss(
             1_000_000,
@@ -497,7 +496,7 @@ fn the_end_of_a_phase_ends_the_attacks_the_boss_was_making() {
                 phase(
                     until,
                     json!([]),
-                    json!([step_attack("spiral", 256)]),
+                    json!([step_attack("spiral", 600)]),
                     json!([]),
                 ),
                 phase(None, json!([]), json!([]), json!([])),
@@ -512,9 +511,9 @@ fn the_end_of_a_phase_ends_the_attacks_the_boss_was_making() {
     for _ in 0..60 {
         cut.step(idle());
         open.step(idle());
-        counts.push((hostile_bullets(&cut), hostile_bullets(&open)));
+        counts.push((hostile_zones(&cut), hostile_zones(&open)));
     }
-    // Phase 0 ran for ticks 1 to 20: a bullet on ticks 1, 4, ..., 19, so seven.
+    // Phase 0 ran for ticks 1 to 20: a line on ticks 1, 4, ..., 19, so seven.
     assert_eq!(counts[19].0, 7);
     assert_eq!(counts[59].0, 7);
     assert_eq!(counts[59].1, 20);
@@ -567,8 +566,9 @@ fn parts_have_ids_after_the_companions_and_come_before_the_enemies_in_the_snapsh
 }
 
 #[test]
-fn a_part_has_its_own_hp_and_a_shot_that_hits_it_hurts_only_it() {
-    // The horn is in front of the body and takes the shots until it breaks (20 hp, 10 a hit).
+fn a_part_has_its_own_hp_and_a_hit_on_it_hurts_the_part_and_the_body() {
+    // The ray reaches the horn and the body behind it (a hit box hits every target inside it
+    // once): the horn breaks after two hits (20 hp, 10 a hit), and the body is hurt by each ray.
     let stage = stage_of(boss(
         1_000_000,
         vec![part("horn", 20, 0, 16_000, 6_000)],
@@ -582,10 +582,14 @@ fn a_part_has_its_own_hp_and_a_shot_that_hits_it_hurts_only_it() {
     assert_eq!(on_horn.len(), 2, "two hits break the horn");
     let broken = ticks_of(&events, |ev| matches!(ev, DomainEvent::PartBroken { .. }));
     assert_eq!(broken, vec![on_horn[1].0]);
-    // Everything before that landed on the horn; afterwards on the body.
-    assert!(hit.iter().take(2).all(|(_, t, _)| *t == horn));
-    assert!(hit.iter().skip(2).all(|(_, t, _)| *t == BOSS));
-    assert!(hit.len() > 2, "the body is hit once the horn is gone");
+    // Each ray hurts the body too, the horn only until it is gone.
+    let on_body = hit.iter().filter(|(_, t, _)| *t == BOSS).count();
+    assert!(on_body > 2, "the body is hit by every ray: {on_body}");
+    assert!(
+        hit.iter()
+            .filter(|(tick, _, _)| *tick > broken[0])
+            .all(|(_, t, _)| *t == BOSS)
+    );
     // A broken part is not a death, and is gone from the snapshot.
     assert!(!events.iter().any(|(_, ev)| matches!(
         ev,
@@ -746,7 +750,7 @@ fn a_boss_rule_shoots_summons_and_moves_like_an_agent_would() {
                   "agent": enemy(10, hold(10_000, 30_000), json!([])) },
           "cooldown_ticks": 0 },
         { "when": { "type": "always" }, "target": "player", "cooldown_ticks": 10,
-          "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [256] } } } },
+          "do": { "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } } },
     ]);
     let stage = stage_of(boss(
         1_000_000,
@@ -860,7 +864,7 @@ fn a_boss_run_is_the_same_every_time() {
                 json!([]),
                 json!([
                     step_telegraph(5),
-                    step_attack("spiral", 256),
+                    step_attack("spiral", 600),
                     step_move(30_000, 50_000, 20),
                     step_loop()
                 ]),
@@ -921,7 +925,7 @@ fn an_attack_started_by_a_rule_runs_on_the_phase_clock() {
     // when the phase is 6 ticks old, on tick 16, at phase time 5: the bullet's speed is
     // 100 + 5 * 10 (aimed straight down).
     let speed = json!({ "add": [100, { "mul": ["phase_time", 10] }] });
-    let attack = json!({ "inline": spawned(json!([{ "type": "fire", "speed": speed,
+    let attack = json!({ "inline": spawned(json!([{ "type": "orb", "ticks": 100, "speed": speed,
                                       "direction": { "type": "absolute", "angle": 0 } }])) });
     let rules = json!([{ "when": time_above(5), "target": "player", "once": true,
                          "do": { "type": "attack", "attack": attack }, "cooldown_ticks": 0 }]);
@@ -953,7 +957,7 @@ fn a_timeline_attack_that_names_no_damage_does_the_default_100() {
         vec![phase(
             None,
             json!([]),
-            json!([step_attack("aimed_single", 768), step_wait(600)]),
+            json!([step_attack("aimed_single", 20), step_wait(600)]),
             json!([]),
         )],
     ));

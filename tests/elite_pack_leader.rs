@@ -40,7 +40,8 @@ fn escort_of(count: u8, radius: i32) -> Value {
 /// An enemy that shoots the main character once in `COOLDOWN` ticks for `SHOT`.
 fn shooter() -> Value {
     let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "damage": SHOT,
-        "spawn": [{ "type": "fire", "speed": 640, "direction": { "type": "aimed", "offset": 0 } }] }] });
+        "spawn": [{ "type": "zone", "shape": { "type": "circle", "radius": 3_072 },
+                    "anchor": "target", "wind_up_ticks": 6, "active_ticks": 2 }] }] });
     enemy(
         100_000,
         hold(ATTACKER.0, ATTACKER.1),
@@ -215,7 +216,7 @@ fn the_aura_of_25_percent_raises_a_default_hit_of_100_to_125_whole() {
     // of the default 100 (an enemy's attack that names no damage, 1 before the scale) hurts for
     // 100 without a leader and for 125 within the bundled aura of 25%.
     let shot = |others: Vec<Value>| {
-        let attack = json!({ "preset": { "id": "aimed_single", "args": [640] } });
+        let attack = json!({ "preset": { "id": "aimed_single", "args": [15] } });
         let mut shooter = shooter();
         shooter["rules"][0]["do"]["attack"] = attack;
         let mut waves = vec![wave(1, 1, 0, shooter, ATTACKER.0, ATTACKER.1)];

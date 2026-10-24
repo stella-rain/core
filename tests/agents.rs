@@ -381,7 +381,7 @@ fn hp_below_is_strictly_below_a_percent_of_the_maximum() {
             always(),
             json!("nearest_ally"),
             json!({
-        "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+        "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
             0
         )]),
     );
@@ -879,7 +879,7 @@ fn heals_stop_at_the_maximum_and_say_how_much_they_gave() {
             always(),
             json!("nearest_ally"),
             json!({
-        "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+        "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
             0
         )]),
     );
@@ -935,7 +935,7 @@ fn damage_dealt_raises_aggro_and_enemies_turn_on_the_ally_with_the_most() {
         json!([rule(
             always(),
             json!("highest_aggro_ally"),
-            json!({ "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+            json!({ "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
             10,
         )]),
     );
@@ -959,7 +959,7 @@ fn damage_dealt_raises_aggro_and_enemies_turn_on_the_ally_with_the_most() {
     assert!(
         aimed_at
             .iter()
-            .any(|(t, who)| *t > 60 && *who == Some(id(0))),
+            .any(|(t, who)| *t > 15 && *who == Some(id(0))),
         "after the shots land: {aimed_at:?}"
     );
 }
@@ -973,7 +973,7 @@ fn a_companion_that_is_hit_enough_dies_and_stops_being_selected() {
             always(),
             json!("nearest_ally"),
             json!({
-        "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [768] } } }),
+        "type": "attack", "attack": { "preset": { "id": "aimed_single", "args": [15] } } }),
             0
         )]),
     );
@@ -1121,7 +1121,7 @@ fn a_companion_cannot_summon_and_the_next_rule_gets_its_turn() {
 #[test]
 fn a_cast_shot_hits_for_its_own_damage() {
     let shot = json!({ "type": "shot", "damage": 40,
-                       "pattern": { "preset": { "id": "aimed_single", "args": [2048] } } });
+                       "pattern": { "preset": { "id": "aimed_single", "args": [15] } } });
     let caster = companion(
         50,
         hold(46_080, 90_000),
