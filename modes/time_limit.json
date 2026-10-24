@@ -62,10 +62,7 @@
               "type": "attack",
               "attack": {
                 "preset": {
-                  "id": "aimed_single",
-                  "args": [
-                    640
-                  ]
+                  "id": "slash"
                 }
               }
             },
@@ -114,10 +111,7 @@
               "type": "attack",
               "attack": {
                 "preset": {
-                  "id": "aimed_single",
-                  "args": [
-                    640
-                  ]
+                  "id": "slash"
                 }
               }
             },
@@ -230,13 +224,34 @@
             "do": {
               "type": "attack",
               "attack": {
-                "preset": {
-                  "id": "aimed_single",
-                  "args": [
-                    640
-                  ]
-                }
-              }
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 45,
+                    "spawn": [
+                      {
+                        "type": "zone",
+                        "shape": {
+                          "type": "circle",
+                          "radius": 7168
+                        },
+                        "anchor": "target",
+                        "wind_up_ticks": 45,
+                        "active_ticks": 4
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 4
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 15
+                  }
+                ]
+              },
+              "ranged": true
             },
             "cooldown_ticks": 90,
             "once": false
@@ -334,9 +349,23 @@
             "do": {
               "type": "attack",
               "attack": {
-                "preset": {
-                  "id": "spread_5"
-                }
+                "inline": [
+                  {
+                    "kind": "active",
+                    "ticks": 1,
+                    "spawn": [
+                      {
+                        "type": "zone",
+                        "shape": {
+                          "type": "circle",
+                          "radius": 9216
+                        },
+                        "wind_up_ticks": 45,
+                        "active_ticks": 4
+                      }
+                    ]
+                  }
+                ]
               }
             },
             "cooldown_ticks": 0,
@@ -414,6 +443,79 @@
       },
       "around": 102400,
       "count": 48,
+      "every_ticks": 600,
+      "xp": 10,
+      "expertise": {
+        "hit": 1,
+        "kill": 3
+      },
+      "stardust": 10
+    },
+    {
+      "id": "line_caster",
+      "at_tick": 25200,
+      "enemy": {
+        "base": "fairy_a",
+        "hp": 6000,
+        "radius": 2048,
+        "profile": {
+          "weak": [
+            "strike"
+          ]
+        },
+        "movement": {
+          "type": "follow",
+          "distance": 71680
+        },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 90,
+                    "spawn": [
+                      {
+                        "type": "zone",
+                        "shape": {
+                          "type": "line",
+                          "length": 122880,
+                          "width": 5120
+                        },
+                        "wind_up_ticks": 90,
+                        "active_ticks": 6
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 6
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 15
+                  }
+                ]
+              },
+              "ranged": true
+            },
+            "cooldown_ticks": 240,
+            "once": false
+          }
+        ]
+      },
+      "spawn": {
+        "x": 524288,
+        "y": 524288
+      },
+      "around": 102400,
+      "count": 78,
       "every_ticks": 600,
       "xp": 10,
       "expertise": {
