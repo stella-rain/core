@@ -982,6 +982,37 @@
       ]
     },
     {
+      "description": "The main character's hit box broke the breakable orb of `owner` at `at`, and its burst did\nnot run (core Z2, ADR-127 point 37).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "$ref": "#/$defs/Point"
+            },
+            "owner": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "owner",
+            "at"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "OrbBroken"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
       "description": "An offer opened, and the world stopped until a choice closes it (ADR-079 §3).",
       "type": "object",
       "properties": {

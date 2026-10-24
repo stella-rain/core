@@ -206,8 +206,16 @@
         "at": {
           "$ref": "#/$defs/Point"
         },
+        "breakable": {
+          "description": "An orb the main character's hit box breaks.",
+          "type": "boolean"
+        },
         "friendly": {
           "description": "Fired by the main character or a companion, rather than an enemy.",
+          "type": "boolean"
+        },
+        "orb": {
+          "description": "An orb (core Z2): slow, timed, and it bursts when its time is up.",
           "type": "boolean"
         },
         "radius": {

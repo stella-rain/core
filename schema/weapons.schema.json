@@ -577,6 +577,52 @@
           ]
         },
         {
+          "description": "A slow projectile with a required lifetime (core Z2, DS10): it flies for `ticks` ticks\n(1 to `limits::MAX_ORB_TICKS`), and then `burst` runs from where it ended, as an attack of\nits own. A `breakable` orb is destroyed, with no burst, by the main character's hit boxes.\nEnemy attacks only; the burst holds only `zone`, `ring`, `spread`, `repeat`, `rotate` and\n`wait` nodes. At most `MAX_ORBS_PER_OWNER` orbs per attacker and `MAX_ORBS_ALIVE` in all;\none over a cap is dropped.",
+          "type": "object",
+          "properties": {
+            "breakable": {
+              "type": "boolean"
+            },
+            "burst": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Emitter"
+              }
+            },
+            "direction": {
+              "$ref": "#/$defs/Direction"
+            },
+            "speed": {
+              "$ref": "#/$defs/Expr"
+            },
+            "style": {
+              "description": "Bullet asset; absent means the default bullet.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ContentId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "ticks": {
+              "$ref": "#/$defs/Expr"
+            },
+            "type": {
+              "type": "string",
+              "const": "orb"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "speed",
+            "direction",
+            "ticks"
+          ]
+        },
+        {
           "description": "A zone that does not move (core Z1): it is placed at the `anchor`, moved by `offset`\n(forward along its `direction`, and to the right of it), warns for `wind_up_ticks`,\nhurts each target at most once for `active_ticks`, then ends. `ring`, `spread` and\n`rotate` turn its direction, and with it the offset, as they turn a bullet's.",
           "type": "object",
           "properties": {
