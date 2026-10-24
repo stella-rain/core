@@ -12,6 +12,7 @@ use stella_rain_core::expertise::Expertise;
 use stella_rain_core::input::Input;
 use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::pack::{Pack, PackFile};
+use stella_rain_core::packs::{Packs, PacksError};
 use stella_rain_core::replay::{self, Replay};
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
@@ -316,6 +317,31 @@ pub fn pack_load(data: &[u8]) -> bool {
             step_spending(&mut engine, input, pick(data, t));
             let _ = engine.snapshot();
         }
+    }
+    true
+}
+
+/// The `packs.json` manifest loader (FT1a, ADR-020): a manifest that loads loads again as the
+/// same manifest, every channel is found under its own key, and holds an `https://` url and a
+/// tag the checks allow; bytes over the cap are refused without being parsed.
+pub fn packs_load(data: &[u8]) -> bool {
+    let result = Packs::from_bytes(data);
+    if data.len() > Packs::MAX_BYTES {
+        assert!(
+            matches!(result, Err(PacksError::TooLarge { .. })),
+            "bytes over the cap were parsed"
+        );
+    }
+    let Ok(packs) = result else {
+        return false;
+    };
+    let again = Packs::from_bytes(data).expect("a manifest that loaded loads again");
+    assert_eq!(again, packs, "the same bytes loaded as another manifest");
+    assert!(packs.channels().count() <= stella_rain_core::packs::MAX_CHANNELS);
+    for (key, channel) in packs.channels() {
+        assert_eq!(packs.channel(key), Some(channel));
+        assert!(channel.url().starts_with("https://"));
+        assert!(!channel.tag().is_empty());
     }
     true
 }
