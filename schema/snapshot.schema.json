@@ -513,12 +513,21 @@
       "minimum": 0
     },
     "EntityKind": {
-      "type": "string",
-      "enum": [
-        "companion",
-        "enemy",
-        "boss",
-        "boss_part"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "companion",
+            "enemy",
+            "boss",
+            "boss_part"
+          ]
+        },
+        {
+          "description": "An elite object that is not an enemy: it cannot be damaged and fights through its\nguardians, who are `Enemy`s (ADR-090). Its `elite` flag is set.",
+          "type": "string",
+          "const": "shrine"
+        }
       ]
     },
     "EntityView": {
