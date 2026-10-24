@@ -5,28 +5,19 @@
 //! `tests/corpus/runs/v0/time_limit/run.replay`, played from its start with its commands.
 //!
 //! "Heaviest" is the sum of the five fields of `Load` (enemies, attack tasks, zones, orbs, emitter
-//! steps), unweighted. `tests/worst_minute.rs` finds both places from the run and asserts the
-//! constants below equal them.
-//!
-//! Every later change of the run's outcome (a regenerated corpus) can move them: the test then
-//! fails and names the new values; set them here and the state hashes in
-//! `tests/bench_fixture_pins.rs` (from the failing pin's message).
+//! steps), unweighted; the first window or tick wins a tie. `worst_minute_window` finds both
+//! places by replaying the run, so the benches (which call it in their uncounted setup) need no
+//! constants: a change of the run's outcome moves the minute without touching bench input. Where
+//! the minute is is pinned in `tests/worst_minute.rs`, and the state hashes there in
+//! `tests/bench_fixture_pins.rs`.
 
-use crate::engine::Engine;
+use crate::engine::{Engine, Load};
 use crate::input::Input;
 use crate::run_content::RunContent;
 use crate::run_replay::{CommandKind, RunReplay, TickCommand};
 
 /// A minute: 60 s at 60 ticks a second.
 pub const MINUTE_TICKS: u32 = 3_600;
-
-/// The number of ticks played before the densest minute: the minute is the ticks
-/// `WORST_MINUTE_START..WORST_MINUTE_START + MINUTE_TICKS`, the window of the largest summed load.
-pub const WORST_MINUTE_START: u32 = 1_684;
-
-/// The number of ticks played before the heaviest tick of that minute (by the same load): the
-/// next `step` is that tick.
-pub const WORST_TICK_IN_MINUTE: u32 = 2_699;
 
 const RUN_REPLAY: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -74,12 +65,58 @@ impl Run {
     }
 }
 
+fn weight(load: Load) -> u64 {
+    [
+        load.enemies,
+        load.tasks,
+        load.zones,
+        load.orbs,
+        load.emitter_steps,
+    ]
+    .iter()
+    .map(|&n| u64::from(n))
+    .sum()
+}
+
+/// The densest minute of the run and its heaviest tick, as numbers of ticks played before them:
+/// the minute is the ticks `start..start + MINUTE_TICKS`, the window of the largest summed load,
+/// and the next `step` of a run `peak_tick` ticks in is the heaviest tick of that window.
+pub fn worst_minute_window() -> (u32, u32) {
+    let mut run = Run::fast_forwarded(0);
+    let ticks = run.inputs.len();
+    let mut loads = Vec::with_capacity(ticks);
+    for _ in 0..ticks {
+        run.play(1);
+        loads.push(weight(run.engine.load()));
+    }
+    let minute = MINUTE_TICKS as usize;
+    let mut sum: u64 = loads[..minute].iter().sum();
+    let (mut best, mut start) = (sum, 0);
+    for from in 1..=ticks - minute {
+        sum = sum - loads[from - 1] + loads[from + minute - 1];
+        if sum > best {
+            (best, start) = (sum, from);
+        }
+    }
+    let window = &loads[start..start + minute];
+    let heaviest = window.iter().max().expect("a minute has ticks");
+    let peak = start
+        + window
+            .iter()
+            .position(|l| l == heaviest)
+            .expect("it is in it");
+    (
+        u32::try_from(start).expect("a tick count"),
+        u32::try_from(peak).expect("a tick count"),
+    )
+}
+
 /// The run at the start of its densest minute (`benches/worst_minute.rs` plays `MINUTE_TICKS`).
 pub fn worst_minute() -> Run {
-    Run::fast_forwarded(WORST_MINUTE_START)
+    Run::fast_forwarded(worst_minute_window().0)
 }
 
 /// The run one tick before the heaviest tick of that minute (`benches/worst_minute_peak.rs`).
 pub fn worst_minute_peak() -> Run {
-    Run::fast_forwarded(WORST_TICK_IN_MINUTE)
+    Run::fast_forwarded(worst_minute_window().1)
 }
