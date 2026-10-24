@@ -161,3 +161,50 @@ fn peak_heap_of_a_minute_of_the_saturated_horde_is_under_16_mib() {
         "peak heap {peak} bytes, limit {PEAK_HEAP_LIMIT}"
     );
 }
+
+/// Enemies whose swings and zones hit the main character all the time, on cooldowns that overlap
+/// differently from tick to tick (BR1a-0): a run or a zone that hits for the first time must not
+/// allocate once the pool of hit lists has settled.
+#[test]
+fn a_steady_tick_allocates_nothing_while_melee_and_zones_hit_the_main_character() {
+    use crate::common::*;
+    use serde_json::json;
+    let attack = json!({ "inline": [
+        { "kind": "wind_up", "ticks": 1, "damage": 100, "spawn": [
+            { "type": "zone", "shape": { "type": "circle", "radius": 1024 }, "anchor": "target",
+              "wind_up_ticks": 3, "active_ticks": 3 }] },
+        { "kind": "active", "ticks": 2, "damage": 100,
+          "hit_box": { "type": "circle", "radius": 7680 } }] });
+    let waves: Vec<_> = [7u32, 11, 13, 17, 19, 23, 29, 31]
+        .iter()
+        .enumerate()
+        .map(|(i, cooldown)| {
+            let (x, y) = (START_X + (i as i32 - 4) * 600, START_Y - 1024);
+            let rules = json!([{ "when": always(), "target": "player", "cooldown_ticks": cooldown,
+                "do": { "type": "attack", "attack": attack } }]);
+            wave(1, 1, 0, enemy(1000, hold(x, y), rules), x, y)
+        })
+        .collect();
+    let mut stage = quiet(stage_full(18_000, Some(far_boss()), waves, vec![]));
+    stage.player.hp = 99_900;
+    let mut e = engine(&stage);
+    for _ in 0..600 {
+        e.step(idle());
+    }
+    let mut per_tick = Vec::new();
+    for _ in 0..600 {
+        let before = allocations();
+        e.step(idle());
+        per_tick.push(allocations() - before);
+    }
+    let total: u64 = per_tick.iter().sum();
+    let at: Vec<_> = per_tick
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| **n > 0)
+        .collect();
+    assert_eq!(
+        total, 0,
+        "allocations in 600 steady ticks, (tick, count): {at:?}"
+    );
+}

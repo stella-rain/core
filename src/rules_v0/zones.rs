@@ -16,11 +16,15 @@
 
 use crate::engine::{State, ZoneState};
 
+use super::scratch::Scratch;
 use super::{MAX_ZONES_ALIVE, count};
 
-/// Places `zone`, unless there are `MAX_ZONES_ALIVE` already.
+/// Places `zone`, unless there are `MAX_ZONES_ALIVE` already. A zone's hit list comes from, and
+/// goes back to, the pool of the attack runs' (`Scratch::take_hit_list`), so that a steady tick
+/// allocates nothing when an enemy's zone hurts the main character (T1b).
 pub(super) fn place(s: &mut State, zone: ZoneState) {
     if count(&s.zones) >= MAX_ZONES_ALIVE {
+        Scratch::recycle_hits(&mut s.scratch.hit_lists, zone.hits);
         return;
     }
     s.zones.push(zone);
@@ -30,12 +34,17 @@ pub(super) fn place(s: &mut State, zone: ZoneState) {
 /// both have. Called before the attacks are carried out, so a zone placed this tick is not
 /// advanced until the next.
 pub(super) fn advance(s: &mut State) {
+    let pool = &mut s.scratch.hit_lists;
     s.zones.retain_mut(|z| {
         if z.wind_left > 0 {
             z.wind_left -= 1;
         } else {
             z.active_left = z.active_left.saturating_sub(1);
         }
-        z.wind_left > 0 || z.active_left > 0
+        let alive = z.wind_left > 0 || z.active_left > 0;
+        if !alive {
+            Scratch::recycle_hits(pool, std::mem::take(&mut z.hits));
+        }
+        alive
     });
 }

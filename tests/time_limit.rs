@@ -692,3 +692,21 @@ fn the_elite_fields_are_strict_and_a_refusal_echoes_no_file_text() {
         );
     }
 }
+
+#[test]
+fn a_schedule_of_sixteen_waves_and_a_mode_file_of_sixty_kilobytes_are_accepted() {
+    // BR1a-0: the bundled mode needs a ninth wave (the line caster) and grew to about 60 KB.
+    let mut w = wave();
+    w["count"] = json!(1);
+    w["every_ticks"] = json!(0);
+    assert!(parse(&waves(vec![w.clone(); 16])).is_ok(), "16 waves");
+    assert_eq!(paths(&waves(vec![w; 17])), ["$.waves"], "17 waves");
+    let mut bytes = good().to_string().into_bytes();
+    bytes.resize(60 * 1024, b' ');
+    assert!(TimeLimit::parse(&bytes).is_ok(), "60 KB");
+    bytes.resize(128 * 1024 + 1, b' ');
+    assert!(matches!(
+        TimeLimit::parse(&bytes),
+        Err(Error::TooLarge { .. })
+    ));
+}

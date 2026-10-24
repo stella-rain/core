@@ -30,9 +30,10 @@ use crate::validate::limits::{self, MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
-/// The largest mode file read; the bundled one is about 25 KB: R2's enemy roles are most of it,
-/// and the boss definitions (core#336) about 6 KB.
-pub const MAX_TIME_LIMIT_BYTES: usize = 32 * 1024;
+/// The largest mode file read; the bundled one is about 60 KB: the bosses and elites are most of it
+/// (zones and orbs take more words than a preset call did, BR1a), the enemy roles of R2 and
+/// the boss definitions (core#336) the rest.
+pub const MAX_TIME_LIMIT_BYTES: usize = 128 * 1024;
 /// The longest run: 30 minutes.
 pub const MAX_LENGTH_TICKS: u32 = 30 * 60 * 60;
 /// The most boss times: the mid-bosses and the final boss.
@@ -43,8 +44,8 @@ pub const MAX_POOL: usize = 16;
 pub const MAX_OVERTIME_TICKS: u32 = 10 * 60 * 60;
 /// The longest extra time for the Star-Hunter: 3 minutes.
 pub const MAX_EXTRA_TICKS: u32 = 3 * 60 * 60;
-/// The most waves in the schedule.
-pub const MAX_WAVES: usize = 8;
+/// The most waves in the schedule: the two bats and the roles, with room for more (BR1a).
+pub const MAX_WAVES: usize = 16;
 /// The most enemies one wave spawns.
 pub const MAX_SPAWN_COUNT: u16 = 2000;
 /// The most enemies the whole schedule spawns: 100 a minute for the longest run is 3000.
