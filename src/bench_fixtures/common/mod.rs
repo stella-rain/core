@@ -31,6 +31,15 @@ pub fn weapon_ref(attack: Value) -> Value {
     weapon_combo(json!({ "main": step(attack) }))
 }
 
+/// The Main weapon the cases share unless they set their own: a circle of 256 pixels round the
+/// main character, active for two ticks and hitting every tick.
+fn default_weapon() -> Value {
+    weapon_ref(
+        json!({ "inline": [{ "kind": "active", "ticks": 2, "damage": 1, "rehit_ticks": 1,
+                                    "hit_box": { "type": "circle", "radius": 65_536 } }] }),
+    )
+}
+
 /// `stage` with `weapon` as its weapon, a whole reference.
 pub fn armed(mut stage: Stage, weapon: Value) -> Stage {
     stage.player.weapon = serde_json::from_value(weapon).expect("the weapon parses");
@@ -94,9 +103,9 @@ pub fn stage_full(
     let mut v = json!({
         "schema_version": 0, "sim_version": 0, "id": "test", "title": "Test", "seed": 7,
         "length_ticks": length_ticks,
-        // The weapon: one bullet along the facing at 8 pixels a tick on a press of `main`.
+        // The weapon is `default_weapon`; the cases replace it with `armed`.
         "player": { "base": "pilot_a", "hp": 99, "atk": 10,
-                    "weapon": weapon_ref(json!({ "preset": { "id": "aimed_single", "args": [2048] } })),
+                    "weapon": default_weapon(),
                     "evade": evade() },
         "companions": companions,
         "waves": waves,

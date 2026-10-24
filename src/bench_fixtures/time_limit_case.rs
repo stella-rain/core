@@ -15,7 +15,7 @@ use crate::validate::limits::{MAX_AGENT_HP, MAX_PLAYER_HP};
 /// Ticks before the measured tick: the 500 enemies have all arrived (cap reached on tick 1,963)
 /// and the measured tick is one on which the main character's Main weapon hits
 /// (`tests/time_limit_case.rs`) and the most attacks are in progress while the horde is still
-/// at the cap. Since BR1a nothing fires a bullet, so the load is zones, the crowd's rules and the
+/// at the cap. Since BR1a nothing fires a projectile, so the load is zones, the crowd's rules and the
 /// melee: of the ticks from 1,963 on that the Main weapon hits and 500 enemies stand (the enemies
 /// start to fall to it from about tick 2,285), tick 2,139 has the most attacks running (2), then
 /// 4 emitter steps and 5 zones; tick 2,093 has the most zones (30) with one attack. Chosen by the
