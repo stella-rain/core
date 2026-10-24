@@ -1,5 +1,5 @@
 //! A death names what died (DC1): its class, as the snapshot's `EntityKind`, and whether it was
-//! an elite or a shrine, so a reader never has to guess it from earlier snapshots.
+//! an elite (a shrine is its own class), so a reader never has to guess it from earlier snapshots.
 
 use crate::common;
 
@@ -14,8 +14,8 @@ use stella_rain_core::stage::Stage;
 const CX: i32 = 20_000;
 const CY: i32 = 30_000;
 
-/// What each `Died` in `events` says: the entity, its class, and the elite and shrine marks.
-pub fn deaths(events: &[(u32, DomainEvent)]) -> Vec<(EntityId, EntityKind, bool, bool)> {
+/// What each `Died` in `events` says: the entity, its class and the elite mark.
+pub fn deaths(events: &[(u32, DomainEvent)]) -> Vec<(EntityId, EntityKind, bool)> {
     events
         .iter()
         .filter_map(|(_, ev)| match ev {
@@ -23,9 +23,8 @@ pub fn deaths(events: &[(u32, DomainEvent)]) -> Vec<(EntityId, EntityKind, bool,
                 entity,
                 class,
                 elite,
-                shrine,
                 ..
-            } => Some((*entity, *class, *elite, *shrine)),
+            } => Some((*entity, *class, *elite)),
             _ => None,
         })
         .collect()
@@ -60,19 +59,19 @@ fn an_elite_dying_on_its_first_tick_reports_elite() {
     // It never showed in a snapshot as anything but the elite it was born as.
     assert_eq!(
         deaths(&events),
-        [(EntityId(3), EntityKind::Enemy, true, false)],
+        [(EntityId(3), EntityKind::Enemy, true)],
         "{events:?}"
     );
 }
 
 #[test]
-fn an_ordinary_enemy_reports_neither_elite_nor_shrine() {
+fn an_ordinary_enemy_reports_enemy_and_not_elite() {
     let stage = striker(enemy(10, hold(CX + 2_560, CY), json!([])));
     let mut e = engine(&stage);
     let events = events_of(&mut e, 3);
     assert_eq!(
         deaths(&events),
-        [(EntityId(3), EntityKind::Enemy, false, false)],
+        [(EntityId(3), EntityKind::Enemy, false)],
         "{events:?}"
     );
 }
@@ -100,7 +99,7 @@ fn a_companion_death_reports_companion() {
     let events = events_of(&mut e, 120);
     assert_eq!(
         deaths(&events),
-        [(EntityId(2), EntityKind::Companion, false, false)],
+        [(EntityId(2), EntityKind::Companion, false)],
         "{events:?}"
     );
 }
@@ -115,18 +114,24 @@ fn a_boss_death_reports_boss() {
     let events = fire_until(&mut e, idle(), 200, |_| false);
     assert_eq!(
         deaths(&events),
-        [(EntityId(1), EntityKind::Boss, false, false)],
+        [(EntityId(1), EntityKind::Boss, false)],
         "{events:?}"
     );
 }
 
 #[test]
-fn the_class_is_in_the_json_and_a_plain_enemy_leaves_the_marks_out() {
+fn the_class_is_in_the_json_and_a_plain_enemy_leaves_the_mark_out() {
     let died: DomainEvent = serde_json::from_value(json!({ "type": "Died", "data": {
         "entity": 3, "class": "enemy" } }))
     .unwrap();
     let json = serde_json::to_value(&died).unwrap();
     assert_eq!(json["data"]["class"], json!("enemy"));
     assert!(json["data"].get("elite").is_none(), "{json}");
+    assert!(json["data"].get("shrine").is_none(), "{json}");
+    let shrine: DomainEvent = serde_json::from_value(json!({ "type": "Died", "data": {
+        "entity": 3, "class": "shrine", "elite": true } }))
+    .unwrap();
+    let json = serde_json::to_value(&shrine).unwrap();
+    assert_eq!(json["data"]["class"], json!("shrine"));
     assert!(json["data"].get("shrine").is_none(), "{json}");
 }

@@ -104,7 +104,7 @@ fn positions(e: &Engine, elite: bool) -> Vec<(i32, i32)> {
     e.snapshot()
         .entities
         .iter()
-        .filter(|v| v.kind == EntityKind::Enemy && v.elite == elite)
+        .filter(|v| matches!(v.kind, EntityKind::Enemy | EntityKind::Shrine) && v.elite == elite)
         .map(|v| (v.at.x.0, v.at.y.0))
         .collect()
 }
@@ -343,6 +343,34 @@ fn clearing_the_guardians_in_time_gives_the_elite_reward_and_the_shrine_goes() {
 }
 
 #[test]
+fn a_shrine_is_its_own_kind_in_the_snapshot_and_a_guardian_is_an_enemy() {
+    let mut e = with(&shrine_stage(SIDE, shrine(6000, 2, 100_000), vec![]));
+    run_until(&mut e, idle(), 3, |_| false);
+    let kinds = |e: &Engine| -> Vec<(EntityKind, bool)> {
+        let mut v: Vec<_> = e
+            .snapshot()
+            .entities
+            .iter()
+            .filter(|v| v.at.x.0 == SIDE.0 && v.at.y.0 == SIDE.1)
+            .map(|v| (v.kind, v.elite))
+            .collect();
+        v.sort_by_key(|k| k.1);
+        v
+    };
+    assert_eq!(kinds(&e), [(EntityKind::Shrine, true)]);
+    touch(&mut e);
+    assert!(
+        e.snapshot()
+            .entities
+            .iter()
+            .filter(|v| v.kind == EntityKind::Enemy)
+            .count()
+            == 2,
+        "the guardians are ordinary enemies"
+    );
+}
+
+#[test]
 fn a_shrine_death_reports_its_class() {
     let mut e = with(&shrine_stage(SIDE, shrine(600, 2, 5), vec![]));
     let mut events = touch(&mut e);
@@ -357,13 +385,13 @@ fn a_shrine_death_reports_its_class() {
     let shrine_died: Vec<_> = died.iter().filter(|d| d.0 == shrine_id).collect();
     assert_eq!(
         shrine_died,
-        [&(shrine_id, EntityKind::Enemy, true, true)],
+        [&(shrine_id, EntityKind::Shrine, true)],
         "{events:?}"
     );
     // The guardians are ordinary enemies.
     assert_eq!(
         died.iter()
-            .filter(|d| *d == &(d.0, EntityKind::Enemy, false, false))
+            .filter(|d| *d == &(d.0, EntityKind::Enemy, false))
             .count(),
         2,
         "{died:?}"
@@ -415,7 +443,7 @@ fn fight_of(e: &Engine) -> Option<(u32, u32)> {
     let shrine = snap
         .entities
         .iter()
-        .find(|v| v.kind == EntityKind::Enemy && v.elite)?;
+        .find(|v| v.kind == EntityKind::Shrine)?;
     shrine.fight.as_ref().map(|c| (c.remaining, c.total))
 }
 

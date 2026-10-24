@@ -77,7 +77,7 @@ impl Engine {
                         && rules_v0::aura_percent(auras.iter().copied(), a.at) > 0;
                     out.push(EntityView {
                         id: a.id,
-                        kind,
+                        kind: a.entity_kind(kind),
                         asset: match def.elite.as_ref().and_then(|e| e.mimic.as_ref()) {
                             Some(m) if hidden => m.disguise.clone(),
                             _ => ContentId(def.base.0.clone()),

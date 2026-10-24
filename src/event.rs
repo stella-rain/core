@@ -138,9 +138,6 @@ pub enum DomainEvent {
         /// An elite (`EntityView::elite`). Absent when false.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         elite: bool,
-        /// A shrine, an elite object that dies when its guardians are cleared. Absent when false.
-        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-        shrine: bool,
     },
     StageCleared,
     StageFailed,

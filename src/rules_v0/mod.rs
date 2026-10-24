@@ -860,14 +860,17 @@ fn death_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
     }
 }
 
-/// A death, with what died: the class `EntityView::kind` gives it, and whether it is an elite or
-/// a shrine. The one place a `Died` is built.
+/// A death, with what died: the class `EntityView::kind` gives it (`AgentState::entity_kind`), and
+/// whether it is an elite. The one place a `Died` is built.
 pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
     let (class, agent) = match target {
         Who::Boss => (EntityKind::Boss, None),
         Who::BossPart(_) => (EntityKind::BossPart, None),
         Who::Companion(i) => (EntityKind::Companion, Some(&s.companions[i])),
-        Who::Enemy(i) => (EntityKind::Enemy, Some(&s.enemies[i])),
+        Who::Enemy(i) => (
+            s.enemies[i].entity_kind(EntityKind::Enemy),
+            Some(&s.enemies[i]),
+        ),
         // The main character is not reported by a `Died`; it counts with its allies.
         Who::Player => (EntityKind::Companion, None),
     };
@@ -876,7 +879,6 @@ pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
         kind: kind_of(s, target),
         class,
         elite: agent.is_some_and(AgentState::shows_elite),
-        shrine: agent.is_some_and(|a| a.shrine.is_some()),
     }
 }
 

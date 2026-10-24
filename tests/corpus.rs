@@ -1154,7 +1154,11 @@ impl EliteScript {
             return common::run::run_input_for(engine, tick, &[EntityKind::Boss], u32::MAX);
         }
         let me = s.player.at;
-        let enemies = || s.entities.iter().filter(|e| e.kind == EntityKind::Enemy);
+        let enemies = || {
+            s.entities
+                .iter()
+                .filter(|e| matches!(e.kind, EntityKind::Enemy | EntityKind::Shrine))
+        };
         let d2 = |at: stella_rain_core::fixed::Point| {
             let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
             x * x + y * y
@@ -1264,7 +1268,7 @@ fn boss_input(engine: &Engine, tick: u32) -> Input {
     common::run::run_input_for(
         engine,
         tick,
-        &[EntityKind::Enemy, EntityKind::Boss],
+        &[EntityKind::Enemy, EntityKind::Shrine, EntityKind::Boss],
         u32::MAX,
     )
 }
@@ -1487,7 +1491,9 @@ fn elite_reach(name: &str) -> EliteReach {
         let alive: Vec<_> = s
             .entities
             .iter()
-            .filter(|e| e.kind == EntityKind::Enemy && (e.elite || e.disguised))
+            .filter(|e| {
+                matches!(e.kind, EntityKind::Enemy | EntityKind::Shrine) && (e.elite || e.disguised)
+            })
             .collect();
         r.peak = r.peak.max(alive.len());
         if r.boss_at.is_none() && s.entities.iter().any(|e| e.kind == EntityKind::Boss) {

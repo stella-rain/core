@@ -234,7 +234,6 @@ fn an_event_without_the_kind_fields_still_loads() {
         kind: Some(KindIndex(7)),
         class: EntityKind::Enemy,
         elite: false,
-        shrine: false,
     };
     assert_eq!(
         serde_json::to_value(&with).unwrap()["data"]["kind"],
