@@ -48,11 +48,11 @@
       "type": "object",
       "properties": {
         "breaks_charge": {
-          "description": "A powerful attack: its hits on the main character, by hit box or by the bullets the phase\nspawns, break a charge in progress (core#83).",
+          "description": "A powerful attack: its hits on the main character, by hit box or by the zones the phase\nspawns, break a charge in progress (core#83).",
           "type": "boolean"
         },
         "damage": {
-          "description": "Base damage of the phase's hits and of the bullets it spawns (ADR-056). Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 100 (1 at the design values, ADR-103) for an enemy or the boss.",
+          "description": "Base damage of the phase's hits and of the zones it spawns (ADR-056). Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 100 (1 at the design values, ADR-103) for an enemy or the boss.",
           "type": [
             "integer",
             "null"
@@ -104,7 +104,7 @@
           "minimum": 0
         },
         "type": {
-          "description": "The damage type of the phase's hits and of the bullets it spawns (ADR-100); absent, they\nare neutral and never get a match-up.",
+          "description": "The damage type of the phase's hits and of the zones it spawns (ADR-100); absent, they\nare neutral and never get a match-up.",
           "anyOf": [
             {
               "$ref": "#/$defs/DamageType"
@@ -290,7 +290,7 @@
           ]
         },
         {
-          "description": "Turned by `angle` from the parent's direction: straight down for an attack that a rule\nstarted, the direction of the bullet for a `then` list of `on_bullet`.",
+          "description": "Turned by `angle` from the parent's direction: straight down for an attack that a rule\nstarted, the orb's own direction for the zones of its `burst`.",
           "type": "object",
           "properties": {
             "angle": {
@@ -308,7 +308,7 @@
           ]
         },
         {
-          "description": "Turned by `step` from the previous bullet's direction; not affected by the turns of\n`rotate`, `ring` and `spread`.",
+          "description": "Turned by `step` from the previous orb's or zone's direction; not affected by the turns of\n`rotate`, `ring` and `spread`.",
           "type": "object",
           "properties": {
             "step": {
@@ -412,50 +412,6 @@
     "Emitter": {
       "oneOf": [
         {
-          "description": "One bullet.",
-          "type": "object",
-          "properties": {
-            "bullet": {
-              "description": "Bullet asset; absent means the default bullet.",
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ContentId"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "direction": {
-              "$ref": "#/$defs/Direction"
-            },
-            "speed": {
-              "$ref": "#/$defs/Expr"
-            },
-            "ticks": {
-              "description": "How many ticks the bullet lives, at least 1 and at most `limits::MAX_BULLET_TICKS`;\nabsent means it lives until it is past the map's margin (core#147).",
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/Expr"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": {
-              "type": "string",
-              "const": "fire"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type",
-            "speed",
-            "direction"
-          ]
-        },
-        {
           "description": "Runs `body` `count` times (at most 100). The next round starts `interval_ticks` ticks\nafter the body of the last one ends.",
           "type": "object",
           "properties": {
@@ -510,7 +466,7 @@
           ]
         },
         {
-          "description": "Runs `body` `count` times at once, fanned evenly across `angle` and centred on the\ndirection of the bullets.",
+          "description": "Runs `body` `count` times at once, fanned evenly across `angle` and centred on the\ndirection of the attack.",
           "type": "object",
           "properties": {
             "angle": {
@@ -581,38 +537,6 @@
           ]
         },
         {
-          "description": "Each bullet fired by `body` starts `then` as an attack of its own, from where the bullet\nis, `after_ticks` ticks later (at the next tick if 0), if it is still flying.",
-          "type": "object",
-          "properties": {
-            "after_ticks": {
-              "$ref": "#/$defs/Expr"
-            },
-            "body": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Emitter"
-              }
-            },
-            "then": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Emitter"
-              }
-            },
-            "type": {
-              "type": "string",
-              "const": "on_bullet"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type",
-            "after_ticks",
-            "body",
-            "then"
-          ]
-        },
-        {
           "description": "A slow projectile with a required lifetime (core Z2, DS10): it flies for `ticks` ticks\n(1 to `limits::MAX_ORB_TICKS`), and then `burst` runs from where it ended, as an attack of\nits own. A `breakable` orb is destroyed, with no burst, by the main character's hit boxes.\nEnemy attacks only; the burst holds only `zone`, `ring`, `spread`, `repeat`, `rotate` and\n`wait` nodes. At most `MAX_ORBS_PER_OWNER` orbs per attacker and `MAX_ORBS_ALIVE` in all;\none over a cap is dropped.",
           "type": "object",
           "properties": {
@@ -659,7 +583,7 @@
           ]
         },
         {
-          "description": "A zone that does not move (core Z1): it is placed at the `anchor`, moved by `offset`\n(forward along its `direction`, and to the right of it), warns for `wind_up_ticks`,\nhurts each target at most once for `active_ticks`, then ends. `ring`, `spread` and\n`rotate` turn its direction, and with it the offset, as they turn a bullet's.",
+          "description": "A zone that does not move (core Z1): it is placed at the `anchor`, moved by `offset`\n(forward along its `direction`, and to the right of it), warns for `wind_up_ticks`,\nhurts each target at most once for `active_ticks`, then ends. `ring`, `spread` and\n`rotate` turn its direction, and with it the offset, as they turn an orb's.",
           "type": "object",
           "properties": {
             "active_ticks": {
