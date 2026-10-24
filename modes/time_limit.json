@@ -485,8 +485,24 @@
                         "type": "zone",
                         "shape": {
                           "type": "line",
-                          "length": 122880,
+                          "length": 61440,
                           "width": 5120
+                        },
+                        "offset": {
+                          "forward": 0
+                        },
+                        "wind_up_ticks": 90,
+                        "active_ticks": 6
+                      },
+                      {
+                        "type": "zone",
+                        "shape": {
+                          "type": "line",
+                          "length": 61440,
+                          "width": 5120
+                        },
+                        "offset": {
+                          "forward": 61440
                         },
                         "wind_up_ticks": 90,
                         "active_ticks": 6

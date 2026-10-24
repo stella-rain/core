@@ -161,19 +161,24 @@ fn the_line_caster_is_the_wave_ds11_names() {
     assert_eq!(w["enemy"]["movement"]["distance"], 71_680);
     let rule = &w["enemy"]["rules"][0];
     assert_eq!(rule["cooldown_ticks"], 240);
+    // 480 x 20 pixels from itself, warned for 90 ticks and hurting for 6. A zone line is at most
+    // 256 pixels long (MAX_RADIUS), so the lane is lines laid end to end.
     let lanes: Vec<_> = objects(&rule["do"])
         .into_iter()
         .filter(|(_, o)| o["type"] == "zone")
         .collect();
-    assert_eq!(lanes.len(), 1);
-    let lane = lanes[0].1;
-    // 480 x 20 pixels, from itself, warned for 90 ticks and hurting for 6.
-    assert_eq!(lane["shape"]["type"], "line");
-    assert_eq!(lane["shape"]["length"], 480 * 256);
-    assert_eq!(lane["shape"]["width"], 20 * 256);
-    assert_eq!(lane["wind_up_ticks"], 90);
-    assert_eq!(lane["active_ticks"], 6);
-    assert!(lane.get("anchor").is_none());
+    assert_eq!(lanes.len(), 2);
+    let mut length = 0;
+    for (i, (_, lane)) in lanes.iter().enumerate() {
+        assert_eq!(lane["shape"]["type"], "line");
+        assert_eq!(lane["shape"]["width"], 20 * 256);
+        assert_eq!(lane["wind_up_ticks"], 90);
+        assert_eq!(lane["active_ticks"], 6);
+        assert!(lane.get("anchor").is_none());
+        assert_eq!(lane["offset"]["forward"], length, "line {i} starts where the last ended");
+        length += lane["shape"]["length"].as_i64().unwrap();
+    }
+    assert_eq!(length, 480 * 256);
 }
 
 #[test]
