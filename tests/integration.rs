@@ -70,6 +70,7 @@ mod orbit;
 mod orbs;
 mod overflow;
 mod pack;
+mod packs;
 mod parsed_stage_hash;
 mod perk_sets;
 mod phases;
