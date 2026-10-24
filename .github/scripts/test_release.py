@@ -34,24 +34,67 @@ class Previous(unittest.TestCase):
         self.assertIsNone(r.previous(["v0.0.4-rc.1"]))
 
 
-class NewVersion(unittest.TestCase):
-    def test_a_version_above_the_last_release_is_new(self):
-        self.assertEqual(r.new_version_problems("0.0.4", ["v0.0.2", "v0.0.3"]), [])
+class FinalTag(unittest.TestCase):
+    """The version in Cargo.toml is a floor (release-flow plan 9.2): V above the latest final tag
+    L is the release; V equal to or below L is L's next patch; no L means V."""
 
-    def test_the_first_release_is_new(self):
-        self.assertEqual(r.new_version_problems("0.0.1", []), [])
+    def test_a_version_above_the_latest_release_is_the_release(self):
+        self.assertEqual(r.final_tag("0.2.0", ["v0.1.0"]), "v0.2.0")
+        self.assertEqual(r.final_tag("0.0.4", ["v0.0.2", "v0.0.3"]), "v0.0.4")
 
-    def test_a_tagged_version_is_not_new(self):
-        self.assertIn("already tagged", r.new_version_problems("0.0.3", ["v0.0.3"])[0])
+    def test_a_version_equal_to_the_latest_release_is_its_next_patch(self):
+        self.assertEqual(r.final_tag("0.1.0", ["v0.1.0"]), "v0.1.1")
 
-    def test_a_version_below_the_last_release_is_not_new(self):
-        self.assertIn("not above", r.new_version_problems("0.0.2", ["v0.0.3"])[0])
+    def test_a_version_below_the_latest_release_is_its_next_patch(self):
+        self.assertEqual(r.final_tag("0.0.9", ["v0.0.9", "v0.1.0"]), "v0.1.1")
+        self.assertEqual(r.final_tag("0.0.1", ["v0.1.0"]), "v0.1.1")
 
-    def test_rc_tags_of_the_version_do_not_make_it_released(self):
-        self.assertEqual(r.new_version_problems("0.0.4", ["v0.0.3", "v0.0.4-rc.1"]), [])
+    def test_the_latest_release_is_the_highest_not_the_last_listed(self):
+        self.assertEqual(r.final_tag("0.0.1", ["v0.0.10", "v0.0.9"]), "v0.0.11")
+
+    def test_the_first_release_is_the_version(self):
+        self.assertEqual(r.final_tag("0.0.1", []), "v0.0.1")
+
+    def test_rc_tags_are_not_releases(self):
+        self.assertEqual(r.final_tag("0.1.0", ["v0.1.0-rc.1", "v0.1.0-rc.4"]), "v0.1.0")
+        self.assertEqual(r.final_tag("0.1.0", ["v0.1.0", "v0.1.1-rc.1"]), "v0.1.1")
+
+    def test_a_second_candidate_of_the_same_final_is_rc_2(self):
+        tags = ["v0.1.0", "v0.1.1-rc.1"]
+        self.assertEqual(r.rc_tag(r.final_tag("0.1.0", tags), tags), "v0.1.1-rc.2")
 
     def test_a_version_that_is_not_x_y_z(self):
-        self.assertIn("not X.Y.Z", r.new_version_problems("0.0.4-beta", [])[0])
+        with self.assertRaisesRegex(r.ReleaseError, "not X.Y.Z"):
+            r.final_tag("0.0.4-beta", [])
+
+
+class CheckMain(unittest.TestCase):
+    def test_main_passes(self):
+        r.check_main("refs/heads/main")
+
+    def test_anything_else_is_refused(self):
+        for ref in ("refs/heads/claude/x", "refs/heads/rc/v0.0.4-rc.1", "refs/heads/candidate/0123456789ab",
+                    "refs/tags/v0.0.4", "refs/heads/main2", "", None):
+            with self.assertRaisesRegex(r.ReleaseError, "refs/heads/main", msg=ref):
+                r.check_main(ref)
+
+
+class Stamp(unittest.TestCase):
+    def test_cargo_toml_takes_the_package_version_only(self):
+        text = CARGO.format("0.1.0") + '\n[dependencies]\nserde = { version = "1.0.0" }\n'
+        out = r.stamp_cargo_toml(text, "0.1.1")
+        self.assertEqual(r.cargo_version(out), "0.1.1")
+        self.assertIn('serde = { version = "1.0.0" }', out)
+        self.assertEqual(out.replace("0.1.1", "0.1.0"), text)
+
+    def test_a_lock_takes_the_crates_entry_only(self):
+        out = r.stamp_lock(LOCK.format("0.1.0"), "0.1.1")
+        self.assertEqual(out, LOCK.format("0.1.1"))
+        self.assertIn('name = "libfuzzer-sys"\nversion = "0.4.10"', out)
+
+    def test_a_lock_without_the_crate_is_refused(self):
+        with self.assertRaisesRegex(r.ReleaseError, "has no"):
+            r.stamp_lock(LOCK.split("\n\n")[0], "0.1.1")
 
 
 class Lock(unittest.TestCase):
@@ -99,29 +142,6 @@ class Branches(unittest.TestCase):
     def test_released_are_the_rcs_of_that_version_and_older(self):
         self.assertEqual(r.released_branches(self.BRANCHES, "v0.0.4"),
                          ["rc/v0.0.3-rc.1", "rc/v0.0.4-rc.1", "rc/v0.0.4-rc.2"])
-
-
-class CheckCandidate(unittest.TestCase):
-    NAME = f"candidate/{SHA[:12]}"
-
-    def test_a_branch_naming_its_commit_on_main_alone_passes(self):
-        r.check_candidate(self.NAME, SHA, True, [])
-
-    def test_a_wrong_name(self):
-        with self.assertRaisesRegex(r.ReleaseError, "not candidate/<12"):
-            r.check_candidate("candidate/main", SHA, True, [])
-
-    def test_a_name_of_another_commit(self):
-        with self.assertRaisesRegex(r.ReleaseError, "names"):
-            r.check_candidate(self.NAME, "f" * 40, True, [])
-
-    def test_a_commit_off_main(self):
-        with self.assertRaisesRegex(r.ReleaseError, "not on origin/main"):
-            r.check_candidate(self.NAME, SHA, False, [])
-
-    def test_another_candidate_branch(self):
-        with self.assertRaisesRegex(r.ReleaseError, "left over"):
-            r.check_candidate(self.NAME, SHA, True, ["candidate/aaaaaaaaaaaa"])
 
 
 def run(name, status="completed", conclusion="success", run_id=7, job=1):
@@ -268,48 +288,6 @@ def script(cwd, *args, stdin=None):
     return subprocess.run([sys.executable, SCRIPT, *args], cwd=cwd, input=stdin, capture_output=True, text=True)
 
 
-def wf(name, status="completed", conclusion="success", event="push"):
-    return {"name": name, "status": status, "conclusion": conclusion, "event": event}
-
-
-class CiDone(unittest.TestCase):
-    NAMES = ["Rust", "Scripts"]
-
-    def test_ready_when_every_matching_run_succeeded_or_was_skipped(self):
-        runs = [wf("Rust"), wf("Scripts", conclusion="skipped"), wf("Scripts", conclusion="neutral")]
-        self.assertEqual(r.ci_done(runs, self.NAMES), "ready")
-
-    def test_waiting_while_a_matching_run_is_not_completed(self):
-        runs = [wf("Scripts"), wf("Rust", status="in_progress", conclusion=None)]
-        self.assertEqual(r.ci_done(runs, self.NAMES), "waiting")
-
-    def test_a_run_of_another_event_is_ignored_while_running(self):
-        # Auto-merge and Main red run on main's commit as workflow_run runs and may be unfinished.
-        runs = [wf("Rust"), wf("Auto-merge", status="in_progress", conclusion=None, event="workflow_run"),
-                wf("Rust", status="in_progress", conclusion=None, event="workflow_run")]
-        self.assertEqual(r.ci_done(runs, self.NAMES), "ready")
-
-    def test_a_workflow_that_is_not_named_never_counts(self):
-        runs = [wf("Scripts"), wf("Main red", conclusion="failure"), wf("Project sync", status="queued", conclusion=None)]
-        self.assertEqual(r.ci_done(runs, self.NAMES), "ready")
-
-    def test_a_dispatched_run_counts(self):
-        runs = [wf("Rust", event="workflow_dispatch", conclusion="failure")]
-        self.assertEqual(r.ci_done(runs, self.NAMES), "red")
-
-    def test_red_when_a_run_finished_otherwise(self):
-        for conclusion in ("failure", "cancelled", "timed_out", "action_required", "stale", "startup_failure"):
-            self.assertEqual(r.ci_done([wf("Rust", conclusion=conclusion), wf("Scripts")], self.NAMES), "red", conclusion)
-
-    def test_waiting_when_no_matching_run_exists(self):
-        self.assertEqual(r.ci_done([], self.NAMES), "waiting")
-        self.assertEqual(r.ci_done([wf("Main red")], self.NAMES), "waiting")
-
-    def test_a_failure_wins_over_a_run_still_going(self):
-        runs = [wf("Rust", conclusion="failure"), wf("Scripts", status="queued", conclusion=None)]
-        self.assertEqual(r.ci_done(runs, self.NAMES), "red")
-
-
 class Cli(unittest.TestCase):
     """The commands against a real clone of a real origin."""
 
@@ -336,11 +314,15 @@ class Cli(unittest.TestCase):
             f.write(CARGO.format(version))
         with open(os.path.join(self.dev, "fuzz", "Cargo.lock"), "w") as f:
             f.write(LOCK.format(lock or version))
+        with open(os.path.join(self.dev, "Cargo.lock"), "w") as f:
+            f.write(LOCK.format(version))
         git(self.dev, "add", "-A")
         git(self.dev, "commit", "-q", "-m", message)
 
-    def candidate(self):
-        return "candidate/" + git(self.dev, "rev-parse", "HEAD")[:12]
+    def stamp_commit(self, final, message=None):
+        """What Candidate makes: a commit on HEAD that changes the version files only."""
+        self.commit(final[1:], message or f"Release {final}")
+        return git(self.dev, "rev-parse", "HEAD")
 
     def notes_from_dev(self):
         log = os.path.join(self.dev, "log.txt")
@@ -377,45 +359,111 @@ class Cli(unittest.TestCase):
     def test_notes_do_not_warn_when_neither_has_a_pack(self):
         self.assertNotIn("content/pack.json", self.notes_from_dev())
 
-    def test_version_prints_the_new_tag(self):
-        out = script(self.dev, "version")
+    def test_final_prints_the_version_above_the_latest_release(self):
+        out = script(self.dev, "final")
         self.assertEqual((out.returncode, out.stdout.strip()), (0, "v0.0.4"))
 
-    def test_version_refuses_a_lock_that_disagrees(self):
+    def test_final_is_the_next_patch_of_a_released_version(self):
+        git(self.dev, "tag", "v0.0.4")
+        out = script(self.dev, "final")
+        self.assertEqual((out.returncode, out.stdout.strip()), (0, "v0.0.5"))
+
+    def test_final_is_the_next_patch_of_the_latest_release_when_the_file_is_below_it(self):
+        self.commit("0.0.2", "back")
+        git(self.dev, "tag", "v0.1.0")
+        self.assertEqual(script(self.dev, "final").stdout.strip(), "v0.1.1")
+
+    def test_final_refuses_a_fuzz_lock_that_disagrees(self):
         self.commit("0.0.5", "bump", lock="0.0.4")
-        out = script(self.dev, "version")
+        out = script(self.dev, "final")
         self.assertEqual(out.returncode, 1)
         self.assertIn("fuzz/Cargo.lock", out.stderr)
 
-    def test_version_refuses_a_released_version(self):
-        self.commit("0.0.3", "back")
-        self.assertEqual(script(self.dev, "version").returncode, 1)
+    def test_final_refuses_a_root_lock_that_disagrees(self):
+        with open(os.path.join(self.dev, "Cargo.lock"), "w") as f:
+            f.write(LOCK.format("0.0.3"))
+        git(self.dev, "commit", "-q", "-am", "lock")
+        out = script(self.dev, "final")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("Cargo.lock has", out.stderr)
+
+    def test_stamp_rewrites_the_version_in_every_file_that_repeats_it(self):
+        self.assertEqual(script(self.dev, "stamp", "v0.0.9").returncode, 0)
+        read = lambda *p: open(os.path.join(self.dev, *p), encoding="utf-8").read()  # noqa: E731
+        self.assertEqual(read("Cargo.toml"), CARGO.format("0.0.9"))
+        self.assertEqual(read("Cargo.lock"), LOCK.format("0.0.9"))
+        self.assertEqual(read("fuzz", "Cargo.lock"), LOCK.format("0.0.9"))
+        self.assertEqual(git(self.dev, "status", "--porcelain").count("\n") + 1, 3)
+
+    def test_stamp_refuses_a_name_that_is_not_a_final_tag(self):
+        self.assertEqual(script(self.dev, "stamp", "v0.0.9-rc.1").returncode, 1)
+
+    def test_check_main_reads_the_ref(self):
+        self.assertEqual(script(self.dev, "check-main", "refs/heads/main").returncode, 0)
+        out = script(self.dev, "check-main", "refs/heads/claude/x")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("refs/heads/main", out.stderr)
+
+    def test_check_release_passes_with_a_commit_since_the_latest_release(self):
+        self.assertEqual(script(self.dev, "check-release").returncode, 0)
+
+    def test_check_release_passes_before_the_first_release(self):
+        git(self.dev, "tag", "-d", "v0.0.3")
+        self.assertEqual(script(self.dev, "check-release").returncode, 0)
+
+    def test_check_release_refuses_when_main_is_the_latest_releases_commit(self):
+        git(self.dev, "tag", "v0.0.4")
+        out = script(self.dev, "check-release")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("nothing to release", out.stderr)
+
+    def test_check_release_refuses_when_main_is_the_parent_of_the_stamped_release_commit(self):
+        main = git(self.dev, "rev-parse", "HEAD")
+        self.stamp_commit("v0.0.5")
+        git(self.dev, "tag", "v0.0.5")
+        git(self.dev, "reset", "-q", "--hard", main)
+        out = script(self.dev, "check-release")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("nothing to release", out.stderr)
+
+    def test_check_release_passes_on_a_commit_after_a_stamped_release(self):
+        main = git(self.dev, "rev-parse", "HEAD")
+        self.stamp_commit("v0.0.5")
+        git(self.dev, "tag", "v0.0.5")
+        git(self.dev, "reset", "-q", "--hard", main)
+        self.commit("0.0.4", "later")
+        self.assertEqual(script(self.dev, "check-release").returncode, 0)
+
+    def test_check_release_refuses_a_commit_that_is_already_a_candidate(self):
+        git(self.dev, "tag", "v0.0.4-rc.1")
+        out = script(self.dev, "check-release")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("already a candidate", out.stderr)
+
+    def test_check_release_refuses_a_commit_whose_stamped_child_is_a_candidate(self):
+        main = git(self.dev, "rev-parse", "HEAD")
+        self.stamp_commit("v0.0.4")
+        git(self.dev, "tag", "v0.0.4-rc.1")
+        git(self.dev, "reset", "-q", "--hard", main)
+        out = script(self.dev, "check-release")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("already a candidate", out.stderr)
+
+    def test_a_commit_that_only_looks_like_a_release_commit_is_a_main_commit(self):
+        # Same subject, but it changes more than the version files: it is main's own commit.
+        with open(os.path.join(self.dev, "other.txt"), "w") as f:
+            f.write("x")
+        self.commit("0.0.4", "Release v0.0.4")
+        git(self.dev, "add", "-A")
+        git(self.dev, "commit", "-q", "--amend", "--no-edit")
+        git(self.dev, "tag", "v0.0.4")
+        self.commit("0.0.4", "later")
+        self.assertEqual(script(self.dev, "check-release").returncode, 0)
 
     def test_rc_counts_up(self):
         self.assertEqual(script(self.dev, "rc", "v0.0.4").stdout.strip(), "v0.0.4-rc.1")
         git(self.dev, "tag", "v0.0.4-rc.1")
         self.assertEqual(script(self.dev, "rc", "v0.0.4").stdout.strip(), "v0.0.4-rc.2")
-
-    def test_check_candidate_passes_for_a_branch_at_main(self):
-        name = self.candidate()
-        git(self.dev, "push", "-q", "origin", f"HEAD:refs/heads/{name}")
-        self.assertEqual(script(self.dev, "check-candidate", name).returncode, 0)
-
-    def test_check_candidate_refuses_a_commit_off_main(self):
-        self.commit("0.0.5", "off main")
-        name = self.candidate()
-        git(self.dev, "push", "-q", "origin", f"HEAD:refs/heads/{name}")
-        out = script(self.dev, "check-candidate", name)
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("not on origin/main", out.stderr)
-
-    def test_check_candidate_refuses_a_left_over_branch(self):
-        name = self.candidate()
-        git(self.dev, "push", "-q", "origin", f"HEAD:refs/heads/{name}",
-            "HEAD~1:refs/heads/candidate/aaaaaaaaaaaa")
-        out = script(self.dev, "check-candidate", name)
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("candidate/aaaaaaaaaaaa", out.stderr)
 
     def test_superseded_and_released_read_origins_rc_branches(self):
         for b in ("rc/v0.0.3-rc.1", "rc/v0.0.4-rc.1", "rc/v0.0.4-rc.2"):
@@ -438,36 +486,6 @@ class Cli(unittest.TestCase):
         bad = '{"check_runs": [{"name": "t", "status": "completed", "conclusion": "failure", "details_url": "x/runs/1/job/2"}]}'
         self.assertEqual(script(self.dev, "checks-passed", "9", stdin=bad).returncode, 1)
         self.assertEqual(script(self.dev, "checks-passed", "9", stdin='{"check_runs": []}').returncode, 0)
-
-    def test_should_candidate_is_true_for_an_unreleased_version(self):
-        out = script(self.dev, "should-candidate")
-        self.assertEqual((out.returncode, out.stdout.strip()), (0, "true"))
-
-    def test_should_candidate_is_false_for_a_version_already_tagged_final(self):
-        git(self.dev, "tag", "v0.0.4")
-        out = script(self.dev, "should-candidate")
-        self.assertEqual((out.returncode, out.stdout.strip()), (0, "false"))
-        self.assertIn("already tagged", out.stderr)
-
-    def test_should_candidate_is_false_for_a_version_below_the_latest_final_tag(self):
-        self.commit("0.0.2", "back")
-        out = script(self.dev, "should-candidate")
-        self.assertEqual((out.returncode, out.stdout.strip()), (0, "false"))
-        self.assertIn("not above", out.stderr)
-
-    def test_should_candidate_is_false_for_a_lock_that_disagrees(self):
-        self.commit("0.0.5", "bump", lock="0.0.4")
-        out = script(self.dev, "should-candidate")
-        self.assertEqual((out.returncode, out.stdout.strip()), (0, "false"))
-        self.assertIn("fuzz/Cargo.lock", out.stderr)
-
-    def test_ci_done_reads_the_runs_json_on_stdin(self):
-        runs = '{"workflow_runs": [{"name": "Rust", "event": "push", "status": "completed", "conclusion": "success"}]}'
-        out = script(self.dev, "ci-done", "Rust", "Scripts", stdin=runs)
-        self.assertEqual((out.returncode, out.stdout.strip()), (0, "ready"))
-        out = script(self.dev, "ci-done", "Rust", stdin='{"workflow_runs": []}')
-        self.assertEqual((out.returncode, out.stdout.strip()), (0, "waiting"))
-        self.assertEqual(script(self.dev, "ci-done").returncode, 2)
 
     def test_an_unknown_command_is_a_usage_error(self):
         self.assertEqual(script(self.dev, "nope").returncode, 2)
