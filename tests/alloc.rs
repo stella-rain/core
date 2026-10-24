@@ -99,15 +99,15 @@ const PEAK_HEAP_LIMIT: i64 = 16 * 1024 * 1024;
 const MINUTE_TICKS: usize = 3600;
 
 /// The bytes this thread holds now, and the most it has held since `reset_peak`.
-fn live_bytes() -> i64 {
+pub(crate) fn live_bytes() -> i64 {
     LIVE.with(Cell::get)
 }
 
-fn reset_peak() {
+pub(crate) fn reset_peak() {
     PEAK.with(|p| p.set(LIVE.with(Cell::get)));
 }
 
-fn peak_bytes() -> i64 {
+pub(crate) fn peak_bytes() -> i64 {
     PEAK.with(Cell::get)
 }
 
