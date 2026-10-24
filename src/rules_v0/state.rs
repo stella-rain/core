@@ -14,7 +14,7 @@ use crate::rules_v0::{AttackIndex, BossIndex, DefIndex, ProgramIndex, World};
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::runes::Runes;
-use crate::snapshot::{ExpertiseOfferKind, OfferKind};
+use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind};
 use crate::validate::{self};
 
 /// Firings or casts left when there is no limit.
@@ -641,6 +641,16 @@ impl AgentState {
     /// disguise does not, until it reveals.
     pub(crate) fn shows_elite(&self) -> bool {
         self.elite.is_some() && !self.hidden()
+    }
+
+    /// The class `EntityView::kind` and `DomainEvent::Died::class` give it: `listed`, the list it
+    /// is in, except that a shrine is `Shrine` (SK1). The one place that decides it.
+    pub(crate) fn entity_kind(&self, listed: EntityKind) -> EntityKind {
+        if self.shrine.is_some() {
+            EntityKind::Shrine
+        } else {
+            listed
+        }
     }
 }
 

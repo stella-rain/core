@@ -652,6 +652,9 @@ pub enum EntityKind {
     Enemy,
     Boss,
     BossPart,
+    /// An elite object that is not an enemy: it cannot be damaged and fights through its
+    /// guardians, who are `Enemy`s (ADR-090). Its `elite` flag is set.
+    Shrine,
 }
 
 /// Bullets carry no ID or asset name: thousands are drawn per tick, batched by `style`.

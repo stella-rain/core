@@ -443,7 +443,7 @@ fn fight_of(e: &Engine) -> Option<(u32, u32)> {
     let shrine = snap
         .entities
         .iter()
-        .find(|v| v.kind == EntityKind::Enemy && v.elite)?;
+        .find(|v| v.kind == EntityKind::Shrine)?;
     shrine.fight.as_ref().map(|c| (c.remaining, c.total))
 }
 

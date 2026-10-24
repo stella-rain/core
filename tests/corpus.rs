@@ -1487,7 +1487,9 @@ fn elite_reach(name: &str) -> EliteReach {
         let alive: Vec<_> = s
             .entities
             .iter()
-            .filter(|e| e.kind == EntityKind::Enemy && (e.elite || e.disguised))
+            .filter(|e| {
+                matches!(e.kind, EntityKind::Enemy | EntityKind::Shrine) && (e.elite || e.disguised)
+            })
             .collect();
         r.peak = r.peak.max(alive.len());
         if r.boss_at.is_none() && s.entities.iter().any(|e| e.kind == EntityKind::Boss) {
