@@ -1,0 +1,145 @@
+# Publishes core's bundled content to the content repository, one way only (D-REPO, core#332):
+# `content-pack export` at a release tag or ref writes pack.json, and a pull request from
+# `bot/publish-<ref>` sets content's `pack.json` and `core-version`. Content never writes back.
+# Triggers: a published release (prereleases are skipped), a manual run with a `ref`, and the
+# end of Promote: Promote creates the release with GITHUB_TOKEN, which starts no `release` run,
+# so its completion publishes the latest release.
+# The content pull request is opened with the bridge App's token (as auto-merge.yml's reusable
+# workflow obtains it); Kade merges it, then makes the content release.
+# `core-version` is the release tag (`v0.0.15`, as content's AGENTS.md has it) or, for a ref that
+# is not a tag, the full commit SHA. Its pull request is titled `Publish core <core-version>`.
+name: Content publish
+
+on:
+  release:
+    types: [published]
+  workflow_run:
+    workflows: [Promote]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Core tag, branch or commit to export and publish
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: content-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish / pack to content
+    if: >-
+      (github.event_name == 'release' && !github.event.release.prerelease)
+      || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      EVENT: ${{ github.event_name }}
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      INPUT_REF: ${{ inputs.ref }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Resolve the ref
+        id: ref
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            release) ref="$RELEASE_TAG" ;;
+            workflow_dispatch) ref="$INPUT_REF" ;;
+            *) ref=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName) ;;
+          esac
+          if ! [[ "$ref" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]]; then
+            echo "::error::not a usable ref"
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          persist-credentials: false
+
+      - name: Export the pack and name the core version
+        id: pack
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/out"
+          cargo run --locked --release --bin content-pack -- export > "$RUNNER_TEMP/out/pack.json"
+          # TODO(TX1): export text.en.json here too (into "$RUNNER_TEMP/out") and add it to the
+          # files copied in the next job step, once TX1 makes core its writer.
+          if git rev-parse -q --verify "refs/tags/$REF" > /dev/null; then
+            version="$REF"
+          else
+            version=$(git rev-parse HEAD)
+          fi
+          # A branch name cannot hold most punctuation; keep letters, digits, dot, dash.
+          branch="bot/publish-$(printf '%s' "$REF" | tr -c 'A-Za-z0-9.\n-' '-')"
+          {
+            echo "version=$version"
+            echo "branch=$branch"
+          } >> "$GITHUB_OUTPUT"
+          printf '%s' "$version" > "$RUNNER_TEMP/out/core-version"
+
+      - name: Get a token for the content repository from the bridge App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.BRIDGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BRIDGE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: content
+          permission-contents: write
+          permission-pull-requests: write
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/content
+          path: content
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
+
+      - name: Push the branch and open or update the content pull request
+        working-directory: content
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ steps.pack.outputs.version }}
+          BRANCH: ${{ steps.pack.outputs.branch }}
+          REF: ${{ steps.ref.outputs.ref }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git checkout -B "$BRANCH"
+          cp "$RUNNER_TEMP/out/pack.json" "$RUNNER_TEMP/out/core-version" .
+          if git diff --quiet HEAD -- pack.json core-version; then
+            echo "content already holds this pack and core-version: nothing to publish" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git add pack.json core-version
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Publish core $VERSION" -m "pack.json is core's \`content-pack export\` at $REF; core-version names that ref."
+          # The branch is the bot's own: it is rebuilt from main on each run.
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY_OWNER}/content.git" "HEAD:refs/heads/$BRANCH"
+          {
+            echo "Published by core's \`content-publish\` workflow: [run]($RUN_URL)."
+            echo
+            echo "- \`pack.json\`: \`content-pack export\` at \`$REF\`."
+            echo "- \`core-version\`: \`$VERSION\`."
+            echo
+            echo "Do not edit this branch by hand: content is publish-only, and the next publish rebuilds it."
+          } > "$RUNNER_TEMP/body.md"
+          if gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY_OWNER/content" --json state --jq '.state == "OPEN"' 2>/dev/null | grep -qx true; then
+            gh pr edit "$BRANCH" --repo "$GITHUB_REPOSITORY_OWNER/content" \
+              --title "Publish core $VERSION" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY_OWNER/content" --base main --head "$BRANCH" \
+              --title "Publish core $VERSION" --body-file "$RUNNER_TEMP/body.md"
+          fi
