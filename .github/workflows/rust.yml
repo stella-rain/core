@@ -447,25 +447,41 @@ jobs:
             echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target"
             echo "IAI_CALLGRIND_HOME=$RUNNER_TEMP/iai"
           } >> "$GITHUB_ENV"
+      # The benches are the keys of benches/budgets.toml, one bench target each: a rename or a new
+      # bench edits the budgets file and the target, not this workflow.
+      - name: List the benches
+        id: benches
+        run: |
+          set -eu
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import tomllib
+          with open("benches/budgets.toml", "rb") as f:
+              names = list(tomllib.load(f))
+          print("names=" + " ".join(names))
+          print("args=" + " ".join(f"--bench {n}" for n in names))
+          PY
       - name: Count the base commit
         id: base
         if: github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
+          NAMES: ${{ steps.benches.outputs.names }}
+          BENCHES: ${{ steps.benches.outputs.args }}
         run: |
           set -eu
-          if ! git cat-file -e "$BASE:benches/worst_tick.rs" 2>/dev/null \
-            || ! git cat-file -e "$BASE:benches/collide_tick.rs" 2>/dev/null \
-            || ! git cat-file -e "$BASE:benches/time_limit_tick.rs" 2>/dev/null; then
-            echo "The base commit lacks a benchmark: nothing to compare with."
-            echo "compare=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          for name in $NAMES; do
+            if ! git cat-file -e "$BASE:benches/$name.rs" 2>/dev/null; then
+              echo "The base commit lacks the benchmark $name: nothing to compare with."
+              echo "compare=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
           # benches/budgets.toml is not a bench: a changed budget leaves the counts comparable.
-          if ! git diff --quiet "$BASE" HEAD -- benches ':(exclude)benches/budgets.toml' tests/common; then
+          # The cases live in src/bench_fixtures: they are bench inputs, not code.
+          if ! git diff --quiet "$BASE" HEAD -- benches ':(exclude)benches/budgets.toml' tests/common src/bench_fixtures; then
             # A changed bench and changed code together: no comparison could tell which of the two
             # moved the count, so the PR must not slip past the +2% limit this way (D-BUDGET).
-            if ! git diff --quiet "$BASE" HEAD -- src Cargo.toml Cargo.lock; then
+            if ! git diff --quiet "$BASE" HEAD -- src ':(exclude)src/bench_fixtures' Cargo.toml Cargo.lock; then
               echo "::error::Change the bench in its own PR first; this PR's code cannot be compared."
               exit 1
             fi
@@ -474,15 +490,15 @@ jobs:
             exit 0
           fi
           git worktree add "$RUNNER_TEMP/base" "$BASE"
-          (cd "$RUNNER_TEMP/base" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-base" \
-            cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick -- --save-baseline=main)
+          # shellcheck disable=SC2086
+          (cd "$RUNNER_TEMP/base" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-base"             cargo bench $BENCHES -- --save-baseline=main)
           echo "compare=true" >> "$GITHUB_OUTPUT"
-      # A rise of more than 2% in instructions on any of the three ticks fails the job. The count is the same
-      # on every run of a build, so the limit is for a real change: one more pass over 4,000
-      # bullets is 1.8%.
-      - name: Count the worst-case, collision and time_limit ticks
+      # A rise of more than 2% in instructions on any of the benches fails the job. The count is the same
+      # on every run of a build, so the limit is for a real change.
+      - name: Count the benches
         env:
           COMPARE: ${{ steps.base.outputs.compare }}
+          BENCHES: ${{ steps.benches.outputs.args }}
         run: |
           set -euo pipefail
           limits=""
@@ -490,9 +506,9 @@ jobs:
             limits="--baseline=main --callgrind-limits=ir=2%"
           fi
           # shellcheck disable=SC2086
-          cargo bench --bench worst_tick --bench collide_tick --bench time_limit_tick -- $limits | tee "$RUNNER_TEMP/bench.txt"
+          cargo bench $BENCHES -- $limits | tee "$RUNNER_TEMP/bench.txt"
           {
-            echo "### Worst-case, collision and time_limit ticks on ${{ matrix.arch }}"
+            echo "### Benches on ${{ matrix.arch }}"
             grep -E '^[a-z_]+::|Instructions' "$RUNNER_TEMP/bench.txt" | sed 's/^ */    /'
           } >> "$GITHUB_STEP_SUMMARY"
       # The absolute ceiling (benches/budgets.toml, D-BUDGET): a count over the budget for this
