@@ -478,7 +478,7 @@ fn launch(world: &World, s: &mut State, launch: Launch, events: &mut Vec<DomainE
         },
         type_bonus_pct,
         age,
-        hits: s.scratch.take_hit_list(),
+        hits: Vec::new(),
         smash,
         at,
         throw: None,
