@@ -54,6 +54,32 @@ fn first_issue(v: &Value) -> Issue {
 }
 
 #[test]
+fn the_free_flying_bullet_nodes_are_refused() {
+    // `fire` and `on_bullet` are gone (DS10): a stage that still holds one does not parse, in an
+    // enemy's attack or in the main character's weapon.
+    let fire = json!({ "type": "fire", "speed": 256,
+                       "direction": { "type": "aimed", "offset": 0 } });
+    let on_bullet = json!({ "type": "on_bullet", "after_ticks": 10,
+                            "body": [fire.clone()], "then": [fire.clone()] });
+    for node in [fire, on_bullet] {
+        let name = node["type"].as_str().unwrap().to_string();
+        let mut hostile = base();
+        *enemy_attack(&mut hostile) = spawning(json!([node.clone()]));
+        let mut friendly = base();
+        friendly["player"]["weapon"] = json!({ "inline": { "combo": {
+            "main": { "attack": spawning(json!([node.clone()])) } },
+            "window_ticks": 0, "assist_range": 0 } });
+        for stage in [hostile, friendly] {
+            let result = parse_and_validate(stage.to_string().as_bytes());
+            assert!(
+                matches!(result, Err(Error::Parse { .. })),
+                "{name} is refused, got {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_map_s_facing_is_an_angle_from_0_to_a_full_turn() {
     let with_facing = |facing: i32| {
         let mut v = base();
