@@ -43,8 +43,8 @@ pub const MAX_POOL: usize = 16;
 pub const MAX_OVERTIME_TICKS: u32 = 10 * 60 * 60;
 /// The longest extra time for the Star-Hunter: 3 minutes.
 pub const MAX_EXTRA_TICKS: u32 = 3 * 60 * 60;
-/// The most waves in the schedule: the two bats and the roles, with room for more (BR1a).
-pub const MAX_WAVES: usize = 16;
+/// The most waves in the schedule.
+pub const MAX_WAVES: usize = 8;
 /// The most enemies one wave spawns.
 pub const MAX_SPAWN_COUNT: u16 = 2000;
 /// The most enemies the whole schedule spawns: 100 a minute for the longest run is 3000.
