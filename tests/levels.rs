@@ -178,7 +178,7 @@ fn max_hp_raises_the_most_hp_and_heals_as_much() {
 
 #[test]
 fn attack_raises_the_damage_of_the_main_character_s_attacks() {
-    // Bullets already flying keep the damage of the attack that made them.
+    // Orbs already flying keep the damage of the attack that made them.
     let hit_after = |mut e: Engine| {
         let mut damages = Vec::new();
         for _ in 0..120 {

@@ -7,8 +7,8 @@ use crate::id::{ContentId, EntityId};
 use crate::rewards::MAX_BURST_DEPTH;
 use crate::rules_v0;
 use crate::snapshot::{
-    AttackView, BulletView, ChargeView, ComboView, Countdown, DamageOverTimeView, EntityKind,
-    EntityView, EvadeView, ExpertiseView, Facing, HealPickupView, HoldView, MapView, OrbitView,
+    AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, EntityKind, EntityView,
+    EvadeView, ExpertiseView, Facing, HealPickupView, HoldView, MapView, OrbView, OrbitView,
     PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
     StatusView, TypeBonusView, ZoneView,
 };
@@ -285,17 +285,16 @@ impl Engine {
                     friendly: z.friendly,
                 })
                 .collect(),
-            bullets: s
-                .bullets
+            orbs: s
+                .orbs
                 .iter()
-                .map(|b| BulletView {
+                .map(|b| OrbView {
                     at: b.at,
                     vx: b.vx,
                     vy: b.vy,
                     radius: Fx(rules_v0::orb_radius()),
                     style: b.style,
-                    friendly: false,
-                    orb: b.orb,
+                    orb: true,
                     breakable: b.breakable,
                 })
                 .collect(),

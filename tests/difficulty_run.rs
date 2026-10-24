@@ -146,7 +146,7 @@ fn damage_taken(difficulty: &str, ticks: u32) -> u32 {
 
 #[test]
 fn an_enemys_attack_does_the_difficultys_percent_of_the_damage() {
-    // The first bullet lands at about tick 60, and the main character is then invulnerable
+    // The first orb lands at about tick 60, and the main character is then invulnerable
     // for a while: one hit, scaled before the damage pipeline (ADR-110).
     let normal = damage_taken("normal", 70);
     assert!(normal > 0, "the enemy hits");

@@ -221,7 +221,7 @@ pub fn stage_full(
     let mut v = json!({
         "schema_version": 0, "sim_version": 0, "id": "test", "title": "Test", "seed": 7,
         "length_ticks": length_ticks,
-        // The weapon: one bullet along the facing (straight up until it moves) at 8 pixels a
+        // The weapon: one orb along the facing (straight up until it moves) at 8 pixels a
         // tick on a press of `main`, and no smash. So the hand-worked numbers of the tests that
         // are not about weapons stay simple (`tests/shot.rs` and `tests/weapons.rs` are about
         // them).

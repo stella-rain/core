@@ -1242,7 +1242,7 @@
               "$ref": "#/$defs/Expr"
             },
             "style": {
-              "description": "Bullet asset; absent means the default bullet.",
+              "description": "Orb asset; absent means the default orb.",
               "anyOf": [
                 {
                   "$ref": "#/$defs/ContentId"
@@ -1867,7 +1867,7 @@
       ]
     },
     "Map": {
-      "description": "The rectangle the run plays on, from its top-left corner, and where the main character\nstarts. The main character and companions are clamped to it; enemies and bullets leave once\nthey are more than `FIELD_MARGIN` outside it.",
+      "description": "The rectangle the run plays on, from its top-left corner, and where the main character\nstarts. The main character and companions are clamped to it; enemies and orbs leave once\nthey are more than `FIELD_MARGIN` outside it.",
       "type": "object",
       "properties": {
         "facing": {
@@ -2851,7 +2851,7 @@
           "properties": {
             "type": {
               "type": "string",
-              "const": "clear_bullets"
+              "const": "clear_orbs"
             }
           },
           "additionalProperties": false,
@@ -2860,7 +2860,7 @@
           ]
         },
         {
-          "description": "Removes every enemy zone, as `clear_bullets` removes every enemy bullet (core Z1).",
+          "description": "Removes every enemy zone, as `clear_orbs` removes every enemy orb (core Z1).",
           "type": "object",
           "properties": {
             "type": {

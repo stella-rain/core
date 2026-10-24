@@ -204,7 +204,7 @@ fn an_exploder_that_self_destructs_fires_once_and_is_gone() {
 
 /// The exploder with experience and Stardust to give (a level that needs 1,000, a base of 100
 /// at 100 percent), its burst at `distance`, and a `self_destruct` when asked. `shot_at` puts it where the main
-/// character's bullets go, with the stage's own weapon.
+/// character's orbs go, with the stage's own weapon.
 fn paying_exploder(distance: i32, self_destruct: bool, shot_at: bool) -> Stage {
     let mut stage = if shot_at {
         exploder_armed(distance, self_destruct)
@@ -220,7 +220,7 @@ fn paying_exploder(distance: i32, self_destruct: bool, shot_at: bool) -> Stage {
     value["waves"][0]["stardust"] = json!(100);
     value["waves"][0]["enemy"]["hp"] = json!(10);
     if shot_at {
-        // Up the field, where the main character's bullets go.
+        // Up the field, where the main character's orbs go.
         value["waves"][0]["spawn"]["y"] = json!(PLAYER_Y - 5_000);
         value["waves"][0]["enemy"]["movement"]["at"]["y"] = json!(PLAYER_Y - 5_000);
     }
@@ -255,7 +255,7 @@ fn an_exploder_that_bursts_gives_no_experience_or_stardust() {
 
 #[test]
 fn an_exploder_killed_before_its_burst_gives_the_full_credit() {
-    // `near_target` of 1 never holds at 5,000 apart; the main character's bullets kill it.
+    // `near_target` of 1 never holds at 5,000 apart; the main character's orbs kill it.
     let stage = paying_exploder(1, true, true);
     let (xp, dust) = credit_after(&stage, true);
     assert_eq!(xp, 1);
@@ -274,7 +274,7 @@ fn a_near_target_distance_is_bounded_to_one_to_the_map_length() {
 
 #[test]
 fn a_splitter_splits_once_on_the_tick_after_it_drops_below_half() {
-    // 100 hit points; a hit is a bullet of the main character's weapon, fired up the field.
+    // 100 hit points; a hit is an orb of the main character's weapon, fired up the field.
     let mut e = engine(&splitter_with(100, hp_below_half(), 2, vec![]));
     e.step(idle());
     let parent = enemies_of(&e)[0].0;

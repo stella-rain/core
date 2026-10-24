@@ -7,7 +7,7 @@
 //! never repeat text from the file, so a hostile stage cannot put its own words in front of a
 //! player.
 //!
-//! Budgets here are tuning values; their existence is the decision. Dynamic budgets (bullets
+//! Budgets here are tuning values; their existence is the decision. Dynamic budgets (orbs
 //! alive, enemies alive) are the simulation's runtime caps, and so is any count that an
 //! expression computes: the validator checks constants, the engine clamps the rest.
 
@@ -84,7 +84,7 @@ pub mod limits {
     pub const MAX_PULL_TICKS: u32 = 60;
     /// A stun lasts at most 2 seconds (ADR-085 point 5, a placeholder bound).
     pub const MAX_STUN_TICKS: u32 = 120;
-    /// Twenty seconds: a bullet at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
+    /// Twenty seconds: an orb at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
     /// so a lifetime is a shorter one than the margin's (core#147).
     /// A zone warns, and then hurts, for at most 10 seconds each (core Z1, a placeholder bound).
     pub const MAX_ZONE_TICKS: u32 = 600;
@@ -1645,7 +1645,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// A bullet's or a zone's direction: its expression is checked.
+    /// An orb's or a zone's direction: its expression is checked.
     fn direction(&mut self, direction: &Direction) {
         self.key("direction", |c| match direction {
             Direction::Aimed { offset } => c.key("offset", |c| c.expr(offset)),
@@ -1779,7 +1779,7 @@ impl<'a> Ctx<'a> {
                 self.key("speed", |c| c.expr(speed));
                 self.direction(direction);
                 if let Some(b) = style {
-                    self.content_id("style", b, Kind::Bullet);
+                    self.content_id("style", b, Kind::Orb);
                 }
                 self.key("ticks", |c| c.expr(ticks));
                 if let Expr::Const(v) = ticks {

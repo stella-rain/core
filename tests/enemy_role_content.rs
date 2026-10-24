@@ -206,21 +206,21 @@ fn a_run_on_normal_with_a_bot_holds_the_caps_and_its_replay_verifies() {
         ..time_limit_setup()
     };
     let content = RunContent::bundled();
-    // The bot goes for the enemies and the bosses and gets out of the way of bullets throughout
+    // The bot goes for the enemies and the bosses and gets out of the way of orbs throughout
     // (the corpus's `boss_input`); the closure reads the load on each tick, before it chooses the
     // buttons, so the peak is the load the run reached.
     let peak = Cell::new((0u32, 0u32));
     let bot = |e: &Engine, t: u32| {
         let load = e.load();
-        let (enemies, bullets) = peak.get();
-        peak.set((enemies.max(load.enemies), bullets.max(load.bullets)));
+        let (enemies, orbs) = peak.get();
+        peak.set((enemies.max(load.enemies), orbs.max(load.orbs)));
         run_input_for(e, t, &[EntityKind::Enemy, EntityKind::Boss], u32::MAX)
     };
     // The mode's length and its overtime: 20 minutes and 5 more while the final boss lives.
     let commands = play_run_with(&setup, content, 72_000 + 18_000, bot);
-    let (enemies, bullets) = peak.get();
+    let (enemies, orbs) = peak.get();
     assert!(enemies <= 500, "{enemies} enemies alive");
-    assert!(bullets <= 4_000, "{bullets} bullets alive");
+    assert!(orbs <= 4_000, "{orbs} orbs alive");
     let recorded = run_replay::record_run_with(&setup, content, &commands).unwrap();
     let bytes = recorded.to_bytes();
     let verified = run_replay::verify_run_with(&bytes, content).unwrap();

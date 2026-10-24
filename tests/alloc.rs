@@ -66,7 +66,7 @@ use stella_rain_core::bench_fixtures::time_limit_case;
 
 /// The steady window: the horde of the benchmark's case is at its cap of 500 from tick 1,962 on
 /// (`WARMUP_TICKS`), no wave is left to spawn, and the main character taps its weapon every other
-/// tick, so combo steps, hit boxes, pushes and bullets all run. Enemy attacks and the boss's
+/// tick, so combo steps, hit boxes, pushes and orbs all run. Enemy attacks and the boss's
 /// start in it too; none of them may allocate. 60 ticks, a second.
 const STEADY_TICKS: u32 = 60;
 

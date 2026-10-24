@@ -94,7 +94,7 @@ fn an_enemy_waits_telegraphs_shoots_and_summons() {
 }
 
 /// A placeholder boss: a horn that breaks, two phases, a timeline of telegraph, attack and
-/// move, a transition that clears the bullets and shields the boss, and a rule that reacts to
+/// move, a transition that clears the orbs and shields the boss, and a rule that reacts to
 /// the horn. Entities: boss 1, the horn 2.
 #[test]
 fn a_boss_breaks_a_part_and_changes_phase() {
@@ -119,7 +119,7 @@ fn a_boss_breaks_a_part_and_changes_phase() {
                 )]
             },
             {
-                "transition": [{ "type": "clear_bullets" },
+                "transition": [{ "type": "clear_orbs" },
                                { "type": "invulnerable_ticks", "ticks": 10 }],
                 "timeline": [shot, { "type": "wait", "ticks": 8 }, { "type": "loop" }]
             }

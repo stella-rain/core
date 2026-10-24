@@ -5,7 +5,7 @@
 
 use super::{
     World, agents, attacks, boss, collide, count, decide_outcome, entity, expertise, horde,
-    loadout, move_bullets, open_offers, orbit, player, push, runes, skill, spawn_waves, zones,
+    loadout, move_orbs, open_offers, orbit, player, push, runes, skill, spawn_waves, zones,
 };
 use crate::engine::{Load, Outcome, State};
 use crate::event::DomainEvent;
@@ -98,13 +98,12 @@ pub(super) const TICK: &[(&str, Step)] = &[
         *c.load = Load {
             enemies: count(&c.s.enemies),
             tasks,
-            bullets: count(&c.s.bullets),
             zones: count(&c.s.zones),
-            orbs: c.s.orbs,
+            orbs: count(&c.s.orbs),
             emitter_steps,
         };
     }),
-    ("move_bullets", |c| move_bullets(c.world, c.s)),
+    ("move_orbs", |c| move_orbs(c.world, c.s)),
     ("collide", |c| collide(c.world, c.s, c.dots, c.events)),
     ("level_up", |c| expertise::level_up(c.expertise, c.s)),
     ("decide_outcome", |c| decide_outcome(c.world, c.s, c.events)),

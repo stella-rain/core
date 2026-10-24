@@ -86,7 +86,7 @@ pub(super) fn queue_echo(s: &mut State, b: &Shot, target: EntityId, dealt: u32, 
 }
 
 /// Deals last tick's echoes, in the order they were queued, before this tick's hit boxes and
-/// bullets land. An echo takes its hit points from the target it was queued on, if that is
+/// orbs land. An echo takes its hit points from the target it was queued on, if that is
 /// still standing, and nothing else: it neither crits, echoes, fires a rune nor adds expertise.
 /// What it defeats is credited with the rest of the tick's kills.
 pub(super) fn deal_echoes(s: &mut State, events: &mut Vec<DomainEvent>) {

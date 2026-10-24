@@ -96,7 +96,7 @@
         ],
         "transition": [
           {
-            "type": "clear_bullets"
+            "type": "clear_orbs"
           },
           {
             "ticks": 10,

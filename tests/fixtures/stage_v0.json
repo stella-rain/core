@@ -115,7 +115,7 @@
         ]
       },
       {
-        "transition": [{ "type": "clear_bullets" }, { "type": "invulnerable_ticks", "ticks": 60 }],
+        "transition": [{ "type": "clear_orbs" }, { "type": "invulnerable_ticks", "ticks": 60 }],
         "timeline": [
           { "type": "move_to", "to": { "x": 46080, "y": 38400 }, "ticks": 60 },
           {

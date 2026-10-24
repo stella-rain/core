@@ -27,7 +27,7 @@
 //! | `zones_advance` | the zones age and run out (`zones`) |
 //! | `fire_hooks` | orbs whose lifetime is over start their bursts (`attacks`) |
 //! | `run_attacks` | every running attack is carried out up to its next wait, making orbs and zones; the tick's `Load` is read here (`attacks`) |
-//! | `move_bullets` | orbs move and leave the map |
+//! | `move_orbs` | orbs move and leave the map |
 //! | `collide` | damage-over-time statuses tick, then the hit boxes of active phases (`hit_boxes`), then orbs land on the main character and the companions; the shield takes from the main character's damage; experience, expertise points, runes' effects and drops follow the hits (`combat`) |
 //! | `level_up` | the expertise gauge's levels are reached (`expertise`) |
 //! | `decide_outcome` | death or running out of ticks fails, an empty stage clears |
@@ -175,7 +175,7 @@ const PLAYER_SPEED: i32 = Fx::px(3).0;
 /// The hurt circle, a tiny one (ADR-050).
 pub(crate) const PLAYER_RADIUS: i32 = Fx::px(2).0;
 /// The radius the enemy grid is built for (`Grid::rebuild`'s probe radius); it sets the cell side
-/// with the largest enemy, so it stays what the friendly bullets' radius was.
+/// with the largest enemy, so it stays what the friendly orbs' radius was.
 const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
 /// An orb's hit circle.
 const ORB_RADIUS: i32 = Fx::px(3).0;
@@ -336,12 +336,11 @@ pub(crate) fn initial_state(
         },
         boss,
         companions,
-        orbs: 0,
         enemies: Vec::new(),
         tasks: Vec::new(),
         runs: Vec::new(),
         move_index: crate::engine::MoveIndex::default(),
-        bullets: Vec::new(),
+        orbs: Vec::new(),
         zones: Vec::new(),
         spawned: vec![0; stage.waves.len()],
         next_id,
@@ -654,27 +653,20 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
     true
 }
 
-/// Moves every bullet a tick, and drops those that leave: one whose lifetime is up leaves
-/// before it moves, so a bullet with `n` ticks is on the map for `n` ticks (core#147).
-fn move_bullets(stage: &World, s: &mut State) {
+/// Moves every orb a tick, and drops those that leave: one whose lifetime is up leaves
+/// before it moves, so an orb with `n` ticks is on the map for `n` ticks (core#147).
+fn move_orbs(stage: &World, s: &mut State) {
     let holds = stage.map().holds();
-    let mut orbs_gone = 0;
-    let counting = s.orbs > 0;
-    s.bullets.retain_mut(|b| {
-        let keep = if b.life == 0 {
+    s.orbs.retain_mut(|b| {
+        if b.life == 0 {
             false
         } else {
             b.at.x = b.at.x.saturating_add(b.vx);
             b.at.y = b.at.y.saturating_add(b.vy);
             b.life -= 1;
             holds(b.at)
-        };
-        if counting && !keep && b.orb {
-            orbs_gone += 1;
         }
-        keep
     });
-    s.orbs -= orbs_gone;
 }
 
 /// Two circles overlap (touching counts), in 64-bit fixed point.
@@ -692,7 +684,7 @@ fn widened(radius: i32, pct: u32) -> i32 {
     i32::try_from(i64::from(radius) * (100 + pct) / 100).unwrap_or(i32::MAX)
 }
 
-/// What a hit needs to know about the bullet that made it.
+/// What a hit needs to know about the orb that made it.
 #[derive(Clone, Copy)]
 struct Shot {
     at: Point,
@@ -724,8 +716,8 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = std::mem::take(&mut s.scratch.consumed);
     consumed.clear();
-    for i in 0..s.bullets.len() {
-        let b = &s.bullets[i];
+    for i in 0..s.orbs.len() {
+        let b = &s.orbs[i];
         let shot = Shot {
             at: b.at,
             owner: b.owner,
@@ -741,27 +733,11 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         consumed.push(hit_ally_side(stage, s, shot, events));
     }
     let mut flags = consumed.iter();
-    if s.orbs == 0 {
-        s.bullets
-            .retain(|_| !flags.next().copied().unwrap_or(false));
-    } else {
-        let mut orbs_gone = 0;
-        s.bullets.retain(|b| {
-            let gone = flags.next().copied().unwrap_or(false);
-            orbs_gone += u32::from(gone && b.orb);
-            !gone
-        });
-        s.orbs -= orbs_gone;
-    }
+    s.orbs.retain(|_| !flags.next().copied().unwrap_or(false));
     s.scratch.consumed = consumed;
     if let Some(grid) = grid {
         s.scratch.grid = grid;
     }
-    debug_assert_eq!(
-        s.orbs as usize,
-        s.bullets.iter().filter(|b| b.orb).count(),
-        "the orb count drifted"
-    );
     s.companions.retain(|c| c.hp > 0);
     combat::bursts(stage, s, events);
     levels::credit_defeated(stage, s, events);
@@ -1246,7 +1222,7 @@ fn hash_task(h: &mut StateHasher, t: &crate::engine::AttackTask) {
         h.write_u32(f.loop_n);
         h.write_i32(f.param);
         h.write_i32(f.offset);
-        // The wait of an `on_bullet`'s bullets, gone with the node (BR1c); the byte stays so that
+        // The wait of an `on_orb`'s orbs, gone with the node (BR1c); the byte stays so that
         // the hashes pinned by the bench fixtures do not move.
         h.write_u32(0);
     }
@@ -1491,8 +1467,8 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
     for r in &s.runs {
         hash_run(&mut h, world, r);
     }
-    h.write_u32(count(&s.bullets));
-    for b in &s.bullets {
+    h.write_u32(count(&s.orbs));
+    for b in &s.orbs {
         h.write_i32(b.at.x.0);
         h.write_i32(b.at.y.0);
         h.write_i32(b.vx.0);
@@ -1501,7 +1477,7 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         h.write_i32(b.dir.y);
         h.write_u32(u32::from(b.style));
         h.write_u32(b.owner.0);
-        // No projectile is friendly any more (BR1c); the byte stays, as above.
+        // No projectile is friendly any more (BR1c); the byte stays until HS1 (core#361).
         h.write_bool(false);
         h.write_u32(b.damage);
         h.write_bool(b.breaks_charge);
@@ -1609,7 +1585,7 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         }
     }
     // After it, and only in a stage that gives expertise points, for the same reason: the
-    // gauge, then which attacks and bullets are a combo step's, which matters only here.
+    // gauge, then which attacks and orbs are a combo step's, which matters only here.
     if let Some(g) = &s.expertise {
         h.write_u32(g.level);
         h.write_u32(g.points);
@@ -1642,17 +1618,17 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         for t in &s.tasks {
             h.write_bool(t.combo);
         }
-        h.write_u32(count(&s.bullets));
-        for b in &s.bullets {
+        h.write_u32(count(&s.orbs));
+        for b in &s.orbs {
             h.write_bool(b.combo);
             h.write_bool(b.hook.as_ref().is_some_and(|hook| hook.combo));
         }
     }
-    // Last, and only while an attack or a bullet carries a damage type (ADR-100), so that the
+    // Last, and only while an attack or an orb carries a damage type (ADR-100), so that the
     // hashes of runs without types stay as they were: each one's type, 0 for neutral. A run's
     // phases are content, which the content hash covers.
     let typed = s.tasks.iter().any(|t| t.damage_type.is_some())
-        || s.bullets.iter().any(|b| {
+        || s.orbs.iter().any(|b| {
             b.damage_type.is_some() || b.hook.as_ref().is_some_and(|k| k.damage_type.is_some())
         });
     if typed {
@@ -1660,26 +1636,27 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         for t in &s.tasks {
             h.write_u32(type_code(t.damage_type));
         }
-        h.write_u32(count(&s.bullets));
-        for b in &s.bullets {
+        h.write_u32(count(&s.orbs));
+        for b in &s.orbs {
             h.write_u32(type_code(b.damage_type));
             h.write_u32(b.hook.as_ref().map_or(0, |k| type_code(k.damage_type)));
         }
     }
-    // Each bullet's ticks left (core#147), and only while one is alive, so that the hashes of
+    // Each orb's ticks left (core#147), and only while one is alive, so that the hashes of
     // runs without any stay as they were.
-    if !s.bullets.is_empty() {
-        h.write_u32(count(&s.bullets));
-        for b in &s.bullets {
+    if !s.orbs.is_empty() {
+        h.write_u32(count(&s.orbs));
+        for b in &s.orbs {
             h.write_u32(b.life);
         }
     }
-    // Which bullets are orbs and which break, and only while one is alive (core Z2), so that the
-    // hashes of runs without orbs stay as they were.
-    if s.orbs > 0 {
-        h.write_u32(count(&s.bullets));
-        for b in &s.bullets {
-            h.write_bool(b.orb);
+    // Which orbs are orbs and which break, and only while one is alive (core Z2), so that the
+    // hashes of runs without orbs stay as they were. Every projectile is an orb since BR1c, so
+    // the orb byte is a constant; it stays until HS1 (core#361).
+    if !s.orbs.is_empty() {
+        h.write_u32(count(&s.orbs));
+        for b in &s.orbs {
+            h.write_bool(true);
             h.write_bool(b.breakable);
         }
     }

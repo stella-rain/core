@@ -35,7 +35,7 @@ fn attacker(phases: Vec<Value>, once: bool) -> Value {
     )
 }
 
-/// The weapons are quiet, so that every bullet is the attacker's.
+/// The weapons are quiet, so that every orb is the attacker's.
 fn stage_of(enemy: Value) -> Stage {
     quiet(stage_full(
         18_000,
@@ -45,14 +45,14 @@ fn stage_of(enemy: Value) -> Stage {
     ))
 }
 
-/// The ticks on which new bullets appeared, over `ticks` ticks.
-fn bullet_ticks(stage: &Stage, ticks: u32) -> Vec<u32> {
+/// The ticks on which new orbs appeared, over `ticks` ticks.
+fn orb_ticks(stage: &Stage, ticks: u32) -> Vec<u32> {
     let mut e = engine(stage);
     let mut out = Vec::new();
     let mut before = 0;
     for _ in 0..ticks {
         e.step(idle());
-        let now = e.snapshot().bullets.len();
+        let now = e.snapshot().orbs.len();
         out.extend(std::iter::repeat_n(e.tick(), now.saturating_sub(before)));
         before = now;
     }
@@ -71,7 +71,7 @@ fn each_phase_lasts_its_ticks_and_spawns_on_its_first() {
         ],
         true,
     ));
-    assert_eq!(bullet_ticks(&stage, 20), [6, 10]);
+    assert_eq!(orb_ticks(&stage, 20), [6, 10]);
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn an_attacker_runs_one_attack_at_a_time() {
         ],
         false,
     ));
-    assert_eq!(bullet_ticks(&stage, 25), [1, 11, 21]);
+    assert_eq!(orb_ticks(&stage, 25), [1, 11, 21]);
 }
 
 #[test]
@@ -125,7 +125,7 @@ fn a_spawned_pattern_runs_past_the_end_of_its_phase() {
         .find(|v| v.kind == EntityKind::Enemy)
         .expect("the enemy");
     assert!(enemy.attack.is_none(), "the one-tick attack is over");
-    assert_eq!(bullet_ticks(&stage, 20).len(), 3);
+    assert_eq!(orb_ticks(&stage, 20).len(), 3);
 }
 
 #[test]
@@ -227,7 +227,7 @@ fn a_boss_timeline_attack_step_waits_for_its_attack() {
                        "spawn": { "x": OX, "y": OY },
                        "phases": [{ "timeline": [attack.clone(), attack] }] });
     let stage = quiet(stage_full(18_000, Some(boss), vec![], vec![]));
-    assert_eq!(bullet_ticks(&stage, 45), [1, 21]);
+    assert_eq!(orb_ticks(&stage, 45), [1, 21]);
 }
 
 #[test]
@@ -244,5 +244,5 @@ fn leaving_a_boss_phase_ends_its_attack() {
                                  phase("active", 1, vec![down()]) ] } }] },
                            {} ] });
     let stage = quiet(stage_full(18_000, Some(boss), vec![], vec![]));
-    assert_eq!(bullet_ticks(&stage, 40), [1]);
+    assert_eq!(orb_ticks(&stage, 40), [1]);
 }

@@ -29,13 +29,13 @@ use common::*;
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
 /// taken at once, and inside the step's hit box.
 const NEAR_Y: i32 = START_Y - 8_192;
-/// 160 pixels above the main character: beyond the step's hit box, within a bullet's reach.
+/// 160 pixels above the main character: beyond the step's hit box, within an orb's reach.
 const FAR_Y: i32 = START_Y - 40_960;
 /// The tick the target arrives, once every star of the small enemies has been taken.
 const TARGET_TICK: u32 = 300;
 
 /// A Main weapon of one step: a circle of 32 pixels 4 pixels ahead, one active tick of
-/// `damage`, typed `ty` (or neutral), firing a bullet ahead when `shoots`, then 4 ticks of
+/// `damage`, typed `ty` (or neutral), firing an orb ahead when `shoots`, then 4 ticks of
 /// recovery.
 fn weapon(damage: u32, ty: Option<&str>, shoots: bool) -> Value {
     let mut active = json!({ "kind": "active", "ticks": 1, "damage": damage,

@@ -1,6 +1,6 @@
 //! The map (core#87): a stage may give its width, height and start; without one it plays on
 //! the portrait field. The main character and companions are clamped to the map, and enemies
-//! and bullets leave once they are more than `FIELD_MARGIN` outside it.
+//! and orbs leave once they are more than `FIELD_MARGIN` outside it.
 
 use crate::common;
 
@@ -188,7 +188,7 @@ fn holds_is_exact_at_the_margin() {
 /// An enemy at the top left of a landscape map that sends one orb straight down, 2 pixels a
 /// tick, on its first tick, living `ticks` ticks. The orb is off the main character's line,
 /// which is in the middle of the map, and the rest of the stage is quiet.
-fn one_bullet(ticks: u32) -> Stage {
+fn one_orb(ticks: u32) -> Stage {
     let orb = json!({ "type": "orb", "speed": 512, "ticks": ticks,
         "direction": { "type": "absolute", "angle": 0 } });
     let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "spawn": [orb] }] });
@@ -211,7 +211,7 @@ fn on_the_map(e: &mut Engine, ticks: u32) -> Vec<bool> {
     (0..ticks)
         .map(|_| {
             e.step(idle());
-            !e.snapshot().bullets.is_empty()
+            !e.snapshot().orbs.is_empty()
         })
         .collect()
 }
@@ -220,7 +220,7 @@ fn on_the_map(e: &mut Engine, ticks: u32) -> Vec<bool> {
 fn an_orb_lives_exactly_its_ticks() {
     // 30 ticks at 2 pixels a tick is 60 pixels: the margin is 64 pixels past the edge, so it
     // is not what removes the orb.
-    let mut e = engine(&one_bullet(30));
+    let mut e = engine(&one_orb(30));
     let seen = on_the_map(&mut e, 60);
     assert_eq!(seen.iter().filter(|s| **s).count(), 30, "{seen:?}");
     assert!(
@@ -260,7 +260,7 @@ fn an_orbs_lifetime_is_part_of_the_state_hash() {
     // Two stages that differ only in an orb's ticks hash differently while the orb is out,
     // so a replay that drifts in its lifetimes fails to verify (core#147, determinism rules).
     let hash_after = |ticks: u32| {
-        let mut e = engine(&one_bullet(ticks));
+        let mut e = engine(&one_orb(ticks));
         for _ in 0..5 {
             e.step(idle());
         }

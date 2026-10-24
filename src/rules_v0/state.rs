@@ -84,10 +84,7 @@ pub(crate) struct State {
     /// What `runs` leave each attacker's speed; updated wherever `runs` changes.
     pub move_index: MoveIndex,
     /// In spawn order.
-    pub bullets: Vec<BulletState>,
-    /// How many of `bullets` are orbs (core Z2): derived, not hashed, kept by every place that
-    /// adds or removes a bullet so that a tick without orbs pays no scan for them (ADR-058).
-    pub orbs: u32,
+    pub orbs: Vec<OrbState>,
     /// Zones placed and not yet over, in the order they were placed (core Z1).
     pub zones: Vec<ZoneState>,
     /// Enemies spawned so far, per wave.
@@ -430,7 +427,7 @@ pub(crate) struct ComboState {
 }
 
 /// The Sub weapon's pull on what a combo part hits (ADR-070), carried by the attack and the
-/// bullets it spawns.
+/// orbs it spawns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Pull {
     pub distance: i32,
@@ -438,7 +435,7 @@ pub(crate) struct Pull {
 }
 
 /// What a smash (a step reached by B) does to the enemy it hits (ADR-084 point 8), carried by
-/// the attack and the bullets it spawns, as a combo step's hits carry it.
+/// the attack and the orbs it spawns, as a combo step's hits carry it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Smash {
     Pull(Pull),
@@ -862,13 +859,13 @@ impl Aim {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct BulletState {
+pub(crate) struct OrbState {
     pub at: Point,
     pub vx: Fx,
     pub vy: Fx,
     /// The direction it was fired in, which `relative` directions of its children start from.
     pub dir: Dir,
-    /// For the renderer; 0 is the default bullet.
+    /// For the renderer; 0 is the default orb.
     pub style: u16,
     /// Who fired it, for the hit event and for aggro.
     pub owner: EntityId,
@@ -883,9 +880,6 @@ pub(crate) struct BulletState {
     pub combo: bool,
     /// Starts an attack of its own when it ends: an orb's burst.
     pub hook: Option<Box<Hook>>,
-    /// An orb (core Z2): a slow projectile with a lifetime whose `hook` is its burst. Every
-    /// projectile is one since BR1c.
-    pub orb: bool,
     /// An orb the main character's hit boxes break, with no burst.
     pub breakable: bool,
     /// Ticks left before it leaves the map (core#147). It leaves when this runs out or when it is
@@ -1079,9 +1073,9 @@ pub(crate) struct AttackTask {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
-    /// The type of the phase that started it, which its bullets carry (ADR-100).
+    /// The type of the phase that started it, which its orbs carry (ADR-100).
     pub damage_type: Option<DamageType>,
-    /// The bullets it fires break the main character's charge (core#83).
+    /// The orbs it fires break the main character's charge (core#83).
     pub breaks_charge: bool,
     /// The Sub weapon's pull, for a combo part's hits (ADR-070).
     pub smash: Option<Smash>,
@@ -1095,7 +1089,7 @@ pub(crate) struct AttackTask {
     pub frames: Frames,
     /// The direction `relative` directions start from.
     pub parent_dir: Dir,
-    /// The direction of the last bullet, which `sequential` directions turn from.
+    /// The direction of the last orb, which `sequential` directions turn from.
     pub last_dir: Dir,
     /// The spot of the attack that started it (`AttackRun::spot`), for its zones anchored at the
     /// target.

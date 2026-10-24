@@ -71,14 +71,14 @@ pub fn run_script(tick: u32) -> Input {
 /// The tick from which `run_input` walks to the falling stars and goes for the weaker elite.
 pub const STEER_FROM: u32 = 800;
 
-/// The tick from which `run_input` stops getting out of the way of bullets, so that the run
+/// The tick from which `run_input` stops getting out of the way of orbs, so that the run
 /// ends before the trial does.
 pub const BRAVE_FROM: u32 = 2400;
 
 /// How near `run_input` walks to the enemy it fights: 32 pixels, inside the `giant_sword`'s reach.
 const NEAR: i64 = 8192;
 
-/// `run_input` steps out of the way of a hostile bullet that would come within `HIT` in the
+/// `run_input` steps out of the way of a hostile orb that would come within `HIT` in the
 /// next `SEE` ticks (`LATE` while it goes for an elite), and evades it when it is `DODGE`
 /// ticks away.
 const SEE: i32 = 30;
@@ -89,14 +89,14 @@ const HIT: i64 = 3072;
 /// `run_script`'s buttons, walking to within `NEAR` of an enemy (so that the facing, the last
 /// movement, points at it) and standing there: the nearest one that is not an elite, and from
 /// `STEER_FROM` the elite with the fewest hit points first; from `STEER_FROM` a falling star
-/// comes before any enemy. Until `BRAVE_FROM` it gets out of the way of the hostile bullets
+/// comes before any enemy. Until `BRAVE_FROM` it gets out of the way of the hostile orbs
 /// about to hit: a step across their path, which overrides the rest (only `LATE` while it goes
 /// for an elite), and an evade at the last moment.
 pub fn run_input(engine: &Engine, tick: u32) -> Input {
     run_input_for(engine, tick, &[EntityKind::Enemy], BRAVE_FROM)
 }
 
-/// `run_input` going for the entities of `kinds` and getting out of the way of bullets until
+/// `run_input` going for the entities of `kinds` and getting out of the way of orbs until
 /// tick `brave_from`.
 pub fn run_input_for(engine: &Engine, tick: u32, kinds: &[EntityKind], brave_from: u32) -> Input {
     let mut input = run_script(tick);
@@ -142,23 +142,22 @@ pub fn run_input_for(engine: &Engine, tick: u32, kinds: &[EntityKind], brave_fro
     if tick >= brave_from {
         return input;
     }
-    avoid_bullets(engine, input, at_elite)
+    avoid_orbs(engine, input, at_elite)
 }
 
-/// `input` with the step across the path of the first hostile bullet about to hit, and the evade
+/// `input` with the step across the path of the first hostile orb about to hit, and the evade
 /// at the last moment, that `run_input_for` makes (`LATE` while it goes for an elite, `at_elite`).
-pub fn avoid_bullets(engine: &Engine, mut input: Input, at_elite: bool) -> Input {
+pub fn avoid_orbs(engine: &Engine, mut input: Input, at_elite: bool) -> Input {
     let s = engine.snapshot();
     let me = s.player.at;
     let d2 = |at: Point| {
         let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
         x * x + y * y
     };
-    // The first hostile bullet that would pass within `HIT` in the next `SEE` ticks.
+    // The first hostile orb that would pass within `HIT` in the next `SEE` ticks.
     let threat = s
-        .bullets
+        .orbs
         .iter()
-        .filter(|b| !b.friendly)
         .filter_map(|b| {
             let k = (1..=SEE).find(|&k| {
                 d2(Point {

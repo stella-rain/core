@@ -54,14 +54,14 @@ fn first_issue(v: &Value) -> Issue {
 }
 
 #[test]
-fn the_free_flying_bullet_nodes_are_refused() {
-    // `fire` and `on_bullet` are gone (DS10): a stage that still holds one does not parse, in an
+fn the_free_flying_orb_nodes_are_refused() {
+    // `fire` and `on_orb` are gone (DS10): a stage that still holds one does not parse, in an
     // enemy's attack or in the main character's weapon.
     let fire = json!({ "type": "fire", "speed": 256,
                        "direction": { "type": "aimed", "offset": 0 } });
-    let on_bullet = json!({ "type": "on_bullet", "after_ticks": 10,
+    let on_orb = json!({ "type": "on_orb", "after_ticks": 10,
                             "body": [fire.clone()], "then": [fire.clone()] });
-    for node in [fire, on_bullet] {
+    for node in [fire, on_orb] {
         let name = node["type"].as_str().unwrap().to_string();
         let mut hostile = base();
         *enemy_attack(&mut hostile) = spawning(json!([node.clone()]));
@@ -687,7 +687,7 @@ fn inline_attacks_take_no_arguments() {
     assert!(issue.message.contains("no such argument"));
 }
 
-/// One phase of an inline attack that spawns one bullet, with `extra` fields set on it.
+/// One phase of an inline attack that spawns one orb, with `extra` fields set on it.
 fn phase(extra: Value) -> Value {
     let mut p = json!({ "kind": "active", "ticks": 1, "spawn": [fire(json!(256))] });
     for (k, v) in extra.as_object().expect("an object") {
@@ -842,10 +842,8 @@ fn boss_phases_move_forward_and_end_on_a_condition() {
     );
 
     let mut transitions = b.clone();
-    transitions["boss"]["phases"][1]["transition"] = Value::Array(vec![
-        json!({ "type": "clear_bullets" });
-        MAX_TRANSITIONS + 1
-    ]);
+    transitions["boss"]["phases"][1]["transition"] =
+        Value::Array(vec![json!({ "type": "clear_orbs" }); MAX_TRANSITIONS + 1]);
     assert_eq!(
         first_issue(&transitions).path,
         "$.boss.phases[1].transition"
@@ -1569,4 +1567,17 @@ fn a_knockback_is_0_to_the_pull_s_distance_over_1_to_its_ticks() {
         first_issue(&with_knockback(0, MAX_PULL_TICKS + 1)).path,
         at("ticks")
     );
+}
+
+#[test]
+fn a_transition_is_clear_orbs_and_the_old_name_is_refused() {
+    // `clear_bullets` became `clear_orbs` with no alias (DS51): a stage with the old name does
+    // not parse.
+    let mut with_new = base();
+    with_new["boss"]["phases"][1]["transition"] = json!([{ "type": "clear_orbs" }]);
+    assert_valid(&with_new);
+
+    let mut with_old = base();
+    with_old["boss"]["phases"][1]["transition"] = json!([{ "type": "clear_bullets" }]);
+    assert!(serde_json::from_value::<Stage>(with_old).is_err());
 }

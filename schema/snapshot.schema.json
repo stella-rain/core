@@ -3,12 +3,6 @@
   "title": "Snapshot",
   "type": "object",
   "properties": {
-    "bullets": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/BulletView"
-      }
-    },
     "constellations": {
       "description": "The run's constellations and how many of each set's members are held (core#NS3); empty\nwithout sets or without stars.",
       "type": "array",
@@ -44,6 +38,12 @@
     "map": {
       "description": "The map's size, so the frontend can bound its camera (core#87).",
       "$ref": "#/$defs/MapView"
+    },
+    "orbs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/OrbView"
+      }
     },
     "patterns": {
       "description": "The boss's big patterns announced and not yet started (ADR-103), the call of its elites\nfirst; the frontend draws each as a count-down bar.",
@@ -101,7 +101,7 @@
     "map",
     "player",
     "entities",
-    "bullets"
+    "orbs"
   ],
   "$defs": {
     "Anchor": {
@@ -197,53 +197,6 @@
         "tick",
         "ticks",
         "facing"
-      ]
-    },
-    "BulletView": {
-      "description": "Bullets carry no ID or asset name: thousands are drawn per tick, batched by `style`.",
-      "type": "object",
-      "properties": {
-        "at": {
-          "$ref": "#/$defs/Point"
-        },
-        "breakable": {
-          "description": "An orb the main character's hit box breaks.",
-          "type": "boolean"
-        },
-        "friendly": {
-          "description": "Fired by the main character or a companion, rather than an enemy.",
-          "type": "boolean"
-        },
-        "orb": {
-          "description": "An orb (core Z2): slow, timed, and it bursts when its time is up.",
-          "type": "boolean"
-        },
-        "radius": {
-          "$ref": "#/$defs/Fx"
-        },
-        "style": {
-          "description": "The bullet asset, as an index into the bullet asset IDs the stage uses, in order of\nfirst appearance.",
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        },
-        "vx": {
-          "description": "How far the bullet moves each tick, in 1/256 pixel: it moved by this to reach `at`, and\nmoves by it again on the next tick. The frontend draws it at `at` plus this times the\nfraction of the tick that has passed.",
-          "$ref": "#/$defs/Fx"
-        },
-        "vy": {
-          "$ref": "#/$defs/Fx"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "at",
-        "vx",
-        "vy",
-        "radius",
-        "style",
-        "friendly"
       ]
     },
     "CandidateView": {
@@ -1185,6 +1138,48 @@
         }
       },
       "additionalProperties": false
+    },
+    "OrbView": {
+      "description": "Orbs carry no ID or asset name: thousands are drawn per tick, batched by `style`.",
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Point"
+        },
+        "breakable": {
+          "description": "An orb the main character's hit box breaks.",
+          "type": "boolean"
+        },
+        "orb": {
+          "description": "An orb (core Z2): slow, timed, and it bursts when its time is up.",
+          "type": "boolean"
+        },
+        "radius": {
+          "$ref": "#/$defs/Fx"
+        },
+        "style": {
+          "description": "The orb asset, as an index into the orb asset IDs the stage uses, in order of\nfirst appearance.",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "vx": {
+          "description": "How far the orb moves each tick, in 1/256 pixel: it moved by this to reach `at`, and\nmoves by it again on the next tick. The frontend draws it at `at` plus this times the\nfraction of the tick that has passed.",
+          "$ref": "#/$defs/Fx"
+        },
+        "vy": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "vx",
+        "vy",
+        "radius",
+        "style"
+      ]
     },
     "OrbitView": {
       "description": "An orbit held (ADR-069). Its orbs' attacks are in the main character's `attacks`, in slots\n`2 + 8 × its place in orbits` and on.",

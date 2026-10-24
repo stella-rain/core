@@ -198,7 +198,7 @@ fn every_slot_at_once_survives_the_whole_stage() {
     }
 }
 
-/// Everything extreme except the bullets' speed and aim, so that bullets do stay in the field
+/// Everything extreme except the orbs' speed and aim, so that orbs do stay in the field
 /// and the caps (ADR-020) and the emitter budget are what holds the load.
 fn busy(extreme: &Value) -> Stage {
     let mut stage = stage(&|k| {

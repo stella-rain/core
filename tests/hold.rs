@@ -1,9 +1,9 @@
 //! Held steps (ADR-084 point 6), worked out by hand. The main character stands at (46080,
 //! 147456) facing up the field, with the far boss in the distance. The held step's own attack
-//! spawns one bullet at speed 0 on tick 1 (its first tick) and has its recovery from tick 3, so
-//! the hold begins on tick 3 if `main` is still held then. The loop spawns one bullet on each
+//! spawns one orb at speed 0 on tick 1 (its first tick) and has its recovery from tick 3, so
+//! the hold begins on tick 3 if `main` is still held then. The loop spawns one orb on each
 //! of its starts: on the hold's first tick, then every 3 ticks while held. A release spawns one
-//! bullet on its first tick. Bullets at speed 0 stay where they spawn, so the bullets alive
+//! orb on its first tick. Orbs at speed 0 stay where they spawn, so the orbs alive
 //! count how many spawned.
 
 use crate::common;
@@ -18,29 +18,29 @@ use stella_rain_core::stage::Stage;
 
 /// One zone `speed` ahead along the aim, spawned by an active phase of one tick; it stays for
 /// 200 ticks.
-fn bullet(speed: i32) -> Value {
+fn orb(speed: i32) -> Value {
     json!({ "type": "zone", "shape": { "type": "circle", "radius": 512 },
             "offset": { "forward": speed }, "direction": { "type": "aimed", "offset": 0 },
             "wind_up_ticks": 0, "active_ticks": 200 })
 }
 
-/// The held step's own attack: a bullet at speed 0 on its first tick, then its recovery.
+/// The held step's own attack: an orb at speed 0 on its first tick, then its recovery.
 fn own() -> Value {
     json!({ "inline": [
-        { "kind": "active", "ticks": 2, "spawn": [bullet(0)] },
+        { "kind": "active", "ticks": 2, "spawn": [orb(0)] },
         { "kind": "recovery", "ticks": 4 }
     ] })
 }
 
-/// The loop: three ticks of a bullet at `speed` on its first tick.
+/// The loop: three ticks of an orb at `speed` on its first tick.
 fn spin(speed: i32) -> Value {
-    json!({ "inline": [{ "kind": "active", "ticks": 3, "spawn": [bullet(speed)] }] })
+    json!({ "inline": [{ "kind": "active", "ticks": 3, "spawn": [orb(speed)] }] })
 }
 
-/// The release: a bullet at `speed` on its first tick, then a recovery of six.
+/// The release: an orb at `speed` on its first tick, then a recovery of six.
 fn slam(speed: i32) -> Value {
     json!({ "inline": [
-        { "kind": "active", "ticks": 1, "spawn": [bullet(speed)] },
+        { "kind": "active", "ticks": 1, "spawn": [orb(speed)] },
         { "kind": "recovery", "ticks": 6 }
     ] })
 }
@@ -67,7 +67,7 @@ fn stage(step: Value) -> Stage {
 #[derive(Default)]
 struct Trace {
     events: Vec<(u32, DomainEvent)>,
-    /// The friendly bullets each tick spawned: `(tick, how many)`.
+    /// The friendly orbs each tick spawned: `(tick, how many)`.
     spawns: Vec<(u32, usize)>,
     /// The hold in the snapshot after each tick, the first at index 0.
     holds: Vec<Option<HoldView>>,
@@ -273,7 +273,7 @@ fn each_loop_faces_where_the_main_character_moves_when_it_starts() {
         ..idle()
     });
     let (e, _) = run(&stage(held_step(180, 1024, 0, json!({}))), inputs);
-    // Bullets in spawn order: the own attack's (still), the loop on 3 facing up, the loop on 6
+    // Orbs in spawn order: the own attack's (still), the loop on 3 facing up, the loop on 6
     // facing right after the stick turned on tick 6.
     let shots = friendly(&e);
     assert_eq!(shots.len(), 3);

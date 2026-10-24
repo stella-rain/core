@@ -2,7 +2,7 @@
 //! faced when it started, and hits every target inside it once per active phase, or again after
 //! `rehit_ticks`; wind-ups and recoveries deal nothing; an attacker killed earlier in the tick
 //! still lands its hit (a trade); invulnerability stops a hit without using it up. A phase's
-//! `damage` is the base damage of its hit box and of the bullets it spawns.
+//! `damage` is the base damage of its hit box and of the orbs it spawns.
 
 use crate::common;
 
