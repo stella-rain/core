@@ -104,7 +104,10 @@ fn positions(e: &Engine, elite: bool) -> Vec<(i32, i32)> {
     e.snapshot()
         .entities
         .iter()
-        .filter(|v| matches!(v.kind, EntityKind::Enemy | EntityKind::Shrine) && v.elite == elite)
+        .filter(|v| {
+            matches!(v.kind, EntityKind::Enemy | EntityKind::Shrine)
+                && (v.elite || v.kind == EntityKind::Shrine) == elite
+        })
         .map(|v| (v.at.x.0, v.at.y.0))
         .collect()
 }
@@ -187,7 +190,7 @@ fn an_untouched_shrine_takes_no_damage_and_the_main_character_s_shots_pass_throu
         .snapshot()
         .entities
         .iter()
-        .find(|v| v.elite)
+        .find(|v| v.kind == EntityKind::Shrine)
         .map(|v| (v.id, v.hp))
         .expect("the shrine is still there");
     assert_eq!(shrine_id.1, 10, "undamaged");
@@ -257,7 +260,7 @@ fn the_event_names_the_shrine() {
         .snapshot()
         .entities
         .iter()
-        .find(|v| v.elite)
+        .find(|v| v.kind == EntityKind::Shrine)
         .map(|v| v.id)
         .unwrap();
     assert!(
@@ -302,7 +305,13 @@ fn clearing_the_guardians_in_time_gives_the_elite_reward_and_the_shrine_goes() {
     // walked (east, onto the shrine), shoots the east one, then walks west and shoots the other.
     let mut e = with(&shrine_stage(SIDE, shrine(600, 2, 5), vec![]));
     let mut events = touch(&mut e);
-    let shrine_id = e.snapshot().entities.iter().find(|v| v.elite).unwrap().id;
+    let shrine_id = e
+        .snapshot()
+        .entities
+        .iter()
+        .find(|v| v.kind == EntityKind::Shrine)
+        .unwrap()
+        .id;
     events.extend(fire_until(&mut e, idle(), 60, |e| {
         positions(e, false).len() == 1
     }));
@@ -357,7 +366,7 @@ fn a_shrine_is_its_own_kind_in_the_snapshot_and_a_guardian_is_an_enemy() {
         v.sort_by_key(|k| k.1);
         v
     };
-    assert_eq!(kinds(&e), [(EntityKind::Shrine, true)]);
+    assert_eq!(kinds(&e), [(EntityKind::Shrine, false)]);
     touch(&mut e);
     assert!(
         e.snapshot()
@@ -371,10 +380,34 @@ fn a_shrine_is_its_own_kind_in_the_snapshot_and_a_guardian_is_an_enemy() {
 }
 
 #[test]
+fn a_shrine_is_not_an_elite_in_the_view_but_an_ordinary_elite_is() {
+    // DS44 item 1: `elite` means elite enemies only; a shrine's kind already says what it is.
+    let mut st = shrine_stage(SIDE, shrine(6000, 2, 100_000), vec![]);
+    st.waves
+        .push(serde_json::from_value(wave(1, 1, 0, joiner(), SIDE.0, SIDE.1 - 50_000)).unwrap());
+    let mut e = with(&st);
+    run_until(&mut e, idle(), 3, |_| false);
+    let snap = e.snapshot();
+    let shrine = snap.entities.iter().find(|v| v.kind == EntityKind::Shrine);
+    assert_eq!(shrine.map(|v| v.elite), Some(false));
+    let joiner = snap
+        .entities
+        .iter()
+        .find(|v| v.kind == EntityKind::Enemy && v.at.y.0 == SIDE.1 - 50_000);
+    assert_eq!(joiner.map(|v| v.elite), Some(true), "an ordinary elite");
+}
+
+#[test]
 fn a_shrine_death_reports_its_class() {
     let mut e = with(&shrine_stage(SIDE, shrine(600, 2, 5), vec![]));
     let mut events = touch(&mut e);
-    let shrine_id = e.snapshot().entities.iter().find(|v| v.elite).unwrap().id;
+    let shrine_id = e
+        .snapshot()
+        .entities
+        .iter()
+        .find(|v| v.kind == EntityKind::Shrine)
+        .unwrap()
+        .id;
     events.extend(fire_until(&mut e, idle(), 60, |e| {
         positions(e, false).len() == 1
     }));
@@ -385,7 +418,7 @@ fn a_shrine_death_reports_its_class() {
     let shrine_died: Vec<_> = died.iter().filter(|d| d.0 == shrine_id).collect();
     assert_eq!(
         shrine_died,
-        [&(shrine_id, EntityKind::Shrine, true)],
+        [&(shrine_id, EntityKind::Shrine, false)],
         "{events:?}"
     );
     // The guardians are ordinary enemies.
