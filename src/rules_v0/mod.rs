@@ -98,6 +98,8 @@ mod combat;
 mod entity;
 mod expertise;
 mod grid;
+#[cfg(test)]
+mod hash_layout_tests;
 mod heal;
 mod hit_boxes;
 mod horde;
