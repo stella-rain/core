@@ -321,6 +321,18 @@ class Allocs(unittest.TestCase):
         raw = "fn=(1) a\ncfn=realloc\ncalls=2 0x1\n1 1\ncfn=posix_memalign\ncalls=1 0x1\n1 1\n"
         self.assertEqual(c.parse_allocs(raw), {"alloc": 1, "realloc": 2, "free": 0})
 
+    def test_a_recursion_suffix_is_stripped_from_callers_and_callees(self):
+        raw = ("fn=(1) a\ncfn=(2) __rustc::__rdl_dealloc'2\ncalls=4 0x1\n1 1\n"
+               "fn=(2)\ncfn=(3) free'2\ncalls=4 0x1\n1 1\n"
+               "fn=(3)\ncfn=(4) _int_free'2\ncalls=9 0x1\n1 1\n"
+               "fn=(5) malloc'3\ncfn=free'2\ncalls=7 0x1\n1 1\n"
+               "fn=(1)\ncfn=malloc'12\ncalls=2 0x1\n1 1\n")
+        self.assertEqual(c.parse_allocs(raw), {"alloc": 2, "realloc": 0, "free": 4})
+
+    def test_a_recursion_suffix_does_not_hide_a_step_frame(self):
+        name = "???:" + P + "run_attacks'2 [/t/bench]"
+        self.assertEqual(c.parse_steps({name: 5}), {"run_attacks": 5})
+
     def test_per_tick_divides_by_the_measured_ticks_of_the_target(self):
         self.assertEqual(c.ticks("worst_minute.worst_minute"), 3600)
         self.assertEqual(c.ticks("worst_tick.worst_tick"), 1)
