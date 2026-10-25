@@ -873,6 +873,63 @@ fn orbs() -> Definition {
     ("orbs", bytes(&stage), inputs)
 }
 
+/// The orb cage (Z3a-3): two foes fire rings of orbs that halt and are joined by beams, again every
+/// 120 ticks. The near one fires a ring of five (beams of the orb's own damage) close above the
+/// main character, whose `giant_sword` cuts some orbs, so their beams are cut with them; the far
+/// one fires a ring of four whose beams deal their own damage. The main character walks to and fro
+/// through both.
+fn orb_cage() -> Definition {
+    let cage = |count: u32, link: Value| {
+        json!({ "type": "ring", "count": count, "body": [{
+            "type": "orb", "speed": 512, "ticks": 200, "breakable": true,
+            "direction": { "type": "absolute", "angle": 5_120 },
+            "stop_after": 40, "link": link }] })
+    };
+    let shooter = |x: i32, y: i32, nodes: Value| {
+        let e = enemy(
+            100_000,
+            hold(x, y),
+            json!([rule(
+                always(),
+                json!("player"),
+                json!({ "type": "attack", "attack": { "inline": [
+                    { "kind": "wind_up", "ticks": 4, "damage": 2, "spawn": [nodes] },
+                    { "kind": "recovery", "ticks": 10 },
+                ] } }),
+                120
+            )]),
+        );
+        wave(1, 1, 0, e, x, y)
+    };
+    let waves = vec![
+        shooter(
+            46_080,
+            132_000,
+            cage(5, json!({ "width": 1_536, "rehit_ticks": 40 })),
+        ),
+        shooter(
+            61_440,
+            110_000,
+            cage(4, json!({ "width": 2_048, "damage": 3, "rehit_ticks": 60 })),
+        ),
+    ];
+    let stage = armed(
+        stage_full(600, Some(far_boss()), waves, vec![]),
+        json!({ "preset": { "id": "giant_sword" } }),
+    );
+    let inputs = (0..300)
+        .map(|t| {
+            let input = match t {
+                0..20 => idle(),
+                _ if (t / 60) % 2 == 0 => moving(50, 0),
+                _ => moving(-50, 0),
+            };
+            combos(t, input)
+        })
+        .collect();
+    ("orb_cage", bytes(&stage), inputs)
+}
+
 /// Aim assist and auto mode (ADR-072, ADR-073) with the giant_sword, whose assist range is 160
 /// pixels: three bats to the left and an elite to the right, all within it, and a boss far up
 /// the field. Auto mode alone for 100 ticks (the elite first, then the bats as they fall);
@@ -1085,6 +1142,7 @@ pub(crate) fn definitions() -> Vec<Definition> {
         landscape(),
         melee(),
         orbs(),
+        orb_cage(),
         dash(),
         ranged_cap(),
         timeout(),
@@ -2097,4 +2155,35 @@ fn the_corpus_matches() {
         )
         .collect();
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn the_orb_cage_case_is_what_its_name_says() {
+    let (_, bytes, inputs) = definitions()
+        .into_iter()
+        .find(|d| d.0 == "orb_cage")
+        .unwrap();
+    let stage = parse_and_validate(&bytes).unwrap();
+    let mut e = engine(&stage);
+    let (mut beams, mut hits, mut broken) = (0, Vec::new(), 0);
+    for input in inputs {
+        e.step(input);
+        let snapshot = serde_json::to_value(e.snapshot()).unwrap();
+        let orbs = snapshot["orbs"].as_array().cloned().unwrap_or_default();
+        let live = orbs.iter().filter(|o| o.get("link_to").is_some()).count();
+        beams = beams.max(live);
+        for ev in e.events() {
+            match ev {
+                DomainEvent::PlayerHit { .. } => hits.push((e.tick(), live)),
+                DomainEvent::OrbBroken { .. } => broken += 1,
+                _ => {}
+            }
+        }
+    }
+    // Two cages stand at once (4 + 5 beams) and are renewed; the sword cuts some orbs; the main
+    // character is hurt, once every 60 ticks at the most, each time with a beam live.
+    assert!(beams >= 9, "{beams} beams at most");
+    assert!(broken >= 1, "the sword breaks an orb");
+    assert!(hits.len() >= 2, "the beams land: {hits:?}");
+    assert!(hits.iter().all(|(_, live)| *live > 0), "{hits:?}");
 }
