@@ -1184,6 +1184,7 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
         ticks,
         breakable,
         burst,
+        ..
     } = node
     else {
         return true;
