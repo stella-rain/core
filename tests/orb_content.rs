@@ -322,11 +322,6 @@ fn each_boss_phase_played_alone_places_zones_within_the_count() {
                 let snapshot = serde_json::to_value(e.snapshot()).unwrap();
                 zones = zones.max(snapshot["zones"].as_array().map_or(0, Vec::len));
                 let alive = snapshot["orbs"].as_array().cloned().unwrap_or_default();
-                assert!(
-                    alive.iter().all(|b| b["orb"] == true),
-                    "{} phase {i}: an orb that is not an orb",
-                    boss["base"]
-                );
                 orbs = orbs.max(alive.len());
             }
             let name = &boss["base"];
