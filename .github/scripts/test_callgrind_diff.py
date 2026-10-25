@@ -274,16 +274,24 @@ class Steps(unittest.TestCase):
         _, rows = c.parse_annotate("1 PROGRAM TOTALS\n 7  <f.rs>:" + P + "x::h0123abcd\n 4  ???:x\n")
         self.assertEqual(c.parse_steps(rows), {"x": 7})
 
+    def test_closures_and_helpers_inside_a_step_are_not_added_to_it(self):
+        text = ("1 PROGRAM TOTALS\n 60  ???:" + P + "a\n 50  ???:" + P + "a::inner\n 30  ???:" + P
+                + "a::{{closure}}\n 5  ???:" + P + "a::h0123abcd\n")
+        _, rows = c.parse_annotate(text)
+        self.assertEqual(c.parse_steps(rows), {"a": 65})
+
     def test_order_comes_from_steps_macro(self):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "schedule.rs")
-            open(path, "w").write(SCHEDULE)
+            with open(path, "w") as f:
+                f.write(SCHEDULE)
             order = c.read_order(path)
             self.assertEqual(order, ["spawn_boss", "advance_tick", "run_attacks"])
             self.assertEqual(c.order_steps({"run_attacks", "old_step", "advance_tick"}, order),
                              ["advance_tick", "run_attacks", "old_step"])
             self.assertIsNone(c.read_order(os.path.join(d, "missing.rs")))
-            open(path, "w").write("fn nothing() {}")
+            with open(path, "w") as f:
+                f.write("fn nothing() {}")
             self.assertIsNone(c.read_order(path))
         self.assertEqual(c.order_steps({"b", "a"}, None), ["a", "b"])
 
@@ -302,6 +310,10 @@ class Steps(unittest.TestCase):
 class Allocs(unittest.TestCase):
     def test_calls_from_two_callers_count_and_calls_inside_realloc_do_not(self):
         self.assertEqual(c.parse_allocs(RAW_BASE), {"alloc": 3, "realloc": 0, "free": 3})
+
+    def test_a_truncated_calls_line_and_indented_lines_are_read_safely(self):
+        raw = "fn=(1) a\ncfn=malloc\ncalls=\n1 1\n cfn=malloc\n calls=2 0x1\n"
+        self.assertEqual(c.parse_allocs(raw), {"alloc": 2, "realloc": 0, "free": 0})
 
     def test_names_are_compared_without_file_or_version_suffix(self):
         raw = "fn=(1) a\ncfn=(2) ???:malloc@GLIBC_2.2.5\ncalls=4 0x1\n1 1\ncfn=<x.c>:calloc\ncalls=1 0x1\n1 1\n"
@@ -323,18 +335,23 @@ class Allocs(unittest.TestCase):
         self.assertEqual(len(warns), 1)
         self.assertTrue(warns[0].startswith("::warning::worst_tick.worst_tick: alloc per tick rose 3 → 4"))
         self.assertEqual(c.alloc_warnings("worst_tick.worst_tick", base, base), [])
+        big = c.alloc_warnings("worst_minute.worst_minute", {"alloc": 900, "realloc": 0, "free": 0},
+                               {"alloc": 901, "realloc": 0, "free": 0})
+        self.assertIn("(calls 900 → 901)", big[0])
 
 
 class StepsAndAllocsCli(CliBase):
     def case_with(self, head, base, raw_head=RAW_HEAD, raw_base=RAW_BASE, label="worst_tick"):
         d = os.path.join(self.home, "stella-rain-core", label, "g", f"{label}.{label}")
         os.makedirs(d)
-        open(os.path.join(d, f"callgrind.{label}.{label}.out"), "w").write(head + raw_head)
-        open(os.path.join(d, f"callgrind.{label}.{label}.out.base@main"), "w").write(base + raw_base)
+        for suffix, text in ((".out", head + raw_head), (".out.base@main", base + raw_base)):
+            with open(os.path.join(d, f"callgrind.{label}.{label}{suffix}"), "w") as f:
+                f.write(text)
 
     def schedule(self):
         path = os.path.join(self.tmp.name, "schedule.rs")
-        open(path, "w").write(SCHEDULE)
+        with open(path, "w") as f:
+            f.write(SCHEDULE)
         return path
 
     def summary(self):

@@ -29,6 +29,8 @@ GROUPS = {
 ALLOCATOR = {name: group for group, names in GROUPS.items() for name in names}
 MEASURED_TICKS = {"worst_minute": 3600}  # every other bench target measures one tick
 RAW_NAME = re.compile(r"^(c?fn)=(?:\((\d+)\)(?: (.*))?|(.+))$")
+STEP_SELF = re.compile(r"^(?:|::h[0-9a-f]+|<.*)$")
+CALLS = re.compile(r"^calls=(\d+)")
 FILE_SPLIT = re.compile(r"^[^:]*?:(?!:)")
 
 
@@ -54,7 +56,8 @@ def parse_steps(rows):
         name = FILE_SPLIT.sub("", name, count=1)
         if name.startswith(STEP_PREFIX):
             step = STEP_NAME.match(name[len(STEP_PREFIX):])
-            if step:
+            # only the step's own function (a hash or generics may follow), not a closure or helper inside it
+            if step and STEP_SELF.match(name[len(STEP_PREFIX) + step.end():]):
                 steps[step.group()] = steps.get(step.group(), 0) + count
     return steps
 
@@ -124,10 +127,10 @@ def parse_allocs(lines):
                 current = name
             else:
                 callee = name
-        elif line.startswith("calls=") and callee is not None:
+        elif callee is not None and (calls := CALLS.match(line.strip())):
             group = allocator(callee)
             if group and allocator(current or "") is None:
-                totals[group] += int(line[6:].split()[0])
+                totals[group] += int(calls.group(1))
             callee = None
     return totals
 
@@ -147,7 +150,8 @@ def per_tick(total, n):
 
 def alloc_warnings(label, base, head):
     n = ticks(label)
-    return [f"::warning::{label}: {g} per tick rose {per_tick(base[g], n)} → {per_tick(head[g], n)}"
+    totals = lambda g: f" (calls {base[g]:,} → {head[g]:,})" if n > 1 else ""  # noqa: E731
+    return [f"::warning::{label}: {g} per tick rose {per_tick(base[g], n)} → {per_tick(head[g], n)}{totals(g)}"
             for g in GROUPS if head[g] > base[g]]
 
 
