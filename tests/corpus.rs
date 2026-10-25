@@ -1343,7 +1343,8 @@ fn elites_time_limit() -> (String, RunContent) {
         .find(|t| t["id"] == "elite_leader")
         .unwrap();
     leader["enemy"]["elite"]["aura"]["damage_percent"] = json!(100);
-    let json = serde_json::to_string_pretty(&v).unwrap() + "\n";
+    // Compact: pretty-printed, the mode file passes the 128 KiB limit (Z3b content).
+    let json = serde_json::to_string(&v).unwrap() + "\n";
     let content = RunContent::bundled()
         .clone()
         .with_time_limit(TimeLimit::parse(json.as_bytes()).unwrap())
