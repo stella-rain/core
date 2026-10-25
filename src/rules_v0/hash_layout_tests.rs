@@ -2,8 +2,9 @@
 //! live fields, in order. A field removed from the state takes its byte out of the hash too.
 
 use super::world::ProgramIndex;
-use super::{hash_frame, hash_orb, hash_orb_flags};
-use crate::engine::{Aim, Dir, Frame, Hook, OrbState, PathStep};
+use super::{hash_frame, hash_orb, hash_orb_flags, hash_zone, hash_zone_flags};
+use crate::attack::ZoneShape;
+use crate::engine::{Aim, Dir, Frame, Hook, OrbState, PathStep, ZoneState};
 use crate::fixed::{Fx, Point};
 use crate::hash::{StateHasher, fnv1a64};
 use crate::id::EntityId;
@@ -117,4 +118,37 @@ fn an_orbs_hook_is_its_live_fields() {
 fn an_orbs_flags_are_breakable_alone() {
     assert_eq!(bytes(|h| hash_orb_flags(h, &orb(true))), fnv1a64(&[1]));
     assert_eq!(bytes(|h| hash_orb_flags(h, &orb(false))), fnv1a64(&[0]));
+}
+
+fn zone(warn_only: bool) -> ZoneState {
+    ZoneState {
+        owner: EntityId(3),
+        friendly: false,
+        shape: ZoneShape::Circle { radius: Fx(256) },
+        at: Point { x: Fx(1), y: Fx(2) },
+        dir: Dir { x: 0, y: 256 },
+        wind_left: 4,
+        active_left: 0,
+        wind_ticks: 4,
+        active_ticks: 0,
+        damage: 0,
+        damage_type: None,
+        breaks_charge: false,
+        warn_only,
+        hits: Vec::new(),
+    }
+}
+
+#[test]
+fn a_zones_own_bytes_do_not_name_warn_only() {
+    assert_eq!(
+        bytes(|h| hash_zone(h, &zone(true))),
+        bytes(|h| hash_zone(h, &zone(false)))
+    );
+}
+
+#[test]
+fn a_zones_flags_are_warn_only_alone() {
+    assert_eq!(bytes(|h| hash_zone_flags(h, &zone(true))), fnv1a64(&[1]));
+    assert_eq!(bytes(|h| hash_zone_flags(h, &zone(false))), fnv1a64(&[0]));
 }

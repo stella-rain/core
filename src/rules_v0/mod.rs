@@ -1309,6 +1309,10 @@ fn hash_orb_cage(h: &mut StateHasher, b: &crate::engine::OrbState) {
     }
 }
 
+fn hash_zone_flags(h: &mut StateHasher, z: &crate::engine::ZoneState) {
+    h.write_bool(z.warn_only);
+}
+
 fn hash_orb_flags(h: &mut StateHasher, b: &crate::engine::OrbState) {
     h.write_bool(b.breakable);
 }
@@ -1855,6 +1859,14 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         h.write_u32(count(&s.tasks));
         for t in &s.tasks {
             hash_spot(&mut h, t.spot);
+        }
+    }
+    // Last, and only while some zone is a warning, so that the hashes of runs without one stay
+    // as they were (Z3a-4).
+    if s.zones.iter().any(|z| z.warn_only) {
+        h.write_u32(count(&s.zones));
+        for z in &s.zones {
+            hash_zone_flags(&mut h, z);
         }
     }
     h.finish()

@@ -58,6 +58,9 @@ pub struct ZoneView {
     pub ticks: u32,
     /// Placed by the main character or a companion, rather than an enemy.
     pub friendly: bool,
+    /// A warning only: `phase` stays `wind_up` for its whole life and no hit follows.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub warn_only: bool,
 }
 
 /// A direction as a unit vector times `trig::SCALE`; `y` grows down the screen.

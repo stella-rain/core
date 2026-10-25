@@ -282,6 +282,7 @@ impl Engine {
                         ticks_left,
                         ticks,
                         friendly: z.friendly,
+                        warn_only: z.warn_only,
                     }
                 })
                 .collect(),

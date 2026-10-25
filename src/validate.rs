@@ -1804,8 +1804,10 @@ impl<'a> Ctx<'a> {
                 burst,
                 stop_after,
                 link,
+                offset,
                 ..
             } => {
+                self.offset(offset);
                 if self.foe == Foe::Other {
                     self.fail("an orb is an enemy's attack, not an ally's or the main character's");
                 }
@@ -1842,13 +1844,23 @@ impl<'a> Ctx<'a> {
                 direction,
                 wind_up_ticks,
                 active_ticks,
+                warn_only,
                 ..
             } => {
                 self.key("shape", |c| c.zone_shape(shape));
                 self.offset(offset);
                 self.direction(direction);
-                self.zone_ticks("wind_up_ticks", wind_up_ticks, 0);
-                self.zone_ticks("active_ticks", active_ticks, 1);
+                match (warn_only, active_ticks) {
+                    (true, Some(_)) => {
+                        self.fail("a warn_only zone has no active_ticks: it never hurts")
+                    }
+                    (false, None) => self.fail("a zone needs active_ticks unless it is warn_only"),
+                    _ => {}
+                }
+                self.zone_ticks("wind_up_ticks", wind_up_ticks, u32::from(*warn_only));
+                if let Some(a) = active_ticks {
+                    self.zone_ticks("active_ticks", a, 1);
+                }
                 true
             }
         }

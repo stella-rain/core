@@ -930,6 +930,62 @@ fn orb_cage() -> Definition {
     ("orb_cage", bytes(&stage), inputs)
 }
 
+/// Warn-only zones and the target-anchored cage (Z3a-4): a charger lays a warning lane on the main
+/// character in its wind-up and body-hits when it ends (the hit lands, as no invulnerability came
+/// first), and a caster fires a ring of four orbs `anchor: target` with an offset, which halt and
+/// are linked, again every 150 ticks. The main character walks to and fro.
+fn warn_anchor() -> Definition {
+    let phases = |nodes: Value, body: Value| {
+        json!([
+            { "kind": "wind_up", "ticks": 40, "damage": 2, "spawn": nodes },
+            body,
+            { "kind": "recovery", "ticks": 20 },
+        ])
+    };
+    let rule = |phases: Value, cooldown: u32| {
+        json!([rule(
+            always(),
+            json!("player"),
+            json!({ "type": "attack", "attack": { "inline": phases } }),
+            cooldown
+        )])
+    };
+    let lane = json!({ "type": "zone", "anchor": "target", "wind_up_ticks": 40, "warn_only": true,
+        "shape": { "type": "line", "length": 8_192, "width": 3_072 } });
+    let strike = json!({ "kind": "active", "ticks": 6, "damage": 3,
+        "hit_box": { "type": "circle", "anchor": "target", "radius": 4_096 } });
+    let cage = json!({ "type": "ring", "count": 4, "body": [{
+        "type": "orb", "speed": 512, "ticks": 200, "anchor": "target",
+        "offset": { "forward": 4_096 }, "direction": { "type": "aimed", "offset": 5_120 },
+        "stop_after": 40, "link": { "width": 2_048, "rehit_ticks": 60 } }] });
+    let charger = enemy(
+        100_000,
+        hold(46_080, 120_000),
+        rule(phases(json!([lane]), strike), 150),
+    );
+    let caster = enemy(
+        100_000,
+        hold(61_440, 100_000),
+        rule(
+            phases(json!([cage]), json!({ "kind": "recovery", "ticks": 4 })),
+            150,
+        ),
+    );
+    let waves = vec![
+        wave(1, 1, 0, charger, 46_080, 120_000),
+        wave(1, 1, 0, caster, 61_440, 100_000),
+    ];
+    let stage = quiet(stage_full(600, Some(far_boss()), waves, vec![]));
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..50 => idle(),
+            _ if (t / 50) % 2 == 0 => moving(50, 0),
+            _ => moving(-50, 0),
+        })
+        .collect();
+    ("warn_anchor", bytes(&stage), inputs)
+}
+
 /// Aim assist and auto mode (ADR-072, ADR-073) with the giant_sword, whose assist range is 160
 /// pixels: three bats to the left and an elite to the right, all within it, and a boss far up
 /// the field. Auto mode alone for 100 ticks (the elite first, then the bats as they fall);
@@ -1143,6 +1199,7 @@ pub(crate) fn definitions() -> Vec<Definition> {
         melee(),
         orbs(),
         orb_cage(),
+        warn_anchor(),
         dash(),
         ranged_cap(),
         timeout(),
@@ -2186,4 +2243,39 @@ fn the_orb_cage_case_is_what_its_name_says() {
     assert!(broken >= 1, "the sword breaks an orb");
     assert!(hits.len() >= 2, "the beams land: {hits:?}");
     assert!(hits.iter().all(|(_, live)| *live > 0), "{hits:?}");
+}
+
+#[test]
+fn the_warn_anchor_case_is_what_its_name_says() {
+    let (_, bytes, inputs) = definitions()
+        .into_iter()
+        .find(|d| d.0 == "warn_anchor")
+        .unwrap();
+    let stage = parse_and_validate(&bytes).unwrap();
+    let mut e = engine(&stage);
+    let (mut warnings, mut beams, mut hits) = (0, 0, 0);
+    for input in inputs {
+        e.step(input);
+        let snapshot = serde_json::to_value(e.snapshot()).unwrap();
+        let zones = snapshot["zones"].as_array().cloned().unwrap_or_default();
+        for z in zones.iter().filter(|z| z["warn_only"] == json!(true)) {
+            assert_eq!(z["phase"], json!("wind_up"), "a warning never turns active");
+        }
+        warnings = warnings.max(
+            zones
+                .iter()
+                .filter(|z| z["warn_only"] == json!(true))
+                .count(),
+        );
+        let orbs = snapshot["orbs"].as_array().cloned().unwrap_or_default();
+        beams = beams.max(orbs.iter().filter(|o| o.get("link_to").is_some()).count());
+        hits += e
+            .events()
+            .iter()
+            .filter(|ev| matches!(ev, DomainEvent::PlayerHit { .. }))
+            .count();
+    }
+    assert!(warnings >= 1, "a warning lane is laid");
+    assert!(beams >= 4, "the cage is linked: {beams} beams");
+    assert!(hits >= 1, "the body hit lands after the warning");
 }

@@ -1912,6 +1912,10 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
+        },
+        "warn_only": {
+          "description": "A warning only: `phase` stays `wind_up` for its whole life and no hit follows.",
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
