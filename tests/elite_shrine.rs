@@ -727,7 +727,7 @@ fn the_bundled_mode_has_the_shrine_in_every_tier() {
         .iter()
         .find(|t| t.id.0 == "elite_shrine")
         .expect("elite_shrine is defined");
-    assert!(t.enemy.rules.is_empty(), "it has no attack");
+    assert_eq!(t.enemy.rules.len(), 1, "it pulses (Z3b)");
     assert_eq!(
         t.enemy.elite.as_ref().expect("an elite").boss_call,
         BossCall::Stay

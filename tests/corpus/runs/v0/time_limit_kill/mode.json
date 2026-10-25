@@ -580,21 +580,17 @@
           "rules": [],
           "timeline": [
             {
-              "ticks": 40,
-              "type": "telegraph"
-            },
-            {
               "attack": {
                 "inline": [
                   {
                     "damage": 7500,
-                    "kind": "active",
+                    "kind": "wind_up",
+                    "move_pct": 0,
                     "spawn": [
                       {
-                        "active_ticks": 36,
                         "direction": {
-                          "angle": 0,
-                          "type": "absolute"
+                          "offset": 0,
+                          "type": "aimed"
                         },
                         "offset": {
                           "forward": 0
@@ -605,13 +601,13 @@
                           "width": 12288
                         },
                         "type": "zone",
-                        "wind_up_ticks": 50
+                        "warn_only": true,
+                        "wind_up_ticks": 60
                       },
                       {
-                        "active_ticks": 36,
                         "direction": {
-                          "angle": 0,
-                          "type": "absolute"
+                          "offset": 0,
+                          "type": "aimed"
                         },
                         "offset": {
                           "forward": 61440
@@ -622,33 +618,29 @@
                           "width": 12288
                         },
                         "type": "zone",
-                        "wind_up_ticks": 50
+                        "warn_only": true,
+                        "wind_up_ticks": 60
                       }
                     ],
-                    "ticks": 1
-                  }
-                ]
-              },
-              "type": "attack"
-            },
-            {
-              "ticks": 50,
-              "type": "wait"
-            },
-            {
-              "ticks": 30,
-              "to": {
-                "x": 163840,
-                "y": 158720
-              },
-              "type": "move_to"
-            },
-            {
-              "attack": {
-                "inline": [
+                    "ticks": 60
+                  },
+                  {
+                    "damage": 7500,
+                    "dash": {
+                      "distance": 122880
+                    },
+                    "hit_box": {
+                      "radius": 8192,
+                      "type": "circle"
+                    },
+                    "kind": "active",
+                    "move_pct": 0,
+                    "ticks": 20
+                  },
                   {
                     "damage": 5000,
-                    "kind": "active",
+                    "kind": "recovery",
+                    "move_pct": 0,
                     "spawn": [
                       {
                         "body": [
@@ -673,26 +665,14 @@
                         "type": "ring"
                       }
                     ],
-                    "ticks": 1
+                    "ticks": 60
                   }
                 ]
               },
               "type": "attack"
             },
             {
-              "ticks": 30,
-              "type": "wait"
-            },
-            {
-              "ticks": 60,
-              "to": {
-                "x": 163840,
-                "y": 35840
-              },
-              "type": "move_to"
-            },
-            {
-              "ticks": 30,
+              "ticks": 170,
               "type": "wait"
             },
             {
@@ -710,21 +690,17 @@
           "rules": [],
           "timeline": [
             {
-              "ticks": 20,
-              "type": "telegraph"
-            },
-            {
               "attack": {
                 "inline": [
                   {
                     "damage": 7500,
-                    "kind": "active",
+                    "kind": "wind_up",
+                    "move_pct": 0,
                     "spawn": [
                       {
-                        "active_ticks": 26,
                         "direction": {
-                          "angle": 0,
-                          "type": "absolute"
+                          "offset": 0,
+                          "type": "aimed"
                         },
                         "offset": {
                           "forward": 0
@@ -735,13 +711,13 @@
                           "width": 12288
                         },
                         "type": "zone",
+                        "warn_only": true,
                         "wind_up_ticks": 40
                       },
                       {
-                        "active_ticks": 26,
                         "direction": {
-                          "angle": 0,
-                          "type": "absolute"
+                          "offset": 0,
+                          "type": "aimed"
                         },
                         "offset": {
                           "forward": 61440
@@ -752,33 +728,29 @@
                           "width": 12288
                         },
                         "type": "zone",
+                        "warn_only": true,
                         "wind_up_ticks": 40
                       }
                     ],
-                    "ticks": 1
-                  }
-                ]
-              },
-              "type": "attack"
-            },
-            {
-              "ticks": 40,
-              "type": "wait"
-            },
-            {
-              "ticks": 20,
-              "to": {
-                "x": 163840,
-                "y": 158720
-              },
-              "type": "move_to"
-            },
-            {
-              "attack": {
-                "inline": [
+                    "ticks": 40
+                  },
+                  {
+                    "damage": 7500,
+                    "dash": {
+                      "distance": 122880
+                    },
+                    "hit_box": {
+                      "radius": 8192,
+                      "type": "circle"
+                    },
+                    "kind": "active",
+                    "move_pct": 0,
+                    "ticks": 16
+                  },
                   {
                     "damage": 5000,
-                    "kind": "active",
+                    "kind": "recovery",
+                    "move_pct": 0,
                     "spawn": [
                       {
                         "body": [
@@ -830,23 +802,261 @@
                         "type": "spread"
                       }
                     ],
-                    "ticks": 1
+                    "ticks": 30
                   }
                 ]
               },
               "type": "attack"
             },
             {
-              "ticks": 20,
+              "ticks": 86,
               "type": "wait"
             },
             {
-              "ticks": 40,
-              "to": {
-                "x": 163840,
-                "y": 35840
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 7500,
+                    "kind": "wind_up",
+                    "move_pct": 0,
+                    "spawn": [
+                      {
+                        "direction": {
+                          "offset": 0,
+                          "type": "aimed"
+                        },
+                        "offset": {
+                          "forward": 0
+                        },
+                        "shape": {
+                          "length": 61440,
+                          "type": "line",
+                          "width": 12288
+                        },
+                        "type": "zone",
+                        "warn_only": true,
+                        "wind_up_ticks": 40
+                      },
+                      {
+                        "direction": {
+                          "offset": 0,
+                          "type": "aimed"
+                        },
+                        "offset": {
+                          "forward": 61440
+                        },
+                        "shape": {
+                          "length": 61440,
+                          "type": "line",
+                          "width": 12288
+                        },
+                        "type": "zone",
+                        "warn_only": true,
+                        "wind_up_ticks": 40
+                      }
+                    ],
+                    "ticks": 40
+                  },
+                  {
+                    "damage": 7500,
+                    "dash": {
+                      "distance": 122880
+                    },
+                    "hit_box": {
+                      "radius": 8192,
+                      "type": "circle"
+                    },
+                    "kind": "active",
+                    "move_pct": 0,
+                    "ticks": 16
+                  },
+                  {
+                    "damage": 5000,
+                    "kind": "recovery",
+                    "move_pct": 0,
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "active_ticks": 4,
+                            "direction": {
+                              "angle": 0,
+                              "type": "absolute"
+                            },
+                            "offset": {
+                              "forward": 24576
+                            },
+                            "shape": {
+                              "radius": 7168,
+                              "type": "circle"
+                            },
+                            "type": "zone",
+                            "wind_up_ticks": 40
+                          }
+                        ],
+                        "count": 10,
+                        "type": "ring"
+                      },
+                      {
+                        "angle": 7680,
+                        "body": [
+                          {
+                            "burst": [
+                              {
+                                "active_ticks": 4,
+                                "shape": {
+                                  "radius": 10240,
+                                  "type": "circle"
+                                },
+                                "type": "zone",
+                                "wind_up_ticks": 40
+                              }
+                            ],
+                            "direction": {
+                              "offset": 0,
+                              "type": "aimed"
+                            },
+                            "speed": 256,
+                            "ticks": 180,
+                            "type": "orb"
+                          }
+                        ],
+                        "count": 2,
+                        "type": "spread"
+                      }
+                    ],
+                    "ticks": 30
+                  }
+                ]
               },
-              "type": "move_to"
+              "type": "attack"
+            },
+            {
+              "ticks": 86,
+              "type": "wait"
+            },
+            {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 7500,
+                    "kind": "wind_up",
+                    "move_pct": 0,
+                    "spawn": [
+                      {
+                        "direction": {
+                          "offset": 0,
+                          "type": "aimed"
+                        },
+                        "offset": {
+                          "forward": 0
+                        },
+                        "shape": {
+                          "length": 61440,
+                          "type": "line",
+                          "width": 12288
+                        },
+                        "type": "zone",
+                        "warn_only": true,
+                        "wind_up_ticks": 40
+                      },
+                      {
+                        "direction": {
+                          "offset": 0,
+                          "type": "aimed"
+                        },
+                        "offset": {
+                          "forward": 61440
+                        },
+                        "shape": {
+                          "length": 61440,
+                          "type": "line",
+                          "width": 12288
+                        },
+                        "type": "zone",
+                        "warn_only": true,
+                        "wind_up_ticks": 40
+                      }
+                    ],
+                    "ticks": 40
+                  },
+                  {
+                    "damage": 7500,
+                    "dash": {
+                      "distance": 122880
+                    },
+                    "hit_box": {
+                      "radius": 8192,
+                      "type": "circle"
+                    },
+                    "kind": "active",
+                    "move_pct": 0,
+                    "ticks": 16
+                  },
+                  {
+                    "damage": 5000,
+                    "kind": "recovery",
+                    "move_pct": 0,
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "active_ticks": 4,
+                            "direction": {
+                              "angle": 0,
+                              "type": "absolute"
+                            },
+                            "offset": {
+                              "forward": 24576
+                            },
+                            "shape": {
+                              "radius": 7168,
+                              "type": "circle"
+                            },
+                            "type": "zone",
+                            "wind_up_ticks": 40
+                          }
+                        ],
+                        "count": 10,
+                        "type": "ring"
+                      },
+                      {
+                        "angle": 7680,
+                        "body": [
+                          {
+                            "burst": [
+                              {
+                                "active_ticks": 4,
+                                "shape": {
+                                  "radius": 10240,
+                                  "type": "circle"
+                                },
+                                "type": "zone",
+                                "wind_up_ticks": 40
+                              }
+                            ],
+                            "direction": {
+                              "offset": 0,
+                              "type": "aimed"
+                            },
+                            "speed": 256,
+                            "ticks": 180,
+                            "type": "orb"
+                          }
+                        ],
+                        "count": 2,
+                        "type": "spread"
+                      }
+                    ],
+                    "ticks": 30
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            {
+              "ticks": 146,
+              "type": "wait"
             },
             {
               "type": "loop"
@@ -1781,30 +1991,35 @@
                     "kind": "active",
                     "spawn": [
                       {
+                        "angle": 11520,
                         "body": [
                           {
-                            "burst": [
+                            "body": [
                               {
-                                "active_ticks": 4,
-                                "shape": {
-                                  "radius": 10240,
-                                  "type": "circle"
+                                "anchor": "target",
+                                "breakable": true,
+                                "direction": {
+                                  "offset": 0,
+                                  "type": "aimed"
                                 },
-                                "type": "zone",
-                                "wind_up_ticks": 40
+                                "link": {
+                                  "rehit_ticks": 60,
+                                  "width": 5120
+                                },
+                                "offset": {
+                                  "forward": 4096
+                                },
+                                "speed": 512,
+                                "stop_after": 60,
+                                "ticks": 180,
+                                "type": "orb"
                               }
                             ],
-                            "direction": {
-                              "offset": 0,
-                              "type": "aimed"
-                            },
-                            "speed": 256,
-                            "ticks": 180,
-                            "type": "orb"
+                            "count": 4,
+                            "type": "ring"
                           }
                         ],
-                        "count": 4,
-                        "type": "ring"
+                        "type": "rotate"
                       }
                     ],
                     "ticks": 1
@@ -3201,6 +3416,64 @@
             "when": {
               "type": "always"
             }
+          },
+          {
+            "cooldown_ticks": 210,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 6000,
+                    "kind": "wind_up",
+                    "move_pct": 0,
+                    "spawn": [
+                      {
+                        "direction": {
+                          "offset": 0,
+                          "type": "aimed"
+                        },
+                        "offset": {
+                          "forward": 0
+                        },
+                        "shape": {
+                          "length": 61440,
+                          "type": "line",
+                          "width": 10240
+                        },
+                        "type": "zone",
+                        "warn_only": true,
+                        "wind_up_ticks": 50
+                      }
+                    ],
+                    "ticks": 50
+                  },
+                  {
+                    "damage": 6000,
+                    "dash": {
+                      "distance": 61440
+                    },
+                    "hit_box": {
+                      "radius": 6144,
+                      "type": "circle"
+                    },
+                    "kind": "active",
+                    "move_pct": 0,
+                    "ticks": 14
+                  },
+                  {
+                    "kind": "recovery",
+                    "move_pct": 0,
+                    "ticks": 50
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
           }
         ]
       },
@@ -3373,7 +3646,40 @@
           },
           "type": "shrine"
         },
-        "radius": 4096
+        "radius": 4096,
+        "rules": [
+          {
+            "cooldown_ticks": 300,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 5000,
+                    "kind": "active",
+                    "spawn": [
+                      {
+                        "active_ticks": 4,
+                        "shape": {
+                          "radius": 16384,
+                          "type": "circle"
+                        },
+                        "type": "zone",
+                        "wind_up_ticks": 60
+                      }
+                    ],
+                    "ticks": 1
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
       },
       "expertise": {
         "hit": 4,

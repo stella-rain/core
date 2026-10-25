@@ -23,6 +23,7 @@ mod boss;
 mod boss_zones;
 mod bosses;
 mod charge;
+mod charge_pulse_cage_content;
 mod combat_reward_kinds;
 mod command_cap;
 mod constellations;
