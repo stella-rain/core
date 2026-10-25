@@ -7,8 +7,8 @@
 //! The run is the bundled mode with a schedule that keeps the crowd at its cap: every wave starts
 //! at tick 1 and spawns at the rate that spends its enemies over `SPAWN_SPAN_TICKS` (the
 //! mode's 4,143 spawns, 1.4 times each wave's count, in four minutes, not twenty), a mid-boss comes inside the
-//! minute (`BOSS_TICK`) and the elite cap is `MAX_ELITES_ALIVE`. The elite minutes (ticks 3,600
-//! and 7,200) are the mode's own. The main character taps its Main weapon every other tick
+//! minute (`BOSS_TICK`) and the elite cap is `MAX_ELITES_ALIVE`. The elite minutes (the mode's own: every
+//! whole minute that is no boss time, so ticks 3,600 and 7,200 before the minute) bring its elites. The main character taps its Main weapon every other tick
 //! and the choices of the level-ups it opens take the first option. The seed is `SEED`. The
 //! `enemy_attack_damage` is the 100 of the other cases, which the 50,000 hit points of the
 //! trial's main character survive. Reaching the minute is not counted; where the heaviest tick
@@ -29,6 +29,10 @@ pub const MINUTE_TICKS: u32 = 3_600;
 
 /// The ticks played before the minute: the crowd is at its cap and two elite minutes have come.
 pub const MINUTE_START: u32 = 7_300;
+
+/// The heaviest tick of the minute by `Load` (`worst_minute_window` finds it; `tests/worst_minute.rs`
+/// pins that it still does), as ticks played before it.
+pub const PEAK_TICK: u32 = 10_800;
 
 /// The tick the mid-boss arrives at, inside the minute.
 const BOSS_TICK: u32 = 9_000;
@@ -110,7 +114,7 @@ fn weight(load: Load) -> u64 {
     .sum()
 }
 
-/// The minute and its heaviest tick, as numbers of ticks played before them: the minute is the
+/// Scans the minute for its heaviest tick (a test pins it as `PEAK_TICK`): the minute and that tick, as numbers of ticks played before them: the minute is the
 /// ticks `start..start + MINUTE_TICKS`, and the next `step` of a run `peak_tick` ticks in is the
 /// heaviest tick of it.
 pub fn worst_minute_window() -> (u32, u32) {
@@ -131,7 +135,8 @@ pub fn worst_minute() -> Run {
     Run::fast_forwarded(MINUTE_START)
 }
 
-/// The run one tick before the heaviest tick of that minute (`benches/worst_minute_peak.rs`).
+/// The run one tick before the heaviest tick of that minute (`benches/worst_minute_peak.rs`; the
+/// pin is `PEAK_TICK`, so the bench's setup need not scan the minute).
 pub fn worst_minute_peak() -> Run {
-    Run::fast_forwarded(worst_minute_window().1)
+    Run::fast_forwarded(PEAK_TICK)
 }

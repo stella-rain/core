@@ -57,7 +57,7 @@ pub fn time_limit_tick() -> Case {
 /// the tests' helpers are not reachable from `src/`. `tests/bench_fixture_pins.rs` pins what they build.
 mod common;
 
-/// The densest minute of the `time_limit` corpus run (`benches/worst_minute.rs`).
+/// The dense minute of the `time_limit` mode (`benches/worst_minute.rs`).
 pub fn worst_minute() -> worst_minute_case::Run {
     worst_minute_case::worst_minute()
 }

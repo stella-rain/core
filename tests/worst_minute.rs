@@ -2,7 +2,9 @@
 //! scripts a minute with the crowd at its caps, elites alive and a boss arriving, and finds its
 //! heaviest tick; this checks the minute is that and pins where. The same minute's peak heap stays
 //! at or below 16 MiB.
-use stella_rain_core::bench_fixtures::worst_minute_case::{MINUTE_TICKS, Run, worst_minute_window};
+use stella_rain_core::bench_fixtures::worst_minute_case::{
+    MINUTE_TICKS, PEAK_TICK, Run, worst_minute_window,
+};
 use stella_rain_core::engine::{Load, Outcome};
 use stella_rain_core::snapshot::EntityKind;
 
@@ -14,7 +16,7 @@ use crate::alloc::{live_bytes, peak_bytes, reset_peak};
 /// `tests/bench_fixture_pins.rs` (a `src/` PR then edits only `tests/`, which the bench guard
 /// allows).
 const WORST_MINUTE_START: u32 = 7_300;
-const WORST_TICK_IN_MINUTE: u32 = 10_800;
+const WORST_TICK_IN_MINUTE: u32 = PEAK_TICK;
 
 /// The most heap the engine may hold at once in the worst minute (16 MiB).
 const PEAK_HEAP_LIMIT: i64 = 16 * 1024 * 1024;
@@ -24,7 +26,7 @@ fn the_densest_minute_of_the_run_is_where_it_is_pinned() {
     assert_eq!(
         worst_minute_window(),
         (WORST_MINUTE_START, WORST_TICK_IN_MINUTE),
-        "the densest minute (by the unweighted sum of Load) and its heaviest tick moved: re-pin          the constants here and the hashes in tests/bench_fixture_pins.rs"
+        "the densest minute (by the unweighted sum of Load) and its heaviest tick moved: re-pin PEAK_TICK (src/bench_fixtures/worst_minute_case.rs), and the hashes in tests/bench_fixture_pins.rs"
     );
 }
 
