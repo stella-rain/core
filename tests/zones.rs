@@ -475,7 +475,7 @@ fn a_zone_view_carries_the_length_of_its_current_phase() {
         vec![],
     );
     let mut e = engine(&s);
-    // The phase is 1 tick of wind-up, then the zone is placed on the first step.
+    // The zone is placed on the first step; 10 more ticks of its 30-tick warning pass.
     e.step(idle());
     for _ in 0..10 {
         e.step(idle());
@@ -484,6 +484,7 @@ fn a_zone_view_carries_the_length_of_its_current_phase() {
     assert_eq!(z.phase, stella_rain_core::attack::PhaseKind::WindUp);
     assert_eq!(z.ticks, 30);
     assert_eq!(z.ticks_left, 20);
+    assert!(z.ticks >= z.ticks_left);
     // Once active, `ticks` is the active length.
     for _ in 0..25 {
         e.step(idle());

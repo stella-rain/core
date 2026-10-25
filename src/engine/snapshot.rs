@@ -265,29 +265,24 @@ impl Engine {
             zones: s
                 .zones
                 .iter()
-                .map(|z| ZoneView {
-                    shape: z.shape.clone(),
-                    at: z.at,
-                    direction: Facing {
-                        x: z.dir.x,
-                        y: z.dir.y,
-                    },
-                    phase: if z.wind_left > 0 {
-                        PhaseKind::WindUp
+                .map(|z| {
+                    let (phase, ticks_left, ticks) = if z.wind_left > 0 {
+                        (PhaseKind::WindUp, z.wind_left, z.wind_ticks)
                     } else {
-                        PhaseKind::Active
-                    },
-                    ticks_left: if z.wind_left > 0 {
-                        z.wind_left
-                    } else {
-                        z.active_left
-                    },
-                    ticks: if z.wind_left > 0 {
-                        z.wind_ticks
-                    } else {
-                        z.active_ticks
-                    },
-                    friendly: z.friendly,
+                        (PhaseKind::Active, z.active_left, z.active_ticks)
+                    };
+                    ZoneView {
+                        shape: z.shape.clone(),
+                        at: z.at,
+                        direction: Facing {
+                            x: z.dir.x,
+                            y: z.dir.y,
+                        },
+                        phase,
+                        ticks_left,
+                        ticks,
+                        friendly: z.friendly,
+                    }
                 })
                 .collect(),
             orbs: s
