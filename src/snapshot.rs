@@ -671,9 +671,6 @@ pub struct OrbView {
     /// The orb asset, as an index into the orb asset IDs the stage uses, in order of
     /// first appearance.
     pub style: u16,
-    /// An orb (core Z2): slow, timed, and it bursts when its time is up.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub orb: bool,
     /// An orb the main character's hit box breaks.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub breakable: bool,
