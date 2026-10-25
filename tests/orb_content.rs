@@ -217,6 +217,7 @@ fn every_elite_with_an_attack_places_zones() {
         "elite_high",
         "elite_leader",
         "elite_mimic",
+        "elite_shrine",
     ] {
         let e = v["elite_types"]
             .as_array()
