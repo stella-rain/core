@@ -102,13 +102,20 @@ fn the_bundled_mode_validates() {
 }
 
 /// The two `warn_only` lines of a charge: 240 px long, laid end to end along the aimed facing.
-fn assert_lanes(spawn: &[Value], length: i64, width: i64, wind_up: u64, what: &str) {
+fn assert_lanes(
+    spawn: &[Value],
+    forwards_wanted: &[i64],
+    length: i64,
+    width: i64,
+    wind_up: u64,
+    what: &str,
+) {
     let lanes: Vec<&Value> = spawn.iter().filter(|n| n["type"] == "zone").collect();
     let forwards: Vec<_> = lanes
         .iter()
         .map(|z| z["offset"]["forward"].as_i64().unwrap_or(0))
         .collect();
-    assert_eq!(forwards, [0, length], "{what}: the lanes' offsets");
+    assert_eq!(forwards, forwards_wanted, "{what}: the lanes' offsets");
     for z in lanes {
         assert_eq!(
             z["shape"],
@@ -140,6 +147,7 @@ fn assert_charge(attack: &Value, times: [u64; 3], with_orbs: bool, what: &str) {
     assert_eq!(phases[0]["damage"], 7500, "{what}");
     assert_lanes(
         phases[0]["spawn"].as_array().unwrap(),
+        &[0, 61_440],
         61_440,
         12_288,
         times[0],
@@ -283,6 +291,7 @@ fn elite_mid_lobs_three_and_charges() {
     assert_eq!(phases[0]["damage"], 6000);
     assert_lanes(
         phases[0]["spawn"].as_array().unwrap(),
+        &[0],
         61_440,
         10_240,
         50,
@@ -548,7 +557,15 @@ fn elite_mid_lobs_and_charges_within_420_ticks() {
     assert!(lobbed.is_some(), "the lobs");
     assert!(warned.is_some(), "the charge's lane");
     // A walk is slow; the charge covers 61,440 units in 14 ticks, 4,389 a tick.
-    let dash: Vec<i32> = steps.iter().copied().filter(|d| d.abs() > 3_000).collect();
+    let first = steps
+        .iter()
+        .position(|d| d.abs() > 3_000)
+        .expect("a charge");
+    let dash: Vec<i32> = steps[first..]
+        .iter()
+        .copied()
+        .take_while(|d| d.abs() > 3_000)
+        .collect();
     assert_eq!(dash.len(), 14, "{steps:?}");
     assert!(
         (dash.iter().map(|d| d.abs()).sum::<i32>() - 61_440).abs() <= 16,

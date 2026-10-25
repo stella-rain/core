@@ -709,6 +709,64 @@
             },
             "cooldown_ticks": 120,
             "once": false
+          },
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "nearest_ally",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "wind_up",
+                    "ticks": 50,
+                    "damage": 6000,
+                    "move_pct": 0,
+                    "spawn": [
+                      {
+                        "type": "zone",
+                        "shape": {
+                          "type": "line",
+                          "length": 61440,
+                          "width": 10240
+                        },
+                        "offset": {
+                          "forward": 0
+                        },
+                        "direction": {
+                          "type": "aimed",
+                          "offset": 0
+                        },
+                        "wind_up_ticks": 50,
+                        "warn_only": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "active",
+                    "ticks": 14,
+                    "damage": 6000,
+                    "move_pct": 0,
+                    "dash": {
+                      "distance": 61440
+                    },
+                    "hit_box": {
+                      "type": "circle",
+                      "radius": 6144
+                    }
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 50,
+                    "move_pct": 0
+                  }
+                ]
+              }
+            },
+            "cooldown_ticks": 210,
+            "once": false
           }
         ],
         "elite": {
