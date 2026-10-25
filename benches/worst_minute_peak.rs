@@ -7,17 +7,13 @@ use iai_callgrind::{library_benchmark, library_benchmark_group, main};
 use stella_rain_core::bench_fixtures;
 use stella_rain_core::bench_fixtures::worst_minute_case::Run;
 
+mod support;
+
 #[library_benchmark]
-#[bench::worst_minute_peak(args = (bench_fixtures::worst_minute_peak()), teardown = drop_measured)]
+#[bench::worst_minute_peak(args = (bench_fixtures::worst_minute_peak()), teardown = support::forget_measured)]
 fn worst_minute_peak(mut run: Run) -> Run {
     run.play(1);
     run
-}
-
-// The returned value is dropped here, outside the counted region: the free path's cost
-// depends on the heap layout and is not the operation this bench names.
-fn drop_measured(value: Run) {
-    drop(value);
 }
 
 library_benchmark_group!(

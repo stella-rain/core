@@ -16,3 +16,60 @@
 #
 # An entry covers a rise only in the PR whose number it names. An entry for a case that did not
 # rise is a warning. Raising a budget is a change to benches/budgets.toml, also Kade's.
+#
+# The six entries with pr = 382 come from the BG6 probe, merged into main by mistake (core#385);
+# they cover no other PR.
+
+[[accepted]]
+bench = "time_limit_tick"
+case = "time_limit_tick"
+arch = "arm64"
+base = 1600046
+count = 1662000
+reason = "probe: a deliberate 20,000-iteration loop in the regen step"
+pr = 382
+
+[[accepted]]
+bench = "worst_minute"
+case = "worst_minute"
+arch = "arm64"
+base = 3634221593
+count = 3854087000
+reason = "probe: a deliberate 20,000-iteration loop in the regen step"
+pr = 382
+
+[[accepted]]
+bench = "worst_minute_peak"
+case = "worst_minute_peak"
+arch = "arm64"
+base = 1110928
+count = 1173000
+reason = "probe: a deliberate 20,000-iteration loop in the regen step"
+pr = 382
+
+[[accepted]]
+bench = "time_limit_tick"
+case = "time_limit_tick"
+arch = "x86_64"
+base = 1437402
+count = 1499000
+reason = "probe: a deliberate 20,000-iteration loop in the regen step"
+pr = 382
+
+[[accepted]]
+bench = "worst_minute"
+case = "worst_minute"
+arch = "x86_64"
+base = 4048166731
+count = 4268435000
+reason = "probe: a deliberate 20,000-iteration loop in the regen step"
+pr = 382
+
+[[accepted]]
+bench = "worst_minute_peak"
+case = "worst_minute_peak"
+arch = "x86_64"
+base = 1242696
+count = 1304000
+reason = "probe: a deliberate 20,000-iteration loop in the regen step"
+pr = 382
