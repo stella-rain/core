@@ -353,9 +353,14 @@ fn nothing_else_halts_or_links_an_orb() {
         }
     }
     assert_eq!(found.len(), 1, "{found:?}");
-    assert!(found[0].starts_with("$.bosses[3]"), "{found:?}");
-    assert_eq!(v["bosses"][3]["base"], "weaver");
-    assert!(found[0].contains(".phases[2]."), "{found:?}");
+    let weaver = v["bosses"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|b| b["base"] == "weaver")
+        .unwrap();
+    let prefix = format!("$.bosses[{weaver}].phases[2].");
+    assert!(found[0].starts_with(&prefix), "{found:?}");
 }
 
 #[test]
