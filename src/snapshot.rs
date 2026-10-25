@@ -677,4 +677,8 @@ pub struct OrbView {
     /// An orb the main character's hit box breaks.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub breakable: bool,
+    /// The index, in this list, of the orb a live beam runs to from this one (a cage's `link`);
+    /// the beam is as wide as `link.width` and hurts the main character.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link_to: Option<u32>,
 }
