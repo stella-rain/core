@@ -1252,7 +1252,6 @@ fn hash_orb(h: &mut StateHasher, b: &crate::engine::OrbState) {
             h.write_u32(hook.left);
             h.write_u32(hook.owner.0);
             hash_aim(h, hook.aim);
-            h.write_bool(false);
             h.write_u32(hook.damage);
             h.write_bool(hook.breaks_charge);
             hash_smash(h, hook.smash);
