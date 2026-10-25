@@ -3,7 +3,9 @@
 
 Reads the callgrind files iai-callgrind leaves under its home, runs `callgrind_annotate` on the
 head and, when there is one, the base (`.out.base@main`) of each case, and writes the annotate
-texts and a diff per case into --out. It appends a short profile to $GITHUB_STEP_SUMMARY. A
+texts and a diff per case into --out, the inclusive cost of each named tick step (`.steps.txt`) and
+the allocator calls per measured tick read from the raw files (`.alloc.txt`, warned when they rise).
+It appends a short profile to $GITHUB_STEP_SUMMARY. A
 profile never fails the job by its content: it exits 1 only when the home holds no callgrind file.
 """
 
@@ -19,6 +21,14 @@ NAME_MAX = 200
 TOTALS = "PROGRAM TOTALS"
 STEP_PREFIX = "stella_rain_core::rules_v0::schedule::steps::"
 STEP_NAME = re.compile(r"[A-Za-z0-9_]+")
+GROUPS = {
+    "alloc": ("malloc", "calloc", "posix_memalign", "aligned_alloc", "memalign"),
+    "realloc": ("realloc",),
+    "free": ("free",),
+}
+ALLOCATOR = {name: group for group, names in GROUPS.items() for name in names}
+MEASURED_TICKS = {"worst_minute": 3600}  # every other bench target measures one tick
+RAW_NAME = re.compile(r"^(c?fn)=(?:\((\d+)\)(?: (.*))?|(.+))$")
 FILE_SPLIT = re.compile(r"^[^:]*?:(?!:)")
 
 
@@ -86,6 +96,87 @@ def step_lines(rows, with_base):
     if not with_base:
         return ["step head"] + [f"{n} {h:,}" for n, _, h in rows]
     return ["step base head delta"] + [f"{n} {b:,} {h:,} {h - b:+,}" for n, b, h in rows]
+
+
+def allocator(name):
+    """The group of an allocator entry point, or None for any other function."""
+    name = re.sub(r"^(?:\?\?\?|<[^>]*>):", "", name).split("@", 1)[0]
+    return ALLOCATOR.get(name)
+
+
+def parse_allocs(lines):
+    """{group: calls} from the lines (or text) of a raw callgrind file; calls made from inside an allocator are not counted."""
+    if isinstance(lines, str):
+        lines = lines.splitlines()
+    totals = dict.fromkeys(GROUPS, 0)
+    names, current, callee = {}, None, None
+    for line in lines:
+        m = RAW_NAME.match(line.strip())
+        if m:
+            kind, ident, defined, plain = m.groups()
+            if ident is not None:
+                if defined is not None:
+                    names[ident] = defined
+                name = names.get(ident, "")
+            else:
+                name = plain
+            if kind == "fn":
+                current = name
+            else:
+                callee = name
+        elif line.startswith("calls=") and callee is not None:
+            group = allocator(callee)
+            if group and allocator(current or "") is None:
+                totals[group] += int(line[6:].split()[0])
+            callee = None
+    return totals
+
+
+def read_allocs(path):
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return parse_allocs(f)
+
+
+def ticks(label):
+    return MEASURED_TICKS.get(label.split(".", 1)[0], 1)
+
+
+def per_tick(total, n):
+    return f"{total / n:.2f}".rstrip("0").rstrip(".")
+
+
+def alloc_warnings(label, base, head):
+    n = ticks(label)
+    return [f"::warning::{label}: {g} per tick rose {per_tick(base[g], n)} → {per_tick(head[g], n)}"
+            for g in GROUPS if head[g] > base[g]]
+
+
+def alloc_line(label, base, head):
+    n = ticks(label)
+    if base is None:
+        parts = [f"{g} {per_tick(head[g], n)}" for g in GROUPS]
+    else:
+        parts = [f"{g} {per_tick(base[g], n)} → {per_tick(head[g], n)}" for g in GROUPS]
+    return "alloc per tick  " + ", ".join(parts)
+
+
+def alloc_report(label, base, head):
+    n = ticks(label)
+    lines = [f"measured ticks: {n}", "group base head base/tick head/tick"]
+    for g in GROUPS:
+        b = f"{base[g]:,} " if base else "- "
+        bt = per_tick(base[g], n) if base else "-"
+        lines.append(f"{g} {b}{head[g]:,} {bt} {per_tick(head[g], n)}")
+    return lines
+
+
+def alloc_of(path, label):
+    """The counts of one raw file, or None after a warning."""
+    try:
+        return read_allocs(path)
+    except (OSError, ValueError) as e:
+        print(f"::warning::{label}: cannot read the allocator calls of {path}: {e}")
+        return None
 
 
 def cut(name):
@@ -167,7 +258,7 @@ def main():
         return 1
     os.makedirs(args.out, exist_ok=True)
     summary = ["### Profile on " + args.arch, ""]
-    order, any_steps = read_order(args.schedule), False
+    order, any_steps, alloc_lines = read_order(args.schedule), False, []
     for label, head_path, base_path in cases:
         lines, moved, step_rows = None, False, None
         for inclusive, kind in ((False, "exclusive"), (True, "inclusive")):
@@ -195,6 +286,16 @@ def main():
                     step_rows = step_table(sides[0], sides[1], order)
                     write(args.out, f"{label}.steps.txt", "\n".join(step_lines(step_rows, base is not None)) + "\n")
                     any_steps = True
+        head_alloc = alloc_of(head_path, label)
+        base_alloc = alloc_of(base_path, label) if base_path else None
+        if head_alloc is None or (base_path and base_alloc is None):
+            alloc_lines.append(f"{label}: alloc per tick  unreadable")
+        else:
+            write(args.out, f"{label}.alloc.txt", "\n".join(alloc_report(label, base_alloc, head_alloc)) + "\n")
+            alloc_lines.append(f"{label}: {alloc_line(label, base_alloc, head_alloc)}")
+            if base_alloc:
+                for warning in alloc_warnings(label, base_alloc, head_alloc):
+                    print(warning)
         if lines is not None and moved:
             summary += [f"**{label}**", "", "```", *lines[: 2 + args.summary_top], "```", ""]
             if step_rows:
@@ -203,6 +304,8 @@ def main():
                     summary += ["```", *step_lines(shown, base_path is not None), "```", ""]
     if not any_steps:
         summary += ["no named tick steps in the profile (BS2a)", ""]
+    if alloc_lines:
+        summary += ["**Allocator calls per measured tick**", "", "```", *alloc_lines, "```", ""]
     summary.append(f"Per-function diffs and the callgrind files: artifact `bench-profile-{args.arch}`.")
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if path:
