@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use stella_rain_core::behaviour::{BossCall, Elite, Movement};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
@@ -876,4 +877,85 @@ fn a_shrine_needs_an_elite_that_stays() {
     let mut st = stage_full(600, Some(far_boss()), vec![], vec![c]);
     st.levels = None;
     assert_eq!(issues(&st), ["$.companions[0].movement"]);
+}
+
+// --- The pulse: a shrine's rules run only during its fight (Z3a-1) ----------------------------
+
+/// A shrine whose one rule lays a small zone beside it every 300 ticks, wherever the main
+/// character is. Its range is wide, so the main character at `SIDE` is in range without touching.
+fn pulsing_shrine(fight_ticks: u32, count: u8, guardian_hp: u32) -> Value {
+    let mut s = shrine(fight_ticks, count, guardian_hp);
+    let zone = json!({ "type": "zone", "shape": { "type": "circle", "radius": 1024 },
+                       "anchor": "attacker", "wind_up_ticks": 1, "active_ticks": 1 });
+    let phase = json!({ "kind": "wind_up", "ticks": 1, "damage": 5, "spawn": [zone] });
+    s["rules"] = json!([{ "when": always(), "target": "player", "cooldown_ticks": 300,
+                          "do": { "type": "attack", "attack": { "inline": [phase] } } }]);
+    s["elite"]["range"] = json!(100_000);
+    s
+}
+
+/// The ticks on which a zone appears (none alive before, some after) over the next `ticks` ticks.
+fn zones_appear(e: &mut Engine, input: Input, ticks: u32) -> Vec<u32> {
+    let alive = |e: &Engine| !e.snapshot().zones.is_empty();
+    let mut seen = Vec::new();
+    for _ in 0..ticks {
+        let before = alive(e);
+        e.step(input);
+        if !before && alive(e) {
+            seen.push(e.tick());
+        }
+    }
+    seen
+}
+
+#[test]
+fn an_untouched_shrine_fires_no_rule_though_the_main_character_is_in_range() {
+    let mut e = with(&shrine_stage(SIDE, pulsing_shrine(600, 2, 5), vec![]));
+    assert_eq!(zones_appear(&mut e, idle(), 600), Vec::<u32>::new());
+    assert_eq!(fight_of(&e), None, "still untouched");
+}
+
+#[test]
+fn a_shrine_pulses_from_the_tick_after_the_touch_every_cooldown() {
+    let mut e = with(&shrine_stage(SIDE, pulsing_shrine(900, 2, 100_000), vec![]));
+    let t = activated(&touch(&mut e))[0];
+    let first = t + 1;
+    assert_eq!(
+        zones_appear(&mut e, idle(), 650),
+        [first, first + 300, first + 600]
+    );
+}
+
+#[test]
+fn a_timed_out_shrine_pulses_no_more() {
+    let mut e = with(&shrine_stage(SIDE, pulsing_shrine(120, 2, 100_000), vec![]));
+    let t = activated(&touch(&mut e))[0];
+    let seen = zones_appear(&mut e, idle(), 600);
+    assert_eq!(seen, [t + 1], "one pulse, none after it left");
+    assert!(positions(&e, true).is_empty(), "the shrine is gone");
+}
+
+#[test]
+fn a_cleared_shrine_pulses_no_more() {
+    // As in the clearing test above: shoot the east guardian, then walk west and shoot the other.
+    let mut e = with(&shrine_stage(SIDE, pulsing_shrine(900, 2, 5), vec![]));
+    let t = activated(&touch(&mut e))[0];
+    let mut seen = Vec::new();
+    let mut alive = false;
+    while !positions(&e, true).is_empty() {
+        assert!(e.tick() < t + 400, "the shrine should be cleared by now");
+        let input = if positions(&e, false).len() == 1 {
+            moving(-127, 0)
+        } else {
+            idle()
+        };
+        e.step(firing(input, e.tick()));
+        let now = !e.snapshot().zones.is_empty();
+        if now && !alive {
+            seen.push(e.tick());
+        }
+        alive = now;
+    }
+    assert_eq!(seen, [t + 1], "the pulse before the clear");
+    assert_eq!(zones_appear(&mut e, idle(), 600), Vec::<u32>::new());
 }
