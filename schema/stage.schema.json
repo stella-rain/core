@@ -1250,6 +1250,10 @@
           "description": "A slow projectile with a required lifetime (core Z2, DS10): it flies for `ticks` ticks\n(1 to `limits::MAX_ORB_TICKS`), and then `burst` runs from where it ended, as an attack of\nits own. A `breakable` orb is destroyed, with no burst, by the main character's hit boxes.\nEnemy attacks only; the burst holds only `zone`, `ring`, `spread`, `repeat`, `rotate` and\n`wait` nodes. At most `MAX_ORBS_PER_OWNER` orbs per attacker and `MAX_ORBS_ALIVE` in all;\none over a cap is dropped.",
           "type": "object",
           "properties": {
+            "anchor": {
+              "description": "Where the orbs spawn from: the attacker, or the target as it is when the node fires\n(Z3a-4). Sampled once; the orbs then fly on their own.",
+              "$ref": "#/$defs/Anchor"
+            },
             "breakable": {
               "type": "boolean"
             },
@@ -1272,6 +1276,10 @@
                   "type": "null"
                 }
               ]
+            },
+            "offset": {
+              "description": "Moves the spawn point forward along the orb's direction and to the right of it.",
+              "$ref": "#/$defs/Offset"
             },
             "speed": {
               "$ref": "#/$defs/Expr"
@@ -1319,8 +1327,15 @@
           "type": "object",
           "properties": {
             "active_ticks": {
-              "description": "1 to `MAX_ZONE_TICKS`.",
-              "$ref": "#/$defs/Expr"
+              "description": "1 to `MAX_ZONE_TICKS`. Required, unless the zone is `warn_only`, which refuses it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "anchor": {
               "$ref": "#/$defs/Anchor"
@@ -1346,6 +1361,10 @@
               "type": "string",
               "const": "zone"
             },
+            "warn_only": {
+              "description": "A warning only (Z3a-4): it warns for `wind_up_ticks` (1 or more) and then ends. It\nnever becomes active, never hurts and gives no invulnerability; its phase's `damage`,\n`type` and `breaks_charge` are not used for it. It counts in `MAX_ZONES_ALIVE`.",
+              "type": "boolean"
+            },
             "wind_up_ticks": {
               "description": "0 to `MAX_ZONE_TICKS`; 0 is a zone that hurts at once.",
               "$ref": "#/$defs/Expr"
@@ -1355,8 +1374,7 @@
           "required": [
             "type",
             "shape",
-            "wind_up_ticks",
-            "active_ticks"
+            "wind_up_ticks"
           ]
         }
       ]
