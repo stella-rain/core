@@ -1126,6 +1126,8 @@ fn emit_zone(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter) -> b
             dir,
             wind_left,
             active_left,
+            wind_ticks: wind_left,
+            active_ticks: active_left,
             damage: t.damage,
             damage_type: t.damage_type,
             breaks_charge: t.breaks_charge,

@@ -282,6 +282,11 @@ impl Engine {
                     } else {
                         z.active_left
                     },
+                    ticks: if z.wind_left > 0 {
+                        z.wind_ticks
+                    } else {
+                        z.active_ticks
+                    },
                     friendly: z.friendly,
                 })
                 .collect(),
