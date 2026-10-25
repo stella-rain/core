@@ -14,6 +14,7 @@ use stella_rain_core::id::EntityId;
 use stella_rain_core::rune::{Rune, RuneKind};
 use stella_rain_core::runes::MAX_DOT_STACKS;
 use stella_rain_core::snapshot::EntityKind;
+use stella_rain_core::validate::limits::MAX_ELITES_ALIVE;
 
 /// The most Rune Haste there is (`DEFAULT_MAX_RUNE_HASTE_PCT`, ADR-099 point 5).
 const FULL_HASTE: u32 = 300;
@@ -144,6 +145,17 @@ fn assert_fresh_stack(engine: &Engine) {
     );
 }
 
+/// 32 of the 500 enemies are elites (`MAX_ELITES_ALIVE`, BR1e-3).
+fn assert_elites(engine: &Engine) {
+    let elites = engine
+        .snapshot()
+        .entities
+        .iter()
+        .filter(|e| e.kind == EntityKind::Enemy && e.elite)
+        .count();
+    assert_eq!(elites, usize::from(MAX_ELITES_ALIVE));
+}
+
 /// What the worst-case tick holds (core BR1b): the caps of the rules but the orbs' and the
 /// emitter's (a handful of waits start and end each tick: `emitter_steps` is read from the engine).
 /// Load counts an orb as an orb, so the 32 orbs are the only "orbs" and none is
@@ -183,6 +195,7 @@ fn the_measured_tick_reaches_every_dynamic_cap() {
     assert_eq!(engine.load(), worst(&engine));
     assert_hit_boxes(&engine);
     assert_zones(&engine);
+    assert_elites(&engine);
     assert_orbs_and_ranged(&engine);
     assert_fresh_stack(&engine);
     assert_runes_and_statuses(&engine);
@@ -205,6 +218,7 @@ fn the_caps_are_held_tick_after_tick() {
         assert_eq!(engine.load(), worst(&engine), "on tick {tick}");
         assert_hit_boxes(&engine);
         assert_zones(&engine);
+        assert_elites(&engine);
         assert_orbs_and_ranged(&engine);
         assert_fresh_stack(&engine);
         assert_runes_and_statuses(&engine);
