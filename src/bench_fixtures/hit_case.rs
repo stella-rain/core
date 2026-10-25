@@ -1,7 +1,7 @@
 //! The worst case of melee hit boxes and zones against the crowd within the caps of ADR-020
 //! (core BR1b). Shared by `benches/hit_tick.rs`, which counts its instructions, and
 //! `tests/hit_case.rs`, which checks that the measured tick has the load it claims. It takes the
-//! place of the friendly-projectile collision case: no projectile is alive.
+//! place of the main character's bullet collision case (BR1b): no orb is alive.
 
 use super::common;
 use crate::engine::Engine;

@@ -10,7 +10,7 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
 ## `.github/workflows/`
 
 - Rust gates on x86_64 and arm64 (tests also on Windows and macOS), the mobile `cargo check`,
-  the fuzz jobs and the tick benchmarks (`rust.yml`; the bench job uploads `bench-profile-<arch>`). A PR of only `*.md` files skips every
+  the fuzz jobs and the tick benchmarks (`rust.yml`, every target in `benches/budgets.toml`; the bench job uploads `bench-profile-<arch>`). A PR of only `*.md` files skips every
   Rust job, and `rust checks` passes when each job ran or was skipped by right.
 - `generated sets` (job `bless`) runs `cargo xtask bless --check` on Linux: it fails, naming the
   stale sets (schema, corpus, goldens, content pack), when regenerating them changes a file.
@@ -32,8 +32,11 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
 
 ## `.github/scripts/`
 
-`release.py` (the release's version, checks and notes), `bench_budget.py`, `bench_alarm.py`,
-`callgrind_diff.py`, the iOS Simulator runner and the fuzz report, with their tests: `python3 -m unittest discover -s .github/scripts`.
+`release.py` (the release's version, checks and notes), `bench_budget.py` (the tick budgets),
+`bench_alarm.py` (the rise alarm) and `callgrind_diff.py` (the bench profile), tested by `test_release.py`,
+`test_bench_budget.py`, `test_bench_alarm.py` and `test_callgrind_diff.py`; `test_candidate_workflow.py`
+checks the release workflows' text. The iOS Simulator runner (`ios-sim-runner.sh`) and the fuzz report
+(`fuzz-report.sh`) have no tests. Run: `python3 -m unittest discover -s .github/scripts`.
 
 ## Gates in CI
 
