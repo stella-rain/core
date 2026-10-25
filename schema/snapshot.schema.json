@@ -1150,6 +1150,15 @@
           "description": "An orb the main character's hit box breaks.",
           "type": "boolean"
         },
+        "link_to": {
+          "description": "The index, in this list, of the orb a live beam runs to from this one (a cage's `link`);\nthe beam is as wide as `link.width` and hurts the main character.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
         "radius": {
           "$ref": "#/$defs/Fx"
         },
