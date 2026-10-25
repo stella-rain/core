@@ -1150,10 +1150,6 @@
           "description": "An orb the main character's hit box breaks.",
           "type": "boolean"
         },
-        "orb": {
-          "description": "An orb (core Z2): slow, timed, and it bursts when its time is up.",
-          "type": "boolean"
-        },
         "radius": {
           "$ref": "#/$defs/Fx"
         },

@@ -1760,7 +1760,7 @@ fn orb_and_token_reach(name: &str) -> (usize, usize, usize, bool) {
             })
             .count();
         held = held.max(tokens);
-        orbs = orbs.max(snapshot.orbs.iter().filter(|b| b.orb).count());
+        orbs = orbs.max(snapshot.orbs.len());
         zoned |= !snapshot.zones.is_empty();
         broken += engine
             .events()
