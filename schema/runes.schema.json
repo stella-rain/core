@@ -69,6 +69,17 @@
           "format": "uint32",
           "minimum": 0
         },
+        "dash": {
+          "description": "An active phase of an enemy's or the boss's attack only: the attacker moves along the\nattack's locked facing over the phase, hit box and boss parts with it (DS11).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Dash"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "hit_box": {
           "description": "The area the phase covers, attached to the attacker.",
           "anyOf": [
@@ -200,6 +211,19 @@
         "anemo",
         "geo",
         "dendro"
+      ]
+    },
+    "Dash": {
+      "description": "A phase that carries its attacker forward: it covers `distance` over the phase's ticks, held\nto the map. The phase's `move_pct` is 0, so that the walk does not add to it.",
+      "type": "object",
+      "properties": {
+        "distance": {
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "distance"
       ]
     },
     "Direction": {
