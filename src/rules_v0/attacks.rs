@@ -1184,6 +1184,7 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
         ticks,
         breakable,
         burst,
+        stop_after,
         ..
     } = node
     else {
@@ -1199,6 +1200,10 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
     let speed = value(s, t, ab, speed).clamp(-MAX_LEN, MAX_LEN);
     let life = orb_ticks(value(s, t, ab, ticks));
     let dir = heading(s, t, ab, origin, direction);
+    // Evaluated last, and only when set, so a stage without it draws as it did.
+    let stop = stop_after
+        .as_ref()
+        .map(|n| self::ticks(value(s, t, ab, n)).min(life));
     t.last_dir = dir;
     if t.friendly {
         return true;
@@ -1237,10 +1242,11 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
     });
     let scale = i64::from(trig::SCALE);
     let velocity = |component: i32| Fx(saturate(i64::from(component) * i64::from(speed) / scale));
+    let halted = stop == Some(0);
     s.orbs.push(OrbState {
         at: origin,
-        vx: velocity(dir.x),
-        vy: velocity(dir.y),
+        vx: if halted { Fx(0) } else { velocity(dir.x) },
+        vy: if halted { Fx(0) } else { velocity(dir.y) },
         dir,
         style: style.as_ref().map_or(0, |b| registry::orb_style(&b.0)),
         owner: t.owner,
@@ -1252,6 +1258,7 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
         hook,
         breakable: *breakable,
         life,
+        stop,
     });
     true
 }

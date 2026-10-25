@@ -885,6 +885,8 @@ pub(crate) struct OrbState {
     /// Ticks left before it leaves the map (core#147). It leaves when this runs out or when it is
     /// past the map's margin, whichever comes first.
     pub life: u32,
+    /// Moves left before it halts (`stop_after`, Z3a-3); `Some(0)` is halted, `None` never halts.
+    pub stop: Option<u32>,
 }
 
 /// A zone (core Z1): an area that does not move. It warns for `wind_left` ticks, then hurts for

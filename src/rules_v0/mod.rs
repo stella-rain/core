@@ -668,6 +668,13 @@ fn move_orbs(stage: &World, s: &mut State) {
             b.at.x = b.at.x.saturating_add(b.vx);
             b.at.y = b.at.y.saturating_add(b.vy);
             b.life -= 1;
+            if let Some(n) = b.stop.as_mut().filter(|n| **n > 0) {
+                *n -= 1;
+                if *n == 0 {
+                    b.vx = Fx(0);
+                    b.vy = Fx(0);
+                }
+            }
             holds(b.at)
         }
     });
@@ -1260,6 +1267,14 @@ fn hash_orb(h: &mut StateHasher, b: &crate::engine::OrbState) {
     }
 }
 
+/// The bytes of an orb that only a cage has: when it halts.
+fn hash_orb_cage(h: &mut StateHasher, b: &crate::engine::OrbState) {
+    h.write_bool(b.stop.is_some());
+    if let Some(n) = b.stop {
+        h.write_u32(n);
+    }
+}
+
 fn hash_orb_flags(h: &mut StateHasher, b: &crate::engine::OrbState) {
     h.write_bool(b.breakable);
 }
@@ -1779,6 +1794,14 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         h.write_u32(count(&horde.used));
         for used in &horde.used {
             h.write_bool(*used);
+        }
+    }
+    // After the horde's, and only when an orb has a stop or a link (Z3a-3): per orb, in order,
+    // what the orbs' own bytes leave out, so runs without cages hash nothing new.
+    if s.orbs.iter().any(|b| b.stop.is_some()) {
+        h.write_u32(count(&s.orbs));
+        for b in &s.orbs {
+            hash_orb_cage(&mut h, b);
         }
     }
     // After it, and only while a zone is alive or an attack holds the spot where its target

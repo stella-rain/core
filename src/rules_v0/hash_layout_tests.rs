@@ -33,6 +33,7 @@ fn orb(breakable: bool) -> OrbState {
         hook: None,
         breakable,
         life: 10,
+        stop: None,
     }
 }
 
