@@ -1,8 +1,8 @@
 //! A steady tick neither allocates nor frees (T1b): the per-tick buffers are reused and the
 //! per-enemy lists are inline. An allocator call inside a measured tick would make a bench's
-//! instruction count depend on the heap's layout, so both are counted. The counting allocator is installed in `integration.rs` (a global allocator must
-//! be in the crate root); its counters are per thread, so parallel tests do not disturb each
-//! other.
+//! instruction count depend on the heap's layout, so both are counted. The counting allocator is
+//! installed in `integration.rs` (a global allocator must be in the crate root); its counters are
+//! per thread, so parallel tests do not disturb each other.
 
 #![expect(unsafe_code, reason = "the counting allocator forwards to System")]
 
@@ -20,7 +20,8 @@ thread_local! {
     static PEAK: Cell<i64> = const { Cell::new(0) };
 }
 
-/// The system allocator, counting the allocations, the frees and the bytes held by the current thread.
+/// The system allocator, counting the allocations, the frees and the bytes held by the current
+/// thread.
 pub struct Counting;
 
 fn grew(bytes: usize) {
