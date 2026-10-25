@@ -119,7 +119,7 @@ print(open(path).read())
 """
 
 
-class Cli(unittest.TestCase):
+class CliBase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -130,6 +130,16 @@ class Cli(unittest.TestCase):
             f.write(FAKE.format(python=sys.executable))
         os.chmod(self.fake, os.stat(self.fake).st_mode | stat.S_IXUSR)
 
+    def run_cli(self, *extra, annotate=None):
+        env = dict(os.environ, GITHUB_STEP_SUMMARY=os.path.join(self.tmp.name, "sum.md"))
+        return subprocess.run(
+            [sys.executable, SCRIPT, "--home", self.home, "--out", self.out,
+             "--annotate", annotate or self.fake, "--arch", "x86_64", *extra],
+            capture_output=True, text=True, env=env, check=False,
+        )
+
+
+class Cli(CliBase):
     def case(self, base=True):
         d = os.path.join(self.home, "stella-rain-core", "worst_tick", "g", "worst_tick.worst_tick")
         os.makedirs(d)
@@ -138,14 +148,6 @@ class Cli(unittest.TestCase):
         if base:
             with open(os.path.join(d, "callgrind.worst_tick.worst_tick.out.base@main"), "w") as f:
                 f.write(BASE)
-
-    def run_cli(self, *extra, annotate=None):
-        env = dict(os.environ, GITHUB_STEP_SUMMARY=os.path.join(self.tmp.name, "sum.md"))
-        return subprocess.run(
-            [sys.executable, SCRIPT, "--home", self.home, "--out", self.out,
-             "--annotate", annotate or self.fake, "--arch", "x86_64", *extra],
-            capture_output=True, text=True, env=env, check=False,
-        )
 
     def test_writes_the_files_and_the_summary(self):
         self.case()
@@ -219,6 +221,148 @@ class Cli(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         diff = open(os.path.join(self.out, "t.c.diff.txt")).read()
         self.assertIn("fn_a", diff)
+
+P = "stella_rain_core::rules_v0::schedule::steps::"
+
+STEP_BASE = """900 PROGRAM TOTALS
+
+  500  ???:""" + P + """run_attacks [/t/base/bench]
+  200  ???:""" + P + """advance_tick::h0123abcd [/t/base/bench]
+   50  ???:""" + P + """old_step [/t/base/bench]
+  900  ???:other_fn [/t/base/bench]
+"""
+
+STEP_HEAD = """950 PROGRAM TOTALS
+
+  550  ???:""" + P + """run_attacks [/t/head/bench]
+  200  ???:""" + P + """advance_tick [/t/head/bench]
+  900  ???:other_fn [/t/head/bench]
+"""
+
+SCHEDULE = """pub const TICK: &[Step] = steps![spawn_boss, advance_tick,
+    run_attacks];
+"""
+
+RAW_BASE = """version: 1
+events: Ir
+fl=(1) a.rs
+fn=(1) a
+cfn=(3) malloc
+calls=2 0x10
+5 100
+fn=(2) b
+cfn=(3)
+calls=1 0x10
+6 100
+fn=(4) realloc
+cfn=free
+calls=7 0x20
+7 100
+fn=(5) c
+cfn=(6) free
+calls=3 0x20
+8 100
+"""
+
+RAW_HEAD = RAW_BASE.replace("calls=1 0x10", "calls=2 0x10")
+
+
+class Steps(unittest.TestCase):
+    def test_step_rows_are_cut_at_the_first_non_identifier_character(self):
+        _, rows = c.parse_annotate(STEP_BASE)
+        self.assertEqual(c.parse_steps(rows), {"run_attacks": 500, "advance_tick": 200, "old_step": 50})
+        _, rows = c.parse_annotate("1 PROGRAM TOTALS\n 7  <f.rs>:" + P + "x::h0123abcd\n 4  ???:x\n")
+        self.assertEqual(c.parse_steps(rows), {"x": 7})
+
+    def test_order_comes_from_steps_macro(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "schedule.rs")
+            open(path, "w").write(SCHEDULE)
+            order = c.read_order(path)
+            self.assertEqual(order, ["spawn_boss", "advance_tick", "run_attacks"])
+            self.assertEqual(c.order_steps({"run_attacks", "old_step", "advance_tick"}, order),
+                             ["advance_tick", "run_attacks", "old_step"])
+            self.assertIsNone(c.read_order(os.path.join(d, "missing.rs")))
+            open(path, "w").write("fn nothing() {}")
+            self.assertIsNone(c.read_order(path))
+        self.assertEqual(c.order_steps({"b", "a"}, None), ["a", "b"])
+
+    def test_rest_is_the_total_minus_the_steps_and_only_changed_rows_show(self):
+        base = (900, {"run_attacks": 500, "advance_tick": 200, "old_step": 50})
+        head = (950, {"run_attacks": 550, "advance_tick": 200})
+        rows = c.step_table(base, head, ["advance_tick", "run_attacks"])
+        self.assertEqual(rows, [("advance_tick", 200, 200), ("run_attacks", 500, 550),
+                                ("old_step", 50, 0), ("rest", 150, 200)])
+        self.assertEqual(c.step_lines(rows, True)[0], "step base head delta")
+        self.assertIn("run_attacks 500 550 +50", c.step_lines(rows, True))
+        self.assertEqual([r[0] for r in c.changed(rows)], ["run_attacks", "old_step", "rest"])
+        self.assertEqual(c.step_lines(c.step_table(None, head, None), False)[0], "step head")
+
+
+class Allocs(unittest.TestCase):
+    def test_calls_from_two_callers_count_and_calls_inside_realloc_do_not(self):
+        self.assertEqual(c.parse_allocs(RAW_BASE), {"alloc": 3, "realloc": 0, "free": 3})
+
+    def test_names_are_compared_without_file_or_version_suffix(self):
+        raw = "fn=(1) a\ncfn=(2) ???:malloc@GLIBC_2.2.5\ncalls=4 0x1\n1 1\ncfn=<x.c>:calloc\ncalls=1 0x1\n1 1\n"
+        self.assertEqual(c.parse_allocs(raw), {"alloc": 5, "realloc": 0, "free": 0})
+        raw = "fn=(1) a\ncfn=realloc\ncalls=2 0x1\n1 1\ncfn=posix_memalign\ncalls=1 0x1\n1 1\n"
+        self.assertEqual(c.parse_allocs(raw), {"alloc": 1, "realloc": 2, "free": 0})
+
+    def test_per_tick_divides_by_the_measured_ticks_of_the_target(self):
+        self.assertEqual(c.ticks("worst_minute.worst_minute"), 3600)
+        self.assertEqual(c.ticks("worst_tick.worst_tick"), 1)
+        self.assertEqual(c.ticks("worst_minute_peak.worst_minute_peak"), 1)
+        self.assertEqual(c.per_tick(7200, 3600), "2")
+        self.assertEqual(c.per_tick(3, 1), "3")
+        self.assertEqual(c.per_tick(900, 3600), "0.25")
+
+    def test_a_rise_warns_once_per_group_and_equal_does_not(self):
+        base, head = {"alloc": 3, "realloc": 0, "free": 3}, {"alloc": 4, "realloc": 0, "free": 3}
+        warns = c.alloc_warnings("worst_tick.worst_tick", base, head)
+        self.assertEqual(len(warns), 1)
+        self.assertTrue(warns[0].startswith("::warning::worst_tick.worst_tick: alloc per tick rose 3 → 4"))
+        self.assertEqual(c.alloc_warnings("worst_tick.worst_tick", base, base), [])
+
+
+class StepsAndAllocsCli(CliBase):
+    def case_with(self, head, base, raw_head=RAW_HEAD, raw_base=RAW_BASE, label="worst_tick"):
+        d = os.path.join(self.home, "stella-rain-core", label, "g", f"{label}.{label}")
+        os.makedirs(d)
+        open(os.path.join(d, f"callgrind.{label}.{label}.out"), "w").write(head + raw_head)
+        open(os.path.join(d, f"callgrind.{label}.{label}.out.base@main"), "w").write(base + raw_base)
+
+    def schedule(self):
+        path = os.path.join(self.tmp.name, "schedule.rs")
+        open(path, "w").write(SCHEDULE)
+        return path
+
+    def summary(self):
+        return open(os.path.join(self.tmp.name, "sum.md")).read()
+
+    def test_steps_and_allocs_are_written_and_summarised(self):
+        self.case_with(STEP_HEAD, STEP_BASE)
+        p = self.run_cli("--schedule", self.schedule())
+        self.assertEqual(p.returncode, 0, p.stderr)
+        steps = open(os.path.join(self.out, "worst_tick.worst_tick.steps.txt")).read()
+        self.assertIn("advance_tick 200 200 +0", steps)
+        self.assertIn("run_attacks 500 550 +50", steps)
+        self.assertIn("rest 150 200 +50", steps)
+        alloc = open(os.path.join(self.out, "worst_tick.worst_tick.alloc.txt")).read()
+        self.assertIn("alloc", alloc)
+        summary = self.summary()
+        self.assertIn("run_attacks 500 550 +50", summary)
+        self.assertNotIn("advance_tick 200 200", summary)
+        self.assertIn("alloc per tick  alloc 3 → 4, realloc 0 → 0, free 3 → 3", summary)
+        self.assertEqual(p.stdout.count("::warning::"), 1)
+        self.assertIn("alloc per tick rose 3 → 4", p.stdout)
+
+    def test_no_step_frames_writes_no_steps_file_and_notes_it(self):
+        self.case_with(HEAD, BASE)
+        p = self.run_cli("--schedule", self.schedule())
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertFalse(any(n.endswith(".steps.txt") for n in os.listdir(self.out)))
+        self.assertEqual(self.summary().count("no named tick steps in the profile (BS2a)"), 1)
 
 
 if __name__ == "__main__":
