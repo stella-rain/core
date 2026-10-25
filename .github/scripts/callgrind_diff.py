@@ -30,6 +30,7 @@ ALLOCATOR = {name: group for group, names in GROUPS.items() for name in names}
 MEASURED_TICKS = {"worst_minute": 3600}  # every other bench target measures one tick
 RAW_NAME = re.compile(r"^(c?fn)=(?:\((\d+)\)(?: (.*))?|(.+))$")
 STEP_SELF = re.compile(r"^(?:|::h[0-9a-f]+|<.*)$")
+RECURSION = re.compile(r"'\d+$")  # callgrind's name for a recursive instance: free'2
 CALLS = re.compile(r"^calls=(\d+)")
 FILE_SPLIT = re.compile(r"^[^:]*?:(?!:)")
 
@@ -54,6 +55,7 @@ def parse_steps(rows):
     steps = {}
     for name, count in rows.items():
         name = FILE_SPLIT.sub("", name, count=1)
+        name = RECURSION.sub("", name.rstrip())
         if name.startswith(STEP_PREFIX):
             step = STEP_NAME.match(name[len(STEP_PREFIX):])
             # only the step's own function (a hash or generics may follow), not a closure or helper inside it
@@ -104,6 +106,7 @@ def step_lines(rows, with_base):
 def allocator(name):
     """The group of an allocator entry point, or None for any other function."""
     name = re.sub(r"^(?:\?\?\?|<[^>]*>):", "", name).split("@", 1)[0]
+    name = RECURSION.sub("", name)
     return ALLOCATOR.get(name)
 
 

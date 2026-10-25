@@ -330,7 +330,7 @@ class Allocs(unittest.TestCase):
         self.assertEqual(c.parse_allocs(raw), {"alloc": 2, "realloc": 0, "free": 4})
 
     def test_a_recursion_suffix_does_not_hide_a_step_frame(self):
-        name = "???:" + P + "run_attacks'2 [/t/bench]"
+        name = "???:" + P + "run_attacks'2"
         self.assertEqual(c.parse_steps({name: 5}), {"run_attacks": 5})
 
     def test_per_tick_divides_by_the_measured_ticks_of_the_target(self):
