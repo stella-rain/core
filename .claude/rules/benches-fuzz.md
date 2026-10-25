@@ -5,18 +5,20 @@ paths:
   - "src/bench_fixtures/**"
   - "tests/bench_fixture_pins.rs"
   - "Cargo.toml"
+  - ".github/scripts/bench_*"
+  - ".github/scripts/callgrind_diff.py"
 ---
 
 # Benches and fuzz targets
 
-Sources: ADR-SIM-3, ADR-SIM-6, ADR-SVC-1, ADR-REPL-3, ADR-CONT-3.
+Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-SVC-1, ADR-REPL-3, ADR-CONT-3.
 
 ## Benches (`benches/`)
 
 All count instructions with `iai-callgrind` and read their cases from `src/bench_fixtures/`.
 Each bench target is a key of `benches/budgets.toml`, which CI reads for the list of benches.
 
-- `worst_tick.rs`: one synthetic tick at the enemy, orb and zone caps of ADR-SIM-6 (500 enemies,
+- `worst_tick.rs`: one synthetic tick at the enemy, orb and zone caps of ADR-SIM-7 (500 enemies,
   32 orbs, 128 zones), with every rune, Rune Haste and a damage-over-time status of each kind on
   every enemy (core#180), a fresh stack of enemies to push apart and aim assist looking through
   all 500 for a target. It bounds the frame at the caps. `bench_fixtures/worst_case.rs` builds it;
@@ -43,18 +45,23 @@ Each bench target is a key of `benches/budgets.toml`, which CI reads for the lis
 
 ## Tick cost gate
 
-- `cargo bench --bench worst_tick --bench hit_tick --bench time_limit_tick --bench worst_minute
-  --bench worst_minute_peak` needs `valgrind` and `iai-callgrind-runner` 0.16.1.
-- CI (`rust.yml`, ADR-SIM-6) compares every bench target with the base commit's on both architectures and
-  fails on more than +2% instructions in any of them. It warns on `worst_tick` over its ceiling
-  per arch in `benches/budgets.toml` (`bench_budget.py --warn-only` until the T1 refactor, DS27);
-  a PR changing bench input
-  (`benches/` or `src/bench_fixtures/`) and code (`src/` outside
+- `cargo bench` runs the five targets (every key of `benches/budgets.toml`); it needs `valgrind`
+  and `iai-callgrind-runner` 0.16.1.
+- CI (`rust.yml`, ADR-SIM-7, ADR-SIM-8) on both architectures: the budgets of `benches/budgets.toml`
+  block on every run (`bench_budget.py`); a case that rose over +2% against the base commit
+  (`BENCH_ALARM_PCT`, `bench_alarm.py`) fails unless a new entry of `benches/accepted.toml` covers
+  it (`[[accepted]]`: bench, case, arch, base, count, reason, pr; append-only; Kade merges). An
+  unexplained rise is fixed, not accepted.
+- A PR changing bench input (`benches/*.rs` or `src/bench_fixtures/`) and code (`src/` outside
   `bench_fixtures`, `Cargo.toml`, `Cargo.lock`) fails, since no comparison could tell which moved
-  the count (D-BUDGET): change the bench in its own PR first. A PR of bench input alone is allowed,
-  uncompared.
+  the count: change the bench in its own PR first. Bench input alone is allowed, uncompared.
+  `benches/budgets.toml` and `benches/accepted.toml` are not bench input.
+- Every run uploads `bench-profile-<arch>` (`callgrind_diff.py`): per case `*.diff.txt` (exclusive)
+  and `*.diff-inclusive.txt`, rows `delta base head function` by size, plus the `callgrind.*.out`
+  files. A tick step inserted into `TICK` renumbers `TICK::{closure#N}`: a -X/+X pair, not a cost.
+  Locally: `callgrind_annotate` on the downloaded `.out` files.
 - The benches build at one codegen unit, base and head alike (`[profile.bench]`, core#192).
-- Locally: `-- --save-baseline=base`, then `-- --baseline=base --callgrind-limits=ir=2%`.
+- Locally: `-- --save-baseline=base`, then `-- --baseline=base --callgrind-limits=ir=2%` (the CI alarm is the script).
 
 ## Fuzz (`fuzz/`)
 

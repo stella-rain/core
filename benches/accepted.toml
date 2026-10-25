@@ -1,0 +1,18 @@
+# The ledger of accepted instruction rises (ADR-SIM-8). Kade merges every change to this file.
+#
+# A bench case that rises by more than 2% against the base commit fails the bench job. A rise that
+# is understood and wanted (a new rule, a new enemy) is accepted by adding an entry here in the
+# PR that causes it; an unexplained rise is fixed, not accepted. The file is append-only: an
+# entry of the base commit is never edited or removed (the job fails on it).
+#
+#   [[accepted]]
+#   bench = "worst_minute"        # a key of benches/budgets.toml
+#   case = "worst_minute"         # the bench case, as the bench output names it
+#   arch = "arm64"                # "x86_64" or "arm64": one entry per architecture
+#   base = 1_600_046              # the base commit's count
+#   count = 1_693_000             # the most the head may count: measured head + 0.1%, rounded up to the next 1,000
+#   reason = "one line, why"
+#   pr = 400                      # the PR that adds the entry; it covers no other PR
+#
+# An entry covers a rise only in the PR whose number it names. An entry for a case that did not
+# rise is a warning. Raising a budget is a change to benches/budgets.toml, also Kade's.
