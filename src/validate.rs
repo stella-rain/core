@@ -287,6 +287,7 @@ pub fn validate_attack(
         arity,
         foe: Foe::Enemy,
         ranged_ok: false,
+        loop_rounds: 0,
     };
     ctx.phases(phases);
     if ctx.issues.is_empty() {
@@ -317,6 +318,7 @@ pub fn validate_waves(
         arity: 0,
         foe: Foe::Other,
         ranged_ok: false,
+        loop_rounds: 0,
     };
     for (i, w) in waves.iter().enumerate() {
         ctx.idx(i, |c| c.wave(w, length_ticks, max_count));
@@ -347,6 +349,7 @@ pub fn validate_levels_and_stars(
         arity: 0,
         foe: Foe::Other,
         ranged_ok: false,
+        loop_rounds: 0,
     };
     ctx.key("levels", |c| c.levels(levels));
     ctx.key("stars", |c| c.stars(stars));
@@ -372,6 +375,7 @@ pub fn validate_attack_ref(attack: &AttackRef, registry: &[Entry]) -> Result<(),
         arity: 0,
         foe: Foe::Other,
         ranged_ok: false,
+        loop_rounds: 0,
     };
     ctx.attack_ref(attack);
     if ctx.issues.is_empty() {
@@ -400,6 +404,7 @@ pub fn validate_weapon_preset(preset: &Weapon, registry: &[Entry]) -> Result<(),
         arity: 0,
         foe: Foe::Other,
         ranged_ok: false,
+        loop_rounds: 0,
     };
     ctx.weapon(preset);
     if ctx.issues.is_empty() {
@@ -453,6 +458,7 @@ pub fn validate_with(stage: &Stage, registry: &[Entry]) -> Result<(), Error> {
         arity: 0,
         foe: Foe::Other,
         ranged_ok: false,
+        loop_rounds: 0,
     };
     ctx.stage(stage);
     if ctx.left_out {
@@ -490,6 +496,9 @@ struct Ctx<'a> {
     foe: Foe,
     /// The rules being checked are a regular enemy's, which may be `ranged`.
     ranged_ok: bool,
+    /// The rounds of the `repeat`, `ring` or `spread` nearest round the node being checked: 0 for
+    /// none, `i64::MAX` when its count is computed (an orb's `link` needs at least 2).
+    loop_rounds: i64,
 }
 
 /// Whose attack the validator is in: orbs are only for enemies' and the boss's, `ranged` only for
@@ -1767,22 +1776,17 @@ impl<'a> Ctx<'a> {
                 interval_ticks,
                 body,
             } => {
-                self.repeat_count("count", n);
                 self.constant_ticks("interval_ticks", interval_ticks);
-                self.key("body", |c| c.emitters(body, depth + 1, count))
+                self.looped(n, body, depth, count)
             }
-            Emitter::Ring { count: n, body } => {
-                self.repeat_count("count", n);
-                self.key("body", |c| c.emitters(body, depth + 1, count))
-            }
+            Emitter::Ring { count: n, body } => self.looped(n, body, depth, count),
             Emitter::Spread {
                 count: n,
                 angle,
                 body,
             } => {
-                self.repeat_count("count", n);
                 self.key("angle", |c| c.expr(angle));
-                self.key("body", |c| c.emitters(body, depth + 1, count))
+                self.looped(n, body, depth, count)
             }
             Emitter::Rotate { angle, body } => {
                 self.key("angle", |c| c.expr(angle));
@@ -1798,6 +1802,8 @@ impl<'a> Ctx<'a> {
                 style,
                 ticks,
                 burst,
+                stop_after,
+                link,
                 ..
             } => {
                 if self.foe == Foe::Other {
@@ -1811,6 +1817,19 @@ impl<'a> Ctx<'a> {
                 self.key("ticks", |c| c.expr(ticks));
                 if let Expr::Const(v) = ticks {
                     self.within("ticks", i64::from(*v), 1, i64::from(limits::MAX_ORB_TICKS));
+                }
+                if let Some(n) = stop_after {
+                    self.key("stop_after", |c| c.expr(n));
+                    if let Expr::Const(v) = n {
+                        let most = match ticks {
+                            Expr::Const(t) => i64::from(*t),
+                            _ => i64::from(limits::MAX_ORB_TICKS),
+                        };
+                        self.within("stop_after", i64::from(*v), 0, most);
+                    }
+                }
+                if let Some(l) = link {
+                    self.key("link", |c| c.link(l));
                 }
                 self.key("burst", |c| {
                     c.burst_nodes(burst);
@@ -1833,6 +1852,34 @@ impl<'a> Ctx<'a> {
                 true
             }
         }
+    }
+
+    /// The body of a `repeat`, `ring` or `spread` of `n` rounds.
+    fn looped(&mut self, n: &Expr, body: &[Emitter], depth: u32, count: &mut u32) -> bool {
+        self.repeat_count("count", n);
+        let rounds = match n {
+            Expr::Const(v) => i64::from(*v),
+            _ => i64::MAX,
+        };
+        let outer = std::mem::replace(&mut self.loop_rounds, rounds);
+        let ok = self.key("body", |c| c.emitters(body, depth + 1, count));
+        self.loop_rounds = outer;
+        ok
+    }
+
+    /// An orb's `link`: a beam 1 to 64 pixels wide, hitting every 1 to 600 ticks, between the
+    /// orbs of a loop of at least 2 rounds.
+    fn link(&mut self, l: &crate::attack::Link) {
+        if self.loop_rounds < 2 {
+            self.fail("a link joins the orbs of a ring, spread or repeat of at least 2 rounds");
+        }
+        self.within(
+            "width",
+            i64::from(l.width.0),
+            1,
+            i64::from(crate::fixed::Fx::px(64).0),
+        );
+        self.within("rehit_ticks", i64::from(l.rehit_ticks), 1, 600);
     }
 
     /// An orb's burst holds only the nodes that place zones and time them: `zone`, `ring`,

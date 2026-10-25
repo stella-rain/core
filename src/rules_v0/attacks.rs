@@ -45,8 +45,8 @@ use crate::attack::{
 };
 use crate::difficulties::scale_pct;
 use crate::engine::{
-    Aim, AttackRun, AttackTask, Dir, Frame, Frames, Hook, OrbState, Origin, PathStep, Smash, State,
-    StatusKind, ZoneState,
+    Aim, AttackRun, AttackTask, Dir, Frame, Frames, Hook, OrbLink, OrbState, Origin, PathStep,
+    Smash, State, StatusKind, ZoneState,
 };
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -1184,6 +1184,8 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
         ticks,
         breakable,
         burst,
+        stop_after,
+        link,
     } = node
     else {
         return true;
@@ -1198,6 +1200,10 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
     let speed = value(s, t, ab, speed).clamp(-MAX_LEN, MAX_LEN);
     let life = orb_ticks(value(s, t, ab, ticks));
     let dir = heading(s, t, ab, origin, direction);
+    // Evaluated last, and only when set, so a stage without it draws as it did.
+    let stop = stop_after
+        .as_ref()
+        .map(|n| self::ticks(value(s, t, ab, n)).min(life));
     t.last_dir = dir;
     if t.friendly {
         return true;
@@ -1236,10 +1242,32 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
     });
     let scale = i64::from(trig::SCALE);
     let velocity = |component: i32| Fx(saturate(i64::from(component) * i64::from(speed) / scale));
+    let halted = stop == Some(0);
+    let link = link.as_ref().map(|l| {
+        let slot = u8::try_from(ab.loop_index.clamp(0, i32::from(u8::MAX))).unwrap_or(0);
+        // The orb made just before in this ring, if there is one, names the group.
+        let before = slot.checked_sub(1).and_then(|k| {
+            let mine = s.orbs.iter().rev().filter(|b| b.owner == t.owner);
+            mine.filter_map(|b| b.link).find(|b| b.slot == k)
+        });
+        let group = before.map(|b| b.group).unwrap_or_else(|| {
+            s.next_orb_group += 1;
+            s.next_orb_group
+        });
+        OrbLink {
+            group,
+            slot,
+            of: slot + 1,
+            width: l.width,
+            damage: l.damage.map_or(t.damage, |d| scale_pct(d, s.damage_pct)),
+            rehit_ticks: l.rehit_ticks,
+            last_hit: None,
+        }
+    });
     s.orbs.push(OrbState {
         at: origin,
-        vx: velocity(dir.x),
-        vy: velocity(dir.y),
+        vx: if halted { Fx(0) } else { velocity(dir.x) },
+        vy: if halted { Fx(0) } else { velocity(dir.y) },
         dir,
         style: style.as_ref().map_or(0, |b| registry::orb_style(&b.0)),
         owner: t.owner,
@@ -1251,7 +1279,16 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
         hook,
         breakable: *breakable,
         life,
+        stop,
+        link,
     });
+    if let Some(l) = link {
+        for b in s.orbs.iter_mut().filter_map(|b| b.link.as_mut()) {
+            if b.group == l.group {
+                b.of = l.of;
+            }
+        }
+    }
     true
 }
 

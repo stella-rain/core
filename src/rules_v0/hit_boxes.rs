@@ -155,6 +155,9 @@ pub(super) fn resolve(
     if !s.orbs.is_empty() {
         break_orbs(s, &swings, events);
     }
+    if s.next_orb_group > 0 {
+        cage_beams(stage, s, events);
+    }
     for w in &swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
@@ -193,6 +196,56 @@ fn break_orbs(s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
         }
         !hit
     });
+}
+
+/// The beams of the orbs' cages hurt the main character (Z3a-3), a beam at most once per its
+/// `rehit_ticks`; an orb broken just above is gone, and its beams with it. Each beam is a line
+/// from one orb to its neighbour, tested like a hit box line; its last hit is kept on the orb it
+/// starts from.
+fn cage_beams(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+    for i in 0..s.orbs.len() {
+        let p = &s.player;
+        if p.hp == 0 || p.invulnerable > 0 {
+            return;
+        }
+        let Some(j) = super::beam_to(&s.orbs, i) else {
+            continue;
+        };
+        let (from, to) = (&s.orbs[i], &s.orbs[j]);
+        let Some(link) = from.link else {
+            continue;
+        };
+        if link.last_hit.is_some_and(|t| s.tick - t < link.rehit_ticks) {
+            continue;
+        }
+        let dx = i64::from(to.at.x.0) - i64::from(from.at.x.0);
+        let dy = i64::from(to.at.y.0) - i64::from(from.at.y.0);
+        let length = i32::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i32::MAX);
+        let line = Line::new(super::attacks::normalize(dx, dy), Fx(length), link.width);
+        let d = (
+            i128::from(p.at.x.0) - i128::from(from.at.x.0),
+            i128::from(p.at.y.0) - i128::from(from.at.y.0),
+        );
+        if !line.touches(d, PLAYER_RADIUS) {
+            continue;
+        }
+        let shot = Shot {
+            at: p.at,
+            owner: from.owner,
+            friendly: false,
+            damage: link.damage,
+            damage_type: from.damage_type,
+            breaks_charge: from.breaks_charge,
+            smash: None,
+            combo: false,
+            rune: None,
+            chain: false,
+        };
+        if let Some(l) = s.orbs[i].link.as_mut() {
+            l.last_hit = Some(s.tick);
+        }
+        hurt_player(stage, s, super::aided(stage, s, shot), events);
+    }
 }
 
 fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {

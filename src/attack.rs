@@ -348,6 +348,15 @@ pub enum Emitter {
         breakable: bool,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         burst: Vec<Emitter>,
+        /// Ticks after it is fired when the orb halts (0 to `ticks`): it stays where it is, and its
+        /// lifetime runs on. It moves on the tick it is fired, so it moves `stop_after` times.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        stop_after: Option<Expr>,
+        /// Joins this orb to its neighbours in the ring it is fired in, once they are not flying
+        /// toward a halt: the beams hurt the main character. Needs an enclosing `ring`, `spread` or
+        /// `repeat` of at least 2 rounds.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link: Option<Link>,
     },
     /// A zone that does not move (core Z1): it is placed at the `anchor`, moved by `offset`
     /// (forward along its `direction`, and to the right of it), warns for `wind_up_ticks`,
@@ -366,6 +375,22 @@ pub enum Emitter {
         /// 1 to `MAX_ZONE_TICKS`.
         active_ticks: Expr,
     },
+}
+
+/// The beams between the orbs of one ring (Z3a-3): between slot `j` and slot `j + 1` of the orbs
+/// one `ring`, `spread` or `repeat` fires (the last to the first, unless there are only two), while
+/// both are on the map. A beam is a rectangle `width` across that hurts the main character, each
+/// beam at most once per `rehit_ticks`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Link {
+    /// 1 to 64 pixels.
+    pub width: Fx,
+    /// The damage of a beam hit; absent means the orb's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub damage: Option<u32>,
+    /// 1 to 600.
+    pub rehit_ticks: u32,
 }
 
 /// The direction of a zone that names none: at the target.

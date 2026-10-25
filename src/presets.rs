@@ -205,9 +205,11 @@ fn nodes_highest_arg(nodes: &[Emitter]) -> Option<u8> {
                 direction: d,
                 ticks,
                 burst,
+                stop_after,
                 ..
             } => expr(speed)
                 .max(expr(ticks))
+                .max(stop_after.as_ref().and_then(expr))
                 .max(direction(d))
                 .max(nodes_highest_arg(burst)),
             Emitter::Zone {
@@ -299,6 +301,8 @@ fn emitters(nodes: &[Emitter], args: &[i32]) -> Vec<Emitter> {
                 ticks,
                 breakable,
                 burst,
+                stop_after,
+                link,
             } => Emitter::Orb {
                 speed: expr(speed, args),
                 direction: direction(d, args),
@@ -306,6 +310,8 @@ fn emitters(nodes: &[Emitter], args: &[i32]) -> Vec<Emitter> {
                 ticks: expr(ticks, args),
                 breakable: *breakable,
                 burst: emitters(burst, args),
+                stop_after: stop_after.as_ref().map(|e| expr(e, args)),
+                link: link.clone(),
             },
             Emitter::Zone {
                 shape,

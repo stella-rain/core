@@ -526,8 +526,30 @@
             "direction": {
               "$ref": "#/$defs/Direction"
             },
+            "link": {
+              "description": "Joins this orb to its neighbours in the ring it is fired in, once they are not flying\ntoward a halt: the beams hurt the main character. Needs an enclosing `ring`, `spread` or\n`repeat` of at least 2 rounds.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Link"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "speed": {
               "$ref": "#/$defs/Expr"
+            },
+            "stop_after": {
+              "description": "Ticks after it is fired when the orb halts (0 to `ticks`): it stays where it is, and its\nlifetime runs on. It moves on the tick it is fired, so it moves `stop_after` times.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Expr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "style": {
               "description": "Orb asset; absent means the default orb.",
@@ -926,6 +948,36 @@
             "width"
           ]
         }
+      ]
+    },
+    "Link": {
+      "description": "The beams between the orbs of one ring (Z3a-3): between slot `j` and slot `j + 1` of the orbs\none `ring`, `spread` or `repeat` fires (the last to the first, unless there are only two), while\nboth are on the map. A beam is a rectangle `width` across that hurts the main character, each\nbeam at most once per `rehit_ticks`.",
+      "type": "object",
+      "properties": {
+        "damage": {
+          "description": "The damage of a beam hit; absent means the orb's own.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "rehit_ticks": {
+          "description": "1 to 600.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "width": {
+          "description": "1 to 64 pixels.",
+          "$ref": "#/$defs/Fx"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "rehit_ticks"
       ]
     },
     "Offset": {

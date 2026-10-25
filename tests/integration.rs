@@ -67,6 +67,7 @@ mod map;
 mod match_ups;
 mod named_stars;
 mod numbers_298;
+mod orb_cage;
 mod orb_content;
 mod orbit;
 mod orbs;
