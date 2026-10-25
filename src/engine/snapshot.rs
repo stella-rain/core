@@ -294,7 +294,6 @@ impl Engine {
                     vy: b.vy,
                     radius: Fx(rules_v0::orb_radius()),
                     style: b.style,
-                    orb: true,
                     breakable: b.breakable,
                 })
                 .collect(),

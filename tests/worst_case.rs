@@ -158,12 +158,11 @@ fn worst(engine: &Engine) -> Load {
     }
 }
 
-/// No plain orb is in the air, 32 orbs are (4 shooters, 8 each, core Z2), and the stage has
+/// 32 orbs are in the air (4 shooters, 8 each, core Z2), and the stage has
 /// exactly four shooters, whose ranged runs (`MAX_RANGED_ATTACKERS`) each hold a token.
 fn assert_orbs_and_ranged(engine: &Engine) {
     let snapshot = serde_json::to_value(engine.snapshot()).unwrap();
     let orbs = snapshot["orbs"].as_array().cloned().unwrap_or_default();
-    assert!(orbs.iter().all(|b| b["orb"] == true), "an orb is alive");
     assert_eq!(orbs.len(), 32);
     let stage = serde_json::to_value(worst_case::stage()).unwrap();
     let shooters: u64 = stage["waves"]
