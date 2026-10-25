@@ -12,44 +12,51 @@ const TEARDOWN: &str = "teardown = support::forget_measured";
 fn check(file: &str, src: &str) -> Vec<String> {
     let code: String = src
         .lines()
-        .map(|l| {
-            if l.trim_start().starts_with("//") {
-                ""
-            } else {
-                l
-            }
-        })
+        .map(|l| l.find("//").map_or(l, |at| &l[..at]))
         .collect::<Vec<_>>()
         .join("\n");
     let mut errors = Vec::new();
     let mut found = 0;
     let mut rest = code.as_str();
-    while let Some(at) = rest.find("#[bench::") {
+    while let Some(at) = ["#[bench::", "#[benches::"]
+        .iter()
+        .filter_map(|p| rest.find(p))
+        .min()
+    {
         found += 1;
         let attr_start = &rest[at..];
-        let id: String = attr_start["#[bench::".len()..]
+        let name_at = attr_start.find("::").unwrap() + 2;
+        let id: String = attr_start[name_at..]
             .chars()
             .take_while(|c| c.is_alphanumeric() || *c == '_')
             .collect();
+        let kind = &attr_start[2..name_at - 2];
+        // The attribute ends at the `)` that closes its first `(`; no `(` before the `]`, or
+        // parentheses that never balance, leave it without a teardown.
         let mut depth = 0usize;
-        let mut end = attr_start.len();
+        let mut end = None;
         for (i, c) in attr_start.char_indices() {
             match c {
+                ']' if depth == 0 => {
+                    end = Some(i);
+                    break;
+                }
                 '(' => depth += 1,
                 ')' => {
                     depth = depth.saturating_sub(1);
                     if depth == 0 {
-                        end = i + 1;
+                        end = Some(i + 1);
                         break;
                     }
                 }
                 _ => {}
             }
         }
-        if !attr_start[..end].contains(TEARDOWN) {
-            errors.push(format!("{file}: #[bench::{id}] has no {TEARDOWN}"));
+        let attr = &attr_start[..end.unwrap_or(name_at)];
+        if !has_teardown(attr) {
+            errors.push(format!("{file}: #[{kind}::{id}] has no {TEARDOWN}"));
         }
-        rest = &attr_start[end..];
+        rest = &attr_start[end.unwrap_or(name_at)..];
     }
     if found == 0 {
         errors.push(format!("{file}: has no #[bench::…] attribute"));
@@ -58,6 +65,13 @@ fn check(file: &str, src: &str) -> Vec<String> {
         errors.push(format!("{file}: does not declare `mod support;`"));
     }
     errors
+}
+
+/// The teardown, not a longer name that starts with it.
+fn has_teardown(attr: &str) -> bool {
+    attr.match_indices(TEARDOWN).any(|(at, _)| {
+        !attr[at + TEARDOWN.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
+    })
 }
 
 /// The `[name]` table headers of a TOML file, in order.
@@ -135,6 +149,40 @@ fn checker_requires_a_bench() {
 fn checker_ignores_commented_out_benches() {
     let src = "mod support;\n// #[bench::old(args = (f()))]\n#[bench::one(args = (f()), teardown = support::forget_measured)]\n";
     assert_eq!(check("a.rs", src), Vec::<String>::new());
+}
+
+#[test]
+fn checker_covers_the_plural_benches_attribute() {
+    let src = "mod support;\n#[benches::many(args = [f(), g()])]\nfn a() {}\n";
+    let errors = check("a.rs", src);
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].contains("#[benches::many]"), "{errors:?}");
+}
+
+#[test]
+fn checker_fails_an_attribute_without_parentheses() {
+    let src = "mod support;\n#[bench::x]\nfn x() {}\n#[bench::y(args = (f()), teardown = support::forget_measured)]\n";
+    let errors = check("a.rs", src);
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].contains("#[bench::x]"), "{errors:?}");
+}
+
+#[test]
+fn checker_fails_an_unbalanced_attribute() {
+    let src = "mod support;\n#[bench::x(args = (f())\nfn x() {}\n// teardown = support::forget_measured\n";
+    let errors = check("a.rs", src);
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].contains("#[bench::x]"), "{errors:?}");
+}
+
+#[test]
+fn checker_ignores_a_trailing_comment_and_a_longer_name() {
+    let trailing =
+        "mod support;\n#[bench::x(args = (f()))] // teardown = support::forget_measured\n";
+    assert_eq!(check("a.rs", trailing).len(), 1);
+    let longer =
+        "mod support;\n#[bench::x(args = (f()), teardown = support::forget_measured_v2)]\n";
+    assert_eq!(check("a.rs", longer).len(), 1);
 }
 
 #[test]
