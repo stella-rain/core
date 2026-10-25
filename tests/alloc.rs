@@ -1,5 +1,6 @@
-//! A steady tick allocates nothing (T1b): the per-tick buffers are reused and the per-enemy lists
-//! are inline. The counting allocator is installed in `integration.rs` (a global allocator must
+//! A steady tick neither allocates nor frees (T1b): the per-tick buffers are reused and the
+//! per-enemy lists are inline. An allocator call inside a measured tick would make a bench's
+//! instruction count depend on the heap's layout, so both are counted. The counting allocator is installed in `integration.rs` (a global allocator must
 //! be in the crate root); its counters are per thread, so parallel tests do not disturb each
 //! other.
 
@@ -14,11 +15,12 @@ use stella_rain_core::run_replay::{CommandKind, RunReplay};
 
 thread_local! {
     static COUNT: Cell<u64> = const { Cell::new(0) };
+    static FREES: Cell<u64> = const { Cell::new(0) };
     static LIVE: Cell<i64> = const { Cell::new(0) };
     static PEAK: Cell<i64> = const { Cell::new(0) };
 }
 
-/// The system allocator, counting the allocations and the bytes held by the current thread.
+/// The system allocator, counting the allocations, the frees and the bytes held by the current thread.
 pub struct Counting;
 
 fn grew(bytes: usize) {
@@ -42,6 +44,7 @@ unsafe impl GlobalAlloc for Counting {
         unsafe { System.alloc_zeroed(layout) }
     }
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        FREES.with(|f| f.set(f.get() + 1));
         LIVE.with(|l| l.set(l.get() - layout.size() as i64));
         unsafe { System.dealloc(ptr, layout) }
     }
@@ -62,7 +65,32 @@ fn allocations() -> u64 {
     COUNT.with(Cell::get)
 }
 
-use stella_rain_core::bench_fixtures::time_limit_case;
+/// The frees this thread has made so far (`realloc` counts as one allocation, not a free).
+fn frees() -> u64 {
+    FREES.with(Cell::get)
+}
+
+/// The allocations and the frees `f` makes.
+fn counted<R>(f: impl FnOnce() -> R) -> (u64, u64) {
+    let (allocs, freed) = (allocations(), frees());
+    let result = f();
+    let counts = (allocations() - allocs, frees() - freed);
+    // Dropped after the counts are read: whatever `f` returns is not part of the measured tick.
+    drop(result);
+    counts
+}
+
+/// The ticks that allocated or freed, as `(tick, allocs, frees)`.
+fn nonzero(per_tick: &[(u64, u64)], first: u32) -> Vec<(u32, u64, u64)> {
+    per_tick
+        .iter()
+        .enumerate()
+        .filter(|(_, (a, f))| *a > 0 || *f > 0)
+        .map(|(i, (a, f))| (first + i as u32, *a, *f))
+        .collect()
+}
+
+use stella_rain_core::bench_fixtures::{self, Case, time_limit_case};
 
 /// The steady window: the horde of the benchmark's case is at its cap of 500 from tick 1,962 on
 /// (`WARMUP_TICKS`), no wave is left to spawn, and the main character taps its weapon every other
@@ -71,7 +99,7 @@ use stella_rain_core::bench_fixtures::time_limit_case;
 const STEADY_TICKS: u32 = 60;
 
 #[test]
-fn a_steady_tick_allocates_nothing() {
+fn a_steady_tick_allocates_and_frees_nothing() {
     let mut engine = time_limit_case::warmed_up();
     // One more second of warm-up: the per-tick buffers keep their high-water capacity, and with
     // the per-purpose streams (R1) the busiest tick so far (many rules firing at once, tick
@@ -83,14 +111,25 @@ fn a_steady_tick_allocates_nothing() {
     let from = from + STEADY_TICKS;
     let mut per_tick = Vec::with_capacity(STEADY_TICKS as usize);
     for tick in from..from + STEADY_TICKS {
-        let before = allocations();
-        engine.step(time_limit_case::input(tick));
-        per_tick.push(allocations() - before);
+        per_tick.push(counted(|| engine.step(time_limit_case::input(tick))));
     }
-    let total: u64 = per_tick.iter().sum();
+    let at = nonzero(&per_tick, from);
+    assert!(
+        at.is_empty(),
+        "allocations and frees in {STEADY_TICKS} steady ticks, (tick, allocs, frees): {at:?}"
+    );
+}
+
+/// The tick the bench counts (`benches/time_limit_tick.rs`), built by the bench's own fixture:
+/// it must not call the allocator, or its instruction count depends on the heap's layout.
+#[test]
+fn the_bench_tick_allocates_and_frees_nothing() {
+    let Case { mut engine, input } = bench_fixtures::time_limit_tick();
+    let (allocs, freed) = counted(|| engine.step(input));
     assert_eq!(
-        total, 0,
-        "allocations in {STEADY_TICKS} steady ticks, per tick: {per_tick:?}"
+        (allocs, freed),
+        (0, 0),
+        "the bench's measured tick: (allocs, frees)"
     );
 }
 
@@ -166,7 +205,7 @@ fn peak_heap_of_a_minute_of_the_saturated_horde_is_under_16_mib() {
 /// differently from tick to tick (BR1a-0): a run or a zone that hits for the first time must not
 /// allocate once the pool of hit lists has settled.
 #[test]
-fn a_steady_tick_allocates_nothing_while_melee_and_zones_hit_the_main_character() {
+fn a_steady_tick_allocates_and_frees_nothing_while_melee_and_zones_hit_the_main_character() {
     use crate::common::*;
     use serde_json::json;
     let attack = json!({ "inline": [
@@ -193,18 +232,11 @@ fn a_steady_tick_allocates_nothing_while_melee_and_zones_hit_the_main_character(
     }
     let mut per_tick = Vec::new();
     for _ in 0..600 {
-        let before = allocations();
-        e.step(idle());
-        per_tick.push(allocations() - before);
+        per_tick.push(counted(|| e.step(idle())));
     }
-    let total: u64 = per_tick.iter().sum();
-    let at: Vec<_> = per_tick
-        .iter()
-        .enumerate()
-        .filter(|(_, n)| **n > 0)
-        .collect();
-    assert_eq!(
-        total, 0,
-        "allocations in 600 steady ticks, (tick, count): {at:?}"
+    let at = nonzero(&per_tick, 0);
+    assert!(
+        at.is_empty(),
+        "allocations and frees in 600 steady ticks, (tick, allocs, frees): {at:?}"
     );
 }
