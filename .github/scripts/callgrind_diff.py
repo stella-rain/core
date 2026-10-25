@@ -17,6 +17,9 @@ LINE = re.compile(r"^\s*([\d,]+)\s+(\S.*?)\s*$")
 BINARY = re.compile(r"\s+\[[^\]]*\]$")
 NAME_MAX = 200
 TOTALS = "PROGRAM TOTALS"
+STEP_PREFIX = "stella_rain_core::rules_v0::schedule::steps::"
+STEP_NAME = re.compile(r"[A-Za-z0-9_]+")
+FILE_SPLIT = re.compile(r"^[^:]*?:(?!:)")
 
 
 def parse_annotate(text):
@@ -32,6 +35,57 @@ def parse_annotate(text):
         elif ":" in name:
             rows[name] = rows.get(name, 0) + count
     return total, rows
+
+
+def parse_steps(rows):
+    """{step: inclusive Ir} of the rows of a parsed inclusive annotate that are named tick steps."""
+    steps = {}
+    for name, count in rows.items():
+        name = FILE_SPLIT.sub("", name, count=1)
+        if name.startswith(STEP_PREFIX):
+            step = STEP_NAME.match(name[len(STEP_PREFIX):])
+            if step:
+                steps[step.group()] = steps.get(step.group(), 0) + count
+    return steps
+
+
+def read_order(path):
+    """The step names inside `steps![...]` of the schedule file, or None when there are none."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return None
+    start = text.find("steps![")
+    if start < 0:
+        return None
+    body = text[start + len("steps!["):].split("]", 1)[0]
+    return re.findall(r"[A-Za-z_][A-Za-z0-9_]*", body) or None
+
+
+def order_steps(names, order):
+    """Names in schedule order, those the schedule does not list last in name order."""
+    listed = [n for n in (order or []) if n in names]
+    return listed + sorted(set(names) - set(listed))
+
+
+def step_table(base, head, order):
+    """[(step, base Ir or None, head Ir)] in order, then `rest` (total less the steps); each side is (total, steps)."""
+    head_total, head_steps = head
+    names = set(head_steps) | set(base[1] if base else ())
+    rows = [(n, base[1].get(n, 0) if base else None, head_steps.get(n, 0)) for n in order_steps(names, order)]
+    rest_base = base[0] - sum(base[1].values()) if base else None
+    return rows + [("rest", rest_base, head_total - sum(head_steps.values()))]
+
+
+def changed(rows):
+    return [r for r in rows if r[1] is not None and r[1] != r[2]]
+
+
+def step_lines(rows, with_base):
+    if not with_base:
+        return ["step head"] + [f"{n} {h:,}" for n, _, h in rows]
+    return ["step base head delta"] + [f"{n} {b:,} {h:,} {h - b:+,}" for n, b, h in rows]
 
 
 def cut(name):
@@ -104,6 +158,8 @@ def main():
     parser.add_argument("--top", type=int, default=40)
     parser.add_argument("--summary-top", type=int, default=10)
     parser.add_argument("--annotate", default="callgrind_annotate")
+    parser.add_argument("--schedule", default="src/rules_v0/schedule.rs",
+                        help="the file whose steps![...] gives the order of the step table")
     args = parser.parse_args()
     cases = find_cases(args.home)
     if not cases:
@@ -111,8 +167,9 @@ def main():
         return 1
     os.makedirs(args.out, exist_ok=True)
     summary = ["### Profile on " + args.arch, ""]
+    order, any_steps = read_order(args.schedule), False
     for label, head_path, base_path in cases:
-        lines, moved = None, False
+        lines, moved, step_rows = None, False, None
         for inclusive, kind in ((False, "exclusive"), (True, "inclusive")):
             parsed = {}
             for side, path in (("head", head_path), ("base", base_path)):
@@ -130,8 +187,22 @@ def main():
             write(args.out, f"{label}.{suffix}.txt", "\n".join(diff) + "\n")
             if not inclusive:
                 lines, moved = diff, base is None or base[0] != parsed["head"][0]
+            else:
+                head_steps = parse_steps(parsed["head"][1])
+                base_steps = parse_steps(base[1]) if base else {}
+                if head_steps or base_steps:
+                    sides = [(base[0], base_steps) if base else None, (parsed["head"][0], head_steps)]
+                    step_rows = step_table(sides[0], sides[1], order)
+                    write(args.out, f"{label}.steps.txt", "\n".join(step_lines(step_rows, base is not None)) + "\n")
+                    any_steps = True
         if lines is not None and moved:
             summary += [f"**{label}**", "", "```", *lines[: 2 + args.summary_top], "```", ""]
+            if step_rows:
+                shown = step_rows if base_path is None else changed(step_rows)
+                if shown:
+                    summary += ["```", *step_lines(shown, base_path is not None), "```", ""]
+    if not any_steps:
+        summary += ["no named tick steps in the profile (BS2a)", ""]
     summary.append(f"Per-function diffs and the callgrind files: artifact `bench-profile-{args.arch}`.")
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if path:
