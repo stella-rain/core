@@ -8,6 +8,7 @@ use crate::attack::PhaseKind;
 use crate::fixed::Fx;
 use crate::id::EntityId;
 use crate::trig::SCALE;
+use crate::validate::limits::MAX_DASH_DISTANCE;
 
 use super::World;
 use super::attacks;
@@ -15,18 +16,19 @@ use super::entity::Who;
 use super::state::AttackRun;
 use crate::engine::State;
 
-/// The `k`th of `ticks` shares of `distance`: from `distance × (k − 1) / ticks` to
-/// `distance × k / ticks`, so that all of them add up to the distance, as the main character's
-/// dash does (`player`).
-fn share(distance: i64, k: i64, ticks: i64) -> i64 {
-    distance * k / ticks - distance * (k - 1) / ticks
+/// How far along one axis of the facing (`axis`, scaled by `SCALE`) the dash has gone after `k`
+/// of `ticks` ticks: `distance × k / ticks` along the facing, rounded once. A tick moves from
+/// the value of `k − 1` to the value of `k`, so the shares add up to the whole dash with no
+/// rounding lost on a diagonal.
+fn gone(distance: i64, axis: i32, k: i64, ticks: i64) -> i64 {
+    i64::from(axis) * (distance * k / ticks) / i64::from(SCALE)
 }
 
 /// Every attacker whose run is in a dashing phase moves one share along its facing, in run
 /// order.
 pub(super) fn act(stage: &World, s: &mut State) {
     let map = stage.map();
-    let scale = i64::from(SCALE);
+    let longest = i64::from(Fx::px(MAX_DASH_DISTANCE).0);
     for i in 0..s.runs.len() {
         let r = &s.runs[i];
         let p = attacks::phase(stage, r, r.phase as usize);
@@ -36,14 +38,12 @@ pub(super) fn act(stage: &World, s: &mut State) {
         if r.tick >= p.ticks {
             continue;
         }
-        let step = share(
-            i64::from(d.distance.0),
-            i64::from(r.tick) + 1,
-            i64::from(p.ticks),
-        );
+        // The validator holds a dash to `MAX_DASH_DISTANCE`; the run holds it again.
+        let distance = i64::from(d.distance.0).clamp(0, longest);
+        let (k, ticks) = (i64::from(r.tick) + 1, i64::from(p.ticks));
         let (dx, dy) = (
-            i64::from(r.facing.x) * step / scale,
-            i64::from(r.facing.y) * step / scale,
+            gone(distance, r.facing.x, k, ticks) - gone(distance, r.facing.x, k - 1, ticks),
+            gone(distance, r.facing.y, k, ticks) - gone(distance, r.facing.y, k - 1, ticks),
         );
         let at = match s.find(r.owner) {
             Some(Who::Enemy(e)) => &mut s.enemies[e].at,
@@ -53,7 +53,7 @@ pub(super) fn act(stage: &World, s: &mut State) {
             },
             _ => continue,
         };
-        // A share is at most the 960 pixel bound of the validator, so these fit.
+        // A share is at most the bound above, so these fit.
         let to = crate::fixed::Point {
             x: at.x.saturating_add(Fx(dx as i32)),
             y: at.y.saturating_add(Fx(dy as i32)),

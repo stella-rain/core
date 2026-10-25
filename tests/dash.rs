@@ -113,6 +113,23 @@ fn an_uneven_share_still_adds_up_to_the_distance() {
 }
 
 #[test]
+fn a_diagonal_dash_loses_no_rounding_over_its_ticks() {
+    // The main character is down and to the right: the facing is not along an axis.
+    let path = track(&stage(vec![dasher(60, 300, phases(200, false))]), 60);
+    let (x, y) = *path.last().unwrap();
+    let (dx, dy) = (i64::from(x - 60 * PX), i64::from(y - 300 * PX));
+    assert!(dx > 0 && dy > 0, "{dx} {dy}");
+    // The whole distance, less what the facing's own rounding leaves (a facing is a vector of
+    // length about 256, so a unit or two in 51,200).
+    let covered = (dx * dx + dy * dy).isqrt();
+    let wanted = i64::from(200 * PX);
+    assert!(
+        (wanted - 4..=wanted).contains(&covered),
+        "{covered} of {wanted}"
+    );
+}
+
+#[test]
 fn the_hit_box_travels_with_the_attacker() {
     // The main character stands 476 pixels below; the dash goes 500 pixels, through it.
     let st = stage(vec![dasher(180, 100, phases(500, true))]);

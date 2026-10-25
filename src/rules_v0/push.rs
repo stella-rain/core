@@ -170,7 +170,8 @@ pub(super) fn apply(stage: &World, s: &mut State) {
     }));
     offsets_into(bodies, grid, near, offsets);
     let map = stage.map();
-    let any_dash = dash::any(stage, &s.runs);
+    // Looked for once, at the first enemy that a push would move.
+    let mut any_dash = None;
     let mut left = false;
     for (e, &(dx, dy, crowded)) in s.enemies.iter_mut().zip(offsets.iter()) {
         e.crowded = crowded;
@@ -179,7 +180,9 @@ pub(super) fn apply(stage: &World, s: &mut State) {
             continue;
         }
         // A dasher keeps to its line; it still pushes the others.
-        if any_dash && dash::dashing(stage, &s.runs, e.id) {
+        if *any_dash.get_or_insert_with(|| dash::any(stage, &s.runs))
+            && dash::dashing(stage, &s.runs, e.id)
+        {
             continue;
         }
         let to = Point {

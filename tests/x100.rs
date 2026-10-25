@@ -19,7 +19,8 @@ fn kills(engine: &Engine) -> usize {
 }
 
 /// Outcome, end tick, deaths and the main character's hit points per corpus stage, at the
-/// design values. `zones`, `orbs`, `ranged_cap` and `dash` came after the scale: their rows are what they ended as when they were added.
+/// design values. `zones`, `orbs`, `ranged_cap` and `dash` came after the scale: their rows are
+/// what they ended as when they were added.
 const STAGES: [(&str, Outcome, u32, usize, u32); 13] = [
     ("agents", Outcome::Running, 80, 1, 98),
     ("assist", Outcome::Running, 360, 0, 99),
