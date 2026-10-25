@@ -9,7 +9,7 @@ use crate::input::Input;
 use crate::run_content::RunContent;
 use crate::runes::{MAX_DOT_STACKS, Runes};
 use crate::stage::Stage;
-use crate::validate::limits::MAX_ASSIST_RANGE;
+use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_ELITES_ALIVE};
 use serde_json::{Value, json};
 
 /// Ticks to run before the tick that is measured, so that the caps are reached and held, the
@@ -41,7 +41,7 @@ const HASTE: &str = "haste";
 pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 
 /// 500 enemies (`MAX_ENEMIES_ALIVE`) stand in one place: four shooters, then 496 more in five
-/// waves that spawn one enemy a tick each (core BR1b: nothing here fires a projectile).
+/// streams of waves that spawn one enemy a tick each, 32 of them elites (`MAX_ELITES_ALIVE`) (core BR1b: nothing here fires a projectile).
 ///
 /// The push-apart (ADR-058) parts a fresh stack on every tick: on each tick it does not start
 /// its attack, every enemy orders itself back to the point in one tick (`move_to`, which a
@@ -136,10 +136,21 @@ pub fn stage() -> Stage {
     // The shooters arrive first, so that their runs take their tokens and attack tasks before
     // the crowd's swings fill the 256; then 496 enemies in five waves.
     waves.push(common::wave(WAVES_AT, SHOOTERS, 1, shooter, x, y));
-    waves.extend((0..5).map(|i| {
-        let count = if i == 4 { 100 - SHOOTERS } else { 100 };
-        common::wave(WAVES_AT + 4, count, 1, enemy.clone(), x, y)
-    }));
+    // 32 of the crowd are elites (`MAX_ELITES_ALIVE`): the crowd's own enemy with an elite's
+    // mark, in three kinds, so that their rules and every other cap are as they were. Each of
+    // the first three streams of 100 starts with its share of elites and goes on with the
+    // crowd, so five enemies still arrive a tick and the stack is parted as before.
+    for (i, base) in ELITE_BASES.iter().enumerate() {
+        let mut elite = enemy.clone();
+        elite["base"] = json!(base);
+        elite["elite"] = json!({ "range": ELITE_RANGE });
+        let share = MAX_ELITES_ALIVE / 3 + u16::from(i < usize::from(MAX_ELITES_ALIVE % 3));
+        waves.push(common::wave(WAVES_AT + 4, share, 1, elite, x, y));
+        let after = WAVES_AT + 4 + u32::from(share);
+        waves.push(common::wave(after, 100 - share, 1, enemy.clone(), x, y));
+    }
+    waves.push(common::wave(WAVES_AT + 4, 100, 1, enemy.clone(), x, y));
+    waves.push(common::wave(WAVES_AT + 4, 100 - SHOOTERS, 1, enemy, x, y));
     let zone = |radius: i32| {
         json!({ "type": "zone", "shape": { "type": "circle", "radius": radius },
                 "wind_up_ticks": 0, "active_ticks": 600 })
@@ -196,6 +207,13 @@ pub fn stage() -> Stage {
 /// The enemies that send orbs: `MAX_RANGED_ATTACKERS`, each with its eight (`MAX_ORBS_PER_OWNER`),
 /// 32 in all (`MAX_ORBS_ALIVE`).
 const SHOOTERS: u16 = 4;
+
+/// The sprites the 32 elites are drawn as, a share each.
+const ELITE_BASES: [&str; 3] = ["bat", "fairy_a", "horns_2"];
+
+/// How near the main character must come for an elite's rules to fire: the bundled elites'
+/// (a placeholder; the main character stands 36,000 units away, so they fire on every tick).
+const ELITE_RANGE: i32 = 51_200;
 
 /// The first enemies the main character kills, for the stars that give it every rune and Rune
 /// Haste: seven runes, then the Rune Haste reward.
