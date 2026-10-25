@@ -1008,6 +1008,68 @@ fn timeout() -> Definition {
     )
 }
 
+/// Attack phases that dash (core Z3a-2): enemies charge the main character from three sides
+/// again and again, a crowd stands on their lines so that the push-apart meets a dasher, and the
+/// boss charges with its horn.
+fn dash() -> Definition {
+    let phases = json!([
+        { "kind": "wind_up", "ticks": 20, "move_pct": 0 },
+        { "kind": "active", "ticks": 12, "damage": 3, "move_pct": 0,
+          "dash": { "distance": 150 * 256 },
+          "hit_box": { "type": "circle", "radius": 12 * 256 } },
+        { "kind": "recovery", "ticks": 10, "move_pct": 0 },
+    ]);
+    let rules = json!([{ "when": always(), "target": "player", "cooldown_ticks": 90,
+        "do": { "type": "attack", "attack": { "inline": phases.clone() } } }]);
+    let still = json!({ "type": "straight", "vx": 0, "vy": 0 });
+    let charger = |x: i32, y: i32| {
+        wave(
+            1,
+            1,
+            0,
+            enemy(100, still.clone(), rules.clone()),
+            x * 256,
+            y * 256,
+        )
+    };
+    let bystander = |x: i32, y: i32| {
+        wave(
+            1,
+            1,
+            0,
+            enemy(100, still.clone(), json!([])),
+            x * 256,
+            y * 256,
+        )
+    };
+    let mut waves = vec![charger(40, 300), charger(180, 120), charger(320, 300)];
+    // The crowd on the middle charger's line.
+    waves.extend([
+        bystander(178, 250),
+        bystander(184, 256),
+        bystander(180, 262),
+    ]);
+    let boss = json!({
+        "base": "golem", "hp": 100_000, "radius": 8192,
+        "spawn": { "x": 46_080, "y": 30_000 },
+        "parts": [{ "id": "horn", "asset": "horns_2", "hp": 100,
+                    "offset": { "x": 0, "y": 4_096 }, "radius": 2_048 }],
+        "phases": [{ "timeline": [
+            { "type": "attack", "attack": { "inline": phases } },
+            { "type": "wait", "ticks": 80 },
+            { "type": "loop" } ] }],
+    });
+    let stage = quiet(stage_full(600, Some(boss), waves, vec![]));
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..60 => idle(),
+            _ if (t / 50) % 2 == 0 => moving(40, 0),
+            _ => moving(-40, 0),
+        })
+        .collect();
+    ("dash", bytes(&stage), inputs)
+}
+
 pub(crate) fn definitions() -> Vec<Definition> {
     vec![
         (
@@ -1023,6 +1085,7 @@ pub(crate) fn definitions() -> Vec<Definition> {
         landscape(),
         melee(),
         orbs(),
+        dash(),
         ranged_cap(),
         timeout(),
         zones(),
@@ -1782,6 +1845,39 @@ fn the_ranged_cap_and_orbs_cases_are_what_their_names_say() {
     assert_eq!(orbs, 32, "the orb cap is reached");
     assert!(broken >= 1, "the sword breaks an orb");
     assert!(zoned, "a burst places a zone");
+}
+
+#[test]
+fn the_dash_case_is_what_its_name_says() {
+    let (_, bytes, inputs) = definitions().into_iter().find(|d| d.0 == "dash").unwrap();
+    let stage = parse_and_validate(&bytes).unwrap();
+    let mut e = engine(&stage);
+    let (mut farthest, mut boss_far, mut hit) = (0, 0, false);
+    let from = |e: &Engine, kind| {
+        e.snapshot()
+            .entities
+            .iter()
+            .filter(|v| v.kind == kind)
+            .map(|v| (v.at.x.0, v.at.y.0))
+            .collect::<Vec<_>>()
+    };
+    let boss_start = from(&e, EntityKind::Boss);
+    for input in inputs {
+        e.step(input);
+        hit |= e
+            .events()
+            .iter()
+            .any(|ev| matches!(ev, DomainEvent::PlayerHit { .. }));
+        // The chargers stand at y 120 and 300 px; one that has moved 100 pixels has dashed.
+        for (_, y) in from(&e, EntityKind::Enemy) {
+            farthest = farthest.max((y - 120 * 256).abs().min((y - 300 * 256).abs()));
+        }
+        let (_, by) = from(&e, EntityKind::Boss)[0];
+        boss_far = boss_far.max((by - boss_start[0].1).abs());
+    }
+    assert!(farthest >= 100 * 256 - 1, "an enemy charges: {farthest}");
+    assert!(boss_far >= 100 * 256, "the boss charges: {boss_far}");
+    assert!(hit, "a dash's hit box reaches the main character");
 }
 
 #[test]
