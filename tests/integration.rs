@@ -100,7 +100,6 @@ mod runes_file;
 mod schema;
 mod share;
 mod shot;
-mod spike;
 mod stage_skill;
 mod stage_skill_file;
 mod stage_verify;

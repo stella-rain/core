@@ -124,35 +124,21 @@ class Cli(unittest.TestCase):
     def test_under_budget_exits_zero_and_writes_the_table(self):
         p, md = self.run_cli("arm64", 12_232_020)
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertIn("| worst_tick | 12,232,020 | 12,400,000 | 98.6% |", md)
-        self.assertIn("| Bench | Instructions | Budget | % of budget |", md)
+        self.assertIn("| worst_tick | 12,232,020 | 12,400,000 | 167,980 | 1.4% |", md)
+        self.assertIn("| Bench | Instructions | Budget | Headroom | % left |", md)
 
     def test_over_budget_exits_one_and_still_writes_the_table(self):
         p, md = self.run_cli("arm64", 12_500_000)
         self.assertEqual(p.returncode, 1)
         self.assertIn("worst_tick", p.stderr)
         self.assertIn("100,000", p.stderr)
-        self.assertIn("100.8%", md)
+        self.assertIn("| worst_tick | 12,500,000 | 12,400,000 | -100,000 | -0.8% |", md)
 
-    def test_warn_only_over_budget_exits_zero_with_a_warning_and_the_table(self):
-        p, md = self.run_cli("arm64", 14_106_310, extra=["--warn-only"])
-        self.assertEqual(p.returncode, 0, p.stderr)
-        warning = [l for l in p.stdout.splitlines() if l.startswith("::warning::")]
-        self.assertEqual(len(warning), 1, p.stdout)
-        for text in ("worst_tick", "14,106,310", "12,400,000", "1,706,310"):
-            self.assertIn(text, warning[0])
-        self.assertIn("| worst_tick | 14,106,310 | 12,400,000 | 113.8% |", md)
+    def test_warn_only_is_an_unknown_argument(self):
+        p, _ = self.run_cli("arm64", 14_106_310, extra=["--warn-only"])
+        self.assertEqual(p.returncode, 2)
 
-    def test_warn_only_under_budget_prints_no_warning(self):
-        p, _ = self.run_cli("arm64", 12_232_020, extra=["--warn-only"])
-        self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertNotIn("::warning::", p.stdout)
-
-    def test_warn_only_still_fails_on_an_unknown_arch(self):
-        p, _ = self.run_cli("riscv", 1, extra=["--warn-only"])
-        self.assertEqual(p.returncode, 1)
-
-    def test_without_warn_only_over_budget_still_exits_one_and_does_not_warn(self):
+    def test_over_budget_does_not_warn(self):
         p, _ = self.run_cli("arm64", 14_106_310)
         self.assertEqual(p.returncode, 1)
         self.assertNotIn("::warning::", p.stdout)

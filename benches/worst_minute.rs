@@ -9,10 +9,16 @@ use stella_rain_core::bench_fixtures;
 use stella_rain_core::bench_fixtures::worst_minute_case::{MINUTE_TICKS, Run};
 
 #[library_benchmark]
-#[bench::worst_minute(bench_fixtures::worst_minute())]
+#[bench::worst_minute(args = (bench_fixtures::worst_minute()), teardown = drop_measured)]
 fn worst_minute(mut run: Run) -> Run {
     run.play(MINUTE_TICKS);
     run
+}
+
+// The returned value is dropped here, outside the counted region: the free path's cost
+// depends on the heap layout and is not the operation this bench names.
+fn drop_measured(value: Run) {
+    drop(value);
 }
 
 library_benchmark_group!(

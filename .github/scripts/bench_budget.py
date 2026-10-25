@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fail when a bench counts more instructions than its budget for the job's architecture.
 
-Reads the iai-callgrind output the bench job tees to a file and benches/budgets.toml (D-BUDGET:
-an absolute ceiling beside the relative +2% limit). Only benches named in the budgets file are
+Reads the iai-callgrind output the bench job tees to a file and benches/budgets.toml (ADR-SIM-7:
+an absolute ceiling beside the relative limit of bench_alarm.py, ADR-SIM-8). Only benches named in the budgets file are
 checked; a budgeted bench missing from the output, or an unknown arch, fails.
 """
 
@@ -31,11 +31,8 @@ def counts(text):
     return found
 
 
-def check(arch, found, budgets, warn_only=False):
-    """Rows (bench, count, budget) and the error lines.
-
-    An over-budget count is an error unless warn_only; `overshoots` lists them for a warning.
-    """
+def check(arch, found, budgets):
+    """Rows (bench, count, budget) and the error lines; an over-budget count is an error."""
     rows, errors = [], []
     for bench, per_arch in budgets.items():
         if arch not in per_arch:
@@ -47,8 +44,7 @@ def check(arch, found, budgets, warn_only=False):
             errors.append(f"{bench}: missing from the bench output, so its budget of {budget:,} was not checked")
             continue
         rows.append((bench, found[bench], budget))
-    if not warn_only:
-        errors += overshoots(arch, rows)
+    errors += overshoots(arch, rows)
     return rows, errors
 
 
@@ -64,10 +60,10 @@ def table(arch, rows):
     lines = [
         f"### Tick budgets on {arch}",
         "",
-        "| Bench | Instructions | Budget | % of budget |",
-        "|---|---:|---:|---:|",
+        "| Bench | Instructions | Budget | Headroom | % left |",
+        "|---|---:|---:|---:|---:|",
     ]
-    lines += [f"| {b} | {n:,} | {m:,} | {100 * n / m:.1f}% |" for b, n, m in rows]
+    lines += [f"| {b} | {n:,} | {m:,} | {m - n:,} | {100 * (m - n) / m:.1f}% |" for b, n, m in rows]
     return "\n".join(lines) + "\n"
 
 
@@ -76,24 +72,16 @@ def main():
     parser.add_argument("--arch", required=True)
     parser.add_argument("--bench-output", required=True)
     parser.add_argument("--budgets", default="benches/budgets.toml")
-    parser.add_argument(
-        "--warn-only",
-        action="store_true",
-        help="print a ::warning:: for a count over budget instead of failing (DS27)",
-    )
     args = parser.parse_args()
     with open(args.bench_output, encoding="utf-8") as f:
         found = counts(f.read())
     with open(args.budgets, "rb") as f:
         budgets = tomllib.load(f)
-    rows, errors = check(args.arch, found, budgets, args.warn_only)
+    rows, errors = check(args.arch, found, budgets)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary and rows:
         with open(summary, "a", encoding="utf-8") as f:
             f.write(table(args.arch, rows))
-    if args.warn_only:
-        for warning in overshoots(args.arch, rows):
-            print(f"::warning::{warning}")
     for error in errors:
         print(f"error: {error}", file=sys.stderr)
     return 1 if errors else 0

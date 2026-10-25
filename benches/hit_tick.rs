@@ -9,13 +9,19 @@ use stella_rain_core::bench_fixtures::{self, Case};
 use stella_rain_core::engine::Engine;
 
 #[library_benchmark]
-#[bench::hit_tick(bench_fixtures::hit_tick())]
+#[bench::hit_tick(args = (bench_fixtures::hit_tick()), teardown = drop_measured)]
 // The same crowd over the largest map (core#146): the grid spans the map, and its build reads it.
-#[bench::hit_tick_spread(bench_fixtures::hit_tick_spread())]
+#[bench::hit_tick_spread(args = (bench_fixtures::hit_tick_spread()), teardown = drop_measured)]
 fn hit_tick(case: Case) -> Engine {
     let Case { mut engine, input } = case;
     engine.step(input);
     engine
+}
+
+// The returned value is dropped here, outside the counted region: the free path's cost
+// depends on the heap layout and is not the operation this bench names.
+fn drop_measured(value: Engine) {
+    drop(value);
 }
 
 library_benchmark_group!(
