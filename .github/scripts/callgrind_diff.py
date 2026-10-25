@@ -64,6 +64,22 @@ def parse_steps(rows):
     return steps
 
 
+def steps_unreliable(rows, total):
+    """True when the step frames of a parsed inclusive annotate nest: a step carries a recursion suffix, or the
+    steps sum to more than the case total plus 1% (tail calls leave frames open, so a later step runs inside an earlier)."""
+    steps = 0
+    for name, count in rows.items():
+        name = FILE_SPLIT.sub("", name, count=1).rstrip()
+        bare = RECURSION.sub("", name)
+        if bare.startswith(STEP_PREFIX):
+            step = STEP_NAME.match(bare[len(STEP_PREFIX):])
+            if step and STEP_SELF.match(bare[len(STEP_PREFIX) + step.end():]):
+                if bare != name:
+                    return True
+                steps += count
+    return steps * 100 > total * 101
+
+
 def read_order(path):
     """The step names inside `steps![...]` of the schedule file, or None when there are none."""
     try:
@@ -266,6 +282,7 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     summary = ["### Profile on " + args.arch, ""]
     order, any_steps, alloc_lines = read_order(args.schedule), False, []
+    unreliable = set()
     for label, head_path, base_path in cases:
         lines, moved, step_rows = None, False, None
         for inclusive, kind in ((False, "exclusive"), (True, "inclusive")):
@@ -288,7 +305,13 @@ def main():
             else:
                 head_steps = parse_steps(parsed["head"][1])
                 base_steps = parse_steps(base[1]) if base else {}
-                if head_steps or base_steps:
+                if steps_unreliable(parsed["head"][1], parsed["head"][0]) or (
+                        base and steps_unreliable(base[1], base[0])):
+                    note = f"step table unreliable on {args.arch} (nested frames)"
+                    write(args.out, f"{label}.steps.txt", note + "\n")
+                    unreliable.add(note)
+                    any_steps = True
+                elif head_steps or base_steps:
                     sides = [(base[0], base_steps) if base else None, (parsed["head"][0], head_steps)]
                     step_rows = step_table(sides[0], sides[1], order)
                     write(args.out, f"{label}.steps.txt", "\n".join(step_lines(step_rows, base is not None)) + "\n")
@@ -309,6 +332,8 @@ def main():
                 shown = step_rows if base_path is None else changed(step_rows)
                 if shown:
                     summary += ["```", *step_lines(shown, base_path is not None), "```", ""]
+    if unreliable:
+        summary += [*sorted(unreliable), ""]
     if not any_steps:
         summary += ["no named tick steps in the profile (BS2a)", ""]
     if alloc_lines:

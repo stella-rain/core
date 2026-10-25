@@ -393,6 +393,29 @@ class StepsAndAllocsCli(CliBase):
         self.assertFalse(any(n.endswith(".steps.txt") for n in os.listdir(self.out)))
         self.assertEqual(self.summary().count("no named tick steps in the profile (BS2a)"), 1)
 
+    def test_nested_step_frames_print_the_unreliable_note_instead_of_rows(self):
+        nested = STEP_HEAD.replace("950 PROGRAM", "1,000 PROGRAM").replace(
+            "run_attacks [", "run_attacks'2 [").replace("  200  ???:" + P + "advance_tick", "  900  ???:" + P + "advance_tick")
+        self.case_with(nested, STEP_BASE)
+        p = self.run_cli("--schedule", self.schedule(), "--arch", "arm64")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        steps = open(os.path.join(self.out, "worst_tick.worst_tick.steps.txt")).read()
+        self.assertEqual(steps, "step table unreliable on arm64 (nested frames)\n")
+        summary = self.summary()
+        self.assertIn("step table unreliable on arm64 (nested frames)", summary)
+        self.assertNotIn("run_attacks 500", summary)
+        self.assertEqual(summary.count("no named tick steps"), 0)
+
+
+class Unreliable(unittest.TestCase):
+    def test_a_suffixed_step_or_a_sum_over_the_total_is_unreliable(self):
+        ok = {"???:" + P + "a": 400, "???:" + P + "b": 500}
+        self.assertFalse(c.steps_unreliable(ok, 1000))
+        self.assertTrue(c.steps_unreliable({"???:" + P + "a'2": 10}, 1000))
+        self.assertTrue(c.steps_unreliable({"???:" + P + "a": 600, "???:" + P + "b": 500}, 1000))
+        self.assertFalse(c.steps_unreliable({"???:" + P + "a": 600, "???:" + P + "b": 405}, 1000))  # within 1%
+        self.assertFalse(c.steps_unreliable({"???:other'2": 10}, 1000))
+
 
 if __name__ == "__main__":
     unittest.main()
