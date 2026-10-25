@@ -50,7 +50,7 @@ fn attack(phases: Value) -> Value {
 
 /// A foe that fires `nodes` once, at `(x, y)`.
 fn foe(x: i32, y: i32, nodes: Vec<Value>) -> Value {
-    let phases = json!([{ "kind": "wind_up", "ticks": 1, "damage": 5, "spawn": nodes }]);
+    let phases = json!([{ "kind": "wind_up", "ticks": 1, "damage": 1, "spawn": nodes }]);
     wave(1, 1, 0, enemy(1000, hold(x, y), attack(phases)), x, y)
 }
 

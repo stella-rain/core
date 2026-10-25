@@ -90,6 +90,8 @@ pub(crate) struct State {
     /// Enemies spawned so far, per wave.
     pub spawned: Vec<u16>,
     pub next_id: u32,
+    /// Cage groups taken so far (Z3a-3).
+    pub next_orb_group: u32,
     /// Experience and levels; `None` in a stage without levels, which hashes nothing for it.
     pub progress: Option<Progress>,
     /// Falling stars and offers; `None` in a stage without stars, which hashes nothing for it.
@@ -887,6 +889,26 @@ pub(crate) struct OrbState {
     pub life: u32,
     /// Moves left before it halts (`stop_after`, Z3a-3); `Some(0)` is halted, `None` never halts.
     pub stop: Option<u32>,
+    /// The beams this orb is part of (`link`, Z3a-3).
+    pub link: Option<OrbLink>,
+}
+
+/// An orb's place in a cage (Z3a-3): the orbs of one `ring`, `spread` or `repeat` round of a
+/// `link` node share a `group`; slot `j` is joined to slot `(j + 1) % of` by a beam while both are
+/// alive and neither is still flying toward its halt.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct OrbLink {
+    pub group: u32,
+    /// The round of the loop that fired it.
+    pub slot: u8,
+    /// The slots made so far in the group, which the caps may leave short of the loop's count.
+    pub of: u8,
+    pub width: Fx,
+    /// What a beam hit deals, already scaled by the difficulty.
+    pub damage: u32,
+    pub rehit_ticks: u32,
+    /// The tick the beam from this orb to its neighbour last hit the main character.
+    pub last_hit: Option<u32>,
 }
 
 /// A zone (core Z1): an area that does not move. It warns for `wind_left` ticks, then hurts for

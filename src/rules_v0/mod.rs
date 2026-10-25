@@ -348,6 +348,7 @@ pub(crate) fn initial_state(
         zones: Vec::new(),
         spawned: vec![0; stage.waves.len()],
         next_id,
+        next_orb_group: 0,
         progress: stage.levels.as_ref().map(|_| Progress {
             level: 1,
             xp: 0,
@@ -678,6 +679,26 @@ fn move_orbs(stage: &World, s: &mut State) {
             holds(b.at)
         }
     });
+}
+
+/// The orb that the beam from orb `i` runs to, if it is live: both are alive, in one group, and
+/// neither is still flying toward its halt. A ring of two has one beam, from slot 0.
+pub(crate) fn beam_to(orbs: &[crate::engine::OrbState], i: usize) -> Option<usize> {
+    let from = orbs.get(i)?;
+    let link = from.link?;
+    if link.of < 2 || (link.of == 2 && link.slot == 1) {
+        return None;
+    }
+    let flying = |b: &crate::engine::OrbState| b.stop.is_some_and(|n| n > 0);
+    if flying(from) {
+        return None;
+    }
+    let next = (link.slot + 1) % link.of;
+    let j = orbs.iter().position(|b| {
+        b.link
+            .is_some_and(|l| l.group == link.group && l.slot == next)
+    })?;
+    (!flying(&orbs[j])).then_some(j)
 }
 
 /// Two circles overlap (touching counts), in 64-bit fixed point.
@@ -1267,11 +1288,24 @@ fn hash_orb(h: &mut StateHasher, b: &crate::engine::OrbState) {
     }
 }
 
-/// The bytes of an orb that only a cage has: when it halts.
+/// The bytes of an orb that only a cage has: when it halts, and its place in a ring.
 fn hash_orb_cage(h: &mut StateHasher, b: &crate::engine::OrbState) {
     h.write_bool(b.stop.is_some());
     if let Some(n) = b.stop {
         h.write_u32(n);
+    }
+    h.write_bool(b.link.is_some());
+    if let Some(l) = &b.link {
+        h.write_u32(l.group);
+        h.write_u32(u32::from(l.slot));
+        h.write_u32(u32::from(l.of));
+        h.write_i32(l.width.0);
+        h.write_u32(l.damage);
+        h.write_u32(l.rehit_ticks);
+        h.write_bool(l.last_hit.is_some());
+        if let Some(t) = l.last_hit {
+            h.write_u32(t);
+        }
     }
 }
 
@@ -1798,7 +1832,8 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
     }
     // After the horde's, and only when an orb has a stop or a link (Z3a-3): per orb, in order,
     // what the orbs' own bytes leave out, so runs without cages hash nothing new.
-    if s.orbs.iter().any(|b| b.stop.is_some()) {
+    if s.next_orb_group > 0 || s.orbs.iter().any(|b| b.stop.is_some() || b.link.is_some()) {
+        h.write_u32(s.next_orb_group);
         h.write_u32(count(&s.orbs));
         for b in &s.orbs {
             hash_orb_cage(&mut h, b);
