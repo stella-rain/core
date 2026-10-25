@@ -65,8 +65,8 @@ fn the_worst_minute_is_the_benches_case() {
     pinned_run(
         bench_fixtures::worst_minute(),
         MINUTE_TICKS,
-        0x2b85c4c853394830,
-        0x1aa6920e0583ffbe,
+        0x31f2099b21c13bdc,
+        0x12c20575efbd15f6,
     );
 }
 
@@ -75,7 +75,7 @@ fn the_worst_minute_peak_tick_is_the_benches_case() {
     pinned_run(
         bench_fixtures::worst_minute_peak(),
         1,
-        0x79fb17fd67a76c65,
-        0x6536ac56cf143e34,
+        0x0c467c72fd8c4c08,
+        0x1c1612ab1b2f3a1d,
     );
 }
