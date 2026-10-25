@@ -4,7 +4,7 @@
 Reads the callgrind files iai-callgrind leaves under its home, runs `callgrind_annotate` on the
 head and, when there is one, the base (`.out.base@main`) of each case, and writes the annotate
 texts and a diff per case into --out, the inclusive cost of each named tick step (`.steps.txt`) and
-the allocator calls per measured tick read from the raw files (`.alloc.txt`, warned when they rise).
+the allocator calls of the whole bench process read from the raw files (`.alloc.txt`, warned when they rise).
 It appends a short profile to $GITHUB_STEP_SUMMARY. A
 profile never fails the job by its content: it exits 1 only when the home holds no callgrind file.
 """
@@ -27,9 +27,9 @@ GROUPS = {
     "free": ("free",),
 }
 ALLOCATOR = {name: group for group, names in GROUPS.items() for name in names}
-MEASURED_TICKS = {"worst_minute": 3600}  # every other bench target measures one tick
 RAW_NAME = re.compile(r"^(c?fn)=(?:\((\d+)\)(?: (.*))?|(.+))$")
 STEP_SELF = re.compile(r"^(?:|::h[0-9a-f]+|<.*)$")
+RECURSION = re.compile(r"'\d+$")  # callgrind's name for a recursive instance: free'2
 CALLS = re.compile(r"^calls=(\d+)")
 FILE_SPLIT = re.compile(r"^[^:]*?:(?!:)")
 
@@ -54,12 +54,29 @@ def parse_steps(rows):
     steps = {}
     for name, count in rows.items():
         name = FILE_SPLIT.sub("", name, count=1)
+        name = RECURSION.sub("", name.rstrip())
         if name.startswith(STEP_PREFIX):
             step = STEP_NAME.match(name[len(STEP_PREFIX):])
             # only the step's own function (a hash or generics may follow), not a closure or helper inside it
             if step and STEP_SELF.match(name[len(STEP_PREFIX) + step.end():]):
                 steps[step.group()] = steps.get(step.group(), 0) + count
     return steps
+
+
+def steps_unreliable(rows, total):
+    """True when the step frames of a parsed inclusive annotate nest: a step carries a recursion suffix, or the
+    steps sum to more than the case total plus 1% (tail calls leave frames open, so a later step runs inside an earlier)."""
+    steps = 0
+    for name, count in rows.items():
+        name = FILE_SPLIT.sub("", name, count=1).rstrip()
+        bare = RECURSION.sub("", name)
+        if bare.startswith(STEP_PREFIX):
+            step = STEP_NAME.match(bare[len(STEP_PREFIX):])
+            if step and STEP_SELF.match(bare[len(STEP_PREFIX) + step.end():]):
+                if bare != name:
+                    return True
+                steps += count
+    return steps * 100 > total * 101
 
 
 def read_order(path):
@@ -104,6 +121,7 @@ def step_lines(rows, with_base):
 def allocator(name):
     """The group of an allocator entry point, or None for any other function."""
     name = re.sub(r"^(?:\?\?\?|<[^>]*>):", "", name).split("@", 1)[0]
+    name = RECURSION.sub("", name)
     return ALLOCATOR.get(name)
 
 
@@ -140,37 +158,28 @@ def read_allocs(path):
         return parse_allocs(f)
 
 
-def ticks(label):
-    return MEASURED_TICKS.get(label.split(".", 1)[0], 1)
-
-
-def per_tick(total, n):
-    return f"{total / n:.2f}".rstrip("0").rstrip(".")
+ALLOC_TITLE = "allocator calls in the whole bench process (setup included; not per tick)"
+# callgrind counts a call whenever it happens, inside the measured window or not (the setup of the
+# case included), so these are totals of the process and say nothing about one tick (BS2b-2).
 
 
 def alloc_warnings(label, base, head):
-    n = ticks(label)
-    totals = lambda g: f" (calls {base[g]:,} → {head[g]:,})" if n > 1 else ""  # noqa: E731
-    return [f"::warning::{label}: {g} per tick rose {per_tick(base[g], n)} → {per_tick(head[g], n)}{totals(g)}"
+    return [f"::warning::{label}: process allocator calls rose {base[g]:,} → {head[g]:,} ({g}; setup included)"
             for g in GROUPS if head[g] > base[g]]
 
 
 def alloc_line(label, base, head):
-    n = ticks(label)
     if base is None:
-        parts = [f"{g} {per_tick(head[g], n)}" for g in GROUPS]
+        parts = [f"{g} {head[g]:,}" for g in GROUPS]
     else:
-        parts = [f"{g} {per_tick(base[g], n)} → {per_tick(head[g], n)}" for g in GROUPS]
-    return "alloc per tick  " + ", ".join(parts)
+        parts = [f"{g} {base[g]:,} → {head[g]:,}" for g in GROUPS]
+    return ALLOC_TITLE + "  " + ", ".join(parts)
 
 
 def alloc_report(label, base, head):
-    n = ticks(label)
-    lines = [f"measured ticks: {n}", "group base head base/tick head/tick"]
+    lines = [ALLOC_TITLE, "group base head"]
     for g in GROUPS:
-        b = f"{base[g]:,} " if base else "- "
-        bt = per_tick(base[g], n) if base else "-"
-        lines.append(f"{g} {b}{head[g]:,} {bt} {per_tick(head[g], n)}")
+        lines.append(f"{g} {f'{base[g]:,}' if base else '-'} {head[g]:,}")
     return lines
 
 
@@ -263,6 +272,7 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     summary = ["### Profile on " + args.arch, ""]
     order, any_steps, alloc_lines = read_order(args.schedule), False, []
+    unreliable = set()
     for label, head_path, base_path in cases:
         lines, moved, step_rows = None, False, None
         for inclusive, kind in ((False, "exclusive"), (True, "inclusive")):
@@ -285,7 +295,13 @@ def main():
             else:
                 head_steps = parse_steps(parsed["head"][1])
                 base_steps = parse_steps(base[1]) if base else {}
-                if head_steps or base_steps:
+                if steps_unreliable(parsed["head"][1], parsed["head"][0]) or (
+                        base and steps_unreliable(base[1], base[0])):
+                    note = f"step table unreliable on {args.arch} (nested frames)"
+                    write(args.out, f"{label}.steps.txt", note + "\n")
+                    unreliable.add(note)
+                    any_steps = True
+                elif head_steps or base_steps:
                     sides = [(base[0], base_steps) if base else None, (parsed["head"][0], head_steps)]
                     step_rows = step_table(sides[0], sides[1], order)
                     write(args.out, f"{label}.steps.txt", "\n".join(step_lines(step_rows, base is not None)) + "\n")
@@ -293,7 +309,7 @@ def main():
         head_alloc = alloc_of(head_path, label)
         base_alloc = alloc_of(base_path, label) if base_path else None
         if head_alloc is None or (base_path and base_alloc is None):
-            alloc_lines.append(f"{label}: alloc per tick  unreadable")
+            alloc_lines.append(f"{label}: allocator calls unreadable")
         else:
             write(args.out, f"{label}.alloc.txt", "\n".join(alloc_report(label, base_alloc, head_alloc)) + "\n")
             alloc_lines.append(f"{label}: {alloc_line(label, base_alloc, head_alloc)}")
@@ -306,10 +322,12 @@ def main():
                 shown = step_rows if base_path is None else changed(step_rows)
                 if shown:
                     summary += ["```", *step_lines(shown, base_path is not None), "```", ""]
+    if unreliable:
+        summary += [*sorted(unreliable), ""]
     if not any_steps:
         summary += ["no named tick steps in the profile (BS2a)", ""]
     if alloc_lines:
-        summary += ["**Allocator calls per measured tick**", "", "```", *alloc_lines, "```", ""]
+        summary += ["**Allocator calls in the whole bench process (not per tick)**", "", "```", *alloc_lines, "```", ""]
     summary.append(f"Per-function diffs and the callgrind files: artifact `bench-profile-{args.arch}`.")
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if path:
