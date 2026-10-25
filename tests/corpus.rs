@@ -2258,6 +2258,9 @@ fn the_warn_anchor_case_is_what_its_name_says() {
         e.step(input);
         let snapshot = serde_json::to_value(e.snapshot()).unwrap();
         let zones = snapshot["zones"].as_array().cloned().unwrap_or_default();
+        for z in zones.iter().filter(|z| z["warn_only"] == json!(true)) {
+            assert_eq!(z["phase"], json!("wind_up"), "a warning never turns active");
+        }
         warnings = warnings.max(
             zones
                 .iter()
