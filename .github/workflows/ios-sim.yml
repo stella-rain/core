@@ -1,8 +1,8 @@
-# The tests and the replay corpus in the iOS Simulator (ADR-039, ADR-054): the spike's golden hash
-# and the version 0 corpus must match there as on every other platform. iOS is a run-check target
-# for release candidates, so this is not a check of every PR: it runs by hand and as a reusable
-# workflow for Candidate (candidate.yml calls it). A job that is not a PR
-# check needs no entry in auto-merge.yml.
+# The tests and the replay corpus in the iOS Simulator (ADR-039, ADR-054): the golden hash of
+# `tests/engine.rs` and the version 0 corpus must match there as on every other platform. iOS is a
+# run-check target for release candidates, so this is not a check of every PR: it runs by hand
+# and as a reusable workflow for Candidate (candidate.yml calls it). A job that is not a PR check
+# needs no entry in auto-merge.yml.
 #
 # The tests run as a Cargo runner: .github/scripts/ios-sim-runner.sh starts each test binary with
 # `xcrun simctl spawn booted` (no extra tool such as cargo-dinghy). Doc-tests do not cross-run, and

@@ -7,7 +7,6 @@ paths:
   - "src/trig.rs"
   - "src/presets.rs"
   - "src/hash.rs"
-  - "src/spike.rs"
 ---
 
 # Simulation code
@@ -33,8 +32,7 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-6, ADR-REPL-3. The determinism
   the stage's own JSON.
 - `inline.rs`: `InlineVec<T, N>`, a bounded list with no heap allocation, for per-enemy lists
   and attack frames.
-- `hash.rs`: the FNV-1a 64 state hash. `spike.rs`: the ADR-PLAT-1 spike simulation, not a
-  frozen `rules_vN`.
+- `hash.rs`: the FNV-1a 64 state hash.
 
 ## Rules
 
@@ -45,6 +43,7 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-6, ADR-REPL-3. The determinism
 
 - The caps (enemies, zones, orbs), the push-apart and the collision cost are ADR-SIM-6's; the benches in
   `benches-fuzz.md` count them.
-- `tests/spike.rs` and `tests/engine.rs` pin golden hashes every platform must match.
+- `tests/engine.rs` pins the golden hash every platform must match
+  (`the_golden_hash_is_the_same_on_every_platform`).
 - `tests/properties.rs` checks `proptest` invariants on the corpus stages
   (`PROPTEST_CASES=2000` for a longer run).
