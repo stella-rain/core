@@ -16,7 +16,7 @@ use std::fmt;
 use serde::Deserialize;
 
 use crate::attack::{
-    AttackPhase, AttackRef, DamageType, Direction, Emitter, Expr, HitBox, Offset, PhaseKind,
+    AttackPhase, AttackRef, DamageType, Dash, Direction, Emitter, Expr, HitBox, Offset, PhaseKind,
     Profile, ZoneShape,
 };
 use crate::behaviour::{
@@ -90,6 +90,8 @@ pub mod limits {
     pub const MAX_ZONE_TICKS: u32 = 600;
     /// An orb flies for at most 10 seconds (core Z2, a tuning row).
     pub const MAX_ORB_TICKS: u32 = 600;
+    /// The longest dash of an attack phase, in pixels: a lane charge, not the width of the view.
+    pub const MAX_DASH_DISTANCE: i32 = 960;
     pub const MAX_PERFECT_PCT: u16 = 1000;
     pub const MAX_BOSS_PARTS: usize = 8;
     pub const MAX_TRANSITIONS: usize = 4;
@@ -1603,6 +1605,9 @@ impl<'a> Ctx<'a> {
         if let Some(d) = p.damage {
             self.within("damage", i64::from(d), 1, i64::from(MAX_DAMAGE));
         }
+        if let Some(d) = &p.dash {
+            self.key("dash", |c| c.dash(p, d));
+        }
         if let Some(r) = p.rehit_ticks {
             if p.kind != PhaseKind::Active || p.hit_box.is_none() {
                 self.key("rehit_ticks", |c| {
@@ -1612,6 +1617,28 @@ impl<'a> Ctx<'a> {
                 self.within("rehit_ticks", i64::from(r), 1, i64::from(MAX_PHASE_TICKS));
             }
         }
+    }
+
+    /// A dash is an active phase's, an enemy's or the boss's, as long as 1 pixel to
+    /// `MAX_DASH_DISTANCE`, and the phase does not also walk.
+    fn dash(&mut self, p: &AttackPhase, d: &Dash) {
+        if p.kind != PhaseKind::Active {
+            self.fail("only an active phase dashes");
+        }
+        if self.foe == Foe::Other {
+            self.fail(
+                "a dash is an enemy's or the boss's attack, not an ally's or the main character's",
+            );
+        }
+        if p.move_pct != 0 {
+            self.fail("a dashing phase has a move_pct of 0, or its walk adds to the dash");
+        }
+        self.within(
+            "distance",
+            i64::from(d.distance.0),
+            i64::from(crate::fixed::Fx::px(1).0),
+            i64::from(crate::fixed::Fx::px(limits::MAX_DASH_DISTANCE).0),
+        );
     }
 
     /// A hit box's radius, length, width and offset are at most `MAX_RADIUS`, and an arc's half

@@ -1324,6 +1324,7 @@ mod attack_table_tests {
             spawn: Vec::new(),
             move_pct: 100,
             breaks_charge: false,
+            dash: None,
         }
     }
 

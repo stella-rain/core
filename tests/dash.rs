@@ -15,8 +15,7 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{Error, Issue, validate};
 
 const PX: i32 = 256;
-/// The map's right and bottom edges, in units.
-const MAP_W: i32 = 92_160;
+/// The map's bottom edge, in units.
 const MAP_H: i32 = 163_840;
 const WIND_UP: u32 = 10;
 const ACTIVE: u32 = 20;
@@ -201,7 +200,9 @@ fn issues(st: &Stage) -> Vec<Issue> {
 fn refused_for_dash(st: &Stage) {
     let found = issues(st);
     assert!(
-        found.iter().any(|i| i.message.contains("dash")),
+        found
+            .iter()
+            .any(|i| i.message.contains("dash") || i.path.contains("dash")),
         "{found:?}"
     );
 }
