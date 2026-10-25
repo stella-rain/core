@@ -1,65 +1,97 @@
-//! The densest real minute of the `time_limit` corpus run (BR1e, core#317, D-BUDGET A in DS49).
-//! A one-tick bench misses wave spawns, elite minutes, the boss's arrival and death bursts, so
-//! `benches/worst_minute.rs` counts the 3,600 ticks of the run's heaviest minute and
-//! `benches/worst_minute_peak.rs` its heaviest tick. The run is the corpus's own,
-//! `tests/corpus/runs/v0/time_limit/run.replay`, played from its start with its commands.
+//! The dense minute of the `time_limit` mode (BR1e-2, core#368, DS49, DS50): the mode's own
+//! rules at their caps, not the light minute of the corpus run. A one-tick bench misses wave
+//! spawns, elite minutes, the boss's arrival and death bursts, so `benches/worst_minute.rs`
+//! counts the 3,600 ticks of `MINUTE_START..MINUTE_START + MINUTE_TICKS` and
+//! `benches/worst_minute_peak.rs` the heaviest tick of them.
 //!
-//! "Heaviest" is the sum of the five fields of `Load` (enemies, attack tasks, zones, orbs, emitter
-//! steps), unweighted; the first window or tick wins a tie. `worst_minute_window` finds both
-//! places by replaying the run, so the benches (which call it in their uncounted setup) need no
-//! constants: a change of the run's outcome moves the minute without touching bench input. Where
-//! the minute is is pinned in `tests/worst_minute.rs`, and the state hashes there in
+//! The run is the bundled mode with a schedule that keeps the crowd at its cap: every wave starts
+//! at tick 1 and spawns at the rate that spends its enemies over `SPAWN_SPAN_TICKS` (the
+//! mode's 4,143 spawns, 1.4 times each wave's count, in four minutes, not twenty), a mid-boss comes inside the
+//! minute (`BOSS_TICK`) and the elite cap is `MAX_ELITES_ALIVE`. The elite minutes (ticks 3,600
+//! and 7,200) are the mode's own. The main character taps its Main weapon every other tick
+//! and the choices of the level-ups it opens take the first option. The seed is `SEED`. The
+//! `enemy_attack_damage` is the 100 of the other cases, which the 50,000 hit points of the
+//! trial's main character survive. Reaching the minute is not counted; where the heaviest tick
+//! is (`worst_minute_window`, by the unweighted sum of the five fields of `Load`, the first
+//! tick winning a tie) is pinned in `tests/worst_minute.rs`, and the state hashes in
 //! `tests/bench_fixture_pins.rs`.
 
 use crate::engine::{Engine, Load};
 use crate::input::Input;
 use crate::run_content::RunContent;
-use crate::run_replay::{CommandKind, RunReplay, TickCommand};
+use crate::run_setup::RunSetup;
+use crate::run_stats::RunStats;
+use crate::time_limit::TimeLimit;
+use crate::validate::limits::MAX_ELITES_ALIVE;
 
 /// A minute: 60 s at 60 ticks a second.
 pub const MINUTE_TICKS: u32 = 3_600;
 
-const RUN_REPLAY: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/tests/corpus/runs/v0/time_limit/run.replay"
-));
+/// The ticks played before the minute: the crowd is at its cap and two elite minutes have come.
+pub const MINUTE_START: u32 = 7_300;
 
-/// The corpus run, part way through: `play` takes the next ticks of its inputs and commands.
+/// The tick the mid-boss arrives at, inside the minute.
+const BOSS_TICK: u32 = 9_000;
+
+/// The ticks over which each wave spends its enemies.
+const SPAWN_SPAN_TICKS: u32 = 14_000;
+
+/// The run's seed (a placeholder: any that reaches the caps).
+const SEED: u64 = 1;
+
+/// The bundled mode with the dense schedule (see the module).
+fn mode() -> TimeLimit {
+    let mut file: serde_json::Value =
+        serde_json::from_slice(TimeLimit::BUNDLED).expect("the bundled mode");
+    for wave in file["waves"].as_array_mut().expect("waves") {
+        let count = wave["count"].as_u64().expect("a count") * 14 / 10;
+        wave["count"] = count.into();
+        wave["at_tick"] = 1.into();
+        wave["every_ticks"] = (u64::from(SPAWN_SPAN_TICKS) / count).max(1).into();
+    }
+    file["boss_ticks"] = serde_json::json!([BOSS_TICK, file["length_ticks"]]);
+    file["no_call_ticks"] = serde_json::json!([]);
+    file["elite_cap"] = MAX_ELITES_ALIVE.into();
+    TimeLimit::parse(file.to_string().as_bytes()).expect("the dense mode")
+}
+
+fn content() -> RunContent {
+    let mut v: serde_json::Value = serde_json::from_slice(RunStats::BUNDLED).unwrap();
+    v["enemy_attack_damage"] = serde_json::json!(100);
+    let stats = RunStats::parse(v.to_string().as_bytes()).unwrap();
+    RunContent::new(stats, RunContent::bundled().rewards().clone()).with_time_limit(mode())
+}
+
+/// The run, part way through: `play` takes the next ticks.
 pub struct Run {
     pub engine: Engine,
-    inputs: Vec<Input>,
-    commands: Vec<TickCommand>,
-    next_command: usize,
 }
 
 impl Run {
     /// The run, `ticks` ticks in.
     pub fn fast_forwarded(ticks: u32) -> Run {
-        let replay = RunReplay::from_bytes(RUN_REPLAY).expect("the corpus run replay");
-        let mut run = Run {
-            engine: Engine::start_with(&replay.setup, RunContent::bundled())
-                .expect("the run starts"),
-            inputs: replay.unpack_inputs(u32::MAX).expect("the run's inputs"),
-            commands: replay.unpack_commands().expect("the run's commands"),
-            next_command: 0,
+        let setup = RunSetup {
+            mode: "time_limit".into(),
+            seed: SEED,
+            ..RunSetup::default()
         };
+        let content = content();
+        let engine = Engine::start_with(&setup, &content).expect("the run starts");
+        let mut run = Run { engine };
         run.play(ticks);
         run
     }
 
-    /// Plays the next `ticks` ticks, taking the commands between them as the corpus does.
+    /// Plays the next `ticks` ticks: an open offer takes its first option between them.
     pub fn play(&mut self, ticks: u32) {
         for _ in 0..ticks {
-            while let Some(c) = self.commands.get(self.next_command) {
-                if c.tick != self.engine.tick() {
-                    break;
-                }
-                match c.kind {
-                    CommandKind::Choose => self.engine.choose(c.index).expect("the offer is open"),
-                }
-                self.next_command += 1;
+            while self.engine.offer_open() {
+                self.engine.choose(0).expect("the first option");
             }
-            let input = self.inputs[self.engine.tick() as usize];
+            let input = Input {
+                main: self.engine.tick() % 2 == 1,
+                ..Input::default()
+            };
             self.engine.step(input);
         }
     }
@@ -78,42 +110,25 @@ fn weight(load: Load) -> u64 {
     .sum()
 }
 
-/// The densest minute of the run and its heaviest tick, as numbers of ticks played before them:
-/// the minute is the ticks `start..start + MINUTE_TICKS`, the window of the largest summed load,
-/// and the next `step` of a run `peak_tick` ticks in is the heaviest tick of that window.
+/// The minute and its heaviest tick, as numbers of ticks played before them: the minute is the
+/// ticks `start..start + MINUTE_TICKS`, and the next `step` of a run `peak_tick` ticks in is the
+/// heaviest tick of it.
 pub fn worst_minute_window() -> (u32, u32) {
-    let mut run = Run::fast_forwarded(0);
-    let ticks = run.inputs.len();
-    let mut loads = Vec::with_capacity(ticks);
-    for _ in 0..ticks {
+    let mut run = Run::fast_forwarded(MINUTE_START);
+    let mut heaviest = (0, MINUTE_START);
+    for i in 0..MINUTE_TICKS {
         run.play(1);
-        loads.push(weight(run.engine.load()));
-    }
-    let minute = MINUTE_TICKS as usize;
-    let mut sum: u64 = loads[..minute].iter().sum();
-    let (mut best, mut start) = (sum, 0);
-    for from in 1..=ticks - minute {
-        sum = sum - loads[from - 1] + loads[from + minute - 1];
-        if sum > best {
-            (best, start) = (sum, from);
+        let w = weight(run.engine.load());
+        if w > heaviest.0 {
+            heaviest = (w, MINUTE_START + i);
         }
     }
-    let window = &loads[start..start + minute];
-    let heaviest = window.iter().max().expect("a minute has ticks");
-    let peak = start
-        + window
-            .iter()
-            .position(|l| l == heaviest)
-            .expect("it is in it");
-    (
-        u32::try_from(start).expect("a tick count"),
-        u32::try_from(peak).expect("a tick count"),
-    )
+    (MINUTE_START, heaviest.1)
 }
 
-/// The run at the start of its densest minute (`benches/worst_minute.rs` plays `MINUTE_TICKS`).
+/// The run at the start of the dense minute (`benches/worst_minute.rs` plays `MINUTE_TICKS`).
 pub fn worst_minute() -> Run {
-    Run::fast_forwarded(worst_minute_window().0)
+    Run::fast_forwarded(MINUTE_START)
 }
 
 /// The run one tick before the heaviest tick of that minute (`benches/worst_minute_peak.rs`).

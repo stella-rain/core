@@ -13,8 +13,8 @@ use crate::alloc::{live_bytes, peak_bytes, reset_peak};
 /// them, this test names the new values: set them here and the hashes in
 /// `tests/bench_fixture_pins.rs` (a `src/` PR then edits only `tests/`, which the bench guard
 /// allows).
-const WORST_MINUTE_START: u32 = 1_684;
-const WORST_TICK_IN_MINUTE: u32 = 2_699;
+const WORST_MINUTE_START: u32 = 7_300;
+const WORST_TICK_IN_MINUTE: u32 = 10_800;
 
 /// The most heap the engine may hold at once in the worst minute (16 MiB).
 const PEAK_HEAP_LIMIT: i64 = 16 * 1024 * 1024;
