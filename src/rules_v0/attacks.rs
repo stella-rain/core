@@ -1093,6 +1093,14 @@ fn zone_ticks(v: i32, lo: u32) -> u32 {
     ticks(v).min(MAX_ZONE_TICKS).max(lo)
 }
 
+/// Where the aimed entity is now; `origin` if it is gone or the aim is a fixed direction.
+fn target_now(s: &State, aim: Aim, origin: Point) -> Point {
+    match aim {
+        Aim::Entity(target) => s.find(target).map_or(origin, |w| s.at(w)),
+        Aim::Fixed(_) => origin,
+    }
+}
+
 /// Places the zone of a `zone` node, unless there are too many. False if the attack's owner is
 /// gone. Its tick counts are evaluated first, then its direction, so the order of `rand` draws is
 /// fixed; the zone is centred at its anchor moved by `offset` in the frame of its direction.
@@ -1126,10 +1134,7 @@ fn emit_zone(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter) -> b
     let dir = heading(s, t, ab, origin, direction);
     let from = match anchor {
         Anchor::Attacker => origin,
-        Anchor::Target => t.spot.unwrap_or_else(|| match t.aim {
-            Aim::Entity(target) => s.find(target).map_or(origin, |w| s.at(w)),
-            Aim::Fixed(_) => origin,
-        }),
+        Anchor::Target => t.spot.unwrap_or_else(|| target_now(s, t.aim, origin)),
     };
     super::zones::place(
         s,
@@ -1187,13 +1192,14 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
     let Emitter::Orb {
         speed,
         direction,
+        anchor,
+        offset,
         style,
         ticks,
         breakable,
         burst,
         stop_after,
         link,
-        ..
     } = node
     else {
         return true;
@@ -1272,8 +1278,13 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
             last_hit: None,
         }
     });
+    // Sampled once, now, when the node fires; the orb then flies on its own (Z3a-4).
+    let from = match anchor {
+        Anchor::Attacker => origin,
+        Anchor::Target => target_now(s, t.aim, origin),
+    };
     s.orbs.push(OrbState {
-        at: origin,
+        at: super::hit_boxes::centre(from, dir, offset.forward.0, offset.right.0),
         vx: if halted { Fx(0) } else { velocity(dir.x) },
         vy: if halted { Fx(0) } else { velocity(dir.y) },
         dir,

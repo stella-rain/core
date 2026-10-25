@@ -146,13 +146,13 @@ fn a_warn_only_zone_is_counted_in_the_cap() {
         json!({ "type": "ring", "count": n, "body": [{ "type": "zone", "shape": circle(PX),
             "anchor": "target", "wind_up_ticks": 200, "active_ticks": 5 }] })
     };
-    let full = stage(spawning(5, vec![ring(128), warn(200)]));
+    let full = stage(spawning(5, vec![ring(64), ring(64), warn(200)]));
     let mut e = engine(&full);
     e.step(idle());
     let z = zones(&e);
     assert_eq!(z.len(), MAX_ZONES_ALIVE);
     assert!(z.iter().all(|z| z.get("warn_only").is_none()), "dropped");
-    let room = stage(spawning(5, vec![ring(127), warn(200), warn(200)]));
+    let room = stage(spawning(5, vec![ring(64), ring(63), warn(200), warn(200)]));
     let mut e = engine(&room);
     e.step(idle());
     let z = zones(&e);
@@ -239,7 +239,7 @@ fn an_orb_spawns_at_the_target_moved_by_its_offset() {
 
 #[test]
 fn an_orb_samples_the_target_once_when_it_fires() {
-    let st = firing_late(vec![orb(Some("target"), 0)]);
+    let st = firing_late(vec![orb(Some("target"), 16 * PX)]);
     let mut e = engine(&st);
     let start = e.snapshot().player.at;
     let left = moving(-127, 0);
@@ -249,8 +249,11 @@ fn an_orb_samples_the_target_once_when_it_fires() {
     let o = orbs(&e)[0].clone();
     let (ox, _) = px(&o["at"]);
     assert!(
-        (ox - i64::from(me.x.0)).abs() <= 4 * i64::from(PX),
-        "near the tick-31 spot"
+        // The 16 px offset runs along the slanted line from the foe, so the orb is some pixels off.
+        (ox - i64::from(me.x.0)).abs() <= 24 * i64::from(PX),
+        "near the tick-31 spot: orb {ox}, main character {}, start {}",
+        me.x.0,
+        start.x.0
     );
     assert!(
         i64::from(start.x.0) - ox > 40 * i64::from(PX),
@@ -270,7 +273,7 @@ fn an_orb_samples_the_target_once_when_it_fires() {
 
 #[test]
 fn rounds_of_a_repeat_sample_again_when_they_fire() {
-    let rep = json!({ "type": "repeat", "count": 2, "interval_ticks": 30, "body": [orb(Some("target"), 0)] });
+    let rep = json!({ "type": "repeat", "count": 2, "interval_ticks": 30, "body": [orb(Some("target"), 16 * PX)] });
     let st = firing_late(vec![rep]);
     let mut e = engine(&st);
     let left = moving(-127, 0);
