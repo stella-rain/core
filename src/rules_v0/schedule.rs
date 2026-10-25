@@ -149,4 +149,34 @@ mod tests {
         names.dedup();
         assert_eq!(names.len(), TICK.len());
     }
+
+    /// A fn pointer carries no name, so the source is read: `TICK` is built by `steps![..]` from
+    /// the names in order, and each is a `#[inline(never)]` function (DS71-1).
+    #[test]
+    fn every_step_is_a_named_function() {
+        let src = include_str!("schedule.rs");
+        let (_, rest) = src.split_once("const TICK").expect("TICK");
+        let (_, rest) = rest.split_once("steps![").expect("steps![ opens the list");
+        let (list, _) = rest.split_once("];").expect("];  closes the list");
+        let listed: Vec<&str> = list
+            .split(',')
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+            .collect();
+        let names: Vec<&str> = TICK.iter().map(|(name, _)| *name).collect();
+        assert_eq!(listed, names);
+        for name in names {
+            let sig = format!("fn {name}(c: &mut Ctx)");
+            let (before, _) = src.split_once(&sig).unwrap_or_else(|| panic!("no {sig}"));
+            let before = before.trim_end();
+            let before = before
+                .strip_suffix("pub(super)")
+                .unwrap_or(before)
+                .trim_end();
+            assert!(
+                before.ends_with("#[inline(never)]"),
+                "{name} is not #[inline(never)]"
+            );
+        }
+    }
 }
