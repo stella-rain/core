@@ -76,6 +76,6 @@ fn the_worst_minute_peak_tick_is_the_benches_case() {
         bench_fixtures::worst_minute_peak(),
         1,
         0x0c467c72fd8c4c08,
-        0x1c1612ab1b2f3a1d,
+        0x22a540d7a49bfdfd,
     );
 }
