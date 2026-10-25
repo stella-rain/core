@@ -326,8 +326,10 @@ fn a_cage_forms_round_the_target_where_it_stood_when_the_node_fired() {
     for o in &list {
         assert_eq!((o["vx"].as_i64(), o["vy"].as_i64()), (Some(0), Some(0)));
         let (x, y) = px(&o["at"]);
-        let d = (((x - i64::from(me.x.0)).pow(2) + (y - i64::from(me.y.0)).pow(2)) as f64).sqrt();
-        assert!((d / f64::from(PX) - 136.0).abs() <= 1.0, "{d}");
+        // Within 1 px of 136 px, compared as squared distances in 1/256 px.
+        let d2 = (x - i64::from(me.x.0)).pow(2) + (y - i64::from(me.y.0)).pow(2);
+        let (lo, hi) = (135 * i64::from(PX), 137 * i64::from(PX));
+        assert!(lo * lo <= d2 && d2 <= hi * hi, "{d2}");
         assert!(o.get("link_to").is_some());
     }
 }

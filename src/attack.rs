@@ -300,6 +300,12 @@ pub struct Offset {
     pub right: Fx,
 }
 
+impl Offset {
+    pub fn is_zero(&self) -> bool {
+        *self == Offset::default()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Emitter {
@@ -340,6 +346,13 @@ pub enum Emitter {
     Orb {
         speed: Expr,
         direction: Direction,
+        /// Where the orbs spawn from: the attacker, or the target as it is when the node fires
+        /// (Z3a-4). Sampled once; the orbs then fly on their own.
+        #[serde(default, skip_serializing_if = "Anchor::is_attacker")]
+        anchor: Anchor,
+        /// Moves the spawn point forward along the orb's direction and to the right of it.
+        #[serde(default, skip_serializing_if = "Offset::is_zero")]
+        offset: Offset,
         /// Orb asset; absent means the default orb.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         style: Option<ContentId>,
@@ -372,8 +385,14 @@ pub enum Emitter {
         direction: Direction,
         /// 0 to `MAX_ZONE_TICKS`; 0 is a zone that hurts at once.
         wind_up_ticks: Expr,
-        /// 1 to `MAX_ZONE_TICKS`.
-        active_ticks: Expr,
+        /// 1 to `MAX_ZONE_TICKS`. Required, unless the zone is `warn_only`, which refuses it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        active_ticks: Option<Expr>,
+        /// A warning only (Z3a-4): it warns for `wind_up_ticks` (1 or more) and then ends. It
+        /// never becomes active, never hurts and gives no invulnerability; its phase's `damage`,
+        /// `type` and `breaks_charge` are not used for it. It counts in `MAX_ZONES_ALIVE`.
+        #[serde(default, skip_serializing_if = "crate::behaviour::is_false")]
+        warn_only: bool,
     },
 }
 

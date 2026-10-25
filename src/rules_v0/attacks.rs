@@ -1104,6 +1104,7 @@ fn emit_zone(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter) -> b
         direction,
         wind_up_ticks,
         active_ticks,
+        ..
     } = node
     else {
         return true;
@@ -1116,7 +1117,9 @@ fn emit_zone(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter) -> b
         },
     };
     let wind_left = zone_ticks(value(s, t, ab, wind_up_ticks), 0);
-    let active_left = zone_ticks(value(s, t, ab, active_ticks), 1);
+    let active_left = active_ticks
+        .as_ref()
+        .map_or(1, |a| zone_ticks(value(s, t, ab, a), 1));
     let dir = heading(s, t, ab, origin, direction);
     let from = match anchor {
         Anchor::Attacker => origin,
@@ -1186,6 +1189,7 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
         burst,
         stop_after,
         link,
+        ..
     } = node
     else {
         return true;

@@ -218,7 +218,7 @@ fn nodes_highest_arg(nodes: &[Emitter]) -> Option<u8> {
                 active_ticks,
                 ..
             } => expr(wind_up_ticks)
-                .max(expr(active_ticks))
+                .max(active_ticks.as_ref().and_then(expr))
                 .max(direction(d)),
         })
         .max()
@@ -297,6 +297,8 @@ fn emitters(nodes: &[Emitter], args: &[i32]) -> Vec<Emitter> {
             Emitter::Orb {
                 speed,
                 direction: d,
+                anchor,
+                offset,
                 style,
                 ticks,
                 breakable,
@@ -306,6 +308,8 @@ fn emitters(nodes: &[Emitter], args: &[i32]) -> Vec<Emitter> {
             } => Emitter::Orb {
                 speed: expr(speed, args),
                 direction: direction(d, args),
+                anchor: *anchor,
+                offset: *offset,
                 style: style.clone(),
                 ticks: expr(ticks, args),
                 breakable: *breakable,
@@ -320,13 +324,15 @@ fn emitters(nodes: &[Emitter], args: &[i32]) -> Vec<Emitter> {
                 direction: d,
                 wind_up_ticks,
                 active_ticks,
+                warn_only,
             } => Emitter::Zone {
                 shape: shape.clone(),
                 anchor: *anchor,
                 offset: *offset,
                 direction: direction(d, args),
                 wind_up_ticks: expr(wind_up_ticks, args),
-                active_ticks: expr(active_ticks, args),
+                active_ticks: active_ticks.as_ref().map(|e| expr(e, args)),
+                warn_only: *warn_only,
             },
         })
         .collect()
