@@ -675,7 +675,9 @@ fn point(o: &Value) -> (i32, i32) {
 
 /// Weaver's phase 3 until its cage has formed and halted: the engine at 60 ticks after the four
 /// orbs spawned, the events so far, the tick they spawned and where the main character stands.
-fn formed_cage() -> (Engine, Vec<(u32, DomainEvent)>, u32, (i32, i32)) {
+type Events = Vec<(u32, DomainEvent)>;
+
+fn formed_cage() -> (Engine, Events, u32, (i32, i32)) {
     let st = boss_stage("weaver", 2, (180, 40), Some(sword()));
     let mut e = bundled_engine(&st);
     let mut events: Vec<(u32, DomainEvent)> = Vec::new();
