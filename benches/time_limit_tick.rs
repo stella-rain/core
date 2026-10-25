@@ -8,18 +8,14 @@ use iai_callgrind::{library_benchmark, library_benchmark_group, main};
 use stella_rain_core::bench_fixtures::{self, Case};
 use stella_rain_core::engine::Engine;
 
+mod support;
+
 #[library_benchmark]
-#[bench::time_limit_tick(args = (bench_fixtures::time_limit_tick()), teardown = drop_measured)]
+#[bench::time_limit_tick(args = (bench_fixtures::time_limit_tick()), teardown = support::forget_measured)]
 fn time_limit_tick(case: Case) -> Engine {
     let Case { mut engine, input } = case;
     engine.step(input);
     engine
-}
-
-// The returned value is dropped here, outside the counted region: the free path's cost
-// depends on the heap layout and is not the operation this bench names.
-fn drop_measured(value: Engine) {
-    drop(value);
 }
 
 library_benchmark_group!(
