@@ -4,7 +4,7 @@
 //! `TICK` equal.
 
 use super::{
-    World, agents, attacks, boss, collide, count, decide_outcome, entity, expertise, horde,
+    World, agents, attacks, boss, collide, count, dash, decide_outcome, entity, expertise, horde,
     loadout, move_orbs, open_offers, orbit, player, push, runes, skill, spawn_waves, zones,
 };
 use crate::engine::{Load, Outcome, State};
@@ -84,6 +84,7 @@ pub(super) const TICK: &[(&str, Step)] = &[
     ("boss_act", |c| boss::act(c.world, c.s, c.events)),
     ("call_elites", |c| boss::call_elites(c.world, c.s, c.events)),
     ("agents_act", |c| agents::act(c.world, c.s, c.events)),
+    ("dash_attackers", |c| dash::act(c.world, c.s)),
     ("push_apart", |c| push::apply(c.world, c.s)),
     ("skill_pull", |c| skill::pull(c.world, c.s)),
     ("runes_steer", |c| {

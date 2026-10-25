@@ -226,6 +226,8 @@ pub(crate) struct World {
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
     attack_keys: AttackKeys,
+    /// Some compiled attack has a phase that dashes: the tick looks for a dasher only then.
+    pub has_dash: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
     pub emitters: Vec<Vec<Emitter>>,
     /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
@@ -315,11 +317,16 @@ impl World {
             horde,
             attacks: Vec::new(),
             attack_keys: AttackKeys::default(),
+            has_dash: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
+        world.has_dash = world
+            .attacks
+            .iter()
+            .any(|a| a.phases.iter().any(|p| p.dash.is_some()));
         Ok(world)
     }
 
@@ -330,8 +337,14 @@ impl World {
 
     /// Compiles `attack` unless the run has it already, and returns its index.
     pub fn compile_attack(&mut self, attack: &AttackRef) -> Result<AttackIndex, Issue> {
-        self.attack_keys
-            .compile(&mut self.attacks, &mut self.emitters, attack)
+        let index = self
+            .attack_keys
+            .compile(&mut self.attacks, &mut self.emitters, attack)?;
+        self.has_dash |= self.attacks[usize::from(index.0)]
+            .phases
+            .iter()
+            .any(|p| p.dash.is_some());
+        Ok(index)
     }
 
     /// The index of `attack`, which the run compiled when it started.

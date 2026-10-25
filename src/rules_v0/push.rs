@@ -18,6 +18,7 @@ use crate::engine::State;
 use crate::fixed::{Fx, Point};
 use crate::trig;
 
+use super::dash;
 use super::grid::Grid;
 
 /// A sum of pushes is clamped to this length: 4 pixels a tick, the speed of `Follow`, so a
@@ -168,6 +169,10 @@ pub(super) fn apply(stage: &World, s: &mut State) {
         radius: push_radius(stage.defs.agent(e.def).radius),
     }));
     offsets_into(bodies, grid, near, offsets);
+    if stage.has_dash {
+        // A dasher keeps to its line; it still pushed the others, above.
+        dash::hold_dashers(stage, &s.runs, &s.enemies, offsets);
+    }
     let map = stage.map();
     let mut left = false;
     for (e, &(dx, dy, crowded)) in s.enemies.iter_mut().zip(offsets.iter()) {

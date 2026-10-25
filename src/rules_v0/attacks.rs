@@ -40,7 +40,9 @@
 
 use std::ops::Deref;
 
-use crate::attack::{Anchor, AttackPhase, AttackRef, Direction, Emitter, Expr, HitBox, PhaseKind};
+use crate::attack::{
+    Anchor, AttackPhase, AttackRef, Dash, Direction, Emitter, Expr, HitBox, PhaseKind,
+};
 use crate::difficulties::scale_pct;
 use crate::engine::{
     Aim, AttackRun, AttackTask, Dir, Frame, Frames, Hook, OrbState, Origin, PathStep, Smash, State,
@@ -330,6 +332,13 @@ impl Deref for PhaseView<'_> {
 /// The compiled phases of run `r`'s attack, before attack speed and range.
 fn compiled<'a>(world: &'a World, r: &AttackRun) -> &'a [AttackPhase] {
     &world.attacks[usize::from(r.attack.0)].phases
+}
+
+/// The dash of run `r`'s current phase, if it is an active phase with one. Read from the compiled
+/// phase, so that a tick that has no dash to move pays for a lookup, not for a `PhaseView`.
+pub(super) fn dash_of(world: &World, r: &AttackRun) -> Option<Dash> {
+    let p = &compiled(world, r)[r.phase as usize];
+    p.dash.filter(|_| p.kind == PhaseKind::Active)
 }
 
 /// How many phases run `r` has.
@@ -1324,6 +1333,7 @@ mod attack_table_tests {
             spawn: Vec::new(),
             move_pct: 100,
             breaks_charge: false,
+            dash: None,
         }
     }
 

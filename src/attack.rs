@@ -60,6 +60,18 @@ pub struct AttackPhase {
     /// spawns, break a charge in progress (core#83).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub breaks_charge: bool,
+    /// An active phase of an enemy's or the boss's attack only: the attacker moves along the
+    /// attack's locked facing over the phase, hit box and boss parts with it (DS11).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dash: Option<Dash>,
+}
+
+/// A phase that carries its attacker forward: it covers `distance` over the phase's ticks, held
+/// to the map. The phase's `move_pct` is 0, so that the walk does not add to it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Dash {
+    pub distance: Fx,
 }
 
 fn full_speed() -> u8 {

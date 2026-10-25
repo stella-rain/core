@@ -13,6 +13,7 @@ fn phase(move_pct: u8) -> AttackPhase {
         spawn: Vec::new(),
         move_pct,
         breaks_charge: false,
+        dash: None,
     }
 }
 

@@ -31,6 +31,7 @@ mod content_pack_unpack;
 mod controls;
 mod corpus;
 mod damage_types;
+mod dash;
 mod defence;
 mod died_class;
 mod difficulties;
