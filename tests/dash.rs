@@ -1,0 +1,252 @@
+//! An attack phase that dashes (DS11 items 3 and 5, core Z3a-2): an `Active` phase with
+//! `dash: { distance }` moves its attacker that far along the attack's locked facing over the
+//! phase, one share of the distance each tick (the whole distance is covered exactly), clamped
+//! to the map, and its hit box goes with it. The phase's `move_pct` must be 0, and only an
+//! enemy's or the boss's attack may dash.
+
+use crate::common;
+
+use common::*;
+use serde_json::{Value, json};
+use stella_rain_core::engine::Engine;
+use stella_rain_core::event::DomainEvent;
+use stella_rain_core::snapshot::EntityKind;
+use stella_rain_core::stage::Stage;
+use stella_rain_core::validate::{Error, Issue, validate};
+
+const PX: i32 = 256;
+/// The map's right and bottom edges, in units.
+const MAP_W: i32 = 92_160;
+const MAP_H: i32 = 163_840;
+const WIND_UP: u32 = 10;
+const ACTIVE: u32 = 20;
+
+/// Wind-up 10, then 20 active ticks dashing `distance` pixels; `hit` adds a circle hit box of
+/// 10 pixels on the attacker.
+fn phases(distance: i32, hit: bool) -> Value {
+    let mut active = json!({ "kind": "active", "ticks": ACTIVE, "damage": 5, "move_pct": 0,
+                              "dash": { "distance": distance * PX } });
+    if hit {
+        active["hit_box"] = json!({ "type": "circle", "radius": 10 * PX });
+    }
+    json!([{ "kind": "wind_up", "ticks": WIND_UP, "move_pct": 0 }, active])
+}
+
+fn attack_rule_of(phases: Value) -> Value {
+    json!([{ "when": always(), "target": "player", "once": true, "cooldown_ticks": 0,
+             "do": { "type": "attack", "attack": { "inline": phases } } }])
+}
+
+/// An enemy that holds at `(x, y)` pixels and dashes once at the main character.
+fn dasher(x: i32, y: i32, phases: Value) -> Value {
+    wave(
+        1,
+        1,
+        0,
+        enemy(1000, hold(x * PX, y * PX), attack_rule_of(phases)),
+        x * PX,
+        y * PX,
+    )
+}
+
+/// An enemy that only stands at `(x, y)` pixels.
+fn bystander(x: i32, y: i32) -> Value {
+    wave(
+        1,
+        1,
+        0,
+        enemy(1000, hold(x * PX, y * PX), json!([])),
+        x * PX,
+        y * PX,
+    )
+}
+
+fn stage(waves: Vec<Value>) -> Stage {
+    quiet(stage_with(600, Some(far_boss()), waves))
+}
+
+fn enemy_positions(e: &Engine) -> Vec<(i32, i32)> {
+    e.snapshot()
+        .entities
+        .iter()
+        .filter(|v| v.kind == EntityKind::Enemy)
+        .map(|v| (v.at.x.0, v.at.y.0))
+        .collect()
+}
+
+/// The first enemy's place after each of `ticks` ticks.
+fn track(stage: &Stage, ticks: u32) -> Vec<(i32, i32)> {
+    let mut e = engine(stage);
+    (0..ticks)
+        .map(|_| {
+            e.step(idle());
+            enemy_positions(&e)[0]
+        })
+        .collect()
+}
+
+// --- Motion -------------------------------------------------------------------------------
+
+#[test]
+fn the_dash_covers_its_distance_exactly_a_share_each_tick() {
+    // Straight above the main character (at x 180, y 576): the dash goes straight down.
+    let path = track(&stage(vec![dasher(180, 100, phases(200, false))]), 60);
+    let (x0, y0) = (180 * PX, 100 * PX);
+    assert!(path.iter().all(|p| p.0 == x0), "{path:?}");
+    assert_eq!(*path.last().unwrap(), (x0, y0 + 200 * PX));
+    // 200 pixels over 20 ticks: 10 pixels, 2,560 units, each tick, and none before or after.
+    let steps: Vec<i32> = path.windows(2).map(|w| w[1].1 - w[0].1).collect();
+    let moving = steps.iter().filter(|&&d| d != 0).count();
+    assert_eq!(moving, ACTIVE as usize, "{steps:?}");
+    assert!(steps.iter().all(|&d| d == 0 || d == 10 * PX), "{steps:?}");
+}
+
+#[test]
+fn a_dash_past_the_map_ends_at_its_edge() {
+    let path = track(&stage(vec![dasher(180, 10, phases(700, false))]), 60);
+    assert_eq!(*path.last().unwrap(), (180 * PX, MAP_H));
+    assert!(path.iter().all(|p| p.1 <= MAP_H), "{path:?}");
+}
+
+#[test]
+fn an_uneven_share_still_adds_up_to_the_distance() {
+    // 7 pixels over 20 ticks does not divide: the shares differ by a unit, the sum is exact.
+    let path = track(&stage(vec![dasher(180, 100, phases(7, false))]), 60);
+    assert_eq!(path.last().unwrap().1, 107 * PX);
+}
+
+#[test]
+fn the_hit_box_travels_with_the_attacker() {
+    // The main character stands 476 pixels below; the dash goes 500 pixels, through it.
+    let st = stage(vec![dasher(180, 100, phases(500, true))]);
+    let mut e = engine(&st);
+    let radius = e.snapshot().player.radius.0;
+    let (px, py) = player_at(&e);
+    assert_eq!(px, 180 * PX);
+    let mut first_overlap = None;
+    let mut hit_at = None;
+    for _ in 0..60 {
+        e.step(idle());
+        let (ex, ey) = enemy_positions(&e)[0];
+        let d = i64::from(ex - px).pow(2) + i64::from(ey - py).pow(2);
+        let reach = i64::from(10 * PX + radius);
+        if first_overlap.is_none() && d <= reach * reach {
+            first_overlap = Some(e.tick());
+        }
+        if hit_at.is_none()
+            && e.events()
+                .iter()
+                .any(|ev| matches!(ev, DomainEvent::PlayerHit { .. }))
+        {
+            hit_at = Some(e.tick());
+        }
+    }
+    let (overlap, hit) = (first_overlap.expect("it reaches"), hit_at.expect("it hits"));
+    assert!((overlap..=overlap + 1).contains(&hit), "{overlap} {hit}");
+}
+
+#[test]
+fn a_dasher_is_not_moved_by_the_push_apart() {
+    // A bystander stands 5 pixels off the dasher's path: their circles overlap as it passes.
+    let st = stage(vec![
+        dasher(180, 100, phases(300, false)),
+        bystander(185, 250),
+    ]);
+    let mut e = engine(&st);
+    for _ in 0..60 {
+        e.step(idle());
+        let at = enemy_positions(&e);
+        assert_eq!(at[0].0, 180 * PX, "{at:?}");
+    }
+    assert_eq!(enemy_positions(&e)[0].1, 400 * PX);
+}
+
+// --- The boss -----------------------------------------------------------------------------
+
+#[test]
+fn a_boss_dash_moves_its_parts_by_the_same_offset() {
+    let boss = json!({
+        "base": "golem", "hp": 1_000, "radius": 8_192,
+        "spawn": { "x": 180 * PX, "y": 100 * PX },
+        "parts": [{ "id": "horn", "asset": "horns_2", "hp": 100,
+                    "offset": { "x": 0, "y": 16 * PX }, "radius": 2_048 }],
+        "phases": [{ "timeline": [
+            { "type": "attack", "attack": { "inline": phases(200, false) } },
+            { "type": "wait", "ticks": 100 }] }]
+    });
+    let st = quiet(stage_full(600, Some(boss), vec![], vec![]));
+    let mut e = engine(&st);
+    let at = |e: &Engine, kind: EntityKind| {
+        let s = e.snapshot();
+        let v = s.entities.iter().find(|v| v.kind == kind).unwrap();
+        (v.at.x.0, v.at.y.0)
+    };
+    for _ in 0..60 {
+        e.step(idle());
+    }
+    assert_eq!(at(&e, EntityKind::Boss), (180 * PX, 300 * PX));
+    assert_eq!(at(&e, EntityKind::BossPart), (180 * PX, 316 * PX));
+}
+
+// --- The validator ------------------------------------------------------------------------
+
+fn issues(st: &Stage) -> Vec<Issue> {
+    match validate(st) {
+        Ok(()) => Vec::new(),
+        Err(Error::Invalid(issues)) => issues,
+        Err(other) => panic!("unexpected {other:?}"),
+    }
+}
+
+fn refused_for_dash(st: &Stage) {
+    let found = issues(st);
+    assert!(
+        found.iter().any(|i| i.message.contains("dash")),
+        "{found:?}"
+    );
+}
+
+fn with_phase(mut phases: Value, i: usize, key: &str, value: Value) -> Value {
+    phases[i][key] = value;
+    phases
+}
+
+#[test]
+fn an_enemy_may_dash_in_an_active_phase() {
+    let st = stage(vec![dasher(180, 100, phases(200, true))]);
+    assert_eq!(issues(&st), vec![]);
+}
+
+#[test]
+fn a_dash_on_a_wind_up_phase_is_refused() {
+    let p = with_phase(
+        phases(200, false),
+        0,
+        "dash",
+        json!({ "distance": 200 * PX }),
+    );
+    refused_for_dash(&stage(vec![dasher(180, 100, p)]));
+}
+
+#[test]
+fn a_dash_of_no_distance_or_too_far_is_refused() {
+    for distance in [0, 961] {
+        let st = stage(vec![dasher(180, 100, phases(distance, false))]);
+        refused_for_dash(&st);
+    }
+    let longest = stage(vec![dasher(180, 100, phases(960, false))]);
+    assert_eq!(issues(&longest), vec![]);
+}
+
+#[test]
+fn a_dashing_phase_that_also_walks_is_refused() {
+    let p = with_phase(phases(200, false), 1, "move_pct", json!(50));
+    refused_for_dash(&stage(vec![dasher(180, 100, p)]));
+}
+
+#[test]
+fn a_weapon_attack_may_not_dash() {
+    let weapon = weapon_ref(json!({ "inline": phases(200, false) }));
+    let st = armed(stage(vec![]), weapon);
+    refused_for_dash(&st);
+}
