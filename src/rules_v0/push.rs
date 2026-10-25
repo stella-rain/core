@@ -169,20 +169,16 @@ pub(super) fn apply(stage: &World, s: &mut State) {
         radius: push_radius(stage.defs.agent(e.def).radius),
     }));
     offsets_into(bodies, grid, near, offsets);
+    if stage.has_dash {
+        // A dasher keeps to its line; it still pushed the others, above.
+        dash::hold_dashers(stage, &s.runs, &s.enemies, offsets);
+    }
     let map = stage.map();
-    // Looked for once, at the first enemy that a push would move.
-    let mut any_dash = None;
     let mut left = false;
     for (e, &(dx, dy, crowded)) in s.enemies.iter_mut().zip(offsets.iter()) {
         e.crowded = crowded;
         // A shrine, or a mimic in disguise, is fixed; the others are pushed off it.
         if (dx, dy) == (0, 0) || e.shrine.is_some() || e.hidden() {
-            continue;
-        }
-        // A dasher keeps to its line; it still pushes the others.
-        if *any_dash.get_or_insert_with(|| dash::any(stage, &s.runs))
-            && dash::dashing(stage, &s.runs, e.id)
-        {
             continue;
         }
         let to = Point {

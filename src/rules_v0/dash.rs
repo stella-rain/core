@@ -5,14 +5,13 @@
 //! nothing new: the progress is the run's phase, tick and facing.
 
 use crate::fixed::Fx;
-use crate::id::EntityId;
 use crate::trig::SCALE;
 use crate::validate::limits::MAX_DASH_DISTANCE;
 
 use super::World;
 use super::attacks;
 use super::entity::Who;
-use super::state::AttackRun;
+use super::state::{AgentState, AttackRun};
 use crate::engine::State;
 
 /// How far along one axis of the facing (`axis`, scaled by `SCALE`) the dash has gone after `k`
@@ -67,15 +66,25 @@ pub(super) fn act(stage: &World, s: &mut State) {
     }
 }
 
-/// Whether any run is in a dashing phase: the push-apart looks for a dasher only then.
-pub(super) fn any(stage: &World, runs: &[AttackRun]) -> bool {
-    stage.has_dash && runs.iter().any(|r| is_dashing(stage, r))
-}
-
-/// Whether `owner` has a run in a dashing phase.
-pub(super) fn dashing(stage: &World, runs: &[AttackRun], owner: EntityId) -> bool {
-    runs.iter()
-        .any(|r| r.owner == owner && is_dashing(stage, r))
+/// Takes the push off every enemy that is dashing, keeping its crowded flag: it still pushed the
+/// others. Kept apart from the push-apart's loop, so that a run without dashes does not pay for
+/// it per enemy.
+#[cold]
+#[inline(never)]
+pub(super) fn hold_dashers(
+    stage: &World,
+    runs: &[AttackRun],
+    enemies: &[AgentState],
+    offsets: &mut [(i32, i32, bool)],
+) {
+    if !runs.iter().any(|r| is_dashing(stage, r)) {
+        return;
+    }
+    for (e, o) in enemies.iter().zip(offsets.iter_mut()) {
+        if runs.iter().any(|r| r.owner == e.id && is_dashing(stage, r)) {
+            (o.0, o.1) = (0, 0);
+        }
+    }
 }
 
 fn is_dashing(stage: &World, r: &AttackRun) -> bool {
