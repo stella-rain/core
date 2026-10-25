@@ -939,6 +939,39 @@
             "radius": 20480
           }
         },
+        "rules": [
+          {
+            "when": {
+              "type": "always"
+            },
+            "target": "player",
+            "do": {
+              "type": "attack",
+              "attack": {
+                "inline": [
+                  {
+                    "kind": "active",
+                    "ticks": 1,
+                    "damage": 5000,
+                    "spawn": [
+                      {
+                        "type": "zone",
+                        "shape": {
+                          "type": "circle",
+                          "radius": 16384
+                        },
+                        "wind_up_ticks": 60,
+                        "active_ticks": 4
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "cooldown_ticks": 300,
+            "once": false
+          }
+        ],
         "elite": {
           "range": 51200,
           "boss_call": "stay"
