@@ -1,5 +1,5 @@
 //! The instruction count of the heaviest tick of that minute (BR1e,
-//! `bench_fixtures::worst_minute_case::WORST_TICK_IN_MINUTE`), by the same load. Its own target so
+//! `bench_fixtures::worst_minute_case::worst_minute_window`), by the same load. Its own target so
 //! that it has a budget of its own: a key of `benches/budgets.toml` is a bench target. Run it
 //! with `cargo bench --bench worst_minute_peak`.
 

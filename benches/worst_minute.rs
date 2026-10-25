@@ -1,8 +1,8 @@
-//! The instruction count of the densest minute of the `time_limit` corpus run (BR1e,
-//! `bench_fixtures::worst_minute_case`): 3,600 ticks from `WORST_MINUTE_START`, with the run's
-//! wave spawns, elites, boss and death bursts that a one-tick bench misses. The setup (the run
-//! up to the minute) is not counted. Run it with `cargo bench --bench worst_minute` (needs what
-//! `worst_tick` needs).
+//! The instruction count of the dense minute of the `time_limit` mode (BR1e-2,
+//! `bench_fixtures::worst_minute_case`): 3,600 ticks from `MINUTE_START`, the crowd at its cap,
+//! elites alive and a boss arriving, with the wave spawns and death bursts that a one-tick bench
+//! misses. The setup (the run up to the minute) is not counted. Run it with
+//! `cargo bench --bench worst_minute` (needs what `worst_tick` needs).
 
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};
 use stella_rain_core::bench_fixtures;
