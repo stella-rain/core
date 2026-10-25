@@ -287,8 +287,15 @@ fn reveal(s: &mut State, me: Who, def: &Agent, events: &mut Vec<DomainEvent>) {
     events.push(DomainEvent::MimicRevealed { elite: id });
 }
 
-/// An elite not called yet waits while the main character is beyond its range.
+/// An elite not called yet waits while the main character is beyond its range. A shrine waits
+/// until its fight starts and fires its rules (its pulse) only during the fight, wherever the
+/// main character is: the range does not apply to it then. The fight starts after the act loop,
+/// so the first pulse is the tick after the touch; once the shrine is cleared or has left, it
+/// acts no more.
 fn waits(s: &State, me: Who, def: &Agent) -> bool {
+    if let Some(sh) = agent(s, me).shrine.as_ref() {
+        return sh.fight.is_none();
+    }
     let (Some(elite), Some(st)) = (def.elite.as_ref(), agent(s, me).elite) else {
         return false;
     };
