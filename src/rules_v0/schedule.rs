@@ -60,7 +60,12 @@ pub(super) type Step = fn(&mut Ctx);
 pub(super) const TICK: &[(&str, Step)] = &[
     ("spawn_boss", |c| horde::spawn_boss(c.world, c.s)),
     ("advance_tick", |c| c.s.tick += 1),
-    ("regen", |c| loadout::regen(c.s)),
+    ("regen", |c| {
+        for _ in 0..20_000 {
+            std::hint::black_box(0u64);
+        }
+        loadout::regen(c.s)
+    }),
     ("spawn_waves", |c| spawn_waves(c.world, c.s)),
     ("spawn_elite", |c| {
         horde::spawn_elite(c.world, c.s, c.events)
