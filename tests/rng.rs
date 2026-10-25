@@ -22,7 +22,7 @@ fn seed_zero_gives_the_published_sequence() {
 }
 
 #[test]
-fn the_spike_seed_gives_the_pinned_sequence() {
+fn a_nonzero_seed_gives_the_pinned_sequence() {
     let mut rng = SplitMix64::new(0x5354_454c_4c41_5241);
     assert_eq!(rng.next_u64(), 0x424b_882e_8174_a4df);
     assert_eq!(rng.next_u64(), 0x5dc2_2b34_0f92_a76d);
