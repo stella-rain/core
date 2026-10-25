@@ -4,7 +4,6 @@
 //! when `collide` runs, so it travels with it; a boss's parts follow the boss. The state holds
 //! nothing new: the progress is the run's phase, tick and facing.
 
-use crate::attack::PhaseKind;
 use crate::fixed::Fx;
 use crate::id::EntityId;
 use crate::trig::SCALE;
@@ -26,15 +25,21 @@ fn gone(distance: i64, axis: i32, k: i64, ticks: i64) -> i64 {
 
 /// Every attacker whose run is in a dashing phase moves one share along its facing, in run
 /// order.
+// Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
+// (ADR-058).
+#[inline(never)]
 pub(super) fn act(stage: &World, s: &mut State) {
+    if !stage.has_dash {
+        return;
+    }
     let map = stage.map();
     let longest = i64::from(Fx::px(MAX_DASH_DISTANCE).0);
     for i in 0..s.runs.len() {
         let r = &s.runs[i];
-        let p = attacks::phase(stage, r, r.phase as usize);
-        let (PhaseKind::Active, Some(d)) = (p.kind, p.dash) else {
+        let Some(d) = attacks::dash_of(stage, r) else {
             continue;
         };
+        let p = attacks::phase(stage, r, r.phase as usize);
         if r.tick >= p.ticks {
             continue;
         }
@@ -64,7 +69,7 @@ pub(super) fn act(stage: &World, s: &mut State) {
 
 /// Whether any run is in a dashing phase: the push-apart looks for a dasher only then.
 pub(super) fn any(stage: &World, runs: &[AttackRun]) -> bool {
-    runs.iter().any(|r| is_dashing(stage, r))
+    stage.has_dash && runs.iter().any(|r| is_dashing(stage, r))
 }
 
 /// Whether `owner` has a run in a dashing phase.
@@ -74,6 +79,5 @@ pub(super) fn dashing(stage: &World, runs: &[AttackRun], owner: EntityId) -> boo
 }
 
 fn is_dashing(stage: &World, r: &AttackRun) -> bool {
-    let p = attacks::phase(stage, r, r.phase as usize);
-    p.kind == PhaseKind::Active && p.dash.is_some()
+    attacks::dash_of(stage, r).is_some()
 }
