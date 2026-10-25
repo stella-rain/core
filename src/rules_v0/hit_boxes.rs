@@ -308,7 +308,7 @@ fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {
 /// Adds a swing for each zone that is active this tick.
 fn zone_swings(s: &State, swings: &mut Vec<Swing>) {
     for (i, z) in s.zones.iter().enumerate() {
-        if z.wind_left > 0 {
+        if z.wind_left > 0 || z.warn_only {
             continue;
         }
         let area = match &z.shape {

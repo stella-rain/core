@@ -2,6 +2,8 @@
 //! A zone warns for its wind-up ticks (the snapshot shows it), then hurts for its active ticks,
 //! then is gone. Placed on tick T with a wind-up of W, it warns on ticks T to T + W - 1 and is
 //! active from T + W for its active ticks; a wind-up of 0 hurts on the tick it is placed.
+//! A `warn_only` zone (Z3a-4) has no active ticks: it warns on ticks T to T + W - 1 (W at least
+//! 1), is removed by the advance of tick T + W, and never hurts.
 //!
 //! - A zone hurts each target at most once, when it first overlaps one while active. What
 //!   hurts is decided with the hit boxes' (`hit_boxes`): a friendly zone hurts the boss, its

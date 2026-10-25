@@ -934,6 +934,9 @@ pub(crate) struct ZoneState {
     pub damage: u32,
     pub damage_type: Option<DamageType>,
     pub breaks_charge: bool,
+    /// A warning only (Z3a-4): it never becomes active and never hurts. Hashed in a block of its
+    /// own, written only while some zone has it.
+    pub warn_only: bool,
     /// Who it has hit, and on which tick, sorted by entity ID: each once.
     pub hits: Vec<(EntityId, u32)>,
 }

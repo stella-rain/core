@@ -1104,7 +1104,7 @@ fn emit_zone(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter) -> b
         direction,
         wind_up_ticks,
         active_ticks,
-        ..
+        warn_only,
     } = node
     else {
         return true;
@@ -1116,10 +1116,13 @@ fn emit_zone(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter) -> b
             None => return false,
         },
     };
-    let wind_left = zone_ticks(value(s, t, ab, wind_up_ticks), 0);
-    let active_left = active_ticks
-        .as_ref()
-        .map_or(1, |a| zone_ticks(value(s, t, ab, a), 1));
+    // A warning has no `active_ticks` (no draw for it), and a wind-up of at least 1.
+    let wind_left = zone_ticks(value(s, t, ab, wind_up_ticks), u32::from(*warn_only));
+    let active_left = match active_ticks {
+        _ if *warn_only => 0,
+        Some(a) => zone_ticks(value(s, t, ab, a), 1),
+        None => 1,
+    };
     let dir = heading(s, t, ab, origin, direction);
     let from = match anchor {
         Anchor::Attacker => origin,
@@ -1140,9 +1143,10 @@ fn emit_zone(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter) -> b
             active_left,
             wind_ticks: wind_left,
             active_ticks: active_left,
-            damage: t.damage,
-            damage_type: t.damage_type,
-            breaks_charge: t.breaks_charge,
+            damage: if *warn_only { 0 } else { t.damage },
+            damage_type: if *warn_only { None } else { t.damage_type },
+            breaks_charge: t.breaks_charge && !warn_only,
+            warn_only: *warn_only,
             hits: Vec::new(),
         },
     );
