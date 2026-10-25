@@ -1229,9 +1229,6 @@ fn hash_frame(h: &mut StateHasher, f: &crate::engine::Frame) {
     h.write_u32(f.loop_n);
     h.write_i32(f.param);
     h.write_i32(f.offset);
-    // The wait of an `on_orb`'s orbs, gone with the node (BR1c); the byte stays so that
-    // the hashes pinned by the bench fixtures do not move.
-    h.write_u32(0);
 }
 
 fn hash_orb(h: &mut StateHasher, b: &crate::engine::OrbState) {
@@ -1243,8 +1240,6 @@ fn hash_orb(h: &mut StateHasher, b: &crate::engine::OrbState) {
     h.write_i32(b.dir.y);
     h.write_u32(u32::from(b.style));
     h.write_u32(b.owner.0);
-    // No projectile is friendly any more (BR1c); the byte stays until HS1 (core#361).
-    h.write_bool(false);
     h.write_u32(b.damage);
     h.write_bool(b.breaks_charge);
     hash_smash(h, b.smash);
@@ -1265,7 +1260,6 @@ fn hash_orb(h: &mut StateHasher, b: &crate::engine::OrbState) {
 }
 
 fn hash_orb_flags(h: &mut StateHasher, b: &crate::engine::OrbState) {
-    h.write_bool(true);
     h.write_bool(b.breakable);
 }
 
@@ -1665,9 +1659,8 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
             h.write_u32(b.life);
         }
     }
-    // Which orbs are orbs and which break, and only while one is alive (core Z2), so that the
-    // hashes of runs without orbs stay as they were. Every projectile is an orb since BR1c, so
-    // the orb byte is a constant; it stays until HS1 (core#361).
+    // Which orbs break, and only while one is alive (core Z2), so that the hashes of runs
+    // without orbs stay as they were.
     if !s.orbs.is_empty() {
         h.write_u32(count(&s.orbs));
         for b in &s.orbs {
