@@ -1,7 +1,7 @@
 //! The tick order of `sim_version` 0, as data: `TICK` lists every step of a tick in the order
 //! it runs, and `step` loops over it. `combat.md`'s tick order and the table in the module doc
 //! of `rules_v0` name the same steps; `tick_doc_lists_the_schedule` keeps the table and
-//! `TICK` equal.
+//! `TICK` equal. Each step is a named `#[inline(never)]` function, so a profile names it (DS71-1).
 
 use super::{
     World, agents, attacks, boss, collide, count, dash, decide_outcome, entity, expertise, horde,
@@ -54,47 +54,116 @@ impl<'a> Ctx<'a> {
 /// One step of a tick.
 pub(super) type Step = fn(&mut Ctx);
 
-/// Every step of a tick, in order. A step that applies only sometimes tests its condition
-/// itself. `spawn_boss` comes first: the boss whose time the tick reaches is there before the
-/// tick counter advances.
-pub(super) const TICK: &[(&str, Step)] = &[
-    ("spawn_boss", |c| horde::spawn_boss(c.world, c.s)),
-    ("advance_tick", |c| c.s.tick += 1),
-    ("regen", |c| loadout::regen(c.s)),
-    ("spawn_waves", |c| spawn_waves(c.world, c.s)),
-    ("spawn_elite", |c| {
-        horde::spawn_elite(c.world, c.s, c.events)
-    }),
-    ("statuses_and_aggro", |c| {
+/// The steps of a tick, one named function each, so a profile names the step (DS71-1).
+pub(super) mod steps {
+    use super::*;
+
+    #[inline(never)]
+    pub(super) fn spawn_boss(c: &mut Ctx) {
+        horde::spawn_boss(c.world, c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn advance_tick(c: &mut Ctx) {
+        c.s.tick += 1;
+    }
+
+    #[inline(never)]
+    pub(super) fn regen(c: &mut Ctx) {
+        loadout::regen(c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn spawn_waves(c: &mut Ctx) {
+        super::spawn_waves(c.world, c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn spawn_elite(c: &mut Ctx) {
+        horde::spawn_elite(c.world, c.s, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn statuses_and_aggro(c: &mut Ctx) {
         c.dots = entity::tick_statuses_and_aggro(c.s, c.events);
-    }),
-    ("runes_tick", |c| runes::tick(c.s)),
-    ("advance_runs", |c| {
-        attacks::advance_runs(c.world, c.s, c.events)
-    }),
-    ("player_update", |c| {
+    }
+
+    #[inline(never)]
+    pub(super) fn runes_tick(c: &mut Ctx) {
+        runes::tick(c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn advance_runs(c: &mut Ctx) {
+        attacks::advance_runs(c.world, c.s, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn player_update(c: &mut Ctx) {
         player::update(c.world, c.rewards, c.s, c.input, c.events);
-    }),
-    ("runes_fly", |c| {
+    }
+
+    #[inline(never)]
+    pub(super) fn runes_fly(c: &mut Ctx) {
         if !c.s.player.runes.is_empty() {
             runes::fly(c.world, c.s);
         }
-    }),
-    ("orbits", |c| orbit::act(c.world, c.rewards, c.s, c.events)),
-    ("boss_act", |c| boss::act(c.world, c.s, c.events)),
-    ("call_elites", |c| boss::call_elites(c.world, c.s, c.events)),
-    ("agents_act", |c| agents::act(c.world, c.s, c.events)),
-    ("dash_attackers", |c| dash::act(c.world, c.s)),
-    ("push_apart", |c| push::apply(c.world, c.s)),
-    ("skill_pull", |c| skill::pull(c.world, c.s)),
-    ("runes_steer", |c| {
+    }
+
+    #[inline(never)]
+    pub(super) fn orbits(c: &mut Ctx) {
+        orbit::act(c.world, c.rewards, c.s, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn boss_act(c: &mut Ctx) {
+        boss::act(c.world, c.s, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn call_elites(c: &mut Ctx) {
+        boss::call_elites(c.world, c.s, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn agents_act(c: &mut Ctx) {
+        agents::act(c.world, c.s, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn dash_attackers(c: &mut Ctx) {
+        dash::act(c.world, c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn push_apart(c: &mut Ctx) {
+        push::apply(c.world, c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn skill_pull(c: &mut Ctx) {
+        skill::pull(c.world, c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn runes_steer(c: &mut Ctx) {
         if !c.s.player.runes.is_empty() {
             runes::steer(c.world, c.s);
         }
-    }),
-    ("zones_advance", |c| zones::advance(c.s)),
-    ("fire_hooks", |c| attacks::fire_hooks(c.s)),
-    ("run_attacks", |c| {
+    }
+
+    #[inline(never)]
+    pub(super) fn zones_advance(c: &mut Ctx) {
+        zones::advance(c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn fire_hooks(c: &mut Ctx) {
+        attacks::fire_hooks(c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn run_attacks(c: &mut Ctx) {
         let (tasks, emitter_steps) = attacks::run(c.world, c.s);
         *c.load = Load {
             enemies: count(&c.s.enemies),
@@ -103,17 +172,76 @@ pub(super) const TICK: &[(&str, Step)] = &[
             orbs: count(&c.s.orbs),
             emitter_steps,
         };
-    }),
-    ("move_orbs", |c| move_orbs(c.world, c.s)),
-    ("collide", |c| collide(c.world, c.s, c.dots, c.events)),
-    ("level_up", |c| expertise::level_up(c.expertise, c.s)),
-    ("decide_outcome", |c| decide_outcome(c.world, c.s, c.events)),
-    ("open_offers", |c| match c.s.outcome {
-        Outcome::Running | Outcome::Cleared => {
-            open_offers(c.world, c.rewards, c.expertise, c.s, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn move_orbs(c: &mut Ctx) {
+        super::move_orbs(c.world, c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn collide(c: &mut Ctx) {
+        super::collide(c.world, c.s, c.dots, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn level_up(c: &mut Ctx) {
+        expertise::level_up(c.expertise, c.s);
+    }
+
+    #[inline(never)]
+    pub(super) fn decide_outcome(c: &mut Ctx) {
+        super::decide_outcome(c.world, c.s, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn open_offers(c: &mut Ctx) {
+        match c.s.outcome {
+            Outcome::Running | Outcome::Cleared => {
+                super::open_offers(c.world, c.rewards, c.expertise, c.s, c.events);
+            }
+            Outcome::Failed => {}
         }
-        Outcome::Failed => {}
-    }),
+    }
+}
+
+/// Pairs each step function with its own name.
+macro_rules! steps {
+    ($($name:ident),* $(,)?) => {
+        &[$((stringify!($name), steps::$name as Step)),*]
+    };
+}
+
+/// Every step of a tick, in order. A step that applies only sometimes tests its condition
+/// itself. `spawn_boss` comes first: the boss whose time the tick reaches is there before the
+/// tick counter advances.
+pub(super) const TICK: &[(&str, Step)] = steps![
+    spawn_boss,
+    advance_tick,
+    regen,
+    spawn_waves,
+    spawn_elite,
+    statuses_and_aggro,
+    runes_tick,
+    advance_runs,
+    player_update,
+    runes_fly,
+    orbits,
+    boss_act,
+    call_elites,
+    agents_act,
+    dash_attackers,
+    push_apart,
+    skill_pull,
+    runes_steer,
+    zones_advance,
+    fire_hooks,
+    run_attacks,
+    move_orbs,
+    collide,
+    level_up,
+    decide_outcome,
+    open_offers,
 ];
 
 #[cfg(test)]
