@@ -58,7 +58,7 @@ class Ledger(unittest.TestCase):
     def run_check(self, head, base_ledger="", ledger=None, pr=400, base="1600046", arch="arm64"):
         return a.check(
             arch, a.cases(output(head, base)), "2", a.parse_ledger(ledger if ledger is not None else entry()),
-            a.parse_ledger(base_ledger), pr, a.tomllib.loads(BUDGETS),
+            a.parse_ledger(base_ledger), pr,
         )
 
     def test_no_rise_passes(self):
@@ -103,6 +103,10 @@ class Ledger(unittest.TestCase):
 
     def test_other_arch_entry_does_not_cover(self):
         self.assertEqual(len(self.run_check(1_692_456, arch="x86_64")[1]), 1)
+
+    def test_a_zero_base_is_a_rise_not_a_crash(self):
+        _, errors, _ = self.run_check(5, base="0", ledger="")
+        self.assertEqual(len(errors), 1)
 
     def test_no_base_is_never_a_rise(self):
         rows, errors, _ = self.run_check(5, base="N/A", ledger="")

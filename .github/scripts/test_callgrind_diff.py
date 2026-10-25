@@ -171,6 +171,34 @@ class Cli(unittest.TestCase):
         diff = open(os.path.join(self.out, "worst_tick.worst_tick.diff.txt")).read()
         self.assertIn("no base", diff)
 
+    def test_a_failing_annotate_skips_the_case_with_a_warning(self):
+        self.case()
+        failing = os.path.join(self.tmp.name, "failing_annotate")
+        with open(failing, "w") as f:
+            f.write(f"#!{sys.executable}\nimport sys\nsys.exit(3)\n")
+        os.chmod(failing, 0o755)
+        p = self.run_cli(annotate=failing)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("::warning::", p.stdout)
+        self.assertIn("worst_tick.worst_tick", p.stdout)
+
+    def test_a_missing_annotate_skips_with_a_warning(self):
+        self.case()
+        p = self.run_cli(annotate=os.path.join(self.tmp.name, "nope"))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("::warning::", p.stdout)
+
+    def test_a_tiny_change_still_counts_as_moved(self):
+        self.case()
+        bigger = BASE.replace("1,500 PROGRAM", "1,000,000 PROGRAM")
+        head = HEAD.replace("1,850 PROGRAM", "1,000,001 PROGRAM")
+        d = os.path.join(self.home, "stella-rain-core", "worst_tick", "g", "worst_tick.worst_tick")
+        open(os.path.join(d, "callgrind.worst_tick.worst_tick.out.base@main"), "w").write(bigger)
+        open(os.path.join(d, "callgrind.worst_tick.worst_tick.out"), "w").write(head)
+        self.assertEqual(self.run_cli().returncode, 0)
+        summary = open(os.path.join(self.tmp.name, "sum.md")).read()
+        self.assertIn("**worst_tick.worst_tick**", summary)
+
     def test_an_empty_home_exits_one_naming_it(self):
         os.makedirs(self.home)
         p = self.run_cli()

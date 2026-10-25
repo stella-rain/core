@@ -74,10 +74,12 @@ def parse_ledger(text, benches=None):
 
 
 def pct(head, base):
+    if base == 0:
+        return "n/a"
     return f"{100 * (head - base) / base:+.2f}%"
 
 
-def check(arch, found, limit_pct, ledger, base_ledger, pr, budgets=None):
+def check(arch, found, limit_pct, ledger, base_ledger, pr):
     """(rows, errors, warnings); a row is (bench, case, base, head, change, alarm)."""
     rows, errors, warnings = [], [], []
     if ledger[: len(base_ledger)] != base_ledger:

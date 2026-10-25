@@ -82,6 +82,15 @@ def annotate(tool, path, inclusive):
     return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
 
 
+def profile(tool, path, inclusive):
+    """The annotate text, or None (after a warning) when the tool cannot read the file."""
+    try:
+        return annotate(tool, path, inclusive)
+    except (OSError, subprocess.CalledProcessError) as e:
+        print(f"::warning::{tool} failed on {path}: {e}")
+        return None
+
+
 def write(out, name, text):
     with open(os.path.join(out, name), "w", encoding="utf-8") as f:
         f.write(text)
@@ -103,23 +112,25 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     summary = ["### Profile on " + args.arch, ""]
     for label, head_path, base_path in cases:
-        diffs = {}
+        lines, moved = None, False
         for inclusive, kind in ((False, "exclusive"), (True, "inclusive")):
             parsed = {}
             for side, path in (("head", head_path), ("base", base_path)):
-                if path is None:
-                    parsed[side] = None
-                    continue
-                text = annotate(args.annotate, path, inclusive)
-                write(args.out, f"{label}.{side}.{kind}.txt", text)
-                parsed[side] = parse_annotate(text)
-            lines = diff_lines(parsed["base"], parsed["head"], args.top)
+                text = profile(args.annotate, path, inclusive) if path else None
+                if text is not None:
+                    write(args.out, f"{label}.{side}.{kind}.txt", text)
+                    parsed[side] = parse_annotate(text)
+            if "head" not in parsed:
+                break
+            if base_path and "base" not in parsed:
+                break
+            base = parsed.get("base")
+            diff = diff_lines(base, parsed["head"], args.top)
             suffix = "diff-inclusive" if inclusive else "diff"
-            write(args.out, f"{label}.{suffix}.txt", "\n".join(lines) + "\n")
-            diffs[kind] = lines
-        lines = diffs["exclusive"]
-        moved = lines[0].endswith("(no base)") or not lines[0].endswith("(+0.0%)")
-        if moved:
+            write(args.out, f"{label}.{suffix}.txt", "\n".join(diff) + "\n")
+            if not inclusive:
+                lines, moved = diff, base is None or base[0] != parsed["head"][0]
+        if lines is not None and moved:
             summary += [f"**{label}**", "", "```", *lines[: 2 + args.summary_top], "```", ""]
     summary.append(f"Per-function diffs and the callgrind files: artifact `bench-profile-{args.arch}`.")
     path = os.environ.get("GITHUB_STEP_SUMMARY")
