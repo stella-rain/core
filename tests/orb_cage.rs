@@ -310,3 +310,33 @@ fn the_validator_refuses_a_link_with_a_single_orb() {
     refused(orb(Some(30), Some(link())), "link");
     refused(ring_of(1, orb(Some(30), Some(link()))), "link");
 }
+
+#[test]
+fn a_beam_deals_the_links_own_damage_when_it_has_one() {
+    let own = json!({ "width": 8 * PX, "damage": 2, "rehit_ticks": REHIT });
+    let node = ring_of(4, orb(Some(STOP_AFTER), Some(own)));
+    let st = on_the_wrap_beam(vec![node]);
+    let mut e = engine(&st);
+    let mut left = Vec::new();
+    for _ in 0..60 {
+        e.step(idle());
+        for ev in e.events() {
+            if let DomainEvent::PlayerHit { hp_left } = ev {
+                left.push(*hp_left);
+            }
+        }
+    }
+    // The orbs' own damage is 1 (a hit leaves 2 of 3 hit points); the link's is 2.
+    assert_eq!(left, vec![1]);
+}
+
+#[test]
+fn an_orb_with_no_ticks_to_stop_halts_where_it_is_fired() {
+    let node = ring_of(4, orb(Some(0), Some(link())));
+    let mut e = engine(&stage(vec![foe_near(0, 200, vec![node])]));
+    until_orbs(&mut e, 4);
+    for o in orbs(&e) {
+        assert_eq!((o["vx"].as_i64(), o["vy"].as_i64()), (Some(0), Some(0)));
+    }
+    assert_eq!(beams(&e), 4, "halted at once, so joined at once");
+}
