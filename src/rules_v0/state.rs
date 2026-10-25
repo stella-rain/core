@@ -903,6 +903,10 @@ pub(crate) struct ZoneState {
     pub wind_left: u32,
     /// Ticks left of the hurting, counted down once the warning is over.
     pub active_left: u32,
+    /// The warning's length when it was placed. Snapshot only: not in the state hash.
+    pub wind_ticks: u32,
+    /// The hurting's length when it was placed. Snapshot only: not in the state hash.
+    pub active_ticks: u32,
     pub damage: u32,
     pub damage_type: Option<DamageType>,
     pub breaks_charge: bool,

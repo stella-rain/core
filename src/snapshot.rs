@@ -53,6 +53,9 @@ pub struct ZoneView {
     pub phase: PhaseKind,
     /// Ticks left of that phase, at least 1.
     pub ticks_left: u32,
+    /// The length of that phase in ticks, at least `ticks_left`: what a wind-up's fill is drawn
+    /// against.
+    pub ticks: u32,
     /// Placed by the main character or a companion, rather than an enemy.
     pub friendly: bool,
 }

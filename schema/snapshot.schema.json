@@ -1892,6 +1892,12 @@
         "shape": {
           "$ref": "#/$defs/ZoneShape"
         },
+        "ticks": {
+          "description": "The length of that phase in ticks, at least `ticks_left`: what a wind-up's fill is drawn\nagainst.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
         "ticks_left": {
           "description": "Ticks left of that phase, at least 1.",
           "type": "integer",
@@ -1906,6 +1912,7 @@
         "direction",
         "phase",
         "ticks_left",
+        "ticks",
         "friendly"
       ]
     }

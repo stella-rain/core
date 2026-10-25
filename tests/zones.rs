@@ -460,3 +460,37 @@ fn a_line_hit_box_is_bounded_like_a_line_zone() {
         assert_eq!(found.first().map(|i| i.path.clone()), Some(at(key)));
     }
 }
+
+// --- The snapshot carries the phase length ---------------------------------------------------
+
+#[test]
+fn a_zone_view_carries_the_length_of_its_current_phase() {
+    let s = stage(
+        vec![foe_attacking_player(spawning(vec![zone(
+            circle(20 * PX),
+            "attacker",
+            30,
+            12,
+        )]))],
+        vec![],
+    );
+    let mut e = engine(&s);
+    // The zone is placed on the first step; 10 more ticks of its 30-tick warning pass.
+    e.step(idle());
+    for _ in 0..10 {
+        e.step(idle());
+    }
+    let z = e.snapshot().zones.remove(0);
+    assert_eq!(z.phase, stella_rain_core::attack::PhaseKind::WindUp);
+    assert_eq!(z.ticks, 30);
+    assert_eq!(z.ticks_left, 20);
+    assert!(z.ticks >= z.ticks_left);
+    // Once active, `ticks` is the active length.
+    for _ in 0..25 {
+        e.step(idle());
+    }
+    let z = e.snapshot().zones.remove(0);
+    assert_eq!(z.phase, stella_rain_core::attack::PhaseKind::Active);
+    assert_eq!(z.ticks, 12);
+    assert!(z.ticks >= z.ticks_left);
+}
