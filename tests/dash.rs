@@ -36,13 +36,18 @@ fn attack_rule_of(phases: Value) -> Value {
              "do": { "type": "attack", "attack": { "inline": phases } } }])
 }
 
-/// An enemy that holds at `(x, y)` pixels and dashes once at the main character.
+fn still() -> Value {
+    json!({ "type": "straight", "vx": 0, "vy": 0 })
+}
+
+/// An enemy that stands where it spawns, at `(x, y)` pixels, and dashes once at the main
+/// character. (A `hold` would walk it back to its spot after the dash.)
 fn dasher(x: i32, y: i32, phases: Value) -> Value {
     wave(
         1,
         1,
         0,
-        enemy(1000, hold(x * PX, y * PX), attack_rule_of(phases)),
+        enemy(1000, still(), attack_rule_of(phases)),
         x * PX,
         y * PX,
     )
@@ -50,14 +55,7 @@ fn dasher(x: i32, y: i32, phases: Value) -> Value {
 
 /// An enemy that only stands at `(x, y)` pixels.
 fn bystander(x: i32, y: i32) -> Value {
-    wave(
-        1,
-        1,
-        0,
-        enemy(1000, hold(x * PX, y * PX), json!([])),
-        x * PX,
-        y * PX,
-    )
+    wave(1, 1, 0, enemy(1000, still(), json!([])), x * PX, y * PX)
 }
 
 fn stage(waves: Vec<Value>) -> Stage {

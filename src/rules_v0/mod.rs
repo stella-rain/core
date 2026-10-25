@@ -21,7 +21,8 @@
 //! | `boss_act` | the boss: phases, timeline, rules (`boss`) |
 //! | `call_elites` | a boss that calls elites does so when its time comes (`boss`) |
 //! | `agents_act` | companions, then enemies, in entity-ID order: move, then the first rule that can fire, fires (ADR-036); an elite (ADR-068) holds where it spawned, and its rules fire only while the main character is in range (`agents`) |
-//! | `push_apart` | the enemies push apart, all at once, and one found crowded does not step to its place on the next tick (ADR-058, `push`) |
+//! | `dash_attackers` | an enemy or the boss in an active phase with a dash moves its share of the distance along its attack's locked facing, held to the map; a boss's parts follow (`dash`) |
+//! | `push_apart` | the enemies push apart, all at once, and one found crowded does not step to its place on the next tick, and one that is dashing is not moved (ADR-058, `push`) |
 //! | `skill_pull` | the stage skill's black hole pulls (`skill`) |
 //! | `runes_steer` | homing missiles' hit boxes steer toward where their targets are now (`runes`) |
 //! | `zones_advance` | the zones age and run out (`zones`) |
@@ -95,6 +96,7 @@ mod world;
 pub(crate) use attacks::phase;
 pub(crate) use world::{AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, World};
 mod combat;
+mod dash;
 mod entity;
 mod expertise;
 mod grid;

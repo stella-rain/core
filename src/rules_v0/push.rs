@@ -18,6 +18,7 @@ use crate::engine::State;
 use crate::fixed::{Fx, Point};
 use crate::trig;
 
+use super::dash;
 use super::grid::Grid;
 
 /// A sum of pushes is clamped to this length: 4 pixels a tick, the speed of `Follow`, so a
@@ -169,11 +170,16 @@ pub(super) fn apply(stage: &World, s: &mut State) {
     }));
     offsets_into(bodies, grid, near, offsets);
     let map = stage.map();
+    let any_dash = dash::any(stage, &s.runs);
     let mut left = false;
     for (e, &(dx, dy, crowded)) in s.enemies.iter_mut().zip(offsets.iter()) {
         e.crowded = crowded;
         // A shrine, or a mimic in disguise, is fixed; the others are pushed off it.
         if (dx, dy) == (0, 0) || e.shrine.is_some() || e.hidden() {
+            continue;
+        }
+        // A dasher keeps to its line; it still pushes the others.
+        if any_dash && dash::dashing(stage, &s.runs, e.id) {
             continue;
         }
         let to = Point {
