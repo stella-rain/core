@@ -333,6 +333,8 @@ fn weaver_phase_three_is_a_cage_of_four_halted_orbs() {
     assert_eq!(orb["speed"], 512);
     assert_eq!(orb["direction"], json!({ "type": "aimed", "offset": 0 }));
     assert_eq!(orb["anchor"], "target");
+    // Placed 16 px out, so that none starts inside the main character and hits it at once.
+    assert_eq!(orb["offset"], json!({ "forward": 4096 }));
     assert_eq!(orb["ticks"], 180);
     assert_eq!(orb["stop_after"], 60);
     assert_eq!(orb["breakable"], true);
@@ -671,12 +673,16 @@ fn point(o: &Value) -> (i32, i32) {
     )
 }
 
-#[test]
-fn weaver_s_cage_forms_round_the_main_character_and_its_beams_hurt() {
+/// Weaver's phase 3 until its cage has formed and halted: the engine at 60 ticks after the four
+/// orbs spawned, the events so far, the tick they spawned and where the main character stands.
+fn formed_cage() -> (Engine, Vec<(u32, DomainEvent)>, u32, (i32, i32)) {
     let st = boss_stage("weaver", 2, (180, 40), Some(sword()));
     let mut e = bundled_engine(&st);
     let mut events: Vec<(u32, DomainEvent)> = Vec::new();
-    // Idle until the four orbs are out.
+    // Up to the middle of the map first: a beam needs both its orbs on the map.
+    for _ in 0..80 {
+        events.extend(advance(&mut e, moving(0, -127)));
+    }
     let mut spawned = None;
     for _ in 0..900 {
         events.extend(advance(&mut e, idle()));
@@ -691,15 +697,21 @@ fn weaver_s_cage_forms_round_the_main_character_and_its_beams_hurt() {
         let (x, y) = point(&o);
         let d = i64::from(x - player.0).pow(2) + i64::from(y - player.1).pow(2);
         assert!(
-            d <= i64::from(2 * PX).pow(2),
-            "{o} spawns on the main character"
+            d <= i64::from(20 * PX).pow(2),
+            "{o} spawns 16 px from the main character"
         );
     }
-    // 60 ticks later they are halted and joined: 120 px out to each corner of a square.
     for _ in 0..60 {
         events.extend(advance(&mut e, idle()));
     }
     assert_eq!(e.tick(), spawned + 60);
+    (e, events, spawned, player)
+}
+
+#[test]
+fn weaver_s_cage_halts_round_the_main_character_joined_by_four_beams() {
+    let (e, _, _, player) = formed_cage();
+    // Halted: 136 px out (16 + 60 ticks of 2 px) to each corner of a square.
     let cage = orbs(&e);
     assert_eq!(cage.len(), 4);
     assert!(
@@ -710,30 +722,42 @@ fn weaver_s_cage_forms_round_the_main_character_and_its_beams_hurt() {
     for o in &cage {
         let (x, y) = point(o);
         let d2 = i64::from(x - player.0).pow(2) + i64::from(y - player.1).pow(2);
-        let (near, far) = (i64::from(118 * PX).pow(2), i64::from(122 * PX).pow(2));
+        let (near, far) = (i64::from(134 * PX).pow(2), i64::from(138 * PX).pow(2));
         assert!((near..=far).contains(&d2), "{o}");
     }
-    // Walk onto the side of the square: hurt by a beam, and again 60 ticks later.
-    let before = hits(&events).len();
-    for _ in 0..40 {
+}
+
+#[test]
+fn a_beam_hurts_the_main_character_and_again_60_ticks_later() {
+    let (mut e, mut events, _, _) = formed_cage();
+    let from = e.tick();
+    let after = |events: &[(u32, DomainEvent)]| -> Vec<u32> {
+        hits(events).into_iter().filter(|t| *t > from).collect()
+    };
+    assert!(after(&events).is_empty(), "the middle is not on a beam");
+    // Walk onto the side of the square, then stand on the beam.
+    for _ in 0..60 {
         events.extend(advance(&mut e, moving(127, 0)));
-        if hits(&events).len() > before {
+        if !after(&events).is_empty() {
             break;
         }
     }
-    let first = *hits(&events).last().expect("a beam hurt");
-    assert!(hits(&events).len() > before);
+    let first = *after(&events).first().expect("a beam hurt");
     for _ in 0..70 {
         events.extend(advance(&mut e, idle()));
     }
-    let later: Vec<_> = hits(&events).into_iter().filter(|t| *t > first).collect();
+    let later: Vec<_> = after(&events).into_iter().filter(|t| *t > first).collect();
     assert!(
         later
             .first()
             .is_some_and(|t| (60..=62).contains(&(t - first))),
         "{first} {later:?}"
     );
-    // Break slot 0's orb with the sword: two beams are left.
+}
+
+#[test]
+fn breaking_one_orb_leaves_two_beams() {
+    let (mut e, _, _, _) = formed_cage();
     let target = point(&orbs(&e)[0]);
     for _ in 0..200 {
         let p = player_at(&e);
@@ -748,13 +772,13 @@ fn weaver_s_cage_forms_round_the_main_character_and_its_beams_hurt() {
                 d.signum() as i8 * 127
             }
         };
-        events.extend(advance(&mut e, moving(sign(dx), sign(dy))));
+        advance(&mut e, moving(sign(dx), sign(dy)));
     }
     for _ in 0..30 {
         if orbs(&e).len() < 4 {
             break;
         }
-        events.extend(advance(&mut e, pressing_main()));
+        advance(&mut e, pressing_main());
     }
     let left = orbs(&e);
     assert_eq!(left.len(), 3);
