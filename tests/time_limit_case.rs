@@ -2,7 +2,7 @@
 //! `bench_fixtures::time_limit_case` holds the horde at its cap on the tick the benchmark counts. A
 //! benchmark of a tick that does not would pass without measuring the heavy case.
 
-use stella_rain_core::bench_fixtures::time_limit_case;
+use stella_rain_core::bench_fixtures::{enemy_cap, time_limit_case};
 
 use std::collections::BTreeSet;
 
@@ -28,7 +28,7 @@ fn the_bats_spawn_a_hundred_enemies_a_minute() {
 
 /// A bench wave is a wave of the mode's schedule but for its timing, hit points, rewards and the
 /// exploder's self-destruct, which the bench leaves off as its rule (the exploders burst and
-/// stay, so the measured tick holds 500 with the burst running).
+/// stay, so the measured tick holds the cap with the burst running).
 fn is_kind_of(bench: &Wave, mode: &Wave) -> bool {
     let mut rules = mode.enemy.rules.clone();
     for rule in &mut rules {
@@ -47,7 +47,7 @@ fn the_stage_has_every_enemy_kind_of_the_schedule_in_its_ratio_and_the_cap_of_th
     let mode = TimeLimit::bundled();
     assert_eq!(
         stage.waves.iter().map(|w| u32::from(w.count)).sum::<u32>(),
-        500
+        u32::from(enemy_cap())
     );
     let spawns: u32 = mode.waves().iter().map(|w| u32::from(w.count)).sum();
     for kind in mode.waves() {
@@ -64,10 +64,11 @@ fn the_stage_has_every_enemy_kind_of_the_schedule_in_its_ratio_and_the_cap_of_th
             kind.enemy.base
         );
         // In proportion to the schedule's spawns, to the nearest enemy.
-        let exact = 500 * u32::from(kind.count);
+        let exact = u32::from(enemy_cap()) * u32::from(kind.count);
         assert!(
             count * spawns <= exact + spawns && exact <= count * spawns + spawns,
-            "{count} of 500 for {:?}: {} of {spawns} spawns",
+            "{count} of {} for {:?}: {} of {spawns} spawns",
+            enemy_cap(),
             kind.id,
             kind.count
         );
@@ -90,7 +91,11 @@ fn the_measured_tick_holds_the_horde_a_boss_and_the_main_characters_hits() {
     assert_eq!(engine.outcome(), Outcome::Running);
     assert!(!engine.offer_open());
     let load = engine.load();
-    assert_eq!(load.enemies, 500, "the cap on enemies alive");
+    assert_eq!(
+        load.enemies,
+        u32::from(enemy_cap()),
+        "the cap on enemies alive"
+    );
     // BR1a: no orb is fired any more; the horde attacks with zones and melee.
     assert_eq!(load.orbs, 0, "no orbs alive");
     assert!(load.tasks >= 1, "enemies are attacking");
@@ -98,7 +103,7 @@ fn the_measured_tick_holds_the_horde_a_boss_and_the_main_characters_hits() {
     let snapshot = engine.snapshot();
     assert!(snapshot.player.hp > 0, "the main character is alive");
     let alive = |kind| snapshot.entities.iter().filter(|e| e.kind == kind).count();
-    assert_eq!(alive(EntityKind::Enemy), 500);
+    assert_eq!(alive(EntityKind::Enemy), usize::from(enemy_cap()));
     assert_eq!(alive(EntityKind::Boss), 1);
     // Every sprite the schedule's kinds use is alive on the tick (the kinds that share a sprite
     // are told apart by `the_stage_has_every_enemy_kind_of_the_schedule_in_its_ratio`).

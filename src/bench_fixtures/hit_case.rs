@@ -93,11 +93,29 @@ fn crowd(x: i32, y: i32, count: u16) -> Value {
     )
 }
 
-/// The crowd in a clump: 500 enemies (`MAX_ENEMIES_ALIVE`) in five waves of 100 that spawn one a
-/// tick each at one point, and push apart (ADR-058) into a clump round it.
+/// The sizes of the waves that make up the run's cap (`bench_fixtures::enemy_cap`, 260): waves of
+/// at most 100 (`MAX_WAVE_COUNT`), the last the rest, so 100, 100 and 60.
+fn wave_sizes() -> Vec<u16> {
+    let cap = super::enemy_cap();
+    let mut sizes = vec![100; usize::from(cap / 100)];
+    if cap % 100 > 0 {
+        sizes.push(cap % 100);
+    }
+    sizes
+}
+
+/// The crowd in a clump: the enemies of the run's cap (260) in waves of at most 100 that spawn
+/// one a tick each at one point, and push apart (ADR-058) into a clump round it.
 pub fn stage() -> Stage {
     let (x, y) = CROWD_AT;
-    built((0..5).map(|_| crowd(x, y, 100)).collect(), 262_144, 163_840)
+    built(
+        wave_sizes()
+            .into_iter()
+            .map(|size| crowd(x, y, size))
+            .collect(),
+        262_144,
+        163_840,
+    )
 }
 
 /// The largest map: 4,096 pixels a side (`MAX_MAP_SIDE`, core#87).
@@ -108,21 +126,20 @@ pub const SPREAD_SIDE: i32 = 1_048_576;
 /// apart, stays inside the leash's reach (`LEASH_DISTANCE`, 800 pixels, EC2, DS84).
 const SPREAD_OFFSET: i32 = 112_640;
 
-/// The spread case (core#146, EC2): the same 500 enemies, in five waves of 100 on the largest
-/// map: one at the clump's point, within reach of the main character's step and the companions,
-/// two above and to the right of the start and two below and to the right, each inside the
-/// leash's reach. The enemy grid still spans the map (up to 128 by 128 cells of 32 pixels) and its
+/// The spread case (core#146, EC2): the same enemies, in the same waves, on the largest map: the
+/// first at the clump's point, within reach of the main character's step and the companions, the
+/// second above and to the right of the start and the third below and to the right, each inside
+/// the leash's reach. The enemy grid still spans the map (up to 128 by 128 cells of 32 pixels) and its
 /// build reads all of it, while the hit boxes and the zones reach the first wave only.
 pub fn spread_stage() -> Stage {
     let top_right = (START.0 + SPREAD_OFFSET, START.1 - SPREAD_OFFSET);
     let bottom_right = (START.0 + SPREAD_OFFSET, START.1 + SPREAD_OFFSET);
-    let waves = vec![
-        crowd(CROWD_AT.0, CROWD_AT.1, 100),
-        crowd(top_right.0, top_right.1, 100),
-        crowd(top_right.0, top_right.1, 100),
-        crowd(bottom_right.0, bottom_right.1, 100),
-        crowd(bottom_right.0, bottom_right.1, 100),
-    ];
+    let points = [CROWD_AT, top_right, bottom_right];
+    let waves = wave_sizes()
+        .into_iter()
+        .zip(points)
+        .map(|(size, (x, y))| crowd(x, y, size))
+        .collect();
     built(waves, SPREAD_SIDE, SPREAD_SIDE)
 }
 

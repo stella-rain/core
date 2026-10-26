@@ -13,6 +13,14 @@ pub mod worst_minute_case;
 
 use crate::engine::Engine;
 use crate::input::Input;
+use crate::run_content::RunContent;
+
+/// The enemy cap of the bundled content (DIR1, 260): the crowd of the cases that fill it. The
+/// pack's rules give it, so a change of the crowd target or the headroom moves the cases with it.
+pub fn enemy_cap() -> u16 {
+    let rules = RunContent::bundled().rules();
+    u16::try_from(rules.enemy_cap_for(rules.crowd_target())).expect("a cap within the ceiling")
+}
 
 /// A case ready to measure: an engine warmed up to the tick before the measured one, and the
 /// input of the measured tick. The bench runs `engine.step(input)` and counts it.

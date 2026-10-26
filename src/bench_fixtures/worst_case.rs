@@ -48,8 +48,9 @@ const HASTE: &str = "haste";
 /// Where the enemies stand.
 pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 
-/// 500 enemies (`MAX_ENEMIES_ALIVE`) stand in one place: four shooters, then 496 more in five
-/// streams of waves that spawn one enemy a tick each, 32 of them elites (`MAX_ELITES_ALIVE`)
+/// The enemies of the run's cap (`bench_fixtures::enemy_cap`, 260 for the bundled pack) stand in
+/// one place: four shooters, then the rest in five streams of waves that spawn one enemy a tick
+/// each, 32 of them elites (`MAX_ELITES_ALIVE`)
 /// (core BR1b: nothing here fires a projectile).
 ///
 /// The push-apart (ADR-058) parts a fresh stack on every tick: on each tick it does not start
@@ -189,6 +190,7 @@ pub fn stage() -> Stage {
     // mark, in three kinds, so that their rules and every other cap are as they were. Each of
     // the first three streams of 100 starts with its share of elites and goes on with the
     // crowd, so five enemies still arrive a tick and the stack is parted as before.
+    let streams = even_split(u32::from(super::enemy_cap()) - u32::from(SHOOTERS), 5);
     for (i, base) in ELITE_BASES.iter().enumerate() {
         let mut elite = enemy.clone();
         elite["base"] = json!(base);
@@ -196,10 +198,24 @@ pub fn stage() -> Stage {
         let share = MAX_ELITES_ALIVE / 3 + u16::from(i < usize::from(MAX_ELITES_ALIVE % 3));
         waves.push(common::wave(WAVES_AT + 4, share, 1, elite, x, y));
         let after = WAVES_AT + 4 + u32::from(share);
-        waves.push(common::wave(after, 100 - share, 1, enemy.clone(), x, y));
+        waves.push(common::wave(
+            after,
+            streams[i] - share,
+            1,
+            enemy.clone(),
+            x,
+            y,
+        ));
     }
-    waves.push(common::wave(WAVES_AT + 4, 100, 1, enemy.clone(), x, y));
-    waves.push(common::wave(WAVES_AT + 4, 100 - SHOOTERS, 1, enemy, x, y));
+    waves.push(common::wave(
+        WAVES_AT + 4,
+        streams[3],
+        1,
+        enemy.clone(),
+        x,
+        y,
+    ));
+    waves.push(common::wave(WAVES_AT + 4, streams[4], 1, enemy, x, y));
     let zone = |radius: i32| {
         json!({ "type": "zone", "shape": { "type": "circle", "radius": radius },
                 "wind_up_ticks": 0, "active_ticks": 600 })
@@ -252,6 +268,13 @@ pub fn stage() -> Stage {
         .unwrap(),
     );
     stage
+}
+
+/// `total` in `parts` nearly equal shares, the larger ones first (the shares sum to `total`).
+fn even_split(total: u32, parts: u32) -> Vec<u16> {
+    (0..parts)
+        .map(|i| u16::try_from(total / parts + u32::from(i < total % parts)).expect("a wave"))
+        .collect()
 }
 
 /// The enemies that send orbs: `MAX_RANGED_ATTACKERS`, each with its eight (`MAX_ORBS_PER_OWNER`),

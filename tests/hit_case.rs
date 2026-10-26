@@ -1,5 +1,5 @@
 //! The hit benchmark's tick (`bench_fixtures::hit_case`, core BR1b) has the load it claims: no
-//! orb and no orb, 500 enemies alive and the crowd under the main character's melee hit
+//! orb, the enemies of the cap alive and the crowd under the main character's melee hit
 //! boxes (ADR-055) and 128 active zones (core Z1), clustered and spread over the largest map.
 //! Enemy zones hurt only the main character and the companions, so the zones that load the
 //! crowd are the friendly ones: 112 of the 128, the other 16 an enemy's.
@@ -36,6 +36,11 @@ const LEAST_EXTENT_Y: i32 = 179_200;
 /// The main character is entity 0.
 const PLAYER: EntityId = EntityId(0);
 
+/// The enemies of the run's cap (DIR1): 260 for the bundled pack.
+fn cap(engine: &Engine) -> usize {
+    engine.caps().enemies as usize
+}
+
 fn measured(mut engine: Engine) -> Engine {
     engine.step(hit_case::input(hit_case::WARMUP_TICKS + 1));
     engine
@@ -63,12 +68,12 @@ fn hits_by(engine: &Engine, source: impl Fn(EntityId) -> bool) -> usize {
 /// active (112 friendly) and four companions in an active phase with a hit box.
 fn assert_load(engine: &Engine) {
     let load = engine.load();
-    assert_eq!(load.enemies, 500, "{load:?}");
+    assert_eq!(load.enemies, engine.caps().enemies, "{load:?}");
     assert_eq!(load.orbs, 0, "{load:?}");
     assert_eq!(load.orbs, 0, "{load:?}");
     assert_eq!(load.zones, 128, "{load:?}");
     let enemies = enemies(engine);
-    assert_eq!(enemies.len(), 500);
+    assert_eq!(enemies.len(), cap(engine));
     assert!(enemies.iter().all(|e| e.hp > 0), "the crowd is unbeaten");
     let snapshot = engine.snapshot();
     assert!(snapshot.orbs.is_empty(), "nothing is in the air");
@@ -95,10 +100,16 @@ fn the_measured_tick_has_its_load() {
     // The main character's step lands on nearly the whole crowd, and the companions' arcs on a
     // good part of it, this tick.
     let by_player = hits_by(&engine, |s| s == PLAYER);
-    assert!(by_player >= 450, "{by_player} hits by the main character");
+    assert!(
+        by_player >= cap(&engine) * 9 / 10,
+        "{by_player} hits by the main character"
+    );
     let by_guards = hits_by(&engine, |s| s != PLAYER && s.0 < 6);
-    assert!(by_guards >= 4 * 90, "{by_guards} hits by the companions");
-    // The friendly zones cover the crowd: each tests nearly all 500 enemies every tick.
+    assert!(
+        by_guards >= 4 * (cap(&engine) * 18 / 100),
+        "{by_guards} hits by the companions"
+    );
+    // The friendly zones cover the crowd: each tests nearly all the enemies every tick.
     let crowd = enemies(&engine);
     let snapshot = engine.snapshot();
     for z in snapshot.zones.iter().filter(|z| z.friendly) {
@@ -112,7 +123,10 @@ fn the_measured_tick_has_its_load() {
                 dx * dx + dy * dy <= i64::from(hit_case::ZONE_RADIUS).pow(2)
             })
             .count();
-        assert!(near >= 450, "{near} enemies inside a friendly zone");
+        assert!(
+            near >= cap(&engine) * 9 / 10,
+            "{near} enemies inside a friendly zone"
+        );
     }
     // The crowd is a clump round its point, not spread over the map.
     let (x, y) = hit_case::CROWD_AT;
@@ -126,9 +140,9 @@ fn the_measured_tick_has_its_load() {
     );
 }
 
-/// The spread case (`hit_case::spread_stage`): five waves, the first at the start point, two at
-/// the upper right and two at the lower right, inside the leash, 500 enemies in all, on a map of
-/// the largest side that the validator accepts.
+/// The spread case (`hit_case::spread_stage`): three waves of the cap's 260 (100, 100 and 60), the
+/// first at the start point, one at the upper right and one at the lower right, inside the leash,
+/// on a map of the largest side that the validator accepts.
 #[test]
 fn the_spread_waves_stand_at_the_start_and_two_outer_crowds() {
     let stage = hit_case::spread_stage();
@@ -140,17 +154,15 @@ fn the_spread_waves_stand_at_the_start_and_two_outer_crowds() {
         .iter()
         .map(|w| (w.spawn.x.0, w.spawn.y.0, w.count))
         .collect();
-    assert_eq!(waves.len(), 5, "{waves:?}");
+    assert_eq!(waves.len(), 3, "{waves:?}");
     let (x, y, _) = waves[0];
     assert_eq!((x, y), hit_case::CROWD_AT);
-    for wave in &waves[1..3] {
-        assert_eq!((wave.0, wave.1), TOP_RIGHT);
-    }
-    for wave in &waves[3..] {
-        assert_eq!((wave.0, wave.1), BOTTOM_RIGHT);
-    }
+    assert_eq!((waves[1].0, waves[1].1), TOP_RIGHT);
+    assert_eq!((waves[2].0, waves[2].1), BOTTOM_RIGHT);
+    let sizes: Vec<u16> = waves.iter().map(|w| w.2).collect();
+    assert_eq!(sizes, [100, 100, 60]);
     let total: u32 = waves.iter().map(|w| u32::from(w.2)).sum();
-    assert_eq!(total, 500);
+    assert_eq!(total, Engine::new(&stage).unwrap().caps().enemies);
     Engine::new(&stage).expect("the spread stage passes the validator");
 }
 
@@ -214,5 +226,5 @@ fn the_spread_ticks_hash_as_they_did_with_every_enemy_tested() {
     assert_eq!(hashes, PINNED_SPREAD, "{hashes:x?}");
 }
 
-const PINNED_CLUSTERED: [u64; 3] = [0x95527ebc68a22c23, 0x87e3b4b6e281d125, 0xe528b8947fab1e1d];
-const PINNED_SPREAD: [u64; 3] = [0xab1fe8f19a88d366, 0x592a4927fce29a11, 0x58c3019d89b9c2a4];
+const PINNED_CLUSTERED: [u64; 3] = [0x1f51a80415d67662, 0xaa4a318f2da87a5a, 0x18c6fb5cf0e62d39];
+const PINNED_SPREAD: [u64; 3] = [0x2d51fb6e603a11fb, 0xaff3e51a14b1ec00, 0x575c8871c03bdf01];

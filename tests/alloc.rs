@@ -119,7 +119,7 @@ fn nonzero(per_tick: &[(u64, u64)], first: u32) -> Vec<(u32, u64, u64)> {
 
 use stella_rain_core::bench_fixtures::{self, Case, time_limit_case};
 
-/// The steady window: the horde of the benchmark's case is at its cap of 500 from tick 1,962 on
+/// The steady window: the horde of the benchmark's case is at its cap of 260 from tick 76 on
 /// (`WARMUP_TICKS`), no wave is left to spawn, and the main character taps its weapon every other
 /// tick, so combo steps, hit boxes, pushes and orbs all run. Enemy attacks and the boss's
 /// start in it too; none of them may allocate. 60 ticks, a second.
@@ -171,13 +171,16 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// The allocator calls of the one tick each bench measures (`benches/`), by case. These pin
 /// today's steady-state allocations at the caps; T1b drives them to 0. A count that falls is
 /// re-pinned lower in the same PR; a count that rises is a regression to fix, never a re-pin
-/// without the PR saying why. The cases are built by `bench_fixtures`, outside the count.
+/// without the PR saying why. DIR1 (the cases at the cap of 260): `worst_tick` 1506 -> 786
+/// allocs; `worst_minute_peak` 3, 3, 3 -> 3, 2, 4, where the extra free drops an event with a
+/// string that the earlier tick made (the run differs; no buffer grows). The cases are built by `bench_fixtures`, outside the
+/// count.
 const BENCH_TICK_ALLOCS: [(&str, Allocs); 5] = [
-    ("worst_tick", pin(1506, 0, 3)),
+    ("worst_tick", pin(786, 0, 3)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
-    ("worst_minute_peak", pin(3, 3, 3)),
+    ("worst_minute_peak", pin(3, 2, 4)),
 ];
 
 fn pinned(case: &str) -> Allocs {
