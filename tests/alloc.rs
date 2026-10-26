@@ -10,6 +10,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
 use stella_rain_core::engine::Engine;
+use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{CommandKind, RunReplay};
 
@@ -221,6 +222,69 @@ fn the_time_limit_tick_allocates_as_pinned() {
 fn the_worst_minute_peak_tick_allocates_as_pinned() {
     let mut run = bench_fixtures::worst_minute_peak();
     assert_tick_pinned("worst_minute_peak", counted3(|| run.play(1)));
+}
+
+/// A crowd that climbs to the cap and then stays there allocates nothing after load (DIR1,
+/// ADR-SIM-7 decision 9): every per-enemy buffer is reserved to the run's cap when the engine
+/// is built, so no tick of the climb grows one.
+#[test]
+fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {
+    use crate::common::*;
+    use serde_json::json;
+    // Three waves of 100 that spawn one enemy a tick from tick 1 against a cap of 260, standing
+    // in the main character's line, which hits them on every other tick.
+    let waves: Vec<_> = (0..3)
+        .map(|_| {
+            wave(
+                1,
+                100,
+                1,
+                enemy(5_000, hold(START_X, START_Y - 40_000), json!([])),
+                START_X,
+                START_Y - 40_000,
+            )
+        })
+        .collect();
+    let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![]));
+    let mut ticks = Vec::new();
+    for tick in 1..=600 {
+        let input = Input {
+            main: tick % 2 == 0,
+            ..Input::default()
+        };
+        ticks.push(counted3(|| e.step(input)));
+    }
+    let grew: Vec<_> = ticks
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| **c != pin(0, 0, 0))
+        .map(|(i, c)| (i + 1, *c))
+        .collect();
+    assert!(
+        grew.is_empty(),
+        "ticks that called the allocator, (tick, counts): {grew:?}"
+    );
+    assert_eq!(enemies(&e.snapshot()), 260);
+}
+
+/// The `time_limit` bench case from load to a second past its warm-up: the horde climbs to its
+/// cap and holds it, with every kind of enemy, the boss and the Main weapon, and no tick calls
+/// the allocator (DIR1).
+#[test]
+fn a_horde_at_the_cap_allocates_nothing_after_load() {
+    let mut e = Engine::new_with(&time_limit_case::stage(), &crate::common::design_content())
+        .expect("the run starts");
+    let mut grew = Vec::new();
+    for tick in 1..=time_limit_case::WARMUP_TICKS + STEADY_TICKS {
+        let counts = counted3(|| e.step(time_limit_case::input(tick)));
+        if counts != pin(0, 0, 0) {
+            grew.push((tick, counts));
+        }
+    }
+    assert!(
+        grew.is_empty(),
+        "ticks that called the allocator, (tick, counts): {grew:?}"
+    );
 }
 
 /// The most memory the engine may hold at once in the worst minute of a run (DS22 item 3).
