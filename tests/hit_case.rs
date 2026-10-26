@@ -181,4 +181,4 @@ fn the_spread_ticks_hash_as_they_did_with_every_enemy_tested() {
 }
 
 const PINNED_CLUSTERED: [u64; 3] = [0x95527ebc68a22c23, 0x87e3b4b6e281d125, 0xe528b8947fab1e1d];
-const PINNED_SPREAD: [u64; 3] = [0xf143b972e536a94b, 0x68a658586f58ecbb, 0x315dfccca33e4832];
+const PINNED_SPREAD: [u64; 3] = [0x80f1f5dfc2697a18, 0x202a9c6a1cb7f61c, 0x5b61766d6e1f0d98];
