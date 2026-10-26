@@ -62,6 +62,19 @@ fn content() -> RunContent {
     RunContent::new(stats, RunContent::bundled().rewards().clone()).with_time_limit(mode())
 }
 
+/// The option an open offer takes between ticks.
+pub const OFFER_CHOICE: u32 = 0;
+
+/// The input stepped at `tick` (the tick the engine is at before the step): the main weapon is
+/// tapped every other tick. `Run::play` reads it, and so does the digest of
+/// `tests/bench_fixture_pins.rs`, so the two cannot drift.
+pub fn input_at(tick: u32) -> Input {
+    Input {
+        main: tick % 2 == 1,
+        ..Input::default()
+    }
+}
+
 /// The run, part way through: `play` takes the next ticks.
 pub struct Run {
     pub engine: Engine,
@@ -86,13 +99,9 @@ impl Run {
     pub fn play(&mut self, ticks: u32) {
         for _ in 0..ticks {
             while self.engine.offer_open() {
-                self.engine.choose(0).expect("the first option");
+                self.engine.choose(OFFER_CHOICE).expect("the first option");
             }
-            let input = Input {
-                main: self.engine.tick() % 2 == 1,
-                ..Input::default()
-            };
-            self.engine.step(input);
+            self.engine.step(input_at(self.engine.tick()));
         }
     }
 }
