@@ -187,6 +187,11 @@ pub enum DomainEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         kind: Option<KindIndex>,
     },
+    /// The leash moved the enemy `entity` to the ring opposite the main character, so the
+    /// frontend snaps its body instead of interpolating across the screen (EC2, DS80).
+    EnemyRelocated {
+        entity: EntityId,
+    },
     /// The elite `elite` left the map without dying: no kill, no reward (ADR-090).
     EliteLeft {
         elite: EntityId,

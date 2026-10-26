@@ -93,11 +93,16 @@ fn enemies_leave_past_the_maps_margin_not_the_portrait_fields() {
         json!({ "type": "straight", "vx": 4096, "vy": 0 }),
         json!([]),
     );
-    let stage = wide(quiet(stage_with(
-        600,
-        Some(far_boss()),
-        vec![wave(1, 1, 0, runner, WIDTH / 2, 40_000)],
-    )));
+    // The main character stands at the right edge, so the runner stays within the leash's reach
+    // (800 px) until it is gone, and the leash does not bring it back (EC2).
+    let stage = on_map(
+        quiet(stage_with(
+            600,
+            Some(far_boss()),
+            vec![wave(1, 1, 0, runner, WIDTH - 51_200, 40_000)],
+        )),
+        json!({ "width": WIDTH, "height": HEIGHT, "start": { "x": WIDTH, "y": 40_000 } }),
+    );
     let mut e = engine(&stage);
     let xs = xs_until_gone(&mut e, 600, |e| {
         let s = e.snapshot();

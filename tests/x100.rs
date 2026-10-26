@@ -29,7 +29,7 @@ const STAGES: [(&str, Outcome, u32, usize, u32); 15] = [
     ("dash", Outcome::Running, 300, 0, 93),
     ("evade", Outcome::Failed, 300, 0, 97),
     ("fail", Outcome::Failed, 136, 0, 0),
-    ("landscape", Outcome::Failed, 300, 1, 98),
+    ("landscape", Outcome::Failed, 300, 0, 98),
     ("melee", Outcome::Running, 300, 3, 97),
     ("orb_cage", Outcome::Running, 300, 0, 93),
     ("orbs", Outcome::Running, 300, 0, 95),

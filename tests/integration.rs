@@ -63,6 +63,7 @@ mod hit_marks;
 mod hit_type_kind;
 mod hold;
 mod homing_missiles;
+mod leash;
 mod level_table;
 mod levels;
 mod map;

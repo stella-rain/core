@@ -11,6 +11,9 @@
 # 7,300 to 10,900: 500 enemies, 2 elites, a mid-boss arriving at 9,000), worst_minute_peak its
 # heaviest tick by load (tick 10,800). Both are about 10% above what CI measured (DS50):
 # worst_minute 3,609,753,641 arm64 / 4,024,817,622 x86_64; worst_minute_peak 1,104,066 / 1,236,144.
+# DS86 (EC2 leash): worst_minute now counts 4,195,857,665 arm64 / 4,618,966,801 x86_64 (the leash
+# lets relocated enemies crowd the main character), so its budgets are 4,600,000,000 / 5,100,000,000;
+# worst_minute_peak 1,229,134 / 1,358,845 and time_limit_tick 1,450,043 / 1,583,804 keep theirs.
 # worst_minute_peak stays far under the 12.4 M frame ceiling of worst_tick (ADR-058).
 [worst_tick]
 arm64 = 12_400_000
@@ -25,8 +28,8 @@ arm64 = 1_800_000
 x86_64 = 1_600_000
 
 [worst_minute]
-arm64 = 4_000_000_000
-x86_64 = 4_500_000_000
+arm64 = 4_600_000_000
+x86_64 = 5_100_000_000
 
 [worst_minute_peak]
 arm64 = 1_300_000

@@ -47,8 +47,8 @@ fn the_spread_hit_tick_is_the_benches_case() {
 fn the_time_limit_tick_is_the_benches_case() {
     pinned(
         bench_fixtures::time_limit_tick(),
-        0xb8352ca01a24a44c,
-        0x3b62752b8bc228ce,
+        0xda515bd754b15f82,
+        0x6ae2317b0139581f,
     );
 }
 
@@ -65,8 +65,8 @@ fn the_worst_minute_is_the_benches_case() {
     pinned_run(
         bench_fixtures::worst_minute(),
         MINUTE_TICKS,
-        0x31f2099b21c13bdc,
-        0x5f73af73a34bf173,
+        0x69668d2fa05e60ea,
+        0x3912386003add26a,
     );
 }
 
@@ -75,7 +75,7 @@ fn the_worst_minute_peak_tick_is_the_benches_case() {
     pinned_run(
         bench_fixtures::worst_minute_peak(),
         1,
-        0x24a158e66e43993f,
-        0x591e671e5844ad4e,
+        0x80713e02c97d88ae,
+        0xea386f48b5c6bdbd,
     );
 }
