@@ -121,6 +121,21 @@ class Cases(unittest.TestCase):
             found = c.find_cases(home)
             self.assertEqual(found, [("hit_tick.hit_tick_spread", os.path.join(d, name), None)])
 
+    def test_a_baseline_beside_its_out_is_not_a_second_head(self):
+        with tempfile.TemporaryDirectory() as home:
+            both = os.path.join(home, "stella-rain-core", "t", "g", "t.both")
+            lone = os.path.join(home, "stella-rain-core", "t", "g", "t.lone")
+            os.makedirs(both)
+            os.makedirs(lone)
+            for d, name in ((both, "callgrind.t.both.out"), (both, "callgrind.t.both.out.base@main"),
+                            (lone, "callgrind.t.lone.out.base@main")):
+                open(os.path.join(d, name), "w").close()
+            found = c.find_cases(home)
+            self.assertEqual([(l, os.path.basename(h), b and os.path.basename(b)) for l, h, b in found], [
+                ("t.both", "callgrind.t.both.out", "callgrind.t.both.out.base@main"),
+                ("t.lone", "callgrind.t.lone.out.base@main", None),
+            ])
+
     def test_an_empty_home_has_no_case(self):
         with tempfile.TemporaryDirectory() as home:
             self.assertEqual(c.find_cases(home), [])
