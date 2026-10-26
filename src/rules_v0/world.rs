@@ -5,7 +5,7 @@
 
 use std::ops::Deref;
 
-use crate::attack::{AttackPhase, AttackRef, Emitter};
+use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
 use crate::behaviour::{Action, Agent, Movement};
 use crate::engine::{AgentKey, AgentSource};
 use crate::id::ContentId;
@@ -48,6 +48,39 @@ pub(crate) struct AttackDef {
     pub preset: Option<ContentId>,
     /// The program of each phase's `spawn`, in the order of `phases`.
     pub programs: Vec<ProgramIndex>,
+    /// The ranged-token pool a ranged start of this attack draws from (RA1, DS83).
+    pub pool: RangedPool,
+}
+
+/// The two pools of the ranged tokens (RA1, DS83): an attack that lays a line zone takes the
+/// line token, any other the zone tokens. Decided once, where the attack is compiled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum RangedPool {
+    Zone,
+    Line,
+}
+
+impl RangedPool {
+    /// The pool of an attack with these phases: `Line` if any phase spawns a zone of shape
+    /// `line` (also inside an orb's burst), else `Zone`.
+    pub fn of(phases: &[AttackPhase]) -> RangedPool {
+        fn lays_line(list: &[Emitter]) -> bool {
+            list.iter().any(|n| match n {
+                Emitter::Zone { shape, .. } => matches!(shape, ZoneShape::Line { .. }),
+                Emitter::Orb { burst, .. } => lays_line(burst),
+                Emitter::Repeat { body, .. }
+                | Emitter::Ring { body, .. }
+                | Emitter::Spread { body, .. }
+                | Emitter::Rotate { body, .. } => lays_line(body),
+                Emitter::Wait { .. } => false,
+            })
+        }
+        if phases.iter().any(|p| lays_line(&p.spawn)) {
+            RangedPool::Line
+        } else {
+            RangedPool::Zone
+        }
+    }
 }
 
 impl DefIndex {
