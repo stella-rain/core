@@ -104,6 +104,44 @@ pub(crate) struct AgentDef {
     pub agent: Agent,
     /// The ranged pool of each rule, by rule; empty when no rule is a `ranged` attack (RA1).
     pub ranged_pools: Vec<Option<RangedPool>>,
+    /// The leash may move an enemy of this definition (EC2b): `leash_eligible`. Decided once when
+    /// the world is compiled; never hashed.
+    pub leash: bool,
+}
+
+/// Whether the leash may move an enemy made from `agent` under `source`: a whitelist (DS87).
+/// It roams (`roams`) and a wave or a regular wave enemy's summon made it; a guardian, an escort
+/// and the boss's summons stay with their owner, and so do an elite's. `owner_is_elite` says the
+/// wave enemy that owns a `Summoned` agent is an elite. The match is exhaustive.
+fn leash_eligible(agent: &Agent, source: AgentSource, owner_is_elite: bool) -> bool {
+    let placed_freely = match source {
+        AgentSource::Wave => true,
+        AgentSource::Summoned => !owner_is_elite,
+        AgentSource::Companion
+        | AgentSource::BossRule
+        | AgentSource::Guardian
+        | AgentSource::Escort => false,
+    };
+    placed_freely && roams(agent)
+}
+
+/// Whether an agent drifts or chases rather than keeping to a fixed point of its own: its
+/// movement is free (`follow`, `orbit`, `straight`) and no rule is a `move_to`. Both matches are
+/// exhaustive, so a movement or an action added later has to be decided here.
+fn roams(agent: &Agent) -> bool {
+    let free = match &agent.movement {
+        Movement::Follow { .. } | Movement::Orbit { .. } | Movement::Straight { .. } => true,
+        Movement::Hold { .. } | Movement::FleeWhenDisturbed { .. } | Movement::Shrine { .. } => {
+            false
+        }
+    };
+    free && !agent.rules.iter().any(|r| match &r.action {
+        Action::MoveTo { .. } => true,
+        Action::Cast { .. }
+        | Action::Attack { .. }
+        | Action::Summon { .. }
+        | Action::Telegraph { .. } => false,
+    })
 }
 
 /// Every agent definition of the run, by index. `keys` finds one by the `AgentKey` that names
@@ -119,7 +157,13 @@ impl AgentDefs {
         self.defs.iter().map(|d| &d.agent)
     }
 
-    fn push(&mut self, kinds: &KindTable, agent: &Agent) -> Result<DefIndex, Issue> {
+    fn push(
+        &mut self,
+        kinds: &KindTable,
+        agent: &Agent,
+        source: AgentSource,
+        owner_is_elite: bool,
+    ) -> Result<DefIndex, Issue> {
         let at = u16::try_from(self.defs.len()).map_err(|_| Issue {
             path: "$".into(),
             message: format!("a run brings more than {} agent definitions", u16::MAX),
@@ -128,12 +172,19 @@ impl AgentDefs {
             kind: kinds.of(&agent.base),
             agent: agent.clone(),
             ranged_pools: Vec::new(),
+            leash: leash_eligible(agent, source, owner_is_elite),
         });
         Ok(DefIndex(at))
     }
 
-    fn keyed(&mut self, kinds: &KindTable, key: AgentKey, agent: &Agent) -> Result<(), Issue> {
-        let at = self.push(kinds, agent)?;
+    fn keyed(
+        &mut self,
+        kinds: &KindTable,
+        key: AgentKey,
+        agent: &Agent,
+        owner_is_elite: bool,
+    ) -> Result<(), Issue> {
+        let at = self.push(kinds, agent, key.source, owner_is_elite)?;
         self.keys.push((key, at));
         Ok(())
     }
@@ -149,7 +200,7 @@ impl AgentDefs {
                 index: index(i),
                 rule: 0,
             };
-            defs.keyed(kinds, key, agent)?;
+            defs.keyed(kinds, key, agent, false)?;
         }
         for (i, wave) in stage.waves.iter().enumerate() {
             let at = |source, rule| AgentKey {
@@ -157,17 +208,23 @@ impl AgentDefs {
                 index: index(i),
                 rule,
             };
-            defs.keyed(kinds, at(AgentSource::Wave, 0), &wave.enemy)?;
+            defs.keyed(kinds, at(AgentSource::Wave, 0), &wave.enemy, false)?;
             for (r, rule) in wave.enemy.rules.iter().enumerate() {
                 if let Action::Summon { agent, .. } = &rule.action {
-                    defs.keyed(kinds, at(AgentSource::Summoned, index(r)), agent)?;
+                    let owner_is_elite = wave.enemy.elite.is_some();
+                    defs.keyed(
+                        kinds,
+                        at(AgentSource::Summoned, index(r)),
+                        agent,
+                        owner_is_elite,
+                    )?;
                 }
             }
             if let Movement::Shrine { guardians, .. } = &wave.enemy.movement {
-                defs.keyed(kinds, at(AgentSource::Guardian, 0), &guardians.enemy)?;
+                defs.keyed(kinds, at(AgentSource::Guardian, 0), &guardians.enemy, true)?;
             }
             if let Some(escort) = wave.enemy.elite.as_ref().and_then(|e| e.escort.as_ref()) {
-                defs.keyed(kinds, at(AgentSource::Escort, 0), &escort.enemy)?;
+                defs.keyed(kinds, at(AgentSource::Escort, 0), &escort.enemy, true)?;
             }
         }
         defs.keys.sort_by_key(|(k, _)| *k);
@@ -211,7 +268,11 @@ impl BossDef {
         for (p, phase) in boss.phases.iter().enumerate() {
             for (r, rule) in phase.rules.iter().enumerate() {
                 if let Action::Summon { agent, .. } = &rule.action {
-                    summons.push((index(p), index(r), defs.push(kinds, agent)?));
+                    summons.push((
+                        index(p),
+                        index(r),
+                        defs.push(kinds, agent, AgentSource::BossRule, true)?,
+                    ));
                 }
             }
         }
@@ -468,9 +529,64 @@ mod tests {
         let agent = stage.waves[0].enemy.clone();
         let mut defs = AgentDefs::default();
         for i in 0..=u16::MAX {
-            assert_eq!(defs.push(&kinds, &agent).unwrap(), DefIndex(i));
+            assert_eq!(
+                defs.push(&kinds, &agent, AgentSource::Wave, false).unwrap(),
+                DefIndex(i)
+            );
         }
-        let refused = defs.push(&kinds, &agent).unwrap_err();
+        let refused = defs
+            .push(&kinds, &agent, AgentSource::Wave, false)
+            .unwrap_err();
         assert!(refused.message.contains("65535"), "{refused:?}");
+    }
+
+    fn agent_of(movement: serde_json::Value, rules: serde_json::Value) -> Agent {
+        serde_json::from_value(serde_json::json!({
+            "base": "bat", "hp": 10, "radius": 2048, "movement": movement, "rules": rules }))
+        .unwrap()
+    }
+
+    #[test]
+    fn only_a_free_mover_without_a_move_to_rule_roams() {
+        use serde_json::json;
+        let at = json!({ "x": 0, "y": 0 });
+        let free = [
+            json!({ "type": "follow", "distance": 0 }),
+            json!({ "type": "orbit", "radius": 1000 }),
+            json!({ "type": "straight", "vx": 0, "vy": 0 }),
+        ];
+        for m in free {
+            assert!(roams(&agent_of(m, json!([]))), "free mover");
+        }
+        let anchored = [
+            json!({ "type": "hold", "at": at }),
+            json!({ "type": "flee_when_disturbed", "disturb_radius": 1, "speed": 1,
+                    "leave_after_ticks": 1 }),
+        ];
+        for m in anchored {
+            assert!(!roams(&agent_of(m, json!([]))), "anchored mover");
+        }
+        let move_to = json!([{ "when": { "type": "always" }, "target": "self",
+            "do": { "type": "move_to", "to": at, "ticks": 5 }, "cooldown_ticks": 0 }]);
+        let straight = json!({ "type": "straight", "vx": 0, "vy": 0 });
+        assert!(!roams(&agent_of(straight, move_to)), "a move_to rule");
+    }
+
+    #[test]
+    fn leash_eligible_by_source_and_owner() {
+        use serde_json::json;
+        let still = || agent_of(json!({ "type": "straight", "vx": 0, "vy": 0 }), json!([]));
+        let held = agent_of(
+            json!({ "type": "hold", "at": { "x": 0, "y": 0 } }),
+            json!([]),
+        );
+        assert!(leash_eligible(&still(), AgentSource::Wave, false));
+        assert!(!leash_eligible(&held, AgentSource::Wave, false));
+        assert!(leash_eligible(&still(), AgentSource::Summoned, false));
+        assert!(!leash_eligible(&still(), AgentSource::Summoned, true));
+        assert!(!leash_eligible(&still(), AgentSource::Guardian, true));
+        assert!(!leash_eligible(&still(), AgentSource::Escort, true));
+        assert!(!leash_eligible(&still(), AgentSource::BossRule, true));
+        assert!(!leash_eligible(&still(), AgentSource::Companion, false));
     }
 }

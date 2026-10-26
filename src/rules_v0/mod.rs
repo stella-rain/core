@@ -12,7 +12,7 @@
 //! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
 //! | `spawn_waves` | the waves that are due spawn enemies |
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
-//! | `leash` | a regular enemy left more than `LEASH_DISTANCE` behind moves to the ring opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
+//! | `leash` | a regular, unanchored enemy left more than `LEASH_DISTANCE` behind moves to the ring opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
