@@ -116,7 +116,7 @@ fn the_measured_tick_has_its_load() {
 /// the upper right and two at the lower right, inside the leash, 500 enemies in all, on a map of the
 /// largest side that the validator accepts.
 #[test]
-fn the_spread_waves_stand_at_the_start_and_two_far_corners() {
+fn the_spread_waves_stand_at_the_start_and_two_outer_crowds() {
     let stage = hit_case::spread_stage();
     let map = stage.map.as_ref().expect("the spread case has a map");
     assert_eq!((map.width.0, map.height.0), (SIDE, SIDE));
