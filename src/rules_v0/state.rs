@@ -166,6 +166,9 @@ pub(crate) struct Horde {
     pub spawned: u32,
     /// One per pool entry: drawn already.
     pub used: Vec<bool>,
+    /// The spawn director's, per wave (DIR1): the ticks the wave's schedule has slid, one for
+    /// each tick a spawn that was due found the crowd at its target. Zero for a wave never held.
+    pub held: Vec<u32>,
 }
 
 /// The one expertise gauge of the one weapon (ADR-106 §1 to §3), and its offers (ADR-079 §2, §3).

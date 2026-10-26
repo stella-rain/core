@@ -138,7 +138,7 @@ fn enemies_spawn_on_the_schedule_around_the_main_character() {
 }
 
 #[test]
-fn the_enemies_alive_never_pass_the_cap() {
+fn the_enemies_alive_never_pass_the_cap_and_the_waves_stop_at_the_target() {
     let m = mode(|v| {
         v["waves"] = json!([
             { "at_tick": 1, "enemy": dummy(), "spawn": { "x": 0, "y": 0 },
@@ -154,8 +154,10 @@ fn the_enemies_alive_never_pass_the_cap() {
         most = most.max(e.load().enemies);
         assert!(e.load().enemies <= 260);
     }
-    assert_eq!(most, 260, "the cap is reached");
-    assert_eq!(of_kind(&e.snapshot(), EntityKind::Enemy).len(), 260);
+    // The waves are held at the crowd target of 200 (the director); the cap of 260 is the
+    // specials' room.
+    assert_eq!(most, 200, "the target is reached");
+    assert_eq!(of_kind(&e.snapshot(), EntityKind::Enemy).len(), 200);
 }
 
 #[test]

@@ -128,16 +128,18 @@ fn circle(tick: u32) -> Input {
     }
 }
 
-/// The most enemies a bot's run held in any tick up to `ticks`, and the spawns refused.
-fn peak(e: &mut Engine, ticks: u32, bot: fn(u32) -> Input) -> (u32, u32) {
-    let (mut most, mut refused) = (0, 0);
+/// The most enemies a bot's run held in any tick up to `ticks`, the spawns refused and the
+/// wave spawns the director held.
+fn peak(e: &mut Engine, ticks: u32, bot: fn(u32) -> Input) -> (u32, u32, u32) {
+    let (mut most, mut refused, mut held) = (0, 0, 0);
     for _ in 0..ticks {
         answer(e);
         e.step(bot(e.tick()));
         most = most.max(e.load().enemies);
         refused += e.load().refused_spawns;
+        held += e.load().held_spawns;
     }
-    (most, refused)
+    (most, refused, held)
 }
 
 // --- The cap ----------------------------------------------------------------------------------
@@ -146,6 +148,20 @@ fn peak(e: &mut Engine, ticks: u32, bot: fn(u32) -> Input) -> (u32, u32) {
 fn a_stage_stops_at_the_derived_cap() {
     // 300 spawns against a cap of 260 (200 * 130 / 100): 40 are refused.
     assert_eq!(stand_in(&crowd_stage(3, None), 101), (260, 40));
+}
+
+#[test]
+fn a_stage_has_no_director_so_its_waves_keep_their_timing() {
+    // Target 100, cap 130: every wave still spawns on its tick (the surplus is refused at the
+    // cap and counted), and the director holds nothing.
+    let mut e = engine(&crowd_stage(3, Some(100)));
+    let (mut refused, mut held) = (0, 0);
+    for _ in 0..101 {
+        e.step(idle());
+        refused += e.load().refused_spawns;
+        held += e.load().held_spawns;
+    }
+    assert_eq!((enemies(&e.snapshot()), refused, held), (130, 170, 0));
 }
 
 #[test]
@@ -164,8 +180,9 @@ fn a_stage_override_is_clamped_so_the_cap_stays_within_the_ceiling() {
 fn a_circle_run_never_holds_more_than_the_cap() {
     for difficulty in ["normal", "rainy"] {
         let mut e = horde(difficulty, None);
-        let (most, _) = peak(&mut e, 20_000, circle);
+        let (most, _, held) = peak(&mut e, 20_000, circle);
         assert!(most <= 260, "{difficulty}: {most} enemies alive");
+        assert!(held > 0, "{difficulty}: the director held nothing");
     }
 }
 
@@ -246,11 +263,13 @@ fn fnv1a(hash: u64, word: u32) -> u64 {
     })
 }
 
-/// The tick the standing bot's crowd first has 200 enemies, taken on main before DIR1.
+/// The first tick the standing bot's crowd (counted as `Load::enemies` is) has the 200 of the
+/// target, taken on main before DIR1: the director first acts on it, so every tick before it is
+/// what it always was.
 const T200: u32 = 38_820;
-/// FNV-1a 64 of each tick's `(tick, enemies, refused_spawns, relocated)` for the ticks to `T200`
-/// of the standing bot's run, taken on main before DIR1.
-const UNDER_TARGET_DIGEST: u64 = 0x8e9a_8a29_2be3_0459;
+/// FNV-1a 64 of each tick's `(tick, enemies, refused_spawns, relocated)` for the ticks before
+/// `T200` of the standing bot's run, taken on main before DIR1.
+const UNDER_TARGET_DIGEST: u64 = 0x4a98_0857_1410_83c9;
 
 #[test]
 fn under_the_target_a_run_is_what_it_was() {
@@ -261,16 +280,13 @@ fn under_the_target_a_run_is_what_it_was() {
         answer(&mut e);
         e.step(stand(e.tick()));
         let load = e.load();
-        if t200.is_none() {
-            for word in [e.tick(), load.enemies, load.refused_spawns, load.relocated] {
-                digest = fnv1a(digest, word);
-            }
-            if enemies(&e.snapshot()) >= 200 {
-                t200 = Some(e.tick());
-            }
-        }
-        if t200.is_some() {
+        if load.enemies >= 200 {
+            t200 = Some(e.tick());
             break;
+        }
+        assert_eq!(load.held_spawns, 0, "tick {}", e.tick());
+        for word in [e.tick(), load.enemies, load.refused_spawns, load.relocated] {
+            digest = fnv1a(digest, word);
         }
     }
     assert_eq!((t200, digest), (Some(T200), UNDER_TARGET_DIGEST));

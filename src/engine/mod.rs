@@ -57,6 +57,9 @@ pub struct Load {
     /// Spawns the cap on enemies alive or on elites refused in the tick: waves, elites, summons
     /// and guardians (EC2, DS80).
     pub refused_spawns: u32,
+    /// Wave spawns the spawn director held in the tick because the crowd was at its target
+    /// (DIR1, DS103): horde runs only. They are not refused or lost: the wave's schedule slides.
+    pub held_spawns: u32,
     /// Enemies the leash moved to the ring opposite the main character in the tick (EC2, DS80).
     pub relocated: u32,
 }
@@ -343,6 +346,7 @@ impl Engine {
             emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
             // Not caps: what a tick did, not what it may hold.
             refused_spawns: 0,
+            held_spawns: 0,
             relocated: 0,
         }
     }

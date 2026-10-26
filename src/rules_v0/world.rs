@@ -330,14 +330,12 @@ pub(crate) struct World {
     pub horde: Option<HordeDefs>,
     /// The crowd target of the run (DIR1, DS103): the stage's override or the pack's, kept so
     /// that the cap stays within the engine ceiling. Resolved once here.
-    #[expect(dead_code, reason = "the spawn director reads it (DIR1 step 6)")]
     pub crowd_target: u32,
     /// The most enemies alive at once: the target and the pack's headroom, derived here and
     /// never stored in a file. Every spawn past it is dropped and counted.
     pub enemy_cap: u32,
     /// Whether the spawn director acts: a horde run holds its wave spawns at the target; a
     /// stage's waves are an authored timeline and keep their timing.
-    #[expect(dead_code, reason = "the spawn director reads it (DIR1 step 6)")]
     pub director: bool,
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,

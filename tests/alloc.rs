@@ -289,6 +289,47 @@ fn a_horde_at_the_cap_allocates_nothing_after_load() {
     );
 }
 
+/// A clone keeps the room the run reserved at load (DIR1): taken while the director is holding
+/// waves, it follows the original and its first ticks call the allocator no more than the
+/// original's.
+#[test]
+fn a_clone_of_a_run_with_waves_held_allocates_nothing() {
+    use serde_json::Value;
+    use stella_rain_core::engine::Outcome;
+    use stella_rain_core::run_setup::RunSetup;
+    use stella_rain_core::time_limit::TimeLimit;
+    let mut file: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    file["crowd_target"] = 20.into();
+    for wave in file["waves"].as_array_mut().unwrap() {
+        wave["at_tick"] = 1.into();
+        wave["every_ticks"] = 1.into();
+    }
+    let mode = TimeLimit::parse(file.to_string().as_bytes()).unwrap();
+    let content = crate::common::design_content().with_time_limit(mode);
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        seed: 1,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start_with(&setup, &content).unwrap();
+    let mut held = 0;
+    for _ in 0..300 {
+        e.step(Input::default());
+        held += e.load().held_spawns;
+    }
+    assert!(held > 0, "no wave was held");
+    assert_eq!(e.outcome(), Outcome::Running);
+    let mut copy = e.clone();
+    for tick in 0..60 {
+        let (original, clone) = (
+            counted3(|| e.step(Input::default())),
+            counted3(|| copy.step(Input::default())),
+        );
+        assert_eq!(clone, pin(0, 0, 0), "the clone's tick {tick}: {original:?}");
+        assert_eq!(copy.state_hash(), e.state_hash());
+    }
+}
+
 /// The most memory the engine may hold at once in the worst minute of a run (DS22 item 3).
 const PEAK_HEAP_LIMIT: i64 = 16 * 1024 * 1024;
 const MINUTE_TICKS: usize = 3600;

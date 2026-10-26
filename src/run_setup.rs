@@ -841,6 +841,7 @@ pub(crate) fn time_limit_run(
         mid_boss_hp_pct: mode.mid_boss_hp_pct().to_vec(),
         spawned: 0,
         used: vec![false; mode.mid_boss_pool().len()],
+        held: vec![0; stage.waves.len()],
     };
     Ok((stage, spec, horde))
 }

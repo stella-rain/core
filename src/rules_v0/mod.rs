@@ -10,7 +10,7 @@
 //! | `spawn_boss` | the boss of a `time_limit` run whose time the tick reaches comes, before the counter advances (`horde`) |
 //! | `advance_tick` | the tick counter advances |
 //! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
-//! | `spawn_waves` | the waves that are due spawn enemies |
+//! | `spawn_waves` | the waves that are due spawn enemies; a horde run holds them at the crowd target (DIR1) |
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
 //! | `leash` | a regular, unanchored enemy left more than `LEASH_DISTANCE` behind moves to the ring opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
@@ -566,6 +566,7 @@ pub(crate) fn step(
         run(&mut ctx);
     }
     load.refused_spawns = std::mem::take(&mut s.scratch.refused_spawns);
+    load.held_spawns = std::mem::take(&mut s.scratch.held_spawns);
     debug_assert!(
         entity::enemies_in_id_order(s),
         "enemies out of entity-ID order"
@@ -637,6 +638,9 @@ fn count<T>(items: &[T]) -> u32 {
 }
 
 fn spawn_waves(stage: &World, s: &mut State) {
+    if stage.director && s.horde.is_some() {
+        return spawn_waves_directed(stage, s);
+    }
     for (i, wave) in stage.waves.iter().enumerate() {
         let spawned = s.spawned[i];
         if spawned >= wave.count {
@@ -646,18 +650,79 @@ fn spawn_waves(stage: &World, s: &mut State) {
         if u64::from(s.tick) < due {
             continue;
         }
-        s.spawned[i] = spawned + 1;
-        let key = AgentKey {
-            source: AgentSource::Wave,
-            index: u32::try_from(i).unwrap_or(u32::MAX),
-            rule: 0,
-        };
-        let at = match wave.around {
-            Some(ring) => around_player(stage, s.player.at, &mut s.rng.spawn, ring),
-            None => wave.spawn,
-        };
-        spawn_enemy(stage, s, key, at);
+        spawn_wave(stage, s, i);
     }
+}
+
+/// The spawn director (DIR1, DS103): the waves of a horde run, held at the crowd target.
+///
+/// A wave is due when its tick comes, as it is without the director, plus what it has been held
+/// so far (`Horde::held`): a held spawn is not dropped and not queued, its schedule slides. The
+/// room is the target less the enemies alive, taken once. If every due wave fits, all spawn in
+/// index order, drawing in that order as they do without the director, so a run under the target
+/// is unchanged. If not, the waves held longest spawn (ties to the lower index) in index order,
+/// and every other due wave is held one more tick and counted in `Load::held_spawns`. A held
+/// spawn draws no angle and does not count as spawned. The headroom between the target and the
+/// cap stays for the specials, which the cap alone limits.
+fn spawn_waves_directed(stage: &World, s: &mut State) {
+    use crate::time_limit::MAX_WAVES;
+    let mut due = [0usize; MAX_WAVES];
+    let mut n = 0;
+    if let Some(horde) = s.horde.as_ref() {
+        for (i, wave) in stage.waves.iter().enumerate() {
+            let spawned = s.spawned[i];
+            if spawned >= wave.count || n == MAX_WAVES {
+                continue;
+            }
+            let slid = u64::from(horde.held.get(i).copied().unwrap_or(0));
+            let at = u64::from(wave.at_tick) + u64::from(spawned) * u64::from(wave.every_ticks);
+            if u64::from(s.tick) >= at + slid {
+                due[n] = i;
+                n += 1;
+            }
+        }
+    }
+    let room = (stage.crowd_target as usize).saturating_sub(s.enemies.len());
+    let mut spawn = [true; MAX_WAVES];
+    if n > room {
+        // The `room` waves held longest, the lower index first among equals.
+        let held = |i: usize| s.horde.as_ref().map_or(0, |h| h.held[i]);
+        let mut order = [0usize; MAX_WAVES];
+        for (p, slot) in order.iter_mut().enumerate().take(n) {
+            *slot = p;
+        }
+        order[..n].sort_unstable_by_key(|&p| (std::cmp::Reverse(held(due[p])), due[p]));
+        for &p in &order[room..n] {
+            spawn[p] = false;
+        }
+    }
+    for p in 0..n {
+        let i = due[p];
+        if !spawn[p] {
+            if let Some(horde) = s.horde.as_mut() {
+                horde.held[i] = horde.held[i].saturating_add(1);
+            }
+            s.scratch.held_spawns = s.scratch.held_spawns.saturating_add(1);
+            continue;
+        }
+        spawn_wave(stage, s, i);
+    }
+}
+
+/// One spawn of wave `i`: counted as spawned, placed, and refused only by the caps.
+fn spawn_wave(stage: &World, s: &mut State, i: usize) {
+    let wave = &stage.waves[i];
+    s.spawned[i] += 1;
+    let key = AgentKey {
+        source: AgentSource::Wave,
+        index: u32::try_from(i).unwrap_or(u32::MAX),
+        rule: 0,
+    };
+    let at = match wave.around {
+        Some(ring) => around_player(stage, s.player.at, &mut s.rng.spawn, ring),
+        None => wave.spawn,
+    };
+    spawn_enemy(stage, s, key, at);
 }
 
 /// A point `ring` from the main character at `from`, at an angle drawn from `rng` (the wave's
@@ -1901,6 +1966,11 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         h.write_u32(count(&horde.used));
         for used in &horde.used {
             h.write_bool(*used);
+        }
+        // After `used` (DIR1): the slide of each wave, which is part of the schedule.
+        h.write_u32(count(&horde.held));
+        for held in &horde.held {
+            h.write_u32(*held);
         }
     }
     // After the horde's, and only when an orb has a stop or a link (Z3a-3): per orb, in order,

@@ -50,6 +50,8 @@ pub(crate) struct Scratch {
     pub(super) ranged_grants: [Vec<EntityId>; 2],
     /// Spawns the caps refused so far in the tick; `step` hands it to `Load` and empties it.
     pub(super) refused_spawns: u32,
+    /// Wave spawns the director held so far in the tick; `step` hands it to `Load` too.
+    pub(super) held_spawns: u32,
     /// What `reserve` made room for; `None` for a scratch that was never reserved.
     reserved: Option<Reserved>,
 }
