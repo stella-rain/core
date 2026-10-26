@@ -44,7 +44,10 @@ class Cli(unittest.TestCase):
                  "--bench", bench, "--bench-changed", changed],
                 capture_output=True, text=True, env=env,
             )
-            written = open(out_path, encoding="utf-8").read().splitlines() if os.path.exists(out_path) else []
+            written = []
+            if os.path.exists(out_path):
+                with open(out_path, encoding="utf-8") as f:
+                    written = f.read().splitlines()
             return r.returncode, r.stdout.splitlines(), r.stderr, written
 
     def test_equal_digests_are_compared(self):
