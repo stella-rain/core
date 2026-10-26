@@ -211,8 +211,11 @@ fn check(id: &str) {
             .and_then(toml::Value::as_str)
         {
             Some(pin) if pin == value => {}
-            Some(pin) => writeln!(wrong, "  {key}: pinned {pin}, computed {value}").unwrap(),
-            None => writeln!(wrong, "  missing {key}: computed {value}").unwrap(),
+            Some(pin) => writeln!(wrong, "  {key}: pinned {pin}, computed {value}")
+                .expect("a String takes writes"),
+            None => {
+                writeln!(wrong, "  missing {key}: computed {value}").expect("a String takes writes")
+            }
         }
     }
     assert!(
