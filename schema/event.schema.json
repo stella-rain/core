@@ -901,6 +901,33 @@
       ]
     },
     {
+      "description": "The leash moved the enemy `entity` to the ring opposite the main character, so the\nfrontend snaps its body instead of interpolating across the screen (EC2, DS80).",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": {
+            "entity": {
+              "$ref": "#/$defs/EntityId"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "entity"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "EnemyRelocated"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "data"
+      ]
+    },
+    {
       "description": "The elite `elite` left the map without dying: no kill, no reward (ADR-090).",
       "type": "object",
       "properties": {
