@@ -20,6 +20,16 @@
         "$ref": "#/$defs/Agent"
       }
     },
+    "crowd_target": {
+      "description": "The crowd target of the run (DIR1, DS103): the pack's `rules.json` gives the default\n(200), this overrides it, 1 to `MAX_CROWD_TARGET`. The run's enemy cap derives from it\nand is never stored; a target whose cap would pass the engine ceiling is clamped when\nthe run is built. A stage's waves keep their authored timing: only a horde run holds\nits waves at the target.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
     "description": {
       "type": "string",
       "default": ""

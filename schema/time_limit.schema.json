@@ -21,6 +21,16 @@
         "$ref": "#/$defs/Boss"
       }
     },
+    "crowd_target": {
+      "description": "The crowd target of the mode's runs (DIR1, DS103): the pack's `rules.json` gives the\ndefault (200), this overrides it, 1 to `MAX_CROWD_TARGET`. The run's stage takes it as its\nown, and the director holds the mode's wave spawns at it.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
     "elite_cap": {
       "description": "The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the\nsame bound). The run's stage takes it as its own.",
       "type": "integer",
