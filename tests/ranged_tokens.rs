@@ -226,6 +226,30 @@ fn a_run_killed_in_its_wind_up_cools_its_token_too() {
 }
 
 #[test]
+fn a_shooter_still_in_its_attack_does_not_hold_a_grant_it_cannot_use() {
+    // The nearest shooter's rule has no cooldown and its attack runs for 600 ticks: its rule is
+    // ready but the shooter is not. The two that come five ticks later still get the two free
+    // tokens.
+    let long = |dx: i32, at_tick: u32| {
+        let (x, y) = ((CENTRE + dx) * PX, CENTRE * PX);
+        let rules = json!([{ "when": always(), "target": "player", "cooldown_ticks": 0,
+            "do": { "type": "attack", "ranged": true, "attack": { "inline": [
+                { "kind": "wind_up", "ticks": 3 }, { "kind": "active", "ticks": 600 }] } } }]);
+        wave(at_tick, 1, 1, enemy(50, hold(x, y), rules), x, y)
+    };
+    let mut st = stage(&[]);
+    st.waves = serde_json::from_value(json!([long(100, 0), long(150, 5), long(200, 5)])).unwrap();
+    let mut e = engine(&st);
+    for _ in 0..20 {
+        e.step(idle());
+    }
+    let holding = (FIRST_SHOOTER..FIRST_SHOOTER + 3)
+        .filter(|id| kind_of(&e, *id).is_some())
+        .count();
+    assert_eq!(holding, 3);
+}
+
+#[test]
 fn the_boss_is_not_limited_by_the_tokens() {
     let mut boss = far_boss();
     boss["phases"] = json!([{ "rules": [{ "when": always(), "target": "player",

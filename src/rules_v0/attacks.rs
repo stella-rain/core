@@ -128,7 +128,8 @@ fn in_view(e: Point, player: Point) -> bool {
 
 /// Gives each pool's free tokens to the nearest ready regular enemies in view (RA1, DS82): at
 /// the start of the act step, before any rule fires. The candidates are alive, in view and have
-/// a ranged rule of the pool that is ready (its cooldown ends by this tick, charges are left);
+/// a ranged rule of the pool that is ready (its cooldown ends by this tick, charges are left) and
+/// no attack of theirs running;
 /// the nearest come first, by squared distance, ties by entity ID. The grants are scratch,
 /// worked out from the state each tick. No random number is drawn.
 pub(super) fn grant_ranged(world: &World, s: &mut State) {
@@ -180,6 +181,10 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
                 continue;
             }
             if best[p][..len[p]].iter().any(|(_, id)| *id == e.id) {
+                continue;
+            }
+            // Not ready while its last attack runs (ADR-055): it could not use the grant.
+            if busy(s, e.id, 0) {
                 continue;
             }
             let at = best[p][..len[p]].partition_point(|(bd, _)| *bd <= d);
