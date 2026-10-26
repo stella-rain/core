@@ -14,9 +14,12 @@
 use std::fmt::Write as _;
 
 use sha2::{Digest, Sha256};
-use stella_rain_core::bench_fixtures::worst_minute_case::{MINUTE_TICKS, Run};
+use stella_rain_core::bench_fixtures::worst_minute_case::{
+    MINUTE_START, MINUTE_TICKS, OFFER_CHOICE, Run, input_at,
+};
 use stella_rain_core::bench_fixtures::{self, Case, hit_case, time_limit_case, worst_case};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::content_sha256_with;
 use stella_rain_core::stage::Stage;
 
@@ -138,6 +141,27 @@ fn digest(parts: &[&[u8]]) -> String {
 
 fn content_hash(engine: &Engine) -> [u8; 32] {
     content_sha256_with("time_limit", engine.content()).expect("the time_limit content hashes")
+}
+
+/// The digest of a minute case's input: the start tick, the tick count, the option an open offer
+/// takes and every `Input` the script gives for the ticks `start..start + ticks`.
+fn minute_input_digest(start: u32, ticks: u32, script: impl Fn(u32) -> Input) -> String {
+    let mut played = Vec::new();
+    for tick in start..start + ticks {
+        serde_json::to_writer(&mut played, &script(tick)).expect("the input serializes");
+        played.push(b'\n');
+    }
+    digest(&[
+        b"stella-rain/bench-input/v2\n",
+        b"start:",
+        start.to_string().as_bytes(),
+        b"ticks:",
+        ticks.to_string().as_bytes(),
+        b"offer:",
+        OFFER_CHOICE.to_string().as_bytes(),
+        b"\n",
+        &played,
+    ])
 }
 
 /// Builds the case, runs its measured ticks and gives every value it pins.
@@ -328,4 +352,40 @@ fn a_set_ci_without_the_knob_is_not_update_mode() {
 #[should_panic(expected = "CI")]
 fn update_mode_is_refused_in_ci() {
     update_mode(Some("1"), true);
+}
+
+fn input_of(id: &str) -> String {
+    let spec = specs()
+        .into_iter()
+        .find(|spec| spec.id == id)
+        .expect("a known case");
+    measure(&spec).input
+}
+
+#[test]
+fn the_minute_cases_input_digest_covers_the_played_input() {
+    assert_eq!(
+        input_of("worst_minute"),
+        minute_input_digest(MINUTE_START, MINUTE_TICKS, input_at)
+    );
+}
+
+#[test]
+fn the_minute_input_digest_moves_with_the_start_tick() {
+    assert_ne!(
+        minute_input_digest(MINUTE_START, MINUTE_TICKS, input_at),
+        minute_input_digest(MINUTE_START + 1, MINUTE_TICKS, input_at)
+    );
+}
+
+#[test]
+fn the_minute_input_digest_moves_with_the_script() {
+    let flipped = |tick| Input {
+        main: tick % 2 == 0,
+        ..Input::default()
+    };
+    assert_ne!(
+        minute_input_digest(MINUTE_START, MINUTE_TICKS, input_at),
+        minute_input_digest(MINUTE_START, MINUTE_TICKS, flipped)
+    );
 }
