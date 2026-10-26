@@ -91,7 +91,7 @@ def check(arch, found, limit_pct, ledger, base_ledger, pr, compared=None):
     if ledger[: len(base_ledger)] != base_ledger:
         errors.append("benches/accepted.toml is append-only: an entry of the base commit was edited or removed")
     new = ledger[len(base_ledger):]
-    risen = set()
+    risen, moved = set(), set()
     for bench, case, head, base in found:
         if base is None:
             rows.append((bench, case, None, head, "", "no base"))
@@ -99,6 +99,7 @@ def check(arch, found, limit_pct, ledger, base_ledger, pr, compared=None):
         change = pct(head, base)
         if compared is not None and case not in compared:
             rows.append((bench, case, base, head, change, MOVED))
+            moved.add((bench, case))
             continue
         if not is_rise(head, base, limit_pct):
             rows.append((bench, case, base, head, change, "ok"))
@@ -116,11 +117,10 @@ def check(arch, found, limit_pct, ledger, base_ledger, pr, compared=None):
             "an unexplained rise is fixed, not accepted (ADR-SIM-8)"
         )
     for e in new:
-        if e["arch"] == arch and (e["bench"], e["case"]) not in risen:
-            warnings.append(
-                f"benches/accepted.toml entry for {e['bench']} {e['case']} on {arch} is not needed: "
-                "the case did not rise"
-            )
+        key = (e["bench"], e["case"])
+        if e["arch"] == arch and key not in risen:
+            why = "the case moved and was not compared" if key in moved else "the case did not rise"
+            warnings.append(f"benches/accepted.toml entry for {e['bench']} {e['case']} on {arch} is not needed: {why}")
     return rows, errors, warnings
 
 

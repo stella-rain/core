@@ -19,11 +19,11 @@ NO_BASE = "::notice::the base has no tests/bench_pins.toml: nothing compared"
 
 
 def load(path):
-    """{case: table} of a pin file, or None when it is missing, empty or unreadable."""
+    """{case: table} of a pin file, or None when it is missing or empty; invalid TOML raises."""
     try:
         with open(path, "rb") as f:
             data = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
+    except OSError:
         return None
     return data or None
 
@@ -65,11 +65,15 @@ def main():
     parser.add_argument("--bench", required=True)
     parser.add_argument("--bench-changed", required=True, choices=("true", "false"))
     args = parser.parse_args()
-    head = load(args.head)
-    if head is None:
-        print(f"error: {args.head} is missing, empty or not valid TOML", file=sys.stderr)
+    try:
+        head = load(args.head)
+        base = load(args.base)
+    except tomllib.TOMLDecodeError as e:
+        print(f"error: tests/bench_pins.toml is not valid TOML: {e}", file=sys.stderr)
         return 1
-    base = load(args.base)
+    if head is None:
+        print(f"error: {args.head} is missing or empty", file=sys.stderr)
+        return 1
     if base is None:
         print(NO_BASE)
         compared, lines = [], []
