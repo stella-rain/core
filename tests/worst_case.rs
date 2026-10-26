@@ -128,9 +128,9 @@ fn assert_steps_and_ticks_land(engine: &Engine) {
 }
 
 /// The push-apart has a fresh stack to part (ADR-058): the pass moves an enemy at most 4 pixels
-/// (1,024 units) from the point the stack stood on, so after the tick at least 475 enemies are
+/// (1,024 units) from the point the stack stood on, so after the tick at least 479 enemies are
 /// that near it (480 before RA1a: the line shooter's earlier arrival shifts the entity IDs, which
-/// moves the push-apart's order, and one tick in 60 leaves 21 off). The others, the 15 to 21 that
+/// moves the push-apart's order; the minimum over the 60 measured ticks is 479, on 2 of them). The others, the 15 to 21 that
 /// started their attack the tick before and so were not ordered back, are within 8 pixels more.
 fn assert_fresh_stack(engine: &Engine) {
     let (x, y) = worst_case::ENEMIES_AT;
@@ -142,7 +142,7 @@ fn assert_fresh_stack(engine: &Engine) {
         .map(|e| (i64::from(e.at.x.0 - x).pow(2) + i64::from(e.at.y.0 - y).pow(2)).isqrt())
         .collect();
     let stacked = far.iter().filter(|d| **d <= 1_024).count();
-    assert!(stacked >= 475, "{stacked} enemies were on the point");
+    assert!(stacked >= 479, "{stacked} enemies were on the point");
     assert!(
         far.iter().all(|d| *d <= 3 * 1_024),
         "{:?}",
