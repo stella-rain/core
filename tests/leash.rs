@@ -10,6 +10,7 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::id::EntityId;
+use stella_rain_core::input::Input;
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::stage::{Map, Stage};
 
@@ -253,4 +254,145 @@ fn a_refused_spawn_is_counted_in_load() {
     assert_eq!(e.tick(), 60);
     assert_eq!(e.load().refused_spawns, 1);
     assert_eq!(e.load().enemies, 500);
+}
+
+// --- Who the leash leaves where they are (EC2b, tasks#53) ------------------------------------
+
+fn standing() -> Value {
+    json!({ "type": "straight", "vx": 0, "vy": 0 })
+}
+
+/// Steps `ticks` ticks with `input`; the ids relocated in any of them.
+fn run_relocating(e: &mut Engine, ticks: u32, input: Input) -> Vec<EntityId> {
+    let mut all = Vec::new();
+    for _ in 0..ticks {
+        e.step(input);
+        all.extend(relocated(e));
+    }
+    all
+}
+
+/// The enemies farther than 800 px from the main character.
+fn far_enemies(e: &Engine) -> usize {
+    let snap = e.snapshot();
+    let limit = i64::from(800 * PX).pow(2);
+    snap.entities
+        .iter()
+        .filter(|v| v.kind == EntityKind::Enemy)
+        .filter(|v| {
+            let dx = i64::from(v.at.x.0) - i64::from(snap.player.at.x.0);
+            let dy = i64::from(v.at.y.0) - i64::from(snap.player.at.y.0);
+            dx * dx + dy * dy > limit
+        })
+        .count()
+}
+
+fn once_summoning(agent: Value) -> Value {
+    json!({ "when": always(), "target": "player", "once": true, "cooldown_ticks": 0,
+            "do": { "type": "summon", "count": 2, "agent": agent } })
+}
+
+#[test]
+fn a_holding_enemy_1100_px_from_its_anchor_is_never_relocated() {
+    let held = wave(
+        0,
+        1,
+        1,
+        enemy(10, hold(3100 * PX, 2000 * PX), json!([])),
+        2900 * PX,
+        2000 * PX,
+    );
+    let mut e = engine(&stage_at(2000, vec![held], vec![], None));
+    assert!(run_relocating(&mut e, 300, idle()).is_empty());
+    assert_eq!(e.load().relocated, 0);
+    assert_eq!(spot(&e, 1), (3100 * PX, 2000 * PX));
+}
+
+#[test]
+fn an_enemy_with_a_move_to_rule_is_never_relocated() {
+    let mover = enemy(
+        10,
+        standing(),
+        json!([rule(
+            always(),
+            json!("self"),
+            json!({ "type": "move_to", "to": { "x": 3300 * PX, "y": 2000 * PX }, "ticks": 60 }),
+            30
+        )]),
+    );
+    let w = wave(0, 1, 1, mover, 2100 * PX, 2000 * PX);
+    let mut e = engine(&stage_at(2000, vec![w], vec![], None));
+    assert!(run_relocating(&mut e, 300, idle()).is_empty());
+    assert!(far_enemies(&e) > 0, "it did go beyond 800 px");
+}
+
+#[test]
+fn a_shrines_guardians_are_never_relocated() {
+    let mut shrine = enemy(
+        10,
+        json!({ "type": "shrine", "fight_ticks": 5000, "guardians": {
+            "enemy": enemy(100_000, standing(), json!([])), "count": 3, "radius": 10_240 } }),
+        json!([]),
+    );
+    shrine["radius"] = json!(3072);
+    shrine["elite"] = json!({ "range": 256, "boss_call": "stay" });
+    let w = wave(1, 1, 0, shrine, 2000 * PX, 2000 * PX);
+    let mut e = engine(&stage_at(2000, vec![w], vec![], None));
+    e.step(idle());
+    assert!(run_relocating(&mut e, 400, moving(-127, 0)).is_empty());
+    assert!(far_enemies(&e) >= 3, "the guardians are left far behind");
+}
+
+#[test]
+fn a_pack_leaders_escort_is_never_relocated() {
+    let mut leader = enemy(100_000, hold(3000 * PX, 2000 * PX), json!([]));
+    leader["radius"] = json!(3072);
+    leader["elite"] = json!({ "range": 256, "escort": {
+        "enemy": enemy(5, standing(), json!([])), "count": 2, "radius": 10_240 } });
+    let w = wave(0, 1, 1, leader, 3000 * PX, 2000 * PX);
+    let mut e = engine(&stage_at(2000, vec![w], vec![], None));
+    assert!(run_relocating(&mut e, 20, idle()).is_empty());
+    assert!(far_enemies(&e) >= 2, "the escort");
+}
+
+#[test]
+fn an_elites_summons_are_never_relocated() {
+    let mut elite = enemy(
+        100_000,
+        hold(3000 * PX, 2000 * PX),
+        json!([once_summoning(enemy(10, standing(), json!([])))]),
+    );
+    elite["elite"] = json!({ "range": 262_144 });
+    let w = wave(0, 1, 1, elite, 3000 * PX, 2000 * PX);
+    let mut e = engine(&stage_at(2000, vec![w], vec![], None));
+    assert!(run_relocating(&mut e, 20, idle()).is_empty());
+    assert!(far_enemies(&e) >= 2, "the two summons");
+}
+
+#[test]
+fn the_bosss_summons_are_never_relocated() {
+    let boss = json!({ "base": "golem", "hp": 1_000_000, "radius": 1000,
+        "spawn": { "x": 3000 * PX, "y": 2000 * PX },
+        "phases": [{ "rules": [once_summoning(enemy(10, standing(), json!([])))] }] });
+    let mut e = engine(&stage_at(2000, vec![], vec![], Some(boss)));
+    assert!(run_relocating(&mut e, 20, idle()).is_empty());
+    assert!(far_enemies(&e) >= 2, "the two summons");
+}
+
+#[test]
+fn a_regular_enemys_summons_and_a_still_enemy_are_relocated() {
+    // The summoner stands 799 px away; its summons drift outward at 1 px a tick.
+    let drifting = json!({ "type": "straight", "vx": PX, "vy": 0 });
+    let summoner = enemy(
+        100_000,
+        standing(),
+        json!([once_summoning(enemy(10, drifting, json!([])))]),
+    );
+    let w = wave(0, 1, 1, summoner, 2799 * PX, 2000 * PX);
+    let mut e = engine(&stage_at(2000, vec![w], vec![], None));
+    let moved = run_relocating(&mut e, 10, idle());
+    assert!(moved.iter().any(|id| id.0 > 1), "a summon moved: {moved:?}");
+
+    let mut e = engine(&stage_at(2000, vec![still(3000)], vec![], None));
+    assert_eq!(run_relocating(&mut e, 1, idle()), vec![EntityId(1)]);
 }
