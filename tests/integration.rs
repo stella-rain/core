@@ -32,6 +32,7 @@ mod content_pack;
 mod content_pack_unpack;
 mod controls;
 mod corpus;
+mod crowd;
 mod damage_types;
 mod dash;
 mod defence;
