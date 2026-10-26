@@ -10,6 +10,8 @@ use proptest::prelude::*;
 use proptest::test_runner::FileFailurePersistence;
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::stage::Stage;
@@ -382,7 +384,8 @@ proptest! {
     })]
 
     /// From one tick to the next, no enemy is farther from where it was than its own movement
-    /// carries it plus the push's 4 pixels (and 2 units of rounding).
+    /// carries it plus the push's 4 pixels (and 2 units of rounding), except on the tick the leash
+    /// relocates it.
     #[test]
     fn no_enemy_moves_more_than_its_movement_plus_four_pixels(
         horde in horde(),
@@ -406,11 +409,19 @@ proptest! {
                 }
             }
             e.step(*input);
+            let relocated: Vec<EntityId> = e
+                .events()
+                .iter()
+                .filter_map(|ev| match ev {
+                    DomainEvent::EnemyRelocated { entity } => Some(*entity),
+                    _ => None,
+                })
+                .collect();
             let s = e.snapshot();
             let mut now = std::collections::BTreeMap::new();
             for v in s.entities.iter().filter(|v| v.kind == EntityKind::Enemy) {
                 let at = (v.at.x.0, v.at.y.0);
-                if let Some(before) = was.get(&v.id.0) {
+                if let Some(before) = was.get(&v.id.0).filter(|_| !relocated.contains(&v.id)) {
                     let most = reach[&v.id.0] + STEP + 2;
                     prop_assert!(
                         dist(*before, at) <= most,
