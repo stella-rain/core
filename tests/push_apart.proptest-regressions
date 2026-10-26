@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 4f190c444272022263955821ab9ec98120cb0a9d664da68992216c7b67f0817f # leash relocation, arm64 CI run 40300673025
