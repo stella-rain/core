@@ -181,7 +181,7 @@ fn measure(spec: &Spec) -> Pins {
                 &content_hash(&engine),
             ]);
             let input_json = serde_json::to_vec(&tick_input).expect("the input serializes");
-            input = digest(&[b"stella-rain/bench-input/v1\n", &input_json]);
+            input = digest(&[b"stella-rain/bench-input/v2\n", &input_json]);
             engine.step(tick_input);
             after = hash_hex(engine.state_hash());
         }
@@ -189,11 +189,7 @@ fn measure(spec: &Spec) -> Pins {
             let mut run = run();
             before = hash_hex(run.engine.state_hash());
             stage = digest(&[b"stella-rain/bench-stage/v1\n", &content_hash(&run.engine)]);
-            input = digest(&[
-                b"stella-rain/bench-input/v1\n",
-                b"ticks:",
-                ticks.to_string().as_bytes(),
-            ]);
+            input = minute_input_digest(run.engine.tick(), *ticks, input_at);
             run.play(*ticks);
             after = hash_hex(run.engine.state_hash());
         }
