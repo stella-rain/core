@@ -159,6 +159,70 @@ fn the_bench_tick_allocates_and_frees_nothing() {
     );
 }
 
+const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
+    Allocs {
+        allocs,
+        reallocs,
+        frees,
+    }
+}
+
+/// The allocator calls of the one tick each bench measures (`benches/`), by case. These pin
+/// today's steady-state allocations at the caps; T1b drives them to 0. A count that falls is
+/// re-pinned lower in the same PR; a count that rises is a regression to fix, never a re-pin
+/// without the PR saying why. The cases are built by `bench_fixtures`, outside the count.
+const BENCH_TICK_ALLOCS: [(&str, Allocs); 5] = [
+    ("worst_tick", pin(1506, 0, 3)),
+    ("hit_tick", pin(0, 0, 0)),
+    ("hit_tick_spread", pin(0, 0, 0)),
+    ("time_limit_tick", pin(0, 0, 0)),
+    ("worst_minute_peak", pin(5, 3, 6)),
+];
+
+fn pinned(case: &str) -> Allocs {
+    BENCH_TICK_ALLOCS
+        .iter()
+        .find(|(name, _)| *name == case)
+        .unwrap()
+        .1
+}
+
+fn assert_tick_pinned(case: &str, measured: Allocs) {
+    assert_eq!(measured, pinned(case), "{case}: (allocs, reallocs, frees)");
+}
+
+fn measure_case(case: &str, build: fn() -> Case) {
+    let Case { mut engine, input } = build();
+    assert_tick_pinned(case, counted3(|| engine.step(input)));
+}
+
+#[test]
+fn the_worst_tick_allocates_as_pinned() {
+    measure_case("worst_tick", bench_fixtures::worst_tick);
+}
+
+#[test]
+fn the_hit_tick_allocates_as_pinned() {
+    measure_case("hit_tick", bench_fixtures::hit_tick);
+}
+
+#[test]
+fn the_hit_tick_spread_allocates_as_pinned() {
+    measure_case("hit_tick_spread", bench_fixtures::hit_tick_spread);
+}
+
+#[test]
+fn the_time_limit_tick_allocates_as_pinned() {
+    measure_case("time_limit_tick", bench_fixtures::time_limit_tick);
+}
+
+/// `benches/worst_minute_peak.rs` measures `run.play(1)`.
+#[test]
+fn the_worst_minute_peak_tick_allocates_as_pinned() {
+    let mut run = bench_fixtures::worst_minute_peak();
+    assert_tick_pinned("worst_minute_peak", counted3(|| run.play(1)));
+}
+
 /// The most memory the engine may hold at once in the worst minute of a run (DS22 item 3).
 const PEAK_HEAP_LIMIT: i64 = 16 * 1024 * 1024;
 const MINUTE_TICKS: usize = 3600;
