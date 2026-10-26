@@ -272,30 +272,6 @@ SCHEDULE = """pub const TICK: &[Step] = steps![spawn_boss, advance_tick,
     run_attacks];
 """
 
-RAW_BASE = """version: 1
-events: Ir
-fl=(1) a.rs
-fn=(1) a
-cfn=(3) malloc
-calls=2 0x10
-5 100
-fn=(2) b
-cfn=(3)
-calls=1 0x10
-6 100
-fn=(4) realloc
-cfn=free
-calls=7 0x20
-7 100
-fn=(5) c
-cfn=(6) free
-calls=3 0x20
-8 100
-"""
-
-RAW_HEAD = RAW_BASE.replace("calls=1 0x10", "calls=2 0x10")
-
-
 class Steps(unittest.TestCase):
     def test_step_rows_are_cut_at_the_first_non_identifier_character(self):
         _, rows = c.parse_annotate(STEP_BASE)
@@ -336,60 +312,17 @@ class Steps(unittest.TestCase):
         self.assertEqual(c.step_lines(c.step_table(None, head, None), False)[0], "step head")
 
 
-class Allocs(unittest.TestCase):
-    def test_calls_from_two_callers_count_and_calls_inside_realloc_do_not(self):
-        self.assertEqual(c.parse_allocs(RAW_BASE), {"alloc": 3, "realloc": 0, "free": 3})
-
-    def test_a_truncated_calls_line_and_indented_lines_are_read_safely(self):
-        raw = "fn=(1) a\ncfn=malloc\ncalls=\n1 1\n cfn=malloc\n calls=2 0x1\n"
-        self.assertEqual(c.parse_allocs(raw), {"alloc": 2, "realloc": 0, "free": 0})
-
-    def test_names_are_compared_without_file_or_version_suffix(self):
-        raw = "fn=(1) a\ncfn=(2) ???:malloc@GLIBC_2.2.5\ncalls=4 0x1\n1 1\ncfn=<x.c>:calloc\ncalls=1 0x1\n1 1\n"
-        self.assertEqual(c.parse_allocs(raw), {"alloc": 5, "realloc": 0, "free": 0})
-        raw = "fn=(1) a\ncfn=realloc\ncalls=2 0x1\n1 1\ncfn=posix_memalign\ncalls=1 0x1\n1 1\n"
-        self.assertEqual(c.parse_allocs(raw), {"alloc": 1, "realloc": 2, "free": 0})
-
-    def test_a_recursion_suffix_is_stripped_from_callers_and_callees(self):
-        raw = ("fn=(1) a\ncfn=(2) __rustc::__rdl_dealloc'2\ncalls=4 0x1\n1 1\n"
-               "fn=(2)\ncfn=(3) free'2\ncalls=4 0x1\n1 1\n"
-               "fn=(3)\ncfn=(4) _int_free'2\ncalls=9 0x1\n1 1\n"
-               "fn=(5) malloc'3\ncfn=free'2\ncalls=7 0x1\n1 1\n"
-               "fn=(1)\ncfn=malloc'12\ncalls=2 0x1\n1 1\n")
-        self.assertEqual(c.parse_allocs(raw), {"alloc": 2, "realloc": 0, "free": 4})
-
+class StepRecursion(unittest.TestCase):
     def test_a_recursion_suffix_does_not_hide_a_step_frame(self):
         name = "???:" + P + "run_attacks'2"
         self.assertEqual(c.parse_steps({name: 5}), {"run_attacks": 5})
 
-    def test_the_report_names_whole_process_totals_not_ticks(self):
-        base, head = {"alloc": 3, "realloc": 0, "free": 3}, {"alloc": 180776, "realloc": 0, "free": 3}
-        self.assertEqual(c.alloc_line("worst_tick.worst_tick", base, head),
-                         "allocator calls in the whole bench process (setup included; not per tick)  "
-                         "alloc 3 → 180,776, realloc 0 → 0, free 3 → 3")
-        self.assertIn("alloc 180,776", c.alloc_line("worst_tick.worst_tick", None, head))
-        report = "\n".join(c.alloc_report("worst_tick.worst_tick", None, head))
-        self.assertNotIn("tick", report.replace("not per tick", ""))
-        self.assertIn("whole bench process", report)
-        self.assertFalse(hasattr(c, "per_tick") or hasattr(c, "ticks"))
 
-    def test_a_rise_warns_once_per_group_and_equal_does_not(self):
-        base, head = {"alloc": 3, "realloc": 0, "free": 3}, {"alloc": 4, "realloc": 0, "free": 3}
-        warns = c.alloc_warnings("worst_tick.worst_tick", base, head)
-        self.assertEqual(len(warns), 1)
-        self.assertTrue(warns[0].startswith("::warning::worst_tick.worst_tick: process allocator calls rose 3 → 4"))
-        self.assertEqual(c.alloc_warnings("worst_tick.worst_tick", base, base), [])
-        big = c.alloc_warnings("worst_minute.worst_minute", {"alloc": 900, "realloc": 0, "free": 0},
-                               {"alloc": 901, "realloc": 0, "free": 0})
-        self.assertIn("process allocator calls rose 900 → 901", big[0])
-        self.assertNotIn("per tick", big[0])
-
-
-class StepsAndAllocsCli(CliBase):
-    def case_with(self, head, base, raw_head=RAW_HEAD, raw_base=RAW_BASE, label="worst_tick"):
+class StepsCli(CliBase):
+    def case_with(self, head, base, label="worst_tick"):
         d = os.path.join(self.home, "stella-rain-core", label, "g", f"{label}.{label}")
         os.makedirs(d)
-        for suffix, text in ((".out", head + raw_head), (".out.base@main", base + raw_base)):
+        for suffix, text in ((".out", head), (".out.base@main", base)):
             with open(os.path.join(d, f"callgrind.{label}.{label}{suffix}"), "w") as f:
                 f.write(text)
 
@@ -402,7 +335,7 @@ class StepsAndAllocsCli(CliBase):
     def summary(self):
         return open(os.path.join(self.tmp.name, "sum.md")).read()
 
-    def test_steps_and_allocs_are_written_and_summarised(self):
+    def test_steps_are_written_and_summarised_and_no_allocation_line_is(self):
         self.case_with(STEP_HEAD, STEP_BASE)
         p = self.run_cli("--schedule", self.schedule())
         self.assertEqual(p.returncode, 0, p.stderr)
@@ -410,14 +343,12 @@ class StepsAndAllocsCli(CliBase):
         self.assertIn("advance_tick 200 200 +0", steps)
         self.assertIn("run_attacks 500 550 +50", steps)
         self.assertIn("rest 150 200 +50", steps)
-        alloc = open(os.path.join(self.out, "worst_tick.worst_tick.alloc.txt")).read()
-        self.assertIn("alloc", alloc)
+        self.assertFalse(any(n.endswith(".alloc.txt") for n in os.listdir(self.out)))
         summary = self.summary()
         self.assertIn("run_attacks 500 550 +50", summary)
         self.assertNotIn("advance_tick 200 200", summary)
-        self.assertIn("allocator calls in the whole bench process (setup included; not per tick)  alloc 3 → 4, realloc 0 → 0, free 3 → 3", summary)
-        self.assertEqual(p.stdout.count("::warning::"), 1)
-        self.assertIn("process allocator calls rose 3 → 4", p.stdout)
+        self.assertNotIn("Allocator calls", summary)
+        self.assertEqual(p.stdout.count("::warning::"), 0)
 
     def test_no_step_frames_writes_no_steps_file_and_notes_it(self):
         self.case_with(HEAD, BASE)

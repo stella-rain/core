@@ -15,6 +15,7 @@ use stella_rain_core::run_replay::{CommandKind, RunReplay};
 
 thread_local! {
     static COUNT: Cell<u64> = const { Cell::new(0) };
+    static REALLOCS: Cell<u64> = const { Cell::new(0) };
     static FREES: Cell<u64> = const { Cell::new(0) };
     static LIVE: Cell<i64> = const { Cell::new(0) };
     static PEAK: Cell<i64> = const { Cell::new(0) };
@@ -50,8 +51,10 @@ unsafe impl GlobalAlloc for Counting {
         unsafe { System.dealloc(ptr, layout) }
     }
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        // A realloc is an allocation for the count; the bytes change by the difference.
+        // A realloc is an allocation for the count (and is counted on its own too); the bytes
+        // change by the difference.
         COUNT.with(|c| c.set(c.get() + 1));
+        REALLOCS.with(|r| r.set(r.get() + 1));
         let live = LIVE.with(|l| {
             l.set(l.get() + new_size as i64 - layout.size() as i64);
             l.get()
@@ -77,6 +80,28 @@ fn counted<R>(f: impl FnOnce() -> R) -> (u64, u64) {
     let result = f();
     let counts = (allocations() - allocs, frees() - freed);
     // Dropped after the counts are read: whatever `f` returns is not part of the measured tick.
+    drop(result);
+    counts
+}
+
+/// What a measured step called in the allocator: `allocs` counts `alloc` and `alloc_zeroed`,
+/// `reallocs` counts `realloc`, `frees` counts `dealloc`.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+struct Allocs {
+    allocs: u64,
+    reallocs: u64,
+    frees: u64,
+}
+
+/// The `alloc` calls, the `realloc` calls and the frees `f` makes.
+fn counted3<R>(f: impl FnOnce() -> R) -> Allocs {
+    let (total, reallocs, freed) = (allocations(), REALLOCS.with(Cell::get), frees());
+    let result = f();
+    let counts = Allocs {
+        allocs: allocations() - total - (REALLOCS.with(Cell::get) - reallocs),
+        reallocs: REALLOCS.with(Cell::get) - reallocs,
+        frees: frees() - freed,
+    };
     drop(result);
     counts
 }
@@ -132,6 +157,70 @@ fn the_bench_tick_allocates_and_frees_nothing() {
         (0, 0),
         "the bench's measured tick: (allocs, frees)"
     );
+}
+
+const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
+    Allocs {
+        allocs,
+        reallocs,
+        frees,
+    }
+}
+
+/// The allocator calls of the one tick each bench measures (`benches/`), by case. These pin
+/// today's steady-state allocations at the caps; T1b drives them to 0. A count that falls is
+/// re-pinned lower in the same PR; a count that rises is a regression to fix, never a re-pin
+/// without the PR saying why. The cases are built by `bench_fixtures`, outside the count.
+const BENCH_TICK_ALLOCS: [(&str, Allocs); 5] = [
+    ("worst_tick", pin(1506, 0, 3)),
+    ("hit_tick", pin(0, 0, 0)),
+    ("hit_tick_spread", pin(0, 0, 0)),
+    ("time_limit_tick", pin(0, 0, 0)),
+    ("worst_minute_peak", pin(3, 3, 3)),
+];
+
+fn pinned(case: &str) -> Allocs {
+    BENCH_TICK_ALLOCS
+        .iter()
+        .find(|(name, _)| *name == case)
+        .unwrap()
+        .1
+}
+
+fn assert_tick_pinned(case: &str, measured: Allocs) {
+    assert_eq!(measured, pinned(case), "{case}: (allocs, reallocs, frees)");
+}
+
+fn measure_case(case: &str, build: fn() -> Case) {
+    let Case { mut engine, input } = build();
+    assert_tick_pinned(case, counted3(|| engine.step(input)));
+}
+
+#[test]
+fn the_worst_tick_allocates_as_pinned() {
+    measure_case("worst_tick", bench_fixtures::worst_tick);
+}
+
+#[test]
+fn the_hit_tick_allocates_as_pinned() {
+    measure_case("hit_tick", bench_fixtures::hit_tick);
+}
+
+#[test]
+fn the_hit_tick_spread_allocates_as_pinned() {
+    measure_case("hit_tick_spread", bench_fixtures::hit_tick_spread);
+}
+
+#[test]
+fn the_time_limit_tick_allocates_as_pinned() {
+    measure_case("time_limit_tick", bench_fixtures::time_limit_tick);
+}
+
+/// `benches/worst_minute_peak.rs` measures `run.play(1)`.
+#[test]
+fn the_worst_minute_peak_tick_allocates_as_pinned() {
+    let mut run = bench_fixtures::worst_minute_peak();
+    assert_tick_pinned("worst_minute_peak", counted3(|| run.play(1)));
 }
 
 /// The most memory the engine may hold at once in the worst minute of a run (DS22 item 3).
