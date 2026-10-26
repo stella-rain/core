@@ -59,9 +59,10 @@ use crate::validate::limits::{MAX_LEN, MAX_ORB_TICKS, MAX_REPEAT, MAX_TICKS, MAX
 
 use super::Scratch;
 use super::entity::{Who, scale_damage, status_pct};
+use super::world::RangedPool;
 use super::{
     AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, MAX_ORBS_ALIVE, MAX_ORBS_PER_OWNER,
-    World, count,
+    RANGED_LINE_TOKENS, RANGED_ZONE_TOKENS, VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH, World, count,
 };
 
 /// Whether `owner` is running an attack in `slot`.
@@ -69,13 +70,109 @@ pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
     s.runs.iter().any(|r| r.owner == owner && r.slot == slot)
 }
 
-/// The ranged tokens held now (core Z2): the `ranged` runs in their wind-up or active phase.
-pub(super) fn ranged_tokens(world: &World, s: &State) -> u32 {
-    let held = s
-        .runs
-        .iter()
-        .filter(|r| r.ranged && phase(world, r, r.phase as usize).kind != PhaseKind::Recovery);
+/// The tokens of `pool` (RA1, DS83).
+fn pool_tokens(pool: RangedPool) -> u32 {
+    match pool {
+        RangedPool::Zone => RANGED_ZONE_TOKENS,
+        RangedPool::Line => RANGED_LINE_TOKENS,
+    }
+}
+
+/// The tokens of `pool` held now (core Z2): its `ranged` runs in their wind-up or active phase.
+fn ranged_held(world: &World, s: &State, pool: RangedPool) -> u32 {
+    let held = s.runs.iter().filter(|r| {
+        r.ranged
+            && world.attacks[usize::from(r.attack.0)].pool == pool
+            && phase(world, r, r.phase as usize).kind != PhaseKind::Recovery
+    });
     u32::try_from(held.count()).unwrap_or(u32::MAX)
+}
+
+/// Whether `pool` has a token to give: the ones held leave one of its tokens.
+fn ranged_room(world: &World, s: &State, pool: RangedPool) -> bool {
+    ranged_held(world, s, pool) < pool_tokens(pool)
+}
+
+/// Whether the regular enemy `id` may start a ranged attack of `pool` now (RA1): it holds this
+/// tick's grant for the pool, and the pool still has room.
+pub(super) fn ranged_may_start(world: &World, s: &State, id: EntityId, pool: RangedPool) -> bool {
+    s.scratch.ranged_grants[pool.index()].contains(&id) && ranged_room(world, s, pool)
+}
+
+/// Whether `e` stands inside the view rectangle around the main character, edges included.
+fn in_view(e: Point, player: Point) -> bool {
+    let (dx, dy) = (
+        i64::from(e.x.0) - i64::from(player.x.0),
+        i64::from(e.y.0) - i64::from(player.y.0),
+    );
+    dx.abs() <= i64::from(VIEW_HALF_WIDTH.0) && dy.abs() <= i64::from(VIEW_HALF_HEIGHT.0)
+}
+
+/// Gives each pool's free tokens to the nearest ready regular enemies in view (RA1, DS82): at
+/// the start of the act step, before any rule fires. The candidates are alive, in view and have
+/// a ranged rule of the pool that is ready (its cooldown ends by this tick, charges are left);
+/// the nearest come first, by squared distance, ties by entity ID. The grants are scratch,
+/// worked out from the state each tick. No random number is drawn.
+pub(super) fn grant_ranged(world: &World, s: &mut State) {
+    for g in &mut s.scratch.ranged_grants {
+        g.clear();
+    }
+    let mut free = [0u32; 2];
+    for pool in RangedPool::ALL {
+        free[pool.index()] = pool_tokens(pool).saturating_sub(ranged_held(world, s, pool));
+    }
+    if free == [0, 0] {
+        return;
+    }
+    // The best few of each pool so far, nearest first; enemies come in ID order, so a later one
+    // at the same distance stays behind.
+    const MOST: usize = RANGED_ZONE_TOKENS as usize;
+    let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
+    let mut len = [0usize; 2];
+    let player = s.player.at;
+    for e in &s.enemies {
+        if e.hp == 0 || !in_view(e.at, player) {
+            continue;
+        }
+        let def = world.defs.get(e.def);
+        if def.ranged_pools.is_empty() {
+            continue;
+        }
+        let (dx, dy) = (
+            i64::from(e.at.x.0) - i64::from(player.x.0),
+            i64::from(e.at.y.0) - i64::from(player.y.0),
+        );
+        let d = dx * dx + dy * dy;
+        for (rule, pool) in def.ranged_pools.iter().enumerate() {
+            let Some(pool) = *pool else { continue };
+            let p = pool.index();
+            let st = e.rules[rule];
+            // A cooldown of 1 ends in this tick's `act_one`, before the rule is tried.
+            if st.cooldown_left > 1 || st.charges_left == 0 {
+                continue;
+            }
+            if def.agent.rules[rule].once && st.fired {
+                continue;
+            }
+            let room = free[p] as usize;
+            if room == 0 || len[p] == room && d >= best[p][room - 1].0 {
+                continue;
+            }
+            if best[p][..len[p]].iter().any(|(_, id)| *id == e.id) {
+                continue;
+            }
+            let at = best[p][..len[p]].partition_point(|(bd, _)| *bd <= d);
+            if len[p] < room {
+                len[p] += 1;
+            }
+            best[p][at..len[p]].rotate_right(1);
+            best[p][at] = (d, e.id);
+        }
+    }
+    for pool in RangedPool::ALL {
+        let p = pool.index();
+        s.scratch.ranged_grants[p].extend(best[p][..len[p]].iter().map(|(_, id)| *id));
+    }
 }
 
 /// Marks the run that just started as a `ranged` one: it is the last in `runs`.

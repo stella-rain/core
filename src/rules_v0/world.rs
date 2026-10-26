@@ -63,6 +63,12 @@ pub(crate) enum RangedPool {
 impl RangedPool {
     /// The pool of an attack with these phases: `Line` if any phase spawns a zone of shape
     /// `line` (also inside an orb's burst), else `Zone`.
+    pub const ALL: [RangedPool; 2] = [RangedPool::Zone, RangedPool::Line];
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
     pub fn of(phases: &[AttackPhase]) -> RangedPool {
         fn lays_line(list: &[Emitter]) -> bool {
             list.iter().any(|n| match n {
@@ -94,6 +100,8 @@ impl DefIndex {
 pub(crate) struct AgentDef {
     pub kind: KindIndex,
     pub agent: Agent,
+    /// The ranged pool of each rule, by rule; empty when no rule is a `ranged` attack (RA1).
+    pub ranged_pools: Vec<Option<RangedPool>>,
 }
 
 /// Every agent definition of the run, by index. `keys` finds one by the `AgentKey` that names
@@ -117,6 +125,7 @@ impl AgentDefs {
         self.defs.push(AgentDef {
             kind: kinds.of(&agent.base),
             agent: agent.clone(),
+            ranged_pools: Vec::new(),
         });
         Ok(DefIndex(at))
     }
@@ -356,11 +365,33 @@ impl World {
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
+        world.resolve_ranged_pools();
         world.has_dash = world
             .attacks
             .iter()
             .any(|a| a.phases.iter().any(|p| p.dash.is_some()));
         Ok(world)
+    }
+
+    /// Sets each agent definition's `ranged_pools`, now that the attacks are compiled.
+    fn resolve_ranged_pools(&mut self) {
+        for i in 0..self.defs.defs.len() {
+            let pools: Vec<Option<RangedPool>> = self.defs.defs[i]
+                .agent
+                .rules
+                .iter()
+                .map(|rule| match &rule.action {
+                    Action::Attack {
+                        attack,
+                        ranged: true,
+                    } => Some(self.attacks[usize::from(self.attack_index(attack).0)].pool),
+                    _ => None,
+                })
+                .collect();
+            if pools.iter().any(Option::is_some) {
+                self.defs.defs[i].ranged_pools = pools;
+            }
+        }
     }
 
     /// The main character's weapon: the file's definition, or the stage's inline one.

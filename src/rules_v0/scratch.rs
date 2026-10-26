@@ -25,6 +25,9 @@ pub(crate) struct Scratch {
     pub(super) hit_lists: Vec<Vec<(EntityId, u32)>>,
     /// Whether each orb of the tick was used up.
     pub(super) consumed: Vec<bool>,
+    /// The enemies granted a ranged token this tick, by `RangedPool` (RA1): worked out from the
+    /// state at the start of the act step.
+    pub(super) ranged_grants: [Vec<EntityId>; 2],
     /// Spawns the caps refused so far in the tick; `step` hands it to `Load` and empties it.
     pub(super) refused_spawns: u32,
 }

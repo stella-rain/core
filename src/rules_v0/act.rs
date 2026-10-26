@@ -9,7 +9,7 @@ use super::agents::agent_mut;
 use super::attacks;
 use super::boss;
 use super::entity::Who;
-use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, MAX_RANGED_ATTACKERS, spawn_enemy};
+use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, spawn_enemy};
 
 /// Does the action for rule `rule_index` of `me`, aimed at `target`. False if this version
 /// cannot do it, in which case the rule does not fire and the next one gets its turn.
@@ -26,11 +26,15 @@ pub(super) fn perform(
         // An attack does as much as the main character's weapons (its attack stat) if an ally
         // makes it, and the run stats file's `enemy_attack_damage` if an enemy does.
         Action::Attack { attack, ranged } => {
-            // A ranged start over the cap is refused here, so the rule keeps its cooldown and
-            // retries next tick (core Z2). Only enemies are held to the cap.
-            let ranged = *ranged && !State::is_ally(me);
-            if ranged && attacks::ranged_tokens(stage, s) >= MAX_RANGED_ATTACKERS {
-                return false;
+            // A ranged start without a grant, or over the pool's tokens, is refused here, so the
+            // rule keeps its cooldown and retries next tick (core Z2, RA1). Only regular
+            // enemies are held to the tokens.
+            let ranged = *ranged && is_regular_enemy(stage, s, me);
+            if ranged {
+                let pool = stage.attacks[usize::from(stage.attack_index(attack).0)].pool;
+                if !attacks::ranged_may_start(stage, s, s.id_of(me), pool) {
+                    return false;
+                }
             }
             let base = if State::is_ally(me) {
                 stage.player.atk
@@ -80,6 +84,11 @@ pub(super) fn perform(
             true
         }
     }
+}
+
+/// Whether `me` is a regular enemy: not an elite, the boss or a companion.
+fn is_regular_enemy(stage: &World, s: &State, me: Who) -> bool {
+    matches!(me, Who::Enemy(i) if stage.defs.agent(s.enemies[i].def).elite.is_none())
 }
 
 /// Casts `skill` from `caster` at `target`. Allies gain aggro for buffs and heals.

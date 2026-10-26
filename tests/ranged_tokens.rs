@@ -120,8 +120,9 @@ fn started(first: &[Option<u32>]) -> Vec<usize> {
 
 #[test]
 fn the_three_nearest_of_five_zone_shooters_start() {
-    // Listed farthest first, so the entity-ID order is not the distance order.
-    let shooters = [300, 250, 200, 150, 100].map(|d| zone_shooter(0, -d));
+    // Listed farthest first, so the entity-ID order is not the distance order. The view is
+    // 180 px high, so the shooters stand to the side.
+    let shooters = [300, 250, 200, 150, 100].map(|d| zone_shooter(d, 0));
     let first = first_attacks(&stage(&shooters), 5, 20);
     assert_eq!(started(&first), [2, 3, 4]);
 }
@@ -157,10 +158,10 @@ fn an_enemy_on_the_edge_of_the_view_may_start() {
 #[test]
 fn a_line_caster_fires_on_its_own_token_beside_three_zone_shooters() {
     let shooters = [
-        zone_shooter(0, -100),
-        zone_shooter(0, -150),
-        zone_shooter(0, -200),
-        line_shooter(0, -250),
+        zone_shooter(100, 0),
+        zone_shooter(150, 0),
+        zone_shooter(200, 0),
+        line_shooter(250, 0),
     ];
     let first = first_attacks(&stage(&shooters), 4, 20);
     assert_eq!(started(&first), [0, 1, 2, 3]);
@@ -169,7 +170,7 @@ fn a_line_caster_fires_on_its_own_token_beside_three_zone_shooters() {
 
 #[test]
 fn only_the_nearer_of_two_line_casters_starts() {
-    let shooters = [line_shooter(0, -250), line_shooter(0, -100)];
+    let shooters = [line_shooter(250, 0), line_shooter(100, 0)];
     let first = first_attacks(&stage(&shooters), 2, 20);
     assert_eq!(started(&first), [1]);
 }
@@ -178,7 +179,7 @@ fn only_the_nearer_of_two_line_casters_starts() {
 fn a_freed_token_cools_for_30_ticks() {
     // Four zone shooters: the fourth waits for a token, which frees six ticks after the start
     // and then cools.
-    let shooters = [100, 150, 200, 250].map(|d| zone_shooter(0, -d));
+    let shooters = [100, 150, 200, 250].map(|d| zone_shooter(d, 0));
     let first = first_attacks(&stage(&shooters), 4, 80);
     let start = first[0].expect("the nearest starts");
     assert_eq!(first[..3], [Some(start); 3]);
@@ -195,9 +196,9 @@ fn a_run_killed_in_its_wind_up_cools_its_token_too() {
     };
     let shooters = [
         victim,
-        zone_shooter(-60, -150),
-        zone_shooter(-60, -200),
-        zone_shooter(-60, -250),
+        zone_shooter(-120, -60),
+        zone_shooter(-150, -80),
+        zone_shooter(-200, -90),
     ];
     let mut e = engine(&armed(stage(&shooters), weapon_ref(ray())));
     let mut died = None;
@@ -230,7 +231,7 @@ fn the_boss_is_not_limited_by_the_tokens() {
     boss["phases"] = json!([{ "rules": [{ "when": always(), "target": "player",
         "cooldown_ticks": 1000,
         "do": { "type": "attack", "attack": { "inline": phases(false) } } }] }]);
-    let shooters = [100, 150, 200, 250].map(|d| zone_shooter(0, -d));
+    let shooters = [100, 150, 200, 250].map(|d| zone_shooter(d, 0));
     let mut st = stage(&shooters);
     st.boss = Some(serde_json::from_value(boss).expect("the boss parses"));
     let mut e = engine(&st);
@@ -241,7 +242,7 @@ fn the_boss_is_not_limited_by_the_tokens() {
 
 #[test]
 fn the_same_seed_and_inputs_give_the_same_hash_every_tick() {
-    let shooters = [100, 150, 200, 250, 300].map(|d| zone_shooter(0, -d));
+    let shooters = [100, 150, 200, 250, 300].map(|d| zone_shooter(d, 0));
     let st = stage(&shooters);
     let run = || {
         let mut e = engine(&st);
