@@ -6,7 +6,8 @@
 //! and touches `src/` is then not refused by the bench guard (core#360).
 //!
 //! `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins` rewrites the file (only the exact value
-//! `1` does, and CI refuses it); without it a mismatch fails and prints every computed value of the case, so a re-pin is one paste or one env run.
+//! `1` does, and CI refuses it); without it a mismatch fails and prints every computed value of the
+//! case, so a re-pin is one paste or one env run.
 //!
 //! The values are those of the benches' own case modules (built on `tests/common/`) when the
 //! fixtures were written: the fixtures must build the same engine, or the instruction counts move.
@@ -15,7 +16,7 @@ use std::fmt::Write as _;
 
 use sha2::{Digest, Sha256};
 use stella_rain_core::bench_fixtures::worst_minute_case::{
-    MINUTE_START, MINUTE_TICKS, OFFER_CHOICE, Run, input_at,
+    MINUTE_START, MINUTE_TICKS, OFFER_CHOICE, Run, input_at, worst_minute_window,
 };
 use stella_rain_core::bench_fixtures::{self, Case, hit_case, time_limit_case, worst_case};
 use stella_rain_core::engine::Engine;
@@ -385,6 +386,14 @@ fn the_minute_cases_input_digest_covers_the_played_input() {
     assert_eq!(
         input_of("worst_minute"),
         minute_input_digest(MINUTE_START, MINUTE_TICKS, input_at)
+    );
+}
+
+#[test]
+fn the_peak_cases_input_digest_covers_its_start_tick() {
+    assert_eq!(
+        input_of("worst_minute_peak"),
+        minute_input_digest(worst_minute_window().1, 1, input_at)
     );
 }
 
