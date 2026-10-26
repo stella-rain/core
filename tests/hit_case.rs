@@ -169,7 +169,7 @@ fn the_spread_tick_has_its_load() {
     // The start is 238 pixels from the left edge, so the crowd spans less in x than in y.
     let (ex, ey) = (extent(|e| e.at.x.0), extent(|e| e.at.y.0));
     assert!(ex >= EXTENT_X, "x extent");
-    assert!(extent(|e| e.at.y.0) >= EXTENT_Y, "y extent");
+    assert!(ey >= EXTENT_Y, "y extent");
 }
 
 /// The state hash of each of the ticks `WARMUP_TICKS + 1` to `+ 3` (the measured tick and two
