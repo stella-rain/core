@@ -183,9 +183,15 @@ fn measure(spec: &Spec) -> Pins {
     }
 }
 
+/// Whether the pins are rewritten: today any value of the variable turns it on.
+fn update_mode(update: Option<&str>, _ci: bool) -> bool {
+    update.is_some()
+}
+
 #[expect(clippy::disallowed_methods, reason = "test knob")]
 fn updating() -> bool {
-    std::env::var_os("UPDATE_BENCH_PINS").is_some()
+    let update = std::env::var("UPDATE_BENCH_PINS").ok();
+    update_mode(update.as_deref(), std::env::var_os("CI").is_some())
 }
 
 fn pinned_file() -> toml::Table {
@@ -293,4 +299,26 @@ fn bench_pins_are_written_on_request() {
         out.push_str(&measure(&spec).table(spec.id));
     }
     std::fs::write(PINS_PATH, out).expect("tests/bench_pins.toml is writable");
+}
+
+#[test]
+fn only_the_value_one_turns_update_mode_on() {
+    assert!(!update_mode(None, false));
+    assert!(!update_mode(Some("0"), false));
+    assert!(!update_mode(Some(""), false));
+    assert!(!update_mode(Some("true"), false));
+    assert!(!update_mode(Some("yes"), false));
+    assert!(update_mode(Some("1"), false));
+}
+
+#[test]
+fn a_set_ci_without_the_knob_is_not_update_mode() {
+    assert!(!update_mode(None, true));
+    assert!(!update_mode(Some("0"), true));
+}
+
+#[test]
+#[should_panic(expected = "CI")]
+fn update_mode_is_refused_in_ci() {
+    update_mode(Some("1"), true);
 }
