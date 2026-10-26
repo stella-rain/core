@@ -527,22 +527,17 @@ jobs:
               exit 0
             fi
           done
-          # Bench input: benches/ and the cases the benches build, src/bench_fixtures/. Nothing a bench reads
-          # is under tests/ (BF1). benches/budgets.toml and benches/accepted.toml are not bench input: a
-          # changed budget or ledger entry leaves the counts comparable.
-          if ! git diff --quiet "$BASE" HEAD -- benches ':(exclude)benches/budgets.toml' ':(exclude)benches/accepted.toml' src/bench_fixtures; then
-            # A changed bench and changed code together: no comparison could tell which of the two
-            # moved the count, so the PR must not slip past the rise alarm this way (ADR-SIM-8). The
-            # fixtures are bench input, not code: a lighter case would hide a code regression.
-            if ! git diff --quiet "$BASE" HEAD -- src ':(exclude)src/bench_fixtures' Cargo.toml Cargo.lock; then
-              echo "::error::Change the bench in its own PR first; this PR's code cannot be compared."
-              exit 1
-            fi
-            echo "This PR changes only the benchmark: its count cannot be compared with the base's."
-            echo "compare=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "compare=true" >> "$GITHUB_OUTPUT"
+          # Per case, not per PR (ADR-SIM-10): a case is compared when its pre-tick digests (before,
+          # stage, input) in tests/bench_pins.toml are equal at the base and here and the target's
+          # bench file and benches/support/ are unchanged. A moved case is reported, not gated, so a
+          # PR may change code and the bench together. bench_pins.py writes compare= and cases=.
+          git show "$BASE:tests/bench_pins.toml" > "$RUNNER_TEMP/pins-base.toml" 2>/dev/null || : > "$RUNNER_TEMP/pins-base.toml"
+          changed=false
+          for name in $NAMES; do
+            git diff --quiet "$BASE" HEAD -- "benches/$name.rs" benches/support || changed=true
+          done
+          python3 .github/scripts/bench_pins.py --base "$RUNNER_TEMP/pins-base.toml" --head tests/bench_pins.toml \
+            --bench "$NAMES" --bench-changed "$changed"
       # The base commit's counts from main's push run, if it saved them for this toolchain: the
       # exact commit and fingerprint, never a near match (no restore-keys), which would be another
       # commit's count.
@@ -621,21 +616,22 @@ jobs:
           ARCH: ${{ matrix.arch }}
           BENCH: ${{ matrix.bench }}
         run: python3 .github/scripts/bench_budget.py --arch "$ARCH" --bench "$BENCH" --bench-output "$RUNNER_TEMP/bench.txt"
-      # A case that rose over BENCH_ALARM_PCT fails unless a new entry of benches/accepted.toml,
+      # A compared case that rose over BENCH_ALARM_PCT fails unless a new entry of benches/accepted.toml,
       # merged by Kade, names this PR and covers the count (ADR-SIM-8). The base commit's ledger
-      # tells new entries from old ones.
+      # tells new entries from old ones. A case that moved is printed, not gated (ADR-SIM-10).
       - name: Check for a rise
         if: ${{ !cancelled() && steps.count.outcome == 'success' && steps.base.outputs.compare == 'true' }}
         env:
           ARCH: ${{ matrix.arch }}
           BASE: ${{ github.event.pull_request.base.sha }}
           PR: ${{ github.event.pull_request.number }}
+          CASES: ${{ steps.base.outputs.cases }}
         run: |
           set -eu
           git show "$BASE:benches/accepted.toml" > "$RUNNER_TEMP/accepted-base.toml" 2>/dev/null || : > "$RUNNER_TEMP/accepted-base.toml"
           python3 .github/scripts/bench_alarm.py --arch "$ARCH" --bench-output "$RUNNER_TEMP/bench.txt" \
             --limit-pct "$BENCH_ALARM_PCT" --accepted benches/accepted.toml \
-            --accepted-base "$RUNNER_TEMP/accepted-base.toml" --pr "$PR"
+            --accepted-base "$RUNNER_TEMP/accepted-base.toml" --pr "$PR" --cases "$CASES"
 
   # The profile of every shard of one architecture, as one artifact: the name and the contents
   # (per case `*.diff.txt`, `*.diff-inclusive.txt` and the callgrind files, one directory per
