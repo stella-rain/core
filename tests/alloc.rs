@@ -15,6 +15,7 @@ use stella_rain_core::run_replay::{CommandKind, RunReplay};
 
 thread_local! {
     static COUNT: Cell<u64> = const { Cell::new(0) };
+    static REALLOCS: Cell<u64> = const { Cell::new(0) };
     static FREES: Cell<u64> = const { Cell::new(0) };
     static LIVE: Cell<i64> = const { Cell::new(0) };
     static PEAK: Cell<i64> = const { Cell::new(0) };
@@ -50,8 +51,10 @@ unsafe impl GlobalAlloc for Counting {
         unsafe { System.dealloc(ptr, layout) }
     }
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        // A realloc is an allocation for the count; the bytes change by the difference.
+        // A realloc is an allocation for the count (and is counted on its own too); the bytes
+        // change by the difference.
         COUNT.with(|c| c.set(c.get() + 1));
+        REALLOCS.with(|r| r.set(r.get() + 1));
         let live = LIVE.with(|l| {
             l.set(l.get() + new_size as i64 - layout.size() as i64);
             l.get()
@@ -77,6 +80,28 @@ fn counted<R>(f: impl FnOnce() -> R) -> (u64, u64) {
     let result = f();
     let counts = (allocations() - allocs, frees() - freed);
     // Dropped after the counts are read: whatever `f` returns is not part of the measured tick.
+    drop(result);
+    counts
+}
+
+/// What a measured step called in the allocator: `allocs` counts `alloc` and `alloc_zeroed`,
+/// `reallocs` counts `realloc`, `frees` counts `dealloc`.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+struct Allocs {
+    allocs: u64,
+    reallocs: u64,
+    frees: u64,
+}
+
+/// The `alloc` calls, the `realloc` calls and the frees `f` makes.
+fn counted3<R>(f: impl FnOnce() -> R) -> Allocs {
+    let (total, reallocs, freed) = (allocations(), REALLOCS.with(Cell::get), frees());
+    let result = f();
+    let counts = Allocs {
+        allocs: allocations() - total - (REALLOCS.with(Cell::get) - reallocs),
+        reallocs: REALLOCS.with(Cell::get) - reallocs,
+        frees: frees() - freed,
+    };
     drop(result);
     counts
 }
