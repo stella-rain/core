@@ -54,6 +54,11 @@ pub struct Load {
     pub orbs: u32,
     /// Emitter nodes carried out in the tick, across all attacks.
     pub emitter_steps: u32,
+    /// Spawns the cap on enemies alive or on elites refused in the tick: waves, elites, summons
+    /// and guardians (EC2, DS80).
+    pub refused_spawns: u32,
+    /// Enemies the leash moved to the ring opposite the main character in the tick (EC2, DS80).
+    pub relocated: u32,
 }
 
 impl Load {
@@ -64,6 +69,9 @@ impl Load {
         zones: rules_v0::MAX_ZONES_ALIVE,
         orbs: rules_v0::MAX_ORBS_ALIVE,
         emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
+        // Not caps: what a tick did, not what it may hold.
+        refused_spawns: 0,
+        relocated: 0,
     };
 }
 

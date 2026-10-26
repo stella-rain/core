@@ -171,6 +171,7 @@ pub(super) mod steps {
             zones: count(&c.s.zones),
             orbs: count(&c.s.orbs),
             emitter_steps,
+            ..Load::default()
         };
     }
 
