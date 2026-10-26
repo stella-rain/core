@@ -48,12 +48,16 @@ fn assert_hit_boxes(engine: &Engine) {
     assert_eq!(hits, 4 * 500);
 }
 
-/// Every zone cap is held (core Z1): 128 zones alive and active, 16 of them the companions',
-/// which cover the 500 enemies.
+/// Every zone cap is held (core Z1): 128 zones alive, 127 of them active and the fourth shooter's
+/// warning line (RA1a) not, 16 of them the companions', which cover the 500 enemies.
 fn assert_zones(engine: &Engine) {
     let zones = engine.snapshot().zones;
     assert_eq!(zones.len(), 128);
-    assert!(zones.iter().all(|z| z.phase == PhaseKind::Active));
+    let warning = zones
+        .iter()
+        .filter(|z| z.phase != PhaseKind::Active)
+        .count();
+    assert_eq!(warning, 1, "the shooter's warn-only line");
     assert_eq!(zones.iter().filter(|z| z.friendly).count(), 16);
 }
 
@@ -124,9 +128,10 @@ fn assert_steps_and_ticks_land(engine: &Engine) {
 }
 
 /// The push-apart has a fresh stack to part (ADR-058): the pass moves an enemy at most 4 pixels
-/// (1,024 units) from the point the stack stood on, so after the tick at least 480 enemies are
-/// that near it. The others, the 15 or 20 that started their attack the tick before and so were
-/// not ordered back, are within 8 pixels more.
+/// (1,024 units) from the point the stack stood on, so after the tick at least 475 enemies are
+/// that near it (480 before RA1a: the line shooter's earlier arrival shifts the entity IDs, which
+/// moves the push-apart's order, and one tick in 60 leaves 21 off). The others, the 15 to 21 that
+/// started their attack the tick before and so were not ordered back, are within 8 pixels more.
 fn assert_fresh_stack(engine: &Engine) {
     let (x, y) = worst_case::ENEMIES_AT;
     let far: Vec<i64> = engine
@@ -137,7 +142,7 @@ fn assert_fresh_stack(engine: &Engine) {
         .map(|e| (i64::from(e.at.x.0 - x).pow(2) + i64::from(e.at.y.0 - y).pow(2)).isqrt())
         .collect();
     let stacked = far.iter().filter(|d| **d <= 1_024).count();
-    assert!(stacked >= 480, "{stacked} enemies were on the point");
+    assert!(stacked >= 475, "{stacked} enemies were on the point");
     assert!(
         far.iter().all(|d| *d <= 3 * 1_024),
         "{:?}",

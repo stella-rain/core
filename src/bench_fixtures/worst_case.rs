@@ -20,6 +20,10 @@ pub const WARMUP_TICKS: u32 = 420;
 /// Rune Haste from the first eight enemies' stars (`take_runes`).
 pub const WAVES_AT: u32 = 150;
 
+/// The tick the shooter that lays a warning line arrives: after the boss and the companions have
+/// placed their zones, before the companions place again into the one place the boss leaves free.
+const LINE_SHOOTER_AT: u32 = 2;
+
 /// The tick the main character sets off for the enemies, and the ticks it walks left and up
 /// before it stands about 36,000 units from them with every enemy inside its step.
 const WALK_FROM: u32 = 100;
@@ -80,13 +84,18 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// arc, so each arc tests each of them against its angle and both edges and misses. They cleave
 /// all 500 enemies every tick with an arc of their own (`rehit_ticks` 1, 1 damage a hit).
 ///
-/// Zones (core Z1, `MAX_ZONES_ALIVE`): on the first tick the boss places 112 and each companion 4
-/// (16 friendly), all active for 600 ticks, so 128 are alive and active on every measured tick.
+/// Zones (core Z1, `MAX_ZONES_ALIVE`): on the first tick the boss places 111 and each companion 4
+/// (16 friendly), all active for 600 ticks, and the fourth shooter's wind-up lays one warn-only
+/// line of 120 by 10 pixels for 600 ticks (RA1a, DS83), so 128 are alive on every measured tick,
+/// 127 of them active.
 /// The boss's are enemy zones at the map's corner, out of reach of everyone: each is tested
 /// against the main character and the four companions and misses. The companions' are circles of
 /// 100 pixels round the companion, which cover all 500 enemies: each of the 16 is looked up
 /// through the enemy grid and tests, on every tick, the 500 enemies it has hit already (each
 /// once, long before the measured tick). Later attempts to place more are dropped at the cap.
+///
+/// The fourth shooter's line is the one `line` zone, so under the split of ranged tokens into zone and
+/// line pools (RA1) all four shooters hold a token.
 pub fn stage() -> Stage {
     let swing = json!([{ "kind": "active", "ticks": 30,
                          "spawn": [{ "type": "wait", "ticks": 29 }],
@@ -110,13 +119,23 @@ pub fn stage() -> Stage {
         { "kind": "active", "ticks": 600, "hit_box": { "type": "arc", "radius": 32_768,
                                                         "half_angle": 60 * 256 } },
     ]);
-    let mut volley = common::rule(
-        common::always(),
-        json!("player"),
-        json!({ "type": "attack", "attack": { "inline": shot } }),
-        0,
-    );
-    volley["do"]["ranged"] = json!(true);
+    // The fourth shooter also lays a warning line in its wind-up (RA1a, DS83): a warn-only zone
+    // of shape `line` (120 x 10 pixels) that outlasts the measured ticks and hurts nobody, so
+    // that it holds the line token when ranged attacks are split into zone and line pools.
+    let mut line_shot = shot.clone();
+    line_shot[0]["spawn"].as_array_mut().unwrap().push(json!({
+        "type": "zone", "shape": { "type": "line", "length": 30_720, "width": 2_560 },
+        "warn_only": true, "wind_up_ticks": 600 }));
+    let volley = |shot: Value| {
+        let mut volley = common::rule(
+            common::always(),
+            json!("player"),
+            json!({ "type": "attack", "attack": { "inline": shot } }),
+            0,
+        );
+        volley["do"]["ranged"] = json!(true);
+        volley
+    };
     let (x, y) = ENEMIES_AT;
     let back = common::rule(
         common::always(),
@@ -125,7 +144,16 @@ pub fn stage() -> Stage {
         0,
     );
     let enemy = common::enemy(100_000, common::hold(x, y), json!([attack, back.clone()]));
-    let shooter = common::enemy(100_000, common::hold(x, y), json!([volley, back]));
+    let shooter = common::enemy(
+        100_000,
+        common::hold(x, y),
+        json!([volley(shot), back.clone()]),
+    );
+    let line_shooter = common::enemy(
+        100_000,
+        common::hold(x, y),
+        json!([volley(line_shot), back]),
+    );
     let mut waves = vec![common::wave(
         1,
         PICKS,
@@ -136,7 +164,10 @@ pub fn stage() -> Stage {
     )];
     // The shooters arrive first, so that their runs take their tokens and attack tasks before
     // the crowd's swings fill the 256; then 496 enemies in five streams of waves.
-    waves.push(common::wave(WAVES_AT, SHOOTERS, 1, shooter, x, y));
+    // The one that lays the line arrives on tick 2, before the companions' cleaves fill the free
+    // zone place (they place again every 30 ticks); the other three arrive on `WAVES_AT`.
+    waves.push(common::wave(LINE_SHOOTER_AT, 1, 1, line_shooter, x, y));
+    waves.push(common::wave(WAVES_AT, SHOOTERS - 1, 1, shooter, x, y));
     // 32 of the crowd are elites (`MAX_ELITES_ALIVE`): the crowd's own enemy with an elite's
     // mark, in three kinds, so that their rules and every other cap are as they were. Each of
     // the first three streams of 100 starts with its share of elites and goes on with the
@@ -160,10 +191,11 @@ pub fn stage() -> Stage {
                           "hit_box": { "type": "arc", "offset": { "forward": 10_000 },
                                        "radius": 65_536, "half_angle": 90 * 256 },
                           "spawn": [{ "type": "ring", "count": 4, "body": [zone(25_600)] }] }]);
-    let corner = json!([{ "kind": "active", "ticks": 1, "spawn": [{
-        "type": "repeat", "count": 2, "interval_ticks": 0,
-        "body": [{ "type": "ring", "count": 56, "body": [zone(2_048)] }]
-    }] }]);
+    // 111 zones: the shooter's line takes the 128th place (111 + 16 friendly + 1).
+    let corner = json!([{ "kind": "active", "ticks": 1, "spawn": [
+        { "type": "ring", "count": 56, "body": [zone(2_048)] },
+        { "type": "ring", "count": 55, "body": [zone(2_048)] },
+    ] }]);
     let mut boss = common::far_boss();
     boss["phases"] = json!([{ "timeline": [
         { "type": "attack", "attack": { "inline": corner } },
