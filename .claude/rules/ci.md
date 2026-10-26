@@ -10,7 +10,7 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
 ## `.github/workflows/`
 
 - Rust gates on x86_64 and arm64 (tests also on Windows and macOS), the mobile `cargo check`,
-  the fuzz jobs and the tick benchmarks (`rust.yml`, every target in `benches/budgets.toml`; the bench job uploads `bench-profile-<arch>`). A PR of only `*.md` files skips every
+  the fuzz jobs and the tick benchmarks (`rust.yml`, every target in `benches/budgets.toml`; the bench job uploads `bench-profile-<arch>`: one shard per bench target and arch, merged into that artifact; a PR restores its base's counts from main's push run when the toolchain fingerprint matches, else counts the base itself). A PR of only `*.md` files skips every
   Rust job, and `rust checks` passes when each job ran or was skipped by right.
 - `generated sets` (job `bless`) runs `cargo xtask bless --check` on Linux: it fails, naming the
   stale sets (schema, corpus, goldens, content pack), when regenerating them changes a file.
