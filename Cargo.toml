@@ -64,6 +64,9 @@ proptest = { version = "1.11", default-features = false, features = ["std"] }
 # of a build, so a CI runner's load does not move it. Tests only; never in the library or the
 # simulation path. Needs the `iai-callgrind-runner` binary of the same version and `valgrind`.
 iai-callgrind = "0.16.1"
+# Reads `tests/bench_pins.toml` (BS2c, DS99-1). Tests only; never in the library or the
+# simulation path.
+toml = { version = "1.1.8", default-features = false, features = ["parse", "serde"] }
 
 # No `unsafe` in core (ADR-SIM-1): `deny`, not `forbid`, because `forbid` cannot be lifted and
 # `tests/alloc.rs` needs `unsafe` for its counting allocator, which has the one `expect`. Clocks,

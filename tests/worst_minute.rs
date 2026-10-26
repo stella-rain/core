@@ -13,7 +13,7 @@ use crate::alloc::{live_bytes, peak_bytes, reset_peak};
 /// Where the densest minute starts and its heaviest tick, as ticks played before them. The bench
 /// finds them itself (`worst_minute_window`); these pin what it finds. After any change of the run's outcome that moves
 /// them, this test names the new values: set them here and the hashes in
-/// `tests/bench_fixture_pins.rs` (a `src/` PR then edits only `tests/`, which the bench guard
+/// `tests/bench_pins.toml` (a `src/` PR then edits only `tests/`, which the bench guard
 /// allows).
 const WORST_MINUTE_START: u32 = 7_300;
 const PEAK_TICK: u32 = 10_800;
@@ -26,7 +26,7 @@ fn the_densest_minute_of_the_run_is_where_it_is_pinned() {
     assert_eq!(
         worst_minute_window(),
         (WORST_MINUTE_START, PEAK_TICK),
-        "the densest minute (by the unweighted sum of Load) and its heaviest tick moved: re-pin PEAK_TICK in tests/worst_minute.rs, and the hashes in tests/bench_fixture_pins.rs"
+        "the densest minute (by the unweighted sum of Load) and its heaviest tick moved: re-pin PEAK_TICK in tests/worst_minute.rs, and the hashes in tests/bench_pins.toml (UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins)"
     );
 }
 

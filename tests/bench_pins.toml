@@ -1,0 +1,56 @@
+# The bench cases' pins (BS2c). One table per case, keyed by the case id (the `#[bench::<id>]`
+# name in `benches/`), in the order of `benches/`.
+#   bench  the bench target (a key of `benches/budgets.toml`)
+#   before the state hash before the measured tick(s), 16 lowercase hex
+#   after  the state hash after them
+#   stage  the first 16 hex of SHA-256 over the stage's JSON and the run content's hash
+#          (`stella-rain/bench-stage/v1`; the minute cases have no stage part: the content
+#          hash and `before` cover their stage)
+#   input  the first 16 hex of SHA-256 over the measured input's JSON, or over the tick count
+#          for a minute case (`stella-rain/bench-input/v1`)
+# Hashes are strings: TOML integers are i64 and these u64 values overflow it.
+# A case is comparable when `before`, `stage` and `input` are equal; `after` is pinned only.
+# Written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins`; BS2d's bench job reads it from
+# base and head.
+
+[worst_tick]
+bench = "worst_tick"
+before = "58080c270dda6bac"
+after = "d772753c46bdc1dc"
+stage = "ba073f0849a313c2"
+input = "f2a121e06771a61f"
+
+[hit_tick]
+bench = "hit_tick"
+before = "e85bd3364b22c9e5"
+after = "95527ebc68a22c23"
+stage = "8839446e53fd8066"
+input = "0a512b89fda92625"
+
+[hit_tick_spread]
+bench = "hit_tick"
+before = "4b485ac6af094984"
+after = "ab1fe8f19a88d366"
+stage = "27bccd991cb13d0f"
+input = "0a512b89fda92625"
+
+[time_limit_tick]
+bench = "time_limit_tick"
+before = "af22c3b048b1cfaf"
+after = "b788190e950c7ba7"
+stage = "dde83cb7a28bd1b3"
+input = "0a512b89fda92625"
+
+[worst_minute]
+bench = "worst_minute"
+before = "9d7b2f80aeb6b0b7"
+after = "69c14535a0b14994"
+stage = "a4b0020f7c06af6e"
+input = "15dae7474d761c95"
+
+[worst_minute_peak]
+bench = "worst_minute_peak"
+before = "a5a12e05c8179280"
+after = "98983ce1652a15ab"
+stage = "a4b0020f7c06af6e"
+input = "d5564b1390ba76b1"
