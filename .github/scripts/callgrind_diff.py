@@ -3,8 +3,7 @@
 
 Reads the callgrind files iai-callgrind leaves under its home, runs `callgrind_annotate` on the
 head and, when there is one, the base (`.out.base@main`) of each case, and writes the annotate
-texts and a diff per case into --out, the inclusive cost of each named tick step (`.steps.txt`) and
-the allocator calls of the whole bench process read from the raw files (`.alloc.txt`, warned when they rise).
+texts and a diff per case into --out, the inclusive cost of each named tick step (`.steps.txt`).
 It appends a short profile to $GITHUB_STEP_SUMMARY. A
 profile never fails the job by its content: it exits 1 only when the home holds no callgrind file.
 """
@@ -21,16 +20,8 @@ NAME_MAX = 200
 TOTALS = "PROGRAM TOTALS"
 STEP_PREFIX = "stella_rain_core::rules_v0::schedule::steps::"
 STEP_NAME = re.compile(r"[A-Za-z0-9_]+")
-GROUPS = {
-    "alloc": ("malloc", "calloc", "posix_memalign", "aligned_alloc", "memalign"),
-    "realloc": ("realloc",),
-    "free": ("free",),
-}
-ALLOCATOR = {name: group for group, names in GROUPS.items() for name in names}
-RAW_NAME = re.compile(r"^(c?fn)=(?:\((\d+)\)(?: (.*))?|(.+))$")
 STEP_SELF = re.compile(r"^(?:|::h[0-9a-f]+|<.*)$")
 RECURSION = re.compile(r"'\d+$")  # callgrind's name for a recursive instance: free'2
-CALLS = re.compile(r"^calls=(\d+)")
 FILE_SPLIT = re.compile(r"^[^:]*?:(?!:)")
 
 
@@ -118,80 +109,6 @@ def step_lines(rows, with_base):
     return ["step base head delta"] + [f"{n} {b:,} {h:,} {h - b:+,}" for n, b, h in rows]
 
 
-def allocator(name):
-    """The group of an allocator entry point, or None for any other function."""
-    name = re.sub(r"^(?:\?\?\?|<[^>]*>):", "", name).split("@", 1)[0]
-    name = RECURSION.sub("", name)
-    return ALLOCATOR.get(name)
-
-
-def parse_allocs(lines):
-    """{group: calls} from the lines (or text) of a raw callgrind file; calls made from inside an allocator are not counted."""
-    if isinstance(lines, str):
-        lines = lines.splitlines()
-    totals = dict.fromkeys(GROUPS, 0)
-    names, current, callee = {}, None, None
-    for line in lines:
-        m = RAW_NAME.match(line.strip())
-        if m:
-            kind, ident, defined, plain = m.groups()
-            if ident is not None:
-                if defined is not None:
-                    names[ident] = defined
-                name = names.get(ident, "")
-            else:
-                name = plain
-            if kind == "fn":
-                current = name
-            else:
-                callee = name
-        elif callee is not None and (calls := CALLS.match(line.strip())):
-            group = allocator(callee)
-            if group and allocator(current or "") is None:
-                totals[group] += int(calls.group(1))
-            callee = None
-    return totals
-
-
-def read_allocs(path):
-    with open(path, encoding="utf-8", errors="replace") as f:
-        return parse_allocs(f)
-
-
-ALLOC_TITLE = "allocator calls in the whole bench process (setup included; not per tick)"
-# callgrind counts a call whenever it happens, inside the measured window or not (the setup of the
-# case included), so these are totals of the process and say nothing about one tick (BS2b-2).
-
-
-def alloc_warnings(label, base, head):
-    return [f"::warning::{label}: process allocator calls rose {base[g]:,} → {head[g]:,} ({g}; setup included)"
-            for g in GROUPS if head[g] > base[g]]
-
-
-def alloc_line(label, base, head):
-    if base is None:
-        parts = [f"{g} {head[g]:,}" for g in GROUPS]
-    else:
-        parts = [f"{g} {base[g]:,} → {head[g]:,}" for g in GROUPS]
-    return ALLOC_TITLE + "  " + ", ".join(parts)
-
-
-def alloc_report(label, base, head):
-    lines = [ALLOC_TITLE, "group base head"]
-    for g in GROUPS:
-        lines.append(f"{g} {f'{base[g]:,}' if base else '-'} {head[g]:,}")
-    return lines
-
-
-def alloc_of(path, label):
-    """The counts of one raw file, or None after a warning."""
-    try:
-        return read_allocs(path)
-    except (OSError, ValueError) as e:
-        print(f"::warning::{label}: cannot read the allocator calls of {path}: {e}")
-        return None
-
-
 def cut(name):
     return name[:NAME_MAX]
 
@@ -277,7 +194,7 @@ def main():
         return 1
     os.makedirs(args.out, exist_ok=True)
     summary = ["### Profile on " + args.arch, ""]
-    order, any_steps, alloc_lines = read_order(args.schedule), False, []
+    order, any_steps = read_order(args.schedule), False
     unreliable = set()
     for label, head_path, base_path in cases:
         lines, moved, step_rows = None, False, None
@@ -312,16 +229,6 @@ def main():
                     step_rows = step_table(sides[0], sides[1], order)
                     write(args.out, f"{label}.steps.txt", "\n".join(step_lines(step_rows, base is not None)) + "\n")
                     any_steps = True
-        head_alloc = alloc_of(head_path, label)
-        base_alloc = alloc_of(base_path, label) if base_path else None
-        if head_alloc is None or (base_path and base_alloc is None):
-            alloc_lines.append(f"{label}: allocator calls unreadable")
-        else:
-            write(args.out, f"{label}.alloc.txt", "\n".join(alloc_report(label, base_alloc, head_alloc)) + "\n")
-            alloc_lines.append(f"{label}: {alloc_line(label, base_alloc, head_alloc)}")
-            if base_alloc:
-                for warning in alloc_warnings(label, base_alloc, head_alloc):
-                    print(warning)
         if lines is not None and moved:
             summary += [f"**{label}**", "", "```", *lines[: 2 + args.summary_top], "```", ""]
             if step_rows:
@@ -332,8 +239,6 @@ def main():
         summary += [*sorted(unreliable), ""]
     if not any_steps:
         summary += ["no named tick steps in the profile (BS2a)", ""]
-    if alloc_lines:
-        summary += ["**Allocator calls in the whole bench process (not per tick)**", "", "```", *alloc_lines, "```", ""]
     summary.append(f"Per-function diffs and the callgrind files: artifact `bench-profile-{args.arch}`.")
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if path:
