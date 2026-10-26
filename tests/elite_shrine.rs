@@ -534,7 +534,7 @@ fn the_fight_count_down_is_gone_when_the_guardians_are_cleared() {
 
 #[test]
 fn the_enemy_cap_limits_the_guardians() {
-    // 497 enemies and the shrine make 498 of the 500 alive at most: two guardians fit.
+    // 257 enemies and the shrine make 258 of the 260 alive at most: two guardians fit.
     let filler = |count: u16, x: i32| {
         wave(
             1,
@@ -545,17 +545,11 @@ fn the_enemy_cap_limits_the_guardians() {
             40_000,
         )
     };
-    let others = vec![
-        filler(100, 1_000),
-        filler(100, 2_000),
-        filler(100, 3_000),
-        filler(100, 4_000),
-        filler(97, 5_000),
-    ];
+    let others = vec![filler(100, 1_000), filler(100, 2_000), filler(57, 3_000)];
     let mut e = with(&shrine_stage(SIDE, shrine(6000, 4, 100_000), others));
     // The last of them comes at tick 100.
     run_until(&mut e, idle(), 110, |_| false);
-    assert_eq!(e.snapshot().entities.len() - 1, 498, "497 and the shrine");
+    assert_eq!(e.snapshot().entities.len() - 1, 258, "257 and the shrine");
     let events = touch(&mut e);
     assert!(is_activated(&events));
     let ring = ring(SIDE, 4, RING);
@@ -570,8 +564,8 @@ fn the_enemy_cap_limits_the_guardians() {
     );
     assert_eq!(
         e.snapshot().entities.len() - 1,
-        500,
-        "500 enemies alive, the shrine one of them"
+        260,
+        "260 enemies alive, the shrine one of them"
     );
 }
 

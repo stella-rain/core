@@ -26,7 +26,9 @@ use crate::stage::{
     Boss, ExpertisePoints, LevelTable, Levels, Map, StardustTier, Stars, Wave,
     stardust_tiers_problem,
 };
-use crate::validate::limits::{self, MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE};
+use crate::validate::limits::{
+    self, MAX_CROWD_TARGET, MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE,
+};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
@@ -118,6 +120,11 @@ pub struct TimeLimitFile {
     /// The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the
     /// same bound). The run's stage takes it as its own.
     pub elite_cap: u16,
+    /// The crowd target of the mode's runs (DIR1, DS103): the pack's `rules.json` gives the
+    /// default (200), this overrides it, 1 to `MAX_CROWD_TARGET`. The run's stage takes it as its
+    /// own, and the director holds the mode's wave spawns at it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crowd_target: Option<u16>,
     /// The expertise levels of the style path (ADR-106 §4): the style first, the levels rising
     /// strictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The
     /// run's stage takes it as its own.
@@ -303,6 +310,11 @@ impl TimeLimit {
     /// The most elites alive at once.
     pub fn elite_cap(&self) -> u16 {
         self.file.elite_cap
+    }
+
+    /// The mode's crowd target, if it overrides the pack's.
+    pub fn crowd_target(&self) -> Option<u16> {
+        self.file.crowd_target
     }
 
     /// The expertise levels of the style path.
@@ -595,6 +607,16 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
         issue(
             "$.elite_cap".into(),
             format!("1 to {MAX_ELITES_ALIVE} (found {})", file.elite_cap),
+        );
+    }
+
+    if let Some(target) = file
+        .crowd_target
+        .filter(|t| !(1..=MAX_CROWD_TARGET).contains(t))
+    {
+        issue(
+            "$.crowd_target".into(),
+            format!("1 to {MAX_CROWD_TARGET} (found {target})"),
         );
     }
 

@@ -275,3 +275,46 @@ fn under_the_target_a_run_is_what_it_was() {
     }
     assert_eq!((t200, digest), (Some(T200), UNDER_TARGET_DIGEST));
 }
+
+// --- Engine::caps -----------------------------------------------------------------------------
+
+#[test]
+fn the_engine_reports_the_cap_of_its_run() {
+    assert_eq!(engine(&crowd_stage(1, None)).caps().enemies, 260);
+    assert_eq!(engine(&crowd_stage(1, Some(100))).caps().enemies, 130);
+    assert_eq!(engine(&crowd_stage(1, Some(400))).caps().enemies, 499);
+    assert_eq!(horde("normal", None).caps().enemies, 260);
+    let m = mode(|file| file["crowd_target"] = 100.into());
+    assert_eq!(horde("normal", Some(m)).caps().enemies, 130);
+}
+
+// --- The stage override -----------------------------------------------------------------------
+
+#[test]
+fn a_stage_override_is_one_to_the_most_any_target_can_be() {
+    use stella_rain_core::parsed_stage_hash::parsed_stage_hash;
+    use stella_rain_core::validate::{self, Error};
+    let with = |target: u64| {
+        let mut v = serde_json::to_value(crowd_stage(1, None)).unwrap();
+        v["crowd_target"] = target.into();
+        validate::parse_and_validate(v.to_string().as_bytes())
+    };
+    assert!(with(1).is_ok() && with(400).is_ok());
+    for bad in [0, 401] {
+        match with(bad) {
+            Err(Error::Invalid(issues)) => {
+                let paths: Vec<_> = issues.iter().map(|i| i.path.as_str()).collect();
+                assert_eq!(paths, ["$.crowd_target"], "{bad}");
+            }
+            other => panic!("{bad}: {other:?}"),
+        }
+    }
+    // A stage without the field hashes as it did: the field is not written when absent.
+    let plain = crowd_stage(1, None);
+    let bytes = serde_json::to_vec(&plain).unwrap();
+    assert!(!String::from_utf8(bytes).unwrap().contains("crowd_target"));
+    assert_ne!(
+        parsed_stage_hash(&plain),
+        parsed_stage_hash(&crowd_stage(1, Some(100)))
+    );
+}

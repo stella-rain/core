@@ -794,6 +794,7 @@ pub(crate) fn time_limit_run(
     });
     stage.waves = mode.waves().to_vec();
     stage.elite_cap = Some(mode.elite_cap());
+    stage.crowd_target = mode.crowd_target();
     stage.levels = Some(mode.levels().clone());
     stage.stars = Some(mode.stars().clone());
     stage.level_table = Some(difficulty.level_table.unwrap_or(*mode.level_table()));

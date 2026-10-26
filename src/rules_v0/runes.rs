@@ -47,7 +47,7 @@
 //! so no more fly at once. A damage-over-time status is one per kind on an entity, its stacks,
 //! interval, duration and damage held to `MAX_DOT_STACKS`, `MAX_DOT_INTERVAL_TICKS`,
 //! `MAX_DOT_DURATION_TICKS` and `MAX_DAMAGE`; so an entity carries at most one status of each
-//! of `StatusKind`'s kinds, and the enemies at most `MAX_ENEMIES_ALIVE` of each.
+//! of `StatusKind`'s kinds, and the enemies at most `World::enemy_cap` of each.
 
 use super::World;
 

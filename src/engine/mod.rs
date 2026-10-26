@@ -61,20 +61,6 @@ pub struct Load {
     pub relocated: u32,
 }
 
-impl Load {
-    /// The caps of the rules (`rules_v0`): a tick that reaches all of them is a worst-case tick.
-    pub const CAPS: Load = Load {
-        enemies: rules_v0::MAX_ENEMIES_ALIVE,
-        tasks: rules_v0::MAX_ATTACK_TASKS,
-        zones: rules_v0::MAX_ZONES_ALIVE,
-        orbs: rules_v0::MAX_ORBS_ALIVE,
-        emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
-        // Not caps: what a tick did, not what it may hold.
-        refused_spawns: 0,
-        relocated: 0,
-    };
-}
-
 /// The kinds of a `time_limit` run: its stage's, and those of the bosses it brings later.
 fn horde_kinds(stage: &Stage, horde: &HordeSpec) -> Result<KindTable, crate::validate::Issue> {
     let bosses: Vec<&crate::stage::Boss> = horde
@@ -323,6 +309,22 @@ impl Engine {
     /// The domain events of the last tick, in the order they happened.
     pub fn events(&self) -> &[DomainEvent] {
         &self.events
+    }
+
+    /// The caps of the run's rules: a tick that reaches all of them is a worst-case tick. The
+    /// cap on enemies is the run's own, derived from its crowd target and the pack's headroom
+    /// (DIR1); the others are the rules' constants.
+    pub fn caps(&self) -> Load {
+        Load {
+            enemies: self.stage.enemy_cap,
+            tasks: rules_v0::MAX_ATTACK_TASKS,
+            zones: rules_v0::MAX_ZONES_ALIVE,
+            orbs: rules_v0::MAX_ORBS_ALIVE,
+            emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
+            // Not caps: what a tick did, not what it may hold.
+            refused_spawns: 0,
+            relocated: 0,
+        }
     }
 
     /// How much of each dynamic budget the last tick used (ADR-020).

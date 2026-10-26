@@ -219,7 +219,7 @@ fn a_run_on_normal_with_a_bot_holds_the_caps_and_its_replay_verifies() {
     // The mode's length and its overtime: 20 minutes and 5 more while the final boss lives.
     let commands = play_run_with(&setup, content, 72_000 + 18_000, bot);
     let (enemies, orbs) = peak.get();
-    assert!(enemies <= 500, "{enemies} enemies alive");
+    assert!(enemies <= 260, "{enemies} enemies alive");
     assert!(orbs <= 4_000, "{orbs} orbs alive");
     let recorded = run_replay::record_run_with(&setup, content, &commands).unwrap();
     let bytes = recorded.to_bytes();

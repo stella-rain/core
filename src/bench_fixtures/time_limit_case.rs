@@ -2,7 +2,7 @@
 //! `benches/time_limit_tick.rs`, which counts its instructions, and `tests/time_limit_case.rs`,
 //! which checks that the measured tick has the load it claims.
 
-use crate::engine::{Engine, Load};
+use crate::engine::Engine;
 use crate::input::Input;
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
@@ -73,11 +73,13 @@ pub fn stage() -> Stage {
     stage.boss = trial.boss;
     stage.player.hp = MAX_PLAYER_HP;
     stage.length_ticks = STAGE_LENGTH_TICKS;
+    let rules = RunContent::bundled().rules();
+    let cap = rules.enemy_cap_for(stage.crowd_target.unwrap_or_else(|| rules.crowd_target()));
     let kinds = mode.waves();
     let spawns: Vec<u32> = kinds.iter().map(|k| u32::from(k.count)).collect();
     stage.waves = kinds
         .iter()
-        .zip(shares(&spawns, Load::CAPS.enemies))
+        .zip(shares(&spawns, cap))
         .flat_map(|(kind, share)| {
             let mut left = share;
             std::iter::from_fn(move || {

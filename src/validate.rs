@@ -747,6 +747,14 @@ impl<'a> Ctx<'a> {
                 );
             });
         }
+        if let Some(target) = s.crowd_target {
+            self.within(
+                "crowd_target",
+                i64::from(target),
+                1,
+                i64::from(MAX_CROWD_TARGET),
+            );
+        }
         if let Some(cap) = s.elite_cap {
             self.within("elite_cap", i64::from(cap), 1, i64::from(MAX_ELITES_ALIVE));
         }

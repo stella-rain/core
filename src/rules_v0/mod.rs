@@ -81,7 +81,9 @@
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
-//! Dynamic budgets (ADR-020): at most `MAX_ENEMIES_ALIVE` enemies, the stage's elite cap of
+//! Dynamic budgets (ADR-020): at most `World::enemy_cap` enemies (the crowd target and the
+//! pack's headroom, 260 for the bundled pack, derived when the run is built and at most
+//! `limits::MAX_ENEMY_CAP`, DS103), the stage's elite cap of
 //! them elites (at most `MAX_ELITES_ALIVE`), `MAX_ZONES_ALIVE` zones, `MAX_ORBS_ALIVE` orbs,
 //! `MAX_ATTACK_TASKS` attacks at once and
 //! `MAX_EMITTER_STEPS_PER_TICK` steps of them per tick. A spawn past a cap is dropped, in
@@ -160,7 +162,6 @@ pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
 
-pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
 /// A regular enemy farther than this from the main character is moved by the leash (EC2, DS80):
 /// twice the wave spawn ring of 400 px. A placeholder; CS1b-3 moves it into `rules.json`.
 pub(crate) const LEASH_DISTANCE: Fx = Fx::px(800);
@@ -646,7 +647,7 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
     };
     let d = stage.defs.get(index);
     let def = &d.agent;
-    let room = count(&s.enemies) < MAX_ENEMIES_ALIVE
+    let room = count(&s.enemies) < stage.enemy_cap
         && (def.elite.is_none()
             || s.enemies.iter().filter(|e| e.elite.is_some()).count()
                 < usize::from(stage.elite_cap()));

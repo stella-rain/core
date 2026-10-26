@@ -152,10 +152,10 @@ fn the_enemies_alive_never_pass_the_cap() {
     for _ in 0..600 {
         e.step(Input::default());
         most = most.max(e.load().enemies);
-        assert!(e.load().enemies <= 500);
+        assert!(e.load().enemies <= 260);
     }
-    assert_eq!(most, 500, "the cap is reached");
-    assert_eq!(of_kind(&e.snapshot(), EntityKind::Enemy).len(), 500);
+    assert_eq!(most, 260, "the cap is reached");
+    assert_eq!(of_kind(&e.snapshot(), EntityKind::Enemy).len(), 260);
 }
 
 #[test]
