@@ -296,6 +296,174 @@ mod tests {
         })
     }
 
+    /// A copy of the pass as it was before PA1, with its own copy of the grid's walk (cells as
+    /// the grid lays them out, read own cell first, then W, E, N, S, NW, SE, NE, SW, each cell
+    /// in ascending index, 32 reads at most). It stays fixed while the real pass changes, so
+    /// the tests below show the real one gives the same offsets and crowded flags.
+    fn reference_offsets(bodies: &[Body]) -> Vec<(i32, i32, bool)> {
+        use std::collections::BTreeMap;
+        const AROUND: [(i64, i64); 9] = [
+            (0, 0),
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
+            (-1, -1),
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+        ];
+        let largest = bodies.iter().map(|b| b.radius).max().unwrap_or(0);
+        let xs = || bodies.iter().map(|b| i64::from(b.at.x.0));
+        let ys = || bodies.iter().map(|b| i64::from(b.at.y.0));
+        let (min_x, min_y) = (xs().min().unwrap_or(0), ys().min().unwrap_or(0));
+        // The cell side: the probe radius plus the largest radius, at least 32 pixels.
+        let cell = (i64::from(largest) * 2).max(8192);
+        let cell_of = |b: &Body| {
+            (
+                (i64::from(b.at.x.0) - min_x).div_euclid(cell),
+                (i64::from(b.at.y.0) - min_y).div_euclid(cell),
+            )
+        };
+        let mut cells: BTreeMap<(i64, i64), Vec<u32>> = BTreeMap::new();
+        for (i, b) in bodies.iter().enumerate() {
+            cells.entry(cell_of(b)).or_default().push(i as u32);
+        }
+        let mut out = Vec::new();
+        for (i, a) in bodies.iter().enumerate() {
+            let mut near = Vec::new();
+            let (col, row) = cell_of(a);
+            'walk: for (dc, dr) in AROUND {
+                for &j in cells.get(&(col + dc, row + dr)).into_iter().flatten() {
+                    if j as usize == i {
+                        continue;
+                    }
+                    if near.len() == CANDIDATES {
+                        break 'walk;
+                    }
+                    near.push(j);
+                }
+            }
+            let mut counted = [(0i64, 0u32, 0u32); NEIGHBOURS];
+            let mut n = 0;
+            for &j in &near {
+                let b = &bodies[j as usize];
+                let dx = i64::from(a.at.x.0) - i64::from(b.at.x.0);
+                let dy = i64::from(a.at.y.0) - i64::from(b.at.y.0);
+                let reach = i64::from(a.radius) + i64::from(b.radius);
+                let key = (dx * dx + dy * dy, b.id, j);
+                if key.0 >= reach * reach || (n == NEIGHBOURS && key >= counted[n - 1]) {
+                    continue;
+                }
+                let mut at = if n < NEIGHBOURS { n } else { n - 1 };
+                while at > 0 && counted[at - 1] > key {
+                    counted[at] = counted[at - 1];
+                    at -= 1;
+                }
+                counted[at] = key;
+                n = (n + 1).min(NEIGHBOURS);
+            }
+            let (mut sx, mut sy, mut overlap) = (0i64, 0i64, 0i64);
+            for &(d2, _, j) in &counted[..n] {
+                let b = &bodies[j as usize];
+                let dist = i64::try_from(d2.unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+                overlap += i64::from(a.radius) + i64::from(b.radius) - dist;
+                let (px, py) = super::push(a, b, dist);
+                sx += px;
+                sy += py;
+            }
+            let len2 = sx * sx + sy * sy;
+            if len2 > STEP * STEP {
+                let floor = i64::try_from(len2.unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+                let len = floor + i64::from(floor * floor < len2);
+                (sx, sy) = (sx * STEP / len, sy * STEP / len);
+            }
+            out.push((sx as i32, sy as i32, overlap > super::CROWDED_OVER));
+        }
+        out
+    }
+
+    fn assert_matches_reference(bodies: &[Body]) {
+        assert_eq!(super::offsets(bodies), reference_offsets(bodies));
+    }
+
+    #[test]
+    fn forty_on_one_point_match_the_reference() {
+        let bodies: Vec<Body> = (1..=40).map(|id| body(id, 0, 0, 2_048)).collect();
+        assert_matches_reference(&bodies);
+    }
+
+    /// 500 bodies of 8 pixels on a hex lattice 12 pixels apart: most reach the 32-read cap.
+    #[test]
+    fn a_compressed_dense_disc_matches_the_reference() {
+        let (gap, per_row) = (Fx::px(12).0, 23);
+        let bodies: Vec<Body> = (0..500)
+            .map(|k: i32| {
+                let (row, col) = (k / per_row, k % per_row);
+                let x = col * gap + (row % 2) * gap / 2;
+                let y = row * gap * 7 / 8;
+                body(k as u32 + 1, x, y, 2_048)
+            })
+            .collect();
+        assert_matches_reference(&bodies);
+    }
+
+    #[test]
+    fn a_mix_of_sixteen_pixel_bodies_in_a_crowd_matches_the_reference() {
+        let bodies: Vec<Body> = (0..300)
+            .map(|k: i32| {
+                let radius = if k % 7 == 0 { 4_096 } else { 2_048 };
+                body(k as u32 + 1, (k % 20) * 3_000, (k / 20) * 3_000, radius)
+            })
+            .collect();
+        assert_matches_reference(&bodies);
+    }
+
+    /// Crowds with a mix of radii, stacks on one point, and bodies on cell edges.
+    fn reference_crowd() -> impl Strategy<Value = Vec<Body>> {
+        let radius = prop_oneof![
+            Just(LEAST_RADIUS),
+            Just(3_072),
+            Just(4_096),
+            LEAST_RADIUS..=20_000
+        ];
+        let coord = prop_oneof![
+            -40_000..=40_000i32,
+            (0..10i32, -1..=1i32).prop_map(|(k, d)| k * 8_192 + d),
+        ];
+        (
+            prop::collection::vec((coord.clone(), coord, radius), 2..=160),
+            prop::option::of((2..=40usize, any::<prop::sample::Index>())),
+            any::<prop::sample::Index>(),
+        )
+            .prop_map(|(v, stack, rot)| {
+                let mut at: Vec<(i32, i32, i32)> = v;
+                if let Some((n, _)) = stack {
+                    let (x, y, _) = at[0];
+                    for e in at.iter_mut().take(n) {
+                        e.0 = x;
+                        e.1 = y;
+                    }
+                }
+                // IDs shuffled, not ascending.
+                let mut ids: Vec<u32> = (1..=at.len() as u32).collect();
+                let cut = rot.index(ids.len());
+                ids.rotate_left(cut);
+                ids.reverse();
+                at.into_iter()
+                    .zip(ids)
+                    .map(|((x, y, r), id)| body(id, x, y, r))
+                    .collect()
+            })
+    }
+
+    proptest! {
+        #[test]
+        fn the_pass_equals_the_reference(bodies in reference_crowd()) {
+            prop_assert_eq!(super::offsets(&bodies), reference_offsets(&bodies));
+        }
+    }
+
     proptest! {
         /// No sum is longer than 4 pixels, however deep the overlaps and however many.
         #[test]
