@@ -477,7 +477,8 @@ jobs:
       # PR's crate for the base's (same name, same path in the workspace), finds it newer than the
       # PR's sources and counts the base twice. iai-callgrind keeps its baselines in one home that
       # both share, so the PR is compared with the base's, on this runner and this architecture.
-      # The head's target directory is the one rust-cache keeps (the base's is built cold).
+      # The head's target directory is the one rust-cache keeps (the base's is built cold when
+      # main's counts of it are not cached).
       - run: |
           {
             echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target"
@@ -486,11 +487,27 @@ jobs:
           } >> "$GITHUB_ENV"
         env:
           BENCH: ${{ matrix.bench }}
+      # What a count depends on besides the commit. main's push run saves each shard's counts under
+      # a key that holds it, and a PR restores only an exact match, so a toolchain, glibc or
+      # valgrind update is a cache miss and the PR counts its base itself.
+      - name: Fingerprint the counting environment
+        id: fp
+        run: |
+          set -eu
+          fp=$({
+            rustc -vV
+            valgrind --version
+            ldd --version | sed -n 1p
+            echo "$IAI_CALLGRIND_RUNNER_VERSION"
+            echo "$CARGO_PROFILE_BENCH_CODEGEN_UNITS"
+            uname -m
+          } | sha256sum | cut -c1-16)
+          echo "value=$fp" >> "$GITHUB_OUTPUT"
       - uses: Swatinem/rust-cache@v2
         with:
           key: bench
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Count the base commit
+      - name: Check the base commit
         id: base
         if: github.event_name == 'pull_request'
         env:
@@ -520,24 +537,59 @@ jobs:
             echo "compare=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "compare=true" >> "$GITHUB_OUTPUT"
+      # The base commit's counts from main's push run, if it saved them for this toolchain: the
+      # exact commit and fingerprint, never a near match (no restore-keys), which would be another
+      # commit's count.
+      - name: Restore the base counts
+        id: restore
+        if: steps.base.outputs.compare == 'true'
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}/iai
+          key: bench-base-v1-${{ matrix.arch }}-${{ matrix.bench }}-${{ github.event.pull_request.base.sha }}-${{ steps.fp.outputs.value }}
+      - name: Count the base commit
+        if: steps.base.outputs.compare == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HIT: ${{ steps.restore.outputs.cache-hit }}
+          KEY: bench-base-v1-${{ matrix.arch }}-${{ matrix.bench }}-${{ github.event.pull_request.base.sha }}-${{ steps.fp.outputs.value }}
+        run: |
+          set -eu
+          if [ "$HIT" = true ]; then
+            echo "base counts restored from main's run (cache key $KEY)"
+            exit 0
+          fi
+          echo "base counted here: no cache for $KEY"
           git worktree add "$RUNNER_TEMP/base" "$BASE"
           # shellcheck disable=SC2086
-          (cd "$RUNNER_TEMP/base" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-base"             cargo bench $BENCHES -- --save-baseline=main)
-          echo "compare=true" >> "$GITHUB_OUTPUT"
+          (cd "$RUNNER_TEMP/base" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-base" cargo bench $BENCHES -- --save-baseline=main)
       # The counts. Comparing with the base commit only prints the change; whether a rise fails is
       # decided by `Check for a rise` below, so that a covered rise does not stop the job (ADR-SIM-8).
       - name: Count the benches
         id: count
         env:
           COMPARE: ${{ steps.base.outputs.compare }}
+          EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
           limits=""
           if [ "$COMPARE" = true ]; then
             limits="--baseline=main"
+          elif [ "$EVENT" = push ]; then
+            # main's own count, kept for the PRs whose base this commit becomes.
+            limits="--save-baseline=main"
           fi
           # shellcheck disable=SC2086
           cargo bench $BENCHES -- $limits | tee "$RUNNER_TEMP/bench.txt"
+      # Only the push run saves (not the weekly schedule): a PR that starts from this commit
+      # restores these counts instead of building and counting it again.
+      - name: Save the counts for the PRs on this commit
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/iai
+          key: bench-base-v1-${{ matrix.arch }}-${{ matrix.bench }}-${{ github.sha }}-${{ steps.fp.outputs.value }}
       # The per-function profile of every case, base against head, on every run (ADR-SIM-8): what a
       # rise is made of, and what to open when a budget is near.
       - name: Profile the benches
