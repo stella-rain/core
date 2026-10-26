@@ -172,8 +172,8 @@ pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 /// dropped, as an orb over `MAX_ORBS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
-/// it is in its wind-up or active phase, and a rule whose start would take a fifth waits. The
-/// tokens go to the nearest ready enemies in view (RA1).
+/// it is in its wind-up or active phase. The tokens are the two pools below, which sum to this
+/// (ADR-SIM-7's cap); they go to the nearest ready enemies in view (RA1).
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// The view rectangle, centred on the main character (RA1, DS82): the 1920 by 1080 design screen
 /// at the play zoom of 3, never the device's screen. An enemy starts a ranged attack only from

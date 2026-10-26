@@ -153,11 +153,8 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
     let mut len = [0usize; 2];
     let player = s.player.at;
     for e in &s.enemies {
-        if e.hp == 0 || !in_view(e.at, player) {
-            continue;
-        }
         let def = world.defs.get(e.def);
-        if def.ranged_pools.is_empty() {
+        if def.ranged_pools.is_empty() || e.hp == 0 || !in_view(e.at, player) {
             continue;
         }
         let (dx, dy) = (

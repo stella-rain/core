@@ -61,14 +61,16 @@ pub(crate) enum RangedPool {
 }
 
 impl RangedPool {
-    /// The pool of an attack with these phases: `Line` if any phase spawns a zone of shape
-    /// `line` (also inside an orb's burst), else `Zone`.
+    /// Both pools, in `index` order.
     pub const ALL: [RangedPool; 2] = [RangedPool::Zone, RangedPool::Line];
 
+    /// The pool's place in `ALL`, for per-pool arrays and the state hash.
     pub fn index(self) -> usize {
         self as usize
     }
 
+    /// The pool of an attack with these phases: `Line` if any phase spawns a zone of shape
+    /// `line` (also inside an orb's burst), else `Zone`.
     pub fn of(phases: &[AttackPhase]) -> RangedPool {
         fn lays_line(list: &[Emitter]) -> bool {
             list.iter().any(|n| match n {
@@ -376,6 +378,10 @@ impl World {
     /// Sets each agent definition's `ranged_pools`, now that the attacks are compiled.
     fn resolve_ranged_pools(&mut self) {
         for i in 0..self.defs.defs.len() {
+            // An elite is never held to the tokens (the validator refuses `ranged` on one).
+            if self.defs.defs[i].agent.elite.is_some() {
+                continue;
+            }
             let pools: Vec<Option<RangedPool>> = self.defs.defs[i]
                 .agent
                 .rules
