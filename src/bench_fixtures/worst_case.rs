@@ -24,6 +24,10 @@ pub const WAVES_AT: u32 = 150;
 /// placed their zones, before the companions place again into the one place the boss leaves free.
 const LINE_SHOOTER_AT: u32 = 2;
 
+/// How far right of the main character's start the line shooter arrives: 160 pixels, inside the
+/// 640 x 360 view (a placeholder; any point in view of the start will do).
+const LINE_SHOOTER_DX: i32 = 160 * 256;
+
 /// The tick the main character sets off for the enemies, and the ticks it walks left and up
 /// before it stands about 36,000 units from them with every enemy inside its step.
 const WALK_FROM: u32 = 100;
@@ -95,7 +99,9 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// once, long before the measured tick). Later attempts to place more are dropped at the cap.
 ///
 /// The fourth shooter's line is the one `line` zone, so under the split of ranged tokens into zone and
-/// line pools (RA1) all four shooters hold a token.
+/// line pools (RA1) all four shooters hold a token. It arrives on tick 2, 160 pixels to the right
+/// of the main character's start and so in its view, where RA1's off-view rule lets its attack
+/// start at once (RA1b, DS82); it then walks to the stack as the others do, which arrive there.
 pub fn stage() -> Stage {
     let swing = json!([{ "kind": "active", "ticks": 30,
                          "spawn": [{ "type": "wait", "ticks": 29 }],
@@ -165,8 +171,19 @@ pub fn stage() -> Stage {
     // The shooters arrive first, so that their runs take their tokens and attack tasks before
     // the crowd's swings fill the 256; then 496 enemies in five streams of waves.
     // The one that lays the line arrives on tick 2, before the companions' cleaves fill the free
-    // zone place (they place again every 30 ticks); the other three arrive on `WAVES_AT`.
-    waves.push(common::wave(LINE_SHOOTER_AT, 1, 1, line_shooter, x, y));
+    // zone place (they place again every 30 ticks); the other three arrive on `WAVES_AT`, at the
+    // stack.
+    // It spawns in view of the main character's start (RA1b, DS82), so that RA1's off-view rule
+    // lets its ranged attack start on arrival; its rules send it back to the stack as the others.
+    let (line_x, line_y) = (START_X + LINE_SHOOTER_DX, common::START_Y);
+    waves.push(common::wave(
+        LINE_SHOOTER_AT,
+        1,
+        1,
+        line_shooter,
+        line_x,
+        line_y,
+    ));
     waves.push(common::wave(WAVES_AT, SHOOTERS - 1, 1, shooter, x, y));
     // 32 of the crowd are elites (`MAX_ELITES_ALIVE`): the crowd's own enemy with an elite's
     // mark, in three kinds, so that their rules and every other cap are as they were. Each of
