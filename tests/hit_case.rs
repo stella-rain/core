@@ -160,6 +160,11 @@ fn the_spread_waves_stand_at_the_start_and_two_outer_crowds() {
 fn the_spread_tick_has_its_load() {
     let engine = measured(hit_case::spread_warmed_up());
     assert_load(&engine);
+    assert_eq!(
+        engine.load().relocated,
+        0,
+        "the leash moves none of the spread crowd"
+    );
     let by_player = hits_by(&engine, |s| s == PLAYER);
     assert!(by_player >= 90, "{by_player} hits by the main character");
     let crowd = enemies(&engine);
