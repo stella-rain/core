@@ -7,6 +7,9 @@ iai's `--callgrind-limits=ir=2%`). The ledger is append-only: the base commit's 
 prefix of the head's. An entry added by this PR covers a rise of its bench, case and arch when its
 `pr` is this PR's number and the head count is at most its `count`. An unexplained rise is fixed,
 not accepted; the profile (bench-profile-<arch>) says where it comes from.
+
+With --cases only the listed cases are gated (the bench job lists those whose pre-tick digest in
+tests/bench_pins.toml is unchanged, ADR-SIM-10); any other case is reported as moved, never failed.
 """
 
 import argparse
@@ -20,6 +23,7 @@ ANSI = re.compile(r"\x1b\[[0-9;]*m")
 HEADER = re.compile(r"^([a-z_][a-z0-9_]*)::\S+(?:\s+([A-Za-z0-9_]+):)?")
 INSTRUCTIONS = re.compile(r"^\s*Instructions:\s*(\d+)\|(\d+|N/A)")
 ARCHES = ("x86_64", "arm64")
+MOVED = "moved: not compared"
 KEYS = {"bench": str, "case": str, "arch": str, "base": int, "count": int, "reason": str, "pr": int}
 
 
@@ -79,8 +83,10 @@ def pct(head, base):
     return f"{100 * (head - base) / base:+.2f}%"
 
 
-def check(arch, found, limit_pct, ledger, base_ledger, pr):
-    """(rows, errors, warnings); a row is (bench, case, base, head, change, alarm)."""
+def check(arch, found, limit_pct, ledger, base_ledger, pr, compared=None):
+    """(rows, errors, warnings); a row is (bench, case, base, head, change, alarm).
+
+    `compared` limits the gate to those case names; None gates every case."""
     rows, errors, warnings = [], [], []
     if ledger[: len(base_ledger)] != base_ledger:
         errors.append("benches/accepted.toml is append-only: an entry of the base commit was edited or removed")
@@ -91,6 +97,9 @@ def check(arch, found, limit_pct, ledger, base_ledger, pr):
             rows.append((bench, case, None, head, "", "no base"))
             continue
         change = pct(head, base)
+        if compared is not None and case not in compared:
+            rows.append((bench, case, base, head, change, MOVED))
+            continue
         if not is_rise(head, base, limit_pct):
             rows.append((bench, case, base, head, change, "ok"))
             continue
@@ -138,6 +147,7 @@ def main():
     parser.add_argument("--accepted-base", default="")
     parser.add_argument("--pr", default="")
     parser.add_argument("--budgets", default="benches/budgets.toml")
+    parser.add_argument("--cases", default=None, help="comma list of the cases to gate; the others are reported only")
     args = parser.parse_args()
     try:
         with open(args.budgets, "rb") as f:
@@ -148,11 +158,17 @@ def main():
     except (LedgerError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    rows, errors, warnings = check(args.arch, cases(read(args.bench_output)), args.limit_pct, ledger, base_ledger, pr)
+    compared = None if args.cases is None else {c for c in args.cases.split(",") if c}
+    rows, errors, warnings = check(
+        args.arch, cases(read(args.bench_output)), args.limit_pct, ledger, base_ledger, pr, compared
+    )
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary and rows:
         with open(summary, "a", encoding="utf-8") as f:
             f.write(table(args.arch, rows))
+    for bench, case, base, head, change, alarm in rows:
+        if alarm == MOVED:
+            print(f"::notice::case moved: not compared  {bench} {case}: {base:,} -> {head:,} ({change})")
     for warning in warnings:
         print(f"::warning::{warning}")
     for error in errors:
