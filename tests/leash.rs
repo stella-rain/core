@@ -30,20 +30,25 @@ fn stage_at(x: i32, waves: Vec<Value>, companions: Vec<Value>, boss: Option<Valu
     stage
 }
 
-/// A regular enemy that holds at (`x`, 2,000) px.
-fn held(x: i32) -> Value {
+/// A regular enemy that spawns at (`x`, 2,000) px and holds at (`to`, 2,000) px.
+fn held_to(x: i32, to: i32) -> Value {
     wave(
         0,
         1,
         1,
         enemy(
             10,
-            json!({ "type": "hold", "at": { "x": x * PX, "y": 2000 * PX } }),
+            json!({ "type": "hold", "at": { "x": to * PX, "y": 2000 * PX } }),
             json!([]),
         ),
         x * PX,
         2000 * PX,
     )
+}
+
+/// A regular enemy that holds where it spawns, (`x`, 2,000) px.
+fn held(x: i32) -> Value {
+    held_to(x, x)
 }
 
 fn spot(e: &Engine, id: u32) -> (i32, i32) {
@@ -68,7 +73,7 @@ fn relocated(e: &Engine) -> Vec<EntityId> {
 
 #[test]
 fn an_enemy_801_px_behind_moves_400_px_to_the_other_side() {
-    let mut e = engine(&stage_at(2000, vec![held(2801)], vec![], None));
+    let mut e = engine(&stage_at(2000, vec![held_to(2801, 1600)], vec![], None));
     e.step(idle());
     let id = e
         .snapshot()
@@ -161,7 +166,7 @@ fn an_elite_the_boss_a_companion_and_an_enemy_in_a_wind_up_stay() {
 
 #[test]
 fn at_most_16_move_a_tick_the_lowest_ids_first() {
-    let waves: Vec<Value> = (0..20).map(|_| held(2801)).collect();
+    let waves: Vec<Value> = (0..20).map(|_| held_to(3000, 1600)).collect();
     let mut e = engine(&stage_at(2000, waves, vec![], None));
     e.step(idle());
     let first = relocated(&e);
@@ -174,7 +179,7 @@ fn at_most_16_move_a_tick_the_lowest_ids_first() {
 
 #[test]
 fn a_relocation_near_the_map_edge_lands_on_the_map() {
-    let mut e = engine(&stage_at(100, vec![held(901)], vec![], None));
+    let mut e = engine(&stage_at(100, vec![held_to(901, 0)], vec![], None));
     e.step(idle());
     assert_eq!(spot(&e, 1), (0, 2000 * PX));
 }

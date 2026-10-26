@@ -12,6 +12,7 @@
 //! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
 //! | `spawn_waves` | the waves that are due spawn enemies |
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
+//! | `leash` | a regular enemy left more than `LEASH_DISTANCE` behind moves to the ring opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
@@ -105,6 +106,7 @@ mod hash_layout_tests;
 mod heal;
 mod hit_boxes;
 mod horde;
+mod leash;
 mod levels;
 mod loadout;
 mod orbit;
@@ -157,6 +159,13 @@ pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
 
 pub(crate) const MAX_ENEMIES_ALIVE: u32 = 500;
+/// A regular enemy farther than this from the main character is moved by the leash (EC2, DS80):
+/// twice the wave spawn ring of 400 px. A placeholder; CS1b-3 moves it into `rules.json`.
+pub(crate) const LEASH_DISTANCE: Fx = Fx::px(800);
+/// Where the leash lands an enemy: this far from the main character, opposite where it was.
+pub(crate) const LEASH_RING: Fx = Fx::px(400);
+/// The most enemies the leash moves in a tick.
+pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 /// Zones alive at once (core Z1, a placeholder cap pending ADR-058); a zone placed over it is
 /// dropped, as an orb over `MAX_ORBS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;

@@ -5,7 +5,7 @@
 
 use super::{
     World, agents, attacks, boss, collide, count, dash, decide_outcome, entity, expertise, horde,
-    loadout, move_orbs, open_offers, orbit, player, push, runes, skill, spawn_waves, zones,
+    leash, loadout, move_orbs, open_offers, orbit, player, push, runes, skill, spawn_waves, zones,
 };
 use crate::engine::{Load, Outcome, State};
 use crate::event::DomainEvent;
@@ -81,6 +81,11 @@ pub(super) mod steps {
     #[inline(never)]
     pub(super) fn spawn_elite(c: &mut Ctx) {
         horde::spawn_elite(c.world, c.s, c.events);
+    }
+
+    #[inline(never)]
+    pub(super) fn leash(c: &mut Ctx) {
+        c.load.relocated = leash::relocate(c.world, c.s, c.events);
     }
 
     #[inline(never)]
@@ -165,14 +170,11 @@ pub(super) mod steps {
     #[inline(never)]
     pub(super) fn run_attacks(c: &mut Ctx) {
         let (tasks, emitter_steps) = attacks::run(c.world, c.s);
-        *c.load = Load {
-            enemies: count(&c.s.enemies),
-            tasks,
-            zones: count(&c.s.zones),
-            orbs: count(&c.s.orbs),
-            emitter_steps,
-            ..Load::default()
-        };
+        c.load.enemies = count(&c.s.enemies);
+        c.load.tasks = tasks;
+        c.load.zones = count(&c.s.zones);
+        c.load.orbs = count(&c.s.orbs);
+        c.load.emitter_steps = emitter_steps;
     }
 
     #[inline(never)]
@@ -222,6 +224,7 @@ pub(super) const TICK: &[(&str, Step)] = steps![
     regen,
     spawn_waves,
     spawn_elite,
+    leash,
     statuses_and_aggro,
     runes_tick,
     advance_runs,
