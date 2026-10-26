@@ -103,6 +103,36 @@ class Check(unittest.TestCase):
         self.assertIn("riscv", errors[0])
 
 
+class OnlyBenches(unittest.TestCase):
+    """`--bench <name>` (BCI1): a shard of the bench job counts one target and checks only its budget."""
+
+    TWO = BUDGETS + "[hit_tick]\narm64 = 9_000_000\nx86_64 = 9_000_000\n"
+
+    def check(self, text, only):
+        return b.check("arm64", b.counts(text), b.tomllib.loads(self.TWO), only)
+
+    def test_a_missing_bench_outside_the_filter_is_not_an_error(self):
+        rows, errors = self.check(output(), ["worst_tick"])
+        self.assertEqual(errors, [])
+        self.assertEqual(rows, [("worst_tick", 12_232_020, 12_400_000)])
+
+    def test_a_missing_bench_inside_the_filter_fails(self):
+        text = block("hit_tick::hit_group::hit_tick", 1)
+        _, errors = self.check(text, ["worst_tick"])
+        self.assertEqual(len(errors), 1)
+        self.assertIn("missing", errors[0])
+
+    def test_no_filter_checks_every_budget(self):
+        _, errors = self.check(output(), None)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("hit_tick", errors[0])
+
+    def test_a_filter_name_that_is_not_budgeted_fails(self):
+        _, errors = self.check(output(), ["nope"])
+        self.assertEqual(len(errors), 1)
+        self.assertIn("nope", errors[0])
+
+
 class Cli(unittest.TestCase):
     def run_cli(self, arch, worst, summary=True, extra=()):
         with tempfile.TemporaryDirectory() as d:

@@ -406,9 +406,43 @@ jobs:
           path: fuzz/artifacts
           if-no-files-found: ignore
 
-  bench:
-    name: worst-case tick on ${{ matrix.arch }}
+  # The benches are the keys of benches/budgets.toml, one bench target each: a rename or a new
+  # bench edits the budgets file and the target, not this workflow. The `bench` job runs one
+  # shard per target and architecture.
+  bench-list:
+    name: bench targets
     needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      names: ${{ steps.list.outputs.names }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: List the benches
+        id: list
+        run: |
+          set -eu
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import re
+          import tomllib
+          with open("benches/budgets.toml", "rb") as f:
+              names = list(tomllib.load(f))
+          # A name is a bench target, a cache key, an artifact name and a `--bench` argument.
+          bad = [n for n in names if not re.fullmatch(r"[a-z_][a-z0-9_]*", n)]
+          if bad:
+              raise SystemExit(f"benches/budgets.toml: not a bench target name: {bad}")
+          print("names=" + json.dumps(names))
+          PY
+
+  bench:
+    name: "worst-case tick on ${{ matrix.arch }}: ${{ matrix.bench }}"
+    needs: [changes, bench-list]
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -424,13 +458,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        arch: [x86_64, arm64]
+        bench: ${{ fromJSON(needs.bench-list.outputs.names) }}
         include:
           - arch: x86_64
             runner: ubuntu-latest
-            debug: true
           - arch: arm64
             runner: ubuntu-24.04-arm
-            debug: true
     steps:
       - uses: actions/checkout@v7
         with:
@@ -448,31 +482,42 @@ jobs:
       # PR's crate for the base's (same name, same path in the workspace), finds it newer than the
       # PR's sources and counts the base twice. iai-callgrind keeps its baselines in one home that
       # both share, so the PR is compared with the base's, on this runner and this architecture.
+      # The head's target directory is the one rust-cache keeps (the base's is built cold when
+      # main's counts of it are not cached).
       - run: |
           {
             echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target"
             echo "IAI_CALLGRIND_HOME=$RUNNER_TEMP/iai"
+            echo "BENCHES=--bench $BENCH"
           } >> "$GITHUB_ENV"
-      # The benches are the keys of benches/budgets.toml, one bench target each: a rename or a new
-      # bench edits the budgets file and the target, not this workflow.
-      - name: List the benches
-        id: benches
+        env:
+          BENCH: ${{ matrix.bench }}
+      # What a count depends on besides the commit. main's push run saves each shard's counts under
+      # a key that holds it, and a PR restores only an exact match, so a toolchain, glibc or
+      # valgrind update is a cache miss and the PR counts its base itself.
+      - name: Fingerprint the counting environment
+        id: fp
         run: |
           set -eu
-          python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import tomllib
-          with open("benches/budgets.toml", "rb") as f:
-              names = list(tomllib.load(f))
-          print("names=" + " ".join(names))
-          print("args=" + " ".join(f"--bench {n}" for n in names))
-          PY
-      - name: Count the base commit
+          fp=$({
+            rustc -vV
+            valgrind --version
+            ldd --version | sed -n 1p
+            echo "$IAI_CALLGRIND_RUNNER_VERSION"
+            echo "$CARGO_PROFILE_BENCH_CODEGEN_UNITS"
+            uname -m
+          } | sha256sum | cut -c1-16)
+          echo "value=$fp" >> "$GITHUB_OUTPUT"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bench
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Check the base commit
         id: base
         if: github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-          NAMES: ${{ steps.benches.outputs.names }}
-          BENCHES: ${{ steps.benches.outputs.args }}
+          NAMES: ${{ matrix.bench }}
         run: |
           set -eu
           for name in $NAMES; do
@@ -497,25 +542,59 @@ jobs:
             echo "compare=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "compare=true" >> "$GITHUB_OUTPUT"
+      # The base commit's counts from main's push run, if it saved them for this toolchain: the
+      # exact commit and fingerprint, never a near match (no restore-keys), which would be another
+      # commit's count.
+      - name: Restore the base counts
+        id: restore
+        if: steps.base.outputs.compare == 'true'
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}/iai
+          key: bench-base-v1-${{ matrix.arch }}-${{ matrix.bench }}-${{ github.event.pull_request.base.sha }}-${{ steps.fp.outputs.value }}
+      - name: Count the base commit
+        if: steps.base.outputs.compare == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HIT: ${{ steps.restore.outputs.cache-hit }}
+          KEY: bench-base-v1-${{ matrix.arch }}-${{ matrix.bench }}-${{ github.event.pull_request.base.sha }}-${{ steps.fp.outputs.value }}
+        run: |
+          set -eu
+          if [ "$HIT" = true ]; then
+            echo "base counts restored from main's run (cache key $KEY)"
+            exit 0
+          fi
+          echo "base counted here: no cache for $KEY"
           git worktree add "$RUNNER_TEMP/base" "$BASE"
           # shellcheck disable=SC2086
-          (cd "$RUNNER_TEMP/base" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-base"             cargo bench $BENCHES -- --save-baseline=main)
-          echo "compare=true" >> "$GITHUB_OUTPUT"
+          (cd "$RUNNER_TEMP/base" && CARGO_TARGET_DIR="$RUNNER_TEMP/target-base" cargo bench $BENCHES -- --save-baseline=main)
       # The counts. Comparing with the base commit only prints the change; whether a rise fails is
       # decided by `Check for a rise` below, so that a covered rise does not stop the job (ADR-SIM-8).
       - name: Count the benches
         id: count
         env:
           COMPARE: ${{ steps.base.outputs.compare }}
-          BENCHES: ${{ steps.benches.outputs.args }}
+          EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
           limits=""
           if [ "$COMPARE" = true ]; then
             limits="--baseline=main"
+          elif [ "$EVENT" = push ]; then
+            # main's own count, kept for the PRs whose base this commit becomes.
+            limits="--save-baseline=main"
           fi
           # shellcheck disable=SC2086
           cargo bench $BENCHES -- $limits | tee "$RUNNER_TEMP/bench.txt"
+      # Only the push run saves (not the weekly schedule): a PR that starts from this commit
+      # restores these counts instead of building and counting it again.
+      - name: Save the counts for the PRs on this commit
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/iai
+          key: bench-base-v1-${{ matrix.arch }}-${{ matrix.bench }}-${{ github.sha }}-${{ steps.fp.outputs.value }}
       # The per-function profile of every case, base against head, on every run (ADR-SIM-8): what a
       # rise is made of, and what to open when a budget is near.
       - name: Profile the benches
@@ -523,15 +602,16 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
         run: python3 .github/scripts/callgrind_diff.py --arch "$ARCH" --home "$IAI_CALLGRIND_HOME" --out "$RUNNER_TEMP/profile"
+      # One artifact per shard; `bench profile` merges them into bench-profile-<arch>.
       - name: Upload the profile
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: bench-profile-${{ matrix.arch }}
+          name: bench-shard-${{ matrix.arch }}-${{ matrix.bench }}
           path: |
             ${{ runner.temp }}/profile
             ${{ runner.temp }}/iai/**/callgrind.*.out*
-          retention-days: 30
+          retention-days: 1
           if-no-files-found: warn
       # The absolute ceiling (benches/budgets.toml, ADR-SIM-7): a count over the budget for this
       # architecture fails the job, whether or not the base commit was compared (ADR-SIM-8 point 1).
@@ -539,7 +619,8 @@ jobs:
         if: ${{ !cancelled() && steps.count.outcome == 'success' }}
         env:
           ARCH: ${{ matrix.arch }}
-        run: python3 .github/scripts/bench_budget.py --arch "$ARCH" --bench-output "$RUNNER_TEMP/bench.txt"
+          BENCH: ${{ matrix.bench }}
+        run: python3 .github/scripts/bench_budget.py --arch "$ARCH" --bench "$BENCH" --bench-output "$RUNNER_TEMP/bench.txt"
       # A case that rose over BENCH_ALARM_PCT fails unless a new entry of benches/accepted.toml,
       # merged by Kade, names this PR and covers the count (ADR-SIM-8). The base commit's ledger
       # tells new entries from old ones.
@@ -555,6 +636,28 @@ jobs:
           python3 .github/scripts/bench_alarm.py --arch "$ARCH" --bench-output "$RUNNER_TEMP/bench.txt" \
             --limit-pct "$BENCH_ALARM_PCT" --accepted benches/accepted.toml \
             --accepted-base "$RUNNER_TEMP/accepted-base.toml" --pr "$PR"
+
+  # The profile of every shard of one architecture, as one artifact: the name and the contents
+  # (per case `*.diff.txt`, `*.diff-inclusive.txt` and the callgrind files, one directory per
+  # shard) that ADR-SIM-8 point 5, bench_alarm.py and callgrind_diff.py name.
+  bench-profile:
+    name: bench profile on ${{ matrix.arch }}
+    needs: [changes, bench]
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    strategy:
+      matrix:
+        arch: [x86_64, arm64]
+    steps:
+      - uses: actions/upload-artifact/merge@v7
+        with:
+          name: bench-profile-${{ matrix.arch }}
+          pattern: bench-shard-${{ matrix.arch }}-*
+          separate-directories: true
+          delete-merged: true
+          retention-days: 30
 
   # RustSec advisories, licences and sources of the whole graph (deny.toml), for this workspace and
   # fuzz/. Runs on the weekly schedule too, because advisories change without a PR.
@@ -584,7 +687,7 @@ jobs:
   # `what changed` says no; every other skipped, failed or cancelled job fails this one.
   checks:
     name: rust checks
-    needs: [changes, fuzz-changes, lint, bless, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench, cargo-deny]
+    needs: [changes, fuzz-changes, lint, bless, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench-list, bench, bench-profile, cargo-deny]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
