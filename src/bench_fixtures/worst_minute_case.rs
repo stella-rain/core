@@ -32,7 +32,7 @@ pub const MINUTE_START: u32 = 7_300;
 
 /// The heaviest tick of the minute by `Load` (`worst_minute_window` finds it; `tests/worst_minute.rs`
 /// pins that it still does), as ticks played before it.
-pub const PEAK_TICK: u32 = 10_800;
+pub const PEAK_TICK: u32 = 10_156;
 
 /// The tick the mid-boss arrives at, inside the minute.
 const BOSS_TICK: u32 = 9_000;
