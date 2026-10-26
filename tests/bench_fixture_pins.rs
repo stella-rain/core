@@ -53,6 +53,8 @@ enum Kind {
 struct Spec {
     id: &'static str,
     bench: &'static str,
+    /// The mode the case's content is built for; part of the stage digest.
+    mode: &'static str,
     kind: Kind,
 }
 
@@ -62,31 +64,37 @@ fn specs() -> [Spec; 6] {
         Spec {
             id: "worst_tick",
             bench: "worst_tick",
+            mode: "time_limit",
             kind: Kind::Tick(bench_fixtures::worst_tick, worst_case::stage),
         },
         Spec {
             id: "hit_tick",
             bench: "hit_tick",
+            mode: "time_limit",
             kind: Kind::Tick(bench_fixtures::hit_tick, hit_case::stage),
         },
         Spec {
             id: "hit_tick_spread",
             bench: "hit_tick",
+            mode: "time_limit",
             kind: Kind::Tick(bench_fixtures::hit_tick_spread, hit_case::spread_stage),
         },
         Spec {
             id: "time_limit_tick",
             bench: "time_limit_tick",
+            mode: "time_limit",
             kind: Kind::Tick(bench_fixtures::time_limit_tick, time_limit_case::stage),
         },
         Spec {
             id: "worst_minute",
             bench: "worst_minute",
+            mode: "time_limit",
             kind: Kind::Run(bench_fixtures::worst_minute, MINUTE_TICKS),
         },
         Spec {
             id: "worst_minute_peak",
             bench: "worst_minute_peak",
+            mode: "time_limit",
             kind: Kind::Run(bench_fixtures::worst_minute_peak, 1),
         },
     ]
@@ -139,8 +147,8 @@ fn digest(parts: &[&[u8]]) -> String {
         })
 }
 
-fn content_hash(engine: &Engine) -> [u8; 32] {
-    content_sha256_with("time_limit", engine.content()).expect("the time_limit content hashes")
+fn content_hash(engine: &Engine, mode: &str) -> [u8; 32] {
+    content_sha256_with(mode, engine.content()).expect("the mode's content hashes")
 }
 
 /// The digest of a minute case's input: the start tick, the tick count, the option an open offer
@@ -178,7 +186,7 @@ fn measure(spec: &Spec) -> Pins {
             stage = digest(&[
                 b"stella-rain/bench-stage/v1\n",
                 &stage_json,
-                &content_hash(&engine),
+                &content_hash(&engine, spec.mode),
             ]);
             let input_json = serde_json::to_vec(&tick_input).expect("the input serializes");
             input = digest(&[b"stella-rain/bench-input/v2\n", &input_json]);
@@ -188,7 +196,10 @@ fn measure(spec: &Spec) -> Pins {
         Kind::Run(run, ticks) => {
             let mut run = run();
             before = hash_hex(run.engine.state_hash());
-            stage = digest(&[b"stella-rain/bench-stage/v1\n", &content_hash(&run.engine)]);
+            stage = digest(&[
+                b"stella-rain/bench-stage/v1\n",
+                &content_hash(&run.engine, spec.mode),
+            ]);
             input = minute_input_digest(run.engine.tick(), *ticks, input_at);
             run.play(*ticks);
             after = hash_hex(run.engine.state_hash());
@@ -290,9 +301,8 @@ fn the_worst_minute_peak_tick_is_the_benches_case() {
     check("worst_minute_peak");
 }
 
-#[test]
-fn the_pin_file_holds_exactly_the_benches_cases() {
-    let file = pinned_file();
+/// Asserts that `file` holds exactly the benches' cases, each with a bench of `budgets.toml`.
+fn assert_case_set(file: &toml::Table) {
     let mut in_file: Vec<&str> = file.keys().map(String::as_str).collect();
     let mut in_code: Vec<&str> = specs().iter().map(|spec| spec.id).collect();
     in_file.sort_unstable();
@@ -313,6 +323,16 @@ fn the_pin_file_holds_exactly_the_benches_cases() {
     }
 }
 
+/// In update mode the writer test checks the file it wrote (the embedded `PINS` is the file
+/// before the run, and tests of one binary run in parallel).
+#[test]
+fn the_pin_file_holds_exactly_the_benches_cases() {
+    if updating() {
+        return;
+    }
+    assert_case_set(&pinned_file());
+}
+
 /// `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins` writes the whole file, in the order of
 /// `benches/`, as `UPDATE_CORPUS` writes the corpus.
 #[test]
@@ -325,7 +345,8 @@ fn bench_pins_are_written_on_request() {
         out.push('\n');
         out.push_str(&measure(&spec).table(spec.id));
     }
-    std::fs::write(PINS_PATH, out).expect("tests/bench_pins.toml is writable");
+    std::fs::write(PINS_PATH, &out).expect("tests/bench_pins.toml is writable");
+    assert_case_set(&out.parse().expect("the written file is TOML"));
 }
 
 #[test]
