@@ -41,7 +41,8 @@ const HASTE: &str = "haste";
 pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 
 /// 500 enemies (`MAX_ENEMIES_ALIVE`) stand in one place: four shooters, then 496 more in five
-/// streams of waves that spawn one enemy a tick each, 32 of them elites (`MAX_ELITES_ALIVE`) (core BR1b: nothing here fires a projectile).
+/// streams of waves that spawn one enemy a tick each, 32 of them elites (`MAX_ELITES_ALIVE`)
+/// (core BR1b: nothing here fires a projectile).
 ///
 /// The push-apart (ADR-058) parts a fresh stack on every tick: on each tick it does not start
 /// its attack, every enemy orders itself back to the point in one tick (`move_to`, which a
@@ -134,7 +135,7 @@ pub fn stage() -> Stage {
         NEAR_Y,
     )];
     // The shooters arrive first, so that their runs take their tokens and attack tasks before
-    // the crowd's swings fill the 256; then 496 enemies in five waves.
+    // the crowd's swings fill the 256; then 496 enemies in five streams of waves.
     waves.push(common::wave(WAVES_AT, SHOOTERS, 1, shooter, x, y));
     // 32 of the crowd are elites (`MAX_ELITES_ALIVE`): the crowd's own enemy with an elite's
     // mark, in three kinds, so that their rules and every other cap are as they were. Each of
