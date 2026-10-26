@@ -50,6 +50,16 @@ pub(super) fn push_radius(hurt: Fx) -> i32 {
     hurt.0.max(LEAST_RADIUS)
 }
 
+/// The integer square root of a non-negative `d2`, rounded down. A 32-bit root is cheaper and
+/// `u32::isqrt(v) == u64::isqrt(v)` for every `v <= u32::MAX`; above that the 64-bit root is
+/// taken, so radii from an untrusted stage of any size stay exact (ADR-SVC-1).
+fn root(d2: i64) -> i64 {
+    match u32::try_from(d2) {
+        Ok(v) => i64::from(v.isqrt()),
+        Err(_) => i64::try_from(d2.unsigned_abs().isqrt()).unwrap_or(i64::MAX),
+    }
+}
+
 /// The push of `a` away from `b`, which overlaps it: half the overlap along the line from `b`'s
 /// centre to `a`'s. The push of `b` away from `a` is exactly its opposite, because integer
 /// division rounds toward zero.
@@ -127,7 +137,7 @@ pub(super) fn offsets_into(bodies: &[Body], grid: &mut Grid, out: &mut Vec<(i32,
         let (mut sx, mut sy, mut overlap) = (0i64, 0i64, 0i64);
         for &(d2, _, j) in &counted[..n] {
             let b = &bodies[j as usize];
-            let dist = i64::try_from(d2.unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+            let dist = root(d2);
             overlap += i64::from(a.radius) + i64::from(b.radius) - dist;
             let (px, py) = push(a, b, dist);
             sx += px;
@@ -136,7 +146,7 @@ pub(super) fn offsets_into(bodies: &[Body], grid: &mut Grid, out: &mut Vec<(i32,
         let len2 = sx * sx + sy * sy;
         if len2 > STEP * STEP {
             // The length rounded up, so that the clamped sum is never longer than the step.
-            let floor = i64::try_from(len2.unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+            let floor = root(len2);
             let len = floor + i64::from(floor * floor < len2);
             (sx, sy) = (sx * STEP / len, sy * STEP / len);
         }
@@ -459,7 +469,29 @@ mod tests {
             })
     }
 
+    #[test]
+    fn root_equals_the_u64_root() {
+        for v in [
+            0,
+            1,
+            2,
+            3,
+            i64::from(u32::MAX) - 1,
+            i64::from(u32::MAX),
+            i64::from(u32::MAX) + 1,
+            (1 << 26) - 1,
+            i64::MAX,
+        ] {
+            assert_eq!(super::root(v), v.unsigned_abs().isqrt() as i64, "{v}");
+        }
+    }
+
     proptest! {
+        #[test]
+        fn root_equals_the_u64_root_everywhere(v in 0..=i64::MAX) {
+            prop_assert_eq!(super::root(v), v.unsigned_abs().isqrt() as i64);
+        }
+
         #[test]
         fn the_pass_equals_the_reference(bodies in reference_crowd()) {
             prop_assert_eq!(super::offsets(&bodies), reference_offsets(&bodies));
