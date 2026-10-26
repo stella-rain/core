@@ -25,6 +25,8 @@ pub(crate) struct Scratch {
     pub(super) hit_lists: Vec<Vec<(EntityId, u32)>>,
     /// Whether each orb of the tick was used up.
     pub(super) consumed: Vec<bool>,
+    /// Spawns the caps refused so far in the tick; `step` hands it to `Load` and empties it.
+    pub(super) refused_spawns: u32,
 }
 
 impl Clone for Scratch {

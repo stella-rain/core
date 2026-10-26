@@ -507,6 +507,7 @@ pub(crate) fn step(
     for (_, run) in schedule::TICK {
         run(&mut ctx);
     }
+    load.refused_spawns = std::mem::take(&mut s.scratch.refused_spawns);
     debug_assert!(
         entity::enemies_in_id_order(s),
         "enemies out of entity-ID order"
@@ -633,6 +634,7 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
             || s.enemies.iter().filter(|e| e.elite.is_some()).count()
                 < usize::from(stage.elite_cap()));
     if !room {
+        s.scratch.refused_spawns = s.scratch.refused_spawns.saturating_add(1);
         return false;
     }
     let id = EntityId(s.next_id);
