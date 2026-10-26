@@ -10,9 +10,10 @@ use stella_rain_core::snapshot::{EntityKind, OfferOption};
 /// The trial mode's length.
 pub const TRIAL_LENGTH: u32 = 5400;
 
-/// The seed of the `stage_skill` run case: the first seed under R1's streams where the run kills
-/// an elite whose rare star offers the black hole, takes it, and uses it twice (checked 1 to 30).
-pub const STAGE_SKILL_SEED: u64 = 11;
+/// The seed of the `stage_skill` run case: a seed where the run kills an elite whose rare star
+/// offers the black hole, takes it, and uses it twice and nothing else. The first one from 11 up
+/// under the ranged tokens (RA1); 11 took the hex as well once the tokens moved the run.
+pub const STAGE_SKILL_SEED: u64 = 15;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
 /// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
