@@ -238,6 +238,19 @@ fn the_caps_are_held_tick_after_tick() {
     assert_eq!(fired.len(), 4, "on-hit runes that fired: {fired:?}");
 }
 
+/// Whether a JSON value holds a zone spawn of shape `line` anywhere inside it.
+fn has_line_zone(v: &serde_json::Value) -> bool {
+    match v {
+        serde_json::Value::Object(o) => {
+            (o.get("type").and_then(|t| t.as_str()) == Some("zone")
+                && o.get("shape").and_then(|s| s["type"].as_str()) == Some("line"))
+                || o.values().any(has_line_zone)
+        }
+        serde_json::Value::Array(a) => a.iter().any(has_line_zone),
+        _ => false,
+    }
+}
+
 /// The shooters' attacks as the stage writes them: for each wave of ranged enemies, how many
 /// there are and whether their attack spawns a zone of shape `line` (RA1a, DS83).
 fn shooter_waves() -> Vec<(u64, bool)> {
@@ -248,10 +261,10 @@ fn shooter_waves() -> Vec<(u64, bool)> {
         .iter()
         .filter(|w| w["enemy"]["rules"].to_string().contains("\"ranged\":true"))
         .map(|w| {
-            let rules = w["enemy"]["rules"].to_string();
-            let line = rules.contains("\"shape\":{\"type\":\"line\"")
-                || rules.contains("\"shape\":{\"length\"");
-            (w["count"].as_u64().unwrap(), line)
+            (
+                w["count"].as_u64().unwrap(),
+                has_line_zone(&w["enemy"]["rules"]),
+            )
         })
         .collect()
 }
