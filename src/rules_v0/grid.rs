@@ -1,7 +1,7 @@
 //! A uniform grid over the enemies, so that a friendly hit box is checked only against the
 //! enemies near it rather than all of them (core#62). It is rebuilt in each tick's `collide`,
 //! where the enemies do not move. Hit boxes (ADR-055) ask it for every enemy within their reach
-//! (`within`), and the push-apart (ADR-058) for the enemies around one (`neighbours`).
+//! (`within`), and the push-apart (ADR-058) walks the enemies around one (`each_neighbour`).
 
 use crate::fixed::Point;
 
@@ -100,14 +100,15 @@ impl Grid {
         (row * self.cols + col) as usize
     }
 
-    /// Up to `most` circles other than `me`, into `out` (cleared first): those of `me`'s own cell,
-    /// then of the 8 cells around it (west, east, north, south, north-west, south-east,
-    /// north-east, south-west), each cell in ascending index order. Reading the own cell first
-    /// and then opposite sides in turn keeps a full list from leaning to one side.
+    /// Calls `f` with up to `most` circles other than `me`: those of `me`'s own cell, then of the
+    /// 8 cells around it (west, east, north, south, north-west, south-east, north-east,
+    /// south-west), each cell in ascending index order. Reading the own cell first and then
+    /// opposite sides in turn keeps a full list from leaning to one side. It stops at the
+    /// first circle past `most`.
     ///
     /// In a grid built for probes as large as its largest circle, every circle that overlaps
     /// `me`'s has its centre in one of those cells.
-    pub(super) fn neighbours(&self, me: usize, most: usize, out: &mut Vec<u32>) {
+    pub(super) fn each_neighbour(&self, me: usize, most: usize, mut f: impl FnMut(u32)) {
         const AROUND: [(i64, i64); 9] = [
             (0, 0),
             (-1, 0),
@@ -119,9 +120,9 @@ impl Grid {
             (1, -1),
             (-1, 1),
         ];
-        out.clear();
+        let mut read = 0;
         let (col, row) = self.col_row(self.circles[me].0);
-        for (dc, dr) in AROUND {
+        for &(dc, dr) in &AROUND {
             let (c, r) = (col + dc, row + dr);
             if !(0..self.cols).contains(&c) || !(0..self.rows).contains(&r) {
                 continue;
@@ -132,10 +133,11 @@ impl Grid {
                 if i as usize == me {
                     continue;
                 }
-                if out.len() == most {
+                if read == most {
                     return;
                 }
-                out.push(i);
+                read += 1;
+                f(i);
             }
         }
     }
@@ -253,6 +255,68 @@ mod tests {
                 let mut found = Vec::new();
                 grid.within(at, reach, &mut bits, &mut found);
                 assert_eq!(found, scan_all(&shapes, at, reach), "seed {seed}");
+            }
+        }
+    }
+
+    /// The walk as it was when it filled a list: the reference `each_neighbour` must match.
+    fn neighbours(grid: &Grid, me: usize, most: usize) -> Vec<u32> {
+        const AROUND: [(i64, i64); 9] = [
+            (0, 0),
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
+            (-1, -1),
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+        ];
+        let mut out = Vec::new();
+        let (col, row) = grid.col_row(grid.circles[me].0);
+        for (dc, dr) in AROUND {
+            let (c, r) = (col + dc, row + dr);
+            if !(0..grid.cols).contains(&c) || !(0..grid.rows).contains(&r) {
+                continue;
+            }
+            let cell = (r * grid.cols + c) as usize;
+            let (from, to) = (grid.start[cell] as usize, grid.start[cell + 1] as usize);
+            for &i in &grid.members[from..to] {
+                if i as usize == me {
+                    continue;
+                }
+                if out.len() == most {
+                    return out;
+                }
+                out.push(i);
+            }
+        }
+        out
+    }
+
+    /// `each_neighbour` names the same indices in the same order as the list walk, on the
+    /// layouts of the query test, for caps from none to unlimited.
+    #[test]
+    fn each_neighbour_names_what_the_list_walk_named() {
+        let mut rng = Lcg(7);
+        for seed in 0..40 {
+            let (span, kind) = [(40_000, 0), (1_000_000, 1), (200_000, 2)][seed % 3];
+            let shapes: Vec<(Point, i32)> = (0..150)
+                .map(|_| {
+                    let (x, y) = match kind {
+                        2 => (rng.below(25) * 8_192, rng.below(25) * 8_192),
+                        _ => (rng.below(span), rng.below(span)),
+                    };
+                    (Point { x: Fx(x), y: Fx(y) }, 1_000 + rng.below(3_000))
+                })
+                .collect();
+            let grid = Grid::new(shapes.clone(), 4_000);
+            for me in 0..shapes.len() {
+                for most in [0, 1, 32, usize::MAX] {
+                    let mut seen = Vec::new();
+                    grid.each_neighbour(me, most, |i| seen.push(i));
+                    assert_eq!(seen, neighbours(&grid, me, most), "seed {seed} me {me}");
+                }
             }
         }
     }

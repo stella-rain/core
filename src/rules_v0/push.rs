@@ -80,30 +80,24 @@ fn push(a: &Body, b: &Body, dist: i64) -> (i64, i64) {
 /// order). Of those that overlap it, the `NEIGHBOURS` nearest are counted, ties to the lower ID.
 #[cfg(test)]
 pub(super) fn offsets(bodies: &[Body]) -> Vec<(i32, i32, bool)> {
-    let (mut grid, mut near, mut out) = (Grid::default(), Vec::new(), Vec::new());
-    offsets_into(bodies, &mut grid, &mut near, &mut out);
+    let (mut grid, mut out) = (Grid::default(), Vec::new());
+    offsets_into(bodies, &mut grid, &mut out);
     out
 }
 
-/// As `offsets`, into `out` (cleared first), building the grid in `grid` and reading the
-/// candidates into `near`: the buffers keep their memory from tick to tick.
-pub(super) fn offsets_into(
-    bodies: &[Body],
-    grid: &mut Grid,
-    near: &mut Vec<u32>,
-    out: &mut Vec<(i32, i32, bool)>,
-) {
+/// As `offsets`, into `out` (cleared first), building the grid in `grid`: the buffers keep their
+/// memory from tick to tick. Each candidate is read as the grid names it, with no list between.
+pub(super) fn offsets_into(bodies: &[Body], grid: &mut Grid, out: &mut Vec<(i32, i32, bool)>) {
     let largest = bodies.iter().map(|b| b.radius).max().unwrap_or(0);
     // Cells as wide as two of the largest radius: whatever overlaps a body is in the 9 cells
     // round it.
     grid.rebuild(bodies.iter().map(|b| (b.at, b.radius)), largest);
     out.clear();
     for (i, a) in bodies.iter().enumerate() {
-        grid.neighbours(i, CANDIDATES, near);
         // The nearest overlapping candidates so far, as (distance squared, ID, index), ascending.
         let mut counted = [(0i64, 0u32, 0u32); NEIGHBOURS];
         let mut n = 0;
-        for &j in near.iter() {
+        grid.each_neighbour(i, CANDIDATES, |j| {
             let b = &bodies[j as usize];
             let dx = i64::from(a.at.x.0) - i64::from(b.at.x.0);
             let dy = i64::from(a.at.y.0) - i64::from(b.at.y.0);
@@ -111,7 +105,7 @@ pub(super) fn offsets_into(
             let key = (dx * dx + dy * dy, b.id, j);
             // Touching is not overlapping.
             if key.0 >= reach * reach || (n == NEIGHBOURS && key >= counted[n - 1]) {
-                continue;
+                return;
             }
             let mut at = if n < NEIGHBOURS { n } else { n - 1 };
             while at > 0 && counted[at - 1] > key {
@@ -120,7 +114,7 @@ pub(super) fn offsets_into(
             }
             counted[at] = key;
             n = (n + 1).min(NEIGHBOURS);
-        }
+        });
         let (mut sx, mut sy, mut overlap) = (0i64, 0i64, 0i64);
         for &(d2, _, j) in &counted[..n] {
             let b = &bodies[j as usize];
@@ -159,7 +153,6 @@ pub(super) fn apply(stage: &World, s: &mut State) {
         grid,
         bodies,
         offsets,
-        near,
         ..
     } = &mut scratch;
     bodies.clear();
@@ -168,7 +161,7 @@ pub(super) fn apply(stage: &World, s: &mut State) {
         at: e.at,
         radius: push_radius(stage.defs.agent(e.def).radius),
     }));
-    offsets_into(bodies, grid, near, offsets);
+    offsets_into(bodies, grid, offsets);
     if stage.has_dash {
         // A dasher keeps to its line; it still pushed the others, above.
         dash::hold_dashers(stage, &s.runs, &s.enemies, offsets);

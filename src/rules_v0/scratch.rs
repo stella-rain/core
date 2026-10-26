@@ -14,8 +14,6 @@ pub(crate) struct Scratch {
     /// What the push-apart knows of each enemy, and the move it works out for it.
     pub(super) bodies: Vec<Body>,
     pub(super) offsets: Vec<(i32, i32, bool)>,
-    /// The candidates the grid names for one enemy.
-    pub(super) near: Vec<u32>,
     /// The hit boxes and zones active this tick, and the enemies one of them covers.
     pub(super) swings: Vec<Swing>,
     pub(super) found: Vec<usize>,
