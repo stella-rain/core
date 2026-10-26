@@ -216,10 +216,16 @@ def diff_lines(base, head, top):
 
 
 def find_cases(home):
-    """[(label, head file, base file or None)], label `<target>.<case>`, in sorted order."""
+    """[(label, head file, base file or None)], label `<target>.<case>`, in sorted order.
+
+    A push to main saves its run as the baseline, so a case may have only `.out.base@main`:
+    that file is then the head, with nothing to diff against."""
     found = []
     for dirpath, _, files in os.walk(home):
         heads = [f for f in files if f.startswith("callgrind.") and f.endswith(".out")]
+        heads += [f for f in files
+                  if f.startswith("callgrind.") and f.endswith(".out.base@main")
+                  and f[:-len(".base@main")] not in files]
         for head in heads:
             parts = os.path.relpath(dirpath, home).split(os.sep)
             if len(parts) < 3:
