@@ -5,8 +5,8 @@
 //! asserts an output, so it lives in `tests/`, not in the bench input: a change that moves a hash
 //! and touches `src/` is then not refused by the bench guard (core#360).
 //!
-//! `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins` rewrites the file; without it a mismatch
-//! fails and prints every computed value of the case, so a re-pin is one paste or one env run.
+//! `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins` rewrites the file (only the exact value
+//! `1` does, and CI refuses it); without it a mismatch fails and prints every computed value of the case, so a re-pin is one paste or one env run.
 //!
 //! The values are those of the benches' own case modules (built on `tests/common/`) when the
 //! fixtures were written: the fixtures must build the same engine, or the instruction counts move.
@@ -37,8 +37,8 @@ const HEADER: &str = "\
 #          for a minute case (`stella-rain/bench-input/v1`)
 # Hashes are strings: TOML integers are i64 and these u64 values overflow it.
 # A case is comparable when `before`, `stage` and `input` are equal; `after` is pinned only.
-# Written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins`; BS2d's bench job reads it from
-# base and head.
+# Written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins` (only the exact value `1`; CI
+# refuses it); BS2d's bench job reads it from base and head.
 ";
 
 /// What a case measures: one tick of a built engine, or some ticks of a run.
@@ -183,9 +183,16 @@ fn measure(spec: &Spec) -> Pins {
     }
 }
 
-/// Whether the pins are rewritten: today any value of the variable turns it on.
-fn update_mode(update: Option<&str>, _ci: bool) -> bool {
-    update.is_some()
+/// Whether the pins are rewritten: only the exact value `1` turns it on, and never in CI.
+fn update_mode(update: Option<&str>, ci: bool) -> bool {
+    if update != Some("1") {
+        return false;
+    }
+    assert!(
+        !ci,
+        "UPDATE_BENCH_PINS=1 is refused when CI is set: re-pin locally and commit the file"
+    );
+    true
 }
 
 #[expect(clippy::disallowed_methods, reason = "test knob")]
