@@ -104,7 +104,8 @@ impl Grid {
     /// 8 cells around it (west, east, north, south, north-west, south-east, north-east,
     /// south-west), each cell in ascending index order. Reading the own cell first and then
     /// opposite sides in turn keeps a full list from leaning to one side. It stops at the
-    /// first circle past `most`.
+    /// first circle past `most`. `f` is called for every circle read, and each one counts toward
+    /// `most` whatever `f` does with it, so skipping one inside `f` does not read another.
     ///
     /// In a grid built for probes as large as its largest circle, every circle that overlaps
     /// `me`'s has its centre in one of those cells.
