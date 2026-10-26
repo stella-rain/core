@@ -5,7 +5,7 @@
 
 use std::ops::Deref;
 
-use crate::attack::{AttackPhase, AttackRef, Emitter};
+use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
 use crate::behaviour::{Action, Agent, Movement};
 use crate::engine::{AgentKey, AgentSource};
 use crate::id::ContentId;
@@ -48,6 +48,47 @@ pub(crate) struct AttackDef {
     pub preset: Option<ContentId>,
     /// The program of each phase's `spawn`, in the order of `phases`.
     pub programs: Vec<ProgramIndex>,
+    /// The ranged-token pool a ranged start of this attack draws from (RA1, DS83).
+    pub pool: RangedPool,
+}
+
+/// The two pools of the ranged tokens (RA1, DS83): an attack that lays a line zone takes the
+/// line token, any other the zone tokens. Decided once, where the attack is compiled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum RangedPool {
+    Zone,
+    Line,
+}
+
+impl RangedPool {
+    /// Both pools, in `index` order.
+    pub const ALL: [RangedPool; 2] = [RangedPool::Zone, RangedPool::Line];
+
+    /// The pool's place in `ALL`, for per-pool arrays and the state hash.
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
+    /// The pool of an attack with these phases: `Line` if any phase spawns a zone of shape
+    /// `line` (also inside an orb's burst), else `Zone`.
+    pub fn of(phases: &[AttackPhase]) -> RangedPool {
+        fn lays_line(list: &[Emitter]) -> bool {
+            list.iter().any(|n| match n {
+                Emitter::Zone { shape, .. } => matches!(shape, ZoneShape::Line { .. }),
+                Emitter::Orb { burst, .. } => lays_line(burst),
+                Emitter::Repeat { body, .. }
+                | Emitter::Ring { body, .. }
+                | Emitter::Spread { body, .. }
+                | Emitter::Rotate { body, .. } => lays_line(body),
+                Emitter::Wait { .. } => false,
+            })
+        }
+        if phases.iter().any(|p| lays_line(&p.spawn)) {
+            RangedPool::Line
+        } else {
+            RangedPool::Zone
+        }
+    }
 }
 
 impl DefIndex {
@@ -61,6 +102,8 @@ impl DefIndex {
 pub(crate) struct AgentDef {
     pub kind: KindIndex,
     pub agent: Agent,
+    /// The ranged pool of each rule, by rule; empty when no rule is a `ranged` attack (RA1).
+    pub ranged_pools: Vec<Option<RangedPool>>,
 }
 
 /// Every agent definition of the run, by index. `keys` finds one by the `AgentKey` that names
@@ -84,6 +127,7 @@ impl AgentDefs {
         self.defs.push(AgentDef {
             kind: kinds.of(&agent.base),
             agent: agent.clone(),
+            ranged_pools: Vec::new(),
         });
         Ok(DefIndex(at))
     }
@@ -323,11 +367,37 @@ impl World {
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
+        world.resolve_ranged_pools();
         world.has_dash = world
             .attacks
             .iter()
             .any(|a| a.phases.iter().any(|p| p.dash.is_some()));
         Ok(world)
+    }
+
+    /// Sets each agent definition's `ranged_pools`, now that the attacks are compiled.
+    fn resolve_ranged_pools(&mut self) {
+        for i in 0..self.defs.defs.len() {
+            // An elite is never held to the tokens (the validator refuses `ranged` on one).
+            if self.defs.defs[i].agent.elite.is_some() {
+                continue;
+            }
+            let pools: Vec<Option<RangedPool>> = self.defs.defs[i]
+                .agent
+                .rules
+                .iter()
+                .map(|rule| match &rule.action {
+                    Action::Attack {
+                        attack,
+                        ranged: true,
+                    } => Some(self.attacks[usize::from(self.attack_index(attack).0)].pool),
+                    _ => None,
+                })
+                .collect();
+            if pools.iter().any(Option::is_some) {
+                self.defs.defs[i].ranged_pools = pools;
+            }
+        }
     }
 
     /// The main character's weapon: the file's definition, or the stage's inline one.

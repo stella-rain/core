@@ -95,7 +95,9 @@ mod attacks;
 mod boss;
 mod world;
 pub(crate) use attacks::phase;
-pub(crate) use world::{AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, World};
+pub(crate) use world::{
+    AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, RangedPool, World,
+};
 mod combat;
 mod dash;
 mod entity;
@@ -170,8 +172,22 @@ pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 /// dropped, as an orb over `MAX_ORBS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
-/// it is in its wind-up or active phase, and a rule whose start would take a fifth waits.
+/// it is in its wind-up or active phase. The tokens are the two pools below, which sum to this
+/// (ADR-SIM-7's cap); they go to the nearest ready enemies in view (RA1).
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
+/// The view rectangle, centred on the main character (RA1, DS82): the 1920 by 1080 design screen
+/// at the play zoom of 3, never the device's screen. An enemy starts a ranged attack only from
+/// inside it, edges included. Tuning values.
+pub(crate) const VIEW_HALF_WIDTH: Fx = Fx::px(320);
+pub(crate) const VIEW_HALF_HEIGHT: Fx = Fx::px(180);
+/// The ranged tokens are two pools (RA1, DS83): the zone attacks' and the line attacks' (an
+/// attack that lays a line zone). Tuning values.
+pub(crate) const RANGED_ZONE_TOKENS: u32 = 3;
+pub(crate) const RANGED_LINE_TOKENS: u32 = 1;
+/// A token a ranged run stops holding cools this many ticks before its pool grants it again
+/// (RA1, DS83). A tuning value.
+pub(crate) const RANGED_TOKEN_COOLDOWN_TICKS: u32 = 30;
+const _: () = assert!(RANGED_ZONE_TOKENS + RANGED_LINE_TOKENS == MAX_RANGED_ATTACKERS);
 /// Orbs alive per attacker and in all (core Z2, DS11, tuning rows); an orb over either cap is
 /// dropped in node order.
 pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;
@@ -353,6 +369,7 @@ pub(crate) fn initial_state(
         tasks: Vec::new(),
         runs: Vec::new(),
         move_index: crate::engine::MoveIndex::default(),
+        ranged_cooling: Vec::new(),
         orbs: Vec::new(),
         zones: Vec::new(),
         spawned: vec![0; stage.waves.len()],
@@ -1878,6 +1895,15 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         h.write_u32(count(&s.zones));
         for z in &s.zones {
             hash_zone_flags(&mut h, z);
+        }
+    }
+    // Last, and only while a ranged token cools (RA1), so that the hashes of runs without one
+    // stay as they were: per token, in order, the tick it is free on and its pool.
+    if !s.ranged_cooling.is_empty() {
+        h.write_u32(count(&s.ranged_cooling));
+        for (until, pool) in &s.ranged_cooling {
+            h.write_u32(*until);
+            h.write_u32(u32::try_from(pool.index()).unwrap_or(u32::MAX));
         }
     }
     h.finish()

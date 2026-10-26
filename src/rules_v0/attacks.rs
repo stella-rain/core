@@ -59,9 +59,11 @@ use crate::validate::limits::{MAX_LEN, MAX_ORB_TICKS, MAX_REPEAT, MAX_TICKS, MAX
 
 use super::Scratch;
 use super::entity::{Who, scale_damage, status_pct};
+use super::world::RangedPool;
 use super::{
     AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, MAX_ORBS_ALIVE, MAX_ORBS_PER_OWNER,
-    World, count,
+    RANGED_LINE_TOKENS, RANGED_TOKEN_COOLDOWN_TICKS, RANGED_ZONE_TOKENS, VIEW_HALF_HEIGHT,
+    VIEW_HALF_WIDTH, World, count,
 };
 
 /// Whether `owner` is running an attack in `slot`.
@@ -69,13 +71,131 @@ pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
     s.runs.iter().any(|r| r.owner == owner && r.slot == slot)
 }
 
-/// The ranged tokens held now (core Z2): the `ranged` runs in their wind-up or active phase.
-pub(super) fn ranged_tokens(world: &World, s: &State) -> u32 {
+/// The tokens of `pool` (RA1, DS83).
+fn pool_tokens(pool: RangedPool) -> u32 {
+    match pool {
+        RangedPool::Zone => RANGED_ZONE_TOKENS,
+        RangedPool::Line => RANGED_LINE_TOKENS,
+    }
+}
+
+/// The tokens of `pool` held now (core Z2): its `ranged` runs in their wind-up or active phase.
+fn ranged_held(world: &World, s: &State, pool: RangedPool) -> u32 {
     let held = s
         .runs
         .iter()
-        .filter(|r| r.ranged && phase(world, r, r.phase as usize).kind != PhaseKind::Recovery);
+        .filter(|r| world.attacks[usize::from(r.attack.0)].pool == pool && holds_token(world, r));
     u32::try_from(held.count()).unwrap_or(u32::MAX)
+}
+
+/// The tokens of `pool` cooling now.
+fn ranged_cooling(s: &State, pool: RangedPool) -> u32 {
+    let cooling = s.ranged_cooling.iter().filter(|(_, p)| *p == pool);
+    u32::try_from(cooling.count()).unwrap_or(u32::MAX)
+}
+
+/// Whether `pool` has a token to give: the ones held and cooling leave one of its tokens.
+fn ranged_room(world: &World, s: &State, pool: RangedPool) -> bool {
+    ranged_held(world, s, pool).saturating_add(ranged_cooling(s, pool)) < pool_tokens(pool)
+}
+
+/// Whether the ranged run `r` holds its token now: in a wind-up or active phase.
+fn holds_token(world: &World, r: &AttackRun) -> bool {
+    r.ranged && phase(world, r, r.phase as usize).kind != PhaseKind::Recovery
+}
+
+/// Starts the cooling of a token of `pool` that was freed on the current tick.
+fn cool_token(s: &mut State, pool: RangedPool) {
+    let entry = (s.tick.saturating_add(RANGED_TOKEN_COOLDOWN_TICKS), pool);
+    let at = s.ranged_cooling.partition_point(|e| *e <= entry);
+    s.ranged_cooling.insert(at, entry);
+}
+
+/// Whether the regular enemy `id` may start a ranged attack of `pool` now (RA1): it holds this
+/// tick's grant for the pool, and the pool still has room.
+pub(super) fn ranged_may_start(world: &World, s: &State, id: EntityId, pool: RangedPool) -> bool {
+    s.scratch.ranged_grants[pool.index()].contains(&id) && ranged_room(world, s, pool)
+}
+
+/// Whether `e` stands inside the view rectangle around the main character, edges included.
+fn in_view(e: Point, player: Point) -> bool {
+    let (dx, dy) = (
+        i64::from(e.x.0) - i64::from(player.x.0),
+        i64::from(e.y.0) - i64::from(player.y.0),
+    );
+    dx.abs() <= i64::from(VIEW_HALF_WIDTH.0) && dy.abs() <= i64::from(VIEW_HALF_HEIGHT.0)
+}
+
+/// Gives each pool's free tokens to the nearest ready regular enemies in view (RA1, DS82): at
+/// the start of the act step, before any rule fires. The candidates are alive, in view and have
+/// a ranged rule of the pool that is ready (its cooldown ends by this tick, charges are left) and
+/// no attack of theirs running;
+/// the nearest come first, by squared distance, ties by entity ID. The grants are scratch,
+/// worked out from the state each tick. No random number is drawn.
+pub(super) fn grant_ranged(world: &World, s: &mut State) {
+    for g in &mut s.scratch.ranged_grants {
+        g.clear();
+    }
+    let now = s.tick;
+    s.ranged_cooling.retain(|(until, _)| *until > now);
+    let mut free = [0u32; 2];
+    for pool in RangedPool::ALL {
+        let taken = ranged_held(world, s, pool).saturating_add(ranged_cooling(s, pool));
+        free[pool.index()] = pool_tokens(pool).saturating_sub(taken);
+    }
+    if free == [0, 0] {
+        return;
+    }
+    // The best few of each pool so far, nearest first; enemies come in ID order, so a later one
+    // at the same distance stays behind.
+    const MOST: usize = RANGED_ZONE_TOKENS as usize;
+    let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
+    let mut len = [0usize; 2];
+    let player = s.player.at;
+    for e in &s.enemies {
+        let def = world.defs.get(e.def);
+        if def.ranged_pools.is_empty() || e.hp == 0 || !in_view(e.at, player) {
+            continue;
+        }
+        let (dx, dy) = (
+            i64::from(e.at.x.0) - i64::from(player.x.0),
+            i64::from(e.at.y.0) - i64::from(player.y.0),
+        );
+        let d = dx * dx + dy * dy;
+        for (rule, pool) in def.ranged_pools.iter().enumerate() {
+            let Some(pool) = *pool else { continue };
+            let p = pool.index();
+            let st = e.rules[rule];
+            // A cooldown of 1 ends in this tick's `act_one`, before the rule is tried.
+            if st.cooldown_left > 1 || st.charges_left == 0 {
+                continue;
+            }
+            if def.agent.rules[rule].once && st.fired {
+                continue;
+            }
+            let room = free[p] as usize;
+            if room == 0 || len[p] == room && d >= best[p][room - 1].0 {
+                continue;
+            }
+            if best[p][..len[p]].iter().any(|(_, id)| *id == e.id) {
+                continue;
+            }
+            // Not ready while its last attack runs (ADR-055): it could not use the grant.
+            if busy(s, e.id, 0) {
+                continue;
+            }
+            let at = best[p][..len[p]].partition_point(|(bd, _)| *bd <= d);
+            if len[p] < room {
+                len[p] += 1;
+            }
+            best[p][at..len[p]].rotate_right(1);
+            best[p][at] = (d, e.id);
+        }
+    }
+    for pool in RangedPool::ALL {
+        let p = pool.index();
+        s.scratch.ranged_grants[p].extend(best[p][..len[p]].iter().map(|(_, id)| *id));
+    }
 }
 
 /// Marks the run that just started as a `ranged` one: it is the last in `runs`.
@@ -505,17 +625,27 @@ pub(super) fn advance_runs(world: &World, s: &mut State, events: &mut Vec<Domain
     for i in 0..s.runs.len() {
         if s.find(s.runs[i].owner).is_none() {
             changed = true;
+            if holds_token(world, &s.runs[i]) {
+                cool_token(s, world.attacks[usize::from(s.runs[i].attack.0)].pool);
+            }
             continue;
         }
         s.runs.swap(kept, i);
         let r = &mut s.runs[kept];
         r.tick = r.tick.saturating_add(1);
         if r.tick >= phase(world, r, r.phase as usize).ticks {
+            let held = holds_token(world, r);
             r.phase += 1;
             r.tick = 0;
             changed = true;
             if r.phase as usize >= phase_count(world, r) {
+                if held {
+                    cool_token(s, world.attacks[usize::from(s.runs[kept].attack.0)].pool);
+                }
                 continue;
+            }
+            if held && !holds_token(world, &s.runs[kept]) {
+                cool_token(s, world.attacks[usize::from(s.runs[kept].attack.0)].pool);
             }
             begin_phase(world, s, kept, events);
         }

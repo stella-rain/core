@@ -17,7 +17,7 @@ use crate::stage_skill::SkillEffect;
 use crate::validate::Issue;
 use crate::weapon::{Branches, Step};
 
-use super::world::{AttackDef, AttackIndex, ProgramIndex, World};
+use super::world::{AttackDef, AttackIndex, ProgramIndex, RangedPool, World};
 
 /// What orders the attacks of a run: a preset by its ID and arguments, an inline attack by its
 /// number of phases and their total ticks. Two different attacks may share a key (inline ones
@@ -121,10 +121,12 @@ impl AttackKeys {
             AttackRef::Preset { id, .. } => Some(id.clone()),
             AttackRef::Inline(_) => None,
         };
+        let pool = RangedPool::of(&phases);
         attacks.push(AttackDef {
             phases,
             preset,
             programs,
+            pool,
         });
         let at = AttackIndex(at);
         let first = self.first(attack);

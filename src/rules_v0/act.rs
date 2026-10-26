@@ -9,7 +9,7 @@ use super::agents::agent_mut;
 use super::attacks;
 use super::boss;
 use super::entity::Who;
-use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, MAX_RANGED_ATTACKERS, spawn_enemy};
+use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, spawn_enemy};
 
 /// Does the action for rule `rule_index` of `me`, aimed at `target`. False if this version
 /// cannot do it, in which case the rule does not fire and the next one gets its turn.
@@ -26,10 +26,23 @@ pub(super) fn perform(
         // An attack does as much as the main character's weapons (its attack stat) if an ally
         // makes it, and the run stats file's `enemy_attack_damage` if an enemy does.
         Action::Attack { attack, ranged } => {
-            // A ranged start over the cap is refused here, so the rule keeps its cooldown and
-            // retries next tick (core Z2). Only enemies are held to the cap.
-            let ranged = *ranged && !State::is_ally(me);
-            if ranged && attacks::ranged_tokens(stage, s) >= MAX_RANGED_ATTACKERS {
+            // A ranged start without a grant, or over the pool's tokens, is refused here, so the
+            // rule keeps its cooldown and retries next tick (core Z2, RA1). Only regular
+            // enemies are held to the tokens: an elite's definition has no pools.
+            let pool = match me {
+                Who::Enemy(i) if *ranged => stage
+                    .defs
+                    .get(s.enemies[i].def)
+                    .ranged_pools
+                    .get(rule_index)
+                    .copied()
+                    .flatten(),
+                _ => None,
+            };
+            let ranged = pool.is_some();
+            if let Some(pool) = pool
+                && !attacks::ranged_may_start(stage, s, s.id_of(me), pool)
+            {
                 return false;
             }
             let base = if State::is_ally(me) {

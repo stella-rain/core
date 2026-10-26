@@ -10,7 +10,7 @@ use crate::kinds::{KindIndex, KindTable};
 use crate::match_ups::MatchUps;
 use crate::rewards::Rarity;
 use crate::rng::{SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_OFFER, TAG_SPAWN, derive};
-use crate::rules_v0::{AttackIndex, BossIndex, DefIndex, ProgramIndex, World};
+use crate::rules_v0::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool, World};
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::runes::Runes;
@@ -83,6 +83,10 @@ pub(crate) struct State {
     pub runs: Vec<AttackRun>,
     /// What `runs` leave each attacker's speed; updated wherever `runs` changes.
     pub move_index: MoveIndex,
+    /// The ranged tokens cooling (RA1, DS83): the tick each is free on and its pool, sorted by
+    /// both. At most `MAX_RANGED_ATTACKERS`: a pool grants no more tokens than the ones neither
+    /// held nor cooling.
+    pub ranged_cooling: Vec<(u32, RangedPool)>,
     /// In spawn order.
     pub orbs: Vec<OrbState>,
     /// Zones placed and not yet over, in the order they were placed (core Z1).
