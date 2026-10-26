@@ -28,13 +28,22 @@ pub(super) fn perform(
         Action::Attack { attack, ranged } => {
             // A ranged start without a grant, or over the pool's tokens, is refused here, so the
             // rule keeps its cooldown and retries next tick (core Z2, RA1). Only regular
-            // enemies are held to the tokens.
-            let ranged = *ranged && is_regular_enemy(stage, s, me);
-            if ranged {
-                let pool = stage.attacks[usize::from(stage.attack_index(attack).0)].pool;
-                if !attacks::ranged_may_start(stage, s, s.id_of(me), pool) {
-                    return false;
-                }
+            // enemies are held to the tokens: an elite's definition has no pools.
+            let pool = match me {
+                Who::Enemy(i) if *ranged => stage
+                    .defs
+                    .get(s.enemies[i].def)
+                    .ranged_pools
+                    .get(rule_index)
+                    .copied()
+                    .flatten(),
+                _ => None,
+            };
+            let ranged = pool.is_some();
+            if let Some(pool) = pool
+                && !attacks::ranged_may_start(stage, s, s.id_of(me), pool)
+            {
+                return false;
             }
             let base = if State::is_ally(me) {
                 stage.player.atk
@@ -84,11 +93,6 @@ pub(super) fn perform(
             true
         }
     }
-}
-
-/// Whether `me` is a regular enemy: not an elite, the boss or a companion.
-fn is_regular_enemy(stage: &World, s: &State, me: Who) -> bool {
-    matches!(me, Who::Enemy(i) if stage.defs.agent(s.enemies[i].def).elite.is_none())
 }
 
 /// Casts `skill` from `caster` at `target`. Allies gain aggro for buffs and heals.
