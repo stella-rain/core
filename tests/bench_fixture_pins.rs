@@ -385,3 +385,12 @@ fn the_minute_input_digest_moves_with_the_script() {
         minute_input_digest(MINUTE_START, MINUTE_TICKS, flipped)
     );
 }
+
+/// Only the `time_limit` mode is built (`Engine::start_with`), and the stage digest covers the
+/// mode: a case of another mode must name it, not pass as `time_limit`.
+#[test]
+fn every_case_is_a_time_limit_case() {
+    for spec in specs() {
+        assert_eq!(spec.mode, "time_limit", "{}", spec.id);
+    }
+}
