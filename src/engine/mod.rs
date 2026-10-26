@@ -78,7 +78,7 @@ fn horde_kinds(stage: &Stage, horde: &HordeSpec) -> Result<KindTable, crate::val
 }
 
 /// A run of one stage.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Engine {
     stage: World,
     /// The content files the run reads (ADR-067), fixed for the run.
@@ -88,6 +88,26 @@ pub struct Engine {
     events: Vec<DomainEvent>,
     /// What the last tick used of the dynamic budgets; zero when the tick did not run.
     load: Load,
+}
+
+impl Clone for Engine {
+    /// A clone keeps the room the run reserved at load: a derived clone of a `Vec` has only its
+    /// length, and the clone's first ticks would grow them (DIR1).
+    fn clone(&self) -> Engine {
+        let mut state = self.state.clone();
+        rules_v0::reserve(&self.stage, &mut state);
+        Engine {
+            stage: self.stage.clone(),
+            content: self.content.clone(),
+            state,
+            events: {
+                let mut events = self.events.clone();
+                events.reserve(rules_v0::events_room(&self.stage).saturating_sub(events.len()));
+                events
+            },
+            load: self.load,
+        }
+    }
 }
 
 impl Engine {
@@ -124,10 +144,10 @@ impl Engine {
             rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
         rules_v0::set_policy(&mut state, content.run_stats(), stat_priority, pick_stats);
         Ok(Engine {
+            events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
-            events: Vec::new(),
             load: Load::default(),
         })
     }
@@ -163,10 +183,10 @@ impl Engine {
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         Ok(Engine {
+            events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
-            events: Vec::new(),
             load: Load::default(),
         })
     }
@@ -201,10 +221,10 @@ impl Engine {
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         Ok(Engine {
+            events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
-            events: Vec::new(),
             load: Load::default(),
         })
     }

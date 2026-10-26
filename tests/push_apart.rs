@@ -409,6 +409,9 @@ proptest! {
                 }
             }
             e.step(*input);
+            // The reach is mapped by entity ID, assuming every due spawn took the next ID: a spawn
+            // the cap refused (DIR1) would shift every later ID, so say so here.
+            prop_assert_eq!(e.load().refused_spawns, 0);
             let relocated: Vec<EntityId> = e
                 .events()
                 .iter()

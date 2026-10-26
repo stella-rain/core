@@ -1062,6 +1062,11 @@ pub(crate) struct MoveIndex {
 }
 
 impl MoveIndex {
+    /// Room for `owners` entries (DIR1): one per attacker that can have a run.
+    pub fn reserve(&mut self, owners: usize) {
+        crate::rules_v0::scratch::reserve_to(&mut self.by_owner, owners);
+    }
+
     /// The speed `owner`'s runs leave it, 100 with none.
     #[inline]
     pub fn get(&self, owner: EntityId) -> i64 {

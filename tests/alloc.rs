@@ -247,12 +247,14 @@ fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {
         .collect();
     let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![]));
     let mut ticks = Vec::new();
+    let mut most = 0;
     for tick in 1..=600 {
         let input = Input {
             main: tick % 2 == 0,
             ..Input::default()
         };
         ticks.push(counted3(|| e.step(input)));
+        most = most.max(e.load().enemies);
     }
     let grew: Vec<_> = ticks
         .iter()
@@ -264,7 +266,7 @@ fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {
         grew.is_empty(),
         "ticks that called the allocator, (tick, counts): {grew:?}"
     );
-    assert_eq!(enemies(&e.snapshot()), 260);
+    assert_eq!(most, e.caps().enemies, "the crowd climbed to the cap");
 }
 
 /// The `time_limit` bench case from load to a second past its warm-up: the horde climbs to its

@@ -269,6 +269,46 @@ pub(crate) fn initial_state(
     seed: u64,
     kinds: KindTable,
 ) -> State {
+    let mut state = unreserved_state(stage, content, pool, seed, kinds);
+    reserve(stage, &mut state);
+    state
+}
+
+/// Makes room, once, for the most the run's per-enemy lists can hold (DIR1, ADR-SIM-7
+/// decision 9): the cap on enemies alive, and the other caps, so that no tick grows a buffer.
+/// Called when the run is built and again for a clone of its state, because a cloned `Vec` has
+/// only its length. The scratch buffers are `Scratch::reserve`'s.
+pub(crate) fn reserve(stage: &World, s: &mut State) {
+    let cap = stage.enemy_cap as usize;
+    let map = stage.map();
+    s.scratch.reserve(cap, map.width.0, map.height.0);
+    scratch::reserve_to(&mut s.enemies, cap);
+    s.move_index
+        .reserve(cap + crate::validate::limits::MAX_COMPANIONS + 1);
+    scratch::reserve_to(&mut s.tasks, MAX_ATTACK_TASKS as usize);
+    scratch::reserve_to(
+        &mut s.runs,
+        cap + crate::validate::limits::MAX_COMPANIONS + 1,
+    );
+    scratch::reserve_to(&mut s.ranged_cooling, MAX_RANGED_ATTACKERS as usize);
+    scratch::reserve_to(&mut s.orbs, MAX_ORBS_ALIVE as usize);
+    scratch::reserve_to(&mut s.zones, MAX_ZONES_ALIVE as usize);
+}
+
+/// The room for a tick's events (DIR1): a few per enemy alive (hits, kills, spawns, bursts) and
+/// a few more. A placeholder bound: a tick with more grows the list once, and `tests/alloc.rs`
+/// checks the runs it measures stay under it.
+pub(crate) fn events_room(stage: &World) -> usize {
+    stage.enemy_cap as usize * 4 + 64
+}
+
+fn unreserved_state(
+    stage: &World,
+    content: &RunContent,
+    pool: RunPool,
+    seed: u64,
+    kinds: KindTable,
+) -> State {
     let run_stats = content.run_stats();
     let rewards = content.rewards().rewards().len();
     let mut next_id = 1;
