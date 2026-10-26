@@ -769,8 +769,8 @@ fn zones() -> Definition {
 }
 
 /// The ranged cap (core Z2): eight shooters line the top of the field and fire an aimed shot
-/// after a wind-up, each marked `ranged`, so that at most four are winding up or active at any
-/// tick and the others wait with their cooldown ready; two more shoot the same way without the
+/// after a wind-up, each marked `ranged`, so that at most three (the zone pool, RA1) are winding
+/// up or active at any tick and the others wait with their cooldown ready; two more shoot the same way without the
 /// mark and are never held back. The main character walks from side to side.
 fn ranged_cap() -> Definition {
     let shot = |ranged: bool| {
@@ -1952,9 +1952,10 @@ fn orb_and_token_reach(name: &str) -> (usize, usize, usize, bool) {
 
 #[test]
 fn the_ranged_cap_and_orbs_cases_are_what_their_names_say() {
-    // Ten shooters want to fire, eight of them marked: four hold a token at the most.
+    // Ten shooters want to fire, eight of them marked: three hold a token at the most, their
+    // shots laying no line zone (RA1).
     let (held, orbs, _, _) = orb_and_token_reach("ranged_cap");
-    assert_eq!(held, 4);
+    assert_eq!(held, 3);
     assert!(orbs > 0, "their shots are orbs");
     // The orbs fill the field up to the cap, the sword breaks some, and bursts place zones.
     let (_, orbs, broken, zoned) = orb_and_token_reach("orbs");

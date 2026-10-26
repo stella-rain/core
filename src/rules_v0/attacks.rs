@@ -62,7 +62,8 @@ use super::entity::{Who, scale_damage, status_pct};
 use super::world::RangedPool;
 use super::{
     AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, MAX_ORBS_ALIVE, MAX_ORBS_PER_OWNER,
-    RANGED_LINE_TOKENS, RANGED_ZONE_TOKENS, VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH, World, count,
+    RANGED_LINE_TOKENS, RANGED_TOKEN_COOLDOWN_TICKS, RANGED_ZONE_TOKENS, VIEW_HALF_HEIGHT,
+    VIEW_HALF_WIDTH, World, count,
 };
 
 /// Whether `owner` is running an attack in `slot`.
@@ -80,17 +81,34 @@ fn pool_tokens(pool: RangedPool) -> u32 {
 
 /// The tokens of `pool` held now (core Z2): its `ranged` runs in their wind-up or active phase.
 fn ranged_held(world: &World, s: &State, pool: RangedPool) -> u32 {
-    let held = s.runs.iter().filter(|r| {
-        r.ranged
-            && world.attacks[usize::from(r.attack.0)].pool == pool
-            && phase(world, r, r.phase as usize).kind != PhaseKind::Recovery
-    });
+    let held = s
+        .runs
+        .iter()
+        .filter(|r| world.attacks[usize::from(r.attack.0)].pool == pool && holds_token(world, r));
     u32::try_from(held.count()).unwrap_or(u32::MAX)
 }
 
-/// Whether `pool` has a token to give: the ones held leave one of its tokens.
+/// The tokens of `pool` cooling now.
+fn ranged_cooling(s: &State, pool: RangedPool) -> u32 {
+    let cooling = s.ranged_cooling.iter().filter(|(_, p)| *p == pool);
+    u32::try_from(cooling.count()).unwrap_or(u32::MAX)
+}
+
+/// Whether `pool` has a token to give: the ones held and cooling leave one of its tokens.
 fn ranged_room(world: &World, s: &State, pool: RangedPool) -> bool {
-    ranged_held(world, s, pool) < pool_tokens(pool)
+    ranged_held(world, s, pool).saturating_add(ranged_cooling(s, pool)) < pool_tokens(pool)
+}
+
+/// Whether the ranged run `r` holds its token now: in a wind-up or active phase.
+fn holds_token(world: &World, r: &AttackRun) -> bool {
+    r.ranged && phase(world, r, r.phase as usize).kind != PhaseKind::Recovery
+}
+
+/// Starts the cooling of a token of `pool` that was freed on the current tick.
+fn cool_token(s: &mut State, pool: RangedPool) {
+    let entry = (s.tick.saturating_add(RANGED_TOKEN_COOLDOWN_TICKS), pool);
+    let at = s.ranged_cooling.partition_point(|e| *e <= entry);
+    s.ranged_cooling.insert(at, entry);
 }
 
 /// Whether the regular enemy `id` may start a ranged attack of `pool` now (RA1): it holds this
@@ -117,9 +135,12 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
     for g in &mut s.scratch.ranged_grants {
         g.clear();
     }
+    let now = s.tick;
+    s.ranged_cooling.retain(|(until, _)| *until > now);
     let mut free = [0u32; 2];
     for pool in RangedPool::ALL {
-        free[pool.index()] = pool_tokens(pool).saturating_sub(ranged_held(world, s, pool));
+        let taken = ranged_held(world, s, pool).saturating_add(ranged_cooling(s, pool));
+        free[pool.index()] = pool_tokens(pool).saturating_sub(taken);
     }
     if free == [0, 0] {
         return;
@@ -602,17 +623,27 @@ pub(super) fn advance_runs(world: &World, s: &mut State, events: &mut Vec<Domain
     for i in 0..s.runs.len() {
         if s.find(s.runs[i].owner).is_none() {
             changed = true;
+            if holds_token(world, &s.runs[i]) {
+                cool_token(s, world.attacks[usize::from(s.runs[i].attack.0)].pool);
+            }
             continue;
         }
         s.runs.swap(kept, i);
         let r = &mut s.runs[kept];
         r.tick = r.tick.saturating_add(1);
         if r.tick >= phase(world, r, r.phase as usize).ticks {
+            let held = holds_token(world, r);
             r.phase += 1;
             r.tick = 0;
             changed = true;
             if r.phase as usize >= phase_count(world, r) {
+                if held {
+                    cool_token(s, world.attacks[usize::from(s.runs[kept].attack.0)].pool);
+                }
                 continue;
+            }
+            if held && !holds_token(world, &s.runs[kept]) {
+                cool_token(s, world.attacks[usize::from(s.runs[kept].attack.0)].pool);
             }
             begin_phase(world, s, kept, events);
         }

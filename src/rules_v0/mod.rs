@@ -95,7 +95,9 @@ mod attacks;
 mod boss;
 mod world;
 pub(crate) use attacks::phase;
-pub(crate) use world::{AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, World};
+pub(crate) use world::{
+    AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, RangedPool, World,
+};
 mod combat;
 mod dash;
 mod entity;
@@ -182,6 +184,9 @@ pub(crate) const VIEW_HALF_HEIGHT: Fx = Fx::px(180);
 /// attack that lays a line zone). Tuning values.
 pub(crate) const RANGED_ZONE_TOKENS: u32 = 3;
 pub(crate) const RANGED_LINE_TOKENS: u32 = 1;
+/// A token a ranged run stops holding cools this many ticks before its pool grants it again
+/// (RA1, DS83). A tuning value.
+pub(crate) const RANGED_TOKEN_COOLDOWN_TICKS: u32 = 30;
 const _: () = assert!(RANGED_ZONE_TOKENS + RANGED_LINE_TOKENS == MAX_RANGED_ATTACKERS);
 /// Orbs alive per attacker and in all (core Z2, DS11, tuning rows); an orb over either cap is
 /// dropped in node order.
@@ -364,6 +369,7 @@ pub(crate) fn initial_state(
         tasks: Vec::new(),
         runs: Vec::new(),
         move_index: crate::engine::MoveIndex::default(),
+        ranged_cooling: Vec::new(),
         orbs: Vec::new(),
         zones: Vec::new(),
         spawned: vec![0; stage.waves.len()],
@@ -1889,6 +1895,15 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
         h.write_u32(count(&s.zones));
         for z in &s.zones {
             hash_zone_flags(&mut h, z);
+        }
+    }
+    // Last, and only while a ranged token cools (RA1), so that the hashes of runs without one
+    // stay as they were: per token, in order, the tick it is free on and its pool.
+    if !s.ranged_cooling.is_empty() {
+        h.write_u32(count(&s.ranged_cooling));
+        for (until, pool) in &s.ranged_cooling {
+            h.write_u32(*until);
+            h.write_u32(u32::try_from(pool.index()).unwrap_or(u32::MAX));
         }
     }
     h.finish()

@@ -1,7 +1,8 @@
 //! The ranged-attacker cap (DS10, DS12, core Z2): a rule marked `ranged` starts only while fewer
-//! than `MAX_RANGED_ATTACKERS` (4) ranged runs hold a token, a token being held while a run is in
-//! its wind-up or active phase. A start that would exceed the cap is refused and its rule keeps
-//! its cooldown ready, so it retries on the next tick; starts are granted in entity-ID order.
+//! than the tokens of its pool (3 for a zone attack, RA1) ranged runs hold a token, a token being
+//! held while a run is in its wind-up or active phase and cooling for 30 ticks after. A start
+//! that would exceed the cap is refused and its rule keeps its cooldown ready, so it retries on
+//! a later tick; who is granted a token is `ranged_tokens.rs`'s.
 //! A rule without `ranged` is outside the cap, and the validator refuses `ranged` on companions,
 //! elites and the boss.
 
@@ -16,8 +17,10 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{Error, validate};
 
 const PX: i32 = 256;
-/// The cap of `rules_v0::MAX_RANGED_ATTACKERS`.
-const MAX_RANGED_ATTACKERS: usize = 4;
+/// The zone pool of `rules_v0::RANGED_ZONE_TOKENS`: these shooters lay no line zone.
+const ZONE_TOKENS: usize = 3;
+/// Ticks a freed token cools.
+const COOLDOWN: u32 = 30;
 const SHOOTERS: u32 = 6;
 /// The far boss is entity 1; the shooters come after it, in wave order.
 const FIRST_SHOOTER: u32 = 2;
@@ -100,22 +103,23 @@ fn first_attack_ticks(stage: &Stage, ticks: u32) -> Vec<Option<u32>> {
 }
 
 #[test]
-fn at_most_four_ranged_runs_are_in_wind_up_or_active_on_any_tick() {
+fn at_most_three_ranged_runs_are_in_wind_up_or_active_on_any_tick() {
     let held = held_per_tick(&stage(true), 80);
-    assert_eq!(held.iter().max(), Some(&MAX_RANGED_ATTACKERS));
+    assert_eq!(held.iter().max(), Some(&ZONE_TOKENS));
 }
 
 #[test]
-fn the_fifth_shooter_starts_on_the_tick_a_token_frees() {
+fn the_other_shooters_start_when_the_freed_tokens_have_cooled() {
     let st = stage(true);
-    let first = first_attack_ticks(&st, 80);
-    let started = first[0].expect("the first shooter starts");
-    assert_eq!(first[..4], [Some(started); 4]);
-    // The four runs enter recovery together, six ticks after they began; the same tick the
-    // tokens free, the two refused shooters start, in entity-ID order.
-    let freed = started + 6;
-    assert_eq!(first[4], Some(freed));
-    assert_eq!(first[5], Some(freed));
+    let first = first_attack_ticks(&st, 120);
+    // The three nearest the main character, entities 4 to 6, start together.
+    let started = first[2].expect("the nearest shooters start");
+    assert_eq!(first[2..5], [Some(started); 3]);
+    assert_eq!(first[0], first[1]);
+    assert_eq!(first[1], first[5]);
+    // Their runs enter recovery six ticks after they began; the tokens cool for 30 ticks, and
+    // on the tick they are free the three others start together.
+    assert_eq!(first[0], Some(started + 6 + COOLDOWN));
 }
 
 #[test]
