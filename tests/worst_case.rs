@@ -48,12 +48,16 @@ fn assert_hit_boxes(engine: &Engine) {
     assert_eq!(hits, 4 * 500);
 }
 
-/// Every zone cap is held (core Z1): 128 zones alive and active, 16 of them the companions',
-/// which cover the 500 enemies.
+/// Every zone cap is held (core Z1): 128 zones alive, 127 of them active and the fourth shooter's
+/// warning line (RA1a) not, 16 of them the companions', which cover the 500 enemies.
 fn assert_zones(engine: &Engine) {
     let zones = engine.snapshot().zones;
     assert_eq!(zones.len(), 128);
-    assert!(zones.iter().all(|z| z.phase == PhaseKind::Active));
+    let warning = zones
+        .iter()
+        .filter(|z| z.phase != PhaseKind::Active)
+        .count();
+    assert_eq!(warning, 1, "the shooter's warn-only line");
     assert_eq!(zones.iter().filter(|z| z.friendly).count(), 16);
 }
 
@@ -124,9 +128,10 @@ fn assert_steps_and_ticks_land(engine: &Engine) {
 }
 
 /// The push-apart has a fresh stack to part (ADR-058): the pass moves an enemy at most 4 pixels
-/// (1,024 units) from the point the stack stood on, so after the tick at least 480 enemies are
-/// that near it. The others, the 15 or 20 that started their attack the tick before and so were
-/// not ordered back, are within 8 pixels more.
+/// (1,024 units) from the point the stack stood on, so after the tick at least 479 enemies are
+/// that near it (480 before RA1a: the line shooter's earlier arrival shifts the entity IDs, which
+/// moves the push-apart's order; the minimum over the 60 measured ticks is 479, on 2 of them). The others, the 15 to 21 that
+/// started their attack the tick before and so were not ordered back, are within 8 pixels more.
 fn assert_fresh_stack(engine: &Engine) {
     let (x, y) = worst_case::ENEMIES_AT;
     let far: Vec<i64> = engine
@@ -137,7 +142,7 @@ fn assert_fresh_stack(engine: &Engine) {
         .map(|e| (i64::from(e.at.x.0 - x).pow(2) + i64::from(e.at.y.0 - y).pow(2)).isqrt())
         .collect();
     let stacked = far.iter().filter(|d| **d <= 1_024).count();
-    assert!(stacked >= 480, "{stacked} enemies were on the point");
+    assert!(stacked >= 479, "{stacked} enemies were on the point");
     assert!(
         far.iter().all(|d| *d <= 3 * 1_024),
         "{:?}",
@@ -231,4 +236,69 @@ fn the_caps_are_held_tick_after_tick() {
     }
     // Haste keeps the cooldowns short enough that each on-hit rune fires within the 60 ticks.
     assert_eq!(fired.len(), 4, "on-hit runes that fired: {fired:?}");
+}
+
+/// Whether a JSON value holds a zone spawn of shape `line` anywhere inside it.
+fn has_line_zone(v: &serde_json::Value) -> bool {
+    match v {
+        serde_json::Value::Object(o) => {
+            (o.get("type").and_then(|t| t.as_str()) == Some("zone")
+                && o.get("shape").and_then(|s| s["type"].as_str()) == Some("line"))
+                || o.values().any(has_line_zone)
+        }
+        serde_json::Value::Array(a) => a.iter().any(has_line_zone),
+        _ => false,
+    }
+}
+
+/// The shooters' attacks as the stage writes them: for each wave of ranged enemies, how many
+/// there are and whether their attack spawns a zone of shape `line` (RA1a, DS83).
+fn shooter_waves() -> Vec<(u64, bool)> {
+    let stage = serde_json::to_value(worst_case::stage()).unwrap();
+    stage["waves"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|w| w["enemy"]["rules"].to_string().contains("\"ranged\":true"))
+        .map(|w| {
+            (
+                w["count"].as_u64().unwrap(),
+                has_line_zone(&w["enemy"]["rules"]),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn one_of_the_four_shooters_lays_a_line() {
+    let waves = shooter_waves();
+    let line: u64 = waves.iter().filter(|(_, l)| *l).map(|(n, _)| n).sum();
+    let other: u64 = waves.iter().filter(|(_, l)| !*l).map(|(n, _)| n).sum();
+    assert_eq!(
+        (line, other),
+        (1, 3),
+        "line shooters and the others: {waves:?}"
+    );
+}
+
+#[test]
+fn the_shooters_stand_in_the_view_of_the_main_character() {
+    // The view is 640 x 360 pixels, centred on the main character; RA1 bars ranged starts
+    // outside it. Every enemy stands on the point of `ENEMIES_AT`, the shooters among them.
+    let mut engine = worst_case::warmed_up();
+    engine.step(worst_case::input(worst_case::WARMUP_TICKS + 1));
+    let snapshot = engine.snapshot();
+    let me = snapshot.player.at;
+    let mut seen = 0;
+    for e in snapshot
+        .entities
+        .iter()
+        .filter(|e| e.kind == EntityKind::Enemy)
+    {
+        seen += 1;
+        let (dx, dy) = ((e.at.x.0 - me.x.0).abs(), (e.at.y.0 - me.y.0).abs());
+        assert!(dx <= 320 * 256, "{:?} is {dx} units off on x", e.id);
+        assert!(dy <= 180 * 256, "{:?} is {dy} units off on y", e.id);
+    }
+    assert_eq!(seen, 500);
 }
