@@ -6,51 +6,52 @@
 #   stage  the first 16 hex of SHA-256 over the stage's JSON and the run content's hash
 #          (`stella-rain/bench-stage/v1`; the minute cases have no stage part: the content
 #          hash and `before` cover their stage)
-#   input  the first 16 hex of SHA-256 over the measured input's JSON, or over the tick count
-#          for a minute case (`stella-rain/bench-input/v1`)
+#   input  the first 16 hex of SHA-256 over the measured input's JSON; for a minute case over
+#          the start tick, the tick count, the option an open offer takes and the JSON of
+#          every played `Input` (`input_at`) (`stella-rain/bench-input/v2`)
 # Hashes are strings: TOML integers are i64 and these u64 values overflow it.
 # A case is comparable when `before`, `stage` and `input` are equal; `after` is pinned only.
-# Written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins`; BS2d's bench job reads it from
-# base and head.
+# Written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins` (only the exact value `1`; CI
+# refuses it); BS2d's bench job reads it from base and head.
 
 [worst_tick]
 bench = "worst_tick"
 before = "58080c270dda6bac"
 after = "d772753c46bdc1dc"
 stage = "ba073f0849a313c2"
-input = "f2a121e06771a61f"
+input = "cf9a77022954c996"
 
 [hit_tick]
 bench = "hit_tick"
 before = "e85bd3364b22c9e5"
 after = "95527ebc68a22c23"
 stage = "8839446e53fd8066"
-input = "0a512b89fda92625"
+input = "c8f0ff41826bb896"
 
 [hit_tick_spread]
 bench = "hit_tick"
 before = "4b485ac6af094984"
 after = "ab1fe8f19a88d366"
 stage = "27bccd991cb13d0f"
-input = "0a512b89fda92625"
+input = "c8f0ff41826bb896"
 
 [time_limit_tick]
 bench = "time_limit_tick"
 before = "af22c3b048b1cfaf"
 after = "b788190e950c7ba7"
 stage = "dde83cb7a28bd1b3"
-input = "0a512b89fda92625"
+input = "c8f0ff41826bb896"
 
 [worst_minute]
 bench = "worst_minute"
 before = "9d7b2f80aeb6b0b7"
 after = "69c14535a0b14994"
 stage = "a4b0020f7c06af6e"
-input = "15dae7474d761c95"
+input = "2bfe2f6e231235bf"
 
 [worst_minute_peak]
 bench = "worst_minute_peak"
 before = "a5a12e05c8179280"
 after = "98983ce1652a15ab"
 stage = "a4b0020f7c06af6e"
-input = "d5564b1390ba76b1"
+input = "c72ad57b7626882e"
