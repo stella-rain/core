@@ -13,11 +13,11 @@ use stella_rain_core::id::EntityId;
 use stella_rain_core::snapshot::{EntityKind, EntityView};
 use stella_rain_core::validate::limits::MAX_MAP_SIDE;
 
-/// The largest map (core#87), and the spread case's two far corners: 128 pixels in from the right
-/// edge, at the top and at the bottom.
+/// The largest map (core#87), and the spread case's two outer crowds: 440 pixels right of the
+/// start and 440 above and below it, inside the leash (EC2, DS84).
 const SIDE: i32 = MAX_MAP_SIDE;
-const TOP_RIGHT: (i32, i32) = (SIDE - 32_768, 32_768);
-const BOTTOM_RIGHT: (i32, i32) = (SIDE - 32_768, SIDE - 32_768);
+const TOP_RIGHT: (i32, i32) = (hit_case::START.0 + 112_640, hit_case::START.1 - 112_640);
+const BOTTOM_RIGHT: (i32, i32) = (hit_case::START.0 + 112_640, hit_case::START.1 + 112_640);
 
 /// The main character is entity 0.
 const PLAYER: EntityId = EntityId(0);
@@ -113,7 +113,7 @@ fn the_measured_tick_has_its_load() {
 }
 
 /// The spread case (`hit_case::spread_stage`): five waves, the first at the start point, two at
-/// the top-right corner and two at the bottom-right one, 500 enemies in all, on a map of the
+/// the upper right and two at the lower right, inside the leash, 500 enemies in all, on a map of the
 /// largest side that the validator accepts.
 #[test]
 fn the_spread_waves_stand_at_the_start_and_two_far_corners() {
@@ -140,8 +140,15 @@ fn the_spread_waves_stand_at_the_start_and_two_far_corners() {
     Engine::new(&stage).expect("the spread stage passes the validator");
 }
 
+/// The least extent of the spread crowd in x and in y after the warm-up, in units.
+/// Measured 160,883 and 284,272 (about 630 and 1,110 pixels). DS84 asked for about 1,400 pixels in
+/// both, which the map's left edge (the start is 238 pixels from it) and the leash's 800 pixels
+/// leave out of reach; these are the extents the case has.
+const EXTENT_X: i32 = 140_000;
+const EXTENT_Y: i32 = 250_000;
+
 /// The spread tick has the clustered tick's load, with the main character's step and the zones
-/// on the first crowd only and the other crowds at the map's far edges.
+/// on the first crowd only and the other crowds spread inside the leash, so it relocates none.
 #[test]
 fn the_spread_tick_has_its_load() {
     let engine = measured(hit_case::spread_warmed_up());
@@ -149,12 +156,20 @@ fn the_spread_tick_has_its_load() {
     let by_player = hits_by(&engine, |s| s == PLAYER);
     assert!(by_player >= 90, "{by_player} hits by the main character");
     let crowd = enemies(&engine);
-    let max_x = crowd.iter().map(|e| e.at.x.0).max();
-    let min_y = crowd.iter().map(|e| e.at.y.0).min();
-    let max_y = crowd.iter().map(|e| e.at.y.0).max();
-    assert!(max_x >= Some(SIDE - 65_536), "{max_x:?}");
-    assert!(min_y <= Some(65_536), "{min_y:?}");
-    assert!(max_y >= Some(SIDE - 65_536), "{max_y:?}");
+    assert_eq!(
+        engine.load().relocated,
+        0,
+        "the leash moves none of the spread crowd"
+    );
+    let extent = |axis: fn(&EntityView) -> i32| {
+        let lo = crowd.iter().map(axis).min().unwrap_or(0);
+        let hi = crowd.iter().map(axis).max().unwrap_or(0);
+        hi - lo
+    };
+    // The start is 238 pixels from the left edge, so the crowd spans less in x than in y.
+    let (ex, ey) = (extent(|e| e.at.x.0), extent(|e| e.at.y.0));
+    assert!(ex >= EXTENT_X, "x extent");
+    assert!(extent(|e| e.at.y.0) >= EXTENT_Y, "y extent");
 }
 
 /// The state hash of each of the ticks `WARMUP_TICKS + 1` to `+ 3` (the measured tick and two
@@ -181,4 +196,4 @@ fn the_spread_ticks_hash_as_they_did_with_every_enemy_tested() {
 }
 
 const PINNED_CLUSTERED: [u64; 3] = [0x95527ebc68a22c23, 0x87e3b4b6e281d125, 0xe528b8947fab1e1d];
-const PINNED_SPREAD: [u64; 3] = [0x80f1f5dfc2697a18, 0x202a9c6a1cb7f61c, 0x5b61766d6e1f0d98];
+const PINNED_SPREAD: [u64; 3] = [0xab1fe8f19a88d366, 0x592a4927fce29a11, 0x58c3019d89b9c2a4];

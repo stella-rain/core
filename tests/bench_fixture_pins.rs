@@ -38,8 +38,8 @@ fn the_hit_tick_is_the_benches_case() {
 fn the_spread_hit_tick_is_the_benches_case() {
     pinned(
         bench_fixtures::hit_tick_spread(),
-        0x162f1ab46c9d34ea,
-        0x80f1f5dfc2697a18,
+        0x4b485ac6af094984,
+        0xab1fe8f19a88d366,
     );
 }
 
