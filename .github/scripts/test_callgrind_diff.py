@@ -111,6 +111,20 @@ class Cases(unittest.TestCase):
             open(os.path.join(d, "callgrind.hit_tick.hit_tick_spread.out.base@main"), "w").close()
             self.assertTrue(c.find_cases(home)[0][2].endswith(".out.base@main"))
 
+    def test_a_lone_saved_baseline_is_the_head(self):
+        # A push to main runs with --save-baseline=main: iai writes no plain `.out`.
+        with tempfile.TemporaryDirectory() as home:
+            d = os.path.join(home, "stella-rain-core", "hit_tick", "hit_group", "hit_tick.hit_tick_spread")
+            os.makedirs(d)
+            name = "callgrind.hit_tick.hit_tick_spread.out.base@main"
+            open(os.path.join(d, name), "w").close()
+            found = c.find_cases(home)
+            self.assertEqual(found, [("hit_tick.hit_tick_spread", os.path.join(d, name), None)])
+
+    def test_an_empty_home_has_no_case(self):
+        with tempfile.TemporaryDirectory() as home:
+            self.assertEqual(c.find_cases(home), [])
+
 
 FAKE = """#!{python}
 import sys
