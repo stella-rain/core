@@ -104,6 +104,28 @@ pub(crate) struct AgentDef {
     pub agent: Agent,
     /// The ranged pool of each rule, by rule; empty when no rule is a `ranged` attack (RA1).
     pub ranged_pools: Vec<Option<RangedPool>>,
+    /// The leash may move an enemy of this definition (EC2b): a free mover with no `move_to`
+    /// rule (`roams`). Decided once when the world is compiled; never hashed.
+    pub leash: bool,
+}
+
+/// Whether an agent drifts or chases rather than keeping to a fixed point of its own: its
+/// movement is free (`follow`, `orbit`, `straight`) and no rule is a `move_to`. Both matches are
+/// exhaustive, so a movement or an action added later has to be decided here.
+fn roams(agent: &Agent) -> bool {
+    let free = match &agent.movement {
+        Movement::Follow { .. } | Movement::Orbit { .. } | Movement::Straight { .. } => true,
+        Movement::Hold { .. } | Movement::FleeWhenDisturbed { .. } | Movement::Shrine { .. } => {
+            false
+        }
+    };
+    free && !agent.rules.iter().any(|r| match &r.action {
+        Action::MoveTo { .. } => true,
+        Action::Cast { .. }
+        | Action::Attack { .. }
+        | Action::Summon { .. }
+        | Action::Telegraph { .. } => false,
+    })
 }
 
 /// Every agent definition of the run, by index. `keys` finds one by the `AgentKey` that names
@@ -128,6 +150,7 @@ impl AgentDefs {
             kind: kinds.of(&agent.base),
             agent: agent.clone(),
             ranged_pools: Vec::new(),
+            leash: roams(agent),
         });
         Ok(DefIndex(at))
     }
@@ -472,5 +495,37 @@ mod tests {
         }
         let refused = defs.push(&kinds, &agent).unwrap_err();
         assert!(refused.message.contains("65535"), "{refused:?}");
+    }
+
+    fn agent_of(movement: serde_json::Value, rules: serde_json::Value) -> Agent {
+        serde_json::from_value(serde_json::json!({
+            "base": "bat", "hp": 10, "radius": 2048, "movement": movement, "rules": rules }))
+        .unwrap()
+    }
+
+    #[test]
+    fn only_a_free_mover_without_a_move_to_rule_roams() {
+        use serde_json::json;
+        let at = json!({ "x": 0, "y": 0 });
+        let free = [
+            json!({ "type": "follow", "distance": 0 }),
+            json!({ "type": "orbit", "radius": 1000 }),
+            json!({ "type": "straight", "vx": 0, "vy": 0 }),
+        ];
+        for m in free {
+            assert!(roams(&agent_of(m, json!([]))), "free mover");
+        }
+        let anchored = [
+            json!({ "type": "hold", "at": at }),
+            json!({ "type": "flee_when_disturbed", "disturb_radius": 1, "speed": 1,
+                    "leave_after_ticks": 1 }),
+        ];
+        for m in anchored {
+            assert!(!roams(&agent_of(m, json!([]))), "anchored mover");
+        }
+        let move_to = json!([{ "when": { "type": "always" }, "target": "self",
+            "do": { "type": "move_to", "to": at, "ticks": 5 }, "cooldown_ticks": 0 }]);
+        let straight = json!({ "type": "straight", "vx": 0, "vy": 0 });
+        assert!(!roams(&agent_of(straight, move_to)), "a move_to rule");
     }
 }

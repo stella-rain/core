@@ -4,7 +4,9 @@
 //! chases from there. At most `MAX_LEASH_MOVES_PER_TICK` move in a tick, in entity-ID order.
 //!
 //! Who moves: an enemy with no `elite` state (so no elite, mimic or shrine), no `leave` state
-//! (a goblin that flees keeps fleeing), and no attack running. The boss, its parts and the
+//! (a goblin that flees keeps fleeing), no attack running, and a definition that roams: not
+//! anchored (no `hold` movement, no `move_to` rule), since it would only walk back and be moved
+//! again (EC2b). The boss, its parts and the
 //! companions are not enemies of `State::enemies`. It keeps its hit points, statuses, runes, ID
 //! and kind; its `move_to` order and crowded flag are cleared. No random number is drawn.
 
@@ -30,6 +32,7 @@ pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEven
             || e.hp == 0
             || e.elite.is_some()
             || e.leave.is_some()
+            || !stage.defs.get(e.def).leash
             || s.runs.iter().any(|r| r.owner == e.id)
         {
             continue;
