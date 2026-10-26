@@ -99,9 +99,18 @@ pub(super) fn offsets_into(bodies: &[Body], grid: &mut Grid, out: &mut Vec<(i32,
         let mut n = 0;
         grid.each_neighbour(i, CANDIDATES, |j| {
             let b = &bodies[j as usize];
-            let dx = i64::from(a.at.x.0) - i64::from(b.at.x.0);
-            let dy = i64::from(a.at.y.0) - i64::from(b.at.y.0);
             let reach = i64::from(a.radius) + i64::from(b.radius);
+            // A gap of `reach` on one axis already makes d² >= reach², which the test below
+            // skips, so those are dropped before squaring. The candidate still counted toward
+            // the 32 read, as it did.
+            let dx = i64::from(a.at.x.0) - i64::from(b.at.x.0);
+            if dx.abs() >= reach {
+                return;
+            }
+            let dy = i64::from(a.at.y.0) - i64::from(b.at.y.0);
+            if dy.abs() >= reach {
+                return;
+            }
             let key = (dx * dx + dy * dy, b.id, j);
             // Touching is not overlapping.
             if key.0 >= reach * reach || (n == NEIGHBOURS && key >= counted[n - 1]) {
