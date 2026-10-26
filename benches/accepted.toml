@@ -73,3 +73,57 @@ base = 1242696
 count = 1304000
 reason = "probe: a deliberate 20,000-iteration loop in the regen step"
 pr = 382
+
+[[accepted]]
+bench = "time_limit_tick"
+case = "time_limit_tick"
+arch = "arm64"
+base = 1315070
+count = 1452000
+reason = "EC2 leash (DS80, DS86): relocated enemies land on the 400 px ring, so push_apart works on a denser crowd; the leash's own step is <1% of the tick"
+pr = 403
+
+[[accepted]]
+bench = "worst_minute"
+case = "worst_minute"
+arch = "arm64"
+base = 3658383471
+count = 4200054000
+reason = "EC2 leash (DS80, DS86): relocated enemies land on the 400 px ring, so push_apart works on a denser crowd; the leash's own step is <1% of the tick"
+pr = 403
+
+[[accepted]]
+bench = "worst_minute_peak"
+case = "worst_minute_peak"
+arch = "arm64"
+base = 1118515
+count = 1231000
+reason = "EC2 leash (DS80, DS86): relocated enemies land on the 400 px ring, so push_apart works on a denser crowd; the leash's own step is <1% of the tick"
+pr = 403
+
+[[accepted]]
+bench = "time_limit_tick"
+case = "time_limit_tick"
+arch = "x86_64"
+base = 1441429
+count = 1586000
+reason = "EC2 leash (DS80, DS86): relocated enemies land on the 400 px ring, so push_apart works on a denser crowd; the leash's own step is <1% of the tick"
+pr = 403
+
+[[accepted]]
+bench = "worst_minute"
+case = "worst_minute"
+arch = "x86_64"
+base = 4068448237
+count = 4623586000
+reason = "EC2 leash (DS80, DS86): relocated enemies land on the 400 px ring, so push_apart works on a denser crowd; the leash's own step is <1% of the tick"
+pr = 403
+
+[[accepted]]
+bench = "worst_minute_peak"
+case = "worst_minute_peak"
+arch = "x86_64"
+base = 1249472
+count = 1361000
+reason = "EC2 leash (DS80, DS86): relocated enemies land on the 400 px ring, so push_apart works on a denser crowd; the leash's own step is <1% of the tick"
+pr = 403
