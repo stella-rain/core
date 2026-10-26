@@ -36,8 +36,9 @@ const HEADER: &str = "\
 #   stage  the first 16 hex of SHA-256 over the stage's JSON and the run content's hash
 #          (`stella-rain/bench-stage/v1`; the minute cases have no stage part: the content
 #          hash and `before` cover their stage)
-#   input  the first 16 hex of SHA-256 over the measured input's JSON, or over the tick count
-#          for a minute case (`stella-rain/bench-input/v1`)
+#   input  the first 16 hex of SHA-256 over the measured input's JSON; for a minute case over
+#          the start tick, the tick count, the option an open offer takes and the JSON of
+#          every played `Input` (`input_at`) (`stella-rain/bench-input/v2`)
 # Hashes are strings: TOML integers are i64 and these u64 values overflow it.
 # A case is comparable when `before`, `stage` and `input` are equal; `after` is pinned only.
 # Written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins` (only the exact value `1`; CI
