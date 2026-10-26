@@ -6,7 +6,8 @@
 //! Who moves: an enemy with no `elite` state (so no elite, mimic or shrine), no `leave` state
 //! (a goblin that flees keeps fleeing), no attack running, and a definition that roams: not
 //! anchored (no `hold` movement, no `move_to` rule), since it would only walk back and be moved
-//! again (EC2b), and not placed by an elite or the boss (a guardian, an escort, an elite's or the boss's summon). The boss, its parts and the
+//! again (EC2b), and not placed by an elite or the boss (a guardian, an escort, an elite's or
+//! the boss's summon). The boss, its parts and the
 //! companions are not enemies of `State::enemies`. It keeps its hit points, statuses, runes, ID
 //! and kind; its `move_to` order and crowded flag are cleared. No random number is drawn.
 
