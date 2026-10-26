@@ -30,10 +30,6 @@ pub const MINUTE_TICKS: u32 = 3_600;
 /// The ticks played before the minute: the crowd is at its cap and two elite minutes have come.
 pub const MINUTE_START: u32 = 7_300;
 
-/// The heaviest tick of the minute by `Load` (`worst_minute_window` finds it; `tests/worst_minute.rs`
-/// pins that it still does), as ticks played before it.
-pub const PEAK_TICK: u32 = 10_156;
-
 /// The tick the mid-boss arrives at, inside the minute.
 const BOSS_TICK: u32 = 9_000;
 
@@ -114,7 +110,7 @@ fn weight(load: Load) -> u64 {
     .sum()
 }
 
-/// Scans the minute for its heaviest tick (a test pins it as `PEAK_TICK`): the minute and that tick, as numbers of ticks played before them: the minute is the
+/// Scans the minute for its heaviest tick (`tests/worst_minute.rs` pins it): the minute and that tick, as numbers of ticks played before them: the minute is the
 /// ticks `start..start + MINUTE_TICKS`, and the next `step` of a run `peak_tick` ticks in is the
 /// heaviest tick of it.
 pub fn worst_minute_window() -> (u32, u32) {
@@ -136,7 +132,7 @@ pub fn worst_minute() -> Run {
 }
 
 /// The run one tick before the heaviest tick of that minute (`benches/worst_minute_peak.rs`; the
-/// pin is `PEAK_TICK`, so the bench's setup need not scan the minute).
+/// tick is the one `worst_minute_window` finds).
 pub fn worst_minute_peak() -> Run {
-    Run::fast_forwarded(PEAK_TICK)
+    Run::fast_forwarded(worst_minute_window().1)
 }
