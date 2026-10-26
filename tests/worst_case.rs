@@ -232,3 +232,55 @@ fn the_caps_are_held_tick_after_tick() {
     // Haste keeps the cooldowns short enough that each on-hit rune fires within the 60 ticks.
     assert_eq!(fired.len(), 4, "on-hit runes that fired: {fired:?}");
 }
+
+/// The shooters' attacks as the stage writes them: for each wave of ranged enemies, how many
+/// there are and whether their attack spawns a zone of shape `line` (RA1a, DS83).
+fn shooter_waves() -> Vec<(u64, bool)> {
+    let stage = serde_json::to_value(worst_case::stage()).unwrap();
+    stage["waves"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|w| w["enemy"]["rules"].to_string().contains("\"ranged\":true"))
+        .map(|w| {
+            let rules = w["enemy"]["rules"].to_string();
+            let line = rules.contains("\"shape\":{\"type\":\"line\"")
+                || rules.contains("\"shape\":{\"length\"");
+            (w["count"].as_u64().unwrap(), line)
+        })
+        .collect()
+}
+
+#[test]
+fn one_of_the_four_shooters_lays_a_line() {
+    let waves = shooter_waves();
+    let line: u64 = waves.iter().filter(|(_, l)| *l).map(|(n, _)| n).sum();
+    let other: u64 = waves.iter().filter(|(_, l)| !*l).map(|(n, _)| n).sum();
+    assert_eq!(
+        (line, other),
+        (1, 3),
+        "line shooters and the others: {waves:?}"
+    );
+}
+
+#[test]
+fn the_shooters_stand_in_the_view_of_the_main_character() {
+    // The view is 640 x 360 pixels, centred on the main character; RA1 bars ranged starts
+    // outside it. Every enemy stands on the point of `ENEMIES_AT`, the shooters among them.
+    let mut engine = worst_case::warmed_up();
+    engine.step(worst_case::input(worst_case::WARMUP_TICKS + 1));
+    let snapshot = engine.snapshot();
+    let me = snapshot.player.at;
+    let mut seen = 0;
+    for e in snapshot
+        .entities
+        .iter()
+        .filter(|e| e.kind == EntityKind::Enemy)
+    {
+        seen += 1;
+        let (dx, dy) = ((e.at.x.0 - me.x.0).abs(), (e.at.y.0 - me.y.0).abs());
+        assert!(dx <= 320 * 256, "{:?} is {dx} units off on x", e.id);
+        assert!(dy <= 180 * 256, "{:?} is {dy} units off on y", e.id);
+    }
+    assert_eq!(seen, 500);
+}
