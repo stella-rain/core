@@ -4,6 +4,7 @@ paths:
   - "fuzz/**"
   - "src/bench_fixtures/**"
   - "tests/bench_fixture_pins.rs"
+  - "tests/bench_pins.toml"
   - "Cargo.toml"
   - ".github/scripts/bench_*"
   - ".github/scripts/callgrind_diff.py"
@@ -11,7 +12,7 @@ paths:
 
 # Benches and fuzz targets
 
-Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-SVC-1, ADR-REPL-3, ADR-CONT-3.
+Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-10, ADR-SVC-1, ADR-REPL-3, ADR-CONT-3.
 
 ## Benches (`benches/`)
 
@@ -37,25 +38,26 @@ Each bench target is a key of `benches/budgets.toml`, which CI reads for the lis
   `tests/worst_minute.rs`). The minute does not reach the orb, zone and elite caps (about 0 of 32
   orbs, 5 to 14 of 128 zones, 2 of 32 elites) until Z3b (core#319) brings content that fires them
   and BR1e-3 (core#370) re-scripts it (DS55); until then `worst_tick` bounds the frame there.
-- Pins (`tests/bench_fixture_pins.rs`, core#360): the state hash before and after the measured
-  tick or ticks of each case. They are in `tests/`, not bench input, so the bench guard does not
-  refuse a `src/` change that moves one: that PR updates the pin from the engine's own value (the
-  failing `assert_eq` prints it) and says so in its body. A pin that moves when the PR did not
-  mean to change the case is a bug in that PR.
+- Pins (`tests/bench_pins.toml`, core#360, written by `UPDATE_BENCH_PINS=1 cargo test
+  bench_fixture_pins`): per case the state hash `before` and `after` the measured tick or ticks,
+  and the `stage` and `input` digests. They are in `tests/`, not bench input. A PR that moves a pin
+  updates it from the engine's own value and says so in its body; a pin that moves when the PR did
+  not mean to change the case is a bug in that PR.
 
 ## Tick cost gate
 
 - `cargo bench` runs the five targets (every key of `benches/budgets.toml`); it needs `valgrind`
   and `iai-callgrind-runner` 0.16.1.
-- CI (`rust.yml`, ADR-SIM-7, ADR-SIM-8) on both architectures: the budgets of `benches/budgets.toml`
+- CI (`rust.yml`, ADR-SIM-7, ADR-SIM-10) on both architectures: the budgets of `benches/budgets.toml`
   block on every run (`bench_budget.py`); a case that rose over +2% against the base commit
   (`BENCH_ALARM_PCT`, `bench_alarm.py`) fails unless a new entry of `benches/accepted.toml` covers
   it (`[[accepted]]`: bench, case, arch, base, count, reason, pr; append-only; Kade merges). An
   unexplained rise is fixed, not accepted.
-- A PR changing bench input (`benches/*.rs` or `src/bench_fixtures/`) and code (`src/` outside
-  `bench_fixtures`, `Cargo.toml`, `Cargo.lock`) fails, since no comparison could tell which moved
-  the count: change the bench in its own PR first. Bench input alone is allowed, uncompared.
-  `benches/budgets.toml` and `benches/accepted.toml` are not bench input.
+- A case is compared with the base commit when its `before`, `stage` and `input` pins are equal
+  there and here and its bench file and `benches/support/` are unchanged (`bench_pins.py`,
+  ADR-SIM-10); `after` is pinned only. A case whose pin moved is printed "case moved: not compared"
+  and not gated (`bench_alarm.py --cases`); budgets still block it. Code and bench may change in
+  one PR; `accepted.toml` covers rises of compared cases only.
 - Every run uploads `bench-profile-<arch>` (`callgrind_diff.py`): per case `*.diff.txt` (exclusive)
   and `*.diff-inclusive.txt`, rows `delta base head function` by size, plus the `callgrind.*.out`
   files. A tick step inserted into `TICK` renumbers `TICK::{closure#N}`: a -X/+X pair, not a cost.

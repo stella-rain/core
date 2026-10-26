@@ -142,7 +142,7 @@ class Schema(unittest.TestCase):
 
 
 class Cli(unittest.TestCase):
-    def run_cli(self, head, ledger, base_ledger, pr="400"):
+    def run_cli(self, head, ledger, base_ledger, pr="400", cases=None):
         with tempfile.TemporaryDirectory() as d:
             paths = {n: os.path.join(d, n) for n in ("bench.txt", "accepted.toml", "base.toml", "budgets.toml", "sum.md")}
             for n, text in (("bench.txt", output(head)), ("accepted.toml", ledger),
@@ -153,7 +153,8 @@ class Cli(unittest.TestCase):
             p = subprocess.run(
                 [sys.executable, SCRIPT, "--arch", "arm64", "--bench-output", paths["bench.txt"],
                  "--limit-pct", "2", "--accepted", paths["accepted.toml"], "--accepted-base", paths["base.toml"],
-                 "--pr", pr, "--budgets", paths["budgets.toml"]],
+                 "--pr", pr, "--budgets", paths["budgets.toml"]]
+                + ([] if cases is None else ["--cases", cases]),
                 capture_output=True, text=True, env=env, check=False,
             )
             md = open(paths["sum.md"]).read() if os.path.exists(paths["sum.md"]) else ""
@@ -184,6 +185,50 @@ class Cli(unittest.TestCase):
     def test_no_pr_number_covers_nothing(self):
         p, _ = self.run_cli(1_692_456, entry(), "", pr="")
         self.assertEqual(p.returncode, 1)
+
+    def test_a_rise_on_a_listed_case_fails(self):
+        p, _ = self.run_cli(1_692_456, "", "", cases="time_limit_tick")
+        self.assertEqual(p.returncode, 1)
+
+    def test_a_rise_on_an_unlisted_case_passes_with_the_notice_and_the_row(self):
+        p, md = self.run_cli(1_692_456, "", "", cases="worst_tick")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn(
+            "::notice::case moved: not compared  time_limit_tick time_limit_tick: 1,600,046 -> 1,692,456 (+5.78%)",
+            p.stdout,
+        )
+        self.assertIn("| time_limit_tick | time_limit_tick | 1,600,046 | 1,692,456 | +5.78% | moved: not compared |", md)
+
+    def test_an_empty_list_gates_nothing(self):
+        p, _ = self.run_cli(1_692_456, "", "", cases="")
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_no_flag_gates_every_case(self):
+        p, _ = self.run_cli(1_692_456, "", "")
+        self.assertEqual(p.returncode, 1)
+
+
+class Compared(unittest.TestCase):
+    def test_a_moved_case_is_a_row_and_never_an_error(self):
+        rows, errors, warnings = a.check(
+            "arm64", a.cases(output(1_692_456)), "2", [], [], 400, compared={"other"}
+        )
+        self.assertEqual((errors, warnings), ([], []))
+        self.assertEqual(rows, [("time_limit_tick", "time_limit_tick", 1_600_046, 1_692_456, "+5.78%", "moved: not compared")])
+
+    def test_an_entry_for_a_moved_case_warns_that_it_was_not_compared(self):
+        _, errors, warnings = a.check(
+            "arm64", a.cases(output(1_692_456)), "2", a.parse_ledger(entry()), [], 400, compared=set()
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("moved and was not compared", warnings[0])
+
+    def test_a_case_in_the_set_is_gated(self):
+        _, errors, _ = a.check(
+            "arm64", a.cases(output(1_692_456)), "2", [], [], 400, compared={"time_limit_tick"}
+        )
+        self.assertEqual(len(errors), 1)
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MI
 | `src/bin/` | `stage-verify` (re-simulates a replay, checks the clear and the final hash) and `content-pack` |
 | `tests/` | Integration tests in one binary (`integration.rs`); golden hashes, `insta` snapshots, `proptest` invariants |
 | `tests/corpus/` | The replay corpus per `sim_version`; every tick's hash is checked (ADR-SIM-3) |
-| `benches/` | `iai-callgrind` instruction counts of worst-case ticks (ADR-SIM-7); the cases they run are `src/bench_fixtures/` (bench input, not code, for the bench guard) |
+| `benches/` | `iai-callgrind` instruction counts of worst-case ticks (ADR-SIM-7); the cases they run are `src/bench_fixtures/` (bench input, not code) |
 | `fuzz/` | `cargo-fuzz` targets for the parsers and loaders; its own workspace on nightly |
 | `schema/` | JSON Schema generated from the types |
 | `content/` | The bundled content, JSON read as data |
