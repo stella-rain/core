@@ -95,6 +95,7 @@ mod replay;
 mod reward_kinds;
 mod rewards;
 mod rng;
+mod rules;
 mod run_loadout;
 mod run_play;
 mod run_replay;

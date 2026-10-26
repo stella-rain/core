@@ -102,6 +102,11 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
                 pack.content().constellations().sets().len()
             );
             println!("stardust: {} modes", pack.stardust().modes().len());
+            println!(
+                "rules: crowd_target {}, cap_headroom_pct {}",
+                pack.content().rules().crowd_target(),
+                pack.content().rules().cap_headroom_pct()
+            );
             Ok(())
         }
         ["export"] => std::io::stdout()

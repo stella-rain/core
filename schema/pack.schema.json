@@ -37,6 +37,10 @@
       "description": "Checked against the pack's own stage skills.",
       "$ref": "#/$defs/RewardsFile"
     },
+    "rules": {
+      "description": "The crowd target and the cap's headroom (DIR1). Required: the simulation reads it.",
+      "$ref": "#/$defs/RulesFile"
+    },
     "run_stats": {
       "$ref": "#/$defs/RunStatsFile"
     },
@@ -98,6 +102,7 @@
     "perk_sets",
     "difficulties",
     "weapons",
+    "rules",
     "modes"
   ],
   "$defs": {
@@ -3636,6 +3641,43 @@
         "when",
         "target",
         "do"
+      ]
+    },
+    "RulesFile": {
+      "description": "The rules file.",
+      "type": "object",
+      "properties": {
+        "cap_headroom_pct": {
+          "description": "How far above the target the cap stands, in percent, from 25 to 30.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "crowd_target": {
+          "description": "The enemies a horde run keeps alive: wave spawns that fall due at it are held. From 1 to\nthe most that keeps the cap within the engine ceiling (384 at a headroom of 30).",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "schema_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sim_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "sim_version",
+        "crowd_target",
+        "cap_headroom_pct"
       ]
     },
     "RunStat": {
