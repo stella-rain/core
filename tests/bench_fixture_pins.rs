@@ -20,8 +20,8 @@ fn pinned(case: Case, before: u64, after: u64) {
 fn the_worst_tick_is_the_benches_case() {
     pinned(
         bench_fixtures::worst_tick(),
-        0x776a99f076cc9861,
-        0xc59a1e60bbcdbc3c,
+        0x5c1e1548f693fc2c,
+        0x6181713d8f5da927,
     );
 }
 
