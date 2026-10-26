@@ -22,17 +22,17 @@ input = "f2a121e06771a61f"
 
 [hit_tick]
 bench = "hit_tick"
-before = "e85bd3364b22c9e5"
-after = "95527ebc68a22c23"
+before = "95527ebc68a22c23"
+after = "87e3b4b6e281d125"
 stage = "8839446e53fd8066"
-input = "0a512b89fda92625"
+input = "a5af2b4e2f7d3a6c"
 
 [hit_tick_spread]
 bench = "hit_tick"
-before = "4b485ac6af094984"
-after = "ab1fe8f19a88d366"
+before = "ab1fe8f19a88d366"
+after = "592a4927fce29a11"
 stage = "27bccd991cb13d0f"
-input = "0a512b89fda92625"
+input = "a5af2b4e2f7d3a6c"
 
 [time_limit_tick]
 bench = "time_limit_tick"

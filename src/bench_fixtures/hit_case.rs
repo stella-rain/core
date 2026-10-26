@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 /// Ticks before the measured tick: the crowd has arrived (the last enemy on tick 100) and been
 /// pushed apart, and the zones are placed (on tick 1 and 2, active for 600 ticks).
-pub const WARMUP_TICKS: u32 = 400;
+pub const WARMUP_TICKS: u32 = 401;
 
 /// Where the main character starts: 238 pixels from the left and 620 from the top.
 pub const START: (i32, i32) = (60_928, 158_720);

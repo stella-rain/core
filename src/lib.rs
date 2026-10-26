@@ -1,3 +1,4 @@
+// scratch: BS2d live test, never merged
 //! Stella Rain's deterministic simulation (ADR-004).
 //!
 //! The same stage, seed and inputs give the same state hash every tick on every platform
