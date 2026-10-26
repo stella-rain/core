@@ -429,9 +429,14 @@ jobs:
           set -eu
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
+          import re
           import tomllib
           with open("benches/budgets.toml", "rb") as f:
               names = list(tomllib.load(f))
+          # A name is a bench target, a cache key, an artifact name and a `--bench` argument.
+          bad = [n for n in names if not re.fullmatch(r"[a-z_][a-z0-9_]*", n)]
+          if bad:
+              raise SystemExit(f"benches/budgets.toml: not a bench target name: {bad}")
           print("names=" + json.dumps(names))
           PY
 
