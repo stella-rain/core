@@ -183,6 +183,7 @@ fn measure(spec: &Spec) -> Pins {
     }
 }
 
+#[expect(clippy::disallowed_methods, reason = "test knob")]
 fn updating() -> bool {
     std::env::var_os("UPDATE_BENCH_PINS").is_some()
 }
