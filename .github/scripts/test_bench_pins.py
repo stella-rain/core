@@ -102,8 +102,13 @@ class Cli(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("head tests/bench_pins.toml lacks the case y of the target t", err)
 
+    def test_a_malformed_base_file_fails_not_silently_skips(self):
+        code, _, err, _ = self.run_script("[x\nbench =", pins(x=A))
+        self.assertEqual(code, 1)
+        self.assertIn("not valid TOML", err)
+
     def test_a_removed_case_with_a_changed_bench_file_is_allowed(self):
-        code, out, _, written = self.run_script(pins(x=A, y=B), pins(x=A), changed="true")
+        code, _, _, written = self.run_script(pins(x=A, y=B), pins(x=A), changed="true")
         self.assertEqual((code, written), (0, ["compare=false", "cases="]))
 
     def test_head_without_any_case_of_the_target_fails(self):

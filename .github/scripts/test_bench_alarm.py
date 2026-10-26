@@ -216,6 +216,14 @@ class Compared(unittest.TestCase):
         self.assertEqual((errors, warnings), ([], []))
         self.assertEqual(rows, [("time_limit_tick", "time_limit_tick", 1_600_046, 1_692_456, "+5.78%", "moved: not compared")])
 
+    def test_an_entry_for_a_moved_case_warns_that_it_was_not_compared(self):
+        _, errors, warnings = a.check(
+            "arm64", a.cases(output(1_692_456)), "2", a.parse_ledger(entry()), [], 400, compared=set()
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("moved and was not compared", warnings[0])
+
     def test_a_case_in_the_set_is_gated(self):
         _, errors, _ = a.check(
             "arm64", a.cases(output(1_692_456)), "2", [], [], 400, compared={"time_limit_tick"}
