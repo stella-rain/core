@@ -7,6 +7,7 @@ use crate::common;
 
 use common::*;
 use proptest::prelude::*;
+use proptest::test_runner::FileFailurePersistence;
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
@@ -371,7 +372,14 @@ fn steps() -> impl Strategy<Value = Vec<Input>> {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 64, ..ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig {
+        cases: 64,
+        // `tests/push_apart.proptest-regressions`, next to this file.
+        failure_persistence: Some(Box::new(FileFailurePersistence::WithSource(
+            "proptest-regressions",
+        ))),
+        ..ProptestConfig::default()
+    })]
 
     /// From one tick to the next, no enemy is farther from where it was than its own movement
     /// carries it plus the push's 4 pixels (and 2 units of rounding).
