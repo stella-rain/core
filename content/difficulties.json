@@ -8,6 +8,7 @@
       "damage_pct": 75,
       "rarity_min": "common",
       "rarity_max": "rare",
+      "rune_shards": 10,
       "length_ticks": 36000,
       "boss_ticks": [18000, 36000],
       "level_table": { "style": 2, "upgrades": [4, 6], "capstone": 8 }
@@ -19,7 +20,8 @@
       "hp_pct": 100,
       "damage_pct": 100,
       "rarity_min": "common",
-      "rarity_max": "legendary"
+      "rarity_max": "legendary",
+      "rune_shards": 15
     },
     {
       "id": "hard",
@@ -28,7 +30,9 @@
       "hp_pct": 150,
       "damage_pct": 125,
       "rarity_min": "common",
-      "rarity_max": "supernova"
+      "rarity_max": "supernova",
+      "rune_shards": 20,
+      "opens_after": "normal"
     },
     {
       "id": "rainy",
@@ -38,6 +42,8 @@
       "damage_pct": 150,
       "rarity_min": "uncommon",
       "rarity_max": "supernova",
+      "rune_shards": 30,
+      "opens_after": "hard",
       "stardust_tiers": [
         { "start_tick": 0, "pct": 200 },
         { "start_tick": 18000, "pct": 240 },

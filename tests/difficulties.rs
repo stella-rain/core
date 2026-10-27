@@ -22,7 +22,7 @@ fn difficulty(id: &str) -> Value {
     json!({
         "id": id, "title": "Level", "description": "A level",
         "hp_pct": 100, "damage_pct": 100,
-        "rarity_min": "common", "rarity_max": "legendary",
+        "rarity_min": "common", "rarity_max": "legendary", "rune_shards": 10,
     })
 }
 
