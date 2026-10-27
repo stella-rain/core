@@ -3882,6 +3882,17 @@
         }
       ]
     },
+    "Side": {
+      "description": "A side of the spawn rectangle, or all of it.",
+      "type": "string",
+      "enum": [
+        "any",
+        "top",
+        "bottom",
+        "left",
+        "right"
+      ]
+    },
     "Skill": {
       "description": "A skill block (ADR-008, ADR-036). Percentages are whole percent.",
       "oneOf": [
@@ -5118,7 +5129,7 @@
           "$ref": "#/$defs/Stars"
         },
         "waves": {
-          "description": "The enemies that spawn over the run, 0 to `MAX_WAVES` waves of up to `MAX_SPAWN_COUNT`\nenemies, `MAX_TOTAL_SPAWNS` in all, none an elite, each starting before the length. A\nwave with `around` spawns that far from the main character; the placeholder content is\nthe trial's enemies.",
+          "description": "The enemies that spawn over the run, 0 to `MAX_WAVES` waves of up to `MAX_SPAWN_COUNT`\nenemies, `MAX_TOTAL_SPAWNS` in all, none an elite, each starting before the length. A\nwave with `edge` spawns on the spawn rectangle around the main character (VS1); the\nplaceholder content is the trial's enemies.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/Wave"
@@ -5221,21 +5232,34 @@
         }
       ]
     },
+    "ViewEdge": {
+      "description": "Where on the spawn rectangle around the main character a wave spawns (VS1): the rectangle is\n±384 by ±244 px, the view (±320 by ±180 px) and a margin of 64 px. Only its part on the map\nis used; a side wholly off the map gives way to the opposite one.",
+      "type": "object",
+      "properties": {
+        "along": {
+          "description": "Per mille of the half side from its middle, -1000 (the left or top end) to 1000 (the right\nor bottom end): every enemy spawns at that point of the side. Absent, the point is drawn\nalong the side. Not with the side `any`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int16",
+          "maximum": 32767,
+          "minimum": -32768
+        },
+        "side": {
+          "description": "The side, or `any` for the whole rectangle.",
+          "$ref": "#/$defs/Side"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "side"
+      ]
+    },
     "Wave": {
       "description": "`count` copies of `enemy`, the first at `at_tick`, then one every `every_ticks`.",
       "type": "object",
       "properties": {
-        "around": {
-          "description": "A distance, `1` to `MAX_LEN`: each enemy of the wave spawns that far from the main\ncharacter, at an angle the run's generator draws, kept on the map; `spawn` is then not\nused. Absent, every enemy spawns at `spawn`.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Fx"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "at_tick": {
           "type": "integer",
           "format": "uint32",
@@ -5246,6 +5270,17 @@
           "format": "uint16",
           "maximum": 65535,
           "minimum": 0
+        },
+        "edge": {
+          "description": "A side of the view: each enemy of the wave spawns on the spawn rectangle, 64 px outside\nthe view around the main character, on the part of it that is on the map (VS1, DS109).\nGive this or `spawn`, not both.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ViewEdge"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "enemy": {
           "$ref": "#/$defs/Agent"
@@ -5279,7 +5314,15 @@
           ]
         },
         "spawn": {
-          "$ref": "#/$defs/Point"
+          "description": "A point on the map where each enemy of the wave spawns (a stage's way to place a wave).\nGive this or `edge`, not both.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Point"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "stardust": {
           "description": "The Stardust a kill of each enemy of the wave earns before the time factor, times 10\n(ADR-109), at most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage\nwith a `stardust` factor.",
@@ -5304,7 +5347,6 @@
       "required": [
         "at_tick",
         "enemy",
-        "spawn",
         "count"
       ]
     },
