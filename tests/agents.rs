@@ -836,10 +836,12 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
     );
     let rules =
         json!([{ "when": always(), "target": "nearest_enemy", "do": slow(50), "once": true }]);
+    // The runner spawns 340 pixels above the main character, inside the leash's reach.
+    let from = near_start(0, -340);
     let mut e = engine(&stage_full(
         18_000,
         Some(far_boss()),
-        vec![wave(1, 1, 0, runner, START_X, 0)],
+        vec![wave(1, 1, 0, runner, from.0, from.1)],
         vec![companion(50, hold(46_080, 90_000), rules)],
     ));
     e.step(idle());
@@ -864,7 +866,7 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
         .0;
     // Companions act before enemies, so the enemy is slowed on tick 1 already (the boss at
     // (0, 0) is farther from the companion than the enemy).
-    assert_eq!((y1, y2 - y1), (1024, 1024));
+    assert_eq!((y1 - from.1, y2 - y1), (1024, 1024));
 }
 
 #[test]
