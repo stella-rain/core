@@ -33,10 +33,33 @@ pub(crate) fn check(schema_version: u32, sim_version: u32) -> Result<(), ReadErr
     }
 }
 
-/// Reads a versioned file (a content file, a pack, a stage or a run setup): the size limit
-/// first, then the versions alone, then the strict parse (ADR-017, ADR-SVC-1). The versions are
-/// read before the rest because a file for a newer game may have fields this one rejects, and
-/// that file is "needs a newer version", not a parse error.
+/// The versions a file is read at: a standalone file's own (a stage, a run setup, a pack), or,
+/// for a content file inside a pack, the pack's (CS1a-2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+pub struct Versions {
+    pub schema_version: u32,
+    pub sim_version: u32,
+}
+
+impl Versions {
+    /// This game's.
+    pub const CURRENT: Versions = Versions {
+        schema_version: SCHEMA_VERSION,
+        sim_version: SIM_VERSION,
+    };
+}
+
+fn parse_error(e: serde_json::Error) -> ReadError {
+    ReadError::Parse {
+        line: e.line(),
+        column: e.column(),
+    }
+}
+
+/// Reads a versioned file (a pack, a stage or a run setup): the size limit first, then the
+/// versions alone, then the strict parse (ADR-017, ADR-SVC-1). The versions are read before the
+/// rest because a file for a newer game may have fields this one rejects, and that file is
+/// "needs a newer version", not a parse error.
 pub(crate) fn read_current<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,
@@ -48,16 +71,25 @@ pub(crate) fn read_current<T: serde::de::DeserializeOwned>(
         });
     }
     // Not `deny_unknown_fields`: only the two versions are read here.
-    #[derive(serde::Deserialize)]
-    struct Versions {
-        schema_version: u32,
-        sim_version: u32,
-    }
-    let parse_error = |e: serde_json::Error| ReadError::Parse {
-        line: e.line(),
-        column: e.column(),
-    };
     let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
+    check(versions.schema_version, versions.sim_version)?;
+    serde_json::from_slice(bytes).map_err(parse_error)
+}
+
+/// Reads a content file: it has no versions of its own and is read at the versions of the pack
+/// that holds it (ADR-CONT-3), checked here so that a future migration has them (ADR-REPL-1
+/// point 4). The size limit first, then the versions, then the strict parse.
+pub(crate) fn read_member<T: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    limit: usize,
+    versions: Versions,
+) -> Result<T, ReadError> {
+    if bytes.len() > limit {
+        return Err(ReadError::TooLarge {
+            size: bytes.len(),
+            limit,
+        });
+    }
     check(versions.schema_version, versions.sim_version)?;
     serde_json::from_slice(bytes).map_err(parse_error)
 }

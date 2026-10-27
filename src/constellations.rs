@@ -31,7 +31,7 @@ use crate::rewards::{
 };
 use crate::run_stats;
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 
 /// The largest constellations file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_CONSTELLATIONS_BYTES: usize = 32 * 1024;
@@ -48,8 +48,6 @@ pub const MAX_TIER_EFFECTS: usize = crate::rewards::MAX_REWARD_EFFECTS;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ConstellationsFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     pub constellations: Vec<Constellation>,
 }
 
@@ -106,10 +104,15 @@ pub struct Constellations {
 }
 
 impl Constellations {
-    /// Checks the size, parses strictly and validates against `rewards`, whose named stars the
-    /// members must be: the one call for a file's bytes.
-    pub fn parse_with(bytes: &[u8], rewards: &Rewards) -> Result<Constellations, Error> {
-        let file: ConstellationsFile = version::read_current(bytes, MAX_CONSTELLATIONS_BYTES)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates against
+    /// `rewards`, whose named stars the members must be: the one call for a file's bytes.
+    pub fn parse_with(
+        bytes: &[u8],
+        versions: Versions,
+        rewards: &Rewards,
+    ) -> Result<Constellations, Error> {
+        let file: ConstellationsFile =
+            version::read_member(bytes, MAX_CONSTELLATIONS_BYTES, versions)?;
         validate(&file, rewards)?;
         Ok(Constellations {
             sets: file.constellations,

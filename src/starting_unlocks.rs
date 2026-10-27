@@ -22,7 +22,7 @@ use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::stage_skill::StageSkills;
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 use crate::weapons::Weapons;
 
 /// The largest starting unlocks file read (a tuning value; ADR-020 decides that one exists).
@@ -34,8 +34,6 @@ pub const MAX_STARTING_UNLOCKS: usize = 32;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StartingUnlocksFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// Weapon presets, at most `MAX_STARTING_UNLOCKS`.
     pub weapons: Vec<ContentId>,
     /// Perk sets of the pack's perk sets file.
@@ -54,16 +52,18 @@ pub struct StartingUnlocks {
 }
 
 impl StartingUnlocks {
-    /// Checks the size, parses strictly and validates against the files the IDs name: the one
-    /// call for a file's bytes.
+    /// Checks the size and the versions given (the pack's), parses strictly and validates against
+    /// the files the IDs name: the one call for a file's bytes.
     pub fn parse_with(
         bytes: &[u8],
+        versions: Versions,
         perk_sets: &PerkSets,
         stage_skills: &StageSkills,
         runes: &Runes,
         weapons: &Weapons,
     ) -> Result<StartingUnlocks, Error> {
-        let file: StartingUnlocksFile = version::read_current(bytes, MAX_STARTING_UNLOCKS_BYTES)?;
+        let file: StartingUnlocksFile =
+            version::read_member(bytes, MAX_STARTING_UNLOCKS_BYTES, versions)?;
         validate(&file, perk_sets, stage_skills, runes, weapons)?;
         Ok(StartingUnlocks {
             file,

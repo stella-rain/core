@@ -19,7 +19,7 @@ use crate::attack::MatchUp;
 use crate::pack::Pack;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 
 /// The largest match-up file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_MATCH_UPS_BYTES: usize = 1024;
@@ -31,8 +31,6 @@ pub const MAX_MATCH_UP_PCT: u8 = 100;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MatchUpsFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// Percent more damage from a weak hit, 0 to `MAX_MATCH_UP_PCT`.
     pub weak_pct: u8,
     /// Percent less damage from a strong hit, 0 to `MAX_MATCH_UP_PCT`.
@@ -60,9 +58,10 @@ impl MatchUps {
         Pack::bundled().content().match_ups()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<MatchUps, Error> {
-        let file: MatchUpsFile = version::read_current(bytes, MAX_MATCH_UPS_BYTES)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<MatchUps, Error> {
+        let file: MatchUpsFile = version::read_member(bytes, MAX_MATCH_UPS_BYTES, versions)?;
         validate(&file)?;
         Ok(MatchUps {
             weak_pct: file.weak_pct,

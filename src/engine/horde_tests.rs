@@ -2,6 +2,7 @@ use super::*;
 use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
 use crate::time_limit::TimeLimit;
+use crate::version::Versions;
 
 fn engine(boss_ticks: &[u32]) -> Engine {
     engine_with(boss_ticks, &[])
@@ -26,7 +27,8 @@ fn engine_edited(
     v["boss_ticks"] = serde_json::json!(boss_ticks);
     v["elite_table"] =
         serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
-    let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e:?}"));
+    let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e:?}"));
     let setup = RunSetup {
         schema_version: 0,
         sim_version: 0,
@@ -295,7 +297,8 @@ fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
         serde_json::from_slice(ContentFiles::bundled_file("time_limit")).unwrap();
     v["waves"] = serde_json::json!([]);
     edit(&mut v);
-    let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e}"));
     let setup = RunSetup {
         schema_version: 0,
         sim_version: 0,

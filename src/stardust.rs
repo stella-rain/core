@@ -25,7 +25,7 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 
 /// The largest Stardust file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_STARDUST_BYTES: usize = 4 * 1024;
@@ -60,8 +60,6 @@ pub struct ModeStardust {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StardustFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// At most `MAX_MODES` entries, one per mode.
     pub modes: Vec<ModeStardust>,
 }
@@ -79,9 +77,10 @@ impl Stardust {
         Pack::bundled().stardust()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<Stardust, Error> {
-        let file: StardustFile = version::read_current(bytes, MAX_STARDUST_BYTES)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<Stardust, Error> {
+        let file: StardustFile = version::read_member(bytes, MAX_STARDUST_BYTES, versions)?;
         validate(&file)?;
         Ok(Stardust {
             file,

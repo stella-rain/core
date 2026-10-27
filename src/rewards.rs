@@ -33,7 +33,7 @@ use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use crate::trig::PER_DEGREE;
 use crate::validate::limits::{DAMAGE_SCALE, MAX_EVADE_CHARGES, MAX_HEAL_AMOUNT};
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 
 /// The largest rewards file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_REWARDS_BYTES: usize = 64 * 1024;
@@ -484,8 +484,6 @@ pub struct Orbit {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RewardsFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// The most Rune Haste the picks add up to, in percent, 1 to `MAX_RUNE_HASTE_PCT`
     /// (app#298); absent, `DEFAULT_MAX_RUNE_HASTE_PCT`. A reward gives at most this.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -514,14 +512,18 @@ impl Rewards {
     }
 
     /// `parse_with` the bundled stage skills.
-    pub fn parse(bytes: &[u8]) -> Result<Rewards, Error> {
-        Rewards::parse_with(bytes, StageSkills::bundled())
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<Rewards, Error> {
+        Rewards::parse_with(bytes, versions, StageSkills::bundled())
     }
 
-    /// Checks the size, parses strictly and validates, each reward's skill in `stage_skills`:
-    /// the one call for a file's bytes.
-    pub fn parse_with(bytes: &[u8], stage_skills: &StageSkills) -> Result<Rewards, Error> {
-        let file: RewardsFile = version::read_current(bytes, MAX_REWARDS_BYTES)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates, each
+    /// reward's skill in `stage_skills`: the one call for a file's bytes.
+    pub fn parse_with(
+        bytes: &[u8],
+        versions: Versions,
+        stage_skills: &StageSkills,
+    ) -> Result<Rewards, Error> {
+        let file: RewardsFile = version::read_member(bytes, MAX_REWARDS_BYTES, versions)?;
         validate(&file, stage_skills)?;
         Ok(Rewards {
             rewards: file.rewards,

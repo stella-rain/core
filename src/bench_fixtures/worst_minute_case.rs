@@ -26,6 +26,7 @@ use crate::run_setup::RunSetup;
 use crate::run_stats::RunStats;
 use crate::time_limit::TimeLimit;
 use crate::validate::limits::MAX_ELITES_ALIVE;
+use crate::version::Versions;
 
 /// A minute: 60 s at 60 ticks a second.
 pub const MINUTE_TICKS: u32 = 3_600;
@@ -55,14 +56,14 @@ fn mode() -> TimeLimit {
     file["boss_ticks"] = serde_json::json!([BOSS_TICK, file["length_ticks"]]);
     file["no_call_ticks"] = serde_json::json!([]);
     file["elite_cap"] = MAX_ELITES_ALIVE.into();
-    TimeLimit::parse(file.to_string().as_bytes()).expect("the dense mode")
+    TimeLimit::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the dense mode")
 }
 
 fn content() -> RunContent {
     let mut v: serde_json::Value =
         serde_json::from_slice(ContentFiles::bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = serde_json::json!(100);
-    let stats = RunStats::parse(v.to_string().as_bytes()).unwrap();
+    let stats = RunStats::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap();
     RunContent::new(stats, RunContent::bundled().rewards().clone()).with_time_limit(mode())
 }
 

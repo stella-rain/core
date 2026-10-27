@@ -734,6 +734,7 @@ mod tests {
     use super::*;
     use crate::rules_v0::{RunDifficulty, RunPool, initial_state};
     use crate::run_content::RunContent;
+    use crate::version::Versions;
 
     const ALL: (Rarity, Rarity) = (Rarity::Common, Rarity::Supernova);
 
@@ -830,9 +831,10 @@ mod tests {
                 "limit": 1, "effects": [{ "effect": "heal_per_kills", "amount": amount,
                 "kills": kills }], "title": "Heal", "description": "" })
         };
-        let file = serde_json::json!({ "schema_version": 0, "sim_version": 0,
+        let file = serde_json::json!({
             "rewards": [heal("a", 300, 10), heal("b", 200, 4)] });
-        let rewards = Rewards::parse(file.to_string().as_bytes()).expect("valid");
+        let rewards =
+            Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("valid");
         let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let pool = RunPool {
             rewards: vec![0, 1],

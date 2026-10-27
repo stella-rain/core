@@ -9,6 +9,7 @@ use crate::runes::Runes;
 use crate::snapshot::OfferOption;
 use crate::stage::Stage;
 use crate::stage_skill::StageSkills;
+use crate::version::Versions;
 use serde_json::{Value, json};
 
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
@@ -24,15 +25,15 @@ pub fn random_rune() -> Value {
 
 /// The run content of `rewards` (read with `skills`, when given) and `runes`.
 pub fn content(rewards: Vec<Value>, skills: Option<Value>, runes: Runes) -> RunContent {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": rewards }).to_string();
+    let file = json!({ "rewards": rewards }).to_string();
     let rewards = match skills {
         Some(skills) => {
-            let skills = json!({ "schema_version": 0, "sim_version": 0, "stage_skills": skills });
-            let skills = StageSkills::parse(skills.to_string().as_bytes())
+            let skills = json!({ "stage_skills": skills });
+            let skills = StageSkills::parse(skills.to_string().as_bytes(), Versions::CURRENT)
                 .expect("the case skills validate");
-            Rewards::parse_with(file.as_bytes(), &skills)
+            Rewards::parse_with(file.as_bytes(), Versions::CURRENT, &skills)
         }
-        None => Rewards::parse(file.as_bytes()),
+        None => Rewards::parse(file.as_bytes(), Versions::CURRENT),
     }
     .expect("the case rewards validate");
     RunContent::new(design_run_stats(), rewards).with_runes(runes)
