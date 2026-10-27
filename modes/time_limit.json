@@ -71,11 +71,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 1199,
       "every_ticks": 60,
       "xp": 10,
@@ -120,11 +118,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 115200,
       "count": 798,
       "every_ticks": 90,
       "xp": 10,
@@ -153,11 +149,9 @@
         },
         "rules": []
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 1200,
       "every_ticks": 60,
       "xp": 10,
@@ -185,11 +179,9 @@
         },
         "rules": []
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 400,
       "every_ticks": 180,
       "xp": 10,
@@ -258,11 +250,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 204,
       "every_ticks": 300,
       "xp": 10,
@@ -309,11 +299,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 84,
       "every_ticks": 600,
       "xp": 10,
@@ -374,11 +362,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 132,
       "every_ticks": 300,
       "xp": 10,
@@ -437,11 +423,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 48,
       "every_ticks": 600,
       "xp": 10,
@@ -526,11 +510,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 78,
       "every_ticks": 600,
       "xp": 10,

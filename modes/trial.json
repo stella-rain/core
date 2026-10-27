@@ -96,9 +96,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 61440,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": -423
       },
       "count": 5,
       "every_ticks": 40,
@@ -142,9 +142,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 266240,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": 423
       },
       "count": 5,
       "every_ticks": 40,
@@ -181,9 +181,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 102400,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": -254
       },
       "count": 4,
       "every_ticks": 60,
@@ -231,9 +231,9 @@
           "range": 51200
         }
       },
-      "spawn": {
-        "x": 133120,
-        "y": 120320
+      "edge": {
+        "side": "top",
+        "along": -586
       },
       "count": 1,
       "every_ticks": 0,
@@ -281,9 +281,9 @@
           "range": 40960
         }
       },
-      "spawn": {
-        "x": 266240,
-        "y": 76800
+      "edge": {
+        "side": "top",
+        "along": 847
       },
       "count": 1,
       "every_ticks": 0,
