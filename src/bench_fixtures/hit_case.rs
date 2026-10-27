@@ -21,7 +21,7 @@ pub const START: (i32, i32) = (60_928, 158_720);
 /// step of 256 pixels with the whole clump after the push-apart.
 pub const CROWD_AT: (i32, i32) = (START.0, START.1 - 36_000);
 
-/// The radius of a friendly zone (256 pixels): it covers the clump, and each zone tests all 500
+/// The radius of a friendly zone (256 pixels): it covers the clump, and each zone tests all the
 /// enemies every tick.
 pub const ZONE_RADIUS: i32 = 65_536;
 

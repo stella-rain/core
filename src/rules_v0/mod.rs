@@ -638,7 +638,7 @@ fn count<T>(items: &[T]) -> u32 {
 }
 
 fn spawn_waves(stage: &World, s: &mut State) {
-    if stage.director && s.horde.is_some() {
+    if stage.director {
         return spawn_waves_directed(stage, s);
     }
     for (i, wave) in stage.waves.iter().enumerate() {

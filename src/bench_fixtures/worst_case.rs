@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 /// statuses are at their stack cap, and the main character is charged.
 pub const WARMUP_TICKS: u32 = 420;
 
-/// The tick the 500 enemies start to arrive: after the main character has taken every rune and
+/// The tick the crowd start to arrive: after the main character has taken every rune and
 /// Rune Haste from the first eight enemies' stars (`take_runes`).
 pub const WAVES_AT: u32 = 150;
 
@@ -74,20 +74,20 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// (`DEFAULT_MAX_RUNE_HASTE_PCT`) from their stars, as a run does, through `Engine::new_with`. It then
 /// walks to the left of the enemies, about 36,000 units from them (out of the 128-pixel arcs of their
 /// attacks), where its Main weapon's step, a circle of 256
-/// pixels, lands on all 500 of them every tick: each hit puts a stack of bleed, poison and burn
+/// pixels, lands on all of them every tick: each hit puts a stack of bleed, poison and burn
 /// on the enemy, to the stack cap (`MAX_DOT_STACKS`), and fires every on-hit rune that is ready.
 /// The statuses last 600 ticks and tick every 4, which full Rune Haste makes every tick; so on
-/// every tick 1,500 statuses deal damage, and each on-hit rune, whose cooldown the haste cuts to
+/// every tick three statuses on each enemy (780 at the cap of 260) deal damage, and each on-hit rune, whose cooldown the haste cuts to
 /// a quarter, fires again as soon as its attack is over. The step charges for the 24 ticks
 /// before the measured tick and lets go on it. From the measured tick aim assist and auto mode are on, with
-/// the longest assist range, so every tick looks through all 500 enemies for a target
+/// the longest assist range, so every tick looks through all the enemies for a target
 /// (ADR-072, ADR-073).
 ///
 /// Hit boxes (ADR-055): the enemies' attack is one active phase of 30 ticks, so every enemy is
 /// always in it, with a 128-pixel arc facing the main character, out of its reach. The four
 /// companions (`MAX_COMPANIONS`) stand 78 pixels to the right of the enemies, behind every
 /// arc, so each arc tests each of them against its angle and both edges and misses. They cleave
-/// all 500 enemies every tick with an arc of their own (`rehit_ticks` 1, 1 damage a hit).
+/// all the enemies every tick with an arc of their own (`rehit_ticks` 1, 1 damage a hit).
 ///
 /// Zones (core Z1, `MAX_ZONES_ALIVE`): on the first tick the boss places 111 and each companion 4
 /// (16 friendly), all active for 600 ticks, and the fourth shooter's wind-up lays one warn-only
@@ -95,8 +95,8 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// 127 of them active.
 /// The boss's are enemy zones at the map's corner, out of reach of everyone: each is tested
 /// against the main character and the four companions and misses. The companions' are circles of
-/// 100 pixels round the companion, which cover all 500 enemies: each of the 16 is looked up
-/// through the enemy grid and tests, on every tick, the 500 enemies it has hit already (each
+/// 100 pixels round the companion, which cover the whole crowd: each of the 16 is looked up
+/// through the enemy grid and tests, on every tick, the enemies it has hit already (each
 /// once, long before the measured tick). Later attempts to place more are dropped at the cap.
 ///
 /// The fourth shooter's line is the one `line` zone, so under the split of ranged tokens into zone and
