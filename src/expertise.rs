@@ -31,7 +31,7 @@ use crate::registry::{self, Kind};
 use crate::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{self, StatEffect};
 use crate::validate::{Error, Issue};
-use crate::version::{self, SIM_VERSION};
+use crate::version::{self, Versions};
 
 /// The largest expertise file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_EXPERTISE_BYTES: usize = 64 * 1024;
@@ -143,8 +143,6 @@ pub struct WeaponExpertise {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExpertiseFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// The points each of levels 1 to 10 needs from the level before, the first from 0:
     /// exactly `TABLE_LEVELS`, rising strictly, each from 1 to `max_points`.
     pub thresholds: Vec<u32>,
@@ -174,10 +172,11 @@ impl Expertise {
         Pack::bundled().content().expertise()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<Expertise, Error> {
-        let file: ExpertiseFile = version::read_current(bytes, MAX_EXPERTISE_BYTES)?;
-        validate(&file)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<Expertise, Error> {
+        let file: ExpertiseFile = version::read_member(bytes, MAX_EXPERTISE_BYTES, versions)?;
+        validate(&file, versions.sim_version)?;
         Ok(Expertise {
             thresholds: file.thresholds,
             growth_pct: file.growth_pct,
@@ -219,15 +218,15 @@ impl Expertise {
 }
 
 /// The weapon presets a file must cover: the registry's, no newer than this `sim_version`.
-fn weapon_presets() -> impl Iterator<Item = &'static str> {
+fn weapon_presets(sim_version: u32) -> impl Iterator<Item = &'static str> {
     registry::ENTRIES
         .iter()
-        .filter(|e| e.kind == Kind::Weapon && e.introduced.le(&SIM_VERSION))
+        .filter(move |e| e.kind == Kind::Weapon && e.introduced.le(&sim_version))
         .map(|e| e.id)
 }
 
 /// Validates a parsed file: one issue per problem, with its path, never text from the file.
-pub fn validate(file: &ExpertiseFile) -> Result<(), Error> {
+pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
     let mut issues = Vec::new();
     let mut issue = |path: String, message: String| issues.push(Issue { path, message });
 
@@ -268,7 +267,7 @@ pub fn validate(file: &ExpertiseFile) -> Result<(), Error> {
         );
     }
 
-    let missing: Vec<&str> = weapon_presets()
+    let missing: Vec<&str> = weapon_presets(sim_version)
         .filter(|id| !file.weapons.iter().any(|w| w.weapon.0 == *id))
         .collect();
     if !missing.is_empty() {
@@ -279,7 +278,7 @@ pub fn validate(file: &ExpertiseFile) -> Result<(), Error> {
     }
     for (w, weapon) in file.weapons.iter().enumerate() {
         let at = |field: &str| format!("$.weapons[{w}].{field}");
-        if !weapon_presets().any(|id| id == weapon.weapon.0) {
+        if !weapon_presets(sim_version).any(|id| id == weapon.weapon.0) {
             issue(at("weapon"), "not a weapon preset".into());
         } else if file.weapons[..w].iter().any(|x| x.weapon == weapon.weapon) {
             issue(at("weapon"), "the same weapon as an earlier entry".into());

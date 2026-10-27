@@ -14,6 +14,7 @@ use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::OfferOption;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
+use stella_rain_core::version::Versions;
 
 use super::*;
 
@@ -99,15 +100,15 @@ pub fn random_rune() -> Value {
 
 /// The run content of `rewards` (read with `skills`, when given) and `runes`.
 pub fn content(rewards: Vec<Value>, skills: Option<Value>, runes: Runes) -> RunContent {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": rewards }).to_string();
+    let file = json!({ "rewards": rewards }).to_string();
     let rewards = match skills {
         Some(skills) => {
-            let skills = json!({ "schema_version": 0, "sim_version": 0, "stage_skills": skills });
-            let skills = StageSkills::parse(skills.to_string().as_bytes())
+            let skills = json!({ "stage_skills": skills });
+            let skills = StageSkills::parse(skills.to_string().as_bytes(), Versions::CURRENT)
                 .expect("the test skills validate");
-            Rewards::parse_with(file.as_bytes(), &skills)
+            Rewards::parse_with(file.as_bytes(), Versions::CURRENT, &skills)
         }
-        None => Rewards::parse(file.as_bytes()),
+        None => Rewards::parse(file.as_bytes(), Versions::CURRENT),
     }
     .expect("the test rewards validate");
     RunContent::new(super::design_run_stats(), rewards).with_runes(runes)
@@ -221,9 +222,9 @@ pub fn runes_of(on_hit: Vec<Value>) -> Runes {
 
 /// The runes file of `on_hit`'s and `damage_over_time`'s entries.
 pub fn runes_with(on_hit: Vec<Value>, damage_over_time: Vec<Value>) -> Runes {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "on_hit": on_hit,
+    let file = json!({ "on_hit": on_hit,
                        "damage_over_time": damage_over_time });
-    Runes::parse(file.to_string().as_bytes()).expect("the test runes validate")
+    Runes::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the test runes validate")
 }
 
 /// Steps idle until the tough target is on the map, and returns its ID.

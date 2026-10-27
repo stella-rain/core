@@ -17,6 +17,7 @@ use stella_rain_core::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, RunSta
 use stella_rain_core::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::MAX_EVADE_CHARGES;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -35,11 +36,15 @@ fn reward(id: &str) -> Value {
 }
 
 fn file(rewards: Vec<Value>) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0, "rewards": rewards })
+    json!({ "rewards": rewards })
+}
+
+fn parse_at(v: &Value, versions: Versions) -> Result<Rewards, Error> {
+    Rewards::parse(v.to_string().as_bytes(), versions)
 }
 
 fn parse(v: &Value) -> Result<Rewards, Error> {
-    Rewards::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 /// One valid reward with `field` set to `value`.
@@ -84,7 +89,7 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
     }
     assert!(rewards.iter().all(|r| !r.title.is_empty()));
     // The pack's rewards are the file's, with the sets of the constellations file beside them.
-    let file = Rewards::parse(common::bundled_file("rewards")).unwrap();
+    let file = Rewards::parse(common::bundled_file("rewards"), Versions::CURRENT).unwrap();
     assert_eq!(file.rewards(), Rewards::bundled().rewards());
     assert_eq!(file.sha256(), Rewards::bundled().sha256());
 }
@@ -140,9 +145,8 @@ fn skills() -> StageSkills {
                     { "type": "shield", "amount": 5, "duration_ticks": 60 }
                 ] }] })
     };
-    let file = json!({ "schema_version": 0, "sim_version": 0,
-                       "stage_skills": [skill("aura"), skill("ward")] });
-    StageSkills::parse(file.to_string().as_bytes()).unwrap()
+    let file = json!({ "stage_skills": [skill("aura"), skill("ward")] });
+    StageSkills::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap()
 }
 
 /// A file of one reward that gives `ward`.
@@ -155,7 +159,7 @@ fn with_skill() -> Value {
 }
 
 fn parse_with_skills(v: &Value) -> Result<Rewards, Error> {
-    Rewards::parse_with(v.to_string().as_bytes(), &skills())
+    Rewards::parse_with(v.to_string().as_bytes(), Versions::CURRENT, &skills())
 }
 
 fn invalid_with_skills_at(v: &Value, path: &str) {
@@ -215,7 +219,7 @@ fn a_valid_file_parses_in_its_order() {
 fn a_file_over_the_limit_is_not_parsed() {
     let big = vec![b' '; MAX_REWARDS_BYTES + 1];
     assert_eq!(
-        Rewards::parse(&big),
+        Rewards::parse(&big, Versions::CURRENT),
         Err(Error::TooLarge {
             size: MAX_REWARDS_BYTES + 1,
             limit: MAX_REWARDS_BYTES
@@ -223,7 +227,10 @@ fn a_file_over_the_limit_is_not_parsed() {
     );
     let mut padded = file(vec![reward("might")]).to_string().into_bytes();
     padded.resize(MAX_REWARDS_BYTES, b' ');
-    assert!(Rewards::parse(&padded).is_ok(), "at the limit it parses");
+    assert!(
+        Rewards::parse(&padded, Versions::CURRENT).is_ok(),
+        "at the limit it parses"
+    );
 }
 
 #[test]
@@ -253,10 +260,15 @@ fn only_the_rewards_format_parses() {
 #[test]
 fn a_newer_file_is_unsupported() {
     let mut v = file(vec![reward("might")]);
-    v["sim_version"] = json!(1);
     v["rewards"][0]["extra"] = json!(1);
     assert_eq!(
-        parse(&v),
+        parse_at(
+            &v,
+            Versions {
+                schema_version: 0,
+                sim_version: 1
+            }
+        ),
         Err(Error::UnsupportedVersion {
             schema_version: 0,
             sim_version: 1
@@ -479,7 +491,7 @@ fn a_rewards_file_holds_at_most_four_orbits() {
 fn stronger() -> Rewards {
     let mut v: Value = serde_json::from_slice(common::bundled_file("rewards")).unwrap();
     v["rewards"][0]["amount"] = json!(9);
-    Rewards::parse(v.to_string().as_bytes()).unwrap()
+    Rewards::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap()
 }
 
 #[test]
@@ -502,12 +514,17 @@ fn quicker_skills() -> StageSkills {
         .as_u64()
         .unwrap();
     v["stage_skills"][0]["levels"][0]["cooldown_ticks"] = json!(c - 1);
-    StageSkills::parse(v.to_string().as_bytes()).unwrap()
+    StageSkills::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap()
 }
 
 #[test]
 fn the_content_hash_covers_the_stage_skills() {
-    let rewards = Rewards::parse_with(common::bundled_file("rewards"), &quicker_skills()).unwrap();
+    let rewards = Rewards::parse_with(
+        common::bundled_file("rewards"),
+        Versions::CURRENT,
+        &quicker_skills(),
+    )
+    .unwrap();
     assert_eq!(rewards.rewards(), Rewards::bundled().rewards());
     assert_eq!(rewards.sha256(), Rewards::bundled().sha256());
     let other = RunContent::new(RunStats::bundled().clone(), rewards);

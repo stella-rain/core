@@ -5,6 +5,7 @@
 //! `common::evade()`.
 
 use crate::common;
+use stella_rain_core::version::Versions;
 
 use common::*;
 use serde_json::json;
@@ -227,11 +228,12 @@ fn starry(charges: u8, max_charges: Option<u8>, count: u16) -> Stage {
 
 /// A run of `stage` whose only reward, `extra`, adds `amount` charges, five times a run.
 fn with_extra(stage: &Stage, amount: u32) -> Engine {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [
+    let file = json!({ "rewards": [
         { "id": "extra", "rarity": "common", "effect": "evade_charge", "amount": amount,
           "limit": 5, "title": "Extra charge", "description": "" }
     ] });
-    let rewards = Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate");
+    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate");
     let content = RunContent::new(RunStats::bundled().clone(), rewards);
     Engine::new_with(stage, &content).expect("the test stage is valid")
 }

@@ -15,6 +15,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::snapshot::{EntityKind, OfferOption};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -109,11 +110,12 @@ fn content(skills: Vec<Value>, rewards: &[(&str, &str, u32)]) -> Rewards {
                     "amount": amount, "limit": 5, "title": "Skill", "description": "" })
         })
         .collect();
-    let skills = json!({ "schema_version": 0, "sim_version": 0, "stage_skills": skills });
-    let skills =
-        StageSkills::parse(skills.to_string().as_bytes()).expect("the test skills validate");
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": rewards });
-    Rewards::parse_with(file.to_string().as_bytes(), &skills).expect("the test rewards validate")
+    let skills = json!({ "stage_skills": skills });
+    let skills = StageSkills::parse(skills.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test skills validate");
+    let file = json!({ "rewards": rewards });
+    Rewards::parse_with(file.to_string().as_bytes(), Versions::CURRENT, &skills)
+        .expect("the test rewards validate")
 }
 
 fn with(stage: &Stage, rewards: Rewards) -> Engine {

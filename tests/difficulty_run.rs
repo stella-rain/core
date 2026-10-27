@@ -16,6 +16,7 @@ use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::stage::LevelTable;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 
 const DIFFICULTIES: [(&str, u32, u32); 4] = [
     ("easy", 70, 75),
@@ -49,7 +50,7 @@ fn setup(difficulty: &str) -> RunSetup {
 fn mode(edit: impl FnOnce(&mut Value)) -> TimeLimit {
     let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     edit(&mut v);
-    TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
+    TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap_or_else(|e| panic!("{e}"))
 }
 
 fn start(difficulty: &str, m: &TimeLimit) -> Engine {

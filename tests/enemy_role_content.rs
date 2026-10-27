@@ -17,6 +17,7 @@ use stella_rain_core::run_replay;
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 
 const MINUTE: u32 = 3_600;
 /// The main character's start (`tests/enemy_roles.rs`).
@@ -60,7 +61,7 @@ fn follow_speed(id: &str) -> i64 {
 
 /// The paths of the problems a mode file has, one per problem.
 fn paths_of(bytes: &[u8]) -> Vec<String> {
-    match TimeLimit::parse(bytes) {
+    match TimeLimit::parse(bytes, Versions::CURRENT) {
         Err(Error::Invalid(issues)) => issues.into_iter().map(|i| i.path).collect(),
         other => panic!("not a validation error: {other:?}"),
     }
@@ -136,9 +137,9 @@ fn a_wave_id_is_a_well_formed_id_unique_in_the_schedule() {
     // An ID that no earlier wave has loads.
     let named = edited(|v| v["waves"][0]["id"] = json!("a_wave"));
     assert!(
-        TimeLimit::parse(&named).is_ok(),
+        TimeLimit::parse(&named, Versions::CURRENT).is_ok(),
         "{:?}",
-        TimeLimit::parse(&named).err()
+        TimeLimit::parse(&named, Versions::CURRENT).err()
     );
     // An ID that is not snake_case is refused at its wave.
     let bad = edited(|v| v["waves"][0]["id"] = json!("Not Snake"));

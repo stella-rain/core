@@ -13,6 +13,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{content_sha256, content_sha256_with};
 use stella_rain_core::snapshot::ExpertiseView;
 use stella_rain_core::stage::Stage;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -66,8 +67,8 @@ fn content(thresholds: [u32; 10], growth_pct: u16, max_points: u32) -> RunConten
     file["thresholds"] = json!(thresholds);
     file["growth_pct"] = json!(growth_pct);
     file["max_points"] = json!(max_points);
-    let expertise =
-        Expertise::parse(file.to_string().as_bytes()).expect("the test expertise validates");
+    let expertise = Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test expertise validates");
     RunContent::bundled().clone().with_expertise(expertise)
 }
 

@@ -11,6 +11,7 @@ use crate::run_content::RunContent;
 use crate::runes::{MAX_DOT_STACKS, Runes};
 use crate::stage::Stage;
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_ELITES_ALIVE};
+use crate::version::Versions;
 use serde_json::{Value, json};
 
 /// Ticks to run before the tick that is measured, so that the caps are reached and held, the
@@ -307,7 +308,8 @@ pub fn content() -> RunContent {
         .map(|r| on_hit::dot(r, 4, 600, 1, MAX_DOT_STACKS))
         .collect();
     file["damage_over_time"] = json!(dots);
-    let runes = Runes::parse(file.to_string().as_bytes()).expect("the worst-case runes");
+    let runes =
+        Runes::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the worst-case runes");
     on_hit::content(vec![on_hit::random_rune(), haste], None, runes)
 }
 

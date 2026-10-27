@@ -10,6 +10,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -41,12 +42,13 @@ fn stage(waves: Vec<Value>, stars: Option<Value>) -> Stage {
 }
 
 fn rewards() -> Rewards {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [
+    let file = json!({ "rewards": [
         { "id": "c", "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 9,
           "title": "Reward", "description": "" },
         { "id": "l", "rarity": "legendary", "effect": "max_hp", "amount": 1, "limit": 9,
           "title": "Reward", "description": "" } ] });
-    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate")
 }
 
 fn with(stage: &Stage) -> Engine {

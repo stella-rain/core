@@ -1,6 +1,4 @@
 {
-  "schema_version": 0,
-  "sim_version": 0,
   "id": "time_limit",
   "length_ticks": 72000,
   "boss_ticks": [

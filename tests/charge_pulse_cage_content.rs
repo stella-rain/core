@@ -5,6 +5,7 @@
 //! rules they use are covered by `dash.rs`, `orb_cage.rs`, `zones.rs` and `elite_shrine.rs`.
 
 use crate::common;
+use stella_rain_core::version::Versions;
 
 use common::*;
 use serde_json::{Value, json};
@@ -98,7 +99,8 @@ fn step_kinds(timeline: &Value) -> Vec<String> {
 
 #[test]
 fn the_bundled_mode_validates() {
-    TimeLimit::parse(common::bundled_file("time_limit")).unwrap_or_else(|e| panic!("{e}"));
+    TimeLimit::parse(common::bundled_file("time_limit"), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e}"));
 }
 
 /// The two `warn_only` lines of a charge: 240 px long, laid end to end along the aimed facing.
@@ -601,10 +603,10 @@ fn shrine_stage() -> Stage {
 }
 
 fn rewards() -> Rewards {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [
+    let file = json!({ "rewards": [
         { "id": "c", "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 9,
           "title": "Reward", "description": "" } ] });
-    Rewards::parse(file.to_string().as_bytes()).unwrap()
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap()
 }
 
 #[test]

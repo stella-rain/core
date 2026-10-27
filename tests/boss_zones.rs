@@ -10,6 +10,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::time_limit::TimeLimit;
+use stella_rain_core::version::Versions;
 
 /// The enemy design doc's limit of live zones per boss.
 const LIMIT: usize = 24;
@@ -82,7 +83,8 @@ fn peak(id: &str, phase: usize) -> usize {
     v["waves"] = json!([]);
     v["elite_table"] =
         json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
-    let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e}"));
     let mut e = Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap();
     let mut most = 0;
     for _ in 0..BOSS_AT + RUN_TICKS {

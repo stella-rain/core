@@ -14,6 +14,7 @@ use stella_rain_core::snapshot::OfferOption;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::MAX_HEAL_AMOUNT;
+use stella_rain_core::version::Versions;
 
 use crate::common::*;
 
@@ -22,14 +23,14 @@ pub(crate) fn entry(effect: &str, amount: u32) -> Value {
 }
 
 pub(crate) fn file_of(effects: Vec<Value>) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0, "rewards": [{
+    json!({ "rewards": [{
         "id": "kind", "rarity": "rare", "effects": effects, "limit": 3,
         "title": "Kind", "description": ""
     }] })
 }
 
 pub(crate) fn parse(v: &Value) -> Result<Rewards, Error> {
-    Rewards::parse(v.to_string().as_bytes())
+    Rewards::parse(v.to_string().as_bytes(), Versions::CURRENT)
 }
 
 pub(crate) fn invalid_at(v: &Value, path: &str) {
@@ -176,8 +177,9 @@ pub(crate) fn kind(id: &str, effects: Vec<Value>, weight: u32, limit: u8) -> Val
 }
 
 pub(crate) fn with(stage: &Stage, list: Vec<Value>) -> Engine {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": list });
-    let rewards = Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate");
+    let file = json!({ "rewards": list });
+    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate");
     let content = RunContent::new(RunStats::bundled().clone(), rewards);
     Engine::new_with(stage, &content).expect("the test stage is valid")
 }

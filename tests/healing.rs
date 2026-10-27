@@ -15,6 +15,7 @@ use stella_rain_core::snapshot::OfferOption;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate;
 use stella_rain_core::validate::limits::{DAMAGE_SCALE, MAX_HEAL_AMOUNT, MAX_PLAYER_HP};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -82,8 +83,9 @@ fn starry(stage: Stage, rarity: &str) -> Stage {
 
 /// The rewards file with `list` in it.
 fn rewards(list: Vec<Value>) -> Rewards {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": list });
-    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+    let file = json!({ "rewards": list });
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate")
 }
 
 /// A regen reward of `amount` hit points a second at `rarity`, taken at most `limit` times.
@@ -226,9 +228,8 @@ fn a_heal_config_is_bounded_like_the_other_content() {
 #[test]
 fn a_regen_reward_is_bounded_like_the_max_hit_points_reward() {
     let parses = |amount: u32| {
-        let file = json!({ "schema_version": 0, "sim_version": 0,
-                           "rewards": [regen("regen", "common", amount, 5)] });
-        Rewards::parse(file.to_string().as_bytes()).is_ok()
+        let file = json!({ "rewards": [regen("regen", "common", amount, 5)] });
+        Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).is_ok()
     };
     assert!(parses(10 * DAMAGE_SCALE), "the common amount");
     assert!(parses(80 * DAMAGE_SCALE), "the supernova amount");

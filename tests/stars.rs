@@ -13,6 +13,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::{OfferKind, OfferOption, OfferView};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -67,8 +68,9 @@ fn rewards(list: &[(&str, &str, &str, u32, u8)]) -> Rewards {
                     "limit": limit, "title": "Reward", "description": "" })
         })
         .collect();
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": rewards });
-    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+    let file = json!({ "rewards": rewards });
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate")
 }
 
 /// `n` common rewards `c0`, `c1`, ..., each one more hit point, five times a run.
@@ -907,9 +909,9 @@ fn weighted(a: u16, b: u16) -> Rewards {
         json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
                 "weight": weight, "title": "Reward", "description": "" })
     };
-    let file = json!({ "schema_version": 0, "sim_version": 0,
-                       "rewards": [one("a", a), one("b", b)] });
-    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+    let file = json!({ "rewards": [one("a", a), one("b", b)] });
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate")
 }
 
 /// The first candidate of the first offer of 10,000 runs of seeds 0.., counted for `b`, and
@@ -954,22 +956,24 @@ fn commons_ab() -> Rewards {
         json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
                 "title": "Reward", "description": "" })
     };
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [one("a"), one("b")] });
-    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+    let file = json!({ "rewards": [one("a"), one("b")] });
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate")
 }
 
 // --- Named stars -------------------------------------------------------------------------------
 
 #[test]
 fn an_offer_names_its_named_candidate_and_only_that_one() {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [
+    let file = json!({ "rewards": [
         { "id": "vega", "rarity": "epic", "effects": [{ "effect": "attack_pct", "amount": 20 }],
           "limit": 1, "named": true, "star": "Vega", "weight": 50,
           "title": "Vega", "description": "" },
         { "id": "plain", "rarity": "epic", "effect": "max_hp", "amount": 1, "limit": 2,
           "title": "Plain", "description": "" },
     ]});
-    let rewards = Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate");
+    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate");
     let st = stars(json!({ "tiers": [{ "from_level": 1, "weights": { "epic": 1 } }] }));
     let mut e = with(&starry(&[1000], st, vec![targets(1, 1, NEAR_Y)]), rewards);
     until_offer(&mut e, idle());

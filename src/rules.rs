@@ -22,7 +22,7 @@ use sha2::{Digest, Sha256};
 use crate::pack::Pack;
 use crate::validate::limits::MAX_ENEMY_CAP;
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 
 /// The largest rules file read (a placeholder; ADR-020 decides that a limit exists).
 pub const MAX_RULES_BYTES: usize = 4 * 1024;
@@ -34,8 +34,6 @@ pub const MAX_CAP_HEADROOM_PCT: u8 = 30;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RulesFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// The enemies a horde run keeps alive: wave spawns that fall due at it are held. From 1 to
     /// the most that keeps the cap within the engine ceiling (384 at a headroom of 30).
     pub crowd_target: u16,
@@ -61,9 +59,10 @@ impl Rules {
         Pack::bundled().content().rules()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<Rules, Error> {
-        let file: RulesFile = version::read_current(bytes, MAX_RULES_BYTES)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<Rules, Error> {
+        let file: RulesFile = version::read_member(bytes, MAX_RULES_BYTES, versions)?;
         validate(&file)?;
         Ok(Rules {
             file,

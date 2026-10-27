@@ -9,6 +9,7 @@ use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
 use crate::run_stats::RunStats;
 use crate::stage::Stage;
+use crate::version::Versions;
 use serde_json::{Value, json};
 
 /// The evade of every case stage (ADR-050): 48 pixels over 8 ticks, 10 ticks of invulnerability
@@ -128,7 +129,7 @@ pub fn design_run_stats() -> RunStats {
     let mut v: Value = serde_json::from_slice(ContentFiles::bundled_file("run_stats"))
         .expect("the bundled run stats");
     v["enemy_attack_damage"] = json!(100);
-    RunStats::parse(v.to_string().as_bytes()).expect("the case run stats")
+    RunStats::parse(v.to_string().as_bytes(), Versions::CURRENT).expect("the case run stats")
 }
 
 pub fn engine(stage: &Stage) -> Engine {

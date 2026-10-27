@@ -8,6 +8,7 @@
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
+use stella_rain_core::version::Versions;
 
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
@@ -308,7 +309,7 @@ fn a_clone_of_a_run_with_waves_held_allocates_nothing() {
         wave["at_tick"] = 1.into();
         wave["every_ticks"] = 1.into();
     }
-    let mode = TimeLimit::parse(file.to_string().as_bytes()).unwrap();
+    let mode = TimeLimit::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap();
     let content = crate::common::design_content().with_time_limit(mode);
     let setup = RunSetup {
         mode: "time_limit".into(),

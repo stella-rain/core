@@ -18,6 +18,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::{MAX_RUNES, Rune, RuneKind};
 use stella_rain_core::snapshot::{OfferOption, RuneView};
 use stella_rain_core::stage::Stage;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -92,11 +93,11 @@ fn inert_limited(id: &str, limit: u8) -> Value {
 }
 
 fn file(rewards: Vec<Value>) -> String {
-    json!({ "schema_version": 0, "sim_version": 0, "rewards": rewards }).to_string()
+    json!({ "rewards": rewards }).to_string()
 }
 
 fn rewards(list: Vec<Value>) -> Rewards {
-    Rewards::parse(file(list).as_bytes()).expect("the test rewards validate")
+    Rewards::parse(file(list).as_bytes(), Versions::CURRENT).expect("the test rewards validate")
 }
 
 fn content(list: Vec<Value>) -> RunContent {
@@ -199,7 +200,7 @@ fn a_random_rune_has_a_rarity_and_no_amount_or_limit() {
     let refused = |field: &str, value: Value| {
         let mut reward = random_rune();
         reward[field] = value;
-        let err = Rewards::parse(file(vec![reward]).as_bytes()).unwrap_err();
+        let err = Rewards::parse(file(vec![reward]).as_bytes(), Versions::CURRENT).unwrap_err();
         let at = if field == "amount" {
             "effects[0].amount"
         } else {
@@ -216,7 +217,7 @@ fn every_other_reward_still_needs_its_amount_and_limit() {
     for (field, path) in [("amount", "effects[0].amount"), ("limit", "limit")] {
         let mut reward = inert("dash");
         reward.as_object_mut().unwrap().remove(field);
-        let err = Rewards::parse(file(vec![reward]).as_bytes()).unwrap_err();
+        let err = Rewards::parse(file(vec![reward]).as_bytes(), Versions::CURRENT).unwrap_err();
         assert!(
             format!("{err:?}").contains(&format!("$.rewards[0].{path}")),
             "{field} missing: {err:?}"

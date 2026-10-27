@@ -14,6 +14,7 @@ use stella_rain_core::stage_skill::{
     MAX_STAGE_SKILLS_BYTES, SkillEffect, StageSkills,
 };
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 
 fn self_status() -> Value {
     json!({ "type": "self_status", "status": "atk_up", "value_pct": 20, "duration_ticks": 120 })
@@ -42,15 +43,19 @@ fn skill(id: &str) -> Value {
 }
 
 fn file(skills: Vec<Value>) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0, "stage_skills": skills })
+    json!({ "stage_skills": skills })
 }
 
 fn one() -> Value {
     file(vec![skill("aura")])
 }
 
+fn parse_at(v: &Value, versions: Versions) -> Result<StageSkills, Error> {
+    StageSkills::parse(v.to_string().as_bytes(), versions)
+}
+
 fn parse(v: &Value) -> Result<StageSkills, Error> {
-    StageSkills::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 /// `one` with its one level's effects replaced.
@@ -82,7 +87,7 @@ fn invalid_at(v: &Value, path: &str) {
 fn the_bundled_skills_are_one_effect_each_and_cover_every_block() {
     let bundled = StageSkills::bundled();
     assert_eq!(
-        StageSkills::parse(common::bundled_file("stage_skills")).as_ref(),
+        StageSkills::parse(common::bundled_file("stage_skills"), Versions::CURRENT).as_ref(),
         Ok(bundled)
     );
     let ids: Vec<&str> = bundled.skills().iter().map(|k| k.id.0.as_str()).collect();
@@ -336,7 +341,7 @@ fn the_cooldown_and_the_distance_ahead_are_bounded() {
 fn a_file_over_the_limit_is_not_parsed() {
     let big = vec![b' '; MAX_STAGE_SKILLS_BYTES + 1];
     assert_eq!(
-        StageSkills::parse(&big),
+        StageSkills::parse(&big, Versions::CURRENT),
         Err(Error::TooLarge {
             size: MAX_STAGE_SKILLS_BYTES + 1,
             limit: MAX_STAGE_SKILLS_BYTES
@@ -345,7 +350,7 @@ fn a_file_over_the_limit_is_not_parsed() {
     let mut padded = one().to_string().into_bytes();
     padded.resize(MAX_STAGE_SKILLS_BYTES, b' ');
     assert!(
-        StageSkills::parse(&padded).is_ok(),
+        StageSkills::parse(&padded, Versions::CURRENT).is_ok(),
         "at the limit it parses"
     );
 }
@@ -386,10 +391,15 @@ fn only_the_stage_skills_format_parses() {
 #[test]
 fn a_newer_file_is_unsupported() {
     let mut v = one();
-    v["sim_version"] = json!(1);
     v["stage_skills"][0]["extra"] = json!(1);
     assert_eq!(
-        parse(&v),
+        parse_at(
+            &v,
+            Versions {
+                schema_version: 0,
+                sim_version: 1
+            }
+        ),
         Err(Error::UnsupportedVersion {
             schema_version: 0,
             sim_version: 1

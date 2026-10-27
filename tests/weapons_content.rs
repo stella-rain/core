@@ -7,6 +7,7 @@ use stella_rain_core::pack::{Pack, PackError};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay;
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 use stella_rain_core::weapons::{MAX_TREES, MAX_WEAPONS, Weapons};
 
 /// Every tree of every weapon as `presets::weapon_tree` gave it before the move
@@ -49,7 +50,7 @@ fn bundled_file() -> Value {
 }
 
 fn refused(v: &Value) -> Vec<String> {
-    match Weapons::parse(v.to_string().as_bytes()) {
+    match Weapons::parse(v.to_string().as_bytes(), Versions::CURRENT) {
         Err(Error::Invalid(issues)) => issues.into_iter().map(|i| i.path).collect(),
         other => panic!("not refused as Invalid: {:?}", other.map(|_| ())),
     }
@@ -57,7 +58,7 @@ fn refused(v: &Value) -> Vec<String> {
 
 #[test]
 fn the_bundled_file_is_what_the_bundled_pack_holds() {
-    let w = Weapons::parse(common::bundled_file("weapons")).unwrap();
+    let w = Weapons::parse(common::bundled_file("weapons"), Versions::CURRENT).unwrap();
     assert_eq!(&w, Weapons::bundled());
     let ids: Vec<_> = w.ids().map(|i| i.0.as_str()).collect();
     assert_eq!(ids, ["giant_hammer", "giant_sword"]);
@@ -121,7 +122,7 @@ fn a_run_made_with_other_weapons_does_not_verify_against_this_pack() {
     v["weapons"][0]["trees"][0]["weapon"]["window_ticks"] = json!(21);
     let b = a
         .clone()
-        .with_weapons(Weapons::parse(v.to_string().as_bytes()).unwrap());
+        .with_weapons(Weapons::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap());
     assert_ne!(
         run_replay::content_sha256_with("trial", &a),
         run_replay::content_sha256_with("trial", &b)

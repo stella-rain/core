@@ -18,6 +18,7 @@ use stella_rain_core::run_stats::{
 };
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::DAMAGE_SCALE;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -36,8 +37,6 @@ fn stat(id: &str) -> Value {
 
 fn file(stats: Vec<Value>) -> Value {
     json!({
-        "schema_version": 0,
-        "sim_version": 0,
         "stats": stats,
         "stun": { "immune_ticks": 60, "elite_pct": 50 },
     })
@@ -50,8 +49,12 @@ fn with_stun(stun: Value) -> Value {
     v
 }
 
+fn parse_at(v: &Value, versions: Versions) -> Result<RunStats, Error> {
+    RunStats::parse(v.to_string().as_bytes(), versions)
+}
+
 fn parse(v: &Value) -> Result<RunStats, Error> {
-    RunStats::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 /// One valid stat with `field` set to `value`.
@@ -89,7 +92,7 @@ fn the_bundled_stats_are_the_five_of_version_0() {
     );
     assert!(stats.iter().all(|s| !s.title.is_empty()));
     assert_eq!(
-        RunStats::parse(common::bundled_file("run_stats")).as_ref(),
+        RunStats::parse(common::bundled_file("run_stats"), Versions::CURRENT).as_ref(),
         Ok(RunStats::bundled())
     );
 }
@@ -105,7 +108,7 @@ fn a_valid_file_parses_in_its_order() {
 fn a_file_over_the_limit_is_not_parsed() {
     let big = vec![b' '; MAX_RUN_STATS_BYTES + 1];
     assert_eq!(
-        RunStats::parse(&big),
+        RunStats::parse(&big, Versions::CURRENT),
         Err(Error::TooLarge {
             size: MAX_RUN_STATS_BYTES + 1,
             limit: MAX_RUN_STATS_BYTES
@@ -113,7 +116,10 @@ fn a_file_over_the_limit_is_not_parsed() {
     );
     let mut padded = file(vec![stat("speed")]).to_string().into_bytes();
     padded.resize(MAX_RUN_STATS_BYTES, b' ');
-    assert!(RunStats::parse(&padded).is_ok(), "at the limit it parses");
+    assert!(
+        RunStats::parse(&padded, Versions::CURRENT).is_ok(),
+        "at the limit it parses"
+    );
 }
 
 #[test]
@@ -137,17 +143,25 @@ fn only_the_run_stats_format_parses() {
             parse(&bad)
         );
     }
-    assert!(matches!(RunStats::parse(b"{"), Err(Error::Parse { .. })));
+    assert!(matches!(
+        RunStats::parse(b"{", Versions::CURRENT),
+        Err(Error::Parse { .. })
+    ));
 }
 
 #[test]
 fn a_newer_file_is_unsupported() {
     let mut v = file(vec![stat("speed")]);
-    v["sim_version"] = json!(1);
     // A newer file may have fields this game does not know.
     v["stats"][0]["extra"] = json!(1);
     assert_eq!(
-        parse(&v),
+        parse_at(
+            &v,
+            Versions {
+                schema_version: 0,
+                sim_version: 1
+            }
+        ),
         Err(Error::UnsupportedVersion {
             schema_version: 0,
             sim_version: 1
@@ -220,12 +234,20 @@ fn the_hash_is_of_the_bytes() {
     let a = file(vec![stat("speed")]).to_string();
     let spaced = format!("{a} ");
     assert_eq!(
-        RunStats::parse(a.as_bytes()).unwrap().sha256(),
-        RunStats::parse(a.as_bytes()).unwrap().sha256()
+        RunStats::parse(a.as_bytes(), Versions::CURRENT)
+            .unwrap()
+            .sha256(),
+        RunStats::parse(a.as_bytes(), Versions::CURRENT)
+            .unwrap()
+            .sha256()
     );
     assert_ne!(
-        RunStats::parse(a.as_bytes()).unwrap().sha256(),
-        RunStats::parse(spaced.as_bytes()).unwrap().sha256()
+        RunStats::parse(a.as_bytes(), Versions::CURRENT)
+            .unwrap()
+            .sha256(),
+        RunStats::parse(spaced.as_bytes(), Versions::CURRENT)
+            .unwrap()
+            .sha256()
     );
 }
 
@@ -235,7 +257,7 @@ fn the_hash_is_of_the_bytes() {
 fn faster() -> RunStats {
     let mut v: Value = serde_json::from_slice(common::bundled_file("run_stats")).unwrap();
     v["stats"][4]["step"] = json!(16);
-    RunStats::parse(v.to_string().as_bytes()).unwrap()
+    RunStats::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap()
 }
 
 #[test]

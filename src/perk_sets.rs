@@ -24,7 +24,7 @@ use crate::run_setup::MAX_EXTRA_REROLLS;
 use crate::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, StatEffect, text_problem};
 use crate::validate::limits::DAMAGE_SCALE;
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 
 /// The largest perk sets file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_PERK_SETS_BYTES: usize = 8 * 1024;
@@ -135,8 +135,6 @@ pub struct PerkSet {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PerkSetsFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// The sets, 1 to `MAX_PERK_SETS`.
     pub perk_sets: Vec<PerkSet>,
 }
@@ -154,9 +152,10 @@ impl PerkSets {
         Pack::bundled().content().perk_sets()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<PerkSets, Error> {
-        let file: PerkSetsFile = version::read_current(bytes, MAX_PERK_SETS_BYTES)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<PerkSets, Error> {
+        let file: PerkSetsFile = version::read_member(bytes, MAX_PERK_SETS_BYTES, versions)?;
         validate(&file)?;
         Ok(PerkSets {
             sets: file.perk_sets,

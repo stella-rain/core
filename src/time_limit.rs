@@ -30,7 +30,7 @@ use crate::validate::limits::{
     self, MAX_CROWD_TARGET, MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE,
 };
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 
 /// The largest mode file read; the bundled one is about 60 KB: the bosses and elites are most of it
 /// (zones and orbs take more words than a preset call did, BR1a), the enemy roles of R2 and
@@ -67,8 +67,6 @@ pub const MAX_ELITE_WEIGHT: u32 = 10_000;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TimeLimitFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// The mode's ID, `time_limit`.
     pub id: ContentId,
     /// The run's length in ticks, 1 to `MAX_LENGTH_TICKS`.
@@ -215,10 +213,11 @@ impl TimeLimit {
         Pack::bundled().content().time_limit()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<TimeLimit, Error> {
-        let file: TimeLimitFile = version::read_current(bytes, MAX_TIME_LIMIT_BYTES)?;
-        validate(&file)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<TimeLimit, Error> {
+        let file: TimeLimitFile = version::read_member(bytes, MAX_TIME_LIMIT_BYTES, versions)?;
+        validate(&file, versions.sim_version)?;
         Ok(TimeLimit {
             file,
             bytes: bytes.to_vec(),
@@ -338,7 +337,7 @@ impl TimeLimit {
 }
 
 /// Validates a parsed file: one issue per problem, with its path, never text from the file.
-pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
+pub fn validate(file: &TimeLimitFile, sim_version: u32) -> Result<(), Error> {
     let mut issues = Vec::new();
     let mut issue = |path: String, message: String| issues.push(Issue { path, message });
 
@@ -439,7 +438,7 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
         let message = if !registry::is_well_formed(&id.0) {
             "not a valid content ID (lowercase snake_case, at most 32 characters)"
         } else if registry::find(registry::ENTRIES, Kind::Asset, &id.0)
-            .is_none_or(|e| e.introduced > file.sim_version)
+            .is_none_or(|e| e.introduced > sim_version)
         {
             "no such sprite ID in the registry"
         } else {

@@ -15,6 +15,9 @@
 //! pack's own (ADR-080, as the registry's IDs are for a stage, ADR-017). The registry's IDs a
 //! file names are checked against the registry by the file's own parser.
 //!
+//! The content files have no versions of their own: the pack's header is the only one, and each
+//! file is read at it (CS1a-2). The stages in `modes` are stages and keep theirs.
+//!
 //! Each file sits in the pack as a JSON object, and is read from the exact bytes it has there,
 //! followed by a newline: the bytes of the same file on its own. A pack exported from the
 //! bundled files (`ContentFiles::export`) so gives each file the bundled file's SHA-256, and a run of
@@ -48,7 +51,7 @@ use crate::stardust::{Stardust, StardustFile};
 use crate::starting_unlocks::{StartingUnlocks, StartingUnlocksFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
 use crate::validate::{self, Error, Issue};
-use crate::version::{self, ReadError, SCHEMA_VERSION, SIM_VERSION};
+use crate::version::{self, ReadError, SCHEMA_VERSION, SIM_VERSION, Versions};
 use crate::weapons::{Weapons, WeaponsFile};
 
 // The count budgets: about four times today's counts, rounded up to a multiple of 8 and held
@@ -148,7 +151,8 @@ struct BorrowedModes<'a> {
 #[serde(deny_unknown_fields)]
 pub struct PackFile {
     pub schema_version: u32,
-    /// The `sim_version` the pack needs: every file has the same.
+    /// The `sim_version` the pack needs: the version of every file it holds; the stages in
+    /// `modes` also carry it, as every stage does.
     pub sim_version: u32,
     pub introduced: Introduced,
     #[schemars(with = "RunStatsFile")]
@@ -398,39 +402,46 @@ impl Pack {
     pub fn from_bytes(bytes: &[u8]) -> Result<Pack, PackError> {
         let pack: PackFile = version::read_current(bytes, Pack::MAX_BYTES)?;
         check_budgets(&pack)?;
+        let versions = Versions {
+            schema_version: pack.schema_version,
+            sim_version: pack.sim_version,
+        };
 
-        let run_stats = RunStats::parse(&file_bytes(&pack.run_stats))
+        let run_stats = RunStats::parse(&file_bytes(&pack.run_stats), versions)
             .map_err(PackError::in_file("run_stats"))?;
-        let stage_skills = StageSkills::parse(&file_bytes(&pack.stage_skills))
+        let stage_skills = StageSkills::parse(&file_bytes(&pack.stage_skills), versions)
             .map_err(PackError::in_file("stage_skills"))?;
-        let rewards = Rewards::parse_with(&file_bytes(&pack.rewards), &stage_skills)
+        let rewards = Rewards::parse_with(&file_bytes(&pack.rewards), versions, &stage_skills)
             .map_err(PackError::in_file("rewards"))?;
         let rewards = match pack.constellations.as_deref() {
             Some(raw) => {
-                let sets = Constellations::parse_with(&file_bytes(raw), &rewards)
+                let sets = Constellations::parse_with(&file_bytes(raw), versions, &rewards)
                     .map_err(PackError::in_file("constellations"))?;
                 rewards.with_constellations(sets)
             }
             None => rewards,
         };
-        let expertise = Expertise::parse(&file_bytes(&pack.expertise))
+        let expertise = Expertise::parse(&file_bytes(&pack.expertise), versions)
             .map_err(PackError::in_file("expertise"))?;
-        let match_ups = MatchUps::parse(&file_bytes(&pack.match_ups))
+        let match_ups = MatchUps::parse(&file_bytes(&pack.match_ups), versions)
             .map_err(PackError::in_file("match_ups"))?;
-        let runes = Runes::parse(&file_bytes(&pack.runes)).map_err(PackError::in_file("runes"))?;
-        let perk_sets = PerkSets::parse(&file_bytes(&pack.perk_sets))
+        let runes = Runes::parse(&file_bytes(&pack.runes), versions)
+            .map_err(PackError::in_file("runes"))?;
+        let perk_sets = PerkSets::parse(&file_bytes(&pack.perk_sets), versions)
             .map_err(PackError::in_file("perk_sets"))?;
-        let difficulties = Difficulties::parse(&file_bytes(&pack.difficulties))
+        let difficulties = Difficulties::parse(&file_bytes(&pack.difficulties), versions)
             .map_err(PackError::in_file("difficulties"))?;
-        let weapons =
-            Weapons::parse(&file_bytes(&pack.weapons)).map_err(PackError::in_file("weapons"))?;
-        let rules = Rules::parse(&file_bytes(&pack.rules)).map_err(PackError::in_file("rules"))?;
+        let weapons = Weapons::parse(&file_bytes(&pack.weapons), versions)
+            .map_err(PackError::in_file("weapons"))?;
+        let rules = Rules::parse(&file_bytes(&pack.rules), versions)
+            .map_err(PackError::in_file("rules"))?;
         let starting_unlocks = pack
             .starting_unlocks
             .as_deref()
             .map(|raw| {
                 StartingUnlocks::parse_with(
                     &file_bytes(raw),
+                    versions,
                     &perk_sets,
                     &stage_skills,
                     &runes,
@@ -442,7 +453,7 @@ impl Pack {
         let stardust = pack
             .stardust
             .as_deref()
-            .map(|raw| Stardust::parse(&file_bytes(raw)))
+            .map(|raw| Stardust::parse(&file_bytes(raw), versions))
             .transpose()
             .map_err(PackError::in_file("stardust"))?
             // Never re-entered: the bundled pack carries `stardust`, so loading it does not
@@ -450,7 +461,7 @@ impl Pack {
             .unwrap_or_else(|| Stardust::bundled().clone());
         let trial = validate::parse_and_validate(&file_bytes(&pack.modes.trial))
             .map_err(PackError::in_file("trial"))?;
-        let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit))
+        let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit), versions)
             .map_err(PackError::in_file("time_limit"))?;
         let tutorial = validate::parse_and_validate(&file_bytes(&pack.modes.tutorial))
             .map_err(PackError::in_file("tutorial"))?;
@@ -1276,50 +1287,64 @@ impl ContentFiles {
         let optional = |name: &'static str| self.get(name);
         let file = |bytes: &[u8]| String::from_utf8_lossy(bytes.trim_ascii_end()).into_owned();
 
-        let stage_skills =
-            StageSkills::parse(get("stage_skills")?).map_err(PackError::in_file("stage_skills"))?;
-        let rewards = Rewards::parse_with(get("rewards")?, &stage_skills)
+        let stage_skills = StageSkills::parse(get("stage_skills")?, Versions::CURRENT)
+            .map_err(PackError::in_file("stage_skills"))?;
+        let rewards = Rewards::parse_with(get("rewards")?, Versions::CURRENT, &stage_skills)
             .map_err(PackError::in_file("rewards"))?;
         let rewards = match optional("constellations") {
             Some(bytes) => {
-                let sets = Constellations::parse_with(bytes, &rewards)
+                let sets = Constellations::parse_with(bytes, Versions::CURRENT, &rewards)
                     .map_err(PackError::in_file("constellations"))?;
                 rewards.with_constellations(sets)
             }
             None => rewards,
         };
-        let perk_sets =
-            PerkSets::parse(get("perk_sets")?).map_err(PackError::in_file("perk_sets"))?;
-        let runes = Runes::parse(get("runes")?).map_err(PackError::in_file("runes"))?;
-        let weapons = Weapons::parse(get("weapons")?).map_err(PackError::in_file("weapons"))?;
-        let rules = Rules::parse(get("rules")?).map_err(PackError::in_file("rules"))?;
+        let perk_sets = PerkSets::parse(get("perk_sets")?, Versions::CURRENT)
+            .map_err(PackError::in_file("perk_sets"))?;
+        let runes =
+            Runes::parse(get("runes")?, Versions::CURRENT).map_err(PackError::in_file("runes"))?;
+        let weapons = Weapons::parse(get("weapons")?, Versions::CURRENT)
+            .map_err(PackError::in_file("weapons"))?;
+        let rules =
+            Rules::parse(get("rules")?, Versions::CURRENT).map_err(PackError::in_file("rules"))?;
         let starting_unlocks = optional("starting_unlocks")
             .map(|bytes| {
-                StartingUnlocks::parse_with(bytes, &perk_sets, &stage_skills, &runes, &weapons)
+                StartingUnlocks::parse_with(
+                    bytes,
+                    Versions::CURRENT,
+                    &perk_sets,
+                    &stage_skills,
+                    &runes,
+                    &weapons,
+                )
             })
             .transpose()
             .map_err(PackError::in_file("starting_unlocks"))?;
         let stardust = optional("stardust")
-            .map(Stardust::parse)
+            .map(|b| Stardust::parse(b, Versions::CURRENT))
             .transpose()
             .map_err(PackError::in_file("stardust"))?
             .unwrap_or_else(|| Stardust::bundled().clone());
         let trial = get("trial")?;
         let tutorial = get("tutorial")?;
         let content = RunContent::from_parts(
-            RunStats::parse(get("run_stats")?).map_err(PackError::in_file("run_stats"))?,
+            RunStats::parse(get("run_stats")?, Versions::CURRENT)
+                .map_err(PackError::in_file("run_stats"))?,
             rewards,
-            Expertise::parse(get("expertise")?).map_err(PackError::in_file("expertise"))?,
-            MatchUps::parse(get("match_ups")?).map_err(PackError::in_file("match_ups"))?,
+            Expertise::parse(get("expertise")?, Versions::CURRENT)
+                .map_err(PackError::in_file("expertise"))?,
+            MatchUps::parse(get("match_ups")?, Versions::CURRENT)
+                .map_err(PackError::in_file("match_ups"))?,
             runes,
             perk_sets,
-            Difficulties::parse(get("difficulties")?)
+            Difficulties::parse(get("difficulties")?, Versions::CURRENT)
                 .map_err(PackError::in_file("difficulties"))?,
             weapons,
             rules,
             starting_unlocks,
             stardust,
-            TimeLimit::parse(get("time_limit")?).map_err(PackError::in_file("time_limit"))?,
+            TimeLimit::parse(get("time_limit")?, Versions::CURRENT)
+                .map_err(PackError::in_file("time_limit"))?,
             validate::parse_and_validate(trial).map_err(PackError::in_file("trial"))?,
             trial.to_vec(),
             validate::parse_and_validate(tutorial).map_err(PackError::in_file("tutorial"))?,

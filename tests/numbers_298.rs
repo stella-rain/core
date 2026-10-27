@@ -4,6 +4,7 @@
 //! the ceiling the content may not pass (ADR-020, ADR-110).
 
 use std::collections::BTreeSet;
+use stella_rain_core::version::Versions;
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -156,8 +157,8 @@ fn a_rewards_file_may_hold_the_most_rewards_and_not_one_more() {
     };
     let parse = |n: usize| {
         let list: Vec<Value> = (0..n).map(one).collect();
-        let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": list });
-        Rewards::parse(file.to_string().as_bytes())
+        let file = json!({ "rewards": list });
+        Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
     };
     assert_eq!(MAX_REWARDS, 192);
     assert!(parse(MAX_REWARDS).is_ok());

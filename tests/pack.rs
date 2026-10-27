@@ -4,6 +4,7 @@
 
 use std::fs;
 use std::path::Path;
+use stella_rain_core::version::Versions;
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -98,11 +99,11 @@ fn a_name_the_layout_lacks_is_a_bug() {
 fn the_bundled_values_are_the_bundled_files_parsed() {
     assert_eq!(
         Stardust::bundled(),
-        &Stardust::parse(ContentFiles::bundled_file("stardust")).unwrap()
+        &Stardust::parse(ContentFiles::bundled_file("stardust"), Versions::CURRENT).unwrap()
     );
     assert_eq!(
         Rules::bundled(),
-        &Rules::parse(ContentFiles::bundled_file("rules")).unwrap()
+        &Rules::parse(ContentFiles::bundled_file("rules"), Versions::CURRENT).unwrap()
     );
 }
 
@@ -260,19 +261,6 @@ fn an_unknown_pack_version_is_refused() {
     let mut v = value();
     v["sim_version"] = json!(-1);
     assert!(matches!(load(&v), Err(PackError::Parse { .. })));
-}
-
-#[test]
-fn a_file_of_another_version_is_refused() {
-    let mut v = value();
-    v["runes"]["sim_version"] = json!(1);
-    assert!(matches!(
-        load(&v),
-        Err(PackError::File {
-            file: "runes",
-            error: Error::UnsupportedVersion { .. }
-        })
-    ));
 }
 
 /// Each count budget, past its limit by one: refused naming the list and its limit, before

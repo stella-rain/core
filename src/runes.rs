@@ -36,7 +36,7 @@ use crate::registry;
 use crate::rune::{Rune, RuneKind};
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 
 /// The largest runes file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_RUNES_BYTES: usize = 8 * 1024;
@@ -60,8 +60,6 @@ pub const MAX_DOT_STACKS: u32 = 10;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunesFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// Every on-hit rune's numbers, each rune once.
     pub on_hit: Vec<OnHitRune>,
     /// Every damage-over-time rune's numbers, each rune once.
@@ -125,9 +123,10 @@ impl Runes {
         Pack::bundled().content().runes()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<Runes, Error> {
-        let file: RunesFile = version::read_current(bytes, MAX_RUNES_BYTES)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<Runes, Error> {
+        let file: RunesFile = version::read_member(bytes, MAX_RUNES_BYTES, versions)?;
         validate(&file)?;
         Ok(Runes {
             on_hit: file.on_hit,

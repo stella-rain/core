@@ -22,16 +22,6 @@
       "format": "uint32",
       "minimum": 0
     },
-    "schema_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
-    "sim_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
     "stats": {
       "description": "The stats, in the order a stat offer lists them and the setup's priority falls back on.",
       "type": "array",
@@ -46,8 +36,6 @@
   },
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "sim_version",
     "stats",
     "stun"
   ],

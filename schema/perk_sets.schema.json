@@ -10,22 +10,10 @@
       "items": {
         "$ref": "#/$defs/PerkSet"
       }
-    },
-    "schema_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
-    "sim_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
     }
   },
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "sim_version",
     "perk_sets"
   ],
   "$defs": {

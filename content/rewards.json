@@ -1,6 +1,4 @@
 {
-  "schema_version": 0,
-  "sim_version": 0,
   "max_rune_haste_pct": 500,
   "rewards": [
     {

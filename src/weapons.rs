@@ -20,7 +20,7 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::validate::{self, Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 use crate::weapon::{Weapon, WeaponRef};
 
 /// The largest weapons file read (a tuning value; ADR-020 decides that one exists).
@@ -54,8 +54,6 @@ pub struct WeaponEntry {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WeaponsFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// The weapons, 1 to `MAX_WEAPONS`.
     pub weapons: Vec<WeaponEntry>,
 }
@@ -73,9 +71,10 @@ impl Weapons {
         Pack::bundled().content().weapons()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<Weapons, Error> {
-        let file: WeaponsFile = version::read_current(bytes, MAX_WEAPONS_BYTES)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<Weapons, Error> {
+        let file: WeaponsFile = version::read_member(bytes, MAX_WEAPONS_BYTES, versions)?;
         validate(&file)?;
         Ok(Weapons {
             list: file.weapons,

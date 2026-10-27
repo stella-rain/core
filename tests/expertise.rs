@@ -13,6 +13,7 @@ use stella_rain_core::expertise::{
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 
 fn option(id: &str, effect: &str, amount: u32) -> Value {
     json!({
@@ -62,8 +63,6 @@ fn weapon_ids() -> Vec<&'static str> {
 
 fn file() -> Value {
     json!({
-        "schema_version": 0,
-        "sim_version": 0,
         "thresholds": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
         "growth_pct": 110,
         "max_points": 1000,
@@ -71,8 +70,12 @@ fn file() -> Value {
     })
 }
 
+fn parse_at(v: &Value, versions: Versions) -> Result<Expertise, Error> {
+    Expertise::parse(v.to_string().as_bytes(), versions)
+}
+
 fn parse(v: &Value) -> Result<Expertise, Error> {
-    Expertise::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 fn with(pointer: &str, value: Value) -> Value {
@@ -101,7 +104,7 @@ fn invalid_at(v: &Value, path: &str) {
 fn the_bundled_file_covers_every_weapon_with_three_complete_styles() {
     let bundled = Expertise::bundled();
     assert_eq!(
-        Expertise::parse(common::bundled_file("expertise")).as_ref(),
+        Expertise::parse(common::bundled_file("expertise"), Versions::CURRENT).as_ref(),
         Ok(bundled),
         "the bundled bytes parse to the bundled content"
     );
@@ -148,7 +151,7 @@ fn a_valid_file_parses_and_keeps_its_order() {
 fn a_file_over_the_limit_is_not_parsed() {
     let big = vec![b' '; MAX_EXPERTISE_BYTES + 1];
     assert_eq!(
-        Expertise::parse(&big),
+        Expertise::parse(&big, Versions::CURRENT),
         Err(Error::TooLarge {
             size: MAX_EXPERTISE_BYTES + 1,
             limit: MAX_EXPERTISE_BYTES
@@ -156,7 +159,10 @@ fn a_file_over_the_limit_is_not_parsed() {
     );
     let mut padded = file().to_string().into_bytes();
     padded.resize(MAX_EXPERTISE_BYTES, b' ');
-    assert!(Expertise::parse(&padded).is_ok(), "at the limit it parses");
+    assert!(
+        Expertise::parse(&padded, Versions::CURRENT).is_ok(),
+        "at the limit it parses"
+    );
 }
 
 #[test]
@@ -188,10 +194,15 @@ fn only_the_expertise_format_parses() {
 #[test]
 fn newer_versions_are_refused_before_the_strict_parse() {
     let mut v = file();
-    v["sim_version"] = json!(1);
     v["from_the_future"] = json!(true);
     assert_eq!(
-        parse(&v),
+        parse_at(
+            &v,
+            Versions {
+                schema_version: 0,
+                sim_version: 1
+            }
+        ),
         Err(Error::UnsupportedVersion {
             schema_version: 0,
             sim_version: 1

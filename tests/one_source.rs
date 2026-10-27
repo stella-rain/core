@@ -6,6 +6,7 @@
 
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
+use stella_rain_core::version::Versions;
 
 use stella_rain_core::constellations::{Constellations, MAX_CONSTELLATIONS_BYTES};
 use stella_rain_core::difficulties::{Difficulties, MAX_DIFFICULTIES_BYTES};
@@ -197,53 +198,136 @@ fn refuses_file(name: &str, bytes: &[u8], limit: usize, read: impl Fn(&[u8]) -> 
     );
 }
 
+/// A pack's content files have no version of their own; the pack's header is the only one. The
+/// stages in `modes/` are stages and keep theirs (CS1a-2).
+#[test]
+fn no_content_file_has_its_own_version() {
+    let content_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("content");
+    for slot in ContentFiles::LAYOUT {
+        let bytes = std::fs::read(slot.path(&content_dir)).unwrap();
+        let file: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let object = file.as_object().unwrap();
+        let is_stage = matches!(slot.name, "trial" | "tutorial");
+        for field in ["schema_version", "sim_version"] {
+            if is_stage {
+                assert_eq!(object.get(field), Some(&0.into()), "{} {field}", slot.name);
+            } else {
+                assert!(!object.contains_key(field), "{} has a {field}", slot.name);
+            }
+        }
+    }
+}
+
+/// What a content file's reader says when it is given the versions of another game, a file
+/// with a version of its own and a file over its limit. A content file has no versions of its
+/// own: it is read at the pack's (CS1a-2).
+fn refuses_content(
+    name: &str,
+    bytes: &[u8],
+    limit: usize,
+    read: impl Fn(&[u8], Versions) -> Result<(), Error>,
+) {
+    let at = |schema_version, sim_version| Versions {
+        schema_version,
+        sim_version,
+    };
+    let unsupported = |schema_version, sim_version| {
+        Err(Error::UnsupportedVersion {
+            schema_version,
+            sim_version,
+        })
+    };
+    assert_eq!(
+        read(bytes, at(0, 1)),
+        unsupported(0, 1),
+        "{name}: sim_version 1"
+    );
+    assert_eq!(
+        read(bytes, at(7, 0)),
+        unsupported(7, 0),
+        "{name}: schema_version 7"
+    );
+    // A version in the file is an unknown field, on the line after the opening brace.
+    let with_own = replace_first(bytes, "{\n", "{\n  \"schema_version\": 0,\n");
+    assert_eq!(
+        read(&with_own, Versions::CURRENT),
+        Err(Error::Parse {
+            line: 2,
+            column: 18
+        }),
+        "{name}: a version of its own"
+    );
+    let mut padded = bytes.to_vec();
+    padded.resize(limit + 1, b' ');
+    assert_eq!(
+        read(&padded, Versions::CURRENT),
+        Err(Error::TooLarge {
+            size: limit + 1,
+            limit
+        }),
+        "{name}: over the limit"
+    );
+}
+
+/// A content file's reader, given its bytes and the versions to read them at.
+type Reader = fn(&[u8], Versions) -> Result<(), Error>;
+
 #[test]
 fn every_versioned_file_refuses_another_game_the_same_way() {
     let content = RunContent::bundled();
     let file = |name: &str| bundled(name);
-    refuses_file("run_stats", &file("run_stats"), MAX_RUN_STATS_BYTES, |b| {
-        RunStats::parse(b).map(|_| ())
-    });
-    refuses_file("rewards", &file("rewards"), MAX_REWARDS_BYTES, |b| {
-        Rewards::parse(b).map(|_| ())
-    });
-    refuses_file(
-        "stage_skills",
-        &file("stage_skills"),
-        MAX_STAGE_SKILLS_BYTES,
-        |b| StageSkills::parse(b).map(|_| ()),
+    let rows: [(&str, usize, Reader); 11] = [
+        ("run_stats", MAX_RUN_STATS_BYTES, |b, v| {
+            RunStats::parse(b, v).map(|_| ())
+        }),
+        ("rewards", MAX_REWARDS_BYTES, |b, v| {
+            Rewards::parse(b, v).map(|_| ())
+        }),
+        ("stage_skills", MAX_STAGE_SKILLS_BYTES, |b, v| {
+            StageSkills::parse(b, v).map(|_| ())
+        }),
+        ("expertise", MAX_EXPERTISE_BYTES, |b, v| {
+            Expertise::parse(b, v).map(|_| ())
+        }),
+        ("match_ups", MAX_MATCH_UPS_BYTES, |b, v| {
+            MatchUps::parse(b, v).map(|_| ())
+        }),
+        ("runes", MAX_RUNES_BYTES, |b, v| {
+            Runes::parse(b, v).map(|_| ())
+        }),
+        ("perk_sets", MAX_PERK_SETS_BYTES, |b, v| {
+            PerkSets::parse(b, v).map(|_| ())
+        }),
+        ("difficulties", MAX_DIFFICULTIES_BYTES, |b, v| {
+            Difficulties::parse(b, v).map(|_| ())
+        }),
+        ("weapons", MAX_WEAPONS_BYTES, |b, v| {
+            Weapons::parse(b, v).map(|_| ())
+        }),
+        ("rules", MAX_RULES_BYTES, |b, v| {
+            Rules::parse(b, v).map(|_| ())
+        }),
+        ("stardust", MAX_STARDUST_BYTES, |b, v| {
+            Stardust::parse(b, v).map(|_| ())
+        }),
+    ];
+    for (name, limit, read) in rows {
+        refuses_content(name, &file(name), limit, read);
+    }
+    refuses_content(
+        "time_limit",
+        &file("time_limit"),
+        MAX_TIME_LIMIT_BYTES,
+        |b, v| TimeLimit::parse(b, v).map(|_| ()),
     );
-    refuses_file("expertise", &file("expertise"), MAX_EXPERTISE_BYTES, |b| {
-        Expertise::parse(b).map(|_| ())
-    });
-    refuses_file("match_ups", &file("match_ups"), MAX_MATCH_UPS_BYTES, |b| {
-        MatchUps::parse(b).map(|_| ())
-    });
-    refuses_file("runes", &file("runes"), MAX_RUNES_BYTES, |b| {
-        Runes::parse(b).map(|_| ())
-    });
-    refuses_file("perk_sets", &file("perk_sets"), MAX_PERK_SETS_BYTES, |b| {
-        PerkSets::parse(b).map(|_| ())
-    });
-    refuses_file(
-        "difficulties",
-        &file("difficulties"),
-        MAX_DIFFICULTIES_BYTES,
-        |b| Difficulties::parse(b).map(|_| ()),
-    );
-    refuses_file("weapons", &file("weapons"), MAX_WEAPONS_BYTES, |b| {
-        Weapons::parse(b).map(|_| ())
-    });
-    refuses_file("rules", &file("rules"), MAX_RULES_BYTES, |b| {
-        Rules::parse(b).map(|_| ())
-    });
-    refuses_file(
+    refuses_content(
         "starting_unlocks",
         &file("starting_unlocks"),
         MAX_STARTING_UNLOCKS_BYTES,
-        |b| {
+        |b, v| {
             StartingUnlocks::parse_with(
                 b,
+                v,
                 content.perk_sets(),
                 content.stage_skills(),
                 content.runes(),
@@ -252,20 +336,11 @@ fn every_versioned_file_refuses_another_game_the_same_way() {
             .map(|_| ())
         },
     );
-    refuses_file(
+    refuses_content(
         "constellations",
         &file("constellations"),
         MAX_CONSTELLATIONS_BYTES,
-        |b| Constellations::parse_with(b, content.rewards()).map(|_| ()),
-    );
-    refuses_file("stardust", &file("stardust"), MAX_STARDUST_BYTES, |b| {
-        Stardust::parse(b).map(|_| ())
-    });
-    refuses_file(
-        "time_limit",
-        &file("time_limit"),
-        MAX_TIME_LIMIT_BYTES,
-        |b| TimeLimit::parse(b).map(|_| ()),
+        |b, v| Constellations::parse_with(b, v, content.rewards()).map(|_| ()),
     );
     refuses_file("stage", &file("trial"), MAX_STAGE_BYTES, |b| {
         validate::parse_and_validate(b).map(|_| ())

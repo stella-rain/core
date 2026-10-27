@@ -15,6 +15,7 @@ use stella_rain_core::run_replay::{content_sha256, content_sha256_with};
 use stella_rain_core::stage::LevelTable;
 use stella_rain_core::time_limit::{MAX_BOSS_TIMES, MAX_LENGTH_TICKS};
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 
 fn difficulty(id: &str) -> Value {
     json!({
@@ -25,7 +26,7 @@ fn difficulty(id: &str) -> Value {
 }
 
 fn file(list: Vec<Value>) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0, "difficulties": list })
+    json!({ "difficulties": list })
 }
 
 fn one(change: impl FnOnce(&mut Value)) -> Value {
@@ -34,8 +35,12 @@ fn one(change: impl FnOnce(&mut Value)) -> Value {
     file(vec![d])
 }
 
+fn parse_at(v: &Value, versions: Versions) -> Result<Difficulties, Error> {
+    Difficulties::parse(v.to_string().as_bytes(), versions)
+}
+
 fn parse(v: &Value) -> Result<Difficulties, Error> {
-    Difficulties::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 fn paths(e: Error) -> Vec<String> {
@@ -112,7 +117,7 @@ fn a_changed_file_changes_the_content_hash() {
     let mut v: Value = serde_json::from_slice(common::bundled_file("difficulties")).unwrap();
     v["difficulties"][2]["hp_pct"] = json!(151);
     let bytes = v.to_string();
-    let other = Difficulties::parse(bytes.as_bytes()).unwrap();
+    let other = Difficulties::parse(bytes.as_bytes(), Versions::CURRENT).unwrap();
     assert_ne!(other.sha256(), Difficulties::bundled().sha256());
     let content = RunContent::bundled().clone().with_difficulties(other);
     assert_ne!(
@@ -125,7 +130,7 @@ fn a_changed_file_changes_the_content_hash() {
 fn a_file_over_the_size_limit_is_refused_before_parsing() {
     let big = vec![b' '; MAX_DIFFICULTIES_BYTES + 1];
     assert!(matches!(
-        Difficulties::parse(&big),
+        Difficulties::parse(&big, Versions::CURRENT),
         Err(Error::TooLarge { .. })
     ));
 }
@@ -133,8 +138,18 @@ fn a_file_over_the_size_limit_is_refused_before_parsing() {
 #[test]
 fn versions_and_unknown_fields_are_refused() {
     let mut v = one(|_| {});
-    v["sim_version"] = json!(1);
-    assert!(matches!(parse(&v), Err(Error::UnsupportedVersion { .. })));
+    assert!(matches!(
+        parse_at(
+            &v,
+            Versions {
+                schema_version: 0,
+                sim_version: 1
+            }
+        ),
+        Err(Error::UnsupportedVersion { .. })
+    ));
+    v["sim_version"] = json!(0);
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
     let v = one(|d| d["extra"] = json!(1));
     assert!(matches!(parse(&v), Err(Error::Parse { .. })));
 }

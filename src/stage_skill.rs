@@ -24,7 +24,7 @@ use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::run_stats;
 use crate::validate::{Error, Issue};
-use crate::version::{self, SIM_VERSION};
+use crate::version::{self, Versions};
 
 /// The largest stage skills file read.
 pub const MAX_STAGE_SKILLS_BYTES: usize = 32 * 1024;
@@ -138,8 +138,6 @@ impl SkillEffect {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StageSkillsFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// The skills, at most `MAX_STAGE_SKILLS`; a skill's place here is what the slot holds.
     pub stage_skills: Vec<StageSkill>,
 }
@@ -157,10 +155,11 @@ impl StageSkills {
         Pack::bundled().content().stage_skills()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<StageSkills, Error> {
-        let file: StageSkillsFile = version::read_current(bytes, MAX_STAGE_SKILLS_BYTES)?;
-        validate(&file)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<StageSkills, Error> {
+        let file: StageSkillsFile = version::read_member(bytes, MAX_STAGE_SKILLS_BYTES, versions)?;
+        validate(&file, versions.sim_version)?;
         Ok(StageSkills {
             skills: file.stage_skills,
             sha256: Sha256::digest(bytes).into(),
@@ -189,9 +188,9 @@ impl StageSkills {
 }
 
 /// Validates a parsed file: one issue per problem, with its path, never text from the file.
-pub fn validate(file: &StageSkillsFile) -> Result<(), Error> {
+pub fn validate(file: &StageSkillsFile, sim_version: u32) -> Result<(), Error> {
     let mut issues = Vec::new();
-    stage_skills(&file.stage_skills, &mut Issues(&mut issues));
+    stage_skills(&file.stage_skills, &mut Issues(&mut issues, sim_version));
     if issues.is_empty() {
         Ok(())
     } else {
@@ -200,7 +199,7 @@ pub fn validate(file: &StageSkillsFile) -> Result<(), Error> {
 }
 
 /// Collects one issue per problem, at its path.
-struct Issues<'a>(&'a mut Vec<Issue>);
+struct Issues<'a>(&'a mut Vec<Issue>, u32);
 
 impl Issues<'_> {
     fn add(&mut self, path: String, message: String) {
@@ -227,8 +226,8 @@ impl Issues<'_> {
             return;
         }
         match registry::find(registry::ENTRIES, kind, &id.0) {
-            Some(e) if e.introduced > SIM_VERSION => {
-                self.add(path, "newer than this file's sim_version".into())
+            Some(e) if e.introduced > self.1 => {
+                self.add(path, "newer than the pack's sim_version".into())
             }
             Some(_) => {}
             None => self.add(path, format!("no such {kind:?} ID in the registry")),

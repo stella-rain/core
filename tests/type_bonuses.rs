@@ -20,6 +20,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::{EntityKind, OfferOption, TypeBonusView};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::limits::MAX_DAMAGE;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -123,11 +124,11 @@ fn pyro(amount: u32) -> Value {
 }
 
 fn file(rewards: Vec<Value>) -> String {
-    json!({ "schema_version": 0, "sim_version": 0, "rewards": rewards }).to_string()
+    json!({ "rewards": rewards }).to_string()
 }
 
 fn rewards(list: Vec<Value>) -> Rewards {
-    Rewards::parse(file(list).as_bytes()).expect("the test rewards validate")
+    Rewards::parse(file(list).as_bytes(), Versions::CURRENT).expect("the test rewards validate")
 }
 
 fn content(list: Vec<Value>) -> RunContent {
@@ -223,7 +224,7 @@ fn the_three_effects_parse_and_a_one_type_bonus_names_its_type() {
 
 #[test]
 fn a_type_bonus_reward_is_bounded_like_the_others() {
-    let bad = |r: Value| Rewards::parse(file(vec![r]).as_bytes()).is_err();
+    let bad = |r: Value| Rewards::parse(file(vec![r]).as_bytes(), Versions::CURRENT).is_err();
     assert!(
         !bad(pyro(200)),
         "the most a reward adds (MAX_TYPE_BONUS_AMOUNT)"
@@ -262,9 +263,10 @@ fn a_type_bonus_reward_is_bounded_like_the_others() {
 
 #[test]
 fn a_type_bonus_names_its_path_when_refused() {
-    let Err(stella_rain_core::validate::Error::Invalid(issues)) =
-        Rewards::parse(file(vec![bonus("pyro", "type_bonus_pct", None, 10, 1)]).as_bytes())
-    else {
+    let Err(stella_rain_core::validate::Error::Invalid(issues)) = Rewards::parse(
+        file(vec![bonus("pyro", "type_bonus_pct", None, 10, 1)]).as_bytes(),
+        Versions::CURRENT,
+    ) else {
         panic!("refused as invalid");
     };
     assert_eq!(issues[0].path, "$.rewards[0].effects[0].type");
@@ -382,7 +384,8 @@ fn the_summed_bonus_saturates_at_the_content_value_under_the_cap() {
     // The match-up file's `max_type_bonus_pct` of 250: three takes of 100 apply 250 percent.
     let mut table: Value = serde_json::from_slice(common::bundled_file("match_ups")).unwrap();
     table["max_type_bonus_pct"] = json!(250);
-    let table = MatchUps::parse(table.to_string().as_bytes()).expect("the test table");
+    let table =
+        MatchUps::parse(table.to_string().as_bytes(), Versions::CURRENT).expect("the test table");
     let stage = targets(100, Some("pyro"), 3, None);
     let mut e = Engine::new_with(&stage, &content(vec![pyro(100)]).with_match_ups(table))
         .expect("the test stage is valid");

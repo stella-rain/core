@@ -8,11 +8,10 @@ use stella_rain_core::pack::Pack;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::stardust::{MAX_BANK_CAP, MAX_STARDUST_BYTES, Stardust};
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 
 fn file() -> Value {
     json!({
-        "schema_version": 0,
-        "sim_version": 0,
         "modes": [
             { "id": "time_limit", "bank": true, "pay_pct": 50, "bank_pct": 50, "bank_cap": 1000 },
             { "id": "trial", "bank": false, "pay_pct": 100, "bank_pct": 0, "bank_cap": 0 },
@@ -20,8 +19,12 @@ fn file() -> Value {
     })
 }
 
+fn parse_at(v: &Value, versions: Versions) -> Result<Stardust, Error> {
+    Stardust::parse(v.to_string().as_bytes(), versions)
+}
+
 fn parse(v: &Value) -> Result<Stardust, Error> {
-    Stardust::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 fn paths(e: Error) -> Vec<String> {
@@ -86,10 +89,23 @@ fn a_share_over_100_or_shares_summing_over_100_are_refused() {
 #[test]
 fn size_versions_unknown_fields_and_wrong_types_fail_closed() {
     let big = vec![b' '; MAX_STARDUST_BYTES + 1];
-    assert!(matches!(Stardust::parse(&big), Err(Error::TooLarge { .. })));
+    assert!(matches!(
+        Stardust::parse(&big, Versions::CURRENT),
+        Err(Error::TooLarge { .. })
+    ));
     let mut v = file();
-    v["schema_version"] = json!(9);
-    assert!(matches!(parse(&v), Err(Error::UnsupportedVersion { .. })));
+    assert!(matches!(
+        parse_at(
+            &v,
+            Versions {
+                schema_version: 9,
+                sim_version: 0
+            }
+        ),
+        Err(Error::UnsupportedVersion { .. })
+    ));
+    v["schema_version"] = json!(0);
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
     let mut v = file();
     v["extra"] = json!(1);
     assert!(matches!(parse(&v), Err(Error::Parse { .. })));
@@ -103,7 +119,7 @@ fn size_versions_unknown_fields_and_wrong_types_fail_closed() {
 
 #[test]
 fn the_bundled_file_parses_and_is_the_bundled_packs_file() {
-    let on_its_own = Stardust::parse(common::bundled_file("stardust")).unwrap();
+    let on_its_own = Stardust::parse(common::bundled_file("stardust"), Versions::CURRENT).unwrap();
     assert_eq!(&on_its_own, Stardust::bundled());
     assert_eq!(Pack::bundled().stardust(), &on_its_own);
     assert_eq!(RunContent::bundled().stardust(), &on_its_own);

@@ -10,6 +10,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::stage::Boss;
 use stella_rain_core::time_limit::TimeLimit;
+use stella_rain_core::version::Versions;
 
 const MINUTE: u32 = 3600;
 const MID_BOSSES: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
@@ -97,7 +98,8 @@ fn a_definition_the_stage_rejects_stops_the_run_from_starting() {
     v["bosses"][0]["phases"][0]["timeline"][2] = json!({
         "type": "attack", "attack": { "preset": { "id": "no_such_preset", "args": [] } }
     });
-    let m = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    let m = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e}"));
     let result = Engine::start_time_limit(&setup(), RunContent::bundled(), &m);
     assert!(result.is_err());
 }

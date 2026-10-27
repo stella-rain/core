@@ -5,6 +5,7 @@
 //! Positions are in 1/256 px.
 
 use crate::common;
+use stella_rain_core::version::Versions;
 
 use common::run::{answer_all, run_input, time_limit_setup, trial_setup};
 use common::*;
@@ -454,7 +455,7 @@ fn a_wave_gives_spawn_or_edge_and_along_is_checked() {
     let mut m: Value = serde_json::from_slice(bundled_file("time_limit")).unwrap();
     let w = m["waves"][0].as_object_mut().unwrap();
     w.remove("edge");
-    let e = TimeLimit::parse(m.to_string().as_bytes())
+    let e = TimeLimit::parse(m.to_string().as_bytes(), Versions::CURRENT)
         .map(|_| ())
         .unwrap_err();
     assert_eq!(paths(e), ["$.waves[0].spawn"]);
@@ -589,7 +590,7 @@ fn elite_mode(cap: u32) -> TimeLimit {
         t["enemy"]["movement"] = json!({ "type": "straight", "vx": 0, "vy": 0 });
         t["enemy"]["rules"] = json!([]);
     }
-    TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
+    TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// Stands for 5 minutes; where each elite is from the main character on its spawn tick.

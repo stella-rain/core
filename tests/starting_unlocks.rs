@@ -13,12 +13,11 @@ use stella_rain_core::starting_unlocks::{
     MAX_STARTING_UNLOCKS, MAX_STARTING_UNLOCKS_BYTES, StartingUnlocks,
 };
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 use stella_rain_core::weapons::Weapons;
 
 fn file() -> Value {
     json!({
-        "schema_version": 0,
-        "sim_version": 0,
         "weapons": ["giant_sword"],
         "perk_sets": ["duelist"],
         "stage_skills": ["nova"],
@@ -26,14 +25,19 @@ fn file() -> Value {
     })
 }
 
-fn parse(v: &Value) -> Result<StartingUnlocks, Error> {
+fn parse_at(v: &Value, versions: Versions) -> Result<StartingUnlocks, Error> {
     StartingUnlocks::parse_with(
         v.to_string().as_bytes(),
+        versions,
         PerkSets::bundled(),
         StageSkills::bundled(),
         Runes::bundled(),
         Weapons::bundled(),
     )
+}
+
+fn parse(v: &Value) -> Result<StartingUnlocks, Error> {
+    parse_at(v, Versions::CURRENT)
 }
 
 fn paths(e: Error) -> Vec<String> {
@@ -61,8 +65,7 @@ fn a_valid_file_loads_and_keeps_its_hash() {
 
 #[test]
 fn empty_lists_are_allowed() {
-    let v = json!({ "schema_version": 0, "sim_version": 0,
-        "weapons": [], "perk_sets": [], "stage_skills": [], "runes": [] });
+    let v = json!({ "weapons": [], "perk_sets": [], "stage_skills": [], "runes": [] });
     assert!(parse(&v).unwrap().weapons().is_empty());
 }
 
@@ -104,6 +107,7 @@ fn a_file_that_is_too_large_is_refused_before_parsing() {
     assert!(matches!(
         StartingUnlocks::parse_with(
             &big,
+            Versions::CURRENT,
             PerkSets::bundled(),
             StageSkills::bundled(),
             Runes::bundled(),
@@ -116,8 +120,18 @@ fn a_file_that_is_too_large_is_refused_before_parsing() {
 #[test]
 fn the_versions_and_unknown_fields_fail_closed() {
     let mut v = file();
-    v["schema_version"] = json!(9);
-    assert!(matches!(parse(&v), Err(Error::UnsupportedVersion { .. })));
+    assert!(matches!(
+        parse_at(
+            &v,
+            Versions {
+                schema_version: 9,
+                sim_version: 0
+            }
+        ),
+        Err(Error::UnsupportedVersion { .. })
+    ));
+    v["schema_version"] = json!(0);
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
     let mut v = file();
     v["extra"] = json!(1);
     assert!(matches!(parse(&v), Err(Error::Parse { .. })));
@@ -139,6 +153,7 @@ fn the_bundled_pack_lists_todays_seed() {
     // The bundled file on its own is the pack's file.
     let on_its_own = StartingUnlocks::parse_with(
         common::bundled_file("starting_unlocks"),
+        Versions::CURRENT,
         PerkSets::bundled(),
         StageSkills::bundled(),
         Runes::bundled(),

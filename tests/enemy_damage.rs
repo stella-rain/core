@@ -10,6 +10,7 @@ use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::run_stats::{DEFAULT_ENEMY_ATTACK_DAMAGE, RunStats};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::MAX_PLAYER_HP;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 use crate::common::run::trial_setup;
@@ -19,7 +20,7 @@ fn stats_with(
 ) -> Result<RunStats, stella_rain_core::validate::Error> {
     let mut v: Value = serde_json::from_slice(common::bundled_file("run_stats")).unwrap();
     edit(&mut v);
-    RunStats::parse(v.to_string().as_bytes())
+    RunStats::parse(v.to_string().as_bytes(), Versions::CURRENT)
 }
 
 #[test]
@@ -59,7 +60,7 @@ fn shooter_mode() -> TimeLimit {
         },
         "spawn": { "x": 554_288, "y": 524_288 }, "count": 1, "every_ticks": 0
     }]);
-    TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
+    TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap_or_else(|e| panic!("{e}"))
 }
 
 fn setup() -> RunSetup {

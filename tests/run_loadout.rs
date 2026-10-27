@@ -16,6 +16,7 @@ use stella_rain_core::run_setup::{
 use stella_rain_core::rune::Rune;
 use stella_rain_core::validate::limits::DAMAGE_SCALE;
 use stella_rain_core::validate::{Error, Issue};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -245,12 +246,13 @@ fn carried_stars_are_rewards_of_the_file_and_of_the_pool_within_the_budget() {
 #[test]
 fn a_reward_is_carried_no_more_times_than_it_stacks() {
     let rewards = Rewards::parse(
-        json!({ "schema_version": 0, "sim_version": 0, "rewards": [{
+        json!({ "rewards": [{
             "id": "once", "rarity": "common", "effect": "max_hp", "amount": 100, "limit": 2,
             "title": "Once", "description": ""
         }]})
         .to_string()
         .as_bytes(),
+        Versions::CURRENT,
     )
     .unwrap();
     let content = RunContent::new(common::design_run_stats(), rewards);
@@ -269,12 +271,13 @@ fn a_reward_is_carried_no_more_times_than_it_stacks() {
 #[test]
 fn the_random_rune_is_not_a_carried_star() {
     let rewards = Rewards::parse(
-        json!({ "schema_version": 0, "sim_version": 0, "rewards": [{
+        json!({ "rewards": [{
             "id": "random_rune", "rarity": "common", "effect": "random_rune",
             "title": "Rune", "description": ""
         }]})
         .to_string()
         .as_bytes(),
+        Versions::CURRENT,
     )
     .unwrap();
     let content = RunContent::new(common::design_run_stats(), rewards);
@@ -361,7 +364,7 @@ fn regen_gives_back_its_hit_points_every_second_never_beyond_the_most() {
     }));
     let content_no_regen = content
         .clone()
-        .with_perk_sets(PerkSets::parse(file.to_string().as_bytes()).unwrap());
+        .with_perk_sets(PerkSets::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap());
     let trace = |set: &str, content: &RunContent| {
         let setup = RunSetup {
             perk_set: set.into(),
@@ -527,12 +530,13 @@ fn the_starting_rune_is_held_from_tick_0() {
 /// Rewards that are only the random rune, so that every offer holds it.
 fn random_rune_content() -> RunContent {
     let rewards = Rewards::parse(
-        json!({ "schema_version": 0, "sim_version": 0, "rewards": [{
+        json!({ "rewards": [{
             "id": "random_rune", "rarity": "common", "effect": "random_rune",
             "title": "Rune", "description": ""
         }]})
         .to_string()
         .as_bytes(),
+        Versions::CURRENT,
     )
     .unwrap();
     RunContent::new(common::design_run_stats(), rewards)

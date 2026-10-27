@@ -25,6 +25,7 @@ use stella_rain_core::runes::{
 };
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -98,7 +99,7 @@ fn file(on_hit: Vec<Value>) -> Value {
 }
 
 fn file_with(on_hit: Vec<Value>, damage_over_time: Vec<Value>) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0, "on_hit": on_hit,
+    json!({ "on_hit": on_hit,
             "damage_over_time": damage_over_time })
 }
 
@@ -116,8 +117,12 @@ fn plain() -> Value {
     with_thunder(explosion(json!(30), json!(5), json!([active(4)])))
 }
 
+fn parse_at(v: &Value, versions: Versions) -> Result<Runes, Error> {
+    Runes::parse(v.to_string().as_bytes(), versions)
+}
+
 fn parse(v: &Value) -> Result<Runes, Error> {
-    Runes::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 fn paths(e: Error) -> Vec<String> {
@@ -798,15 +803,23 @@ fn the_file_is_strict_and_size_limited() {
     let mut v = plain();
     v["on_hit"][0]["extra"] = json!(1);
     assert!(matches!(parse(&v), Err(Error::Parse { .. })));
-    let mut newer = plain();
-    newer["sim_version"] = json!(1);
+    let newer = plain();
     assert!(matches!(
-        parse(&newer),
+        parse_at(
+            &newer,
+            Versions {
+                schema_version: 0,
+                sim_version: 1
+            }
+        ),
         Err(Error::UnsupportedVersion { .. })
     ));
     let mut big = common::bundled_file("runes").to_vec();
     big.resize(MAX_RUNES_BYTES + 1, b' ');
-    assert!(matches!(Runes::parse(&big), Err(Error::TooLarge { .. })));
+    assert!(matches!(
+        Runes::parse(&big, Versions::CURRENT),
+        Err(Error::TooLarge { .. })
+    ));
 }
 
 fn other() -> Runes {

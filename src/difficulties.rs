@@ -26,7 +26,7 @@ use crate::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, text_problem};
 use crate::stage::{LevelTable, StardustTier, stardust_tiers_problem};
 use crate::time_limit::{MAX_BOSS_TIMES, MAX_LENGTH_TICKS};
 use crate::validate::{Error, Issue};
-use crate::version;
+use crate::version::{self, Versions};
 
 /// The largest difficulties file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_DIFFICULTIES_BYTES: usize = 8 * 1024;
@@ -101,8 +101,6 @@ impl Difficulty {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DifficultiesFile {
-    pub schema_version: u32,
-    pub sim_version: u32,
     /// The difficulties, 1 to `MAX_DIFFICULTIES`.
     pub difficulties: Vec<Difficulty>,
 }
@@ -120,9 +118,10 @@ impl Difficulties {
         Pack::bundled().content().difficulties()
     }
 
-    /// Checks the size, parses strictly and validates: the one call for a file's bytes.
-    pub fn parse(bytes: &[u8]) -> Result<Difficulties, Error> {
-        let file: DifficultiesFile = version::read_current(bytes, MAX_DIFFICULTIES_BYTES)?;
+    /// Checks the size and the versions given (the pack's), parses strictly and validates: the one
+    /// call for a file's bytes.
+    pub fn parse(bytes: &[u8], versions: Versions) -> Result<Difficulties, Error> {
+        let file: DifficultiesFile = version::read_member(bytes, MAX_DIFFICULTIES_BYTES, versions)?;
         validate(&file)?;
         Ok(Difficulties {
             list: file.difficulties,

@@ -12,6 +12,7 @@ use crate::stage::Stage;
 use crate::time_limit::TimeLimit;
 use crate::validate;
 use crate::validate::limits::{MAX_AGENT_HP, MAX_PLAYER_HP};
+use crate::version::Versions;
 
 /// Ticks before the measured tick: the horde has all arrived (the cap of 260 is reached on tick
 /// 76) and the measured tick is one on which the main character's Main weapon hits
@@ -136,7 +137,7 @@ fn content() -> RunContent {
     let mut v: serde_json::Value =
         serde_json::from_slice(ContentFiles::bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = serde_json::json!(100);
-    let stats = RunStats::parse(v.to_string().as_bytes()).unwrap();
+    let stats = RunStats::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap();
     RunContent::new(stats, RunContent::bundled().rewards().clone())
 }
 
