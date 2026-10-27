@@ -4,6 +4,7 @@
 
 use schemars::schema_for;
 
+use crate::attack_presets::AttackPresetsFile;
 use crate::constellations::ConstellationsFile;
 use crate::difficulties::DifficultiesFile;
 use crate::event::DomainEvent;
@@ -62,6 +63,10 @@ pub fn all() -> Vec<(&'static str, String)> {
         (
             "difficulties.schema.json",
             pretty(schema_for!(DifficultiesFile)),
+        ),
+        (
+            "attack_presets.schema.json",
+            pretty(schema_for!(AttackPresetsFile)),
         ),
         ("weapons.schema.json", pretty(schema_for!(WeaponsFile))),
         (

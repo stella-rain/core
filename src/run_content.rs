@@ -5,6 +5,7 @@
 //! that a run's engine, its recorder and its verification read the same files, and the replay's
 //! content hash covers each of them (ADR-079 §5).
 
+use crate::attack_presets::AttackPresets;
 use crate::constellations::Constellations;
 use crate::difficulties::Difficulties;
 use crate::expertise::Expertise;
@@ -32,6 +33,8 @@ pub struct RunContent {
     runes: Runes,
     perk_sets: PerkSets,
     difficulties: Difficulties,
+    /// The developer's attacks (CS1b-1): what a preset reference runs.
+    attack_presets: AttackPresets,
     /// The weapons' combo trees (WP1).
     weapons: Weapons,
     /// The numbers of the simulation that live in the pack (DIR1): the crowd target and the cap's
@@ -70,6 +73,7 @@ impl RunContent {
             runes: Runes::bundled().clone(),
             perk_sets: PerkSets::bundled().clone(),
             difficulties: Difficulties::bundled().clone(),
+            attack_presets: bundled.attack_presets.clone(),
             weapons: bundled.weapons.clone(),
             rules: bundled.rules.clone(),
             starting_unlocks: bundled.starting_unlocks.clone(),
@@ -93,6 +97,7 @@ impl RunContent {
         runes: Runes,
         perk_sets: PerkSets,
         difficulties: Difficulties,
+        attack_presets: AttackPresets,
         weapons: Weapons,
         rules: Rules,
         starting_unlocks: Option<StartingUnlocks>,
@@ -112,6 +117,7 @@ impl RunContent {
             runes,
             perk_sets,
             difficulties,
+            attack_presets,
             weapons,
             rules,
             starting_unlocks,
@@ -156,6 +162,15 @@ impl RunContent {
     pub fn with_perk_sets(self, perk_sets: PerkSets) -> RunContent {
         RunContent {
             perk_sets,
+            pack_sha256: None,
+            ..self
+        }
+    }
+
+    /// The same content with `attack_presets` in place of its attack presets.
+    pub fn with_attack_presets(self, attack_presets: AttackPresets) -> RunContent {
+        RunContent {
+            attack_presets,
             pack_sha256: None,
             ..self
         }
@@ -271,6 +286,11 @@ impl RunContent {
     /// The difficulties a setup picks from (ADR-110).
     pub fn difficulties(&self) -> &Difficulties {
         &self.difficulties
+    }
+
+    /// The developer's attacks (CS1b-1).
+    pub fn attack_presets(&self) -> &AttackPresets {
+        &self.attack_presets
     }
 
     /// The weapons' combo trees (WP1).

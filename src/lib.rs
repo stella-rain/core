@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 pub mod attack;
+pub mod attack_presets;
 pub mod base64;
 pub mod behaviour;
 #[cfg(feature = "bench")]
