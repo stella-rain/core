@@ -384,7 +384,7 @@ fn setup() -> RunSetup {
 /// A short run whose only elite is a goblin, which comes at tick 3,600, and whose boss comes at
 /// tick `boss`.
 fn goblin_run(boss: u32) -> TimeLimit {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["length_ticks"] = json!(boss + 600);
     v["boss_ticks"] = json!([boss, boss + 600]);
     v["waves"] = json!([]);

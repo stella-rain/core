@@ -4,6 +4,7 @@
 //! (ADR-020). The bundled file is the default; other bytes run the same way and change the run's
 //! content hash.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::difficulties::{
     DEFAULT_DIFFICULTY, Difficulties, MAX_DIFFICULTIES, MAX_DIFFICULTIES_BYTES, MAX_PCT, scale_pct,
@@ -108,7 +109,7 @@ fn the_rarity_range_is_clamped_to_the_rarities_rewards_have() {
 
 #[test]
 fn a_changed_file_changes_the_content_hash() {
-    let mut v: Value = serde_json::from_slice(Difficulties::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("difficulties")).unwrap();
     v["difficulties"][2]["hp_pct"] = json!(151);
     let bytes = v.to_string();
     let other = Difficulties::parse(bytes.as_bytes()).unwrap();

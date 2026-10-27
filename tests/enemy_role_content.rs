@@ -3,6 +3,7 @@
 //! `tests/enemy_roles.rs` covers; these tests read the bundled file, so they check the content.
 //! Every number is a tuning value.
 
+use crate::common;
 use crate::common::run::time_limit_setup;
 use crate::common::*;
 use crate::run_play::play_run_with;
@@ -35,7 +36,7 @@ const ROLES: [(&str, u32); 7] = [
 
 /// The bundled mode file as JSON.
 fn mode() -> Value {
-    serde_json::from_slice(TimeLimit::BUNDLED).expect("the bundled file is JSON")
+    serde_json::from_slice(common::bundled_file("time_limit")).expect("the bundled file is JSON")
 }
 
 /// The wave of the bundled schedule with `id`.

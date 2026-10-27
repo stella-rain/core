@@ -72,7 +72,7 @@ fn content_with(
 /// The bundled expertise file with `thresholds`, `growth_pct`, `max_points`, and the `giant_sword`'s
 /// common pool replaced by `main`.
 fn file_with(thresholds: [u32; 10], growth_pct: u16, max_points: u32, main: Vec<Value>) -> Value {
-    let mut file: Value = serde_json::from_slice(Expertise::BUNDLED).unwrap();
+    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
     file["thresholds"] = json!(thresholds);
     file["growth_pct"] = json!(growth_pct);
     file["max_points"] = json!(max_points);

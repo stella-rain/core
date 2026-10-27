@@ -4,6 +4,7 @@
 //! thresholds rise strictly, the factor is above 1, no pool is empty, every weapon has three
 //! complete styles, and every number is capped.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::expertise::{
     Expertise, ExpertiseEffect, MAX_COMMON_OPTIONS, MAX_EXPERTISE_BYTES, MAX_GROWTH_PCT,
@@ -100,7 +101,7 @@ fn invalid_at(v: &Value, path: &str) {
 fn the_bundled_file_covers_every_weapon_with_three_complete_styles() {
     let bundled = Expertise::bundled();
     assert_eq!(
-        Expertise::parse(Expertise::BUNDLED).as_ref(),
+        Expertise::parse(common::bundled_file("expertise")).as_ref(),
         Ok(bundled),
         "the bundled bytes parse to the bundled content"
     );

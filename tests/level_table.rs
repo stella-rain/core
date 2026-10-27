@@ -3,13 +3,14 @@
 //! names one and a stage may; the validator checks the style comes first, the levels rise
 //! strictly, there are exactly two upgrades, and every level is within bounds (ADR-020).
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::stage::{LevelTable, MAX_STYLE_LEVEL, Stage};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::{self, Error};
 
 fn mode(table: Value) -> Result<TimeLimit, Error> {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["level_table"] = table;
     TimeLimit::parse(v.to_string().as_bytes())
 }
@@ -82,7 +83,7 @@ fn exactly_two_upgrades_and_no_unknown_field() {
 
 #[test]
 fn a_mode_file_without_a_table_is_refused() {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v.as_object_mut().unwrap().remove("level_table");
     assert!(matches!(
         TimeLimit::parse(v.to_string().as_bytes()),
