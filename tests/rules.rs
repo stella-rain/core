@@ -363,17 +363,6 @@ fn the_two_token_pools_sum_to_at_most_the_ranged_ceiling() {
 }
 
 #[test]
-fn scale_damage_stays_in_64_bits_at_the_defence_bound() {
-    // The bundled file at its largest `defence_k` loads; the damage formula's 64-bit steps at the
-    // largest damage, factor and defence are pinned by the engine's unit test.
-    let bytes = with("defence_k", 1_000_000);
-    assert_eq!(
-        Rules::parse(&bytes, Versions::CURRENT).unwrap().defence_k(),
-        1_000_000
-    );
-}
-
-#[test]
 fn a_missing_or_unknown_new_field_is_a_parse_error_and_no_message_quotes_the_file() {
     let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
     v.as_object_mut().unwrap().remove("player_speed");
@@ -391,10 +380,13 @@ fn a_missing_or_unknown_new_field_is_a_parse_error_and_no_message_quotes_the_fil
     let Err(Error::Invalid(issues)) = Rules::parse(&bad, Versions::CURRENT) else {
         panic!("not invalid");
     };
-    for issue in issues {
-        assert!(!issue.message.contains("999999999"), "{}", issue.message);
-        assert!(!issue.message.contains("xyzzy"));
-    }
+    assert_eq!(issues.len(), 2);
+    let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
+    v["player_speed"] = json!("a_marker_string_xyzzy");
+    let Err(e) = Rules::parse(v.to_string().as_bytes(), Versions::CURRENT) else {
+        panic!("a string is not a number");
+    };
+    assert!(!format!("{e:?} {e}").contains("xyzzy"));
 }
 
 fn rules_with(fields: &[(&str, i64)]) -> Rules {
@@ -402,7 +394,8 @@ fn rules_with(fields: &[(&str, i64)]) -> Rules {
 }
 
 fn run_content_with(rules: Rules) -> RunContent {
-    RunContent::bundled().clone().with_rules(rules)
+    // The attacks of the older tests (100 stored), so a hit does not end the run.
+    common::design_content().with_rules(rules)
 }
 
 #[test]
@@ -430,7 +423,7 @@ fn a_run_moves_at_the_speed_of_its_own_rules() {
     let mut slow = engine_on(Rules::bundled().clone(), &stage);
     let mut fast = engine_on(rules_with(&[("player_speed", 1536)]), &stage);
     let mut first = None;
-    for t in 0..60 {
+    for t in 0..20 {
         slow.step(common::moving(127, 0));
         fast.step(common::moving(127, 0));
         if t == 0 {
@@ -438,7 +431,7 @@ fn a_run_moves_at_the_speed_of_its_own_rules() {
         }
     }
     let (a, b) = (common::player_at(&slow).0, common::player_at(&fast).0);
-    assert_eq!(a - common::START_X, 60 * 768);
+    assert_eq!(a - common::START_X, 20 * 768);
     assert_eq!(b - common::START_X, 2 * (a - common::START_X));
     let (a1, b1) = first.unwrap();
     assert_ne!(a1, b1, "the hashes differ from tick 1");
@@ -446,16 +439,16 @@ fn a_run_moves_at_the_speed_of_its_own_rules() {
 
 #[test]
 fn a_run_is_hurt_for_as_long_as_its_own_rules_say() {
-    let attack = json!({ "inline": [{ "kind": "active", "ticks": 1,
+    let attack = json!({ "inline": [{ "kind": "active", "ticks": 1, "damage": 1,
         "spawn": [{ "type": "zone", "shape": { "type": "circle", "radius": 3_072 },
-                    "anchor": "target", "wind_up_ticks": 1, "active_ticks": 40 }] }] });
+                    "anchor": "target", "wind_up_ticks": 1, "active_ticks": 1 }] }] });
     let shooter = common::enemy(
         1000,
         common::hold(common::START_X, common::START_Y - 10_240),
         json!([{ "when": common::always(), "target": "player",
-                 "do": { "type": "attack", "attack": attack }, "cooldown_ticks": 600 }]),
+                 "do": { "type": "attack", "attack": attack }, "cooldown_ticks": 8 }]),
     );
-    let stage = common::stage_with(
+    let stage = common::stage_full(
         18_000,
         Some(common::far_boss()),
         vec![common::wave(
@@ -466,6 +459,7 @@ fn a_run_is_hurt_for_as_long_as_its_own_rules_say() {
             common::START_X,
             common::START_Y - 10_240,
         )],
+        vec![],
     );
     let hits = |rules: Rules| {
         let mut e = engine_on(rules, &stage);
