@@ -901,7 +901,7 @@
       ]
     },
     {
-      "description": "The leash moved the enemy `entity` to the ring opposite the main character, so the\nfrontend snaps its body instead of interpolating across the screen (EC2, DS80).",
+      "description": "The leash moved the enemy `entity` just outside the view, on the side opposite the main character, so the\nfrontend snaps its body instead of interpolating across the screen (EC2, DS80).",
       "type": "object",
       "properties": {
         "data": {

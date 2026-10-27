@@ -408,7 +408,9 @@ fn a_bad_or_newer_setup_is_refused() {
 
 #[test]
 fn a_changed_input_or_seed_reaches_another_final_hash() {
-    let replay = recorded(200);
+    // Short of either seed's first offer (seed 1 opens one at tick 175), so a changed seed is a
+    // wrong final hash and not an open offer.
+    let replay = recorded(170);
     let bytes = with(&replay, |v| v["setup"]["seed"] = json!(1));
     assert!(matches!(
         verify_run(&bytes),

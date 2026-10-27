@@ -15,8 +15,10 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::trig::{PER_DEGREE, PER_TURN};
 use stella_rain_core::validate::validate_attack;
 
-const OX: i32 = 46_080;
-const OY: i32 = 50_000;
+/// Where the attackers stand: straight above the main character, 340 pixels, inside the leash's
+/// reach (LS1).
+const OX: i32 = near_start(0, -340).0;
+const OY: i32 = near_start(0, -340).1;
 const DEG: i32 = PER_DEGREE;
 
 /// An orb as it first shows up: the tick, and where it is after its first move.

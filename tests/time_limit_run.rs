@@ -109,7 +109,8 @@ fn a_run_of_the_bundled_mode_is_the_same_every_time() {
 
 #[test]
 fn enemies_spawn_on_the_schedule_around_the_main_character() {
-    let ring = 102_400;
+    // 300 pixels: inside the leash's rectangle in every direction, so no spawn is relocated.
+    let ring = 76_800;
     let m = mode(|v| {
         v["waves"] = json!([{
             "at_tick": 30, "enemy": dummy(), "spawn": { "x": 0, "y": 0 },

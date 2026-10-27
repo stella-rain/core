@@ -181,7 +181,7 @@ const BENCH_TICK_ALLOCS: [(&str, Allocs); 5] = [
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
-    ("worst_minute_peak", pin(3, 2, 4)),
+    ("worst_minute_peak", pin(2, 2, 2)),
 ];
 
 fn pinned(case: &str) -> Allocs {

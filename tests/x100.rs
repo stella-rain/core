@@ -26,7 +26,7 @@ const STAGES: [(&str, Outcome, u32, usize, u32); 15] = [
     ("assist", Outcome::Running, 360, 0, 99),
     ("boss", Outcome::Cleared, 68, 1, 98),
     ("clear", Outcome::Cleared, 35, 1, 3),
-    ("dash", Outcome::Running, 300, 0, 93),
+    ("dash", Outcome::Running, 300, 0, 96),
     ("evade", Outcome::Failed, 300, 0, 97),
     ("fail", Outcome::Failed, 136, 0, 0),
     ("landscape", Outcome::Failed, 300, 0, 98),

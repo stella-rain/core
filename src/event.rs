@@ -187,7 +187,7 @@ pub enum DomainEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         kind: Option<KindIndex>,
     },
-    /// The leash moved the enemy `entity` to the ring opposite the main character, so the
+    /// The leash moved the enemy `entity` just outside the view, on the side opposite the main character, so the
     /// frontend snaps its body instead of interpolating across the screen (EC2, DS80).
     EnemyRelocated {
         entity: EntityId,
