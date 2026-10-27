@@ -28,8 +28,9 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-7, ADR-REPL-3. The determinism
   smash effects (ADR-SIM-4), aim assist's target pick and auto mode, boss phases and parts,
   experience, levels and stat points, the runes' effects (`runes.rs`), the falling stars and
   their offers (`stars.rs`, ADR-REPL-3) and the expertise offers (`expertise.rs`).
-- `trig.rs`: the interpolated sine table. `presets.rs`: attack and weapon presets, written in
-  the stage's own JSON.
+- `trig.rs`: the interpolated sine table. `presets.rs`: takes an attack preset apart into the
+  stage's own attack phases; the presets themselves are content, `content/attack_presets.json`
+  read by `attack_presets.rs` from the run's pack (ADR-CONT-8).
 - `inline.rs`: `InlineVec<T, N>`, a bounded list with no heap allocation, for per-enemy lists
   and attack frames.
 - `hash.rs`: the FNV-1a 64 state hash.

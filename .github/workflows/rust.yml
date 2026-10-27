@@ -326,7 +326,7 @@ jobs:
             src/id.rs src/fixed.rs src/version.rs src/run_setup.rs modes \
             src/rewards.rs src/run_stats.rs src/expertise.rs src/stage_skill.rs \
             src/run_replay.rs src/run_content.rs src/weapon.rs src/match_ups.rs \
-            src/runes.rs src/rune.rs src/time_limit.rs src/pack.rs content \
+            src/runes.rs src/rune.rs src/time_limit.rs src/pack.rs src/attack_presets.rs src/weapons.rs content \
             tests/fixtures/run_setup fuzz .github/workflows/rust.yml)
           if [ -n "$changed" ]; then
             echo "parsing=true" >> "$GITHUB_OUTPUT"
