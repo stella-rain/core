@@ -4,6 +4,10 @@
   "description": "The pack file. Each content file is the JSON object its own schema describes.",
   "type": "object",
   "properties": {
+    "attack_presets": {
+      "description": "The attack presets (CS1b-1). Required: the rules read them.",
+      "$ref": "#/$defs/AttackPresetsFile"
+    },
     "constellations": {
       "description": "The sets of named stars (core#NS3), checked against the pack's own rewards. Optional: a\npack released before it has no sets.",
       "anyOf": [
@@ -101,6 +105,7 @@
     "runes",
     "perk_sets",
     "difficulties",
+    "attack_presets",
     "weapons",
     "rules",
     "modes"
@@ -304,6 +309,20 @@
         }
       ]
     },
+    "ArgSpec": {
+      "description": "One argument of a preset.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "What the argument is, unique within its preset: lowercase snake_case.",
+          "$ref": "#/$defs/ContentId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
     "AttackPhase": {
       "description": "One phase of an attack (ADR-055).",
       "type": "object",
@@ -391,6 +410,53 @@
       "required": [
         "kind",
         "ticks"
+      ]
+    },
+    "AttackPreset": {
+      "description": "An attack preset.",
+      "type": "object",
+      "properties": {
+        "args": {
+          "description": "The arguments in order: as many as the registry says the preset takes.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArgSpec"
+          }
+        },
+        "id": {
+          "description": "A registered preset ID, unique within the file.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "phases": {
+          "description": "The attack, with its arguments still as `arg` nodes.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttackPhase"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "args",
+        "phases"
+      ]
+    },
+    "AttackPresetsFile": {
+      "description": "The attack presets file.",
+      "type": "object",
+      "properties": {
+        "presets": {
+          "description": "The presets, 1 to `MAX_ATTACK_PRESETS`; every registered preset is among them.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttackPreset"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "presets"
       ]
     },
     "AttackRef": {
