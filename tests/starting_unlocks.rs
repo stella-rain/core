@@ -67,11 +67,19 @@ fn a_valid_file_loads_and_keeps_its_hash() {
 
 #[test]
 fn empty_lists_are_allowed() {
+    // The free picks must be in their lists (DS128): an empty weapons or perk_sets list is
+    // refused at the free pick it cannot hold.
     let mut v = file();
-    for list in ["weapons", "perk_sets", "stage_skills", "runes"] {
+    for list in ["stage_skills", "runes"] {
         v[list] = json!([]);
     }
-    assert!(parse(&v).unwrap().weapons().is_empty());
+    assert!(parse(&v).unwrap().runes().is_empty());
+    let mut v = file();
+    v["weapons"] = json!([]);
+    assert_eq!(paths(parse(&v).unwrap_err()), ["$.free_weapon"]);
+    let mut v = file();
+    v["perk_sets"] = json!([]);
+    assert_eq!(paths(parse(&v).unwrap_err()), ["$.free_perk_set"]);
 }
 
 #[test]
@@ -225,4 +233,77 @@ fn the_bundled_pack_names_the_free_picks() {
         .expect("the bundled slot");
     assert_eq!(u.free_weapon().0, "giant_sword");
     assert_eq!(u.free_perk_set().0, "duelist");
+}
+
+// --- A free pick is one of its starting list's IDs (ECO1, DS128) ---------------------------
+
+fn issues(e: Error) -> Vec<(String, String)> {
+    match e {
+        Error::Invalid(issues) => issues.into_iter().map(|i| (i.path, i.message)).collect(),
+        other => panic!("not a validation error: {other:?}"),
+    }
+}
+
+#[test]
+fn a_free_pick_outside_its_starting_list_is_refused() {
+    let mut v = file();
+    v["free_weapon"] = json!("giant_hammer");
+    assert_eq!(
+        issues(parse(&v).unwrap_err()),
+        [(
+            "$.free_weapon".to_string(),
+            "not in this file's `weapons` list".to_string()
+        )]
+    );
+    let mut v = file();
+    v["free_perk_set"] = json!("vanguard");
+    assert_eq!(
+        issues(parse(&v).unwrap_err()),
+        [(
+            "$.free_perk_set".to_string(),
+            "not in this file's `perk_sets` list".to_string()
+        )]
+    );
+    let mut v = file();
+    v["free_weapon"] = json!("giant_hammer");
+    v["free_perk_set"] = json!("vanguard");
+    assert_eq!(
+        paths(parse(&v).unwrap_err()),
+        ["$.free_weapon", "$.free_perk_set"]
+    );
+}
+
+#[test]
+fn a_free_pick_anywhere_in_its_list_is_accepted() {
+    let mut v = file();
+    v["weapons"] = json!(["giant_hammer", "giant_sword"]);
+    v["perk_sets"] = json!(["vanguard", "duelist"]);
+    let u = parse(&v).unwrap();
+    assert_eq!(u.free_weapon().0, "giant_sword");
+    assert_eq!(u.free_perk_set().0, "duelist");
+}
+
+#[test]
+fn a_pack_whose_free_pick_is_not_a_starting_unlock_is_refused() {
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    v["starting_unlocks"]["free_weapon"] = json!("giant_hammer");
+    match Pack::from_bytes(&serde_json::to_vec(&v).unwrap()) {
+        Err(e) => {
+            let text = e.to_string();
+            assert!(text.contains("$.starting_unlocks.free_weapon"), "{text}");
+            assert!(text.contains("not in this file's `weapons` list"), "{text}");
+        }
+        Ok(_) => panic!("a free weapon outside its list was accepted"),
+    }
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    v["starting_unlocks"]["free_perk_set"] = json!("vanguard");
+    match Pack::from_bytes(&serde_json::to_vec(&v).unwrap()) {
+        Err(e) => {
+            let text = e.to_string();
+            assert!(text.contains("$.starting_unlocks.free_perk_set"), "{text}");
+            assert!(text.contains("not in this file's `perk_sets` list"), "{text}");
+        }
+        Ok(_) => panic!("a free perk set outside its list was accepted"),
+    }
+    assert!(Pack::from_bytes(Pack::BUNDLED).unwrap().starting_unlocks().is_some());
 }
