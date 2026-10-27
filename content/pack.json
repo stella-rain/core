@@ -4239,6 +4239,8 @@
   "cap_headroom_pct": 30
 },
   "starting_unlocks": {
+  "free_weapon": "giant_sword",
+  "free_perk_set": "duelist",
   "weapons": ["giant_sword"],
   "perk_sets": ["duelist"],
   "stage_skills": ["nova"],
