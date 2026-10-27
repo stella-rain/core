@@ -36,8 +36,8 @@ Sources: ADR-REPL-3, ADR-REPL-4, ADR-BRDG-3, ADR-SVC-6, ADR-SIM-3.
 
 - `tests/integration.rs` declares every other file as a module (`autotests = false`), so
   `cargo test --test integration <file>::` runs one file.
-- `tests/corpus/`: `v0/<case>/` holds `stage.json`, `run.replay` and `hashes.txt`;
-  `runs/v0/<case>/` holds a run's `run.replay` and `hashes.txt` (ADR-REPL-3); `corpus.rs`
+- `tests/corpus/`: `v0/<case>/` holds `stage.json`, `run.replay` and `hashes.bin`;
+  `runs/v0/<case>/` holds a run's `run.replay` and `hashes.bin` (ADR-REPL-3); `corpus.rs`
   checks it (ADR-SIM-3). An intended change: `cargo xtask bless`
   (it sets `UPDATE_CORPUS=1` itself); CI runs `cargo xtask bless --check`.
 - `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/`

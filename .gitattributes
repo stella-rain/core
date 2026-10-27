@@ -22,15 +22,17 @@
 *.keystore binary
 *.so binary
 *.dll binary
+*.bin binary
 
 # Generated sets (`cargo xtask bless`, and the bench pins): PR diffs collapse them
 # (linguist-generated) and `.github/scripts/diff_size.py` leaves them out of a PR's
 # hand-written line count. `test_gitattributes.py` checks every generated file is listed here.
 #
-# Replay corpus (`UPDATE_CORPUS=1`): `git diff` does not print it either (-diff). The corpus
+# Replay corpus (`UPDATE_CORPUS=1`): `git diff` does not print it either (-diff; the per-tick
+# `hashes.bin` is binary). The corpus
 # stages (`stage.json`) and run modes (`mode.json`) are written by hand and stay visible.
 tests/corpus/**/run.replay linguist-generated=true -diff
-tests/corpus/**/hashes.txt linguist-generated=true -diff
+tests/corpus/**/hashes.bin linguist-generated=true
 # JSON Schema (`UPDATE_SCHEMA=1`), goldens (`INSTA_UPDATE=always`), the content pack
 # (`content-pack export`) and the bench pins (`UPDATE_BENCH_PINS=1`): still diffed locally,
 # since a change there is what a reviewer checks.

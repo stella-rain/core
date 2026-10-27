@@ -180,7 +180,7 @@ jobs:
         run: |
           set -euo pipefail
           case=tests/corpus/v0/clear
-          "target/release/stage-verify$EXT" "$case/stage.json" "$case/run.replay" --hashes "$case/hashes.txt"
+          "target/release/stage-verify$EXT" "$case/stage.json" "$case/run.replay" --hashes "$case/hashes.bin"
       - name: Name the files after the release
         env:
           FINAL: ${{ needs.check.outputs.final }}

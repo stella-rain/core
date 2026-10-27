@@ -93,6 +93,8 @@ pub enum ReplayError {
     /// Re-simulation differs from the expected per-tick hashes, first on this tick.
     Diverged {
         tick: u32,
+        expected: u64,
+        actual: u64,
     },
     /// The expected per-tick hashes are not one per tick.
     HashCount {
@@ -133,9 +135,14 @@ impl fmt::Display for ReplayError {
                 f,
                 "the final hash is {actual:016x}, not the replay's {expected:016x}"
             ),
-            ReplayError::Diverged { tick } => {
-                write!(f, "the run differs from the expected hashes on tick {tick}")
-            }
+            ReplayError::Diverged {
+                tick,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "the run differs from the expected hashes on tick {tick}: expected {expected:016x}, got {actual:016x}"
+            ),
             ReplayError::HashCount { expected, given } => {
                 write!(f, "expected {expected} per-tick hashes, got {given}")
             }
@@ -169,6 +176,59 @@ pub fn hash_from_hex(text: &str) -> Option<u64> {
     } else {
         None
     }
+}
+
+/// A per-tick hashes file is at most this big: 131,072 ticks, over 7 times the longest stage.
+pub const MAX_HASHES_BYTES: usize = 1024 * 1024;
+
+/// A per-tick hashes file cannot be read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HashesError {
+    /// The file is over `MAX_HASHES_BYTES`.
+    TooLarge { size: usize, limit: usize },
+    /// The file is not a whole number of 8-byte hashes.
+    Length { size: usize },
+}
+
+impl std::fmt::Display for HashesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HashesError::TooLarge { size, limit } => {
+                write!(f, "the hashes file is {size} bytes; the limit is {limit}")
+            }
+            HashesError::Length { size } => write!(
+                f,
+                "the hashes file is {size} bytes, not a whole number of 8-byte hashes"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for HashesError {}
+
+/// The per-tick hashes file: the state hash after every tick, each as 8 bytes little-endian
+/// (ADR-SIM-3), no header. The corpus's `hashes.bin` and `stage-verify --hashes` (CH1).
+pub fn hashes_to_bytes(hashes: &[u64]) -> Vec<u8> {
+    hashes.iter().flat_map(|h| h.to_le_bytes()).collect()
+}
+
+/// The inverse of `hashes_to_bytes`. The size is checked first, then the length, and nothing is
+/// allocated before both pass; the file is untrusted (ADR-SVC-1).
+pub fn hashes_from_bytes(bytes: &[u8]) -> Result<Vec<u64>, HashesError> {
+    let size = bytes.len();
+    if size > MAX_HASHES_BYTES {
+        return Err(HashesError::TooLarge {
+            size,
+            limit: MAX_HASHES_BYTES,
+        });
+    }
+    if size % 8 != 0 {
+        return Err(HashesError::Length { size });
+    }
+    Ok(bytes
+        .chunks_exact(8)
+        .map(|c| u64::from_le_bytes(c.try_into().expect("chunks of 8")))
+        .collect())
 }
 
 impl Replay {
@@ -411,9 +471,12 @@ fn verify_inner(
         }
         engine.step(*input);
         if let Some(expected) = expected {
-            if expected[i] != engine.state_hash() {
+            let actual = engine.state_hash();
+            if expected[i] != actual {
                 return Err(ReplayError::Diverged {
                     tick: engine.tick(),
+                    expected: expected[i],
+                    actual,
                 });
             }
         }

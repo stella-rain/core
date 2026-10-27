@@ -9,6 +9,7 @@ use stella_rain_core::version::Versions;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use stella_rain_core::pack::{self, ContentFiles, Pack, PackError};
+use stella_rain_core::replay;
 use stella_rain_core::rules::Rules;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, RunReplay};
@@ -176,11 +177,8 @@ fn a_run_from_the_pack_hashes_as_one_from_the_bundled_content() {
             "{case} has a mode file"
         );
         let replay = fs::read(case_dir.join("run.replay")).unwrap();
-        let hashes: Vec<u64> = fs::read_to_string(case_dir.join("hashes.txt"))
-            .unwrap()
-            .lines()
-            .map(|l| u64::from_str_radix(l, 16).unwrap())
-            .collect();
+        let hashes =
+            replay::hashes_from_bytes(&fs::read(case_dir.join("hashes.bin")).unwrap()).unwrap();
         assert!(RunReplay::from_bytes(&replay).is_ok());
         run_replay::verify_run_against_with(&replay, &content, &hashes)
             .unwrap_or_else(|e| panic!("{case}: {e}"));

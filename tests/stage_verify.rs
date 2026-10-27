@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use stella_rain_core::content_hash::{content_hash, to_hex};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::parsed_stage_hash::parsed_stage_hash;
-use stella_rain_core::replay::{hash_to_hex, record};
+use stella_rain_core::replay::{MAX_HASHES_BYTES, hash_to_hex, hashes_to_bytes, record};
 use stella_rain_core::share;
 use stella_rain_core::validate::parse_and_validate;
 
@@ -133,28 +133,55 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
     let c = case("hashes");
     let parsed = parse_and_validate(&c.stage).unwrap();
     let mut engine = Engine::new(&parsed).unwrap();
-    let mut lines: Vec<String> = clearing_inputs()
+    let mut hashes: Vec<u64> = clearing_inputs()
         .iter()
         .map(|i| {
             engine.step(*i);
-            hash_to_hex(engine.state_hash())
+            engine.state_hash()
         })
         .collect();
     let stage = c.dir.file("stage.json", &c.stage);
     let replay = c.dir.file("a.replay", &c.replay);
-    let good = c
-        .dir
-        .file("good.txt", (lines.join("\n") + "\n\n").as_bytes());
+    let good = c.dir.file("good.bin", &hashes_to_bytes(&hashes));
     assert_eq!(
         run(&[&stage, &replay, "--hashes", &good]).status.code(),
         Some(0)
     );
 
-    lines[20] = hash_to_hex(0);
-    let wrong = c.dir.file("wrong.txt", lines.join("\n").as_bytes());
+    let actual = hashes[20];
+    hashes[20] = 0;
+    let wrong = c.dir.file("wrong.bin", &hashes_to_bytes(&hashes));
     let o = run(&[&stage, &replay, "--hashes", &wrong]);
     assert_eq!(o.status.code(), Some(1));
     assert!(err(&o).contains("on tick 21"), "{}", err(&o));
+    assert!(err(&o).contains("expected 0000000000000000"), "{}", err(&o));
+    assert!(
+        err(&o).contains(&format!("got {}", hash_to_hex(actual))),
+        "{}",
+        err(&o)
+    );
+
+    // The old text form is 17 bytes a tick: refused as a usage error.
+    let text: String = hashes.iter().map(|h| hash_to_hex(*h) + "\n").collect();
+    let old = c.dir.file("old.txt", text.as_bytes());
+    let o = run(&[&stage, &replay, "--hashes", &old]);
+    assert_eq!(o.status.code(), Some(2));
+    assert!(
+        err(&o).starts_with("error: the hashes file is 595 bytes"),
+        "{}",
+        err(&o)
+    );
+
+    let cut = c.dir.file("cut.bin", &vec![0; 279]);
+    assert_eq!(
+        run(&[&stage, &replay, "--hashes", &cut]).status.code(),
+        Some(2)
+    );
+
+    let big = c.dir.file("big.bin", &vec![0; MAX_HASHES_BYTES + 8]);
+    let o = run(&[&stage, &replay, "--hashes", &big]);
+    assert_eq!(o.status.code(), Some(2));
+    assert!(err(&o).contains("the limit is 1048576"), "{}", err(&o));
 
     let junk = c.dir.file("junk.txt", b"not a hash\n");
     assert_eq!(
