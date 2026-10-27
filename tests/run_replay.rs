@@ -18,6 +18,7 @@ use stella_rain_core::run_replay::{
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -42,7 +43,7 @@ fn falling_content() -> RunContent {
     let json = serde_json::to_string(&v).unwrap();
     RunContent::bundled()
         .clone()
-        .with_time_limit(TimeLimit::parse(json.as_bytes()).unwrap())
+        .with_time_limit(TimeLimit::parse(json.as_bytes(), Versions::CURRENT).unwrap())
 }
 
 /// The time_limit run of `falling_content`, played past its end: it ends before the length.

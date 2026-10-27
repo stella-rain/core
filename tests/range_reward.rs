@@ -16,6 +16,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::{AttackView, OfferOption};
 use stella_rain_core::stage::Stage;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -94,8 +95,9 @@ fn might() -> Value {
 }
 
 fn rewards(rewards: Vec<Value>) -> Rewards {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": rewards });
-    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+    let file = json!({ "rewards": rewards });
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate")
 }
 
 fn with(stage: &Stage, list: Vec<Value>) -> Engine {
@@ -172,9 +174,8 @@ fn a_range_reward_is_a_stat_like_effect_bounded_like_the_others() {
     let parsed = rewards(vec![range("reach", MAX_RANGE_PCT, 20)]);
     assert_eq!(parsed.rewards()[0].effect(), RewardEffect::RangePct);
     let bad = |pct: u32, limit: u8| {
-        let file = json!({ "schema_version": 0, "sim_version": 0,
-                           "rewards": [range("reach", pct, limit)] });
-        Rewards::parse(file.to_string().as_bytes()).is_err()
+        let file = json!({ "rewards": [range("reach", pct, limit)] });
+        Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).is_err()
     };
     assert!(bad(0, 1), "an amount of 0");
     assert!(bad(MAX_RANGE_PCT + 1, 1), "an amount past MAX_RANGE_PCT");
@@ -263,7 +264,8 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
     for w in file["weapons"].as_array_mut().unwrap() {
         w["common"] = json!([option("wide", "range_pct", 20)]);
     }
-    let expertise = Expertise::parse(file.to_string().as_bytes()).expect("the test expertise");
+    let expertise = Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test expertise");
     let content = RunContent::new(
         RunStats::bundled().clone(),
         rewards(vec![range("reach", 30, 2)]),
@@ -307,15 +309,13 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
 fn the_enchantment_effect_is_gone() {
     // Range was the only enchantment; it is the `range_pct` effect now, and an `enchantment`
     // reward no longer parses, nor a reward holding an `enchantment` field.
-    let file = |reward: Value| {
-        json!({ "schema_version": 0, "sim_version": 0, "rewards": [reward] }).to_string()
-    };
+    let file = |reward: Value| json!({ "rewards": [reward] }).to_string();
     let old = json!({
         "id": "reach", "rarity": "common", "effect": "enchantment", "amount": 20, "limit": 2,
         "title": "Reach", "description": "", "enchantment": { "type": "range" }
     });
-    assert!(Rewards::parse(file(old).as_bytes()).is_err());
+    assert!(Rewards::parse(file(old).as_bytes(), Versions::CURRENT).is_err());
     let mut field = range("reach", 20, 2);
     field["enchantment"] = json!({ "type": "range" });
-    assert!(Rewards::parse(file(field).as_bytes()).is_err());
+    assert!(Rewards::parse(file(field).as_bytes(), Versions::CURRENT).is_err());
 }

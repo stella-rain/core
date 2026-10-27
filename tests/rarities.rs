@@ -16,6 +16,7 @@ use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::OfferOption;
 use stella_rain_core::stage::Stage;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -167,7 +168,7 @@ fn the_bundled_rewards_still_parse_and_bound_their_new_limits() {
             .find(|r| r["id"] == "attack_supernova")
             .unwrap();
         r["limit"] = json!(limit);
-        Rewards::parse(v.to_string().as_bytes()).is_err()
+        Rewards::parse(v.to_string().as_bytes(), Versions::CURRENT).is_err()
     };
     assert!(bad(0), "a limit of 0");
     assert!(bad(21), "a limit past MAX_STACK");
@@ -296,8 +297,9 @@ fn once(id: &str, rarity: &str, amount: u32) -> Value {
 }
 
 fn with(stage: &Stage, list: Vec<Value>) -> Engine {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": list });
-    let rewards = Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate");
+    let file = json!({ "rewards": list });
+    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate");
     let content = RunContent::new(RunStats::bundled().clone(), rewards);
     Engine::new_with(stage, &content).expect("the test stage is valid")
 }

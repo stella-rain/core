@@ -17,6 +17,7 @@ use stella_rain_core::validate::{
     Error,
     limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE},
 };
+use stella_rain_core::version::Versions;
 
 const MINUTE: u32 = 3600;
 
@@ -24,8 +25,12 @@ fn good() -> Value {
     serde_json::from_slice(common::bundled_file("time_limit")).unwrap()
 }
 
+fn parse_at(v: &Value, versions: Versions) -> Result<TimeLimit, Error> {
+    TimeLimit::parse(v.to_string().as_bytes(), versions)
+}
+
 fn parse(v: &Value) -> Result<TimeLimit, Error> {
-    TimeLimit::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 fn paths(v: &Value) -> Vec<String> {
@@ -80,7 +85,7 @@ fn the_mode_is_registered_and_its_file_is_part_of_the_content_hash() {
 fn a_file_over_the_size_limit_is_refused_before_parsing() {
     let big = vec![b' '; MAX_TIME_LIMIT_BYTES + 1];
     assert!(matches!(
-        TimeLimit::parse(&big),
+        TimeLimit::parse(&big, Versions::CURRENT),
         Err(Error::TooLarge { .. })
     ));
 }
@@ -91,8 +96,18 @@ fn unknown_fields_and_other_versions_are_refused() {
     v["extra"] = json!(1);
     assert!(matches!(parse(&v), Err(Error::Parse { .. })));
     assert!(matches!(
-        parse(&with("sim_version", json!(1))),
+        parse_at(
+            &good(),
+            Versions {
+                schema_version: 0,
+                sim_version: 1
+            }
+        ),
         Err(Error::UnsupportedVersion { .. })
+    ));
+    assert!(matches!(
+        parse(&with("sim_version", json!(0))),
+        Err(Error::Parse { .. })
     ));
 }
 
@@ -705,10 +720,10 @@ fn a_schedule_of_sixteen_waves_and_a_mode_file_of_sixty_kilobytes_are_accepted()
     assert_eq!(paths(&waves(vec![w; 17])), ["$.waves"], "17 waves");
     let mut bytes = good().to_string().into_bytes();
     bytes.resize(60 * 1024, b' ');
-    assert!(TimeLimit::parse(&bytes).is_ok(), "60 KB");
+    assert!(TimeLimit::parse(&bytes, Versions::CURRENT).is_ok(), "60 KB");
     bytes.resize(128 * 1024 + 1, b' ');
     assert!(matches!(
-        TimeLimit::parse(&bytes),
+        TimeLimit::parse(&bytes, Versions::CURRENT),
         Err(Error::TooLarge { .. })
     ));
 }

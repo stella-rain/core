@@ -9,12 +9,12 @@ use stella_rain_core::rules::{MAX_RULES_BYTES, Rules};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::content_sha256_with;
 use stella_rain_core::validate::{Error, limits};
+use stella_rain_core::version::Versions;
 
 fn file(crowd_target: u64, cap_headroom_pct: u64) -> Vec<u8> {
-    json!({ "schema_version": 0, "sim_version": 0,
-            "crowd_target": crowd_target, "cap_headroom_pct": cap_headroom_pct })
-    .to_string()
-    .into_bytes()
+    json!({ "crowd_target": crowd_target, "cap_headroom_pct": cap_headroom_pct })
+        .to_string()
+        .into_bytes()
 }
 
 fn paths(result: Result<Rules, Error>) -> Vec<String> {
@@ -30,7 +30,10 @@ fn the_bundled_file_gives_a_target_of_200_and_a_cap_of_260() {
     assert_eq!(rules.crowd_target(), 200);
     assert_eq!(rules.cap_headroom_pct(), 30);
     assert_eq!(rules.enemy_cap_for(200), 260);
-    assert_eq!(Rules::parse(common::bundled_file("rules")).unwrap(), *rules);
+    assert_eq!(
+        Rules::parse(common::bundled_file("rules"), Versions::CURRENT).unwrap(),
+        *rules
+    );
 }
 
 #[test]
@@ -42,29 +45,42 @@ fn the_limits_are_the_engine_ceiling_and_the_most_any_target_can_be() {
 #[test]
 fn the_headroom_is_25_to_30_percent() {
     for bad in [24, 31] {
-        assert_eq!(paths(Rules::parse(&file(200, bad))), ["$.cap_headroom_pct"]);
+        assert_eq!(
+            paths(Rules::parse(&file(200, bad), Versions::CURRENT)),
+            ["$.cap_headroom_pct"]
+        );
     }
     for good in [25, 30] {
-        assert!(Rules::parse(&file(200, good)).is_ok());
+        assert!(Rules::parse(&file(200, good), Versions::CURRENT).is_ok());
     }
 }
 
 #[test]
 fn the_target_keeps_its_cap_within_the_ceiling() {
     for bad in [0, 385] {
-        assert_eq!(paths(Rules::parse(&file(bad, 30))), ["$.crowd_target"]);
+        assert_eq!(
+            paths(Rules::parse(&file(bad, 30), Versions::CURRENT)),
+            ["$.crowd_target"]
+        );
     }
     // 384 * 130 / 100 = 499.
     assert_eq!(
-        Rules::parse(&file(384, 30)).unwrap().enemy_cap_for(384),
+        Rules::parse(&file(384, 30), Versions::CURRENT)
+            .unwrap()
+            .enemy_cap_for(384),
         499
     );
     // 400 * 125 / 100 = 500.
     assert_eq!(
-        Rules::parse(&file(400, 25)).unwrap().enemy_cap_for(400),
+        Rules::parse(&file(400, 25), Versions::CURRENT)
+            .unwrap()
+            .enemy_cap_for(400),
         500
     );
-    assert_eq!(paths(Rules::parse(&file(401, 25))), ["$.crowd_target"]);
+    assert_eq!(
+        paths(Rules::parse(&file(401, 25), Versions::CURRENT)),
+        ["$.crowd_target"]
+    );
 }
 
 #[test]
@@ -74,7 +90,7 @@ fn an_override_is_clamped_so_the_cap_stays_within_the_ceiling() {
     assert_eq!(rules.enemy_cap_for(384), 499);
     assert_eq!(rules.enemy_cap_for(400), 499);
     assert_eq!(rules.enemy_cap_for(u16::MAX), 499);
-    let tight = Rules::parse(&file(200, 25)).unwrap();
+    let tight = Rules::parse(&file(200, 25), Versions::CURRENT).unwrap();
     assert_eq!(tight.enemy_cap_for(400), 500);
 }
 
@@ -83,18 +99,32 @@ fn unknown_fields_other_versions_and_big_files_are_refused() {
     let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
     v["extra"] = 1.into();
     assert!(matches!(
-        Rules::parse(v.to_string().as_bytes()),
+        Rules::parse(v.to_string().as_bytes(), Versions::CURRENT),
         Err(Error::Parse { .. })
     ));
-    let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
-    v["sim_version"] = 1.into();
+    let v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
     assert!(matches!(
-        Rules::parse(v.to_string().as_bytes()),
+        Rules::parse(
+            v.to_string().as_bytes(),
+            Versions {
+                schema_version: 0,
+                sim_version: 1
+            }
+        ),
         Err(Error::UnsupportedVersion { .. })
+    ));
+    let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
+    v["sim_version"] = 0.into();
+    assert!(matches!(
+        Rules::parse(v.to_string().as_bytes(), Versions::CURRENT),
+        Err(Error::Parse { .. })
     ));
     let mut big = common::bundled_file("rules").to_vec();
     big.resize(MAX_RULES_BYTES + 1, b' ');
-    assert!(matches!(Rules::parse(&big), Err(Error::TooLarge { .. })));
+    assert!(matches!(
+        Rules::parse(&big, Versions::CURRENT),
+        Err(Error::TooLarge { .. })
+    ));
 }
 
 #[test]
@@ -142,7 +172,7 @@ fn replacing_the_rules_file_changes_the_derived_content_hash() {
     let base = RunContent::bundled().clone();
     let changed = base
         .clone()
-        .with_rules(Rules::parse(&file(150, 30)).unwrap());
+        .with_rules(Rules::parse(&file(150, 30), Versions::CURRENT).unwrap());
     assert_eq!(changed.rules().crowd_target(), 150);
     for mode in ["trial", "time_limit", "tutorial"] {
         assert_ne!(

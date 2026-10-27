@@ -11,6 +11,7 @@ use stella_rain_core::run_replay::{
 };
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::time_limit::TimeLimit;
+use stella_rain_core::version::Versions;
 
 fn setup() -> RunSetup {
     RunSetup {
@@ -44,7 +45,7 @@ fn short_mode() -> TimeLimit {
     v["waves"] = json!([]);
     v["elite_table"] =
         json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
-    TimeLimit::parse(v.to_string().as_bytes()).unwrap()
+    TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap()
 }
 
 fn replay_of(ticks: u32, content: &RunContent) -> Vec<u8> {

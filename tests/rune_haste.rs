@@ -18,6 +18,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::DamageOverTimeView;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -104,8 +105,8 @@ fn bleed_of(e: &Engine, id: EntityId) -> DamageOverTimeView {
 #[test]
 fn a_rune_haste_reward_is_a_stat_like_effect_bounded_like_the_others() {
     let parse = |r: Value| {
-        let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [r] });
-        Rewards::parse(file.to_string().as_bytes())
+        let file = json!({ "rewards": [r] });
+        Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
     };
     assert!(parse(haste("h", MAX_HASTE, 20)).is_ok());
     assert!(parse(haste("h", 1, 2)).is_ok());
@@ -301,17 +302,17 @@ fn a_run_with_haste_records_and_verifies() {
 /// A rewards file with the cap `cap` for Rune Haste (`max_rune_haste_pct`).
 fn capped(cap: u32, rewards: Vec<Value>) -> Result<Rewards, stella_rain_core::validate::Error> {
     let file = json!({
-        "schema_version": 0, "sim_version": 0, "max_rune_haste_pct": cap, "rewards": rewards
+        "max_rune_haste_pct": cap, "rewards": rewards
     });
-    Rewards::parse(file.to_string().as_bytes())
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
 }
 
 #[test]
 fn the_cap_is_the_rewards_file_s_and_the_code_ceiling_bounds_it() {
     assert_eq!(Rewards::bundled().max_rune_haste_pct(), 500, "core#298");
     assert_eq!(DEFAULT_MAX_RUNE_HASTE_PCT, 300, "a file naming none");
-    let none = json!({ "schema_version": 0, "sim_version": 0, "rewards": [haste("h", 1, 2)] });
-    let none = Rewards::parse(none.to_string().as_bytes()).unwrap();
+    let none = json!({ "rewards": [haste("h", 1, 2)] });
+    let none = Rewards::parse(none.to_string().as_bytes(), Versions::CURRENT).unwrap();
     assert_eq!(none.max_rune_haste_pct(), DEFAULT_MAX_RUNE_HASTE_PCT);
     // The file's cap is 1 to the ceiling.
     assert!(capped(MAX_RUNE_HASTE_PCT, vec![haste("h", 1, 2)]).is_ok());
@@ -330,9 +331,9 @@ fn the_picks_add_up_to_the_files_cap_where_it_applies() {
         let mut list = vec![random_rune()];
         list.push(haste("h1", 200, 3));
         let file = json!({
-            "schema_version": 0, "sim_version": 0, "max_rune_haste_pct": cap, "rewards": list
+            "max_rune_haste_pct": cap, "rewards": list
         });
-        let rewards = Rewards::parse(file.to_string().as_bytes()).unwrap();
+        let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap();
         let content =
             RunContent::new(RunStats::bundled().clone(), rewards).with_runes(runes(120, 30));
         let mut e = with(

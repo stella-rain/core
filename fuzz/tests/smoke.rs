@@ -190,7 +190,6 @@ fn pack_with_constellations() -> Vec<u8> {
             .push(serde_json::json!({ "id": id, "sim_version": 0 }));
     }
     pack["constellations"] = serde_json::json!({
-        "schema_version": 0, "sim_version": 0,
         "constellations": [{
             "id": "pair", "name": "The Pair", "members": ["star_a", "star_b"],
             "tiers": [

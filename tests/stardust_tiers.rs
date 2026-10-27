@@ -13,6 +13,7 @@ use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::stage::{Stage, StardustTier};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::{self, Error, limits};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -240,7 +241,7 @@ fn the_mode_file_refuses_a_bad_table() {
     let mode = |table: &[(u32, u32)]| {
         let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
         v["stardust_tiers"] = tiers(table)["tiers"].clone();
-        TimeLimit::parse(v.to_string().as_bytes())
+        TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
     };
     assert!(mode(&at_most()).is_ok());
     for (name, table) in bad_tables() {
@@ -257,7 +258,7 @@ fn a_difficulty_refuses_a_bad_table() {
     let file = |table: &[(u32, u32)]| {
         let mut v: Value = serde_json::from_slice(common::bundled_file("difficulties")).unwrap();
         v["difficulties"][1]["stardust_tiers"] = tiers(table)["tiers"].clone();
-        Difficulties::parse(v.to_string().as_bytes())
+        Difficulties::parse(v.to_string().as_bytes(), Versions::CURRENT)
     };
     let ok = file(&at_most()).unwrap();
     let content = RunContent::bundled().clone().with_difficulties(ok);

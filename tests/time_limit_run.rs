@@ -11,6 +11,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::time_limit::TimeLimit;
+use stella_rain_core::version::Versions;
 
 fn setup(seed: u64) -> RunSetup {
     RunSetup {
@@ -46,7 +47,7 @@ fn dummy() -> Value {
 fn mode(edit: impl FnOnce(&mut Value)) -> TimeLimit {
     let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     edit(&mut v);
-    TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
+    TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// A short run with bosses at `ticks`, no enemies, and `pool` for its mid-bosses.

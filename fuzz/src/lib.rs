@@ -25,6 +25,7 @@ use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::{self, parse_and_validate};
+use stella_rain_core::version::Versions;
 use stella_rain_core::{base64, share};
 
 /// Ticks `stage_run` simulates: long enough for waves, attacks and boss phases to start, short
@@ -40,32 +41,38 @@ const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/v0/clear/stage.jso
 /// as runes (ADR-067, ADR-078, ADR-098, ADR-099, ADR-100), content that may come from outside the app: they parse without a panic, and files
 /// that load hash the same twice.
 pub fn stage_parse(data: &[u8]) -> bool {
-    if let Ok(stats) = RunStats::parse(data) {
-        let again = RunStats::parse(data).expect("run stats that loaded load again");
+    if let Ok(stats) = RunStats::parse(data, Versions::CURRENT) {
+        let again =
+            RunStats::parse(data, Versions::CURRENT).expect("run stats that loaded load again");
         assert_eq!(again, stats, "the same bytes loaded as other run stats");
     }
-    if let Ok(rewards) = Rewards::parse(data) {
-        let again = Rewards::parse(data).expect("rewards that loaded load again");
+    if let Ok(rewards) = Rewards::parse(data, Versions::CURRENT) {
+        let again =
+            Rewards::parse(data, Versions::CURRENT).expect("rewards that loaded load again");
         assert_eq!(again, rewards, "the same bytes loaded as other rewards");
     }
-    if let Ok(skills) = StageSkills::parse(data) {
-        let again = StageSkills::parse(data).expect("stage skills that loaded load again");
+    if let Ok(skills) = StageSkills::parse(data, Versions::CURRENT) {
+        let again = StageSkills::parse(data, Versions::CURRENT)
+            .expect("stage skills that loaded load again");
         assert_eq!(again, skills, "the same bytes loaded as other stage skills");
     }
-    if let Ok(expertise) = Expertise::parse(data) {
-        let again = Expertise::parse(data).expect("expertise that loaded loads again");
+    if let Ok(expertise) = Expertise::parse(data, Versions::CURRENT) {
+        let again =
+            Expertise::parse(data, Versions::CURRENT).expect("expertise that loaded loads again");
         assert_eq!(again, expertise, "the same bytes loaded as other expertise");
     }
-    if let Ok(match_ups) = MatchUps::parse(data) {
-        let again = MatchUps::parse(data).expect("match-ups that loaded load again");
+    if let Ok(match_ups) = MatchUps::parse(data, Versions::CURRENT) {
+        let again =
+            MatchUps::parse(data, Versions::CURRENT).expect("match-ups that loaded load again");
         assert_eq!(again, match_ups, "the same bytes loaded as other match-ups");
     }
-    if let Ok(mode) = TimeLimit::parse(data) {
-        let again = TimeLimit::parse(data).expect("a mode that loaded loads again");
+    if let Ok(mode) = TimeLimit::parse(data, Versions::CURRENT) {
+        let again =
+            TimeLimit::parse(data, Versions::CURRENT).expect("a mode that loaded loads again");
         assert_eq!(again, mode, "the same bytes loaded as another mode");
     }
-    if let Ok(runes) = Runes::parse(data) {
-        let again = Runes::parse(data).expect("runes that loaded load again");
+    if let Ok(runes) = Runes::parse(data, Versions::CURRENT) {
+        let again = Runes::parse(data, Versions::CURRENT).expect("runes that loaded load again");
         assert_eq!(again, runes, "the same bytes loaded as other runes");
     }
     let Ok(stage) = parse_and_validate(data) else {
