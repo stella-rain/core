@@ -12,6 +12,7 @@ use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::input::Input;
 use crate::kinds::KindTable;
+use crate::ledger::RunLedger;
 use crate::rewards::Rewards;
 use crate::rules_v0;
 use crate::rules_v0::{HordeSpec, World};
@@ -91,6 +92,8 @@ pub struct Engine {
     events: Vec<DomainEvent>,
     /// What the last tick used of the dynamic budgets; zero when the tick did not run.
     load: Load,
+    /// The ledger of counts and bestiary encounters (ADR-BRDG-6).
+    ledger: RunLedger,
 }
 
 impl Clone for Engine {
@@ -109,6 +112,7 @@ impl Clone for Engine {
                 events
             },
             load: self.load,
+            ledger: self.ledger.clone(),
         }
     }
 }
@@ -152,6 +156,7 @@ impl Engine {
             stage,
             content: content.clone(),
             load: Load::default(),
+            ledger: RunLedger::default(),
         })
     }
 
@@ -191,6 +196,7 @@ impl Engine {
             stage,
             content: content.clone(),
             load: Load::default(),
+            ledger: RunLedger::default(),
         })
     }
 
@@ -229,6 +235,7 @@ impl Engine {
             stage,
             content: content.clone(),
             load: Load::default(),
+            ledger: RunLedger::default(),
         })
     }
 
@@ -332,6 +339,11 @@ impl Engine {
     /// The domain events of the last tick, in the order they happened.
     pub fn events(&self) -> &[DomainEvent] {
         &self.events
+    }
+
+    /// The ledger of counts and bestiary encounters (ADR-BRDG-6).
+    pub fn ledger(&self) -> &RunLedger {
+        &self.ledger
     }
 
     /// The caps of the run's rules: a tick that reaches all of them is a worst-case tick. The
