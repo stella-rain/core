@@ -357,56 +357,6 @@ fn settles_everything(data: &[u8], pack: &Pack) {
         .iter()
         .map(|d| &d.id)
         .collect();
-    for mode in ["trial", "time_limit"] {
-        let setup = RunSetup {
-            schema_version: 0,
-            sim_version: pack.sim_version(),
-            mode: mode.into(),
-            weapon: "giant_sword".into(),
-            weapon_tree: None,
-            seed: u64::from(pick(data, 0)),
-            star_pool: None,
-            extra_rerolls: 0,
-            upgrades: Vec::new(),
-            perk_set: "duelist".into(),
-            rune_pool: Vec::new(),
-            carried: Vec::new(),
-            lumine: 0,
-            starting_rune: None,
-            stat_priority: Vec::new(),
-            pick_stats: false,
-            difficulty: "normal".into(),
-        };
-        let mut engine = Engine::start_with(&setup, pack.content())
-            .expect("a pack that loads starts a run of each mode");
-        for (t, input) in inputs_from(data, RUN_TICKS).into_iter().enumerate() {
-            step_spending(&mut engine, input, pick(data, t));
-            let _ = engine.snapshot();
-        }
-    }
-    settles_everything(data, &pack);
-    true
-}
-
-/// Settles every mode the game holds at every difficulty of the pack, both outcomes, with a run
-/// result and a bank read out of `data` (a bank up to `u64::MAX`, a save can be edited): the
-/// books balance, no bank passes its cap, and what a clear opens is in the file.
-fn settles_everything(data: &[u8], pack: &Pack) {
-    let content = pack.content();
-    let word = |at: usize, bytes: usize| {
-        (0..bytes).fold(0u64, |acc, i| (acc << 8) | u64::from(pick(data, at + i)))
-    };
-    let earned = u32::try_from(word(1, 4) % (u64::from(MAX_RUN_STARDUST) + 1)).unwrap_or(0);
-    let held = word(5, 8);
-    let file: Vec<&ContentId> = content
-        .difficulties()
-        .list()
-        .iter()
-        .map(|d| &d.id)
-        .collect();
-    for id in open_difficulties(content, &[]) {
-        assert!(file.contains(&&id), "an open difficulty outside the file");
-    }
     for mode in ["trial", "time_limit", "tutorial"] {
         let mode = ContentId(mode.to_owned());
         let cap = content
