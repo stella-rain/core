@@ -873,6 +873,14 @@
 },
   "rewards": {
   "max_rune_haste_pct": 500,
+  "rarities": [
+    { "rarity": "common", "lumine_cost": 1 },
+    { "rarity": "uncommon", "lumine_cost": 2 },
+    { "rarity": "rare", "lumine_cost": 3 },
+    { "rarity": "epic", "lumine_cost": 4 },
+    { "rarity": "legendary", "lumine_cost": 6 },
+    { "rarity": "supernova", "lumine_cost": 10 }
+  ],
   "rewards": [
     {
       "id": "max_hp_common",
