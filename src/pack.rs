@@ -63,6 +63,8 @@ use crate::weapons::{Weapons, WeaponsFile};
 pub const MAX_RUN_STATS: usize = 24;
 /// The most rewards (23 today; held to the file's own cap).
 pub const MAX_REWARDS: usize = crate::rewards::MAX_REWARDS;
+/// The rarities a rewards file prices (every rarity once).
+pub const MAX_RARITIES: usize = crate::rewards::MAX_RARITIES;
 /// The most stage skills (5 today; held to the file's own cap).
 pub const MAX_STAGE_SKILLS: usize = crate::stage_skill::MAX_STAGE_SKILLS;
 /// The most weapons the expertise lists (2 today).
@@ -602,6 +604,8 @@ struct Lists {
     #[serde(default)]
     rewards: Vec<IgnoredAny>,
     #[serde(default)]
+    rarities: Vec<IgnoredAny>,
+    #[serde(default)]
     stage_skills: Vec<IgnoredAny>,
     #[serde(default)]
     perk_sets: Vec<IgnoredAny>,
@@ -754,6 +758,7 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
     }
     if let Some(l) = counts::<Lists>(&pack.rewards) {
         budget("$.rewards.rewards", l.rewards.len(), MAX_REWARDS)?;
+        budget("$.rewards.rarities", l.rarities.len(), MAX_RARITIES)?;
     }
     if let Some(l) = counts::<Lists>(&pack.stage_skills) {
         budget(

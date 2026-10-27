@@ -28,6 +28,7 @@ use crate::constellations::Constellations;
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry;
+use crate::run_setup::MAX_LUMINE;
 use crate::run_stats::{self, StatEffect};
 use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use crate::trig::PER_DEGREE;
@@ -480,6 +481,19 @@ pub struct Orbit {
     pub cooldown_ticks: u32,
 }
 
+/// The number of rarities a rewards file prices: every rarity once.
+pub const MAX_RARITIES: usize = Rarity::ALL.len();
+
+/// What carrying a star of one rarity costs, in Lumine (ADR-107 point 2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RarityCost {
+    /// The rarity priced.
+    pub rarity: Rarity,
+    /// Its cost in Lumine, 1 to `run_setup::MAX_LUMINE`.
+    pub lumine_cost: u8,
+}
+
 /// The rewards file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -488,6 +502,10 @@ pub struct RewardsFile {
     /// (app#298); absent, `DEFAULT_MAX_RUNE_HASTE_PCT`. A reward gives at most this.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_rune_haste_pct: Option<u32>,
+    /// What carrying a star of each rarity costs, in Lumine (ADR-107 point 2): every rarity
+    /// once, from common up, each 1 to `run_setup::MAX_LUMINE`. The run setup's carried stars
+    /// are priced from this list.
+    pub rarities: Vec<RarityCost>,
     /// The rewards, in the order offers draw them from.
     pub rewards: Vec<Reward>,
 }
@@ -498,6 +516,8 @@ pub struct RewardsFile {
 pub struct Rewards {
     rewards: Vec<Reward>,
     max_rune_haste_pct: u32,
+    /// The Lumine cost of a star of each rarity, by `Rarity::index`.
+    lumine_costs: [u8; MAX_RARITIES],
     stage_skills: StageSkills,
     /// The sets of named stars checked against these rewards (core#NS3): none unless a pack
     /// or a caller gives them (`with_constellations`).
@@ -525,8 +545,13 @@ impl Rewards {
     ) -> Result<Rewards, Error> {
         let file: RewardsFile = version::read_member(bytes, MAX_REWARDS_BYTES, versions)?;
         validate(&file, stage_skills)?;
+        let mut lumine_costs = [0; MAX_RARITIES];
+        for cost in &file.rarities {
+            lumine_costs[usize::from(cost.rarity.index())] = cost.lumine_cost;
+        }
         Ok(Rewards {
             rewards: file.rewards,
+            lumine_costs,
             max_rune_haste_pct: file
                 .max_rune_haste_pct
                 .unwrap_or(DEFAULT_MAX_RUNE_HASTE_PCT),
@@ -539,6 +564,11 @@ impl Rewards {
     /// The most Rune Haste the picks add up to, in percent: the file's, or the default.
     pub fn max_rune_haste_pct(&self) -> u32 {
         self.max_rune_haste_pct
+    }
+
+    /// What carrying a star of `rarity` costs, in Lumine: the file's `rarities`.
+    pub fn lumine_cost(&self, rarity: Rarity) -> u8 {
+        self.lumine_costs[usize::from(rarity.index())]
     }
 
     /// The rewards, in the file's order.
@@ -855,6 +885,33 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
             "$.max_rune_haste_pct".into(),
             format!("1 to {MAX_RUNE_HASTE_PCT} (found {haste_cap})"),
         );
+    }
+    if file.rarities.len() != MAX_RARITIES {
+        issue(
+            "$.rarities".into(),
+            format!(
+                "every rarity once ({MAX_RARITIES}, found {})",
+                file.rarities.len()
+            ),
+        );
+    }
+    for (k, cost) in file.rarities.iter().enumerate().take(MAX_RARITIES) {
+        let at = |field: &str| format!("$.rarities[{k}].{field}");
+        if cost.rarity != Rarity::ALL[k] {
+            issue(
+                at("rarity"),
+                format!(
+                    "not {:?}: every rarity once, from common up",
+                    Rarity::ALL[k]
+                ),
+            );
+        }
+        if !(1..=MAX_LUMINE).contains(&cost.lumine_cost) {
+            issue(
+                at("lumine_cost"),
+                format!("1 to {MAX_LUMINE} (found {})", cost.lumine_cost),
+            );
+        }
     }
     if file.rewards.is_empty() || file.rewards.len() > MAX_REWARDS {
         issue(
