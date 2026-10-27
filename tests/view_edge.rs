@@ -15,6 +15,7 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
 use stella_rain_core::rng::{TAG_SPAWN, derive};
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::stage::{Map, Stage};
@@ -572,5 +573,59 @@ fn every_bundled_mode_gives_edge() {
     for w in v["waves"].as_array().unwrap() {
         assert!(w.get("spawn").is_none() && w.get("around").is_none());
         assert_eq!(w["edge"], json!({ "side": "any" }));
+    }
+}
+
+/// A `time_limit` mode with no waves, standing elites on `elite_cap`, and a run of 5 minutes.
+fn elite_mode(cap: u32) -> TimeLimit {
+    let mut v: Value = serde_json::from_slice(bundled_file("time_limit")).unwrap();
+    v["waves"] = json!([]);
+    v["length_ticks"] = json!(5 * 3600);
+    v["boss_ticks"] = json!([5 * 3600]);
+    v["elite_cap"] = json!(cap);
+    v["elite_table"] =
+        json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
+    for t in v["elite_types"].as_array_mut().unwrap() {
+        t["enemy"]["movement"] = json!({ "type": "straight", "vx": 0, "vy": 0 });
+        t["enemy"]["rules"] = json!([]);
+    }
+    TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// Stands for 5 minutes; where each elite is from the main character on its spawn tick.
+fn elite_places(cap: u32) -> Vec<(i32, i32)> {
+    let mut e =
+        Engine::start_time_limit(&time_limit_setup(), RunContent::bundled(), &elite_mode(cap))
+            .unwrap();
+    let mut out = Vec::new();
+    while e.tick() < 5 * 3600 - 1 {
+        e.step(Input::default());
+        let me = e.snapshot().player.at;
+        for ev in e.events() {
+            if let DomainEvent::EliteSpawned { elite, .. } = ev {
+                let at = e
+                    .snapshot()
+                    .entities
+                    .into_iter()
+                    .find(|v| v.id == *elite)
+                    .unwrap()
+                    .at;
+                out.push((at.x.0 - me.x.0, at.y.0 - me.y.0));
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn elite_minutes_spawn_on_the_spawn_rectangle() {
+    let places = elite_places(32);
+    assert_eq!(places.len(), 4, "minutes 1 to 4; the boss time has none");
+    for (dx, dy) in places {
+        let (dx, dy) = (i64::from(dx).abs(), i64::from(dy).abs());
+        assert!(
+            (dx == 98_304 && dy <= 62_464) || (dy == 62_464 && dx <= 98_304),
+            "an elite at ({dx}, {dy}) from the main character is not on the spawn rectangle"
+        );
     }
 }

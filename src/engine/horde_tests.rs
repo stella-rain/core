@@ -799,10 +799,30 @@ fn a_spawn_draws_once_on_the_spawn_stream_and_a_held_spawn_draws_nothing() {
         step_alive(&mut e);
     }
     assert!(held(&e, 1) > 0, "wave 1 was held");
-    assert_eq!(e.state.rng.spawn.state(), drawn(20), "20 spawns, no draw held");
+    assert_eq!(
+        e.state.rng.spawn.state(),
+        drawn(20),
+        "20 spawns, no draw held"
+    );
     removed(&mut e, 10);
     while spawned(&e, 1) < 2 {
         step_alive(&mut e);
     }
-    assert_eq!(e.state.rng.spawn.state(), drawn(22), "two more spawns, two more draws");
+    assert_eq!(
+        e.state.rng.spawn.state(),
+        drawn(22),
+        "two more spawns, two more draws"
+    );
+}
+
+#[test]
+fn an_elite_draws_its_place_whether_or_not_it_can_spawn() {
+    // With a cap of 1 the later elites are refused after their draws; the horde stream ends
+    // where a run with room for all of them ends (the place is one draw, as the ring's was).
+    let at_minute_5 = |cap: u32| {
+        let mut e = run_of(7, |v| v["elite_cap"] = serde_json::json!(cap));
+        elites_spawned(&mut e, 5 * 3_600 + 10);
+        e.state.rng.horde.state()
+    };
+    assert_eq!(at_minute_5(1), at_minute_5(32));
 }
