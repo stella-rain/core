@@ -107,8 +107,8 @@ pub struct TimeLimitFile {
     pub map: TimeLimitMap,
     /// The enemies that spawn over the run, 0 to `MAX_WAVES` waves of up to `MAX_SPAWN_COUNT`
     /// enemies, `MAX_TOTAL_SPAWNS` in all, none an elite, each starting before the length. A
-    /// wave with `around` spawns that far from the main character; the placeholder content is
-    /// the trial's enemies.
+    /// wave with `edge` spawns on the spawn rectangle around the main character (VS1); the
+    /// placeholder content is the trial's enemies.
     pub waves: Vec<Wave>,
     /// The elites each whole minute that starts no boss brings (ADR-090): 1 to
     /// `MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting
@@ -625,8 +625,8 @@ pub fn validate(file: &TimeLimitFile) -> Result<(), Error> {
                 id: None,
                 at_tick: 0,
                 enemy: t.enemy.clone(),
-                spawn: map.start,
-                around: None,
+                spawn: Some(map.start),
+                edge: None,
                 count: 1,
                 every_ticks: 0,
                 xp: t.xp,

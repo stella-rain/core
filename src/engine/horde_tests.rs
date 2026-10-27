@@ -381,6 +381,8 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
     // Recorded before elite types became content: same weights, same seed. The positions are
     // those after the boss's call counts from its arrival (ADR-103). Re-recorded on the horde
     // stream when the generator split per purpose (R1): the weights and the seed are the same.
+    // The positions are those on the spawn rectangle (VS1); the sprites and the stream's state
+    // are as before, one horde draw per elite.
     let table = serde_json::json!([{ "start_tick": 0, "weights": [
         { "elite": "elite_low", "weight": 1 }, { "elite": "elite_mid", "weight": 2 } ] },
         { "start_tick": 10_800, "weights": [
@@ -410,10 +412,10 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
     assert_eq!(
         at,
         [
-            (626_298, 533_213),
-            (479_399, 616_323),
-            (423_770, 543_827),
-            (547_322, 424_513)
+            (502_060, 461_824),
+            (425_984, 582_732),
+            (425_984, 490_577),
+            (495_916, 461_824)
         ]
     );
 }
@@ -780,4 +782,49 @@ fn a_clone_taken_while_waves_are_held_follows_the_original() {
         step_alive(&mut copy);
         assert_eq!(copy.state_hash(), e.state_hash(), "tick {}", e.tick());
     }
+}
+
+#[test]
+fn a_spawn_draws_once_on_the_spawn_stream_and_a_held_spawn_draws_nothing() {
+    // Every wave of the bundled mode gives `edge` `any` (VS1): one draw over the spawn
+    // rectangle, whole on this map, so `below(643_072)` each.
+    let drawn = |n: u32| {
+        let mut r = crate::rng::derive(1, crate::rng::TAG_SPAWN);
+        for _ in 0..n {
+            r.below(643_072);
+        }
+        r.state()
+    };
+    // The filler spawns 20 by tick 20; wave 1 falls due at 100 and is held for 300 ticks.
+    let mut e = directed(20, &[(1, 20, 1), (100, 5, 60)]);
+    for _ in 0..400 {
+        step_alive(&mut e);
+    }
+    assert!(held(&e, 1) > 0, "wave 1 was held");
+    assert_eq!(
+        e.state.rng.spawn.state(),
+        drawn(20),
+        "20 spawns, no draw held"
+    );
+    removed(&mut e, 10);
+    while spawned(&e, 1) < 2 {
+        step_alive(&mut e);
+    }
+    assert_eq!(
+        e.state.rng.spawn.state(),
+        drawn(22),
+        "two more spawns, two more draws"
+    );
+}
+
+#[test]
+fn an_elite_draws_its_place_whether_or_not_it_can_spawn() {
+    // With a cap of 1 the later elites are refused after their draws; the horde stream ends
+    // where a run with room for all of them ends (the place is one draw, as the ring's was).
+    let at_minute_5 = |cap: u32| {
+        let mut e = run_of(7, |v| v["elite_cap"] = serde_json::json!(cap));
+        elites_spawned(&mut e, 5 * 3_600 + 10);
+        e.state.rng.horde.state()
+    };
+    assert_eq!(at_minute_5(1), at_minute_5(32));
 }

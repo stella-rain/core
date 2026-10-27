@@ -152,7 +152,13 @@ fn the_spread_waves_stand_at_the_start_and_two_outer_crowds() {
     let waves: Vec<(i32, i32, u16)> = stage
         .waves
         .iter()
-        .map(|w| (w.spawn.x.0, w.spawn.y.0, w.count))
+        .map(|w| {
+            (
+                w.spawn.expect("a point").x.0,
+                w.spawn.expect("a point").y.0,
+                w.count,
+            )
+        })
         .collect();
     assert_eq!(waves.len(), 3, "{waves:?}");
     let (x, y, _) = waves[0];

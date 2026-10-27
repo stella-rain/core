@@ -25,8 +25,8 @@ use crate::presets;
 use crate::registry::{self, Entry, Kind};
 use crate::rewards::{MAX_WEIGHT, Rarity};
 use crate::stage::{
-    Boss, BossPart, Evade, ExpertisePoints, Healing, Levels, Phase, Player, Stage, Stars, Step,
-    Tier, Transition, Wave, stardust_tiers_problem,
+    Boss, BossPart, Evade, ExpertisePoints, Healing, Levels, Phase, Player, Side, Stage, Stars,
+    Step, Tier, Transition, Wave, stardust_tiers_problem,
 };
 use crate::trig;
 use crate::version::{self, ReadError};
@@ -1345,9 +1345,20 @@ impl<'a> Ctx<'a> {
         self.key("enemy", |c| {
             c.as_foe(Foe::Enemy, |c| c.agent(&w.enemy, true))
         });
-        self.point("spawn", &w.spawn);
-        if let Some(around) = w.around {
-            self.within("around", i64::from(around.0), 1, i64::from(MAX_LEN));
+        match (&w.spawn, &w.edge) {
+            (Some(_), Some(_)) => {
+                self.key("edge", |c| c.fail("give `spawn` or `edge`, not both"));
+            }
+            (None, None) => self.key("spawn", |c| c.fail("give `spawn` or `edge`")),
+            (Some(p), None) => self.point("spawn", p),
+            (None, Some(edge)) => self.key("edge", |c| {
+                if let Some(along) = edge.along {
+                    c.within("along", i64::from(along), -1000, 1000);
+                    if edge.side == Side::Any {
+                        c.key("along", |c| c.fail("not with the side `any`"));
+                    }
+                }
+            }),
         }
         self.within("count", i64::from(w.count), 1, i64::from(max_count));
         self.ticks("every_ticks", w.every_ticks, u32::from(w.count > 1));

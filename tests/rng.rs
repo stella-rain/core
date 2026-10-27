@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 
 use serde_json::json;
+use stella_rain_core::event::DomainEvent;
 use stella_rain_core::rng::{
     SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_OFFER, TAG_SPAWN, derive,
 };
@@ -120,7 +121,8 @@ fn wave_positions(drop_one_in: Option<u32>) -> Vec<(i32, i32)> {
         START_X,
         START_Y,
     );
-    ring["around"] = json!(4_096);
+    ring.as_object_mut().unwrap().remove("spawn");
+    ring["edge"] = json!({ "side": "any" });
     let mut stage = armed(
         stage_full(1_800, Some(far_boss()), vec![ring], vec![]),
         weapon,
@@ -135,14 +137,22 @@ fn wave_positions(drop_one_in: Option<u32>) -> Vec<(i32, i32)> {
     });
     let mut e = engine(&stage);
     let mut seen = BTreeMap::new(); // by entity ID, which keeps the spawn order
+    let mut kills = 0;
     for _ in 0..600 {
         e.step(firing(idle(), e.tick()));
+        kills += e
+            .events()
+            .iter()
+            .filter(|ev| matches!(ev, DomainEvent::Died { .. }))
+            .count();
         for v in e.snapshot().entities {
             if v.kind == EntityKind::Enemy {
                 seen.entry(v.id.0).or_insert((v.at.x.0, v.at.y.0));
             }
         }
     }
+    // The loot stream really draws: enemies of the wave die in the run.
+    assert!(kills > 0, "no enemy died");
     seen.into_values().collect()
 }
 

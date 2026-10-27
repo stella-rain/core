@@ -13,8 +13,9 @@ use stella_rain_core::trig::SCALE;
 /// The seed of the enemy-role bot run: the first seed (checked 1 to 40) where this bot clears the
 /// `time_limit` run on Normal with the zone content of BR1a; seeds 6 and 12 still did
 /// after BZ1 (5, 6, 9, 12 and 13 did before it). With the charges, the shrine pulse and the
-/// cage of Z3b, seeds 2, 3, 10, 12 and 14 clear among 1 to 14 (6 no longer does).
-pub const ENEMY_ROLE_BOT_SEED: u64 = 2;
+/// cage of Z3b, seeds 2, 3, 10, 12 and 14 clear among 1 to 14 (6 no longer does). Under view-edge
+/// spawns (VS1) seed 2 no longer clears; 1 and 3 to 12 do.
+pub const ENEMY_ROLE_BOT_SEED: u64 = 1;
 
 /// Ticks before a zone hurts at which the bot starts to step out of it.
 const ZONE_SEE: u32 = 30;

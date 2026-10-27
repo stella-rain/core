@@ -35,7 +35,7 @@ fn is_kind_of(bench: &Wave, mode: &Wave) -> bool {
         rule.self_destruct = false;
     }
     bench.id == mode.id
-        && bench.around == mode.around
+        && bench.edge == mode.edge
         && bench.enemy.base == mode.enemy.base
         && bench.enemy.movement == mode.enemy.movement
         && bench.enemy.rules == rules

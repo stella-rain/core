@@ -301,9 +301,10 @@ fn a_wave_is_checked_as_a_stage_s_is_with_the_mode_s_caps() {
     w["enemy"]["base"] = json!("no_such_sprite");
     assert_eq!(paths(&waves(vec![w])), ["$.waves[0].enemy.base"]);
     let mut w = wave();
-    w["around"] = json!(0);
-    assert_eq!(paths(&waves(vec![w])), ["$.waves[0].around"]);
+    w["edge"]["along"] = json!(0);
+    assert_eq!(paths(&waves(vec![w])), ["$.waves[0].edge.along"]);
     let mut w = wave();
+    w.as_object_mut().unwrap().remove("edge");
     w["spawn"] = json!({ "x": -1_000_000, "y": 0 });
     assert_eq!(paths(&waves(vec![w])), ["$.waves[0].spawn.x"]);
     let mut w = wave();

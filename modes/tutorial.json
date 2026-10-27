@@ -95,9 +95,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 61440,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": -423
       },
       "count": 3,
       "every_ticks": 40,
@@ -140,9 +140,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 266240,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": 423
       },
       "count": 3,
       "every_ticks": 40,
@@ -179,9 +179,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 102400,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": -254
       },
       "count": 2,
       "every_ticks": 60,

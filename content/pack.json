@@ -4226,9 +4226,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 61440,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": -423
       },
       "count": 5,
       "every_ticks": 40,
@@ -4272,9 +4272,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 266240,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": 423
       },
       "count": 5,
       "every_ticks": 40,
@@ -4311,9 +4311,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 102400,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": -254
       },
       "count": 4,
       "every_ticks": 60,
@@ -4361,9 +4361,9 @@
           "range": 51200
         }
       },
-      "spawn": {
-        "x": 133120,
-        "y": 120320
+      "edge": {
+        "side": "top",
+        "along": -586
       },
       "count": 1,
       "every_ticks": 0,
@@ -4411,9 +4411,9 @@
           "range": 40960
         }
       },
-      "spawn": {
-        "x": 266240,
-        "y": 76800
+      "edge": {
+        "side": "top",
+        "along": 847
       },
       "count": 1,
       "every_ticks": 0,
@@ -4823,11 +4823,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 1199,
       "every_ticks": 60,
       "xp": 10,
@@ -4872,11 +4870,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 115200,
       "count": 798,
       "every_ticks": 90,
       "xp": 10,
@@ -4905,11 +4901,9 @@
         },
         "rules": []
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 1200,
       "every_ticks": 60,
       "xp": 10,
@@ -4937,11 +4931,9 @@
         },
         "rules": []
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 400,
       "every_ticks": 180,
       "xp": 10,
@@ -5010,11 +5002,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 204,
       "every_ticks": 300,
       "xp": 10,
@@ -5061,11 +5051,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 84,
       "every_ticks": 600,
       "xp": 10,
@@ -5126,11 +5114,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 132,
       "every_ticks": 300,
       "xp": 10,
@@ -5189,11 +5175,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 48,
       "every_ticks": 600,
       "xp": 10,
@@ -5278,11 +5262,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 524288,
-        "y": 524288
+      "edge": {
+        "side": "any"
       },
-      "around": 102400,
       "count": 78,
       "every_ticks": 600,
       "xp": 10,
@@ -6228,9 +6210,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 61440,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": -423
       },
       "count": 3,
       "every_ticks": 40,
@@ -6273,9 +6255,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 266240,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": 423
       },
       "count": 3,
       "every_ticks": 40,
@@ -6312,9 +6294,9 @@
           }
         ]
       },
-      "spawn": {
-        "x": 102400,
-        "y": 0
+      "edge": {
+        "side": "top",
+        "along": -254
       },
       "count": 2,
       "every_ticks": 60,

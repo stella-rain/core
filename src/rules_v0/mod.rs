@@ -150,6 +150,7 @@ use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::snapshot::{EntityKind, OfferOption};
+use crate::stage::{Side, ViewEdge};
 use crate::trig;
 use crate::validate::limits::DAMAGE_SCALE;
 
@@ -190,6 +191,14 @@ pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// inside it, edges included. Tuning values.
 pub(crate) const VIEW_HALF_WIDTH: Fx = Fx::px(320);
 pub(crate) const VIEW_HALF_HEIGHT: Fx = Fx::px(180);
+/// How far outside the view an enemy spawns (VS1, DS109): a placeholder for playtest; CS1b-3
+/// moves it into `rules.json`.
+pub(crate) const SPAWN_MARGIN: Fx = Fx::px(64);
+/// The spawn rectangle's half width and half height, 384 and 244 px: the view and the margin,
+/// the same band the leash lands on (`LEASH_LAND_X/Y`), defined from the view, not the leash. A
+/// placeholder for playtest (DS109); CS1b-3 moves it into `rules.json`.
+pub(crate) const SPAWN_EDGE_X: Fx = Fx(VIEW_HALF_WIDTH.0 + SPAWN_MARGIN.0);
+pub(crate) const SPAWN_EDGE_Y: Fx = Fx(VIEW_HALF_HEIGHT.0 + SPAWN_MARGIN.0);
 /// The ranged tokens are two pools (RA1, DS83): the zone attacks' and the line attacks' (an
 /// attack that lays a line zone). Tuning values.
 pub(crate) const RANGED_ZONE_TOKENS: u32 = 3;
@@ -727,25 +736,147 @@ fn spawn_wave(stage: &World, s: &mut State, i: usize) {
         index: u32::try_from(i).unwrap_or(u32::MAX),
         rule: 0,
     };
-    let at = match wave.around {
-        Some(ring) => around_player(stage, s.player.at, &mut s.rng.spawn, ring),
-        None => wave.spawn,
+    let at = match (wave.edge, wave.spawn) {
+        (Some(edge), _) => edge_point(stage, s.player.at, &mut s.rng.spawn, edge),
+        (None, Some(p)) => p,
+        // The validator refuses a wave with neither.
+        (None, None) => s.player.at,
     };
     spawn_enemy(stage, s, key, at);
 }
 
-/// A point `ring` from the main character at `from`, at an angle drawn from `rng` (the wave's
-/// stream for a wave, the horde's for an elite), moved onto the map.
-fn around_player(stage: &World, from: Point, rng: &mut SplitMix64, ring: Fx) -> Point {
-    let angle = i32::try_from(rng.below(360)).unwrap_or(0) * trig::PER_DEGREE;
-    let (sin, cos) = trig::sin_cos(angle);
-    let offset = |unit: i32| {
-        i32::try_from(i64::from(ring.0) * i64::from(unit) / i64::from(trig::SCALE)).unwrap_or(0)
+/// One side of the spawn rectangle: `fixed` is its coordinate on the axis it stands on, and it
+/// runs along the other axis from `lo` to `hi`. The sides come in the order top, right, bottom,
+/// left; the opposite of side `i` is `(i + 2) % 4`.
+#[derive(Clone, Copy)]
+struct RectSide {
+    vertical: bool,
+    fixed: i64,
+    lo: i64,
+    hi: i64,
+}
+
+impl RectSide {
+    /// The part of the side on the map `w` by `h`, as `(lo, hi)`, if it has a length.
+    fn on_map(self, w: i64, h: i64) -> Option<(i64, i64)> {
+        let (across, along) = if self.vertical { (w, h) } else { (h, w) };
+        if !(0..=across).contains(&self.fixed) {
+            return None;
+        }
+        let (lo, hi) = (self.lo.max(0), self.hi.min(along));
+        (hi > lo).then_some((lo, hi))
+    }
+
+    /// The point `t` along the side from `lo`.
+    fn at(self, lo: i64, t: i64) -> (i64, i64) {
+        if self.vertical {
+            (self.fixed, lo + t)
+        } else {
+            (lo + t, self.fixed)
+        }
+    }
+}
+
+/// A point on the spawn rectangle around `from` (VS1): ±`SPAWN_EDGE_X` by ±`SPAWN_EDGE_Y`, drawn
+/// from `rng` (the wave's stream for a wave, the horde's for an elite) on the part of `edge`'s
+/// side that is on the map. A side wholly off the map gives way to the opposite one; with
+/// neither on the map the side itself is used and the point moved onto the map. `any` is one draw
+/// over the on-map parts of all four sides; a side with no `along` is one draw along its part;
+/// with `along` there is no draw.
+pub(super) fn edge_point(
+    stage: &World,
+    from: Point,
+    rng: &mut SplitMix64,
+    edge: ViewEdge,
+) -> Point {
+    let map = stage.map();
+    let (w, h) = (i64::from(map.width.0), i64::from(map.height.0));
+    let (px, py) = (i64::from(from.x.0), i64::from(from.y.0));
+    let (ex, ey) = (i64::from(SPAWN_EDGE_X.0), i64::from(SPAWN_EDGE_Y.0));
+    let sides = [
+        RectSide {
+            vertical: false,
+            fixed: py - ey,
+            lo: px - ex,
+            hi: px + ex,
+        },
+        RectSide {
+            vertical: true,
+            fixed: px + ex,
+            lo: py - ey,
+            hi: py + ey,
+        },
+        RectSide {
+            vertical: false,
+            fixed: py + ey,
+            lo: px - ex,
+            hi: px + ex,
+        },
+        RectSide {
+            vertical: true,
+            fixed: px - ex,
+            lo: py - ey,
+            hi: py + ey,
+        },
+    ];
+    let parts = sides.map(|side| side.on_map(w, h));
+    let draw =
+        |rng: &mut SplitMix64, n: i64| i64::from(rng.below(u32::try_from(n).unwrap_or(u32::MAX)));
+    let (x, y) = match edge.side {
+        Side::Any => {
+            // The on-map parts; with none on the map, the whole sides (moved onto it below).
+            let on_map = parts.iter().flatten().map(|(lo, hi)| hi - lo).sum::<i64>() > 0;
+            let part = |i: usize| {
+                if on_map {
+                    parts[i]
+                } else {
+                    Some((sides[i].lo, sides[i].hi))
+                }
+            };
+            let total: i64 = (0..4).filter_map(part).map(|(lo, hi)| hi - lo).sum();
+            let mut t = draw(rng, total);
+            let mut found = (px, py);
+            for (i, side) in sides.iter().enumerate() {
+                let Some((lo, hi)) = part(i) else { continue };
+                if t < hi - lo {
+                    found = side.at(lo, t);
+                    break;
+                }
+                t -= hi - lo;
+            }
+            found
+        }
+        named => {
+            let i = match named {
+                Side::Top => 0,
+                Side::Right => 1,
+                Side::Bottom => 2,
+                // `Any` is the arm above.
+                Side::Left | Side::Any => 3,
+            };
+            let j = if parts[i].is_some() || parts[(i + 2) % 4].is_none() {
+                i
+            } else {
+                (i + 2) % 4
+            };
+            let side = sides[j];
+            let (lo, hi) = parts[j].unwrap_or((side.lo, side.hi));
+            match edge.along {
+                Some(along) => {
+                    let (half, middle) = if side.vertical { (ey, py) } else { (ex, px) };
+                    let t = middle + i64::from(along) * half / 1000;
+                    if side.vertical {
+                        (side.fixed, t)
+                    } else {
+                        (t, side.fixed)
+                    }
+                }
+                None => side.at(lo, draw(rng, hi - lo)),
+            }
+        }
     };
-    stage.map().clamp(Point {
-        x: from.x.saturating_add(Fx(offset(cos))),
-        y: from.y.saturating_add(Fx(offset(sin))),
-    })
+    let fx = |v: i64| Fx(i32::try_from(v).unwrap_or(if v < 0 { i32::MIN } else { i32::MAX }));
+    map.clamp(Point { x: fx(x), y: fx(y) })
 }
 
 /// Spawns an enemy of `def` at `at`, unless the cap on enemies alive is reached, or for an
