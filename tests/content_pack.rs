@@ -55,12 +55,12 @@ fn text(bytes: &[u8]) -> String {
 fn export_writes_the_bundled_pack() {
     let out = run(&["export"], b"");
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
-    assert_eq!(out.stdout, pack::export_bundled());
+    assert_eq!(out.stdout, Pack::BUNDLED.to_vec());
 }
 
 #[test]
 fn verify_prints_the_hash_and_sim_version_of_a_valid_pack() {
-    let bytes = pack::export_bundled();
+    let bytes = Pack::BUNDLED.to_vec();
     let sha = to_hex(&Pack::from_bytes(&bytes).unwrap().sha256());
     let expected = format!(
         "sha256: {sha}\nsim_version: 0\n\
@@ -81,7 +81,7 @@ fn verify_prints_the_hash_and_sim_version_of_a_valid_pack() {
 
 #[test]
 fn verify_refuses_an_invalid_pack_with_the_reason_and_without_its_text() {
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     v["introduced"]["rewards"][0]["sim_version"] = json!(1);
     v["zq_secret_marker"] = json!("zq_secret_marker");
     let out = run(&["verify", "-"], &serde_json::to_vec(&v).unwrap());
@@ -91,7 +91,7 @@ fn verify_refuses_an_invalid_pack_with_the_reason_and_without_its_text() {
     assert!(err.starts_with("not valid: not a valid pack"), "{err}");
     assert!(!err.contains("zq_"), "{err}");
 
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     v["introduced"]["rewards"][0]["sim_version"] = json!(1);
     let out = run(&["verify", "-"], &serde_json::to_vec(&v).unwrap());
     assert_eq!(out.status.code(), Some(1));
@@ -136,7 +136,7 @@ fn a_bad_command_line_or_a_missing_file_exits_2() {
 
 #[test]
 fn verify_says_when_a_pack_lists_no_starting_unlocks() {
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     v.as_object_mut().unwrap().remove("starting_unlocks");
     let out = run(&["verify", "-"], &serde_json::to_vec(&v).unwrap());
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));

@@ -24,7 +24,7 @@ use stella_rain_core::trig;
 const PX: i32 = 256;
 
 fn time_limit() -> Value {
-    serde_json::from_slice(TimeLimit::BUNDLED).expect("the bundled file is JSON")
+    serde_json::from_slice(common::bundled_file("time_limit")).expect("the bundled file is JSON")
 }
 
 fn boss_def(id: &str) -> Value {
@@ -98,7 +98,7 @@ fn step_kinds(timeline: &Value) -> Vec<String> {
 
 #[test]
 fn the_bundled_mode_validates() {
-    TimeLimit::parse(TimeLimit::BUNDLED).unwrap_or_else(|e| panic!("{e}"));
+    TimeLimit::parse(common::bundled_file("time_limit")).unwrap_or_else(|e| panic!("{e}"));
 }
 
 /// The two `warn_only` lines of a charge: 240 px long, laid end to end along the aimed facing.

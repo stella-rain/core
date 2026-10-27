@@ -350,7 +350,7 @@ fn the_file_is_read_as_untrusted_bytes() {
 
 /// The bundled pack with the named stars and a set added, as a value.
 fn pack_value(sets: Option<Value>) -> Value {
-    let mut v: Value = serde_json::from_slice(&stella_rain_core::pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     // The bundled pack holds the real sets: a pack as released before them has neither the file
     // nor the list of its ids.
     v.as_object_mut().unwrap().remove("constellations");

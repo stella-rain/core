@@ -117,6 +117,7 @@ fn nonzero(per_tick: &[(u64, u64)], first: u32) -> Vec<(u32, u64, u64)> {
         .collect()
 }
 
+use crate::common;
 use stella_rain_core::bench_fixtures::{self, Case, time_limit_case};
 
 /// The steady window: the horde of the benchmark's case is at its cap of 260 from tick 76 on
@@ -301,7 +302,7 @@ fn a_clone_of_a_run_with_waves_held_allocates_nothing() {
     use stella_rain_core::engine::Outcome;
     use stella_rain_core::run_setup::RunSetup;
     use stella_rain_core::time_limit::TimeLimit;
-    let mut file: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut file: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     file["crowd_target"] = 20.into();
     for wave in file["waves"].as_array_mut().unwrap() {
         wave["at_tick"] = 1.into();

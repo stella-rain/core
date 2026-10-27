@@ -3,6 +3,7 @@
 //! `time_limit` boss runs alone, with its zones made harmless so the run does not end, and the
 //! most zones the snapshot holds in one tick is counted.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::input::Input;
@@ -57,7 +58,7 @@ fn harmless(v: &mut Value) {
 
 /// The most zones live in one tick of `phase` of boss `id`, running alone.
 fn peak(id: &str, phase: usize) -> usize {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     let boss = v["bosses"]
         .as_array()
         .unwrap()
