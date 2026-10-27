@@ -269,11 +269,14 @@ fn refuses_content(
     );
 }
 
+/// A content file's reader, given its bytes and the versions to read them at.
+type Reader = fn(&[u8], Versions) -> Result<(), Error>;
+
 #[test]
 fn every_versioned_file_refuses_another_game_the_same_way() {
     let content = RunContent::bundled();
     let file = |name: &str| bundled(name);
-    let rows: [(&str, usize, fn(&[u8], Versions) -> Result<(), Error>); 11] = [
+    let rows: [(&str, usize, Reader); 11] = [
         ("run_stats", MAX_RUN_STATS_BYTES, |b, v| {
             RunStats::parse(b, v).map(|_| ())
         }),

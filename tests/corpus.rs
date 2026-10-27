@@ -16,6 +16,7 @@
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
 
 use crate::common;
+use stella_rain_core::version::Versions;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -170,7 +171,7 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
 fn case_content(case: &Path) -> Result<RunContent, String> {
     let content = match fs::read(case.join("mode.json")) {
         Ok(bytes) => {
-            let mode = TimeLimit::parse(&bytes).map_err(|e| e.to_string())?;
+            let mode = TimeLimit::parse(&bytes, Versions::CURRENT).map_err(|e| e.to_string())?;
             RunContent::bundled().clone().with_time_limit(mode)
         }
         Err(_) => RunContent::bundled().clone(),
@@ -1347,7 +1348,7 @@ fn elites_time_limit() -> (String, RunContent) {
     let json = serde_json::to_string(&v).unwrap() + "\n";
     let content = RunContent::bundled()
         .clone()
-        .with_time_limit(TimeLimit::parse(json.as_bytes()).unwrap())
+        .with_time_limit(TimeLimit::parse(json.as_bytes(), Versions::CURRENT).unwrap())
         .with_run_stats(common::design_run_stats());
     (json, content)
 }
@@ -1507,7 +1508,7 @@ fn short_time_limit(overtime: u32) -> (String, RunContent) {
     let json = serde_json::to_string_pretty(&v).unwrap() + "\n";
     let content = RunContent::bundled()
         .clone()
-        .with_time_limit(TimeLimit::parse(json.as_bytes()).unwrap());
+        .with_time_limit(TimeLimit::parse(json.as_bytes(), Versions::CURRENT).unwrap());
     (json, content)
 }
 
