@@ -68,7 +68,7 @@ fn rewards(list: &[(&str, &str, &str, u32, u8)]) -> Rewards {
                     "limit": limit, "title": "Reward", "description": "" })
         })
         .collect();
-    let file = json!({ "rewards": rewards });
+    let file = json!({ "rarities": common::rarities(), "rewards": rewards });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate")
 }
@@ -909,7 +909,7 @@ fn weighted(a: u16, b: u16) -> Rewards {
         json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
                 "weight": weight, "title": "Reward", "description": "" })
     };
-    let file = json!({ "rewards": [one("a", a), one("b", b)] });
+    let file = json!({ "rarities": common::rarities(), "rewards": [one("a", a), one("b", b)] });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate")
 }
@@ -956,7 +956,7 @@ fn commons_ab() -> Rewards {
         json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
                 "title": "Reward", "description": "" })
     };
-    let file = json!({ "rewards": [one("a"), one("b")] });
+    let file = json!({ "rarities": common::rarities(), "rewards": [one("a"), one("b")] });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate")
 }
@@ -965,7 +965,7 @@ fn commons_ab() -> Rewards {
 
 #[test]
 fn an_offer_names_its_named_candidate_and_only_that_one() {
-    let file = json!({ "rewards": [
+    let file = json!({ "rarities": common::rarities(), "rewards": [
         { "id": "vega", "rarity": "epic", "effects": [{ "effect": "attack_pct", "amount": 20 }],
           "limit": 1, "named": true, "star": "Vega", "weight": 50,
           "title": "Vega", "description": "" },

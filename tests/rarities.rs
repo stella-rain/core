@@ -297,7 +297,7 @@ fn once(id: &str, rarity: &str, amount: u32) -> Value {
 }
 
 fn with(stage: &Stage, list: Vec<Value>) -> Engine {
-    let file = json!({ "rewards": list });
+    let file = json!({ "rarities": common::rarities(), "rewards": list });
     let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate");
     let content = RunContent::new(RunStats::bundled().clone(), rewards);

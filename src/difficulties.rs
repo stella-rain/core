@@ -11,6 +11,9 @@
 //! file's rules, and a level table the stage's own rules accept. IDs are the file's own: the pack
 //! records the `sim_version` that introduced each (ADR-080), and a released ID is never renamed
 //! or removed (ADR-026).
+//! Each difficulty also names the Rune Shards a clear pays (`rune_shards`, 0 to
+//! `MAX_RUNE_SHARDS`) and, optionally, the earlier difficulty whose clear opens it
+//! (`opens_after`). The simulation never reads either; the app and the settlement do.
 //! The bundled file, `content/difficulties.json`, is the default; the SHA-256 of whatever bytes
 //! a run used is part of its content hash, so a run replay verifies only with the same file.
 
@@ -35,6 +38,9 @@ pub const MAX_DIFFICULTIES: usize = 8;
 /// The largest percent of any kind: hit points and damage (ADR-103's 32-bit values saturate
 /// rather than wrap, `scale_pct`).
 pub const MAX_PCT: u32 = 1_000;
+/// The most Rune Shards a clear of one difficulty may pay (30 today; a tuning value, ADR-SVC-1
+/// decides that a bound exists).
+pub const MAX_RUNE_SHARDS: u32 = 1_000;
 /// The difficulty of a setup that names none: a setup written before difficulties existed.
 /// New setups always name theirs.
 pub const DEFAULT_DIFFICULTY: &str = "normal";
@@ -65,6 +71,13 @@ pub struct Difficulty {
     pub rarity_min: Rarity,
     /// The highest rarity its drops and offers may have; not below `rarity_min`.
     pub rarity_max: Rarity,
+    /// The Rune Shards a clear of this difficulty pays (game design, Rewards), 0 to
+    /// `MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-4).
+    pub rune_shards: u32,
+    /// Absent: open with no clear. Otherwise the ID of an earlier difficulty of this file: this
+    /// one opens, in a mode, once that one is cleared there.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opens_after: Option<ContentId>,
     /// The mode's run length in ticks, in place of its file's: with `boss_ticks`, or neither.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub length_ticks: Option<u32>,
@@ -181,6 +194,25 @@ pub fn validate(file: &DifficultiesFile) -> Result<(), Error> {
         }
         if d.rarity_max < d.rarity_min {
             issue(at("rarity_max"), "not below rarity_min".into());
+        }
+        if d.rune_shards > MAX_RUNE_SHARDS {
+            issue(
+                at("rune_shards"),
+                format!("0 to {MAX_RUNE_SHARDS} (found {})", d.rune_shards),
+            );
+        }
+        if let Some(after) = &d.opens_after {
+            if !registry::is_well_formed(&after.0) {
+                issue(
+                    at("opens_after"),
+                    "not a valid ID (lowercase snake_case, at most 32 characters)".into(),
+                );
+            } else if !file.difficulties[..i].iter().any(|x| x.id == *after) {
+                issue(
+                    at("opens_after"),
+                    "not an earlier difficulty of this file".into(),
+                );
+            }
         }
         match (d.length_ticks, &d.boss_ticks) {
             (None, None) => {}

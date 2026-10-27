@@ -157,7 +157,7 @@ fn a_rewards_file_may_hold_the_most_rewards_and_not_one_more() {
     };
     let parse = |n: usize| {
         let list: Vec<Value> = (0..n).map(one).collect();
-        let file = json!({ "rewards": list });
+        let file = json!({ "rarities": common::rarities(), "rewards": list });
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
     };
     assert_eq!(MAX_REWARDS, 192);

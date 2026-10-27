@@ -100,7 +100,7 @@ pub fn random_rune() -> Value {
 
 /// The run content of `rewards` (read with `skills`, when given) and `runes`.
 pub fn content(rewards: Vec<Value>, skills: Option<Value>, runes: Runes) -> RunContent {
-    let file = json!({ "rewards": rewards }).to_string();
+    let file = json!({ "rarities": super::rarities(), "rewards": rewards }).to_string();
     let rewards = match skills {
         Some(skills) => {
             let skills = json!({ "stage_skills": skills });

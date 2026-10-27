@@ -105,7 +105,7 @@ fn bleed_of(e: &Engine, id: EntityId) -> DamageOverTimeView {
 #[test]
 fn a_rune_haste_reward_is_a_stat_like_effect_bounded_like_the_others() {
     let parse = |r: Value| {
-        let file = json!({ "rewards": [r] });
+        let file = json!({ "rarities": common::rarities(), "rewards": [r] });
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
     };
     assert!(parse(haste("h", MAX_HASTE, 20)).is_ok());
@@ -302,7 +302,7 @@ fn a_run_with_haste_records_and_verifies() {
 /// A rewards file with the cap `cap` for Rune Haste (`max_rune_haste_pct`).
 fn capped(cap: u32, rewards: Vec<Value>) -> Result<Rewards, stella_rain_core::validate::Error> {
     let file = json!({
-        "max_rune_haste_pct": cap, "rewards": rewards
+        "rarities": common::rarities(), "max_rune_haste_pct": cap, "rewards": rewards
     });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
 }
@@ -311,7 +311,7 @@ fn capped(cap: u32, rewards: Vec<Value>) -> Result<Rewards, stella_rain_core::va
 fn the_cap_is_the_rewards_file_s_and_the_code_ceiling_bounds_it() {
     assert_eq!(Rewards::bundled().max_rune_haste_pct(), 500, "core#298");
     assert_eq!(DEFAULT_MAX_RUNE_HASTE_PCT, 300, "a file naming none");
-    let none = json!({ "rewards": [haste("h", 1, 2)] });
+    let none = json!({ "rarities": common::rarities(), "rewards": [haste("h", 1, 2)] });
     let none = Rewards::parse(none.to_string().as_bytes(), Versions::CURRENT).unwrap();
     assert_eq!(none.max_rune_haste_pct(), DEFAULT_MAX_RUNE_HASTE_PCT);
     // The file's cap is 1 to the ceiling.
@@ -331,7 +331,7 @@ fn the_picks_add_up_to_the_files_cap_where_it_applies() {
         let mut list = vec![random_rune()];
         list.push(haste("h1", 200, 3));
         let file = json!({
-            "max_rune_haste_pct": cap, "rewards": list
+            "rarities": common::rarities(), "max_rune_haste_pct": cap, "rewards": list
         });
         let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap();
         let content =

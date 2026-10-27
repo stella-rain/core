@@ -23,7 +23,7 @@ pub(crate) fn entry(effect: &str, amount: u32) -> Value {
 }
 
 pub(crate) fn file_of(effects: Vec<Value>) -> Value {
-    json!({ "rewards": [{
+    json!({ "rarities": crate::common::rarities(), "rewards": [{
         "id": "kind", "rarity": "rare", "effects": effects, "limit": 3,
         "title": "Kind", "description": ""
     }] })
@@ -177,7 +177,7 @@ pub(crate) fn kind(id: &str, effects: Vec<Value>, weight: u32, limit: u8) -> Val
 }
 
 pub(crate) fn with(stage: &Stage, list: Vec<Value>) -> Engine {
-    let file = json!({ "rewards": list });
+    let file = json!({ "rarities": crate::common::rarities(), "rewards": list });
     let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate");
     let content = RunContent::new(RunStats::bundled().clone(), rewards);

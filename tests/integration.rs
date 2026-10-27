@@ -40,6 +40,7 @@ mod defence;
 mod died_class;
 mod difficulties;
 mod difficulty_run;
+mod economy_pack;
 mod elite_goblin;
 mod elite_mimic;
 mod elite_pack_leader;

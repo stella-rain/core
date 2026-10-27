@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use crate::difficulties::{Difficulties, Difficulty};
 use crate::id::ContentId;
 use crate::registry::{self, Entry, Kind};
-use crate::rewards::Rarity;
 use crate::run_content::RunContent;
 use crate::rune::Rune;
 use std::sync::OnceLock;
@@ -46,19 +45,6 @@ pub const MAX_CARRIED_STARS: usize = 5;
 pub const MAX_LUMINE: u8 = 10;
 /// The most run stats a stat priority names: the run stats file's own cap.
 pub const MAX_STAT_PRIORITY: usize = crate::pack::MAX_RUN_STATS;
-
-/// What carrying a star of `rarity` costs, in Lumine (ADR-107 point 2): 1, 2, 3, 4, 6 and 10
-/// from common to supernova. Tuning values, as the budget's maximum and the count are.
-pub fn lumine_cost(rarity: Rarity) -> u8 {
-    match rarity {
-        Rarity::Common => 1,
-        Rarity::Uncommon => 2,
-        Rarity::Rare => 3,
-        Rarity::Epic => 4,
-        Rarity::Legendary => 6,
-        Rarity::Supernova => 10,
-    }
-}
 
 /// A star the run starts holding: a reward of the run's rewards file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -113,7 +99,7 @@ pub struct RunSetup {
     pub rune_pool: Vec<ContentId>,
     /// The stars the run starts holding (ADR-107 point 3), at most `MAX_CARRIED_STARS`: each
     /// applies at tick 0 as if picked from an offer, in this order, and counts toward its
-    /// reward's stack limit. Their costs (`lumine_cost`) add up to at most `lumine`.
+    /// reward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub carried: Vec<CarriedStar>,
     /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE` (ADR-107
@@ -211,7 +197,7 @@ struct RunSetupFile {
     rune_pool: Vec<ContentId>,
     /// The stars the run starts holding (ADR-107 point 3), at most `MAX_CARRIED_STARS`: each
     /// applies at tick 0 as if picked from an offer, in this order, and counts toward its
-    /// reward's stack limit. Their costs (`lumine_cost`) add up to at most `lumine`.
+    /// reward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     carried: Vec<CarriedStar>,
     /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE` (ADR-107
@@ -569,7 +555,7 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
                 path,
                 message: message.into(),
             }),
-            None => cost += u32::from(lumine_cost(reward.rarity)),
+            None => cost += u32::from(rewards.lumine_cost(reward.rarity)),
         }
     }
     if issues.is_empty() && cost > u32::from(setup.lumine) {

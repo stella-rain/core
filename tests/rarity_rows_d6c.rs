@@ -260,7 +260,7 @@ fn a_rewards_file_may_hold_192_rewards_and_not_one_more() {
                         "amount": 5, "limit": 5, "title": "T", "description": "" })
             })
             .collect();
-        let file = json!({ "rewards": list });
+        let file = json!({ "rarities": common::rarities(), "rewards": list });
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
     };
     assert!(parse(192).is_ok());
@@ -295,7 +295,7 @@ fn one_type_bonus_reward_may_add_up_to_its_own_bound_above_max_amount() {
         if !ty.is_null() {
             r["type"] = ty;
         }
-        let file = json!({ "rewards": [r] });
+        let file = json!({ "rarities": common::rarities(), "rewards": [r] });
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).is_ok()
     };
     assert!(parse("type_bonus_pct", MAX_TYPE_BONUS_AMOUNT));

@@ -46,7 +46,7 @@ fn reward_list() -> Vec<Value> {
 }
 
 fn rewards_of(list: Vec<Value>) -> Rewards {
-    let file = json!({ "rewards": list });
+    let file = json!({ "rarities": crate::common::rarities(), "rewards": list });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate")
 }

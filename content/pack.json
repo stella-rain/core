@@ -873,6 +873,14 @@
 },
   "rewards": {
   "max_rune_haste_pct": 500,
+  "rarities": [
+    { "rarity": "common", "lumine_cost": 1 },
+    { "rarity": "uncommon", "lumine_cost": 2 },
+    { "rarity": "rare", "lumine_cost": 3 },
+    { "rarity": "epic", "lumine_cost": 4 },
+    { "rarity": "legendary", "lumine_cost": 6 },
+    { "rarity": "supernova", "lumine_cost": 10 }
+  ],
   "rewards": [
     {
       "id": "max_hp_common",
@@ -3158,6 +3166,7 @@
       "damage_pct": 75,
       "rarity_min": "common",
       "rarity_max": "rare",
+      "rune_shards": 10,
       "length_ticks": 36000,
       "boss_ticks": [18000, 36000],
       "level_table": { "style": 2, "upgrades": [4, 6], "capstone": 8 }
@@ -3169,7 +3178,8 @@
       "hp_pct": 100,
       "damage_pct": 100,
       "rarity_min": "common",
-      "rarity_max": "legendary"
+      "rarity_max": "legendary",
+      "rune_shards": 15
     },
     {
       "id": "hard",
@@ -3178,7 +3188,9 @@
       "hp_pct": 150,
       "damage_pct": 125,
       "rarity_min": "common",
-      "rarity_max": "supernova"
+      "rarity_max": "supernova",
+      "rune_shards": 20,
+      "opens_after": "normal"
     },
     {
       "id": "rainy",
@@ -3188,6 +3200,8 @@
       "damage_pct": 150,
       "rarity_min": "uncommon",
       "rarity_max": "supernova",
+      "rune_shards": 30,
+      "opens_after": "hard",
       "stardust_tiers": [
         { "start_tick": 0, "pct": 200 },
         { "start_tick": 18000, "pct": 240 },
@@ -4225,6 +4239,8 @@
   "cap_headroom_pct": 30
 },
   "starting_unlocks": {
+  "free_weapon": "giant_sword",
+  "free_perk_set": "duelist",
   "weapons": ["giant_sword"],
   "perk_sets": ["duelist"],
   "stage_skills": ["nova"],

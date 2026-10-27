@@ -23,9 +23,22 @@ pub fn random_rune() -> Value {
     })
 }
 
+/// The `rarities` list of a rewards file: what each rarity costs in Lumine, as the bundled file
+/// has it.
+fn rarities() -> Value {
+    json!([
+        { "rarity": "common", "lumine_cost": 1 },
+        { "rarity": "uncommon", "lumine_cost": 2 },
+        { "rarity": "rare", "lumine_cost": 3 },
+        { "rarity": "epic", "lumine_cost": 4 },
+        { "rarity": "legendary", "lumine_cost": 6 },
+        { "rarity": "supernova", "lumine_cost": 10 },
+    ])
+}
+
 /// The run content of `rewards` (read with `skills`, when given) and `runes`.
 pub fn content(rewards: Vec<Value>, skills: Option<Value>, runes: Runes) -> RunContent {
-    let file = json!({ "rewards": rewards }).to_string();
+    let file = json!({ "rarities": rarities(), "rewards": rewards }).to_string();
     let rewards = match skills {
         Some(skills) => {
             let skills = json!({ "stage_skills": skills });

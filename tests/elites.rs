@@ -42,7 +42,7 @@ fn stage(waves: Vec<Value>, stars: Option<Value>) -> Stage {
 }
 
 fn rewards() -> Rewards {
-    let file = json!({ "rewards": [
+    let file = json!({ "rarities": common::rarities(), "rewards": [
         { "id": "c", "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 9,
           "title": "Reward", "description": "" },
         { "id": "l", "rarity": "legendary", "effect": "max_hp", "amount": 1, "limit": 9,

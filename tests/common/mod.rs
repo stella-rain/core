@@ -252,6 +252,19 @@ pub fn quiet(stage: Stage) -> Stage {
     armed(stage, quiet_weapon())
 }
 
+/// The `rarities` list of a rewards file: what each rarity costs in Lumine, as the bundled file
+/// has it. Merged into every inline rewards file of the tests.
+pub fn rarities() -> Value {
+    json!([
+        { "rarity": "common", "lumine_cost": 1 },
+        { "rarity": "uncommon", "lumine_cost": 2 },
+        { "rarity": "rare", "lumine_cost": 3 },
+        { "rarity": "epic", "lumine_cost": 4 },
+        { "rarity": "legendary", "lumine_cost": 6 },
+        { "rarity": "supernova", "lumine_cost": 10 },
+    ])
+}
+
 /// The bytes of one bundled content file (`ContentFiles::LAYOUT`'s name), read out of
 /// `Pack::BUNDLED`.
 pub fn bundled_file(name: &str) -> &'static [u8] {

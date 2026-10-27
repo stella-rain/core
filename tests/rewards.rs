@@ -36,7 +36,7 @@ fn reward(id: &str) -> Value {
 }
 
 fn file(rewards: Vec<Value>) -> Value {
-    json!({ "rewards": rewards })
+    json!({ "rarities": common::rarities(), "rewards": rewards })
 }
 
 fn parse_at(v: &Value, versions: Versions) -> Result<Rewards, Error> {
@@ -796,4 +796,73 @@ fn a_weight_is_1_to_1000_and_defaults_to_100() {
         back.get("weight").is_none() || back["weight"] == json!(100),
         "{back}"
     );
+}
+
+// --- The Lumine cost per rarity (CS1b-2) ---------------------------------------------------
+
+fn with_rarities(rarities: Value) -> Value {
+    let mut v = file(vec![reward("might")]);
+    v["rarities"] = rarities;
+    v
+}
+
+fn costs(pairs: &[(&str, u32)]) -> Value {
+    Value::Array(
+        pairs
+            .iter()
+            .map(|(r, c)| json!({ "rarity": r, "lumine_cost": c }))
+            .collect(),
+    )
+}
+
+const ALL: [&str; 6] = [
+    "common",
+    "uncommon",
+    "rare",
+    "epic",
+    "legendary",
+    "supernova",
+];
+
+fn priced(cost: u32) -> Value {
+    costs(&ALL.map(|r| (r, cost)))
+}
+
+#[test]
+fn the_costs_run_from_one_to_ten_by_rarity() {
+    let costs: Vec<u8> = Rarity::ALL
+        .iter()
+        .map(|r| Rewards::bundled().lumine_cost(*r))
+        .collect();
+    assert_eq!(costs, [1, 2, 3, 4, 6, 10]);
+}
+
+#[test]
+fn rarities_are_required_and_every_rarity_once_from_common_up() {
+    assert!(parse(&with_rarities(priced(1))).is_ok());
+    let mut absent = file(vec![reward("might")]);
+    absent.as_object_mut().unwrap().remove("rarities");
+    assert!(matches!(parse(&absent), Err(Error::Parse { .. })));
+    invalid_at(&with_rarities(costs(&[("common", 1)])), "$.rarities");
+    let mut swapped = ALL.map(|r| (r, 1));
+    swapped.swap(0, 1);
+    invalid_at(&with_rarities(costs(&swapped)), "$.rarities[0].rarity");
+}
+
+#[test]
+fn a_cost_is_one_to_ten() {
+    let at = |cost: u32| {
+        let mut v = priced(1);
+        v[0]["lumine_cost"] = json!(cost);
+        with_rarities(v)
+    };
+    assert!(parse(&at(10)).is_ok());
+    invalid_at(&at(0), "$.rarities[0].lumine_cost");
+    invalid_at(&at(11), "$.rarities[0].lumine_cost");
+    let mut extra = priced(1);
+    extra[0]["extra"] = json!(1);
+    assert!(matches!(
+        parse(&with_rarities(extra)),
+        Err(Error::Parse { .. })
+    ));
 }

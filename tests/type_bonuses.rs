@@ -124,7 +124,7 @@ fn pyro(amount: u32) -> Value {
 }
 
 fn file(rewards: Vec<Value>) -> String {
-    json!({ "rewards": rewards }).to_string()
+    json!({ "rarities": common::rarities(), "rewards": rewards }).to_string()
 }
 
 fn rewards(list: Vec<Value>) -> Rewards {

@@ -18,6 +18,8 @@ use stella_rain_core::weapons::Weapons;
 
 fn file() -> Value {
     json!({
+        "free_weapon": "giant_sword",
+        "free_perk_set": "duelist",
         "weapons": ["giant_sword"],
         "perk_sets": ["duelist"],
         "stage_skills": ["nova"],
@@ -65,7 +67,10 @@ fn a_valid_file_loads_and_keeps_its_hash() {
 
 #[test]
 fn empty_lists_are_allowed() {
-    let v = json!({ "weapons": [], "perk_sets": [], "stage_skills": [], "runes": [] });
+    let mut v = file();
+    for list in ["weapons", "perk_sets", "stage_skills", "runes"] {
+        v[list] = json!([]);
+    }
     assert!(parse(&v).unwrap().weapons().is_empty());
 }
 
@@ -187,4 +192,37 @@ fn a_pack_refuses_what_the_file_refuses() {
         ),
         Ok(_) => panic!("an unknown perk set was accepted"),
     }
+}
+
+// --- The free weapon and the free perk set (CS1b-2) ----------------------------------------
+
+#[test]
+fn the_free_picks_are_required_ids_the_pack_holds() {
+    let u = parse(&file()).unwrap();
+    assert_eq!(u.free_weapon().0, "giant_sword");
+    assert_eq!(u.free_perk_set().0, "duelist");
+    for (field, bad) in [
+        ("free_weapon", "no_such"),
+        ("free_weapon", "Bad"),
+        ("free_perk_set", "no_such"),
+        ("free_perk_set", "Bad"),
+    ] {
+        let mut v = file();
+        v[field] = json!(bad);
+        assert_eq!(paths(parse(&v).unwrap_err()), [format!("$.{field}")]);
+    }
+    for field in ["free_weapon", "free_perk_set"] {
+        let mut v = file();
+        v.as_object_mut().unwrap().remove(field);
+        assert!(matches!(parse(&v), Err(Error::Parse { .. })), "{field}");
+    }
+}
+
+#[test]
+fn the_bundled_pack_names_the_free_picks() {
+    let u = Pack::bundled()
+        .starting_unlocks()
+        .expect("the bundled slot");
+    assert_eq!(u.free_weapon().0, "giant_sword");
+    assert_eq!(u.free_perk_set().0, "duelist");
 }

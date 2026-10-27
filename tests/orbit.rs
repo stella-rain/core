@@ -97,7 +97,7 @@ fn orbit(id: &str, amount: u32, active: u32, cooldown: u32) -> Value {
 }
 
 fn with(stage: &Stage, rewards: Vec<Value>) -> Engine {
-    let file = json!({ "rewards": rewards });
+    let file = json!({ "rarities": common::rarities(), "rewards": rewards });
     let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate");
     let content = RunContent::new(RunStats::bundled().clone(), rewards);
