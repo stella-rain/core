@@ -20,7 +20,7 @@ use super::entity::{Who, speed_pct};
 use super::select::select;
 
 /// An orbiting agent turns this much a tick, in 1/256 degree: 1.5 degrees.
-const ORBIT_STEP: i32 = 384;
+pub(super) const ORBIT_STEP: i32 = 384;
 /// A following agent moves at most this far a tick: 4 pixels.
 const FOLLOW_SPEED: i64 = Fx::px(4).0 as i64;
 

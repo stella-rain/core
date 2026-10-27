@@ -116,6 +116,8 @@ mod loadout;
 mod orbit;
 mod player;
 mod push;
+#[cfg(test)]
+mod rules_file_tests;
 mod runes;
 mod schedule;
 mod scratch;

@@ -50,7 +50,7 @@ pub(super) fn crits(s: &State, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bo
 }
 
 /// What a critical hit deals before any bonus, in percent: twice as much.
-const CRIT_DAMAGE_BASE_PCT: u64 = 200;
+pub(super) const CRIT_DAMAGE_BASE_PCT: u64 = 200;
 
 /// `damage` of a critical hit: twice as much, and `bonus_pct` percent more (held to
 /// `MAX_CRIT_DAMAGE_TOTAL_PCT`).

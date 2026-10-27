@@ -438,7 +438,7 @@ pub(super) fn speed_pct(statuses: &[StatusState]) -> i64 {
 
 /// `K` of ADR-056: a defence of `K` halves a hit. A tuning value: 100 at the design values,
 /// scaled with the damage and the defences (ADR-103), so a defence keeps its share of a hit.
-const DEFENCE_K: u64 = 100 * DAMAGE_SCALE as u64;
+pub(super) const DEFENCE_K: u64 = 100 * DAMAGE_SCALE as u64;
 
 /// `base` damage, raised by the attacker's atk-up and type bonus (ADR-100) and by the target's
 /// vulnerability (percent each), changed by the hit's match-up (`match_up_pct`, -100 to 100;
