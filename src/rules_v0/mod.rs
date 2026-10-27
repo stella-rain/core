@@ -12,7 +12,7 @@
 //! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
 //! | `spawn_waves` | the waves that are due spawn enemies; a horde run holds them at the crowd target (DIR1) |
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
-//! | `leash` | a regular, unanchored enemy left more than `LEASH_DISTANCE` behind moves to the ring opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
+//! | `leash` | a regular, unanchored enemy outside the view rectangle (`LEASH_REACH_X`, `LEASH_REACH_Y`) moves to the rectangle of `LEASH_LAND_X`, `LEASH_LAND_Y` opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
@@ -162,11 +162,20 @@ pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
 
-/// A regular enemy farther than this from the main character is moved by the leash (EC2, DS80):
-/// twice the wave spawn ring of 400 px. A placeholder; CS1b-3 moves it into `rules.json`.
-pub(crate) const LEASH_DISTANCE: Fx = Fx::px(800);
-/// Where the leash lands an enemy: this far from the main character, opposite where it was.
-pub(crate) const LEASH_RING: Fx = Fx::px(400);
+/// A regular enemy farther than this to the side of the main character is moved by the leash
+/// (EC2, DS80, DS106): twice the 640 by 360 px view's half-extents, so the trigger is the view
+/// rectangle. A placeholder for playtest (DS106); CS1b-3 moves it into `rules.json`.
+pub(crate) const LEASH_REACH_X: Fx = Fx::px(640);
+/// The same, above or below the main character (360 px). A placeholder for playtest (DS106);
+/// CS1b-3 moves it into `rules.json`.
+pub(crate) const LEASH_REACH_Y: Fx = Fx::px(360);
+/// Where the leash lands an enemy: this far to the side of the main character, opposite where it
+/// was (the view's half-width plus 64 px). A placeholder for playtest (DS106); CS1b-3 moves it
+/// into `rules.json`.
+pub(crate) const LEASH_LAND_X: Fx = Fx::px(384);
+/// The same, above or below the main character (the view's half-height plus 64 px). A placeholder
+/// for playtest (DS106); CS1b-3 moves it into `rules.json`.
+pub(crate) const LEASH_LAND_Y: Fx = Fx::px(244);
 /// The most enemies the leash moves in a tick.
 pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 /// Zones alive at once (core Z1, a placeholder cap pending ADR-058); a zone placed over it is
