@@ -31,7 +31,7 @@ use crate::validate::limits::MAX_ELITES_ALIVE;
 pub const MINUTE_TICKS: u32 = 3_600;
 
 /// The ticks played before the minute: the crowd is at its target and two elite minutes have come.
-pub const MINUTE_START: u32 = 7_300;
+pub const MINUTE_START: u32 = 7_301;
 
 /// The tick the mid-boss arrives at, inside the minute.
 const BOSS_TICK: u32 = 9_000;
