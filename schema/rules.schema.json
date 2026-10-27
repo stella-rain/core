@@ -17,22 +17,10 @@
       "format": "uint16",
       "maximum": 65535,
       "minimum": 0
-    },
-    "schema_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
-    "sim_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
     }
   },
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "sim_version",
     "crowd_target",
     "cap_headroom_pct"
   ]

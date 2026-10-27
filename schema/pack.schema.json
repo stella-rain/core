@@ -53,7 +53,7 @@
       "minimum": 0
     },
     "sim_version": {
-      "description": "The `sim_version` the pack needs: every file has the same.",
+      "description": "The `sim_version` the pack needs: the version of every file it holds; the stages in\n`modes` also carry it, as every stage does.",
       "type": "integer",
       "format": "uint32",
       "minimum": 0
@@ -981,22 +981,10 @@
           "items": {
             "$ref": "#/$defs/Constellation"
           }
-        },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "constellations"
       ]
     },
@@ -1095,22 +1083,10 @@
           "items": {
             "$ref": "#/$defs/Difficulty"
           }
-        },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "difficulties"
       ]
     },
@@ -1852,16 +1828,6 @@
           "format": "uint32",
           "minimum": 0
         },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "thresholds": {
           "description": "The points each of levels 1 to 10 needs from the level before, the first from 0:\nexactly `TABLE_LEVELS`, rising strictly, each from 1 to `max_points`.",
           "type": "array",
@@ -1881,8 +1847,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "thresholds",
         "growth_pct",
         "max_points",
@@ -2601,16 +2565,6 @@
           "maximum": 255,
           "minimum": 0
         },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "strong_pct": {
           "description": "Percent less damage from a strong hit, 0 to `MAX_MATCH_UP_PCT`.",
           "type": "integer",
@@ -2628,8 +2582,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "weak_pct",
         "strong_pct",
         "resisted_pct",
@@ -3063,22 +3015,10 @@
           "items": {
             "$ref": "#/$defs/PerkSet"
           }
-        },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "perk_sets"
       ]
     },
@@ -3577,22 +3517,10 @@
           "items": {
             "$ref": "#/$defs/Reward"
           }
-        },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "rewards"
       ]
     },
@@ -3660,22 +3588,10 @@
           "format": "uint16",
           "maximum": 65535,
           "minimum": 0
-        },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "crowd_target",
         "cap_headroom_pct"
       ]
@@ -3745,16 +3661,6 @@
           "format": "uint32",
           "minimum": 0
         },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "stats": {
           "description": "The stats, in the order a stat offer lists them and the setup's priority falls back on.",
           "type": "array",
@@ -3769,8 +3675,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "stats",
         "stun"
       ]
@@ -3832,22 +3736,10 @@
           "items": {
             "$ref": "#/$defs/OnHitRune"
           }
-        },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "on_hit",
         "damage_over_time"
       ]
@@ -4480,16 +4372,6 @@
       "description": "The stage skills file.",
       "type": "object",
       "properties": {
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "stage_skills": {
           "description": "The skills, at most `MAX_STAGE_SKILLS`; a skill's place here is what the slot holds.",
           "type": "array",
@@ -4500,8 +4382,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "stage_skills"
       ]
     },
@@ -4541,22 +4421,10 @@
           "items": {
             "$ref": "#/$defs/ModeStardust"
           }
-        },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
         }
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "modes"
       ]
     },
@@ -4663,16 +4531,6 @@
             "$ref": "#/$defs/ContentId"
           }
         },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "stage_skills": {
           "description": "Stage skills of the pack's stage skills file.",
           "type": "array",
@@ -4690,8 +4548,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "weapons",
         "perk_sets",
         "stage_skills",
@@ -5092,16 +4948,6 @@
           "format": "uint32",
           "minimum": 0
         },
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "star_hunter_extra_ticks": {
           "description": "The time the Star-Hunter adds, in ticks, 1 to `MAX_EXTRA_TICKS`. Read and checked now;\na later step uses it.",
           "type": "integer",
@@ -5138,8 +4984,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "id",
         "length_ticks",
         "boss_ticks",
@@ -5540,16 +5384,6 @@
       "description": "The weapons file.",
       "type": "object",
       "properties": {
-        "schema_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "sim_version": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
         "weapons": {
           "description": "The weapons, 1 to `MAX_WEAPONS`.",
           "type": "array",
@@ -5560,8 +5394,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "schema_version",
-        "sim_version",
         "weapons"
       ]
     },

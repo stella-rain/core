@@ -17,16 +17,6 @@
       "format": "uint32",
       "minimum": 0
     },
-    "schema_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
-    "sim_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
     "thresholds": {
       "description": "The points each of levels 1 to 10 needs from the level before, the first from 0:\nexactly `TABLE_LEVELS`, rising strictly, each from 1 to `max_points`.",
       "type": "array",
@@ -46,8 +36,6 @@
   },
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "sim_version",
     "thresholds",
     "growth_pct",
     "max_points",

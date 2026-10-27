@@ -110,16 +110,6 @@
       "format": "uint32",
       "minimum": 0
     },
-    "schema_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
-    "sim_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
     "star_hunter_extra_ticks": {
       "description": "The time the Star-Hunter adds, in ticks, 1 to `MAX_EXTRA_TICKS`. Read and checked now;\na later step uses it.",
       "type": "integer",
@@ -156,8 +146,6 @@
   },
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "sim_version",
     "id",
     "length_ticks",
     "boss_ticks",

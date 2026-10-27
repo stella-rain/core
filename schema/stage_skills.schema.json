@@ -4,16 +4,6 @@
   "description": "The stage skills file.",
   "type": "object",
   "properties": {
-    "schema_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
-    "sim_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
     "stage_skills": {
       "description": "The skills, at most `MAX_STAGE_SKILLS`; a skill's place here is what the slot holds.",
       "type": "array",
@@ -24,8 +14,6 @@
   },
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "sim_version",
     "stage_skills"
   ],
   "$defs": {

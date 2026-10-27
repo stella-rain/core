@@ -18,16 +18,6 @@
         "$ref": "#/$defs/ContentId"
       }
     },
-    "schema_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
-    "sim_version": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
     "stage_skills": {
       "description": "Stage skills of the pack's stage skills file.",
       "type": "array",
@@ -45,8 +35,6 @@
   },
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "sim_version",
     "weapons",
     "perk_sets",
     "stage_skills",
