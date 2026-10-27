@@ -265,12 +265,12 @@ fn fnv1a(hash: u64, word: u32) -> u64 {
 }
 
 /// The first tick the standing bot's crowd (counted as `Load::enemies` is) has the 200 of the
-/// target, taken on main before DIR1: the director first acts on it, so every tick before it is
+/// target, taken on main after LS1 (DS106): the director first acts on it, so every tick before it is
 /// what it always was.
-const T200: u32 = 38_820;
+const T200: u32 = 39_060;
 /// FNV-1a 64 of each tick's `(tick, enemies, refused_spawns, relocated)` for the ticks before
-/// `T200` of the standing bot's run, taken on main before DIR1.
-const UNDER_TARGET_DIGEST: u64 = 0x4a98_0857_1410_83c9;
+/// `T200` of the standing bot's run, taken on main after LS1 (DS106).
+const UNDER_TARGET_DIGEST: u64 = 0xbe80_854f_5d44_2de2;
 
 #[test]
 fn under_the_target_a_run_is_what_it_was() {
