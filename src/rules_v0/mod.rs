@@ -824,39 +824,35 @@ pub(super) fn edge_point(
         |rng: &mut SplitMix64, n: i64| i64::from(rng.below(u32::try_from(n).unwrap_or(u32::MAX)));
     let (x, y) = match edge.side {
         Side::Any => {
-            let total: i64 = parts.iter().flatten().map(|(lo, hi)| hi - lo).sum();
-            if total == 0 {
-                // No side is on the map: the whole rectangle, moved onto it.
-                let mut t = draw(rng, sides.iter().map(|s| s.hi - s.lo).sum());
-                let mut found = (px, py);
-                for side in sides {
-                    if t < side.hi - side.lo {
-                        found = side.at(side.lo, t);
-                        break;
-                    }
-                    t -= side.hi - side.lo;
+            // The on-map parts; with none on the map, the whole sides (moved onto it below).
+            let on_map = parts.iter().flatten().map(|(lo, hi)| hi - lo).sum::<i64>() > 0;
+            let part = |i: usize| {
+                if on_map {
+                    parts[i]
+                } else {
+                    Some((sides[i].lo, sides[i].hi))
                 }
-                found
-            } else {
-                let mut t = draw(rng, total);
-                let mut found = (px, py);
-                for (side, part) in sides.iter().zip(parts) {
-                    let Some((lo, hi)) = part else { continue };
-                    if t < hi - lo {
-                        found = side.at(lo, t);
-                        break;
-                    }
-                    t -= hi - lo;
+            };
+            let total: i64 = (0..4).filter_map(part).map(|(lo, hi)| hi - lo).sum();
+            let mut t = draw(rng, total);
+            let mut found = (px, py);
+            for (i, side) in sides.iter().enumerate() {
+                let Some((lo, hi)) = part(i) else { continue };
+                if t < hi - lo {
+                    found = side.at(lo, t);
+                    break;
                 }
-                found
+                t -= hi - lo;
             }
+            found
         }
         named => {
             let i = match named {
-                Side::Top | Side::Any => 0,
+                Side::Top => 0,
                 Side::Right => 1,
                 Side::Bottom => 2,
-                Side::Left => 3,
+                // `Any` is the arm above.
+                Side::Left | Side::Any => 3,
             };
             let j = if parts[i].is_some() || parts[(i + 2) % 4].is_none() {
                 i
