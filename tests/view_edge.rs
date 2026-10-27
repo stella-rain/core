@@ -127,7 +127,7 @@ fn an_along_wave_draws_nothing_so_a_later_drawn_spawn_lands_where_it_would_alone
 /// The point of the walk over the sides of the spawn rectangle around (`px`, `py`) (1/256 px) on
 /// a map of `w` by `h`: `t` from the start of the first on-map part, in the order top, right,
 /// bottom, left.
-fn walk(px: i64, py: i64, w: i64, h: i64, mut t: i64) -> (i64, i64) {
+fn walk(px: i64, py: i64, w: i64, h: i64, t: i64) -> (i64, i64) {
     walk_over(px, py, Some((w, h)), t)
 }
 

@@ -381,6 +381,8 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
     // Recorded before elite types became content: same weights, same seed. The positions are
     // those after the boss's call counts from its arrival (ADR-103). Re-recorded on the horde
     // stream when the generator split per purpose (R1): the weights and the seed are the same.
+    // The positions are those on the spawn rectangle (VS1); the sprites and the stream's state
+    // are as before, one horde draw per elite.
     let table = serde_json::json!([{ "start_tick": 0, "weights": [
         { "elite": "elite_low", "weight": 1 }, { "elite": "elite_mid", "weight": 2 } ] },
         { "start_tick": 10_800, "weights": [
@@ -410,10 +412,10 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
     assert_eq!(
         at,
         [
-            (626_298, 533_213),
-            (479_399, 616_323),
-            (423_770, 543_827),
-            (547_322, 424_513)
+            (502_060, 461_824),
+            (425_984, 582_732),
+            (425_984, 490_577),
+            (495_916, 461_824)
         ]
     );
 }

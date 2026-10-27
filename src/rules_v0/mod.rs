@@ -883,20 +883,6 @@ pub(super) fn edge_point(
     map.clamp(Point { x: fx(x), y: fx(y) })
 }
 
-/// A point `ring` from the main character at `from`, at an angle drawn from `rng` (the wave's
-/// stream for a wave, the horde's for an elite), moved onto the map.
-fn around_player(stage: &World, from: Point, rng: &mut SplitMix64, ring: Fx) -> Point {
-    let angle = i32::try_from(rng.below(360)).unwrap_or(0) * trig::PER_DEGREE;
-    let (sin, cos) = trig::sin_cos(angle);
-    let offset = |unit: i32| {
-        i32::try_from(i64::from(ring.0) * i64::from(unit) / i64::from(trig::SCALE)).unwrap_or(0)
-    };
-    stage.map().clamp(Point {
-        x: from.x.saturating_add(Fx(offset(cos))),
-        y: from.y.saturating_add(Fx(offset(sin))),
-    })
-}
-
 /// Spawns an enemy of `def` at `at`, unless the cap on enemies alive is reached, or for an
 /// elite the stage's cap on elites; an elite that comes after the boss's call is called at
 /// once. Returns whether it spawned.

@@ -15,10 +15,10 @@
 //!
 //! Elite minutes (ADR-090): on each whole minute of the run before its length that is not a boss
 //! time, one elite is drawn from the tier whose start is the latest one not after the tick, by
-//! weight, and spawned a ring's width from the main character. They come in the tick's step
+//! weight, and spawned on the spawn rectangle (VS1). They come in the tick's step
 //! right after the waves, so a tick draws the waves' placements, then the elite's type and
-//! angle (a boss time, whose draw comes before the tick, has no elite minute). The type and the
-//! angle are drawn whether or not the elite can spawn: the cap on elites alive (all of them,
+//! place (a boss time, whose draw comes before the tick, has no elite minute). The type and the
+//! place are drawn whether or not the elite can spawn: the cap on elites alive (all of them,
 //! whoever spawned them) and the cap on enemies hold it back after the draws, so the generator
 //! never depends on either. An elite is built from the definition of the type drawn (`elite_types` of the mode file); its sprite is the type's.
 //!
@@ -33,12 +33,10 @@ use crate::engine::{AgentKey, AgentSource, Outcome, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::stage::{Side, ViewEdge};
 
 /// 60 ticks a second, 60 seconds.
 const TICKS_PER_MINUTE: u32 = 3_600;
-
-/// How far from the main character an elite comes: 400 pixels, as the mode's waves do.
-const ELITE_RING: Fx = Fx::px(400);
 
 /// How far above the main character a boss comes: 120 pixels.
 const ABOVE: i32 = Fx::px(120).0;
@@ -148,7 +146,11 @@ pub(super) fn spawn_elite(stage: &World, s: &mut State, events: &mut Vec<DomainE
     let Some(&(_, index)) = defs.elite_waves.iter().find(|(id, _)| *id == kind) else {
         return;
     };
-    let at = super::around_player(stage, s.player.at, &mut s.rng.horde, ELITE_RING);
+    let any = ViewEdge {
+        side: Side::Any,
+        along: None,
+    };
+    let at = super::edge_point(stage, s.player.at, &mut s.rng.horde, any);
     let id = EntityId(s.next_id);
     let key = AgentKey {
         source: AgentSource::Wave,
