@@ -7,6 +7,7 @@
 //! A panic is a finding: the assertions below say what must hold, not what happens to.
 
 use miniz_oxide::deflate::compress_to_vec_zlib;
+use stella_rain_core::attack_presets::AttackPresets;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::input::Input;
@@ -37,9 +38,10 @@ const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/v0/clear/stage.jso
 
 /// The stage parser and validator (ADR-020 items 1 to 4). A stage that loads can be saved
 /// again, which is what the editor does, and loads again as the same stage. The same bytes are
-/// also read as run stats, as rewards, as stage skills, as expertise, as the match-up table and
-/// as runes (ADR-067, ADR-078, ADR-098, ADR-099, ADR-100), content that may come from outside the app: they parse without a panic, and files
-/// that load hash the same twice.
+/// also read as run stats, as rewards, as stage skills, as expertise, as the match-up table, as
+/// runes and as attack presets (ADR-067, ADR-078, ADR-098, ADR-099, ADR-100, CS1b-1), content
+/// that may come from outside the app: they parse without a panic, and files that load hash the
+/// same twice.
 pub fn stage_parse(data: &[u8]) -> bool {
     if let Ok(stats) = RunStats::parse(data, Versions::CURRENT) {
         let again =
@@ -74,6 +76,14 @@ pub fn stage_parse(data: &[u8]) -> bool {
     if let Ok(runes) = Runes::parse(data, Versions::CURRENT) {
         let again = Runes::parse(data, Versions::CURRENT).expect("runes that loaded load again");
         assert_eq!(again, runes, "the same bytes loaded as other runes");
+    }
+    if let Ok(presets) = AttackPresets::parse(data, Versions::CURRENT) {
+        let again = AttackPresets::parse(data, Versions::CURRENT)
+            .expect("attack presets that loaded load again");
+        assert_eq!(
+            again, presets,
+            "the same bytes loaded as other attack presets"
+        );
     }
     let Ok(stage) = parse_and_validate(data) else {
         return false;

@@ -237,6 +237,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
             "content/expertise.json",
             "content/match_ups.json",
             "content/runes.json",
+            "content/attack_presets.json",
             "modes/time_limit.json",
         ] {
             seeds.push(fs::read(root().join(file)).expect("bundled content"));
@@ -310,4 +311,22 @@ fn packs_manifest() -> Vec<u8> {
 #[test]
 fn a_real_manifest_gets_past_the_loader() {
     assert!(packs_load(&packs_manifest()), "packs_load rejects the seed");
+}
+
+#[test]
+fn the_bundled_attack_presets_parse_as_such_and_a_pack_seed_still_loads() {
+    let bytes = fs::read(root().join("content/attack_presets.json")).expect("bundled content");
+    assert!(
+        stella_rain_core::attack_presets::AttackPresets::parse(
+            &bytes,
+            stella_rain_core::version::Versions::CURRENT
+        )
+        .is_ok()
+    );
+    // Whatever stage_parse makes of the bytes, it must not panic.
+    stage_parse(&bytes);
+    assert!(
+        pack_load(Pack::BUNDLED),
+        "pack_load rejects the bundled pack"
+    );
 }
