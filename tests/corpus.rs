@@ -1086,8 +1086,8 @@ fn landscape() -> Definition {
         300,
         Some(far_boss()),
         vec![
-            wave(1, 4, 25, crosser.clone(), width / 2, 30_000),
-            wave(60, 4, 25, crosser, width / 2 - 100_000, 8_000),
+            wave(1, 4, 25, crosser.clone(), width - 153_600, 30_000),
+            wave(60, 4, 25, crosser, width - 153_600, 8_000),
         ],
         vec![],
     ))
@@ -1155,12 +1155,12 @@ fn dash() -> Definition {
             y * 256,
         )
     };
-    let mut waves = vec![charger(40, 300), charger(180, 120), charger(320, 300)];
+    let mut waves = vec![charger(40, 300), charger(180, 230), charger(320, 300)];
     // The crowd on the middle charger's line.
     waves.extend([
-        bystander(178, 250),
-        bystander(184, 256),
-        bystander(180, 262),
+        bystander(178, 300),
+        bystander(184, 306),
+        bystander(180, 312),
     ]);
     let boss = json!({
         "base": "golem", "hp": 100_000, "radius": 8192,
@@ -1985,9 +1985,9 @@ fn the_dash_case_is_what_its_name_says() {
             .events()
             .iter()
             .any(|ev| matches!(ev, DomainEvent::PlayerHit { .. }));
-        // The chargers stand at y 120 and 300 px; one that has moved 100 pixels has dashed.
+        // The chargers stand at y 230 and 300 px; one that has moved 100 pixels has dashed.
         for (_, y) in from(&e, EntityKind::Enemy) {
-            farthest = farthest.max((y - 120 * 256).abs().min((y - 300 * 256).abs()));
+            farthest = farthest.max((y - 230 * 256).abs().min((y - 300 * 256).abs()));
         }
         let (_, by) = from(&e, EntityKind::Boss)[0];
         boss_far = boss_far.max((by - boss_start[0].1).abs());
