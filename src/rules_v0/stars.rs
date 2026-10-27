@@ -45,12 +45,10 @@ use crate::validate::limits::MAX_STARS_ON_MAP;
 
 use super::{levels, orbit, overlaps, player, runes, skill, widened};
 
-/// The candidates an offer holds (a tuning value, ADR-079 §3).
-pub(crate) const OFFER_SIZE: usize = 3;
 /// The candidates a star's offer holds: the base, and one more for each offer-candidates reward
 /// taken, at most `MAX_OFFER_CANDIDATES`.
-fn offer_size(f: &StarField) -> usize {
-    (OFFER_SIZE + usize::from(f.extra_candidates)).min(MAX_OFFER_CANDIDATES)
+fn offer_size(stage: &World, f: &StarField) -> usize {
+    (stage.tuning.offer_size + usize::from(f.extra_candidates)).min(MAX_OFFER_CANDIDATES)
 }
 
 /// The drop chance is out of this.
@@ -216,7 +214,7 @@ pub(super) fn open_due(
             .is_some_and(|d| !boss_only || d.kind == OfferKind::Boss)
     {
         let Due { kind, rarity } = f.due.remove(0);
-        let size = offer_size(f);
+        let size = offer_size(stage, f);
         let mut candidates = Vec::with_capacity(size);
         while candidates.len() < size {
             match draw(
@@ -520,7 +518,8 @@ fn apply_effects(
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
             // The perks' counters (`loadout::perk`), added to for the rest of the run.
             RewardEffect::OfferCandidates => {
-                let room = u8::try_from(MAX_OFFER_CANDIDATES - OFFER_SIZE).unwrap_or(u8::MAX);
+                let room =
+                    u8::try_from(MAX_OFFER_CANDIDATES - stage.tuning.offer_size).unwrap_or(u8::MAX);
                 let more = u8::try_from(amount).unwrap_or(u8::MAX);
                 f.extra_candidates = f.extra_candidates.saturating_add(more).min(room);
             }

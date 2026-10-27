@@ -53,7 +53,6 @@ use crate::weapon::WeaponRef;
 
 use super::entity::Who;
 use super::levels;
-use super::stars::OFFER_SIZE;
 
 /// Whether a run of `stage` has the gauge: some wave or the boss gives points.
 fn gives_points(stage: &World) -> bool {
@@ -294,8 +293,8 @@ pub(super) fn open_due(
         };
         let candidates: Vec<u8> = if kind == ExpertiseOfferKind::Common {
             let pool = pool(stage, expertise);
-            let mut candidates = Vec::with_capacity(OFFER_SIZE);
-            while candidates.len() < OFFER_SIZE {
+            let mut candidates = Vec::with_capacity(stage.tuning.offer_size);
+            while candidates.len() < stage.tuning.offer_size {
                 match draw(pool, &mut rng.offer, &candidates) {
                     Some(i) => candidates.push(i),
                     None => break,

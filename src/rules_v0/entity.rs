@@ -390,7 +390,15 @@ fn tick_dots_of(stage: &World, s: &mut State, who: Who, events: &mut Vec<DomainE
                 at: s.at(who),
                 owner: st.source,
                 friendly: true,
-                damage: scale_damage(base, dot.atk_up_pct, dot.type_bonus_pct, 0, 0, 0),
+                damage: scale_damage(
+                    base,
+                    dot.atk_up_pct,
+                    dot.type_bonus_pct,
+                    0,
+                    0,
+                    0,
+                    stage.tuning.defence_k,
+                ),
                 damage_type: dot.damage_type,
                 breaks_charge: false,
                 smash: None,
@@ -436,14 +444,12 @@ pub(super) fn speed_pct(statuses: &[StatusState]) -> i64 {
     100 - i64::from(status_pct(statuses, StatusKind::Slow))
 }
 
-/// `K` of ADR-056: a defence of `K` halves a hit. A tuning value: 100 at the design values,
-/// scaled with the damage and the defences (ADR-103), so a defence keeps its share of a hit.
-pub(super) const DEFENCE_K: u64 = 100 * DAMAGE_SCALE as u64;
-
 /// `base` damage, raised by the attacker's atk-up and type bonus (ADR-100) and by the target's
 /// vulnerability (percent each), changed by the hit's match-up (`match_up_pct`, -100 to 100;
 /// ADR-100), then reduced to `K / (K + defence)` of it (ADR-056), in that order, truncating
-/// toward zero at each step in 64 bits. A hit with any damage at all does at least 1.
+/// toward zero at each step in 64 bits. A hit with any damage at all does at least 1. `defence_k`
+/// is `K` of ADR-056: a defence of `K` halves a hit (`rules.json`'s `defence_k`, 100 at the design
+/// values, scaled with the damage and the defences by ADR-103, so a defence keeps its share).
 pub(super) fn scale_damage(
     base: u32,
     atk_up_pct: u32,
@@ -451,6 +457,7 @@ pub(super) fn scale_damage(
     vulnerable_pct: u32,
     match_up_pct: i64,
     defence: u32,
+    defence_k: u64,
 ) -> u32 {
     // Callers hold atk-up and vulnerability to `MAX_BONUS_PCT` and the type bonus to
     // `MAX_TYPE_BONUS_PCT`; the clamp keeps 64 bits enough whatever reaches here.
@@ -461,16 +468,23 @@ pub(super) fn scale_damage(
     // The table holds the percent to -100 and 100 (`MAX_MATCH_UP_PCT`); the clamp keeps the
     // factor from 0 to 200 whatever reaches here.
     let factor = (100 + match_up_pct.clamp(-100, 100)).unsigned_abs();
-    let scaled = raised * factor / 100 * DEFENCE_K / (DEFENCE_K + u64::from(defence));
+    let scaled = raised * factor / 100 * defence_k / (defence_k + u64::from(defence));
     u32::try_from(scaled)
         .unwrap_or(u32::MAX)
         .max(u32::from(base > 0))
 }
 
+/// `K` of ADR-056 before `rules.json` held it; deleted with the other constants.
+pub(super) const DEFENCE_K: u64 = 100 * DAMAGE_SCALE as u64;
+
 /// Statuses run out and aggro fades, once per tick. Damage-over-time statuses run out as they
 /// tick instead (`tick_dots`); whether there is one on anyone is returned, so a tick without
 /// one skips that pass.
-pub(super) fn tick_statuses_and_aggro(s: &mut State, events: &mut Vec<DomainEvent>) -> bool {
+pub(super) fn tick_statuses_and_aggro(
+    s: &mut State,
+    aggro_decay: u32,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
     fn age(list: &mut Statuses) -> bool {
         let mut dots = false;
         for st in list.iter_mut() {
@@ -484,7 +498,7 @@ pub(super) fn tick_statuses_and_aggro(s: &mut State, events: &mut Vec<DomainEven
         dots
     }
     let mut dots = age(&mut s.player.statuses);
-    s.player.aggro = s.player.aggro.saturating_sub(super::AGGRO_DECAY);
+    s.player.aggro = s.player.aggro.saturating_sub(aggro_decay);
     if let Some(b) = &mut s.boss {
         dots |= age(&mut b.statuses);
         for part in &mut b.parts {
@@ -493,7 +507,7 @@ pub(super) fn tick_statuses_and_aggro(s: &mut State, events: &mut Vec<DomainEven
     }
     for c in &mut s.companions {
         dots |= age(&mut c.statuses);
-        c.aggro = c.aggro.saturating_sub(super::AGGRO_DECAY);
+        c.aggro = c.aggro.saturating_sub(aggro_decay);
     }
     // An enemy's immunity counts down, and a stun that runs out starts it (ADR-085 point 4).
     let immune = s.stun.immune_ticks;

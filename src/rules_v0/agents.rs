@@ -142,7 +142,7 @@ fn shrines(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         };
         let fight = e.shrine.as_ref().and_then(|sh| sh.fight);
         let Some(fight) = fight else {
-            if !super::overlaps(e.at, def.radius.0, s.player.at, super::PLAYER_RADIUS) {
+            if !super::overlaps(e.at, def.radius.0, s.player.at, stage.tuning.player_radius) {
                 continue;
             }
             let (home, wave) = (e.at, e.key.index);
@@ -533,7 +533,7 @@ fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
                 (offset(cos), offset(sin))
             };
             let was = on_circle(a.orbit_angle);
-            let step = (i64::from(ORBIT_STEP) * keep / 100) as i32;
+            let step = (i64::from(stage.tuning.orbit_step) * keep / 100) as i32;
             a.orbit_angle = (a.orbit_angle + step).rem_euclid(trig::PER_TURN);
             let now = on_circle(a.orbit_angle);
             let place = Point {

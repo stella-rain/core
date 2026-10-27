@@ -90,7 +90,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn statuses_and_aggro(c: &mut Ctx) {
-        c.dots = entity::tick_statuses_and_aggro(c.s, c.events);
+        c.dots = entity::tick_statuses_and_aggro(c.s, c.world.tuning.aggro_decay, c.events);
     }
 
     #[inline(never)]

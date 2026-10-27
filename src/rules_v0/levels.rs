@@ -53,8 +53,8 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<Dom
                 .ok()
                 .and_then(|i| stage.waves.get(i))
                 .and_then(|w| w.xp)
-                .unwrap_or(DEFAULT_XP),
-            _ => DEFAULT_XP,
+                .unwrap_or(stage.tuning.default_xp),
+            _ => stage.tuning.default_xp,
         })
         .fold(0u32, u32::saturating_add);
     gain(stage, s, xp, events);

@@ -10,8 +10,10 @@ use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
 use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement};
 use crate::engine::{AgentKey, AgentSource};
+use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
+use crate::rules::Rules;
 use crate::run_content::RunContent;
 use crate::stage::{Boss, Stage};
 use crate::time_limit::EliteTier;
@@ -320,6 +322,68 @@ pub(crate) struct HordeDefs {
     pub elite_waves: Vec<(ContentId, u32)>,
 }
 
+/// The run's rules numbers (CS1b-3): the designer-facing fields of the pack's `rules.json`, read
+/// once when the run is built, and the spawn rectangle derived from the view and the margin. A
+/// `Copy` struct of plain values, so a reader costs a field read and allocates nothing.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Tuning {
+    pub player_speed: i32,
+    pub player_radius: i32,
+    pub orb_radius: i32,
+    pub hit_invulnerable_ticks: u32,
+    pub aggro_per_damage: u32,
+    pub aggro_per_buff: u32,
+    pub aggro_per_heal_point: u32,
+    pub aggro_decay: u32,
+    pub leash_reach_x: Fx,
+    pub leash_reach_y: Fx,
+    pub leash_land_x: Fx,
+    pub leash_land_y: Fx,
+    /// The spawn rectangle's half width and half height: the view and the file's margin.
+    pub spawn_edge_x: Fx,
+    pub spawn_edge_y: Fx,
+    pub ranged_token_cooldown_ticks: u32,
+    pub ranged_zone_tokens: u32,
+    pub ranged_line_tokens: u32,
+    pub orbit_step: i32,
+    pub boss_arrival_above: i32,
+    pub default_xp: u32,
+    pub offer_size: usize,
+    pub defence_k: u64,
+    pub crit_damage_base_pct: u64,
+}
+
+impl Tuning {
+    fn of(rules: &Rules) -> Tuning {
+        let margin = rules.spawn_margin();
+        Tuning {
+            player_speed: rules.player_speed().0,
+            player_radius: rules.player_radius().0,
+            orb_radius: rules.orb_radius().0,
+            hit_invulnerable_ticks: rules.hit_invulnerable_ticks(),
+            aggro_per_damage: rules.aggro_per_damage(),
+            aggro_per_buff: rules.aggro_per_buff(),
+            aggro_per_heal_point: rules.aggro_per_heal_point(),
+            aggro_decay: rules.aggro_decay(),
+            leash_reach_x: rules.leash_reach_x(),
+            leash_reach_y: rules.leash_reach_y(),
+            leash_land_x: rules.leash_land_x(),
+            leash_land_y: rules.leash_land_y(),
+            spawn_edge_x: Fx(super::VIEW_HALF_WIDTH.0 + margin.0),
+            spawn_edge_y: Fx(super::VIEW_HALF_HEIGHT.0 + margin.0),
+            ranged_token_cooldown_ticks: rules.ranged_token_cooldown_ticks(),
+            ranged_zone_tokens: rules.ranged_zone_tokens(),
+            ranged_line_tokens: rules.ranged_line_tokens(),
+            orbit_step: i32::try_from(rules.orbit_step()).unwrap_or(i32::MAX),
+            boss_arrival_above: rules.boss_arrival_above().0,
+            default_xp: rules.default_xp(),
+            offer_size: usize::from(rules.offer_size()),
+            defence_k: u64::from(rules.defence_k()),
+            crit_damage_base_pct: u64::from(rules.crit_damage_base_pct()),
+        }
+    }
+}
+
 /// The stage and everything compiled from it, immutable for the run: what the rules read. It
 /// derefs to the stage.
 #[derive(Clone, Debug)]
@@ -336,6 +400,8 @@ pub(crate) struct World {
     /// The most enemies alive at once: the target and the pack's headroom, derived here and
     /// never stored in a file. Every spawn past it is dropped and counted.
     pub enemy_cap: u32,
+    /// The run's rules numbers, from the pack's `rules.json`.
+    pub tuning: Tuning,
     /// Whether the spawn director acts: a horde run holds its wave spawns at the target; a
     /// stage's waves are an authored timeline and keep their timing.
     pub director: bool,
@@ -449,6 +515,7 @@ impl World {
         let mut world = World {
             crowd_target: rules.resolved_target(Some(target)),
             enemy_cap: rules.enemy_cap_for(target),
+            tuning: Tuning::of(rules),
             director: horde.is_some(),
             stage,
             defs,

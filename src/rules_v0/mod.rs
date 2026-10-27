@@ -803,7 +803,10 @@ pub(super) fn edge_point(
     let map = stage.map();
     let (w, h) = (i64::from(map.width.0), i64::from(map.height.0));
     let (px, py) = (i64::from(from.x.0), i64::from(from.y.0));
-    let (ex, ey) = (i64::from(SPAWN_EDGE_X.0), i64::from(SPAWN_EDGE_Y.0));
+    let (ex, ey) = (
+        i64::from(stage.tuning.spawn_edge_x.0),
+        i64::from(stage.tuning.spawn_edge_y.0),
+    );
     let sides = [
         RectSide {
             vertical: false,
@@ -1029,7 +1032,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     // box, serves all of them; a tick without one never builds it.
     let mut grid: Option<Grid> = None;
     let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
-    combat::deal_echoes(s, events);
+    combat::deal_echoes(stage, s, events);
     hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = std::mem::take(&mut s.scratch.consumed);
     consumed.clear();
@@ -1101,7 +1104,11 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     let crit = s.player.crit_chance_pct != 0
         && combat::crits(s, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
-        combat::crit_damage(b.damage, s.player.crit_damage_pct)
+        combat::crit_damage(
+            b.damage,
+            s.player.crit_damage_pct,
+            stage.tuning.crit_damage_base_pct,
+        )
     } else {
         b.damage
     };
@@ -1112,6 +1119,7 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         vulnerable,
         s.match_ups.pct(match_up),
         s.defence(target),
+        stage.tuning.defence_k,
     );
     let hp = s.hp_mut(target);
     *hp = hp.saturating_sub(dealt);
@@ -1132,7 +1140,7 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     } else if s.player.echo_hit_pct != 0 {
         combat::queue_echo(s, &b, id, dealt, !State::is_ally(target));
     }
-    s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
+    s.raise_aggro(b.owner, dealt.saturating_mul(stage.tuning.aggro_per_damage));
     if b.combo {
         expertise::credit(stage, s, target, dead);
         if !dead && b.smash == Some(Smash::Bleed) {
@@ -1230,7 +1238,8 @@ pub(super) fn pull_enemy(stage: &World, s: &mut State, i: usize, pull: Pull) {
         i64::from(e.at.y.0) - i64::from(to.y.0),
     );
     let len = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
-    let contact = i64::from(PLAYER_RADIUS) + i64::from(stage.defs.agent(e.def).radius.0);
+    let contact =
+        i64::from(stage.tuning.player_radius) + i64::from(stage.defs.agent(e.def).radius.0);
     let left = (len - i64::from(pull.distance)).max(contact);
     if left >= len {
         return;
@@ -1283,11 +1292,19 @@ pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
 fn hurt_player(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
     // The main character has no profile (ADR-100): every hit on it is neutral.
-    let dealt = scale_damage(b.damage, 0, 0, vulnerable, 0, s.player.defence);
+    let dealt = scale_damage(
+        b.damage,
+        0,
+        0,
+        vulnerable,
+        0,
+        s.player.defence,
+        stage.tuning.defence_k,
+    );
     let dealt = skill::absorb(s, dealt);
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
-    p.invulnerable = HIT_INVULNERABLE_TICKS;
+    p.invulnerable = stage.tuning.hit_invulnerable_ticks;
     events.push(DomainEvent::PlayerHit { hp_left: p.hp });
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
@@ -1358,14 +1375,22 @@ pub(crate) fn aura_percent(
 /// order.
 fn hit_ally_side(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
-    if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ORB_RADIUS, p.at, PLAYER_RADIUS) {
+    if p.invulnerable == 0
+        && p.hp > 0
+        && overlaps(
+            b.at,
+            stage.tuning.orb_radius,
+            p.at,
+            stage.tuning.player_radius,
+        )
+    {
         hurt_player(stage, s, aided(stage, s, b), events);
         return true;
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = stage.defs.agent(c.def).radius.0;
-        if c.hp > 0 && overlaps(b.at, ORB_RADIUS, c.at, radius) {
+        if c.hp > 0 && overlaps(b.at, stage.tuning.orb_radius, c.at, radius) {
             damage(stage, s, aided(stage, s, b), Who::Companion(i), events);
             return true;
         }
