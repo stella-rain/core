@@ -115,9 +115,6 @@ pub struct Difficulties {
 }
 
 impl Difficulties {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/difficulties.json");
-
     /// The bundled difficulties, the default of every run.
     pub fn bundled() -> &'static Difficulties {
         Pack::bundled().content().difficulties()

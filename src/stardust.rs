@@ -74,9 +74,6 @@ pub struct Stardust {
 }
 
 impl Stardust {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/stardust.json");
-
     /// The bundled file: what a pack without the file yields.
     pub fn bundled() -> &'static Stardust {
         Pack::bundled().stardust()

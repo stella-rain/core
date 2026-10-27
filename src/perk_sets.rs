@@ -149,9 +149,6 @@ pub struct PerkSets {
 }
 
 impl PerkSets {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/perk_sets.json");
-
     /// The bundled perk sets, the default of every run.
     pub fn bundled() -> &'static PerkSets {
         Pack::bundled().content().perk_sets()

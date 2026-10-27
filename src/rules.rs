@@ -56,9 +56,6 @@ fn max_target(headroom_pct: u8) -> u32 {
 }
 
 impl Rules {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/rules.json");
-
     /// The bundled file.
     pub fn bundled() -> &'static Rules {
         Pack::bundled().content().rules()

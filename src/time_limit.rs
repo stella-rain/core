@@ -210,9 +210,6 @@ pub struct TimeLimit {
 }
 
 impl TimeLimit {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../modes/time_limit.json");
-
     /// The bundled mode, the default of every run of the mode.
     pub fn bundled() -> &'static TimeLimit {
         Pack::bundled().content().time_limit()

@@ -158,9 +158,6 @@ pub struct RunStats {
 }
 
 impl RunStats {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/run_stats.json");
-
     /// The bundled run stats, the default of every run.
     pub fn bundled() -> &'static RunStats {
         Pack::bundled().content().run_stats()

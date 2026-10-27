@@ -55,9 +55,6 @@ pub struct MatchUps {
 }
 
 impl MatchUps {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/match_ups.json");
-
     /// The bundled table, the default of every run.
     pub fn bundled() -> &'static MatchUps {
         Pack::bundled().content().match_ups()

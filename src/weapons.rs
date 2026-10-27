@@ -68,9 +68,6 @@ pub struct Weapons {
 }
 
 impl Weapons {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/weapons.json");
-
     /// The bundled weapons, the default of every run.
     pub fn bundled() -> &'static Weapons {
         Pack::bundled().content().weapons()

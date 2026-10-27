@@ -120,9 +120,6 @@ pub struct Runes {
 }
 
 impl Runes {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/runes.json");
-
     /// The bundled runes, the default of every run.
     pub fn bundled() -> &'static Runes {
         Pack::bundled().content().runes()

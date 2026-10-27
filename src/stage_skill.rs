@@ -152,9 +152,6 @@ pub struct StageSkills {
 }
 
 impl StageSkills {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/stage_skills.json");
-
     /// The bundled stage skills, the default of every run.
     pub fn bundled() -> &'static StageSkills {
         Pack::bundled().content().stage_skills()

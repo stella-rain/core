@@ -17,7 +17,7 @@
 //!
 //! Each file sits in the pack as a JSON object, and is read from the exact bytes it has there,
 //! followed by a newline: the bytes of the same file on its own. A pack exported from the
-//! bundled files (`export_bundled`) so gives each file the bundled file's SHA-256, and a run of
+//! bundled files (`ContentFiles::export`) so gives each file the bundled file's SHA-256, and a run of
 //! its content the bundled content hash.
 
 use std::collections::BTreeMap;
@@ -475,7 +475,7 @@ impl Pack {
     }
 
     /// The bundled pack, `content/pack.json`: the default content of every run (ADR-080). It is
-    /// our own file, tested to be what `export_bundled` writes, so a failure to read it is a
+    /// our own file, tested to be what `ContentFiles::read_dir` of `content/` exports, so a failure to read it is a
     /// bug, and stops at the first use.
     pub fn bundled() -> &'static Pack {
         static BUNDLED: OnceLock<Pack> = OnceLock::new();
@@ -1299,12 +1299,4 @@ fn members(pack: &PackFile) -> Vec<(&'static str, &RawValue)> {
     out.push(("time_limit", &pack.modes.time_limit));
     out.push(("tutorial", &pack.modes.tutorial));
     out
-}
-
-/// The bundled content files as a pack: what the content repository's first pack is made
-/// from (`ContentFiles::export` of the bundled files).
-pub fn export_bundled() -> Vec<u8> {
-    ContentFiles::bundled()
-        .export()
-        .expect("the bundled files make a pack")
 }

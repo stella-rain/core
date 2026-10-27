@@ -169,9 +169,6 @@ pub struct Expertise {
 }
 
 impl Expertise {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/expertise.json");
-
     /// The bundled expertise content.
     pub fn bundled() -> &'static Expertise {
         Pack::bundled().content().expertise()

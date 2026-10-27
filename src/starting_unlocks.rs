@@ -54,9 +54,6 @@ pub struct StartingUnlocks {
 }
 
 impl StartingUnlocks {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/starting_unlocks.json");
-
     /// Checks the size, parses strictly and validates against the files the IDs name: the one
     /// call for a file's bytes.
     pub fn parse_with(

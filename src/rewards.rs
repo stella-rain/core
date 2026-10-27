@@ -508,9 +508,6 @@ pub struct Rewards {
 }
 
 impl Rewards {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/rewards.json");
-
     /// The bundled rewards, with the bundled stage skills: the default of every run.
     pub fn bundled() -> &'static Rewards {
         Pack::bundled().content().rewards()
