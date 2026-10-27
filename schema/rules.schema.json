@@ -4,11 +4,45 @@
   "description": "The rules file.",
   "type": "object",
   "properties": {
+    "aggro_decay": {
+      "description": "Aggro lost every tick (ADR-036), in stored units: 0 to `limits::MAX_AGGRO`.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "aggro_per_buff": {
+      "description": "Aggro raised by a buff (ADR-036), in stored units: 0 to `limits::MAX_AGGRO`.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "aggro_per_damage": {
+      "description": "Aggro raised per point of damage dealt (ADR-036), in stored units: 0 to 100.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "aggro_per_heal_point": {
+      "description": "Aggro raised per point healed (ADR-036), in stored units: 0 to 100.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "boss_arrival_above": {
+      "description": "How far above the main character a horde boss arrives, in 1/256 px: 0 to 1,024 px.",
+      "$ref": "#/$defs/Fx"
+    },
     "cap_headroom_pct": {
       "description": "How far above the target the cap stands, in percent, from 25 to 30.",
       "type": "integer",
       "format": "uint8",
       "maximum": 255,
+      "minimum": 0
+    },
+    "crit_damage_base_pct": {
+      "description": "What a critical hit deals before any bonus, in percent: 100 to 1,000.",
+      "type": "integer",
+      "format": "uint32",
       "minimum": 0
     },
     "crowd_target": {
@@ -17,11 +51,121 @@
       "format": "uint16",
       "maximum": 65535,
       "minimum": 0
+    },
+    "default_xp": {
+      "description": "The experience of a summon or a wave that gives none: 0 to `limits::MAX_ENEMY_XP`.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "defence_k": {
+      "description": "The defence that halves a hit (ADR-056), in stored units: 1 to 1,000,000.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "hit_invulnerable_ticks": {
+      "description": "Ticks of invulnerability after the main character is hit: 0 to 600.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "leash_land_x": {
+      "description": "Where the leash lands an enemy to the side of the main character, in 1/256 px: 1 to `leash_reach_x`.",
+      "$ref": "#/$defs/Fx"
+    },
+    "leash_land_y": {
+      "description": "The same above or below, in 1/256 px: 1 to `leash_reach_y`.",
+      "$ref": "#/$defs/Fx"
+    },
+    "leash_reach_x": {
+      "description": "How far to the side of the main character a regular enemy may be before the leash moves it, in 1/256 px: 1 to 4,096 px.",
+      "$ref": "#/$defs/Fx"
+    },
+    "leash_reach_y": {
+      "description": "The same above or below, in 1/256 px: 1 to 4,096 px.",
+      "$ref": "#/$defs/Fx"
+    },
+    "offer_size": {
+      "description": "The base candidates of an offer (ADR-079): 1 to `rewards::MAX_OFFER_CANDIDATES`.",
+      "type": "integer",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0
+    },
+    "orb_radius": {
+      "description": "A friendly orb's hit circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.",
+      "$ref": "#/$defs/Fx"
+    },
+    "orbit_step": {
+      "description": "An orbiting agent's turn a tick, in 1/256 degree: 1 to 2,560 (10 degrees).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "player_radius": {
+      "description": "The main character's hurt circle, in 1/256 px (ADR-050): 1 to `limits::MAX_RADIUS`.",
+      "$ref": "#/$defs/Fx"
+    },
+    "player_speed": {
+      "description": "The main character's speed at full stick, in 1/256 px a tick (ADR-050): 1 to 4,096.",
+      "$ref": "#/$defs/Fx"
+    },
+    "ranged_line_tokens": {
+      "description": "Tokens of the line attacks' pool: at least 1; the two pools sum to at most 4.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "ranged_token_cooldown_ticks": {
+      "description": "Ticks a ranged token cools before its pool grants it again: 0 to 600.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "ranged_zone_tokens": {
+      "description": "Tokens of the zone attacks' pool: at least 1; with the line pool at most the engine ceiling of 4 ranged attackers.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "spawn_margin": {
+      "description": "How far outside the view an enemy spawns, in 1/256 px: 0 to 1,024 px.",
+      "$ref": "#/$defs/Fx"
     }
   },
   "additionalProperties": false,
   "required": [
     "crowd_target",
-    "cap_headroom_pct"
-  ]
+    "cap_headroom_pct",
+    "player_speed",
+    "player_radius",
+    "orb_radius",
+    "hit_invulnerable_ticks",
+    "aggro_per_damage",
+    "aggro_per_buff",
+    "aggro_per_heal_point",
+    "aggro_decay",
+    "leash_reach_x",
+    "leash_reach_y",
+    "leash_land_x",
+    "leash_land_y",
+    "spawn_margin",
+    "ranged_token_cooldown_ticks",
+    "ranged_zone_tokens",
+    "ranged_line_tokens",
+    "orbit_step",
+    "boss_arrival_above",
+    "default_xp",
+    "offer_size",
+    "defence_k",
+    "crit_damage_base_pct"
+  ],
+  "$defs": {
+    "Fx": {
+      "description": "A length in 1/256 pixel units. In files it is the plain integer.",
+      "type": "integer",
+      "format": "int32"
+    }
+  }
 }
