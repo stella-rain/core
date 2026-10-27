@@ -128,6 +128,7 @@ mod tutorial;
 mod type_bonuses;
 mod types;
 mod validate;
+mod view_edge;
 mod warn_anchor;
 mod weapon_tree;
 mod weapons;
