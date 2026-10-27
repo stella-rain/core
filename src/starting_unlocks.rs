@@ -9,7 +9,8 @@
 //! a perk set, a stage skill or a rune of the pack's own files, so a pack never starts a save
 //! with something it does not hold. `Pack` holds the file as an optional field: a pack released
 //! before it has none, and then reports the starting unlocks as unknown (`None`), never a
-//! guessed list. The bundled file, `content/starting_unlocks.json`, is part of the bundled pack.
+//! guessed list. It also names the free weapon and the free perk set every save may use without
+//! owning them (`free_weapon`, `free_perk_set`); the simulation reads neither. The bundled file, `content/starting_unlocks.json`, is part of the bundled pack.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -34,6 +35,12 @@ pub const MAX_STARTING_UNLOCKS: usize = 32;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StartingUnlocksFile {
+    /// The weapon preset every save may play without owning it: a weapon of the pack's
+    /// weapons file.
+    pub free_weapon: ContentId,
+    /// The perk set every save may use without owning it: a perk set of the pack's perk sets
+    /// file.
+    pub free_perk_set: ContentId,
     /// Weapon presets, at most `MAX_STARTING_UNLOCKS`.
     pub weapons: Vec<ContentId>,
     /// Perk sets of the pack's perk sets file.
@@ -69,6 +76,16 @@ impl StartingUnlocks {
             file,
             sha256: Sha256::digest(bytes).into(),
         })
+    }
+
+    /// The weapon every save may play without owning it.
+    pub fn free_weapon(&self) -> &ContentId {
+        &self.file.free_weapon
+    }
+
+    /// The perk set every save may use without owning it.
+    pub fn free_perk_set(&self) -> &ContentId {
+        &self.file.free_perk_set
     }
 
     /// The weapon presets a new save owns.
@@ -118,6 +135,27 @@ pub fn validate(
             runes.on_hit(rune).is_some() || runes.damage_over_time(rune).is_some()
         })
     };
+    for (name, id, known) in [
+        (
+            "free_weapon",
+            &file.free_weapon,
+            &weapon_known as &dyn KnownId,
+        ),
+        ("free_perk_set", &file.free_perk_set, &perk_set_known),
+    ] {
+        let path = format!("$.{name}");
+        if !registry::is_well_formed(&id.0) {
+            issues.push(Issue {
+                path,
+                message: "not a valid ID (lowercase snake_case, at most 32 characters)".into(),
+            });
+        } else if !known(id) {
+            issues.push(Issue {
+                path,
+                message: "not an ID the game holds".into(),
+            });
+        }
+    }
     let lists: [(&str, &[ContentId], &dyn KnownId); 4] = [
         ("weapons", &file.weapons, &weapon_known),
         ("perk_sets", &file.perk_sets, &perk_set_known),
