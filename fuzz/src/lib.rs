@@ -10,10 +10,12 @@ use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::attack_presets::AttackPresets;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::expertise::Expertise;
+use stella_rain_core::id::ContentId;
 use stella_rain_core::input::Input;
 use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::pack::{Pack, PackFile};
 use stella_rain_core::packs::{Packs, PacksError};
+use stella_rain_core::progression::{Bank, RunOutcome, RunResult, settle};
 use stella_rain_core::replay::{self, Replay};
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
@@ -24,7 +26,7 @@ use stella_rain_core::runes::Runes;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::time_limit::TimeLimit;
-use stella_rain_core::validate::limits::MAX_TICKS;
+use stella_rain_core::validate::limits::{MAX_RUN_STARDUST, MAX_TICKS};
 use stella_rain_core::validate::{self, parse_and_validate};
 use stella_rain_core::version::Versions;
 use stella_rain_core::{base64, share};
@@ -335,7 +337,78 @@ pub fn pack_load(data: &[u8]) -> bool {
             let _ = engine.snapshot();
         }
     }
+    settles_everything(data, &pack);
     true
+}
+
+/// Settles every mode the game holds at every difficulty of the pack, both outcomes, with a run
+/// result and a bank read out of `data` (a bank up to `u64::MAX`, a save can be edited): the
+/// books balance, no bank passes its cap, and what a clear opens is in the file.
+fn settles_everything(data: &[u8], pack: &Pack) {
+    let content = pack.content();
+    let word = |at: usize, bytes: usize| {
+        (0..bytes).fold(0u64, |acc, i| (acc << 8) | u64::from(pick(data, at + i)))
+    };
+    let earned = u32::try_from(word(1, 4) % (u64::from(MAX_RUN_STARDUST) + 1)).unwrap_or(0);
+    let held = word(5, 8);
+    let file: Vec<&ContentId> = content
+        .difficulties()
+        .list()
+        .iter()
+        .map(|d| &d.id)
+        .collect();
+    for mode in ["trial", "time_limit", "tutorial"] {
+        let mode = ContentId(mode.to_owned());
+        let cap = content
+            .stardust()
+            .mode(&mode.0)
+            .map_or(u64::MAX, |m| u64::from(m.bank_cap) * 10);
+        for difficulty in &file {
+            let bank = Bank::new(vec![((mode.clone(), (*difficulty).clone()), held)]);
+            for outcome in [RunOutcome::Cleared, RunOutcome::Failed] {
+                let run = RunResult {
+                    mode: mode.clone(),
+                    difficulty: (*difficulty).clone(),
+                    outcome,
+                    stardust_tenths: earned,
+                };
+                let s = settle(content, &run, &bank);
+                assert!(s.paid_tenths <= u64::from(earned), "paid more than earned");
+                assert_eq!(s.stardust_tenths, s.paid_tenths + s.bank_paid_tenths);
+                assert!(s.bank_paid_tenths <= cap, "paid a bank over its cap");
+                if outcome == RunOutcome::Failed {
+                    assert_eq!(
+                        s.paid_tenths + s.banked_tenths + s.lost_tenths,
+                        u64::from(earned),
+                        "a fail's books do not balance"
+                    );
+                    assert!(s.opened.is_empty() && s.rune_shards == 0);
+                }
+                let after = s.bank_after.get(&mode, difficulty);
+                let banking = content.stardust().mode(&mode.0).is_some_and(|m| m.bank);
+                match (banking, outcome) {
+                    (true, RunOutcome::Cleared) => {
+                        assert_eq!(after, 0, "a clear left a bank");
+                        assert_eq!(s.bank_paid_tenths, held.min(cap));
+                    }
+                    (true, RunOutcome::Failed) => {
+                        assert_eq!(
+                            after,
+                            held.min(cap) + s.banked_tenths,
+                            "a bank passed its cap"
+                        );
+                    }
+                    (false, _) => assert_eq!(after, held, "a bank that is off moved"),
+                }
+                for opened in &s.opened {
+                    assert!(
+                        file.contains(&opened),
+                        "a clear opened a difficulty outside the file"
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// The `packs.json` manifest loader (FT1a, ADR-020): a manifest that loads loads again as the

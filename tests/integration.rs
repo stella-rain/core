@@ -85,6 +85,7 @@ mod parsed_stage_hash;
 mod perk_sets;
 mod phases;
 mod poison_burn;
+mod progression;
 mod properties;
 mod push_apart;
 mod range_reward;
