@@ -11,6 +11,7 @@
 //! before it has none, and then reports the starting unlocks as unknown (`None`), never a
 //! guessed list. It also names the free weapon and the free perk set every save may use without
 //! owning them (`free_weapon`, `free_perk_set`); the simulation reads neither.
+//! Each free pick is also one of its starting list's IDs (DS128).
 //! The bundled file, `content/starting_unlocks.json`, is part of the bundled pack.
 
 use schemars::JsonSchema;
@@ -136,13 +137,21 @@ pub fn validate(
             runes.on_hit(rune).is_some() || runes.damage_over_time(rune).is_some()
         })
     };
-    for (name, id, known) in [
+    for (name, id, known, list_name, list) in [
         (
             "free_weapon",
             &file.free_weapon,
             &weapon_known as &dyn KnownId,
+            "weapons",
+            file.weapons.as_slice(),
         ),
-        ("free_perk_set", &file.free_perk_set, &perk_set_known),
+        (
+            "free_perk_set",
+            &file.free_perk_set,
+            &perk_set_known,
+            "perk_sets",
+            file.perk_sets.as_slice(),
+        ),
     ] {
         let path = format!("$.{name}");
         if !registry::is_well_formed(&id.0) {
@@ -154,6 +163,11 @@ pub fn validate(
             issues.push(Issue {
                 path,
                 message: "not an ID the game holds".into(),
+            });
+        } else if list.len() <= MAX_STARTING_UNLOCKS && !list.contains(id) {
+            issues.push(Issue {
+                path,
+                message: format!("not in this file's `{list_name}` list"),
             });
         }
     }
