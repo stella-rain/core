@@ -1,0 +1,266 @@
+{
+  "aimed_single": [
+    {
+      "kind": "active",
+      "spawn": [
+        {
+          "active_ticks": 2,
+          "anchor": "target",
+          "direction": {
+            "offset": 0,
+            "type": "aimed"
+          },
+          "offset": {
+            "forward": 0,
+            "right": 0
+          },
+          "shape": {
+            "radius": 3072,
+            "type": "circle"
+          },
+          "type": "zone",
+          "wind_up_ticks": {
+            "arg": 0
+          }
+        }
+      ],
+      "ticks": 1
+    }
+  ],
+  "aimed_spread": [
+    {
+      "kind": "active",
+      "spawn": [
+        {
+          "angle": 7680,
+          "body": [
+            {
+              "active_ticks": 2,
+              "direction": {
+                "offset": 0,
+                "type": "aimed"
+              },
+              "offset": {
+                "forward": 0,
+                "right": 0
+              },
+              "shape": {
+                "length": 65536,
+                "type": "line",
+                "width": 3072
+              },
+              "type": "zone",
+              "wind_up_ticks": {
+                "arg": 0
+              }
+            }
+          ],
+          "count": 7,
+          "type": "spread"
+        }
+      ],
+      "ticks": 1
+    }
+  ],
+  "elite_slam": [
+    {
+      "kind": "wind_up",
+      "move_pct": 50,
+      "ticks": 90
+    },
+    {
+      "damage": 300,
+      "hit_box": {
+        "offset": {
+          "forward": 0,
+          "right": 0
+        },
+        "radius": 10240,
+        "type": "circle"
+      },
+      "kind": "active",
+      "move_pct": 50,
+      "ticks": 4,
+      "type": "strike"
+    },
+    {
+      "kind": "recovery",
+      "move_pct": 50,
+      "ticks": 20
+    }
+  ],
+  "slam": [
+    {
+      "kind": "wind_up",
+      "move_pct": 50,
+      "ticks": 12
+    },
+    {
+      "hit_box": {
+        "offset": {
+          "forward": 0,
+          "right": 0
+        },
+        "radius": 10240,
+        "type": "circle"
+      },
+      "kind": "active",
+      "move_pct": 50,
+      "ticks": 4,
+      "type": "strike"
+    },
+    {
+      "kind": "recovery",
+      "move_pct": 50,
+      "ticks": 20
+    }
+  ],
+  "slash": [
+    {
+      "kind": "wind_up",
+      "ticks": 4
+    },
+    {
+      "hit_box": {
+        "half_angle": 15360,
+        "offset": {
+          "forward": 2048,
+          "right": 0
+        },
+        "radius": 8192,
+        "type": "arc"
+      },
+      "kind": "active",
+      "ticks": 3,
+      "type": "slash"
+    },
+    {
+      "kind": "recovery",
+      "ticks": 10
+    }
+  ],
+  "spiral": [
+    {
+      "kind": "active",
+      "spawn": [
+        {
+          "body": [
+            {
+              "active_ticks": 2,
+              "direction": {
+                "step": 1536,
+                "type": "sequential"
+              },
+              "offset": {
+                "forward": 0,
+                "right": 0
+              },
+              "shape": {
+                "length": 65536,
+                "type": "line",
+                "width": 3072
+              },
+              "type": "zone",
+              "wind_up_ticks": {
+                "arg": 0
+              }
+            }
+          ],
+          "count": 40,
+          "interval_ticks": 3,
+          "type": "repeat"
+        }
+      ],
+      "ticks": 1
+    }
+  ],
+  "spread_5": [
+    {
+      "kind": "active",
+      "spawn": [
+        {
+          "angle": 5120,
+          "body": [
+            {
+              "active_ticks": 2,
+              "direction": {
+                "offset": 0,
+                "type": "aimed"
+              },
+              "offset": {
+                "forward": 0,
+                "right": 0
+              },
+              "shape": {
+                "length": 65536,
+                "type": "line",
+                "width": 3072
+              },
+              "type": "zone",
+              "wind_up_ticks": 15
+            }
+          ],
+          "count": 5,
+          "type": "spread"
+        }
+      ],
+      "ticks": 1
+    }
+  ],
+  "thrust": [
+    {
+      "kind": "wind_up",
+      "ticks": 6
+    },
+    {
+      "hit_box": {
+        "offset": {
+          "forward": 7168,
+          "right": 0
+        },
+        "radius": 3072,
+        "type": "circle"
+      },
+      "kind": "active",
+      "ticks": 3,
+      "type": "pierce"
+    },
+    {
+      "kind": "recovery",
+      "ticks": 12
+    }
+  ],
+  "twin_shot": [
+    {
+      "kind": "active",
+      "spawn": [
+        {
+          "angle": 1280,
+          "body": [
+            {
+              "active_ticks": 2,
+              "direction": {
+                "offset": 0,
+                "type": "aimed"
+              },
+              "offset": {
+                "forward": 0,
+                "right": 0
+              },
+              "shape": {
+                "length": 65536,
+                "type": "line",
+                "width": 3072
+              },
+              "type": "zone",
+              "wind_up_ticks": 15
+            }
+          ],
+          "count": 2,
+          "type": "spread"
+        }
+      ],
+      "ticks": 1
+    }
+  ]
+}

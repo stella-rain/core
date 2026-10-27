@@ -11,6 +11,7 @@ static ALLOCATOR: alloc::Counting = alloc::Counting;
 mod agents;
 mod alloc;
 mod assist;
+mod attack_presets;
 mod attacks;
 mod auto;
 mod base64;
