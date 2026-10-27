@@ -1212,6 +1212,17 @@
             }
           ]
         },
+        "opens_after": {
+          "description": "Absent: open with no clear. Otherwise the ID of an earlier difficulty of this file: this\none opens, in a mode, once that one is cleared there.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "rarity_max": {
           "description": "The highest rarity its drops and offers may have; not below `rarity_min`.",
           "$ref": "#/$defs/Rarity"
@@ -1219,6 +1230,12 @@
         "rarity_min": {
           "description": "The lowest rarity its drops and offers may have, over all six.",
           "$ref": "#/$defs/Rarity"
+        },
+        "rune_shards": {
+          "description": "The Rune Shards a clear of this difficulty pays (game design, Rewards), 0 to\n`MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-4).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         },
         "stardust_tiers": {
           "description": "The Stardust time factor's tiers (ADR-109 decision 2) in place of the mode's: as the\nmode file's `stardust_tiers`.",
@@ -1243,7 +1260,8 @@
         "hp_pct",
         "damage_pct",
         "rarity_min",
-        "rarity_max"
+        "rarity_max",
+        "rune_shards"
       ]
     },
     "Direction": {
@@ -3249,6 +3267,28 @@
         "supernova"
       ]
     },
+    "RarityCost": {
+      "description": "What carrying a star of one rarity costs, in Lumine (ADR-107 point 2).",
+      "type": "object",
+      "properties": {
+        "lumine_cost": {
+          "description": "Its cost in Lumine, 1 to `run_setup::MAX_LUMINE`.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "rarity": {
+          "description": "The rarity priced.",
+          "$ref": "#/$defs/Rarity"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rarity",
+        "lumine_cost"
+      ]
+    },
     "RarityWeights": {
       "description": "The weight of each rarity in a draw; a rarity left out weighs 0. A tier's highest rarity is\nthe highest one that weighs more than 0.",
       "type": "object",
@@ -3577,6 +3617,13 @@
           "format": "uint32",
           "minimum": 0
         },
+        "rarities": {
+          "description": "What carrying a star of each rarity costs, in Lumine (ADR-107 point 2): every rarity\nonce, from common up, each 1 to `run_setup::MAX_LUMINE`. The run setup's carried stars\nare priced from this list.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RarityCost"
+          }
+        },
         "rewards": {
           "description": "The rewards, in the order offers draw them from.",
           "type": "array",
@@ -3587,6 +3634,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "rarities",
         "rewards"
       ]
     },
@@ -4583,6 +4631,14 @@
       "description": "The starting unlocks file: the IDs a new save begins with, by kind.",
       "type": "object",
       "properties": {
+        "free_perk_set": {
+          "description": "The perk set every save may use without owning it: a perk set of the pack's perk sets\nfile.",
+          "$ref": "#/$defs/ContentId"
+        },
+        "free_weapon": {
+          "description": "The weapon preset every save may play without owning it: a weapon of the pack's\nweapons file.",
+          "$ref": "#/$defs/ContentId"
+        },
         "perk_sets": {
           "description": "Perk sets of the pack's perk sets file.",
           "type": "array",
@@ -4614,6 +4670,8 @@
       },
       "additionalProperties": false,
       "required": [
+        "free_weapon",
+        "free_perk_set",
         "weapons",
         "perk_sets",
         "stage_skills",

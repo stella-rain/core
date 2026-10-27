@@ -4,6 +4,14 @@
   "description": "The starting unlocks file: the IDs a new save begins with, by kind.",
   "type": "object",
   "properties": {
+    "free_perk_set": {
+      "description": "The perk set every save may use without owning it: a perk set of the pack's perk sets\nfile.",
+      "$ref": "#/$defs/ContentId"
+    },
+    "free_weapon": {
+      "description": "The weapon preset every save may play without owning it: a weapon of the pack's\nweapons file.",
+      "$ref": "#/$defs/ContentId"
+    },
     "perk_sets": {
       "description": "Perk sets of the pack's perk sets file.",
       "type": "array",
@@ -35,6 +43,8 @@
   },
   "additionalProperties": false,
   "required": [
+    "free_weapon",
+    "free_perk_set",
     "weapons",
     "perk_sets",
     "stage_skills",

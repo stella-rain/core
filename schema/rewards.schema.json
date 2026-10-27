@@ -13,6 +13,13 @@
       "format": "uint32",
       "minimum": 0
     },
+    "rarities": {
+      "description": "What carrying a star of each rarity costs, in Lumine (ADR-107 point 2): every rarity\nonce, from common up, each 1 to `run_setup::MAX_LUMINE`. The run setup's carried stars\nare priced from this list.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RarityCost"
+      }
+    },
     "rewards": {
       "description": "The rewards, in the order offers draw them from.",
       "type": "array",
@@ -23,6 +30,7 @@
   },
   "additionalProperties": false,
   "required": [
+    "rarities",
     "rewards"
   ],
   "$defs": {
@@ -1057,6 +1065,28 @@
         "epic",
         "legendary",
         "supernova"
+      ]
+    },
+    "RarityCost": {
+      "description": "What carrying a star of one rarity costs, in Lumine (ADR-107 point 2).",
+      "type": "object",
+      "properties": {
+        "lumine_cost": {
+          "description": "Its cost in Lumine, 1 to `run_setup::MAX_LUMINE`.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "rarity": {
+          "description": "The rarity priced.",
+          "$ref": "#/$defs/Rarity"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rarity",
+        "lumine_cost"
       ]
     },
     "Reward": {
