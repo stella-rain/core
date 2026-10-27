@@ -156,6 +156,13 @@ pub fn clearing_inputs() -> Vec<Input> {
 // Playfield and speeds in 1/256 pixel (the rules' constants, worked out by hand).
 pub const START_X: i32 = 46_080;
 pub const START_Y: i32 = 147_456;
+/// The point `dx_px`, `dy_px` pixels from where the main character starts, in 1/256 pixel. Tests
+/// place what stands near the main character through it, so their geometry is stated relative to
+/// the main character and does not depend on the field's size or on how far the leash reaches
+/// (LS1, DS108).
+pub const fn near_start(dx_px: i32, dy_px: i32) -> (i32, i32) {
+    (START_X + dx_px * 256, START_Y + dy_px * 256)
+}
 /// The speed cap at full stick.
 pub const SPEED: i32 = 768;
 
@@ -378,4 +385,11 @@ pub fn scaled_bytes(bytes: &[u8], factor: u64) -> Vec<u8> {
         serde_json::to_vec_pretty(&scaled(serde_json::from_slice(bytes).unwrap(), factor)).unwrap();
     out.push(b'\n');
     out
+}
+
+#[test]
+fn near_start_is_the_start_moved_by_whole_pixels() {
+    assert_eq!(near_start(0, 0), (START_X, START_Y));
+    assert_eq!(near_start(-24, -185), (START_X - 6_144, START_Y - 47_360));
+    assert_eq!(near_start(5, 3), (START_X + 1_280, START_Y + 768));
 }
