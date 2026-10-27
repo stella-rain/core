@@ -36,6 +36,7 @@ use crate::id::ContentId;
 use crate::match_ups::{MatchUps, MatchUpsFile};
 use crate::perk_sets::{PerkSets, PerkSetsFile};
 use crate::rewards::{Rewards, RewardsFile};
+use crate::rules::{Rules, RulesFile};
 use crate::run_content::RunContent;
 use crate::run_stats::{RunStats, RunStatsFile};
 use crate::runes::{Runes, RunesFile};
@@ -124,6 +125,9 @@ pub struct PackFile {
     /// The weapons' combo trees (WP1).
     #[schemars(with = "WeaponsFile")]
     pub weapons: Box<RawValue>,
+    /// The crowd target and the cap's headroom (DIR1). Required: the simulation reads it.
+    #[schemars(with = "RulesFile")]
+    pub rules: Box<RawValue>,
     /// What a new save begins with (DS5 Q10). Optional: a pack released before it has none, and
     /// reports the starting unlocks as unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -381,6 +385,7 @@ impl Pack {
             .map_err(PackError::in_file("difficulties"))?;
         let weapons =
             Weapons::parse(&file_bytes(&pack.weapons)).map_err(PackError::in_file("weapons"))?;
+        let rules = Rules::parse(&file_bytes(&pack.rules)).map_err(PackError::in_file("rules"))?;
         let starting_unlocks = pack
             .starting_unlocks
             .as_deref()
@@ -434,6 +439,7 @@ impl Pack {
             perk_sets,
             difficulties,
             weapons,
+            rules,
             starting_unlocks,
             stardust,
             time_limit,
@@ -1053,7 +1059,7 @@ pub struct ContentFiles {
 
 impl ContentFiles {
     /// Every file, in the order the pack lists them.
-    pub const LAYOUT: [FileSlot; 15] = [
+    pub const LAYOUT: [FileSlot; 16] = [
         slot("run_stats", false, false),
         slot("rewards", false, false),
         slot("stage_skills", false, false),
@@ -1063,6 +1069,7 @@ impl ContentFiles {
         slot("perk_sets", false, false),
         slot("difficulties", false, false),
         slot("weapons", false, false),
+        slot("rules", false, false),
         slot("starting_unlocks", false, true),
         slot("constellations", false, true),
         slot("stardust", false, true),
@@ -1089,7 +1096,7 @@ impl ContentFiles {
     /// The bundled files.
     pub fn bundled() -> ContentFiles {
         let mut files = ContentFiles::default();
-        let bundled: [(&str, &[u8]); 15] = [
+        let bundled: [(&str, &[u8]); 16] = [
             ("run_stats", RunStats::BUNDLED),
             ("rewards", Rewards::BUNDLED),
             ("stage_skills", StageSkills::BUNDLED),
@@ -1099,6 +1106,7 @@ impl ContentFiles {
             ("perk_sets", PerkSets::BUNDLED),
             ("difficulties", Difficulties::BUNDLED),
             ("weapons", Weapons::BUNDLED),
+            ("rules", Rules::BUNDLED),
             ("starting_unlocks", StartingUnlocks::BUNDLED),
             ("constellations", Constellations::BUNDLED),
             ("stardust", Stardust::BUNDLED),
@@ -1177,6 +1185,7 @@ impl ContentFiles {
             PerkSets::parse(get("perk_sets")?).map_err(PackError::in_file("perk_sets"))?;
         let runes = Runes::parse(get("runes")?).map_err(PackError::in_file("runes"))?;
         let weapons = Weapons::parse(get("weapons")?).map_err(PackError::in_file("weapons"))?;
+        let rules = Rules::parse(get("rules")?).map_err(PackError::in_file("rules"))?;
         let starting_unlocks = optional("starting_unlocks")
             .map(|bytes| {
                 StartingUnlocks::parse_with(bytes, &perk_sets, &stage_skills, &runes, &weapons)
@@ -1200,6 +1209,7 @@ impl ContentFiles {
             Difficulties::parse(get("difficulties")?)
                 .map_err(PackError::in_file("difficulties"))?,
             weapons,
+            rules,
             starting_unlocks,
             stardust,
             TimeLimit::parse(get("time_limit")?).map_err(PackError::in_file("time_limit"))?,
@@ -1249,6 +1259,7 @@ fn members(pack: &PackFile) -> Vec<(&'static str, &RawValue)> {
         ("perk_sets", &pack.perk_sets),
         ("difficulties", &pack.difficulties),
         ("weapons", &pack.weapons),
+        ("rules", &pack.rules),
     ];
     for (name, raw) in [
         ("starting_unlocks", &pack.starting_unlocks),

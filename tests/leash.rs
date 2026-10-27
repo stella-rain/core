@@ -219,12 +219,13 @@ fn a_relocation_draws_no_random_number() {
 
 #[test]
 fn a_refused_spawn_is_counted_in_load() {
-    // Ten waves of 50 fill the map with 500 enemies by tick 50, 300 px from the main character.
+    // Ten waves of 26 fill the map with the 260 enemies of the cap by tick 26, 300 px from the main
+    // character.
     let mut waves: Vec<Value> = (0..10)
         .map(|_| {
             wave(
                 0,
-                50,
+                26,
                 1,
                 enemy(10, hold(2300 * PX, 2000 * PX), json!([])),
                 2300 * PX,
@@ -248,12 +249,12 @@ fn a_refused_spawn_is_counted_in_load() {
     for _ in 10..59 {
         e.step(idle());
     }
-    assert_eq!(e.load().enemies, 500);
+    assert_eq!(e.load().enemies, 260);
     assert_eq!(e.load().refused_spawns, 0, "full, but nothing due");
     e.step(idle());
     assert_eq!(e.tick(), 60);
     assert_eq!(e.load().refused_spawns, 1);
-    assert_eq!(e.load().enemies, 500);
+    assert_eq!(e.load().enemies, 260);
 }
 
 // --- Who the leash leaves where they are (EC2b, tasks#53) ------------------------------------

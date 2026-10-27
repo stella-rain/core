@@ -297,7 +297,7 @@ fn waves_spawn_on_schedule_in_entity_id_order() {
 }
 
 #[test]
-fn at_most_five_hundred_enemies_are_alive_and_dropped_spawns_still_count() {
+fn at_most_the_cap_of_enemies_are_alive_and_dropped_spawns_still_count() {
     let waves = (0..200)
         .map(|_| {
             wave(
@@ -316,10 +316,10 @@ fn at_most_five_hundred_enemies_are_alive_and_dropped_spawns_still_count() {
         e.step(idle());
         alive.push(enemies(&e.snapshot()));
     }
-    assert_eq!(alive, [200, 400, 500, 500, 500]);
-    // Dropped spawns take no entity ID: the boss is 1 and the enemies are 2 to 501.
+    assert_eq!(alive, [200, 260, 260, 260, 260]);
+    // Dropped spawns take no entity ID: the boss is 1 and the enemies are 2 to 261.
     let ids: Vec<u32> = e.snapshot().entities.iter().map(|x| x.id.0).collect();
-    assert_eq!(ids, (1..=501).collect::<Vec<u32>>());
+    assert_eq!(ids, (1..=261).collect::<Vec<u32>>());
 }
 
 // --- Rules (ADR-036) -------------------------------------------------------------------------
@@ -583,7 +583,7 @@ fn random_inputs_keep_every_invariant() {
             assert!((0..=92_160).contains(&s.player.at.x.0));
             assert!((0..=163_840).contains(&s.player.at.y.0));
             assert!(s.orbs.len() <= 4000);
-            assert!(enemies(&s) <= 500);
+            assert!(enemies(&s) <= 260);
             assert!(s.entities.windows(2).all(|w| w[0].id < w[1].id));
             // HP rises only by a heal (the fixture's companion heals the main character below
             // half its HP), as `tests/properties.rs` checks for every entity.

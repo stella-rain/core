@@ -328,6 +328,15 @@ pub(crate) struct World {
     /// own place in the mode file and the template's once for each sprite it stands in for.
     pub bosses: Vec<BossDef>,
     pub horde: Option<HordeDefs>,
+    /// The crowd target of the run (DIR1, DS103): the stage's override or the pack's, kept so
+    /// that the cap stays within the engine ceiling. Resolved once here.
+    pub crowd_target: u32,
+    /// The most enemies alive at once: the target and the pack's headroom, derived here and
+    /// never stored in a file. Every spawn past it is dropped and counted.
+    pub enemy_cap: u32,
+    /// Whether the spawn director acts: a horde run holds its wave spawns at the target; a
+    /// stage's waves are an authored timeline and keep their timing.
+    pub director: bool,
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
     attack_keys: AttackKeys,
@@ -415,7 +424,12 @@ impl World {
             }
         }
         let weapon = content.weapons().resolve(main).cloned();
+        let rules = content.rules();
+        let target = stage.crowd_target.unwrap_or_else(|| rules.crowd_target());
         let mut world = World {
+            crowd_target: rules.resolved_target(Some(target)),
+            enemy_cap: rules.enemy_cap_for(target),
+            director: horde.is_some(),
             stage,
             defs,
             bosses,

@@ -10,6 +10,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
 use stella_rain_core::engine::Engine;
+use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{CommandKind, RunReplay};
 
@@ -118,7 +119,7 @@ fn nonzero(per_tick: &[(u64, u64)], first: u32) -> Vec<(u32, u64, u64)> {
 
 use stella_rain_core::bench_fixtures::{self, Case, time_limit_case};
 
-/// The steady window: the horde of the benchmark's case is at its cap of 500 from tick 1,962 on
+/// The steady window: the horde of the benchmark's case is at its cap of 260 from tick 76 on
 /// (`WARMUP_TICKS`), no wave is left to spawn, and the main character taps its weapon every other
 /// tick, so combo steps, hit boxes, pushes and orbs all run. Enemy attacks and the boss's
 /// start in it too; none of them may allocate. 60 ticks, a second.
@@ -170,13 +171,16 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// The allocator calls of the one tick each bench measures (`benches/`), by case. These pin
 /// today's steady-state allocations at the caps; T1b drives them to 0. A count that falls is
 /// re-pinned lower in the same PR; a count that rises is a regression to fix, never a re-pin
-/// without the PR saying why. The cases are built by `bench_fixtures`, outside the count.
+/// without the PR saying why. DIR1 (the cases at the cap of 260): `worst_tick` 1506 -> 786
+/// allocs; `worst_minute_peak` 3, 3, 3 -> 3, 2, 4, where the extra free drops an event with a
+/// string that the earlier tick made (the run differs; no buffer grows). The cases are built by `bench_fixtures`, outside the
+/// count.
 const BENCH_TICK_ALLOCS: [(&str, Allocs); 5] = [
-    ("worst_tick", pin(1506, 0, 3)),
+    ("worst_tick", pin(786, 0, 3)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
-    ("worst_minute_peak", pin(3, 3, 3)),
+    ("worst_minute_peak", pin(3, 2, 4)),
 ];
 
 fn pinned(case: &str) -> Allocs {
@@ -221,6 +225,112 @@ fn the_time_limit_tick_allocates_as_pinned() {
 fn the_worst_minute_peak_tick_allocates_as_pinned() {
     let mut run = bench_fixtures::worst_minute_peak();
     assert_tick_pinned("worst_minute_peak", counted3(|| run.play(1)));
+}
+
+/// A crowd that climbs to the cap and then stays there allocates nothing after load (DIR1,
+/// ADR-SIM-7 decision 9): every per-enemy buffer is reserved to the run's cap when the engine
+/// is built, so no tick of the climb grows one.
+#[test]
+fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {
+    use crate::common::*;
+    use serde_json::json;
+    // Three waves of 100 that spawn one enemy a tick from tick 1 against a cap of 260, standing
+    // in the main character's line, which hits them on every other tick.
+    let waves: Vec<_> = (0..3)
+        .map(|_| {
+            wave(
+                1,
+                100,
+                1,
+                enemy(5_000, hold(START_X, START_Y - 40_000), json!([])),
+                START_X,
+                START_Y - 40_000,
+            )
+        })
+        .collect();
+    let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![]));
+    let mut ticks = Vec::new();
+    let mut most = 0;
+    for tick in 1..=600 {
+        let input = Input {
+            main: tick % 2 == 0,
+            ..Input::default()
+        };
+        ticks.push(counted3(|| e.step(input)));
+        most = most.max(e.load().enemies);
+    }
+    let grew: Vec<_> = ticks
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| **c != pin(0, 0, 0))
+        .map(|(i, c)| (i + 1, *c))
+        .collect();
+    assert!(
+        grew.is_empty(),
+        "ticks that called the allocator, (tick, counts): {grew:?}"
+    );
+    assert_eq!(most, e.caps().enemies, "the crowd climbed to the cap");
+}
+
+/// The `time_limit` bench case from load to a second past its warm-up: the horde climbs to its
+/// cap and holds it, with every kind of enemy, the boss and the Main weapon, and no tick calls
+/// the allocator (DIR1).
+#[test]
+fn a_horde_at_the_cap_allocates_nothing_after_load() {
+    let mut e = Engine::new_with(&time_limit_case::stage(), &crate::common::design_content())
+        .expect("the run starts");
+    let mut grew = Vec::new();
+    for tick in 1..=time_limit_case::WARMUP_TICKS + STEADY_TICKS {
+        let counts = counted3(|| e.step(time_limit_case::input(tick)));
+        if counts != pin(0, 0, 0) {
+            grew.push((tick, counts));
+        }
+    }
+    assert!(
+        grew.is_empty(),
+        "ticks that called the allocator, (tick, counts): {grew:?}"
+    );
+}
+
+/// A clone keeps the room the run reserved at load (DIR1): taken while the director is holding
+/// waves, it follows the original and its first ticks call the allocator no more than the
+/// original's.
+#[test]
+fn a_clone_of_a_run_with_waves_held_allocates_nothing() {
+    use serde_json::Value;
+    use stella_rain_core::engine::Outcome;
+    use stella_rain_core::run_setup::RunSetup;
+    use stella_rain_core::time_limit::TimeLimit;
+    let mut file: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    file["crowd_target"] = 20.into();
+    for wave in file["waves"].as_array_mut().unwrap() {
+        wave["at_tick"] = 1.into();
+        wave["every_ticks"] = 1.into();
+    }
+    let mode = TimeLimit::parse(file.to_string().as_bytes()).unwrap();
+    let content = crate::common::design_content().with_time_limit(mode);
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        seed: 1,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start_with(&setup, &content).unwrap();
+    let mut held = 0;
+    for _ in 0..300 {
+        e.step(Input::default());
+        held += e.load().held_spawns;
+    }
+    assert!(held > 0, "no wave was held");
+    assert_eq!(e.outcome(), Outcome::Running);
+    let mut copy = e.clone();
+    for tick in 0..60 {
+        let (original, clone) = (
+            counted3(|| e.step(Input::default())),
+            counted3(|| copy.step(Input::default())),
+        );
+        assert_eq!(clone, pin(0, 0, 0), "the clone's tick {tick}: {original:?}");
+        assert_eq!(copy.state_hash(), e.state_hash());
+    }
 }
 
 /// The most memory the engine may hold at once in the worst minute of a run (DS22 item 3).

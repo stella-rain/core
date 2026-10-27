@@ -2,7 +2,7 @@
 //! cap at once, on the tick the benchmark counts and on the ticks after it. A benchmark of a
 //! tick that does not would pass without measuring the worst case. Every attacker also holds an
 //! active hit box (ADR-055). The main character holds every rune at full Rune Haste, its combo
-//! steps hit all 500 enemies each tick, and each enemy carries all three damage-over-time
+//! steps hit every enemy of the cap (260) each tick, and each enemy carries all three damage-over-time
 //! statuses at their stack cap (ADR-099). 128 zones are alive and active (core Z1).
 
 use stella_rain_core::bench_fixtures::worst_case;
@@ -16,11 +16,16 @@ use stella_rain_core::runes::MAX_DOT_STACKS;
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::validate::limits::MAX_ELITES_ALIVE;
 
+/// The enemies the run's cap allows (DIR1): the crowd of the case.
+fn crowd(engine: &Engine) -> usize {
+    engine.caps().enemies as usize
+}
+
 /// The most Rune Haste there is (`DEFAULT_MAX_RUNE_HASTE_PCT`, ADR-099 point 5).
 const FULL_HASTE: u32 = 300;
 
 /// Every enemy and every companion is in an active phase with a hit box, every companion's
-/// cleave lands on all 500 enemies, and nothing hurts a companion.
+/// cleave lands on every enemy, and nothing hurts a companion.
 fn assert_hit_boxes(engine: &Engine) {
     let snapshot = engine.snapshot();
     let companions: Vec<_> = snapshot
@@ -34,7 +39,7 @@ fn assert_hit_boxes(engine: &Engine) {
         .iter()
         .filter(|e| matches!(e.kind, EntityKind::Enemy | EntityKind::Companion))
         .collect();
-    assert_eq!(attackers.len(), 504);
+    assert_eq!(attackers.len(), crowd(engine) + 4);
     for e in attackers {
         let a = e.attack.as_ref().expect("an attack runs");
         assert_eq!(a.kind, PhaseKind::Active, "entity {:?}", e.id);
@@ -45,11 +50,11 @@ fn assert_hit_boxes(engine: &Engine) {
         .iter()
         .filter(|ev| matches!(ev, DomainEvent::Hit { source, .. } if companions.contains(source)))
         .count();
-    assert_eq!(hits, 4 * 500);
+    assert_eq!(hits, 4 * crowd(engine));
 }
 
 /// Every zone cap is held (core Z1): 128 zones alive, 127 of them active and the fourth shooter's
-/// warning line (RA1a) not, 16 of them the companions', which cover the 500 enemies.
+/// warning line (RA1a) not, 16 of them the companions', which cover the crowd.
 fn assert_zones(engine: &Engine) {
     let zones = engine.snapshot().zones;
     assert_eq!(zones.len(), 128);
@@ -81,7 +86,7 @@ fn assert_runes_and_statuses(engine: &Engine) {
         .iter()
         .filter(|e| e.kind == EntityKind::Enemy)
         .collect();
-    assert_eq!(enemies.len(), 500);
+    assert_eq!(enemies.len(), crowd(engine));
     for e in enemies {
         let mut names: Vec<&str> = e
             .damage_over_time
@@ -122,15 +127,17 @@ fn assert_steps_and_ticks_land(engine: &Engine) {
         .filter(|e| e.kind == EntityKind::Enemy && hit.get(&e.id).is_some_and(|n| *n >= 4))
         .count();
     assert_eq!(
-        on_enemies, 500,
+        on_enemies,
+        crowd(engine),
         "enemies hit by the step and three statuses"
     );
 }
 
 /// The push-apart has a fresh stack to part (ADR-058): the pass moves an enemy at most 4 pixels
 /// (1,024 units) from the point the stack stood on, so after the tick at least 479 enemies are
-/// that near it (480 before RA1a: the line shooter's earlier arrival shifts the entity IDs, which
-/// moves the push-apart's order; the minimum over the 60 measured ticks is 479, on 2 of them). The others, the 15 to 21 that
+/// that near it (all but 14: the line shooter's earlier arrival shifts the entity IDs, which
+/// moves the push-apart's order; the most that were not, over the 60 measured ticks, was 14 of 260,
+/// measured under DIR1; 21 of 500 before). The others, the 15 to 21 that
 /// started their attack the tick before and so were not ordered back, are within 8 pixels more.
 fn assert_fresh_stack(engine: &Engine) {
     let (x, y) = worst_case::ENEMIES_AT;
@@ -142,7 +149,10 @@ fn assert_fresh_stack(engine: &Engine) {
         .map(|e| (i64::from(e.at.x.0 - x).pow(2) + i64::from(e.at.y.0 - y).pow(2)).isqrt())
         .collect();
     let stacked = far.iter().filter(|d| **d <= 1_024).count();
-    assert!(stacked >= 479, "{stacked} enemies were on the point");
+    assert!(
+        stacked + 14 >= crowd(engine),
+        "{stacked} enemies were on the point"
+    );
     assert!(
         far.iter().all(|d| *d <= 3 * 1_024),
         "{:?}",
@@ -150,7 +160,7 @@ fn assert_fresh_stack(engine: &Engine) {
     );
 }
 
-/// 32 of the 500 enemies are elites (`MAX_ELITES_ALIVE`, BR1e-3).
+/// 32 of the enemies are elites (`MAX_ELITES_ALIVE`, BR1e-3).
 fn assert_elites(engine: &Engine) {
     let elites = engine
         .snapshot()
@@ -171,7 +181,7 @@ fn worst(engine: &Engine) -> Load {
     assert!((1..100).contains(&steps), "{steps} emitter steps");
     Load {
         emitter_steps: steps,
-        ..Load::CAPS
+        ..engine.caps()
     }
 }
 
@@ -220,7 +230,18 @@ fn the_caps_are_held_tick_after_tick() {
             Outcome::Running,
             "the run ended on tick {tick}"
         );
-        assert_eq!(engine.load(), worst(&engine), "on tick {tick}");
+        // With the cap's 260 enemies, 252 attack tasks are alive on most ticks and the 256 of
+        // `MAX_ATTACK_TASKS` on the measured one (500 enemies held all 256 on every tick).
+        let load = engine.load();
+        assert!((252..=256).contains(&load.tasks), "{load:?} on tick {tick}");
+        assert_eq!(
+            Load { tasks: 0, ..load },
+            Load {
+                tasks: 0,
+                ..worst(&engine)
+            },
+            "on tick {tick}"
+        );
         assert_hit_boxes(&engine);
         assert_zones(&engine);
         assert_elites(&engine);
@@ -300,7 +321,7 @@ fn the_shooters_stand_in_the_view_of_the_main_character() {
         assert!(dx <= 320 * 256, "{:?} is {dx} units off on x", e.id);
         assert!(dy <= 180 * 256, "{:?} is {dy} units off on y", e.id);
     }
-    assert_eq!(seen, 500);
+    assert_eq!(seen, crowd(&engine));
 }
 
 #[test]

@@ -586,6 +586,7 @@ fn a_file_is_found_whatever_the_pack_s_layout() {
         "perk_sets",
         "difficulties",
         "weapons",
+        "rules",
         "expertise",
         "match_ups",
         "stage_skills",

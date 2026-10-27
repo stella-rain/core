@@ -12,6 +12,7 @@ use crate::match_ups::MatchUps;
 use crate::pack::Pack;
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
+use crate::rules::Rules;
 use crate::run_stats::RunStats;
 use crate::runes::Runes;
 use crate::stage::Stage;
@@ -33,6 +34,9 @@ pub struct RunContent {
     difficulties: Difficulties,
     /// The weapons' combo trees (WP1).
     weapons: Weapons,
+    /// The numbers of the simulation that live in the pack (DIR1): the crowd target and the cap's
+    /// headroom. Read by the rules, so the derived content hash covers the file.
+    rules: Rules,
     /// What a new save begins with, if the pack holds the file (a pack released before it does
     /// not). Not part of any run: nothing in the simulation reads it, and the pack's hash covers
     /// it with the rest of the pack.
@@ -67,6 +71,7 @@ impl RunContent {
             perk_sets: PerkSets::bundled().clone(),
             difficulties: Difficulties::bundled().clone(),
             weapons: bundled.weapons.clone(),
+            rules: bundled.rules.clone(),
             starting_unlocks: bundled.starting_unlocks.clone(),
             stardust: bundled.stardust.clone(),
             time_limit: TimeLimit::bundled().clone(),
@@ -89,6 +94,7 @@ impl RunContent {
         perk_sets: PerkSets,
         difficulties: Difficulties,
         weapons: Weapons,
+        rules: Rules,
         starting_unlocks: Option<StartingUnlocks>,
         stardust: Stardust,
         time_limit: TimeLimit,
@@ -107,6 +113,7 @@ impl RunContent {
             perk_sets,
             difficulties,
             weapons,
+            rules,
             starting_unlocks,
             stardust,
             time_limit,
@@ -176,6 +183,15 @@ impl RunContent {
     pub fn with_difficulties(self, difficulties: Difficulties) -> RunContent {
         RunContent {
             difficulties,
+            pack_sha256: None,
+            ..self
+        }
+    }
+
+    /// The same content with `rules` in place of its rules file.
+    pub fn with_rules(self, rules: Rules) -> RunContent {
+        RunContent {
+            rules,
             pack_sha256: None,
             ..self
         }
@@ -260,6 +276,11 @@ impl RunContent {
     /// The weapons' combo trees (WP1).
     pub fn weapons(&self) -> &Weapons {
         &self.weapons
+    }
+
+    /// The rules file (DIR1): the crowd target and the cap's headroom.
+    pub fn rules(&self) -> &Rules {
+        &self.rules
     }
 
     /// What a new save begins with (DS5 Q10), `None` when the pack was released without the file:

@@ -139,6 +139,14 @@ pub mod limits {
     pub const MAX_SUMMON_COUNT: u8 = 8;
     /// Elites alive at once (ADR-068), among the enemies.
     pub const MAX_ELITES_ALIVE: u16 = 32;
+    /// The engine ceiling on the enemy cap (ADR-SIM-7, DS103): a pack whose derived cap is over it
+    /// is refused, as `MAX_ELITES_ALIVE` bounds `elite_cap`. The cap of a run is derived from the
+    /// pack's rules and is 260 for the bundled pack; this is the most any pack may ask for.
+    pub const MAX_ENEMY_CAP: u16 = 500;
+    /// The most a stage's or a mode's `crowd_target` override may ask for (DS103): 500 * 100 / 125,
+    /// the most any target can be at the smallest headroom. A run clamps it so that its cap stays
+    /// within `MAX_ENEMY_CAP` (`rules::Rules::enemy_cap_for`).
+    pub const MAX_CROWD_TARGET: u16 = 400;
     /// The most guardians one shrine rings itself with, or escorts one pack leader brings
     /// (ADR-090).
     pub const MAX_SHRINE_GUARDIANS: u8 = 16;
@@ -738,6 +746,14 @@ impl<'a> Ctx<'a> {
                     i64::from(MAX_STARDUST_BASE),
                 );
             });
+        }
+        if let Some(target) = s.crowd_target {
+            self.within(
+                "crowd_target",
+                i64::from(target),
+                1,
+                i64::from(MAX_CROWD_TARGET),
+            );
         }
         if let Some(cap) = s.elite_cap {
             self.within("elite_cap", i64::from(cap), 1, i64::from(MAX_ELITES_ALIVE));

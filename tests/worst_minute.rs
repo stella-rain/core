@@ -5,7 +5,7 @@
 use stella_rain_core::bench_fixtures::worst_minute_case::{
     MINUTE_TICKS, Run, worst_minute_peak, worst_minute_window,
 };
-use stella_rain_core::engine::{Load, Outcome};
+use stella_rain_core::engine::Outcome;
 use stella_rain_core::snapshot::EntityKind;
 
 use crate::alloc::{live_bytes, peak_bytes, reset_peak};
@@ -45,14 +45,24 @@ fn the_densest_minute_holds_at_most_16_mib() {
 }
 
 #[test]
-fn the_minute_starts_with_the_crowd_at_its_cap_and_an_elite_alive() {
+fn the_minute_starts_with_the_crowd_at_the_target_and_an_elite_alive() {
     let run = Run::fast_forwarded(WORST_MINUTE_START);
     let entities = run.engine.snapshot().entities;
     let enemies = entities
         .iter()
         .filter(|e| e.kind == EntityKind::Enemy)
-        .count();
-    assert_eq!(enemies as u32, Load::CAPS.enemies);
+        .count() as u32;
+    // The director holds the waves at the target; the elites come in the room up to the cap.
+    let target = u32::from(
+        stella_rain_core::run_content::RunContent::bundled()
+            .rules()
+            .crowd_target(),
+    );
+    assert!(
+        (target..=run.engine.caps().enemies).contains(&enemies),
+        "{enemies} enemies alive, target {target}, cap {}",
+        run.engine.caps().enemies
+    );
     assert!(entities.iter().any(|e| e.elite), "no elite is alive");
 }
 

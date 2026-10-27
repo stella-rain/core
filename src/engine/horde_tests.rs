@@ -17,14 +17,14 @@ fn engine_edited(
     edit: impl FnOnce(&mut serde_json::Value),
 ) -> Engine {
     let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    v["waves"] = serde_json::json!([]);
     edit(&mut v);
     v["no_call_ticks"] = serde_json::json!(no_call_ticks);
     v["length_ticks"] = serde_json::json!(boss_ticks.last().unwrap());
     v["boss_ticks"] = serde_json::json!(boss_ticks);
-    v["waves"] = serde_json::json!([]);
     v["elite_table"] =
         serde_json::json!([{"start_tick": 0, "weights": [{"elite": "elite_low", "weight": 1}]}]);
-    let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap();
+    let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e:?}"));
     let setup = RunSetup {
         schema_version: 0,
         sim_version: 0,
@@ -671,4 +671,109 @@ fn the_five_minute_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds
     let (arrived, called) = arrivals_and_calls(&mut e, 55_800);
     assert_eq!(arrived, [18_000, 36_000, 54_000]);
     assert_eq!(called, [37_800, 55_800]);
+}
+
+// --- The spawn director (DIR1, DS103) -------------------------------------------------------
+
+/// A run of the mode with a crowd target of `target` and `waves`, each `(at_tick, count,
+/// every_ticks)`, all of the bundled mode's first wave's enemy.
+fn directed(target: u16, waves: &[(u32, u16, u32)]) -> Engine {
+    let template =
+        serde_json::from_slice::<serde_json::Value>(TimeLimit::BUNDLED).unwrap()["waves"][0]
+            .clone();
+    engine_edited(&[100_000], &[], |v| {
+        v["crowd_target"] = serde_json::json!(target);
+        v["waves"] = waves
+            .iter()
+            .map(|&(at, count, every)| {
+                let mut wave = template.clone();
+                wave["at_tick"] = at.into();
+                wave["count"] = count.into();
+                wave["every_ticks"] = every.into();
+                wave
+            })
+            .collect();
+    })
+}
+
+/// One tick with the main character kept alive.
+fn step_alive(e: &mut Engine) {
+    e.state.player.hp = e.state.player.max_hp;
+    e.step(Input::default());
+}
+
+fn held(e: &Engine, wave: usize) -> u32 {
+    e.state.horde.as_ref().unwrap().held[wave]
+}
+
+fn spawned(e: &Engine, wave: usize) -> u16 {
+    e.state.spawned[wave]
+}
+
+fn removed(e: &mut Engine, n: usize) {
+    let len = e.state.enemies.len();
+    e.state.enemies.truncate(len - n);
+}
+
+#[test]
+fn a_held_wave_slides_its_schedule_and_does_not_catch_up() {
+    // The filler fills the crowd to the target of 20 by tick 20. Wave 1 falls due at tick 100
+    // and is held, a tick more each tick.
+    let mut e = directed(20, &[(1, 20, 1), (100, 5, 60)]);
+    for _ in 0..1_000 {
+        if held(&e, 1) >= 300 {
+            break;
+        }
+        step_alive(&mut e);
+    }
+    assert_eq!(held(&e, 1), 300, "held a tick more each tick");
+    assert_eq!(spawned(&e, 1), 0, "held, not spawned");
+    assert_eq!(e.state.enemies.len(), 20);
+    // Room for ten: it spawns one, not the backlog, and the next 60 ticks later.
+    removed(&mut e, 10);
+    let mut came = Vec::new();
+    while spawned(&e, 1) < 2 && came.len() < 2 {
+        let before = spawned(&e, 1);
+        step_alive(&mut e);
+        if spawned(&e, 1) > before {
+            came.push(e.tick());
+        }
+    }
+    assert_eq!(came[1] - came[0], 60, "{came:?}");
+    assert_eq!(held(&e, 1), 300, "what was held stays held");
+    assert_eq!(spawned(&e, 1), 2, "one spawn at a time");
+}
+
+#[test]
+fn the_wave_held_longest_goes_first() {
+    // Waves 1 (every 60 ticks) and 2 (every 600) both fall due while the crowd is at the target;
+    // 2 earlier, so it has been held longer. With room for one a tick, 2 comes first although
+    // 1 has the lower index.
+    let mut e = directed(20, &[(1, 20, 1), (100, 5, 60), (50, 5, 600)]);
+    while e.tick() < 200 {
+        step_alive(&mut e);
+    }
+    assert!(held(&e, 2) > held(&e, 1));
+    removed(&mut e, 1);
+    step_alive(&mut e);
+    assert_eq!((spawned(&e, 1), spawned(&e, 2)), (0, 1), "2 comes first");
+    removed(&mut e, 1);
+    step_alive(&mut e);
+    assert_eq!((spawned(&e, 1), spawned(&e, 2)), (1, 1), "then 1");
+}
+
+#[test]
+fn a_clone_taken_while_waves_are_held_follows_the_original() {
+    let mut e = directed(20, &[(1, 100, 1), (1, 100, 1), (1, 100, 1)]);
+    for _ in 0..300 {
+        step_alive(&mut e);
+    }
+    assert!((0..3).any(|w| held(&e, w) > 0));
+    let mut copy = e.clone();
+    assert_eq!(copy.state_hash(), e.state_hash());
+    for _ in 0..600 {
+        step_alive(&mut e);
+        step_alive(&mut copy);
+        assert_eq!(copy.state_hash(), e.state_hash(), "tick {}", e.tick());
+    }
 }

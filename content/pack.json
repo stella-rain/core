@@ -3922,6 +3922,12 @@
     }
   ]
 },
+  "rules": {
+  "schema_version": 0,
+  "sim_version": 0,
+  "crowd_target": 200,
+  "cap_headroom_pct": 30
+},
   "starting_unlocks": {
   "schema_version": 0,
   "sim_version": 0,

@@ -4,7 +4,9 @@
 //! counts the 3,600 ticks of `MINUTE_START..MINUTE_START + MINUTE_TICKS` and
 //! `benches/worst_minute_peak.rs` the heaviest tick of them.
 //!
-//! The run is the bundled mode with a schedule that keeps the crowd at its cap: every wave starts
+//! The run is the bundled mode with a schedule that keeps the crowd at its target (200; the
+//! spawn director holds the waves there, and the elites come in the room up to the cap of 260,
+//! DIR1): every wave starts
 //! at tick 1 and spawns at the rate that spends its enemies over `SPAWN_SPAN_TICKS` (the
 //! mode's 4,143 spawns, 1.4 times each wave's count, in four minutes, not twenty), a mid-boss comes inside the
 //! minute (`BOSS_TICK`) and the elite cap is `MAX_ELITES_ALIVE`. The elite minutes (the mode's own: every
@@ -27,7 +29,7 @@ use crate::validate::limits::MAX_ELITES_ALIVE;
 /// A minute: 60 s at 60 ticks a second.
 pub const MINUTE_TICKS: u32 = 3_600;
 
-/// The ticks played before the minute: the crowd is at its cap and two elite minutes have come.
+/// The ticks played before the minute: the crowd is at its target and two elite minutes have come.
 pub const MINUTE_START: u32 = 7_300;
 
 /// The tick the mid-boss arrives at, inside the minute.

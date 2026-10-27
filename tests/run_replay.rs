@@ -649,9 +649,13 @@ fn the_fuzz_regression_of_a_split_input_run_is_refused() {
     // than a tick split in two. It verified before inputs had one encoding, and recorded as
     // another replay.
     let bytes = include_bytes!("../fuzz/regressions/replay_load/split-input-run.replay");
-    assert!(RunReplay::from_bytes(bytes).is_ok(), "it is a run replay");
+    let mut replay = RunReplay::from_bytes(bytes).expect("it is a run replay");
+    // Recorded under the content of its day: it is checked against today's, so that the refusal
+    // under test is the one that comes after the content check (the pack gained `rules`, DIR1).
+    replay.content_sha256 = to_hex(&stella_rain_core::run_replay::content_sha256("trial").unwrap());
+    let bytes = replay.to_bytes();
     assert_eq!(
-        verify_run(bytes),
+        verify_run(&bytes),
         Err(RunReplayError::BadInputs(
             "a run repeats the input of the run before"
         ))

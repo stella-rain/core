@@ -290,6 +290,7 @@ pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]>
         &content.perk_sets().sha256(),
         &content.difficulties().sha256(),
         &content.weapons().sha256(),
+        &content.rules().sha256(),
         content.constellations().sha256().as_ref(),
         presets::sources(),
     ))
@@ -308,6 +309,7 @@ fn hash_content<'a>(
     perk_sets_sha256: &[u8; 32],
     difficulties_sha256: &[u8; 32],
     weapons_sha256: &[u8; 32],
+    rules_sha256: &[u8; 32],
     constellations_sha256: Option<&[u8; 32]>,
     sources: impl Iterator<Item = (u8, &'a str, &'a str)>,
 ) -> [u8; 32] {
@@ -331,6 +333,8 @@ fn hash_content<'a>(
     part(&mut sha, b'p', b"perk_sets", perk_sets_sha256);
     part(&mut sha, b'd', b"difficulties", difficulties_sha256);
     part(&mut sha, b'w', b"weapons", weapons_sha256);
+    // The simulation reads the rules file, so a replay's hash covers it (DIR1).
+    part(&mut sha, b'l', b"rules", rules_sha256);
     // Only with the file, so that content without sets hashes as it did before it.
     if let Some(constellations) = constellations_sha256 {
         part(&mut sha, b'c', b"constellations", constellations);
@@ -723,6 +727,7 @@ mod tests {
     const PERKS: [u8; 32] = [4; 32];
     const DIFFICULTIES: [u8; 32] = [6; 32];
     const WEAPONS_SHA: [u8; 32] = [8; 32];
+    const RULES_SHA: [u8; 32] = [12; 32];
 
     fn hash(mode: &str, file: &[u8], sources: &[(u8, &'static str, &'static str)]) -> [u8; 32] {
         hash_content(
@@ -737,6 +742,7 @@ mod tests {
             &PERKS,
             &DIFFICULTIES,
             &WEAPONS_SHA,
+            &RULES_SHA,
             None,
             sources.iter().copied(),
         )
@@ -760,6 +766,7 @@ mod tests {
             &PERKS,
             &DIFFICULTIES,
             &WEAPONS_SHA,
+            &RULES_SHA,
             None,
             SOURCES.iter().copied(),
         )
@@ -806,6 +813,7 @@ mod tests {
                 &PERKS,
                 &DIFFICULTIES,
                 &WEAPONS_SHA,
+                &RULES_SHA,
                 None,
                 SOURCES.iter().copied(),
             ),
@@ -825,6 +833,7 @@ mod tests {
                 &PERKS,
                 &DIFFICULTIES,
                 &WEAPONS_SHA,
+                &RULES_SHA,
                 None,
                 SOURCES.iter().copied(),
             ),
@@ -844,6 +853,7 @@ mod tests {
                 &[8; 32],
                 &DIFFICULTIES,
                 &WEAPONS_SHA,
+                &RULES_SHA,
                 None,
                 SOURCES.iter().copied(),
             ),
@@ -863,6 +873,7 @@ mod tests {
                 &PERKS,
                 &[8; 32],
                 &WEAPONS_SHA,
+                &RULES_SHA,
                 None,
                 SOURCES.iter().copied(),
             ),
@@ -882,10 +893,31 @@ mod tests {
                 &PERKS,
                 &DIFFICULTIES,
                 &[11; 32],
+                &RULES_SHA,
                 None,
                 SOURCES.iter().copied(),
             ),
             "the weapons"
+        );
+        assert_ne!(
+            base,
+            hash_content(
+                "trial",
+                b"{}",
+                &STATS,
+                &REWARDS,
+                &SKILLS,
+                &EXPERTISE,
+                &MATCH_UPS,
+                &RUNES,
+                &PERKS,
+                &DIFFICULTIES,
+                &WEAPONS_SHA,
+                &[13; 32],
+                None,
+                SOURCES.iter().copied(),
+            ),
+            "the rules"
         );
         // Sets of named stars change it, and no file leaves it as it was.
         let with = |sets: Option<&[u8; 32]>| {
@@ -901,6 +933,7 @@ mod tests {
                 &PERKS,
                 &DIFFICULTIES,
                 &WEAPONS_SHA,
+                &RULES_SHA,
                 sets,
                 SOURCES.iter().copied(),
             )

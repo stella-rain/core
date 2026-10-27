@@ -168,7 +168,7 @@ fn the_escort_is_ordinary_enemies_after_the_leader_in_id_order() {
 
 #[test]
 fn the_enemy_cap_trims_the_escort() {
-    // 497 enemies and the leader make 498 of the 500 alive at most: two escorts fit.
+    // 257 enemies and the leader make 258 of the 260 alive at most: two escorts fit.
     let filler = |count: u16, x: i32| {
         wave(
             1,
@@ -179,18 +179,12 @@ fn the_enemy_cap_trims_the_escort() {
             40_000,
         )
     };
-    let mut waves = vec![
-        filler(100, 1_000),
-        filler(100, 2_000),
-        filler(100, 3_000),
-        filler(100, 4_000),
-        filler(97, 5_000),
-    ];
+    let mut waves = vec![filler(100, 1_000), filler(100, 2_000), filler(57, 3_000)];
     let lead = leader(SIDE, pack_aura(20_480, 25), Some(escort_of(4, RING)));
     waves.push(wave(150, 1, 0, lead, SIDE.0, SIDE.1));
     let mut e = engine(&stage(waves));
     run_until(&mut e, idle(), 149, |_| false);
-    assert_eq!(e.snapshot().entities.len() - 1, 497);
+    assert_eq!(e.snapshot().entities.len() - 1, 257);
     run_until(&mut e, idle(), 1, |_| false);
     let ring = ring(SIDE, 4, RING);
     let near: Vec<_> = positions(&e, false)
@@ -198,7 +192,7 @@ fn the_enemy_cap_trims_the_escort() {
         .filter(|p| ring.contains(p))
         .collect();
     assert_eq!(near, ring[..2], "the first two on the ring spawned");
-    assert_eq!(e.snapshot().entities.len() - 1, 500);
+    assert_eq!(e.snapshot().entities.len() - 1, 260);
 }
 
 // --- The aura ----------------------------------------------------------------------------------

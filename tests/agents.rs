@@ -1053,7 +1053,7 @@ fn an_enemy_summons_more_enemies_where_it_stands() {
 #[test]
 fn summons_respect_the_enemy_cap() {
     // 200 enemies on tick 1, one of which summons 8 more; later waves fill the rest. Never
-    // more than 500 alive.
+    // more than the cap of 260 alive.
     let mut waves: Vec<Value> = (0..200)
         .map(|_| {
             wave(
@@ -1090,9 +1090,9 @@ fn summons_respect_the_enemy_cap() {
     assert_eq!(alive(&e), 208);
     for _ in 0..5 {
         e.step(idle());
-        assert!(alive(&e) <= 500);
+        assert!(alive(&e) <= 260);
     }
-    assert_eq!(alive(&e), 500);
+    assert_eq!(alive(&e), 260);
 }
 
 #[test]

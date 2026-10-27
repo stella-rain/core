@@ -15,6 +15,7 @@ use crate::packs::PacksFile;
 use crate::perk_sets::PerkSetsFile;
 use crate::replay::Replay;
 use crate::rewards::RewardsFile;
+use crate::rules::RulesFile;
 use crate::run_replay::RunReplay;
 use crate::run_setup::RunSetup;
 use crate::run_stats::RunStatsFile;
@@ -52,6 +53,7 @@ pub fn all() -> Vec<(&'static str, String)> {
         ("match_ups.schema.json", pretty(schema_for!(MatchUpsFile))),
         ("time_limit.schema.json", pretty(schema_for!(TimeLimitFile))),
         ("perk_sets.schema.json", pretty(schema_for!(PerkSetsFile))),
+        ("rules.schema.json", pretty(schema_for!(RulesFile))),
         ("stardust.schema.json", pretty(schema_for!(StardustFile))),
         (
             "starting_unlocks.schema.json",

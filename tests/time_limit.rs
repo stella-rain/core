@@ -710,3 +710,15 @@ fn a_schedule_of_sixteen_waves_and_a_mode_file_of_sixty_kilobytes_are_accepted()
         Err(Error::TooLarge { .. })
     ));
 }
+
+#[test]
+fn the_crowd_target_override_is_one_to_the_most_any_target_can_be() {
+    assert_eq!(parse(&good()).unwrap().crowd_target(), None);
+    for ok in [1, 200, 400] {
+        let m = parse(&with("crowd_target", json!(ok))).unwrap();
+        assert_eq!(m.crowd_target(), Some(ok));
+    }
+    for bad in [0, 401] {
+        assert_eq!(paths(&with("crowd_target", json!(bad))), ["$.crowd_target"]);
+    }
+}

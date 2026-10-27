@@ -310,11 +310,11 @@ fn a_splitter_splits_once_on_the_tick_after_it_drops_below_half() {
 
 #[test]
 fn a_split_spawns_only_what_the_enemy_cap_has_room_for() {
-    // 498 bats (7 hit points, away from the splitter) and the splitter make 499 alive; the cap of
-    // 500 has room for one child, which has 5 hit points.
-    // A wave holds at most 100, so the bats come in five waves.
+    // 258 bats (7 hit points, away from the splitter) and the splitter make 259 alive; the cap of
+    // 260 has room for one child, which has 5 hit points.
+    // A wave holds at most 100, so the bats come in three waves.
     let at = PLAYER_Y + 8_000;
-    let bats: Vec<Value> = [100, 100, 100, 100, 98]
+    let bats: Vec<Value> = [100, 100, 58]
         .into_iter()
         .map(|count| {
             wave(
@@ -334,7 +334,7 @@ fn a_split_spawns_only_what_the_enemy_cap_has_room_for() {
         e.step(idle());
     }
     let all = enemies_of(&e);
-    assert_eq!(all.len(), 500, "the cap holds");
+    assert_eq!(all.len(), 260, "the cap holds");
     assert_eq!(all.iter().filter(|v| v.3 == 5).count(), 1, "one child fits");
 }
 

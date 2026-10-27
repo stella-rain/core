@@ -32,6 +32,19 @@ pub(super) struct Grid {
 }
 
 impl Grid {
+    /// Reserves the memory of a grid for up to `circles` circles on a map `width` by `height`
+    /// (1/256 pixels), so that no `rebuild` allocates: the cells are at least `MIN_CELL` wide and
+    /// the circles lie on the map, with a cell to spare on each side.
+    pub(super) fn reserve(&mut self, circles: usize, width: i32, height: i32) {
+        let cells = |side: i32| usize::try_from(i64::from(side) / MIN_CELL).unwrap_or(0) + 2;
+        let cells = cells(width) * cells(height) + 1;
+        super::scratch::reserve_to(&mut self.circles, circles);
+        super::scratch::reserve_to(&mut self.cells, circles);
+        super::scratch::reserve_to(&mut self.members, circles);
+        super::scratch::reserve_to(&mut self.start, cells);
+        super::scratch::reserve_to(&mut self.next, cells);
+    }
+
     /// The grid of `circles` for probes of at most `probe_radius`.
     #[cfg(test)]
     pub(super) fn new(circles: Vec<(Point, i32)>, probe_radius: i32) -> Grid {

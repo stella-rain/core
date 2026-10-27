@@ -57,22 +57,11 @@ pub struct Load {
     /// Spawns the cap on enemies alive or on elites refused in the tick: waves, elites, summons
     /// and guardians (EC2, DS80).
     pub refused_spawns: u32,
+    /// Wave spawns the spawn director held in the tick because the crowd was at its target
+    /// (DIR1, DS103): horde runs only. They are not refused or lost: the wave's schedule slides.
+    pub held_spawns: u32,
     /// Enemies the leash moved to the ring opposite the main character in the tick (EC2, DS80).
     pub relocated: u32,
-}
-
-impl Load {
-    /// The caps of the rules (`rules_v0`): a tick that reaches all of them is a worst-case tick.
-    pub const CAPS: Load = Load {
-        enemies: rules_v0::MAX_ENEMIES_ALIVE,
-        tasks: rules_v0::MAX_ATTACK_TASKS,
-        zones: rules_v0::MAX_ZONES_ALIVE,
-        orbs: rules_v0::MAX_ORBS_ALIVE,
-        emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
-        // Not caps: what a tick did, not what it may hold.
-        refused_spawns: 0,
-        relocated: 0,
-    };
 }
 
 /// The kinds of a `time_limit` run: its stage's, and those of the bosses it brings later.
@@ -92,7 +81,7 @@ fn horde_kinds(stage: &Stage, horde: &HordeSpec) -> Result<KindTable, crate::val
 }
 
 /// A run of one stage.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Engine {
     stage: World,
     /// The content files the run reads (ADR-067), fixed for the run.
@@ -102,6 +91,26 @@ pub struct Engine {
     events: Vec<DomainEvent>,
     /// What the last tick used of the dynamic budgets; zero when the tick did not run.
     load: Load,
+}
+
+impl Clone for Engine {
+    /// A clone keeps the room the run reserved at load: a derived clone of a `Vec` has only its
+    /// length, and the clone's first ticks would grow them (DIR1).
+    fn clone(&self) -> Engine {
+        let mut state = self.state.clone();
+        rules_v0::reserve(&self.stage, &mut state);
+        Engine {
+            stage: self.stage.clone(),
+            content: self.content.clone(),
+            state,
+            events: {
+                let mut events = self.events.clone();
+                events.reserve(rules_v0::events_room(&self.stage).saturating_sub(events.len()));
+                events
+            },
+            load: self.load,
+        }
+    }
 }
 
 impl Engine {
@@ -138,10 +147,10 @@ impl Engine {
             rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
         rules_v0::set_policy(&mut state, content.run_stats(), stat_priority, pick_stats);
         Ok(Engine {
+            events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
-            events: Vec::new(),
             load: Load::default(),
         })
     }
@@ -177,10 +186,10 @@ impl Engine {
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         Ok(Engine {
+            events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
-            events: Vec::new(),
             load: Load::default(),
         })
     }
@@ -215,10 +224,10 @@ impl Engine {
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         Ok(Engine {
+            events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
-            events: Vec::new(),
             load: Load::default(),
         })
     }
@@ -323,6 +332,23 @@ impl Engine {
     /// The domain events of the last tick, in the order they happened.
     pub fn events(&self) -> &[DomainEvent] {
         &self.events
+    }
+
+    /// The caps of the run's rules: a tick that reaches all of them is a worst-case tick. The
+    /// cap on enemies is the run's own, derived from its crowd target and the pack's headroom
+    /// (DIR1); the others are the rules' constants.
+    pub fn caps(&self) -> Load {
+        Load {
+            enemies: self.stage.enemy_cap,
+            tasks: rules_v0::MAX_ATTACK_TASKS,
+            zones: rules_v0::MAX_ZONES_ALIVE,
+            orbs: rules_v0::MAX_ORBS_ALIVE,
+            emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
+            // Not caps: what a tick did, not what it may hold.
+            refused_spawns: 0,
+            held_spawns: 0,
+            relocated: 0,
+        }
     }
 
     /// How much of each dynamic budget the last tick used (ADR-020).

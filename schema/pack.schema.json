@@ -37,6 +37,10 @@
       "description": "Checked against the pack's own stage skills.",
       "$ref": "#/$defs/RewardsFile"
     },
+    "rules": {
+      "description": "The crowd target and the cap's headroom (DIR1). Required: the simulation reads it.",
+      "$ref": "#/$defs/RulesFile"
+    },
     "run_stats": {
       "$ref": "#/$defs/RunStatsFile"
     },
@@ -98,6 +102,7 @@
     "perk_sets",
     "difficulties",
     "weapons",
+    "rules",
     "modes"
   ],
   "$defs": {
@@ -3638,6 +3643,43 @@
         "do"
       ]
     },
+    "RulesFile": {
+      "description": "The rules file.",
+      "type": "object",
+      "properties": {
+        "cap_headroom_pct": {
+          "description": "How far above the target the cap stands, in percent, from 25 to 30.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "crowd_target": {
+          "description": "The enemies a horde run keeps alive: wave spawns that fall due at it are held. From 1 to\nthe most that keeps the cap within the engine ceiling (384 at a headroom of 30).",
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "schema_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sim_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "sim_version",
+        "crowd_target",
+        "cap_headroom_pct"
+      ]
+    },
     "RunStat": {
       "description": "One stat a point can raise.",
       "type": "object",
@@ -4238,6 +4280,16 @@
           "items": {
             "$ref": "#/$defs/Agent"
           }
+        },
+        "crowd_target": {
+          "description": "The crowd target of the run (DIR1, DS103): the pack's `rules.json` gives the default\n(200), this overrides it, 1 to `MAX_CROWD_TARGET`. The run's enemy cap derives from it\nand is never stored; a target whose cap would pass the engine ceiling is clamped when\nthe run is built. A stage's waves keep their authored timing: only a horde run holds\nits waves at the target.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
         },
         "description": {
           "type": "string",
@@ -4939,6 +4991,16 @@
           "items": {
             "$ref": "#/$defs/Boss"
           }
+        },
+        "crowd_target": {
+          "description": "The crowd target of the mode's runs (DIR1, DS103): the pack's `rules.json` gives the\ndefault (200), this overrides it, 1 to `MAX_CROWD_TARGET`. The run's stage takes it as its\nown, and the director holds the mode's wave spawns at it.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
         },
         "elite_cap": {
           "description": "The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the\nsame bound). The run's stage takes it as its own.",
