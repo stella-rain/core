@@ -17,6 +17,7 @@ use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::{DamageOverTimeView, StatusView};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -600,11 +601,10 @@ fn a_runes_file_without_bleed_is_refused() {
         .filter(|d| d["rune"] != "bleed")
         .collect();
     let file = json!({
-        "schema_version": 0, "sim_version": 0,
         "on_hit": [far("explosion"), far("thunder"), far("boomerang"), far("homing_missiles")],
         "damage_over_time": dots,
     });
-    let err = Runes::parse(file.to_string().as_bytes()).unwrap_err();
+    let err = Runes::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap_err();
     assert!(err.to_string().contains("damage_over_time"), "{err}");
 }
 

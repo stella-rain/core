@@ -7,6 +7,7 @@
 //! 600-tick circle, Main on even ticks, Evade in the first 2 ticks of every 45).
 
 use crate::common;
+use stella_rain_core::version::Versions;
 
 use common::*;
 use serde_json::{Value, json};
@@ -74,7 +75,7 @@ fn mode(edit: impl FnOnce(&mut Value)) -> TimeLimit {
     let mut file: Value =
         serde_json::from_slice(common::bundled_file("time_limit")).expect("the bundled mode");
     edit(&mut file);
-    TimeLimit::parse(file.to_string().as_bytes()).expect("the mode parses")
+    TimeLimit::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the mode parses")
 }
 
 fn horde(difficulty: &str, mode: Option<TimeLimit>) -> Engine {

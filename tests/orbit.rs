@@ -15,6 +15,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::{EntityKind, Facing, OfferOption, OrbitView};
 use stella_rain_core::stage::Stage;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -96,8 +97,9 @@ fn orbit(id: &str, amount: u32, active: u32, cooldown: u32) -> Value {
 }
 
 fn with(stage: &Stage, rewards: Vec<Value>) -> Engine {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": rewards });
-    let rewards = Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate");
+    let file = json!({ "rewards": rewards });
+    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate");
     let content = RunContent::new(RunStats::bundled().clone(), rewards);
     Engine::new_with(stage, &content).expect("the test stage is valid")
 }

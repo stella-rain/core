@@ -8,11 +8,12 @@ use serde_json::{Value, json};
 use stella_rain_core::stage::{LevelTable, MAX_STYLE_LEVEL, Stage};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::{self, Error};
+use stella_rain_core::version::Versions;
 
 fn mode(table: Value) -> Result<TimeLimit, Error> {
     let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["level_table"] = table;
-    TimeLimit::parse(v.to_string().as_bytes())
+    TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
 }
 
 fn mode_paths(table: Value) -> Vec<String> {
@@ -86,7 +87,7 @@ fn a_mode_file_without_a_table_is_refused() {
     let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v.as_object_mut().unwrap().remove("level_table");
     assert!(matches!(
-        TimeLimit::parse(v.to_string().as_bytes()),
+        TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT),
         Err(Error::Parse { .. })
     ));
 }

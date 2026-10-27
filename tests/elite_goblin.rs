@@ -14,6 +14,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::{self, Error, limits};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -54,10 +55,11 @@ fn joiner() -> Value {
 }
 
 fn rewards() -> Rewards {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": [
+    let file = json!({ "rewards": [
         { "id": "c", "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 9,
           "title": "Reward", "description": "" } ] });
-    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate")
 }
 
 fn stage(waves: Vec<Value>) -> Stage {
@@ -394,7 +396,7 @@ fn goblin_run(boss: u32) -> TimeLimit {
         "elite": { "range": 256, "boss_call": "leave" } } }]);
     v["elite_table"] =
         json!([{ "start_tick": 0, "weights": [{ "elite": "elite_test_goblin", "weight": 1 }] }]);
-    TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
+    TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap_or_else(|e| panic!("{e}"))
 }
 
 #[test]

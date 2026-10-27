@@ -16,6 +16,7 @@ use stella_rain_core::snapshot::{EntityKind, EntityView};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::{self, Error, limits};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -658,7 +659,7 @@ fn mimic_run() -> TimeLimit {
         "elite": { "range": 256, "mimic": { "disguise": DISGUISE, "reveal_radius": REVEAL } } } }]);
     v["elite_table"] =
         json!([{ "start_tick": 0, "weights": [{ "elite": "elite_test_mimic", "weight": 1 }] }]);
-    TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
+    TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap_or_else(|e| panic!("{e}"))
 }
 
 #[test]

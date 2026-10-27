@@ -12,19 +12,23 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
 use common::run::{run_script, trial_setup};
 
 fn file(weak: Value, strong: Value, resisted: Value) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0,
-            "weak_pct": weak, "strong_pct": strong, "resisted_pct": resisted,
+    json!({ "weak_pct": weak, "strong_pct": strong, "resisted_pct": resisted,
             "max_type_bonus_pct": 1000 })
 }
 
+fn parse_at(v: &Value, versions: Versions) -> Result<MatchUps, Error> {
+    MatchUps::parse(v.to_string().as_bytes(), versions)
+}
+
 fn parse(v: &Value) -> Result<MatchUps, Error> {
-    MatchUps::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 fn paths(e: Error) -> Vec<String> {
@@ -90,19 +94,31 @@ fn the_file_is_strict_and_size_limited() {
     let mut missing = file(json!(20), json!(20), json!(20));
     missing.as_object_mut().unwrap().remove("strong_pct");
     assert!(matches!(parse(&missing), Err(Error::Parse { .. })));
-    let mut newer = file(json!(20), json!(20), json!(20));
-    newer["sim_version"] = json!(1);
+    let newer = file(json!(20), json!(20), json!(20));
     assert!(matches!(
-        parse(&newer),
+        parse_at(
+            &newer,
+            Versions {
+                schema_version: 0,
+                sim_version: 1
+            }
+        ),
         Err(Error::UnsupportedVersion { .. })
     ));
     let mut big = common::bundled_file("match_ups").to_vec();
     big.resize(MAX_MATCH_UPS_BYTES + 1, b' ');
-    assert!(matches!(MatchUps::parse(&big), Err(Error::TooLarge { .. })));
+    assert!(matches!(
+        MatchUps::parse(&big, Versions::CURRENT),
+        Err(Error::TooLarge { .. })
+    ));
 }
 
 fn other() -> MatchUps {
-    MatchUps::parse(file(json!(50), json!(20), json!(20)).to_string().as_bytes()).unwrap()
+    MatchUps::parse(
+        file(json!(50), json!(20), json!(20)).to_string().as_bytes(),
+        Versions::CURRENT,
+    )
+    .unwrap()
 }
 
 #[test]

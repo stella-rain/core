@@ -14,6 +14,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::stage::Stage;
+use stella_rain_core::version::Versions;
 
 // The evade of every test stage (ADR-050): 48 pixels over 8 ticks, 10 ticks of invulnerability
 // and a 40-tick cooldown.
@@ -268,7 +269,7 @@ pub fn design_content() -> RunContent {
 pub fn design_run_stats() -> RunStats {
     let mut v: Value = serde_json::from_slice(bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = json!(100);
-    RunStats::parse(v.to_string().as_bytes()).unwrap()
+    RunStats::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap()
 }
 
 pub fn engine(stage: &Stage) -> Engine {

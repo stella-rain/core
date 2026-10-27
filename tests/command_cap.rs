@@ -16,6 +16,7 @@ use stella_rain_core::run_replay::{
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{EntityKind, OfferOption};
 use stella_rain_core::time_limit::TimeLimit;
+use stella_rain_core::version::Versions;
 
 /// The perk set the bot plays with: the most hit points and regeneration a set may hold (the
 /// engine has no invulnerability switch), the most extra rerolls and banishes, and the
@@ -39,7 +40,7 @@ pub fn undying_content() -> RunContent {
     }));
     RunContent::bundled()
         .clone()
-        .with_perk_sets(PerkSets::parse(file.to_string().as_bytes()).unwrap())
+        .with_perk_sets(PerkSets::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap())
 }
 
 pub fn setup(seed: u64, difficulty: &str, extra_rerolls: u8) -> RunSetup {
@@ -147,7 +148,8 @@ fn short_content() -> RunContent {
         .retain(|w| w["at_tick"].as_u64().unwrap() < 1200);
     v["elite_table"] =
         json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
-    let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e}"));
     undying_content().with_time_limit(mode)
 }
 

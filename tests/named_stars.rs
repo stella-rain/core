@@ -9,6 +9,7 @@ use stella_rain_core::id::ContentId;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::rewards::{DEFAULT_WEIGHT, Rarity, Reward, Rewards};
 use stella_rain_core::run_content::RunContent;
+use stella_rain_core::version::Versions;
 
 use crate::common;
 use crate::reward_kinds::{near, next_offer, offer};
@@ -138,7 +139,8 @@ fn taking_a_random_rune_bundle_gives_the_rune_and_the_haste() {
 #[test]
 fn the_bundled_rewards_file_validates_with_its_named_stars() {
     // The file itself, before it is copied into the pack: every cap of NS1 and NS2 applies.
-    let rewards = Rewards::parse(common::bundled_file("rewards")).unwrap_or_else(|e| panic!("{e}"));
+    let rewards = Rewards::parse(common::bundled_file("rewards"), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e}"));
     let stars: Vec<_> = rewards.rewards().iter().filter(|r| r.named).collect();
     assert_eq!(stars.len(), 15);
     // The 15 named stars come after the ordinary rewards (120: the six-rarity rows and a type
@@ -150,9 +152,13 @@ fn the_bundled_rewards_file_validates_with_its_named_stars() {
 #[test]
 fn the_bundled_constellations_file_validates_against_the_bundled_rewards() {
     use stella_rain_core::constellations::Constellations;
-    let rewards = Rewards::parse(common::bundled_file("rewards")).unwrap();
-    let sets = Constellations::parse_with(common::bundled_file("constellations"), &rewards)
-        .unwrap_or_else(|e| panic!("{e}"));
+    let rewards = Rewards::parse(common::bundled_file("rewards"), Versions::CURRENT).unwrap();
+    let sets = Constellations::parse_with(
+        common::bundled_file("constellations"),
+        Versions::CURRENT,
+        &rewards,
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(sets.sets().len(), 4);
     for set in sets.sets() {
         assert_eq!(set.members.len(), 3, "{}", set.id.0);

@@ -12,21 +12,26 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{content_sha256, content_sha256_with};
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::DAMAGE_SCALE;
+use stella_rain_core::version::Versions;
 
 fn set(id: &str, effects: Value) -> Value {
     json!({ "id": id, "title": "Set", "description": "A set", "effects": effects })
 }
 
 fn file(sets: Vec<Value>) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0, "perk_sets": sets })
+    json!({ "perk_sets": sets })
 }
 
 fn one(effects: Value) -> Value {
     file(vec![set("duelist", effects)])
 }
 
+fn parse_at(v: &Value, versions: Versions) -> Result<PerkSets, Error> {
+    PerkSets::parse(v.to_string().as_bytes(), versions)
+}
+
 fn parse(v: &Value) -> Result<PerkSets, Error> {
-    PerkSets::parse(v.to_string().as_bytes())
+    parse_at(v, Versions::CURRENT)
 }
 
 fn paths(e: Error) -> Vec<String> {
@@ -83,7 +88,7 @@ fn the_bundled_file_holds_the_four_sets_with_kades_numbers() {
 fn a_valid_file_loads_and_keeps_its_hash() {
     let v = one(json!([{ "effect": "attack_pct", "amount": 5 }]));
     let bytes = v.to_string();
-    let sets = PerkSets::parse(bytes.as_bytes()).unwrap();
+    let sets = PerkSets::parse(bytes.as_bytes(), Versions::CURRENT).unwrap();
     assert_eq!(sets.sets().len(), 1);
     assert_ne!(sets.sha256(), PerkSets::bundled().sha256());
 }
@@ -91,14 +96,27 @@ fn a_valid_file_loads_and_keeps_its_hash() {
 #[test]
 fn a_file_that_is_too_large_is_refused_before_parsing() {
     let big = vec![b' '; MAX_PERK_SETS_BYTES + 1];
-    assert!(matches!(PerkSets::parse(&big), Err(Error::TooLarge { .. })));
+    assert!(matches!(
+        PerkSets::parse(&big, Versions::CURRENT),
+        Err(Error::TooLarge { .. })
+    ));
 }
 
 #[test]
 fn the_versions_and_unknown_fields_fail_closed() {
     let mut v = one(json!([]));
-    v["schema_version"] = json!(9);
-    assert!(matches!(parse(&v), Err(Error::UnsupportedVersion { .. })));
+    assert!(matches!(
+        parse_at(
+            &v,
+            Versions {
+                schema_version: 9,
+                sim_version: 0
+            }
+        ),
+        Err(Error::UnsupportedVersion { .. })
+    ));
+    v["schema_version"] = json!(0);
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
     let mut v = one(json!([]));
     v["extra"] = json!(1);
     assert!(matches!(parse(&v), Err(Error::Parse { .. })));

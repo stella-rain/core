@@ -19,6 +19,7 @@ use stella_rain_core::snapshot::{
     EntityKind, ExpertiseOfferKind, ExpertiseOfferView, ExpertiseView, OfferKind, OfferOption,
 };
 use stella_rain_core::stage::{LevelTable, Stage};
+use stella_rain_core::version::Versions;
 
 use crate::common;
 
@@ -85,8 +86,8 @@ fn file_with(thresholds: [u32; 10], growth_pct: u16, max_points: u32, main: Vec<
 }
 
 fn parsed(file: Value) -> RunContent {
-    let expertise =
-        Expertise::parse(file.to_string().as_bytes()).expect("the test expertise validates");
+    let expertise = Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test expertise validates");
     RunContent::bundled().clone().with_expertise(expertise)
 }
 

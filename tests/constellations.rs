@@ -19,6 +19,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::ConstellationProgress;
 use stella_rain_core::stage::{RarityWeights, Stage, Tier};
 use stella_rain_core::validate::Error;
+use stella_rain_core::version::Versions;
 
 use crate::common::run::{CONSTELLATIONS_TRIO_SEED, plain_content, plain_setup};
 use crate::reward_kinds::{near, next_offer, offer, plain, take};
@@ -45,8 +46,9 @@ fn reward_list() -> Vec<Value> {
 }
 
 fn rewards_of(list: Vec<Value>) -> Rewards {
-    let file = json!({ "schema_version": 0, "sim_version": 0, "rewards": list });
-    Rewards::parse(file.to_string().as_bytes()).expect("the test rewards validate")
+    let file = json!({ "rewards": list });
+    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test rewards validate")
 }
 
 fn tier(threshold: u8, effects: Vec<Value>) -> Value {
@@ -75,11 +77,19 @@ fn trio() -> Value {
 }
 
 fn file(sets: Vec<Value>) -> Value {
-    json!({ "schema_version": 0, "sim_version": 0, "constellations": sets })
+    json!({ "constellations": sets })
+}
+
+fn parse_at(v: &Value, versions: Versions) -> Result<Constellations, Error> {
+    Constellations::parse_with(
+        v.to_string().as_bytes(),
+        versions,
+        &rewards_of(reward_list()),
+    )
 }
 
 fn parse(v: &Value) -> Result<Constellations, Error> {
-    Constellations::parse_with(v.to_string().as_bytes(), &rewards_of(reward_list()))
+    parse_at(v, Versions::CURRENT)
 }
 
 fn invalid_at(v: &Value, path: &str) {
@@ -315,7 +325,9 @@ fn at_most_sixteen_sets() {
                 .collect(),
         )
     };
-    let parse = |v: &Value| Constellations::parse_with(v.to_string().as_bytes(), &rewards);
+    let parse = |v: &Value| {
+        Constellations::parse_with(v.to_string().as_bytes(), Versions::CURRENT, &rewards)
+    };
     assert_eq!(parse(&sets(16)).expect("sixteen").sets().len(), 16);
     match parse(&sets(17)) {
         Err(Error::Invalid(issues)) => assert!(issues.iter().any(|i| i.path == "$.constellations")),
@@ -328,7 +340,7 @@ fn the_file_is_read_as_untrusted_bytes() {
     let rewards = rewards_of(reward_list());
     let big = vec![b' '; MAX_CONSTELLATIONS_BYTES + 1];
     assert!(matches!(
-        Constellations::parse_with(&big, &rewards),
+        Constellations::parse_with(&big, Versions::CURRENT, &rewards),
         Err(Error::TooLarge { .. })
     ));
     let mut v = file(vec![trio()]);
@@ -338,10 +350,21 @@ fn the_file_is_read_as_untrusted_bytes() {
     v["constellations"][0]["extra"] = json!(1);
     assert!(matches!(parse(&v), Err(Error::Parse { .. })));
     let mut v = file(vec![trio()]);
-    v["schema_version"] = json!(99);
-    assert!(matches!(parse(&v), Err(Error::UnsupportedVersion { .. })));
+    v["schema_version"] = json!(0);
+    assert!(matches!(parse(&v), Err(Error::Parse { .. })));
+    let v = file(vec![trio()]);
     assert!(matches!(
-        Constellations::parse_with(b"not json", &rewards),
+        parse_at(
+            &v,
+            Versions {
+                schema_version: 99,
+                sim_version: 0
+            }
+        ),
+        Err(Error::UnsupportedVersion { .. })
+    ));
+    assert!(matches!(
+        Constellations::parse_with(b"not json", Versions::CURRENT, &rewards),
         Err(Error::Parse { .. })
     ));
 }
@@ -446,8 +469,9 @@ fn engine(stage: &Stage, list: Vec<Value>, sets: Option<Value>) -> Engine {
     let rewards = rewards_of(list);
     let rewards = match sets {
         Some(v) => {
-            let c = Constellations::parse_with(v.to_string().as_bytes(), &rewards)
-                .expect("the test sets validate");
+            let c =
+                Constellations::parse_with(v.to_string().as_bytes(), Versions::CURRENT, &rewards)
+                    .expect("the test sets validate");
             rewards.with_constellations(c)
         }
         None => rewards,
@@ -614,8 +638,12 @@ fn carried_stars_count_at_the_start_and_the_full_tier_replaces_the_small() {
         vec![tier(1, vec![max_hp(1_000)]), tier(2, vec![max_hp(3_000)])],
     );
     let rewards = rewards_of(reward_list());
-    let sets = Constellations::parse_with(file(vec![hp_set]).to_string().as_bytes(), &rewards)
-        .expect("valid");
+    let sets = Constellations::parse_with(
+        file(vec![hp_set]).to_string().as_bytes(),
+        Versions::CURRENT,
+        &rewards,
+    )
+    .expect("valid");
     let content = RunContent::new(
         RunStats::bundled().clone(),
         rewards.with_constellations(sets),

@@ -7,6 +7,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{EntityKind, OfferOption};
+use stella_rain_core::version::Versions;
 
 /// The trial mode's length.
 pub const TRIAL_LENGTH: u32 = 5400;
@@ -241,7 +242,11 @@ pub fn plain_content() -> RunContent {
             "id": "plain", "title": "Plain", "description": "", "effects": []
         }));
     super::design_content().with_perk_sets(
-        stella_rain_core::perk_sets::PerkSets::parse(file.to_string().as_bytes()).unwrap(),
+        stella_rain_core::perk_sets::PerkSets::parse(
+            file.to_string().as_bytes(),
+            Versions::CURRENT,
+        )
+        .unwrap(),
     )
 }
 

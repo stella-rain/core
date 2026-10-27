@@ -14,6 +14,7 @@ use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::run_stats::{RunStats, StatEffect};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
+use stella_rain_core::version::Versions;
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 
 use crate::common;
@@ -296,7 +297,7 @@ fn with_attack_plus() -> RunStats {
         "title": "Attack+",
         "description": "Much more damage from every attack"
     }));
-    RunStats::parse(file.to_string().as_bytes()).expect("the stats validate")
+    RunStats::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the stats validate")
 }
 
 #[test]
@@ -451,7 +452,7 @@ fn with_xp_plus() -> RunStats {
         "title": "Experience+",
         "description": "More experience from every kill"
     }));
-    RunStats::parse(file.to_string().as_bytes()).expect("the stats validate")
+    RunStats::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the stats validate")
 }
 
 #[test]
