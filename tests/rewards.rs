@@ -840,10 +840,9 @@ fn the_costs_run_from_one_to_ten_by_rarity() {
 #[test]
 fn rarities_are_required_and_every_rarity_once_from_common_up() {
     assert!(parse(&with_rarities(priced(1))).is_ok());
-    assert!(matches!(
-        parse(&file(vec![reward("might")])),
-        Err(Error::Parse { .. })
-    ));
+    let mut absent = file(vec![reward("might")]);
+    absent.as_object_mut().unwrap().remove("rarities");
+    assert!(matches!(parse(&absent), Err(Error::Parse { .. })));
     invalid_at(&with_rarities(costs(&[("common", 1)])), "$.rarities");
     let mut swapped = ALL.map(|r| (r, 1));
     swapped.swap(0, 1);

@@ -67,7 +67,10 @@ fn a_valid_file_loads_and_keeps_its_hash() {
 
 #[test]
 fn empty_lists_are_allowed() {
-    let v = json!({ "weapons": [], "perk_sets": [], "stage_skills": [], "runes": [] });
+    let mut v = file();
+    for list in ["weapons", "perk_sets", "stage_skills", "runes"] {
+        v[list] = json!([]);
+    }
     assert!(parse(&v).unwrap().weapons().is_empty());
 }
 
