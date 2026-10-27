@@ -36,7 +36,7 @@ fn reward(id: &str) -> Value {
 }
 
 fn file(rewards: Vec<Value>) -> Value {
-    json!({ "rewards": rewards })
+    json!({ "rarities": common::rarities(), "rewards": rewards })
 }
 
 fn parse_at(v: &Value, versions: Versions) -> Result<Rewards, Error> {

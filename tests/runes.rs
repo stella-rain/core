@@ -93,7 +93,7 @@ fn inert_limited(id: &str, limit: u8) -> Value {
 }
 
 fn file(rewards: Vec<Value>) -> String {
-    json!({ "rewards": rewards }).to_string()
+    json!({ "rarities": common::rarities(), "rewards": rewards }).to_string()
 }
 
 fn rewards(list: Vec<Value>) -> Rewards {

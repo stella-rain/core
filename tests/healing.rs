@@ -83,7 +83,7 @@ fn starry(stage: Stage, rarity: &str) -> Stage {
 
 /// The rewards file with `list` in it.
 fn rewards(list: Vec<Value>) -> Rewards {
-    let file = json!({ "rewards": list });
+    let file = json!({ "rarities": common::rarities(), "rewards": list });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate")
 }
@@ -228,7 +228,7 @@ fn a_heal_config_is_bounded_like_the_other_content() {
 #[test]
 fn a_regen_reward_is_bounded_like_the_max_hit_points_reward() {
     let parses = |amount: u32| {
-        let file = json!({ "rewards": [regen("regen", "common", amount, 5)] });
+        let file = json!({ "rarities": common::rarities(), "rewards": [regen("regen", "common", amount, 5)] });
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).is_ok()
     };
     assert!(parses(10 * DAMAGE_SCALE), "the common amount");

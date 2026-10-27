@@ -95,7 +95,7 @@ fn might() -> Value {
 }
 
 fn rewards(rewards: Vec<Value>) -> Rewards {
-    let file = json!({ "rewards": rewards });
+    let file = json!({ "rarities": common::rarities(), "rewards": rewards });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate")
 }
@@ -174,7 +174,8 @@ fn a_range_reward_is_a_stat_like_effect_bounded_like_the_others() {
     let parsed = rewards(vec![range("reach", MAX_RANGE_PCT, 20)]);
     assert_eq!(parsed.rewards()[0].effect(), RewardEffect::RangePct);
     let bad = |pct: u32, limit: u8| {
-        let file = json!({ "rewards": [range("reach", pct, limit)] });
+        let file =
+            json!({ "rarities": common::rarities(), "rewards": [range("reach", pct, limit)] });
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).is_err()
     };
     assert!(bad(0, 1), "an amount of 0");
@@ -309,7 +310,8 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
 fn the_enchantment_effect_is_gone() {
     // Range was the only enchantment; it is the `range_pct` effect now, and an `enchantment`
     // reward no longer parses, nor a reward holding an `enchantment` field.
-    let file = |reward: Value| json!({ "rewards": [reward] }).to_string();
+    let file =
+        |reward: Value| json!({ "rarities": common::rarities(), "rewards": [reward] }).to_string();
     let old = json!({
         "id": "reach", "rarity": "common", "effect": "enchantment", "amount": 20, "limit": 2,
         "title": "Reach", "description": "", "enchantment": { "type": "range" }

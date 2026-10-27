@@ -270,7 +270,7 @@ fn carried_stars_are_rewards_of_the_file_and_of_the_pool_within_the_budget() {
 #[test]
 fn a_reward_is_carried_no_more_times_than_it_stacks() {
     let rewards = Rewards::parse(
-        json!({ "rewards": [{
+        json!({ "rarities": common::rarities(), "rewards": [{
             "id": "once", "rarity": "common", "effect": "max_hp", "amount": 100, "limit": 2,
             "title": "Once", "description": ""
         }]})
@@ -295,7 +295,7 @@ fn a_reward_is_carried_no_more_times_than_it_stacks() {
 #[test]
 fn the_random_rune_is_not_a_carried_star() {
     let rewards = Rewards::parse(
-        json!({ "rewards": [{
+        json!({ "rarities": common::rarities(), "rewards": [{
             "id": "random_rune", "rarity": "common", "effect": "random_rune",
             "title": "Rune", "description": ""
         }]})
@@ -554,7 +554,7 @@ fn the_starting_rune_is_held_from_tick_0() {
 /// Rewards that are only the random rune, so that every offer holds it.
 fn random_rune_content() -> RunContent {
     let rewards = Rewards::parse(
-        json!({ "rewards": [{
+        json!({ "rarities": common::rarities(), "rewards": [{
             "id": "random_rune", "rarity": "common", "effect": "random_rune",
             "title": "Rune", "description": ""
         }]})

@@ -113,7 +113,7 @@ fn content(skills: Vec<Value>, rewards: &[(&str, &str, u32)]) -> Rewards {
     let skills = json!({ "stage_skills": skills });
     let skills = StageSkills::parse(skills.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test skills validate");
-    let file = json!({ "rewards": rewards });
+    let file = json!({ "rarities": common::rarities(), "rewards": rewards });
     Rewards::parse_with(file.to_string().as_bytes(), Versions::CURRENT, &skills)
         .expect("the test rewards validate")
 }
