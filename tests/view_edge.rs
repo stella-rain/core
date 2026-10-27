@@ -76,6 +76,17 @@ fn enemy_places(stage: &Stage, ticks: u32) -> Vec<(i32, i32)> {
     v.into_iter().map(|(_, x, y)| (x, y)).collect()
 }
 
+/// The first spawn of the stage under each of `n` seeds (a pile of enemies would be pushed apart).
+fn first_spawns(stage: &Stage, n: u32) -> Vec<(i32, i32)> {
+    (0..n)
+        .map(|seed| {
+            let mut stage = stage.clone();
+            stage.seed = seed;
+            enemy_places(&stage, 1)[0]
+        })
+        .collect()
+}
+
 fn place_of(side: &str, along: Option<i16>) -> (i32, i32) {
     let edge = match along {
         Some(a) => json!({ "side": side, "along": a }),
@@ -116,20 +127,28 @@ fn an_along_wave_draws_nothing_so_a_later_drawn_spawn_lands_where_it_would_alone
 /// a map of `w` by `h`: `t` from the start of the first on-map part, in the order top, right,
 /// bottom, left.
 fn walk(px: i64, py: i64, w: i64, h: i64, mut t: i64) -> (i64, i64) {
+    walk_over(px, py, Some((w, h)), t)
+}
+
+/// `walk` over the whole sides when `map` is `None`.
+fn walk_over(px: i64, py: i64, map: Option<(i64, i64)>, mut t: i64) -> (i64, i64) {
     let sides = [
-        (false, py - EY, px - EX, px + EX, h),
-        (true, px + EX, py - EY, py + EY, w),
-        (false, py + EY, px - EX, px + EX, h),
-        (true, px - EX, py - EY, py + EY, w),
+        (false, py - EY, px - EX, px + EX),
+        (true, px + EX, py - EY, py + EY),
+        (false, py + EY, px - EX, px + EX),
+        (true, px - EX, py - EY, py + EY),
     ];
-    for (vertical, fixed, lo, hi, limit) in sides {
-        // `limit` is the extent of the axis the side's fixed coordinate lies on.
-        let (fixed_limit, moving_limit) = if vertical { (w, h) } else { (h, w) };
-        let _ = limit;
-        if !(0..=fixed_limit).contains(&fixed) {
-            continue;
-        }
-        let (lo, hi) = (lo.max(0), hi.min(moving_limit));
+    for (vertical, fixed, lo, hi) in sides {
+        let (lo, hi) = match map {
+            Some((w, h)) => {
+                let (across, along) = if vertical { (w, h) } else { (h, w) };
+                if !(0..=across).contains(&fixed) {
+                    continue;
+                }
+                (lo.max(0), hi.min(along))
+            }
+            None => (lo, hi),
+        };
         if hi <= lo {
             continue;
         }
@@ -323,9 +342,9 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
             4000,
             x,
             y,
-            vec![edge_wave(0, 200, json!({ "side": "any" }))],
+            vec![edge_wave(0, 1, json!({ "side": "any" }))],
         );
-        for (ex, ey) in enemy_places(&many, 200) {
+        for (ex, ey) in first_spawns(&many, 200) {
             assert!((0..=1_024_000).contains(&ex) && (0..=1_024_000).contains(&ey));
             let (dx, dy) = ((i64::from(ex) - px).abs(), (i64::from(ey) - py).abs());
             assert!(
@@ -369,21 +388,20 @@ fn a_map_no_larger_than_the_rectangle_clamps_to_its_border() {
         400,
         200,
         200,
-        vec![edge_wave(0, 200, json!({ "side": "any" }))],
+        vec![edge_wave(0, 1, json!({ "side": "any" }))],
     );
     let (full, w) = (102_400, 102_400);
-    let places = enemy_places(&stage, 200);
-    assert_eq!(places.len(), 200);
+    let places = first_spawns(&stage, 200);
     for (x, y) in &places {
         assert!(
             [0, w].contains(x) || [0, full].contains(y),
             "({x},{y}) is not on the map's border"
         );
     }
-    // The draw is over the whole perimeter: the first spawn is the walk of `t`, clamped.
-    let (wx, wy) = walk(51_200, 51_200, i64::MAX / 4, i64::MAX / 4, i64::from(t));
+    // The draw is over the whole perimeter: the spawn of seed 7 is the walk of `t`, clamped.
+    let (wx, wy) = walk_over(51_200, 51_200, None, i64::from(t));
     let clamp = |v: i64| v.clamp(0, 102_400) as i32;
-    assert_eq!(places[0], (clamp(wx), clamp(wy)));
+    assert_eq!(places[7], (clamp(wx), clamp(wy)));
 }
 
 fn stage_json() -> Value {
@@ -434,8 +452,7 @@ fn a_wave_gives_spawn_or_edge_and_along_is_checked() {
     // The time_limit file validates the same way.
     let mut m: Value = serde_json::from_slice(bundled_file("time_limit")).unwrap();
     let w = m["waves"][0].as_object_mut().unwrap();
-    w.remove("around");
-    w.remove("spawn");
+    w.remove("edge");
     let e = TimeLimit::parse(m.to_string().as_bytes())
         .map(|_| ())
         .unwrap_err();
