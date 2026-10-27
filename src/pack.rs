@@ -20,6 +20,7 @@
 //! bundled files (`ContentFiles::export`) so gives each file the bundled file's SHA-256, and a run of
 //! its content the bundled content hash.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -97,6 +98,50 @@ pub const MAX_CONSTELLATIONS: usize = crate::constellations::MAX_CONSTELLATIONS;
 /// The most IDs one weapon's expertise introduces: its styles, their choices and its common
 /// options (15 today).
 pub const MAX_EXPERTISE_IDS: usize = 64;
+
+/// The members of a pack, borrowed from its bytes: `ContentFiles::bundled` reads the bundled pack
+/// with it and allocates nothing but its result.
+#[derive(Deserialize)]
+struct BorrowedPack<'a> {
+    #[serde(borrow)]
+    run_stats: &'a RawValue,
+    #[serde(borrow)]
+    rewards: &'a RawValue,
+    #[serde(borrow)]
+    stage_skills: &'a RawValue,
+    #[serde(borrow)]
+    expertise: &'a RawValue,
+    #[serde(borrow)]
+    match_ups: &'a RawValue,
+    #[serde(borrow)]
+    runes: &'a RawValue,
+    #[serde(borrow)]
+    perk_sets: &'a RawValue,
+    #[serde(borrow)]
+    difficulties: &'a RawValue,
+    #[serde(borrow)]
+    weapons: &'a RawValue,
+    #[serde(borrow)]
+    rules: &'a RawValue,
+    #[serde(borrow, default)]
+    starting_unlocks: Option<&'a RawValue>,
+    #[serde(borrow, default)]
+    constellations: Option<&'a RawValue>,
+    #[serde(borrow, default)]
+    stardust: Option<&'a RawValue>,
+    #[serde(borrow)]
+    modes: BorrowedModes<'a>,
+}
+
+#[derive(Deserialize)]
+struct BorrowedModes<'a> {
+    #[serde(borrow)]
+    trial: &'a RawValue,
+    #[serde(borrow)]
+    time_limit: &'a RawValue,
+    #[serde(borrow)]
+    tutorial: &'a RawValue,
+}
 
 /// The pack file. Each content file is the JSON object its own schema describes.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -1063,7 +1108,7 @@ const fn slot(name: &'static str, in_modes: bool, optional: bool) -> FileSlot {
 /// what `content/` and `modes/` hold, and what a pack is made from and unpacked into (ADR-131).
 #[derive(Clone, Debug, Default)]
 pub struct ContentFiles {
-    files: BTreeMap<&'static str, Vec<u8>>,
+    files: BTreeMap<&'static str, Cow<'static, [u8]>>,
 }
 
 impl ContentFiles {
@@ -1091,7 +1136,7 @@ impl ContentFiles {
     pub fn insert(&mut self, name: &str, bytes: Vec<u8>) -> bool {
         match Self::LAYOUT.iter().find(|s| s.name == name) {
             Some(s) => {
-                self.files.insert(s.name, bytes);
+                self.files.insert(s.name, Cow::Owned(bytes));
                 true
             }
             None => false,
@@ -1099,7 +1144,7 @@ impl ContentFiles {
     }
 
     pub fn get(&self, name: &str) -> Option<&[u8]> {
-        self.files.get(name).map(Vec::as_slice)
+        self.files.get(name).map(AsRef::as_ref)
     }
 
     /// The files of core's tree: each slot of `LAYOUT` read from `content_dir` (core's
@@ -1124,8 +1169,52 @@ impl ContentFiles {
     /// included): equal to `content/` and `modes/` (tested). Built once from `Pack::BUNDLED`.
     pub fn bundled() -> &'static ContentFiles {
         static BUNDLED: OnceLock<ContentFiles> = OnceLock::new();
+        // Split, not re-checked: `Pack::bundled()` reads the same bytes with every check, and
+        // tests prove that `export` writes them back. The files share one buffer, made with
+        // no temporaries, so that the first call leaves the heap as it found it save one block
+        // (the bench cases count the instructions of a tick, which a different heap layout moves).
         BUNDLED.get_or_init(|| {
-            ContentFiles::from_pack(Pack::BUNDLED).expect("the bundled pack's files")
+            let pack: BorrowedPack =
+                serde_json::from_slice(Pack::BUNDLED).expect("the bundled pack");
+            let members = [
+                ("run_stats", Some(pack.run_stats)),
+                ("rewards", Some(pack.rewards)),
+                ("stage_skills", Some(pack.stage_skills)),
+                ("expertise", Some(pack.expertise)),
+                ("match_ups", Some(pack.match_ups)),
+                ("runes", Some(pack.runes)),
+                ("perk_sets", Some(pack.perk_sets)),
+                ("difficulties", Some(pack.difficulties)),
+                ("weapons", Some(pack.weapons)),
+                ("rules", Some(pack.rules)),
+                ("starting_unlocks", pack.starting_unlocks),
+                ("constellations", pack.constellations),
+                ("stardust", pack.stardust),
+                ("trial", Some(pack.modes.trial)),
+                ("time_limit", Some(pack.modes.time_limit)),
+                ("tutorial", Some(pack.modes.tutorial)),
+            ];
+            // Each file, then its final newline.
+            let total: usize = members
+                .iter()
+                .flat_map(|(_, raw)| raw)
+                .map(|r| r.get().len() + 1)
+                .sum();
+            let mut buffer = Vec::with_capacity(total);
+            for raw in members.iter().flat_map(|(_, raw)| raw) {
+                buffer.extend_from_slice(raw.get().as_bytes());
+                buffer.push(b'\n');
+            }
+            let mut rest: &'static [u8] = Box::leak(buffer.into_boxed_slice());
+            let mut files = ContentFiles::default();
+            for (name, raw) in members {
+                if let Some(raw) = raw {
+                    let (file, tail) = rest.split_at(raw.get().len() + 1);
+                    files.files.insert(name, Cow::Borrowed(file));
+                    rest = tail;
+                }
+            }
+            files
         })
     }
 
