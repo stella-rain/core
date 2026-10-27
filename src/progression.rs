@@ -115,18 +115,41 @@ pub struct Settlement {
 }
 
 /// Settles `run` against the `bank` the save holds, by the numbers of `content`.
+///
+/// A mode the Stardust file has no entry for pays every outcome whole and banks nothing: a mode
+/// added without an entry pays as the app always has.
 pub fn settle(content: &RunContent, run: &RunResult, bank: &Bank) -> Settlement {
     let earned = u64::from(run.stardust_tenths);
     let cleared = run.outcome == RunOutcome::Cleared;
-    let difficulty = content.difficulties().get(&run.difficulty);
+    let key = (run.mode.clone(), run.difficulty.clone());
+    let mut bank_after = bank.clone();
+    let (mut paid, mut bank_paid, mut banked) = (earned, 0, 0);
+    if let Some(rules) = content.stardust().mode(&run.mode.0) {
+        let cap = u64::from(rules.bank_cap) * 10;
+        // A saved value over the cap counts as the cap.
+        let held = bank.get(&key.0, &key.1).min(cap);
+        if cleared {
+            if rules.bank {
+                bank_paid = held;
+                bank_after.set(key, 0);
+            }
+        } else {
+            paid = earned * u64::from(rules.pay_pct) / 100;
+            if rules.bank {
+                let share = (earned * u64::from(rules.bank_pct)).div_ceil(100);
+                banked = share.min(earned - paid).min(cap - held);
+                bank_after.set(key, held + banked);
+            }
+        }
+    }
     Settlement {
-        paid_tenths: earned,
-        bank_paid_tenths: 0,
-        stardust_tenths: earned,
-        banked_tenths: 0,
-        lost_tenths: 0,
-        bank_after: bank.clone(),
-        rune_shards: match difficulty {
+        paid_tenths: paid,
+        bank_paid_tenths: bank_paid,
+        stardust_tenths: paid + bank_paid,
+        banked_tenths: banked,
+        lost_tenths: if cleared { 0 } else { earned - paid - banked },
+        bank_after,
+        rune_shards: match content.difficulties().get(&run.difficulty) {
             Some(d) if cleared => d.rune_shards,
             _ => 0,
         },

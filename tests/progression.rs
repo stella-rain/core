@@ -399,7 +399,13 @@ proptest! {
         );
         let e = u64::from(earned);
         prop_assert_eq!(fail.paid_tenths + fail.banked_tenths + fail.lost_tenths, e);
-        prop_assert!(stored(&fail.bank_after, "trial", "normal") <= cap);
+        let after = stored(&fail.bank_after, "trial", "normal");
+        if bank_on {
+            prop_assert!(after <= cap);
+        } else {
+            // A bank that is off stays as the save holds it.
+            prop_assert_eq!(after, before);
+        }
         let clear = settle(
             pack.content(),
             &run("trial", "normal", RunOutcome::Cleared, earned),

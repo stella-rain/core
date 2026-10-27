@@ -5,17 +5,17 @@
 //! at the same difficulty pays the whole bank. The bank's key is therefore the pair (mode,
 //! difficulty); the entry here is a mode's and holds for every difficulty.
 //!
-//! Core does not pay, split or bank Stardust: the app does, and keeps the bank in its save
-//! (ADR-101 point 7). Core counts what a run earns (ADR-109, `rules_v0::stardust`); this file
-//! only carries the numbers the app reads, so no simulation outcome depends on it.
+//! `progression::settle` pays, splits and banks by these numbers; the app keeps the bank in its
+//! save (ADR-101 point 7). Core counts what a run earns (ADR-109, `rules_v0::stardust`); this file
+//! only carries the numbers, so no simulation outcome depends on it.
 //!
 //! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every number bounded: at most `MAX_MODES`
 //! entries, each a mode of the registry (ADR-026) once, `pay_pct` and `bank_pct` from 0 to 100
 //! with a sum of at most 100, and `bank_cap` at most `MAX_BANK_CAP`. `Pack` holds the file as
 //! an optional field: a pack released before it yields the bundled file (`Stardust::bundled`),
-//! so older packs still load. A mode without an entry has none of these rules: what the app
-//! does for it is the app's choice, never a guess made here (`Stardust::mode` is `None`).
+//! so older packs still load. A mode without an entry has none of these rules (`Stardust::mode`
+//! is `None`): `progression::settle` decides, and pays every outcome of it whole.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
