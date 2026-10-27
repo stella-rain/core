@@ -9,7 +9,6 @@ use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::rune::Rune;
-use crate::validate::limits::DAMAGE_SCALE;
 
 use super::{MAX_AGGRO, PLAYER_ID, Shot};
 
@@ -474,9 +473,6 @@ pub(super) fn scale_damage(
         .max(u32::from(base > 0))
 }
 
-/// `K` of ADR-056 before `rules.json` held it; deleted with the other constants.
-pub(super) const DEFENCE_K: u64 = 100 * DAMAGE_SCALE as u64;
-
 /// Statuses run out and aggro fades, once per tick. Damage-over-time statuses run out as they
 /// tick instead (`tick_dots`); whether there is one on anyone is returned, so a tick without
 /// one skips that pass.
@@ -525,8 +521,50 @@ pub(super) fn tick_statuses_and_aggro(
 
 #[cfg(test)]
 mod tests {
-    use super::scale_damage;
     use crate::rewards::MAX_TYPE_BONUS_PCT;
+
+    /// `K` of the bundled `rules.json`: 100 x `DAMAGE_SCALE`.
+    const K: u64 = 10_000;
+
+    fn scale_damage(
+        base: u32,
+        atk_up_pct: u32,
+        type_bonus_pct: u32,
+        vulnerable_pct: u32,
+        match_up_pct: i64,
+        defence: u32,
+    ) -> u32 {
+        super::scale_damage(
+            base,
+            atk_up_pct,
+            type_bonus_pct,
+            vulnerable_pct,
+            match_up_pct,
+            defence,
+            K,
+        )
+    }
+
+    #[test]
+    fn the_defence_k_bound_keeps_the_64_bit_steps_from_overflowing() {
+        // `rules.json` bounds `defence_k` to 1,000,000; the widest hit the clamps let through
+        // would panic here (overflow checks are on) if a step passed 64 bits.
+        let dealt = super::scale_damage(
+            u32::MAX,
+            super::MAX_BONUS_PCT,
+            MAX_TYPE_BONUS_PCT,
+            super::MAX_BONUS_PCT,
+            100,
+            u32::MAX,
+            1_000_000,
+        );
+        assert!(dealt > 0);
+        assert_eq!(
+            super::scale_damage(10, 0, 0, 0, 0, 1_000_000, 1_000_000),
+            5,
+            "a defence of K halves a hit, whatever K is"
+        );
+    }
 
     #[test]
     fn a_match_up_scales_after_vulnerability_and_before_defence() {

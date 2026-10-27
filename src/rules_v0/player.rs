@@ -39,7 +39,6 @@ use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
 use crate::weapon::{Charge, Hold, SmashEffect, Step, Weapon};
 
-use super::PLAYER_SPEED;
 use super::attacks;
 use super::entity::{Who, speed_pct};
 use super::levels;

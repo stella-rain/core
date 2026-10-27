@@ -335,11 +335,12 @@ pub(crate) struct Tuning {
     pub aggro_per_buff: u32,
     pub aggro_per_heal_point: u32,
     pub aggro_decay: u32,
+    /// How far a regular enemy may stray before the leash moves it, and where it lands (EC2, DS80).
     pub leash_reach_x: Fx,
     pub leash_reach_y: Fx,
     pub leash_land_x: Fx,
     pub leash_land_y: Fx,
-    /// The spawn rectangle's half width and half height: the view and the file's margin.
+    /// The spawn rectangle's half width (VS1, DS109) and half height: the view and the file's margin.
     pub spawn_edge_x: Fx,
     pub spawn_edge_y: Fx,
     pub ranged_token_cooldown_ticks: u32,

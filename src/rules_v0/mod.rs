@@ -12,7 +12,7 @@
 //! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
 //! | `spawn_waves` | the waves that are due spawn enemies; a horde run holds them at the crowd target (DIR1) |
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
-//! | `leash` | a regular, unanchored enemy outside the view rectangle (`LEASH_REACH_X`, `LEASH_REACH_Y`) moves to the rectangle of `LEASH_LAND_X`, `LEASH_LAND_Y` opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
+//! | `leash` | a regular, unanchored enemy outside the view rectangle (`leash_reach_x`, `leash_reach_y` of `rules.json`) moves to the rectangle of `leash_land_x`, `leash_land_y` opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
@@ -116,8 +116,6 @@ mod loadout;
 mod orbit;
 mod player;
 mod push;
-#[cfg(test)]
-mod rules_file_tests;
 mod runes;
 mod schedule;
 mod scratch;
@@ -165,50 +163,20 @@ pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
 
-/// A regular enemy farther than this to the side of the main character is moved by the leash
-/// (EC2, DS80, DS106): twice the 640 by 360 px view's half-extents, so the trigger is the view
-/// rectangle. A placeholder for playtest (DS106); CS1b-3 moves it into `rules.json`.
-pub(crate) const LEASH_REACH_X: Fx = Fx::px(640);
-/// The same, above or below the main character (360 px). A placeholder for playtest (DS106);
-/// CS1b-3 moves it into `rules.json`.
-pub(crate) const LEASH_REACH_Y: Fx = Fx::px(360);
-/// Where the leash lands an enemy: this far to the side of the main character, opposite where it
-/// was (the view's half-width plus 64 px). A placeholder for playtest (DS106); CS1b-3 moves it
-/// into `rules.json`.
-pub(crate) const LEASH_LAND_X: Fx = Fx::px(384);
-/// The same, above or below the main character (the view's half-height plus 64 px). A placeholder
-/// for playtest (DS106); CS1b-3 moves it into `rules.json`.
-pub(crate) const LEASH_LAND_Y: Fx = Fx::px(244);
 /// The most enemies the leash moves in a tick.
 pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 /// Zones alive at once (core Z1, a placeholder cap pending ADR-058); a zone placed over it is
 /// dropped, as an orb over `MAX_ORBS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
-/// it is in its wind-up or active phase. The tokens are the two pools below, which sum to this
-/// (ADR-SIM-7's cap); they go to the nearest ready enemies in view (RA1).
+/// it is in its wind-up or active phase. The tokens are the two pools of `rules.json`
+/// (`ranged_zone_tokens`, `ranged_line_tokens`), which sum to at most this (ADR-SIM-7's cap); they go to the nearest ready enemies in view (RA1).
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// The view rectangle, centred on the main character (RA1, DS82): the 1920 by 1080 design screen
 /// at the play zoom of 3, never the device's screen. An enemy starts a ranged attack only from
 /// inside it, edges included. Tuning values.
 pub(crate) const VIEW_HALF_WIDTH: Fx = Fx::px(320);
 pub(crate) const VIEW_HALF_HEIGHT: Fx = Fx::px(180);
-/// How far outside the view an enemy spawns (VS1, DS109): a placeholder for playtest; CS1b-3
-/// moves it into `rules.json`.
-pub(crate) const SPAWN_MARGIN: Fx = Fx::px(64);
-/// The spawn rectangle's half width and half height, 384 and 244 px: the view and the margin,
-/// the same band the leash lands on (`LEASH_LAND_X/Y`), defined from the view, not the leash. A
-/// placeholder for playtest (DS109); CS1b-3 moves it into `rules.json`.
-pub(crate) const SPAWN_EDGE_X: Fx = Fx(VIEW_HALF_WIDTH.0 + SPAWN_MARGIN.0);
-pub(crate) const SPAWN_EDGE_Y: Fx = Fx(VIEW_HALF_HEIGHT.0 + SPAWN_MARGIN.0);
-/// The ranged tokens are two pools (RA1, DS83): the zone attacks' and the line attacks' (an
-/// attack that lays a line zone). Tuning values.
-pub(crate) const RANGED_ZONE_TOKENS: u32 = 3;
-pub(crate) const RANGED_LINE_TOKENS: u32 = 1;
-/// A token a ranged run stops holding cools this many ticks before its pool grants it again
-/// (RA1, DS83). A tuning value.
-pub(crate) const RANGED_TOKEN_COOLDOWN_TICKS: u32 = 30;
-const _: () = assert!(RANGED_ZONE_TOKENS + RANGED_LINE_TOKENS == MAX_RANGED_ATTACKERS);
 /// Orbs alive per attacker and in all (core Z2, DS11, tuning rows); an orb over either cap is
 /// dropped in node order.
 pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;
@@ -220,29 +188,13 @@ pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 
 /// The main character is always entity 0; the boss, if any, is 1, then the companions.
 pub(crate) const PLAYER_ID: EntityId = EntityId(0);
-/// The speed cap at full stick (ADR-050).
-const PLAYER_SPEED: i32 = Fx::px(3).0;
-/// The hurt circle, a tiny one (ADR-050).
-pub(crate) const PLAYER_RADIUS: i32 = Fx::px(2).0;
 /// The radius the enemy grid is built for (`Grid::rebuild`'s probe radius); it sets the cell side
 /// with the largest enemy, so it stays what the friendly orbs' radius was.
 const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
-/// An orb's hit circle.
-const ORB_RADIUS: i32 = Fx::px(3).0;
-/// Ticks of invulnerability after the main character is hit.
-const HIT_INVULNERABLE_TICKS: u32 = 60;
 
-/// Aggro (ADR-036): raised by damage dealt, by buffs and by heals; fading every tick. A point of
-/// damage or healing is worth the same aggro as before the scale of ADR-103 (so the two
-/// per-point values stay), and the flat amounts scale with it: a buff, the decay and the cap.
-const AGGRO_PER_DAMAGE: u32 = 1;
-const AGGRO_PER_BUFF: u32 = 40 * DAMAGE_SCALE;
-const AGGRO_PER_HEAL_POINT: u32 = 2;
-const AGGRO_DECAY: u32 = DAMAGE_SCALE;
+/// The most aggro anyone holds (ADR-036; an overflow bound, also the validator's bound of
+/// `AggroAbove`). What raises it and how fast it fades are `rules.json`'s `aggro_*` fields.
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
-pub(crate) const fn orb_radius() -> i32 {
-    ORB_RADIUS
-}
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
 /// and the rerolls its setup adds to the stage's (ADR-079 §1).
@@ -788,7 +740,7 @@ impl RectSide {
     }
 }
 
-/// A point on the spawn rectangle around `from` (VS1): ±`SPAWN_EDGE_X` by ±`SPAWN_EDGE_Y`, drawn
+/// A point on the spawn rectangle around `from` (VS1): ±the spawn edge (the view and `spawn_margin`), drawn
 /// from `rng` (the wave's stream for a wave, the horde's for an elite) on the part of `edge`'s
 /// side that is on the map. A side wholly off the map gives way to the opposite one; with
 /// neither on the map the side itself is used and the point moved onto the map. `any` is one draw

@@ -24,8 +24,6 @@ use crate::snapshot::{OfferOption, StatOfferView};
 
 /// The highest level; past it experience is no longer counted (ADR-020: it bounds the points).
 pub(crate) const MAX_LEVEL: u32 = 100;
-/// The experience of an enemy whose wave gives none, or that no wave spawned (a summon).
-pub(super) const DEFAULT_XP: u32 = 1;
 
 /// The experience level `level` needs to reach the next; 0 at `MAX_LEVEL` or without levels.
 pub(crate) fn xp_next(stage: &World, level: u32) -> u32 {

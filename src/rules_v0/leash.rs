@@ -1,7 +1,7 @@
 //! The leash (EC2, DS80, DS106): the crowd trails out of reach of a main character who is faster
 //! than most enemies, so a regular enemy outside the view rectangle around the main character
-//! (more than `LEASH_REACH_X` to the side or `LEASH_REACH_Y` above or below) moves to the
-//! rectangle of `LEASH_LAND_X` by `LEASH_LAND_Y` around it, on the side opposite where it was,
+//! (more than `leash_reach_x` to the side or `leash_reach_y` above or below, from
+//! `rules.json`) moves to the rectangle of `leash_land_x` by `leash_land_y` around it, on the side opposite where it was,
 //! scaled along its own direction and clamped to the map, and chases from there. At most
 //! `MAX_LEASH_MOVES_PER_TICK` move in a tick, in entity-ID order.
 //!

@@ -49,9 +49,6 @@ pub(super) fn crits(s: &State, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bo
     h % 100 < u64::from(chance)
 }
 
-/// What a critical hit deals before any bonus, in percent, before `rules.json` held it.
-pub(super) const CRIT_DAMAGE_BASE_PCT: u64 = 200;
-
 /// `damage` of a critical hit: `base_pct` percent (`rules.json`'s `crit_damage_base_pct`, 200: twice
 /// as much), and `bonus_pct` percent more (held to `MAX_CRIT_DAMAGE_TOTAL_PCT`).
 pub(super) fn crit_damage(damage: u32, bonus_pct: u32, base_pct: u64) -> u32 {

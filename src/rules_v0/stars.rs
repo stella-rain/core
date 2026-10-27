@@ -14,7 +14,7 @@
 //! opens even though the kill clears the stage, and the stars' offers due then open after it.
 //!
 //! At the end of a tick the run survives or clears, the first offer due opens, after the boss offer and
-//! the expertise levels' (`expertise`). It draws `offer_size` candidates (`OFFER_SIZE`, one more for each
+//! the expertise levels' (`expertise`). It draws `offer_size` candidates (`rules.json`, one more for each
 //! offer-candidates reward taken, at most 4) from the run's pool at the star's rarity, then from the rarities below while too few are left. It leaves out banished rewards, rewards at their limit and rewards it already
 //! holds, and the random rune once the Main weapon holds every rune (ADR-099), whose rune is
 //! drawn only when it is taken. An offer with no candidate does not open, and the next one due is tried. While an
