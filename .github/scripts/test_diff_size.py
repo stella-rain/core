@@ -80,6 +80,16 @@ class Cli(unittest.TestCase):
             ["hand-written: +1 -0 in 1 file", "generated: 1 file (gen/s.json)"],
         )
 
+    def test_the_text_line_names_five_generated_files_at_most(self):
+        for i in range(7):
+            write(self.repo, f"gen/f{i}.json", lines(2))
+        r = self.run_script(self.base, self.head())
+        self.assertEqual(
+            r.stdout.splitlines()[1],
+            "generated: 7 files (gen/f0.json, gen/f1.json, gen/f2.json, gen/f3.json, gen/f4.json,"
+            " and 2 more)",
+        )
+
     def test_the_head_attributes_decide(self):
         # A file the head newly marks generated is generated in that PR.
         write(self.repo, ".gitattributes", "gen/** linguist-generated=true\n"
