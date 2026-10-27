@@ -17,10 +17,12 @@
 //!
 //! Each file sits in the pack as a JSON object, and is read from the exact bytes it has there,
 //! followed by a newline: the bytes of the same file on its own. A pack exported from the
-//! bundled files (`export_bundled`) so gives each file the bundled file's SHA-256, and a run of
+//! bundled files (`ContentFiles::export`) so gives each file the bundled file's SHA-256, and a run of
 //! its content the bundled content hash.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use schemars::JsonSchema;
@@ -46,7 +48,7 @@ use crate::stardust::{Stardust, StardustFile};
 use crate::starting_unlocks::{StartingUnlocks, StartingUnlocksFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
 use crate::validate::{self, Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version::{self, ReadError, SCHEMA_VERSION, SIM_VERSION};
 use crate::weapons::{Weapons, WeaponsFile};
 
 // The count budgets: about four times today's counts, rounded up to a multiple of 8 and held
@@ -96,6 +98,50 @@ pub const MAX_CONSTELLATIONS: usize = crate::constellations::MAX_CONSTELLATIONS;
 /// The most IDs one weapon's expertise introduces: its styles, their choices and its common
 /// options (15 today).
 pub const MAX_EXPERTISE_IDS: usize = 64;
+
+/// The members of a pack, borrowed from its bytes: `ContentFiles::bundled` reads the bundled pack
+/// with it and allocates nothing but its result.
+#[derive(Deserialize)]
+struct BorrowedPack<'a> {
+    #[serde(borrow)]
+    run_stats: &'a RawValue,
+    #[serde(borrow)]
+    rewards: &'a RawValue,
+    #[serde(borrow)]
+    stage_skills: &'a RawValue,
+    #[serde(borrow)]
+    expertise: &'a RawValue,
+    #[serde(borrow)]
+    match_ups: &'a RawValue,
+    #[serde(borrow)]
+    runes: &'a RawValue,
+    #[serde(borrow)]
+    perk_sets: &'a RawValue,
+    #[serde(borrow)]
+    difficulties: &'a RawValue,
+    #[serde(borrow)]
+    weapons: &'a RawValue,
+    #[serde(borrow)]
+    rules: &'a RawValue,
+    #[serde(borrow, default)]
+    starting_unlocks: Option<&'a RawValue>,
+    #[serde(borrow, default)]
+    constellations: Option<&'a RawValue>,
+    #[serde(borrow, default)]
+    stardust: Option<&'a RawValue>,
+    #[serde(borrow)]
+    modes: BorrowedModes<'a>,
+}
+
+#[derive(Deserialize)]
+struct BorrowedModes<'a> {
+    #[serde(borrow)]
+    trial: &'a RawValue,
+    #[serde(borrow)]
+    time_limit: &'a RawValue,
+    #[serde(borrow)]
+    tutorial: &'a RawValue,
+}
 
 /// The pack file. Each content file is the JSON object its own schema describes.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -244,6 +290,22 @@ fn location(file: &str) -> String {
     }
 }
 
+impl From<ReadError> for PackError {
+    fn from(e: ReadError) -> PackError {
+        match e {
+            ReadError::TooLarge { size, limit } => PackError::TooLarge { size, limit },
+            ReadError::Parse { line, column } => PackError::Parse { line, column },
+            ReadError::UnsupportedVersion {
+                schema_version,
+                sim_version,
+            } => PackError::UnsupportedVersion {
+                schema_version,
+                sim_version,
+            },
+        }
+    }
+}
+
 impl std::fmt::Display for PackError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -334,30 +396,7 @@ impl Pack {
     /// Checks the size, the versions, parses strictly, checks the budgets, then reads each file
     /// with its own parser: the one call for a pack's bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Pack, PackError> {
-        if bytes.len() > Pack::MAX_BYTES {
-            return Err(PackError::TooLarge {
-                size: bytes.len(),
-                limit: Pack::MAX_BYTES,
-            });
-        }
-        // Versions first: a pack for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| PackError::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(PackError::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let pack: PackFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let pack: PackFile = version::read_current(bytes, Pack::MAX_BYTES)?;
         check_budgets(&pack)?;
 
         let run_stats = RunStats::parse(&file_bytes(&pack.run_stats))
@@ -406,6 +445,8 @@ impl Pack {
             .map(|raw| Stardust::parse(&file_bytes(raw)))
             .transpose()
             .map_err(PackError::in_file("stardust"))?
+            // Never re-entered: the bundled pack carries `stardust`, so loading it does not
+            // reach `Pack::bundled()`, whose `OnceLock` would deadlock.
             .unwrap_or_else(|| Stardust::bundled().clone());
         let trial = validate::parse_and_validate(&file_bytes(&pack.modes.trial))
             .map_err(PackError::in_file("trial"))?;
@@ -472,7 +513,7 @@ impl Pack {
     }
 
     /// The bundled pack, `content/pack.json`: the default content of every run (ADR-080). It is
-    /// our own file, tested to be what `export_bundled` writes, so a failure to read it is a
+    /// our own file, tested to be what `ContentFiles::read_dir` of `content/` exports, so a failure to read it is a
     /// bug, and stops at the first use.
     pub fn bundled() -> &'static Pack {
         static BUNDLED: OnceLock<Pack> = OnceLock::new();
@@ -1042,6 +1083,19 @@ pub struct FileSlot {
     pub optional: bool,
 }
 
+impl FileSlot {
+    /// Where the file is in core's tree, given its `content/` directory: `<name>.json` there, or
+    /// in `modes/` beside it.
+    pub fn path(&self, content_dir: &Path) -> PathBuf {
+        let dir = if self.in_modes {
+            content_dir.join("..").join("modes")
+        } else {
+            content_dir.to_path_buf()
+        };
+        dir.join(format!("{}.json", self.name))
+    }
+}
+
 const fn slot(name: &'static str, in_modes: bool, optional: bool) -> FileSlot {
     FileSlot {
         name,
@@ -1054,7 +1108,7 @@ const fn slot(name: &'static str, in_modes: bool, optional: bool) -> FileSlot {
 /// what `content/` and `modes/` hold, and what a pack is made from and unpacked into (ADR-131).
 #[derive(Clone, Debug, Default)]
 pub struct ContentFiles {
-    files: BTreeMap<&'static str, Vec<u8>>,
+    files: BTreeMap<&'static str, Cow<'static, [u8]>>,
 }
 
 impl ContentFiles {
@@ -1082,7 +1136,7 @@ impl ContentFiles {
     pub fn insert(&mut self, name: &str, bytes: Vec<u8>) -> bool {
         match Self::LAYOUT.iter().find(|s| s.name == name) {
             Some(s) => {
-                self.files.insert(s.name, bytes);
+                self.files.insert(s.name, Cow::Owned(bytes));
                 true
             }
             None => false,
@@ -1090,34 +1144,87 @@ impl ContentFiles {
     }
 
     pub fn get(&self, name: &str) -> Option<&[u8]> {
-        self.files.get(name).map(Vec::as_slice)
+        self.files.get(name).map(AsRef::as_ref)
     }
 
-    /// The bundled files.
-    pub fn bundled() -> ContentFiles {
+    /// The files of core's tree: each slot of `LAYOUT` read from `content_dir` (core's
+    /// `content/`; the mode files from `modes/` beside it). A file that is not there leaves its
+    /// slot empty, so that an optional one stays out of the pack and a required one is
+    /// `PackError::Missing` from `export`. Reads nothing else (`pack.json` is not a slot).
+    pub fn read_dir(content_dir: &Path) -> std::io::Result<ContentFiles> {
         let mut files = ContentFiles::default();
-        let bundled: [(&str, &[u8]); 16] = [
-            ("run_stats", RunStats::BUNDLED),
-            ("rewards", Rewards::BUNDLED),
-            ("stage_skills", StageSkills::BUNDLED),
-            ("expertise", Expertise::BUNDLED),
-            ("match_ups", MatchUps::BUNDLED),
-            ("runes", Runes::BUNDLED),
-            ("perk_sets", PerkSets::BUNDLED),
-            ("difficulties", Difficulties::BUNDLED),
-            ("weapons", Weapons::BUNDLED),
-            ("rules", Rules::BUNDLED),
-            ("starting_unlocks", StartingUnlocks::BUNDLED),
-            ("constellations", Constellations::BUNDLED),
-            ("stardust", Stardust::BUNDLED),
-            ("trial", include_bytes!("../modes/trial.json")),
-            ("time_limit", TimeLimit::BUNDLED),
-            ("tutorial", include_bytes!("../modes/tutorial.json")),
-        ];
-        for (name, bytes) in bundled {
-            files.insert(name, bytes.to_vec());
+        for slot in Self::LAYOUT {
+            match std::fs::read(slot.path(content_dir)) {
+                Ok(bytes) => {
+                    files.insert(slot.name, bytes);
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e),
+            }
         }
-        files
+        Ok(files)
+    }
+
+    /// The bundled pack's files, each the bytes of the file on its own (a final newline
+    /// included): equal to `content/` and `modes/` (tested). Built once from `Pack::BUNDLED`.
+    pub fn bundled() -> &'static ContentFiles {
+        static BUNDLED: OnceLock<ContentFiles> = OnceLock::new();
+        // Split, not re-checked: `Pack::bundled()` reads the same bytes with every check, and
+        // tests prove that `export` writes them back. The files share one buffer, made with
+        // no temporaries, so that the first call leaves the heap as it found it save one block
+        // (the bench cases count the instructions of a tick, which a different heap layout moves).
+        BUNDLED.get_or_init(|| {
+            let pack: BorrowedPack =
+                serde_json::from_slice(Pack::BUNDLED).expect("the bundled pack");
+            let members = [
+                ("run_stats", Some(pack.run_stats)),
+                ("rewards", Some(pack.rewards)),
+                ("stage_skills", Some(pack.stage_skills)),
+                ("expertise", Some(pack.expertise)),
+                ("match_ups", Some(pack.match_ups)),
+                ("runes", Some(pack.runes)),
+                ("perk_sets", Some(pack.perk_sets)),
+                ("difficulties", Some(pack.difficulties)),
+                ("weapons", Some(pack.weapons)),
+                ("rules", Some(pack.rules)),
+                ("starting_unlocks", pack.starting_unlocks),
+                ("constellations", pack.constellations),
+                ("stardust", pack.stardust),
+                ("trial", Some(pack.modes.trial)),
+                ("time_limit", Some(pack.modes.time_limit)),
+                ("tutorial", Some(pack.modes.tutorial)),
+            ];
+            // Each file, then its final newline.
+            let total: usize = members
+                .iter()
+                .flat_map(|(_, raw)| raw)
+                .map(|r| r.get().len() + 1)
+                .sum();
+            let mut buffer = Vec::with_capacity(total);
+            for raw in members.iter().flat_map(|(_, raw)| raw) {
+                buffer.extend_from_slice(raw.get().as_bytes());
+                buffer.push(b'\n');
+            }
+            let mut rest: &'static [u8] = Box::leak(buffer.into_boxed_slice());
+            let mut files = ContentFiles::default();
+            for (name, raw) in members {
+                if let Some(raw) = raw {
+                    let (file, tail) = rest.split_at(raw.get().len() + 1);
+                    files.files.insert(name, Cow::Borrowed(file));
+                    rest = tail;
+                }
+            }
+            files
+        })
+    }
+
+    /// The bytes of one bundled file: the one call for library code and tests that need a
+    /// content file on its own. Panics for a name the layout lacks: the bundled pack has every
+    /// slot (tested).
+    pub fn bundled_file(name: &str) -> &'static [u8] {
+        Self::bundled()
+            .get(name)
+            .unwrap_or_else(|| panic!("the bundled pack has no file `{name}`"))
     }
 
     /// The files of a pack, read with the checks of `Pack::from_bytes`. It is refused when
@@ -1274,12 +1381,4 @@ fn members(pack: &PackFile) -> Vec<(&'static str, &RawValue)> {
     out.push(("time_limit", &pack.modes.time_limit));
     out.push(("tutorial", &pack.modes.tutorial));
     out
-}
-
-/// The bundled content files as a pack: what the content repository's first pack is made
-/// from (`ContentFiles::export` of the bundled files).
-pub fn export_bundled() -> Vec<u8> {
-    ContentFiles::bundled()
-        .export()
-        .expect("the bundled files make a pack")
 }

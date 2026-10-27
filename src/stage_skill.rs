@@ -24,7 +24,7 @@ use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::run_stats;
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version::{self, SIM_VERSION};
 
 /// The largest stage skills file read.
 pub const MAX_STAGE_SKILLS_BYTES: usize = 32 * 1024;
@@ -152,9 +152,6 @@ pub struct StageSkills {
 }
 
 impl StageSkills {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/stage_skills.json");
-
     /// The bundled stage skills, the default of every run.
     pub fn bundled() -> &'static StageSkills {
         Pack::bundled().content().stage_skills()
@@ -162,30 +159,7 @@ impl StageSkills {
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
     pub fn parse(bytes: &[u8]) -> Result<StageSkills, Error> {
-        if bytes.len() > MAX_STAGE_SKILLS_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_STAGE_SKILLS_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: StageSkillsFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: StageSkillsFile = version::read_current(bytes, MAX_STAGE_SKILLS_BYTES)?;
         validate(&file)?;
         Ok(StageSkills {
             skills: file.stage_skills,

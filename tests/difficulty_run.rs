@@ -3,6 +3,7 @@
 //! range bounds the stars that drop, and easy sets the Time Limit's length, boss times and level
 //! table. A setup that names none plays on `normal`.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::difficulties::scale_pct;
 use stella_rain_core::engine::{Engine, Outcome};
@@ -46,7 +47,7 @@ fn setup(difficulty: &str) -> RunSetup {
 }
 
 fn mode(edit: impl FnOnce(&mut Value)) -> TimeLimit {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     edit(&mut v);
     TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
 }

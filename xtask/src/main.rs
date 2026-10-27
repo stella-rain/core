@@ -91,6 +91,7 @@ fn export_pack() -> Result<(), String> {
             "--bin",
             "content-pack",
             "export",
+            "content",
         ])
         .output()
         .map_err(|e| format!("content-pack: {e}"))?;
@@ -101,10 +102,12 @@ fn export_pack() -> Result<(), String> {
 }
 
 fn regenerate() -> Result<(), String> {
+    // First: the tests below read the pack compiled into core, so they must be built on the
+    // pack of the files as they are now.
+    export_pack()?;
     cargo_test(Some(("UPDATE_SCHEMA", "1")), "schema::")?;
     cargo_test(Some(("UPDATE_CORPUS", "1")), "corpus::")?;
-    cargo_test(Some(("INSTA_UPDATE", "always")), "golden::")?;
-    export_pack()
+    cargo_test(Some(("INSTA_UPDATE", "always")), "golden::")
 }
 
 fn main() -> ExitCode {

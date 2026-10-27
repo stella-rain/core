@@ -33,7 +33,7 @@ use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use crate::trig::PER_DEGREE;
 use crate::validate::limits::{DAMAGE_SCALE, MAX_EVADE_CHARGES, MAX_HEAL_AMOUNT};
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 
 /// The largest rewards file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_REWARDS_BYTES: usize = 64 * 1024;
@@ -508,9 +508,6 @@ pub struct Rewards {
 }
 
 impl Rewards {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/rewards.json");
-
     /// The bundled rewards, with the bundled stage skills: the default of every run.
     pub fn bundled() -> &'static Rewards {
         Pack::bundled().content().rewards()
@@ -524,30 +521,7 @@ impl Rewards {
     /// Checks the size, parses strictly and validates, each reward's skill in `stage_skills`:
     /// the one call for a file's bytes.
     pub fn parse_with(bytes: &[u8], stage_skills: &StageSkills) -> Result<Rewards, Error> {
-        if bytes.len() > MAX_REWARDS_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_REWARDS_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: RewardsFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: RewardsFile = version::read_current(bytes, MAX_REWARDS_BYTES)?;
         validate(&file, stage_skills)?;
         Ok(Rewards {
             rewards: file.rewards,

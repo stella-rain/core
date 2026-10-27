@@ -2,6 +2,7 @@
 //! final boss, an overtime limit, the Star-Hunter's extra time and the map, read from JSON as
 //! untrusted bytes (ADR-020). Every time is in ticks (60 a second).
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::difficulties::MAX_PCT;
 use stella_rain_core::registry::{ENTRIES, Kind};
@@ -20,7 +21,7 @@ use stella_rain_core::validate::{
 const MINUTE: u32 = 3600;
 
 fn good() -> Value {
-    serde_json::from_slice(TimeLimit::BUNDLED).unwrap()
+    serde_json::from_slice(common::bundled_file("time_limit")).unwrap()
 }
 
 fn parse(v: &Value) -> Result<TimeLimit, Error> {
@@ -65,7 +66,7 @@ fn the_mode_is_registered_and_its_file_is_part_of_the_content_hash() {
     );
     // The mode file, then the trial stage whose placeholder content the run takes.
     let file = run_setup::mode_file("time_limit").unwrap();
-    assert!(file.starts_with(TimeLimit::BUNDLED));
+    assert!(file.starts_with(common::bundled_file("time_limit")));
     assert!(file.ends_with(run_setup::mode_stage("trial").unwrap()));
     assert_ne!(content_sha256("time_limit"), None);
     // One pack, one hash for both modes (ADR-080); a mode that does not exist has none.

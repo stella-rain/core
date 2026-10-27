@@ -12,6 +12,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::OfferOption;
 
+use crate::common;
 use crate::common::run::{run_input, trial_setup};
 
 fn bundled(text: &str) -> Value {
@@ -29,7 +30,7 @@ fn rune<'a>(file: &'a Value, list: &str, id: &str) -> &'a Value {
 
 #[test]
 fn the_runes_have_the_decided_numbers() {
-    let file = bundled(include_str!("../content/runes.json"));
+    let file = bundled(std::str::from_utf8(common::bundled_file("runes")).unwrap());
     let on_hit = |id: &str| rune(&file, "on_hit", id);
     let e = on_hit("explosion");
     assert_eq!(
@@ -73,7 +74,7 @@ fn reward<'a>(file: &'a Value, id: &str) -> &'a Value {
 
 #[test]
 fn the_star_rewards_have_the_decided_amounts() {
-    let file = bundled(include_str!("../content/rewards.json"));
+    let file = bundled(std::str::from_utf8(common::bundled_file("rewards")).unwrap());
     let amounts = |prefix: &str, rarities: &[&str]| -> Vec<Value> {
         rarities
             .iter()
@@ -107,15 +108,15 @@ fn the_star_rewards_have_the_decided_amounts() {
 
 #[test]
 fn the_run_stats_and_match_ups_hold_their_caps() {
-    let stats = bundled(include_str!("../content/run_stats.json"));
+    let stats = bundled(std::str::from_utf8(common::bundled_file("run_stats")).unwrap());
     assert_eq!(stats["max_attack_speed_pct"], 500);
-    let ups = bundled(include_str!("../content/match_ups.json"));
+    let ups = bundled(std::str::from_utf8(common::bundled_file("match_ups")).unwrap());
     assert_eq!(ups["max_type_bonus_pct"], 1000);
 }
 
 #[test]
 fn the_new_rewards_are_ordinary_ones_the_random_rune_apart() {
-    let file = bundled(include_str!("../content/rewards.json"));
+    let file = bundled(std::str::from_utf8(common::bundled_file("rewards")).unwrap());
     for (effect, kinds) in [("rune_haste", 6), ("range_pct", 6), ("type_bonus_pct", 60)] {
         let found: Vec<&Value> = file["rewards"]
             .as_array()
@@ -168,8 +169,14 @@ fn a_rewards_file_may_hold_the_most_rewards_and_not_one_more() {
 #[test]
 fn the_first_match_up_profiles_are_the_decided_ones() {
     for (mode, text) in [
-        ("trial", include_str!("../modes/trial.json")),
-        ("time_limit", include_str!("../modes/time_limit.json")),
+        (
+            "trial",
+            std::str::from_utf8(common::bundled_file("trial")).unwrap(),
+        ),
+        (
+            "time_limit",
+            std::str::from_utf8(common::bundled_file("time_limit")).unwrap(),
+        ),
     ] {
         let file = bundled(text);
         let mut enemies: Vec<&Value> = file["waves"]

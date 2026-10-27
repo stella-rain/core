@@ -1,8 +1,9 @@
 //! The weapon trees are content (WP1): `content/weapons.json` holds what `presets` held as Rust
 //! constants, and a pack carries the file.
 
+use crate::common;
 use serde_json::{Value, json};
-use stella_rain_core::pack::{self, Pack, PackError};
+use stella_rain_core::pack::{Pack, PackError};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay;
 use stella_rain_core::validate::Error;
@@ -34,7 +35,7 @@ fn the_bundled_weapons_file_holds_the_hammer_and_sword_trees_as_before() {
 
 #[test]
 fn a_pack_without_weapons_is_refused() {
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     assert!(v.as_object_mut().unwrap().remove("weapons").is_some());
     let bytes = serde_json::to_vec(&v).unwrap();
     assert!(Pack::from_bytes(&bytes).is_err());
@@ -56,7 +57,7 @@ fn refused(v: &Value) -> Vec<String> {
 
 #[test]
 fn the_bundled_file_is_what_the_bundled_pack_holds() {
-    let w = Weapons::parse(Weapons::BUNDLED).unwrap();
+    let w = Weapons::parse(common::bundled_file("weapons")).unwrap();
     assert_eq!(&w, Weapons::bundled());
     let ids: Vec<_> = w.ids().map(|i| i.0.as_str()).collect();
     assert_eq!(ids, ["giant_hammer", "giant_sword"]);
@@ -104,7 +105,7 @@ fn a_tree_is_checked_as_a_stage_s_inline_weapon_is() {
 
 #[test]
 fn a_pack_with_more_weapons_than_the_budget_is_refused_before_its_files_are_read() {
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     let entry = v["weapons"]["weapons"][0].clone();
     v["weapons"]["weapons"] = json!(vec![entry; MAX_WEAPONS + 1]);
     match Pack::from_bytes(&serde_json::to_vec(&v).unwrap()) {

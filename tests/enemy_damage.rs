@@ -4,7 +4,6 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
-use stella_rain_core::expertise::Expertise;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
@@ -12,12 +11,13 @@ use stella_rain_core::run_stats::{DEFAULT_ENEMY_ATTACK_DAMAGE, RunStats};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::MAX_PLAYER_HP;
 
+use crate::common;
 use crate::common::run::trial_setup;
 
 fn stats_with(
     edit: impl FnOnce(&mut Value),
 ) -> Result<RunStats, stella_rain_core::validate::Error> {
-    let mut v: Value = serde_json::from_slice(RunStats::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("run_stats")).unwrap();
     edit(&mut v);
     RunStats::parse(v.to_string().as_bytes())
 }
@@ -47,7 +47,7 @@ fn an_absent_field_reads_as_the_default_and_the_bounds_hold() {
 }
 
 fn shooter_mode() -> TimeLimit {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["waves"] = json!([{
         "at_tick": 1,
         "enemy": {
@@ -94,7 +94,7 @@ fn an_enemy_orb_takes_10_000_and_five_hits_end_a_trial_run_from_50_000() {
 
 #[test]
 fn every_expertise_hit_point_amount_is_on_the_scaled_scale() {
-    let json: Value = serde_json::from_slice(Expertise::BUNDLED).unwrap();
+    let json: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
     let mut found = 0;
     fn walk(v: &Value, found: &mut u32) {
         match v {

@@ -1,4 +1,5 @@
 //! A run of the trial mode (ADR-079), shared by the run replay, recording and corpus tests.
+use crate::common;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
@@ -231,7 +232,7 @@ pub fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command
 /// stage played without a setup only by what its setup holds.
 pub fn plain_content() -> RunContent {
     let mut file: serde_json::Value =
-        serde_json::from_slice(stella_rain_core::perk_sets::PerkSets::BUNDLED).unwrap();
+        serde_json::from_slice(common::bundled_file("perk_sets")).unwrap();
     file["perk_sets"]
         .as_array_mut()
         .unwrap()

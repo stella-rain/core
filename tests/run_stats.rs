@@ -89,7 +89,7 @@ fn the_bundled_stats_are_the_five_of_version_0() {
     );
     assert!(stats.iter().all(|s| !s.title.is_empty()));
     assert_eq!(
-        RunStats::parse(RunStats::BUNDLED).as_ref(),
+        RunStats::parse(common::bundled_file("run_stats")).as_ref(),
         Ok(RunStats::bundled())
     );
 }
@@ -233,7 +233,7 @@ fn the_hash_is_of_the_bytes() {
 
 /// The bundled stats with the speed step doubled.
 fn faster() -> RunStats {
-    let mut v: Value = serde_json::from_slice(RunStats::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("run_stats")).unwrap();
     v["stats"][4]["step"] = json!(16);
     RunStats::parse(v.to_string().as_bytes()).unwrap()
 }

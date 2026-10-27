@@ -71,7 +71,8 @@ fn setup(difficulty: &str) -> RunSetup {
 
 /// The bundled mode, changed by `edit`.
 fn mode(edit: impl FnOnce(&mut Value)) -> TimeLimit {
-    let mut file: Value = serde_json::from_slice(TimeLimit::BUNDLED).expect("the bundled mode");
+    let mut file: Value =
+        serde_json::from_slice(common::bundled_file("time_limit")).expect("the bundled mode");
     edit(&mut file);
     TimeLimit::parse(file.to_string().as_bytes()).expect("the mode parses")
 }

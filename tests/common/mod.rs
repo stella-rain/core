@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
+use stella_rain_core::pack::ContentFiles;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::{EntityKind, Snapshot};
@@ -243,6 +244,12 @@ pub fn quiet(stage: Stage) -> Stage {
     armed(stage, quiet_weapon())
 }
 
+/// The bytes of one bundled content file (`ContentFiles::LAYOUT`'s name), read out of
+/// `Pack::BUNDLED`.
+pub fn bundled_file(name: &str) -> &'static [u8] {
+    ContentFiles::bundled_file(name)
+}
+
 /// The bundled content with an enemy's attack at the design value of the older tests: 100 stored
 /// (1 shown), so a stage's hand-worked hit points last the hits its test counts. The bundled
 /// value is 10,000 (`bundled_engine`).
@@ -252,7 +259,7 @@ pub fn design_content() -> RunContent {
 
 /// The bundled run stats with an enemy's attack at 100 stored.
 pub fn design_run_stats() -> RunStats {
-    let mut v: Value = serde_json::from_slice(RunStats::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = json!(100);
     RunStats::parse(v.to_string().as_bytes()).unwrap()
 }

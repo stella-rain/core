@@ -19,7 +19,7 @@ use crate::attack::MatchUp;
 use crate::pack::Pack;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 
 /// The largest match-up file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_MATCH_UPS_BYTES: usize = 1024;
@@ -55,9 +55,6 @@ pub struct MatchUps {
 }
 
 impl MatchUps {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/match_ups.json");
-
     /// The bundled table, the default of every run.
     pub fn bundled() -> &'static MatchUps {
         Pack::bundled().content().match_ups()
@@ -65,30 +62,7 @@ impl MatchUps {
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
     pub fn parse(bytes: &[u8]) -> Result<MatchUps, Error> {
-        if bytes.len() > MAX_MATCH_UPS_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_MATCH_UPS_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: MatchUpsFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: MatchUpsFile = version::read_current(bytes, MAX_MATCH_UPS_BYTES)?;
         validate(&file)?;
         Ok(MatchUps {
             weak_pct: file.weak_pct,

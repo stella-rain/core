@@ -84,7 +84,7 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
     }
     assert!(rewards.iter().all(|r| !r.title.is_empty()));
     // The pack's rewards are the file's, with the sets of the constellations file beside them.
-    let file = Rewards::parse(Rewards::BUNDLED).unwrap();
+    let file = Rewards::parse(common::bundled_file("rewards")).unwrap();
     assert_eq!(file.rewards(), Rewards::bundled().rewards());
     assert_eq!(file.sha256(), Rewards::bundled().sha256());
 }
@@ -477,7 +477,7 @@ fn a_rewards_file_holds_at_most_four_orbits() {
 }
 
 fn stronger() -> Rewards {
-    let mut v: Value = serde_json::from_slice(Rewards::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("rewards")).unwrap();
     v["rewards"][0]["amount"] = json!(9);
     Rewards::parse(v.to_string().as_bytes()).unwrap()
 }
@@ -497,7 +497,7 @@ fn the_content_hash_covers_the_rewards() {
 
 /// The bundled stage skills with the first skill's first cooldown a tick shorter.
 fn quicker_skills() -> StageSkills {
-    let mut v: Value = serde_json::from_slice(StageSkills::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("stage_skills")).unwrap();
     let c = v["stage_skills"][0]["levels"][0]["cooldown_ticks"]
         .as_u64()
         .unwrap();
@@ -507,7 +507,7 @@ fn quicker_skills() -> StageSkills {
 
 #[test]
 fn the_content_hash_covers_the_stage_skills() {
-    let rewards = Rewards::parse_with(Rewards::BUNDLED, &quicker_skills()).unwrap();
+    let rewards = Rewards::parse_with(common::bundled_file("rewards"), &quicker_skills()).unwrap();
     assert_eq!(rewards.rewards(), Rewards::bundled().rewards());
     assert_eq!(rewards.sha256(), Rewards::bundled().sha256());
     let other = RunContent::new(RunStats::bundled().clone(), rewards);

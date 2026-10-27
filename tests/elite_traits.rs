@@ -7,7 +7,6 @@ use stella_rain_core::attack::PhaseKind;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::snapshot::PatternView;
 use stella_rain_core::stage::Stage;
-use stella_rain_core::time_limit::TimeLimit;
 
 use crate::common;
 
@@ -21,7 +20,7 @@ const SLAM_WIND_UP: u32 = 90;
 
 /// The enemy of the bundled elite type `id`, as the time-limit file has it.
 fn elite_type(id: &str) -> Value {
-    let file: Value = serde_json::from_slice(TimeLimit::BUNDLED).expect("json");
+    let file: Value = serde_json::from_slice(common::bundled_file("time_limit")).expect("json");
     let types = file["elite_types"].as_array().expect("a list");
     let found = types.iter().find(|t| t["id"] == id);
     found.unwrap_or_else(|| panic!("no elite {id}"))["enemy"].clone()
@@ -29,7 +28,7 @@ fn elite_type(id: &str) -> Value {
 
 /// The bat of the first time-limit wave: the base the low elite is tougher than.
 fn base_bat() -> Value {
-    let file: Value = serde_json::from_slice(TimeLimit::BUNDLED).expect("json");
+    let file: Value = serde_json::from_slice(common::bundled_file("time_limit")).expect("json");
     file["waves"][0]["enemy"].clone()
 }
 

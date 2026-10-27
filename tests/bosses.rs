@@ -3,6 +3,7 @@
 //! elite call by boss time play full timelines, so they are unit tests in `engine.rs`
 //! (`horde_tests`), where the main character can be kept alive.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::run_content::RunContent;
@@ -92,7 +93,7 @@ fn the_five_minute_boss_is_the_one_time_that_calls_no_elites() {
 
 #[test]
 fn a_definition_the_stage_rejects_stops_the_run_from_starting() {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["bosses"][0]["phases"][0]["timeline"][2] = json!({
         "type": "attack", "attack": { "preset": { "id": "no_such_preset", "args": [] } }
     });

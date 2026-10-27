@@ -36,7 +36,7 @@ use crate::registry;
 use crate::rune::{Rune, RuneKind};
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 
 /// The largest runes file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_RUNES_BYTES: usize = 8 * 1024;
@@ -120,9 +120,6 @@ pub struct Runes {
 }
 
 impl Runes {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/runes.json");
-
     /// The bundled runes, the default of every run.
     pub fn bundled() -> &'static Runes {
         Pack::bundled().content().runes()
@@ -130,30 +127,7 @@ impl Runes {
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
     pub fn parse(bytes: &[u8]) -> Result<Runes, Error> {
-        if bytes.len() > MAX_RUNES_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_RUNES_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: RunesFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: RunesFile = version::read_current(bytes, MAX_RUNES_BYTES)?;
         validate(&file)?;
         Ok(Runes {
             on_hit: file.on_hit,

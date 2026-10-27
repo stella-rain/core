@@ -1322,7 +1322,7 @@ const ELITES_BY_MINUTE: [&str; 12] = [
 /// and the leader's aura at 100%, so that its raise is plain: the escort shoots for the default
 /// 100 (its swing, since BR1a), which 100% makes a hit of 200 (the bundled 25% makes 125, `tests/elite_pack_leader.rs`).
 fn elites_time_limit() -> (String, RunContent) {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["length_ticks"] = json!(46_800);
     v["boss_ticks"] = json!([46_800]);
     v["overtime_ticks"] = json!(1_900);
@@ -1497,7 +1497,7 @@ impl EliteScript {
 /// A `time_limit` mode with no waves, the final boss at tick 60 and `overtime` ticks of overtime,
 /// as its file and as the content a run reads it with.
 fn short_time_limit(overtime: u32) -> (String, RunContent) {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["length_ticks"] = json!(60);
     v["boss_ticks"] = json!([60]);
     v["overtime_ticks"] = json!(overtime);

@@ -3,6 +3,7 @@
 //! through the final boss's time and the whole overtime by a bot that cannot die, takes every
 //! offer and spends every point as soon as it has one.
 
+use crate::common;
 use crate::common::run::run_input_for;
 use serde_json::json;
 use stella_rain_core::engine::Outcome;
@@ -23,7 +24,8 @@ const PERK_SET: &str = "undying";
 
 /// The run content with the `undying` perk set added to the bundled ones.
 pub fn undying_content() -> RunContent {
-    let mut file: serde_json::Value = serde_json::from_slice(PerkSets::BUNDLED).unwrap();
+    let mut file: serde_json::Value =
+        serde_json::from_slice(common::bundled_file("perk_sets")).unwrap();
     file["perk_sets"].as_array_mut().unwrap().push(json!({
         "id": PERK_SET, "title": "Undying", "description": "",
         "effects": [
@@ -133,7 +135,8 @@ const MEASURED_MOST: usize = 244;
 /// The bundled mode cut to 20 seconds with a boss at 10 and at 20 and 5 of overtime, a run
 /// that a debug build plays in seconds.
 fn short_content() -> RunContent {
-    let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: serde_json::Value =
+        serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["length_ticks"] = json!(1200);
     v["boss_ticks"] = json!([600, 1200]);
     v["no_call_ticks"] = json!([]);

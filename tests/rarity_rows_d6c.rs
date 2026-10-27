@@ -12,6 +12,7 @@ use stella_rain_core::rewards::{MAX_REWARDS, MAX_WEIGHT, Rewards};
 use stella_rain_core::stage::Tier;
 use stella_rain_core::validate::{self, Error};
 
+use crate::common;
 use crate::reward_kinds::{near, next_offer, offer, plain, with};
 
 const RARITIES: [&str; 6] = [
@@ -26,7 +27,8 @@ const RARITIES: [&str; 6] = [
 const LIMITS: [u64; 6] = [5, 4, 3, 2, 2, 2];
 
 fn bundled() -> Value {
-    serde_json::from_str(include_str!("../content/rewards.json")).expect("a bundled file is JSON")
+    serde_json::from_str(std::str::from_utf8(common::bundled_file("rewards")).unwrap())
+        .expect("a bundled file is JSON")
 }
 
 fn rows(file: &Value) -> &Vec<Value> {
@@ -231,8 +233,8 @@ fn the_bundled_modes_give_the_random_rune_five_fifteen_and_twenty_five_percent()
         .sum();
     assert_eq!(others, 1_000);
     for text in [
-        include_str!("../modes/trial.json"),
-        include_str!("../modes/tutorial.json"),
+        std::str::from_utf8(common::bundled_file("trial")).unwrap(),
+        std::str::from_utf8(common::bundled_file("tutorial")).unwrap(),
     ] {
         let mode: Value = serde_json::from_str(text).unwrap();
         let weights: Vec<Value> = mode["stars"]["tiers"]
@@ -266,7 +268,7 @@ fn a_rewards_file_may_hold_192_rewards_and_not_one_more() {
 
 #[test]
 fn the_bundled_file_fits_the_size_limit_with_room() {
-    let size = include_bytes!("../content/rewards.json").len();
+    let size = common::bundled_file("rewards").len();
     assert!(
         size <= stella_rain_core::rewards::MAX_REWARDS_BYTES,
         "{size}"

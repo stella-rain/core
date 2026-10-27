@@ -2,9 +2,9 @@
 //! attack with zones, orbs and melee. These tests read the bundled files, so they check the
 //! content; the rules they use are covered by `zones.rs`, `orbs.rs` and `ranged_cap.rs`.
 
+use crate::common;
 use serde_json::Value;
 use stella_rain_core::run_setup::mode_stage;
-use stella_rain_core::time_limit::TimeLimit;
 
 /// The shot presets, which fired orbs until BR1c and now place zones.
 const ORB_PRESETS: [&str; 5] = [
@@ -18,7 +18,7 @@ const ORB_PRESETS: [&str; 5] = [
 const MID_BOSSES: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
 
 fn time_limit() -> Value {
-    serde_json::from_slice(TimeLimit::BUNDLED).expect("the bundled file is JSON")
+    serde_json::from_slice(common::bundled_file("time_limit")).expect("the bundled file is JSON")
 }
 
 /// Every bundled mode file, by name.

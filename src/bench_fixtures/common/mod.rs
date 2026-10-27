@@ -5,6 +5,7 @@ pub mod on_hit;
 
 use crate::engine::Engine;
 use crate::input::Input;
+use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
 use crate::run_stats::RunStats;
 use crate::stage::Stage;
@@ -124,7 +125,8 @@ pub fn design_content() -> RunContent {
 
 /// The bundled run stats with an enemy's attack at 100 stored.
 pub fn design_run_stats() -> RunStats {
-    let mut v: Value = serde_json::from_slice(RunStats::BUNDLED).expect("the bundled run stats");
+    let mut v: Value = serde_json::from_slice(ContentFiles::bundled_file("run_stats"))
+        .expect("the bundled run stats");
     v["enemy_attack_damage"] = json!(100);
     RunStats::parse(v.to_string().as_bytes()).expect("the case run stats")
 }

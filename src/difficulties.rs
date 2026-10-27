@@ -26,7 +26,7 @@ use crate::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, text_problem};
 use crate::stage::{LevelTable, StardustTier, stardust_tiers_problem};
 use crate::time_limit::{MAX_BOSS_TIMES, MAX_LENGTH_TICKS};
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 
 /// The largest difficulties file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_DIFFICULTIES_BYTES: usize = 8 * 1024;
@@ -115,9 +115,6 @@ pub struct Difficulties {
 }
 
 impl Difficulties {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/difficulties.json");
-
     /// The bundled difficulties, the default of every run.
     pub fn bundled() -> &'static Difficulties {
         Pack::bundled().content().difficulties()
@@ -125,30 +122,7 @@ impl Difficulties {
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
     pub fn parse(bytes: &[u8]) -> Result<Difficulties, Error> {
-        if bytes.len() > MAX_DIFFICULTIES_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_DIFFICULTIES_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: DifficultiesFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: DifficultiesFile = version::read_current(bytes, MAX_DIFFICULTIES_BYTES)?;
         validate(&file)?;
         Ok(Difficulties {
             list: file.difficulties,

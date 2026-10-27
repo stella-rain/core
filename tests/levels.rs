@@ -286,8 +286,8 @@ fn attack_speed_shortens_a_combo_step_spread_over_its_phases() {
 /// The bundled run stats with one more on an existing effect: `attack_plus`, 25% a point, at
 /// most 2 points.
 fn with_attack_plus() -> RunStats {
-    let mut file: Value =
-        serde_json::from_slice(RunStats::BUNDLED).expect("the bundled stats are JSON");
+    let mut file: Value = serde_json::from_slice(common::bundled_file("run_stats"))
+        .expect("the bundled stats are JSON");
     file["stats"].as_array_mut().unwrap().push(json!({
         "id": "attack_plus",
         "effect": "attack_pct",
@@ -441,8 +441,8 @@ fn time_limit_reads_its_own_curve() {
 
 /// The bundled run stats with `xp_plus`: 10% more experience a point, at most 1 point.
 fn with_xp_plus() -> RunStats {
-    let mut file: Value =
-        serde_json::from_slice(RunStats::BUNDLED).expect("the bundled stats are JSON");
+    let mut file: Value = serde_json::from_slice(common::bundled_file("run_stats"))
+        .expect("the bundled stats are JSON");
     file["stats"].as_array_mut().unwrap().push(json!({
         "id": "xp_plus",
         "effect": "xp_pct",

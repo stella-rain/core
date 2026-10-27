@@ -15,15 +15,14 @@
 //! refused. An override is bounded by its own file (1 to `limits::MAX_CROWD_TARGET`) and clamped
 //! when the run is built (`Rules::enemy_cap_for`), so the cap never passes the ceiling.
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::pack::Pack;
 use crate::validate::limits::MAX_ENEMY_CAP;
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 
 /// The largest rules file read (a placeholder; ADR-020 decides that a limit exists).
 pub const MAX_RULES_BYTES: usize = 4 * 1024;
@@ -57,41 +56,14 @@ fn max_target(headroom_pct: u8) -> u32 {
 }
 
 impl Rules {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/rules.json");
-
     /// The bundled file.
     pub fn bundled() -> &'static Rules {
-        static BUNDLED: OnceLock<Rules> = OnceLock::new();
-        BUNDLED.get_or_init(|| Rules::parse(Rules::BUNDLED).expect("the bundled rules"))
+        Pack::bundled().content().rules()
     }
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
     pub fn parse(bytes: &[u8]) -> Result<Rules, Error> {
-        if bytes.len() > MAX_RULES_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_RULES_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: RulesFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: RulesFile = version::read_current(bytes, MAX_RULES_BYTES)?;
         validate(&file)?;
         Ok(Rules {
             file,

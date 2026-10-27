@@ -168,7 +168,7 @@ fn a_call_at_once_is_never_announced() {
 /// The trial's stage with the golem's phase 1 alone, as the stage file has it: a copy of the
 /// timeline would not show what the bundled file says.
 fn golem_phase_one() -> Stage {
-    let mut stage: Value = serde_json::from_slice(include_bytes!("../modes/trial.json")).unwrap();
+    let mut stage: Value = serde_json::from_slice(common::bundled_file("trial")).unwrap();
     let phases = stage["boss"]["phases"].as_array_mut().unwrap();
     let phase = phases.remove(1);
     assert!(

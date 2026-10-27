@@ -804,7 +804,7 @@ fn the_file_is_strict_and_size_limited() {
         parse(&newer),
         Err(Error::UnsupportedVersion { .. })
     ));
-    let mut big = Runes::BUNDLED.to_vec();
+    let mut big = common::bundled_file("runes").to_vec();
     big.resize(MAX_RUNES_BYTES + 1, b' ');
     assert!(matches!(Runes::parse(&big), Err(Error::TooLarge { .. })));
 }

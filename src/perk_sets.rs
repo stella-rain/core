@@ -24,7 +24,7 @@ use crate::run_setup::MAX_EXTRA_REROLLS;
 use crate::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, StatEffect, text_problem};
 use crate::validate::limits::DAMAGE_SCALE;
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 
 /// The largest perk sets file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_PERK_SETS_BYTES: usize = 8 * 1024;
@@ -149,9 +149,6 @@ pub struct PerkSets {
 }
 
 impl PerkSets {
-    /// The bundled file's bytes.
-    pub const BUNDLED: &'static [u8] = include_bytes!("../content/perk_sets.json");
-
     /// The bundled perk sets, the default of every run.
     pub fn bundled() -> &'static PerkSets {
         Pack::bundled().content().perk_sets()
@@ -159,30 +156,7 @@ impl PerkSets {
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
     pub fn parse(bytes: &[u8]) -> Result<PerkSets, Error> {
-        if bytes.len() > MAX_PERK_SETS_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_PERK_SETS_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: PerkSetsFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: PerkSetsFile = version::read_current(bytes, MAX_PERK_SETS_BYTES)?;
         validate(&file)?;
         Ok(PerkSets {
             sets: file.perk_sets,

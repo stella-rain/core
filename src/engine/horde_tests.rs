@@ -1,4 +1,5 @@
 use super::*;
+use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
 use crate::time_limit::TimeLimit;
 
@@ -16,7 +17,8 @@ fn engine_edited(
     no_call_ticks: &[u32],
     edit: impl FnOnce(&mut serde_json::Value),
 ) -> Engine {
-    let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: serde_json::Value =
+        serde_json::from_slice(ContentFiles::bundled_file("time_limit")).unwrap();
     v["waves"] = serde_json::json!([]);
     edit(&mut v);
     v["no_call_ticks"] = serde_json::json!(no_call_ticks);
@@ -289,7 +291,8 @@ fn the_run_fails_when_the_overtime_runs_out_with_the_final_boss_alive() {
 
 /// A `time_limit` run of `edit`ed bundled mode, no waves, that the main character cannot die in.
 fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
-    let mut v: serde_json::Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: serde_json::Value =
+        serde_json::from_slice(ContentFiles::bundled_file("time_limit")).unwrap();
     v["waves"] = serde_json::json!([]);
     edit(&mut v);
     let mode = TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"));
@@ -679,7 +682,8 @@ fn the_five_minute_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds
 /// every_ticks)`, all of the bundled mode's first wave's enemy.
 fn directed(target: u16, waves: &[(u32, u16, u32)]) -> Engine {
     let template =
-        serde_json::from_slice::<serde_json::Value>(TimeLimit::BUNDLED).unwrap()["waves"][0]
+        serde_json::from_slice::<serde_json::Value>(ContentFiles::bundled_file("time_limit"))
+            .unwrap()["waves"][0]
             .clone();
     engine_edited(&[100_000], &[], |v| {
         v["crowd_target"] = serde_json::json!(target);

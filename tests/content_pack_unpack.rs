@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use serde_json::{Value, json};
-use stella_rain_core::pack::{self, ContentFiles};
+use stella_rain_core::pack::{ContentFiles, Pack};
 
 /// A scratch tree for one test, `<tmp>/<name>/content` and `<tmp>/<name>/modes`, removed when
 /// it ends.
@@ -86,13 +86,13 @@ fn text(bytes: &[u8]) -> String {
 
 /// The bundled pack with `edit` applied to its text.
 fn edited(edit: impl Fn(&str) -> String) -> Vec<u8> {
-    edit(&text(&pack::export_bundled())).into_bytes()
+    edit(&text(Pack::BUNDLED)).into_bytes()
 }
 
 #[test]
 fn unpacking_the_bundled_pack_and_exporting_gives_its_bytes() {
     let tree = Tree::new("round-trip");
-    let bytes = pack::export_bundled();
+    let bytes = Pack::BUNDLED.to_vec();
     let out = unpack(&tree.pack(&bytes), &tree.content());
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     assert_eq!(tree.read().export().unwrap(), bytes);
@@ -114,7 +114,7 @@ fn a_pack_with_one_changed_number_unpacks_and_exports_as_it_was() {
     let bytes = edited(|s| s.replacen("\"step\": 8,", "\"step\": 9,", 1));
     assert_ne!(
         bytes,
-        pack::export_bundled(),
+        Pack::BUNDLED.to_vec(),
         "the edit must change the pack"
     );
     let out = unpack(&tree.pack(&bytes), &tree.content());
@@ -127,7 +127,7 @@ fn a_pack_with_one_changed_number_unpacks_and_exports_as_it_was() {
 #[test]
 fn an_invalid_pack_is_refused_and_nothing_is_written() {
     let tree = Tree::new("invalid");
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     v["introduced"]["rewards"][0]["sim_version"] = json!(1);
     let out = unpack(
         &tree.pack(&serde_json::to_vec(&v).unwrap()),
@@ -146,7 +146,7 @@ fn a_valid_pack_that_export_would_not_write_is_refused_with_a_path() {
     let tree = Tree::new("form");
     // Valid JSON and content, but not the form export writes.
     let bytes = edited(|s| s.replacen("\"sim_version\": 0,", "\"sim_version\":0,", 1));
-    assert_ne!(bytes, pack::export_bundled());
+    assert_ne!(bytes, Pack::BUNDLED.to_vec());
     let out = unpack(&tree.pack(&bytes), &tree.content());
     assert_eq!(out.status.code(), Some(1), "{}", text(&out.stderr));
     assert!(text(&out.stderr).contains("$"), "{}", text(&out.stderr));
@@ -161,7 +161,7 @@ fn a_valid_pack_that_export_would_not_write_is_refused_with_a_path() {
 #[test]
 fn an_optional_file_the_pack_lacks_is_not_written_and_a_stale_one_is_removed() {
     let tree = Tree::new("optional");
-    let full = text(&pack::export_bundled());
+    let full = text(Pack::BUNDLED);
     let start = full.rfind("\n  \"stardust\": ").unwrap() + 1;
     let end = full.rfind("\n  \"modes\"").unwrap() + 1;
     let bytes = format!("{}{}", &full[..start], &full[end..]).into_bytes();
@@ -194,10 +194,7 @@ fn a_bad_command_line_or_an_unreadable_pack_exits_2() {
     }
     let out = unpack(&tree.0.join("missing.json"), &tree.content());
     assert_eq!(out.status.code(), Some(2));
-    let out = unpack(
-        &tree.pack(&pack::export_bundled()),
-        &tree.0.join("no-such-dir"),
-    );
+    let out = unpack(&tree.pack(Pack::BUNDLED), &tree.0.join("no-such-dir"));
     assert_eq!(out.status.code(), Some(2));
     let help = Command::new(env!("CARGO_BIN_EXE_content-pack"))
         .arg("--help")

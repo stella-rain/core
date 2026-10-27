@@ -25,7 +25,7 @@ use crate::rules_v0::HordeSpec;
 use crate::stage::{Map, Stage, StardustFactor, Wave};
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version::{self, SCHEMA_VERSION, SIM_VERSION};
 use crate::weapon::WeaponRef;
 
 /// The largest setup file read; a setup is a few hundred bytes.
@@ -290,25 +290,7 @@ fn is_zero(n: &u8) -> bool {
 
 /// Checks the size, parses strictly and validates: the one call for a setup file's bytes.
 pub fn parse_and_validate(bytes: &[u8]) -> Result<RunSetup, Error> {
-    if bytes.len() > MAX_SETUP_BYTES {
-        return Err(Error::TooLarge {
-            size: bytes.len(),
-            limit: MAX_SETUP_BYTES,
-        });
-    }
-    // Versions first: a setup from a newer game may have fields this one rejects.
-    #[derive(Deserialize)]
-    struct Versions {
-        schema_version: u32,
-        sim_version: u32,
-    }
-    let parse_error = |e: serde_json::Error| Error::Parse {
-        line: e.line(),
-        column: e.column(),
-    };
-    let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-    check_versions(versions.schema_version, versions.sim_version)?;
-    let file: RunSetupFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+    let file: RunSetupFile = version::read_current(bytes, MAX_SETUP_BYTES)?;
     if file.auto_combo {
         return Err(Error::Invalid(vec![Issue {
             path: "$.auto_combo".into(),
@@ -327,7 +309,7 @@ pub fn validate(setup: &RunSetup) -> Result<(), Error> {
 
 /// As `validate`, against a given registry (tests use one with newer IDs).
 pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> {
-    check_versions(setup.schema_version, setup.sim_version)?;
+    version::check(setup.schema_version, setup.sim_version)?;
     let mut issues = Vec::new();
     let mut id = |key: &str, id: &ContentId, kind: Kind| {
         let problem = if !registry::is_well_formed(&id.0) {
@@ -855,17 +837,6 @@ pub fn max_replay_ticks(setup: &RunSetup, stage: &Stage, time_limit: &TimeLimit)
             .saturating_add(time_limit.star_hunter_extra_ticks())
     } else {
         stage.length_ticks
-    }
-}
-
-fn check_versions(schema_version: u32, sim_version: u32) -> Result<(), Error> {
-    if schema_version == SCHEMA_VERSION && sim_version == SIM_VERSION {
-        Ok(())
-    } else {
-        Err(Error::UnsupportedVersion {
-            schema_version,
-            sim_version,
-        })
     }
 }
 

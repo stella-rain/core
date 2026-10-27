@@ -648,7 +648,7 @@ fn setup() -> RunSetup {
 
 /// A short run whose only elite is a mimic, which comes at tick 3,600.
 fn mimic_run() -> TimeLimit {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["length_ticks"] = json!(8_000);
     v["boss_ticks"] = json!([7_000, 8_000]);
     v["waves"] = json!([]);

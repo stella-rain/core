@@ -4,6 +4,7 @@
 //! title and a description, and each level a cooldown and a list of effects, at most one of
 //! each building block and at most `MAX_SKILL_EFFECTS`.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::id::ContentId;
 use stella_rain_core::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS};
@@ -81,7 +82,7 @@ fn invalid_at(v: &Value, path: &str) {
 fn the_bundled_skills_are_one_effect_each_and_cover_every_block() {
     let bundled = StageSkills::bundled();
     assert_eq!(
-        StageSkills::parse(StageSkills::BUNDLED).as_ref(),
+        StageSkills::parse(common::bundled_file("stage_skills")).as_ref(),
         Ok(bundled)
     );
     let ids: Vec<&str> = bundled.skills().iter().map(|k| k.id.0.as_str()).collect();

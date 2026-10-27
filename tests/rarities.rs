@@ -160,7 +160,7 @@ fn the_top_drop_tier_of_trial_and_tutorial_weighs_every_rarity() {
 #[test]
 fn the_bundled_rewards_still_parse_and_bound_their_new_limits() {
     let bad = |limit: u8| {
-        let mut v: Value = serde_json::from_slice(Rewards::BUNDLED).unwrap();
+        let mut v: Value = serde_json::from_slice(common::bundled_file("rewards")).unwrap();
         let rewards = v["rewards"].as_array_mut().unwrap();
         let r = rewards
             .iter_mut()

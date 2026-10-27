@@ -2,6 +2,7 @@
 //! elites and no mid-boss, that every bundled weapon can be played in, and whose file is in the
 //! pack the run's content hash covers.
 
+use crate::common;
 use crate::common::run::{run_input_for, trial_setup};
 use crate::run_play::play_run_with;
 use serde_json::Value;
@@ -119,7 +120,7 @@ fn the_bot_kills_the_golem_in_the_tutorial() {
 #[test]
 fn the_bundled_pack_holds_the_tutorial_file_and_the_run_hash_covers_it() {
     let pack: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
-    let file: Value = serde_json::from_slice(include_bytes!("../modes/tutorial.json")).unwrap();
+    let file: Value = serde_json::from_slice(common::bundled_file("tutorial")).unwrap();
     assert_eq!(pack["modes"]["tutorial"], file);
     let sha: [u8; 32] = Sha256::digest(Pack::BUNDLED).into();
     assert_eq!(run_replay::content_sha256("tutorial"), Some(sha));
