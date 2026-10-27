@@ -21,6 +21,7 @@
 //! its content the bundled content hash.
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use schemars::JsonSchema;
@@ -1042,6 +1043,19 @@ pub struct FileSlot {
     pub optional: bool,
 }
 
+impl FileSlot {
+    /// Where the file is in core's tree, given its `content/` directory: `<name>.json` there, or
+    /// in `modes/` beside it.
+    pub fn path(&self, content_dir: &Path) -> PathBuf {
+        let dir = if self.in_modes {
+            content_dir.join("..").join("modes")
+        } else {
+            content_dir.to_path_buf()
+        };
+        dir.join(format!("{}.json", self.name))
+    }
+}
+
 const fn slot(name: &'static str, in_modes: bool, optional: bool) -> FileSlot {
     FileSlot {
         name,
@@ -1091,6 +1105,24 @@ impl ContentFiles {
 
     pub fn get(&self, name: &str) -> Option<&[u8]> {
         self.files.get(name).map(Vec::as_slice)
+    }
+
+    /// The files of core's tree: each slot of `LAYOUT` read from `content_dir` (core's
+    /// `content/`; the mode files from `modes/` beside it). A file that is not there leaves its
+    /// slot empty, so that an optional one stays out of the pack and a required one is
+    /// `PackError::Missing` from `export`. Reads nothing else (`pack.json` is not a slot).
+    pub fn read_dir(content_dir: &Path) -> std::io::Result<ContentFiles> {
+        let mut files = ContentFiles::default();
+        for slot in Self::LAYOUT {
+            match std::fs::read(slot.path(content_dir)) {
+                Ok(bytes) => {
+                    files.insert(slot.name, bytes);
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(files)
     }
 
     /// The bundled files.

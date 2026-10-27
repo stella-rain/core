@@ -4,7 +4,7 @@
 //!
 //! ```text
 //! content-pack verify FILE      (FILE may be - for standard input)
-//! content-pack export
+//! content-pack export [DIR]
 //! content-pack unpack PACK DIR
 //! ```
 //!
@@ -13,7 +13,9 @@
 //! SHA-256 of its bytes), `sim_version` and `starting_unlocks` (the counts of its lists, or
 //! `none` for a pack released without them), `constellations` and `stardust` (its mode count)
 //! as `name: value` lines, and `export` writes the pack
-//! to standard output. `unpack` (ADR-131) checks PACK as `verify` does, then writes the files it
+//! to standard output. Without DIR, `export` writes the pack built into this binary; with DIR
+//! (core's `content/`, as `unpack` takes it; the mode files in `DIR/../modes`), the pack of the
+//! files there. `unpack` (ADR-131) checks PACK as `verify` does, then writes the files it
 //! holds into DIR (core's `content/`; the three mode files into `modes/` beside it), each as the
 //! file on its own, LF, so that `export` of those files gives PACK byte for byte; a pack that
 //! `export` would not write that way is refused. A file an optional slot of the pack lacks is
@@ -28,14 +30,16 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use stella_rain_core::content_hash::to_hex;
-use stella_rain_core::pack::{self, ContentFiles, Pack};
+use stella_rain_core::pack::{ContentFiles, Pack};
 
 const USAGE: &str = "usage: content-pack verify FILE\n       \
-                     content-pack export\n       \
+                     content-pack export [DIR]\n       \
                      content-pack unpack PACK DIR\n\
                      FILE and PACK may be - for standard input. unpack writes the pack's \
                      files into DIR (core's content/) and its mode files into modes/ beside \
-                     it, and leaves content/pack.json to export. Exit status: 0 valid or \
+                     it, and leaves content/pack.json to export. Without DIR, export writes the pack built \
+                     into this binary; with DIR (core's content/, as unpack), the pack of the \
+                     files there. Exit status: 0 valid or \
                      done, 1 not valid, 2 could not run.";
 
 enum Failure {
@@ -109,13 +113,31 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
             );
             Ok(())
         }
-        ["export"] => std::io::stdout()
-            .lock()
-            .write_all(&pack::export_bundled())
-            .map_err(|e| Failure::Usage(format!("cannot write the pack: {}", e.kind()))),
+        ["export"] => write_pack(Pack::BUNDLED),
+        ["export", dir] => export_dir(Path::new(dir)),
         ["unpack", path, dir] => unpack(path, Path::new(dir)),
         _ => Err(Failure::Usage(USAGE.into())),
     }
+}
+
+fn write_pack(bytes: &[u8]) -> Result<(), Failure> {
+    std::io::stdout()
+        .lock()
+        .write_all(bytes)
+        .map_err(|e| Failure::Usage(format!("cannot write the pack: {}", e.kind())))
+}
+
+/// Writes the pack of the files in `dir` (and `dir/../modes`), checked as `verify` checks one.
+fn export_dir(dir: &Path) -> Result<(), Failure> {
+    if !dir.is_dir() {
+        return Err(Failure::Usage("DIR is not a directory".into()));
+    }
+    let files = ContentFiles::read_dir(dir)
+        .map_err(|e| Failure::Usage(format!("cannot read the files: {}", e.kind())))?;
+    let bytes = files
+        .export()
+        .map_err(|e| Failure::NotValid(e.to_string()))?;
+    write_pack(&bytes)
 }
 
 /// Writes the files of the pack at `path` into `dir` and `dir/../modes`. Everything is checked
@@ -130,7 +152,7 @@ fn unpack(path: &str, dir: &Path) -> Result<(), Failure> {
     std::fs::create_dir_all(&modes)
         .map_err(|e| Failure::Usage(format!("cannot create modes: {}", e.kind())))?;
     for slot in ContentFiles::LAYOUT {
-        let target = if slot.in_modes { &modes } else { dir }.join(format!("{}.json", slot.name));
+        let target = slot.path(dir);
         let result = match files.get(slot.name) {
             Some(bytes) => std::fs::write(&target, bytes),
             // An optional file the pack lacks: a stale copy would make `export` write it.

@@ -91,6 +91,7 @@ fn export_pack() -> Result<(), String> {
             "--bin",
             "content-pack",
             "export",
+            "content",
         ])
         .output()
         .map_err(|e| format!("content-pack: {e}"))?;

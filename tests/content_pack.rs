@@ -116,7 +116,7 @@ fn a_bad_command_line_or_a_missing_file_exits_2() {
         &[][..],
         &["verify"][..],
         &["verify", "a", "b"][..],
-        &["export", "x"][..],
+        &["export", "a", "b"][..],
         &["sign", "x"][..],
     ] {
         let out = run(args, b"");
@@ -207,11 +207,7 @@ fn export_dir_builds_the_pack_of_the_files_on_disk() {
     let path = tree.content().join("run_stats.json");
     let file = std::fs::read_to_string(&path).unwrap();
     assert!(file.contains("\"step\": 10000"));
-    std::fs::write(
-        &path,
-        file.replacen("\"step\": 10000", "\"step\": 10001", 1),
-    )
-    .unwrap();
+    std::fs::write(&path, file.replacen("\"step\": 10000", "\"step\": 9999", 1)).unwrap();
     let out = export_dir(&tree.content());
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     assert_ne!(out.stdout, Pack::BUNDLED);

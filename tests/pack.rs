@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::match_ups::MatchUps;
-use stella_rain_core::pack::{self, Pack, PackError};
+use stella_rain_core::pack::{self, ContentFiles, Pack, PackError};
 use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
@@ -39,18 +39,44 @@ fn load(v: &Value) -> Result<Pack, PackError> {
     Pack::from_bytes(&bytes(v))
 }
 
-/// `content/pack.json` is generated: `cargo run --bin content-pack export > content/pack.json`.
+/// `content/pack.json` is generated: `cargo xtask bless`.
 #[test]
 fn the_bundled_pack_is_the_export_of_the_individual_files() {
+    let files = ContentFiles::read_dir(&Path::new(env!("CARGO_MANIFEST_DIR")).join("content"))
+        .expect("content/ and modes/ are readable");
     assert!(
-        Pack::BUNDLED == bundled().as_slice(),
-        "content/pack.json drifted from the individual files; regenerate it with \
-         `cargo run --bin content-pack export > content/pack.json`"
+        files.export().expect("the files make a pack") == Pack::BUNDLED,
+        "content/pack.json drifted from content/ and modes/; regenerate it with \
+         `cargo xtask bless`"
     );
     assert_eq!(
         Pack::bundled().sha256(),
         Sha256::digest(Pack::BUNDLED).as_slice()
     );
+}
+
+#[test]
+fn read_dir_leaves_out_a_file_that_is_not_there() {
+    let dir = std::env::temp_dir().join(format!("read-dir-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("content")).unwrap();
+    let files = ContentFiles::read_dir(&dir.join("content")).unwrap();
+    for slot in ContentFiles::LAYOUT {
+        assert_eq!(files.get(slot.name), None, "{}", slot.name);
+    }
+    assert!(matches!(files.export(), Err(PackError::Missing { .. })));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_slot_is_where_the_layout_puts_it() {
+    let dir = Path::new("c/content");
+    let paths: Vec<_> = ContentFiles::LAYOUT
+        .iter()
+        .map(|s| s.path(dir).to_string_lossy().replace('\\', "/"))
+        .collect();
+    assert_eq!(paths[0], "c/content/run_stats.json");
+    assert_eq!(paths[13], "c/content/../modes/trial.json");
 }
 
 #[test]
