@@ -252,8 +252,8 @@ fn running_out_of_ticks_fails_the_stage() {
 
 #[test]
 fn without_a_boss_the_stage_clears_when_every_enemy_is_gone() {
-    // Three enemies run straight down and leave the field; the last spawns on tick 21 and is
-    // out of the field after 89 moves, on tick 109.
+    // Three enemies run straight down from 340 pixels above the main character and leave the
+    // field; the last spawns on tick 21 and is out of the field after 59 moves, on tick 79.
     let runner = enemy(
         5,
         json!({ "type": "straight", "vx": 0, "vy": 2048 }),
@@ -263,10 +263,17 @@ fn without_a_boss_the_stage_clears_when_every_enemy_is_gone() {
     let mut e = engine(&quiet(stage_with(
         18_000,
         None,
-        vec![wave(1, 3, 10, runner, START_X, 0)],
+        vec![wave(
+            1,
+            3,
+            10,
+            runner,
+            near_start(0, -340).0,
+            near_start(0, -340).1,
+        )],
     )));
     run_until(&mut e, idle(), 500, |e| e.outcome() != Outcome::Running);
-    assert_eq!((e.tick(), e.outcome()), (109, Outcome::Cleared));
+    assert_eq!((e.tick(), e.outcome()), (79, Outcome::Cleared));
 }
 
 #[test]
