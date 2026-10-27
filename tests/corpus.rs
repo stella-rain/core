@@ -304,14 +304,14 @@ fn changed_hash_case(name: &str) -> (PathBuf, PathBuf) {
     (case, dir.join("diff"))
 }
 
-/// Replaces the hash on `tick` (1-based) with a different one.
-fn change_hash(case: &Path, tick: usize) {
-    let path = case.join("hashes.txt");
-    let text = fs::read_to_string(&path).unwrap();
-    let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
-    let wrong = hash_from_hex(&lines[tick - 1]).unwrap() ^ 1;
-    lines[tick - 1] = hash_to_hex(wrong);
-    fs::write(&path, lines.join("\n") + "\n").unwrap();
+/// Flips bit 0 of the hash on `tick` (1-based); returns the new hash and the one it replaced.
+fn change_hash(case: &Path, tick: usize) -> (u64, u64) {
+    let path = case.join("hashes.bin");
+    let mut hashes = replay::hashes_from_bytes(&fs::read(&path).unwrap()).unwrap();
+    let was = hashes[tick - 1];
+    hashes[tick - 1] ^= 1;
+    fs::write(&path, replay::hashes_to_bytes(&hashes)).unwrap();
+    (hashes[tick - 1], was)
 }
 
 #[test]
@@ -324,9 +324,17 @@ fn an_unchanged_case_passes() {
 #[test]
 fn a_changed_hash_at_tick_n_fails_naming_n() {
     let (case, diff) = changed_hash_case("tick-n");
-    change_hash(&case, 20);
+    let (flipped, engine) = change_hash(&case, 20);
     let message = check_case(&case, &diff).unwrap_err();
     assert!(message.contains("tick 20"), "{message}");
+    assert!(
+        message.contains(&format!("expected {}", hash_to_hex(flipped))),
+        "{message}"
+    );
+    assert!(
+        message.contains(&format!("got {}", hash_to_hex(engine))),
+        "{message}"
+    );
     assert!(message.contains("`case`"), "names the case: {message}");
 
     // The dump holds the snapshots of tick 20 and of the tick before.
@@ -359,20 +367,59 @@ fn a_change_on_the_first_tick_dumps_the_initial_state_as_the_one_before() {
 #[test]
 fn hashes_that_are_not_one_per_tick_fail() {
     let (case, diff) = changed_hash_case("count");
-    let path = case.join("hashes.txt");
-    let text = fs::read_to_string(&path).unwrap();
-    let short: String = text.lines().take(10).map(|l| format!("{l}\n")).collect();
-    fs::write(&path, short).unwrap();
+    let path = case.join("hashes.bin");
+    let bytes = fs::read(&path).unwrap();
+    fs::write(&path, &bytes[..80]).unwrap();
     let message = check_case(&case, &diff).unwrap_err();
-    assert!(message.contains("10 hashes"), "{message}");
+    assert!(message.contains("hashes.bin has 10 hashes"), "{message}");
 }
 
 #[test]
-fn a_hash_that_is_not_hex_fails() {
-    let (case, diff) = changed_hash_case("hex");
-    fs::write(case.join("hashes.txt"), "not a hash\n").unwrap();
+fn a_hashes_file_cut_by_a_byte_fails() {
+    let (case, diff) = changed_hash_case("cut");
+    let path = case.join("hashes.bin");
+    let bytes = fs::read(&path).unwrap();
+    fs::write(&path, &bytes[..bytes.len() - 1]).unwrap();
     let message = check_case(&case, &diff).unwrap_err();
-    assert!(message.contains("hashes.txt"), "{message}");
+    assert!(message.contains("hashes.bin"), "{message}");
+    assert!(
+        message.contains("not a whole number of 8-byte hashes"),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_text_hashes_file_beside_the_binary_one_fails() {
+    let (case, diff) = changed_hash_case("leftover");
+    fs::write(case.join("hashes.txt"), "x\n").unwrap();
+    let message = check_case(&case, &diff).unwrap_err();
+    assert!(
+        message.contains("hashes.txt is the old format"),
+        "{message}"
+    );
+}
+
+#[test]
+fn the_writers_write_hashes_bin_and_remove_hashes_txt() {
+    let (case, diff) = changed_hash_case("writer");
+    fs::write(case.join("hashes.txt"), "x\n").unwrap();
+    write_case(&case, &common::stage_bytes(), &common::clearing_inputs());
+    assert!(!case.join("hashes.txt").exists());
+    assert_eq!(fs::read(case.join("hashes.bin")).unwrap().len(), 280);
+    assert_eq!(check_case(&case, &diff), Ok(()));
+
+    let (case, diff) = changed_run_case("writer");
+    fs::write(case.join("hashes.txt"), "x\n").unwrap();
+    let setup = common::run::trial_setup();
+    let point = crate::run_play::first_point_tick();
+    write_run_case(&case, &setup, None, &crate::run_play::play_run(point + 20));
+    assert!(!case.join("hashes.txt").exists());
+    let replay = RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    assert_eq!(
+        fs::read(case.join("hashes.bin")).unwrap().len(),
+        8 * replay.ticks as usize
+    );
+    assert_eq!(check_run_case(&case, &diff), Ok(()));
 }
 
 #[test]
@@ -413,10 +460,18 @@ fn an_unchanged_run_case_passes() {
 fn a_changed_hash_in_a_run_case_fails_naming_its_tick() {
     let (case, diff) = changed_run_case("tick-n");
     let after_point = crate::run_play::first_point_tick() as usize + 1;
-    change_hash(&case, after_point);
+    let (flipped, engine) = change_hash(&case, after_point);
     let message = check_run_case(&case, &diff).unwrap_err();
     assert!(
         message.contains(&format!("tick {after_point}")),
+        "{message}"
+    );
+    assert!(
+        message.contains(&format!("expected {}", hash_to_hex(flipped))),
+        "{message}"
+    );
+    assert!(
+        message.contains(&format!("got {}", hash_to_hex(engine))),
         "{message}"
     );
     let dump: Value = serde_json::from_slice(&fs::read(diff.join("case.json")).unwrap()).unwrap();
@@ -439,12 +494,19 @@ fn a_run_case_whose_stat_priority_changed_fails() {
 #[test]
 fn a_run_case_with_hashes_that_are_not_one_per_tick_fails() {
     let (case, diff) = changed_run_case("count");
-    let path = case.join("hashes.txt");
-    let text = fs::read_to_string(&path).unwrap();
-    let short: String = text.lines().take(10).map(|l| format!("{l}\n")).collect();
-    fs::write(&path, short).unwrap();
+    let path = case.join("hashes.bin");
+    let bytes = fs::read(&path).unwrap();
+    fs::write(&path, &bytes[..80]).unwrap();
     let message = check_run_case(&case, &diff).unwrap_err();
-    assert!(message.contains("10 hashes"), "{message}");
+    assert!(message.contains("hashes.bin has 10 hashes"), "{message}");
+
+    fs::write(&path, &bytes[..bytes.len() - 1]).unwrap();
+    let message = check_run_case(&case, &diff).unwrap_err();
+    assert!(message.contains("hashes.bin"), "{message}");
+    assert!(
+        message.contains("not a whole number of 8-byte hashes"),
+        "{message}"
+    );
 }
 
 // --- The cases, built from the test helpers --------------------------------------------------
