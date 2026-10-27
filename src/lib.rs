@@ -30,6 +30,7 @@ pub mod packs;
 pub mod parsed_stage_hash;
 pub mod perk_sets;
 pub mod presets;
+pub mod progression;
 #[cfg(feature = "record")]
 pub mod recording;
 pub mod registry;
