@@ -4,6 +4,7 @@
 
 use crate::engine::Engine;
 use crate::input::Input;
+use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::RunStats;
@@ -132,7 +133,8 @@ pub fn input(tick: u32) -> Input {
 /// The bundled content with an enemy's attack at 100 stored, as the case was measured: the
 /// scripted input does not dodge, and the bundled 10,000 would end the run before the tick.
 fn content() -> RunContent {
-    let mut v: serde_json::Value = serde_json::from_slice(RunStats::BUNDLED).unwrap();
+    let mut v: serde_json::Value =
+        serde_json::from_slice(ContentFiles::bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = serde_json::json!(100);
     let stats = RunStats::parse(v.to_string().as_bytes()).unwrap();
     RunContent::new(stats, RunContent::bundled().rewards().clone())

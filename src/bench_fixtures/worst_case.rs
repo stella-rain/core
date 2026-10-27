@@ -6,6 +6,7 @@ use super::common::on_hit::{self, NEAR_Y};
 use super::common::{self, START_X};
 use crate::engine::Engine;
 use crate::input::Input;
+use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
 use crate::runes::{MAX_DOT_STACKS, Runes};
 use crate::stage::Stage;
@@ -299,7 +300,8 @@ const PICKS: u16 = 8;
 pub fn content() -> RunContent {
     let haste = json!({ "id": HASTE, "rarity": "common", "effect": "rune_haste",
                         "amount": 300, "limit": 2, "title": "Haste", "description": "" });
-    let mut file: Value = serde_json::from_slice(Runes::BUNDLED).expect("the bundled runes");
+    let mut file: Value =
+        serde_json::from_slice(ContentFiles::bundled_file("runes")).expect("the bundled runes");
     let dots: Vec<Value> = ["bleed", "poison", "burn"]
         .into_iter()
         .map(|r| on_hit::dot(r, 4, 600, 1, MAX_DOT_STACKS))

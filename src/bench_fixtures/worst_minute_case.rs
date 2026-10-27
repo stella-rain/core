@@ -20,6 +20,7 @@
 
 use crate::engine::{Engine, Load};
 use crate::input::Input;
+use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
 use crate::run_stats::RunStats;
@@ -44,7 +45,7 @@ const SEED: u64 = 1;
 /// The bundled mode with the dense schedule (see the module).
 fn mode() -> TimeLimit {
     let mut file: serde_json::Value =
-        serde_json::from_slice(TimeLimit::BUNDLED).expect("the bundled mode");
+        serde_json::from_slice(ContentFiles::bundled_file("time_limit")).expect("the bundled mode");
     for wave in file["waves"].as_array_mut().expect("waves") {
         let count = wave["count"].as_u64().expect("a count") * 14 / 10;
         wave["count"] = count.into();
@@ -58,7 +59,8 @@ fn mode() -> TimeLimit {
 }
 
 fn content() -> RunContent {
-    let mut v: serde_json::Value = serde_json::from_slice(RunStats::BUNDLED).unwrap();
+    let mut v: serde_json::Value =
+        serde_json::from_slice(ContentFiles::bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = serde_json::json!(100);
     let stats = RunStats::parse(v.to_string().as_bytes()).unwrap();
     RunContent::new(stats, RunContent::bundled().rewards().clone()).with_time_limit(mode())
