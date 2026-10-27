@@ -13,8 +13,10 @@ use stella_rain_core::id::EntityId;
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::stage::Stage;
 
-const OX: i32 = 46_080;
-const OY: i32 = 50_000;
+/// Where the attackers stand: straight above the main character, 340 pixels, inside the leash's
+/// reach (LS1).
+const OX: i32 = near_start(0, -340).0;
+const OY: i32 = near_start(0, -340).1;
 
 fn down() -> Value {
     json!({ "type": "orb", "speed": 256, "ticks": 100,
