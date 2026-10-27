@@ -1,36 +1,37 @@
 # Instructions per tick, the most a bench may count (ADR-021: 4 ms of a 16.7 ms frame on the
 # reference phone; ADR-058: ~3.1 G instructions/s on the Lenovo Tab P11 = 12.4 M).
-# x86_64 is scaled by the measured x86_64/arm64 ratio of worst_tick (11.74 / 12.23 on f108f4f).
-# Warn-only until the T1 refactor lands (DS27); then re-measure and make it blocking.
 # Each key is a bench target (`benches/<name>.rs`); the CI bench job builds and checks these.
-# BR1b: the three below are the benches off bullets.
-# time_limit_tick is about 10% above its measured count (DS50: 1,610,205 arm64, 1,447,649 x86_64).
-# hit_tick is about 10% above the larger of its two cases (HB1: 7,997,568 arm64, 8,072,866 x86_64). A key is a
-# bench target, so hit_tick_spread (3.6 M / 3.7 M, inside the same target) has no budget of its own.
-# BR1e-2: worst_minute counts the 3,600 ticks of the dense minute of the time_limit mode (ticks
-# 7,300 to 10,900: 500 enemies, 2 elites, a mid-boss arriving at 9,000), worst_minute_peak its
-# heaviest tick by load (tick 10,800). Both are about 10% above what CI measured (DS50):
-# worst_minute 3,609,753,641 arm64 / 4,024,817,622 x86_64; worst_minute_peak 1,104,066 / 1,236,144.
-# DS86 (EC2 leash): worst_minute now counts 4,195,857,665 arm64 / 4,618,966,801 x86_64 (the leash
-# lets relocated enemies crowd the main character), so its budgets are 4,600,000,000 / 5,100,000,000;
-# worst_minute_peak 1,229,134 / 1,358,845 and time_limit_tick 1,450,043 / 1,583,804 keep theirs.
-# worst_minute_peak stays far under the 12.4 M frame ceiling of worst_tick (ADR-058).
+# DIR1 (DS103, DS50): the benches run at the derived enemy cap of 260 (crowd target 200, headroom
+# 30%), not 500, and the worst minute holds the crowd at the target of 200 with the elites in the
+# room up to the cap. Every budget is about 10% over what CI counted on that head, rounded up to
+# the next 100,000 (a single tick) or 100,000,000 (worst_minute), never over the 12.4 M frame
+# ceiling above (ADR-058). A change of the crowd target or the headroom re-baselines them.
+# CI counts (arm64 / x86_64), with the budget before DIR1 in brackets:
+#   worst_tick         4,177,359 / 4,816,068   [12,400,000 / 11,900,000]
+#   hit_tick           3,963,773 / 4,286,001   [ 8,800,000 /  8,900,000]
+#   hit_tick_spread    2,072,999 / 2,284,036   (inside the hit_tick target, which has no budget of
+#                                               its own for it, tasks#47 item 2)
+#   time_limit_tick      640,125 /   731,725   [ 1,800,000 /  1,600,000]
+#   worst_minute   1,230,555,048 / 1,365,153,097   [4,600,000,000 / 5,100,000,000]
+#   worst_minute_peak    349,661 /   384,059   [ 1,300,000 /  1,400,000]
+# worst_minute counts the 3,600 ticks of the dense minute of the time_limit mode (ticks 7,300 to
+# 10,900), worst_minute_peak its heaviest tick by load (tick 10,800).
 [worst_tick]
-arm64 = 12_400_000
-x86_64 = 11_900_000
+arm64 = 4_600_000
+x86_64 = 5_300_000
 
 [hit_tick]
-arm64 = 8_800_000
-x86_64 = 8_900_000
+arm64 = 4_400_000
+x86_64 = 4_800_000
 
 [time_limit_tick]
-arm64 = 1_800_000
-x86_64 = 1_600_000
+arm64 = 800_000
+x86_64 = 900_000
 
 [worst_minute]
-arm64 = 4_600_000_000
-x86_64 = 5_100_000_000
+arm64 = 1_400_000_000
+x86_64 = 1_600_000_000
 
 [worst_minute_peak]
-arm64 = 1_300_000
-x86_64 = 1_400_000
+arm64 = 400_000
+x86_64 = 500_000
