@@ -781,3 +781,28 @@ fn a_clone_taken_while_waves_are_held_follows_the_original() {
         assert_eq!(copy.state_hash(), e.state_hash(), "tick {}", e.tick());
     }
 }
+
+#[test]
+fn a_spawn_draws_once_on_the_spawn_stream_and_a_held_spawn_draws_nothing() {
+    // Every wave of the bundled mode gives `edge` `any` (VS1): one draw over the spawn
+    // rectangle, whole on this map, so `below(643_072)` each.
+    let drawn = |n: u32| {
+        let mut r = crate::rng::derive(1, crate::rng::TAG_SPAWN);
+        for _ in 0..n {
+            r.below(643_072);
+        }
+        r.state()
+    };
+    // The filler spawns 20 by tick 20; wave 1 falls due at 100 and is held for 300 ticks.
+    let mut e = directed(20, &[(1, 20, 1), (100, 5, 60)]);
+    for _ in 0..400 {
+        step_alive(&mut e);
+    }
+    assert!(held(&e, 1) > 0, "wave 1 was held");
+    assert_eq!(e.state.rng.spawn.state(), drawn(20), "20 spawns, no draw held");
+    removed(&mut e, 10);
+    while spawned(&e, 1) < 2 {
+        step_alive(&mut e);
+    }
+    assert_eq!(e.state.rng.spawn.state(), drawn(22), "two more spawns, two more draws");
+}
