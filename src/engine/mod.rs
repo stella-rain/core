@@ -8,6 +8,9 @@
 //! changes in place until the freeze (ADR-035): see `rules_v0` for what it does and does not
 //! do yet.
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::input::Input;
@@ -32,7 +35,8 @@ pub enum ChoiceError {
 }
 
 /// How a run stands.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum Outcome {
     Running,
     /// The stage was cleared: this is what a replay has to prove (ADR-009).
