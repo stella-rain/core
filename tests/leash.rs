@@ -1,6 +1,7 @@
-//! The leash (EC2, DS80): a regular enemy left more than `LEASH_DISTANCE` (800 px) behind the main
-//! character moves to the ring of `LEASH_RING` (400 px) on the opposite side of it, at most 16 a
-//! tick, in entity-ID order; and `Load` counts the relocations and the spawns the caps refused.
+//! The leash (EC2, DS80, DS106): a regular enemy outside the view rectangle around the main
+//! character (|dx| > 640 px or |dy| > 360 px) moves to the rectangle of ±384 × ±244 px on the
+//! opposite side of it, scaled along its own direction and clamped to the map, at most 16 a tick,
+//! in entity-ID order; and `Load` counts the relocations and the spawns the caps refused.
 
 use crate::common;
 
@@ -18,13 +19,24 @@ const PX: i32 = 256;
 
 /// A 4,000 by 4,000 px map with the main character starting at (`x`, 2,000) px.
 fn stage_at(x: i32, waves: Vec<Value>, companions: Vec<Value>, boss: Option<Value>) -> Stage {
+    stage_at_xy(x, 2000, waves, companions, boss)
+}
+
+/// The same map with the main character starting at (`x`, `y`) px.
+fn stage_at_xy(
+    x: i32,
+    y: i32,
+    waves: Vec<Value>,
+    companions: Vec<Value>,
+    boss: Option<Value>,
+) -> Stage {
     let mut stage = quiet(stage_full(18_000, boss, waves, companions));
     stage.map = Some(Map {
         width: Fx::px(4000),
         height: Fx::px(4000),
         start: Some(Point {
             x: Fx::px(x),
-            y: Fx::px(2000),
+            y: Fx::px(y),
         }),
         facing: None,
     });
@@ -34,6 +46,11 @@ fn stage_at(x: i32, waves: Vec<Value>, companions: Vec<Value>, boss: Option<Valu
 /// A regular enemy that spawns at (`x`, 2,000) px and stands still: `straight` at 0, 0, since a
 /// `hold` enemy is anchored and the leash leaves it where it is (EC2b).
 fn still(x: i32) -> Value {
+    still_at(x, 2000)
+}
+
+/// The same enemy at (`x`, `y`) px.
+fn still_at(x: i32, y: i32) -> Value {
     wave(
         0,
         1,
@@ -44,7 +61,7 @@ fn still(x: i32) -> Value {
             json!([]),
         ),
         x * PX,
-        2000 * PX,
+        y * PX,
     )
 }
 
@@ -68,9 +85,17 @@ fn relocated(e: &Engine) -> Vec<EntityId> {
         .collect()
 }
 
+/// Steps once and returns where the lone enemy 1 is, with the main character at (`px`, `py`) px
+/// and the enemy at (`ex`, `ey`) px.
+fn lands(px: i32, py: i32, ex: i32, ey: i32) -> (i32, i32) {
+    let mut e = engine(&stage_at_xy(px, py, vec![still_at(ex, ey)], vec![], None));
+    e.step(idle());
+    spot(&e, 1)
+}
+
 #[test]
-fn an_enemy_801_px_behind_moves_400_px_to_the_other_side() {
-    let mut e = engine(&stage_at(2000, vec![still(2801)], vec![], None));
+fn an_enemy_641_px_to_the_side_moves_and_keeps_its_hit_points() {
+    let mut e = engine(&stage_at(2000, vec![still(2641)], vec![], None));
     e.step(idle());
     let id = e
         .snapshot()
@@ -79,7 +104,7 @@ fn an_enemy_801_px_behind_moves_400_px_to_the_other_side() {
         .find(|v| v.kind == EntityKind::Enemy)
         .unwrap()
         .id;
-    assert_eq!(spot(&e, id.0), (1600 * PX, 2000 * PX));
+    assert_eq!(spot(&e, id.0), (1616 * PX, 2000 * PX));
     assert_eq!(
         e.snapshot()
             .entities
@@ -94,12 +119,101 @@ fn an_enemy_801_px_behind_moves_400_px_to_the_other_side() {
 }
 
 #[test]
-fn an_enemy_799_px_away_stays() {
-    let mut e = engine(&stage_at(2000, vec![still(2799)], vec![], None));
+fn an_enemy_640_px_to_the_side_stays() {
+    let mut e = engine(&stage_at(2000, vec![still(2640)], vec![], None));
     e.step(idle());
-    assert_eq!(spot(&e, 1), (2799 * PX, 2000 * PX));
+    assert_eq!(spot(&e, 1), (2640 * PX, 2000 * PX));
     assert_eq!(e.load().relocated, 0);
     assert!(relocated(&e).is_empty());
+}
+
+#[test]
+fn the_trigger_on_y_is_360_px() {
+    assert_eq!(lands(2000, 2000, 2000, 2361), (2000 * PX, 1756 * PX));
+    assert_eq!(lands(2000, 2000, 2000, 2360), (2000 * PX, 2360 * PX));
+}
+
+#[test]
+fn the_trigger_is_a_rectangle_not_a_circle() {
+    // 689 px away, inside the rectangle; and 700 px away, under the old 800 px circle, outside it.
+    assert_eq!(lands(2000, 2000, 2600, 2340), (2600 * PX, 2340 * PX));
+    assert_eq!(lands(2000, 2000, 2700, 2000), (1616 * PX, 2000 * PX));
+}
+
+#[test]
+fn landing_on_an_axis_is_384_or_244_px_on_the_other_side() {
+    assert_eq!(lands(2000, 2000, 2641, 2000), (1616 * PX, 2000 * PX));
+    assert_eq!(lands(2000, 2000, 1359, 2000), (2384 * PX, 2000 * PX));
+    assert_eq!(lands(2000, 2000, 2000, 2361), (2000 * PX, 1756 * PX));
+    assert_eq!(lands(2000, 2000, 2000, 1639), (2000 * PX, 2244 * PX));
+}
+
+#[test]
+fn landing_is_scaled_along_the_enemys_own_direction() {
+    // Offset (800, 400) px lands at (-384, -192) px exactly, on the vertical sides.
+    assert_eq!(lands(2000, 2000, 2800, 2400), (1616 * PX, 1808 * PX));
+}
+
+#[test]
+fn landing_on_the_horizontal_sides_truncates_toward_zero() {
+    // Offset (300, 700) px: oy = -244 px, ox = -76,800 * 62,464 / 179,200 = -26,770.29 -> -26,770.
+    assert_eq!(lands(2000, 2000, 2300, 2700), (485_230, 449_536));
+    assert_eq!(lands(2000, 2000, 1700, 1300), (538_770, 574_464));
+}
+
+#[test]
+fn a_relocation_near_the_map_edge_lands_on_the_map() {
+    assert_eq!(lands(100, 2000, 741, 2000), (0, 2000 * PX));
+    assert_eq!(lands(2000, 100, 2000, 461), (2000 * PX, 0));
+}
+
+#[test]
+fn at_most_16_move_a_tick_the_lowest_ids_first() {
+    let waves: Vec<Value> = (0..20).map(|_| still(3000)).collect();
+    let mut e = engine(&stage_at(2000, waves, vec![], None));
+    e.step(idle());
+    let first = relocated(&e);
+    assert_eq!(first, (1..=16).map(EntityId).collect::<Vec<_>>());
+    assert_eq!(e.load().relocated, 16);
+    e.step(idle());
+    assert_eq!(relocated(&e), (17..=20).map(EntityId).collect::<Vec<_>>());
+    assert_eq!(e.load().relocated, 4);
+}
+
+#[test]
+fn a_relocation_draws_no_random_number() {
+    // The same stage with the enemy 641 px away (relocated) or 640 px (not), and a wave that
+    // spawns on a ring drawn from the spawn stream later: it lands in the same place.
+    let mut ring = wave(
+        5,
+        1,
+        1,
+        enemy(10, hold(2000 * PX, 2000 * PX), json!([])),
+        0,
+        0,
+    );
+    ring["around"] = json!(102_400);
+    let at = |x: i32| {
+        let mut e = engine(&stage_at(2000, vec![still(x), ring.clone()], vec![], None));
+        for _ in 0..6 {
+            e.step(idle());
+        }
+        let id = e
+            .snapshot()
+            .entities
+            .iter()
+            .filter(|v| v.kind == EntityKind::Enemy)
+            .map(|v| v.id)
+            .max()
+            .unwrap();
+        e.snapshot()
+            .entities
+            .into_iter()
+            .find(|v| v.id == id)
+            .unwrap()
+            .at
+    };
+    assert_eq!(at(2641), at(2640));
 }
 
 #[test]
@@ -162,62 +276,6 @@ fn an_elite_the_boss_a_companion_and_an_enemy_in_a_wind_up_stay() {
 }
 
 #[test]
-fn at_most_16_move_a_tick_the_lowest_ids_first() {
-    let waves: Vec<Value> = (0..20).map(|_| still(3000)).collect();
-    let mut e = engine(&stage_at(2000, waves, vec![], None));
-    e.step(idle());
-    let first = relocated(&e);
-    assert_eq!(first, (1..=16).map(EntityId).collect::<Vec<_>>());
-    assert_eq!(e.load().relocated, 16);
-    e.step(idle());
-    assert_eq!(relocated(&e), (17..=20).map(EntityId).collect::<Vec<_>>());
-    assert_eq!(e.load().relocated, 4);
-}
-
-#[test]
-fn a_relocation_near_the_map_edge_lands_on_the_map() {
-    let mut e = engine(&stage_at(100, vec![still(901)], vec![], None));
-    e.step(idle());
-    assert_eq!(spot(&e, 1), (0, 2000 * PX));
-}
-
-#[test]
-fn a_relocation_draws_no_random_number() {
-    // The same stage with the enemy 801 px away (relocated) or 799 px (not), and a wave that
-    // spawns on a ring drawn from the spawn stream later: it lands in the same place.
-    let mut ring = wave(
-        5,
-        1,
-        1,
-        enemy(10, hold(2000 * PX, 2000 * PX), json!([])),
-        0,
-        0,
-    );
-    ring["around"] = json!(102_400);
-    let at = |x: i32| {
-        let mut e = engine(&stage_at(2000, vec![still(x), ring.clone()], vec![], None));
-        for _ in 0..6 {
-            e.step(idle());
-        }
-        let id = e
-            .snapshot()
-            .entities
-            .iter()
-            .filter(|v| v.kind == EntityKind::Enemy)
-            .map(|v| v.id)
-            .max()
-            .unwrap();
-        e.snapshot()
-            .entities
-            .into_iter()
-            .find(|v| v.id == id)
-            .unwrap()
-            .at
-    };
-    assert_eq!(at(2801), at(2799));
-}
-
-#[test]
 fn a_refused_spawn_is_counted_in_load() {
     // Ten waves of 26 fill the map with the 260 enemies of the cap by tick 26, 300 px from the main
     // character.
@@ -273,17 +331,16 @@ fn run_relocating(e: &mut Engine, ticks: u32, input: Input) -> Vec<EntityId> {
     all
 }
 
-/// The enemies farther than 800 px from the main character.
+/// The enemies outside the view rectangle around the main character.
 fn far_enemies(e: &Engine) -> usize {
     let snap = e.snapshot();
-    let limit = i64::from(800 * PX).pow(2);
     snap.entities
         .iter()
         .filter(|v| v.kind == EntityKind::Enemy)
         .filter(|v| {
             let dx = i64::from(v.at.x.0) - i64::from(snap.player.at.x.0);
             let dy = i64::from(v.at.y.0) - i64::from(snap.player.at.y.0);
-            dx * dx + dy * dy > limit
+            dx.abs() > i64::from(640 * PX) || dy.abs() > i64::from(360 * PX)
         })
         .count()
 }
@@ -324,7 +381,7 @@ fn an_enemy_with_a_move_to_rule_is_never_relocated() {
     let w = wave(0, 1, 1, mover, 2100 * PX, 2000 * PX);
     let mut e = engine(&stage_at(2000, vec![w], vec![], None));
     assert!(run_relocating(&mut e, 300, idle()).is_empty());
-    assert!(far_enemies(&e) > 0, "it did go beyond 800 px");
+    assert!(far_enemies(&e) > 0, "it did go beyond the rectangle");
 }
 
 #[test]
@@ -382,14 +439,14 @@ fn the_bosss_summons_are_never_relocated() {
 
 #[test]
 fn a_regular_enemys_summons_and_a_still_enemy_are_relocated() {
-    // The summoner stands 799 px away; its summons drift outward at 1 px a tick.
+    // The summoner stands 639 px away; its summons drift outward at 1 px a tick.
     let drifting = json!({ "type": "straight", "vx": PX, "vy": 0 });
     let summoner = enemy(
         100_000,
         standing(),
         json!([once_summoning(enemy(10, drifting, json!([])))]),
     );
-    let w = wave(0, 1, 1, summoner, 2799 * PX, 2000 * PX);
+    let w = wave(0, 1, 1, summoner, 2639 * PX, 2000 * PX);
     let mut e = engine(&stage_at(2000, vec![w], vec![], None));
     let moved = run_relocating(&mut e, 10, idle());
     assert!(moved.iter().any(|id| id.0 > 1), "a summon moved: {moved:?}");
