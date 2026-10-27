@@ -227,7 +227,7 @@ impl Issues<'_> {
         }
         match registry::find(registry::ENTRIES, kind, &id.0) {
             Some(e) if e.introduced > self.1 => {
-                self.add(path, "newer than this file's sim_version".into())
+                self.add(path, "newer than the pack's sim_version".into())
             }
             Some(_) => {}
             None => self.add(path, format!("no such {kind:?} ID in the registry")),
