@@ -22,7 +22,7 @@ use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::stage_skill::StageSkills;
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 use crate::weapons::Weapons;
 
 /// The largest starting unlocks file read (a tuning value; ADR-020 decides that one exists).
@@ -63,30 +63,7 @@ impl StartingUnlocks {
         runes: &Runes,
         weapons: &Weapons,
     ) -> Result<StartingUnlocks, Error> {
-        if bytes.len() > MAX_STARTING_UNLOCKS_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_STARTING_UNLOCKS_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: StartingUnlocksFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: StartingUnlocksFile = version::read_current(bytes, MAX_STARTING_UNLOCKS_BYTES)?;
         validate(&file, perk_sets, stage_skills, runes, weapons)?;
         Ok(StartingUnlocks {
             file,

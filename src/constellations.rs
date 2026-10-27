@@ -31,7 +31,7 @@ use crate::rewards::{
 };
 use crate::run_stats;
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 
 /// The largest constellations file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_CONSTELLATIONS_BYTES: usize = 32 * 1024;
@@ -109,30 +109,7 @@ impl Constellations {
     /// Checks the size, parses strictly and validates against `rewards`, whose named stars the
     /// members must be: the one call for a file's bytes.
     pub fn parse_with(bytes: &[u8], rewards: &Rewards) -> Result<Constellations, Error> {
-        if bytes.len() > MAX_CONSTELLATIONS_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_CONSTELLATIONS_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: ConstellationsFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: ConstellationsFile = version::read_current(bytes, MAX_CONSTELLATIONS_BYTES)?;
         validate(&file, rewards)?;
         Ok(Constellations {
             sets: file.constellations,

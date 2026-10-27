@@ -22,7 +22,7 @@ use crate::pack::Pack;
 use crate::registry;
 use crate::validate::limits::MAX_PLAYER_HP;
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 
 /// The largest run stats file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_RUN_STATS_BYTES: usize = 16 * 1024;
@@ -165,30 +165,7 @@ impl RunStats {
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
     pub fn parse(bytes: &[u8]) -> Result<RunStats, Error> {
-        if bytes.len() > MAX_RUN_STATS_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_RUN_STATS_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: RunStatsFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: RunStatsFile = version::read_current(bytes, MAX_RUN_STATS_BYTES)?;
         validate(&file)?;
         Ok(RunStats {
             stats: file.stats,

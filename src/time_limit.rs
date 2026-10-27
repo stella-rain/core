@@ -30,7 +30,7 @@ use crate::validate::limits::{
     self, MAX_CROWD_TARGET, MAX_ELITES_ALIVE, MAX_MAP_SIDE, MIN_MAP_SIDE,
 };
 use crate::validate::{Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 
 /// The largest mode file read; the bundled one is about 60 KB: the bosses and elites are most of it
 /// (zones and orbs take more words than a preset call did, BR1a), the enemy roles of R2 and
@@ -217,30 +217,7 @@ impl TimeLimit {
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
     pub fn parse(bytes: &[u8]) -> Result<TimeLimit, Error> {
-        if bytes.len() > MAX_TIME_LIMIT_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_TIME_LIMIT_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: TimeLimitFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: TimeLimitFile = version::read_current(bytes, MAX_TIME_LIMIT_BYTES)?;
         validate(&file)?;
         Ok(TimeLimit {
             file,

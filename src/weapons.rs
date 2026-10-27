@@ -20,7 +20,7 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::validate::{self, Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version;
 use crate::weapon::{Weapon, WeaponRef};
 
 /// The largest weapons file read (a tuning value; ADR-020 decides that one exists).
@@ -75,30 +75,7 @@ impl Weapons {
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
     pub fn parse(bytes: &[u8]) -> Result<Weapons, Error> {
-        if bytes.len() > MAX_WEAPONS_BYTES {
-            return Err(Error::TooLarge {
-                size: bytes.len(),
-                limit: MAX_WEAPONS_BYTES,
-            });
-        }
-        // Versions first: a file for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| Error::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(Error::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let file: WeaponsFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let file: WeaponsFile = version::read_current(bytes, MAX_WEAPONS_BYTES)?;
         validate(&file)?;
         Ok(Weapons {
             list: file.weapons,

@@ -47,7 +47,7 @@ use crate::stardust::{Stardust, StardustFile};
 use crate::starting_unlocks::{StartingUnlocks, StartingUnlocksFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
 use crate::validate::{self, Error, Issue};
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version::{self, ReadError, SCHEMA_VERSION, SIM_VERSION};
 use crate::weapons::{Weapons, WeaponsFile};
 
 // The count budgets: about four times today's counts, rounded up to a multiple of 8 and held
@@ -245,6 +245,22 @@ fn location(file: &str) -> String {
     }
 }
 
+impl From<ReadError> for PackError {
+    fn from(e: ReadError) -> PackError {
+        match e {
+            ReadError::TooLarge { size, limit } => PackError::TooLarge { size, limit },
+            ReadError::Parse { line, column } => PackError::Parse { line, column },
+            ReadError::UnsupportedVersion {
+                schema_version,
+                sim_version,
+            } => PackError::UnsupportedVersion {
+                schema_version,
+                sim_version,
+            },
+        }
+    }
+}
+
 impl std::fmt::Display for PackError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -335,30 +351,7 @@ impl Pack {
     /// Checks the size, the versions, parses strictly, checks the budgets, then reads each file
     /// with its own parser: the one call for a pack's bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Pack, PackError> {
-        if bytes.len() > Pack::MAX_BYTES {
-            return Err(PackError::TooLarge {
-                size: bytes.len(),
-                limit: Pack::MAX_BYTES,
-            });
-        }
-        // Versions first: a pack for a newer game may have fields this one rejects.
-        #[derive(Deserialize)]
-        struct Versions {
-            schema_version: u32,
-            sim_version: u32,
-        }
-        let parse_error = |e: serde_json::Error| PackError::Parse {
-            line: e.line(),
-            column: e.column(),
-        };
-        let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-        if versions.schema_version != SCHEMA_VERSION || versions.sim_version != SIM_VERSION {
-            return Err(PackError::UnsupportedVersion {
-                schema_version: versions.schema_version,
-                sim_version: versions.sim_version,
-            });
-        }
-        let pack: PackFile = serde_json::from_slice(bytes).map_err(parse_error)?;
+        let pack: PackFile = version::read_current(bytes, Pack::MAX_BYTES)?;
         check_budgets(&pack)?;
 
         let run_stats = RunStats::parse(&file_bytes(&pack.run_stats))

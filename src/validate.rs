@@ -13,8 +13,6 @@
 
 use std::fmt;
 
-use serde::Deserialize;
-
 use crate::attack::{
     AttackPhase, AttackRef, DamageType, Dash, Direction, Emitter, Expr, HitBox, Offset, PhaseKind,
     Profile, ZoneShape,
@@ -31,7 +29,7 @@ use crate::stage::{
     Tier, Transition, Wave, stardust_tiers_problem,
 };
 use crate::trig;
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version::{self, ReadError};
 use crate::weapon::{Branches, Charge, Hold, SmashEffect, Weapon, WeaponRef};
 
 /// Limits a stage must keep. The first block is ADR-020, the second ADR-036, the rest the
@@ -253,25 +251,7 @@ impl std::error::Error for Error {}
 
 /// Checks the size, parses strictly and validates: the one call for a stage file's bytes.
 pub fn parse_and_validate(bytes: &[u8]) -> Result<Stage, Error> {
-    if bytes.len() > MAX_STAGE_BYTES {
-        return Err(Error::TooLarge {
-            size: bytes.len(),
-            limit: MAX_STAGE_BYTES,
-        });
-    }
-    // Versions first: a file from a newer game may have fields this one rejects.
-    #[derive(Deserialize)]
-    struct Versions {
-        schema_version: u32,
-        sim_version: u32,
-    }
-    let parse_error = |e: serde_json::Error| Error::Parse {
-        line: e.line(),
-        column: e.column(),
-    };
-    let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-    check_versions(versions.schema_version, versions.sim_version)?;
-    let stage: Stage = serde_json::from_slice(bytes).map_err(parse_error)?;
+    let stage: Stage = version::read_current(bytes, MAX_STAGE_BYTES)?;
     validate(&stage)?;
     Ok(stage)
 }
@@ -432,14 +412,19 @@ fn holds_after_active(phases: &[AttackPhase]) -> bool {
         .is_some_and(|p| p.kind == PhaseKind::Recovery && p.spawn.is_empty())
 }
 
-fn check_versions(schema_version: u32, sim_version: u32) -> Result<(), Error> {
-    if schema_version == SCHEMA_VERSION && sim_version == SIM_VERSION {
-        Ok(())
-    } else {
-        Err(Error::UnsupportedVersion {
-            schema_version,
-            sim_version,
-        })
+impl From<ReadError> for Error {
+    fn from(e: ReadError) -> Error {
+        match e {
+            ReadError::TooLarge { size, limit } => Error::TooLarge { size, limit },
+            ReadError::Parse { line, column } => Error::Parse { line, column },
+            ReadError::UnsupportedVersion {
+                schema_version,
+                sim_version,
+            } => Error::UnsupportedVersion {
+                schema_version,
+                sim_version,
+            },
+        }
     }
 }
 
@@ -450,7 +435,7 @@ pub fn validate(stage: &Stage) -> Result<(), Error> {
 
 /// As `validate`, against a given registry (tests use one with newer and deprecated IDs).
 pub fn validate_with(stage: &Stage, registry: &[Entry]) -> Result<(), Error> {
-    check_versions(stage.schema_version, stage.sim_version)?;
+    version::check(stage.schema_version, stage.sim_version)?;
     let mut ctx = Ctx {
         registry,
         sim_version: stage.sim_version,
