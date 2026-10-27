@@ -45,6 +45,26 @@ def generated(paths):
     return {line.split(": ")[0]: line.endswith(": true") for line in out.splitlines()}
 
 
+def attrs(paths, *names):
+    """{path: {attribute: value}} from `git check-attr`, for paths tracked or not."""
+    out = subprocess.run(
+        ["git", "check-attr", *names, "--", *paths],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout
+    result = {}
+    for line in out.splitlines():
+        path, name, value = line.split(": ", 2)
+        result.setdefault(path, {})[name] = value
+    return result
+
+
+# The corpus's per-tick hashes: raw little-endian u64s, never text (CH1).
+CORPUS_HASHES = [
+    "tests/corpus/v0/clear/hashes.bin",
+    "tests/corpus/runs/v0/trial/hashes.bin",
+]
+
+
 class Attributes(unittest.TestCase):
     def test_xtask_still_names_its_sets(self):
         self.assertEqual(
@@ -64,6 +84,23 @@ class Attributes(unittest.TestCase):
     def test_hand_written_files_stay_counted(self):
         for path, g in generated(HAND_WRITTEN).items():
             self.assertFalse(g, path)
+
+    def test_corpus_hashes_are_binary(self):
+        got = attrs(CORPUS_HASHES, "binary", "diff", "text", "linguist-generated")
+        for path in CORPUS_HASHES:
+            self.assertEqual(
+                got[path],
+                {"binary": "set", "diff": "unset", "text": "unset", "linguist-generated": "true"},
+                path,
+            )
+
+    def test_no_text_hashes_remain(self):
+        files = tracked("tests/corpus/")
+        self.assertEqual([p for p in files if p.endswith("/hashes.txt")], [])
+        replays = sorted(p[: -len("run.replay")] for p in files if p.endswith("/run.replay"))
+        hashes = sorted(p[: -len("hashes.bin")] for p in files if p.endswith("/hashes.bin"))
+        self.assertTrue(replays)
+        self.assertEqual(hashes, replays)
 
 
 if __name__ == "__main__":
