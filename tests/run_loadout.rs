@@ -497,13 +497,16 @@ fn a_carried_star_counts_toward_its_stack_limit() {
     for c in crate::run_play::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
         match c {
             Command::Step(input) => e.step(input),
-            Command::Choose(_) => break,
+            // An expertise offer (VS1: the first one opens before any star offer) is answered as
+            // the script does; the first choice with a star offer open is what the test reads.
+            Command::Choose(index) => e.choose(index).unwrap(),
         }
         if e.offer_open() {
-            let o = e.snapshot().progress.unwrap().offer.unwrap();
-            let ids: Vec<&str> = o.candidates.iter().map(|c| c.reward.0.as_str()).collect();
-            assert_eq!(ids, ["xp_common"]);
-            return;
+            if let Some(o) = e.snapshot().progress.unwrap().offer {
+                let ids: Vec<&str> = o.candidates.iter().map(|c| c.reward.0.as_str()).collect();
+                assert_eq!(ids, ["xp_common"]);
+                return;
+            }
         }
     }
     panic!("no offer");
