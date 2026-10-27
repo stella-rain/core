@@ -176,6 +176,8 @@ pub enum RunReplayError {
     /// Re-simulation differs from the expected per-tick hashes, first on this tick.
     Diverged {
         tick: u32,
+        expected: u64,
+        actual: u64,
     },
     /// The expected per-tick hashes are not one per tick.
     HashCount {
@@ -228,9 +230,14 @@ impl fmt::Display for RunReplayError {
                 f,
                 "the final hash is {actual:016x}, not the replay's {expected:016x}"
             ),
-            RunReplayError::Diverged { tick } => {
-                write!(f, "the run differs from the expected hashes on tick {tick}")
-            }
+            RunReplayError::Diverged {
+                tick,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "the run differs from the expected hashes on tick {tick}: expected {expected:016x}, got {actual:016x}"
+            ),
             RunReplayError::HashCount { expected, given } => {
                 write!(f, "expected {expected} per-tick hashes, got {given}")
             }
@@ -664,9 +671,12 @@ fn verify_inner(
         }
         engine.step(*input);
         if let Some(expected) = expected {
-            if expected[i] != engine.state_hash() {
+            let actual = engine.state_hash();
+            if expected[i] != actual {
                 return Err(RunReplayError::Diverged {
                     tick: engine.tick(),
+                    expected: expected[i],
+                    actual,
                 });
             }
         }
