@@ -49,10 +49,13 @@ pub(super) fn crits(s: &State, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bo
     h % 100 < u64::from(chance)
 }
 
+/// What a critical hit deals before any bonus, in percent: twice as much.
+const CRIT_DAMAGE_BASE_PCT: u64 = 200;
+
 /// `damage` of a critical hit: twice as much, and `bonus_pct` percent more (held to
 /// `MAX_CRIT_DAMAGE_TOTAL_PCT`).
 pub(super) fn crit_damage(damage: u32, bonus_pct: u32) -> u32 {
-    let pct = 200 + u64::from(bonus_pct.min(MAX_CRIT_DAMAGE_TOTAL_PCT));
+    let pct = CRIT_DAMAGE_BASE_PCT + u64::from(bonus_pct.min(MAX_CRIT_DAMAGE_TOTAL_PCT));
     u32::try_from(u64::from(damage) * pct / 100).unwrap_or(u32::MAX)
 }
 

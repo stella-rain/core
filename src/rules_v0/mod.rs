@@ -313,11 +313,19 @@ pub(crate) fn reserve(stage: &World, s: &mut State) {
     scratch::reserve_to(&mut s.zones, MAX_ZONES_ALIVE as usize);
 }
 
+/// Events a tick reserves room for per enemy alive (hits, kills, spawns, bursts).
+const EVENTS_PER_ENEMY: usize = 4;
+/// Events a tick reserves room for beyond those.
+const EVENTS_SPARE: usize = 64;
+
+/// How far apart, in degrees, the orbiting companions start.
+const COMPANION_SPACING_DEGREES: i32 = 90;
+
 /// The room for a tick's events (DIR1): a few per enemy alive (hits, kills, spawns, bursts) and
 /// a few more. A placeholder bound: a tick with more grows the list once, and `tests/alloc.rs`
 /// checks the runs it measures stay under it.
 pub(crate) fn events_room(stage: &World) -> usize {
-    stage.enemy_cap as usize * 4 + 64
+    stage.enemy_cap as usize * EVENTS_PER_ENEMY + EVENTS_SPARE
 }
 
 fn unreserved_state(
@@ -350,7 +358,8 @@ fn unreserved_state(
             };
             let index = stage.defs.of_key(key);
             // Orbiting companions start a quarter turn apart.
-            let angle = i32::try_from(i).unwrap_or(0) * 90 * trig::PER_DEGREE;
+            let angle =
+                i32::try_from(i).unwrap_or(0) * COMPANION_SPACING_DEGREES * trig::PER_DEGREE;
             agents::new_agent(id, index, stage.defs.get(index), key, start, angle)
         })
         .collect();
