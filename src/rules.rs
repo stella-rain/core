@@ -1,6 +1,11 @@
-//! The rules file (DIR1, DS103): the numbers of the simulation that live in the content pack.
-//! It starts with the crowd: `crowd_target`, the number of enemies a horde run keeps alive, and
-//! `cap_headroom_pct`, how far above the target the enemy cap stands. The cap is
+//! The rules file (DIR1, DS103, CS1b-3): the numbers of the simulation that live in the content
+//! pack. It starts with the crowd: `crowd_target`, the number of enemies a horde run keeps alive,
+//! and `cap_headroom_pct`, how far above the target the enemy cap stands. The designer-facing
+//! rules constants follow (CS1b-3): the main character's speed and hurt circle, the orbs' radius,
+//! the invulnerable ticks after a hit, aggro, the leash and the spawn margin, the ranged tokens,
+//! the orbiting agents' turn, where a horde boss arrives, the default experience, the size of an
+//! offer and the damage curve. `World` reads them once when a run is built. Caps, the grid, the
+//! push-apart, the view and the units stay in Rust. The cap is
 //! `target * (100 + headroom) / 100`, rounded down, derived when a run is built and never stored
 //! (260 for the bundled file); the headroom is the room the specials (elites, escorts, a
 //! splitter's children, guardians, the boss's summons) spawn in while the waves are held at the
@@ -19,8 +24,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::fixed::Fx;
 use crate::pack::Pack;
-use crate::validate::limits::MAX_ENEMY_CAP;
+use crate::rewards::MAX_OFFER_CANDIDATES;
+use crate::rules_v0::MAX_RANGED_ATTACKERS;
+use crate::validate::limits::{MAX_AGGRO, MAX_ENEMY_CAP, MAX_ENEMY_XP, MAX_RADIUS};
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
@@ -39,6 +47,50 @@ pub struct RulesFile {
     pub crowd_target: u16,
     /// How far above the target the cap stands, in percent, from 25 to 30.
     pub cap_headroom_pct: u8,
+    /// The main character's speed at full stick, in 1/256 px a tick (ADR-050): 1 to 4,096.
+    pub player_speed: Fx,
+    /// The main character's hurt circle, in 1/256 px (ADR-050): 1 to `limits::MAX_RADIUS`.
+    pub player_radius: Fx,
+    /// A friendly orb's hit circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.
+    pub orb_radius: Fx,
+    /// Ticks of invulnerability after the main character is hit: 0 to 600.
+    pub hit_invulnerable_ticks: u32,
+    /// Aggro raised per point of damage dealt (ADR-036), in stored units: 0 to 100.
+    pub aggro_per_damage: u32,
+    /// Aggro raised by a buff (ADR-036), in stored units: 0 to `limits::MAX_AGGRO`.
+    pub aggro_per_buff: u32,
+    /// Aggro raised per point healed (ADR-036), in stored units: 0 to 100.
+    pub aggro_per_heal_point: u32,
+    /// Aggro lost every tick (ADR-036), in stored units: 0 to `limits::MAX_AGGRO`.
+    pub aggro_decay: u32,
+    /// How far to the side of the main character a regular enemy may be before the leash moves it, in 1/256 px: 1 to 4,096 px.
+    pub leash_reach_x: Fx,
+    /// The same above or below, in 1/256 px: 1 to 4,096 px.
+    pub leash_reach_y: Fx,
+    /// Where the leash lands an enemy to the side of the main character, in 1/256 px: 1 to `leash_reach_x`.
+    pub leash_land_x: Fx,
+    /// The same above or below, in 1/256 px: 1 to `leash_reach_y`.
+    pub leash_land_y: Fx,
+    /// How far outside the view an enemy spawns, in 1/256 px: 0 to 1,024 px.
+    pub spawn_margin: Fx,
+    /// Ticks a ranged token cools before its pool grants it again: 0 to 600.
+    pub ranged_token_cooldown_ticks: u32,
+    /// Tokens of the zone attacks' pool: at least 1; with the line pool at most the engine ceiling of 4 ranged attackers.
+    pub ranged_zone_tokens: u32,
+    /// Tokens of the line attacks' pool: at least 1; the two pools sum to at most 4.
+    pub ranged_line_tokens: u32,
+    /// An orbiting agent's turn a tick, in 1/256 degree: 1 to 2,560 (10 degrees).
+    pub orbit_step: u32,
+    /// How far above the main character a horde boss arrives, in 1/256 px: 0 to 1,024 px.
+    pub boss_arrival_above: Fx,
+    /// The experience of a summon or a wave that gives none: 0 to `limits::MAX_ENEMY_XP`.
+    pub default_xp: u32,
+    /// The base candidates of an offer (ADR-079): 1 to `rewards::MAX_OFFER_CANDIDATES`.
+    pub offer_size: u8,
+    /// The defence that halves a hit (ADR-056), in stored units: 1 to 1,000,000.
+    pub defence_k: u32,
+    /// What a critical hit deals before any bonus, in percent: 100 to 1,000.
+    pub crit_damage_base_pct: u32,
 }
 
 /// A rules file that passed validation, and the SHA-256 of the bytes it came from.
@@ -80,6 +132,116 @@ impl Rules {
         self.file.cap_headroom_pct
     }
 
+    /// The main character's speed at full stick, in 1/256 px a tick (ADR-050).
+    pub fn player_speed(&self) -> Fx {
+        self.file.player_speed
+    }
+
+    /// The main character's hurt circle, in 1/256 px (ADR-050).
+    pub fn player_radius(&self) -> Fx {
+        self.file.player_radius
+    }
+
+    /// A friendly orb's hit circle, in 1/256 px.
+    pub fn orb_radius(&self) -> Fx {
+        self.file.orb_radius
+    }
+
+    /// Ticks of invulnerability after the main character is hit.
+    pub fn hit_invulnerable_ticks(&self) -> u32 {
+        self.file.hit_invulnerable_ticks
+    }
+
+    /// Aggro raised per point of damage dealt (ADR-036), in stored units.
+    pub fn aggro_per_damage(&self) -> u32 {
+        self.file.aggro_per_damage
+    }
+
+    /// Aggro raised by a buff (ADR-036), in stored units.
+    pub fn aggro_per_buff(&self) -> u32 {
+        self.file.aggro_per_buff
+    }
+
+    /// Aggro raised per point healed (ADR-036), in stored units.
+    pub fn aggro_per_heal_point(&self) -> u32 {
+        self.file.aggro_per_heal_point
+    }
+
+    /// Aggro lost every tick (ADR-036), in stored units.
+    pub fn aggro_decay(&self) -> u32 {
+        self.file.aggro_decay
+    }
+
+    /// How far to the side of the main character a regular enemy may be before the leash moves it, in 1/256 px.
+    pub fn leash_reach_x(&self) -> Fx {
+        self.file.leash_reach_x
+    }
+
+    /// The same above or below, in 1/256 px.
+    pub fn leash_reach_y(&self) -> Fx {
+        self.file.leash_reach_y
+    }
+
+    /// Where the leash lands an enemy to the side of the main character, in 1/256 px.
+    pub fn leash_land_x(&self) -> Fx {
+        self.file.leash_land_x
+    }
+
+    /// The same above or below, in 1/256 px.
+    pub fn leash_land_y(&self) -> Fx {
+        self.file.leash_land_y
+    }
+
+    /// How far outside the view an enemy spawns, in 1/256 px.
+    pub fn spawn_margin(&self) -> Fx {
+        self.file.spawn_margin
+    }
+
+    /// Ticks a ranged token cools before its pool grants it again.
+    pub fn ranged_token_cooldown_ticks(&self) -> u32 {
+        self.file.ranged_token_cooldown_ticks
+    }
+
+    /// Tokens of the zone attacks' pool.
+    pub fn ranged_zone_tokens(&self) -> u32 {
+        self.file.ranged_zone_tokens
+    }
+
+    /// Tokens of the line attacks' pool.
+    pub fn ranged_line_tokens(&self) -> u32 {
+        self.file.ranged_line_tokens
+    }
+
+    /// An orbiting agent's turn a tick, in 1/256 degree.
+    pub fn orbit_step(&self) -> u32 {
+        self.file.orbit_step
+    }
+
+    /// How far above the main character a horde boss arrives, in 1/256 px.
+    pub fn boss_arrival_above(&self) -> Fx {
+        self.file.boss_arrival_above
+    }
+
+    /// The experience of a summon or a wave that gives none.
+    pub fn default_xp(&self) -> u32 {
+        self.file.default_xp
+    }
+
+    /// The base candidates of an offer (ADR-079).
+    pub fn offer_size(&self) -> u8 {
+        self.file.offer_size
+    }
+
+    /// The defence that halves a hit (ADR-056), in stored units.
+    pub fn defence_k(&self) -> u32 {
+        self.file.defence_k
+    }
+
+    /// What a critical hit deals before any bonus, in percent.
+    pub fn crit_damage_base_pct(&self) -> u32 {
+        self.file.crit_damage_base_pct
+    }
+
     /// The target a run resolves: `target` (an override) or the file's, kept so that its cap
     /// stays within the engine ceiling.
     pub fn resolved_target(&self, target: Option<u16>) -> u32 {
@@ -119,9 +281,184 @@ pub fn validate(file: &RulesFile) -> Result<(), Error> {
             });
         }
     }
+    validate_rules(file, &mut issues);
     if issues.is_empty() {
         Ok(())
     } else {
         Err(Error::Invalid(issues))
     }
+}
+
+/// A number outside `least` to `most` is one issue at `$.<field>`.
+fn within(issues: &mut Vec<Issue>, field: &str, value: i64, least: i64, most: i64) -> bool {
+    let ok = (least..=most).contains(&value);
+    if !ok {
+        issues.push(Issue {
+            path: format!("$.{field}"),
+            message: format!("{least} to {most} (found {value})"),
+        });
+    }
+    ok
+}
+
+/// The checks of the designer-facing fields (CS1b-3).
+fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
+    let px = |n: i32| i64::from(Fx::px(n).0);
+    let radius = i64::from(MAX_RADIUS);
+    let max_aggro = i64::from(MAX_AGGRO);
+    within(
+        issues,
+        "player_speed",
+        i64::from(file.player_speed.0),
+        1,
+        4096,
+    );
+    within(
+        issues,
+        "player_radius",
+        i64::from(file.player_radius.0),
+        1,
+        radius,
+    );
+    within(
+        issues,
+        "orb_radius",
+        i64::from(file.orb_radius.0),
+        1,
+        radius,
+    );
+    within(
+        issues,
+        "hit_invulnerable_ticks",
+        i64::from(file.hit_invulnerable_ticks),
+        0,
+        600,
+    );
+    within(
+        issues,
+        "aggro_per_damage",
+        i64::from(file.aggro_per_damage),
+        0,
+        100,
+    );
+    within(
+        issues,
+        "aggro_per_buff",
+        i64::from(file.aggro_per_buff),
+        0,
+        max_aggro,
+    );
+    within(
+        issues,
+        "aggro_per_heal_point",
+        i64::from(file.aggro_per_heal_point),
+        0,
+        100,
+    );
+    within(
+        issues,
+        "aggro_decay",
+        i64::from(file.aggro_decay),
+        0,
+        max_aggro,
+    );
+    // A land outside where the leash triggers would move an enemy every tick.
+    for (reach, land, reach_name, land_name) in [
+        (
+            file.leash_reach_x,
+            file.leash_land_x,
+            "leash_reach_x",
+            "leash_land_x",
+        ),
+        (
+            file.leash_reach_y,
+            file.leash_land_y,
+            "leash_reach_y",
+            "leash_land_y",
+        ),
+    ] {
+        let reach_ok = within(issues, reach_name, i64::from(reach.0), 1, px(4096));
+        if reach_ok {
+            if i64::from(land.0) > i64::from(reach.0) {
+                issues.push(Issue {
+                    path: format!("$.{land_name}"),
+                    message: format!("at most {reach_name} (found {})", land.0),
+                });
+            } else {
+                within(issues, land_name, i64::from(land.0), 1, i64::from(reach.0));
+            }
+        } else {
+            within(issues, land_name, i64::from(land.0), 1, px(4096));
+        }
+    }
+    within(
+        issues,
+        "spawn_margin",
+        i64::from(file.spawn_margin.0),
+        0,
+        px(1024),
+    );
+    within(
+        issues,
+        "ranged_token_cooldown_ticks",
+        i64::from(file.ranged_token_cooldown_ticks),
+        0,
+        600,
+    );
+    let ceiling = i64::from(MAX_RANGED_ATTACKERS);
+    let zone = i64::from(file.ranged_zone_tokens);
+    let line = i64::from(file.ranged_line_tokens);
+    let zone_ok = zone >= 1;
+    let line_ok = line >= 1;
+    if !zone_ok {
+        issues.push(Issue {
+            path: "$.ranged_zone_tokens".into(),
+            message: format!("at least 1 (found {zone})"),
+        });
+    }
+    if !line_ok {
+        issues.push(Issue {
+            path: "$.ranged_line_tokens".into(),
+            message: format!("at least 1 (found {line})"),
+        });
+    }
+    if zone_ok && line_ok && zone + line > ceiling {
+        issues.push(Issue {
+            path: "$.ranged_line_tokens".into(),
+            message: format!(
+                "the two pools sum to at most {ceiling} (found {})",
+                zone + line
+            ),
+        });
+    }
+    within(issues, "orbit_step", i64::from(file.orbit_step), 1, 2560);
+    within(
+        issues,
+        "boss_arrival_above",
+        i64::from(file.boss_arrival_above.0),
+        0,
+        px(1024),
+    );
+    within(
+        issues,
+        "default_xp",
+        i64::from(file.default_xp),
+        0,
+        i64::from(MAX_ENEMY_XP),
+    );
+    within(
+        issues,
+        "offer_size",
+        i64::from(file.offer_size),
+        1,
+        MAX_OFFER_CANDIDATES as i64,
+    );
+    within(issues, "defence_k", i64::from(file.defence_k), 1, 1_000_000);
+    within(
+        issues,
+        "crit_damage_base_pct",
+        i64::from(file.crit_damage_base_pct),
+        100,
+        1000,
+    );
 }

@@ -223,7 +223,7 @@ pub(crate) struct StarField {
     pub rerolls_left: u32,
     pub banishes_left: u32,
     /// Candidates the offer-candidates rewards taken add to every offer, held to
-    /// `MAX_OFFER_CANDIDATES` less the base `OFFER_SIZE`.
+    /// `MAX_OFFER_CANDIDATES` less the base `offer_size` of `rules.json`.
     pub extra_candidates: u8,
     /// The rarities its stars and offers may have, lowest and highest (ADR-110): fixed for the
     /// run, so the state hash writes nothing for it.

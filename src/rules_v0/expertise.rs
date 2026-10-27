@@ -17,8 +17,8 @@
 //! Each level reached is due an offer, in level order, of the kind the stage's level table gives
 //! (`stage::LevelTable`, ADR-106 §4): the weapon's three styles at the table's style level, the
 //! chosen style's first and second upgrades at its upgrade levels and its capstone at its
-//! capstone level; every other level is a common offer. A common offer draws `OFFER_SIZE`
-//! candidates from the weapon's common pool, from the run's generator, leaving out the
+//! capstone level; every other level is a common offer. A common offer draws `offer_size`
+//! (`rules.json`) candidates from the weapon's common pool, from the run's generator, leaving out the
 //! candidates it already holds; with fewer left it holds those, and with none it does not open.
 //! Its options are the candidates, then a reroll of each while the run has rerolls (shared with
 //! the stars' offers) and another option could come; never a skip or a banish. Taking an option
@@ -53,7 +53,6 @@ use crate::weapon::WeaponRef;
 
 use super::entity::Who;
 use super::levels;
-use super::stars::OFFER_SIZE;
 
 /// Whether a run of `stage` has the gauge: some wave or the boss gives points.
 fn gives_points(stage: &World) -> bool {
@@ -294,8 +293,8 @@ pub(super) fn open_due(
         };
         let candidates: Vec<u8> = if kind == ExpertiseOfferKind::Common {
             let pool = pool(stage, expertise);
-            let mut candidates = Vec::with_capacity(OFFER_SIZE);
-            while candidates.len() < OFFER_SIZE {
+            let mut candidates = Vec::with_capacity(stage.tuning.offer_size);
+            while candidates.len() < stage.tuning.offer_size {
                 match draw(pool, &mut rng.offer, &candidates) {
                     Some(i) => candidates.push(i),
                     None => break,

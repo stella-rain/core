@@ -38,9 +38,6 @@ use crate::stage::{Side, ViewEdge};
 /// 60 ticks a second, 60 seconds.
 const TICKS_PER_MINUTE: u32 = 3_600;
 
-/// How far above the main character a boss comes: 120 pixels.
-const ABOVE: i32 = Fx::px(120).0;
-
 /// Brings the boss whose time the next tick reaches, if any. Called before the tick runs.
 pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
     if s.outcome != Outcome::Running {
@@ -82,7 +79,10 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
     let spawn = stage.boss(boss).boss.spawn;
     let to = stage.map().clamp(Point {
         x: s.player.at.x,
-        y: s.player.at.y.saturating_add(Fx(-ABOVE)),
+        y: s.player
+            .at
+            .y
+            .saturating_add(Fx(-stage.tuning.boss_arrival_above)),
     });
     let arrival = Arrival {
         at: to,

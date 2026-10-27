@@ -24,8 +24,6 @@ use crate::snapshot::{OfferOption, StatOfferView};
 
 /// The highest level; past it experience is no longer counted (ADR-020: it bounds the points).
 pub(crate) const MAX_LEVEL: u32 = 100;
-/// The experience of an enemy whose wave gives none, or that no wave spawned (a summon).
-const DEFAULT_XP: u32 = 1;
 
 /// The experience level `level` needs to reach the next; 0 at `MAX_LEVEL` or without levels.
 pub(crate) fn xp_next(stage: &World, level: u32) -> u32 {
@@ -53,8 +51,8 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<Dom
                 .ok()
                 .and_then(|i| stage.waves.get(i))
                 .and_then(|w| w.xp)
-                .unwrap_or(DEFAULT_XP),
-            _ => DEFAULT_XP,
+                .unwrap_or(stage.tuning.default_xp),
+            _ => stage.tuning.default_xp,
         })
         .fold(0u32, u32::saturating_add);
     gain(stage, s, xp, events);

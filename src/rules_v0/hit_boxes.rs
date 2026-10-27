@@ -32,7 +32,7 @@ use crate::trig;
 
 use super::entity::Who;
 use super::grid::Grid;
-use super::{PLAYER_RADIUS, Shot, damage, enemy_grid, hurt_player, overlaps};
+use super::{Shot, damage, enemy_grid, hurt_player, overlaps};
 
 /// What a swing is made by, and so where the targets it has hit are kept.
 #[derive(Clone, Copy)]
@@ -153,7 +153,7 @@ pub(super) fn resolve(
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
     if !s.orbs.is_empty() {
-        break_orbs(s, &swings, events);
+        break_orbs(stage, s, &swings, events);
     }
     if s.next_orb_group > 0 {
         cage_beams(stage, s, events);
@@ -178,7 +178,7 @@ pub(super) fn resolve(
 /// A breakable enemy orb that a hit box of the main character covers is removed, with no burst,
 /// and reported once (core Z2, C24). It is gone before the orbs land, so it hurts nobody this
 /// tick.
-fn break_orbs(s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
+fn break_orbs(stage: &World, s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
     let mine = |w: &&Swing| w.friendly && w.owner == super::PLAYER_ID;
     s.orbs.retain(|b| {
         if !b.breakable {
@@ -187,7 +187,7 @@ fn break_orbs(s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
         let hit = swings
             .iter()
             .filter(mine)
-            .any(|w| covers(w, b.at, super::ORB_RADIUS));
+            .any(|w| covers(w, b.at, stage.tuning.orb_radius));
         if hit {
             events.push(DomainEvent::OrbBroken {
                 owner: b.owner,
@@ -226,7 +226,7 @@ fn cage_beams(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
             i128::from(p.at.x.0) - i128::from(from.at.x.0),
             i128::from(p.at.y.0) - i128::from(from.at.y.0),
         );
-        if !line.touches(d, PLAYER_RADIUS) {
+        if !line.touches(d, stage.tuning.player_radius) {
             continue;
         }
         let shot = Shot {
@@ -558,7 +558,7 @@ fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Domai
     let p = &s.player;
     if p.hp > 0
         && p.invulnerable == 0
-        && covers(w, p.at, PLAYER_RADIUS)
+        && covers(w, p.at, stage.tuning.player_radius)
         && take_hit(s, w, super::PLAYER_ID)
     {
         hurt_player(stage, s, super::aided(stage, s, shot(w)), events);

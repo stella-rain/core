@@ -9,7 +9,7 @@ use super::agents::agent_mut;
 use super::attacks;
 use super::boss;
 use super::entity::Who;
-use super::{AGGRO_PER_BUFF, AGGRO_PER_HEAL_POINT, spawn_enemy};
+use super::spawn_enemy;
 
 /// Does the action for rule `rule_index` of `me`, aimed at `target`. False if this version
 /// cannot do it, in which case the rule does not fire and the next one gets its turn.
@@ -107,7 +107,7 @@ pub(super) fn cast(
     let source = s.id_of(caster);
     let mut apply = |s: &mut State, kind, value_pct: u16, duration: u32| {
         s.add_status(target, kind, source, value_pct, duration, events);
-        s.raise_aggro(source, AGGRO_PER_BUFF);
+        s.raise_aggro(source, stage.tuning.aggro_per_buff);
     };
     match skill {
         Skill::Shot { pattern, damage } => {
@@ -134,7 +134,10 @@ pub(super) fn cast(
                     target: s.id_of(target),
                     amount: healed,
                 });
-                s.raise_aggro(source, healed.saturating_mul(AGGRO_PER_HEAL_POINT));
+                s.raise_aggro(
+                    source,
+                    healed.saturating_mul(stage.tuning.aggro_per_heal_point),
+                );
             }
         }
     }

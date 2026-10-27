@@ -62,8 +62,7 @@ use super::entity::{Who, scale_damage, status_pct};
 use super::world::RangedPool;
 use super::{
     AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, MAX_ORBS_ALIVE, MAX_ORBS_PER_OWNER,
-    RANGED_LINE_TOKENS, RANGED_TOKEN_COOLDOWN_TICKS, RANGED_ZONE_TOKENS, VIEW_HALF_HEIGHT,
-    VIEW_HALF_WIDTH, World, count,
+    MAX_RANGED_ATTACKERS, VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH, World, count,
 };
 
 /// Whether `owner` is running an attack in `slot`.
@@ -72,10 +71,10 @@ pub(super) fn busy(s: &State, owner: EntityId, slot: u8) -> bool {
 }
 
 /// The tokens of `pool` (RA1, DS83).
-fn pool_tokens(pool: RangedPool) -> u32 {
+fn pool_tokens(world: &World, pool: RangedPool) -> u32 {
     match pool {
-        RangedPool::Zone => RANGED_ZONE_TOKENS,
-        RangedPool::Line => RANGED_LINE_TOKENS,
+        RangedPool::Zone => world.tuning.ranged_zone_tokens,
+        RangedPool::Line => world.tuning.ranged_line_tokens,
     }
 }
 
@@ -96,7 +95,7 @@ fn ranged_cooling(s: &State, pool: RangedPool) -> u32 {
 
 /// Whether `pool` has a token to give: the ones held and cooling leave one of its tokens.
 fn ranged_room(world: &World, s: &State, pool: RangedPool) -> bool {
-    ranged_held(world, s, pool).saturating_add(ranged_cooling(s, pool)) < pool_tokens(pool)
+    ranged_held(world, s, pool).saturating_add(ranged_cooling(s, pool)) < pool_tokens(world, pool)
 }
 
 /// Whether the ranged run `r` holds its token now: in a wind-up or active phase.
@@ -105,8 +104,9 @@ fn holds_token(world: &World, r: &AttackRun) -> bool {
 }
 
 /// Starts the cooling of a token of `pool` that was freed on the current tick.
-fn cool_token(s: &mut State, pool: RangedPool) {
-    let entry = (s.tick.saturating_add(RANGED_TOKEN_COOLDOWN_TICKS), pool);
+fn cool_token(world: &World, s: &mut State, pool: RangedPool) {
+    let cooldown = world.tuning.ranged_token_cooldown_ticks;
+    let entry = (s.tick.saturating_add(cooldown), pool);
     let at = s.ranged_cooling.partition_point(|e| *e <= entry);
     s.ranged_cooling.insert(at, entry);
 }
@@ -141,14 +141,14 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
     let mut free = [0u32; 2];
     for pool in RangedPool::ALL {
         let taken = ranged_held(world, s, pool).saturating_add(ranged_cooling(s, pool));
-        free[pool.index()] = pool_tokens(pool).saturating_sub(taken);
+        free[pool.index()] = pool_tokens(world, pool).saturating_sub(taken);
     }
     if free == [0, 0] {
         return;
     }
     // The best few of each pool so far, nearest first; enemies come in ID order, so a later one
     // at the same distance stays behind.
-    const MOST: usize = RANGED_ZONE_TOKENS as usize;
+    const MOST: usize = MAX_RANGED_ATTACKERS as usize;
     let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
     let mut len = [0usize; 2];
     let player = s.player.at;
@@ -173,7 +173,7 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
             if def.agent.rules[rule].once && st.fired {
                 continue;
             }
-            let room = free[p] as usize;
+            let room = (free[p] as usize).min(MOST);
             if room == 0 || len[p] == room && d >= best[p][room - 1].0 {
                 continue;
             }
@@ -626,7 +626,11 @@ pub(super) fn advance_runs(world: &World, s: &mut State, events: &mut Vec<Domain
         if s.find(s.runs[i].owner).is_none() {
             changed = true;
             if holds_token(world, &s.runs[i]) {
-                cool_token(s, world.attacks[usize::from(s.runs[i].attack.0)].pool);
+                cool_token(
+                    world,
+                    s,
+                    world.attacks[usize::from(s.runs[i].attack.0)].pool,
+                );
             }
             continue;
         }
@@ -640,12 +644,20 @@ pub(super) fn advance_runs(world: &World, s: &mut State, events: &mut Vec<Domain
             changed = true;
             if r.phase as usize >= phase_count(world, r) {
                 if held {
-                    cool_token(s, world.attacks[usize::from(s.runs[kept].attack.0)].pool);
+                    cool_token(
+                        world,
+                        s,
+                        world.attacks[usize::from(s.runs[kept].attack.0)].pool,
+                    );
                 }
                 continue;
             }
             if held && !holds_token(world, &s.runs[kept]) {
-                cool_token(s, world.attacks[usize::from(s.runs[kept].attack.0)].pool);
+                cool_token(
+                    world,
+                    s,
+                    world.attacks[usize::from(s.runs[kept].attack.0)].pool,
+                );
             }
             begin_phase(world, s, kept, events);
         }
@@ -724,6 +736,7 @@ pub(super) fn phase_damage(world: &World, r: &AttackRun) -> u32 {
         0,
         0,
         0,
+        world.tuning.defence_k,
     )
 }
 

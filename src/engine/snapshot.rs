@@ -152,7 +152,7 @@ impl Engine {
             player: PlayerView {
                 at: s.player.at,
                 hp: s.player.hp,
-                radius: Fx(rules_v0::PLAYER_RADIUS),
+                radius: Fx(self.stage.tuning.player_radius),
                 facing: Facing {
                     x: s.player.facing.x,
                     y: s.player.facing.y,
@@ -294,7 +294,7 @@ impl Engine {
                     at: b.at,
                     vx: b.vx,
                     vy: b.vy,
-                    radius: Fx(rules_v0::orb_radius()),
+                    radius: Fx(self.stage.tuning.orb_radius),
                     style: b.style,
                     breakable: b.breakable,
                     link_to: rules_v0::beam_to(&s.orbs, i).and_then(|j| u32::try_from(j).ok()),

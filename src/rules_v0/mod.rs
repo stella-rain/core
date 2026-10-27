@@ -12,7 +12,7 @@
 //! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
 //! | `spawn_waves` | the waves that are due spawn enemies; a horde run holds them at the crowd target (DIR1) |
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
-//! | `leash` | a regular, unanchored enemy outside the view rectangle (`LEASH_REACH_X`, `LEASH_REACH_Y`) moves to the rectangle of `LEASH_LAND_X`, `LEASH_LAND_Y` opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
+//! | `leash` | a regular, unanchored enemy outside the view rectangle (`leash_reach_x`, `leash_reach_y` of `rules.json`) moves to the rectangle of `leash_land_x`, `leash_land_y` opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
@@ -163,50 +163,20 @@ pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
 
-/// A regular enemy farther than this to the side of the main character is moved by the leash
-/// (EC2, DS80, DS106): twice the 640 by 360 px view's half-extents, so the trigger is the view
-/// rectangle. A placeholder for playtest (DS106); CS1b-3 moves it into `rules.json`.
-pub(crate) const LEASH_REACH_X: Fx = Fx::px(640);
-/// The same, above or below the main character (360 px). A placeholder for playtest (DS106);
-/// CS1b-3 moves it into `rules.json`.
-pub(crate) const LEASH_REACH_Y: Fx = Fx::px(360);
-/// Where the leash lands an enemy: this far to the side of the main character, opposite where it
-/// was (the view's half-width plus 64 px). A placeholder for playtest (DS106); CS1b-3 moves it
-/// into `rules.json`.
-pub(crate) const LEASH_LAND_X: Fx = Fx::px(384);
-/// The same, above or below the main character (the view's half-height plus 64 px). A placeholder
-/// for playtest (DS106); CS1b-3 moves it into `rules.json`.
-pub(crate) const LEASH_LAND_Y: Fx = Fx::px(244);
 /// The most enemies the leash moves in a tick.
 pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 /// Zones alive at once (core Z1, a placeholder cap pending ADR-058); a zone placed over it is
 /// dropped, as an orb over `MAX_ORBS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
-/// it is in its wind-up or active phase. The tokens are the two pools below, which sum to this
-/// (ADR-SIM-7's cap); they go to the nearest ready enemies in view (RA1).
+/// it is in its wind-up or active phase. The tokens are the two pools of `rules.json`
+/// (`ranged_zone_tokens`, `ranged_line_tokens`), which sum to at most this (ADR-SIM-7's cap); they go to the nearest ready enemies in view (RA1).
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// The view rectangle, centred on the main character (RA1, DS82): the 1920 by 1080 design screen
 /// at the play zoom of 3, never the device's screen. An enemy starts a ranged attack only from
 /// inside it, edges included. Tuning values.
 pub(crate) const VIEW_HALF_WIDTH: Fx = Fx::px(320);
 pub(crate) const VIEW_HALF_HEIGHT: Fx = Fx::px(180);
-/// How far outside the view an enemy spawns (VS1, DS109): a placeholder for playtest; CS1b-3
-/// moves it into `rules.json`.
-pub(crate) const SPAWN_MARGIN: Fx = Fx::px(64);
-/// The spawn rectangle's half width and half height, 384 and 244 px: the view and the margin,
-/// the same band the leash lands on (`LEASH_LAND_X/Y`), defined from the view, not the leash. A
-/// placeholder for playtest (DS109); CS1b-3 moves it into `rules.json`.
-pub(crate) const SPAWN_EDGE_X: Fx = Fx(VIEW_HALF_WIDTH.0 + SPAWN_MARGIN.0);
-pub(crate) const SPAWN_EDGE_Y: Fx = Fx(VIEW_HALF_HEIGHT.0 + SPAWN_MARGIN.0);
-/// The ranged tokens are two pools (RA1, DS83): the zone attacks' and the line attacks' (an
-/// attack that lays a line zone). Tuning values.
-pub(crate) const RANGED_ZONE_TOKENS: u32 = 3;
-pub(crate) const RANGED_LINE_TOKENS: u32 = 1;
-/// A token a ranged run stops holding cools this many ticks before its pool grants it again
-/// (RA1, DS83). A tuning value.
-pub(crate) const RANGED_TOKEN_COOLDOWN_TICKS: u32 = 30;
-const _: () = assert!(RANGED_ZONE_TOKENS + RANGED_LINE_TOKENS == MAX_RANGED_ATTACKERS);
 /// Orbs alive per attacker and in all (core Z2, DS11, tuning rows); an orb over either cap is
 /// dropped in node order.
 pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;
@@ -218,29 +188,13 @@ pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 
 /// The main character is always entity 0; the boss, if any, is 1, then the companions.
 pub(crate) const PLAYER_ID: EntityId = EntityId(0);
-/// The speed cap at full stick (ADR-050).
-const PLAYER_SPEED: i32 = Fx::px(3).0;
-/// The hurt circle, a tiny one (ADR-050).
-pub(crate) const PLAYER_RADIUS: i32 = Fx::px(2).0;
 /// The radius the enemy grid is built for (`Grid::rebuild`'s probe radius); it sets the cell side
 /// with the largest enemy, so it stays what the friendly orbs' radius was.
 const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
-/// An orb's hit circle.
-const ORB_RADIUS: i32 = Fx::px(3).0;
-/// Ticks of invulnerability after the main character is hit.
-const HIT_INVULNERABLE_TICKS: u32 = 60;
 
-/// Aggro (ADR-036): raised by damage dealt, by buffs and by heals; fading every tick. A point of
-/// damage or healing is worth the same aggro as before the scale of ADR-103 (so the two
-/// per-point values stay), and the flat amounts scale with it: a buff, the decay and the cap.
-const AGGRO_PER_DAMAGE: u32 = 1;
-const AGGRO_PER_BUFF: u32 = 40 * DAMAGE_SCALE;
-const AGGRO_PER_HEAL_POINT: u32 = 2;
-const AGGRO_DECAY: u32 = DAMAGE_SCALE;
+/// The most aggro anyone holds (ADR-036; an overflow bound, also the validator's bound of
+/// `AggroAbove`). What raises it and how fast it fades are `rules.json`'s `aggro_*` fields.
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
-pub(crate) const fn orb_radius() -> i32 {
-    ORB_RADIUS
-}
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
 /// and the rerolls its setup adds to the stage's (ADR-079 §1).
@@ -313,11 +267,19 @@ pub(crate) fn reserve(stage: &World, s: &mut State) {
     scratch::reserve_to(&mut s.zones, MAX_ZONES_ALIVE as usize);
 }
 
+/// Events a tick reserves room for per enemy alive (hits, kills, spawns, bursts).
+const EVENTS_PER_ENEMY: usize = 4;
+/// Events a tick reserves room for beyond those.
+const EVENTS_SPARE: usize = 64;
+
+/// How far apart, in degrees, the orbiting companions start.
+const COMPANION_SPACING_DEGREES: i32 = 90;
+
 /// The room for a tick's events (DIR1): a few per enemy alive (hits, kills, spawns, bursts) and
 /// a few more. A placeholder bound: a tick with more grows the list once, and `tests/alloc.rs`
 /// checks the runs it measures stay under it.
 pub(crate) fn events_room(stage: &World) -> usize {
-    stage.enemy_cap as usize * 4 + 64
+    stage.enemy_cap as usize * EVENTS_PER_ENEMY + EVENTS_SPARE
 }
 
 fn unreserved_state(
@@ -350,7 +312,8 @@ fn unreserved_state(
             };
             let index = stage.defs.of_key(key);
             // Orbiting companions start a quarter turn apart.
-            let angle = i32::try_from(i).unwrap_or(0) * 90 * trig::PER_DEGREE;
+            let angle =
+                i32::try_from(i).unwrap_or(0) * COMPANION_SPACING_DEGREES * trig::PER_DEGREE;
             agents::new_agent(id, index, stage.defs.get(index), key, start, angle)
         })
         .collect();
@@ -777,7 +740,7 @@ impl RectSide {
     }
 }
 
-/// A point on the spawn rectangle around `from` (VS1): ±`SPAWN_EDGE_X` by ±`SPAWN_EDGE_Y`, drawn
+/// A point on the spawn rectangle around `from` (VS1): ±the spawn edge (the view and `spawn_margin`), drawn
 /// from `rng` (the wave's stream for a wave, the horde's for an elite) on the part of `edge`'s
 /// side that is on the map. A side wholly off the map gives way to the opposite one; with
 /// neither on the map the side itself is used and the point moved onto the map. `any` is one draw
@@ -792,7 +755,10 @@ pub(super) fn edge_point(
     let map = stage.map();
     let (w, h) = (i64::from(map.width.0), i64::from(map.height.0));
     let (px, py) = (i64::from(from.x.0), i64::from(from.y.0));
-    let (ex, ey) = (i64::from(SPAWN_EDGE_X.0), i64::from(SPAWN_EDGE_Y.0));
+    let (ex, ey) = (
+        i64::from(stage.tuning.spawn_edge_x.0),
+        i64::from(stage.tuning.spawn_edge_y.0),
+    );
     let sides = [
         RectSide {
             vertical: false,
@@ -1018,7 +984,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     // box, serves all of them; a tick without one never builds it.
     let mut grid: Option<Grid> = None;
     let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
-    combat::deal_echoes(s, events);
+    combat::deal_echoes(stage, s, events);
     hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = std::mem::take(&mut s.scratch.consumed);
     consumed.clear();
@@ -1090,7 +1056,11 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     let crit = s.player.crit_chance_pct != 0
         && combat::crits(s, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
-        combat::crit_damage(b.damage, s.player.crit_damage_pct)
+        combat::crit_damage(
+            b.damage,
+            s.player.crit_damage_pct,
+            stage.tuning.crit_damage_base_pct,
+        )
     } else {
         b.damage
     };
@@ -1101,6 +1071,7 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         vulnerable,
         s.match_ups.pct(match_up),
         s.defence(target),
+        stage.tuning.defence_k,
     );
     let hp = s.hp_mut(target);
     *hp = hp.saturating_sub(dealt);
@@ -1121,7 +1092,7 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     } else if s.player.echo_hit_pct != 0 {
         combat::queue_echo(s, &b, id, dealt, !State::is_ally(target));
     }
-    s.raise_aggro(b.owner, dealt.saturating_mul(AGGRO_PER_DAMAGE));
+    s.raise_aggro(b.owner, dealt.saturating_mul(stage.tuning.aggro_per_damage));
     if b.combo {
         expertise::credit(stage, s, target, dead);
         if !dead && b.smash == Some(Smash::Bleed) {
@@ -1219,7 +1190,8 @@ pub(super) fn pull_enemy(stage: &World, s: &mut State, i: usize, pull: Pull) {
         i64::from(e.at.y.0) - i64::from(to.y.0),
     );
     let len = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
-    let contact = i64::from(PLAYER_RADIUS) + i64::from(stage.defs.agent(e.def).radius.0);
+    let contact =
+        i64::from(stage.tuning.player_radius) + i64::from(stage.defs.agent(e.def).radius.0);
     let left = (len - i64::from(pull.distance)).max(contact);
     if left >= len {
         return;
@@ -1272,11 +1244,19 @@ pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
 fn hurt_player(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
     // The main character has no profile (ADR-100): every hit on it is neutral.
-    let dealt = scale_damage(b.damage, 0, 0, vulnerable, 0, s.player.defence);
+    let dealt = scale_damage(
+        b.damage,
+        0,
+        0,
+        vulnerable,
+        0,
+        s.player.defence,
+        stage.tuning.defence_k,
+    );
     let dealt = skill::absorb(s, dealt);
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
-    p.invulnerable = HIT_INVULNERABLE_TICKS;
+    p.invulnerable = stage.tuning.hit_invulnerable_ticks;
     events.push(DomainEvent::PlayerHit { hp_left: p.hp });
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
@@ -1347,14 +1327,22 @@ pub(crate) fn aura_percent(
 /// order.
 fn hit_ally_side(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
     let p = &s.player;
-    if p.invulnerable == 0 && p.hp > 0 && overlaps(b.at, ORB_RADIUS, p.at, PLAYER_RADIUS) {
+    if p.invulnerable == 0
+        && p.hp > 0
+        && overlaps(
+            b.at,
+            stage.tuning.orb_radius,
+            p.at,
+            stage.tuning.player_radius,
+        )
+    {
         hurt_player(stage, s, aided(stage, s, b), events);
         return true;
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = stage.defs.agent(c.def).radius.0;
-        if c.hp > 0 && overlaps(b.at, ORB_RADIUS, c.at, radius) {
+        if c.hp > 0 && overlaps(b.at, stage.tuning.orb_radius, c.at, radius) {
             damage(stage, s, aided(stage, s, b), Who::Companion(i), events);
             return true;
         }

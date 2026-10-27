@@ -14,7 +14,7 @@
 //! opens even though the kill clears the stage, and the stars' offers due then open after it.
 //!
 //! At the end of a tick the run survives or clears, the first offer due opens, after the boss offer and
-//! the expertise levels' (`expertise`). It draws `offer_size` candidates (`OFFER_SIZE`, one more for each
+//! the expertise levels' (`expertise`). It draws `offer_size` candidates (`rules.json`, one more for each
 //! offer-candidates reward taken, at most 4) from the run's pool at the star's rarity, then from the rarities below while too few are left. It leaves out banished rewards, rewards at their limit and rewards it already
 //! holds, and the random rune once the Main weapon holds every rune (ADR-099), whose rune is
 //! drawn only when it is taken. An offer with no candidate does not open, and the next one due is tried. While an
@@ -45,12 +45,10 @@ use crate::validate::limits::MAX_STARS_ON_MAP;
 
 use super::{levels, orbit, overlaps, player, runes, skill, widened};
 
-/// The candidates an offer holds (a tuning value, ADR-079 §3).
-pub(crate) const OFFER_SIZE: usize = 3;
 /// The candidates a star's offer holds: the base, and one more for each offer-candidates reward
 /// taken, at most `MAX_OFFER_CANDIDATES`.
-fn offer_size(f: &StarField) -> usize {
-    (OFFER_SIZE + usize::from(f.extra_candidates)).min(MAX_OFFER_CANDIDATES)
+fn offer_size(stage: &World, f: &StarField) -> usize {
+    (stage.tuning.offer_size + usize::from(f.extra_candidates)).min(MAX_OFFER_CANDIDATES)
 }
 
 /// The drop chance is out of this.
@@ -216,7 +214,7 @@ pub(super) fn open_due(
             .is_some_and(|d| !boss_only || d.kind == OfferKind::Boss)
     {
         let Due { kind, rarity } = f.due.remove(0);
-        let size = offer_size(f);
+        let size = offer_size(stage, f);
         let mut candidates = Vec::with_capacity(size);
         while candidates.len() < size {
             match draw(
@@ -520,7 +518,8 @@ fn apply_effects(
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
             // The perks' counters (`loadout::perk`), added to for the rest of the run.
             RewardEffect::OfferCandidates => {
-                let room = u8::try_from(MAX_OFFER_CANDIDATES - OFFER_SIZE).unwrap_or(u8::MAX);
+                let room =
+                    u8::try_from(MAX_OFFER_CANDIDATES - stage.tuning.offer_size).unwrap_or(u8::MAX);
                 let more = u8::try_from(amount).unwrap_or(u8::MAX);
                 f.extra_candidates = f.extra_candidates.saturating_add(more).min(room);
             }

@@ -49,10 +49,10 @@ pub(super) fn crits(s: &State, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bo
     h % 100 < u64::from(chance)
 }
 
-/// `damage` of a critical hit: twice as much, and `bonus_pct` percent more (held to
-/// `MAX_CRIT_DAMAGE_TOTAL_PCT`).
-pub(super) fn crit_damage(damage: u32, bonus_pct: u32) -> u32 {
-    let pct = 200 + u64::from(bonus_pct.min(MAX_CRIT_DAMAGE_TOTAL_PCT));
+/// `damage` of a critical hit: `base_pct` percent (`rules.json`'s `crit_damage_base_pct`, 200: twice
+/// as much), and `bonus_pct` percent more (held to `MAX_CRIT_DAMAGE_TOTAL_PCT`).
+pub(super) fn crit_damage(damage: u32, bonus_pct: u32, base_pct: u64) -> u32 {
+    let pct = base_pct + u64::from(bonus_pct.min(MAX_CRIT_DAMAGE_TOTAL_PCT));
     u32::try_from(u64::from(damage) * pct / 100).unwrap_or(u32::MAX)
 }
 
@@ -89,7 +89,7 @@ pub(super) fn queue_echo(s: &mut State, b: &Shot, target: EntityId, dealt: u32, 
 /// orbs land. An echo takes its hit points from the target it was queued on, if that is
 /// still standing, and nothing else: it neither crits, echoes, fires a rune nor adds expertise.
 /// What it defeats is credited with the rest of the tick's kills.
-pub(super) fn deal_echoes(s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     if s.echoes.is_empty() {
         return;
     }
@@ -119,7 +119,7 @@ pub(super) fn deal_echoes(s: &mut State, events: &mut Vec<DomainEvent>) {
         }
         s.raise_aggro(
             echo.source,
-            echo.damage.saturating_mul(super::AGGRO_PER_DAMAGE),
+            echo.damage.saturating_mul(stage.tuning.aggro_per_damage),
         );
     }
 }
@@ -245,12 +245,12 @@ mod tests {
 
     #[test]
     fn a_crit_damage_is_twice_the_damage_and_the_bonus() {
-        assert_eq!(crit_damage(100, 0), 200);
-        assert_eq!(crit_damage(100, 100), 300);
-        assert_eq!(crit_damage(100, 300), 500);
+        assert_eq!(crit_damage(100, 0, 200), 200);
+        assert_eq!(crit_damage(100, 100, 200), 300);
+        assert_eq!(crit_damage(100, 300, 200), 500);
         // Held to the total even if an unvalidated sum passes it.
-        assert_eq!(crit_damage(100, u32::MAX), 500);
-        assert_eq!(crit_damage(u32::MAX, 300), u32::MAX);
+        assert_eq!(crit_damage(100, u32::MAX, 200), 500);
+        assert_eq!(crit_damage(u32::MAX, 300, 200), u32::MAX);
     }
 
     fn rolls(s: &mut State, b: Shot) -> usize {
@@ -360,7 +360,8 @@ mod tests {
             });
         }
         let mut events = Vec::new();
-        deal_echoes(&mut s, &mut events);
+        let world = super::super::World::for_test(RunContent::bundled().trial().clone());
+        deal_echoes(&world, &mut s, &mut events);
         assert!(s.echoes.is_empty());
         assert_eq!(s.enemies[0].hp, 0, "20 then 40 of 50");
         let types: Vec<_> = events
@@ -373,7 +374,7 @@ mod tests {
             .collect();
         // The echo of 5 on the missing enemy is dropped; the last one is dealt in full.
         assert_eq!(types, [(20, true), (40, true), (0, false)]);
-        deal_echoes(&mut s, &mut events);
+        deal_echoes(&world, &mut s, &mut events);
         assert_eq!(events.len(), 3, "nothing is dealt twice");
     }
 

@@ -39,7 +39,6 @@ use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
 use crate::weapon::{Charge, Hold, SmashEffect, Step, Weapon};
 
-use super::PLAYER_SPEED;
 use super::attacks;
 use super::entity::{Who, speed_pct};
 use super::levels;
@@ -146,7 +145,7 @@ fn move_player(stage: &World, s: &mut State, x: i8, y: i8) {
         / 100
         * held_move_pct(stage, s)
         / 100;
-    let cap = levels::speed(s, i64::from(PLAYER_SPEED) * keep / 100);
+    let cap = levels::speed(s, i64::from(stage.tuning.player_speed) * keep / 100);
     let (dx, dy) = stick_move(x, y, cap);
     move_by(stage, &mut s.player, dx, dy);
 }

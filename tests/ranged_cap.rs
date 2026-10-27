@@ -17,7 +17,7 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{Error, validate};
 
 const PX: i32 = 256;
-/// The zone pool of `rules_v0::RANGED_ZONE_TOKENS`: these shooters lay no line zone.
+/// The zone pool of the bundled `ranged_zone_tokens`: these shooters lay no line zone.
 const ZONE_TOKENS: usize = 3;
 /// Ticks a freed token cools.
 const COOLDOWN: u32 = 30;
