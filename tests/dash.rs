@@ -40,22 +40,16 @@ fn still() -> Value {
     json!({ "type": "straight", "vx": 0, "vy": 0 })
 }
 
-/// An enemy that stands where it spawns, at `(x, y)` pixels, and dashes once at the main
-/// character. (A `hold` would walk it back to its spot after the dash.)
-fn dasher(x: i32, y: i32, phases: Value) -> Value {
-    wave(
-        1,
-        1,
-        0,
-        enemy(1000, still(), attack_rule_of(phases)),
-        x * PX,
-        y * PX,
-    )
+/// An enemy that stands where it spawns, at `(x, y)` in 1/256 pixel (from `near_start`, so it is
+/// inside the leash's reach), and dashes once at the main character. (A `hold` would walk it
+/// back to its spot after the dash.)
+fn dasher((x, y): (i32, i32), phases: Value) -> Value {
+    wave(1, 1, 0, enemy(1000, still(), attack_rule_of(phases)), x, y)
 }
 
-/// An enemy that only stands at `(x, y)` pixels.
-fn bystander(x: i32, y: i32) -> Value {
-    wave(1, 1, 0, enemy(1000, still(), json!([])), x * PX, y * PX)
+/// An enemy that only stands at `(x, y)` in 1/256 pixel.
+fn bystander((x, y): (i32, i32)) -> Value {
+    wave(1, 1, 0, enemy(1000, still(), json!([])), x, y)
 }
 
 fn stage(waves: Vec<Value>) -> Stage {
@@ -86,9 +80,9 @@ fn track(stage: &Stage, ticks: u32) -> Vec<(i32, i32)> {
 
 #[test]
 fn the_dash_covers_its_distance_exactly_a_share_each_tick() {
-    // Straight above the main character (at x 180, y 576): the dash goes straight down.
-    let path = track(&stage(vec![dasher(180, 100, phases(200, false))]), 60);
-    let (x0, y0) = (180 * PX, 100 * PX);
+    // Straight above the main character, 326 pixels: the dash goes straight down.
+    let (x0, y0) = near_start(0, -326);
+    let path = track(&stage(vec![dasher((x0, y0), phases(200, false))]), 60);
     assert!(path.iter().all(|p| p.0 == x0), "{path:?}");
     assert_eq!(*path.last().unwrap(), (x0, y0 + 200 * PX));
     // 200 pixels over 20 ticks: 10 pixels, 2,560 units, each tick, and none before or after.
@@ -100,24 +94,28 @@ fn the_dash_covers_its_distance_exactly_a_share_each_tick() {
 
 #[test]
 fn a_dash_past_the_map_ends_at_its_edge() {
-    let path = track(&stage(vec![dasher(180, 10, phases(700, false))]), 60);
-    assert_eq!(*path.last().unwrap(), (180 * PX, MAP_H));
+    // 326 pixels above the main character, 700 pixels down, past the bottom edge.
+    let (x0, y0) = near_start(0, -326);
+    let path = track(&stage(vec![dasher((x0, y0), phases(700, false))]), 60);
+    assert_eq!(*path.last().unwrap(), (x0, MAP_H));
     assert!(path.iter().all(|p| p.1 <= MAP_H), "{path:?}");
 }
 
 #[test]
 fn an_uneven_share_still_adds_up_to_the_distance() {
     // 7 pixels over 20 ticks does not divide: the shares differ by a unit, the sum is exact.
-    let path = track(&stage(vec![dasher(180, 100, phases(7, false))]), 60);
-    assert_eq!(path.last().unwrap().1, 107 * PX);
+    let (x0, y0) = near_start(0, -326);
+    let path = track(&stage(vec![dasher((x0, y0), phases(7, false))]), 60);
+    assert_eq!(path.last().unwrap().1, y0 + 7 * PX);
 }
 
 #[test]
 fn a_diagonal_dash_loses_no_rounding_over_its_ticks() {
     // The main character is down and to the right: the facing is not along an axis.
-    let path = track(&stage(vec![dasher(60, 300, phases(200, false))]), 60);
+    let (x0, y0) = near_start(-120, -276);
+    let path = track(&stage(vec![dasher((x0, y0), phases(200, false))]), 60);
     let (x, y) = *path.last().unwrap();
-    let (dx, dy) = (i64::from(x - 60 * PX), i64::from(y - 300 * PX));
+    let (dx, dy) = (i64::from(x - x0), i64::from(y - y0));
     assert!(dx > 0 && dy > 0, "{dx} {dy}");
     // The whole distance, less what the facing's own rounding leaves (a facing is a vector of
     // length about 256, so a unit or two in 51,200).
@@ -131,12 +129,12 @@ fn a_diagonal_dash_loses_no_rounding_over_its_ticks() {
 
 #[test]
 fn the_hit_box_travels_with_the_attacker() {
-    // The main character stands 476 pixels below; the dash goes 500 pixels, through it.
-    let st = stage(vec![dasher(180, 100, phases(500, true))]);
+    // The main character stands 326 pixels below; the dash goes 400 pixels, through it.
+    let st = stage(vec![dasher(near_start(0, -326), phases(400, true))]);
     let mut e = engine(&st);
     let radius = e.snapshot().player.radius.0;
     let (px, py) = player_at(&e);
-    assert_eq!(px, 180 * PX);
+    assert_eq!((px, py), near_start(0, 0));
     let mut first_overlap = None;
     let mut hit_at = None;
     for _ in 0..60 {
@@ -162,17 +160,18 @@ fn the_hit_box_travels_with_the_attacker() {
 #[test]
 fn a_dasher_is_not_moved_by_the_push_apart() {
     // A bystander stands 5 pixels off the dasher's path: their circles overlap as it passes.
+    let (x0, y0) = near_start(0, -326);
     let st = stage(vec![
-        dasher(180, 100, phases(300, false)),
-        bystander(185, 250),
+        dasher((x0, y0), phases(200, false)),
+        bystander(near_start(5, -226)),
     ]);
     let mut e = engine(&st);
     for _ in 0..60 {
         e.step(idle());
         let at = enemy_positions(&e);
-        assert_eq!(at[0].0, 180 * PX, "{at:?}");
+        assert_eq!(at[0].0, x0, "{at:?}");
     }
-    assert_eq!(enemy_positions(&e)[0].1, 400 * PX);
+    assert_eq!(enemy_positions(&e)[0].1, y0 + 200 * PX);
 }
 
 // --- The boss -----------------------------------------------------------------------------
@@ -229,7 +228,7 @@ fn with_phase(mut phases: Value, i: usize, key: &str, value: Value) -> Value {
 
 #[test]
 fn an_enemy_may_dash_in_an_active_phase() {
-    let st = stage(vec![dasher(180, 100, phases(200, true))]);
+    let st = stage(vec![dasher(near_start(0, -476), phases(200, true))]);
     assert_eq!(issues(&st), vec![]);
 }
 
@@ -241,23 +240,23 @@ fn a_dash_on_a_wind_up_phase_is_refused() {
         "dash",
         json!({ "distance": 200 * PX }),
     );
-    refused_for_dash(&stage(vec![dasher(180, 100, p)]));
+    refused_for_dash(&stage(vec![dasher(near_start(0, -476), p)]));
 }
 
 #[test]
 fn a_dash_of_no_distance_or_too_far_is_refused() {
     for distance in [0, 961] {
-        let st = stage(vec![dasher(180, 100, phases(distance, false))]);
+        let st = stage(vec![dasher(near_start(0, -476), phases(distance, false))]);
         refused_for_dash(&st);
     }
-    let longest = stage(vec![dasher(180, 100, phases(960, false))]);
+    let longest = stage(vec![dasher(near_start(0, -476), phases(960, false))]);
     assert_eq!(issues(&longest), vec![]);
 }
 
 #[test]
 fn a_dashing_phase_that_also_walks_is_refused() {
     let p = with_phase(phases(200, false), 1, "move_pct", json!(50));
-    refused_for_dash(&stage(vec![dasher(180, 100, p)]));
+    refused_for_dash(&stage(vec![dasher(near_start(0, -476), p)]));
 }
 
 #[test]
