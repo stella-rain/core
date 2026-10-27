@@ -56,16 +56,6 @@ fn the_pack_lists_every_registry_preset_with_today_s_phases() {
     assert_eq!(file, pack["attack_presets"]);
 }
 
-/// Removed with the Rust definitions.
-#[test]
-fn the_fixture_is_today_s_presets() {
-    let before: Value = serde_json::from_str(BEFORE).unwrap();
-    for (id, _) in registry_presets() {
-        let now = serde_json::to_value(stella_rain_core::presets::definition(id).unwrap()).unwrap();
-        assert_eq!(now, before[id], "{id}");
-    }
-}
-
 fn bundled_file() -> Value {
     serde_json::from_slice(common::bundled_file("attack_presets")).unwrap()
 }

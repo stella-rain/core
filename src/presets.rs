@@ -1,127 +1,25 @@
-//! Attack presets (ADR-036 tier 3, ADR-055): the developer's attacks, written in the same
-//! format as the attacks creators write inline, and registered as content IDs (ADR-026). A stage
-//! uses one by ID with arguments, or holds an inline copy. **Taking a preset apart** copies its
-//! definition inline with each argument written in as a constant; the stage then edits it
-//! freely and no longer depends on the ID. The engine runs a preset by that same expansion, so a preset and
-//! its inline copy run the same program and reach the same state hashes.
+//! Attack presets are content (CS1b-1): `content/attack_presets.json`, read through
+//! `attack_presets::AttackPresets` (ADR-SIM-4: "Presets are content"). A preset is the
+//! developer's attack, written in the same format as the attacks creators write inline, and
+//! registered as a content ID (ADR-026). A stage uses one by ID with arguments, or holds an
+//! inline copy. This module **takes a preset apart**: copies its definition inline with each
+//! argument written in as a constant; the stage then edits it freely and no longer depends on
+//! the ID. The engine runs a preset by that same expansion, with the presets of the run's own
+//! content, so a preset and its inline copy run the same program and reach the same state
+//! hashes.
 //!
-//! The developer's weapons (ADR-084) are content, not code (WP1): `content/weapons.json`, read
+//! The developer's weapons (ADR-084) are content too (WP1): `content/weapons.json`, read
 //! through `weapons::Weapons`.
 //!
-//! Under version 0 (ADR-035) these definitions are placeholders and change in place.
+//! Under version 0 (ADR-035) the presets are placeholders and change in place.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use crate::attack::{AttackPhase, AttackRef, Direction, Emitter, Expr, PhaseKind};
 use crate::attack_presets::AttackPresets;
 use crate::registry::{self, Kind};
 use crate::validate::Issue;
 use crate::weapon::{Branches, Weapon};
-
-/// `(id, definition)`: the definitions are JSON, the stage format's own, with `{"arg": n}` for
-/// the preset's arguments. Angles are in 1/256 degree, lengths in 1/256 pixel and speeds in 1/256
-/// pixel a tick. The orb patterns are one active phase of one tick that spawns its orbs;
-/// the melee swings (`slam`, `slash`, `thrust`) are a wind-up, an active hit box and a recovery.
-const DEFINITIONS: &[(&str, &str)] = &[
-    // The five shots below were orb patterns until BR1c (DS10: nothing flies free any more);
-    // their IDs and argument counts stay (ADR-CONT-2) and they are zones now: a circle where
-    // the target stands, or lines from the attacker toward it. Argument 0 of the three that take one is the warning in ticks
-    // (the other two warn for 15).
-    // One circle where the target stands.
-    (
-        "aimed_single",
-        r#"[{"kind":"active","ticks":1,"spawn":[
-            {"type":"zone","shape":{"type":"circle","radius":3072},"anchor":"target","wind_up_ticks":{"arg":0},"active_ticks":2}]}]"#,
-    ),
-    // Seven lines in a 30 degree fan at the target.
-    (
-        "aimed_spread",
-        r#"[{"kind":"active","ticks":1,"spawn":[
-            {"type":"spread","count":7,"angle":7680,"body":[
-            {"type":"zone","shape":{"type":"line","length":65536,"width":3072},"wind_up_ticks":{"arg":0},"active_ticks":2,"direction":{"type":"aimed","offset":0}}]}]}]"#,
-    ),
-    // The elite's slam: `slam`'s blow after a 90-tick wind-up, 300 damage, the
-    // attack a high elite made with one inline shot before; the wind-up is the telegraph.
-    (
-        "elite_slam",
-        r#"[{"kind":"wind_up","ticks":90,"move_pct":50},
-            {"kind":"active","ticks":4,"move_pct":50,"type":"strike","damage":300,
-             "hit_box":{"type":"circle","radius":10240}},
-            {"kind":"recovery","ticks":20,"move_pct":50}]"#,
-    ),
-    // A blow all round: a 40-pixel circle after a slow wind-up, rooted to half speed; Strike.
-    (
-        "slam",
-        r#"[{"kind":"wind_up","ticks":12,"move_pct":50},
-            {"kind":"active","ticks":4,"move_pct":50,"type":"strike",
-             "hit_box":{"type":"circle","radius":10240}},
-            {"kind":"recovery","ticks":20,"move_pct":50}]"#,
-    ),
-    // A quick sweep ahead: a 32-pixel arc, 60 degrees to each side of the facing; Slash.
-    (
-        "slash",
-        r#"[{"kind":"wind_up","ticks":4},
-            {"kind":"active","ticks":3,"type":"slash",
-             "hit_box":{"type":"arc","offset":{"forward":2048},"radius":8192,"half_angle":15360}},
-            {"kind":"recovery","ticks":10}]"#,
-    ),
-    // Forty lines, one every 3 ticks, each turned 6 degrees from the one before.
-    (
-        "spiral",
-        r#"[{"kind":"active","ticks":1,"spawn":[
-            {"type":"repeat","count":40,"interval_ticks":3,"body":[
-            {"type":"zone","shape":{"type":"line","length":65536,"width":3072},"wind_up_ticks":{"arg":0},"active_ticks":2,"direction":{"type":"sequential","step":1536}}]}]}]"#,
-    ),
-    // Five lines in a 20 degree fan at the target.
-    (
-        "spread_5",
-        r#"[{"kind":"active","ticks":1,"spawn":[
-            {"type":"spread","count":5,"angle":5120,"body":[
-            {"type":"zone","shape":{"type":"line","length":65536,"width":3072},"wind_up_ticks":15,"active_ticks":2,"direction":{"type":"aimed","offset":0}}]}]}]"#,
-    ),
-    // A reach forward: a 12-pixel circle 28 pixels ahead; Pierce.
-    (
-        "thrust",
-        r#"[{"kind":"wind_up","ticks":6},
-            {"kind":"active","ticks":3,"type":"pierce",
-             "hit_box":{"type":"circle","offset":{"forward":7168},"radius":3072}},
-            {"kind":"recovery","ticks":12}]"#,
-    ),
-    // Two lines side by side, 5 degrees apart, at the target.
-    (
-        "twin_shot",
-        r#"[{"kind":"active","ticks":1,"spawn":[
-            {"type":"spread","count":2,"angle":1280,"body":[
-            {"type":"zone","shape":{"type":"line","length":65536,"width":3072},"wind_up_ticks":15,"active_ticks":2,"direction":{"type":"aimed","offset":0}}]}]}]"#,
-    ),
-];
-
-fn parsed() -> &'static [(&'static str, Vec<AttackPhase>)] {
-    static PARSED: OnceLock<Vec<(&'static str, Vec<AttackPhase>)>> = OnceLock::new();
-    PARSED.get_or_init(|| {
-        DEFINITIONS
-            .iter()
-            .map(|(id, json)| {
-                let nodes = serde_json::from_str(json)
-                    .unwrap_or_else(|e| panic!("the built-in preset {id} does not parse: {e}"));
-                (*id, nodes)
-            })
-            .collect()
-    })
-}
-
-/// The ID of every preset that has a definition.
-pub fn ids() -> impl Iterator<Item = &'static str> {
-    DEFINITIONS.iter().map(|(id, _)| *id)
-}
-
-/// A preset's definition, with its arguments still as `arg` nodes.
-pub fn definition(id: &str) -> Option<&'static [AttackPhase]> {
-    parsed()
-        .iter()
-        .find(|(i, _)| *i == id)
-        .map(|(_, n)| n.as_slice())
-}
 
 /// The preset `id` taken apart: its definition with each `arg` replaced by the constant in
 /// `args`. `None` if there is no such preset or the number of arguments is wrong.

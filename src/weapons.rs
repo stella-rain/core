@@ -2,7 +2,8 @@
 //! weapon is balanced as content and not as code. A weapon is a registered weapon ID (ADR-026)
 //! with one to `MAX_TREES` trees, tree 1 first (ADR-117); a tree is a `Weapon` (ADR-084), the
 //! stage format's own type, under a tree ID of its own. A stage names one by ID and tree
-//! (`WeaponRef::Preset`), or holds an inline weapon. Attack presets (`presets.rs`) stay code.
+//! (`WeaponRef::Preset`), or holds an inline weapon. The attack presets are content too (CS1b-1,
+//! `attack_presets.rs`).
 //!
 //! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every list bounded: at most `MAX_WEAPONS`
