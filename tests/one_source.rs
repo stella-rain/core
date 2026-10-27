@@ -197,6 +197,26 @@ fn refuses_file(name: &str, bytes: &[u8], limit: usize, read: impl Fn(&[u8]) -> 
     );
 }
 
+/// A pack's content files have no version of their own; the pack's header is the only one. The
+/// stages in `modes/` are stages and keep theirs (CS1a-2).
+#[test]
+fn no_content_file_has_its_own_version() {
+    let content_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("content");
+    for slot in ContentFiles::LAYOUT {
+        let bytes = std::fs::read(slot.path(&content_dir)).unwrap();
+        let file: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let object = file.as_object().unwrap();
+        let is_stage = matches!(slot.name, "trial" | "tutorial");
+        for field in ["schema_version", "sim_version"] {
+            if is_stage {
+                assert_eq!(object.get(field), Some(&0.into()), "{} {field}", slot.name);
+            } else {
+                assert!(!object.contains_key(field), "{} has a {field}", slot.name);
+            }
+        }
+    }
+}
+
 #[test]
 fn every_versioned_file_refuses_another_game_the_same_way() {
     let content = RunContent::bundled();

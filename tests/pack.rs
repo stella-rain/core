@@ -275,6 +275,75 @@ fn a_file_of_another_version_is_refused() {
     ));
 }
 
+/// The members of a pack that are not stages, with their `$.` pointers: they have no version of
+/// their own; the pack's header is the only one (CS1a-2).
+const CONTENT_MEMBERS: [(&str, &str); 14] = [
+    ("run_stats", "/run_stats"),
+    ("rewards", "/rewards"),
+    ("stage_skills", "/stage_skills"),
+    ("expertise", "/expertise"),
+    ("match_ups", "/match_ups"),
+    ("runes", "/runes"),
+    ("perk_sets", "/perk_sets"),
+    ("difficulties", "/difficulties"),
+    ("weapons", "/weapons"),
+    ("rules", "/rules"),
+    ("starting_unlocks", "/starting_unlocks"),
+    ("constellations", "/constellations"),
+    ("stardust", "/stardust"),
+    ("time_limit", "/modes/time_limit"),
+];
+
+#[test]
+fn a_file_with_its_own_version_is_refused() {
+    for (file, pointer) in CONTENT_MEMBERS {
+        for field in ["schema_version", "sim_version"] {
+            let mut v = value();
+            v.pointer_mut(pointer)
+                .and_then(Value::as_object_mut)
+                .unwrap_or_else(|| panic!("{file} is an object"))
+                .insert(field.to_string(), json!(0));
+            assert!(
+                matches!(
+                    load(&v),
+                    Err(PackError::File { file: f, error: Error::Parse { .. } }) if f == file
+                ),
+                "{file} {field}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_stages_in_a_pack_keep_their_versions() {
+    for file in ["trial", "tutorial"] {
+        let mut v = value();
+        v["modes"][file]
+            .as_object_mut()
+            .unwrap()
+            .remove("schema_version");
+        assert!(
+            matches!(
+                load(&v),
+                Err(PackError::File { file: f, error: Error::Parse { .. } }) if f == file
+            ),
+            "{file} without schema_version"
+        );
+        let mut v = value();
+        v["modes"][file]["sim_version"] = json!(1);
+        assert!(
+            matches!(
+                load(&v),
+                Err(PackError::File {
+                    file: f,
+                    error: Error::UnsupportedVersion { schema_version: 0, sim_version: 1 }
+                }) if f == file
+            ),
+            "{file} at sim_version 1"
+        );
+    }
+}
+
 /// Each count budget, past its limit by one: refused naming the list and its limit, before
 /// the file itself is read (the extra entries are copies, which the file would refuse too).
 #[test]
