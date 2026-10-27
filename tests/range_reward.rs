@@ -258,7 +258,7 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
         stage_full(18_000, Some(far_boss()), vec![w], vec![]),
         json!({ "preset": { "id": "giant_sword" } }),
     ));
-    let mut file: Value = serde_json::from_slice(Expertise::BUNDLED).unwrap();
+    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     for w in file["weapons"].as_array_mut().unwrap() {
         w["common"] = json!([option("wide", "range_pct", 20)]);

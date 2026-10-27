@@ -354,7 +354,7 @@ fn a_perk_set_changes_the_run_and_the_same_one_always_runs_the_same() {
 fn regen_gives_back_its_hit_points_every_second_never_beyond_the_most() {
     let content = plain_content();
     // The same run under `vanguard` and under a set with its 300 shown hit points and no regen.
-    let mut file: Value = serde_json::from_slice(PerkSets::BUNDLED).unwrap();
+    let mut file: Value = serde_json::from_slice(common::bundled_file("perk_sets")).unwrap();
     file["perk_sets"].as_array_mut().unwrap().push(json!({
         "id": "no_regen", "title": "No regen", "description": "",
         "effects": [{ "effect": "max_hp", "amount": 300 * DAMAGE_SCALE }]

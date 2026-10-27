@@ -2,6 +2,7 @@
 //! numbers of the simulation that live in the pack. The cap is derived from them and never
 //! stored; the file is a required slot of the pack, and the derived content hash covers it.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::pack::{ContentFiles, Pack, PackError};
 use stella_rain_core::rules::{MAX_RULES_BYTES, Rules};
@@ -29,7 +30,7 @@ fn the_bundled_file_gives_a_target_of_200_and_a_cap_of_260() {
     assert_eq!(rules.crowd_target(), 200);
     assert_eq!(rules.cap_headroom_pct(), 30);
     assert_eq!(rules.enemy_cap_for(200), 260);
-    assert_eq!(Rules::parse(Rules::BUNDLED).unwrap(), *rules);
+    assert_eq!(Rules::parse(common::bundled_file("rules")).unwrap(), *rules);
 }
 
 #[test]
@@ -79,19 +80,19 @@ fn an_override_is_clamped_so_the_cap_stays_within_the_ceiling() {
 
 #[test]
 fn unknown_fields_other_versions_and_big_files_are_refused() {
-    let mut v: Value = serde_json::from_slice(Rules::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
     v["extra"] = 1.into();
     assert!(matches!(
         Rules::parse(v.to_string().as_bytes()),
         Err(Error::Parse { .. })
     ));
-    let mut v: Value = serde_json::from_slice(Rules::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
     v["sim_version"] = 1.into();
     assert!(matches!(
         Rules::parse(v.to_string().as_bytes()),
         Err(Error::UnsupportedVersion { .. })
     ));
-    let mut big = Rules::BUNDLED.to_vec();
+    let mut big = common::bundled_file("rules").to_vec();
     big.resize(MAX_RULES_BYTES + 1, b' ');
     assert!(matches!(Rules::parse(&big), Err(Error::TooLarge { .. })));
 }
@@ -132,7 +133,7 @@ fn the_bundled_pack_holds_the_bundled_file_and_round_trips() {
     let pack = Pack::from_bytes(&bytes).unwrap();
     assert_eq!(pack.content().rules(), Rules::bundled());
     let again = ContentFiles::from_pack(&bytes).unwrap();
-    assert_eq!(again.get("rules").unwrap(), Rules::BUNDLED);
+    assert_eq!(again.get("rules").unwrap(), common::bundled_file("rules"));
     assert_eq!(again.export().unwrap(), bytes);
 }
 

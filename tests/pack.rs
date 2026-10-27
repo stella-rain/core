@@ -18,7 +18,7 @@ use stella_rain_core::validate::{self, Error};
 use crate::common;
 
 fn bundled() -> Vec<u8> {
-    pack::export_bundled()
+    Pack::BUNDLED.to_vec()
 }
 
 fn value() -> Value {

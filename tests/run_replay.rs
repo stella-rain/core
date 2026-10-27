@@ -32,7 +32,7 @@ fn recorded(ticks: u32) -> RunReplay {
 /// kills it in the 540 ticks of overtime. The trial's main character holds shown hit points
 /// (app#336), so no trial run falls on the script before its length.
 fn falling_content() -> RunContent {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["length_ticks"] = json!(60);
     v["boss_ticks"] = json!([60]);
     v["overtime_ticks"] = json!(540);

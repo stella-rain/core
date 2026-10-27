@@ -96,7 +96,7 @@ fn the_file_is_strict_and_size_limited() {
         parse(&newer),
         Err(Error::UnsupportedVersion { .. })
     ));
-    let mut big = MatchUps::BUNDLED.to_vec();
+    let mut big = common::bundled_file("match_ups").to_vec();
     big.resize(MAX_MATCH_UPS_BYTES + 1, b' ');
     assert!(matches!(MatchUps::parse(&big), Err(Error::TooLarge { .. })));
 }
