@@ -261,6 +261,7 @@ impl Engine {
             // `new` validated the version; fail closed if that ever stops being true.
             _ => self.state.outcome = Outcome::Failed,
         }
+        self.observe_tick();
     }
 
     /// Chooses option `index` of the open offer, between ticks (ADR-079 §3): the snapshot's
@@ -294,7 +295,46 @@ impl Engine {
             ),
             _ => self.state.outcome = Outcome::Failed,
         }
+        self.observe_choice();
         Ok(())
+    }
+
+    fn weapon_str(stage: &World) -> &str {
+        match &stage.stage.player.weapon {
+            crate::weapon::WeaponRef::Preset { id, .. } => id.0.as_str(),
+            crate::weapon::WeaponRef::Inline(_) => "inline",
+        }
+    }
+
+    fn observe_tick(&mut self) {
+        let weapon = Self::weapon_str(&self.stage);
+        let mut seen = Vec::new();
+        for enemy in &self.state.enemies {
+            if !enemy.crowded && !enemy.burst {
+                if let Some(id) = self.state.kinds.id(enemy.kind) {
+                    seen.push(crate::ledger::Seen {
+                        id: enemy.id,
+                        kind: id.clone(),
+                    });
+                }
+            }
+        }
+        if let Some(boss) = &self.state.boss {
+            if let Some(id) = self.state.kinds.id(boss.kind) {
+                seen.push(crate::ledger::Seen {
+                    id: boss.id,
+                    kind: id.clone(),
+                });
+            }
+        }
+        self.ledger
+            .observe(&self.state.kinds, weapon, &seen, &self.events);
+    }
+
+    fn observe_choice(&mut self) {
+        let weapon = Self::weapon_str(&self.stage);
+        self.ledger
+            .observe(&self.state.kinds, weapon, &[], &self.events);
     }
 
     /// The run stats this run raises with its level-ups.
