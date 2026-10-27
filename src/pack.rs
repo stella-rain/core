@@ -443,6 +443,7 @@ impl Pack {
             .map_err(PackError::in_file("attack_presets"))?;
         let weapons = Weapons::parse(&file_bytes(&pack.weapons), versions)
             .map_err(PackError::in_file("weapons"))?;
+        check_holds(&weapons, &attack_presets)?;
         let rules = Rules::parse(&file_bytes(&pack.rules), versions)
             .map_err(PackError::in_file("rules"))?;
         let starting_unlocks = pack
@@ -661,6 +662,33 @@ struct TreeLists {
 struct WeaponLists {
     #[serde(default)]
     common: Vec<IgnoredAny>,
+}
+
+/// The held-step checks that read a preset's phases, for every tree of the pack's weapons against
+/// the pack's own attack presets (ADR-CONT-7 point 6, CS1b-1): the weapons file alone cannot say.
+fn check_holds(weapons: &Weapons, presets: &AttackPresets) -> Result<(), PackError> {
+    let mut issues = Vec::new();
+    for (w, entry) in weapons.list().iter().enumerate() {
+        for (t, tree) in entry.trees.iter().enumerate() {
+            for found in crate::presets::hold_problems(&tree.weapon, presets) {
+                issues.push(validate::Issue {
+                    path: format!(
+                        "$.weapons[{w}].trees[{t}].weapon{}",
+                        found.path.trim_start_matches('$')
+                    ),
+                    message: found.message,
+                });
+            }
+        }
+    }
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(PackError::File {
+            file: "weapons",
+            error: validate::Error::Invalid(issues),
+        })
+    }
 }
 
 fn budget(path: impl Into<String>, found: usize, limit: usize) -> Result<(), PackError> {
@@ -1334,6 +1362,7 @@ impl ContentFiles {
             .map_err(PackError::in_file("attack_presets"))?;
         let weapons = Weapons::parse(get("weapons")?, Versions::CURRENT)
             .map_err(PackError::in_file("weapons"))?;
+        check_holds(&weapons, &attack_presets)?;
         let rules =
             Rules::parse(get("rules")?, Versions::CURRENT).map_err(PackError::in_file("rules"))?;
         let starting_unlocks = optional("starting_unlocks")

@@ -72,7 +72,7 @@ fn a_slot_is_where_the_layout_puts_it() {
         .map(|s| s.path(dir).to_string_lossy().replace('\\', "/"))
         .collect();
     assert_eq!(paths[0], "c/content/run_stats.json");
-    assert_eq!(paths[13], "c/content/../modes/trial.json");
+    assert_eq!(paths[14], "c/content/../modes/trial.json");
 }
 
 /// The files read out of the pack are the files in the tree: `content/` and `modes/`, byte for

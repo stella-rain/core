@@ -128,8 +128,8 @@ fn unknown_fields_other_versions_and_big_files_are_refused() {
 }
 
 #[test]
-fn the_pack_has_sixteen_slots_and_rules_is_required() {
-    assert_eq!(ContentFiles::LAYOUT.len(), 16);
+fn the_pack_has_seventeen_slots_and_rules_is_required() {
+    assert_eq!(ContentFiles::LAYOUT.len(), 17);
     let slot = ContentFiles::LAYOUT
         .iter()
         .find(|s| s.name == "rules")

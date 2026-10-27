@@ -111,7 +111,8 @@ fn the_bundled_file_is_what_the_bundled_pack_holds() {
 fn the_ids_arguments_and_phases_are_checked() {
     let mut v = bundled_file();
     v["presets"][0]["id"] = json!("no_such_preset");
-    assert_eq!(refused(&v), ["$.presets[0].id"]);
+    // The preset it replaced is then missing from the file too.
+    assert_eq!(refused(&v), ["$.presets[0].id", "$.presets"]);
 
     let mut v = bundled_file();
     v["presets"][1]["id"] = v["presets"][0]["id"].clone();
@@ -253,4 +254,31 @@ fn a_run_made_with_other_presets_does_not_verify_against_this_pack() {
         run_replay::content_sha256_with("trial", &b),
         run_replay::content_sha256_with("trial", &c)
     );
+}
+
+#[test]
+fn a_pack_whose_weapon_holds_on_a_preset_of_the_wrong_shape_is_refused() {
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    v["weapons"]["weapons"][0]["trees"][0]["weapon"]["combo"]["main"]["hold"] = json!({
+        "loop": { "preset": { "id": "thrust" } },
+        "release": { "preset": { "id": "slash" } },
+        "max_ticks": 60
+    });
+    match Pack::from_bytes(&serde_json::to_vec(&v).unwrap()) {
+        Err(e @ PackError::File { .. }) => {
+            assert!(matches!(
+                &e,
+                PackError::File {
+                    file: "weapons",
+                    ..
+                }
+            ));
+            assert!(
+                e.to_string()
+                    .contains("$.weapons.weapons[0].trees[0].weapon.combo.main.hold.loop"),
+                "{e}"
+            );
+        }
+        other => panic!("{:?}", other.map(|_| ())),
+    }
 }

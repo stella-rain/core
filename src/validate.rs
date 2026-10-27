@@ -402,16 +402,6 @@ pub fn validate_weapon_preset(preset: &Weapon, registry: &[Entry]) -> Result<(),
     }
 }
 
-/// Whether the phase after an attack's last `active` one is a recovery with no spawn: where a
-/// held step's hold begins (ADR-084 point 6).
-fn holds_after_active(phases: &[AttackPhase]) -> bool {
-    phases
-        .iter()
-        .rposition(|p| p.kind == PhaseKind::Active)
-        .and_then(|last| phases.get(last + 1))
-        .is_some_and(|p| p.kind == PhaseKind::Recovery && p.spawn.is_empty())
-}
-
 impl From<ReadError> for Error {
     fn from(e: ReadError) -> Error {
         match e {
@@ -952,7 +942,10 @@ impl<'a> Ctx<'a> {
                         });
                     }
                     c.key("hold", |c| c.hold(hold));
-                    if presets::phases(&step.attack).is_some_and(|p| !holds_after_active(&p)) {
+                    // A preset's phases are the content's: `presets::hold_problems` checks them
+                    // where the content is known (CS1b-1).
+                    if matches!(&step.attack, AttackRef::Inline(p) if !presets::holds_after_active(p))
+                    {
                         c.key("attack", |c| {
                             c.fail(
                                 "a held step's attack has a recovery with no spawn after its last active phase, where the hold begins",
@@ -977,8 +970,7 @@ impl<'a> Ctx<'a> {
         self.within("move_pct", i64::from(h.move_pct), 0, 100);
         self.key("loop", |c| {
             c.attack_ref(&h.loop_attack);
-            if presets::phases(&h.loop_attack)
-                .is_some_and(|p| p.iter().any(|q| q.kind != PhaseKind::Active))
+            if matches!(&h.loop_attack, AttackRef::Inline(p) if p.iter().any(|q| q.kind != PhaseKind::Active))
             {
                 c.fail("a loop's phases are all active");
             }

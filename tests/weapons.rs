@@ -13,6 +13,7 @@ use crate::common;
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::attack::{AttackRef, DamageType, HitBox, PhaseKind};
+use stella_rain_core::attack_presets::AttackPresets;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::{DomainEvent, Press};
 use stella_rain_core::input::Input;
@@ -561,7 +562,7 @@ fn steps(branches: &Branches) -> Vec<(bool, &Step)> {
 
 /// The damage types of an attack's active phases.
 fn active_types(attack: &AttackRef) -> Vec<Option<DamageType>> {
-    presets::phases(attack)
+    presets::phases(attack, AttackPresets::bundled())
         .unwrap()
         .iter()
         .filter(|p| p.kind == PhaseKind::Active)
@@ -571,7 +572,7 @@ fn active_types(attack: &AttackRef) -> Vec<Option<DamageType>> {
 
 /// The radius of an attack's circular hit box in its active phase.
 fn active_radius(attack: &AttackRef) -> i32 {
-    let phases = presets::phases(attack).unwrap();
+    let phases = presets::phases(attack, AttackPresets::bundled()).unwrap();
     let hit_box = phases
         .iter()
         .find(|p| p.kind == PhaseKind::Active)

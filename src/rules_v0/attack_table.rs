@@ -1,5 +1,5 @@
 //! The run's attacks, compiled once when it starts: every attack reference the run
-//! can reach is expanded through `presets::phases` into an `AttackDef` of `World::attacks`, and
+//! can reach is expanded through `presets::phases`, with the run's own attack presets, into an `AttackDef` of `World::attacks`, and
 //! the nodes of each phase into `World::emitters`, so an attack that starts keeps an index
 //! instead of a copy of its phases. An attack is found again by its reference (`AttackKeys`),
 //! which compares in place and allocates nothing.
@@ -7,6 +7,7 @@
 use std::cmp::Ordering;
 
 use crate::attack::{AttackPhase, AttackRef};
+use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Rule, Skill};
 use crate::id::ContentId;
 use crate::presets;
@@ -95,6 +96,7 @@ impl AttackKeys {
         &mut self,
         attacks: &mut Vec<AttackDef>,
         emitters: &mut Vec<Vec<crate::attack::Emitter>>,
+        presets: &AttackPresets,
         attack: &AttackRef,
     ) -> Result<AttackIndex, Issue> {
         if let Some(at) = self.find(attack) {
@@ -105,7 +107,7 @@ impl AttackKeys {
             message: format!("a run brings more than {} attacks", u16::MAX),
         })?;
         // An attack the registry does not define, or with no phases, starts nothing.
-        let phases = presets::phases(attack)
+        let phases = presets::phases(attack, presets)
             .filter(|p| !p.is_empty())
             .map_or_else(Vec::new, |p| p.to_vec());
         let mut programs = Vec::with_capacity(phases.len());

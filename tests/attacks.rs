@@ -602,7 +602,8 @@ fn a_preset_and_its_inline_copy_reach_the_same_hashes() {
         ("twin_shot", vec![]),
     ] {
         let by_id = json!({ "preset": { "id": id, "args": args } });
-        let apart = presets::take_apart(id, &args).expect("a preset to take apart");
+        let apart = presets::take_apart(AttackPresets::bundled(), id, &args)
+            .expect("a preset to take apart");
         let copy = json!({ "inline": apart });
         let rule = |attack: Value| {
             enemy(
@@ -628,7 +629,7 @@ fn a_preset_and_its_inline_copy_reach_the_same_hashes() {
 
 #[test]
 fn taking_a_preset_apart_writes_its_arguments_in_as_constants() {
-    let apart = presets::take_apart("aimed_single", &[20]).unwrap();
+    let apart = presets::take_apart(AttackPresets::bundled(), "aimed_single", &[20]).unwrap();
     assert_eq!(
         serde_json::to_value(&apart).unwrap(),
         spawned(
@@ -640,32 +641,10 @@ fn taking_a_preset_apart_writes_its_arguments_in_as_constants() {
     );
     assert_eq!(presets::highest_arg(&apart), None);
     // The wrong number of arguments, or no such preset.
-    assert!(presets::take_apart("aimed_single", &[]).is_none());
-    assert!(presets::take_apart("aimed_single", &[1, 2]).is_none());
-    assert!(presets::take_apart("twin_shot", &[1]).is_none());
-    assert!(presets::take_apart("no_such_preset", &[]).is_none());
-}
-
-#[test]
-fn every_registered_preset_has_a_definition_that_passes_the_validator() {
-    let registered: Vec<_> = registry::ENTRIES
-        .iter()
-        .filter(|e| e.kind == Kind::Preset)
-        .collect();
-    let defined: Vec<_> = presets::ids().collect();
-    assert_eq!(
-        registered.iter().map(|e| e.id).collect::<Vec<_>>(),
-        defined,
-        "the registry and the definitions list the same presets in the same order"
-    );
-    for entry in registered {
-        let def = presets::definition(entry.id).expect("a definition");
-        validate_attack(def, entry.args, registry::ENTRIES)
-            .unwrap_or_else(|issues| panic!("{}: {issues:?}", entry.id));
-        // It uses exactly the arguments the registry says it takes.
-        let used = presets::highest_arg(def).map_or(0, |n| n + 1);
-        assert_eq!(used, entry.args, "{}", entry.id);
-    }
+    assert!(presets::take_apart(AttackPresets::bundled(), "aimed_single", &[]).is_none());
+    assert!(presets::take_apart(AttackPresets::bundled(), "aimed_single", &[1, 2]).is_none());
+    assert!(presets::take_apart(AttackPresets::bundled(), "twin_shot", &[1]).is_none());
+    assert!(presets::take_apart(AttackPresets::bundled(), "no_such_preset", &[]).is_none());
 }
 
 #[test]
