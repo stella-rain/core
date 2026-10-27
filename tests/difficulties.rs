@@ -7,7 +7,8 @@
 use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::difficulties::{
-    DEFAULT_DIFFICULTY, Difficulties, MAX_DIFFICULTIES, MAX_DIFFICULTIES_BYTES, MAX_PCT, scale_pct,
+    DEFAULT_DIFFICULTY, Difficulties, MAX_DIFFICULTIES, MAX_DIFFICULTIES_BYTES, MAX_PCT,
+    MAX_RUNE_SHARDS, scale_pct,
 };
 use stella_rain_core::rewards::{Rarity, Rewards};
 use stella_rain_core::run_content::RunContent;
@@ -294,5 +295,79 @@ fn text_is_bounded() {
     assert_eq!(
         paths(parse(&v).unwrap_err()),
         ["$.difficulties[0].description"]
+    );
+}
+
+// --- Rune Shards and what opens after what (CS1b-2) ----------------------------------------
+
+fn messages(e: Error) -> Vec<String> {
+    match e {
+        Error::Invalid(issues) => issues.into_iter().map(|i| i.message).collect(),
+        other => panic!("not a validation error: {other:?}"),
+    }
+}
+
+#[test]
+fn rune_shards_are_bounded_and_required() {
+    let with = |n: u32| one(|d| d["rune_shards"] = json!(n));
+    assert!(parse(&with(0)).is_ok());
+    assert!(parse(&with(MAX_RUNE_SHARDS)).is_ok());
+    assert_eq!(MAX_RUNE_SHARDS, 1_000);
+    assert_eq!(
+        paths(parse(&with(MAX_RUNE_SHARDS + 1)).unwrap_err()),
+        ["$.difficulties[0].rune_shards"]
+    );
+    let absent = one(|d| {
+        d.as_object_mut().unwrap().remove("rune_shards");
+    });
+    assert!(matches!(parse(&absent), Err(Error::Parse { .. })));
+}
+
+#[test]
+fn opens_after_names_an_earlier_difficulty_of_the_file() {
+    let two = |after: &str| {
+        let mut first = difficulty("easy");
+        first["rune_shards"] = json!(10);
+        let mut second = difficulty("normal");
+        second["opens_after"] = json!(after);
+        file(vec![first, second])
+    };
+    let parsed = parse(&two("easy")).unwrap();
+    assert_eq!(parsed.list()[0].opens_after, None);
+    assert_eq!(parsed.list()[1].opens_after, Some("easy".into()));
+    for bad in ["normal", "no_such", "Bad"] {
+        let e = parse(&two(bad)).unwrap_err();
+        assert_eq!(paths(e.clone()), ["$.difficulties[1].opens_after"], "{bad}");
+        assert!(messages(e).iter().all(|m| !m.contains(bad)), "{bad}");
+    }
+    // A later difficulty, and the difficulty itself.
+    let mut first = difficulty("easy");
+    first["opens_after"] = json!("normal");
+    let second = difficulty("normal");
+    assert_eq!(
+        paths(parse(&file(vec![first, second])).unwrap_err()),
+        ["$.difficulties[0].opens_after"]
+    );
+    assert_eq!(
+        paths(parse(&one(|d| d["opens_after"] = json!("normal"))).unwrap_err()),
+        ["$.difficulties[0].opens_after"]
+    );
+}
+
+#[test]
+fn the_bundled_difficulties_pay_and_open_as_designed() {
+    let got: Vec<(u32, Option<&str>)> = Difficulties::bundled()
+        .list()
+        .iter()
+        .map(|d| (d.rune_shards, d.opens_after.as_ref().map(|i| i.0.as_str())))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            (10, None),
+            (15, None),
+            (20, Some("normal")),
+            (30, Some("hard"))
+        ]
     );
 }

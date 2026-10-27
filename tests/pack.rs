@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use stella_rain_core::pack::{self, ContentFiles, Pack, PackError};
 use stella_rain_core::replay;
+use stella_rain_core::rewards;
 use stella_rain_core::rules::Rules;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, RunReplay};
@@ -265,9 +266,10 @@ fn an_unknown_pack_version_is_refused() {
 /// the file itself is read (the extra entries are copies, which the file would refuse too).
 #[test]
 fn each_count_budget_is_enforced() {
-    let lists: [(&str, usize); 26] = [
+    let lists: [(&str, usize); 27] = [
         ("/run_stats/stats", pack::MAX_RUN_STATS),
         ("/rewards/rewards", pack::MAX_REWARDS),
+        ("/rewards/rarities", rewards::MAX_RARITIES),
         ("/stage_skills/stage_skills", pack::MAX_STAGE_SKILLS),
         ("/expertise/weapons", pack::MAX_EXPERTISE_WEAPONS),
         ("/expertise/weapons/0/common", pack::MAX_EXPERTISE_COMMON),

@@ -185,9 +185,33 @@ fn the_starting_rune_is_a_known_rune_of_the_pool_when_there_is_one() {
 fn the_costs_run_from_one_to_ten_by_rarity() {
     let costs: Vec<u8> = Rarity::ALL
         .iter()
-        .map(|r| run_setup::lumine_cost(*r))
+        .map(|r| Rewards::bundled().lumine_cost(*r))
         .collect();
     assert_eq!(costs, [1, 2, 3, 4, 6, 10]);
+}
+
+/// The bundled content with `rare` costing 5 Lumine instead of 3.
+fn dearer_rare_content() -> RunContent {
+    let mut file: Value = serde_json::from_slice(common::bundled_file("rewards")).unwrap();
+    file["rarities"][2]["lumine_cost"] = json!(5);
+    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap();
+    RunContent::new(RunContent::bundled().run_stats().clone(), rewards)
+}
+
+#[test]
+fn a_run_is_priced_from_its_own_content() {
+    let carrying = |lumine: u8| RunSetup {
+        carried: carry(&["max_hp_rare"]),
+        lumine,
+        ..trial_setup()
+    };
+    let dearer = dearer_rare_content();
+    assert_eq!(
+        paths(Engine::start_with(&carrying(3), &dearer).unwrap_err()),
+        ["$.carried"]
+    );
+    assert!(Engine::start_with(&carrying(5), &dearer).is_ok());
+    assert!(Engine::start_with(&carrying(3), RunContent::bundled()).is_ok());
 }
 
 // --- Against the content -------------------------------------------------------------------
