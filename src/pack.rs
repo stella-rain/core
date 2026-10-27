@@ -407,6 +407,8 @@ impl Pack {
             .map(|raw| Stardust::parse(&file_bytes(raw)))
             .transpose()
             .map_err(PackError::in_file("stardust"))?
+            // Never re-entered: the bundled pack carries `stardust`, so loading it does not
+            // reach `Pack::bundled()`, whose `OnceLock` would deadlock.
             .unwrap_or_else(|| Stardust::bundled().clone());
         let trial = validate::parse_and_validate(&file_bytes(&pack.modes.trial))
             .map_err(PackError::in_file("trial"))?;
@@ -1125,31 +1127,22 @@ impl ContentFiles {
         Ok(files)
     }
 
-    /// The bundled files.
-    pub fn bundled() -> ContentFiles {
-        let mut files = ContentFiles::default();
-        let bundled: [(&str, &[u8]); 16] = [
-            ("run_stats", RunStats::BUNDLED),
-            ("rewards", Rewards::BUNDLED),
-            ("stage_skills", StageSkills::BUNDLED),
-            ("expertise", Expertise::BUNDLED),
-            ("match_ups", MatchUps::BUNDLED),
-            ("runes", Runes::BUNDLED),
-            ("perk_sets", PerkSets::BUNDLED),
-            ("difficulties", Difficulties::BUNDLED),
-            ("weapons", Weapons::BUNDLED),
-            ("rules", Rules::BUNDLED),
-            ("starting_unlocks", StartingUnlocks::BUNDLED),
-            ("constellations", Constellations::BUNDLED),
-            ("stardust", Stardust::BUNDLED),
-            ("trial", include_bytes!("../modes/trial.json")),
-            ("time_limit", TimeLimit::BUNDLED),
-            ("tutorial", include_bytes!("../modes/tutorial.json")),
-        ];
-        for (name, bytes) in bundled {
-            files.insert(name, bytes.to_vec());
-        }
-        files
+    /// The bundled pack's files, each the bytes of the file on its own (a final newline
+    /// included): equal to `content/` and `modes/` (tested). Built once from `Pack::BUNDLED`.
+    pub fn bundled() -> &'static ContentFiles {
+        static BUNDLED: OnceLock<ContentFiles> = OnceLock::new();
+        BUNDLED.get_or_init(|| {
+            ContentFiles::from_pack(Pack::BUNDLED).expect("the bundled pack's files")
+        })
+    }
+
+    /// The bytes of one bundled file: the one call for library code and tests that need a
+    /// content file on its own. Panics for a name the layout lacks: the bundled pack has every
+    /// slot (tested).
+    pub fn bundled_file(name: &str) -> &'static [u8] {
+        Self::bundled()
+            .get(name)
+            .unwrap_or_else(|| panic!("the bundled pack has no file `{name}`"))
     }
 
     /// The files of a pack, read with the checks of `Pack::from_bytes`. It is refused when

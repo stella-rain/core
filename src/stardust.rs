@@ -17,13 +17,12 @@
 //! so older packs still load. A mode without an entry has none of these rules: what the app
 //! does for it is the app's choice, never a guess made here (`Stardust::mode` is `None`).
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::id::ContentId;
+use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -80,8 +79,7 @@ impl Stardust {
 
     /// The bundled file: what a pack without the file yields.
     pub fn bundled() -> &'static Stardust {
-        static BUNDLED: OnceLock<Stardust> = OnceLock::new();
-        BUNDLED.get_or_init(|| Stardust::parse(Stardust::BUNDLED).expect("the bundled Stardust"))
+        Pack::bundled().stardust()
     }
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.

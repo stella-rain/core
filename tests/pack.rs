@@ -7,18 +7,12 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use stella_rain_core::expertise::Expertise;
-use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::pack::{self, ContentFiles, Pack, PackError};
-use stella_rain_core::perk_sets::PerkSets;
-use stella_rain_core::rewards::Rewards;
+use stella_rain_core::rules::Rules;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, RunReplay};
 use stella_rain_core::run_setup;
-use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::runes::Runes;
-use stella_rain_core::stage_skill::StageSkills;
-use stella_rain_core::time_limit::TimeLimit;
+use stella_rain_core::stardust::Stardust;
 use stella_rain_core::validate::{self, Error};
 
 use crate::common;
@@ -79,40 +73,36 @@ fn a_slot_is_where_the_layout_puts_it() {
     assert_eq!(paths[13], "c/content/../modes/trial.json");
 }
 
+/// The files read out of the pack are the files in the tree: `content/` and `modes/`, byte for
+/// byte, and the bundled pack has every slot, the optional ones included.
 #[test]
-fn the_bundled_content_is_the_individual_files() {
-    let content = RunContent::bundled();
+fn the_bundled_files_are_the_files_on_disk() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("content");
+    for slot in ContentFiles::LAYOUT {
+        let on_disk = fs::read(slot.path(&dir)).expect("the file is in the tree");
+        let bundled = ContentFiles::bundled()
+            .get(slot.name)
+            .unwrap_or_else(|| panic!("the bundled pack lacks {}", slot.name));
+        assert!(bundled == on_disk.as_slice(), "{} differs", slot.name);
+        assert!(ContentFiles::bundled_file(slot.name) == on_disk.as_slice());
+    }
+}
+
+#[test]
+#[should_panic(expected = "the bundled pack has no file `nope`")]
+fn a_name_the_layout_lacks_is_a_bug() {
+    ContentFiles::bundled_file("nope");
+}
+
+#[test]
+fn the_bundled_values_are_the_bundled_files_parsed() {
     assert_eq!(
-        content.run_stats().sha256(),
-        RunStats::parse(RunStats::BUNDLED).unwrap().sha256()
+        Stardust::bundled(),
+        &Stardust::parse(ContentFiles::bundled_file("stardust")).unwrap()
     );
     assert_eq!(
-        content.rewards().sha256(),
-        Rewards::parse(Rewards::BUNDLED).unwrap().sha256()
-    );
-    assert_eq!(
-        content.stage_skills().sha256(),
-        StageSkills::parse(StageSkills::BUNDLED).unwrap().sha256()
-    );
-    assert_eq!(
-        content.expertise().sha256(),
-        Expertise::parse(Expertise::BUNDLED).unwrap().sha256()
-    );
-    assert_eq!(
-        content.match_ups().sha256(),
-        MatchUps::parse(MatchUps::BUNDLED).unwrap().sha256()
-    );
-    assert_eq!(
-        content.runes().sha256(),
-        Runes::parse(Runes::BUNDLED).unwrap().sha256()
-    );
-    assert_eq!(
-        content.perk_sets().sha256(),
-        PerkSets::parse(PerkSets::BUNDLED).unwrap().sha256()
-    );
-    assert_eq!(
-        content.time_limit().sha256(),
-        TimeLimit::parse(TimeLimit::BUNDLED).unwrap().sha256()
+        Rules::bundled(),
+        &Rules::parse(ContentFiles::bundled_file("rules")).unwrap()
     );
 }
 

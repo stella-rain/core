@@ -15,12 +15,11 @@
 //! refused. An override is bounded by its own file (1 to `limits::MAX_CROWD_TARGET`) and clamped
 //! when the run is built (`Rules::enemy_cap_for`), so the cap never passes the ceiling.
 
-use std::sync::OnceLock;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::pack::Pack;
 use crate::validate::limits::MAX_ENEMY_CAP;
 use crate::validate::{Error, Issue};
 use crate::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -62,8 +61,7 @@ impl Rules {
 
     /// The bundled file.
     pub fn bundled() -> &'static Rules {
-        static BUNDLED: OnceLock<Rules> = OnceLock::new();
-        BUNDLED.get_or_init(|| Rules::parse(Rules::BUNDLED).expect("the bundled rules"))
+        Pack::bundled().content().rules()
     }
 
     /// Checks the size, parses strictly and validates: the one call for a file's bytes.
