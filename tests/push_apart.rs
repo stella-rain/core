@@ -19,6 +19,9 @@ use stella_rain_core::stage::Stage;
 /// The push's largest step, and the least radius it counts.
 const STEP: i64 = 1_024;
 const LEAST: i32 = 2_048;
+/// Where the pushed enemies stand: 24 pixels left of and 185 above the start, inside the leash's
+/// reach, so only the push moves them (LS1).
+const AT: (i32, i32) = near_start(-24, -185);
 
 /// An enemy that never moves by itself.
 fn still() -> Value {
@@ -66,23 +69,26 @@ fn dist(a: (i32, i32), b: (i32, i32)) -> i64 {
 #[test]
 fn two_overlapping_enemies_each_move_half_the_overlap() {
     // 10 pixels apart with 8-pixel radii: 6 pixels (1,536 units) of overlap, 768 each.
-    let stage = standing(&[(40_000, 50_000, 2_048), (42_560, 50_000, 2_048)]);
-    assert_eq!(after(&stage, 1), [(39_232, 50_000), (43_328, 50_000)]);
+    let (x, y) = AT;
+    let stage = standing(&[(x, y, 2_048), (x + 2_560, y, 2_048)]);
+    assert_eq!(after(&stage, 1), [(x - 768, y), (x + 3_328, y)]);
     // They touch now, and touching is not overlapping.
-    assert_eq!(after(&stage, 5), [(39_232, 50_000), (43_328, 50_000)]);
+    assert_eq!(after(&stage, 5), [(x - 768, y), (x + 3_328, y)]);
 }
 
 #[test]
 fn enemies_that_do_not_overlap_are_not_pushed() {
-    let stage = standing(&[(40_000, 50_000, 2_048), (44_096, 50_000, 2_048)]);
-    assert_eq!(after(&stage, 3), [(40_000, 50_000), (44_096, 50_000)]);
+    let (x, y) = AT;
+    let stage = standing(&[(x, y, 2_048), (x + 4_096, y, 2_048)]);
+    assert_eq!(after(&stage, 3), [(x, y), (x + 4_096, y)]);
 }
 
 #[test]
 fn a_radius_counts_as_at_least_eight_pixels_for_pushing() {
     // One-pixel hurt circles 10 pixels apart do not touch, and are pushed as 8-pixel ones are.
-    let stage = standing(&[(40_000, 50_000, 256), (42_560, 50_000, 256)]);
-    assert_eq!(after(&stage, 1), [(39_232, 50_000), (43_328, 50_000)]);
+    let (x, y) = AT;
+    let stage = standing(&[(x, y, 256), (x + 2_560, y, 256)]);
+    assert_eq!(after(&stage, 1), [(x - 768, y), (x + 3_328, y)]);
     // The hurt radius itself is unchanged.
     let mut e = engine(&stage);
     e.step(idle());
@@ -98,16 +104,18 @@ fn a_radius_counts_as_at_least_eight_pixels_for_pushing() {
 #[test]
 fn a_larger_hurt_circle_pushes_from_farther() {
     // 16 and 8 pixels of radius, 20 pixels apart along y: 4 pixels of overlap, 2 each.
-    let stage = standing(&[(40_000, 50_000, 4_096), (40_000, 55_120, 2_048)]);
-    assert_eq!(after(&stage, 1), [(40_000, 49_488), (40_000, 55_632)]);
+    let (x, y) = AT;
+    let stage = standing(&[(x, y, 4_096), (x, y + 5_120, 2_048)]);
+    assert_eq!(after(&stage, 1), [(x, y - 512), (x, y + 5_632)]);
 }
 
 #[test]
 fn the_push_is_clamped_to_four_pixels_a_tick() {
     // Two 256-pixel enemies a pixel apart overlap by 511 pixels; each moves 4 a tick.
-    let stage = standing(&[(40_000, 50_000, 65_536), (40_256, 50_000, 65_536)]);
-    assert_eq!(after(&stage, 1), [(38_976, 50_000), (41_280, 50_000)]);
-    assert_eq!(after(&stage, 3), [(36_928, 50_000), (43_328, 50_000)]);
+    let (x, y) = AT;
+    let stage = standing(&[(x, y, 65_536), (x + 256, y, 65_536)]);
+    assert_eq!(after(&stage, 1), [(x - 1_024, y), (x + 1_280, y)]);
+    assert_eq!(after(&stage, 3), [(x - 3_072, y), (x + 3_328, y)]);
 }
 
 #[test]
@@ -116,19 +124,20 @@ fn pushes_from_several_neighbours_add_up() {
     // they mirror each other. 3-4-5 triangles: each neighbour is 2,560 units away (1,536 across,
     // 2,048 up), an overlap of 1,536, so a push of 768 that is 614 down (768 * 4 / 5, rounded
     // toward zero); two of them make 1,228, clamped to 1,024.
+    let (x, y) = AT;
     let stage = standing(&[
-        (40_000, 50_000, 2_048),
-        (38_464, 47_952, 2_048),
-        (41_536, 47_952, 2_048),
+        (x, y, 2_048),
+        (x - 1_536, y - 2_048, 2_048),
+        (x + 1_536, y - 2_048, 2_048),
     ]);
-    assert_eq!(after(&stage, 1)[0], (40_000, 51_024));
+    assert_eq!(after(&stage, 1)[0], (x, y + 1_024));
 }
 
 // --- Enemies on the same point ---------------------------------------------------------------
 
 #[test]
 fn two_enemies_on_one_point_part_opposite_ways_along_the_higher_ids_angle() {
-    let at = (40_000, 50_000);
+    let at = AT;
     let stage = standing(&[(at.0, at.1, 2_048), (at.0, at.1, 2_048)]);
     let now = after(&stage, 1);
     // Entity 3 is the higher ID: 3 golden-angle steps of 137.508 degrees are 52.52 degrees,
@@ -149,7 +158,7 @@ fn two_enemies_on_one_point_part_opposite_ways_along_the_higher_ids_angle() {
 
 #[test]
 fn a_stack_on_one_point_opens() {
-    let stage = standing(&[(40_000, 50_000, 2_048); 40]);
+    let stage = standing(&[(AT.0, AT.1, 2_048); 40]);
     let now = after(&stage, 120);
     for (i, a) in now.iter().enumerate() {
         for b in &now[i + 1..] {
@@ -199,11 +208,11 @@ fn an_overlapped_straight_enemy_keeps_flying() {
     // Yielding is for enemies that go to a place (Hold, Follow, Orbit). Two that fly down 100 a
     // tick from one point are pushed apart, opposite ways, and both keep their 100 a tick.
     let fly = json!({ "type": "straight", "vx": 0, "vy": 100 });
-    let waves = vec![wave(1, 1, 0, enemy_of(2_048, fly), 40_000, 50_000); 2];
+    let waves = vec![wave(1, 1, 0, enemy_of(2_048, fly), AT.0, AT.1); 2];
     let stage = quiet(stage_full(18_000, Some(far_boss()), waves, vec![]));
     for ticks in 1..=6 {
         let now = after(&stage, ticks);
-        assert_eq!(now[0].1 + now[1].1, 2 * (50_000 + 100 * ticks as i32));
+        assert_eq!(now[0].1 + now[1].1, 2 * (AT.1 + 100 * ticks as i32));
     }
 }
 
@@ -212,30 +221,32 @@ fn an_overlapped_straight_enemy_keeps_flying() {
 #[test]
 fn the_main_character_companions_and_the_boss_neither_push_nor_are_pushed() {
     // One enemy stands on the main character, one on a companion and one on the boss.
-    let guard = companion(50, hold(20_000, 100_000), json!([]));
+    let (me, guard_at, boss_at) = (
+        near_start(0, 0),
+        near_start(-102, -185),
+        near_start(54, -264),
+    );
+    let guard = companion(50, hold(guard_at.0, guard_at.1), json!([]));
     let boss = json!({ "base": "golem", "hp": 1_000_000, "radius": 8_192,
-                       "spawn": { "x": 60_000, "y": 30_000 }, "phases": [{}] });
+                       "spawn": { "x": boss_at.0, "y": boss_at.1 }, "phases": [{}] });
     let waves = vec![
-        wave(1, 1, 0, enemy_of(2_048, still()), START_X, START_Y),
-        wave(1, 1, 0, enemy_of(2_048, still()), 20_000, 100_000),
-        wave(1, 1, 0, enemy_of(2_048, still()), 60_000, 30_000),
+        wave(1, 1, 0, enemy_of(2_048, still()), me.0, me.1),
+        wave(1, 1, 0, enemy_of(2_048, still()), guard_at.0, guard_at.1),
+        wave(1, 1, 0, enemy_of(2_048, still()), boss_at.0, boss_at.1),
     ];
     let mut e = engine(&quiet(stage_full(18_000, Some(boss), waves, vec![guard])));
     for _ in 0..5 {
         e.step(idle());
     }
-    assert_eq!(
-        enemies_at(&e),
-        [(START_X, START_Y), (20_000, 100_000), (60_000, 30_000)]
-    );
-    assert_eq!(player_at(&e), (START_X, START_Y));
+    assert_eq!(enemies_at(&e), [me, guard_at, boss_at]);
+    assert_eq!(player_at(&e), me);
     let s = e.snapshot();
     let at_of = |kind: EntityKind| {
         let v = s.entities.iter().find(|v| v.kind == kind).expect("there");
         (v.at.x.0, v.at.y.0)
     };
-    assert_eq!(at_of(EntityKind::Companion), (20_000, 100_000));
-    assert_eq!(at_of(EntityKind::Boss), (60_000, 30_000));
+    assert_eq!(at_of(EntityKind::Companion), guard_at);
+    assert_eq!(at_of(EntityKind::Boss), boss_at);
 }
 
 #[test]
@@ -248,8 +259,8 @@ fn a_frozen_enemy_is_pushed_too() {
                     "do": { "type": "attack", "attack": { "inline": [
                         { "kind": "active", "ticks": 10, "move_pct": 0 }] } } }] });
     let waves = vec![
-        wave(1, 1, 0, walker.clone(), 40_000, 50_000),
-        wave(1, 1, 0, walker, 40_000, 50_000),
+        wave(1, 1, 0, walker.clone(), AT.0, AT.1),
+        wave(1, 1, 0, walker, AT.0, AT.1),
     ];
     let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
     for _ in 0..6 {
@@ -258,7 +269,7 @@ fn a_frozen_enemy_is_pushed_too() {
     let now = enemies_at(&e);
     assert!((4_090..=4_100).contains(&dist(now[0], now[1])), "{now:?}");
     // Neither walked: together they are still where they stood after their one step.
-    assert_eq!(now[0].1 + now[1].1, 2 * 50_100);
+    assert_eq!(now[0].1 + now[1].1, 2 * (AT.1 + 100));
 }
 
 // --- The map ---------------------------------------------------------------------------------
@@ -266,14 +277,16 @@ fn a_frozen_enemy_is_pushed_too() {
 #[test]
 fn a_push_never_carries_an_enemy_off_the_map() {
     // The left one would be pushed 4 pixels past the left edge; it stays on the edge.
-    let stage = standing(&[(0, 50_000, 2_048), (1_000, 50_000, 2_048)]);
-    assert_eq!(after(&stage, 1), [(0, 50_000), (2_024, 50_000)]);
+    let y = AT.1;
+    let stage = standing(&[(0, y, 2_048), (1_000, y, 2_048)]);
+    assert_eq!(after(&stage, 1), [(0, y), (2_024, y)]);
 }
 
 #[test]
 fn an_enemy_already_off_the_map_is_pushed_freely() {
-    let stage = standing(&[(-3_000, 50_000, 2_048), (-2_000, 50_000, 2_048)]);
-    assert_eq!(after(&stage, 1), [(-4_024, 50_000), (-976, 50_000)]);
+    let y = AT.1;
+    let stage = standing(&[(-3_000, y, 2_048), (-2_000, y, 2_048)]);
+    assert_eq!(after(&stage, 1), [(-4_024, y), (-976, y)]);
 }
 
 // --- Crowds ----------------------------------------------------------------------------------
