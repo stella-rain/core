@@ -84,10 +84,16 @@ fn empty_lists_are_allowed() {
 
 #[test]
 fn an_id_its_source_does_not_know_is_refused() {
-    for kind in ["weapons", "perk_sets", "stage_skills", "runes"] {
+    // Pushed onto each list, so a free pick stays in its list and only the unknown ID is refused.
+    for (kind, n) in [
+        ("weapons", 1),
+        ("perk_sets", 1),
+        ("stage_skills", 1),
+        ("runes", 3),
+    ] {
         let mut v = file();
-        v[kind] = json!(["not_a_real_id"]);
-        assert_eq!(paths(parse(&v).unwrap_err()), [format!("$.{kind}[0]")]);
+        v[kind].as_array_mut().unwrap().push(json!("not_a_real_id"));
+        assert_eq!(paths(parse(&v).unwrap_err()), [format!("$.{kind}[{n}]")]);
     }
     // A perk set is not a stage skill, and a rune the closed list knows but the file lacks is
     // refused with the file's own runes.
@@ -301,9 +307,17 @@ fn a_pack_whose_free_pick_is_not_a_starting_unlock_is_refused() {
         Err(e) => {
             let text = e.to_string();
             assert!(text.contains("$.starting_unlocks.free_perk_set"), "{text}");
-            assert!(text.contains("not in this file's `perk_sets` list"), "{text}");
+            assert!(
+                text.contains("not in this file's `perk_sets` list"),
+                "{text}"
+            );
         }
         Ok(_) => panic!("a free perk set outside its list was accepted"),
     }
-    assert!(Pack::from_bytes(Pack::BUNDLED).unwrap().starting_unlocks().is_some());
+    assert!(
+        Pack::from_bytes(Pack::BUNDLED)
+            .unwrap()
+            .starting_unlocks()
+            .is_some()
+    );
 }
