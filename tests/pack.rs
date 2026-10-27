@@ -265,7 +265,7 @@ fn an_unknown_pack_version_is_refused() {
 /// the file itself is read (the extra entries are copies, which the file would refuse too).
 #[test]
 fn each_count_budget_is_enforced() {
-    let lists: [(&str, usize); 25] = [
+    let lists: [(&str, usize); 26] = [
         ("/run_stats/stats", pack::MAX_RUN_STATS),
         ("/rewards/rewards", pack::MAX_REWARDS),
         ("/stage_skills/stage_skills", pack::MAX_STAGE_SKILLS),
@@ -275,6 +275,7 @@ fn each_count_budget_is_enforced() {
         ("/runes/damage_over_time", pack::MAX_DAMAGE_OVER_TIME_RUNES),
         ("/perk_sets/perk_sets", pack::MAX_PERK_SETS),
         ("/difficulties/difficulties", pack::MAX_DIFFICULTIES),
+        ("/attack_presets/presets", pack::MAX_ATTACK_PRESETS),
         ("/starting_unlocks/weapons", pack::MAX_STARTING_UNLOCKS),
         ("/starting_unlocks/perk_sets", pack::MAX_STARTING_UNLOCKS),
         ("/starting_unlocks/stage_skills", pack::MAX_STARTING_UNLOCKS),
@@ -587,6 +588,7 @@ fn a_file_is_found_whatever_the_pack_s_layout() {
     for key in [
         "perk_sets",
         "difficulties",
+        "attack_presets",
         "weapons",
         "rules",
         "expertise",

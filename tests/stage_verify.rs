@@ -271,4 +271,11 @@ fn bad_command_lines_exit_with_two() {
     let o = run(&["--help"]);
     assert_eq!(o.status.code(), Some(0));
     assert!(out(&o).starts_with("usage: stage-verify"));
+    assert!(
+        out(&o).contains(
+            "Attack presets a stage names are read from the content pack built into this binary"
+        ),
+        "{}",
+        out(&o)
+    );
 }

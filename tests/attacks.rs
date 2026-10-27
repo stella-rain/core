@@ -8,12 +8,14 @@ use crate::common;
 
 use common::*;
 use serde_json::{Value, json};
+use stella_rain_core::attack_presets::AttackPresets;
 use stella_rain_core::presets;
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::rng::{TAG_ATTACK, derive};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::trig::{PER_DEGREE, PER_TURN};
 use stella_rain_core::validate::validate_attack;
+use stella_rain_core::version::Versions;
 
 /// Where the attackers stand: straight above the main character, 340 pixels, inside the leash's
 /// reach (LS1).
@@ -757,4 +759,76 @@ fn an_orb_names_its_style() {
     assert_eq!(styles, [1, 0]);
     assert_eq!(registry::orb_style("orb_small"), 1);
     assert_eq!(registry::orb_style("no_such_orb"), 0);
+}
+
+// --- A run reads its own presets (CS1b-1) ------------------------------------------------------
+
+fn slam_stage(attack: Value) -> Stage {
+    let rule = enemy(
+        50,
+        hold(OX, OY),
+        json!([{ "when": always(), "target": "player", "cooldown_ticks": 60,
+                 "do": { "type": "attack", "attack": attack } }]),
+    );
+    quiet(stage_full(
+        600,
+        Some(far_boss()),
+        vec![wave(1, 1, 0, rule, OX, OY)],
+        vec![],
+    ))
+}
+
+fn content_with_slam_wind_up(ticks: u32) -> stella_rain_core::run_content::RunContent {
+    let mut file: Value = serde_json::from_slice(bundled_file("attack_presets")).unwrap();
+    let list = file["presets"].as_array_mut().unwrap();
+    let slam = list.iter_mut().find(|p| p["id"] == "slam").unwrap();
+    slam["phases"][0]["ticks"] = json!(ticks);
+    design_content().with_attack_presets(
+        AttackPresets::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap(),
+    )
+}
+
+fn hashes_with(stage: &Stage, content: &stella_rain_core::run_content::RunContent) -> Vec<u64> {
+    let mut e = stella_rain_core::engine::Engine::new_with(stage, content).unwrap();
+    (0..300)
+        .map(|t| {
+            e.step(moving(if t % 40 < 20 { 64 } else { -64 }, 0));
+            e.state_hash()
+        })
+        .collect()
+}
+
+#[test]
+fn a_preset_runs_as_the_run_s_own_content_defines_it() {
+    let by_id = slam_stage(json!({ "preset": { "id": "slam" } }));
+    let bundled = design_content();
+    let other = content_with_slam_wind_up(24);
+    let a = hashes_with(&by_id, &bundled);
+    let b = hashes_with(&by_id, &other);
+    assert_ne!(a, b, "the edited preset runs");
+    // It equals the same stage with the edited preset written inline.
+    let apart = presets::take_apart(other.attack_presets(), "slam", &[]).unwrap();
+    let inline = slam_stage(json!({ "inline": apart }));
+    assert_eq!(b, hashes_with(&inline, &bundled));
+}
+
+#[test]
+fn every_registered_preset_is_in_the_pack_and_passes_the_validator() {
+    let presets = AttackPresets::bundled();
+    let registered: Vec<_> = registry::ENTRIES
+        .iter()
+        .filter(|e| e.kind == Kind::Preset)
+        .collect();
+    assert_eq!(
+        registered.iter().map(|e| e.id).collect::<Vec<_>>(),
+        presets.ids().map(|i| i.0.as_str()).collect::<Vec<_>>(),
+        "the registry and the pack list the same presets in the same order"
+    );
+    for entry in registered {
+        let def = presets.definition(entry.id).expect("a definition");
+        validate_attack(def, entry.args, registry::ENTRIES)
+            .unwrap_or_else(|issues| panic!("{}: {issues:?}", entry.id));
+        let used = presets::highest_arg(def).map_or(0, |n| n + 1);
+        assert_eq!(used, entry.args, "{}", entry.id);
+    }
 }

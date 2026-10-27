@@ -1517,8 +1517,28 @@ fn a_held_step_holds_for_a_bounded_time_with_an_active_loop_and_a_recovery_to_ho
     let slow = with_hold(|h| h["move_pct"] = json!(101));
     assert_eq!(first_issue(&slow).path, at("move_pct"));
     // The loop is a spin of active phases only: a thrust winds up first.
+    // A preset's phases belong to the content that runs it (CS1b-1): the stateless validator
+    // names the preset by ID only, and the run's setup refuses it.
     let winding = with_hold(|h| h["loop"] = json!({ "preset": { "id": "thrust" } }));
-    assert_eq!(first_issue(&winding).path, at("loop"));
+    assert_valid(&winding);
+    match stella_rain_core::engine::Engine::new(&stage(&winding)) {
+        Err(Error::Invalid(found)) => {
+            assert_eq!(found[0].path, at("loop"));
+            assert_eq!(found[0].message, "a loop's phases are all active");
+        }
+        other => panic!("{:?}", other.map(|_| ())),
+    }
+    // A hold at a preset that has no recovery to hold at.
+    let mut held = step(json!({ "preset": { "id": "spread_5" } }));
+    held["hold"] = hold(|_| {});
+    let no_recovery_preset = with_combo(json!({ "main": held }), |_| {});
+    assert_valid(&no_recovery_preset);
+    match stella_rain_core::engine::Engine::new(&stage(&no_recovery_preset)) {
+        Err(Error::Invalid(found)) => {
+            assert_eq!(found[0].path, "$.player.weapon.inline.combo.main.attack")
+        }
+        other => panic!("{:?}", other.map(|_| ())),
+    }
     // The hold begins where the slash's recovery is; a step with none has nowhere to hold.
     let no_recovery = with_combo(
         json!({ "main": {
