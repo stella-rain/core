@@ -3,6 +3,7 @@
 //! at each boss time but the last, drawn from the pool without repeating an entry, and the final
 //! boss comes at the last.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::input::Input;
@@ -43,7 +44,7 @@ fn dummy() -> Value {
 
 /// The bundled file with `edit` applied.
 fn mode(edit: impl FnOnce(&mut Value)) -> TimeLimit {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     edit(&mut v);
     TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
 }

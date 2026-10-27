@@ -238,7 +238,7 @@ fn a_stage_refuses_a_bad_table() {
 #[test]
 fn the_mode_file_refuses_a_bad_table() {
     let mode = |table: &[(u32, u32)]| {
-        let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+        let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
         v["stardust_tiers"] = tiers(table)["tiers"].clone();
         TimeLimit::parse(v.to_string().as_bytes())
     };
@@ -255,7 +255,7 @@ fn the_mode_file_refuses_a_bad_table() {
 #[test]
 fn a_difficulty_refuses_a_bad_table() {
     let file = |table: &[(u32, u32)]| {
-        let mut v: Value = serde_json::from_slice(Difficulties::BUNDLED).unwrap();
+        let mut v: Value = serde_json::from_slice(common::bundled_file("difficulties")).unwrap();
         v["difficulties"][1]["stardust_tiers"] = tiers(table)["tiers"].clone();
         Difficulties::parse(v.to_string().as_bytes())
     };

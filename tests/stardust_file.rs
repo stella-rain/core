@@ -2,8 +2,9 @@
 //! is on, the share a fail pays, the share it banks and the bank's cap, read from JSON as
 //! untrusted bytes (ADR-020). The simulation never reads it; the app pays and banks.
 
+use crate::common;
 use serde_json::{Value, json};
-use stella_rain_core::pack::{self, Pack};
+use stella_rain_core::pack::Pack;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::stardust::{MAX_BANK_CAP, MAX_STARDUST_BYTES, Stardust};
 use stella_rain_core::validate::Error;
@@ -102,7 +103,7 @@ fn size_versions_unknown_fields_and_wrong_types_fail_closed() {
 
 #[test]
 fn the_bundled_file_parses_and_is_the_bundled_packs_file() {
-    let on_its_own = Stardust::parse(Stardust::BUNDLED).unwrap();
+    let on_its_own = Stardust::parse(common::bundled_file("stardust")).unwrap();
     assert_eq!(&on_its_own, Stardust::bundled());
     assert_eq!(Pack::bundled().stardust(), &on_its_own);
     assert_eq!(RunContent::bundled().stardust(), &on_its_own);
@@ -115,7 +116,7 @@ fn the_bundled_file_parses_and_is_the_bundled_packs_file() {
 
 #[test]
 fn a_pack_without_the_file_still_loads_and_yields_the_default() {
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     v.as_object_mut()
         .unwrap()
         .remove("stardust")
@@ -127,13 +128,13 @@ fn a_pack_without_the_file_still_loads_and_yields_the_default() {
 
 #[test]
 fn a_pack_refuses_what_the_file_refuses_and_a_pack_file_can_differ() {
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     v["stardust"]["modes"][0]["pay_pct"] = json!(101);
     match Pack::from_bytes(&serde_json::to_vec(&v).unwrap()) {
         Err(e) => assert!(e.to_string().contains("$.stardust.modes[0].pay_pct"), "{e}"),
         Ok(_) => panic!("a share over 100 was accepted"),
     }
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     v["stardust"]["modes"][0]["bank_cap"] = json!(7);
     let pack = Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).unwrap();
     assert_eq!(pack.stardust().mode("time_limit").unwrap().bank_cap, 7);

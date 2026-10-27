@@ -7,7 +7,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use stella_rain_core::pack;
+use stella_rain_core::pack::Pack;
 use stella_rain_core::share;
 use stella_rain_core_fuzz::{
     pack_load, packs_load, replay_load, run_setup, share_decode, stage_parse, stage_run,
@@ -132,7 +132,7 @@ fn a_real_setup_gets_past_the_parser_and_runs() {
 #[test]
 fn a_real_pack_gets_past_the_loader_and_runs() {
     assert!(
-        pack_load(&pack::export_bundled()),
+        pack_load(Pack::BUNDLED),
         "pack_load rejects the bundled pack"
     );
     assert!(
@@ -170,7 +170,7 @@ fn garbage_is_rejected_without_a_panic() {
 /// core#NS4): a seed for the form the bundled pack does not have.
 fn pack_with_constellations() -> Vec<u8> {
     let mut pack: serde_json::Value =
-        serde_json::from_slice(&pack::export_bundled()).expect("the exported pack is JSON");
+        serde_json::from_slice(Pack::BUNDLED).expect("the exported pack is JSON");
     pack["introduced"]
         .as_object_mut()
         .expect("introduced")
@@ -214,7 +214,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
         return vec![packs_manifest()];
     }
     if target == "pack_load" {
-        return vec![pack::export_bundled(), pack_with_constellations()];
+        return vec![Pack::BUNDLED.to_vec(), pack_with_constellations()];
     }
     let mut seeds: Vec<Vec<u8>> = corpus()
         .into_iter()

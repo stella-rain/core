@@ -380,7 +380,7 @@ fn the_summed_bonus_saturates_at_the_cap_and_damage_stays_bounded() {
 #[test]
 fn the_summed_bonus_saturates_at_the_content_value_under_the_cap() {
     // The match-up file's `max_type_bonus_pct` of 250: three takes of 100 apply 250 percent.
-    let mut table: Value = serde_json::from_slice(MatchUps::BUNDLED).unwrap();
+    let mut table: Value = serde_json::from_slice(common::bundled_file("match_ups")).unwrap();
     table["max_type_bonus_pct"] = json!(250);
     let table = MatchUps::parse(table.to_string().as_bytes()).expect("the test table");
     let stage = targets(100, Some("pyro"), 3, None);

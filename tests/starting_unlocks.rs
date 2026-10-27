@@ -2,8 +2,9 @@
 //! stage skills and runes a new save begins with, read from JSON as untrusted bytes (ADR-020).
 //! The simulation never reads it; the app seeds a new save from the pack.
 
+use crate::common;
 use serde_json::{Value, json};
-use stella_rain_core::pack::{self, Pack};
+use stella_rain_core::pack::Pack;
 use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::runes::Runes;
@@ -137,7 +138,7 @@ fn the_bundled_pack_lists_todays_seed() {
     assert_eq!(RunContent::bundled().starting_unlocks(), Some(u));
     // The bundled file on its own is the pack's file.
     let on_its_own = StartingUnlocks::parse_with(
-        StartingUnlocks::BUNDLED,
+        common::bundled_file("starting_unlocks"),
         PerkSets::bundled(),
         StageSkills::bundled(),
         Runes::bundled(),
@@ -149,7 +150,7 @@ fn the_bundled_pack_lists_todays_seed() {
 
 #[test]
 fn a_pack_without_the_file_still_loads_and_reports_none() {
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     v.as_object_mut()
         .unwrap()
         .remove("starting_unlocks")
@@ -162,7 +163,7 @@ fn a_pack_without_the_file_still_loads_and_reports_none() {
 #[test]
 fn a_pack_refuses_what_the_file_refuses() {
     // The pack's own perk sets decide: an unknown perk set is refused with its place.
-    let mut v: Value = serde_json::from_slice(&pack::export_bundled()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     v["starting_unlocks"]["perk_sets"] = json!(["not_a_real_id"]);
     match Pack::from_bytes(&serde_json::to_vec(&v).unwrap()) {
         Err(e) => assert!(

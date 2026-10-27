@@ -2,6 +2,7 @@
 //! character's death or the final boss alive at the length and the overtime fails it, and a
 //! replay may hold up to the length, the overtime and the Star-Hunter's extra time.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
@@ -35,7 +36,7 @@ fn setup() -> RunSetup {
 
 /// A run of 100 ticks with the final boss at 100, 50 ticks of overtime and 20 of extra time.
 fn short_mode() -> TimeLimit {
-    let mut v: Value = serde_json::from_slice(TimeLimit::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["length_ticks"] = json!(100);
     v["boss_ticks"] = json!([40, 100]);
     v["overtime_ticks"] = json!(50);
