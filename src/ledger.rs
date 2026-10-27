@@ -3,19 +3,19 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 
 use crate::attack::DamageType;
 use crate::event::DomainEvent;
-use crate::id::{ContentId, EntityId};
-use crate::kinds::KindTable;
+use crate::id::ContentId;
+use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::Rarity;
+use crate::rules_v0::state::{AgentState, BossState};
 use crate::snapshot::EntityKind;
 
 /// What an enemy or boss on the map is: its entity ID and sprite content ID.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Seen {
-    pub id: EntityId,
+    pub id: crate::id::EntityId,
     pub kind: ContentId,
 }
 
@@ -40,13 +40,81 @@ pub struct RunLedger {
     pub picks: Vec<StarPick>,
     /// Stage skill uses per stage skill ID.
     pub skill_uses: Vec<(ContentId, u32)>,
-    /// Every entity ID seen so far, so that its kind is met once. Not serialized.
     #[serde(skip)]
-    known: BTreeSet<EntityId>,
+    enemy_kill_idx: usize,
+    #[serde(skip)]
+    elite_kill_idx: usize,
+    #[serde(skip)]
+    boss_kill_idx: usize,
+    #[serde(skip)]
+    slain_indices: Vec<usize>,
 }
 
 impl RunLedger {
-    /// Observes the enemies met and the domain events raised in a tick or choice (ADR-BRDG-6).
+    /// Creates a ledger pre-allocated for an engine run so steady ticks do not allocate (DIR1).
+    pub fn for_engine(kinds: &KindTable, weapon: &str) -> RunLedger {
+        let mut kills = Vec::with_capacity(3 + kinds.len());
+        kills.push((format!("kills.{weapon}.boss"), 0));
+        kills.push((format!("kills.{weapon}.elite"), 0));
+        kills.push((format!("kills.{weapon}.enemy"), 0));
+        let boss_kill_idx = 0;
+        let elite_kill_idx = 1;
+        let enemy_kill_idx = 2;
+
+        let mut slain_indices = Vec::with_capacity(kinds.len());
+        for id in kinds.ids() {
+            slain_indices.push(kills.len());
+            kills.push((format!("slain.{}", id.0), 0));
+        }
+
+        let bestiary = kinds.ids().iter().map(|id| (id.clone(), 0)).collect();
+
+        RunLedger {
+            kills,
+            bestiary,
+            picks: Vec::with_capacity(32),
+            skill_uses: Vec::with_capacity(4),
+            enemy_kill_idx,
+            elite_kill_idx,
+            boss_kill_idx,
+            slain_indices,
+        }
+    }
+    /// Observes newly met enemies and events from a stepped tick without allocating.
+    pub(crate) fn observe_tick(
+        &mut self,
+        kinds: &KindTable,
+        weapon: &str,
+        enemies: &[AgentState],
+        boss: Option<&BossState>,
+        events: &[DomainEvent],
+    ) {
+        for enemy in enemies {
+            if !enemy.crowded && !enemy.burst {
+                self.mark_seen_index(kinds, enemy.kind);
+            }
+        }
+        if let Some(b) = boss {
+            self.mark_seen_index(kinds, b.kind);
+        }
+        if !events.is_empty() {
+            self.observe_events(kinds, weapon, events);
+        }
+    }
+
+    /// Observes choices between ticks.
+    pub(crate) fn observe_choice(
+        &mut self,
+        kinds: &KindTable,
+        weapon: &str,
+        events: &[DomainEvent],
+    ) {
+        if !events.is_empty() {
+            self.observe_events(kinds, weapon, events);
+        }
+    }
+
+    /// Observes seen enemies and domain events (used by tests and adapters).
     pub fn observe(
         &mut self,
         kinds: &KindTable,
@@ -55,46 +123,97 @@ impl RunLedger {
         events: &[DomainEvent],
     ) {
         for s in seen {
-            if self.known.insert(s.id) {
-                self.mark_seen(&s.kind);
-            }
+            self.add_bestiary_bit(&s.kind, 1);
         }
+        if !events.is_empty() {
+            self.observe_events(kinds, weapon, events);
+        }
+    }
+
+    fn mark_seen_index(&mut self, kinds: &KindTable, kind: KindIndex) {
+        let idx = usize::from(kind.0);
+        if let Some(entry) = self.bestiary.get_mut(idx) {
+            entry.1 |= 1;
+        } else if let Some(id) = kinds.id(kind) {
+            self.add_bestiary_bit(id, 1);
+        }
+    }
+
+    fn observe_events(&mut self, kinds: &KindTable, weapon: &str, events: &[DomainEvent]) {
         for event in events {
             match event {
                 DomainEvent::Hit {
-                    target,
                     target_kind: Some(kind),
                     damage_type,
                     ..
                 } => {
-                    if let Some(id) = kinds.id(*kind) {
-                        if self.known.insert(*target) {
-                            self.mark_seen(id);
+                    let bit = match damage_type {
+                        Some(ty) => {
+                            let pos = DamageType::ALL.iter().position(|t| t == ty).unwrap_or(0) + 1;
+                            1 | (1 << pos)
                         }
-                        if let Some(ty) = damage_type {
-                            let bit = DamageType::ALL.iter().position(|t| t == ty).unwrap_or(0) + 1;
-                            self.add_bestiary_bit(id, 1 << bit);
-                        }
+                        None => 1,
+                    };
+                    let idx = usize::from(kind.0);
+                    if let Some(entry) = self.bestiary.get_mut(idx) {
+                        entry.1 |= bit;
+                    } else if let Some(id) = kinds.id(*kind) {
+                        self.add_bestiary_bit(id, bit);
                     }
                 }
                 DomainEvent::Died {
-                    entity,
                     kind: Some(kind),
                     class,
                     elite,
+                    ..
                 } => {
-                    let class_opt = match class {
-                        EntityKind::Enemy if *elite => Some("elite"),
-                        EntityKind::Enemy => Some("enemy"),
-                        EntityKind::Boss => Some("boss"),
-                        EntityKind::Companion | EntityKind::BossPart | EntityKind::Shrine => None,
-                    };
-                    if let Some(id) = kinds.id(*kind) {
-                        if self.known.insert(*entity) {
-                            self.mark_seen(id);
+                    let idx = usize::from(kind.0);
+                    if let Some(entry) = self.bestiary.get_mut(idx) {
+                        entry.1 |= 1;
+                    } else if let Some(id) = kinds.id(*kind) {
+                        self.add_bestiary_bit(id, 1);
+                    }
+
+                    match class {
+                        EntityKind::Enemy if *elite => {
+                            if !self.slain_indices.is_empty()
+                                && self.elite_kill_idx < self.kills.len()
+                            {
+                                self.kills[self.elite_kill_idx].1 =
+                                    self.kills[self.elite_kill_idx].1.saturating_add(1);
+                            } else {
+                                self.add_kill(format!("kills.{weapon}.elite"));
+                            }
                         }
-                        if let Some(class_str) = class_opt {
-                            self.add_kill(format!("kills.{weapon}.{class_str}"));
+                        EntityKind::Enemy => {
+                            if !self.slain_indices.is_empty()
+                                && self.enemy_kill_idx < self.kills.len()
+                            {
+                                self.kills[self.enemy_kill_idx].1 =
+                                    self.kills[self.enemy_kill_idx].1.saturating_add(1);
+                            } else {
+                                self.add_kill(format!("kills.{weapon}.enemy"));
+                            }
+                        }
+                        EntityKind::Boss => {
+                            if !self.slain_indices.is_empty()
+                                && self.boss_kill_idx < self.kills.len()
+                            {
+                                self.kills[self.boss_kill_idx].1 =
+                                    self.kills[self.boss_kill_idx].1.saturating_add(1);
+                            } else {
+                                self.add_kill(format!("kills.{weapon}.boss"));
+                            }
+                        }
+                        EntityKind::Companion | EntityKind::BossPart | EntityKind::Shrine => {}
+                    }
+
+                    if matches!(class, EntityKind::Enemy | EntityKind::Boss) {
+                        if let Some(&slain_idx) = self.slain_indices.get(idx) {
+                            if slain_idx < self.kills.len() {
+                                self.kills[slain_idx].1 = self.kills[slain_idx].1.saturating_add(1);
+                            }
+                        } else if let Some(id) = kinds.id(*kind) {
                             self.add_kill(format!("slain.{}", id.0));
                         }
                     }
@@ -142,7 +261,23 @@ impl RunLedger {
     pub fn add_kill(&mut self, key: String) {
         match self.kills.binary_search_by(|(k, _)| k.cmp(&key)) {
             Ok(idx) => self.kills[idx].1 = self.kills[idx].1.saturating_add(1),
-            Err(idx) => self.kills.insert(idx, (key, 1)),
+            Err(idx) => {
+                self.kills.insert(idx, (key, 1));
+                if idx <= self.boss_kill_idx {
+                    self.boss_kill_idx += 1;
+                }
+                if idx <= self.elite_kill_idx {
+                    self.elite_kill_idx += 1;
+                }
+                if idx <= self.enemy_kill_idx {
+                    self.enemy_kill_idx += 1;
+                }
+                for s_idx in &mut self.slain_indices {
+                    if idx <= *s_idx {
+                        *s_idx += 1;
+                    }
+                }
+            }
         }
     }
 
@@ -180,7 +315,7 @@ impl RunLedger {
         self.bestiary
             .iter()
             .find(|(k, _)| k.0 == kind)
-            .map(|(_, b)| *b)
+            .and_then(|(_, b)| if *b > 0 { Some(*b) } else { None })
     }
 }
 

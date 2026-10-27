@@ -154,13 +154,15 @@ impl Engine {
         let mut state =
             rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
         rules_v0::set_policy(&mut state, content.run_stats(), stat_priority, pick_stats);
+        let weapon = Self::weapon_str(&stage);
+        let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
             events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
             load: Load::default(),
-            ledger: RunLedger::default(),
+            ledger,
         })
     }
 
@@ -194,13 +196,15 @@ impl Engine {
         );
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
+        let weapon = Self::weapon_str(&stage);
+        let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
             events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
             load: Load::default(),
-            ledger: RunLedger::default(),
+            ledger,
         })
     }
 
@@ -233,13 +237,15 @@ impl Engine {
         );
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
+        let weapon = Self::weapon_str(&stage);
+        let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
             events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
             load: Load::default(),
-            ledger: RunLedger::default(),
+            ledger,
         })
     }
 
@@ -312,33 +318,19 @@ impl Engine {
 
     fn observe_tick(&mut self) {
         let weapon = Self::weapon_str(&self.stage);
-        let mut seen = Vec::new();
-        for enemy in &self.state.enemies {
-            if !enemy.crowded && !enemy.burst {
-                if let Some(id) = self.state.kinds.id(enemy.kind) {
-                    seen.push(crate::ledger::Seen {
-                        id: enemy.id,
-                        kind: id.clone(),
-                    });
-                }
-            }
-        }
-        if let Some(boss) = &self.state.boss {
-            if let Some(id) = self.state.kinds.id(boss.kind) {
-                seen.push(crate::ledger::Seen {
-                    id: boss.id,
-                    kind: id.clone(),
-                });
-            }
-        }
-        self.ledger
-            .observe(&self.state.kinds, weapon, &seen, &self.events);
+        self.ledger.observe_tick(
+            &self.state.kinds,
+            weapon,
+            &self.state.enemies,
+            self.state.boss.as_ref(),
+            &self.events,
+        );
     }
 
     fn observe_choice(&mut self) {
         let weapon = Self::weapon_str(&self.stage);
         self.ledger
-            .observe(&self.state.kinds, weapon, &[], &self.events);
+            .observe_choice(&self.state.kinds, weapon, &self.events);
     }
 
     /// The run stats this run raises with its level-ups.
