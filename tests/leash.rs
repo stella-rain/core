@@ -192,7 +192,8 @@ fn a_relocation_draws_no_random_number() {
         0,
         0,
     );
-    ring["around"] = json!(102_400);
+    ring.as_object_mut().unwrap().remove("spawn");
+    ring["edge"] = json!({ "side": "any" });
     let at = |x: i32| {
         let mut e = engine(&stage_at(2000, vec![still(x), ring.clone()], vec![], None));
         for _ in 0..6 {

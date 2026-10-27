@@ -424,12 +424,15 @@ pub struct Wave {
     pub id: Option<ContentId>,
     pub at_tick: u32,
     pub enemy: Agent,
-    pub spawn: Point,
-    /// A distance, `1` to `MAX_LEN`: each enemy of the wave spawns that far from the main
-    /// character, at an angle the run's generator draws, kept on the map; `spawn` is then not
-    /// used. Absent, every enemy spawns at `spawn`.
+    /// A point on the map where each enemy of the wave spawns (a stage's way to place a wave).
+    /// Give this or `edge`, not both.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub around: Option<Fx>,
+    pub spawn: Option<Point>,
+    /// A side of the view: each enemy of the wave spawns on the spawn rectangle, 64 px outside
+    /// the view around the main character, on the part of it that is on the map (VS1, DS109).
+    /// Give this or `spawn`, not both.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edge: Option<ViewEdge>,
     pub count: u16,
     #[serde(default)]
     pub every_ticks: u32,
@@ -445,6 +448,32 @@ pub struct Wave {
     /// with a `stardust` factor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stardust: Option<u32>,
+}
+
+/// Where on the spawn rectangle around the main character a wave spawns (VS1): the rectangle is
+/// ±384 by ±244 px, the view (±320 by ±180 px) and a margin of 64 px. Only its part on the map
+/// is used; a side wholly off the map gives way to the opposite one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ViewEdge {
+    /// The side, or `any` for the whole rectangle.
+    pub side: Side,
+    /// Per mille of the half side from its middle, -1000 (the left or top end) to 1000 (the right
+    /// or bottom end): every enemy spawns at that point of the side. Absent, the point is drawn
+    /// along the side. Not with the side `any`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub along: Option<i16>,
+}
+
+/// A side of the spawn rectangle, or all of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Side {
+    Any,
+    Top,
+    Bottom,
+    Left,
+    Right,
 }
 
 /// What a hit and a kill by an A or a B step of a combo add to the one expertise gauge

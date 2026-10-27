@@ -109,12 +109,10 @@ fn a_run_of_the_bundled_mode_is_the_same_every_time() {
 
 #[test]
 fn enemies_spawn_on_the_schedule_around_the_main_character() {
-    // 300 pixels: inside the leash's rectangle in every direction, so no spawn is relocated.
-    let ring = 76_800;
     let m = mode(|v| {
         v["waves"] = json!([{
-            "at_tick": 30, "enemy": dummy(), "spawn": { "x": 0, "y": 0 },
-            "count": 5, "every_ticks": 20, "around": ring
+            "at_tick": 30, "enemy": dummy(), "edge": { "side": "any" },
+            "count": 5, "every_ticks": 20
         }]);
     });
     let mut e = start(&m, 3);
@@ -129,12 +127,14 @@ fn enemies_spawn_on_the_schedule_around_the_main_character() {
     let s = e.snapshot();
     let me = s.player.at;
     for v in s.entities.iter().filter(|v| v.kind == EntityKind::Enemy) {
-        let (dx, dy) = (i64::from(v.at.x.0 - me.x.0), i64::from(v.at.y.0 - me.y.0));
-        let d = (dx * dx + dy * dy).isqrt();
-        let ring = i64::from(ring);
+        // On the spawn rectangle (VS1): 384 by 244 px around the main character.
+        let (dx, dy) = (
+            i64::from(v.at.x.0 - me.x.0).abs(),
+            i64::from(v.at.y.0 - me.y.0).abs(),
+        );
         assert!(
-            (d - ring).abs() < ring / 20,
-            "an enemy {d} away, not about {ring}"
+            (dx == 98_304 && dy <= 62_464) || (dy == 62_464 && dx <= 98_304),
+            "an enemy at ({dx}, {dy}) from the main character is not on the spawn rectangle"
         );
     }
 }
@@ -143,10 +143,10 @@ fn enemies_spawn_on_the_schedule_around_the_main_character() {
 fn the_enemies_alive_never_pass_the_cap_and_the_waves_stop_at_the_target() {
     let m = mode(|v| {
         v["waves"] = json!([
-            { "at_tick": 1, "enemy": dummy(), "spawn": { "x": 0, "y": 0 },
-              "count": 400, "every_ticks": 1, "around": 102_400 },
-            { "at_tick": 1, "enemy": dummy(), "spawn": { "x": 0, "y": 0 },
-              "count": 400, "every_ticks": 1, "around": 51_200 }
+            { "at_tick": 1, "enemy": dummy(), "edge": { "side": "any" },
+              "count": 400, "every_ticks": 1 },
+            { "at_tick": 1, "enemy": dummy(), "edge": { "side": "any" },
+              "count": 400, "every_ticks": 1 }
         ]);
     });
     let mut e = start(&m, 5);

@@ -78,7 +78,7 @@ fn dummy_run(hp: u32) -> TimeLimit {
             "at_tick": 1,
             "enemy": { "base": "bat", "hp": hp, "radius": 2048,
                        "movement": { "type": "straight", "vx": 0, "vy": 0 } },
-            "spawn": { "x": 0, "y": 0 }, "count": 1, "every_ticks": 0, "around": 200_000
+            "edge": { "side": "top", "along": 0 }, "count": 1, "every_ticks": 0
         }]);
     })
 }
@@ -137,7 +137,7 @@ fn damage_taken(difficulty: &str, ticks: u32) -> u32 {
                     "do": { "type": "attack", "attack": { "preset": {
                         "id": "aimed_single", "args": [15] } } } }]
             },
-            "spawn": { "x": 0, "y": 0 }, "count": 1, "every_ticks": 0, "around": 30_000
+            "spawn": { "x": 554_288, "y": 524_288 }, "count": 1, "every_ticks": 0
         }]);
     });
     let mut e = start(difficulty, &m);

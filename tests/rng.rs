@@ -120,7 +120,8 @@ fn wave_positions(drop_one_in: Option<u32>) -> Vec<(i32, i32)> {
         START_X,
         START_Y,
     );
-    ring["around"] = json!(4_096);
+    ring.as_object_mut().unwrap().remove("spawn");
+    ring["edge"] = json!({ "side": "any" });
     let mut stage = armed(
         stage_full(1_800, Some(far_boss()), vec![ring], vec![]),
         weapon,

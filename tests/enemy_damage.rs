@@ -57,7 +57,7 @@ fn shooter_mode() -> TimeLimit {
                 "do": { "type": "attack", "attack": { "preset": {
                     "id": "aimed_single", "args": [15] } } } }]
         },
-        "spawn": { "x": 0, "y": 0 }, "count": 1, "every_ticks": 0, "around": 30_000
+        "spawn": { "x": 554_288, "y": 524_288 }, "count": 1, "every_ticks": 0
     }]);
     TimeLimit::parse(v.to_string().as_bytes()).unwrap_or_else(|e| panic!("{e}"))
 }
