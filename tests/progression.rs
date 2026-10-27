@@ -2,6 +2,7 @@
 //! the difficulties a clear opens and a new save's unlocks come from the run's content files.
 //! "Today" is what the app computes at c3d1c43 (`tally.rs`, `setup.rs`, `migrations.rs`).
 
+use proptest::prelude::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::id::ContentId;
@@ -12,6 +13,8 @@ use stella_rain_core::progression::{
 };
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{CommandKind, RunReplay};
+use stella_rain_core::stardust::MAX_BANK_CAP;
+use stella_rain_core::validate::limits::MAX_RUN_STARDUST;
 
 fn id(s: &str) -> ContentId {
     ContentId(s.to_owned())
@@ -230,4 +233,179 @@ fn a_result_exists_only_for_an_ended_run() {
     assert_eq!(result.difficulty, id("normal"));
     assert_eq!(result.outcome, outcome);
     assert_eq!(result.stardust_tenths, engine.stardust());
+}
+
+// --- The Stardust split and the bank (ADR-101, ADR-SAVE-4 point 3) -----------------------------
+
+fn bank_of(entries: &[(&str, &str, u64)]) -> Bank {
+    Bank::new(
+        entries
+            .iter()
+            .map(|(m, d, v)| ((id(m), id(d)), *v))
+            .collect(),
+    )
+}
+
+fn stored(bank: &Bank, mode: &str, difficulty: &str) -> u64 {
+    bank.get(&id(mode), &id(difficulty))
+}
+
+/// The bundled pack with the trial's Stardust rules replaced.
+fn trial_rules(bank: bool, pay_pct: u32, bank_pct: u32, bank_cap: u32) -> Pack {
+    pack_with(|v| {
+        let modes = v["stardust"]["modes"].as_array_mut().unwrap();
+        let trial = modes.iter_mut().find(|m| m["id"] == "trial").unwrap();
+        *trial = json!({ "id": "trial", "bank": bank, "pay_pct": pay_pct,
+                         "bank_pct": bank_pct, "bank_cap": bank_cap });
+    })
+}
+
+#[test]
+fn a_fail_pays_half_and_banks_half() {
+    let content = RunContent::bundled();
+    let fail = |e| run("trial", "normal", RunOutcome::Failed, e);
+    let s = settle(content, &fail(40), &Bank::default());
+    assert_eq!((s.paid_tenths, s.banked_tenths, s.lost_tenths), (20, 20, 0));
+    assert_eq!(s.stardust_tenths, 20);
+    assert_eq!(stored(&s.bank_after, "trial", "normal"), 20);
+    // The bank share rounds up, the pay down.
+    let s = settle(content, &fail(41), &Bank::default());
+    assert_eq!((s.paid_tenths, s.banked_tenths, s.lost_tenths), (20, 21, 0));
+    // Two fails, then the clear that pays the bank.
+    let first = settle(content, &fail(40), &Bank::default());
+    let second = settle(content, &fail(40), &first.bank_after);
+    assert_eq!(stored(&second.bank_after, "trial", "normal"), 40);
+    let clear = run("trial", "normal", RunOutcome::Cleared, 125);
+    let s = settle(content, &clear, &second.bank_after);
+    assert_eq!(s.bank_paid_tenths, 40);
+    assert_eq!(s.paid_tenths, 125);
+    assert_eq!(s.stardust_tenths, 165);
+    assert_eq!(stored(&s.bank_after, "trial", "normal"), 0);
+}
+
+#[test]
+fn the_bank_belongs_to_its_mode_and_difficulty() {
+    let content = RunContent::bundled();
+    let bank = bank_of(&[("trial", "hard", 50), ("time_limit", "normal", 30)]);
+    let s = settle(
+        content,
+        &run("trial", "normal", RunOutcome::Cleared, 125),
+        &bank,
+    );
+    assert_eq!(s.bank_paid_tenths, 0);
+    assert_eq!(stored(&s.bank_after, "trial", "hard"), 50);
+    assert_eq!(stored(&s.bank_after, "time_limit", "normal"), 30);
+    let s = settle(
+        content,
+        &run("trial", "hard", RunOutcome::Cleared, 125),
+        &bank,
+    );
+    assert_eq!(s.bank_paid_tenths, 50);
+    assert_eq!(stored(&s.bank_after, "trial", "hard"), 0);
+    assert_eq!(stored(&s.bank_after, "time_limit", "normal"), 30);
+}
+
+#[test]
+fn the_bank_stops_at_its_cap_even_when_a_save_holds_more() {
+    // bank_cap 1000 whole Stardust: 10,000 tenths.
+    let content = RunContent::bundled();
+    let fail = run("trial", "normal", RunOutcome::Failed, 40);
+    let s = settle(content, &fail, &bank_of(&[("trial", "normal", 9_990)]));
+    assert_eq!(
+        (s.paid_tenths, s.banked_tenths, s.lost_tenths),
+        (20, 10, 10)
+    );
+    assert_eq!(stored(&s.bank_after, "trial", "normal"), 10_000);
+
+    let over = bank_of(&[("trial", "normal", 20_000)]);
+    let clear = run("trial", "normal", RunOutcome::Cleared, 125);
+    assert_eq!(settle(content, &clear, &over).bank_paid_tenths, 10_000);
+    let s = settle(content, &fail, &over);
+    assert_eq!((s.banked_tenths, s.lost_tenths), (0, 20));
+    assert_eq!(stored(&s.bank_after, "trial", "normal"), 10_000);
+}
+
+#[test]
+fn with_the_bank_off_a_fail_banks_nothing_and_a_clear_pays_no_bank() {
+    let pack = trial_rules(false, 50, 50, 1000);
+    let bank = bank_of(&[("trial", "normal", 30)]);
+    let s = settle(
+        pack.content(),
+        &run("trial", "normal", RunOutcome::Failed, 40),
+        &bank,
+    );
+    assert_eq!((s.paid_tenths, s.banked_tenths, s.lost_tenths), (20, 0, 20));
+    assert_eq!(stored(&s.bank_after, "trial", "normal"), 30);
+    let s = settle(
+        pack.content(),
+        &run("trial", "normal", RunOutcome::Cleared, 125),
+        &bank,
+    );
+    assert_eq!((s.paid_tenths, s.bank_paid_tenths), (125, 0));
+    assert_eq!(stored(&s.bank_after, "trial", "normal"), 30);
+}
+
+#[test]
+fn todays_fail_is_a_pack_with_everything_paid() {
+    // tests.rs:2123: a fail of 40 pays 40.
+    let pack = trial_rules(false, 100, 0, 1000);
+    let s = settle(
+        pack.content(),
+        &run("trial", "normal", RunOutcome::Failed, 40),
+        &Bank::default(),
+    );
+    assert_eq!((s.stardust_tenths, s.banked_tenths), (40, 0));
+    // A mode with no entry (tutorial) pays all and banks nothing, as the app does now.
+    let bank = bank_of(&[("trial", "normal", 7)]);
+    let s = settle(
+        RunContent::bundled(),
+        &run("tutorial", "normal", RunOutcome::Failed, 40),
+        &bank,
+    );
+    assert_eq!((s.paid_tenths, s.banked_tenths, s.lost_tenths), (40, 0, 0));
+    assert_eq!(s.bank_after, bank);
+}
+
+#[test]
+fn the_split_is_read_from_the_content() {
+    let pack = trial_rules(true, 30, 70, 1000);
+    let s = settle(
+        pack.content(),
+        &run("trial", "normal", RunOutcome::Failed, 40),
+        &Bank::default(),
+    );
+    assert_eq!((s.paid_tenths, s.banked_tenths), (12, 28));
+}
+
+proptest! {
+    /// Nothing is made or lost by the split; the bank never passes its cap.
+    #[test]
+    fn a_settlement_keeps_the_books(
+        earned in 0..=MAX_RUN_STARDUST,
+        pay_pct in 0u32..=100,
+        bank_share in 0u32..=100,
+        bank_cap in 0..=MAX_BANK_CAP,
+        bank_on in any::<bool>(),
+        before in any::<u64>(),
+    ) {
+        let bank_pct = bank_share.min(100 - pay_pct);
+        let pack = trial_rules(bank_on, pay_pct, bank_pct, bank_cap);
+        let cap = u64::from(bank_cap) * 10;
+        let bank = bank_of(&[("trial", "normal", before)]);
+        let fail = settle(
+            pack.content(),
+            &run("trial", "normal", RunOutcome::Failed, earned),
+            &bank,
+        );
+        let e = u64::from(earned);
+        prop_assert_eq!(fail.paid_tenths + fail.banked_tenths + fail.lost_tenths, e);
+        prop_assert!(stored(&fail.bank_after, "trial", "normal") <= cap);
+        let clear = settle(
+            pack.content(),
+            &run("trial", "normal", RunOutcome::Cleared, earned),
+            &bank,
+        );
+        prop_assert_eq!(clear.paid_tenths, e);
+        prop_assert!(clear.bank_paid_tenths <= cap);
+    }
 }
