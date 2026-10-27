@@ -10,8 +10,8 @@ use stella_rain_core::content_hash::{content_hash, sha256, to_hex};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{
-    MAX_STAGE_REPLAY_BYTES, Replay, ReplayError, hash_from_hex, hash_to_hex, pack_inputs, record,
-    verify, verify_against,
+    HashesError, MAX_HASHES_BYTES, MAX_STAGE_REPLAY_BYTES, Replay, ReplayError, hash_from_hex,
+    hash_to_hex, hashes_from_bytes, hashes_to_bytes, pack_inputs, record, verify, verify_against,
 };
 use stella_rain_core::rng::SplitMix64;
 use stella_rain_core::validate;
@@ -427,11 +427,23 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
     for bad_index in [0usize, 17, CLEAR_TICK as usize - 1] {
         let mut wrong = hashes.clone();
         wrong[bad_index] ^= 1;
+        let err = verify_against(&stage, &bytes, &wrong).unwrap_err();
         assert_eq!(
-            verify_against(&stage, &bytes, &wrong),
-            Err(ReplayError::Diverged {
-                tick: bad_index as u32 + 1
-            })
+            err,
+            ReplayError::Diverged {
+                tick: bad_index as u32 + 1,
+                expected: wrong[bad_index],
+                actual: hashes[bad_index],
+            }
+        );
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "the run differs from the expected hashes on tick {}: expected {:016x}, got {:016x}",
+                bad_index + 1,
+                wrong[bad_index],
+                hashes[bad_index]
+            )
         );
     }
     assert_eq!(
@@ -499,5 +511,88 @@ fn damaged_files_are_refused_without_panicking() {
             }
         }
         let _ = verify(&s, &r);
+    }
+}
+
+fn clearing_hashes() -> Vec<u64> {
+    let parsed = validate::parse_and_validate(&stage_bytes()).unwrap();
+    let mut engine = Engine::new(&parsed).unwrap();
+    clearing_inputs()
+        .iter()
+        .map(|i| {
+            engine.step(*i);
+            engine.state_hash()
+        })
+        .collect()
+}
+
+#[test]
+fn the_hashes_file_is_eight_little_endian_bytes_a_tick() {
+    let bytes = hashes_to_bytes(&[1, 0x0123_4567_89ab_cdef]);
+    assert_eq!(
+        bytes,
+        [
+            1, 0, 0, 0, 0, 0, 0, 0, 0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, 0x23, 0x01
+        ]
+    );
+    assert_eq!(
+        hashes_from_bytes(&bytes),
+        Ok(vec![1, 0x0123_4567_89ab_cdef])
+    );
+    let h = clearing_hashes();
+    assert_eq!(h.len(), 35);
+    let bytes = hashes_to_bytes(&h);
+    assert_eq!(bytes.len(), 280);
+    assert_eq!(hashes_from_bytes(&bytes), Ok(h));
+    assert_eq!(hashes_from_bytes(&[]), Ok(vec![]));
+}
+
+#[test]
+fn a_hashes_file_that_is_not_whole_hashes_fails_closed() {
+    for size in [1usize, 7, 9, 15, 279] {
+        assert_eq!(
+            hashes_from_bytes(&vec![0; size]),
+            Err(HashesError::Length { size })
+        );
+    }
+    assert_eq!(
+        HashesError::Length { size: 279 }.to_string(),
+        "the hashes file is 279 bytes, not a whole number of 8-byte hashes"
+    );
+}
+
+#[test]
+fn the_hashes_file_size_limit_is_checked_first() {
+    assert_eq!(MAX_HASHES_BYTES, 1024 * 1024);
+    assert_eq!(
+        hashes_from_bytes(&vec![0; MAX_HASHES_BYTES]).unwrap().len(),
+        131_072
+    );
+    let err = hashes_from_bytes(&vec![0; MAX_HASHES_BYTES + 8]).unwrap_err();
+    assert_eq!(
+        err,
+        HashesError::TooLarge {
+            size: 1_048_584,
+            limit: 1_048_576
+        }
+    );
+    assert_eq!(
+        err.to_string(),
+        "the hashes file is 1048584 bytes; the limit is 1048576"
+    );
+}
+
+proptest::proptest! {
+    #[test]
+    fn any_bytes_decode_exactly_when_whole_and_re_encode(
+        bytes in proptest::collection::vec(proptest::prelude::any::<u8>(), 0..4096)
+    ) {
+        match hashes_from_bytes(&bytes) {
+            Ok(h) => {
+                proptest::prop_assert_eq!(bytes.len() % 8, 0);
+                proptest::prop_assert_eq!(hashes_to_bytes(&h), bytes);
+            }
+            Err(_) => proptest::prop_assert_ne!(bytes.len() % 8, 0),
+        }
     }
 }

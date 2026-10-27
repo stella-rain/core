@@ -479,10 +479,23 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
         .collect();
     assert!(verify_run_against(&bytes, &hashes).is_ok());
 
+    let actual = hashes[41];
     hashes[41] ^= 1;
+    let err = verify_run_against(&bytes, &hashes).unwrap_err();
     assert_eq!(
-        verify_run_against(&bytes, &hashes),
-        Err(RunReplayError::Diverged { tick: 42 })
+        err,
+        RunReplayError::Diverged {
+            tick: 42,
+            expected: hashes[41],
+            actual
+        }
+    );
+    assert_eq!(
+        err.to_string(),
+        format!(
+            "the run differs from the expected hashes on tick 42: expected {:016x}, got {actual:016x}",
+            hashes[41]
+        )
     );
     assert_eq!(
         verify_run_against(&bytes, &hashes[..99]),
