@@ -12,6 +12,7 @@ paths:
   - "src/validate.rs"
   - "src/registry.rs"
   - "src/run_setup.rs"
+  - "src/rules.rs"
   - "src/run_stats.rs"
   - "src/rewards.rs"
   - "src/match_ups.rs"
@@ -43,17 +44,19 @@ an event or a content ID starts with the `schema-change` skill.
   `content/run_stats.json` and `content/rewards.json` (ADR-CONT-1). `match_ups.rs` reads
   `content/match_ups.json`; `rune.rs` is the closed list of runes and `runes.rs` reads
   `content/runes.json`, the same way.
-- `run_content.rs`: a run's content, read once (ADR-CONT-1): run stats, rewards, expertise,
-  match-ups, runes, stage skills, the attack presets and the `trial` and `time_limit` mode
-  files, each with the SHA-256 of its bytes and the pack's SHA-256 (ADR-REPL-3, ADR-CONT-3).
-  The engine, the recorder and the verifier read the same value.
+- `run_content.rs`: a run's content, read once (ADR-CONT-1): rules, run stats, rewards,
+  expertise, match-ups, runes, stage skills, the attack presets and the `trial` and
+  `time_limit` mode files, each with the SHA-256 of its bytes and the pack's SHA-256
+  (ADR-REPL-3, ADR-CONT-3). The engine, the recorder and the verifier read the same value.
 - `pack.rs`, `src/bin/content_pack.rs`: the content pack, the game's content files as one JSON
   file, hashed as its bytes and read as untrusted bytes (ADR-SVC-1, ADR-CONT-3).
-  `content-pack verify FILE` checks one; `content-pack export` writes the bundled one.
+  `content-pack verify FILE` checks one; `content-pack export [DIR]` writes the pack (no DIR
+  writes `Pack::BUNDLED`; DIR builds from `DIR/*.json` and `DIR/../modes`).
 - `content/`: `pack.json` is a copy byte for byte of a `stella-rain/content` release
-  (ADR-CONT-3); `run_stats.json`, `rewards.json`, `stage_skills.json`, `expertise.json`,
-  `match_ups.json` and `runes.json` are each read by their `src/` module (`include_bytes!`).
-  `attack_presets.json` (the attack presets, ADR-CONT-8) is a required member of the pack, read
-  by `attack_presets.rs`; a check that needs a preset's phases runs at pack load and in `World::new`.
+  (ADR-CONT-3); `rules.json`, `run_stats.json`, `rewards.json`, `stage_skills.json`,
+  `expertise.json`, `match_ups.json` and `runes.json` come out of `Pack::BUNDLED`
+  (`ContentFiles::bundled_file`). `attack_presets.json` (the attack presets, ADR-CONT-8) is a
+  required member of the pack, read by `attack_presets.rs`; a check that needs a preset's
+  phases runs at pack load and in `World::new`.
 - `schema/`: generated from the types (`pack.schema.json` is the content pack's);
   `cargo xtask bless` regenerates it (and the corpus, goldens and `content/pack.json`).
