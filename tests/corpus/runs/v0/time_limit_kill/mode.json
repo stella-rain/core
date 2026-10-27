@@ -4040,8 +4040,6 @@
     18000
   ],
   "overtime_ticks": 12000,
-  "schema_version": 0,
-  "sim_version": 0,
   "star_hunter_extra_ticks": 3600,
   "stardust_summon_base": 10,
   "stardust_tiers": [
