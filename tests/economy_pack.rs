@@ -17,7 +17,7 @@ fn difficulties(pack: &Value) -> &Vec<Value> {
 
 #[test]
 fn the_pack_pays_today_s_rune_shards() {
-    // The app's `rune_shards_for` (godot-ext/src/session/tally.rs:208-216 at d99a038).
+    // The Rune Shards the app paid per difficulty before the numbers moved into the pack.
     let pack = pack();
     let got: Vec<(String, Option<u64>)> = difficulties(&pack)
         .iter()
@@ -36,9 +36,8 @@ fn the_pack_pays_today_s_rune_shards() {
     assert_eq!(got, want);
 }
 
-/// The app's rule (`difficulty_open`, godot-ext/src/session/setup.rs:94-104 and
-/// `OPEN_DIFFICULTIES = 2` at `:197`): the first two of the file are open; every later one
-/// opens when the one before it in the file is cleared.
+/// The rule the app applied before the numbers moved into the pack: the first two difficulties of
+/// the file are open; every later one opens when the one before it in the file is cleared.
 fn app_open(order: &[&str], id: &str, cleared: &[&str]) -> bool {
     let Some(i) = order.iter().position(|d| *d == id) else {
         return false;
@@ -82,7 +81,7 @@ fn the_pack_opens_difficulties_as_the_app_does_today() {
 
 #[test]
 fn the_pack_prices_rarities_as_run_setup_did() {
-    // `run_setup::lumine_cost` at 51c936b (src/run_setup.rs:50-61).
+    // The costs `run_setup::lumine_cost` returned before they moved into the rewards file.
     let pack = pack();
     assert_eq!(
         pack["rewards"]["rarities"],
@@ -99,7 +98,7 @@ fn the_pack_prices_rarities_as_run_setup_did() {
 
 #[test]
 fn the_pack_names_today_s_free_picks() {
-    // `FREE_WEAPON` and `FREE_PERK_SET` (godot/shell/preset_screen.gd:19-20).
+    // The free weapon and perk set the app's preset screen named before they moved into the pack.
     let pack = pack();
     let su = &pack["starting_unlocks"];
     assert_eq!(su["free_weapon"], "giant_sword");

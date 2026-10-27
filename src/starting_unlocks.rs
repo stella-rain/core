@@ -10,7 +10,8 @@
 //! with something it does not hold. `Pack` holds the file as an optional field: a pack released
 //! before it has none, and then reports the starting unlocks as unknown (`None`), never a
 //! guessed list. It also names the free weapon and the free perk set every save may use without
-//! owning them (`free_weapon`, `free_perk_set`); the simulation reads neither. The bundled file, `content/starting_unlocks.json`, is part of the bundled pack.
+//! owning them (`free_weapon`, `free_perk_set`); the simulation reads neither.
+//! The bundled file, `content/starting_unlocks.json`, is part of the bundled pack.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
