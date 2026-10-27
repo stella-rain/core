@@ -7,8 +7,9 @@
 //! stage-verify --share-code FILE [--hashes FILE]      (FILE may be - for standard input)
 //! ```
 //!
-//! `--hashes` names a file of expected state hashes, one per tick, 16 lowercase hex digits per
-//! line; on a mismatch the first differing tick is reported.
+//! `--hashes` names a file of expected state hashes, the state hash after every tick as 8 bytes
+//! little-endian, the corpus's `hashes.bin` format; on a mismatch the first differing tick and
+//! both hashes are reported.
 //!
 //! Exit status: 0 verified; 1 not verified (the stage or the replay is at fault); 2 the
 //! command line or a file could not be read. On success, standard output holds `result`,
@@ -22,7 +23,7 @@ use std::io::Read;
 use std::process::ExitCode;
 
 use stella_rain_core::content_hash::to_hex;
-use stella_rain_core::replay::{self, MAX_STAGE_REPLAY_BYTES, ReplayError};
+use stella_rain_core::replay::{self, MAX_HASHES_BYTES, MAX_STAGE_REPLAY_BYTES, ReplayError};
 use stella_rain_core::share::{self, MAX_SHARE_CODE_CHARS};
 use stella_rain_core::validate::limits::MAX_STAGE_BYTES;
 
@@ -30,9 +31,6 @@ const USAGE: &str = "usage: stage-verify STAGE REPLAY [--hashes FILE]\n       \
                      stage-verify --share-code FILE [--hashes FILE]\n\
                      FILE may be - for standard input. Exit status: 0 verified, \
                      1 not verified, 2 could not run.";
-
-/// A hashes file is at most this big: one line per tick of the longest stage, with room to spare.
-const MAX_HASHES_BYTES: usize = 1024 * 1024;
 
 enum Failure {
     /// Exit 2.
@@ -69,18 +67,7 @@ fn read_up_to(path: &str, limit: usize) -> Result<Vec<u8>, Failure> {
 }
 
 fn parse_hashes(bytes: &[u8]) -> Result<Vec<u64>, Failure> {
-    let usage = |what: &str| Failure::Usage(format!("the hashes file {what}"));
-    if bytes.len() > MAX_HASHES_BYTES {
-        return Err(usage("is too large"));
-    }
-    let text = std::str::from_utf8(bytes).map_err(|_| usage("is not text"))?;
-    text.lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .map(|l| {
-            replay::hash_from_hex(l).ok_or_else(|| usage("has a line that is not 16 hex digits"))
-        })
-        .collect()
+    replay::hashes_from_bytes(bytes).map_err(|e| Failure::Usage(e.to_string()))
 }
 
 fn run(args: Vec<String>) -> Result<(), Failure> {

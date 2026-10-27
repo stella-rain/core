@@ -1,8 +1,9 @@
 //! The replay corpus (ADR-019): `tests/corpus/v0/<name>/` holds a `stage.json`, a `run.replay`
-//! and `hashes.txt` (the state hash after every tick, one lowercase hex hash a line). Each case
+//! and `hashes.bin` (the state hash after every tick, 8 bytes little-endian,
+//! `replay::hashes_from_bytes`). Each case
 //! is re-simulated and every tick compared, so a change that moves any hash fails on the first
-//! tick it moved, on x86_64 and on the arm64 runner alike. The files are plain, so the device
-//! run can read them too (ADR-054).
+//! tick it moved, on x86_64 and on the arm64 runner alike. The device run reads them with the same
+//! code (ADR-054).
 //!
 //! On a mismatch the failure names the first diverging tick and writes the snapshots of that
 //! tick and the one before to `target/corpus-diff/<name>.json`; CI uploads that folder per
@@ -11,7 +12,7 @@
 //! in the PR (ADR-035).
 //!
 //! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
-//! `run.replay` (a run replay: setup, content hash, inputs and commands) and `hashes.txt` (the
+//! `run.replay` (a run replay: setup, content hash, inputs and commands) and `hashes.bin` (the
 //! hash after every tick, before the commands between it and the next). They need no stage file, because the
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
 
@@ -29,7 +30,7 @@ use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
-use stella_rain_core::replay::{self, Replay, hash_from_hex, hash_to_hex};
+use stella_rain_core::replay::{self, Replay, hash_to_hex};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
 use stella_rain_core::run_setup::{self, RunSetup};
@@ -59,12 +60,7 @@ fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     };
     let stage_bytes = read("stage.json")?;
     let replay_bytes = read("run.replay")?;
-    let hashes = String::from_utf8_lossy(&read("hashes.txt")?)
-        .lines()
-        .map(|l| {
-            hash_from_hex(l).ok_or(format!("corpus case `{name}`: hashes.txt: bad hash `{l}`"))
-        })
-        .collect::<Result<Vec<u64>, String>>()?;
+    let hashes = read_hashes(case, &name)?;
 
     let stage = parse_and_validate(&stage_bytes)
         .map_err(|e| format!("corpus case `{name}`: stage.json: {e:?}"))?;
@@ -75,7 +71,7 @@ fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
         .map_err(|e| format!("corpus case `{name}`: run.replay: {e}"))?;
     if hashes.len() != inputs.len() {
         return Err(format!(
-            "corpus case `{name}`: hashes.txt has {} hashes, run.replay has {} ticks",
+            "corpus case `{name}`: hashes.bin has {} hashes, run.replay has {} ticks",
             hashes.len(),
             inputs.len()
         ));
@@ -93,7 +89,7 @@ fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
 
     if recorded.final_hash != hash_to_hex(engine.state_hash()) || recorded.ticks != engine.tick() {
         return Err(format!(
-            "corpus case `{name}`: run.replay's ticks or final hash do not match hashes.txt"
+            "corpus case `{name}`: run.replay's ticks or final hash do not match hashes.bin"
         ));
     }
     if engine.outcome() == Outcome::Cleared {
@@ -103,16 +99,26 @@ fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Reads `hashes.txt` of a case.
+/// Reads `hashes.bin` of a case; a `hashes.txt` beside it is the old format and fails.
 fn read_hashes(case: &Path, name: &str) -> Result<Vec<u64>, String> {
-    let text = fs::read(case.join("hashes.txt"))
-        .map_err(|e| format!("corpus case `{name}`: hashes.txt: {e}"))?;
-    String::from_utf8_lossy(&text)
-        .lines()
-        .map(|l| {
-            hash_from_hex(l).ok_or(format!("corpus case `{name}`: hashes.txt: bad hash `{l}`"))
-        })
-        .collect()
+    if case.join("hashes.txt").exists() {
+        return Err(format!(
+            "corpus case `{name}`: hashes.txt is the old format; run `cargo xtask bless`"
+        ));
+    }
+    let bytes = fs::read(case.join("hashes.bin"))
+        .map_err(|e| format!("corpus case `{name}`: hashes.bin: {e}"))?;
+    replay::hashes_from_bytes(&bytes).map_err(|e| format!("corpus case `{name}`: hashes.bin: {e}"))
+}
+
+/// Writes a case's `hashes.bin` and removes the `hashes.txt` an older bless left.
+fn write_hashes(dir: &Path, hashes: &[u64]) {
+    write_atomic(&dir.join("hashes.bin"), &replay::hashes_to_bytes(hashes));
+    match fs::remove_file(dir.join("hashes.txt")) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => panic!("cannot remove hashes.txt: {e}"),
+    }
 }
 
 /// Applies one command between ticks, as a replay's verification does.
@@ -143,7 +149,7 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let commands = recorded.unpack_commands().map_err(|e| fail(&e))?;
     if hashes.len() != inputs.len() {
         return Err(fail(&format!(
-            "hashes.txt has {} hashes, run.replay has {} ticks",
+            "hashes.bin has {} hashes, run.replay has {} ticks",
             hashes.len(),
             inputs.len()
         )));
@@ -222,12 +228,8 @@ fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[
         None => case_content(dir).unwrap(),
     };
     let recorded = run_replay::record_run_with(setup, &content, commands).unwrap();
-    let hashes: String = run_hashes(&recorded, &content)
-        .into_iter()
-        .map(|h| hash_to_hex(h) + "\n")
-        .collect();
     write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
-    write_atomic(&dir.join("hashes.txt"), hashes.as_bytes());
+    write_hashes(dir, &run_hashes(&recorded, &content));
 }
 
 /// Writes the snapshots of the first diverging tick (`engine`'s) and of the one before to
@@ -285,16 +287,15 @@ fn write_case(dir: &Path, stage_bytes: &[u8], inputs: &[Input]) {
     let ran = recorded.unpack_inputs(u32::MAX).unwrap();
     let stage = parse_and_validate(stage_bytes).unwrap();
     let mut engine = Engine::new(&stage).unwrap();
-    let mut hashes = String::new();
+    let mut hashes = Vec::new();
     for input in &ran {
         engine.step(*input);
-        hashes.push_str(&hash_to_hex(engine.state_hash()));
-        hashes.push('\n');
+        hashes.push(engine.state_hash());
     }
     fs::create_dir_all(dir).unwrap();
     write_atomic(&dir.join("stage.json"), stage_bytes);
     write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
-    write_atomic(&dir.join("hashes.txt"), hashes.as_bytes());
+    write_hashes(dir, &hashes);
 }
 
 fn changed_hash_case(name: &str) -> (PathBuf, PathBuf) {
