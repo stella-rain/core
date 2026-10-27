@@ -4,8 +4,10 @@
 //! (`spawn_boss`) lives in the run's state.
 
 use std::ops::Deref;
+use std::sync::Arc;
 
 use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
+use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement};
 use crate::engine::{AgentKey, AgentSource};
 use crate::id::ContentId;
@@ -340,6 +342,8 @@ pub(crate) struct World {
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
     attack_keys: AttackKeys,
+    /// The run's attack presets (CS1b-1): what a preset reference compiles from.
+    attack_presets: Arc<AttackPresets>,
     /// Some compiled attack has a phase that dashes: the tick looks for a dasher only then.
     pub has_dash: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
@@ -424,6 +428,22 @@ impl World {
             }
         }
         let weapon = content.weapons().resolve(main).cloned();
+        // A stage's own weapon is judged by the content that runs it (ADR-CONT-7 point 6): the
+        // held-step checks that read a preset's phases cannot run before the presets are known.
+        if let WeaponRef::Inline(w) = main {
+            if let Some(found) = crate::presets::hold_problems(w, content.attack_presets())
+                .into_iter()
+                .next()
+            {
+                return Err(Issue {
+                    path: format!(
+                        "$.player.weapon.inline{}",
+                        found.path.trim_start_matches('$')
+                    ),
+                    message: found.message,
+                });
+            }
+        }
         let rules = content.rules();
         let target = stage.crowd_target.unwrap_or_else(|| rules.crowd_target());
         let mut world = World {
@@ -436,6 +456,7 @@ impl World {
             horde,
             attacks: Vec::new(),
             attack_keys: AttackKeys::default(),
+            attack_presets: Arc::new(content.attack_presets().clone()),
             has_dash: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
@@ -482,9 +503,12 @@ impl World {
 
     /// Compiles `attack` unless the run has it already, and returns its index.
     pub fn compile_attack(&mut self, attack: &AttackRef) -> Result<AttackIndex, Issue> {
-        let index = self
-            .attack_keys
-            .compile(&mut self.attacks, &mut self.emitters, attack)?;
+        let index = self.attack_keys.compile(
+            &mut self.attacks,
+            &mut self.emitters,
+            &self.attack_presets,
+            attack,
+        )?;
         self.has_dash |= self.attacks[usize::from(index.0)]
             .phases
             .iter()

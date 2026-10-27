@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use stella_rain_core::version::Versions;
 
+use stella_rain_core::attack_presets::{AttackPresets, MAX_ATTACK_PRESETS_BYTES};
 use stella_rain_core::constellations::{Constellations, MAX_CONSTELLATIONS_BYTES};
 use stella_rain_core::difficulties::{Difficulties, MAX_DIFFICULTIES_BYTES};
 use stella_rain_core::expertise::{Expertise, MAX_EXPERTISE_BYTES};
@@ -276,7 +277,7 @@ type Reader = fn(&[u8], Versions) -> Result<(), Error>;
 fn every_versioned_file_refuses_another_game_the_same_way() {
     let content = RunContent::bundled();
     let file = |name: &str| bundled(name);
-    let rows: [(&str, usize, Reader); 11] = [
+    let rows: [(&str, usize, Reader); 12] = [
         ("run_stats", MAX_RUN_STATS_BYTES, |b, v| {
             RunStats::parse(b, v).map(|_| ())
         }),
@@ -300,6 +301,9 @@ fn every_versioned_file_refuses_another_game_the_same_way() {
         }),
         ("difficulties", MAX_DIFFICULTIES_BYTES, |b, v| {
             Difficulties::parse(b, v).map(|_| ())
+        }),
+        ("attack_presets", MAX_ATTACK_PRESETS_BYTES, |b, v| {
+            AttackPresets::parse(b, v).map(|_| ())
         }),
         ("weapons", MAX_WEAPONS_BYTES, |b, v| {
             Weapons::parse(b, v).map(|_| ())

@@ -21,10 +21,9 @@
 //!
 //! The content hash is the SHA-256 of the bytes of the content pack the run used (ADR-079 §5,
 //! ADR-080), so any content update invalidates the replay rather than letting it drift, and a
-//! kept pack is found by it. The attack and weapon presets are in the stage's own JSON and in
-//! the code, not in the pack, so the hash does not cover them: a change to a preset is a
-//! change to what the `sim_version` does. What the rules do with the content is the
-//! `sim_version`'s, which the setup carries.
+//! kept pack is found by it. The attack presets and the weapons are files of the pack (CS1b-1,
+//! WP1), so a change to a preset is a content release and a new hash. What the rules do with
+//! the content is the `sim_version`'s, which the setup carries.
 
 use std::fmt;
 
@@ -37,7 +36,6 @@ use crate::content_hash::to_hex;
 use crate::engine::{ChoiceError, Engine, Outcome};
 use crate::input::Input;
 use crate::pack::Pack;
-use crate::presets;
 use crate::replay::{hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack, write_varint};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
@@ -270,7 +268,7 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 /// The SHA-256 of the game content a run of `mode` uses with `content`. Content read from a
 /// pack has the pack's hash, the SHA-256 of the pack file's bytes (ADR-079 §5, ADR-080), whatever
 /// the mode. Content with any file replaced one by one has a hash derived from the mode's file,
-/// every preset's definition, and the bytes of the run stats, the rewards, the stage skills, the
+/// the attack presets file, and the bytes of the run stats, the rewards, the stage skills, the
 /// expertise, the match-ups, the runes and the perk sets, tagged and length-prefixed: never a pack's.
 /// `None` for a mode with no content.
 pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]> {
@@ -299,12 +297,12 @@ pub fn content_sha256_with(mode: &str, content: &RunContent) -> Option<[u8; 32]>
         &content.weapons().sha256(),
         &content.rules().sha256(),
         content.constellations().sha256().as_ref(),
-        presets::sources(),
+        &content.attack_presets().sha256(),
     ))
 }
 
 #[allow(clippy::too_many_arguments)]
-fn hash_content<'a>(
+fn hash_content(
     mode: &str,
     file: &[u8],
     run_stats_sha256: &[u8; 32],
@@ -318,7 +316,7 @@ fn hash_content<'a>(
     weapons_sha256: &[u8; 32],
     rules_sha256: &[u8; 32],
     constellations_sha256: Option<&[u8; 32]>,
-    sources: impl Iterator<Item = (u8, &'a str, &'a str)>,
+    attack_presets_sha256: &[u8; 32],
 ) -> [u8; 32] {
     fn part(sha: &mut Sha256, kind: u8, id: &[u8], body: &[u8]) {
         let len = |b: &[u8]| u32::try_from(b.len()).unwrap_or(u32::MAX).to_le_bytes();
@@ -346,9 +344,7 @@ fn hash_content<'a>(
     if let Some(constellations) = constellations_sha256 {
         part(&mut sha, b'c', b"constellations", constellations);
     }
-    for (kind, id, definition) in sources {
-        part(&mut sha, kind, id.as_bytes(), definition.as_bytes());
-    }
+    part(&mut sha, b'a', b"attack_presets", attack_presets_sha256);
     sha.finalize().into()
 }
 
@@ -727,7 +723,7 @@ fn apply_commands(
 mod tests {
     use super::hash_content;
 
-    const SOURCES: [(u8, &str, &str); 2] = [(b'a', "shot", "[1]"), (b'w', "gun", "{}")];
+    const ATTACK_PRESETS_SHA: [u8; 32] = [14; 32];
     const STATS: [u8; 32] = [7; 32];
     const REWARDS: [u8; 32] = [9; 32];
     const SKILLS: [u8; 32] = [5; 32];
@@ -739,7 +735,7 @@ mod tests {
     const WEAPONS_SHA: [u8; 32] = [8; 32];
     const RULES_SHA: [u8; 32] = [12; 32];
 
-    fn hash(mode: &str, file: &[u8], sources: &[(u8, &'static str, &'static str)]) -> [u8; 32] {
+    fn hash(mode: &str, file: &[u8], attack_presets: &[u8; 32]) -> [u8; 32] {
         hash_content(
             mode,
             file,
@@ -754,7 +750,7 @@ mod tests {
             &WEAPONS_SHA,
             &RULES_SHA,
             None,
-            sources.iter().copied(),
+            attack_presets,
         )
     }
 
@@ -778,16 +774,24 @@ mod tests {
             &WEAPONS_SHA,
             &RULES_SHA,
             None,
-            SOURCES.iter().copied(),
+            &ATTACK_PRESETS_SHA,
         )
     }
 
     #[test]
-    fn the_content_hash_covers_the_mode_the_content_files_and_every_preset() {
-        let base = hash("trial", b"{}", &SOURCES);
-        assert_eq!(base, hash("trial", b"{}", &SOURCES));
-        assert_ne!(base, hash("trial", b"{ }", &SOURCES), "the mode's file");
-        assert_ne!(base, hash("other", b"{}", &SOURCES), "the mode's ID");
+    fn the_content_hash_covers_the_mode_the_content_files_and_the_attack_presets() {
+        let base = hash("trial", b"{}", &ATTACK_PRESETS_SHA);
+        assert_eq!(base, hash("trial", b"{}", &ATTACK_PRESETS_SHA));
+        assert_ne!(
+            base,
+            hash("trial", b"{ }", &ATTACK_PRESETS_SHA),
+            "the mode's file"
+        );
+        assert_ne!(
+            base,
+            hash("other", b"{}", &ATTACK_PRESETS_SHA),
+            "the mode's ID"
+        );
         assert_eq!(base, files(&STATS, &REWARDS, &SKILLS, &EXPERTISE));
         assert_ne!(
             base,
@@ -825,7 +829,7 @@ mod tests {
                 &WEAPONS_SHA,
                 &RULES_SHA,
                 None,
-                SOURCES.iter().copied(),
+                &ATTACK_PRESETS_SHA,
             ),
             "the match-ups"
         );
@@ -845,7 +849,7 @@ mod tests {
                 &WEAPONS_SHA,
                 &RULES_SHA,
                 None,
-                SOURCES.iter().copied(),
+                &ATTACK_PRESETS_SHA,
             ),
             "the runes"
         );
@@ -865,7 +869,7 @@ mod tests {
                 &WEAPONS_SHA,
                 &RULES_SHA,
                 None,
-                SOURCES.iter().copied(),
+                &ATTACK_PRESETS_SHA,
             ),
             "the perk sets"
         );
@@ -885,7 +889,7 @@ mod tests {
                 &WEAPONS_SHA,
                 &RULES_SHA,
                 None,
-                SOURCES.iter().copied(),
+                &ATTACK_PRESETS_SHA,
             ),
             "the difficulties"
         );
@@ -905,7 +909,7 @@ mod tests {
                 &[11; 32],
                 &RULES_SHA,
                 None,
-                SOURCES.iter().copied(),
+                &ATTACK_PRESETS_SHA,
             ),
             "the weapons"
         );
@@ -925,7 +929,7 @@ mod tests {
                 &WEAPONS_SHA,
                 &[13; 32],
                 None,
-                SOURCES.iter().copied(),
+                &ATTACK_PRESETS_SHA,
             ),
             "the rules"
         );
@@ -945,7 +949,7 @@ mod tests {
                 &WEAPONS_SHA,
                 &RULES_SHA,
                 sets,
-                SOURCES.iter().copied(),
+                &ATTACK_PRESETS_SHA,
             )
         };
         assert_eq!(base, with(None));
@@ -966,21 +970,6 @@ mod tests {
             files(&STATS, &REWARDS, &EXPERTISE, &SKILLS),
             "which file is which"
         );
-        let changed = [(b'a', "shot", "[2]"), SOURCES[1]];
-        assert_ne!(base, hash("trial", b"{}", &changed), "a definition");
-        let renamed = [(b'a', "shot2", "[1]"), SOURCES[1]];
-        assert_ne!(base, hash("trial", b"{}", &renamed), "an ID");
-        let kind = [(b'w', "shot", "[1]"), SOURCES[1]];
-        assert_ne!(base, hash("trial", b"{}", &kind), "a kind");
-        let reordered = [SOURCES[1], SOURCES[0]];
-        assert_ne!(base, hash("trial", b"{}", &reordered), "the order");
-        assert_ne!(
-            base,
-            hash("trial", b"{}", &SOURCES[..1]),
-            "a preset left out"
-        );
-        // A byte moved across the boundary of an ID and its definition.
-        let moved = [(b'a', "shot[", "1]"), SOURCES[1]];
-        assert_ne!(base, hash("trial", b"{}", &moved), "the boundaries");
+        assert_ne!(base, hash("trial", b"{}", &[15; 32]), "the attack presets");
     }
 }

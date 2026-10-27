@@ -34,6 +34,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use sha2::{Digest, Sha256};
 
+use crate::attack_presets::{AttackPresets, AttackPresetsFile};
 use crate::constellations::{Constellations, ConstellationsFile};
 use crate::difficulties::{Difficulties, DifficultiesFile};
 use crate::expertise::{Expertise, ExpertiseFile, WeaponExpertise};
@@ -92,6 +93,8 @@ pub const MAX_MID_BOSS_POOL: usize = crate::time_limit::MAX_POOL;
 pub const MAX_STARTING_UNLOCKS: usize = crate::starting_unlocks::MAX_STARTING_UNLOCKS;
 /// The most modes the Stardust file has entries for (2 today; held to the file's own cap).
 pub const MAX_STARDUST_MODES: usize = crate::stardust::MAX_MODES;
+/// The most attack presets the file lists (9 today; the file's own cap is 64).
+pub const MAX_ATTACK_PRESETS: usize = 40;
 /// The most weapons the weapons file lists (1 today; held to the file's own cap).
 pub const MAX_WEAPONS: usize = crate::weapons::MAX_WEAPONS;
 /// The most trees one weapon has (1 today; held to the file's own cap).
@@ -122,6 +125,8 @@ struct BorrowedPack<'a> {
     perk_sets: &'a RawValue,
     #[serde(borrow)]
     difficulties: &'a RawValue,
+    #[serde(borrow)]
+    attack_presets: &'a RawValue,
     #[serde(borrow)]
     weapons: &'a RawValue,
     #[serde(borrow)]
@@ -172,6 +177,9 @@ pub struct PackFile {
     pub perk_sets: Box<RawValue>,
     #[schemars(with = "DifficultiesFile")]
     pub difficulties: Box<RawValue>,
+    /// The attack presets (CS1b-1). Required: the rules read them.
+    #[schemars(with = "AttackPresetsFile")]
+    pub attack_presets: Box<RawValue>,
     /// The weapons' combo trees (WP1).
     #[schemars(with = "WeaponsFile")]
     pub weapons: Box<RawValue>,
@@ -431,8 +439,11 @@ impl Pack {
             .map_err(PackError::in_file("perk_sets"))?;
         let difficulties = Difficulties::parse(&file_bytes(&pack.difficulties), versions)
             .map_err(PackError::in_file("difficulties"))?;
+        let attack_presets = AttackPresets::parse(&file_bytes(&pack.attack_presets), versions)
+            .map_err(PackError::in_file("attack_presets"))?;
         let weapons = Weapons::parse(&file_bytes(&pack.weapons), versions)
             .map_err(PackError::in_file("weapons"))?;
+        check_holds(&weapons, &attack_presets)?;
         let rules = Rules::parse(&file_bytes(&pack.rules), versions)
             .map_err(PackError::in_file("rules"))?;
         let starting_unlocks = pack
@@ -490,6 +501,7 @@ impl Pack {
             runes,
             perk_sets,
             difficulties,
+            attack_presets,
             weapons,
             rules,
             starting_unlocks,
@@ -628,6 +640,13 @@ struct UnlockLists {
 
 /// The lists of the weapons file, counted.
 #[derive(Deserialize)]
+struct AttackPresetsLists {
+    #[serde(default)]
+    presets: Vec<IgnoredAny>,
+}
+
+/// The lists of the weapons file, counted.
+#[derive(Deserialize)]
 struct WeaponsLists {
     #[serde(default)]
     weapons: Vec<TreeLists>,
@@ -643,6 +662,33 @@ struct TreeLists {
 struct WeaponLists {
     #[serde(default)]
     common: Vec<IgnoredAny>,
+}
+
+/// The held-step checks that read a preset's phases, for every tree of the pack's weapons against
+/// the pack's own attack presets (ADR-CONT-7 point 6, CS1b-1): the weapons file alone cannot say.
+fn check_holds(weapons: &Weapons, presets: &AttackPresets) -> Result<(), PackError> {
+    let mut issues = Vec::new();
+    for (w, entry) in weapons.list().iter().enumerate() {
+        for (t, tree) in entry.trees.iter().enumerate() {
+            for found in crate::presets::hold_problems(&tree.weapon, presets) {
+                issues.push(validate::Issue {
+                    path: format!(
+                        "$.weapons[{w}].trees[{t}].weapon{}",
+                        found.path.trim_start_matches('$')
+                    ),
+                    message: found.message,
+                });
+            }
+        }
+    }
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(PackError::File {
+            file: "weapons",
+            error: validate::Error::Invalid(issues),
+        })
+    }
 }
 
 fn budget(path: impl Into<String>, found: usize, limit: usize) -> Result<(), PackError> {
@@ -746,6 +792,13 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
             "$.difficulties.difficulties",
             l.difficulties.len(),
             MAX_DIFFICULTIES,
+        )?;
+    }
+    if let Some(l) = counts::<AttackPresetsLists>(&pack.attack_presets) {
+        budget(
+            "$.attack_presets.presets",
+            l.presets.len(),
+            MAX_ATTACK_PRESETS,
         )?;
     }
     if let Some(l) = counts::<WeaponsLists>(&pack.weapons) {
@@ -1124,7 +1177,7 @@ pub struct ContentFiles {
 
 impl ContentFiles {
     /// Every file, in the order the pack lists them.
-    pub const LAYOUT: [FileSlot; 16] = [
+    pub const LAYOUT: [FileSlot; 17] = [
         slot("run_stats", false, false),
         slot("rewards", false, false),
         slot("stage_skills", false, false),
@@ -1133,6 +1186,7 @@ impl ContentFiles {
         slot("runes", false, false),
         slot("perk_sets", false, false),
         slot("difficulties", false, false),
+        slot("attack_presets", false, false),
         slot("weapons", false, false),
         slot("rules", false, false),
         slot("starting_unlocks", false, true),
@@ -1196,6 +1250,7 @@ impl ContentFiles {
                 ("runes", Some(pack.runes)),
                 ("perk_sets", Some(pack.perk_sets)),
                 ("difficulties", Some(pack.difficulties)),
+                ("attack_presets", Some(pack.attack_presets)),
                 ("weapons", Some(pack.weapons)),
                 ("rules", Some(pack.rules)),
                 ("starting_unlocks", pack.starting_unlocks),
@@ -1303,8 +1358,11 @@ impl ContentFiles {
             .map_err(PackError::in_file("perk_sets"))?;
         let runes =
             Runes::parse(get("runes")?, Versions::CURRENT).map_err(PackError::in_file("runes"))?;
+        let attack_presets = AttackPresets::parse(get("attack_presets")?, Versions::CURRENT)
+            .map_err(PackError::in_file("attack_presets"))?;
         let weapons = Weapons::parse(get("weapons")?, Versions::CURRENT)
             .map_err(PackError::in_file("weapons"))?;
+        check_holds(&weapons, &attack_presets)?;
         let rules =
             Rules::parse(get("rules")?, Versions::CURRENT).map_err(PackError::in_file("rules"))?;
         let starting_unlocks = optional("starting_unlocks")
@@ -1339,6 +1397,7 @@ impl ContentFiles {
             perk_sets,
             Difficulties::parse(get("difficulties")?, Versions::CURRENT)
                 .map_err(PackError::in_file("difficulties"))?,
+            attack_presets,
             weapons,
             rules,
             starting_unlocks,
@@ -1390,6 +1449,7 @@ fn members(pack: &PackFile) -> Vec<(&'static str, &RawValue)> {
         ("runes", &pack.runes),
         ("perk_sets", &pack.perk_sets),
         ("difficulties", &pack.difficulties),
+        ("attack_presets", &pack.attack_presets),
         ("weapons", &pack.weapons),
         ("rules", &pack.rules),
     ];

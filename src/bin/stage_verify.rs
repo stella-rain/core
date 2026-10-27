@@ -1,6 +1,7 @@
 //! `stage-verify`: re-simulates a replay against its stage and checks that the stage is cleared
 //! with the replay's final hash (ADR-009, ADR-015). Stage and replay are untrusted, so this
-//! uses the same size limits and validation as the game.
+//! uses the same size limits and validation as the game. Attack presets a stage names are read
+//! from the content pack built into this binary (`content/pack.json`).
 //!
 //! ```text
 //! stage-verify STAGE REPLAY [--hashes FILE]
@@ -30,7 +31,9 @@ use stella_rain_core::validate::limits::MAX_STAGE_BYTES;
 const USAGE: &str = "usage: stage-verify STAGE REPLAY [--hashes FILE]\n       \
                      stage-verify --share-code FILE [--hashes FILE]\n\
                      FILE may be - for standard input. Exit status: 0 verified, \
-                     1 not verified, 2 could not run.";
+                     1 not verified, 2 could not run.\n\
+                     Attack presets a stage names are read from the content pack built into \
+                     this binary (content/pack.json).";
 
 enum Failure {
     /// Exit 2.
