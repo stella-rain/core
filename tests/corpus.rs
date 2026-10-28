@@ -920,9 +920,15 @@ fn orbs() -> Definition {
         shooter(60_000, 120_000, 50, false, 70),
         shooter(80_000, 120_000, 50, false, 70),
     ];
+    let baseline: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/weapons_before.json")).unwrap();
+    let baseline_sword = common::unscaled(
+        baseline["giant_sword"]["giant_sword_base"].clone(),
+        common::SCALE,
+    );
     let stage = armed(
         stage_full(600, Some(boss), waves, vec![]),
-        json!({ "preset": { "id": "giant_sword" } }),
+        json!({ "inline": baseline_sword }),
     );
     let inputs = (0..300)
         .map(|t| {
