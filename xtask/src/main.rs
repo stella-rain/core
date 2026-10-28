@@ -271,6 +271,63 @@ mod tests {
         );
     }
 
+    fn pins_step() -> Option<usize> {
+        steps().iter().position(|s| {
+            matches!(
+                s,
+                Step::Test {
+                    filter: "bench_fixture_pins::",
+                    ..
+                }
+            )
+        })
+    }
+
+    /// The set a step writes.
+    fn writes(step: &Step) -> &'static str {
+        match step {
+            Step::ExportPack => "pack",
+            Step::Test { filter, .. } => match *filter {
+                "schema::" => "schema",
+                "corpus::" => "corpus",
+                "golden::" => "golden",
+                "bench_fixture_pins::" => "bench pins",
+                other => panic!("step {other} writes no known set"),
+            },
+        }
+    }
+
+    #[test]
+    fn bless_runs_the_bench_pins_step_with_its_knob() {
+        let i = pins_step().expect("no bench_fixture_pins:: step");
+        assert!(matches!(
+            &steps()[i],
+            Step::Test {
+                env: Some(("UPDATE_BENCH_PINS", "1")),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn the_bench_pins_step_runs_after_the_pack_export() {
+        let pack = steps().iter().position(|s| *s == Step::ExportPack);
+        assert!(pins_step().expect("no pins step") > pack.expect("no pack step"));
+    }
+
+    #[test]
+    fn every_set_has_exactly_one_step_that_writes_it() {
+        let steps = steps();
+        for (name, _) in SETS {
+            let n = steps.iter().filter(|s| writes(s) == name).count();
+            assert_eq!(n, 1, "set {name} is written by {n} steps");
+        }
+        assert_eq!(
+            SETS.iter().map(|(n, _)| *n).collect::<Vec<_>>(),
+            ["schema", "corpus", "golden", "pack", "bench pins"]
+        );
+    }
+
     #[test]
     fn the_message_names_each_stale_set_and_the_fix() {
         let m = stale_message(&["corpus", "pack"]);
