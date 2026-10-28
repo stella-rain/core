@@ -396,7 +396,9 @@ fn stardust_tenths_above_max_is_clamped_to_max_run_stardust() {
     );
     let max = u64::from(MAX_RUN_STARDUST);
     assert_eq!(fail.paid_tenths, max / 2);
-    assert_eq!(fail.banked_tenths, max / 2);
+    // Bundled trial has bank_cap = 1000 Stardust (10,000 tenths).
+    assert_eq!(fail.banked_tenths, 10_000);
+    assert_eq!(fail.lost_tenths, max / 2 - 10_000);
     assert_eq!(
         fail.paid_tenths + fail.banked_tenths + fail.lost_tenths,
         max
