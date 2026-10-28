@@ -49,6 +49,7 @@ impl Streams {
     }
 
     /// The five states, in hash order.
+    #[cfg(test)]
     pub fn states(&self) -> [u64; 5] {
         [
             self.spawn.state(),

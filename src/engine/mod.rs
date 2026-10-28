@@ -369,7 +369,7 @@ impl Engine {
 
     /// FNV-1a 64 over the whole state after the last tick (ADR-019).
     pub fn state_hash(&self) -> u64 {
-        rules_v0::state_hash(&self.stage, &self.state)
+        rules_v0::state_hash(&self.state)
     }
 
     /// The domain events of the last tick, in the order they happened.
