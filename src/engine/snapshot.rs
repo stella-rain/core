@@ -32,18 +32,21 @@ pub struct Places {
     pub stars: Vec<(EntityId, Point)>,
     /// The boss on the field: the id of the `Boss` entity, if any.
     pub boss: Option<EntityId>,
+    /// The player's position: `Snapshot::player.at`. The player always exists, alive or dead.
+    pub player: Point,
 }
 
 impl Engine {
     /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
-    /// these fields, without building a snapshot. Allocates only while `out` grows to the
-    /// largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`
+    /// these fields (and the player's position), without building a snapshot. Allocates only
+    /// while `out` grows to the largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`
     /// (which names this function); `tests/places.rs` holds the two equal.
     pub fn places(&self, out: &mut Places) {
         let s = &self.state;
         out.entities.clear();
         out.stars.clear();
         out.boss = None;
+        out.player = s.player.at;
         // Boss, companions, boss parts, then enemies: the order of their entity IDs.
         let alive_boss = s.boss.as_ref().filter(|b| b.hp > 0);
         if let Some(b) = alive_boss {
@@ -83,7 +86,7 @@ impl Engine {
 
 impl Engine {
     /// What the frontend draws after the last tick (ADR-005). `places` repeats its rules for
-    /// the ids, kinds and positions: change them together.
+    /// the ids, kinds and positions, and the player's position: change them together.
     pub fn snapshot(&self) -> Snapshot {
         let s = &self.state;
         let view = |r: &AttackRun| {
