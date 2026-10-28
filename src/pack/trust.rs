@@ -62,12 +62,56 @@ pub fn verify_packs(bytes: &[u8], sig: &[u8]) -> Result<Packs, TrustError> {
 
 /// Verifies `bytes` against detached Minisign signature `sig` using specified key IDs and public keys.
 pub fn verify_packs_with_keys(
-    _bytes: &[u8],
-    _sig: &[u8],
-    _key_ids: &[[u8; 8]],
-    _public_keys: &[[u8; 32]],
+    bytes: &[u8],
+    sig: &[u8],
+    key_ids: &[[u8; 8]],
+    public_keys: &[[u8; 32]],
 ) -> Result<Packs, TrustError> {
-    todo!("implement trust verification")
+    let sig_str = std::str::from_utf8(sig).map_err(|_| TrustError::Format)?;
+    let signature = minisign_verify::Signature::decode(sig_str).map_err(|_| TrustError::Format)?;
+
+    let mut lines = sig_str.lines();
+    let _untrusted = lines.next().ok_or(TrustError::Format)?;
+    let line2 = lines.next().ok_or(TrustError::Format)?;
+    let bin1 = crate::base64::decode(line2).map_err(|_| TrustError::Format)?;
+    if bin1.len() != 74 {
+        return Err(TrustError::Format);
+    }
+    let sig_algo = &bin1[0..2];
+    let sig_key_id = &bin1[2..10];
+
+    let matched = key_ids.iter().enumerate().find_map(|(i, k)| {
+        if k == sig_key_id && i < public_keys.len() && public_keys[i] != [0u8; 32] {
+            Some(i)
+        } else {
+            None
+        }
+    });
+
+    let index = match matched {
+        Some(i) => i,
+        None => return Err(TrustError::UnknownKey),
+    };
+
+    let pk_bytes = &public_keys[index];
+    let mut pub_bin = [0u8; 42];
+    pub_bin[0..2].copy_from_slice(sig_algo);
+    pub_bin[2..10].copy_from_slice(sig_key_id);
+    pub_bin[10..42].copy_from_slice(pk_bytes);
+
+    let pub_b64 = crate::base64::encode(&pub_bin);
+    let public_key =
+        minisign_verify::PublicKey::from_base64(&pub_b64).map_err(|_| TrustError::Format)?;
+
+    public_key
+        .verify(bytes, &signature, true)
+        .map_err(|e| match e {
+            minisign_verify::Error::UnexpectedKeyId => TrustError::UnknownKey,
+            _ => TrustError::Signature,
+        })?;
+
+    let packs = Packs::from_bytes(bytes).map_err(TrustError::Pack)?;
+    Ok(packs)
 }
 
 #[cfg(test)]
@@ -91,6 +135,12 @@ RWRTVEVMTEEwMQFNRiwIqQUNQGjVbzOwhz/IXlD3lkYL4Yv9vIN86rYmP+LPfYxCaKsFcjTxmVugdTLI
 trusted comment: timestamp:1700000000\tfile:packs.json\n\
 AA6zysyIBRylA8T+AmJ1Zl+4vGW5QFhh2lR5bQkHOAE19DJL9Jx+sye5S/9CdO87gHfCuWxcph4FAHih1mTHCg==";
 
+    const BAD_SCHEMA_MANIFEST: &[u8] = b"{\"schema\":2}";
+    const BAD_SCHEMA_SIG: &[u8] = b"untrusted comment: signature from minisign secret key\n\
+RWRTVEVMTEEwMayStsgGIkZNHQ5yD1RTvANGoRlxy2Vrbe9PLzUrxZdhjXJ4lW0iQgeUCRTd4rM9pPf8UnShUoDmA7wkLvRoQgg=\n\
+trusted comment: timestamp:1700000000\tfile:packs.json\n\
+TOkgu21okl/ci5q4+rWnkEXgVRSkNAUBhYZ4ecntIUaZiHpJWZ1GE9HNNPD2HTSjcdEPcLXQr8lQgDFEiD1MAw==";
+
     #[test]
     fn test_valid_signature_returns_ok_packs() {
         let packs = verify_packs(VALID_MANIFEST, VALID_SIG).expect("valid signature should verify");
@@ -109,5 +159,26 @@ AA6zysyIBRylA8T+AmJ1Zl+4vGW5QFhh2lR5bQkHOAE19DJL9Jx+sye5S/9CdO87gHfCuWxcph4FAHih
     fn test_untrusted_key_signature_returns_unknown_key() {
         let err = verify_packs(VALID_MANIFEST, UNTRUSTED_KEY_SIG).unwrap_err();
         assert_eq!(err, TrustError::UnknownKey);
+    }
+
+    #[test]
+    fn test_invalid_format_returns_format_error() {
+        assert_eq!(
+            verify_packs(VALID_MANIFEST, b"not a minisig"),
+            Err(TrustError::Format)
+        );
+        assert_eq!(
+            verify_packs(VALID_MANIFEST, &[0xff, 0xfe]),
+            Err(TrustError::Format)
+        );
+    }
+
+    #[test]
+    fn test_valid_signature_invalid_pack_json_returns_pack_error() {
+        let err = verify_packs(BAD_SCHEMA_MANIFEST, BAD_SCHEMA_SIG).unwrap_err();
+        assert_eq!(
+            err,
+            TrustError::Pack(PacksError::UnsupportedSchema { schema: 2 })
+        );
     }
 }
