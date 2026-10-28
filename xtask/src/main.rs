@@ -4,11 +4,12 @@
 use std::process::{Command, ExitCode};
 
 /// Where each generated set lives, in the order `bless` regenerates them.
-const SETS: [(&str, &str); 4] = [
+const SETS: [(&str, &str); 5] = [
     ("schema", "schema/"),
     ("corpus", "tests/corpus/"),
     ("golden", "tests/golden/"),
     ("pack", "content/pack.json"),
+    ("tuning", "docs/tuning.md"),
 ];
 
 #[derive(Debug, PartialEq, Eq)]
@@ -101,10 +102,32 @@ fn export_pack() -> Result<(), String> {
     std::fs::write("content/pack.json", out.stdout).map_err(|e| format!("content/pack.json: {e}"))
 }
 
+fn export_tuning() -> Result<(), String> {
+    let out = Command::new("cargo")
+        .args([
+            "run",
+            "--quiet",
+            "--locked",
+            "--bin",
+            "content-pack",
+            "catalogue",
+        ])
+        .output()
+        .map_err(|e| format!("content-pack: {e}"))?;
+    if !out.status.success() {
+        return Err(format!("content-pack catalogue failed: {}", out.status));
+    }
+    if let Some(parent) = std::path::Path::new("docs/tuning.md").parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    std::fs::write("docs/tuning.md", out.stdout).map_err(|e| format!("docs/tuning.md: {e}"))
+}
+
 fn regenerate() -> Result<(), String> {
     // First: the tests below read the pack compiled into core, so they must be built on the
     // pack of the files as they are now.
     export_pack()?;
+    export_tuning()?;
     cargo_test(Some(("UPDATE_SCHEMA", "1")), "schema::")?;
     cargo_test(Some(("UPDATE_CORPUS", "1")), "corpus::")?;
     cargo_test(Some(("INSTA_UPDATE", "always")), "golden::")
@@ -139,7 +162,7 @@ usage: cargo xtask bless [--check]"
         }
         (Ok(_), Mode::Bless) => {
             println!(
-                "blessed: schema, corpus, golden, pack
+                "blessed: schema, corpus, golden, pack, tuning
 Commit body: Corpus regenerated: <why>"
             );
             ExitCode::SUCCESS
@@ -192,9 +215,13 @@ mod tests {
             "schema/stage.json",
             "tests/golden/x.snap",
             "content/pack.json",
+            "docs/tuning.md",
             "src/lib.rs",
         ]);
-        assert_eq!(stale_sets(&paths), ["schema", "corpus", "golden", "pack"]);
+        assert_eq!(
+            stale_sets(&paths),
+            ["schema", "corpus", "golden", "pack", "tuning"]
+        );
         assert!(stale_sets(&args(&["README.md"])).is_empty());
     }
 
