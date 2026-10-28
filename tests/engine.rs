@@ -463,7 +463,16 @@ fn the_snapshot_survives_json() {
 fn fixture() -> Stage {
     // The fixture is written at design values and scaled like the corpus stages (ADR-103).
     let value = serde_json::from_str(FIXTURE).expect("the fixture is JSON");
-    serde_json::from_value(common::scaled(value, common::SCALE)).expect("the fixture parses")
+    let mut stage: Stage =
+        serde_json::from_value(common::scaled(value, common::SCALE)).expect("the fixture parses");
+    // Decouple engine determinism testing from live weapon balance tuning (DS144):
+    // run with the baseline sword from fixtures/weapons_before.json as an inline weapon.
+    let baseline: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/weapons_before.json")).unwrap();
+    let sword: stella_rain_core::weapon::Weapon =
+        serde_json::from_value(baseline["giant_sword"]["giant_sword_base"].clone()).unwrap();
+    stage.player.weapon = stella_rain_core::weapon::WeaponRef::Inline(Box::new(sword));
+    stage
 }
 
 /// A fixed, varied script: drift about at different strengths, evade now and then, and play

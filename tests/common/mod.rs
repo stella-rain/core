@@ -393,6 +393,29 @@ pub fn scaled(mut value: Value, factor: u64) -> Value {
     value
 }
 
+/// `value`, a stage (or any JSON inside one), with every damage, hit-point and defence value
+/// divided by `factor`.
+pub fn unscaled(mut value: Value, factor: u64) -> Value {
+    fn walk(value: &mut Value, factor: u64) {
+        match value {
+            Value::Object(map) => {
+                for (key, v) in map.iter_mut() {
+                    match v.as_u64() {
+                        Some(n) if SCALED_FIELDS.contains(&key.as_str()) => {
+                            *v = Value::from(n / factor)
+                        }
+                        _ => walk(v, factor),
+                    }
+                }
+            }
+            Value::Array(items) => items.iter_mut().for_each(|v| walk(v, factor)),
+            _ => {}
+        }
+    }
+    walk(&mut value, factor);
+    value
+}
+
 /// As `scaled`, for a stage's bytes, pretty-printed as the corpus writes them.
 pub fn scaled_bytes(bytes: &[u8], factor: u64) -> Vec<u8> {
     let mut out =
