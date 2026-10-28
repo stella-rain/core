@@ -53,6 +53,7 @@ pub mod stage;
 pub mod stage_skill;
 pub mod stardust;
 pub mod starting_unlocks;
+pub mod text;
 pub mod time_limit;
 pub mod trig;
 pub mod validate;

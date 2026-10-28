@@ -1,0 +1,730 @@
+{
+  "difficulties/easy": {
+    "description": "Weaker enemies, a 10-minute Time Limit and no rarer reward than rare",
+    "title": "Easy"
+  },
+  "difficulties/hard": {
+    "description": "Tougher enemies that hit harder, and every rarity may drop",
+    "title": "Hard"
+  },
+  "difficulties/normal": {
+    "description": "The game as designed",
+    "title": "Normal"
+  },
+  "difficulties/rainy": {
+    "description": "Enemies with twice the hit points, and nothing common drops",
+    "title": "Rainy"
+  },
+  "expertise/attack_speed": {
+    "description": "Attacks 10 percent faster",
+    "title": "Attack Speed"
+  },
+  "expertise/bulwark": {
+    "description": "200 more hit points at most, and as many healed",
+    "title": "Bulwark"
+  },
+  "expertise/bulwark_10": {
+    "description": "30 percent shorter evade cooldown",
+    "title": "Fortress"
+  },
+  "expertise/bulwark_6": {
+    "description": "15 percent shorter evade cooldown",
+    "title": "Brace"
+  },
+  "expertise/bulwark_9": {
+    "description": "300 more hit points at most, and as many healed",
+    "title": "Stone Skin"
+  },
+  "expertise/crush": {
+    "description": "15 percent more damage",
+    "title": "Crush"
+  },
+  "expertise/crush_10": {
+    "description": "40 percent more damage",
+    "title": "Shatter"
+  },
+  "expertise/crush_6": {
+    "description": "20 percent more damage",
+    "title": "Heavy Head"
+  },
+  "expertise/crush_9": {
+    "description": "200 more hit points at most, and as many healed",
+    "title": "Iron Grip"
+  },
+  "expertise/damage": {
+    "description": "10 percent more damage",
+    "title": "Damage"
+  },
+  "expertise/edge": {
+    "description": "10 percent more damage",
+    "title": "Edge"
+  },
+  "expertise/edge_10": {
+    "description": "30 percent more damage",
+    "title": "Master Edge"
+  },
+  "expertise/edge_6": {
+    "description": "15 percent more damage",
+    "title": "Keen Edge"
+  },
+  "expertise/edge_9": {
+    "description": "Every combo step's hit box 15 percent larger",
+    "title": "Long Edge"
+  },
+  "expertise/hit_box": {
+    "description": "Every combo step's hit box 10 percent larger",
+    "title": "Hit Box"
+  },
+  "expertise/quake": {
+    "description": "Every combo step's hit box 20 percent larger",
+    "title": "Quake"
+  },
+  "expertise/quake_10": {
+    "description": "Every combo step's hit box 40 percent larger",
+    "title": "Earthshaker"
+  },
+  "expertise/quake_6": {
+    "description": "Every combo step's hit box 20 percent larger",
+    "title": "Tremor"
+  },
+  "expertise/quake_9": {
+    "description": "15 percent more damage",
+    "title": "Aftershock"
+  },
+  "expertise/reach": {
+    "description": "Every combo step's hit box 15 percent larger",
+    "title": "Reach"
+  },
+  "expertise/reach_10": {
+    "description": "Every combo step's hit box 30 percent larger",
+    "title": "Far Reach"
+  },
+  "expertise/reach_6": {
+    "description": "Every combo step's hit box 15 percent larger",
+    "title": "Wide Arc"
+  },
+  "expertise/reach_9": {
+    "description": "15 percent more damage",
+    "title": "Sure Strike"
+  },
+  "expertise/swiftness": {
+    "description": "5 percent faster movement",
+    "title": "Swiftness"
+  },
+  "expertise/tempo": {
+    "description": "Attacks 8 percent faster",
+    "title": "Tempo"
+  },
+  "expertise/tempo_10": {
+    "description": "25 percent shorter evade cooldown",
+    "title": "Flow"
+  },
+  "expertise/tempo_6": {
+    "description": "10 percent more speed",
+    "title": "Light Step"
+  },
+  "expertise/tempo_9": {
+    "description": "Attacks 10 percent faster",
+    "title": "Quick Hands"
+  },
+  "expertise/vitality": {
+    "description": "100 more hit points at most, and as many healed",
+    "title": "Vitality"
+  },
+  "perk_sets/duelist": {
+    "description": "Hits harder and faster",
+    "title": "Duelist"
+  },
+  "perk_sets/scholar": {
+    "description": "More say in the offers",
+    "title": "Scholar"
+  },
+  "perk_sets/scout": {
+    "description": "Moves and evades more freely",
+    "title": "Scout"
+  },
+  "perk_sets/vanguard": {
+    "description": "More hit points, and they come back on their own",
+    "title": "Vanguard"
+  },
+  "rewards/aegis_rare": {
+    "description": "A shield absorbs the next hits for a while",
+    "title": "Aegis"
+  },
+  "rewards/attack_common": {
+    "description": "5 percent more damage",
+    "title": "Might (Common)"
+  },
+  "rewards/attack_epic": {
+    "description": "17 percent more damage",
+    "title": "Might (Epic)"
+  },
+  "rewards/attack_legendary": {
+    "description": "25 percent more damage",
+    "title": "Might (Legendary)"
+  },
+  "rewards/attack_rare": {
+    "description": "12 percent more damage",
+    "title": "Might (Rare)"
+  },
+  "rewards/attack_speed_common": {
+    "description": "Attacks 8 percent faster",
+    "title": "Swiftness (Common)"
+  },
+  "rewards/attack_speed_epic": {
+    "description": "Attacks 28 percent faster",
+    "title": "Swiftness (Epic)"
+  },
+  "rewards/attack_speed_legendary": {
+    "description": "Attacks 40 percent faster",
+    "title": "Swiftness (Legendary)"
+  },
+  "rewards/attack_speed_rare": {
+    "description": "Attacks 20 percent faster",
+    "title": "Swiftness (Rare)"
+  },
+  "rewards/attack_speed_supernova": {
+    "description": "Attacks 64 percent faster",
+    "title": "Swiftness (Supernova)"
+  },
+  "rewards/attack_speed_uncommon": {
+    "description": "Attacks 12 percent faster",
+    "title": "Swiftness (Uncommon)"
+  },
+  "rewards/attack_supernova": {
+    "description": "40 percent more damage",
+    "title": "Might (Supernova)"
+  },
+  "rewards/attack_uncommon": {
+    "description": "7 percent more damage",
+    "title": "Might (Uncommon)"
+  },
+  "rewards/black_hole_rare": {
+    "description": "Pulls the enemies ahead into one point and holds them there",
+    "title": "Black Hole"
+  },
+  "rewards/evade_common": {
+    "description": "5 percent shorter evade cooldown",
+    "title": "Grace (Common)"
+  },
+  "rewards/evade_epic": {
+    "description": "17 percent shorter evade cooldown",
+    "title": "Grace (Epic)"
+  },
+  "rewards/evade_legendary": {
+    "description": "25 percent shorter evade cooldown",
+    "title": "Grace (Legendary)"
+  },
+  "rewards/evade_rare": {
+    "description": "12 percent shorter evade cooldown",
+    "title": "Grace (Rare)"
+  },
+  "rewards/evade_supernova": {
+    "description": "40 percent shorter evade cooldown",
+    "title": "Grace (Supernova)"
+  },
+  "rewards/evade_uncommon": {
+    "description": "7 percent shorter evade cooldown",
+    "title": "Grace (Uncommon)"
+  },
+  "rewards/hex_rare": {
+    "description": "The enemies ahead take more damage for 5 seconds",
+    "title": "Hex"
+  },
+  "rewards/max_hp_common": {
+    "description": "200 more hit points at most, and as many healed",
+    "title": "Vigour (Common)"
+  },
+  "rewards/max_hp_epic": {
+    "description": "700 more hit points at most, and as many healed",
+    "title": "Vigour (Epic)"
+  },
+  "rewards/max_hp_legendary": {
+    "description": "1000 more hit points at most, and as many healed",
+    "title": "Vigour (Legendary)"
+  },
+  "rewards/max_hp_rare": {
+    "description": "500 more hit points at most, and as many healed",
+    "title": "Vigour (Rare)"
+  },
+  "rewards/max_hp_supernova": {
+    "description": "1600 more hit points at most, and as many healed",
+    "title": "Vigour (Supernova)"
+  },
+  "rewards/max_hp_uncommon": {
+    "description": "300 more hit points at most, and as many healed",
+    "title": "Vigour (Uncommon)"
+  },
+  "rewards/nova_rare": {
+    "description": "A burst of starlight strikes the area ahead",
+    "title": "Nova"
+  },
+  "rewards/random_rune": {
+    "description": "A rune you do not hold yet, drawn when you take it",
+    "title": "Rune"
+  },
+  "rewards/range_common": {
+    "description": "Attacks reach 15 percent wider",
+    "title": "Reach (Common)"
+  },
+  "rewards/range_epic": {
+    "description": "Attacks reach 42 percent wider",
+    "title": "Reach (Epic)"
+  },
+  "rewards/range_legendary": {
+    "description": "Attacks reach 50 percent wider",
+    "title": "Reach (Legendary)"
+  },
+  "rewards/range_rare": {
+    "description": "Attacks reach 30 percent wider",
+    "title": "Reach (Rare)"
+  },
+  "rewards/range_supernova": {
+    "description": "Attacks reach 80 percent wider",
+    "title": "Reach (Supernova)"
+  },
+  "rewards/range_uncommon": {
+    "description": "Attacks reach 23 percent wider",
+    "title": "Reach (Uncommon)"
+  },
+  "rewards/regen_common": {
+    "description": "Hit points come back every second, a little",
+    "title": "Regeneration"
+  },
+  "rewards/regen_epic": {
+    "description": "Hit points come back every second, much",
+    "title": "Regeneration (Epic)"
+  },
+  "rewards/regen_legendary": {
+    "description": "Hit points come back every second, a lot",
+    "title": "Regeneration"
+  },
+  "rewards/regen_rare": {
+    "description": "Hit points come back every second",
+    "title": "Regeneration"
+  },
+  "rewards/regen_supernova": {
+    "description": "Hit points come back every second, a huge amount",
+    "title": "Regeneration (Supernova)"
+  },
+  "rewards/regen_uncommon": {
+    "description": "Hit points come back every second, some",
+    "title": "Regeneration (Uncommon)"
+  },
+  "rewards/rune_haste_common": {
+    "description": "Runes recover 25 percent sooner",
+    "title": "Quickening (Common)"
+  },
+  "rewards/rune_haste_epic": {
+    "description": "Runes recover 70 percent sooner",
+    "title": "Quickening (Epic)"
+  },
+  "rewards/rune_haste_legendary": {
+    "description": "Runes recover 100 percent sooner",
+    "title": "Quickening (Legendary)"
+  },
+  "rewards/rune_haste_rare": {
+    "description": "Runes recover 50 percent sooner",
+    "title": "Quickening (Rare)"
+  },
+  "rewards/rune_haste_supernova": {
+    "description": "Runes recover 160 percent sooner",
+    "title": "Quickening (Supernova)"
+  },
+  "rewards/rune_haste_uncommon": {
+    "description": "Runes recover 38 percent sooner",
+    "title": "Quickening (Uncommon)"
+  },
+  "rewards/speed_common": {
+    "description": "4 percent more speed",
+    "title": "Swiftness (Common)"
+  },
+  "rewards/speed_epic": {
+    "description": "14 percent more speed",
+    "title": "Swiftness (Epic)"
+  },
+  "rewards/speed_legendary": {
+    "description": "20 percent more speed",
+    "title": "Swiftness (Legendary)"
+  },
+  "rewards/speed_rare": {
+    "description": "10 percent more speed",
+    "title": "Swiftness (Rare)"
+  },
+  "rewards/speed_supernova": {
+    "description": "32 percent more speed",
+    "title": "Swiftness (Supernova)"
+  },
+  "rewards/speed_uncommon": {
+    "description": "6 percent more speed",
+    "title": "Swiftness (Uncommon)"
+  },
+  "rewards/star_alkaid": {
+    "description": "The tail of the Dipper: 35 percent more range, and 25 percent more Slash, Pierce and Strike damage",
+    "title": "Alkaid"
+  },
+  "rewards/star_alnilam": {
+    "description": "The brightest of the Belt: 20 percent more damage and 15 percent more range",
+    "title": "Alnilam"
+  },
+  "rewards/star_alnitak": {
+    "description": "The flame: 30 percent more Pyro damage, and runes recover 40 percent sooner",
+    "title": "Alnitak"
+  },
+  "rewards/star_altair": {
+    "description": "The flier: 20 percent faster, and one more evade charge",
+    "title": "Altair"
+  },
+  "rewards/star_antares": {
+    "description": "The red heart: 100 hit points back every 20 kills, and 800 more hit points at most",
+    "title": "Antares"
+  },
+  "rewards/star_betelgeuse": {
+    "description": "The dying giant: a kill bursts for 40 percent of its hit points in 120 pixels, chaining 3 times, and 800 more hit points at most",
+    "title": "Betelgeuse"
+  },
+  "rewards/star_deneb": {
+    "description": "The far lamp: a 15 percent chance of a critical hit, and 50 percent more damage on one",
+    "title": "Deneb"
+  },
+  "rewards/star_dubhe": {
+    "description": "A pointer: falling stars are picked up from 60 percent farther, and 25 percent more experience",
+    "title": "Dubhe"
+  },
+  "rewards/star_mintaka": {
+    "description": "The sturdy one: 500 more hit points at most, and 30 hit points a second",
+    "title": "Mintaka"
+  },
+  "rewards/star_mizar": {
+    "description": "The double star: each hit lands again as an echo of 35 percent",
+    "title": "Mizar"
+  },
+  "rewards/star_polaris": {
+    "description": "The guide: a fourth candidate in every offer, 3 rerolls, 2 banishes and 40 percent more experience",
+    "title": "Polaris"
+  },
+  "rewards/star_procyon": {
+    "description": "Before the dog: a rune for free, and runes recover twice as fast",
+    "title": "Procyon"
+  },
+  "rewards/star_rigel": {
+    "description": "The blue giant: 30 percent more Cryo damage and 10 percent faster attacks",
+    "title": "Rigel"
+  },
+  "rewards/star_sirius": {
+    "description": "The Dog Star: a companion of four orbs that attack on their own, and 30 percent more damage",
+    "title": "Sirius"
+  },
+  "rewards/star_vega": {
+    "description": "The standard star: stage skills recover 30 percent sooner, and 12 percent more damage",
+    "title": "Vega"
+  },
+  "rewards/type_bonus_anemo_common": {
+    "description": "25 percent more Anemo damage",
+    "title": "Anemo Mastery (Common)"
+  },
+  "rewards/type_bonus_anemo_epic": {
+    "description": "70 percent more Anemo damage",
+    "title": "Anemo Mastery (Epic)"
+  },
+  "rewards/type_bonus_anemo_legendary": {
+    "description": "80 percent more Anemo damage",
+    "title": "Anemo Mastery (Legendary)"
+  },
+  "rewards/type_bonus_anemo_rare": {
+    "description": "50 percent more Anemo damage",
+    "title": "Anemo Mastery (Rare)"
+  },
+  "rewards/type_bonus_anemo_supernova": {
+    "description": "128 percent more Anemo damage",
+    "title": "Anemo Mastery (Supernova)"
+  },
+  "rewards/type_bonus_anemo_uncommon": {
+    "description": "38 percent more Anemo damage",
+    "title": "Anemo Mastery (Uncommon)"
+  },
+  "rewards/type_bonus_cryo_common": {
+    "description": "25 percent more Cryo damage",
+    "title": "Cryo Mastery (Common)"
+  },
+  "rewards/type_bonus_cryo_epic": {
+    "description": "70 percent more Cryo damage",
+    "title": "Cryo Mastery (Epic)"
+  },
+  "rewards/type_bonus_cryo_legendary": {
+    "description": "80 percent more Cryo damage",
+    "title": "Cryo Mastery (Legendary)"
+  },
+  "rewards/type_bonus_cryo_rare": {
+    "description": "50 percent more Cryo damage",
+    "title": "Cryo Mastery (Rare)"
+  },
+  "rewards/type_bonus_cryo_supernova": {
+    "description": "128 percent more Cryo damage",
+    "title": "Cryo Mastery (Supernova)"
+  },
+  "rewards/type_bonus_cryo_uncommon": {
+    "description": "38 percent more Cryo damage",
+    "title": "Cryo Mastery (Uncommon)"
+  },
+  "rewards/type_bonus_dendro_common": {
+    "description": "25 percent more Dendro damage",
+    "title": "Dendro Mastery (Common)"
+  },
+  "rewards/type_bonus_dendro_epic": {
+    "description": "70 percent more Dendro damage",
+    "title": "Dendro Mastery (Epic)"
+  },
+  "rewards/type_bonus_dendro_legendary": {
+    "description": "80 percent more Dendro damage",
+    "title": "Dendro Mastery (Legendary)"
+  },
+  "rewards/type_bonus_dendro_rare": {
+    "description": "50 percent more Dendro damage",
+    "title": "Dendro Mastery (Rare)"
+  },
+  "rewards/type_bonus_dendro_supernova": {
+    "description": "128 percent more Dendro damage",
+    "title": "Dendro Mastery (Supernova)"
+  },
+  "rewards/type_bonus_dendro_uncommon": {
+    "description": "38 percent more Dendro damage",
+    "title": "Dendro Mastery (Uncommon)"
+  },
+  "rewards/type_bonus_electro_common": {
+    "description": "25 percent more Electro damage",
+    "title": "Electro Mastery (Common)"
+  },
+  "rewards/type_bonus_electro_epic": {
+    "description": "70 percent more Electro damage",
+    "title": "Electro Mastery (Epic)"
+  },
+  "rewards/type_bonus_electro_legendary": {
+    "description": "80 percent more Electro damage",
+    "title": "Electro Mastery (Legendary)"
+  },
+  "rewards/type_bonus_electro_rare": {
+    "description": "50 percent more Electro damage",
+    "title": "Electro Mastery (Rare)"
+  },
+  "rewards/type_bonus_electro_supernova": {
+    "description": "128 percent more Electro damage",
+    "title": "Electro Mastery (Supernova)"
+  },
+  "rewards/type_bonus_electro_uncommon": {
+    "description": "38 percent more Electro damage",
+    "title": "Electro Mastery (Uncommon)"
+  },
+  "rewards/type_bonus_geo_common": {
+    "description": "25 percent more Geo damage",
+    "title": "Geo Mastery (Common)"
+  },
+  "rewards/type_bonus_geo_epic": {
+    "description": "70 percent more Geo damage",
+    "title": "Geo Mastery (Epic)"
+  },
+  "rewards/type_bonus_geo_legendary": {
+    "description": "80 percent more Geo damage",
+    "title": "Geo Mastery (Legendary)"
+  },
+  "rewards/type_bonus_geo_rare": {
+    "description": "50 percent more Geo damage",
+    "title": "Geo Mastery (Rare)"
+  },
+  "rewards/type_bonus_geo_supernova": {
+    "description": "128 percent more Geo damage",
+    "title": "Geo Mastery (Supernova)"
+  },
+  "rewards/type_bonus_geo_uncommon": {
+    "description": "38 percent more Geo damage",
+    "title": "Geo Mastery (Uncommon)"
+  },
+  "rewards/type_bonus_hydro_common": {
+    "description": "25 percent more Hydro damage",
+    "title": "Hydro Mastery (Common)"
+  },
+  "rewards/type_bonus_hydro_epic": {
+    "description": "70 percent more Hydro damage",
+    "title": "Hydro Mastery (Epic)"
+  },
+  "rewards/type_bonus_hydro_legendary": {
+    "description": "80 percent more Hydro damage",
+    "title": "Hydro Mastery (Legendary)"
+  },
+  "rewards/type_bonus_hydro_rare": {
+    "description": "50 percent more Hydro damage",
+    "title": "Hydro Mastery (Rare)"
+  },
+  "rewards/type_bonus_hydro_supernova": {
+    "description": "128 percent more Hydro damage",
+    "title": "Hydro Mastery (Supernova)"
+  },
+  "rewards/type_bonus_hydro_uncommon": {
+    "description": "38 percent more Hydro damage",
+    "title": "Hydro Mastery (Uncommon)"
+  },
+  "rewards/type_bonus_pierce_common": {
+    "description": "25 percent more Pierce damage",
+    "title": "Pierce Mastery (Common)"
+  },
+  "rewards/type_bonus_pierce_epic": {
+    "description": "70 percent more Pierce damage",
+    "title": "Pierce Mastery (Epic)"
+  },
+  "rewards/type_bonus_pierce_legendary": {
+    "description": "80 percent more Pierce damage",
+    "title": "Pierce Mastery (Legendary)"
+  },
+  "rewards/type_bonus_pierce_rare": {
+    "description": "50 percent more Pierce damage",
+    "title": "Pierce Mastery (Rare)"
+  },
+  "rewards/type_bonus_pierce_supernova": {
+    "description": "128 percent more Pierce damage",
+    "title": "Pierce Mastery (Supernova)"
+  },
+  "rewards/type_bonus_pierce_uncommon": {
+    "description": "38 percent more Pierce damage",
+    "title": "Pierce Mastery (Uncommon)"
+  },
+  "rewards/type_bonus_pyro_common": {
+    "description": "25 percent more Pyro damage",
+    "title": "Pyro Mastery (Common)"
+  },
+  "rewards/type_bonus_pyro_epic": {
+    "description": "70 percent more Pyro damage",
+    "title": "Pyro Mastery (Epic)"
+  },
+  "rewards/type_bonus_pyro_legendary": {
+    "description": "80 percent more Pyro damage",
+    "title": "Pyro Mastery (Legendary)"
+  },
+  "rewards/type_bonus_pyro_rare": {
+    "description": "50 percent more Pyro damage",
+    "title": "Pyro Mastery (Rare)"
+  },
+  "rewards/type_bonus_pyro_supernova": {
+    "description": "128 percent more Pyro damage",
+    "title": "Pyro Mastery (Supernova)"
+  },
+  "rewards/type_bonus_pyro_uncommon": {
+    "description": "38 percent more Pyro damage",
+    "title": "Pyro Mastery (Uncommon)"
+  },
+  "rewards/type_bonus_slash_common": {
+    "description": "25 percent more Slash damage",
+    "title": "Slash Mastery (Common)"
+  },
+  "rewards/type_bonus_slash_epic": {
+    "description": "70 percent more Slash damage",
+    "title": "Slash Mastery (Epic)"
+  },
+  "rewards/type_bonus_slash_legendary": {
+    "description": "80 percent more Slash damage",
+    "title": "Slash Mastery (Legendary)"
+  },
+  "rewards/type_bonus_slash_rare": {
+    "description": "50 percent more Slash damage",
+    "title": "Slash Mastery (Rare)"
+  },
+  "rewards/type_bonus_slash_supernova": {
+    "description": "128 percent more Slash damage",
+    "title": "Slash Mastery (Supernova)"
+  },
+  "rewards/type_bonus_slash_uncommon": {
+    "description": "38 percent more Slash damage",
+    "title": "Slash Mastery (Uncommon)"
+  },
+  "rewards/type_bonus_strike_common": {
+    "description": "25 percent more Strike damage",
+    "title": "Strike Mastery (Common)"
+  },
+  "rewards/type_bonus_strike_epic": {
+    "description": "70 percent more Strike damage",
+    "title": "Strike Mastery (Epic)"
+  },
+  "rewards/type_bonus_strike_legendary": {
+    "description": "80 percent more Strike damage",
+    "title": "Strike Mastery (Legendary)"
+  },
+  "rewards/type_bonus_strike_rare": {
+    "description": "50 percent more Strike damage",
+    "title": "Strike Mastery (Rare)"
+  },
+  "rewards/type_bonus_strike_supernova": {
+    "description": "128 percent more Strike damage",
+    "title": "Strike Mastery (Supernova)"
+  },
+  "rewards/type_bonus_strike_uncommon": {
+    "description": "38 percent more Strike damage",
+    "title": "Strike Mastery (Uncommon)"
+  },
+  "rewards/war_cry_rare": {
+    "description": "Your attacks hit harder for 5 seconds",
+    "title": "War Cry"
+  },
+  "rewards/xp_common": {
+    "description": "10 percent more experience",
+    "title": "Insight (Common)"
+  },
+  "rewards/xp_epic": {
+    "description": "35 percent more experience",
+    "title": "Insight (Epic)"
+  },
+  "rewards/xp_legendary": {
+    "description": "50 percent more experience",
+    "title": "Insight (Legendary)"
+  },
+  "rewards/xp_rare": {
+    "description": "25 percent more experience",
+    "title": "Insight (Rare)"
+  },
+  "rewards/xp_supernova": {
+    "description": "80 percent more experience",
+    "title": "Insight (Supernova)"
+  },
+  "rewards/xp_uncommon": {
+    "description": "15 percent more experience",
+    "title": "Insight (Uncommon)"
+  },
+  "run_stats/attack": {
+    "description": "More damage from every attack",
+    "title": "Attack"
+  },
+  "run_stats/attack_speed": {
+    "description": "Every attack is faster",
+    "title": "Attack Speed"
+  },
+  "run_stats/evade": {
+    "description": "A shorter evade cooldown",
+    "title": "Evade"
+  },
+  "run_stats/max_hp": {
+    "description": "100 more hit points at most, and as many healed",
+    "title": "Max HP"
+  },
+  "run_stats/speed": {
+    "description": "Move faster",
+    "title": "Speed"
+  },
+  "stage_skills/aegis": {
+    "description": "A shield absorbs the next hits for a while",
+    "title": "Aegis"
+  },
+  "stage_skills/black_hole": {
+    "description": "Pulls the enemies ahead into one point and holds them there",
+    "title": "Black Hole"
+  },
+  "stage_skills/hex": {
+    "description": "The enemies ahead take more damage for 5 seconds",
+    "title": "Hex"
+  },
+  "stage_skills/nova": {
+    "description": "A burst of starlight strikes the area ahead",
+    "title": "Nova"
+  },
+  "stage_skills/war_cry": {
+    "description": "Your attacks hit harder for 5 seconds",
+    "title": "War Cry"
+  }
+}

@@ -32,8 +32,7 @@ const MAX_HASTE: u32 = DEFAULT_MAX_RUNE_HASTE_PCT;
 
 fn haste(id: &str, pct: u32, limit: u8) -> Value {
     json!({
-        "id": id, "rarity": "common", "effect": "rune_haste", "amount": pct, "limit": limit,
-        "title": "Haste", "description": ""
+        "id": id, "rarity": "common", "effect": "rune_haste", "amount": pct, "limit": limit
     })
 }
 
@@ -212,14 +211,13 @@ fn haste_leaves_the_combo_the_evade_and_the_stage_skill_alone() {
     // The step's hit ticks, the evade's recovery and the stage skill's cooldown, with and
     // without haste.
     let timing = |haste_picks: &[&str]| {
-        let skills = json!([{ "id": "war_cry", "icon": "icon_nova", "title": "War Cry",
-            "description": "",
+        let skills = json!([{ "id": "war_cry", "icon": "icon_nova",
             "levels": [{ "cooldown_ticks": 1_000, "effects": [
                 { "type": "self_status", "status": "atk_up", "value_pct": 100,
                   "duration_ticks": 20 }
             ] }] }]);
         let skill = json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
-            "skill": "war_cry", "amount": 1, "limit": 2, "title": "Skill", "description": "" });
+            "skill": "war_cry", "amount": 1, "limit": 2 });
         let mut list = vec![random_rune(), skill, haste("h1", 100, 2)];
         list.truncate(3);
         let small = 8 + u16::try_from(haste_picks.len()).unwrap();

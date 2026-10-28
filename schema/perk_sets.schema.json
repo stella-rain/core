@@ -90,10 +90,6 @@
       "description": "One perk set.",
       "type": "object",
       "properties": {
-        "description": {
-          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "effects": {
           "description": "Its effects, at most `MAX_PERK_EFFECTS`, each kind once.",
           "type": "array",
@@ -104,17 +100,11 @@
         "id": {
           "description": "The set's own ID, unique within the file.",
           "$ref": "#/$defs/ContentId"
-        },
-        "title": {
-          "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
-        "title",
-        "description",
         "effects"
       ]
     }

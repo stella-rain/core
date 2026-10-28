@@ -25,6 +25,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
+use stella_rain_core::text::TextTable;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::{MAX_RUN_STARDUST, MAX_TICKS};
 use stella_rain_core::validate::{self, parse_and_validate};
@@ -85,6 +86,14 @@ pub fn stage_parse(data: &[u8]) -> bool {
         assert_eq!(
             again, presets,
             "the same bytes loaded as other attack presets"
+        );
+    }
+    if let Ok(text) = TextTable::from_bytes(data) {
+        let again = TextTable::from_bytes(data).expect("a text table that loaded loads again");
+        assert_eq!(
+            again.entries(),
+            text.entries(),
+            "the same bytes loaded as another text table"
         );
     }
     let Ok(stage) = parse_and_validate(data) else {

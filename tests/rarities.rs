@@ -291,8 +291,7 @@ const NEAR_Y: i32 = START_Y - 8_192;
 /// An attack reward `id` of `amount` percent at `rarity`, taken at most once.
 fn once(id: &str, rarity: &str, amount: u32) -> Value {
     json!({
-        "id": id, "rarity": rarity, "effect": "attack_pct", "amount": amount, "limit": 2,
-        "title": "Might", "description": ""
+        "id": id, "rarity": rarity, "effect": "attack_pct", "amount": amount, "limit": 2
     })
 }
 

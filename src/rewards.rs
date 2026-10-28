@@ -355,10 +355,6 @@ pub struct Reward {
     /// Its share of a draw among the rewards of its rarity, from 1 to `MAX_WEIGHT`.
     #[serde(skip_serializing_if = "is_default_weight")]
     pub weight: u16,
-    /// The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.
-    pub title: String,
-    /// What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.
-    pub description: String,
 }
 
 impl Reward {
@@ -417,8 +413,6 @@ struct RawReward {
     star: Option<String>,
     #[serde(default = "default_weight")]
     weight: u16,
-    title: String,
-    description: String,
 }
 
 impl TryFrom<RawReward> for Reward {
@@ -458,8 +452,6 @@ impl TryFrom<RawReward> for Reward {
             named: raw.named,
             star: raw.star,
             weight: raw.weight,
-            title: raw.title,
-            description: raw.description,
         })
     }
 }
@@ -969,15 +961,6 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
         }
         validate_bundle(&reward.effects, haste_cap, &at, &mut issue);
         validate_naming(&file.rewards[..i], reward, &at, &mut issue);
-        if let Some(problem) = run_stats::text_problem(&reward.title, 1, run_stats::MAX_TITLE_CHARS)
-        {
-            issue(at("title"), problem);
-        }
-        if let Some(problem) =
-            run_stats::text_problem(&reward.description, 0, run_stats::MAX_DESCRIPTION_CHARS)
-        {
-            issue(at("description"), problem);
-        }
     }
     let named = file.rewards.iter().filter(|r| r.named).count();
     if named > MAX_NAMED_REWARDS {

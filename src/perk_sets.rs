@@ -21,7 +21,7 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry;
 use crate::run_setup::MAX_EXTRA_REROLLS;
-use crate::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, StatEffect, text_problem};
+use crate::run_stats::StatEffect;
 use crate::validate::limits::DAMAGE_SCALE;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
@@ -123,10 +123,6 @@ pub struct PerkEntry {
 pub struct PerkSet {
     /// The set's own ID, unique within the file.
     pub id: ContentId,
-    /// The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.
-    pub title: String,
-    /// What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.
-    pub description: String,
     /// Its effects, at most `MAX_PERK_EFFECTS`, each kind once.
     pub effects: Vec<PerkEntry>,
 }
@@ -198,12 +194,6 @@ pub fn validate(file: &PerkSetsFile) -> Result<(), Error> {
             );
         } else if file.perk_sets[..i].iter().any(|s| s.id == set.id) {
             issue(at("id"), "the same ID as an earlier set".into());
-        }
-        if let Some(problem) = text_problem(&set.title, 1, MAX_TITLE_CHARS) {
-            issue(at("title"), problem);
-        }
-        if let Some(problem) = text_problem(&set.description, 0, MAX_DESCRIPTION_CHARS) {
-            issue(at("description"), problem);
         }
         if set.effects.len() > MAX_PERK_EFFECTS {
             issue(

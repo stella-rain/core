@@ -29,7 +29,7 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
-use crate::run_stats::{self, StatEffect};
+use crate::run_stats::StatEffect;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
@@ -100,10 +100,6 @@ pub struct ExpertiseOption {
     pub effect: ExpertiseEffect,
     /// What taking it adds to the effect's total, from 1 to the effect's most.
     pub amount: u32,
-    /// The name the choice panel shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.
-    pub title: String,
-    /// What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.
-    pub description: String,
 }
 
 /// A style (ADR-106 §5): a path chosen at the level table's style level, held for the run. Its
@@ -117,8 +113,6 @@ pub struct Style {
     pub effect: ExpertiseEffect,
     /// What choosing it adds to the effect's total, from 1 to the effect's most.
     pub amount: u32,
-    pub title: String,
-    pub description: String,
     /// The first upgrade's choices, 1 to `MAX_STYLE_CHOICES`.
     pub upgrade_1: Vec<ExpertiseOption>,
     /// The second upgrade's choices, 1 to `MAX_STYLE_CHOICES`.
@@ -305,7 +299,6 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
             let base = at(&format!("styles[{s}]"));
             check_id(&mut issue, &mut seen, &base, &style.id);
             check_amount(&mut issue, &base, style.effect, style.amount);
-            check_text(&mut issue, &base, &style.title, &style.description);
             for (field, choices) in [
                 ("upgrade_1", &style.upgrade_1),
                 ("upgrade_2", &style.upgrade_2),
@@ -344,7 +337,6 @@ fn check_option<'a>(
 ) {
     check_id(issue, seen, path, &option.id);
     check_amount(issue, path, option.effect, option.amount);
-    check_text(issue, path, &option.title, &option.description);
 }
 
 fn check_id<'a>(
@@ -379,15 +371,5 @@ fn check_amount(
             format!("{path}.amount"),
             format!("1 to {most} (found {amount})"),
         );
-    }
-}
-
-fn check_text(issue: &mut impl FnMut(String, String), path: &str, title: &str, description: &str) {
-    if let Some(problem) = run_stats::text_problem(title, 1, run_stats::MAX_TITLE_CHARS) {
-        issue(format!("{path}.title"), problem);
-    }
-    if let Some(problem) = run_stats::text_problem(description, 0, run_stats::MAX_DESCRIPTION_CHARS)
-    {
-        issue(format!("{path}.description"), problem);
     }
 }

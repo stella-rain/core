@@ -65,7 +65,7 @@ fn rewards(list: &[(&str, &str, &str, u32, u8)]) -> Rewards {
         .iter()
         .map(|(id, rarity, effect, amount, limit)| {
             json!({ "id": id, "rarity": rarity, "effect": effect, "amount": amount,
-                    "limit": limit, "title": "Reward", "description": "" })
+                    "limit": limit })
         })
         .collect();
     let file = json!({ "rarities": common::rarities(), "rewards": rewards });
@@ -907,7 +907,7 @@ fn a_tier_weighs_something_and_no_rarity_weighs_too_much() {
 fn weighted(a: u16, b: u16) -> Rewards {
     let one = |id: &str, weight: u16| {
         json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
-                "weight": weight, "title": "Reward", "description": "" })
+                "weight": weight })
     };
     let file = json!({ "rarities": common::rarities(), "rewards": [one("a", a), one("b", b)] });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
@@ -952,10 +952,7 @@ fn equal_weights_draw_what_the_uniform_draw_drew() {
 
 /// Two commons with no weight given: the released form.
 fn commons_ab() -> Rewards {
-    let one = |id: &str| {
-        json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
-                "title": "Reward", "description": "" })
-    };
+    let one = |id: &str| json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5 });
     let file = json!({ "rarities": common::rarities(), "rewards": [one("a"), one("b")] });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate")
@@ -967,10 +964,8 @@ fn commons_ab() -> Rewards {
 fn an_offer_names_its_named_candidate_and_only_that_one() {
     let file = json!({ "rarities": common::rarities(), "rewards": [
         { "id": "vega", "rarity": "epic", "effects": [{ "effect": "attack_pct", "amount": 20 }],
-          "limit": 1, "named": true, "star": "Vega", "weight": 50,
-          "title": "Vega", "description": "" },
-        { "id": "plain", "rarity": "epic", "effect": "max_hp", "amount": 1, "limit": 2,
-          "title": "Plain", "description": "" },
+          "limit": 1, "named": true, "star": "Vega", "weight": 50 },
+        { "id": "plain", "rarity": "epic", "effect": "max_hp", "amount": 1, "limit": 2 },
     ]});
     let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate");

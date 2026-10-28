@@ -230,7 +230,7 @@ fn starry(charges: u8, max_charges: Option<u8>, count: u16) -> Stage {
 fn with_extra(stage: &Stage, amount: u32) -> Engine {
     let file = json!({ "rarities": common::rarities(), "rewards": [
         { "id": "extra", "rarity": "common", "effect": "evade_charge", "amount": amount,
-          "limit": 5, "title": "Extra charge", "description": "" }
+          "limit": 5 }
     ] });
     let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate");

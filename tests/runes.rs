@@ -73,8 +73,7 @@ fn targets(count: u16, rerolls: u8, banishes: u8) -> Stage {
 /// A common random rune.
 fn random_rune() -> Value {
     json!({
-        "id": "random_rune", "rarity": "common", "effect": "random_rune",
-        "title": "Rune", "description": ""
+        "id": "random_rune", "rarity": "common", "effect": "random_rune"
     })
 }
 
@@ -87,8 +86,7 @@ fn inert(id: &str) -> Value {
 /// `inert`, taken at most `limit` times.
 fn inert_limited(id: &str, limit: u8) -> Value {
     json!({
-        "id": id, "rarity": "common", "effect": "evade_charge", "amount": 1, "limit": limit,
-        "title": "Nothing", "description": ""
+        "id": id, "rarity": "common", "effect": "evade_charge", "amount": 1, "limit": limit
     })
 }
 
@@ -452,7 +450,7 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
         random_rune(),
         json!({
             "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5,
-            "limit": 20, "title": "Might", "description": ""
+            "limit": 20
         }),
     ]);
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();

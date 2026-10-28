@@ -187,8 +187,7 @@ fn its_hits_give_no_expertise() {
 /// Thunder's damage against the tough target of `profile`, holding an Electro bonus of 50
 /// and the war cry's atk-up of 100 used before the step: `(step's hit, strike's hit)`.
 fn boosted(ty: Option<&str>, profile: Value) -> (u32, u32) {
-    let war_cry = json!({ "id": "war_cry", "icon": "icon_nova", "title": "War Cry",
-        "description": "",
+    let war_cry = json!({ "id": "war_cry", "icon": "icon_nova",
         "levels": [{ "cooldown_ticks": 1_000, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
               "duration_ticks": 600 }
@@ -196,11 +195,9 @@ fn boosted(ty: Option<&str>, profile: Value) -> (u32, u32) {
     let rewards = vec![
         random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
-                "skill": "war_cry", "amount": 1, "limit": 2, "title": "Skill",
-                "description": "" }),
+                "skill": "war_cry", "amount": 1, "limit": 2 }),
         json!({ "id": "electro", "rarity": "common", "effect": "type_bonus_pct",
-                "type": "electro", "amount": 50, "limit": 2, "title": "Electro",
-                "description": "" }),
+                "type": "electro", "amount": 50, "limit": 2 }),
     ];
     let mut e = with(
         &stage(9, tough(0, Some(profile), None)),
@@ -259,7 +256,7 @@ fn a_run_holding_thunder_records_and_verifies() {
             random_rune(),
             json!({
                 "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5,
-                "limit": 20, "title": "Might", "description": ""
+                "limit": 20
             }),
         ],
         None,

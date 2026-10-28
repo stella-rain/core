@@ -159,7 +159,7 @@ fn rune_first(tier_weight: Option<u16>, rune_weight: u32, seeds: u32) -> u32 {
         stage.stars.as_mut().unwrap().tiers[0].random_rune_weight = tier_weight;
         let list = vec![
             json!({ "id": "rune", "rarity": "common", "effect": "random_rune",
-                    "weight": rune_weight, "title": "Rune", "description": "" }),
+                    "weight": rune_weight }),
             plain("other", 1),
         ];
         let mut e = with(&stage, list);
@@ -257,7 +257,7 @@ fn a_rewards_file_may_hold_192_rewards_and_not_one_more() {
         let list: Vec<Value> = (0..n)
             .map(|i| {
                 json!({ "id": format!("r{i}"), "rarity": "common", "effect": "attack_pct",
-                        "amount": 5, "limit": 5, "title": "T", "description": "" })
+                        "amount": 5, "limit": 5 })
             })
             .collect();
         let file = json!({ "rarities": common::rarities(), "rewards": list });
@@ -291,7 +291,7 @@ fn one_type_bonus_reward_may_add_up_to_its_own_bound_above_max_amount() {
             Value::Null
         };
         let mut r = json!({ "id": "r", "rarity": "common", "effect": effect, "amount": amount,
-                            "limit": 5, "title": "T", "description": "" });
+                            "limit": 5 });
         if !ty.is_null() {
             r["type"] = ty;
         }

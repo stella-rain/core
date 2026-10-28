@@ -568,6 +568,11 @@ impl Pack {
     pub fn sha256(&self) -> [u8; 32] {
         self.sha256
     }
+
+    /// Checks that every shown content ID in this pack has a corresponding entry in `text`.
+    pub fn check_text(&self, text: &crate::text::TextTable) -> Result<(), Vec<String>> {
+        text.check_pack(self)
+    }
 }
 
 impl From<Pack> for RunContent {

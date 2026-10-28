@@ -223,7 +223,6 @@ fn an_orbit_s_hits_fire_no_explosion() {
     // pixels to the right of the main character, out of the step's reach, which is never pressed.
     let orbit = json!({
         "id": "orbit", "rarity": "common", "effect": "orbit", "amount": 1, "limit": 2,
-        "title": "Orbit", "description": "",
         "orbit": {
             "attack": { "inline": [
                 { "kind": "active", "ticks": 60, "damage": 7, "rehit_ticks": 10,
@@ -263,15 +262,14 @@ fn an_orbit_s_hits_fire_no_explosion() {
 fn a_stage_skill_s_hits_fire_no_explosion() {
     // An attack 100 pixels ahead, on the tough target there, out of the step's reach.
     let ahead = 25_600;
-    let nova = json!({ "id": "nova", "icon": "icon_nova", "title": "Nova", "description": "",
+    let nova = json!({ "id": "nova", "icon": "icon_nova",
         "ahead": ahead,
         "levels": [{ "cooldown_ticks": 120, "effects": [{ "type": "attack", "attack": { "inline": [
             { "kind": "active", "ticks": 20, "damage": 7,
               "hit_box": { "type": "circle", "offset": { "forward": ahead }, "radius": 8_192 } }
         ] } }] }] });
     let reward = json!({ "id": "nova_r", "rarity": "common", "effect": "stage_skill",
-                         "skill": "nova", "amount": 1, "limit": 2, "title": "Skill",
-                         "description": "" });
+                         "skill": "nova", "amount": 1, "limit": 2 });
     let target = json!(wave(
         TARGET_TICK,
         1,
@@ -308,8 +306,7 @@ fn a_stage_skill_s_hits_fire_no_explosion() {
 /// Explosion's damage against the tough target weak to Pyro, holding a Pyro bonus of 50 and
 /// the war cry's atk-up of 100 used before the step: `(base, step's hit, blast's hit)`.
 fn boosted(ty: Option<&str>) -> (u32, u32) {
-    let war_cry = json!({ "id": "war_cry", "icon": "icon_nova", "title": "War Cry",
-        "description": "",
+    let war_cry = json!({ "id": "war_cry", "icon": "icon_nova",
         "levels": [{ "cooldown_ticks": 1_000, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
               "duration_ticks": 600 }
@@ -317,10 +314,9 @@ fn boosted(ty: Option<&str>) -> (u32, u32) {
     let rewards = vec![
         random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
-                "skill": "war_cry", "amount": 1, "limit": 2, "title": "Skill",
-                "description": "" }),
+                "skill": "war_cry", "amount": 1, "limit": 2 }),
         json!({ "id": "pyro", "rarity": "common", "effect": "type_bonus_pct", "type": "pyro",
-                "amount": 50, "limit": 2, "title": "Pyro", "description": "" }),
+                "amount": 50, "limit": 2 }),
     ];
     let weak = json!({ "weak": ["pyro"] });
     let mut e = with(
@@ -376,7 +372,7 @@ fn a_run_holding_explosion_records_and_verifies() {
             random_rune(),
             json!({
                 "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5,
-                "limit": 20, "title": "Might", "description": ""
+                "limit": 20
             }),
         ],
         None,

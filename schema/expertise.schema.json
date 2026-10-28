@@ -77,29 +77,19 @@
           "format": "uint32",
           "minimum": 0
         },
-        "description": {
-          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "effect": {
           "$ref": "#/$defs/ExpertiseEffect"
         },
         "id": {
           "description": "The option's own ID, unique within its weapon.",
           "$ref": "#/$defs/ContentId"
-        },
-        "title": {
-          "description": "The name the choice panel shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
         "effect",
-        "amount",
-        "title",
-        "description"
+        "amount"
       ]
     },
     "Style": {
@@ -119,18 +109,12 @@
             "$ref": "#/$defs/ExpertiseOption"
           }
         },
-        "description": {
-          "type": "string"
-        },
         "effect": {
           "$ref": "#/$defs/ExpertiseEffect"
         },
         "id": {
           "description": "The style's own ID, unique within its weapon.",
           "$ref": "#/$defs/ContentId"
-        },
-        "title": {
-          "type": "string"
         },
         "upgrade_1": {
           "description": "The first upgrade's choices, 1 to `MAX_STYLE_CHOICES`.",
@@ -152,8 +136,6 @@
         "id",
         "effect",
         "amount",
-        "title",
-        "description",
         "upgrade_1",
         "upgrade_2",
         "capstone"

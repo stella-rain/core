@@ -1111,9 +1111,6 @@
           "default": null,
           "minimum": 0
         },
-        "description": {
-          "type": "string"
-        },
         "effect": {
           "description": "The released form's single effect: with its `skill`, `orbit`, `type` and `amount`.",
           "anyOf": [
@@ -1204,9 +1201,6 @@
           ],
           "default": null
         },
-        "title": {
-          "type": "string"
-        },
         "type": {
           "anyOf": [
             {
@@ -1229,9 +1223,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "rarity",
-        "title",
-        "description"
+        "rarity"
       ]
     },
     "RewardEffect": {

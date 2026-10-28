@@ -1,12 +1,30 @@
 {
   "max_rune_haste_pct": 500,
   "rarities": [
-    { "rarity": "common", "lumine_cost": 1 },
-    { "rarity": "uncommon", "lumine_cost": 2 },
-    { "rarity": "rare", "lumine_cost": 3 },
-    { "rarity": "epic", "lumine_cost": 4 },
-    { "rarity": "legendary", "lumine_cost": 6 },
-    { "rarity": "supernova", "lumine_cost": 10 }
+    {
+      "rarity": "common",
+      "lumine_cost": 1
+    },
+    {
+      "rarity": "uncommon",
+      "lumine_cost": 2
+    },
+    {
+      "rarity": "rare",
+      "lumine_cost": 3
+    },
+    {
+      "rarity": "epic",
+      "lumine_cost": 4
+    },
+    {
+      "rarity": "legendary",
+      "lumine_cost": 6
+    },
+    {
+      "rarity": "supernova",
+      "lumine_cost": 10
+    }
   ],
   "rewards": [
     {
@@ -14,162 +32,126 @@
       "rarity": "common",
       "effect": "max_hp",
       "amount": 20000,
-      "limit": 5,
-      "title": "Vigour (Common)",
-      "description": "200 more hit points at most, and as many healed"
+      "limit": 5
     },
     {
       "id": "max_hp_rare",
       "rarity": "rare",
       "effect": "max_hp",
       "amount": 50000,
-      "limit": 3,
-      "title": "Vigour (Rare)",
-      "description": "500 more hit points at most, and as many healed"
+      "limit": 3
     },
     {
       "id": "max_hp_legendary",
       "rarity": "legendary",
       "effect": "max_hp",
       "amount": 100000,
-      "limit": 2,
-      "title": "Vigour (Legendary)",
-      "description": "1000 more hit points at most, and as many healed"
+      "limit": 2
     },
     {
       "id": "attack_common",
       "rarity": "common",
       "effect": "attack_pct",
       "amount": 5,
-      "limit": 5,
-      "title": "Might (Common)",
-      "description": "5 percent more damage"
+      "limit": 5
     },
     {
       "id": "attack_rare",
       "rarity": "rare",
       "effect": "attack_pct",
       "amount": 12,
-      "limit": 3,
-      "title": "Might (Rare)",
-      "description": "12 percent more damage"
+      "limit": 3
     },
     {
       "id": "attack_legendary",
       "rarity": "legendary",
       "effect": "attack_pct",
       "amount": 25,
-      "limit": 2,
-      "title": "Might (Legendary)",
-      "description": "25 percent more damage"
+      "limit": 2
     },
     {
       "id": "attack_speed_common",
       "rarity": "common",
       "effect": "attack_speed_pct",
       "amount": 8,
-      "limit": 5,
-      "title": "Swiftness (Common)",
-      "description": "Attacks 8 percent faster"
+      "limit": 5
     },
     {
       "id": "attack_speed_rare",
       "rarity": "rare",
       "effect": "attack_speed_pct",
       "amount": 20,
-      "limit": 3,
-      "title": "Swiftness (Rare)",
-      "description": "Attacks 20 percent faster"
+      "limit": 3
     },
     {
       "id": "attack_speed_legendary",
       "rarity": "legendary",
       "effect": "attack_speed_pct",
       "amount": 40,
-      "limit": 2,
-      "title": "Swiftness (Legendary)",
-      "description": "Attacks 40 percent faster"
+      "limit": 2
     },
     {
       "id": "evade_common",
       "rarity": "common",
       "effect": "evade_pct",
       "amount": 5,
-      "limit": 5,
-      "title": "Grace (Common)",
-      "description": "5 percent shorter evade cooldown"
+      "limit": 5
     },
     {
       "id": "evade_rare",
       "rarity": "rare",
       "effect": "evade_pct",
       "amount": 12,
-      "limit": 3,
-      "title": "Grace (Rare)",
-      "description": "12 percent shorter evade cooldown"
+      "limit": 3
     },
     {
       "id": "evade_legendary",
       "rarity": "legendary",
       "effect": "evade_pct",
       "amount": 25,
-      "limit": 2,
-      "title": "Grace (Legendary)",
-      "description": "25 percent shorter evade cooldown"
+      "limit": 2
     },
     {
       "id": "speed_common",
       "rarity": "common",
       "effect": "speed_pct",
       "amount": 4,
-      "limit": 5,
-      "title": "Swiftness (Common)",
-      "description": "4 percent more speed"
+      "limit": 5
     },
     {
       "id": "speed_rare",
       "rarity": "rare",
       "effect": "speed_pct",
       "amount": 10,
-      "limit": 3,
-      "title": "Swiftness (Rare)",
-      "description": "10 percent more speed"
+      "limit": 3
     },
     {
       "id": "speed_legendary",
       "rarity": "legendary",
       "effect": "speed_pct",
       "amount": 20,
-      "limit": 2,
-      "title": "Swiftness (Legendary)",
-      "description": "20 percent more speed"
+      "limit": 2
     },
     {
       "id": "xp_common",
       "rarity": "common",
       "effect": "xp_pct",
       "amount": 10,
-      "limit": 5,
-      "title": "Insight (Common)",
-      "description": "10 percent more experience"
+      "limit": 5
     },
     {
       "id": "xp_rare",
       "rarity": "rare",
       "effect": "xp_pct",
       "amount": 25,
-      "limit": 3,
-      "title": "Insight (Rare)",
-      "description": "25 percent more experience"
+      "limit": 3
     },
     {
       "id": "xp_legendary",
       "rarity": "legendary",
       "effect": "xp_pct",
       "amount": 50,
-      "limit": 2,
-      "title": "Insight (Legendary)",
-      "description": "50 percent more experience"
+      "limit": 2
     },
     {
       "id": "black_hole_rare",
@@ -177,9 +159,7 @@
       "effect": "stage_skill",
       "skill": "black_hole",
       "amount": 1,
-      "limit": 3,
-      "title": "Black Hole",
-      "description": "Pulls the enemies ahead into one point and holds them there"
+      "limit": 3
     },
     {
       "id": "war_cry_rare",
@@ -187,9 +167,7 @@
       "effect": "stage_skill",
       "skill": "war_cry",
       "amount": 1,
-      "limit": 3,
-      "title": "War Cry",
-      "description": "Your attacks hit harder for 5 seconds"
+      "limit": 3
     },
     {
       "id": "hex_rare",
@@ -197,9 +175,7 @@
       "effect": "stage_skill",
       "skill": "hex",
       "amount": 1,
-      "limit": 3,
-      "title": "Hex",
-      "description": "The enemies ahead take more damage for 5 seconds"
+      "limit": 3
     },
     {
       "id": "nova_rare",
@@ -207,9 +183,7 @@
       "effect": "stage_skill",
       "skill": "nova",
       "amount": 1,
-      "limit": 3,
-      "title": "Nova",
-      "description": "A burst of starlight strikes the area ahead"
+      "limit": 3
     },
     {
       "id": "aegis_rare",
@@ -217,333 +191,259 @@
       "effect": "stage_skill",
       "skill": "aegis",
       "amount": 1,
-      "limit": 3,
-      "title": "Aegis",
-      "description": "A shield absorbs the next hits for a while"
+      "limit": 3
     },
     {
       "id": "regen_common",
       "rarity": "common",
       "effect": "regen",
       "amount": 1000,
-      "limit": 5,
-      "title": "Regeneration",
-      "description": "Hit points come back every second, a little"
+      "limit": 5
     },
     {
       "id": "regen_rare",
       "rarity": "rare",
       "effect": "regen",
       "amount": 3000,
-      "limit": 3,
-      "title": "Regeneration",
-      "description": "Hit points come back every second"
+      "limit": 3
     },
     {
       "id": "regen_legendary",
       "rarity": "legendary",
       "effect": "regen",
       "amount": 6000,
-      "limit": 2,
-      "title": "Regeneration",
-      "description": "Hit points come back every second, a lot"
+      "limit": 2
     },
     {
       "id": "max_hp_uncommon",
       "rarity": "uncommon",
       "effect": "max_hp",
       "amount": 30000,
-      "limit": 4,
-      "title": "Vigour (Uncommon)",
-      "description": "300 more hit points at most, and as many healed"
+      "limit": 4
     },
     {
       "id": "max_hp_epic",
       "rarity": "epic",
       "effect": "max_hp",
       "amount": 70000,
-      "limit": 2,
-      "title": "Vigour (Epic)",
-      "description": "700 more hit points at most, and as many healed"
+      "limit": 2
     },
     {
       "id": "max_hp_supernova",
       "rarity": "supernova",
       "effect": "max_hp",
       "amount": 160000,
-      "limit": 2,
-      "title": "Vigour (Supernova)",
-      "description": "1600 more hit points at most, and as many healed"
+      "limit": 2
     },
     {
       "id": "attack_uncommon",
       "rarity": "uncommon",
       "effect": "attack_pct",
       "amount": 7,
-      "limit": 4,
-      "title": "Might (Uncommon)",
-      "description": "7 percent more damage"
+      "limit": 4
     },
     {
       "id": "attack_epic",
       "rarity": "epic",
       "effect": "attack_pct",
       "amount": 17,
-      "limit": 2,
-      "title": "Might (Epic)",
-      "description": "17 percent more damage"
+      "limit": 2
     },
     {
       "id": "attack_supernova",
       "rarity": "supernova",
       "effect": "attack_pct",
       "amount": 40,
-      "limit": 2,
-      "title": "Might (Supernova)",
-      "description": "40 percent more damage"
+      "limit": 2
     },
     {
       "id": "attack_speed_uncommon",
       "rarity": "uncommon",
       "effect": "attack_speed_pct",
       "amount": 12,
-      "limit": 4,
-      "title": "Swiftness (Uncommon)",
-      "description": "Attacks 12 percent faster"
+      "limit": 4
     },
     {
       "id": "attack_speed_epic",
       "rarity": "epic",
       "effect": "attack_speed_pct",
       "amount": 28,
-      "limit": 2,
-      "title": "Swiftness (Epic)",
-      "description": "Attacks 28 percent faster"
+      "limit": 2
     },
     {
       "id": "attack_speed_supernova",
       "rarity": "supernova",
       "effect": "attack_speed_pct",
       "amount": 64,
-      "limit": 2,
-      "title": "Swiftness (Supernova)",
-      "description": "Attacks 64 percent faster"
+      "limit": 2
     },
     {
       "id": "evade_uncommon",
       "rarity": "uncommon",
       "effect": "evade_pct",
       "amount": 7,
-      "limit": 4,
-      "title": "Grace (Uncommon)",
-      "description": "7 percent shorter evade cooldown"
+      "limit": 4
     },
     {
       "id": "evade_epic",
       "rarity": "epic",
       "effect": "evade_pct",
       "amount": 17,
-      "limit": 2,
-      "title": "Grace (Epic)",
-      "description": "17 percent shorter evade cooldown"
+      "limit": 2
     },
     {
       "id": "evade_supernova",
       "rarity": "supernova",
       "effect": "evade_pct",
       "amount": 40,
-      "limit": 2,
-      "title": "Grace (Supernova)",
-      "description": "40 percent shorter evade cooldown"
+      "limit": 2
     },
     {
       "id": "speed_uncommon",
       "rarity": "uncommon",
       "effect": "speed_pct",
       "amount": 6,
-      "limit": 4,
-      "title": "Swiftness (Uncommon)",
-      "description": "6 percent more speed"
+      "limit": 4
     },
     {
       "id": "speed_epic",
       "rarity": "epic",
       "effect": "speed_pct",
       "amount": 14,
-      "limit": 2,
-      "title": "Swiftness (Epic)",
-      "description": "14 percent more speed"
+      "limit": 2
     },
     {
       "id": "speed_supernova",
       "rarity": "supernova",
       "effect": "speed_pct",
       "amount": 32,
-      "limit": 2,
-      "title": "Swiftness (Supernova)",
-      "description": "32 percent more speed"
+      "limit": 2
     },
     {
       "id": "xp_uncommon",
       "rarity": "uncommon",
       "effect": "xp_pct",
       "amount": 15,
-      "limit": 4,
-      "title": "Insight (Uncommon)",
-      "description": "15 percent more experience"
+      "limit": 4
     },
     {
       "id": "xp_epic",
       "rarity": "epic",
       "effect": "xp_pct",
       "amount": 35,
-      "limit": 2,
-      "title": "Insight (Epic)",
-      "description": "35 percent more experience"
+      "limit": 2
     },
     {
       "id": "xp_supernova",
       "rarity": "supernova",
       "effect": "xp_pct",
       "amount": 80,
-      "limit": 2,
-      "title": "Insight (Supernova)",
-      "description": "80 percent more experience"
+      "limit": 2
     },
     {
       "id": "regen_uncommon",
       "rarity": "uncommon",
       "effect": "regen",
       "amount": 1500,
-      "limit": 4,
-      "title": "Regeneration (Uncommon)",
-      "description": "Hit points come back every second, some"
+      "limit": 4
     },
     {
       "id": "regen_epic",
       "rarity": "epic",
       "effect": "regen",
       "amount": 3500,
-      "limit": 2,
-      "title": "Regeneration (Epic)",
-      "description": "Hit points come back every second, much"
+      "limit": 2
     },
     {
       "id": "regen_supernova",
       "rarity": "supernova",
       "effect": "regen",
       "amount": 8000,
-      "limit": 2,
-      "title": "Regeneration (Supernova)",
-      "description": "Hit points come back every second, a huge amount"
+      "limit": 2
     },
     {
       "id": "rune_haste_common",
       "rarity": "common",
       "effect": "rune_haste",
       "amount": 25,
-      "limit": 5,
-      "title": "Quickening (Common)",
-      "description": "Runes recover 25 percent sooner"
+      "limit": 5
     },
     {
       "id": "rune_haste_uncommon",
       "rarity": "uncommon",
       "effect": "rune_haste",
       "amount": 38,
-      "limit": 4,
-      "title": "Quickening (Uncommon)",
-      "description": "Runes recover 38 percent sooner"
+      "limit": 4
     },
     {
       "id": "rune_haste_rare",
       "rarity": "rare",
       "effect": "rune_haste",
       "amount": 50,
-      "limit": 3,
-      "title": "Quickening (Rare)",
-      "description": "Runes recover 50 percent sooner"
+      "limit": 3
     },
     {
       "id": "rune_haste_epic",
       "rarity": "epic",
       "effect": "rune_haste",
       "amount": 70,
-      "limit": 2,
-      "title": "Quickening (Epic)",
-      "description": "Runes recover 70 percent sooner"
+      "limit": 2
     },
     {
       "id": "rune_haste_legendary",
       "rarity": "legendary",
       "effect": "rune_haste",
       "amount": 100,
-      "limit": 2,
-      "title": "Quickening (Legendary)",
-      "description": "Runes recover 100 percent sooner"
+      "limit": 2
     },
     {
       "id": "rune_haste_supernova",
       "rarity": "supernova",
       "effect": "rune_haste",
       "amount": 160,
-      "limit": 2,
-      "title": "Quickening (Supernova)",
-      "description": "Runes recover 160 percent sooner"
+      "limit": 2
     },
     {
       "id": "range_common",
       "rarity": "common",
       "effect": "range_pct",
       "amount": 15,
-      "limit": 5,
-      "title": "Reach (Common)",
-      "description": "Attacks reach 15 percent wider"
+      "limit": 5
     },
     {
       "id": "range_uncommon",
       "rarity": "uncommon",
       "effect": "range_pct",
       "amount": 23,
-      "limit": 4,
-      "title": "Reach (Uncommon)",
-      "description": "Attacks reach 23 percent wider"
+      "limit": 4
     },
     {
       "id": "range_rare",
       "rarity": "rare",
       "effect": "range_pct",
       "amount": 30,
-      "limit": 3,
-      "title": "Reach (Rare)",
-      "description": "Attacks reach 30 percent wider"
+      "limit": 3
     },
     {
       "id": "range_epic",
       "rarity": "epic",
       "effect": "range_pct",
       "amount": 42,
-      "limit": 2,
-      "title": "Reach (Epic)",
-      "description": "Attacks reach 42 percent wider"
+      "limit": 2
     },
     {
       "id": "range_legendary",
       "rarity": "legendary",
       "effect": "range_pct",
       "amount": 50,
-      "limit": 2,
-      "title": "Reach (Legendary)",
-      "description": "Attacks reach 50 percent wider"
+      "limit": 2
     },
     {
       "id": "range_supernova",
       "rarity": "supernova",
       "effect": "range_pct",
       "amount": 80,
-      "limit": 2,
-      "title": "Reach (Supernova)",
-      "description": "Attacks reach 80 percent wider"
+      "limit": 2
     },
     {
       "id": "type_bonus_slash_common",
@@ -552,9 +452,7 @@
       "type": "slash",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Slash Mastery (Common)",
-      "description": "25 percent more Slash damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_slash_uncommon",
@@ -563,9 +461,7 @@
       "type": "slash",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Slash Mastery (Uncommon)",
-      "description": "38 percent more Slash damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_slash_rare",
@@ -574,9 +470,7 @@
       "type": "slash",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Slash Mastery (Rare)",
-      "description": "50 percent more Slash damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_slash_epic",
@@ -585,9 +479,7 @@
       "type": "slash",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Slash Mastery (Epic)",
-      "description": "70 percent more Slash damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_slash_legendary",
@@ -596,9 +488,7 @@
       "type": "slash",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Slash Mastery (Legendary)",
-      "description": "80 percent more Slash damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_slash_supernova",
@@ -607,9 +497,7 @@
       "type": "slash",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Slash Mastery (Supernova)",
-      "description": "128 percent more Slash damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pierce_common",
@@ -618,9 +506,7 @@
       "type": "pierce",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Pierce Mastery (Common)",
-      "description": "25 percent more Pierce damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pierce_uncommon",
@@ -629,9 +515,7 @@
       "type": "pierce",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Pierce Mastery (Uncommon)",
-      "description": "38 percent more Pierce damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pierce_rare",
@@ -640,9 +524,7 @@
       "type": "pierce",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Pierce Mastery (Rare)",
-      "description": "50 percent more Pierce damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pierce_epic",
@@ -651,9 +533,7 @@
       "type": "pierce",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Pierce Mastery (Epic)",
-      "description": "70 percent more Pierce damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pierce_legendary",
@@ -662,9 +542,7 @@
       "type": "pierce",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Pierce Mastery (Legendary)",
-      "description": "80 percent more Pierce damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pierce_supernova",
@@ -673,9 +551,7 @@
       "type": "pierce",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Pierce Mastery (Supernova)",
-      "description": "128 percent more Pierce damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_strike_common",
@@ -684,9 +560,7 @@
       "type": "strike",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Strike Mastery (Common)",
-      "description": "25 percent more Strike damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_strike_uncommon",
@@ -695,9 +569,7 @@
       "type": "strike",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Strike Mastery (Uncommon)",
-      "description": "38 percent more Strike damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_strike_rare",
@@ -706,9 +578,7 @@
       "type": "strike",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Strike Mastery (Rare)",
-      "description": "50 percent more Strike damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_strike_epic",
@@ -717,9 +587,7 @@
       "type": "strike",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Strike Mastery (Epic)",
-      "description": "70 percent more Strike damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_strike_legendary",
@@ -728,9 +596,7 @@
       "type": "strike",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Strike Mastery (Legendary)",
-      "description": "80 percent more Strike damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_strike_supernova",
@@ -739,9 +605,7 @@
       "type": "strike",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Strike Mastery (Supernova)",
-      "description": "128 percent more Strike damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pyro_common",
@@ -750,9 +614,7 @@
       "type": "pyro",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Pyro Mastery (Common)",
-      "description": "25 percent more Pyro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pyro_uncommon",
@@ -761,9 +623,7 @@
       "type": "pyro",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Pyro Mastery (Uncommon)",
-      "description": "38 percent more Pyro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pyro_rare",
@@ -772,9 +632,7 @@
       "type": "pyro",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Pyro Mastery (Rare)",
-      "description": "50 percent more Pyro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pyro_epic",
@@ -783,9 +641,7 @@
       "type": "pyro",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Pyro Mastery (Epic)",
-      "description": "70 percent more Pyro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pyro_legendary",
@@ -794,9 +650,7 @@
       "type": "pyro",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Pyro Mastery (Legendary)",
-      "description": "80 percent more Pyro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_pyro_supernova",
@@ -805,9 +659,7 @@
       "type": "pyro",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Pyro Mastery (Supernova)",
-      "description": "128 percent more Pyro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_hydro_common",
@@ -816,9 +668,7 @@
       "type": "hydro",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Hydro Mastery (Common)",
-      "description": "25 percent more Hydro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_hydro_uncommon",
@@ -827,9 +677,7 @@
       "type": "hydro",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Hydro Mastery (Uncommon)",
-      "description": "38 percent more Hydro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_hydro_rare",
@@ -838,9 +686,7 @@
       "type": "hydro",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Hydro Mastery (Rare)",
-      "description": "50 percent more Hydro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_hydro_epic",
@@ -849,9 +695,7 @@
       "type": "hydro",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Hydro Mastery (Epic)",
-      "description": "70 percent more Hydro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_hydro_legendary",
@@ -860,9 +704,7 @@
       "type": "hydro",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Hydro Mastery (Legendary)",
-      "description": "80 percent more Hydro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_hydro_supernova",
@@ -871,9 +713,7 @@
       "type": "hydro",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Hydro Mastery (Supernova)",
-      "description": "128 percent more Hydro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_electro_common",
@@ -882,9 +722,7 @@
       "type": "electro",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Electro Mastery (Common)",
-      "description": "25 percent more Electro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_electro_uncommon",
@@ -893,9 +731,7 @@
       "type": "electro",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Electro Mastery (Uncommon)",
-      "description": "38 percent more Electro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_electro_rare",
@@ -904,9 +740,7 @@
       "type": "electro",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Electro Mastery (Rare)",
-      "description": "50 percent more Electro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_electro_epic",
@@ -915,9 +749,7 @@
       "type": "electro",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Electro Mastery (Epic)",
-      "description": "70 percent more Electro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_electro_legendary",
@@ -926,9 +758,7 @@
       "type": "electro",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Electro Mastery (Legendary)",
-      "description": "80 percent more Electro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_electro_supernova",
@@ -937,9 +767,7 @@
       "type": "electro",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Electro Mastery (Supernova)",
-      "description": "128 percent more Electro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_cryo_common",
@@ -948,9 +776,7 @@
       "type": "cryo",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Cryo Mastery (Common)",
-      "description": "25 percent more Cryo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_cryo_uncommon",
@@ -959,9 +785,7 @@
       "type": "cryo",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Cryo Mastery (Uncommon)",
-      "description": "38 percent more Cryo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_cryo_rare",
@@ -970,9 +794,7 @@
       "type": "cryo",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Cryo Mastery (Rare)",
-      "description": "50 percent more Cryo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_cryo_epic",
@@ -981,9 +803,7 @@
       "type": "cryo",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Cryo Mastery (Epic)",
-      "description": "70 percent more Cryo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_cryo_legendary",
@@ -992,9 +812,7 @@
       "type": "cryo",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Cryo Mastery (Legendary)",
-      "description": "80 percent more Cryo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_cryo_supernova",
@@ -1003,9 +821,7 @@
       "type": "cryo",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Cryo Mastery (Supernova)",
-      "description": "128 percent more Cryo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_anemo_common",
@@ -1014,9 +830,7 @@
       "type": "anemo",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Anemo Mastery (Common)",
-      "description": "25 percent more Anemo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_anemo_uncommon",
@@ -1025,9 +839,7 @@
       "type": "anemo",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Anemo Mastery (Uncommon)",
-      "description": "38 percent more Anemo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_anemo_rare",
@@ -1036,9 +848,7 @@
       "type": "anemo",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Anemo Mastery (Rare)",
-      "description": "50 percent more Anemo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_anemo_epic",
@@ -1047,9 +857,7 @@
       "type": "anemo",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Anemo Mastery (Epic)",
-      "description": "70 percent more Anemo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_anemo_legendary",
@@ -1058,9 +866,7 @@
       "type": "anemo",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Anemo Mastery (Legendary)",
-      "description": "80 percent more Anemo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_anemo_supernova",
@@ -1069,9 +875,7 @@
       "type": "anemo",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Anemo Mastery (Supernova)",
-      "description": "128 percent more Anemo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_geo_common",
@@ -1080,9 +884,7 @@
       "type": "geo",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Geo Mastery (Common)",
-      "description": "25 percent more Geo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_geo_uncommon",
@@ -1091,9 +893,7 @@
       "type": "geo",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Geo Mastery (Uncommon)",
-      "description": "38 percent more Geo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_geo_rare",
@@ -1102,9 +902,7 @@
       "type": "geo",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Geo Mastery (Rare)",
-      "description": "50 percent more Geo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_geo_epic",
@@ -1113,9 +911,7 @@
       "type": "geo",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Geo Mastery (Epic)",
-      "description": "70 percent more Geo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_geo_legendary",
@@ -1124,9 +920,7 @@
       "type": "geo",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Geo Mastery (Legendary)",
-      "description": "80 percent more Geo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_geo_supernova",
@@ -1135,9 +929,7 @@
       "type": "geo",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Geo Mastery (Supernova)",
-      "description": "128 percent more Geo damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_dendro_common",
@@ -1146,9 +938,7 @@
       "type": "dendro",
       "amount": 25,
       "limit": 5,
-      "weight": 10,
-      "title": "Dendro Mastery (Common)",
-      "description": "25 percent more Dendro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_dendro_uncommon",
@@ -1157,9 +947,7 @@
       "type": "dendro",
       "amount": 38,
       "limit": 4,
-      "weight": 10,
-      "title": "Dendro Mastery (Uncommon)",
-      "description": "38 percent more Dendro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_dendro_rare",
@@ -1168,9 +956,7 @@
       "type": "dendro",
       "amount": 50,
       "limit": 3,
-      "weight": 10,
-      "title": "Dendro Mastery (Rare)",
-      "description": "50 percent more Dendro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_dendro_epic",
@@ -1179,9 +965,7 @@
       "type": "dendro",
       "amount": 70,
       "limit": 2,
-      "weight": 10,
-      "title": "Dendro Mastery (Epic)",
-      "description": "70 percent more Dendro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_dendro_legendary",
@@ -1190,9 +974,7 @@
       "type": "dendro",
       "amount": 80,
       "limit": 2,
-      "weight": 10,
-      "title": "Dendro Mastery (Legendary)",
-      "description": "80 percent more Dendro damage"
+      "weight": 10
     },
     {
       "id": "type_bonus_dendro_supernova",
@@ -1201,17 +983,13 @@
       "type": "dendro",
       "amount": 128,
       "limit": 2,
-      "weight": 10,
-      "title": "Dendro Mastery (Supernova)",
-      "description": "128 percent more Dendro damage"
+      "weight": 10
     },
     {
       "id": "random_rune",
       "rarity": "common",
       "effect": "random_rune",
-      "weight": 200,
-      "title": "Rune",
-      "description": "A rune you do not hold yet, drawn when you take it"
+      "weight": 200
     },
     {
       "id": "star_altair",
@@ -1229,9 +1007,7 @@
       "limit": 1,
       "named": true,
       "star": "Altair",
-      "weight": 50,
-      "title": "Altair",
-      "description": "The flier: 20 percent faster, and one more evade charge"
+      "weight": 50
     },
     {
       "id": "star_alnitak",
@@ -1250,9 +1026,7 @@
       "limit": 1,
       "named": true,
       "star": "Alnitak",
-      "weight": 50,
-      "title": "Alnitak",
-      "description": "The flame: 30 percent more Pyro damage, and runes recover 40 percent sooner"
+      "weight": 50
     },
     {
       "id": "star_alnilam",
@@ -1270,9 +1044,7 @@
       "limit": 1,
       "named": true,
       "star": "Alnilam",
-      "weight": 50,
-      "title": "Alnilam",
-      "description": "The brightest of the Belt: 20 percent more damage and 15 percent more range"
+      "weight": 50
     },
     {
       "id": "star_mintaka",
@@ -1290,9 +1062,7 @@
       "limit": 1,
       "named": true,
       "star": "Mintaka",
-      "weight": 50,
-      "title": "Mintaka",
-      "description": "The sturdy one: 500 more hit points at most, and 30 hit points a second"
+      "weight": 50
     },
     {
       "id": "star_dubhe",
@@ -1310,9 +1080,7 @@
       "limit": 1,
       "named": true,
       "star": "Dubhe",
-      "weight": 50,
-      "title": "Dubhe",
-      "description": "A pointer: falling stars are picked up from 60 percent farther, and 25 percent more experience"
+      "weight": 50
     },
     {
       "id": "star_rigel",
@@ -1331,9 +1099,7 @@
       "limit": 1,
       "named": true,
       "star": "Rigel",
-      "weight": 50,
-      "title": "Rigel",
-      "description": "The blue giant: 30 percent more Cryo damage and 10 percent faster attacks"
+      "weight": 50
     },
     {
       "id": "star_deneb",
@@ -1351,9 +1117,7 @@
       "limit": 1,
       "named": true,
       "star": "Deneb",
-      "weight": 50,
-      "title": "Deneb",
-      "description": "The far lamp: a 15 percent chance of a critical hit, and 50 percent more damage on one"
+      "weight": 50
     },
     {
       "id": "star_vega",
@@ -1371,9 +1135,7 @@
       "limit": 1,
       "named": true,
       "star": "Vega",
-      "weight": 50,
-      "title": "Vega",
-      "description": "The standard star: stage skills recover 30 percent sooner, and 12 percent more damage"
+      "weight": 50
     },
     {
       "id": "star_mizar",
@@ -1387,9 +1149,7 @@
       "limit": 1,
       "named": true,
       "star": "Mizar",
-      "weight": 50,
-      "title": "Mizar",
-      "description": "The double star: each hit lands again as an echo of 35 percent"
+      "weight": 50
     },
     {
       "id": "star_alkaid",
@@ -1407,9 +1167,7 @@
       "limit": 1,
       "named": true,
       "star": "Alkaid",
-      "weight": 50,
-      "title": "Alkaid",
-      "description": "The tail of the Dipper: 35 percent more range, and 25 percent more Slash, Pierce and Strike damage"
+      "weight": 50
     },
     {
       "id": "star_procyon",
@@ -1426,9 +1184,7 @@
       "limit": 1,
       "named": true,
       "star": "Procyon",
-      "weight": 50,
-      "title": "Procyon",
-      "description": "Before the dog: a rune for free, and runes recover twice as fast"
+      "weight": 50
     },
     {
       "id": "star_antares",
@@ -1447,9 +1203,7 @@
       "limit": 1,
       "named": true,
       "star": "Antares",
-      "weight": 50,
-      "title": "Antares",
-      "description": "The red heart: 100 hit points back every 20 kills, and 800 more hit points at most"
+      "weight": 50
     },
     {
       "id": "star_sirius",
@@ -1488,9 +1242,7 @@
       "limit": 1,
       "named": true,
       "star": "Sirius",
-      "weight": 50,
-      "title": "Sirius",
-      "description": "The Dog Star: a companion of four orbs that attack on their own, and 30 percent more damage"
+      "weight": 50
     },
     {
       "id": "star_betelgeuse",
@@ -1510,9 +1262,7 @@
       "limit": 1,
       "named": true,
       "star": "Betelgeuse",
-      "weight": 50,
-      "title": "Betelgeuse",
-      "description": "The dying giant: a kill bursts for 40 percent of its hit points in 120 pixels, chaining 3 times, and 800 more hit points at most"
+      "weight": 50
     },
     {
       "id": "star_polaris",
@@ -1538,9 +1288,7 @@
       "limit": 1,
       "named": true,
       "star": "Polaris",
-      "weight": 50,
-      "title": "Polaris",
-      "description": "The guide: a fourth candidate in every offer, 3 rerolls, 2 banishes and 40 percent more experience"
+      "weight": 50
     }
   ]
 }

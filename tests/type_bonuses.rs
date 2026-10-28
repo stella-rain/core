@@ -110,8 +110,7 @@ fn targets(damage: u32, ty: Option<&str>, small: u16, profile: Option<Value>) ->
 /// most `limit` times.
 fn bonus(id: &str, effect: &str, ty: Option<&str>, amount: u32, limit: u8) -> Value {
     let mut r = json!({
-        "id": id, "rarity": "common", "effect": effect, "amount": amount, "limit": limit,
-        "title": "Bonus", "description": ""
+        "id": id, "rarity": "common", "effect": effect, "amount": amount, "limit": limit
     });
     if let Some(ty) = ty {
         r["type"] = json!(ty);

@@ -1178,10 +1178,6 @@
           "format": "uint32",
           "minimum": 0
         },
-        "description": {
-          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "hp_pct": {
           "description": "Percent of the content's hit points every enemy, elite and boss (and each boss part)\nstarts with, from 1 to `MAX_PCT` (100 for normal).",
           "type": "integer",
@@ -1246,17 +1242,11 @@
           "items": {
             "$ref": "#/$defs/StardustTier"
           }
-        },
-        "title": {
-          "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
-        "title",
-        "description",
         "hp_pct",
         "damage_pct",
         "rarity_min",
@@ -1947,29 +1937,19 @@
           "format": "uint32",
           "minimum": 0
         },
-        "description": {
-          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "effect": {
           "$ref": "#/$defs/ExpertiseEffect"
         },
         "id": {
           "description": "The option's own ID, unique within its weapon.",
           "$ref": "#/$defs/ContentId"
-        },
-        "title": {
-          "description": "The name the choice panel shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
         "effect",
-        "amount",
-        "title",
-        "description"
+        "amount"
       ]
     },
     "ExpertisePoints": {
@@ -3061,10 +3041,6 @@
       "description": "One perk set.",
       "type": "object",
       "properties": {
-        "description": {
-          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "effects": {
           "description": "Its effects, at most `MAX_PERK_EFFECTS`, each kind once.",
           "type": "array",
@@ -3075,17 +3051,11 @@
         "id": {
           "description": "The set's own ID, unique within the file.",
           "$ref": "#/$defs/ContentId"
-        },
-        "title": {
-          "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
-        "title",
-        "description",
         "effects"
       ]
     },
@@ -3360,9 +3330,6 @@
           "default": null,
           "minimum": 0
         },
-        "description": {
-          "type": "string"
-        },
         "effect": {
           "description": "The released form's single effect: with its `skill`, `orbit`, `type` and `amount`.",
           "anyOf": [
@@ -3453,9 +3420,6 @@
           ],
           "default": null
         },
-        "title": {
-          "type": "string"
-        },
         "type": {
           "anyOf": [
             {
@@ -3478,9 +3442,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "rarity",
-        "title",
-        "description"
+        "rarity"
       ]
     },
     "RewardEffect": {
@@ -3851,10 +3813,6 @@
       "description": "One stat a point can raise.",
       "type": "object",
       "properties": {
-        "description": {
-          "description": "What a point does, in words, at most `MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "effect": {
           "$ref": "#/$defs/StatEffect"
         },
@@ -3874,10 +3832,6 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
-        },
-        "title": {
-          "description": "The name the pause screen shows, 1 to `MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -3885,9 +3839,7 @@
         "id",
         "effect",
         "step",
-        "limit",
-        "title",
-        "description"
+        "limit"
       ]
     },
     "RunStatsFile": {
@@ -4586,10 +4538,6 @@
           "description": "How far ahead of the main character its point is, along the facing, or toward the aim\nassist's target while `assist` is on (ADR-072); 0, the default, is at the main\ncharacter. An attack places its own hit boxes instead.",
           "$ref": "#/$defs/Fx"
         },
-        "description": {
-          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "icon": {
           "description": "The asset the skill button draws (ADR-026): an asset ID of the registry.",
           "$ref": "#/$defs/ContentId"
@@ -4604,18 +4552,12 @@
           "items": {
             "$ref": "#/$defs/SkillLevel"
           }
-        },
-        "title": {
-          "description": "Its name, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
         "icon",
-        "title",
-        "description",
         "levels"
       ]
     },
@@ -5029,18 +4971,12 @@
             "$ref": "#/$defs/ExpertiseOption"
           }
         },
-        "description": {
-          "type": "string"
-        },
         "effect": {
           "$ref": "#/$defs/ExpertiseEffect"
         },
         "id": {
           "description": "The style's own ID, unique within its weapon.",
           "$ref": "#/$defs/ContentId"
-        },
-        "title": {
-          "type": "string"
         },
         "upgrade_1": {
           "description": "The first upgrade's choices, 1 to `MAX_STYLE_CHOICES`.",
@@ -5062,8 +4998,6 @@
         "id",
         "effect",
         "amount",
-        "title",
-        "description",
         "upgrade_1",
         "upgrade_2",
         "capstone"

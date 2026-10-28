@@ -82,15 +82,13 @@ fn targets(count: u16) -> Stage {
 /// A common range reward `id`, `pct` percent wider, taken at most `limit` times.
 fn range(id: &str, pct: u32, limit: u8) -> Value {
     json!({
-        "id": id, "rarity": "common", "effect": "range_pct", "amount": pct, "limit": limit,
-        "title": "Reach", "description": ""
+        "id": id, "rarity": "common", "effect": "range_pct", "amount": pct, "limit": limit
     })
 }
 
 fn might() -> Value {
     json!({
-        "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5, "limit": 5,
-        "title": "Might", "description": ""
+        "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5, "limit": 5
     })
 }
 
@@ -239,7 +237,7 @@ fn holding_a_range_reward_leaves_another_offered() {
 
 /// The expertise option `id` of `effect` and `amount`, common.
 fn option(id: &str, effect: &str, amount: u32) -> Value {
-    json!({ "id": id, "effect": effect, "amount": amount, "title": "Option", "description": "" })
+    json!({ "id": id, "effect": effect, "amount": amount })
 }
 
 #[test]
@@ -314,7 +312,7 @@ fn the_enchantment_effect_is_gone() {
         |reward: Value| json!({ "rarities": common::rarities(), "rewards": [reward] }).to_string();
     let old = json!({
         "id": "reach", "rarity": "common", "effect": "enchantment", "amount": 20, "limit": 2,
-        "title": "Reach", "description": "", "enchantment": { "type": "range" }
+        "enchantment": { "type": "range" }
     });
     assert!(Rewards::parse(file(old).as_bytes(), Versions::CURRENT).is_err());
     let mut field = range("reach", 20, 2);

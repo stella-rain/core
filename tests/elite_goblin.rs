@@ -56,8 +56,7 @@ fn joiner() -> Value {
 
 fn rewards() -> Rewards {
     let file = json!({ "rarities": common::rarities(), "rewards": [
-        { "id": "c", "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 9,
-          "title": "Reward", "description": "" } ] });
+        { "id": "c", "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 9 } ] });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate")
 }

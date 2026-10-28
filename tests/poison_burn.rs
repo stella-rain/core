@@ -277,7 +277,7 @@ fn a_run_holding_poison_and_burn_records_and_verifies() {
             random_rune(),
             json!({
                 "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5,
-                "limit": 20, "title": "Might", "description": ""
+                "limit": 20
             }),
         ],
         None,

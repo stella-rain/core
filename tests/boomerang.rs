@@ -295,8 +295,7 @@ fn its_hits_give_no_expertise() {
 /// The damage on the tough target of `profile`, holding a bonus of 50 for type `ty` and the
 /// war cry's atk-up of 100 used before the step: `(step's hit, the throw's two)`.
 fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
-    let war_cry = json!({ "id": "war_cry", "icon": "icon_nova", "title": "War Cry",
-        "description": "",
+    let war_cry = json!({ "id": "war_cry", "icon": "icon_nova",
         "levels": [{ "cooldown_ticks": 1_000, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
               "duration_ticks": 600 }
@@ -304,11 +303,9 @@ fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
     let rewards = vec![
         random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
-                "skill": "war_cry", "amount": 1, "limit": 2, "title": "Skill",
-                "description": "" }),
+                "skill": "war_cry", "amount": 1, "limit": 2 }),
         json!({ "id": "bonus", "rarity": "common", "effect": "type_bonus_pct",
-                "type": ty, "amount": 50, "limit": 2, "title": "Type",
-                "description": "" }),
+                "type": ty, "amount": 50, "limit": 2 }),
     ];
     let mut e = with(
         &stage(9, tough(0, Some(profile), None)),
@@ -392,7 +389,7 @@ fn a_run_holding_boomerang_records_and_verifies() {
             random_rune(),
             json!({
                 "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5,
-                "limit": 20, "title": "Might", "description": ""
+                "limit": 20
             }),
         ],
         None,

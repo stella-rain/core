@@ -12,9 +12,9 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::run_stats::{
-    DEFAULT_MAX_ATTACK_SPEED_PCT, MAX_ATTACK_SPEED_PCT, MAX_DESCRIPTION_CHARS, MAX_HP_STEP,
-    MAX_LIMIT, MAX_RUN_STATS_BYTES, MAX_STATS, MAX_STEP, MAX_STUN_IMMUNE_TICKS, MAX_TITLE_CHARS,
-    RunStats, StatEffect, capped_attack_speed_pct,
+    DEFAULT_MAX_ATTACK_SPEED_PCT, MAX_ATTACK_SPEED_PCT, MAX_HP_STEP, MAX_LIMIT,
+    MAX_RUN_STATS_BYTES, MAX_STATS, MAX_STEP, MAX_STUN_IMMUNE_TICKS, RunStats, StatEffect,
+    capped_attack_speed_pct,
 };
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::DAMAGE_SCALE;
@@ -29,9 +29,7 @@ fn stat(id: &str) -> Value {
         "id": id,
         "effect": "speed_pct",
         "step": 5,
-        "limit": 3,
-        "title": "Speed",
-        "description": "Move faster"
+        "limit": 3
     })
 }
 
@@ -90,7 +88,6 @@ fn the_bundled_stats_are_the_five_of_version_0() {
             ("speed", StatEffect::SpeedPct, 8, 5),
         ]
     );
-    assert!(stats.iter().all(|s| !s.title.is_empty()));
     assert_eq!(
         RunStats::parse(common::bundled_file("run_stats"), Versions::CURRENT).as_ref(),
         Ok(RunStats::bundled())
@@ -211,22 +208,9 @@ fn steps_and_limits_are_within_bounds() {
 }
 
 #[test]
-fn titles_and_descriptions_are_bounded_text() {
-    let title_at = "é".repeat(MAX_TITLE_CHARS);
-    assert!(parse(&one_with("title", json!(title_at))).is_ok());
-    invalid_at(&one_with("title", json!("")), "$.stats[0].title");
-    invalid_at(
-        &one_with("title", json!("t".repeat(MAX_TITLE_CHARS + 1))),
-        "$.stats[0].title",
-    );
-    assert!(parse(&one_with("description", json!(""))).is_ok());
-    let description_at = "d".repeat(MAX_DESCRIPTION_CHARS);
-    assert!(parse(&one_with("description", json!(description_at))).is_ok());
-    invalid_at(
-        &one_with("description", json!("d".repeat(MAX_DESCRIPTION_CHARS + 1))),
-        "$.stats[0].description",
-    );
-    invalid_at(&one_with("title", json!("a\u{7}b")), "$.stats[0].title");
+fn text_fields_are_refused_as_unknown() {
+    assert!(parse(&one_with("title", json!("Speed"))).is_err());
+    assert!(parse(&one_with("description", json!("Move faster"))).is_err());
 }
 
 #[test]

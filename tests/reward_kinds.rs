@@ -24,8 +24,7 @@ pub(crate) fn entry(effect: &str, amount: u32) -> Value {
 
 pub(crate) fn file_of(effects: Vec<Value>) -> Value {
     json!({ "rarities": crate::common::rarities(), "rewards": [{
-        "id": "kind", "rarity": "rare", "effects": effects, "limit": 3,
-        "title": "Kind", "description": ""
+        "id": "kind", "rarity": "rare", "effects": effects, "limit": 3
     }] })
 }
 
@@ -168,12 +167,12 @@ pub(crate) fn near(count: u16) -> Stage {
 
 pub(crate) fn plain(id: &str, weight: u32) -> Value {
     json!({ "id": id, "rarity": "common", "effect": "attack_pct", "amount": 1, "limit": 5,
-            "weight": weight, "title": "Might", "description": "" })
+            "weight": weight })
 }
 
 pub(crate) fn kind(id: &str, effects: Vec<Value>, weight: u32, limit: u8) -> Value {
     json!({ "id": id, "rarity": "common", "effects": effects, "limit": limit,
-            "weight": weight, "title": "Kind", "description": "" })
+            "weight": weight })
 }
 
 pub(crate) fn with(stage: &Stage, list: Vec<Value>) -> Engine {

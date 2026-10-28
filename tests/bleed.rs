@@ -202,7 +202,6 @@ fn an_orbit_s_hits_apply_no_bleed() {
     // never pressed.
     let orbit = json!({
         "id": "orbit", "rarity": "common", "effect": "orbit", "amount": 1, "limit": 2,
-        "title": "Orbit", "description": "",
         "orbit": {
             "attack": { "inline": [
                 { "kind": "active", "ticks": 60, "damage": 7, "rehit_ticks": 10,
@@ -283,8 +282,7 @@ fn bleed_gives_no_expertise() {
 /// first step; a second step after the atk-up has run out. The hits on the target, by ticks
 /// after the first step.
 fn boosted(ty: &str) -> Vec<(u32, u32)> {
-    let war_cry = json!({ "id": "war_cry", "icon": "icon_nova", "title": "War Cry",
-        "description": "",
+    let war_cry = json!({ "id": "war_cry", "icon": "icon_nova",
         "levels": [{ "cooldown_ticks": 1_000, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
               "duration_ticks": 20 }
@@ -292,10 +290,9 @@ fn boosted(ty: &str) -> Vec<(u32, u32)> {
     let rewards = vec![
         random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
-                "skill": "war_cry", "amount": 1, "limit": 2, "title": "Skill",
-                "description": "" }),
+                "skill": "war_cry", "amount": 1, "limit": 2 }),
         json!({ "id": "bonus", "rarity": "common", "effect": "type_bonus_pct", "type": ty,
-                "amount": 50, "limit": 2, "title": "Bonus", "description": "" }),
+                "amount": 50, "limit": 2 }),
     ];
     let mut target = tough(0, Some(json!({ "weak": ["slash"] })), None);
     // K is 10,000 after the scale of ADR-103: a defence of K halves a hit.
@@ -402,7 +399,7 @@ fn a_run_holding_bleed_records_and_verifies() {
             random_rune(),
             json!({
                 "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5,
-                "limit": 20, "title": "Might", "description": ""
+                "limit": 20
             }),
         ],
         None,

@@ -15,7 +15,7 @@ use stella_rain_core::validate::limits::DAMAGE_SCALE;
 use stella_rain_core::version::Versions;
 
 fn set(id: &str, effects: Value) -> Value {
-    json!({ "id": id, "title": "Set", "description": "A set", "effects": effects })
+    json!({ "id": id, "effects": effects })
 }
 
 fn file(sets: Vec<Value>) -> Value {
@@ -209,16 +209,13 @@ fn an_amount_is_1_to_its_effects_cap() {
 }
 
 #[test]
-fn titles_and_descriptions_are_bounded_text() {
+fn text_fields_are_refused_as_unknown() {
     let mut v = file(vec![set("a", json!([]))]);
-    v["perk_sets"][0]["title"] = json!("");
-    assert_eq!(paths(parse(&v).unwrap_err()), ["$.perk_sets[0].title"]);
+    v["perk_sets"][0]["title"] = json!("Vanguard");
+    assert!(parse(&v).is_err());
     let mut v = file(vec![set("a", json!([]))]);
-    v["perk_sets"][0]["description"] = json!("x".repeat(500));
-    assert_eq!(
-        paths(parse(&v).unwrap_err()),
-        ["$.perk_sets[0].description"]
-    );
+    v["perk_sets"][0]["description"] = json!("desc");
+    assert!(parse(&v).is_err());
 }
 
 #[test]

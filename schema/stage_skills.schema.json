@@ -1104,10 +1104,6 @@
           "description": "How far ahead of the main character its point is, along the facing, or toward the aim\nassist's target while `assist` is on (ADR-072); 0, the default, is at the main\ncharacter. An attack places its own hit boxes instead.",
           "$ref": "#/$defs/Fx"
         },
-        "description": {
-          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "icon": {
           "description": "The asset the skill button draws (ADR-026): an asset ID of the registry.",
           "$ref": "#/$defs/ContentId"
@@ -1122,18 +1118,12 @@
           "items": {
             "$ref": "#/$defs/SkillLevel"
           }
-        },
-        "title": {
-          "description": "Its name, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
         "icon",
-        "title",
-        "description",
         "levels"
       ]
     },

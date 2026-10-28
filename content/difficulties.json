@@ -2,8 +2,6 @@
   "difficulties": [
     {
       "id": "easy",
-      "title": "Easy",
-      "description": "Weaker enemies, a 10-minute Time Limit and no rarer reward than rare",
       "hp_pct": 70,
       "damage_pct": 75,
       "rarity_min": "common",
@@ -15,8 +13,6 @@
     },
     {
       "id": "normal",
-      "title": "Normal",
-      "description": "The game as designed",
       "hp_pct": 100,
       "damage_pct": 100,
       "rarity_min": "common",
@@ -25,8 +21,6 @@
     },
     {
       "id": "hard",
-      "title": "Hard",
-      "description": "Tougher enemies that hit harder, and every rarity may drop",
       "hp_pct": 150,
       "damage_pct": 125,
       "rarity_min": "common",
@@ -36,8 +30,6 @@
     },
     {
       "id": "rainy",
-      "title": "Rainy",
-      "description": "Enemies with twice the hit points, and nothing common drops",
       "hp_pct": 200,
       "damage_pct": 150,
       "rarity_min": "uncommon",

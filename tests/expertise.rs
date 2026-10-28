@@ -20,8 +20,6 @@ fn option(id: &str, effect: &str, amount: u32) -> Value {
         "id": id,
         "effect": effect,
         "amount": amount,
-        "title": "Option",
-        "description": "What it does"
     })
 }
 
@@ -30,8 +28,6 @@ fn style(id: &str) -> Value {
         "id": id,
         "effect": "attack_pct",
         "amount": 10,
-        "title": "Style",
-        "description": "A path",
         "upgrade_1": [option(&format!("{id}_6"), "attack_pct", 5)],
         "upgrade_2": [option(&format!("{id}_9"), "speed_pct", 5)],
         "capstone": [option(&format!("{id}_10"), "range_pct", 20)]
@@ -383,17 +379,11 @@ fn ids_are_well_formed_and_unique_within_a_weapon() {
 }
 
 #[test]
-fn titles_and_descriptions_are_bounded_text() {
-    invalid_at(
-        &with("/weapons/0/styles/0/title", json!("")),
-        "$.weapons[0].styles[0].title",
-    );
-    invalid_at(
-        &with("/weapons/0/common/0/description", json!("x".repeat(161))),
-        "$.weapons[0].common[0].description",
-    );
-    invalid_at(
-        &with("/weapons/0/styles/0/capstone/0/title", json!("a\u{7}b")),
-        "$.weapons[0].styles[0].capstone[0].title",
-    );
+fn text_fields_are_refused_as_unknown() {
+    let mut v = file();
+    v["weapons"][0]["styles"][0]["title"] = json!("Style");
+    assert!(parse(&v).is_err());
+    let mut v = file();
+    v["weapons"][0]["common"][0]["description"] = json!("desc");
+    assert!(parse(&v).is_err());
 }

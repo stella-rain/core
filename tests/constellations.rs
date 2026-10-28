@@ -26,8 +26,7 @@ use crate::reward_kinds::{near, next_offer, offer, plain, take};
 
 fn named(id: &str, star: &str) -> Value {
     json!({ "id": id, "rarity": "epic", "named": true, "star": star, "limit": 1,
-            "effects": [{ "effect": "attack_pct", "amount": 1 }],
-            "title": star, "description": "" })
+            "effects": [{ "effect": "attack_pct", "amount": 1 }] })
 }
 
 /// Three named stars of one trio, and two more, and four commons.

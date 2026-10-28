@@ -3,9 +3,10 @@
 //! untrusted, so this uses the same size limit and validation as the game.
 //!
 //! ```text
-//! content-pack verify FILE      (FILE may be - for standard input)
+//! content-pack verify FILE [--text TEXT_FILE]  (FILE, TEXT_FILE may be - for standard input)
 //! content-pack export [DIR]
 //! content-pack unpack PACK DIR
+//! content-pack compare --numbers-only BASE_DIR HEAD_DIR
 //! ```
 //!
 //! Exit status: 0 valid (or exported); 1 not valid (the pack is at fault); 2 the command line
@@ -31,12 +32,13 @@ use std::process::ExitCode;
 
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::pack::{CompareError, ContentFiles, Pack};
+use stella_rain_core::text::TextTable;
 
-const USAGE: &str = "usage: content-pack verify FILE\n       \
+const USAGE: &str = "usage: content-pack verify FILE [--text TEXT_FILE]\n       \
                      content-pack export [DIR]\n       \
                      content-pack unpack PACK DIR\n       \
                      content-pack compare --numbers-only BASE_DIR HEAD_DIR\n\
-                     FILE and PACK may be - for standard input. unpack writes the pack's \
+                     FILE, PACK and TEXT_FILE may be - for standard input. unpack writes the pack's \
                      files into DIR (core's content/) and its mode files into modes/ beside \
                      it, and leaves content/pack.json to export. Without DIR, export writes the pack built \
                      into this binary; with DIR (core's content/, as unpack), the pack of the \
@@ -80,38 +82,28 @@ fn read_pack(path: &str) -> Result<Vec<u8>, Failure> {
         .map_err(|e| Failure::Usage(format!("cannot read {path}: {}", e.kind())))
 }
 
+fn read_text(path: &str) -> Result<Vec<u8>, Failure> {
+    let cap = u64::try_from(TextTable::MAX_BYTES)
+        .unwrap_or(u64::MAX)
+        .saturating_add(1);
+    let mut bytes = Vec::new();
+    let read = if path == "-" {
+        std::io::stdin().lock().take(cap).read_to_end(&mut bytes)
+    } else {
+        File::open(path).and_then(|f| f.take(cap).read_to_end(&mut bytes))
+    };
+    read.map(|_| bytes)
+        .map_err(|e| Failure::Usage(format!("cannot read {path}: {}", e.kind())))
+}
+
 fn run(args: Vec<String>) -> Result<(), Failure> {
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    if args.is_empty() {
+        return Err(Failure::Usage(USAGE.into()));
+    }
     match args.as_slice() {
         ["--help" | "-h"] => {
             println!("{USAGE}");
-            Ok(())
-        }
-        ["verify", path] => {
-            let bytes = read_pack(path)?;
-            let pack = Pack::from_bytes(&bytes).map_err(|e| Failure::NotValid(e.to_string()))?;
-            println!("sha256: {}", to_hex(&pack.sha256()));
-            println!("sim_version: {}", pack.sim_version());
-            match pack.starting_unlocks() {
-                Some(u) => println!(
-                    "starting_unlocks: {} weapons, {} perk_sets, {} stage_skills, {} runes",
-                    u.weapons().len(),
-                    u.perk_sets().len(),
-                    u.stage_skills().len(),
-                    u.runes().len()
-                ),
-                None => println!("starting_unlocks: none"),
-            }
-            println!(
-                "constellations: {} sets",
-                pack.content().constellations().sets().len()
-            );
-            println!("stardust: {} modes", pack.stardust().modes().len());
-            println!(
-                "rules: crowd_target {}, cap_headroom_pct {}",
-                pack.content().rules().crowd_target(),
-                pack.content().rules().cap_headroom_pct()
-            );
             Ok(())
         }
         ["export"] => write_pack(Pack::BUNDLED),
@@ -120,8 +112,69 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
         ["compare", "--numbers-only", base_dir, head_dir] => {
             compare_dirs(Path::new(base_dir), Path::new(head_dir))
         }
+        _ if args.first().is_some_and(|a| *a == "verify") => verify_cmd(&args[1..]),
         _ => Err(Failure::Usage(USAGE.into())),
     }
+}
+
+fn verify_cmd(args: &[&str]) -> Result<(), Failure> {
+    let mut pack_path = None;
+    let mut text_path = None;
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--text" {
+            i += 1;
+            if i >= args.len() {
+                return Err(Failure::Usage("missing argument for --text".into()));
+            }
+            text_path = Some(args[i]);
+        } else if pack_path.is_none() {
+            pack_path = Some(args[i]);
+        } else {
+            return Err(Failure::Usage(USAGE.into()));
+        }
+        i += 1;
+    }
+    let Some(path) = pack_path else {
+        return Err(Failure::Usage(USAGE.into()));
+    };
+    let bytes = read_pack(path)?;
+    let pack = Pack::from_bytes(&bytes).map_err(|e| Failure::NotValid(e.to_string()))?;
+    if let Some(text_file) = text_path {
+        let text_bytes = read_text(text_file)?;
+        let text_table =
+            TextTable::from_bytes(&text_bytes).map_err(|e| Failure::NotValid(e.to_string()))?;
+        if let Err(missing) = pack.check_text(&text_table) {
+            return Err(Failure::NotValid(format!(
+                "missing text for {} IDs: {}",
+                missing.len(),
+                missing.join(", ")
+            )));
+        }
+    }
+    println!("sha256: {}", to_hex(&pack.sha256()));
+    println!("sim_version: {}", pack.sim_version());
+    match pack.starting_unlocks() {
+        Some(u) => println!(
+            "starting_unlocks: {} weapons, {} perk_sets, {} stage_skills, {} runes",
+            u.weapons().len(),
+            u.perk_sets().len(),
+            u.stage_skills().len(),
+            u.runes().len()
+        ),
+        None => println!("starting_unlocks: none"),
+    }
+    println!(
+        "constellations: {} sets",
+        pack.content().constellations().sets().len()
+    );
+    println!("stardust: {} modes", pack.stardust().modes().len());
+    println!(
+        "rules: crowd_target {}, cap_headroom_pct {}",
+        pack.content().rules().crowd_target(),
+        pack.content().rules().cap_headroom_pct()
+    );
+    Ok(())
 }
 
 fn compare_dirs(base_dir: &Path, head_dir: &Path) -> Result<(), Failure> {

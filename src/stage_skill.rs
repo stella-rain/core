@@ -22,7 +22,6 @@ use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
-use crate::run_stats;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
@@ -57,10 +56,6 @@ pub struct StageSkill {
     pub id: ContentId,
     /// The asset the skill button draws (ADR-026): an asset ID of the registry.
     pub icon: ContentId,
-    /// Its name, 1 to `run_stats::MAX_TITLE_CHARS` characters.
-    pub title: String,
-    /// What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.
-    pub description: String,
     /// How far ahead of the main character its point is, along the facing, or toward the aim
     /// assist's target while `assist` is on (ADR-072); 0, the default, is at the main
     /// character. An attack places its own hit boxes instead.
@@ -233,12 +228,6 @@ impl Issues<'_> {
             None => self.add(path, format!("no such {kind:?} ID in the registry")),
         }
     }
-
-    fn text(&mut self, path: String, text: &str, min: usize, max: usize) {
-        if let Some(problem) = run_stats::text_problem(text, min, max) {
-            self.add(path, problem);
-        }
-    }
 }
 
 /// The skills' checks: IDs, looks, levels, effects and every number within its bound.
@@ -261,13 +250,6 @@ fn stage_skills(skills: &[StageSkill], out: &mut Issues) {
             out.add(at("id"), "the same ID as an earlier skill".into());
         }
         out.registered(at("icon"), &skill.icon, Kind::Asset);
-        out.text(at("title"), &skill.title, 1, run_stats::MAX_TITLE_CHARS);
-        out.text(
-            at("description"),
-            &skill.description,
-            0,
-            run_stats::MAX_DESCRIPTION_CHARS,
-        );
         out.within(
             at("ahead"),
             i64::from(skill.ahead.0),
