@@ -15,8 +15,75 @@ use crate::snapshot::{
 
 use super::{AttackRun, Engine, ShrineState, StatusState};
 
+/// One drawn entity's id, kind and position (the fields of `EntityView` a frame needs to place an event).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Place {
+    pub id: EntityId,
+    pub kind: EntityKind,
+    pub at: Point,
+}
+
+/// Where the drawn things are after the last tick; filled by `Engine::places`, kept and reused by the caller.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Places {
+    /// As `Snapshot::entities`: the same entities, in the same order.
+    pub entities: Vec<Place>,
+    /// As `Snapshot::stars`, without the rarity.
+    pub stars: Vec<(EntityId, Point)>,
+    /// The boss on the field: the id of the `Boss` entity, if any.
+    pub boss: Option<EntityId>,
+}
+
 impl Engine {
-    /// What the frontend draws after the last tick (ADR-005).
+    /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
+    /// these fields, without building a snapshot. Allocates only while `out` grows to the
+    /// largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`
+    /// (which names this function); `tests/places.rs` holds the two equal.
+    pub fn places(&self, out: &mut Places) {
+        let s = &self.state;
+        out.entities.clear();
+        out.stars.clear();
+        out.boss = None;
+        // Boss, companions, boss parts, then enemies: the order of their entity IDs.
+        let alive_boss = s.boss.as_ref().filter(|b| b.hp > 0);
+        if let Some(b) = alive_boss {
+            out.boss = Some(b.id);
+            out.entities.push(Place {
+                id: b.id,
+                kind: EntityKind::Boss,
+                at: b.at,
+            });
+        }
+        let agents = |kind, agents: &[crate::engine::AgentState], out: &mut Vec<Place>| {
+            out.extend(agents.iter().map(|a| Place {
+                id: a.id,
+                kind: a.entity_kind(kind),
+                at: a.at,
+            }));
+        };
+        agents(EntityKind::Companion, &s.companions, &mut out.entities);
+        if let Some(b) = alive_boss {
+            for part in b.parts.iter().filter(|p| p.hp > 0) {
+                out.entities.push(Place {
+                    id: part.id,
+                    kind: EntityKind::BossPart,
+                    at: Point {
+                        x: b.at.x.saturating_add(part.offset.x),
+                        y: b.at.y.saturating_add(part.offset.y),
+                    },
+                });
+            }
+        }
+        agents(EntityKind::Enemy, &s.enemies, &mut out.entities);
+        if let Some(f) = s.stars.as_ref() {
+            out.stars.extend(f.on_map.iter().map(|st| (st.id, st.at)));
+        }
+    }
+}
+
+impl Engine {
+    /// What the frontend draws after the last tick (ADR-005). `places` repeats its rules for
+    /// the ids, kinds and positions: change them together.
     pub fn snapshot(&self) -> Snapshot {
         let s = &self.state;
         let view = |r: &AttackRun| {

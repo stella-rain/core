@@ -457,3 +457,44 @@ fn a_steady_tick_allocates_and_frees_nothing_while_melee_and_zones_hit_the_main_
         "allocations and frees in 600 steady ticks, (tick, allocs, frees): {at:?}"
     );
 }
+
+/// `Engine::places` on one reused buffer, beside `step`, in the steady window: no allocation
+/// and no free once the buffer has grown in the warm-up.
+#[test]
+fn places_allocates_nothing_in_a_steady_tick() {
+    let mut engine = time_limit_case::warmed_up();
+    let mut places = stella_rain_core::engine::Places::default();
+    let from = time_limit_case::WARMUP_TICKS + 1;
+    for tick in from..from + 2 * STEADY_TICKS {
+        engine.step(time_limit_case::input(tick));
+        engine.places(&mut places);
+    }
+    let from = from + 2 * STEADY_TICKS;
+    let mut per_tick = Vec::with_capacity(STEADY_TICKS as usize);
+    for tick in from..from + STEADY_TICKS {
+        per_tick.push(counted(|| {
+            engine.step(time_limit_case::input(tick));
+            engine.places(&mut places);
+        }));
+    }
+    let at = nonzero(&per_tick, from);
+    assert!(
+        at.is_empty(),
+        "allocations and frees in {STEADY_TICKS} steady ticks of step plus places, (tick, allocs, frees): {at:?}"
+    );
+    assert!(!places.entities.is_empty());
+}
+
+/// At the cap of 260 enemies the first `places` may grow the buffer; the second may not.
+#[test]
+fn places_at_the_cap_allocates_nothing_the_second_time() {
+    let engine = bench_fixtures::worst_case::warmed_up();
+    let mut places = stella_rain_core::engine::Places::default();
+    engine.places(&mut places);
+    assert!(
+        places.entities.len() >= 260,
+        "{} entities",
+        places.entities.len()
+    );
+    assert_eq!(counted(|| engine.places(&mut places)), (0, 0));
+}

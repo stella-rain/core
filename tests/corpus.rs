@@ -39,11 +39,11 @@ use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::parse_and_validate;
 
-fn corpus_dir() -> PathBuf {
+pub(crate) fn corpus_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/v0")
 }
 
-fn runs_dir() -> PathBuf {
+pub(crate) fn runs_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/runs/v0")
 }
 
@@ -122,7 +122,7 @@ fn write_hashes(dir: &Path, hashes: &[u64]) {
 }
 
 /// Applies one command between ticks, as a replay's verification does.
-fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> {
+pub(crate) fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> {
     match c.kind {
         CommandKind::Choose => engine.choose(c.index).map_err(|e| format!("{e:?}")),
     }
@@ -174,7 +174,7 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
 /// The content a run case plays with: the bundled files, and the `time_limit` mode file of its
 /// own when the case has a `mode.json` (a short mode, so that a run ends by the final boss's
 /// kill or by the overtime without 20 minutes of play).
-fn case_content(case: &Path) -> Result<RunContent, String> {
+pub(crate) fn case_content(case: &Path) -> Result<RunContent, String> {
     let content = match fs::read(case.join("mode.json")) {
         Ok(bytes) => {
             let mode = TimeLimit::parse(&bytes, Versions::CURRENT).map_err(|e| e.to_string())?;

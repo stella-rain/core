@@ -1162,3 +1162,19 @@ fn the_finished_run_still_ends_normally() {
     });
     assert_eq!(e.outcome(), Outcome::Cleared);
 }
+
+#[test]
+fn places_agree_with_the_snapshot_while_companions_play() {
+    let mut e = engine(&crowd(json!("nearest_ally"), [50; 3]));
+    let mut places = stella_rain_core::engine::Places::default();
+    let mut companions = 0;
+    for _ in 0..60 {
+        e.step(idle());
+        let kinds = crate::places::assert_places_match(&e, &mut places);
+        companions += kinds
+            .iter()
+            .filter(|k| **k == EntityKind::Companion)
+            .count();
+    }
+    assert!(companions > 0, "no companion was ever drawn");
+}
