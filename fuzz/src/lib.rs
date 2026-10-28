@@ -8,7 +8,7 @@
 
 use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::attack_presets::AttackPresets;
-use stella_rain_core::engine::Engine;
+use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::id::ContentId;
 use stella_rain_core::input::Input;
@@ -19,7 +19,7 @@ use stella_rain_core::progression::{Bank, RunOutcome, RunResult, settle};
 use stella_rain_core::replay::{self, Replay};
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay};
+use stella_rain_core::run_replay::{self, Command, CommandKind, RunRecorder, RunReplay};
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::runes::Runes;
@@ -231,6 +231,10 @@ pub fn replay_load(data: &[u8]) -> bool {
         let again = RunReplay::from_bytes(&run.to_bytes())
             .expect("a run replay that loaded loads again once saved");
         assert_eq!(again, run, "a saved run replay loads as another run replay");
+        // A prefix that resumes is a replay of itself, whatever the bytes claimed.
+        if let Ok(resumed) = RunRecorder::resume_with_pack(&run, Pack::bundled()) {
+            assert_eq!(resumed.replay(), run, "a resumed prefix replays as another");
+        }
     }
     let stage_replay = replay::verify(CLEAR_STAGE, data).is_ok();
     let run_replay = run_replay::verify_run(data).is_ok();
@@ -239,13 +243,19 @@ pub fn replay_load(data: &[u8]) -> bool {
         let recorded = run_replay::record_run(&run.setup, &commands(&run))
             .expect("the commands of a run replay that verified record");
         assert_eq!(recorded, run, "a verified run replay records as another");
+        if run_replay::verify_run(data).is_ok_and(|v| v.outcome == Outcome::Running) {
+            assert!(
+                RunRecorder::resume_with_pack(&run, Pack::bundled()).is_ok(),
+                "a verified run still running does not resume"
+            );
+        }
     }
     stage_replay || run_replay
 }
 
 /// A run replay's commands in the order they were made: before each tick the commands that
 /// carry the tick before it, then its input; at the end the commands of the last tick.
-fn commands(run: &RunReplay) -> Vec<Command> {
+pub fn commands(run: &RunReplay) -> Vec<Command> {
     let inputs = run
         .unpack_inputs(MAX_TICKS)
         .expect("verified inputs unpack");

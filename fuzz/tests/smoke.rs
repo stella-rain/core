@@ -8,10 +8,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use stella_rain_core::pack::Pack;
+use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay};
 use stella_rain_core::share;
 use stella_rain_core_fuzz::{
-    minisign_verify, pack_load, packs_load, replay_load, run_setup, share_decode, stage_parse,
-    stage_run,
+    commands, minisign_verify, pack_load, packs_load, replay_load, run_setup, share_decode,
+    stage_parse, stage_run,
 };
 
 type Target = fn(&[u8]) -> bool;
@@ -71,9 +72,48 @@ fn run_replays() -> Vec<Vec<u8>> {
         .collect()
 }
 
+/// Run replays cut half-way: the first three run replays of the corpus, played again by their own
+/// commands up to the middle tick, so each ends where its run is still going.
+fn run_prefixes() -> Vec<Vec<u8>> {
+    run_replays()
+        .iter()
+        .take(3)
+        .map(|bytes| {
+            let run = RunReplay::from_bytes(bytes).expect("a corpus run replay");
+            let mut recorder = RunRecorder::start(&run.setup).expect("the corpus setup starts");
+            let mut steps = 0;
+            for command in commands(&run) {
+                match command {
+                    Command::Step(input) => {
+                        if steps == run.ticks / 2 {
+                            break;
+                        }
+                        steps += 1;
+                        recorder.step(input).expect("a corpus run steps");
+                    }
+                    Command::Choose(index) => recorder.choose(index).expect("a corpus choice"),
+                }
+            }
+            recorder.replay().to_bytes()
+        })
+        .collect()
+}
+
 fn clear() -> (Vec<u8>, Vec<u8>) {
     let (_, stage, replay) = corpus().into_iter().find(|c| c.0 == "clear").unwrap();
     (stage, replay)
+}
+
+#[test]
+fn a_run_prefix_resumes() {
+    let prefixes = run_prefixes();
+    assert_eq!(prefixes.len(), 3);
+    for prefix in prefixes {
+        assert!(replay_load(&prefix), "replay_load does not verify a prefix");
+        let run = RunReplay::from_bytes(&prefix).unwrap();
+        let resumed = RunRecorder::resume_with_pack(&run, stella_rain_core::pack::Pack::bundled());
+        assert_eq!(resumed.unwrap().replay(), run);
+    }
 }
 
 #[test]
@@ -232,6 +272,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
         .collect();
     if target == "replay_load" {
         seeds.extend(run_replays());
+        seeds.extend(run_prefixes());
     }
     if target == "stage_parse" {
         for file in [
