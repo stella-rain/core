@@ -11,6 +11,7 @@ pub const UNITS_PER_PX: i32 = 256;
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(transparent)]
+#[schemars(inline)]
 pub struct Fx(pub i32);
 
 impl Fx {
