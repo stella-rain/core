@@ -123,6 +123,7 @@ mod stars;
 mod starting_unlocks;
 mod statuses;
 mod stun;
+mod text_table;
 mod thunder;
 mod time_limit;
 mod time_limit_end;
