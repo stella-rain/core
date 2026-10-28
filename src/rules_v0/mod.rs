@@ -123,6 +123,7 @@ mod skill;
 mod stardust;
 mod stars;
 pub(crate) mod state;
+mod state_hash;
 mod stun;
 mod zones;
 

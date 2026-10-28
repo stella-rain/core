@@ -98,6 +98,7 @@ macro_rules! hash_enum {
         $h.write_u8($tag)
     };
 }
+pub(crate) use hash_enum;
 
 /// The length of a list, as a `u32`.
 fn list_len(len: usize) -> u32 {
