@@ -32,6 +32,8 @@ pub struct Places {
     pub stars: Vec<(EntityId, Point)>,
     /// The boss on the field: the id of the `Boss` entity, if any.
     pub boss: Option<EntityId>,
+    /// The player's position: `Snapshot::player.at`. The player always exists, alive or dead.
+    pub player: Point,
 }
 
 impl Engine {

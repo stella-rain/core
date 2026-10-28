@@ -23,6 +23,8 @@ struct Seen {
     ticks_with_stars: u64,
     boss_was_present: bool,
     boss_gone_after_present: bool,
+    player_positions: BTreeSet<(i32, i32)>,
+    ticks_player_dead: u64,
 }
 
 /// Fills `places` for `engine` and asserts it equals what the snapshot shows; returns the kinds
@@ -53,6 +55,12 @@ pub(crate) fn assert_places_match(engine: &Engine, places: &mut Places) -> Vec<E
         .find(|e| e.kind == EntityKind::Boss)
         .map(|e| e.id);
     assert_eq!(places.boss, boss, "boss at tick {}", engine.tick());
+    assert_eq!(
+        places.player,
+        snapshot.player.at,
+        "player at tick {}",
+        engine.tick()
+    );
     entities.iter().map(|p| p.kind).collect()
 }
 
@@ -61,6 +69,9 @@ fn note(seen: &mut Seen, engine: &Engine, places: &mut Places) {
         seen.kinds.insert(format!("{kind:?}"));
     }
     seen.ticks += 1;
+    seen.player_positions
+        .insert((places.player.x.0, places.player.y.0));
+    seen.ticks_player_dead += u64::from(engine.snapshot().player.hp == 0);
     seen.ticks_with_stars += u64::from(!places.stars.is_empty());
     if places.boss.is_some() {
         seen.boss_was_present = true;
@@ -147,11 +158,29 @@ fn the_corpus_reaches_every_entity_kind_it_claims() {
 }
 
 #[test]
+fn the_corpus_moves_the_player_and_reaches_a_dead_one() {
+    let seen = walk_corpus();
+    assert!(
+        seen.player_positions.len() > 1,
+        "the player never moved in the corpus"
+    );
+    assert!(
+        seen.ticks_player_dead > 0,
+        "no corpus tick with the player dead"
+    );
+    eprintln!(
+        "places: {} distinct player positions, {} ticks with the player dead",
+        seen.player_positions.len(),
+        seen.ticks_player_dead
+    );
+}
+
+#[test]
 fn a_dirty_buffer_is_cleared() {
     let stage = common::stage_full(18_000, Some(common::far_boss()), vec![], vec![]);
     let mut crowded = common::engine(&stage);
     for _ in 0..30 {
-        crowded.step(common::idle());
+        crowded.step(common::moving(1, 0));
     }
     let mut places = Places::default();
     crowded.places(&mut places);
@@ -161,7 +190,13 @@ fn a_dirty_buffer_is_cleared() {
     );
 
     let fresh = common::engine(&stage);
+    assert_ne!(
+        places.player,
+        fresh.snapshot().player.at,
+        "the crowded player should be off the start"
+    );
     fresh.places(&mut places);
+    assert_eq!(places.player, fresh.snapshot().player.at);
     let mut clean = Places::default();
     fresh.places(&mut clean);
     assert_eq!(places, clean);

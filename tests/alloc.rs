@@ -483,6 +483,7 @@ fn places_allocates_nothing_in_a_steady_tick() {
         "allocations and frees in {STEADY_TICKS} steady ticks of step plus places, (tick, allocs, frees): {at:?}"
     );
     assert!(!places.entities.is_empty());
+    assert_eq!(places.player, engine.snapshot().player.at);
 }
 
 /// At the cap of 260 enemies the first `places` may grow the buffer; the second may not.
