@@ -13,7 +13,7 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
   the fuzz jobs and the tick benchmarks (`rust.yml`, every target in `benches/budgets.toml`; the bench job uploads `bench-profile-<arch>`: one shard per bench target and arch, merged into that artifact; a PR restores its base's counts from main's push run when the toolchain fingerprint matches, else counts the base itself; a case is compared when its pre-tick digest in `tests/bench_pins.toml` is unchanged). A PR of only `*.md` files skips every
   Rust job, and `rust checks` passes when each job ran or was skipped by right.
 - `generated sets` (job `bless`) runs `cargo xtask bless --check` on Linux: it fails, naming the
-  stale sets (schema, corpus, goldens, content pack), when regenerating them changes a file.
+  stale sets (schema, corpus, goldens, content pack, bench pins), when regenerating them changes a file.
   `rust checks` requires it. Fix: `cargo xtask bless`, review the diff, commit it.
 - Tests run under cargo-nextest, profile `ci` (`.config/nextest.toml`): every failure is
   reported, a test past 30 s is listed SLOW, and each run writes a JUnit file, uploaded as the

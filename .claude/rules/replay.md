@@ -41,5 +41,5 @@ Sources: ADR-REPL-3, ADR-REPL-4, ADR-BRDG-3, ADR-SVC-6, ADR-SIM-3.
   checks it (ADR-SIM-3). An intended change: `cargo xtask bless`
   (it sets `UPDATE_CORPUS=1` itself); CI runs `cargo xtask bless --check`.
 - `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/`
-  (`cargo xtask bless` regenerates them too; `cargo insta test --features record --review`
-  to review one by hand).
+  (`cargo xtask bless` regenerates them too, and `tests/bench_pins.toml`;
+  `cargo insta test --features record --review` to review one by hand).
