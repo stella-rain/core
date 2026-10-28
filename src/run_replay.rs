@@ -18,6 +18,9 @@
 //! outside its options), an input while an offer is open,
 //! a command left over at the end, an input after the run ended, and a final hash that differs.
 //! A replay may end on an open offer: a bug report may stop while the player looks at one.
+//! `RunRecorder::resume_with_pack` takes such a prefix of a run still running, re-simulates it
+//! with the same checks (a final hash that differs is `PrefixHashDiffers`) and returns a live
+//! recorder at the cut, an open offer included, so a later `replay()` is one run from tick 0.
 //!
 //! The content hash is the SHA-256 of the bytes of the content pack the run used (ADR-079 §5,
 //! ADR-080), so any content update invalidates the replay rather than letting it drift, and a
@@ -499,8 +502,32 @@ impl RunRecorder {
         prefix: &RunReplay,
         pack: &Pack,
     ) -> Result<RunRecorder, RunReplayError> {
-        let _ = (prefix, pack);
-        unimplemented!("SV2a step 3")
+        let size = prefix.to_bytes().len();
+        if size > MAX_RUN_REPLAY_BYTES {
+            return Err(RunReplayError::TooLarge {
+                size,
+                limit: MAX_RUN_REPLAY_BYTES,
+            });
+        }
+        let run = resimulate(prefix, pack.content(), None)?;
+        let engine = run.engine;
+        if engine.outcome() != Outcome::Running {
+            return Err(RunReplayError::PrefixEnded {
+                tick: engine.tick(),
+            });
+        }
+        if engine.state_hash() != run.final_hash {
+            return Err(RunReplayError::PrefixHashDiffers {
+                tick: engine.tick(),
+            });
+        }
+        Ok(RunRecorder {
+            setup: prefix.setup.clone(),
+            content_sha256: prefix.content_sha256.clone(),
+            engine,
+            inputs: run.inputs,
+            commands: run.commands,
+        })
     }
 
     /// The run, for its snapshot and events.

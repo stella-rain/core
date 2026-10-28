@@ -835,7 +835,7 @@ fn a_tampered_prefix_hash_is_refused() {
         Some(RunReplayError::PrefixHashDiffers { tick: 300 })
     );
     let mut inputs = prefix.unpack_inputs(300).unwrap();
-    for input in &mut inputs[100..200] {
+    for input in &mut inputs[290..300] {
         *input = Input::default();
     }
     let changed = RunReplay {
