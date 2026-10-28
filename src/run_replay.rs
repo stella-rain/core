@@ -35,6 +35,7 @@ use crate::base64;
 use crate::content_hash::to_hex;
 use crate::engine::{ChoiceError, Engine, Outcome};
 use crate::input::Input;
+use crate::ledger::RunLedger;
 use crate::pack::Pack;
 use crate::replay::{hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack, write_varint};
 use crate::run_content::RunContent;
@@ -246,7 +247,7 @@ impl fmt::Display for RunReplayError {
 impl std::error::Error for RunReplayError {}
 
 /// What a successful verification proves: the run as recorded reaches this tick and hash.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RunVerified {
     pub ticks: u32,
     pub final_hash: u64,
@@ -257,6 +258,8 @@ pub struct RunVerified {
     /// The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST` (ADR-109): the
     /// app pays it after the run (ADR-079, ADR-101).
     pub stardust: u32,
+    /// The ledger of counts, bestiary encounters and build picks (ADR-BRDG-6).
+    pub ledger: RunLedger,
 }
 
 /// The SHA-256 of the game content a run of `mode` uses with the bundled pack: the pack's hash.
@@ -698,6 +701,7 @@ fn verify_inner(
         outcome: engine.outcome(),
         commands: u32::try_from(commands.len()).unwrap_or(u32::MAX),
         stardust: engine.stardust(),
+        ledger: engine.ledger().clone(),
     })
 }
 
