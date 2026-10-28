@@ -43,10 +43,6 @@
           "format": "uint32",
           "minimum": 0
         },
-        "description": {
-          "description": "What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "hp_pct": {
           "description": "Percent of the content's hit points every enemy, elite and boss (and each boss part)\nstarts with, from 1 to `MAX_PCT` (100 for normal).",
           "type": "integer",
@@ -111,17 +107,11 @@
           "items": {
             "$ref": "#/$defs/StardustTier"
           }
-        },
-        "title": {
-          "description": "The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
-        "title",
-        "description",
         "hp_pct",
         "damage_pct",
         "rarity_min",

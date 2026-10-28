@@ -48,10 +48,6 @@
       "description": "One stat a point can raise.",
       "type": "object",
       "properties": {
-        "description": {
-          "description": "What a point does, in words, at most `MAX_DESCRIPTION_CHARS` characters.",
-          "type": "string"
-        },
         "effect": {
           "$ref": "#/$defs/StatEffect"
         },
@@ -71,10 +67,6 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0
-        },
-        "title": {
-          "description": "The name the pause screen shows, 1 to `MAX_TITLE_CHARS` characters.",
-          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -82,9 +74,7 @@
         "id",
         "effect",
         "step",
-        "limit",
-        "title",
-        "description"
+        "limit"
       ]
     },
     "StatEffect": {
