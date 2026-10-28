@@ -8,10 +8,14 @@
 //! changes in place until the freeze (ADR-035): see `rules_v0` for what it does and does not
 //! do yet.
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::input::Input;
 use crate::kinds::KindTable;
+use crate::ledger::RunLedger;
 use crate::rewards::Rewards;
 use crate::rules_v0;
 use crate::rules_v0::{HordeSpec, World};
@@ -31,7 +35,8 @@ pub enum ChoiceError {
 }
 
 /// How a run stands.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum Outcome {
     Running,
     /// The stage was cleared: this is what a replay has to prove (ADR-009).
@@ -91,6 +96,8 @@ pub struct Engine {
     events: Vec<DomainEvent>,
     /// What the last tick used of the dynamic budgets; zero when the tick did not run.
     load: Load,
+    /// The ledger of counts and bestiary encounters (ADR-BRDG-6).
+    ledger: RunLedger,
 }
 
 impl Clone for Engine {
@@ -109,6 +116,7 @@ impl Clone for Engine {
                 events
             },
             load: self.load,
+            ledger: self.ledger.clone(),
         }
     }
 }
@@ -146,12 +154,15 @@ impl Engine {
         let mut state =
             rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
         rules_v0::set_policy(&mut state, content.run_stats(), stat_priority, pick_stats);
+        let weapon = Self::weapon_str(&stage);
+        let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
             events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
             load: Load::default(),
+            ledger,
         })
     }
 
@@ -185,12 +196,15 @@ impl Engine {
         );
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
+        let weapon = Self::weapon_str(&stage);
+        let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
             events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
             load: Load::default(),
+            ledger,
         })
     }
 
@@ -223,12 +237,15 @@ impl Engine {
         );
         let loadout = rules_v0::Loadout::of(setup, content);
         rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
+        let weapon = Self::weapon_str(&stage);
+        let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
             events: Vec::with_capacity(rules_v0::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
             load: Load::default(),
+            ledger,
         })
     }
 
@@ -254,6 +271,7 @@ impl Engine {
             // `new` validated the version; fail closed if that ever stops being true.
             _ => self.state.outcome = Outcome::Failed,
         }
+        self.observe_tick();
     }
 
     /// Chooses option `index` of the open offer, between ticks (ADR-079 §3): the snapshot's
@@ -287,7 +305,32 @@ impl Engine {
             ),
             _ => self.state.outcome = Outcome::Failed,
         }
+        self.observe_choice();
         Ok(())
+    }
+
+    fn weapon_str(stage: &World) -> &str {
+        match &stage.stage.player.weapon {
+            crate::weapon::WeaponRef::Preset { id, .. } => id.0.as_str(),
+            crate::weapon::WeaponRef::Inline(_) => "inline",
+        }
+    }
+
+    fn observe_tick(&mut self) {
+        let weapon = Self::weapon_str(&self.stage);
+        self.ledger.observe_tick(
+            &self.state.kinds,
+            weapon,
+            &self.state.enemies,
+            self.state.boss.as_ref(),
+            &self.events,
+        );
+    }
+
+    fn observe_choice(&mut self) {
+        let weapon = Self::weapon_str(&self.stage);
+        self.ledger
+            .observe_choice(&self.state.kinds, weapon, &self.events);
     }
 
     /// The run stats this run raises with its level-ups.
@@ -332,6 +375,11 @@ impl Engine {
     /// The domain events of the last tick, in the order they happened.
     pub fn events(&self) -> &[DomainEvent] {
         &self.events
+    }
+
+    /// The ledger of counts and bestiary encounters (ADR-BRDG-6).
+    pub fn ledger(&self) -> &RunLedger {
+        &self.ledger
     }
 
     /// The caps of the run's rules: a tick that reaches all of them is a worst-case tick. The

@@ -17,7 +17,7 @@ use crate::perk_sets::PerkSetsFile;
 use crate::replay::Replay;
 use crate::rewards::RewardsFile;
 use crate::rules::RulesFile;
-use crate::run_replay::RunReplay;
+use crate::run_replay::{RunReplay, RunVerified};
 use crate::run_setup::RunSetup;
 use crate::run_stats::RunStatsFile;
 use crate::runes::RunesFile;
@@ -44,6 +44,7 @@ pub fn all() -> Vec<(&'static str, String)> {
         ("replay.schema.json", pretty(schema_for!(Replay))),
         ("run_setup.schema.json", pretty(schema_for!(RunSetup))),
         ("run_replay.schema.json", pretty(schema_for!(RunReplay))),
+        ("run_verified.schema.json", pretty(schema_for!(RunVerified))),
         ("run_stats.schema.json", pretty(schema_for!(RunStatsFile))),
         ("rewards.schema.json", pretty(schema_for!(RewardsFile))),
         (
