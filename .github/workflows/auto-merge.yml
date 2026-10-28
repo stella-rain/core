@@ -1,4 +1,4 @@
-# Merges a green pull request from a `claude/*` branch into main, then deletes the branch.
+# Merges a green pull request from a `claude/*`, `bot/*` or `tune/*` branch into main, then deletes the branch.
 # Runs when any check below finishes; the reusable workflow merges only when every check on
 # the PR's head commit is green and every check in `require:` has succeeded, so a check whose
 # workflow has not started yet is never skipped. Drafts and PRs that touch .github/workflows/
@@ -28,6 +28,7 @@ jobs:
     secrets:
       BRIDGE_APP_PRIVATE_KEY: ${{ secrets.BRIDGE_APP_PRIVATE_KEY }}
     with:
+      prefixes: "claude/ bot/ tune/"
       require: |
         rust checks
         eol / LF line endings
