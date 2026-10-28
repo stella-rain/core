@@ -59,8 +59,8 @@ pub(super) fn act(stage: &World, s: &mut State) {
         };
         // A share is at most the bound above, so these fit.
         let to = crate::fixed::Point {
-            x: at.x.saturating_add(Fx(dx as i32)),
-            y: at.y.saturating_add(Fx(dy as i32)),
+            x: at.x.saturating_add(Fx::from_wide(dx)),
+            y: at.y.saturating_add(Fx::from_wide(dy)),
         };
         *at = map.clamp(to);
     }

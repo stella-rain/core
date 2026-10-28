@@ -1479,7 +1479,10 @@ mod attack_table_tests {
             sum += ticks;
         }
         rests.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
-        for &(_, i) in rests.iter().take(target.saturating_sub(sum) as usize) {
+        for &(_, i) in rests
+            .iter()
+            .take(usize::try_from(target.saturating_sub(sum)).unwrap_or(usize::MAX))
+        {
             out[i].ticks = out[i].ticks.saturating_add(1);
         }
         out

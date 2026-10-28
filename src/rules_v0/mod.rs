@@ -1670,7 +1670,7 @@ pub(crate) fn state_hash(world: &World, s: &State) -> u64 {
     }
     h.write_u32(u32::from(p.evade_charges));
     // At most the charges held, so at most 3.
-    h.write_u32(p.evade_recovering.len() as u32);
+    h.write_u32(u32::try_from(p.evade_recovering.len()).expect("at most 3 charges"));
     for &t in &p.evade_recovering {
         h.write_u32(t);
     }
