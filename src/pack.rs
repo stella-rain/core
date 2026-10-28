@@ -34,6 +34,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use sha2::{Digest, Sha256};
 
+pub mod trust;
+
 use crate::attack_presets::{AttackPresets, AttackPresetsFile};
 use crate::constellations::{Constellations, ConstellationsFile};
 use crate::difficulties::{Difficulties, DifficultiesFile};
