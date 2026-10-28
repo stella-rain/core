@@ -1551,7 +1551,10 @@ fn collect_json_files(dir: &Path) -> Result<BTreeMap<String, PathBuf>, CompareEr
     Ok(files)
 }
 
-fn compare_json_values(
+/// Compares two JSON values structurally, returning `Ok(())` if they are identical or differ
+/// only in numeric values. Returns `Err(CompareError::NotValid)` on type mismatches, differing
+/// strings, booleans, nulls, array lengths, or object keys.
+pub fn compare_json_values(
     base: &serde_json::Value,
     head: &serde_json::Value,
     path: &str,
