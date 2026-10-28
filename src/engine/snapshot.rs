@@ -15,6 +15,36 @@ use crate::snapshot::{
 
 use super::{AttackRun, Engine, ShrineState, StatusState};
 
+/// One drawn entity's id, kind and position (the fields of `EntityView` a frame needs to place an event).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Place {
+    pub id: EntityId,
+    pub kind: EntityKind,
+    pub at: Point,
+}
+
+/// Where the drawn things are after the last tick; filled by `Engine::places`, kept and reused by the caller.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Places {
+    /// As `Snapshot::entities`: the same entities, in the same order.
+    pub entities: Vec<Place>,
+    /// As `Snapshot::stars`, without the rarity.
+    pub stars: Vec<(EntityId, Point)>,
+    /// The boss on the field: the id of the `Boss` entity, if any.
+    pub boss: Option<EntityId>,
+}
+
+impl Engine {
+    /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
+    /// these fields, without building a snapshot. Allocates only while `out` grows to the
+    /// largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`.
+    pub fn places(&self, out: &mut Places) {
+        out.entities.clear();
+        out.stars.clear();
+        out.boss = None;
+    }
+}
+
 impl Engine {
     /// What the frontend draws after the last tick (ADR-005).
     pub fn snapshot(&self) -> Snapshot {

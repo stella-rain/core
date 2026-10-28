@@ -445,6 +445,7 @@ fn pool(ids: Option<&[ContentId]>, rewards: &Rewards) -> Result<Vec<u16>, Error>
 }
 
 mod snapshot;
+pub use snapshot::{Place, Places};
 
 #[cfg(test)]
 mod horde_tests;
