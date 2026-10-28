@@ -189,6 +189,11 @@ pub mod limits {
 
 use limits::*;
 
+/// A length for `within`; a length past `i64::MAX` is out of every range, so it saturates.
+fn wide(n: usize) -> i64 {
+    i64::try_from(n).unwrap_or(i64::MAX)
+}
+
 /// One problem and where it is.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Issue {
@@ -655,13 +660,13 @@ impl<'a> Ctx<'a> {
         if title == 0 {
             self.key("title", |c| c.fail("must not be empty"));
         } else {
-            self.within("title", title as i64, 1, MAX_TITLE_CHARS as i64);
+            self.within("title", wide(title), 1, wide(MAX_TITLE_CHARS));
         }
         self.within(
             "description",
-            s.description.chars().count() as i64,
+            wide(s.description.chars().count()),
             0,
-            MAX_DESCRIPTION_CHARS as i64,
+            wide(MAX_DESCRIPTION_CHARS),
         );
         self.ticks("length_ticks", s.length_ticks, 1);
         self.key("player", |c| c.player(&s.player));

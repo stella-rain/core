@@ -387,9 +387,9 @@ impl Map {
     /// the bounds were constants: `v + FIELD_MARGIN` wraps below 0 to above any span, and the
     /// validator keeps the spans far below `i32::MAX`.
     pub fn holds(&self) -> impl Fn(Point) -> bool + use<> {
-        let span = |side: Fx| (side.0 + 2 * FIELD_MARGIN) as u32;
+        let span = |side: Fx| bits(side.0 + 2 * FIELD_MARGIN);
         let (w, h) = (span(self.width), span(self.height));
-        let inside = |v: Fx, span: u32| (v.0.wrapping_add(FIELD_MARGIN) as u32) <= span;
+        let inside = |v: Fx, span: u32| bits(v.0.wrapping_add(FIELD_MARGIN)) <= span;
         move |p| inside(p.x, w) && inside(p.y, h)
     }
 }
@@ -446,6 +446,11 @@ impl Evade {
     pub fn most_charges(&self) -> u8 {
         self.max_charges.unwrap_or(self.charges)
     }
+}
+
+/// The two's-complement bits of `v`: negative values stay huge, so a range check on them fails.
+fn bits(v: i32) -> u32 {
+    u32::from_ne_bytes(v.to_ne_bytes())
 }
 
 fn one_charge() -> u8 {
