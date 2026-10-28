@@ -435,3 +435,14 @@ pub fn packs_load(data: &[u8]) -> bool {
     }
     true
 }
+
+/// The `minisign_verify` fuzz target (SG1a, DS49): untrusted signature bytes through
+/// `verify_packs`. Never panics on garbage, malformed base64, untrusted keys or invalid signatures.
+pub fn minisign_verify(data: &[u8]) -> bool {
+    const SEED_MANIFEST: &[u8] = br#"{"schema":1,"seq":1,"channels":{"0.1":{"tag":"v0.1.0","pack_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","url":"https://content.stella-rain.com/pack.json"}}}"#;
+    let Ok(packs) = stella_rain_core::pack::trust::verify_packs(SEED_MANIFEST, data) else {
+        return false;
+    };
+    assert_eq!(packs.seq(), 1);
+    true
+}

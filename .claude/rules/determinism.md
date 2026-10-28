@@ -38,9 +38,9 @@ published stages fail to verify.
 - ADR-SIM-3 enforces the float, `usize`/`isize` and hash-iteration bans as lints (for example
   clippy `disallowed-types`); add them when the crate is created.
 
-## `sim_version` (ADR-REPL-1)
+## `sim_version` (ADR-REPL-5)
 
-- Version 0 is a development version (ADR-REPL-1): rules, numbers and the state's byte encoding
+- Version 0 is a development version (ADR-REPL-5): rules, numbers and the state's byte encoding
   change in place, without a `rules_vN` copy, until the freeze at P3. The x86_64 and arm64
   hash check is not relaxed: a PR that changes an outcome on purpose regenerates the version 0
   corpus (`cargo xtask bless`) and says `Corpus regenerated: <why>`; any other hash change is a bug. SplitMix64 and

@@ -94,7 +94,7 @@ fn enemies_leave_past_the_maps_margin_not_the_portrait_fields() {
         json!([]),
     );
     // The main character stands at the right edge, so the runner stays within the leash's reach
-    // (800 px) until it is gone, and the leash does not bring it back (EC2).
+    // (leash_reach_x of rules.json, 640 px) until it is gone, and the leash does not bring it back (EC2).
     let stage = on_map(
         quiet(stage_with(
             600,

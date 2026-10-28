@@ -19,6 +19,8 @@ use schemars::JsonSchema;
 use serde::de::{IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
+pub use crate::pack::trust::{PUBLIC_KEYS, TrustError, verify_packs};
+
 /// The most channels (placeholder; one per core minor, two or three live at a time).
 pub const MAX_CHANNELS: usize = 16;
 /// The longest channel key, in bytes (placeholder; `65535.65535` is 11).

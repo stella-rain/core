@@ -10,12 +10,13 @@ use std::path::{Path, PathBuf};
 use stella_rain_core::pack::Pack;
 use stella_rain_core::share;
 use stella_rain_core_fuzz::{
-    pack_load, packs_load, replay_load, run_setup, share_decode, stage_parse, stage_run,
+    minisign_verify, pack_load, packs_load, replay_load, run_setup, share_decode, stage_parse,
+    stage_run,
 };
 
 type Target = fn(&[u8]) -> bool;
 
-const TARGETS: [(&str, Target); 7] = [
+const TARGETS: [(&str, Target); 8] = [
     ("stage_parse", stage_parse),
     ("stage_run", stage_run),
     ("replay_load", replay_load),
@@ -23,6 +24,7 @@ const TARGETS: [(&str, Target); 7] = [
     ("run_setup", run_setup),
     ("pack_load", pack_load),
     ("packs_load", packs_load),
+    ("minisign_verify", minisign_verify),
 ];
 
 fn root() -> PathBuf {
@@ -206,6 +208,9 @@ fn pack_with_constellations() -> Vec<u8> {
 /// and run replays for the replay target, share codes (of the corpus pairs) for the share target
 /// and run setups for the setup target.
 fn seeds(target: &str) -> Vec<Vec<u8>> {
+    if target == "minisign_verify" {
+        return vec![minisign_seed()];
+    }
     if target == "run_setup" {
         return setups();
     }
@@ -311,6 +316,22 @@ fn packs_manifest() -> Vec<u8> {
 #[test]
 fn a_real_manifest_gets_past_the_loader() {
     assert!(packs_load(&packs_manifest()), "packs_load rejects the seed");
+}
+
+fn minisign_seed() -> Vec<u8> {
+    b"untrusted comment: signature from minisign secret key\n\
+RWRTVEVMTEEwMa8N4UsS3HvJAN2N9Zl4kDmI2Qh5RNGkT4DujF+P4m2ftL0XuquAqYOna2yJuTHsIqrz6tDQg9o0EW+ttwPnMQ8=\n\
+trusted comment: timestamp:1700000000\tfile:packs.json\n\
+VdvQLUtkDQx1XIsVO20qLa/lxv0+Uq4ocstxuLuShOgVMQ1UM8AwDzn9kEjXOkbxHx7NS6W5plxlT6tsLHDrCQ=="
+        .to_vec()
+}
+
+#[test]
+fn a_real_minisign_signature_gets_past_the_verifier() {
+    assert!(
+        minisign_verify(&minisign_seed()),
+        "minisign_verify rejects the seed"
+    );
 }
 
 #[test]

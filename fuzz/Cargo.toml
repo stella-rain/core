@@ -76,6 +76,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "minisign_verify"
+path = "fuzz_targets/minisign_verify.rs"
+test = false
+doc = false
+bench = false
+
 # Overflow panics in every profile, as in the root crate (ADR-019): a profile of the root
 # `Cargo.toml` does not reach this workspace. `cargo fuzz` builds with the release profile.
 [profile.dev]

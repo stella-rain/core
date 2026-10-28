@@ -3,9 +3,10 @@
 //! untrusted, so this uses the same size limit and validation as the game.
 //!
 //! ```text
-//! content-pack verify FILE      (FILE may be - for standard input)
+//! content-pack verify FILE [--text TEXT_FILE]  (FILE, TEXT_FILE may be - for standard input)
 //! content-pack export [DIR]
 //! content-pack unpack PACK DIR
+//! content-pack compare --numbers-only BASE_DIR HEAD_DIR
 //! ```
 //!
 //! Exit status: 0 valid (or exported); 1 not valid (the pack is at fault); 2 the command line
@@ -30,12 +31,13 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use stella_rain_core::content_hash::to_hex;
-use stella_rain_core::pack::{ContentFiles, Pack};
+use stella_rain_core::pack::{CompareError, ContentFiles, Pack};
 use stella_rain_core::text::TextTable;
 
 const USAGE: &str = "usage: content-pack verify FILE [--text TEXT_FILE]\n       \
                      content-pack export [DIR]\n       \
-                     content-pack unpack PACK DIR\n\
+                     content-pack unpack PACK DIR\n       \
+                     content-pack compare --numbers-only BASE_DIR HEAD_DIR\n\
                      FILE, PACK and TEXT_FILE may be - for standard input. unpack writes the pack's \
                      files into DIR (core's content/) and its mode files into modes/ beside \
                      it, and leaves content/pack.json to export. Without DIR, export writes the pack built \
@@ -107,7 +109,10 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
         ["export"] => write_pack(Pack::BUNDLED),
         ["export", dir] => export_dir(Path::new(dir)),
         ["unpack", path, dir] => unpack(path, Path::new(dir)),
-        _ if args[0] == "verify" => verify_cmd(&args[1..]),
+        ["compare", "--numbers-only", base_dir, head_dir] => {
+            compare_dirs(Path::new(base_dir), Path::new(head_dir))
+        }
+        _ if args.first().is_some_and(|a| *a == "verify") => verify_cmd(&args[1..]),
         _ => Err(Failure::Usage(USAGE.into())),
     }
 }
@@ -170,6 +175,19 @@ fn verify_cmd(args: &[&str]) -> Result<(), Failure> {
         pack.content().rules().cap_headroom_pct()
     );
     Ok(())
+}
+
+fn compare_dirs(base_dir: &Path, head_dir: &Path) -> Result<(), Failure> {
+    if !base_dir.is_dir() {
+        return Err(Failure::Usage("BASE_DIR is not a directory".into()));
+    }
+    if !head_dir.is_dir() {
+        return Err(Failure::Usage("HEAD_DIR is not a directory".into()));
+    }
+    stella_rain_core::pack::compare_numbers_only(base_dir, head_dir).map_err(|e| match e {
+        CompareError::Usage(msg) => Failure::Usage(msg),
+        CompareError::NotValid(msg) => Failure::NotValid(msg),
+    })
 }
 
 fn write_pack(bytes: &[u8]) -> Result<(), Failure> {

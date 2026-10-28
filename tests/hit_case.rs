@@ -14,7 +14,7 @@ use stella_rain_core::snapshot::{EntityKind, EntityView};
 use stella_rain_core::validate::limits::MAX_MAP_SIDE;
 
 /// The largest map (core#87), and the spread case's two outer crowds: 440 pixels right of the
-/// start and 440 above and below it, inside the leash's 800 pixels (EC2, DS84).
+/// start and 440 above and below it, inside the earlier leash's 800 pixels (EC2, DS84).
 const SIDE: i32 = MAX_MAP_SIDE;
 const SPREAD_OFFSET: i32 = 112_640;
 const TOP_RIGHT: (i32, i32) = (
@@ -26,9 +26,10 @@ const BOTTOM_RIGHT: (i32, i32) = (
     hit_case::START.1 + SPREAD_OFFSET,
 );
 
-/// The leash's reach (800 pixels), and the least extent of the spread crowd after the warm-up, in
-/// units: 700 pixels on y. The start is 238 pixels from the map's left edge, so x cannot span 700
-/// pixels; it measures 160,883 (about 630 pixels), and the least is EC2's 140,000.
+/// The earlier leash's reach (800 pixels, EC2, DS84; the leash is now `rules.json`'s view
+/// rectangle), and the least extent of the spread crowd after the warm-up, in units: 700 pixels on
+/// y. The start is 238 pixels from the map's left edge, so x cannot span 700 pixels; it measures
+/// 160,883 (about 630 pixels), and the least is EC2's 140,000.
 const LEASH_REACH: i64 = 204_800;
 const LEAST_EXTENT_X: i32 = 140_000;
 const LEAST_EXTENT_Y: i32 = 179_200;
