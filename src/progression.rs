@@ -17,6 +17,7 @@ use crate::engine::{Engine, Outcome};
 use crate::id::ContentId;
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
+use crate::validate::limits::MAX_RUN_STARDUST;
 
 /// How an ended run ended (a running run has no result).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,9 +118,24 @@ pub struct Settlement {
 /// Settles `run` against the `bank` the save holds, by the numbers of `content`.
 ///
 /// A mode the Stardust file has no entry for pays every outcome whole and banks nothing: a mode
-/// added without an entry pays as the app always has.
+/// added without an entry pays as the app always has. An unknown difficulty not in
+/// `content.difficulties()` returns a zero-pay settlement with the bank left unchanged.
+/// `run.stardust_tenths` is clamped to `MAX_RUN_STARDUST`.
 pub fn settle(content: &RunContent, run: &RunResult, bank: &Bank) -> Settlement {
-    let earned = u64::from(run.stardust_tenths);
+    if content.difficulties().get(&run.difficulty).is_none() {
+        return Settlement {
+            paid_tenths: 0,
+            bank_paid_tenths: 0,
+            stardust_tenths: 0,
+            banked_tenths: 0,
+            lost_tenths: 0,
+            bank_after: bank.clone(),
+            rune_shards: 0,
+            opened: Vec::new(),
+        };
+    }
+
+    let earned = u64::from(run.stardust_tenths.min(MAX_RUN_STARDUST));
     let cleared = run.outcome == RunOutcome::Cleared;
     let key = (run.mode.clone(), run.difficulty.clone());
     let mut bank_after = bank.clone();
