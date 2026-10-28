@@ -1,14 +1,16 @@
-//! `cargo xtask bless` regenerates every generated set of core; `--check` reports any set that
+//! `cargo xtask bless` regenerates every generated set of core (schema, corpus, goldens, the
+//! content pack and the bench pins); `--check` reports any set that
 //! is not as committed. Std only: it shells out to `cargo` and `git`.
 
 use std::process::{Command, ExitCode};
 
 /// Where each generated set lives, in the order `bless` regenerates them.
-const SETS: [(&str, &str); 4] = [
+const SETS: [(&str, &str); 5] = [
     ("schema", "schema/"),
     ("corpus", "tests/corpus/"),
     ("golden", "tests/golden/"),
     ("pack", "content/pack.json"),
+    ("bench pins", "tests/bench_pins.toml"),
 ];
 
 #[derive(Debug, PartialEq, Eq)]
@@ -97,6 +99,14 @@ fn steps() -> Vec<Step> {
             env: Some(("INSTA_UPDATE", "always")),
             drop_ci: false,
             filter: "golden::",
+        },
+        // Last: the pins depend on the code and the compiled-in pack only, not on the three sets
+        // above. `CI` is removed because the knob refuses to write when it is set, and
+        // `bless --check` runs under CI.
+        Step::Test {
+            env: Some(("UPDATE_BENCH_PINS", "1")),
+            drop_ci: true,
+            filter: "bench_fixture_pins::",
         },
     ]
 }
@@ -190,9 +200,11 @@ usage: cargo xtask bless [--check]"
             ExitCode::FAILURE
         }
         (Ok(_), Mode::Bless) => {
+            let names: Vec<_> = SETS.iter().map(|(name, _)| *name).collect();
             println!(
-                "blessed: schema, corpus, golden, pack
-Commit body: Corpus regenerated: <why>"
+                "blessed: {}
+Commit body: Corpus regenerated: <why>",
+                names.join(", ")
             );
             ExitCode::SUCCESS
         }
@@ -247,6 +259,8 @@ mod tests {
             "src/lib.rs",
         ]);
         assert_eq!(stale_sets(&paths), ["schema", "corpus", "golden", "pack"]);
+        let pins = args(&["tests/bench_pins.toml", "tests/golden/x.snap"]);
+        assert_eq!(stale_sets(&pins), ["golden", "bench pins"]);
         assert!(stale_sets(&args(&["README.md"])).is_empty());
     }
 
@@ -267,6 +281,11 @@ mod tests {
                 test_step(("UPDATE_SCHEMA", "1"), "schema::"),
                 test_step(("UPDATE_CORPUS", "1"), "corpus::"),
                 test_step(("INSTA_UPDATE", "always"), "golden::"),
+                Step::Test {
+                    env: Some(("UPDATE_BENCH_PINS", "1")),
+                    drop_ci: true,
+                    filter: "bench_fixture_pins::",
+                },
             ]
         );
     }
@@ -333,5 +352,26 @@ mod tests {
         let m = stale_message(&["corpus", "pack"]);
         assert!(m.contains("corpus") && m.contains("pack"), "{m}");
         assert!(m.contains("cargo xtask bless"), "{m}");
+        let m = stale_message(&["bench pins"]);
+        assert!(
+            m.contains("bench pins") && m.contains("cargo xtask bless"),
+            "{m}"
+        );
+    }
+
+    #[test]
+    fn only_the_pins_step_runs_without_ci() {
+        let ci_removed = |s: &Step| {
+            s.command()
+                .get_envs()
+                .any(|(k, v)| k == "CI" && v.is_none())
+        };
+        for step in steps() {
+            assert_eq!(ci_removed(&step), writes(&step) == "bench pins", "{step:?}");
+        }
+        let pins = steps().remove(pins_step().expect("pins step"));
+        let cmd = pins.command();
+        let knob = cmd.get_envs().find(|(k, _)| *k == "UPDATE_BENCH_PINS");
+        assert_eq!(knob.and_then(|(_, v)| v), Some(std::ffi::OsStr::new("1")));
     }
 }
