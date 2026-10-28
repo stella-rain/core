@@ -39,8 +39,8 @@ Sources: ADR-REPL-3, ADR-REPL-4, ADR-BRDG-3, ADR-SVC-6, ADR-SIM-3.
 - `tests/corpus/`: `v0/<case>/` holds `stage.json`, `run.replay` and `hashes.bin`;
   `runs/v0/<case>/` holds a run's `run.replay` and `hashes.bin` (ADR-REPL-3); `corpus.rs`
   checks it (ADR-SIM-3). `tests/corpus/runs/v0/stage_skill/run.replay` is read by the `app` repo from
-  Cargo's checkout of core: it is not renamed or moved without the app's bump, nor is a case's
-  folder (`tests/corpus_contract.rs` fails on it). An intended change: `cargo xtask bless`
+  Cargo's checkout of core: it is not renamed or moved without the app's bump
+  (`tests/corpus_contract.rs` fails on it). An intended change: `cargo xtask bless`
   (it sets `UPDATE_CORPUS=1` itself); CI runs `cargo xtask bless --check`.
 - `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/`
   (`cargo xtask bless` regenerates them too; `cargo insta test --features record --review`
