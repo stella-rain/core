@@ -66,48 +66,100 @@ fn dirty_paths() -> Result<Vec<String>, String> {
         .collect())
 }
 
-fn cargo_test(env: Option<(&str, &str)>, filter: &str) -> Result<(), String> {
-    let mut cmd = Command::new("cargo");
-    cmd.args([
-        "test",
-        "--locked",
-        "--all-features",
-        "--test",
-        "integration",
-        filter,
-    ]);
-    if let Some((k, v)) = env {
-        cmd.env(k, v);
-    }
-    run(&mut cmd)
+/// One step of `bless`, run in order.
+#[derive(Debug, PartialEq, Eq)]
+enum Step {
+    ExportPack,
+    Test {
+        env: Option<(&'static str, &'static str)>,
+        /// Run without the `CI` variable (a knob under test refuses to write when it is set).
+        drop_ci: bool,
+        filter: &'static str,
+    },
 }
 
-fn export_pack() -> Result<(), String> {
-    let out = Command::new("cargo")
-        .args([
-            "run",
-            "--quiet",
-            "--locked",
-            "--bin",
-            "content-pack",
-            "export",
-            "content",
-        ])
-        .output()
-        .map_err(|e| format!("content-pack: {e}"))?;
-    if !out.status.success() {
-        return Err(format!("content-pack export failed: {}", out.status));
+/// The steps of `bless`. First: the tests below read the pack compiled into core, so they must
+/// be built on the pack of the files as they are now.
+fn steps() -> Vec<Step> {
+    vec![
+        Step::ExportPack,
+        Step::Test {
+            env: Some(("UPDATE_SCHEMA", "1")),
+            drop_ci: false,
+            filter: "schema::",
+        },
+        Step::Test {
+            env: Some(("UPDATE_CORPUS", "1")),
+            drop_ci: false,
+            filter: "corpus::",
+        },
+        Step::Test {
+            env: Some(("INSTA_UPDATE", "always")),
+            drop_ci: false,
+            filter: "golden::",
+        },
+    ]
+}
+
+impl Step {
+    fn command(&self) -> Command {
+        match self {
+            Step::ExportPack => {
+                let mut cmd = Command::new("cargo");
+                cmd.args([
+                    "run",
+                    "--quiet",
+                    "--locked",
+                    "--bin",
+                    "content-pack",
+                    "export",
+                    "content",
+                ]);
+                cmd
+            }
+            Step::Test {
+                env,
+                drop_ci,
+                filter,
+            } => {
+                let mut cmd = Command::new("cargo");
+                cmd.args([
+                    "test",
+                    "--locked",
+                    "--all-features",
+                    "--test",
+                    "integration",
+                    filter,
+                ]);
+                if let Some((k, v)) = env {
+                    cmd.env(k, v);
+                }
+                if *drop_ci {
+                    cmd.env_remove("CI");
+                }
+                cmd
+            }
+        }
     }
-    std::fs::write("content/pack.json", out.stdout).map_err(|e| format!("content/pack.json: {e}"))
+
+    fn run(&self) -> Result<(), String> {
+        let mut cmd = self.command();
+        match self {
+            Step::ExportPack => {
+                let out = cmd.output().map_err(|e| format!("content-pack: {e}"))?;
+                if !out.status.success() {
+                    return Err(format!("content-pack export failed: {}", out.status));
+                }
+                std::fs::write("content/pack.json", out.stdout)
+                    .map_err(|e| format!("content/pack.json: {e}"))
+            }
+            Step::Test { .. } => run(&mut cmd),
+        }
+    }
 }
 
 fn regenerate() -> Result<(), String> {
-    // First: the tests below read the pack compiled into core, so they must be built on the
-    // pack of the files as they are now.
-    export_pack()?;
-    cargo_test(Some(("UPDATE_SCHEMA", "1")), "schema::")?;
-    cargo_test(Some(("UPDATE_CORPUS", "1")), "corpus::")?;
-    cargo_test(Some(("INSTA_UPDATE", "always")), "golden::")
+    steps().iter().try_for_each(Step::run)
 }
 
 fn main() -> ExitCode {
@@ -196,6 +248,27 @@ mod tests {
         ]);
         assert_eq!(stale_sets(&paths), ["schema", "corpus", "golden", "pack"]);
         assert!(stale_sets(&args(&["README.md"])).is_empty());
+    }
+
+    fn test_step(env: (&'static str, &'static str), filter: &'static str) -> Step {
+        Step::Test {
+            env: Some(env),
+            drop_ci: false,
+            filter,
+        }
+    }
+
+    #[test]
+    fn bless_runs_pack_schema_corpus_golden_in_that_order() {
+        assert_eq!(
+            steps(),
+            [
+                Step::ExportPack,
+                test_step(("UPDATE_SCHEMA", "1"), "schema::"),
+                test_step(("UPDATE_CORPUS", "1"), "corpus::"),
+                test_step(("INSTA_UPDATE", "always"), "golden::"),
+            ]
+        );
     }
 
     #[test]
