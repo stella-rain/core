@@ -8,6 +8,11 @@ use crate::fixed::Point;
 /// The smallest cell side: 32 pixels, so small radii do not make thousands of cells.
 const MIN_CELL: i64 = 8192;
 
+/// A cell number as a table index; the grid is `cols * rows` cells, bounded by the horde caps.
+fn cell_index(cell: i64) -> usize {
+    usize::try_from(cell).expect("cell index is in range")
+}
+
 /// Circles (centre, radius) bucketed into square cells, each cell listing its circles in index
 /// order. A cell is at least as wide as the probe radius plus the largest circle radius, so a
 /// probe can only overlap circles in its own cell or the 8 around it.
@@ -82,7 +87,7 @@ impl Grid {
         cells.clear();
         cells.extend(self.circles.iter().map(|c| self.cell_of(c.0)));
         self.start.clear();
-        self.start.resize((self.cols * self.rows) as usize + 1, 0);
+        self.start.resize(cell_index(self.cols * self.rows) + 1, 0);
         for &c in &cells {
             self.start[c + 1] += 1;
         }
@@ -94,7 +99,7 @@ impl Grid {
         self.members.clear();
         self.members.resize(cells.len(), 0);
         for (i, &c) in cells.iter().enumerate() {
-            self.members[self.next[c] as usize] = i as u32;
+            self.members[self.next[c] as usize] = u32::try_from(i).expect("member index fits u32");
             self.next[c] += 1;
         }
         self.cells = cells;
@@ -110,7 +115,7 @@ impl Grid {
     /// The index of the cell of a circle's centre, which is always inside the grid.
     fn cell_of(&self, at: Point) -> usize {
         let (col, row) = self.col_row(at);
-        (row * self.cols + col) as usize
+        cell_index(row * self.cols + col)
     }
 
     /// Calls `f` with up to `most` circles other than `me`: those of `me`'s own cell, then of the
@@ -141,7 +146,7 @@ impl Grid {
             if !(0..self.cols).contains(&c) || !(0..self.rows).contains(&r) {
                 continue;
             }
-            let cell = (r * self.cols + c) as usize;
+            let cell = cell_index(r * self.cols + c);
             let (from, to) = (self.start[cell] as usize, self.start[cell + 1] as usize);
             for &i in &self.members[from..to] {
                 if i as usize == me {
@@ -183,8 +188,8 @@ impl Grid {
         bits.resize(self.circles.len().div_ceil(64), 0);
         for r in r0..=r1 {
             // The cells of a row are one run of the member list: they are laid out cell by cell.
-            let first = (r * self.cols + c0) as usize;
-            let last = (r * self.cols + c1) as usize;
+            let first = cell_index(r * self.cols + c0);
+            let last = cell_index(r * self.cols + c1);
             let (from, to) = (self.start[first] as usize, self.start[last + 1] as usize);
             for &i in &self.members[from..to] {
                 let (centre, radius) = self.circles[i as usize];
@@ -207,7 +212,7 @@ impl Grid {
 mod tests {
     use proptest::prelude::*;
 
-    use super::Grid;
+    use super::{Grid, cell_index};
     use crate::fixed::{Fx, Point};
 
     fn point(range: i32) -> impl Strategy<Value = Point> {
@@ -230,7 +235,7 @@ mod tests {
             let mut z = self.0;
             z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
             z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) % n as u64) as i32
+            i32::try_from((z ^ (z >> 31)) % u64::from(n.unsigned_abs())).expect("below n")
         }
     }
 
@@ -256,7 +261,8 @@ mod tests {
             let mut probes: Vec<(Point, i32)> = shapes.iter().map(|c| (c.0, 65_536)).collect();
             for _ in 0..60 {
                 let edge = rng.below(25) * 8_192 + rng.below(3) - 1;
-                let reach = [1_000, 8_192, 8_193, 65_536, 300_000][rng.below(5) as usize];
+                let reach = [1_000, 8_192, 8_193, 65_536, 300_000]
+                    [usize::try_from(rng.below(5)).expect("below 5")];
                 probes.push((
                     Point {
                         x: Fx(edge),
@@ -293,7 +299,7 @@ mod tests {
             if !(0..grid.cols).contains(&c) || !(0..grid.rows).contains(&r) {
                 continue;
             }
-            let cell = (r * grid.cols + c) as usize;
+            let cell = cell_index(r * grid.cols + c);
             let (from, to) = (grid.start[cell] as usize, grid.start[cell + 1] as usize);
             for &i in &grid.members[from..to] {
                 if i as usize == me {
