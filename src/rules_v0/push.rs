@@ -141,11 +141,14 @@ pub(super) fn offsets_into(bodies: &[Body], grid: &mut Grid, out: &mut Vec<(i32,
             let len = floor + i64::from(floor * floor < len2);
             (sx, sy) = (sx * STEP / len, sy * STEP / len);
         }
-        out.push((
-            Fx::from_wide(sx).0,
-            Fx::from_wide(sy).0,
-            overlap > CROWDED_OVER,
-        ));
+        // The squared length is at most `STEP²` here, so neither component is over `STEP`; the
+        // checked narrowing counted 29 M instructions in `worst_minute` (ADR-SIM-8).
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "|sx| and |sy| are at most STEP (1,024), after the clamp above"
+        )]
+        let (ox, oy) = (sx as i32, sy as i32);
+        out.push((ox, oy, overlap > CROWDED_OVER));
     }
 }
 

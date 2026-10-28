@@ -146,7 +146,14 @@ impl Grid {
             if !(0..self.cols).contains(&c) || !(0..self.rows).contains(&r) {
                 continue;
             }
-            let cell = cell_index(r * self.cols + c);
+            // The range check above puts `r * cols + c` in `0..cols * rows`, the length of
+            // `start` less one: it is the hottest conversion in the tick (ADR-SIM-8).
+            #[expect(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "0 <= c < cols and 0 <= r < rows, so the cell number is a valid index"
+            )]
+            let cell = (r * self.cols + c) as usize;
             let (from, to) = (self.start[cell] as usize, self.start[cell + 1] as usize);
             for &i in &self.members[from..to] {
                 if i as usize == me {
