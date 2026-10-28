@@ -30,6 +30,7 @@ mod command_cap;
 mod constellations;
 mod content_hash;
 mod content_pack;
+mod content_pack_compare;
 mod content_pack_unpack;
 mod controls;
 mod corpus;
