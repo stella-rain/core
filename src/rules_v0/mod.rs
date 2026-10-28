@@ -265,6 +265,14 @@ pub(crate) fn reserve(stage: &World, s: &mut State) {
     scratch::reserve_to(&mut s.ranged_cooling, MAX_RANGED_ATTACKERS as usize);
     scratch::reserve_to(&mut s.orbs, MAX_ORBS_ALIVE as usize);
     scratch::reserve_to(&mut s.zones, MAX_ZONES_ALIVE as usize);
+    if let (Some(cfg), Some(f)) = (&stage.stars, s.stars.as_mut()) {
+        let stars = usize::from(cfg.cap.min(crate::validate::limits::MAX_STARS_ON_MAP));
+        scratch::reserve_to(&mut f.on_map, stars);
+        scratch::reserve_to(&mut f.due, stars + 1);
+    }
+    if let (Some(cfg), Some(pickups)) = (&stage.heal, s.heal_pickups.as_mut()) {
+        scratch::reserve_to(pickups, usize::from(cfg.cap));
+    }
 }
 
 /// Events a tick reserves room for per enemy alive (hits, kills, spawns, bursts).

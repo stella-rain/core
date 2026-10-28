@@ -76,13 +76,11 @@ pub(super) fn pick_up(stage: &World, s: &mut State, events: &mut Vec<DomainEvent
         let Some(pickups) = s.heal_pickups.as_mut() else {
             return;
         };
-        let (taken, kept): (Vec<HealPickup>, Vec<HealPickup>) = std::mem::take(pickups)
-            .into_iter()
-            .partition(|p| overlaps(at, radius, p.at, 0));
-        *pickups = kept;
-        taken
+        let before = pickups.len();
+        pickups.retain(|p| !overlaps(at, radius, p.at, 0));
+        before - pickups.len()
     };
-    for _ in taken {
+    for _ in 0..taken {
         heal(&mut s.player, u64::from(cfg.amount), events);
     }
 }

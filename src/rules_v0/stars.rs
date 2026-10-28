@@ -165,16 +165,17 @@ pub(super) fn pick_up(stage: &World, s: &mut State, events: &mut Vec<DomainEvent
     };
     if s.player.hp == 0 {
         return;
-    }
+    };
     let at = s.player.at;
-    let pickup_pct = s.player.pickup_radius_pct;
+    let radius = widened(cfg.pickup_radius.0, s.player.pickup_radius_pct);
     let Some(f) = s.stars.as_mut() else {
         return;
     };
-    let stars = std::mem::take(&mut f.on_map);
-    for star in stars {
-        if overlaps(at, widened(cfg.pickup_radius.0, pickup_pct), star.at, 0) {
-            f.due.push(Due {
+    let (on_map, due) = (&mut f.on_map, &mut f.due);
+    on_map.retain(|star| {
+        let taken = overlaps(at, radius, star.at, 0);
+        if taken {
+            due.push(Due {
                 kind: OfferKind::Star,
                 rarity: star.rarity,
             });
@@ -182,10 +183,9 @@ pub(super) fn pick_up(stage: &World, s: &mut State, events: &mut Vec<DomainEvent
                 star: star.id,
                 rarity: star.rarity,
             });
-        } else {
-            f.on_map.push(star);
         }
-    }
+        !taken
+    });
 }
 
 /// Opens the first offer due that has a candidate, unless an offer is open; with `boss_only`,
