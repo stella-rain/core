@@ -6,14 +6,14 @@ description: Change a Stella Rain stage, event or replay type, or anything that 
 # Schema change
 
 The Rust types in `stella-rain/core` are the only schema (ADR-CONT-1). Stages and replays already
-published in creators' repositories must keep loading and verifying forever (ADR-REPL-1, ADR-CONT-2).
+published in creators' repositories must keep loading and verifying forever (ADR-REPL-5, ADR-CONT-2).
 This file is identical in `app` and `core`; change both copies in the same task.
 
 ## 1. Classify the change
 
 | Change | Bump | What else |
 |---|---|---|
-| Any of the changes below while the version is still 0 (ADR-REPL-1) | none | Change in place: no migration, no `rules_vN` copy, no deprecation. If outcomes change, regenerate the version 0 corpus and write `Corpus regenerated: <why>` in the PR |
+| Any of the changes below while the version is still 0 (ADR-REPL-5) | none | Change in place: no migration, no `rules_vN` copy, no deprecation. If outcomes change, regenerate the version 0 corpus and write `Corpus regenerated: <why>` in the PR |
 | File structure of stages, events or recordings: a field added, removed, renamed or retyped | `schema_version` | Forward migration on load |
 | Anything that can alter an outcome: rules, numbers, RNG use, math, what a content ID does | `sim_version` | A new frozen `rules_vN`; older versions untouched |
 | New content ID (asset, palette, part, block, targeting, skill, attack pattern) | none | Registry entry; permanent once released |

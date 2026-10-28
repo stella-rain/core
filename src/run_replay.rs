@@ -21,9 +21,9 @@
 //!
 //! The content hash is the SHA-256 of the bytes of the content pack the run used (ADR-079 §5,
 //! ADR-080), so any content update invalidates the replay rather than letting it drift, and a
-//! kept pack is found by it. The attack presets and the weapons are files of the pack (CS1b-1,
-//! WP1), so a change to a preset is a content release and a new hash. What the rules do with
-//! the content is the `sim_version`'s, which the setup carries.
+//! kept pack is found by it. The attack presets and the weapons are files of the pack
+//! (ADR-CONT-8, CS1b-1, WP1), so a change to a preset is a content release and a new hash.
+//! What the rules do with the content is the `sim_version`'s, which the setup carries.
 
 use std::fmt;
 
