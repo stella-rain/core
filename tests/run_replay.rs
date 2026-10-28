@@ -7,13 +7,14 @@ use stella_rain_core::base64;
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::input::Input;
+use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{hash_to_hex, pack_inputs};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::MAX_RUN_REPLAY_BYTES;
 use stella_rain_core::run_replay::{
     Command, CommandKind, MAX_COMMANDS, RunRecorder, RunReplay, RunReplayError, TickCommand,
-    content_sha256, pack_commands, record_run, record_run_with, verify_run, verify_run_against,
-    verify_run_with,
+    content_sha256, pack_commands, record_run, record_run_with, record_run_with_pack, verify_run,
+    verify_run_against, verify_run_with,
 };
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::time_limit::TimeLimit;
@@ -756,4 +757,163 @@ fn a_run_whose_setup_names_upgrades_records_and_verifies_and_runs_as_without_the
     // The upgrades open nothing, so the same inputs end in the same state without them.
     let without = record_run(&trial_setup(), &sword_aab_commands()).unwrap();
     assert_eq!(without.final_hash, replay.final_hash);
+}
+
+// --- Resuming from a prefix (ADR-SAVE-3) ---------------------------------------------------------
+
+/// The index just after the `n`th `Step` from `from` on and after every `Choose` that follows it.
+fn after_steps(commands: &[Command], from: usize, n: usize) -> usize {
+    let mut steps = 0;
+    let mut i = from;
+    while i < commands.len() {
+        match commands[i] {
+            Command::Step(_) if steps == n => break,
+            Command::Step(_) => steps += 1,
+            Command::Choose(_) => {}
+        }
+        i += 1;
+    }
+    i
+}
+
+fn feed(recorder: &mut RunRecorder, commands: &[Command]) {
+    for c in commands {
+        match *c {
+            Command::Step(input) => recorder.step(input).unwrap(),
+            Command::Choose(index) => recorder.choose(index).unwrap(),
+        }
+    }
+}
+
+#[test]
+fn a_resumed_run_ends_with_the_same_replay_as_an_unbroken_one() {
+    let (setup, pack) = (trial_setup(), Pack::bundled());
+    let commands = play_run(600);
+    let unbroken = record_run_with_pack(&setup, pack, &commands).unwrap();
+    let cut = after_steps(&commands, 0, 300);
+    let prefix = record_run_with_pack(&setup, pack, &commands[..cut]).unwrap();
+    assert_eq!(prefix.ticks, 300);
+    let mut r = RunRecorder::resume_with_pack(&prefix, pack).unwrap();
+    assert_eq!(r.engine().tick(), 300);
+    assert_eq!(r.replay(), prefix);
+    feed(&mut r, &commands[cut..]);
+    assert_eq!(r.replay().to_bytes(), unbroken.to_bytes());
+    assert_eq!(unbroken.ticks, 600);
+}
+
+#[test]
+fn a_prefix_with_an_open_offer_resumes_with_it_open() {
+    let (setup, pack) = (trial_setup(), Pack::bundled());
+    let all = play_run(TRIAL_LENGTH);
+    let first = to_first_offer().len();
+    let prefix = record_run_with_pack(&setup, pack, &all[..first]).unwrap();
+    let mut r = RunRecorder::resume_with_pack(&prefix, pack).unwrap();
+    assert!(r.engine().offer_open());
+    assert_eq!(r.engine().tick(), prefix.ticks);
+    let tick = prefix.ticks;
+    assert_eq!(
+        r.step(run_script(0)),
+        Err(RunReplayError::OfferOpen { tick })
+    );
+    let end = after_steps(&all, first, 300);
+    feed(&mut r, &all[first..end]);
+    let expected = record_run_with_pack(&setup, pack, &all[..end]).unwrap();
+    assert_eq!(r.replay().to_bytes(), expected.to_bytes());
+}
+
+#[test]
+fn a_tampered_prefix_hash_is_refused() {
+    let pack = Pack::bundled();
+    let prefix = recorded(300);
+    let bad = RunReplay {
+        final_hash: "0123456789abcdef".into(),
+        ..prefix.clone()
+    };
+    assert_ne!(bad.final_hash, prefix.final_hash);
+    assert_eq!(
+        RunRecorder::resume_with_pack(&bad, pack).err(),
+        Some(RunReplayError::PrefixHashDiffers { tick: 300 })
+    );
+    let mut inputs = prefix.unpack_inputs(300).unwrap();
+    for input in &mut inputs[290..300] {
+        *input = Input::default();
+    }
+    let changed = RunReplay {
+        inputs: pack_inputs(&inputs),
+        ..prefix.clone()
+    };
+    assert_ne!(changed.inputs, prefix.inputs);
+    assert_eq!(
+        RunRecorder::resume_with_pack(&changed, pack).err(),
+        Some(RunReplayError::PrefixHashDiffers { tick: 300 })
+    );
+}
+
+#[test]
+fn a_prefix_of_another_pack_is_refused_on_resume() {
+    let kept = serde_json::to_vec(&serde_json::from_slice::<Value>(Pack::BUNDLED).unwrap());
+    let kept = Pack::from_bytes(&kept.unwrap()).expect("a compact pack loads");
+    let prefix = record_run_with_pack(&trial_setup(), &kept, &play_run(60)).unwrap();
+    assert_eq!(
+        RunRecorder::resume_with_pack(&prefix, Pack::bundled()).err(),
+        Some(RunReplayError::ContentChanged)
+    );
+    assert!(RunRecorder::resume_with_pack(&prefix, &kept).is_ok());
+}
+
+#[test]
+fn a_prefix_over_the_caps_is_refused_on_resume() {
+    let pack = Pack::bundled();
+    let err = |r: &RunReplay| RunRecorder::resume_with_pack(r, pack).err();
+
+    let mut past = recorded(20);
+    past.ticks = TRIAL_LENGTH + 1;
+    past.inputs = pack_inputs(&vec![Input::default(); TRIAL_LENGTH as usize + 1]);
+    assert_eq!(
+        err(&past),
+        Some(RunReplayError::TooManyTicks {
+            ticks: TRIAL_LENGTH + 1,
+            limit: TRIAL_LENGTH
+        })
+    );
+
+    let many: Vec<TickCommand> = (0..=MAX_COMMANDS).map(|_| choose(1, 0)).collect();
+    assert_eq!(
+        err(&replay_with(&pack_commands(&many), 1)),
+        Some(RunReplayError::TooManyCommands {
+            limit: MAX_COMMANDS
+        })
+    );
+
+    let full = recorded(TRIAL_LENGTH);
+    let commands = commands_of(&full);
+    let tick = commands[0].tick;
+    let unanswered: Vec<TickCommand> = commands
+        .iter()
+        .filter(|c| c.tick != tick)
+        .copied()
+        .collect();
+    let unanswered = RunReplay::from_bytes(&with_commands(&full, &unanswered)).unwrap();
+    assert_eq!(err(&unanswered), Some(RunReplayError::OfferOpen { tick }));
+
+    let mut big = recorded(20);
+    big.commands = "A".repeat(MAX_RUN_REPLAY_BYTES);
+    assert!(matches!(
+        err(&big),
+        Some(RunReplayError::TooLarge {
+            limit: MAX_RUN_REPLAY_BYTES,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn a_prefix_of_an_ended_run_is_refused_on_resume() {
+    let ended = recorded(TRIAL_LENGTH);
+    let verified = verify_run(&ended.to_bytes()).unwrap();
+    assert_ne!(verified.outcome, Outcome::Running, "the trial run ends");
+    assert_eq!(
+        RunRecorder::resume_with_pack(&ended, Pack::bundled()).err(),
+        Some(RunReplayError::PrefixEnded { tick: ended.ticks })
+    );
 }

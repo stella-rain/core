@@ -18,6 +18,9 @@
 //! outside its options), an input while an offer is open,
 //! a command left over at the end, an input after the run ended, and a final hash that differs.
 //! A replay may end on an open offer: a bug report may stop while the player looks at one.
+//! `RunRecorder::resume_with_pack` takes such a prefix of a run still running, re-simulates it
+//! with the same checks (a final hash that differs is `PrefixHashDiffers`) and returns a live
+//! recorder at the cut, an open offer included, so a later `replay()` is one run from tick 0.
 //!
 //! The content hash is the SHA-256 of the bytes of the content pack the run used (ADR-079 §5,
 //! ADR-080), so any content update invalidates the replay rather than letting it drift, and a
@@ -183,6 +186,14 @@ pub enum RunReplayError {
         expected: u32,
         given: usize,
     },
+    /// A replay prefix re-simulates to another state at its cut than its hash says.
+    PrefixHashDiffers {
+        tick: u32,
+    },
+    /// A replay prefix is of a run that already ended: there is nothing to resume.
+    PrefixEnded {
+        tick: u32,
+    },
 }
 
 impl fmt::Display for RunReplayError {
@@ -239,6 +250,13 @@ impl fmt::Display for RunReplayError {
             ),
             RunReplayError::HashCount { expected, given } => {
                 write!(f, "expected {expected} per-tick hashes, got {given}")
+            }
+            RunReplayError::PrefixHashDiffers { tick } => write!(
+                f,
+                "the run re-simulated to tick {tick} reaches another state than the replay prefix says"
+            ),
+            RunReplayError::PrefixEnded { tick } => {
+                write!(f, "the replay prefix is of a run that ended on tick {tick}")
             }
         }
     }
@@ -477,6 +495,41 @@ impl RunRecorder {
         RunRecorder::start_with(setup, pack.content())
     }
 
+    /// Resumes the run a replay prefix records (ADR-SAVE-3): re-simulates it from tick 0 with
+    /// `verify_run_with_pack`'s checks, and returns a live recorder at the cut, whose `replay()`
+    /// after more steps is one replay from tick 0. The prefix may end on an open offer.
+    pub fn resume_with_pack(
+        prefix: &RunReplay,
+        pack: &Pack,
+    ) -> Result<RunRecorder, RunReplayError> {
+        let size = prefix.to_bytes().len();
+        if size > MAX_RUN_REPLAY_BYTES {
+            return Err(RunReplayError::TooLarge {
+                size,
+                limit: MAX_RUN_REPLAY_BYTES,
+            });
+        }
+        let run = resimulate(prefix, pack.content(), None)?;
+        let engine = run.engine;
+        if engine.outcome() != Outcome::Running {
+            return Err(RunReplayError::PrefixEnded {
+                tick: engine.tick(),
+            });
+        }
+        if engine.state_hash() != run.final_hash {
+            return Err(RunReplayError::PrefixHashDiffers {
+                tick: engine.tick(),
+            });
+        }
+        Ok(RunRecorder {
+            setup: prefix.setup.clone(),
+            content_sha256: prefix.content_sha256.clone(),
+            engine,
+            inputs: run.inputs,
+            commands: run.commands,
+        })
+    }
+
     /// The run, for its snapshot and events.
     pub fn engine(&self) -> &Engine {
         &self.engine
@@ -631,6 +684,40 @@ fn verify_inner(
     expected: Option<&[u64]>,
 ) -> Result<RunVerified, RunReplayError> {
     let replay = RunReplay::from_bytes(replay_bytes)?;
+    let run = resimulate(&replay, run_content, expected)?;
+    let engine = run.engine;
+    let actual = engine.state_hash();
+    if actual != run.final_hash {
+        return Err(RunReplayError::WrongFinalHash {
+            expected: run.final_hash,
+            actual,
+        });
+    }
+    Ok(RunVerified {
+        ticks: engine.tick(),
+        final_hash: actual,
+        outcome: engine.outcome(),
+        commands: u32::try_from(run.commands.len()).unwrap_or(u32::MAX),
+        stardust: engine.stardust(),
+        ledger: engine.ledger().clone(),
+    })
+}
+
+/// What re-simulating a replay leaves: the engine after the last tick and the commands after it,
+/// the hash the replay claims for that point, and the unpacked inputs and commands.
+struct Resimulated {
+    engine: Engine,
+    final_hash: u64,
+    inputs: Vec<Input>,
+    commands: Vec<TickCommand>,
+}
+
+/// Every check of `verify_inner` but the comparison of the final hash, on a parsed replay.
+fn resimulate(
+    replay: &RunReplay,
+    run_content: &RunContent,
+    expected: Option<&[u64]>,
+) -> Result<Resimulated, RunReplayError> {
     let stage = run_setup::stage_in(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
     let content = content_sha256_with(&replay.setup.mode.0, run_content)
         .ok_or(RunReplayError::ContentChanged)?;
@@ -688,20 +775,11 @@ fn verify_inner(
             "a command is after the last tick",
         ));
     }
-    let actual = engine.state_hash();
-    if actual != final_hash {
-        return Err(RunReplayError::WrongFinalHash {
-            expected: final_hash,
-            actual,
-        });
-    }
-    Ok(RunVerified {
-        ticks: engine.tick(),
-        final_hash: actual,
-        outcome: engine.outcome(),
-        commands: u32::try_from(commands.len()).unwrap_or(u32::MAX),
-        stardust: engine.stardust(),
-        ledger: engine.ledger().clone(),
+    Ok(Resimulated {
+        engine,
+        final_hash,
+        inputs,
+        commands,
     })
 }
 
