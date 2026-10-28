@@ -237,13 +237,14 @@ pub fn replay_load(data: &[u8]) -> bool {
         }
     }
     let stage_replay = replay::verify(CLEAR_STAGE, data).is_ok();
-    let run_replay = run_replay::verify_run(data).is_ok();
+    let verified = run_replay::verify_run(data);
+    let run_replay = verified.is_ok();
     if run_replay {
         let run = RunReplay::from_bytes(data).expect("a run replay that verified loads");
         let recorded = run_replay::record_run(&run.setup, &commands(&run))
             .expect("the commands of a run replay that verified record");
         assert_eq!(recorded, run, "a verified run replay records as another");
-        if run_replay::verify_run(data).is_ok_and(|v| v.outcome == Outcome::Running) {
+        if verified.is_ok_and(|v| v.outcome == Outcome::Running) {
             assert!(
                 RunRecorder::resume_with_pack(&run, Pack::bundled()).is_ok(),
                 "a verified run still running does not resume"

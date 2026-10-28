@@ -111,7 +111,7 @@ fn a_run_prefix_resumes() {
     for prefix in prefixes {
         assert!(replay_load(&prefix), "replay_load does not verify a prefix");
         let run = RunReplay::from_bytes(&prefix).unwrap();
-        let resumed = RunRecorder::resume_with_pack(&run, stella_rain_core::pack::Pack::bundled());
+        let resumed = RunRecorder::resume_with_pack(&run, Pack::bundled());
         assert_eq!(resumed.unwrap().replay(), run);
     }
 }
