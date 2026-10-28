@@ -6,16 +6,16 @@
 # room up to the cap. Every budget is about 10% over what CI counted on that head, rounded up to
 # the next 100,000 (a single tick) or 100,000,000 (worst_minute), never over the 12.4 M frame
 # ceiling above (ADR-058). A change of the crowd target or the headroom re-baselines them.
-# CI counts (arm64 / x86_64), with the budget before DIR1 in brackets:
-#   worst_tick         4,177,359 / 4,816,068   [12,400,000 / 11,900,000]
-#   hit_tick           3,963,773 / 4,286,001   [ 8,800,000 /  8,900,000]
-#   hit_tick_spread    2,072,999 / 2,284,036   (inside the hit_tick target, which has no budget of
-#                                               its own for it, tasks#47 item 2)
-#   time_limit_tick      640,125 /   731,725   [ 1,800,000 /  1,600,000]
-#   worst_minute   1,230,555,048 / 1,365,153,097   [4,600,000,000 / 5,100,000,000]
-#   worst_minute_peak    349,661 /   384,059   [ 1,300,000 /  1,400,000]
-# worst_minute counts the 3,600 ticks of the dense minute of the time_limit mode (ticks 7,300 to
-# 10,900), worst_minute_peak its heaviest tick by load (tick 10,800).
+# CI counts (arm64 / x86_64) on main at 30b12b8, with the budget before DIR1 in brackets:
+#   worst_tick         4,417,268 / 5,043,955   [12,400,000 / 11,900,000]
+#   hit_tick           4,039,499 / 4,330,119   [ 8,800,000 /  8,900,000]
+#   hit_tick_spread    2,102,251 / 2,303,078   (inside the hit_tick target, which has no budget of
+#                                               its own for it)
+#   time_limit_tick      639,222 /   736,729   [ 1,800,000 /  1,600,000]
+#   worst_minute   1,338,452,898 / 1,489,452,678   [4,600,000,000 / 5,100,000,000]
+#   worst_minute_peak    379,517 /   421,351   [ 1,300,000 /  1,400,000]
+# worst_minute counts the 3,600 ticks of the dense minute of the time_limit mode (ticks 7,301 to
+# 10,900), worst_minute_peak its heaviest tick by load (tick 9,834, `tests/worst_minute.rs`).
 [worst_tick]
 arm64 = 4_600_000
 x86_64 = 5_300_000
