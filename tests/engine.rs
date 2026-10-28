@@ -585,7 +585,9 @@ fn random_inputs_keep_every_invariant() {
         let mut rng = SplitMix64::new(0xE16E);
         let (mut last_hp, mut last_tick, mut finished_at) = (u32::MAX, 0, None);
         for _ in 0..2500 {
-            let any = |rng: &mut SplitMix64| (rng.next_u64() & 0xff) as u8 as i8;
+            let any = |rng: &mut SplitMix64| {
+                i8::from_ne_bytes([u8::try_from(rng.next_u64() & 0xff).unwrap()])
+            };
             let input = Input {
                 move_x: any(&mut rng),
                 move_y: any(&mut rng),

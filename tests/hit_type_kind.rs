@@ -166,11 +166,14 @@ fn the_table_is_the_sorted_distinct_ids_of_the_stage() {
     // The same stage gives the same table, and every index maps back to its ID.
     assert_eq!(&table, engine(&striker(None, 100)).kinds());
     for (i, id) in table.ids().iter().enumerate() {
-        let index = KindIndex(i as u16);
+        let index = KindIndex(u16::try_from(i).unwrap());
         assert_eq!(table.index_of(id), Some(index));
         assert_eq!(table.id(index), Some(id));
     }
-    assert_eq!(table.id(KindIndex(table.len() as u16)), None);
+    assert_eq!(
+        table.id(KindIndex(u16::try_from(table.len()).unwrap())),
+        None
+    );
 }
 
 #[test]

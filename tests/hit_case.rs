@@ -191,9 +191,12 @@ fn the_spread_tick_has_its_load() {
     let farthest = crowd
         .iter()
         .map(|e| {
-            (i64::from(e.at.x.0).abs_diff(i64::from(player.x.0)).pow(2)
-                + i64::from(e.at.y.0).abs_diff(i64::from(player.y.0)).pow(2))
-            .isqrt() as i64
+            i64::try_from(
+                (i64::from(e.at.x.0).abs_diff(i64::from(player.x.0)).pow(2)
+                    + i64::from(e.at.y.0).abs_diff(i64::from(player.y.0)).pow(2))
+                .isqrt(),
+            )
+            .unwrap()
         })
         .max();
     assert!(

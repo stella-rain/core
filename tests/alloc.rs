@@ -27,6 +27,10 @@ thread_local! {
 /// thread.
 pub struct Counting;
 
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "a Layout size is at most isize::MAX"
+)]
 fn grew(bytes: usize) {
     COUNT.with(|c| c.set(c.get() + 1));
     let live = LIVE.with(|l| {
@@ -47,11 +51,19 @@ unsafe impl GlobalAlloc for Counting {
         grew(layout.size());
         unsafe { System.alloc_zeroed(layout) }
     }
+    #[expect(
+        clippy::cast_possible_wrap,
+        reason = "a Layout size is at most isize::MAX"
+    )]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         FREES.with(|f| f.set(f.get() + 1));
         LIVE.with(|l| l.set(l.get() - layout.size() as i64));
         unsafe { System.dealloc(ptr, layout) }
     }
+    #[expect(
+        clippy::cast_possible_wrap,
+        reason = "a Layout size is at most isize::MAX"
+    )]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         // A realloc is an allocation for the count (and is counted on its own too); the bytes
         // change by the difference.
@@ -114,7 +126,7 @@ fn nonzero(per_tick: &[(u64, u64)], first: u32) -> Vec<(u32, u64, u64)> {
         .iter()
         .enumerate()
         .filter(|(_, (a, f))| *a > 0 || *f > 0)
-        .map(|(i, (a, f))| (first + i as u32, *a, *f))
+        .map(|(i, (a, f))| (first + u32::try_from(i).unwrap(), *a, *f))
         .collect()
 }
 
@@ -392,7 +404,7 @@ fn peak_heap_of_a_minute_of_the_saturated_horde_is_under_16_mib() {
     let mut engine = time_limit_case::warmed_up();
     let from = time_limit_case::WARMUP_TICKS + 1;
     reset_peak();
-    for tick in from..from + MINUTE_TICKS as u32 {
+    for tick in from..from + u32::try_from(MINUTE_TICKS).unwrap() {
         engine.step(time_limit_case::input(tick));
     }
     let peak = peak_bytes() - start;
@@ -420,7 +432,10 @@ fn a_steady_tick_allocates_and_frees_nothing_while_melee_and_zones_hit_the_main_
         .iter()
         .enumerate()
         .map(|(i, cooldown)| {
-            let (x, y) = (START_X + (i as i32 - 4) * 600, START_Y - 1024);
+            let (x, y) = (
+                START_X + (i32::try_from(i).unwrap() - 4) * 600,
+                START_Y - 1024,
+            );
             let rules = json!([{ "when": always(), "target": "player", "cooldown_ticks": cooldown,
                 "do": { "type": "attack", "attack": attack } }]);
             wave(1, 1, 0, enemy(1000, hold(x, y), rules), x, y)

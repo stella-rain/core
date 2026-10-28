@@ -98,7 +98,7 @@ fn the_high_elite_slam_winds_up_for_at_least_the_placeholder_and_is_not_announce
     let high = elite_type("elite_high");
     let slam = &attacks(&high)[0]["inline"][0];
     assert_eq!(slam["kind"], "wind_up", "the slam starts with its wind-up");
-    let wind_up = slam["ticks"].as_u64().expect("ticks") as u32;
+    let wind_up = u32::try_from(slam["ticks"].as_u64().expect("ticks")).unwrap();
     assert!(wind_up >= SLAM_WIND_UP, "a long wind-up");
 
     let mut e = engine(&standing(&high));

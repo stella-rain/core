@@ -478,10 +478,15 @@ fn horn_charger_dashes_480_px_along_a_warned_lane_and_rings_where_it_stops() {
         }
         let ring: Vec<_> = zs.iter().filter(|z| !z.warn_only).collect();
         if ring_at.is_none() && ring.len() == 10 {
-            let n = i64::from(ring.len() as i32);
+            let n = i64::try_from(ring.len()).unwrap();
             let cx = ring.iter().map(|z| i64::from(z.at.x.0)).sum::<i64>() / n;
             let cy = ring.iter().map(|z| i64::from(z.at.y.0)).sum::<i64>() / n;
-            ring_at = Some((tick, cx as i32, cy as i32, boss_at(&e)));
+            ring_at = Some((
+                tick,
+                i32::try_from(cx).unwrap(),
+                i32::try_from(cy).unwrap(),
+                boss_at(&e),
+            ));
         }
     }
     assert!(
@@ -674,8 +679,8 @@ fn beams(orbs: &[Value]) -> usize {
 
 fn point(o: &Value) -> (i32, i32) {
     (
-        o["at"]["x"].as_i64().unwrap() as i32,
-        o["at"]["y"].as_i64().unwrap() as i32,
+        i32::try_from(o["at"]["x"].as_i64().unwrap()).unwrap(),
+        i32::try_from(o["at"]["y"].as_i64().unwrap()).unwrap(),
     )
 }
 

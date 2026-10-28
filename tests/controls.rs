@@ -148,10 +148,10 @@ fn the_main_shot_goes_along_the_facing() {
 #[test]
 fn an_evade_dashes_its_distance_over_its_ticks_and_ignores_the_stick_meanwhile() {
     let mut e = running(vec![]);
-    let step = EVADE_DISTANCE / EVADE_TICKS as i32;
+    let step = EVADE_DISTANCE / i32::try_from(EVADE_TICKS).unwrap();
     e.step(evading(127, 0));
     assert_eq!(player_at(&e), (START_X + step, START_Y));
-    for k in 2..=EVADE_TICKS as i32 {
+    for k in 2..=i32::try_from(EVADE_TICKS).unwrap() {
         e.step(moving(-127, 0));
         assert_eq!(
             player_at(&e),
