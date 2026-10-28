@@ -31,7 +31,27 @@ fn the_bundled_weapons_file_holds_the_hammer_and_sword_trees_as_before() {
         }
         now.insert(weapon["id"].as_str().unwrap().to_string(), trees.into());
     }
-    assert_eq!(Value::Object(now), before);
+    stella_rain_core::pack::compare_json_values(&before, &Value::Object(now.clone()), "$")
+        .expect("structural match");
+
+    // Mutating a number still matches structurally
+    let mut numeric_mutated = Value::Object(now.clone());
+    numeric_mutated["giant_hammer"]["giant_hammer_base"]["assist_range"] = json!(99999);
+    assert!(
+        stella_rain_core::pack::compare_json_values(&before, &numeric_mutated, "$").is_ok(),
+        "mutating numbers must succeed under numbers-only comparison"
+    );
+
+    // Mutating a structural key fails
+    let mut key_mutated = Value::Object(now);
+    key_mutated["giant_hammer"]["giant_hammer_base"]
+        .as_object_mut()
+        .unwrap()
+        .remove("assist_range");
+    assert!(
+        stella_rain_core::pack::compare_json_values(&before, &key_mutated, "$").is_err(),
+        "mutating structural keys must fail under numbers-only comparison"
+    );
 }
 
 #[test]
