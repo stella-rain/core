@@ -62,6 +62,16 @@ fn hashes(mut engine: Engine, ticks: u32) -> Vec<u64> {
         .collect()
 }
 
+/// The snapshot after each of `ticks` ticks.
+fn views(mut engine: Engine, ticks: u32) -> Vec<String> {
+    (0..ticks)
+        .map(|t| {
+            engine.step(script(t));
+            serde_json::to_string(&engine.snapshot()).unwrap()
+        })
+        .collect()
+}
+
 fn issues(error: Error) -> Vec<Issue> {
     match error {
         Error::Invalid(issues) => issues,
@@ -93,10 +103,12 @@ fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
     assert_eq!(run_setup::stage(&setup()), Ok(by_hand.clone()));
     // Under a perk set with no effects, as a run is without a setup.
     let (plain, content) = (common::run::plain_setup(), common::run::plain_content());
-    let started = hashes(Engine::start_with(&plain, &content).unwrap(), 600);
+    // The state hash holds the difficulty's setup (its rarity range), which a stage run alone
+    // does not have, so the runs are compared by what they show, tick by tick.
+    let started = views(Engine::start_with(&plain, &content).unwrap(), 600);
     assert_eq!(
         started,
-        hashes(Engine::new_with(&by_hand, &content).unwrap(), 600)
+        views(Engine::new_with(&by_hand, &content).unwrap(), 600)
     );
 }
 
