@@ -3,7 +3,9 @@
 //! zone. At the start of the act step each pool grants its free tokens to the nearest ready
 //! regular enemies in the 640 by 360 px view (edges included), ties by entity ID; an enemy out of
 //! view starts no ranged attack. A token a run stops holding (recovery, or its owner gone) cools
-//! for 30 ticks before the pool can grant it again.
+//! for 30 ticks before the pool can grant it again. A stunned enemy, or one whose ranged rule's
+//! condition or selector fails at that moment, is no candidate: it could not use the grant, and
+//! would take it from a shooter that can (RA-STUN).
 
 use crate::common;
 
@@ -13,6 +15,7 @@ use stella_rain_core::attack::PhaseKind;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::id::EntityId;
+use stella_rain_core::input::Input;
 use stella_rain_core::stage::{Map, Stage};
 
 const PX: i32 = 256;
@@ -32,6 +35,18 @@ struct Shooter {
     dy: i32,
     line: bool,
     hp: u32,
+    gate: Gate,
+}
+
+/// What the shooter's ranged rule asks before it fires.
+#[derive(Clone, Copy)]
+enum Gate {
+    /// Nothing: `always`.
+    Open,
+    /// The shooter's age reaches this many ticks: room to stun it first.
+    After(u32),
+    /// A condition that is false: the main character is below 0 percent of its hit points.
+    ConditionFails,
 }
 
 fn zone_shooter(dx: i32, dy: i32) -> Shooter {
@@ -40,6 +55,7 @@ fn zone_shooter(dx: i32, dy: i32) -> Shooter {
         dy,
         line: false,
         hp: 50,
+        gate: Gate::Open,
     }
 }
 
@@ -49,6 +65,7 @@ fn line_shooter(dx: i32, dy: i32) -> Shooter {
         dy,
         line: true,
         hp: 50,
+        gate: Gate::Open,
     }
 }
 
@@ -65,8 +82,16 @@ fn phases(line: bool) -> Value {
 
 /// A ranged rule that attacks the main character whenever it can; the long cooldown makes each
 /// shooter's first attack its only one, and a refused start keeps it ready.
-fn shooting(line: bool) -> Value {
-    json!([{ "when": always(), "target": "player", "cooldown_ticks": 1000,
+fn shooting(line: bool, gate: Gate) -> Value {
+    let (when, target) = match gate {
+        Gate::Open => (always(), json!("player")),
+        Gate::After(ticks) => (json!({ "type": "time_above", "ticks": ticks }), json!("player")),
+        Gate::ConditionFails => (
+            json!({ "type": "hp_below", "who": "player", "pct": 0 }),
+            json!("player"),
+        ),
+    };
+    json!([{ "when": when, "target": target, "cooldown_ticks": 1000,
              "do": { "type": "attack", "ranged": true, "attack": { "inline": phases(line) } } }])
 }
 
@@ -75,7 +100,7 @@ fn stage(shooters: &[Shooter]) -> Stage {
         .iter()
         .map(|s| {
             let (x, y) = ((CENTRE + s.dx) * PX, (CENTRE + s.dy) * PX);
-            wave(0, 1, 1, enemy(s.hp, hold(x, y), shooting(s.line)), x, y)
+            wave(0, 1, 1, enemy(s.hp, hold(x, y), shooting(s.line, s.gate)), x, y)
         })
         .collect();
     let mut stage = quiet(stage_with(18_000, Some(far_boss()), waves));
@@ -101,10 +126,20 @@ fn kind_of(e: &Engine, id: u32) -> Option<PhaseKind> {
 
 /// The first tick each of `count` shooters is seen making an attack, over `ticks` ticks.
 fn first_attacks(stage: &Stage, count: usize, ticks: u32) -> Vec<Option<u32>> {
+    first_attacks_with(stage, count, ticks, |_| idle())
+}
+
+/// `first_attacks` with `input` pressed on each tick (the engine's tick before the step).
+fn first_attacks_with(
+    stage: &Stage,
+    count: usize,
+    ticks: u32,
+    input: impl Fn(u32) -> Input,
+) -> Vec<Option<u32>> {
     let mut e = engine(stage);
     let mut first = vec![None; count];
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(input(e.tick()));
         for (i, f) in first.iter_mut().enumerate() {
             if f.is_none() && kind_of(&e, FIRST_SHOOTER + u32::try_from(i).unwrap()).is_some() {
                 *f = Some(e.tick());
@@ -247,6 +282,92 @@ fn a_shooter_still_in_its_attack_does_not_hold_a_grant_it_cannot_use() {
         .filter(|id| kind_of(&e, *id).is_some())
         .count();
     assert_eq!(holding, 3);
+}
+
+/// A shooter 32 px above the main character, whose rule waits `GATE` ticks: the smash below hits
+/// it and nothing else.
+const GATE: u32 = 20;
+
+fn gated(dx: i32, dy: i32, gate: Gate) -> Shooter {
+    Shooter {
+        gate,
+        ..zone_shooter(dx, dy)
+    }
+}
+
+/// `stage` with a main character that outlives the test and whose smash, pressed on tick 2,
+/// stuns for `ticks` what stands 32 px above it (a circle of 32 px, 4 px ahead).
+fn stunning(mut stage: Stage, ticks: u32) -> Stage {
+    stage.player.hp = 99;
+    armed(
+        stage,
+        json!({ "inline": {
+            "combo": { "smash": { "attack": { "inline": [
+                { "kind": "active", "ticks": 1, "damage": 1,
+                  "hit_box": { "type": "circle", "offset": { "forward": 1_024 }, "radius": 8_192 } },
+                { "kind": "recovery", "ticks": 4 }
+            ] } } },
+            "window_ticks": 30,
+            "assist_range": 0,
+            "smash": { "type": "stun", "ticks": ticks },
+        } }),
+    )
+}
+
+fn smash_on_tick_2(tick: u32) -> Input {
+    Input {
+        smash: tick == 2,
+        ..idle()
+    }
+}
+
+/// Four zone shooters that wait `GATE` ticks, the nearest at 32 px above the main character.
+fn waiting_four() -> [Shooter; 4] {
+    [
+        gated(0, -32, Gate::After(GATE)),
+        gated(150, 0, Gate::After(GATE)),
+        gated(200, 0, Gate::After(GATE)),
+        gated(250, 0, Gate::After(GATE)),
+    ]
+}
+
+#[test]
+fn a_stunned_shooter_takes_no_grant_from_the_shooters_that_can_fire() {
+    let st = stunning(stage(&waiting_four()), 100);
+    let first = first_attacks_with(&st, 4, 45, smash_on_tick_2);
+    assert_eq!(first[0], None, "the stunned shooter never attacks");
+    assert_eq!(started(&first), [1, 2, 3]);
+}
+
+#[test]
+fn a_stunned_line_caster_does_not_hold_the_line_token() {
+    let caster = |dx, dy| Shooter {
+        gate: Gate::After(GATE),
+        ..line_shooter(dx, dy)
+    };
+    let st = stunning(stage(&[caster(0, -32), caster(250, 0)]), 100);
+    let first = first_attacks_with(&st, 2, 45, smash_on_tick_2);
+    assert_eq!(started(&first), [1]);
+}
+
+#[test]
+fn a_shooter_whose_stun_ran_out_takes_its_grant_again() {
+    let st = stunning(stage(&waiting_four()), 10);
+    let first = first_attacks_with(&st, 4, 40, smash_on_tick_2);
+    assert_eq!(started(&first), [0, 1, 2]);
+}
+
+#[test]
+fn a_shooter_whose_condition_fails_takes_no_grant() {
+    let shooters = [
+        gated(100, 0, Gate::ConditionFails),
+        gated(150, 0, Gate::ConditionFails),
+        zone_shooter(200, 0),
+        zone_shooter(250, 0),
+        zone_shooter(300, 0),
+    ];
+    let first = first_attacks(&stage(&shooters), 5, 20);
+    assert_eq!(started(&first), [2, 3, 4]);
 }
 
 #[test]
