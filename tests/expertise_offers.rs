@@ -44,8 +44,7 @@ fn to_level(n: usize) -> u32 {
 
 /// A common option `id` of `effect` and `amount`.
 fn option(id: &str, effect: &str, amount: u32) -> Value {
-    json!({ "id": id, "effect": effect, "amount": amount,
-            "title": "Option", "description": "" })
+    json!({ "id": id, "effect": effect, "amount": amount })
 }
 
 /// The damage options `prefix0`, `prefix1`, ...: `n` of them, 10 percent each.
@@ -524,7 +523,7 @@ fn style(id: &str, effect: &str, amount: u32) -> Value {
             option(&format!("{id}_{level}b"), "max_hp", 1),
         ]
     };
-    json!({ "id": id, "effect": effect, "amount": amount, "title": "Style", "description": "",
+    json!({ "id": id, "effect": effect, "amount": amount,
             "upgrade_1": two(6), "upgrade_2": two(9), "capstone": two(10) })
 }
 

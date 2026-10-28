@@ -87,7 +87,7 @@ fn skill(id: &str, levels: &[Value]) -> Value {
             json!({ "cooldown_ticks": COOLDOWN - 10 * i as u32, "effects": effects })
         })
         .collect();
-    json!({ "id": id, "icon": ICON, "title": "Skill", "description": "", "ahead": AHEAD,
+    json!({ "id": id, "icon": ICON, "ahead": AHEAD,
             "levels": levels })
 }
 
@@ -107,7 +107,7 @@ fn content(skills: Vec<Value>, rewards: &[(&str, &str, u32)]) -> Rewards {
         .iter()
         .map(|(id, skill, amount)| {
             json!({ "id": id, "rarity": "common", "effect": "stage_skill", "skill": skill,
-                    "amount": amount, "limit": 5, "title": "Skill", "description": "" })
+                    "amount": amount, "limit": 5 })
         })
         .collect();
     let skills = json!({ "stage_skills": skills });

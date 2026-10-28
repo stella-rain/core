@@ -271,8 +271,7 @@ fn carried_stars_are_rewards_of_the_file_and_of_the_pool_within_the_budget() {
 fn a_reward_is_carried_no_more_times_than_it_stacks() {
     let rewards = Rewards::parse(
         json!({ "rarities": common::rarities(), "rewards": [{
-            "id": "once", "rarity": "common", "effect": "max_hp", "amount": 100, "limit": 2,
-            "title": "Once", "description": ""
+            "id": "once", "rarity": "common", "effect": "max_hp", "amount": 100, "limit": 2
         }]})
         .to_string()
         .as_bytes(),
@@ -296,8 +295,7 @@ fn a_reward_is_carried_no_more_times_than_it_stacks() {
 fn the_random_rune_is_not_a_carried_star() {
     let rewards = Rewards::parse(
         json!({ "rarities": common::rarities(), "rewards": [{
-            "id": "random_rune", "rarity": "common", "effect": "random_rune",
-            "title": "Rune", "description": ""
+            "id": "random_rune", "rarity": "common", "effect": "random_rune"
         }]})
         .to_string()
         .as_bytes(),
@@ -383,7 +381,7 @@ fn regen_gives_back_its_hit_points_every_second_never_beyond_the_most() {
     // The same run under `vanguard` and under a set with its 300 shown hit points and no regen.
     let mut file: Value = serde_json::from_slice(common::bundled_file("perk_sets")).unwrap();
     file["perk_sets"].as_array_mut().unwrap().push(json!({
-        "id": "no_regen", "title": "No regen", "description": "",
+        "id": "no_regen",
         "effects": [{ "effect": "max_hp", "amount": 300 * DAMAGE_SCALE }]
     }));
     let content_no_regen = content
@@ -555,8 +553,7 @@ fn the_starting_rune_is_held_from_tick_0() {
 fn random_rune_content() -> RunContent {
     let rewards = Rewards::parse(
         json!({ "rarities": common::rarities(), "rewards": [{
-            "id": "random_rune", "rarity": "common", "effect": "random_rune",
-            "title": "Rune", "description": ""
+            "id": "random_rune", "rarity": "common", "effect": "random_rune"
         }]})
         .to_string()
         .as_bytes(),

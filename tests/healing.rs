@@ -91,8 +91,7 @@ fn rewards(list: Vec<Value>) -> Rewards {
 /// A regen reward of `amount` hit points a second at `rarity`, taken at most `limit` times.
 fn regen(id: &str, rarity: &str, amount: u32, limit: u8) -> Value {
     json!({
-        "id": id, "rarity": rarity, "effect": "regen", "amount": amount, "limit": limit,
-        "title": "Regeneration", "description": ""
+        "id": id, "rarity": rarity, "effect": "regen", "amount": amount, "limit": limit
     })
 }
 

@@ -79,10 +79,13 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 #[test]
-fn only_the_pack_is_compiled_into_the_library() {
+fn only_the_pack_and_text_are_compiled_into_the_library() {
     assert_eq!(
         content_includes("src"),
-        ["src/pack.rs:../content/pack.json"]
+        [
+            "src/pack.rs:../content/pack.json",
+            "src/text.rs:../content/text.en.json",
+        ]
     );
 }
 

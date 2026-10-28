@@ -92,10 +92,7 @@ pub fn stage(small: u16, target: Value) -> Stage {
 }
 
 pub fn random_rune() -> Value {
-    json!({
-        "id": "random_rune", "rarity": "common", "effect": "random_rune",
-        "title": "Rune", "description": ""
-    })
+    json!({ "id": "random_rune", "rarity": "common", "effect": "random_rune" })
 }
 
 /// The run content of `rewards` (read with `skills`, when given) and `runes`.

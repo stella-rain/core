@@ -153,7 +153,7 @@ fn the_new_rewards_are_ordinary_ones_the_random_rune_apart() {
 fn a_rewards_file_may_hold_the_most_rewards_and_not_one_more() {
     let one = |i: usize| {
         json!({ "id": format!("r{i}"), "rarity": "common", "effect": "attack_pct", "amount": 5,
-                "limit": 5, "title": "T", "description": "" })
+                "limit": 5 })
     };
     let parse = |n: usize| {
         let list: Vec<Value> = (0..n).map(one).collect();

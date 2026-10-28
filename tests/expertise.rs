@@ -380,6 +380,10 @@ fn ids_are_well_formed_and_unique_within_a_weapon() {
 
 #[test]
 fn text_fields_are_refused_as_unknown() {
-    assert!(parse(&with("/weapons/0/styles/0/title", json!("Style"))).is_err());
-    assert!(parse(&with("/weapons/0/common/0/description", json!("desc"))).is_err());
+    let mut v = file();
+    v["weapons"][0]["styles"][0]["title"] = json!("Style");
+    assert!(parse(&v).is_err());
+    let mut v = file();
+    v["weapons"][0]["common"][0]["description"] = json!("desc");
+    assert!(parse(&v).is_err());
 }

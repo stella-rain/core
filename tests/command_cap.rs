@@ -28,7 +28,7 @@ pub fn undying_content() -> RunContent {
     let mut file: serde_json::Value =
         serde_json::from_slice(common::bundled_file("perk_sets")).unwrap();
     file["perk_sets"].as_array_mut().unwrap().push(json!({
-        "id": PERK_SET, "title": "Undying", "description": "",
+        "id": PERK_SET,
         "effects": [
             { "effect": "max_hp", "amount": 50_000 },
             { "effect": "regen", "amount": 1_000 },

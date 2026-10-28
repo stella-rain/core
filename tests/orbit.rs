@@ -83,7 +83,6 @@ fn beside() -> Value {
 fn orbit(id: &str, amount: u32, active: u32, cooldown: u32) -> Value {
     json!({
         "id": id, "rarity": "common", "effect": "orbit", "amount": amount, "limit": 5,
-        "title": "Orbit", "description": "",
         "orbit": {
             "attack": { "inline": [
                 { "kind": "active", "ticks": active, "damage": DAMAGE,

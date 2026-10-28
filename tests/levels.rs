@@ -293,9 +293,7 @@ fn with_attack_plus() -> RunStats {
         "id": "attack_plus",
         "effect": "attack_pct",
         "step": 25,
-        "limit": 2,
-        "title": "Attack+",
-        "description": "Much more damage from every attack"
+        "limit": 2
     }));
     RunStats::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the stats validate")
 }
@@ -448,9 +446,7 @@ fn with_xp_plus() -> RunStats {
         "id": "xp_plus",
         "effect": "xp_pct",
         "step": 10,
-        "limit": 1,
-        "title": "Experience+",
-        "description": "More experience from every kill"
+        "limit": 1
     }));
     RunStats::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the stats validate")
 }
