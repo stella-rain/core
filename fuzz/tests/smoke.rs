@@ -183,8 +183,7 @@ fn pack_with_constellations() -> Vec<u8> {
             .expect("rewards")
             .push(serde_json::json!({
                 "id": id, "rarity": "epic", "named": true, "star": id, "limit": 1,
-                "effects": [{ "effect": "attack_pct", "amount": 1 }],
-                "title": id, "description": ""
+                "effects": [{ "effect": "attack_pct", "amount": 1 }]
             }));
         pack["introduced"]["rewards"]
             .as_array_mut()
@@ -243,6 +242,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
             "content/match_ups.json",
             "content/runes.json",
             "content/attack_presets.json",
+            "content/text.en.json",
             "modes/time_limit.json",
         ] {
             seeds.push(fs::read(root().join(file)).expect("bundled content"));
