@@ -828,7 +828,7 @@ mod tests {
         let heal = |id: &str, amount: u32, kills: u32| {
             serde_json::json!({ "id": id, "rarity": "epic", "named": true, "star": id,
                 "limit": 1, "effects": [{ "effect": "heal_per_kills", "amount": amount,
-                "kills": kills }], "title": "Heal", "description": "" })
+                "kills": kills }] })
         };
         let costs = |rarity: &str, lumine_cost: u32| serde_json::json!({ "rarity": rarity, "lumine_cost": lumine_cost });
         let file = serde_json::json!({

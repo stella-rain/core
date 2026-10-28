@@ -18,8 +18,7 @@ pub const NEAR_Y: i32 = START_Y - 8_192;
 
 pub fn random_rune() -> Value {
     json!({
-        "id": "random_rune", "rarity": "common", "effect": "random_rune",
-        "title": "Rune", "description": ""
+        "id": "random_rune", "rarity": "common", "effect": "random_rune"
     })
 }
 
