@@ -7,7 +7,6 @@
 use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::id::ContentId;
-use stella_rain_core::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS};
 use stella_rain_core::stage_skill::{
     MAX_PULL, MAX_SHIELD, MAX_SKILL_AHEAD, MAX_SKILL_COOLDOWN_TICKS, MAX_SKILL_DURATION_TICKS,
     MAX_SKILL_EFFECTS, MAX_SKILL_LEVELS, MAX_SKILL_PCT, MAX_SKILL_RADIUS, MAX_STAGE_SKILLS,
@@ -38,7 +37,7 @@ fn level(effects: Value) -> Value {
 }
 
 fn skill(id: &str) -> Value {
-    json!({ "id": id, "icon": "icon_war_cry", "title": "Aura", "description": "Hit harder",
+    json!({ "id": id, "icon": "icon_war_cry",
             "levels": [level(json!([self_status()]))] })
 }
 
@@ -94,11 +93,6 @@ fn the_bundled_skills_are_one_effect_each_and_cover_every_block() {
     assert_eq!(ids, ["black_hole", "war_cry", "hex", "nova", "aegis"]);
     let mut blocks = Vec::new();
     for k in bundled.skills() {
-        assert!(
-            !k.title.is_empty() && !k.description.is_empty(),
-            "{:?}",
-            k.id
-        );
         assert_eq!(k.icon, ContentId(format!("icon_{}", k.id.0)));
         for l in &k.levels {
             assert_eq!(l.effects.len(), 1, "{:?}", k.id);
@@ -204,23 +198,8 @@ fn the_icon_is_a_registered_asset_and_the_texts_are_bounded() {
     invalid_at(&with("icon", json!("Bad Icon")), "$.stage_skills[0].icon");
     // An asset of the registry, not any ID: a status is not an icon.
     invalid_at(&with("icon", json!("atk_up")), "$.stage_skills[0].icon");
-    let long = |n: usize| json!("x".repeat(n));
-    assert!(parse(&with("title", long(MAX_TITLE_CHARS))).is_ok());
-    invalid_at(&with("title", json!("")), "$.stage_skills[0].title");
-    invalid_at(
-        &with("title", long(MAX_TITLE_CHARS + 1)),
-        "$.stage_skills[0].title",
-    );
-    assert!(parse(&with("description", json!(""))).is_ok());
-    assert!(parse(&with("description", long(MAX_DESCRIPTION_CHARS))).is_ok());
-    invalid_at(
-        &with("description", long(MAX_DESCRIPTION_CHARS + 1)),
-        "$.stage_skills[0].description",
-    );
-    invalid_at(
-        &with("description", json!("a\u{7}b")),
-        "$.stage_skills[0].description",
-    );
+    assert!(parse(&with("title", json!("Aura"))).is_err());
+    assert!(parse(&with("description", json!("Hit harder"))).is_err());
 }
 
 #[test]

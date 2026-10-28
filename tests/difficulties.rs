@@ -20,7 +20,7 @@ use stella_rain_core::version::Versions;
 
 fn difficulty(id: &str) -> Value {
     json!({
-        "id": id, "title": "Level", "description": "A level",
+        "id": id,
         "hp_pct": 100, "damage_pct": 100,
         "rarity_min": "common", "rarity_max": "legendary", "rune_shards": 10,
     })
@@ -288,14 +288,11 @@ fn the_level_table_obeys_the_stages_rules() {
 }
 
 #[test]
-fn text_is_bounded() {
-    let v = one(|d| d["title"] = json!(""));
-    assert_eq!(paths(parse(&v).unwrap_err()), ["$.difficulties[0].title"]);
-    let v = one(|d| d["description"] = json!("x".repeat(500)));
-    assert_eq!(
-        paths(parse(&v).unwrap_err()),
-        ["$.difficulties[0].description"]
-    );
+fn text_fields_are_refused_as_unknown() {
+    let v = one(|d| d["title"] = json!("Easy"));
+    assert!(parse(&v).is_err());
+    let v = one(|d| d["description"] = json!("A level"));
+    assert!(parse(&v).is_err());
 }
 
 // --- Rune Shards and what opens after what (CS1b-2) ----------------------------------------

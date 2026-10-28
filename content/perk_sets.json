@@ -2,8 +2,6 @@
   "perk_sets": [
     {
       "id": "vanguard",
-      "title": "Vanguard",
-      "description": "More hit points, and they come back on their own",
       "effects": [
         { "effect": "max_hp", "amount": 30000 },
         { "effect": "regen", "amount": 1000 }
@@ -11,8 +9,6 @@
     },
     {
       "id": "duelist",
-      "title": "Duelist",
-      "description": "Hits harder and faster",
       "effects": [
         { "effect": "attack_pct", "amount": 15 },
         { "effect": "attack_speed_pct", "amount": 8 }
@@ -20,8 +16,6 @@
     },
     {
       "id": "scout",
-      "title": "Scout",
-      "description": "Moves and evades more freely",
       "effects": [
         { "effect": "speed_pct", "amount": 12 },
         { "effect": "evade_pct", "amount": 20 }
@@ -29,8 +23,6 @@
     },
     {
       "id": "scholar",
-      "title": "Scholar",
-      "description": "More say in the offers",
       "effects": [
         { "effect": "extra_rerolls", "amount": 2 },
         { "effect": "extra_banishes", "amount": 1 }

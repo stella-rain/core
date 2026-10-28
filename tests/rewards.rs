@@ -13,7 +13,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
-use stella_rain_core::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, RunStats, StatEffect};
+use stella_rain_core::run_stats::{MAX_TITLE_CHARS, RunStats, StatEffect};
 use stella_rain_core::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::MAX_EVADE_CHARGES;
@@ -29,9 +29,7 @@ fn reward(id: &str) -> Value {
         "rarity": "rare",
         "effect": "attack_pct",
         "amount": 10,
-        "limit": 3,
-        "title": "Might",
-        "description": "Hit harder"
+        "limit": 3
     })
 }
 
@@ -87,7 +85,6 @@ fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
             "{effect:?}"
         );
     }
-    assert!(rewards.iter().all(|r| !r.title.is_empty()));
     // The pack's rewards are the file's, with the sets of the constellations file beside them.
     let file = Rewards::parse(common::bundled_file("rewards"), Versions::CURRENT).unwrap();
     assert_eq!(file.rewards(), Rewards::bundled().rewards());
@@ -311,22 +308,8 @@ fn amounts_limits_and_texts_are_bounded() {
         invalid_at(&one_with(field, json!(lo - 1)), &path);
         invalid_at(&one_with(field, json!(hi + 1)), &path);
     }
-    invalid_at(&one_with("title", json!("")), "$.rewards[0].title");
-    let long = |n: usize| json!("x".repeat(n));
-    assert!(parse(&one_with("title", long(MAX_TITLE_CHARS))).is_ok());
-    invalid_at(
-        &one_with("title", long(MAX_TITLE_CHARS + 1)),
-        "$.rewards[0].title",
-    );
-    assert!(parse(&one_with("description", long(MAX_DESCRIPTION_CHARS))).is_ok());
-    invalid_at(
-        &one_with("description", long(MAX_DESCRIPTION_CHARS + 1)),
-        "$.rewards[0].description",
-    );
-    invalid_at(
-        &one_with("description", json!("a\u{7}b")),
-        "$.rewards[0].description",
-    );
+    assert!(parse(&one_with("title", json!("Might"))).is_err());
+    assert!(parse(&one_with("description", json!("Hit harder"))).is_err());
 }
 
 #[test]

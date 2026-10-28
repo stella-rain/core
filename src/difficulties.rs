@@ -25,7 +25,6 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry;
 use crate::rewards::{Rarity, Rewards};
-use crate::run_stats::{MAX_DESCRIPTION_CHARS, MAX_TITLE_CHARS, text_problem};
 use crate::stage::{LevelTable, StardustTier, stardust_tiers_problem};
 use crate::time_limit::{MAX_BOSS_TIMES, MAX_LENGTH_TICKS};
 use crate::validate::{Error, Issue};
@@ -57,10 +56,6 @@ pub fn scale_pct(value: u32, pct: u32) -> u32 {
 pub struct Difficulty {
     /// The difficulty's own ID, unique within the file.
     pub id: ContentId,
-    /// The name the choice screen shows, 1 to `run_stats::MAX_TITLE_CHARS` characters.
-    pub title: String,
-    /// What it does, in words, at most `run_stats::MAX_DESCRIPTION_CHARS` characters.
-    pub description: String,
     /// Percent of the content's hit points every enemy, elite and boss (and each boss part)
     /// starts with, from 1 to `MAX_PCT` (100 for normal).
     pub hp_pct: u32,
@@ -180,12 +175,6 @@ pub fn validate(file: &DifficultiesFile) -> Result<(), Error> {
             );
         } else if file.difficulties[..i].iter().any(|x| x.id == d.id) {
             issue(at("id"), "the same ID as an earlier difficulty".into());
-        }
-        if let Some(problem) = text_problem(&d.title, 1, MAX_TITLE_CHARS) {
-            issue(at("title"), problem);
-        }
-        if let Some(problem) = text_problem(&d.description, 0, MAX_DESCRIPTION_CHARS) {
-            issue(at("description"), problem);
         }
         for (field, pct) in [("hp_pct", d.hp_pct), ("damage_pct", d.damage_pct)] {
             if !(1..=MAX_PCT).contains(&pct) {

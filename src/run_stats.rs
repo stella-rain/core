@@ -109,10 +109,6 @@ pub struct RunStat {
     pub step: u32,
     /// The most points the stat takes in a run, from 1 to `MAX_LIMIT`.
     pub limit: u8,
-    /// The name the pause screen shows, 1 to `MAX_TITLE_CHARS` characters.
-    pub title: String,
-    /// What a point does, in words, at most `MAX_DESCRIPTION_CHARS` characters.
-    pub description: String,
 }
 
 /// The stun rules (ADR-085 points 4 and 6): run rules read with the stats, as they are content
@@ -241,12 +237,6 @@ pub fn validate(file: &RunStatsFile) -> Result<(), Error> {
                 at("limit"),
                 format!("1 to {MAX_LIMIT} (found {})", stat.limit),
             );
-        }
-        if let Some(problem) = text_problem(&stat.title, 1, MAX_TITLE_CHARS) {
-            issue(at("title"), problem);
-        }
-        if let Some(problem) = text_problem(&stat.description, 0, MAX_DESCRIPTION_CHARS) {
-            issue(at("description"), problem);
         }
     }
     if file.stun.immune_ticks > MAX_STUN_IMMUNE_TICKS {
