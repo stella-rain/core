@@ -216,7 +216,7 @@ pub(crate) fn scale_hp(hp: u32, pct: u32) -> u32 {
 
 /// What a run takes from its difficulty (ADR-110): the percents its enemies' hit points and
 /// attacks' damage are scaled by, and the range of rarities its stars and offers may have.
-/// Fixed for the run, part of the setup, so the state hash writes nothing for it.
+/// Fixed for the run, part of the setup, and hashed with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct RunDifficulty {
     pub hp_pct: u32,

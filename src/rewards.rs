@@ -154,7 +154,7 @@ impl Rarity {
         Rarity::Supernova,
     ];
 
-    /// The rarity's place in `ALL`, from 0: what the state hash writes.
+    /// The rarity's place in `ALL`, from 0.
     pub fn index(self) -> u8 {
         self as u8
     }
