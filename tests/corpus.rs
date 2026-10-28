@@ -868,6 +868,15 @@ fn ranged_cap() -> Definition {
     ("ranged_cap", bytes(&stage), inputs)
 }
 
+fn baseline_sword() -> serde_json::Value {
+    let baseline: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/weapons_before.json")).unwrap();
+    common::unscaled(
+        baseline["giant_sword"]["giant_sword_base"].clone(),
+        common::SCALE,
+    )
+}
+
 /// Orbs (core Z2): a breakable orb ring and a plain one, each bursting into zones where its orb
 /// ended, and a boss that fills the field past the caps. The main character swings the
 /// `giant_sword` while it walks, so some breakable orbs are cut before they burst.
@@ -920,15 +929,9 @@ fn orbs() -> Definition {
         shooter(60_000, 120_000, 50, false, 70),
         shooter(80_000, 120_000, 50, false, 70),
     ];
-    let baseline: serde_json::Value =
-        serde_json::from_str(include_str!("fixtures/weapons_before.json")).unwrap();
-    let baseline_sword = common::unscaled(
-        baseline["giant_sword"]["giant_sword_base"].clone(),
-        common::SCALE,
-    );
     let stage = armed(
         stage_full(600, Some(boss), waves, vec![]),
-        json!({ "inline": baseline_sword }),
+        json!({ "inline": baseline_sword() }),
     );
     let inputs = (0..300)
         .map(|t| {
@@ -985,7 +988,7 @@ fn orb_cage() -> Definition {
     ];
     let stage = armed(
         stage_full(600, Some(far_boss()), waves, vec![]),
-        json!({ "preset": { "id": "giant_sword" } }),
+        json!({ "inline": baseline_sword() }),
     );
     let inputs = (0..300)
         .map(|t| {
