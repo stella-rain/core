@@ -51,7 +51,8 @@ fn the_minute_starts_with_the_crowd_at_the_target_and_an_elite_alive() {
     let enemies = entities
         .iter()
         .filter(|e| e.kind == EntityKind::Enemy)
-        .count() as u32;
+        .count();
+    let enemies = u32::try_from(enemies).unwrap();
     // The director holds the waves at the target; the elites come in the room up to the cap.
     let target = u32::from(
         stella_rain_core::run_content::RunContent::bundled()

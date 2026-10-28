@@ -81,7 +81,10 @@ fn disguised(v: &EntityView) -> bool {
 fn revealed_event(ev: &DomainEvent) -> Option<u32> {
     let v = serde_json::to_value(ev).ok()?;
     v.get("type").filter(|t| *t == "MimicRevealed")?;
-    v.get("data")?.get("elite")?.as_u64().map(|id| id as u32)
+    v.get("data")?
+        .get("elite")?
+        .as_u64()
+        .map(|id| u32::try_from(id).unwrap())
 }
 
 fn revealed(events: &[(u32, DomainEvent)]) -> Vec<u32> {

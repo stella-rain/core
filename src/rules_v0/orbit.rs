@@ -51,7 +51,7 @@ pub(super) fn take(p: &mut PlayerState, reward: u16, orbs: u32) {
 
 /// Orbit `k`'s orb `j`'s slot: `k` below `MAX_ORBITS` and `j` below `MAX_ORBS`, so at most 33.
 fn slot(k: usize, j: u8) -> u8 {
-    FIRST_SLOT + (k as u8) * MAX_ORBS + j
+    FIRST_SLOT + u8::try_from(k).expect("at most MAX_ORBITS orbits") * MAX_ORBS + j
 }
 
 /// Orb `j` of a round of `round` orbs, with orb 0 at `angle`.

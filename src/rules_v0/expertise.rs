@@ -126,7 +126,7 @@ pub(super) fn level_up(expertise: &Expertise, s: &mut State) {
     while g.next > 0 && g.points >= g.next {
         let reached = g.level.saturating_add(1);
         let after = need(expertise, reached.saturating_add(1), g.next);
-        if reached > TABLE_LEVELS as u32 && after == g.next {
+        if reached > table_levels() && after == g.next {
             // Every level from here needs as much: the rest is one division.
             g.level = g.level.saturating_add(g.points / g.next);
             g.points %= g.next;
@@ -280,7 +280,7 @@ pub(super) fn open_due(
         return;
     };
     while g.offer.is_none() && g.offered < g.level {
-        if g.offered >= TABLE_LEVELS as u32 && !any_left(stage, expertise, &[]) {
+        if g.offered >= table_levels() && !any_left(stage, expertise, &[]) {
             // Past the style path, nothing can ever be offered again: every level due is
             // passed over.
             g.offered = g.level;
@@ -513,4 +513,9 @@ pub(crate) fn offer_view(
         options: options(stage, expertise, s),
         rerolls_left: rerolls_left(s),
     })
+}
+
+/// `TABLE_LEVELS` as a level number.
+fn table_levels() -> u32 {
+    u32::try_from(TABLE_LEVELS).expect("the table is a few levels long")
 }

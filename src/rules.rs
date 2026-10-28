@@ -451,7 +451,7 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
         "offer_size",
         i64::from(file.offer_size),
         1,
-        MAX_OFFER_CANDIDATES as i64,
+        i64::try_from(MAX_OFFER_CANDIDATES).unwrap_or(i64::MAX),
     );
     within(issues, "defence_k", i64::from(file.defence_k), 1, 1_000_000);
     within(

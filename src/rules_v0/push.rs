@@ -74,7 +74,7 @@ fn push(a: &Body, b: &Body, dist: i64) -> (i64, i64) {
         return (dx * overlap / (2 * dist), dy * overlap / (2 * dist));
     }
     let angle = i64::from(a.id.max(b.id)) * GOLDEN_ANGLE % i64::from(trig::PER_TURN);
-    let (sin, cos) = trig::sin_cos(angle as i32);
+    let (sin, cos) = trig::sin_cos(i32::try_from(angle).expect("angle is below one turn"));
     let along = |component: i32| i64::from(component) * overlap / (2 * i64::from(trig::SCALE));
     if a.id > b.id {
         (along(cos), along(sin))
@@ -141,7 +141,14 @@ pub(super) fn offsets_into(bodies: &[Body], grid: &mut Grid, out: &mut Vec<(i32,
             let len = floor + i64::from(floor * floor < len2);
             (sx, sy) = (sx * STEP / len, sy * STEP / len);
         }
-        out.push((sx as i32, sy as i32, overlap > CROWDED_OVER));
+        // The squared length is at most `STEP²` here, so neither component is over `STEP`; the
+        // checked narrowing counted 29 M instructions in `worst_minute` (ADR-SIM-8).
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "|sx| and |sy| are at most STEP (1,024), after the clamp above"
+        )]
+        let (ox, oy) = (sx as i32, sy as i32);
+        out.push((ox, oy, overlap > CROWDED_OVER));
     }
 }
 
@@ -330,7 +337,10 @@ mod tests {
         };
         let mut cells: BTreeMap<(i64, i64), Vec<u32>> = BTreeMap::new();
         for (i, b) in bodies.iter().enumerate() {
-            cells.entry(cell_of(b)).or_default().push(i as u32);
+            cells
+                .entry(cell_of(b))
+                .or_default()
+                .push(u32::try_from(i).expect("body index fits u32"));
         }
         let mut out = Vec::new();
         for (i, a) in bodies.iter().enumerate() {
@@ -381,7 +391,11 @@ mod tests {
                 let len = floor + i64::from(floor * floor < len2);
                 (sx, sy) = (sx * STEP / len, sy * STEP / len);
             }
-            out.push((sx as i32, sy as i32, overlap > super::CROWDED_OVER));
+            out.push((
+                Fx::from_wide(sx).0,
+                Fx::from_wide(sy).0,
+                overlap > super::CROWDED_OVER,
+            ));
         }
         out
     }
@@ -405,7 +419,7 @@ mod tests {
                 let (row, col) = (k / per_row, k % per_row);
                 let x = col * gap + (row % 2) * gap / 2;
                 let y = row * gap * 7 / 8;
-                body(k as u32 + 1, x, y, 2_048)
+                body(u32::try_from(k).unwrap() + 1, x, y, 2_048)
             })
             .collect();
         assert_matches_reference(&bodies);
@@ -416,7 +430,12 @@ mod tests {
         let bodies: Vec<Body> = (0..300)
             .map(|k: i32| {
                 let radius = if k % 7 == 0 { 4_096 } else { 2_048 };
-                body(k as u32 + 1, (k % 20) * 3_000, (k / 20) * 3_000, radius)
+                body(
+                    u32::try_from(k).unwrap() + 1,
+                    (k % 20) * 3_000,
+                    (k / 20) * 3_000,
+                    radius,
+                )
             })
             .collect();
         assert_matches_reference(&bodies);
@@ -449,7 +468,8 @@ mod tests {
                     }
                 }
                 // IDs shuffled, not ascending.
-                let mut ids: Vec<u32> = (1..=at.len() as u32).collect();
+                let mut ids: Vec<u32> =
+                    (1..=u32::try_from(at.len()).expect("few bodies")).collect();
                 let cut = rot.index(ids.len());
                 ids.rotate_left(cut);
                 ids.reverse();
@@ -473,14 +493,18 @@ mod tests {
             (1 << 26) - 1,
             i64::MAX,
         ] {
-            assert_eq!(super::root(v), v.unsigned_abs().isqrt() as i64, "{v}");
+            assert_eq!(
+                super::root(v),
+                i64::try_from(v.unsigned_abs().isqrt()).unwrap(),
+                "{v}"
+            );
         }
     }
 
     proptest! {
         #[test]
         fn root_equals_the_u64_root_everywhere(v in 0..=i64::MAX) {
-            prop_assert_eq!(super::root(v), v.unsigned_abs().isqrt() as i64);
+            prop_assert_eq!(super::root(v), i64::try_from(v.unsigned_abs().isqrt()).unwrap());
         }
 
         #[test]

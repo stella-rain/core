@@ -389,7 +389,7 @@ impl PlayerState {
     pub fn evade_ready(&self) -> u8 {
         // There are never more timers than charges, and charges are at most 3.
         self.evade_charges
-            .saturating_sub(self.evade_recovering.len() as u8)
+            .saturating_sub(u8::try_from(self.evade_recovering.len()).expect("at most 3 charges"))
     }
 }
 

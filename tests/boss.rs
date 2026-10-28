@@ -396,7 +396,7 @@ fn a_timeline_waits_telegraphs_and_moves_on_the_ticks_it_says() {
     }
     assert_eq!(telegraphs(&events), vec![(6, 3)]);
     for (i, p) in at.iter().enumerate() {
-        let tick = i as i32 + 1;
+        let tick = i32::try_from(i).unwrap() + 1;
         let moved = (tick - 9).clamp(0, 4);
         assert_eq!(
             *p,
@@ -711,7 +711,7 @@ fn the_part_selector_picks_a_part_that_is_still_whole() {
         .collect();
     // It fires on every tick, at the horn, up to and including the tick it breaks: the boss
     // acts before the shots land.
-    assert_eq!(fired.len() as u32, broken);
+    assert_eq!(u32::try_from(fired.len()).unwrap(), broken);
     assert!(fired.iter().all(|(_, t)| *t == Some(EntityId(2))));
 }
 

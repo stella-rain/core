@@ -106,7 +106,7 @@ fn first_attacks(stage: &Stage, count: usize, ticks: u32) -> Vec<Option<u32>> {
     for _ in 0..ticks {
         e.step(idle());
         for (i, f) in first.iter_mut().enumerate() {
-            if f.is_none() && kind_of(&e, FIRST_SHOOTER + i as u32).is_some() {
+            if f.is_none() && kind_of(&e, FIRST_SHOOTER + u32::try_from(i).unwrap()).is_some() {
                 *f = Some(e.tick());
             }
         }

@@ -61,7 +61,7 @@ fn stick_move(x: i8, y: i8, cap: i64) -> (i64, i64) {
     let (x, y) = (i64::from(x), i64::from(y));
     let len = ceil_sqrt((x * x + y * y).unsigned_abs()).max(STICK_MAX as u64);
     // `len >= 127 > 0`, and truncation toward zero is the same on every CPU.
-    let len = len as i64;
+    let len = i64::try_from(len).expect("len is at most a few hundred");
     (x * cap / len, y * cap / len)
 }
 
@@ -74,10 +74,11 @@ fn stick_direction(x: i8, y: i8) -> Option<Dir> {
     let (x, y) = (i64::from(x), i64::from(y));
     let scale = i64::from(SCALE);
     // Both are at most 127 in size, so every product fits in 64 bits.
-    let len = ((x * x + y * y).unsigned_abs() * (scale * scale).unsigned_abs()).isqrt() as i64;
+    let len = ((x * x + y * y).unsigned_abs() * (scale * scale).unsigned_abs()).isqrt();
+    let len = i64::try_from(len).expect("len is at most 127 * SCALE * 2");
     Some(Dir {
-        x: (x * scale * scale / len) as i32,
-        y: (y * scale * scale / len) as i32,
+        x: Fx::from_wide(x * scale * scale / len).0,
+        y: Fx::from_wide(y * scale * scale / len).0,
     })
 }
 
@@ -135,8 +136,8 @@ pub(super) fn update(
 fn move_by(stage: &World, p: &mut PlayerState, dx: i64, dy: i64) {
     // Both are within a speed cap or an evade's distance, which the validator bounds.
     p.at = stage.map().clamp(Point {
-        x: p.at.x.saturating_add(Fx(dx as i32)),
-        y: p.at.y.saturating_add(Fx(dy as i32)),
+        x: p.at.x.saturating_add(Fx::from_wide(dx)),
+        y: p.at.y.saturating_add(Fx::from_wide(dy)),
     });
 }
 
@@ -727,7 +728,11 @@ fn release(
     s.player.combo.charge_auto = false;
     let level = level_at(charge, held);
     let c = &mut s.player.combo;
-    c.levels = with_level(c.levels, c.depth.saturating_sub(1), level as u8);
+    c.levels = with_level(
+        c.levels,
+        c.depth.saturating_sub(1),
+        u8::try_from(level).expect("a charge level is a few steps"),
+    );
     if level == 0 {
         strike(stage, s, &step.attack, 0, aim, events);
         return;

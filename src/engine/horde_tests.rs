@@ -125,7 +125,7 @@ fn summoning_mode(v: &mut serde_json::Value) {
     });
     for (i, boss) in v["bosses"].as_array_mut().unwrap().iter_mut().enumerate() {
         let mut agent = agent.clone();
-        agent["hp"] = serde_json::json!(SUMMON_HP + i as u32);
+        agent["hp"] = serde_json::json!(SUMMON_HP + u32::try_from(i).unwrap());
         boss["phases"][0]["rules"] = serde_json::json!([{
             "when": {"type": "always"},
             "target": "self",

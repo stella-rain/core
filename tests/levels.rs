@@ -101,7 +101,10 @@ fn defeated_enemies_give_their_wave_s_experience() {
         });
         let died = ticks_of(&events, |ev| matches!(ev, DomainEvent::Died { .. })).len();
         let progress = e.snapshot().progress.unwrap();
-        assert_eq!((died as u32 * each, progress.level), (progress.xp, 1));
+        assert_eq!(
+            (u32::try_from(died).unwrap() * each, progress.level),
+            (progress.xp, 1)
+        );
         assert_eq!(progress.xp_next, 1000);
     }
 }

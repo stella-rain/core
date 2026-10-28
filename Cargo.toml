@@ -77,6 +77,14 @@ toml = { version = "1.1.8", default-features = false, features = ["parse", "serd
 [lints.rust]
 unsafe_code = "deny"
 
+# Narrowing and sign-changing casts are checked conversions, an `Fx` helper or an audited
+# `#[expect(.., reason = "..")]` stating the bound (ADR-SIM-3, ADR-019).
+[lints.clippy]
+cast_possible_truncation = "deny"
+cast_sign_loss = "deny"
+cast_possible_wrap = "deny"
+cast_lossless = "deny"
+
 [[test]]
 name = "integration"
 path = "tests/integration.rs"

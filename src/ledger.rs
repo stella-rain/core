@@ -305,7 +305,9 @@ impl RunLedger {
                 .picks
                 .iter()
                 .filter(|p| rarity_str(p.rarity) == rarity)
-                .count() as u32;
+                .count()
+                .try_into()
+                .expect("a few picks");
         }
         0
     }

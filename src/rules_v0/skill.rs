@@ -63,16 +63,18 @@ pub(super) fn take(rewards: &Rewards, p: &mut PlayerState, index: usize, levels:
         return;
     };
     // The validator holds both to `MAX_SKILL_LEVELS`.
-    let most = def.levels.len().min(MAX_SKILL_LEVELS) as u32;
-    let index = index as u16;
+    let most =
+        u32::try_from(def.levels.len().min(MAX_SKILL_LEVELS)).expect("at most MAX_SKILL_LEVELS");
+    let index = u16::try_from(index).expect("the validator bounds the stage skills");
     p.skill = Some(match p.skill {
         Some(slot) if slot.index == index => SkillSlot {
-            level: (u32::from(slot.level) + levels).min(most) as u8,
+            level: u8::try_from((u32::from(slot.level) + levels).min(most))
+                .expect("at most MAX_SKILL_LEVELS"),
             ..slot
         },
         _ => SkillSlot {
             index,
-            level: levels.min(most) as u8,
+            level: u8::try_from(levels.min(most)).expect("at most MAX_SKILL_LEVELS"),
             cooldown_left: 0,
         },
     });
@@ -128,11 +130,11 @@ pub(super) fn press(
         x: s.player
             .at
             .x
-            .saturating_add(Fx((i64::from(dir.x) * ahead / scale) as i32)),
+            .saturating_add(Fx::from_wide(i64::from(dir.x) * ahead / scale)),
         y: s.player
             .at
             .y
-            .saturating_add(Fx((i64::from(dir.y) * ahead / scale) as i32)),
+            .saturating_add(Fx::from_wide(i64::from(dir.y) * ahead / scale)),
     });
     s.player.skill = Some(SkillSlot {
         cooldown_left: shortened(level.cooldown_ticks, s.player.skill_cooldown_pct),
@@ -265,14 +267,15 @@ pub(super) fn pull(stage: &World, s: &mut State) {
         let dx = i64::from(b.at.x.0) - i64::from(e.at.x.0);
         let dy = i64::from(b.at.y.0) - i64::from(e.at.y.0);
         // Both are within the map and its margin, so the squares fit in 64 bits.
-        let dist = (dx * dx + dy * dy).unsigned_abs().isqrt() as i64;
+        let dist = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt())
+            .expect("the root of a sum that fits i64 fits i64");
         if dist == 0 {
             continue;
         }
         let step = dist.min(i64::from(b.strength));
         e.at = map.clamp(Point {
-            x: e.at.x.saturating_add(Fx((dx * step / dist) as i32)),
-            y: e.at.y.saturating_add(Fx((dy * step / dist) as i32)),
+            x: e.at.x.saturating_add(Fx::from_wide(dx * step / dist)),
+            y: e.at.y.saturating_add(Fx::from_wide(dy * step / dist)),
         });
     }
 }

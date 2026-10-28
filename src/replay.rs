@@ -272,10 +272,10 @@ impl Replay {
 /// Appends `v` as LEB128: seven bits a byte, low first.
 pub(crate) fn write_varint(out: &mut Vec<u8>, mut v: u32) {
     while v >= 0x80 {
-        out.push((v & 0x7f) as u8 | 0x80);
+        out.push(u8::try_from(v & 0x7f).expect("masked to 7 bits") | 0x80);
         v >>= 7;
     }
-    out.push(v as u8);
+    out.push(u8::try_from(v).expect("below 0x80"));
 }
 
 /// Reads one LEB128 `u32` at `pos`, in its shortest form only.

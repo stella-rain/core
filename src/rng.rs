@@ -35,7 +35,7 @@ impl SplitMix64 {
     /// A value in `0..n` (n > 0). The tiny modulo bias is deterministic, so it is harmless here.
     pub fn below(&mut self, n: u32) -> u32 {
         assert!(n > 0, "below(0)");
-        (self.next_u64() % u64::from(n)) as u32
+        u32::try_from(self.next_u64() % u64::from(n)).expect("below n, a u32")
     }
 
     pub fn state(&self) -> u64 {

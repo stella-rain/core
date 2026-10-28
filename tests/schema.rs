@@ -141,7 +141,7 @@ fn every_validate_limit_const_appears_in_schema_bundle() {
                         if let Some(n) = v.as_i64() {
                             bounds.insert(n);
                         } else if let Some(n) = v.as_u64() {
-                            bounds.insert(n as i64);
+                            bounds.insert(i64::try_from(n).unwrap());
                         }
                     }
                     collect_bounds(v, bounds);

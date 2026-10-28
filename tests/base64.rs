@@ -25,7 +25,9 @@ fn every_byte_value_and_length_round_trips() {
     assert_eq!(decode(&encode(&all)).unwrap(), all);
     let mut rng = SplitMix64::new(64);
     for len in 0..300 {
-        let bytes: Vec<u8> = (0..len).map(|_| rng.below(256) as u8).collect();
+        let bytes: Vec<u8> = (0..len)
+            .map(|_| u8::try_from(rng.below(256)).unwrap())
+            .collect();
         assert_eq!(decode(&encode(&bytes)).unwrap(), bytes, "length {len}");
     }
     // The characters outside the letters and digits.
@@ -72,7 +74,13 @@ fn random_text_never_panics() {
     for _ in 0..3000 {
         let len = rng.below(40) as usize;
         let text: String = (0..len)
-            .map(|_| char::from(alphabet[rng.below(alphabet.len() as u32) as usize] & 0x7f))
+            .map(|_| {
+                char::from(
+                    alphabet[usize::try_from(rng.below(u32::try_from(alphabet.len()).unwrap()))
+                        .unwrap()]
+                        & 0x7f,
+                )
+            })
             .collect();
         let _ = decode(&text);
     }

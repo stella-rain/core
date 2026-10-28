@@ -156,9 +156,9 @@ fn the_no_call_times_are_unique_and_inside_the_run() {
 
 #[test]
 fn the_no_call_times_are_at_most_one_per_boss_time() {
-    let at_limit: Vec<u32> = (1..=MAX_BOSS_TIMES as u32).collect();
+    let at_limit: Vec<u32> = (1..=u32::try_from(MAX_BOSS_TIMES).unwrap()).collect();
     assert!(parse(&with("no_call_ticks", json!(at_limit))).is_ok());
-    let past: Vec<u32> = (1..=MAX_BOSS_TIMES as u32 + 1).collect();
+    let past: Vec<u32> = (1..=u32::try_from(MAX_BOSS_TIMES).unwrap() + 1).collect();
     assert_eq!(
         paths(&with("no_call_ticks", json!(past))),
         ["$.no_call_ticks"]
@@ -229,9 +229,9 @@ fn each_number_is_under_its_hard_cap() {
     );
     assert!(parse(&with("overtime_ticks", json!(MAX_OVERTIME_TICKS))).is_ok());
     assert!(parse(&with("star_hunter_extra_ticks", json!(MAX_EXTRA_TICKS))).is_ok());
-    let times: Vec<u32> = (1..=MAX_BOSS_TIMES as u32 + 1).collect();
+    let times: Vec<u32> = (1..=u32::try_from(MAX_BOSS_TIMES).unwrap() + 1).collect();
     let mut v = with("boss_ticks", json!(times));
-    v["length_ticks"] = json!(MAX_BOSS_TIMES as u32 + 1);
+    v["length_ticks"] = json!(u32::try_from(MAX_BOSS_TIMES).unwrap() + 1);
     v["mid_boss_pool"] = json!(vec!["golem"; MAX_BOSS_TIMES]);
     v["waves"] = json!([]);
     v["elite_table"] = json!([tier(0, &[("elite_low", 1)])]);
@@ -434,7 +434,7 @@ fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
         let v = serde_json::to_value(&types[i].enemy).unwrap();
         v["rules"][0]["do"]["attack"]["inline"][0]["damage"]
             .as_u64()
-            .unwrap_or(1) as u32
+            .map_or(1, |d| u32::try_from(d).unwrap())
     };
     // The high elite's blow is the hit box of its slam, after the wind-up (BR1a: inline, with an
     // aftershock ring spawned from the wind-up).
@@ -445,7 +445,8 @@ fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
         .iter()
         .find(|phase| phase["hit_box"].is_object())
         .and_then(|phase| phase["damage"].as_u64())
-        .unwrap() as u32;
+        .map(|d| u32::try_from(d).unwrap())
+        .unwrap();
     assert!(damage(0) < damage(1) && damage(1) < slam_damage);
 }
 
@@ -638,11 +639,11 @@ fn the_elite_table_has_at_least_one_tier_and_one_type_each_and_at_most_so_many()
         paths(&table(vec![tier(0, &[])])),
         ["$.elite_table[0].weights"]
     );
-    let at_cap: Vec<Value> = (0..MAX_ELITE_TIERS as u32)
+    let at_cap: Vec<Value> = (0..u32::try_from(MAX_ELITE_TIERS).unwrap())
         .map(|i| tier(i * 60, &[("elite_low", 1)]))
         .collect();
     assert!(parse(&table(at_cap)).is_ok());
-    let too_many: Vec<Value> = (0..=MAX_ELITE_TIERS as u32)
+    let too_many: Vec<Value> = (0..=u32::try_from(MAX_ELITE_TIERS).unwrap())
         .map(|i| tier(i * 60, &[("elite_low", 1)]))
         .collect();
     assert_eq!(paths(&table(too_many)), ["$.elite_table"]);

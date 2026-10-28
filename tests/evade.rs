@@ -123,7 +123,7 @@ fn each_spent_charge_recovers_on_its_own_timer_from_its_press() {
 #[test]
 fn a_press_during_a_dash_starts_the_next_dash_from_where_it_is() {
     let mut e = engine(&charged(2, None));
-    let step = EVADE_DISTANCE / EVADE_TICKS as i32;
+    let step = EVADE_DISTANCE / i32::try_from(EVADE_TICKS).unwrap();
     e.step(evading(127, 0));
     e.step(moving(-127, 0));
     assert_eq!(player_at(&e), (START_X + 2 * step, START_Y));

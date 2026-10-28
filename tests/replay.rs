@@ -76,7 +76,8 @@ fn packed_inputs_round_trip_including_the_extremes() {
     ];
     for _ in 0..500 {
         // Any byte but 0x80, which is −128.
-        let mut axis = || (rng.below(255) as u8).wrapping_add(0x81) as i8;
+        let mut axis =
+            || i8::from_ne_bytes([u8::try_from(rng.below(255)).unwrap().wrapping_add(0x81)]);
         let (move_x, move_y) = (axis(), axis());
         let input = stick(move_x, move_y, rng.below(2) == 0);
         inputs.push(buttons(input, rng.below(32)));
@@ -84,7 +85,7 @@ fn packed_inputs_round_trip_including_the_extremes() {
     // Long runs of one input, and of nothing.
     inputs.extend(std::iter::repeat_n(Input::default(), 300));
     inputs.extend(std::iter::repeat_n(stick(0, -127, false), 17));
-    let replay = replay_of(&inputs, inputs.len() as u32);
+    let replay = replay_of(&inputs, u32::try_from(inputs.len()).unwrap());
     assert_eq!(replay.unpack_inputs(u32::MAX).unwrap(), inputs);
 }
 
@@ -431,7 +432,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
         assert_eq!(
             err,
             ReplayError::Diverged {
-                tick: bad_index as u32 + 1,
+                tick: u32::try_from(bad_index).unwrap() + 1,
                 expected: wrong[bad_index],
                 actual: hashes[bad_index],
             }
@@ -496,15 +497,15 @@ fn damaged_files_are_refused_without_panicking() {
         let (mut s, mut r) = (stage.clone(), bytes.clone());
         let target = if round % 2 == 0 { &mut r } else { &mut s };
         for _ in 0..=rng.below(3) {
-            let at = rng.below(target.len() as u32) as usize;
+            let at = usize::try_from(rng.below(u32::try_from(target.len()).unwrap())).unwrap();
             match rng.below(4) {
-                0 => target[at] = rng.below(256) as u8,
+                0 => target[at] = u8::try_from(rng.below(256)).unwrap(),
                 1 => target.truncate(at.max(1)),
                 2 => {
                     let end = (at + rng.below(32) as usize).min(target.len());
                     target.drain(at..end);
                 }
-                _ => target.insert(at, rng.below(256) as u8),
+                _ => target.insert(at, u8::try_from(rng.below(256)).unwrap()),
             }
             if target.len() < 2 {
                 break;

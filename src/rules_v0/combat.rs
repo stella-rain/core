@@ -39,8 +39,8 @@ pub(super) fn crits(s: &State, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bo
         u64::from(s.tick),
         u64::from(id.0),
         u64::from(hp),
-        u64::from(b.at.x.0 as u32),
-        u64::from(b.at.y.0 as u32),
+        u64::from(u32::from_ne_bytes(b.at.x.0.to_ne_bytes())),
+        u64::from(u32::from_ne_bytes(b.at.y.0.to_ne_bytes())),
     ];
     let mut h = s.crit_seed;
     for part in parts {
@@ -457,8 +457,11 @@ mod tests {
             }
             let events = run(&mut s);
             let dead = s.enemies.iter().filter(|e| e.hp == 0).count();
-            assert_eq!(dead, 1 + depth as usize, "depth {depth}");
-            assert_eq!(depths(&events), (1..=depth as u8).collect::<Vec<_>>());
+            assert_eq!(dead, 1 + usize::try_from(depth).unwrap(), "depth {depth}");
+            assert_eq!(
+                depths(&events),
+                (1..=u8::try_from(depth).unwrap()).collect::<Vec<_>>()
+            );
         }
     }
 

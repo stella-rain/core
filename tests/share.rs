@@ -154,7 +154,7 @@ fn damaged_codes_never_panic() {
     for _ in 0..3000 {
         let mut bytes = code.clone();
         for _ in 0..=rng.below(2) {
-            let at = rng.below(bytes.len() as u32) as usize;
+            let at = usize::try_from(rng.below(u32::try_from(bytes.len()).unwrap())).unwrap();
             match rng.below(3) {
                 0 => bytes[at] = b"ABCxyz019+/="[rng.below(12) as usize],
                 1 => bytes.truncate(at.max(1)),

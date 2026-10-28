@@ -81,8 +81,9 @@ pub fn decode(text: &str) -> Result<Vec<u8>, Error> {
         for b in &chunk[..4 - padding] {
             n = (n << 6) | sextet(*b).ok_or(Error::Character)?;
         }
-        n <<= 6 * padding as u32;
-        let (b0, b1, b2) = ((n >> 16) as u8, (n >> 8) as u8, n as u8);
+        // `padding` is at most 2 here, so `n` is 24 bits: its low three bytes are the output.
+        n <<= 6 * u32::try_from(padding).expect("padding is at most 2");
+        let [_, b0, b1, b2] = n.to_be_bytes();
         match padding {
             0 => out.extend_from_slice(&[b0, b1, b2]),
             1 => {

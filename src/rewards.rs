@@ -635,7 +635,7 @@ impl Rewards {
 /// The largest amount of one effect; for Rune Haste, the file's cap `haste_cap`.
 fn most_of(effect: RewardEffect, haste_cap: u32) -> u32 {
     match effect {
-        RewardEffect::StageSkill => MAX_SKILL_LEVELS as u32,
+        RewardEffect::StageSkill => u32::try_from(MAX_SKILL_LEVELS).expect("a few levels"),
         RewardEffect::EvadeCharge => u32::from(MAX_EVADE_CHARGES),
         RewardEffect::Orbit => u32::from(MAX_ORBS),
         RewardEffect::RangePct => MAX_RANGE_PCT,

@@ -249,7 +249,7 @@ fn boss_times_obey_the_mode_files_rules() {
         ["$.difficulties[0].length_ticks"]
     );
     assert_eq!(bad(with(600, json!([]))), ["$.difficulties[0].boss_ticks"]);
-    let many: Vec<u32> = (1..=MAX_BOSS_TIMES as u32 + 1).collect();
+    let many: Vec<u32> = (1..=u32::try_from(MAX_BOSS_TIMES).unwrap() + 1).collect();
     assert_eq!(bad(with(9, json!(many))), ["$.difficulties[0].boss_ticks"]);
     assert_eq!(
         bad(with(600, json!([0, 600]))),
@@ -267,8 +267,8 @@ fn boss_times_obey_the_mode_files_rules() {
         bad(with(600, json!([300, 500]))),
         ["$.difficulties[0].boss_ticks[1]"]
     );
-    let many: Vec<u32> = (1..=MAX_BOSS_TIMES as u32).collect();
-    assert!(parse(&with(MAX_BOSS_TIMES as u32, json!(many))).is_ok());
+    let many: Vec<u32> = (1..=u32::try_from(MAX_BOSS_TIMES).unwrap()).collect();
+    assert!(parse(&with(u32::try_from(MAX_BOSS_TIMES).unwrap(), json!(many))).is_ok());
 }
 
 #[test]

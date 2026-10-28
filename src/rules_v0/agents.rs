@@ -407,8 +407,9 @@ pub(super) fn step_order(at: Point, order: MoveOrder) -> (Point, Option<MoveOrde
         return (order.to, None);
     }
     let left = i64::from(order.ticks_left);
-    let step =
-        |from: Fx, to: Fx| Fx(((i64::from(to.0) - i64::from(from.0)) / left) as i32 + from.0);
+    let step = |from: Fx, to: Fx| {
+        Fx::from_wide(i64::from(from.0) + (i64::from(to.0) - i64::from(from.0)) / left)
+    };
     let next = Point {
         x: step(at.x, order.to.x),
         y: step(at.y, order.to.y),
@@ -432,8 +433,8 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
         return to;
     }
     Point {
-        x: from.x.saturating_add(Fx((dx * most / dist) as i32)),
-        y: from.y.saturating_add(Fx((dy * most / dist) as i32)),
+        x: from.x.saturating_add(Fx::from_wide(dx * most / dist)),
+        y: from.y.saturating_add(Fx::from_wide(dy * most / dist)),
     }
 }
 
@@ -495,8 +496,8 @@ fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
         let dist = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
         let step = i64::from(speed.0) * keep / 100;
         a.at = map.clamp(Point {
-            x: a.at.x.saturating_add(Fx((dx * step / dist) as i32)),
-            y: a.at.y.saturating_add(Fx((dy * step / dist) as i32)),
+            x: a.at.x.saturating_add(Fx::from_wide(dx * step / dist)),
+            y: a.at.y.saturating_add(Fx::from_wide(dy * step / dist)),
         });
         return;
     }
@@ -518,20 +519,24 @@ fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
             }
         }
         Movement::Straight { vx, vy } => {
-            let scaled = |v: Fx| (i64::from(v.0) * keep / 100) as i32;
-            a.at.x = a.at.x.saturating_add(Fx(scaled(vx)));
-            a.at.y = a.at.y.saturating_add(Fx(scaled(vy)));
+            let scaled = |v: Fx| Fx::from_wide(i64::from(v.0) * keep / 100);
+            a.at.x = a.at.x.saturating_add(scaled(vx));
+            a.at.y = a.at.y.saturating_add(scaled(vy));
         }
         Movement::Orbit { radius } => {
             let on_circle = |angle: i32| {
                 let (sin, cos) = trig::sin_cos(angle);
                 let offset = |component: i32| {
-                    (i64::from(radius.0) * i64::from(component) / i64::from(trig::SCALE)) as i32
+                    Fx::from_wide(
+                        i64::from(radius.0) * i64::from(component) / i64::from(trig::SCALE),
+                    )
+                    .0
                 };
                 (offset(cos), offset(sin))
             };
             let was = on_circle(a.orbit_angle);
-            let step = (i64::from(stage.tuning.orbit_step) * keep / 100) as i32;
+            let step = i32::try_from(i64::from(stage.tuning.orbit_step) * keep / 100)
+                .expect("orbit step is in range");
             a.orbit_angle = (a.orbit_angle + step).rem_euclid(trig::PER_TURN);
             let now = on_circle(a.orbit_angle);
             let place = Point {
@@ -560,8 +565,8 @@ fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
             let speed = speed.map_or(FOLLOW_SPEED, |s| i64::from(s.0));
             if gap > 0 && !yields {
                 let step = gap.min(speed * keep / 100);
-                a.at.x = a.at.x.saturating_add(Fx((dx * step / dist) as i32));
-                a.at.y = a.at.y.saturating_add(Fx((dy * step / dist) as i32));
+                a.at.x = a.at.x.saturating_add(Fx::from_wide(dx * step / dist));
+                a.at.y = a.at.y.saturating_add(Fx::from_wide(dy * step / dist));
             }
         }
     }
