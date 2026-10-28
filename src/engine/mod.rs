@@ -448,6 +448,8 @@ mod snapshot;
 pub use snapshot::{Place, Places};
 
 #[cfg(test)]
+mod hash_coverage_tests;
+#[cfg(test)]
 mod horde_tests;
 #[cfg(test)]
 mod move_index_tests;
