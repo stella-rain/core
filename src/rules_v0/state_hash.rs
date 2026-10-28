@@ -355,3 +355,256 @@ impl StableHash for ZoneState {
         hits.stable_hash(h);
     }
 }
+
+// ---- Agents, the boss and statuses ----
+
+impl StableHash for MoveOrder {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let MoveOrder { to, ticks_left } = self;
+        to.stable_hash(h);
+        ticks_left.stable_hash(h);
+    }
+}
+
+impl StableHash for RuleState {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let RuleState {
+            cooldown_left,
+            charges_left,
+            fired,
+        } = self;
+        cooldown_left.stable_hash(h);
+        charges_left.stable_hash(h);
+        fired.stable_hash(h);
+    }
+}
+
+impl StableHash for StatusKind {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        match self {
+            StatusKind::AtkUp => hash_enum!(h, 0),
+            StatusKind::Vulnerable => hash_enum!(h, 1),
+            StatusKind::Slow => hash_enum!(h, 2),
+            StatusKind::Bleed => hash_enum!(h, 3),
+            StatusKind::Poison => hash_enum!(h, 4),
+            StatusKind::Burn => hash_enum!(h, 5),
+            StatusKind::Stun => hash_enum!(h, 6),
+        }
+    }
+}
+
+impl StableHash for DotState {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let DotState {
+            damage,
+            damage_type,
+            atk_up_pct,
+            type_bonus_pct,
+            interval,
+            next_in,
+        } = self;
+        damage.stable_hash(h);
+        damage_type.stable_hash(h);
+        atk_up_pct.stable_hash(h);
+        type_bonus_pct.stable_hash(h);
+        interval.stable_hash(h);
+        next_in.stable_hash(h);
+    }
+}
+
+impl StableHash for StatusState {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let StatusState {
+            kind,
+            source,
+            remaining,
+            total,
+            stacks,
+            value_pct,
+            dot,
+        } = self;
+        kind.stable_hash(h);
+        source.stable_hash(h);
+        remaining.stable_hash(h);
+        total.stable_hash(h);
+        stacks.stable_hash(h);
+        value_pct.stable_hash(h);
+        dot.stable_hash(h);
+    }
+}
+
+impl StableHash for AgentSource {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        match self {
+            AgentSource::Companion => hash_enum!(h, 0),
+            AgentSource::Wave => hash_enum!(h, 1),
+            AgentSource::Summoned => hash_enum!(h, 2),
+            AgentSource::BossRule => hash_enum!(h, 3),
+            AgentSource::Guardian => hash_enum!(h, 4),
+            AgentSource::Escort => hash_enum!(h, 5),
+        }
+    }
+}
+
+impl StableHash for AgentKey {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let AgentKey {
+            source,
+            index,
+            rule,
+        } = self;
+        source.stable_hash(h);
+        index.stable_hash(h);
+        rule.stable_hash(h);
+    }
+}
+
+impl StableHash for ShrineState {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let ShrineState { fight, guardians } = self;
+        fight.stable_hash(h);
+        guardians.stable_hash(h);
+    }
+}
+
+impl StableHash for LeaveState {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let LeaveState { disturbed, go } = self;
+        disturbed.stable_hash(h);
+        go.stable_hash(h);
+    }
+}
+
+impl StableHash for EliteState {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let EliteState {
+            home,
+            called,
+            // not hashed: what the boss's call does to the elite is its definition's.
+            boss_call: _,
+            disguised,
+        } = self;
+        home.stable_hash(h);
+        called.stable_hash(h);
+        disguised.stable_hash(h);
+    }
+}
+
+impl StableHash for AgentState {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let AgentState {
+            id,
+            // not hashed: an index into the run's definitions, fixed by the content hash.
+            def: _,
+            // not hashed: an index into the run's kinds, made at spawn from content.
+            kind: _,
+            key,
+            at,
+            hp,
+            max_hp,
+            defence,
+            age,
+            rules,
+            statuses,
+            aggro,
+            order,
+            orbit_angle,
+            crowded,
+            burst,
+            stun_immune,
+            elite,
+            leave,
+            shrine,
+        } = self;
+        id.stable_hash(h);
+        key.stable_hash(h);
+        at.stable_hash(h);
+        hp.stable_hash(h);
+        max_hp.stable_hash(h);
+        defence.stable_hash(h);
+        age.stable_hash(h);
+        rules.stable_hash(h);
+        statuses.stable_hash(h);
+        aggro.stable_hash(h);
+        order.stable_hash(h);
+        orbit_angle.stable_hash(h);
+        crowded.stable_hash(h);
+        burst.stable_hash(h);
+        stun_immune.stable_hash(h);
+        elite.stable_hash(h);
+        leave.stable_hash(h);
+        shrine.stable_hash(h);
+    }
+}
+
+impl StableHash for PartState {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let PartState {
+            id,
+            // not hashed: the stage's ID for the part, content.
+            name: _,
+            // not hashed: an index into the run's kinds, made at spawn from content.
+            kind: _,
+            hp,
+            max_hp,
+            defence,
+            offset,
+            radius,
+            statuses,
+        } = self;
+        id.stable_hash(h);
+        hp.stable_hash(h);
+        max_hp.stable_hash(h);
+        defence.stable_hash(h);
+        offset.stable_hash(h);
+        radius.stable_hash(h);
+        statuses.stable_hash(h);
+    }
+}
+
+impl StableHash for BossState {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let BossState {
+            id,
+            // not hashed: an index into the run's boss definitions, fixed by the content hash.
+            boss: _,
+            origin,
+            no_call,
+            // not hashed: an index into the run's kinds, made at spawn from content.
+            kind: _,
+            at,
+            hp,
+            max_hp,
+            defence,
+            statuses,
+            phase,
+            phase_age,
+            invulnerable,
+            step,
+            wait_left,
+            order,
+            rules,
+            parts,
+            elites_called,
+            age,
+        } = self;
+        id.stable_hash(h);
+        origin.stable_hash(h);
+        no_call.stable_hash(h);
+        at.stable_hash(h);
+        hp.stable_hash(h);
+        max_hp.stable_hash(h);
+        defence.stable_hash(h);
+        statuses.stable_hash(h);
+        phase.stable_hash(h);
+        phase_age.stable_hash(h);
+        invulnerable.stable_hash(h);
+        step.stable_hash(h);
+        wait_left.stable_hash(h);
+        order.stable_hash(h);
+        rules.stable_hash(h);
+        parts.stable_hash(h);
+        elites_called.stable_hash(h);
+        age.stable_hash(h);
+    }
+}
