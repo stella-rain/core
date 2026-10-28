@@ -58,7 +58,9 @@ use crate::trig;
 use crate::validate::limits::{MAX_LEN, MAX_ORB_TICKS, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS};
 
 use super::Scratch;
+use super::agents::condition_holds;
 use super::entity::{Who, scale_damage, status_pct};
+use super::select::select;
 use super::world::RangedPool;
 use super::{
     AttackIndex, MAX_ATTACK_TASKS, MAX_EMITTER_STEPS_PER_TICK, MAX_ORBS_ALIVE, MAX_ORBS_PER_OWNER,
@@ -127,9 +129,9 @@ fn in_view(e: Point, player: Point) -> bool {
 }
 
 /// Gives each pool's free tokens to the nearest ready regular enemies in view (RA1, DS82): at
-/// the start of the act step, before any rule fires. The candidates are alive, in view and have
-/// a ranged rule of the pool that is ready (its cooldown ends by this tick, charges are left) and
-/// no attack of theirs running;
+/// the start of the act step, before any rule fires. The candidates are alive, in view, not
+/// stunned and have a ranged rule of the pool that is ready (its cooldown ends by this tick,
+/// charges are left, its condition and selector hold now) and no attack of theirs running (RA-STUN);
 /// the nearest come first, by squared distance, ties by entity ID. The grants are scratch,
 /// worked out from the state each tick. No random number is drawn.
 pub(super) fn grant_ranged(world: &World, s: &mut State) {
@@ -152,9 +154,14 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
     let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
     let mut len = [0usize; 2];
     let player = s.player.at;
-    for e in &s.enemies {
+    for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
-        if def.ranged_pools.is_empty() || e.hp == 0 || !in_view(e.at, player) {
+        // A stunned enemy fires nothing (`act_one`), so it could not use a grant.
+        if def.ranged_pools.is_empty()
+            || e.hp == 0
+            || !in_view(e.at, player)
+            || super::stun::stunned(&e.statuses)
+        {
             continue;
         }
         let (dx, dy) = (
@@ -182,6 +189,13 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
             }
             // Not ready while its last attack runs (ADR-055): it could not use the grant.
             if busy(s, e.id, 0) {
+                continue;
+            }
+            // Nor could one whose rule's condition or selector fails: `fire_first_rule` skips it.
+            let rule = &def.agent.rules[rule];
+            if !condition_holds(s, Who::Enemy(i), &rule.when)
+                || select(s, Who::Enemy(i), &rule.target).is_none()
+            {
                 continue;
             }
             let at = best[p][..len[p]].partition_point(|(bd, _)| *bd <= d);

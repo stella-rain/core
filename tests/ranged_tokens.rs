@@ -85,7 +85,10 @@ fn phases(line: bool) -> Value {
 fn shooting(line: bool, gate: Gate) -> Value {
     let (when, target) = match gate {
         Gate::Open => (always(), json!("player")),
-        Gate::After(ticks) => (json!({ "type": "time_above", "ticks": ticks }), json!("player")),
+        Gate::After(ticks) => (
+            json!({ "type": "time_above", "ticks": ticks }),
+            json!("player"),
+        ),
         Gate::ConditionFails => (
             json!({ "type": "hp_below", "who": "player", "pct": 0 }),
             json!("player"),
@@ -100,7 +103,14 @@ fn stage(shooters: &[Shooter]) -> Stage {
         .iter()
         .map(|s| {
             let (x, y) = ((CENTRE + s.dx) * PX, (CENTRE + s.dy) * PX);
-            wave(0, 1, 1, enemy(s.hp, hold(x, y), shooting(s.line, s.gate)), x, y)
+            wave(
+                0,
+                1,
+                1,
+                enemy(s.hp, hold(x, y), shooting(s.line, s.gate)),
+                x,
+                y,
+            )
         })
         .collect();
     let mut stage = quiet(stage_with(18_000, Some(far_boss()), waves));
