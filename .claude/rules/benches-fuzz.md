@@ -19,25 +19,25 @@ Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-10, ADR-SVC-1, ADR-REPL-3, ADR-CONT-3.
 All count instructions with `iai-callgrind` and read their cases from `src/bench_fixtures/`.
 Each bench target is a key of `benches/budgets.toml`, which CI reads for the list of benches.
 
-- `worst_tick.rs`: one synthetic tick at the enemy, orb and zone caps of ADR-SIM-7 (500 enemies,
-  32 orbs, 128 zones), with every rune, Rune Haste and a damage-over-time status of each kind on
-  every enemy (core#180), a fresh stack of enemies to push apart and aim assist looking through
-  all 500 for a target. It bounds the frame at the caps. `bench_fixtures/worst_case.rs` builds it;
-  `tests/worst_case.rs` checks every cap (`Engine::load`).
-- `hit_tick.rs`: the worst melee tick: 500 enemies under the main character's hit box, four
+- `worst_tick.rs`: one synthetic tick at the enemy, orb and zone caps of ADR-SIM-7 (derived
+  cap of 260 enemies, 32 orbs, 128 zones, DIR1), with every rune, Rune Haste and a damage-over-time
+  status of each kind on every enemy (core#180), a fresh stack of enemies to push apart and aim
+  assist looking through all 260 for a target. It bounds the frame at the caps.
+  `bench_fixtures/worst_case.rs` builds it; `tests/worst_case.rs` checks every cap (`Engine::load`).
+- `hit_tick.rs`: the worst melee tick: 260 enemies under the main character's hit box, four
   companions' arcs and 128 zones (112 friendly), no orb in the air; `hit_tick_spread` is the same
-  tick with the crowd spread over the largest map (`bench_fixtures/hit_case.rs`,
+  tick with the crowd spread across the view rectangle (`bench_fixtures/hit_case.rs`,
   `tests/hit_case.rs`).
-- `time_limit_tick.rs`: the `time_limit` mode's heaviest tick: 500 enemies of the mode's kinds, a
+- `time_limit_tick.rs`: the `time_limit` mode's heaviest tick: 260 enemies of the mode's kinds, a
   boss and the Main weapon hitting, no orb (the mode's content fires none since BR1a)
   (`bench_fixtures/time_limit_case.rs`, `tests/time_limit_case.rs`, core#212).
-- `worst_minute.rs`: the 3,600 ticks of the mode's dense minute (BR1e-2: ticks 7,300 to 10,900,
-  500 enemies, 2 elites, a mid-boss arriving at tick 9,000), with the wave spawns and death bursts
-  a one-tick bench misses; `worst_minute_peak.rs` is its heaviest tick (10,800), a target of its
-  own so it has a budget of its own (`bench_fixtures/worst_minute_case.rs`,
-  `tests/worst_minute.rs`). The minute does not reach the orb, zone and elite caps (about 0 of 32
-  orbs, 5 to 14 of 128 zones, 2 of 32 elites) until Z3b (core#319) brings content that fires them
-  and BR1e-3 (core#370) re-scripts it (DS55); until then `worst_tick` bounds the frame there.
+- `worst_minute.rs`: the 3,600 ticks of the mode's dense minute (BR1e-2: ticks 7,301 to 10,900,
+  crowd held at target 200 up to cap 260, 2 elites, a mid-boss arriving at tick 9,000), with wave
+  spawns and death bursts a one-tick bench misses; `worst_minute_peak.rs` is its heaviest tick
+  (found dynamically by `worst_minute_peak()`, pinned in `tests/worst_minute.rs`), a target with its
+  own budget (`bench_fixtures/worst_minute_case.rs`, `tests/worst_minute.rs`). The minute does not
+  reach orb, zone and elite caps until Z3b brings content firing them; until then `worst_tick` bounds
+  the frame there.
 - Pins (`tests/bench_pins.toml`, core#360, written by `UPDATE_BENCH_PINS=1 cargo test
   bench_fixture_pins`): per case the state hash `before` and `after` the measured tick or ticks,
   and the `stage` and `input` digests. They are in `tests/`, not bench input. A PR that moves a pin
