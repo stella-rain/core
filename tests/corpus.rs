@@ -1053,7 +1053,7 @@ fn warn_anchor() -> Definition {
 /// Aim assist and auto mode (ADR-072, ADR-073) with the giant_sword, whose assist range is 160
 /// pixels: three bats to the left and an elite to the right, all within it, and a boss far up
 /// the field. Auto mode alone for 100 ticks (the elite first, then the bats as they fall);
-/// combos by hand with assist for 100; then assist on while the main character walks up to the
+/// combos by hand with assist for 80 ticks; then assist on while the main character walks up to the
 /// boss, pressing `main` twice and holding it from the third step's start for a charge (which
 /// halves its speed), with auto mode on again from tick 302, until the boss is the target. The
 /// presses wait until the combos by hand have run out of their window (the Sword's chain is five
@@ -1083,7 +1083,7 @@ fn assist() -> Definition {
                 auto: true,
                 ..idle()
             },
-            100..200 => Input {
+            100..180 => Input {
                 assist: true,
                 ..combos(t, idle())
             },
