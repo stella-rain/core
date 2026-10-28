@@ -377,6 +377,75 @@ fn the_split_is_read_from_the_content() {
     assert_eq!((s.paid_tenths, s.banked_tenths), (12, 28));
 }
 
+#[test]
+fn stardust_tenths_above_max_is_clamped_to_max_run_stardust() {
+    let content = RunContent::bundled();
+    let over = MAX_RUN_STARDUST.saturating_add(500);
+    let clear = settle(
+        content,
+        &run("trial", "normal", RunOutcome::Cleared, over),
+        &Bank::default(),
+    );
+    assert_eq!(clear.paid_tenths, u64::from(MAX_RUN_STARDUST));
+    assert_eq!(clear.stardust_tenths, u64::from(MAX_RUN_STARDUST));
+
+    let fail = settle(
+        content,
+        &run("trial", "normal", RunOutcome::Failed, over),
+        &Bank::default(),
+    );
+    let max = u64::from(MAX_RUN_STARDUST);
+    assert_eq!(fail.paid_tenths, max / 2);
+    assert_eq!(fail.banked_tenths, max / 2);
+    assert_eq!(
+        fail.paid_tenths + fail.banked_tenths + fail.lost_tenths,
+        max
+    );
+}
+
+#[test]
+fn an_unknown_difficulty_returns_zero_pay_and_leaves_bank_unchanged() {
+    let content = RunContent::bundled();
+    let bank = bank_of(&[("trial", "no_such", 50)]);
+    let clear = settle(
+        content,
+        &run("trial", "no_such", RunOutcome::Cleared, 125),
+        &bank,
+    );
+    assert_eq!(
+        (
+            clear.paid_tenths,
+            clear.bank_paid_tenths,
+            clear.stardust_tenths,
+            clear.banked_tenths,
+            clear.lost_tenths
+        ),
+        (0, 0, 0, 0, 0)
+    );
+    assert_eq!(clear.bank_after, bank);
+    assert_eq!(clear.rune_shards, 0);
+    assert!(clear.opened.is_empty());
+
+    let fail = settle(
+        content,
+        &run("trial", "no_such", RunOutcome::Failed, 100),
+        &bank,
+    );
+    assert_eq!(
+        (
+            fail.paid_tenths,
+            fail.bank_paid_tenths,
+            fail.stardust_tenths,
+            fail.banked_tenths,
+            fail.lost_tenths
+        ),
+        (0, 0, 0, 0, 0)
+    );
+    assert_eq!(fail.bank_after, bank);
+    assert_eq!(fail.rune_shards, 0);
+    assert!(fail.opened.is_empty());
+}
+
 proptest! {
     /// Nothing is made or lost by the split; the bank never passes its cap.
     #[test]
