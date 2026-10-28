@@ -68,7 +68,7 @@ impl RangedPool {
     /// Both pools, in `index` order.
     pub const ALL: [RangedPool; 2] = [RangedPool::Zone, RangedPool::Line];
 
-    /// The pool's place in `ALL`, for per-pool arrays and the state hash.
+    /// The pool's place in `ALL`, for per-pool arrays.
     pub fn index(self) -> usize {
         self as usize
     }

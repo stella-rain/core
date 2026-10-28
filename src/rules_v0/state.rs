@@ -1,4 +1,4 @@
-//! Every `State` type: the whole state of a run, hashed by `state_hash` (ADR-019).
+//! Every `State` type: the whole state of a run, hashed by `StableHash` (`state_hash.rs`, ADR-SIM-3).
 
 use crate::attack::{DamageType, ZoneShape};
 use crate::behaviour::BossCall;
@@ -49,6 +49,7 @@ impl Streams {
     }
 
     /// The five states, in hash order.
+    #[cfg(test)]
     pub fn states(&self) -> [u64; 5] {
         [
             self.spawn.state(),
@@ -60,8 +61,9 @@ impl Streams {
     }
 }
 
-/// The whole state of a run. Everything here is in the state hash (`rules_v0::state_hash`),
-/// at fixed widths and in this order.
+/// The whole state of a run. Everything here is in the state hash (`StableHash`, in
+/// `state_hash.rs`) except the fields that impl marks `_  // not hashed: <why>`: content, derived
+/// values and buffers.
 #[derive(Clone, Debug)]
 pub(crate) struct State {
     /// Buffers reused from tick to tick; not part of the state (not hashed, not cloned).
@@ -96,18 +98,16 @@ pub(crate) struct State {
     pub next_id: u32,
     /// Cage groups taken so far (Z3a-3).
     pub next_orb_group: u32,
-    /// Experience and levels; `None` in a stage without levels, which hashes nothing for it.
+    /// Experience and levels; `None` in a stage without levels.
     pub progress: Option<Progress>,
-    /// Falling stars and offers; `None` in a stage without stars, which hashes nothing for it.
+    /// Falling stars and offers; `None` in a stage without stars.
     pub stars: Option<StarField>,
-    /// Heal pickups on the map, in the order they dropped; `None` in a stage without healing,
-    /// which hashes nothing for it.
+    /// Heal pickups on the map, in the order they dropped; `None` in a stage without healing.
     pub heal_pickups: Option<Vec<HealPickup>>,
-    /// The expertise gauge; `None` in a stage whose enemies and boss give no expertise points,
-    /// which hashes nothing for it.
+    /// The expertise gauge; `None` in a stage whose enemies and boss give no expertise points.
     pub expertise: Option<ExpertiseGauge>,
     /// What each match-up does to a hit (ADR-100): content, fixed for the run and covered by
-    /// the content hash, so the state hash writes nothing for it.
+    /// the content hash, so the state hash leaves it out.
     pub match_ups: MatchUps,
     /// What each on-hit rune does when it fires (ADR-099): content, as the match-ups are.
     pub runes: Runes,
@@ -121,17 +121,16 @@ pub(crate) struct State {
     /// The cap of Rune Haste (app#298): the rewards file's, held to the sum of the picks where
     /// it applies.
     pub max_rune_haste_pct: u32,
-    /// The bosses of a `time_limit` run, as they come; `None` in any other run, which hashes
-    /// nothing for it.
+    /// The bosses of a `time_limit` run, as they come; `None` in any other run.
     pub horde: Option<Horde>,
     /// The Stardust the run has earned, times 10 (ADR-109): `Some` in a stage with a Stardust
-    /// factor, hashed only then, so the hashes of stages without stay as they were.
+    /// factor.
     pub stardust: Option<u32>,
-    /// Hit points the main character regenerates each second (a perk, ADR-105): fixed for the
-    /// run, part of the setup, so the state hash writes nothing for it.
+    /// Hit points the main character regenerates each second (a perk, ADR-105): set at the start
+    /// and raised by rewards.
     pub regen: u32,
     /// The percents the run's difficulty scales enemies' hit points and attacks' damage by
-    /// (ADR-110): fixed for the run, part of the setup, so the state hash writes nothing for them.
+    /// (ADR-110): fixed for the run, part of the setup, and hashed with it.
     pub hp_pct: u32,
     pub damage_pct: u32,
     /// The run's seed, which the critical-hit rolls are hashed from: they draw nothing from
@@ -226,10 +225,10 @@ pub(crate) struct StarField {
     /// `MAX_OFFER_CANDIDATES` less the base `offer_size` of `rules.json`.
     pub extra_candidates: u8,
     /// The rarities its stars and offers may have, lowest and highest (ADR-110): fixed for the
-    /// run, so the state hash writes nothing for it.
+    /// run, part of the setup, and hashed with it.
     pub rarity: (Rarity, Rarity),
     /// The runes the random rune may draw, by `Rune::index` (ADR-107): fixed for the run, part
-    /// of the setup, so the state hash writes nothing for it.
+    /// of the setup, and hashed with it.
     pub rune_pool: u8,
     /// The run's pool: places in the rewards file, in its order, fixed for the run.
     pub pool: Vec<u16>,
@@ -237,7 +236,7 @@ pub(crate) struct StarField {
     pub taken: Vec<u8>,
     pub banished: Vec<bool>,
     /// For each set of the run's constellations: the members held, counted after every take
-    /// (core#NS3). The state hash writes the sets above 0 only.
+    /// (core#NS3).
     pub set_counts: Vec<u8>,
 }
 
@@ -546,8 +545,7 @@ pub(crate) struct BossState {
     pub rules: Rules,
     /// One per part of the stage's boss, in order.
     pub parts: Vec<PartState>,
-    /// Whether it has called its elites; `None` for a boss that calls none, which hashes
-    /// nothing for it.
+    /// Whether it has called its elites; `None` for a boss that calls none.
     pub elites_called: Option<bool>,
     /// Ticks since it arrived: 1 on its first tick. The call of its elites counts them
     /// (ADR-103), and so does the announcement of that call.
@@ -624,19 +622,18 @@ pub(crate) struct AgentState {
     /// pixel, so it does not take its own step to its place this tick (ADR-058).
     pub crowded: bool,
     /// Enemies only: it removed itself with a `self_destruct` rule. It is at 0 hit points for
-    /// the removal, but it was not defeated, so nothing credits it. Not hashed: it only lives
-    /// until the end of the tick it is set in.
+    /// the removal, but it was not defeated, so nothing credits it. It only lives until the end
+    /// of the tick it is set in.
     pub burst: bool,
     /// Ticks left in which a new stun cannot land on this enemy, from the end of its last stun
     /// (ADR-085 point 4); 0 for none.
     pub stun_immune: u32,
-    /// An elite's own state; `None` for every other agent, which hashes nothing for it.
+    /// An elite's own state; `None` for every other agent.
     pub elite: Option<EliteState>,
     /// An agent that leaves the map unkilled (a goblin, or any elite whose `boss_call` is
-    /// `leave`); `None` for every other agent, which hashes nothing for it.
+    /// `leave`); `None` for every other agent.
     pub leave: Option<LeaveState>,
-    /// A shrine's own state; `None` for every other agent, which hashes nothing for it. Boxed:
-    /// almost no agent has one.
+    /// A shrine's own state; `None` for every other agent. Boxed: almost no agent has one.
     pub shrine: Option<Box<ShrineState>>,
 }
 
@@ -790,8 +787,7 @@ pub(crate) struct StatusState {
     pub stacks: u16,
     /// Percent per stack.
     pub value_pct: u16,
-    /// A damage-over-time status's own state; `None` for every other status, which hashes
-    /// nothing for it.
+    /// A damage-over-time status's own state; `None` for every other status.
     pub dot: Option<DotState>,
 }
 
@@ -846,7 +842,7 @@ impl Dir {
 /// What an attack's `aimed` directions point at, and which way it faces. This is where the
 /// ways of aiming meet: enemies, companions and the boss aim at an entity; the main
 /// character's combo steps aim along its facing (ADR-069). A new way of aiming (an effect's
-/// target, ADR-069) is a new variant, read in `attacks::aim`, hashed in `hash_aim` and given its
+/// target, ADR-069) is a new variant, read in `attacks::aim`, hashed in its `StableHash` impl and given its
 /// heading here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Aim {
@@ -941,8 +937,7 @@ pub(crate) struct ZoneState {
     pub damage: u32,
     pub damage_type: Option<DamageType>,
     pub breaks_charge: bool,
-    /// A warning only (Z3a-4): it never becomes active and never hurts. Hashed in a block of its
-    /// own, written only while some zone has it.
+    /// A warning only (Z3a-4): it never becomes active and never hurts.
     pub warn_only: bool,
     /// Who it has hit, and on which tick, sorted by entity ID: each once.
     pub hits: Vec<(EntityId, u32)>,

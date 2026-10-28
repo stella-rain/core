@@ -604,7 +604,8 @@ fn a_star_outside_every_set_has_no_progress_and_changes_no_set() {
 
 #[test]
 fn a_run_without_sets_keeps_its_hashes() {
-    // The same run with no file, with a set none of its picks touches, and with one they do.
+    // The same run with no file, with an empty file, with a set none of its picks touches, and
+    // with one they do.
     let hashes = |sets: Option<Value>| -> Vec<u64> {
         let mut e = engine(&epic_near(), trio_list(), sets);
         next_offer(&mut e);
@@ -623,10 +624,19 @@ fn a_run_without_sets_keeps_its_hashes() {
         vec![tier(2, vec![rerolls(1)])],
     )])));
     assert_eq!(none, empty);
-    assert_eq!(none, untouched, "counts hash only while above 0");
+    assert_ne!(
+        none, untouched,
+        "the count of every set is part of the state, whether or not a member is held"
+    );
     let touched = hashes(Some(file(vec![trio()])));
-    assert_eq!(none[0], touched[0]);
-    assert_ne!(none[1], touched[1], "one member held is part of the state");
+    assert_eq!(
+        untouched[0], touched[0],
+        "before a pick, every set's count is 0 whichever its members"
+    );
+    assert_ne!(
+        untouched[1], touched[1],
+        "one member held is part of the state"
+    );
 }
 
 #[test]

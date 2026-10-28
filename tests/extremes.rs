@@ -230,7 +230,7 @@ fn busy_stages_survive_the_whole_stage() {
 /// platform must produce exactly this (ADR-019): a difference in how overflow, saturation or
 /// division behaves on another architecture would show here. Under version 0 a change to the
 /// rules may change it (ADR-035); then it is regenerated and the PR says so.
-const MIXED_HASH: u64 = 0xdb3e_8bb1_6037_b79e;
+const MIXED_HASH: u64 = 0xaf35_4b74_321c_ff45;
 
 #[test]
 fn a_mixed_extreme_run_gives_the_same_hash_on_every_platform() {

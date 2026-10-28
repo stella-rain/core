@@ -8,7 +8,7 @@
 use super::World;
 use super::entity::Who;
 use crate::attack::MatchUp;
-use crate::engine::{Echo, PlayerState};
+use crate::engine::Echo;
 use crate::event::DomainEvent;
 use crate::fixed::Fx;
 use crate::id::EntityId;
@@ -19,11 +19,6 @@ use crate::rewards::{
 use crate::rng::SplitMix64;
 
 use super::{PLAYER_ID, Shot, State, overlaps};
-
-/// Whether any combat reward is held: what the state hash writes them for.
-pub(super) fn held(p: &PlayerState) -> bool {
-    p.crit_chance_pct > 0 || p.crit_damage_pct > 0 || p.echo_hit_pct > 0 || p.burst_pct > 0
-}
 
 /// Whether `b`, a hit on the foe `id` that has `hp` hit points before it, is a critical hit.
 /// Only the main character's own hits on enemies, the boss and its parts roll, and only with
