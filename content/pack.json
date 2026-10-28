@@ -3627,7 +3627,7 @@
                                   {
                                     "kind": "wind_up",
                                     "move_pct": 50,
-                                    "ticks": 8
+                                    "ticks": 10
                                   },
                                   {
                                     "hit_box": {
@@ -3641,13 +3641,13 @@
                                     },
                                     "kind": "active",
                                     "move_pct": 50,
-                                    "ticks": 4,
+                                    "ticks": 5,
                                     "type": "slash"
                                   },
                                   {
                                     "kind": "recovery",
                                     "move_pct": 50,
-                                    "ticks": 14
+                                    "ticks": 18
                                   }
                                 ]
                               },
@@ -3661,7 +3661,7 @@
                                   {
                                     "kind": "wind_up",
                                     "move_pct": 50,
-                                    "ticks": 12
+                                    "ticks": 15
                                   },
                                   {
                                     "hit_box": {
@@ -3674,13 +3674,13 @@
                                     },
                                     "kind": "active",
                                     "move_pct": 50,
-                                    "ticks": 4,
+                                    "ticks": 5,
                                     "type": "slash"
                                   },
                                   {
                                     "kind": "recovery",
                                     "move_pct": 50,
-                                    "ticks": 20
+                                    "ticks": 25
                                   }
                                 ]
                               },
@@ -3713,7 +3713,7 @@
                                       "inline": [
                                         {
                                           "kind": "wind_up",
-                                          "ticks": 12
+                                          "ticks": 15
                                         },
                                         {
                                           "damage": 16000,
@@ -3726,12 +3726,12 @@
                                             "type": "circle"
                                           },
                                           "kind": "active",
-                                          "ticks": 4,
+                                          "ticks": 5,
                                           "type": "pierce"
                                         },
                                         {
                                           "kind": "recovery",
-                                          "ticks": 22
+                                          "ticks": 28
                                         }
                                       ]
                                     }
@@ -3743,7 +3743,7 @@
                                   "inline": [
                                     {
                                       "kind": "wind_up",
-                                      "ticks": 10
+                                      "ticks": 13
                                     },
                                     {
                                       "damage": 12000,
@@ -3757,12 +3757,12 @@
                                         "type": "arc"
                                       },
                                       "kind": "active",
-                                      "ticks": 4,
+                                      "ticks": 5,
                                       "type": "slash"
                                     },
                                     {
                                       "kind": "recovery",
-                                      "ticks": 16
+                                      "ticks": 20
                                     }
                                   ]
                                 }
@@ -3774,7 +3774,7 @@
                               "inline": [
                                 {
                                   "kind": "wind_up",
-                                  "ticks": 10
+                                  "ticks": 13
                                 },
                                 {
                                   "damage": 10000,
@@ -3787,12 +3787,12 @@
                                     "type": "circle"
                                   },
                                   "kind": "active",
-                                  "ticks": 3,
+                                  "ticks": 4,
                                   "type": "pierce"
                                 },
                                 {
                                   "kind": "recovery",
-                                  "ticks": 18
+                                  "ticks": 23
                                 }
                               ]
                             }
@@ -3804,7 +3804,7 @@
                           "inline": [
                             {
                               "kind": "wind_up",
-                              "ticks": 8
+                              "ticks": 10
                             },
                             {
                               "damage": 10000,
@@ -3818,12 +3818,12 @@
                                 "type": "arc"
                               },
                               "kind": "active",
-                              "ticks": 4,
+                              "ticks": 5,
                               "type": "slash"
                             },
                             {
                               "kind": "recovery",
-                              "ticks": 14
+                              "ticks": 18
                             }
                           ]
                         }
@@ -3871,7 +3871,7 @@
             "smash": {
               "type": "bleed"
             },
-            "window_ticks": 20
+            "window_ticks": 36
           }
         }
       ]
