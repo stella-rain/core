@@ -24,6 +24,19 @@ release, at or below it the release is the next patch (`0.1.0` with `v0.1.0` out
 `main` itself is never written to, so its `Cargo.toml` can lag the latest release; the tag is
 the version. A minor or major release needs a version PR.
 
+## Balancing
+
+Tuning numbers live in core under `content/` and `modes/`. Balancing workflow:
+
+1. **Compare numbers:** `content-pack compare --numbers-only BASE_DIR HEAD_DIR` verifies that two
+   content checkouts differ only in numeric leaf values. Any change to keys, IDs, strings,
+   booleans, or array lengths fails closed with exit status 1. In `tune/` branches, this check
+   enables fast CI verification and auto-merge.
+2. **Playtest with the app:** `python3 scripts/playtest.py [--app ../app] [--profile test-env] [--build]`
+   runs `content-pack verify` on the pack, checks that the app's `godot-ext` core pin matches
+   the core version, optionally compiles the debug build (`--features record`), and launches Godot
+   with `--content-path` pointing to this checkout's pack and an isolated test profile.
+
 ## License
 
 Licensed under either of
