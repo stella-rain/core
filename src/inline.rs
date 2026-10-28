@@ -68,7 +68,7 @@ impl<T: Copy + Default, const N: usize> InlineVec<T, N> {
                 kept += 1;
             }
         }
-        self.len = kept as u8;
+        self.len = u8::try_from(kept).expect("at most the length it had");
     }
 }
 

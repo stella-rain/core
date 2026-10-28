@@ -87,7 +87,7 @@ impl KindTable {
         self.ids
             .binary_search_by(|k| k.0.cmp(&id.0))
             .ok()
-            .map(|i| KindIndex(i as u16))
+            .map(|i| KindIndex(u16::try_from(i).expect("a run has fewer than 65536 kinds")))
     }
 
     /// The index of a kind the run was built with: a spawn, which only brings what the table
