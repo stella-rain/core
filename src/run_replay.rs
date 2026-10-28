@@ -631,6 +631,40 @@ fn verify_inner(
     expected: Option<&[u64]>,
 ) -> Result<RunVerified, RunReplayError> {
     let replay = RunReplay::from_bytes(replay_bytes)?;
+    let run = resimulate(&replay, run_content, expected)?;
+    let engine = run.engine;
+    let actual = engine.state_hash();
+    if actual != run.final_hash {
+        return Err(RunReplayError::WrongFinalHash {
+            expected: run.final_hash,
+            actual,
+        });
+    }
+    Ok(RunVerified {
+        ticks: engine.tick(),
+        final_hash: actual,
+        outcome: engine.outcome(),
+        commands: u32::try_from(run.commands.len()).unwrap_or(u32::MAX),
+        stardust: engine.stardust(),
+        ledger: engine.ledger().clone(),
+    })
+}
+
+/// What re-simulating a replay leaves: the engine after the last tick and the commands after it,
+/// the hash the replay claims for that point, and the unpacked inputs and commands.
+struct Resimulated {
+    engine: Engine,
+    final_hash: u64,
+    inputs: Vec<Input>,
+    commands: Vec<TickCommand>,
+}
+
+/// Every check of `verify_inner` but the comparison of the final hash, on a parsed replay.
+fn resimulate(
+    replay: &RunReplay,
+    run_content: &RunContent,
+    expected: Option<&[u64]>,
+) -> Result<Resimulated, RunReplayError> {
     let stage = run_setup::stage_in(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
     let content = content_sha256_with(&replay.setup.mode.0, run_content)
         .ok_or(RunReplayError::ContentChanged)?;
@@ -688,20 +722,11 @@ fn verify_inner(
             "a command is after the last tick",
         ));
     }
-    let actual = engine.state_hash();
-    if actual != final_hash {
-        return Err(RunReplayError::WrongFinalHash {
-            expected: final_hash,
-            actual,
-        });
-    }
-    Ok(RunVerified {
-        ticks: engine.tick(),
-        final_hash: actual,
-        outcome: engine.outcome(),
-        commands: u32::try_from(commands.len()).unwrap_or(u32::MAX),
-        stardust: engine.stardust(),
-        ledger: engine.ledger().clone(),
+    Ok(Resimulated {
+        engine,
+        final_hash,
+        inputs,
+        commands,
     })
 }
 
