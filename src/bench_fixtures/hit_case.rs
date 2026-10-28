@@ -123,7 +123,8 @@ pub const SPREAD_SIDE: i32 = 1_048_576;
 
 /// How far from `START`, on each axis, the spread case's outer crowds hold: 440 pixels, so a
 /// crowd's point is about 622 pixels from the main character and the clump round it, once pushed
-/// apart, stays inside the leash's reach (`LEASH_DISTANCE`, 800 pixels, EC2, DS84).
+/// apart, stayed inside the earlier leash's reach (800 pixels, EC2, DS84; the leash reach is now
+/// `rules.json`'s `leash_reach_x`/`leash_reach_y`).
 const SPREAD_OFFSET: i32 = 112_640;
 
 /// The spread case (core#146, EC2): the same enemies, in the same waves, on the largest map: the
