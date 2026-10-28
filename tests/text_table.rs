@@ -59,13 +59,13 @@ fn bundled_text_table_loads_all_ids() {
     let expected_keys = [
         "difficulties/easy",
         "difficulties/normal",
-        "run_stats/hp",
+        "run_stats/max_hp",
         "run_stats/attack",
-        "rewards/stat_hp_common",
+        "rewards/max_hp_common",
         "rewards/star_altair",
         "stage_skills/black_hole",
         "stage_skills/aegis",
-        "perk_sets/starter",
+        "perk_sets/vanguard",
         "expertise/crush",
         "expertise/damage",
     ];
