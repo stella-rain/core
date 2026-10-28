@@ -21,19 +21,25 @@ pub struct Stage {
     /// `crate::version::SIM_VERSION` when the game wrote the file.
     pub sim_version: u32,
     /// The stage ID: the file name and the first half of the version tag.
+    #[schemars(length(min = 1, max = crate::validate::limits::MAX_STAGE_ID_CHARS))]
     pub id: String,
+    #[schemars(length(min = 1, max = crate::validate::limits::MAX_TITLE_CHARS))]
     pub title: String,
     #[serde(default)]
+    #[schemars(length(max = crate::validate::limits::MAX_DESCRIPTION_CHARS))]
     pub description: String,
     /// Seeds the run's SplitMix64 (ADR-033). 32 bits so that every tool reading the file as
     /// JSON, GDScript included, keeps it exact; the simulation widens it.
     pub seed: u32,
     /// Ticks until the stage ends if the boss is still alive.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_TICKS))]
     pub length_ticks: u32,
     pub player: Player,
     #[serde(default)]
+    #[schemars(length(max = crate::validate::limits::MAX_COMPANIONS))]
     pub companions: Vec<Agent>,
     #[serde(default)]
+    #[schemars(length(min = 1, max = crate::validate::limits::MAX_WAVES))]
     pub waves: Vec<Wave>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boss: Option<Boss>,
@@ -55,6 +61,7 @@ pub struct Stage {
     /// The most elites alive at once (ADR-068); `MAX_ELITES_ALIVE` when absent. An elite that
     /// would spawn past it does not, and a wave counts it as spawned.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_ELITES_ALIVE))]
     pub elite_cap: Option<u16>,
     /// The crowd target of the run (DIR1, DS103): the pack's `rules.json` gives the default
     /// (200), this overrides it, 1 to `MAX_CROWD_TARGET`. The run's enemy cap derives from it
@@ -62,6 +69,7 @@ pub struct Stage {
     /// the run is built. A stage's waves keep their authored timing: only a horde run holds
     /// its waves at the target.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_CROWD_TARGET))]
     pub crowd_target: Option<u16>,
     /// The levels of the expertise style path (ADR-106 §4); `LevelTable::NORMAL` when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -81,11 +89,13 @@ pub struct Stage {
 #[serde(deny_unknown_fields)]
 pub struct StardustFactor {
     /// 1 to `limits::MAX_STARDUST_TIERS` tiers, the first at tick 0, the ticks rising strictly.
+    #[schemars(length(min = 1, max = crate::validate::limits::MAX_STARDUST_TIERS))]
     pub tiers: Vec<StardustTier>,
     /// The base Stardust a kill of a summoned enemy earns before the factor, times 10 (a boss's
     /// or a splitter's `summon`), at most `limits::MAX_STARDUST_BASE`; none when absent.
     /// Guardians, escorts and a boss's parts earn nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_STARDUST_BASE))]
     pub summon_base: Option<u32>,
 }
 
@@ -97,6 +107,7 @@ pub struct StardustTier {
     /// When the tier starts, in ticks from the start of the run.
     pub start_tick: u32,
     /// From 1 to `limits::MAX_STARDUST_PCT`.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_STARDUST_PCT))]
     pub pct: u32,
 }
 
@@ -182,22 +193,29 @@ impl LevelTable {
 #[serde(deny_unknown_fields)]
 pub struct Stars {
     /// The chance, in 1000, that a kill drops a star.
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_DROP_PER_MILLE))]
     pub drop_per_mille: u16,
     /// Kills in a row without a star after which the next kill drops one for sure.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_PITY))]
     pub pity: u16,
     /// The most stars on the map at once. A kill with the map full drops none, and does not
     /// count toward the pity.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_STARS_ON_MAP))]
     pub cap: u16,
     /// How near the main character's centre a star must come to be taken.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_PICKUP_RADIUS))]
     pub pickup_radius: Fx,
     /// Rerolls of one candidate a run gets, before the setup's extra rerolls.
     #[serde(default)]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_REROLLS))]
     pub rerolls: u8,
     /// Rewards a run may banish.
     #[serde(default)]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_BANISHES))]
     pub banishes: u8,
     /// The drop table: tiers by the player's level, the first from level 1, each later one from
     /// a higher level (ADR-068). A star draws its rarity from the tier of the level reached.
+    #[schemars(length(min = 1, max = crate::validate::limits::MAX_TIERS))]
     pub tiers: Vec<Tier>,
 }
 
@@ -206,14 +224,19 @@ pub struct Stars {
 #[serde(deny_unknown_fields)]
 pub struct Healing {
     /// The percent of the main character's most hit points a boss kill heals, from 0 to 100.
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_HEAL_PCT))]
     pub boss_pct: u16,
     /// A regular enemy's kill drops a heal pickup with a chance of 1 in this many, from 1 up.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_HEAL_ONE_IN))]
     pub drop_one_in: u32,
     /// The hit points a pickup heals when the main character takes it, from 1 up.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_HEAL_AMOUNT))]
     pub amount: u32,
     /// The most pickups on the map at once, from 1 up. A kill with the map full drops none.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_HEAL_PICKUPS))]
     pub cap: u16,
     /// How near the main character's centre a pickup must come to be taken.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_PICKUP_RADIUS))]
     pub pickup_radius: Fx,
 }
 
@@ -222,11 +245,13 @@ pub struct Healing {
 #[serde(deny_unknown_fields)]
 pub struct Tier {
     /// The level the tier starts at.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_TIER_LEVEL))]
     pub from_level: u32,
     pub weights: RarityWeights,
     /// The draw weight of the `random_rune` reward among its rarity while this tier applies, from
     /// 1 to `MAX_WEIGHT`; left out, the reward's own `weight`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_RARITY_WEIGHT))]
     pub random_rune_weight: Option<u16>,
 }
 
@@ -236,16 +261,22 @@ pub struct Tier {
 #[serde(deny_unknown_fields)]
 pub struct RarityWeights {
     #[serde(default)]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_RARITY_WEIGHT))]
     pub common: u16,
     #[serde(default)]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_RARITY_WEIGHT))]
     pub uncommon: u16,
     #[serde(default)]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_RARITY_WEIGHT))]
     pub rare: u16,
     #[serde(default)]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_RARITY_WEIGHT))]
     pub epic: u16,
     #[serde(default)]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_RARITY_WEIGHT))]
     pub legendary: u16,
     #[serde(default)]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_RARITY_WEIGHT))]
     pub supernova: u16,
 }
 
@@ -279,6 +310,7 @@ impl RarityWeights {
 pub struct Levels {
     /// The experience each next level needs, the first from level 1 to 2; the last entry
     /// repeats for every level after it.
+    #[schemars(length(min = 1, max = crate::validate::limits::MAX_LEVELS))]
     pub xp: Vec<u32>,
 }
 
@@ -307,7 +339,9 @@ impl Stage {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Map {
+    #[schemars(range(min = crate::validate::limits::MIN_MAP_SIDE, max = crate::validate::limits::MAX_MAP_SIDE))]
     pub width: Fx,
+    #[schemars(range(min = crate::validate::limits::MIN_MAP_SIDE, max = crate::validate::limits::MAX_MAP_SIDE))]
     pub height: Fx,
     /// The centre of the map when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -365,11 +399,14 @@ impl Map {
 #[serde(deny_unknown_fields)]
 pub struct Player {
     pub base: ContentId,
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_PLAYER_HP))]
     pub hp: u32,
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_PLAYER_ATK))]
     pub atk: u32,
     /// Reduces every hit the main character takes (ADR-056); 0 when absent. It moves to the
     /// run's setup when the setup exists (ADR-049).
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_DEFENCE))]
     pub defence: u32,
     /// The one weapon, whose combos the main character makes by hand with both buttons
     /// (ADR-084). It moves to the run's setup when the setup exists (ADR-049, ADR-051, ADR-107).
@@ -387,15 +424,20 @@ pub struct Player {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Evade {
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_EVADE_DISTANCE))]
     pub distance: Fx,
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_EVADE_TICKS))]
     pub ticks: u32,
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_EVADE_TICKS))]
     pub invulnerable_ticks: u32,
     pub cooldown_ticks: u32,
     /// The charges a run starts with: 1 when absent.
     #[serde(default = "one_charge", skip_serializing_if = "is_one_charge")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_EVADE_CHARGES))]
     pub charges: u8,
     /// The most charges rewards can raise it to (ADR-074): `charges` when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_EVADE_CHARGES))]
     pub max_charges: Option<u8>,
 }
 
@@ -433,12 +475,14 @@ pub struct Wave {
     /// Give this or `spawn`, not both.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edge: Option<ViewEdge>,
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_WAVE_COUNT))]
     pub count: u16,
     #[serde(default)]
     pub every_ticks: u32,
     /// The experience each enemy of the wave gives when defeated, in a stage with `levels`;
     /// 1 when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_ENEMY_XP))]
     pub xp: Option<u32>,
     /// The expertise points each enemy of the wave gives (ADR-078 §2); none when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -447,6 +491,7 @@ pub struct Wave {
     /// (ADR-109), at most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage
     /// with a `stardust` factor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_STARDUST_BASE))]
     pub stardust: Option<u32>,
 }
 
@@ -483,8 +528,10 @@ pub enum Side {
 #[serde(deny_unknown_fields)]
 pub struct ExpertisePoints {
     /// Points per hit, at most `MAX_EXPERTISE_PER_HIT`.
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_EXPERTISE_PER_HIT))]
     pub hit: u32,
     /// Points for the kill, at most `MAX_EXPERTISE_PER_KILL`.
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_EXPERTISE_PER_KILL))]
     pub kill: u32,
 }
 
@@ -495,10 +542,13 @@ pub struct Boss {
     pub base: ContentId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette: Option<ContentId>,
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_BOSS_HP))]
     pub hp: u32,
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
     pub radius: Fx,
     /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_DEFENCE))]
     pub defence: u32,
     /// What it is weak and strong against (ADR-100); without one, every type is neutral against
     /// it.
@@ -506,7 +556,9 @@ pub struct Boss {
     pub profile: Option<Profile>,
     pub spawn: Point,
     #[serde(default)]
+    #[schemars(length(max = crate::validate::limits::MAX_BOSS_PARTS))]
     pub parts: Vec<BossPart>,
+    #[schemars(length(min = 1, max = crate::validate::limits::MAX_PHASES))]
     pub phases: Vec<Phase>,
     /// When every elite alive joins the boss fight (ADR-068); without it the boss calls none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -516,6 +568,7 @@ pub struct Boss {
     pub expertise: Option<ExpertisePoints>,
     /// The Stardust its kill earns before the time factor, times 10; as a wave's `stardust`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_STARDUST_BASE))]
     pub stardust: Option<u32>,
 }
 
@@ -539,12 +592,15 @@ pub struct BossPart {
     pub id: ContentId,
     /// Asset ID of the part's sprite.
     pub asset: ContentId,
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_AGENT_HP))]
     pub hp: u32,
     /// Offset from the boss's centre.
     pub offset: Point,
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
     pub radius: Fx,
     /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_DEFENCE))]
     pub defence: u32,
     /// Its own profile (ADR-100), not the boss's; without one, every type is neutral against it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -559,12 +615,15 @@ pub struct Phase {
     pub until: Option<Condition>,
     /// Runs when the phase begins.
     #[serde(default)]
+    #[schemars(length(max = crate::validate::limits::MAX_TRANSITIONS))]
     pub transition: Vec<Transition>,
     /// The choreography, one step at a time.
     #[serde(default)]
+    #[schemars(length(max = crate::validate::limits::MAX_TIMELINE_STEPS))]
     pub timeline: Vec<Step>,
     /// Reactions, evaluated like an agent's rules.
     #[serde(default)]
+    #[schemars(length(max = crate::validate::limits::MAX_RULES))]
     pub rules: Vec<Rule>,
 }
 

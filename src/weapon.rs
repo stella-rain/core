@@ -38,12 +38,15 @@ pub struct Weapon {
     pub dash: Branches,
     /// Ticks the combo keeps its place after a step's recovery has run out with no press
     /// buffered; a press within them takes the next step, after them it starts from the root.
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_COMBO_WINDOW_TICKS))]
     pub window_ticks: u32,
     /// Ticks after an evade's dash ends in which a press still takes the dash branch.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_DASH_STRIKE_TICKS))]
     pub dash_strike_ticks: u32,
     /// How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle
     /// reaches within this distance of the main character.
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_ASSIST_RANGE))]
     pub assist_range: Fx,
     /// What every hit of a smash (a step reached by `smash`) adds, in the dash branch too; none
     /// when absent.
@@ -106,9 +109,11 @@ pub struct Hold {
     /// when it starts.
     pub release: AttackRef,
     /// The longest hold, in ticks.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_HOLD_TICKS))]
     pub max_ticks: u32,
     /// The main character's movement speed while held, in percent; 100 when absent.
     #[serde(default = "full_speed", skip_serializing_if = "is_full_speed")]
+    #[schemars(range(min = 0, max = 100))]
     pub move_pct: u8,
 }
 
@@ -120,11 +125,14 @@ pub struct Hold {
 #[serde(deny_unknown_fields)]
 pub struct Charge {
     /// Level 1 and up, in order of `at_ticks`, the first after 0.
+    #[schemars(length(min = 1, max = crate::validate::limits::MAX_CHARGE_LEVELS))]
     pub levels: Vec<ChargeLevel>,
     /// The longest hold, in ticks.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_CHARGE_TICKS))]
     pub max_ticks: u32,
     /// The main character's movement speed while charging, in percent; 100 when absent.
     #[serde(default = "full_speed", skip_serializing_if = "is_full_speed")]
+    #[schemars(range(min = 0, max = 100))]
     pub move_pct: u8,
 }
 
@@ -141,6 +149,7 @@ pub struct ChargeLevel {
     pub perfect_ticks: u32,
     /// The perfect bonus: this much more damage, in percent, for every hit of the release.
     #[serde(default, skip_serializing_if = "is_zero_u16")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_PERFECT_PCT))]
     pub perfect_pct: u16,
     /// A perfect release makes this attack instead, with `perfect_pct` too.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -166,15 +175,28 @@ fn is_zero_u16(v: &u16) -> bool {
 pub enum SmashEffect {
     /// The enemy hit is drawn toward the main character, at most `distance`, over `ticks`, and
     /// stops where their circles touch. A boss, its parts and elites resist it.
-    Pull { distance: Fx, ticks: u32 },
+    Pull {
+        #[schemars(range(min = 0, max = crate::validate::limits::MAX_PULL_DISTANCE))]
+        distance: Fx,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_PULL_TICKS))]
+        ticks: u32,
+    },
     /// The enemy hit is pushed away from the main character, at most `distance`, over `ticks`,
     /// and stays inside the map. A boss, its parts and elites resist it, as they resist the pull.
-    Knockback { distance: Fx, ticks: u32 },
+    Knockback {
+        #[schemars(range(min = 0, max = crate::validate::limits::MAX_PULL_DISTANCE))]
+        distance: Fx,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_PULL_TICKS))]
+        ticks: u32,
+    },
     /// The enemy hit gets the `bleed` status, the one bleed of ADR-099 with the bleed rune's
     /// numbers from the run's runes file, none of its own (ADR-084 point 8). A run whose file has
     /// no bleed gives none.
     Bleed {},
     /// The enemy hit is stunned for `ticks` (ADR-085): it stops what it was doing and cannot act
     /// until the stun runs out. Bosses resist it, and an elite takes half the ticks.
-    Stun { ticks: u32 },
+    Stun {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_STUN_TICKS))]
+        ticks: u32,
+    },
 }

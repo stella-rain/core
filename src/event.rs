@@ -88,6 +88,7 @@ pub enum DomainEvent {
     /// A press took a combo step (ADR-070): the step `depth` presses from the root.
     ComboStep {
         press: Press,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_COMBO_DEPTH as i64))]
         depth: u8,
     },
     /// The combo went back to the root: its window passed, an evade, a broken charge, or a press

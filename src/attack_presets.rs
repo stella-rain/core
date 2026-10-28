@@ -49,8 +49,10 @@ pub struct AttackPreset {
     /// A registered preset ID, unique within the file.
     pub id: ContentId,
     /// The arguments in order: as many as the registry says the preset takes.
+    #[schemars(length(max = crate::validate::limits::MAX_PRESET_ARGS))]
     pub args: Vec<ArgSpec>,
     /// The attack, with its arguments still as `arg` nodes.
+    #[schemars(length(min = 1, max = crate::validate::limits::MAX_ATTACK_PHASES))]
     pub phases: Vec<AttackPhase>,
 }
 
@@ -59,6 +61,7 @@ pub struct AttackPreset {
 #[serde(deny_unknown_fields)]
 pub struct AttackPresetsFile {
     /// The presets, 1 to `MAX_ATTACK_PRESETS`; every registered preset is among them.
+    #[schemars(length(min = 1, max = MAX_ATTACK_PRESETS))]
     pub presets: Vec<AttackPreset>,
 }
 

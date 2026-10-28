@@ -20,11 +20,14 @@ pub struct Agent {
     pub base: ContentId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette: Option<ContentId>,
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_AGENT_HP))]
     pub hp: u32,
     /// Radius of the hurt circle.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
     pub radius: Fx,
     /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_DEFENCE))]
     pub defence: u32,
     /// What it is weak and strong against (ADR-100); without one, every type is neutral against
     /// it. An enemy's or an elite's only: a companion has none.
@@ -33,6 +36,7 @@ pub struct Agent {
     pub movement: Movement,
     /// Evaluated in order each tick; the first rule that can fire, fires (ADR-036).
     #[serde(default)]
+    #[schemars(length(max = crate::validate::limits::MAX_RULES))]
     pub rules: Vec<Rule>,
     /// An enemy that holds where it spawned and acts only while the main character is within
     /// its range, until a boss calls it; its star is a tier higher (ADR-068). Not a companion.
@@ -45,6 +49,7 @@ pub struct Agent {
 #[serde(deny_unknown_fields)]
 pub struct Elite {
     /// How near the main character's centre must come to its centre for its rules to fire.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
     pub range: Fx,
     /// What the boss's call does to it (ADR-090); `join` when absent.
     #[serde(default, skip_serializing_if = "BossCall::is_join")]
@@ -77,6 +82,7 @@ pub struct Mimic {
     /// Asset ID of the sprite it is drawn as while disguised (ADR-007).
     pub disguise: ContentId,
     /// 1 to `MAX_LEN`.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
     pub reveal_radius: Fx,
 }
 
@@ -88,8 +94,10 @@ pub struct Mimic {
 #[serde(deny_unknown_fields)]
 pub struct Aura {
     /// 1 to `MAX_LEN`.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
     pub radius: Fx,
     /// 1 to `MAX_AURA_PERCENT`.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_AURA_PERCENT))]
     pub damage_percent: u16,
 }
 
@@ -117,12 +125,17 @@ impl BossCall {
 pub enum Movement {
     /// Circles the main character. A companion is set on its circle; an enemy moves to its
     /// place on it, at most its orbit step plus 4 pixels a tick (ADR-058).
-    Orbit { radius: Fx },
+    Orbit {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
+        radius: Fx,
+    },
     /// Trails the main character at a distance, at most `speed` a tick (a tank's is slower);
     /// absent, 4 pixels a tick as it always was (ADR-058).
     Follow {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
         distance: Fx,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
         speed: Option<Fx>,
     },
     /// Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at
@@ -158,8 +171,10 @@ pub struct Guardians {
     /// Not an elite and not a shrine; it does not summon.
     pub enemy: Box<Agent>,
     /// 1 to `MAX_SHRINE_GUARDIANS`.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_SHRINE_GUARDIANS))]
     pub count: u8,
     /// How far from the shrine's centre they stand.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
     pub radius: Fx,
 }
 
@@ -203,6 +218,7 @@ pub enum Condition {
     },
     AggroAbove {
         who: Selector,
+        #[schemars(range(min = 0, max = crate::validate::limits::MAX_AGGRO))]
         value: u32,
     },
     PartBroken {
@@ -215,6 +231,7 @@ pub enum Condition {
     /// The main character's centre is within `distance` of the agent's centre (the edge counts):
     /// an exploder's burst (ADR-036).
     NearTarget {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
         distance: Fx,
     },
 }
@@ -253,6 +270,7 @@ pub enum Action {
     },
     Summon {
         agent: Box<Agent>,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_SUMMON_COUNT))]
         count: u8,
     },
     MoveTo {
@@ -268,11 +286,28 @@ pub enum Action {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Skill {
-    Shot { pattern: AttackRef, damage: u32 },
-    AtkUp { value_pct: u16, duration_ticks: u32 },
-    Vulnerable { value_pct: u16, duration_ticks: u32 },
-    Slow { value_pct: u16, duration_ticks: u32 },
-    Heal { amount: u32 },
+    Shot {
+        pattern: AttackRef,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_DAMAGE))]
+        damage: u32,
+    },
+    AtkUp {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_BUFF_PCT))]
+        value_pct: u16,
+        duration_ticks: u32,
+    },
+    Vulnerable {
+        value_pct: u16,
+        duration_ticks: u32,
+    },
+    Slow {
+        value_pct: u16,
+        duration_ticks: u32,
+    },
+    Heal {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_DAMAGE))]
+        amount: u32,
+    },
 }
 
 /// For `skip_serializing_if`: a `false` that is the default is left out of the file.

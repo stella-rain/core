@@ -20,10 +20,14 @@ pub enum AttackRef {
     Preset {
         id: ContentId,
         #[serde(default)]
+        #[schemars(length(max = crate::validate::limits::MAX_PRESET_ARGS))]
         args: Vec<i32>,
     },
     /// The phases, in order.
-    Inline(Vec<AttackPhase>),
+    Inline(
+        #[schemars(length(min = 1, max = crate::validate::limits::MAX_ATTACK_PHASES))]
+        Vec<AttackPhase>,
+    ),
 }
 
 /// One phase of an attack (ADR-055).
@@ -33,6 +37,7 @@ pub struct AttackPhase {
     pub kind: PhaseKind,
     /// How long the phase lasts: a constant, never an expression, so that an attack's length
     /// and its telegraph are known before it runs.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_PHASE_TICKS))]
     pub ticks: u32,
     /// The area the phase covers, attached to the attacker.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -41,6 +46,7 @@ pub struct AttackPhase {
     /// what the attacker's own attack does: the main character's `atk`, a `shot` skill's
     /// `damage`, or 100 (1 at the design values, ADR-103) for an enemy or the boss.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_DAMAGE))]
     pub damage: Option<u32>,
     /// The damage type of the phase's hits and of the zones it spawns (ADR-100); absent, they
     /// are neutral and never get a match-up.
@@ -48,6 +54,7 @@ pub struct AttackPhase {
     pub damage_type: Option<DamageType>,
     /// An active phase only: a target already hit may be hit again after this many ticks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_PHASE_TICKS))]
     pub rehit_ticks: Option<u32>,
     /// Emitter nodes started on the phase's first tick, carried out in order (see `rules_v0`'s
     /// attacks for what each one does).
@@ -55,6 +62,7 @@ pub struct AttackPhase {
     pub spawn: Vec<Emitter>,
     /// The attacker's movement speed during the phase, in percent; 0 roots it.
     #[serde(default = "full_speed", skip_serializing_if = "is_full_speed")]
+    #[schemars(range(min = 0, max = 100))]
     pub move_pct: u8,
     /// A powerful attack: its hits on the main character, by hit box or by the zones the phase
     /// spawns, break a charge in progress (core#83).
@@ -71,6 +79,7 @@ pub struct AttackPhase {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Dash {
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_DASH_DISTANCE))]
     pub distance: Fx,
 }
 
@@ -246,6 +255,7 @@ pub enum HitBox {
         anchor: Anchor,
         #[serde(default)]
         offset: Offset,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
         radius: Fx,
     },
     /// A circle sector centred on the facing, `half_angle` to each side.
@@ -254,6 +264,7 @@ pub enum HitBox {
         anchor: Anchor,
         #[serde(default)]
         offset: Offset,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
         radius: Fx,
         half_angle: i32,
     },
@@ -267,7 +278,9 @@ pub enum HitBox {
         /// Turn from the facing, in 1/256 degree; positive turns toward the right.
         #[serde(default)]
         angle: i32,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
         length: Fx,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
         width: Fx,
     },
 }
@@ -277,16 +290,20 @@ pub enum HitBox {
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ZoneShape {
     Circle {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
         radius: Fx,
     },
     /// A circle sector centred on the zone's direction, `half_angle` to each side.
     Arc {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
         radius: Fx,
         half_angle: i32,
     },
     /// A rectangle from the zone's centre along its direction.
     Line {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
         length: Fx,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
         width: Fx,
     },
 }
@@ -407,8 +424,10 @@ pub struct Link {
     pub width: Fx,
     /// The damage of a beam hit; absent means the orb's own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_DAMAGE))]
     pub damage: Option<u32>,
     /// 1 to 600.
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_PHASE_TICKS))]
     pub rehit_ticks: u32,
 }
 
@@ -458,5 +477,8 @@ pub enum Expr {
     Clamp(Box<(Expr, Expr, Expr)>),
     /// A literal; written as a plain integer.
     #[serde(untagged)]
-    Const(i32),
+    Const(
+        #[schemars(range(min = -crate::validate::limits::MAX_NUMBER, max = crate::validate::limits::MAX_NUMBER))]
+         i32,
+    ),
 }
