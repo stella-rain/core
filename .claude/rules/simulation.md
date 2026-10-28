@@ -17,7 +17,7 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-7, ADR-REPL-3. The determinism
 ## What is where
 
 - `engine/`: the engine (`Engine`): `mod.rs` steps, chooses, spends and hashes; `snapshot.rs`
-  builds the snapshot; its tests sit beside them (`horde_tests.rs`, `move_index_tests.rs`).
+  builds the snapshot and `places`, the light read of ids, kinds and positions for the per-tick frame; its tests sit beside them (`horde_tests.rs`, `move_index_tests.rs`).
 - `rules_v0/`: the rules of `sim_version` 0. `state.rs` is the run's `State`; `world.rs` the
   run's definitions, resolved once and read-only (`DefIndex`, `AgentDef`, `AttackDef`).
   `schedule.rs` holds `TICK`, the one tick order: a step is added or moved there, and
