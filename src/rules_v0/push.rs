@@ -416,7 +416,7 @@ mod tests {
                 let (row, col) = (k / per_row, k % per_row);
                 let x = col * gap + (row % 2) * gap / 2;
                 let y = row * gap * 7 / 8;
-                body(k.unsigned_abs() + 1, x, y, 2_048)
+                body(u32::try_from(k).unwrap() + 1, x, y, 2_048)
             })
             .collect();
         assert_matches_reference(&bodies);
@@ -428,7 +428,7 @@ mod tests {
             .map(|k: i32| {
                 let radius = if k % 7 == 0 { 4_096 } else { 2_048 };
                 body(
-                    k.unsigned_abs() + 1,
+                    u32::try_from(k).unwrap() + 1,
                     (k % 20) * 3_000,
                     (k / 20) * 3_000,
                     radius,

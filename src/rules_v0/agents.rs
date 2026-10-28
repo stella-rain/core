@@ -408,7 +408,7 @@ pub(super) fn step_order(at: Point, order: MoveOrder) -> (Point, Option<MoveOrde
     }
     let left = i64::from(order.ticks_left);
     let step = |from: Fx, to: Fx| {
-        Fx(Fx::from_wide((i64::from(to.0) - i64::from(from.0)) / left).0 + from.0)
+        Fx::from_wide(i64::from(from.0) + (i64::from(to.0) - i64::from(from.0)) / left)
     };
     let next = Point {
         x: step(at.x, order.to.x),
