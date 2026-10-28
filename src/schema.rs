@@ -2,7 +2,8 @@
 //! checked in; `tests/schema.rs` fails when they are stale and rewrites them when run with
 //! `UPDATE_SCHEMA=1`.
 
-use schemars::schema_for;
+use schemars::JsonSchema;
+use schemars::generate::SchemaSettings;
 
 use crate::attack_presets::AttackPresetsFile;
 use crate::constellations::ConstellationsFile;
@@ -31,51 +32,123 @@ use crate::weapons::WeaponsFile;
 
 /// Each schema's file name in `schema/` and its pretty-printed JSON, ending in a newline.
 pub fn all() -> Vec<(&'static str, String)> {
-    let pretty = |value: schemars::Schema| {
-        let mut json = serde_json::to_string_pretty(&value).expect("a schema serialises");
+    let mut generator = SchemaSettings::default().into_generator();
+
+    macro_rules! register {
+        ($($t:ty),* $(,)?) => {
+            $(
+                generator.subschema_for::<$t>();
+            )*
+        };
+    }
+
+    register!(
+        Stage,
+        Input,
+        DomainEvent,
+        Snapshot,
+        Replay,
+        RunSetup,
+        RunReplay,
+        RunVerified,
+        RunStatsFile,
+        RewardsFile,
+        StageSkillsFile,
+        ExpertiseFile,
+        MatchUpsFile,
+        TimeLimitFile,
+        PerkSetsFile,
+        RulesFile,
+        StardustFile,
+        StartingUnlocksFile,
+        DifficultiesFile,
+        AttackPresetsFile,
+        WeaponsFile,
+        ConstellationsFile,
+        RunesFile,
+        PackFile,
+        PacksFile,
+    );
+
+    let definitions = generator.take_definitions(true);
+    let mut bundle = serde_json::Map::new();
+    bundle.insert(
+        "$schema".to_string(),
+        serde_json::Value::String("https://json-schema.org/draft/2020-12/schema".to_string()),
+    );
+    bundle.insert(
+        "title".to_string(),
+        serde_json::Value::String("Content".to_string()),
+    );
+    bundle.insert("$defs".to_string(), serde_json::Value::Object(definitions));
+
+    let mut bundle_json = serde_json::to_string_pretty(&serde_json::Value::Object(bundle))
+        .expect("bundle serialises");
+    bundle_json.push('\n');
+
+    fn stub(type_name: &str) -> String {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "$schema".to_string(),
+            serde_json::Value::String("https://json-schema.org/draft/2020-12/schema".to_string()),
+        );
+        map.insert(
+            "$ref".to_string(),
+            serde_json::Value::String(format!("content.schema.json#/$defs/{type_name}")),
+        );
+        let mut json =
+            serde_json::to_string_pretty(&serde_json::Value::Object(map)).expect("stub serialises");
         json.push('\n');
         json
-    };
+    }
+
     vec![
-        ("stage.schema.json", pretty(schema_for!(Stage))),
-        ("input.schema.json", pretty(schema_for!(Input))),
-        ("event.schema.json", pretty(schema_for!(DomainEvent))),
-        ("snapshot.schema.json", pretty(schema_for!(Snapshot))),
-        ("replay.schema.json", pretty(schema_for!(Replay))),
-        ("run_setup.schema.json", pretty(schema_for!(RunSetup))),
-        ("run_replay.schema.json", pretty(schema_for!(RunReplay))),
-        ("run_verified.schema.json", pretty(schema_for!(RunVerified))),
-        ("run_stats.schema.json", pretty(schema_for!(RunStatsFile))),
-        ("rewards.schema.json", pretty(schema_for!(RewardsFile))),
+        ("content.schema.json", bundle_json),
+        ("stage.schema.json", stub(&Stage::schema_name())),
+        ("input.schema.json", stub(&Input::schema_name())),
+        ("event.schema.json", stub(&DomainEvent::schema_name())),
+        ("snapshot.schema.json", stub(&Snapshot::schema_name())),
+        ("replay.schema.json", stub(&Replay::schema_name())),
+        ("run_setup.schema.json", stub(&RunSetup::schema_name())),
+        ("run_replay.schema.json", stub(&RunReplay::schema_name())),
+        (
+            "run_verified.schema.json",
+            stub(&RunVerified::schema_name()),
+        ),
+        ("run_stats.schema.json", stub(&RunStatsFile::schema_name())),
+        ("rewards.schema.json", stub(&RewardsFile::schema_name())),
         (
             "stage_skills.schema.json",
-            pretty(schema_for!(StageSkillsFile)),
+            stub(&StageSkillsFile::schema_name()),
         ),
-        ("expertise.schema.json", pretty(schema_for!(ExpertiseFile))),
-        ("match_ups.schema.json", pretty(schema_for!(MatchUpsFile))),
-        ("time_limit.schema.json", pretty(schema_for!(TimeLimitFile))),
-        ("perk_sets.schema.json", pretty(schema_for!(PerkSetsFile))),
-        ("rules.schema.json", pretty(schema_for!(RulesFile))),
-        ("stardust.schema.json", pretty(schema_for!(StardustFile))),
+        ("expertise.schema.json", stub(&ExpertiseFile::schema_name())),
+        ("match_ups.schema.json", stub(&MatchUpsFile::schema_name())),
+        (
+            "time_limit.schema.json",
+            stub(&TimeLimitFile::schema_name()),
+        ),
+        ("perk_sets.schema.json", stub(&PerkSetsFile::schema_name())),
+        ("rules.schema.json", stub(&RulesFile::schema_name())),
+        ("stardust.schema.json", stub(&StardustFile::schema_name())),
         (
             "starting_unlocks.schema.json",
-            pretty(schema_for!(StartingUnlocksFile)),
+            stub(&StartingUnlocksFile::schema_name()),
         ),
         (
             "difficulties.schema.json",
-            pretty(schema_for!(DifficultiesFile)),
+            stub(&DifficultiesFile::schema_name()),
         ),
         (
             "attack_presets.schema.json",
-            pretty(schema_for!(AttackPresetsFile)),
+            stub(&AttackPresetsFile::schema_name()),
         ),
-        ("weapons.schema.json", pretty(schema_for!(WeaponsFile))),
+        ("weapons.schema.json", stub(&WeaponsFile::schema_name())),
         (
             "constellations.schema.json",
-            pretty(schema_for!(ConstellationsFile)),
+            stub(&ConstellationsFile::schema_name()),
         ),
-        ("runes.schema.json", pretty(schema_for!(RunesFile))),
-        ("pack.schema.json", pretty(schema_for!(PackFile))),
-        ("packs.schema.json", pretty(schema_for!(PacksFile))),
+        ("runes.schema.json", stub(&RunesFile::schema_name())),
+        ("pack.schema.json", stub(&PackFile::schema_name())),
+        ("packs.schema.json", stub(&PacksFile::schema_name())),
     ]
 }

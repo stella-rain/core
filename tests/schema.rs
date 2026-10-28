@@ -80,10 +80,9 @@ fn every_validate_limit_const_appears_in_schema_bundle() {
         if name == "MAX_STAGE_BYTES" || name == "MAX_ISSUES" {
             continue;
         }
-        let word_boundary = format!("{name}");
         let is_used = body
             .split(|c: char| !c.is_alphanumeric() && c != '_')
-            .any(|w| w == word_boundary);
+            .any(|w| w == name);
         if !is_used {
             continue;
         }
