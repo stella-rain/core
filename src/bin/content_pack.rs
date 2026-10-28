@@ -30,11 +30,12 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use stella_rain_core::content_hash::to_hex;
-use stella_rain_core::pack::{ContentFiles, Pack};
+use stella_rain_core::pack::{CompareError, ContentFiles, Pack};
 
 const USAGE: &str = "usage: content-pack verify FILE\n       \
                      content-pack export [DIR]\n       \
-                     content-pack unpack PACK DIR\n\
+                     content-pack unpack PACK DIR\n       \
+                     content-pack compare --numbers-only BASE_DIR HEAD_DIR\n\
                      FILE and PACK may be - for standard input. unpack writes the pack's \
                      files into DIR (core's content/) and its mode files into modes/ beside \
                      it, and leaves content/pack.json to export. Without DIR, export writes the pack built \
@@ -116,8 +117,24 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
         ["export"] => write_pack(Pack::BUNDLED),
         ["export", dir] => export_dir(Path::new(dir)),
         ["unpack", path, dir] => unpack(path, Path::new(dir)),
+        ["compare", "--numbers-only", base_dir, head_dir] => {
+            compare_dirs(Path::new(base_dir), Path::new(head_dir))
+        }
         _ => Err(Failure::Usage(USAGE.into())),
     }
+}
+
+fn compare_dirs(base_dir: &Path, head_dir: &Path) -> Result<(), Failure> {
+    if !base_dir.is_dir() {
+        return Err(Failure::Usage("BASE_DIR is not a directory".into()));
+    }
+    if !head_dir.is_dir() {
+        return Err(Failure::Usage("HEAD_DIR is not a directory".into()));
+    }
+    stella_rain_core::pack::compare_numbers_only(base_dir, head_dir).map_err(|e| match e {
+        CompareError::Usage(msg) => Failure::Usage(msg),
+        CompareError::NotValid(msg) => Failure::NotValid(msg),
+    })
 }
 
 fn write_pack(bytes: &[u8]) -> Result<(), Failure> {

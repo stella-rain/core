@@ -10,19 +10,17 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 struct CompareTree(PathBuf);
 
 impl CompareTree {
     fn new(name: &str) -> CompareTree {
-        let root = std::env::temp_dir().join(format!(
-            "compare-{}-{name}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
+        let count = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let root =
+            std::env::temp_dir().join(format!("compare-{}-{name}-{count}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         CompareTree(root)
@@ -74,7 +72,12 @@ fn compare_numbers_only_succeeds_when_only_numbers_change() {
         base.path().to_str().unwrap(),
         head.path().to_str().unwrap(),
     ]);
-    assert_eq!(out.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 #[test]
@@ -91,7 +94,11 @@ fn compare_numbers_only_fails_when_string_changes() {
         base.path().to_str().unwrap(),
         head.path().to_str().unwrap(),
     ]);
-    assert_eq!(out.status.code(), Some(1), "expected exit 1 for string change");
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "expected exit 1 for string change"
+    );
 }
 
 #[test]
@@ -128,7 +135,11 @@ fn compare_numbers_only_fails_when_boolean_changes() {
         base.path().to_str().unwrap(),
         head.path().to_str().unwrap(),
     ]);
-    assert_eq!(out.status.code(), Some(1), "expected exit 1 for boolean change");
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "expected exit 1 for boolean change"
+    );
 }
 
 #[test]
@@ -145,7 +156,11 @@ fn compare_numbers_only_fails_when_array_length_changes() {
         base.path().to_str().unwrap(),
         head.path().to_str().unwrap(),
     ]);
-    assert_eq!(out.status.code(), Some(1), "expected exit 1 for array length change");
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "expected exit 1 for array length change"
+    );
 }
 
 #[test]
@@ -162,7 +177,11 @@ fn compare_numbers_only_fails_when_key_added_or_removed() {
         base.path().to_str().unwrap(),
         head.path().to_str().unwrap(),
     ]);
-    assert_eq!(out.status.code(), Some(1), "expected exit 1 for key addition");
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "expected exit 1 for key addition"
+    );
 }
 
 #[test]
@@ -176,9 +195,17 @@ fn compare_usage_error_when_args_invalid() {
         base.path().to_str().unwrap(),
         head.path().to_str().unwrap(),
     ]);
-    assert_eq!(out.status.code(), Some(2), "expected exit 2 for missing --numbers-only");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "expected exit 2 for missing --numbers-only"
+    );
 
     // Missing directories
     let out = run_content_pack(&["compare", "--numbers-only"]);
-    assert_eq!(out.status.code(), Some(2), "expected exit 2 for missing directories");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "expected exit 2 for missing directories"
+    );
 }
