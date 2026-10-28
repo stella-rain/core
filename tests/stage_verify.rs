@@ -279,3 +279,23 @@ fn bad_command_lines_exit_with_two() {
         out(&o)
     );
 }
+
+#[test]
+fn a_run_replay_is_verified_and_prints_ledger() {
+    let replay_path = "tests/corpus/runs/v0/trial/run.replay";
+    let hashes_path = "tests/corpus/runs/v0/trial/hashes.bin";
+    let o = run(&["--run", replay_path, "--hashes", hashes_path]);
+    assert_eq!(o.status.code(), Some(0), "{}", err(&o));
+    let stdout = out(&o);
+    assert!(stdout.contains("result: "));
+    assert!(stdout.contains("ticks: "));
+    assert!(stdout.contains("final_hash: "));
+    assert!(stdout.contains("commands: "));
+    assert!(stdout.contains("stardust: "));
+    assert!(stdout.contains("ledger: {"));
+    assert!(stdout.contains("\"kills\":"));
+    assert!(stdout.contains("\"bestiary\":"));
+    assert!(stdout.contains("\"picks\":"));
+    assert!(stdout.contains("\"skill_uses\":"));
+    assert_eq!(err(&o), "");
+}

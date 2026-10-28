@@ -5,6 +5,7 @@
 //!
 //! ```text
 //! stage-verify STAGE REPLAY [--hashes FILE]
+//! stage-verify --run REPLAY [--hashes FILE]
 //! stage-verify --share-code FILE [--hashes FILE]      (FILE may be - for standard input)
 //! ```
 //!
@@ -24,11 +25,14 @@ use std::io::Read;
 use std::process::ExitCode;
 
 use stella_rain_core::content_hash::to_hex;
+use stella_rain_core::engine::Outcome;
 use stella_rain_core::replay::{self, MAX_HASHES_BYTES, MAX_STAGE_REPLAY_BYTES, ReplayError};
+use stella_rain_core::run_replay::{self, MAX_RUN_REPLAY_BYTES};
 use stella_rain_core::share::{self, MAX_SHARE_CODE_CHARS};
 use stella_rain_core::validate::limits::MAX_STAGE_BYTES;
 
 const USAGE: &str = "usage: stage-verify STAGE REPLAY [--hashes FILE]\n       \
+                     stage-verify --run REPLAY [--hashes FILE]\n       \
                      stage-verify --share-code FILE [--hashes FILE]\n\
                      FILE may be - for standard input. Exit status: 0 verified, \
                      1 not verified, 2 could not run.\n\
@@ -76,6 +80,7 @@ fn parse_hashes(bytes: &[u8]) -> Result<Vec<u64>, Failure> {
 fn run(args: Vec<String>) -> Result<(), Failure> {
     let mut positional = Vec::new();
     let mut share_code = None;
+    let mut run_replay = None;
     let mut hashes_file = None;
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -89,12 +94,42 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
                 return Ok(());
             }
             "--share-code" => share_code = Some(value_of("--share-code")?),
+            "--run" => run_replay = Some(value_of("--run")?),
             "--hashes" => hashes_file = Some(value_of("--hashes")?),
             flag if flag.starts_with("--") => {
                 return Err(Failure::Usage(format!("unknown option {flag}\n{USAGE}")));
             }
             _ => positional.push(arg),
         }
+    }
+
+    let expected = match hashes_file {
+        Some(path) => Some(parse_hashes(&read_up_to(&path, MAX_HASHES_BYTES)?)?),
+        None => None,
+    };
+
+    if let (None, Some(path), []) = (&share_code, &run_replay, positional.as_slice()) {
+        let replay_bytes = read_up_to(path, MAX_RUN_REPLAY_BYTES)?;
+        let verified = match &expected {
+            Some(hashes) => run_replay::verify_run_against(&replay_bytes, hashes),
+            None => run_replay::verify_run(&replay_bytes),
+        }
+        .map_err(|e| Failure::NotVerified(e.to_string()))?;
+
+        let outcome = match verified.outcome {
+            Outcome::Cleared => "cleared",
+            Outcome::Failed => "failed",
+            Outcome::Running => "running",
+        };
+        println!("result: {outcome}");
+        println!("ticks: {}", verified.ticks);
+        println!("final_hash: {}", replay::hash_to_hex(verified.final_hash));
+        println!("commands: {}", verified.commands);
+        println!("stardust: {}", verified.stardust);
+        let ledger_json =
+            serde_json::to_string(&verified.ledger).map_err(|e| Failure::Usage(e.to_string()))?;
+        println!("ledger: {ledger_json}");
+        return Ok(());
     }
 
     let (stage, replay_bytes) = match (share_code, positional.as_slice()) {
@@ -109,10 +144,6 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
             read_up_to(replay, MAX_STAGE_REPLAY_BYTES)?,
         ),
         _ => return Err(Failure::Usage(USAGE.into())),
-    };
-    let expected = match hashes_file {
-        Some(path) => Some(parse_hashes(&read_up_to(&path, MAX_HASHES_BYTES)?)?),
-        None => None,
     };
 
     let verified = match &expected {
