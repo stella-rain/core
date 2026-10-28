@@ -212,7 +212,10 @@ fn an_overlapped_straight_enemy_keeps_flying() {
     let stage = quiet(stage_full(18_000, Some(far_boss()), waves, vec![]));
     for ticks in 1..=6 {
         let now = after(&stage, ticks);
-        assert_eq!(now[0].1 + now[1].1, 2 * (AT.1 + 100 * ticks as i32));
+        assert_eq!(
+            now[0].1 + now[1].1,
+            2 * (AT.1 + 100 * i32::try_from(ticks).unwrap())
+        );
     }
 }
 

@@ -45,7 +45,7 @@ fn shooting(ranged: bool) -> Value {
 }
 
 fn stage(ranged: bool) -> Stage {
-    let waves = (0..SHOOTERS as i32)
+    let waves = (0..i32::try_from(SHOOTERS).unwrap())
         .map(|i| {
             let x = START_X + (i - 3) * 20 * PX;
             wave(
@@ -94,7 +94,7 @@ fn first_attack_ticks(stage: &Stage, ticks: u32) -> Vec<Option<u32>> {
     for _ in 0..ticks {
         e.step(idle());
         for (i, f) in first.iter_mut().enumerate() {
-            if f.is_none() && kind_of(&e, FIRST_SHOOTER + i as u32).is_some() {
+            if f.is_none() && kind_of(&e, FIRST_SHOOTER + u32::try_from(i).unwrap()).is_some() {
                 *f = Some(e.tick());
             }
         }

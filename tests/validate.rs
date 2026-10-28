@@ -1037,7 +1037,7 @@ fn extreme_numbers_never_panic() {
         json!(i32::MIN),
         json!(i32::MAX),
         json!(u32::MAX),
-        json!(u32::MAX as u64 + 1),
+        json!(u64::from(u32::MAX) + 1),
         json!(u64::MAX),
         json!(i64::MIN),
         json!(-1),
@@ -1049,8 +1049,11 @@ fn extreme_numbers_never_panic() {
     for _ in 0..4000 {
         let mut v = b.clone();
         for _ in 0..=rng.below(3) {
-            let p = &pointers[rng.below(pointers.len() as u32) as usize];
-            let e = extremes[rng.below(extremes.len() as u32) as usize].clone();
+            let p = &pointers
+                [usize::try_from(rng.below(u32::try_from(pointers.len()).unwrap())).unwrap()];
+            let e = extremes
+                [usize::try_from(rng.below(u32::try_from(extremes.len()).unwrap())).unwrap()]
+            .clone();
             set(&mut v, p, e);
         }
         if let Ok(s) = serde_json::from_value::<Stage>(v) {
@@ -1072,10 +1075,10 @@ fn damaged_files_never_panic() {
     for _ in 0..3000 {
         let mut bytes = original.to_vec();
         for _ in 0..=rng.below(3) {
-            let len = bytes.len() as u32;
+            let len = u32::try_from(bytes.len()).unwrap();
             let at = rng.below(len) as usize;
             match rng.below(4) {
-                0 => bytes[at] = rng.below(256) as u8,
+                0 => bytes[at] = u8::try_from(rng.below(256)).unwrap(),
                 1 => bytes.truncate(at),
                 2 => {
                     let end = (at + rng.below(64) as usize).min(bytes.len());
@@ -1383,7 +1386,9 @@ fn charge_limits_hold_at_the_limit_and_fail_one_past() {
     let at = |key: &str| format!("{CHARGE}.{key}");
     let level = |i: u32| json!({ "at_ticks": i + 1, "attack": { "preset": { "id": "thrust" } } });
     at_limit_and_over(MAX_CHARGE_LEVELS, &at("levels"), |n| {
-        with_charge(|c| c["levels"] = Value::Array((0..n as u32).map(level).collect()))
+        with_charge(|c| {
+            c["levels"] = Value::Array((0..u32::try_from(n).unwrap()).map(level).collect())
+        })
     });
     assert_valid(&with_charge(|c| c["max_ticks"] = json!(MAX_CHARGE_TICKS)));
     assert_eq!(

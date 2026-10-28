@@ -65,7 +65,7 @@ fn a_stage_scaled_by_100_ends_as_it_did_at_design_values() {
         let (_, outcome, ticks, deaths, left) = *STAGES.iter().find(|s| s.0 == name).unwrap();
         assert_eq!(
             (engine.outcome(), engine.tick(), died, hp),
-            (outcome, ticks, deaths, left * SCALE as u32),
+            (outcome, ticks, deaths, left * u32::try_from(SCALE).unwrap()),
             "`{name}` scaled by 100"
         );
     }

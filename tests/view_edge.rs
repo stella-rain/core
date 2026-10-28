@@ -187,7 +187,7 @@ fn any_is_one_draw_over_the_whole_perimeter() {
     assert_eq!(enemy_places(&stage, 4), want);
     for (t, p) in ts.iter().zip(want) {
         let (x, y) = walk(512_000, 512_000, 1_024_000, 1_024_000, *t);
-        assert_eq!((x as i32, y as i32), p);
+        assert_eq!((i32::try_from(x).unwrap(), i32::try_from(y).unwrap()), p);
     }
 }
 
@@ -335,7 +335,7 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
         let (wx, wy) = walk(px, py, 1_024_000, 1_024_000, t);
         assert_eq!(
             at(json!({ "side": "any" })),
-            (wx as i32, wy as i32),
+            (i32::try_from(wx).unwrap(), i32::try_from(wy).unwrap()),
             "{x},{y}"
         );
         // And never off the map or on a side that is off it, over 200 spawns.

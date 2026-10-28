@@ -84,7 +84,7 @@ fn skill(id: &str, levels: &[Value]) -> Value {
         .enumerate()
         .map(|(i, e)| {
             let effects = if e.is_array() { e.clone() } else { json!([e]) };
-            json!({ "cooldown_ticks": COOLDOWN - 10 * i as u32, "effects": effects })
+            json!({ "cooldown_ticks": COOLDOWN - 10 * u32::try_from(i).unwrap(), "effects": effects })
         })
         .collect();
     json!({ "id": id, "icon": ICON, "ahead": AHEAD,
