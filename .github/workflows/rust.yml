@@ -55,11 +55,12 @@ jobs:
   changes:
     name: what changed
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
       code: ${{ steps.diff.outputs.code }}
+      tune-changes: ${{ steps.diff.outputs.tune-changes }}
     steps:
       - uses: actions/checkout@v7
         if: github.event_name == 'pull_request'
@@ -73,10 +74,12 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
           if [ "$EVENT" != pull_request ] || [ "$BASE_REF" != main ]; then
             echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "tune-changes=false" >> "$GITHUB_OUTPUT"
             echo "$EVENT into ${BASE_REF:-nothing}: every Rust job runs"
             exit 0
           fi
@@ -85,6 +88,26 @@ jobs:
           if [ -z "$all" ] || grep -qv '\.md$' <<<"$all"; then code=true; fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "$(grep -c . <<<"$all" || true) files changed; code=$code"
+          tune=false
+          case "$HEAD_REF" in
+            tune/*) tune=true ;;
+          esac
+          if [ "$tune" = true ]; then
+            outside=$(grep -Ev '^content/|^modes/|^tests/corpus/|^tests/golden/|^tests/bench_pins\.toml$|\.md$' <<<"$all" || true)
+            if [ -n "$outside" ]; then
+              echo "Error: tune/ PR touches files outside content/, modes/, tests/corpus/, tests/golden/, tests/bench_pins.toml:" >&2
+              echo "$outside" >&2
+              exit 1
+            fi
+            rustup default stable 2>/dev/null || true
+            git worktree add "$RUNNER_TEMP/base" "$BASE"
+            cargo run --quiet --bin content-pack -- compare --numbers-only "$RUNNER_TEMP/base/content" content
+            cargo test --locked --test integration corpus::
+            echo "tune-changes=true" >> "$GITHUB_OUTPUT"
+            echo "tune/ PR verified: numbers-only and corpus match"
+          else
+            echo "tune-changes=false" >> "$GITHUB_OUTPUT"
+          fi
 
   lint:
     name: fmt and clippy
@@ -114,7 +137,7 @@ jobs:
   bless:
     name: generated sets
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.tune-changes != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -696,6 +719,7 @@ jobs:
           set -euo pipefail
           code=$(jq -r '.changes.outputs.code // ""' <<<"$NEEDS")
           parsing=$(jq -r '."fuzz-changes".outputs.parsing // ""' <<<"$NEEDS")
+          tune=$(jq -r '.changes.outputs."tune-changes" // ""' <<<"$NEEDS")
           pr=false
           if [ "$EVENT" = pull_request ]; then pr=true; fi
           fail=0
@@ -706,12 +730,13 @@ jobs:
               fuzz-changes) runs=$pr ;;
               # No `parsing` off a PR, or when `parsing changed` failed, which fails this anyway.
               fuzz-short) runs=false; if [ "$parsing" = true ]; then runs=true; fi ;;
+              bless) runs=false; if [ "$code" = true ] && [ "$tune" != true ]; then runs=true; fi ;;
               *) runs=$code ;;
             esac
             if [ "$result" = success ] || { [ "$result" = skipped ] && [ "$runs" = false ]; }; then
               echo "$job: $result"
             else
-              echo "::error::$job: $result (code=$code parsing=$parsing)"
+              echo "::error::$job: $result (code=$code parsing=$parsing tune=$tune)"
               fail=1
             fi
           done
