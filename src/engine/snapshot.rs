@@ -38,8 +38,8 @@ pub struct Places {
 
 impl Engine {
     /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
-    /// these fields (and the player's position), without building a snapshot. Allocates only while `out` grows to the
-    /// largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`
+    /// these fields (and the player's position), without building a snapshot. Allocates only
+    /// while `out` grows to the largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`
     /// (which names this function); `tests/places.rs` holds the two equal.
     pub fn places(&self, out: &mut Places) {
         let s = &self.state;
