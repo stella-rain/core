@@ -37,7 +37,8 @@ use stella_rain_core::text::TextTable;
 const USAGE: &str = "usage: content-pack verify FILE [--text TEXT_FILE]\n       \
                      content-pack export [DIR]\n       \
                      content-pack unpack PACK DIR\n       \
-                     content-pack compare --numbers-only BASE_DIR HEAD_DIR\n\
+                     content-pack compare --numbers-only BASE_DIR HEAD_DIR\n       \
+                     content-pack catalogue\n\
                      FILE, PACK and TEXT_FILE may be - for standard input. unpack writes the pack's \
                      files into DIR (core's content/) and its mode files into modes/ beside \
                      it, and leaves content/pack.json to export. Without DIR, export writes the pack built \
@@ -112,6 +113,7 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
         ["compare", "--numbers-only", base_dir, head_dir] => {
             compare_dirs(Path::new(base_dir), Path::new(head_dir))
         }
+        ["catalogue"] => write_catalogue(),
         _ if args.first().is_some_and(|a| *a == "verify") => verify_cmd(&args[1..]),
         _ => Err(Failure::Usage(USAGE.into())),
     }
@@ -195,6 +197,14 @@ fn write_pack(bytes: &[u8]) -> Result<(), Failure> {
         .lock()
         .write_all(bytes)
         .map_err(|e| Failure::Usage(format!("cannot write the pack: {}", e.kind())))
+}
+
+fn write_catalogue() -> Result<(), Failure> {
+    let catalogue = stella_rain_core::limits::tuning_catalogue_markdown();
+    std::io::stdout()
+        .lock()
+        .write_all(catalogue.as_bytes())
+        .map_err(|e| Failure::Usage(format!("cannot write catalogue: {}", e.kind())))
 }
 
 /// Writes the pack of the files in `dir` (and `dir/../modes`), checked as `verify` checks one.
