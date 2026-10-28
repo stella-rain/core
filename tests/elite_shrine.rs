@@ -954,3 +954,18 @@ fn a_cleared_shrine_pulses_no_more() {
     assert_eq!(seen, [t + 1], "the pulse before the clear");
     assert_eq!(zones_appear(&mut e, idle(), 600), Vec::<u32>::new());
 }
+
+#[test]
+fn places_agree_with_the_snapshot_through_a_shrine_s_activation() {
+    let mut e = with(&shrine_stage(SIDE, shrine(6000, 4, 100_000), vec![]));
+    let mut places = stella_rain_core::engine::Places::default();
+    let mut shrines = 0;
+    let mut check = |e: &Engine| {
+        let kinds = crate::places::assert_places_match(e, &mut places);
+        shrines += kinds.iter().filter(|k| **k == EntityKind::Shrine).count();
+        false
+    };
+    run_until(&mut e, moving(127, 0), 200, &mut check);
+    run_until(&mut e, idle(), 400, &mut check);
+    assert!(shrines > 0, "no shrine was ever drawn");
+}
