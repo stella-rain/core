@@ -1283,6 +1283,7 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     let stage_skill = RunSetup {
         seed: STAGE_SKILL_SEED,
         stat_priority: vec!["attack".into()],
+        star_pool: Some(vec!["black_hole_rare".into()]),
         ..trial_setup()
     };
     let stage_skill_content = RunContent::bundled()
