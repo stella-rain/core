@@ -67,14 +67,14 @@ Each bench target is a key of `benches/budgets.toml`, which CI reads for the lis
 
 ## Fuzz (`fuzz/`)
 
-- `cargo-fuzz` targets for the stage parser, the run after validation, the replay loader (stage
-  and run replays), the share-code decoder, the run setup and the content pack (`pack_load`;
-  ADR-SVC-1, ADR-REPL-3, ADR-CONT-3). Its own workspace, on nightly.
+- `cargo-fuzz` targets for the parsers and loaders (stage, run, replays, share code, run setup,
+  content packs, minisign; ADR-SVC-1, ADR-REPL-3, ADR-CONT-3): every file in `fuzz_targets/`, in
+  its own workspace, on nightly.
 - `fuzz/tests/smoke.rs` runs them on stable; `regressions/<target>/` keeps the inputs of crashes
   that were fixed.
 - Gate, in `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
-  `cargo test`, then `cargo +nightly fuzz build`. A PR that touches parsing also runs
-  `cargo +nightly fuzz run <target> -- -max_total_time=60` for each of the six targets, seeded
-  from the corpus, the bundled content and `content-pack export` (CI: `rust.yml`).
-- Weekly, each target runs 7 minutes on a growing cached corpus, and a crash opens a hash-only
-  issue (`fuzz-long.yml`, `.github/scripts/fuzz-report.sh`).
+  `cargo test`, then `cargo +nightly fuzz build` (all targets). A PR that touches parsing also
+  runs `cargo +nightly fuzz run <target> -- -max_total_time=60` for each target in the
+  `fuzz-short` list of `rust.yml`, seeded from the corpus, bundled content and `content-pack export`.
+- Weekly, each target in the `fuzz-long.yml` matrix runs 7 minutes on a growing cached corpus,
+  and a crash opens a hash-only issue (`.github/scripts/fuzz-report.sh`).
