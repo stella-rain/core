@@ -183,6 +183,14 @@ pub enum RunReplayError {
         expected: u32,
         given: usize,
     },
+    /// A replay prefix re-simulates to another state at its cut than its hash says.
+    PrefixHashDiffers {
+        tick: u32,
+    },
+    /// A replay prefix is of a run that already ended: there is nothing to resume.
+    PrefixEnded {
+        tick: u32,
+    },
 }
 
 impl fmt::Display for RunReplayError {
@@ -239,6 +247,13 @@ impl fmt::Display for RunReplayError {
             ),
             RunReplayError::HashCount { expected, given } => {
                 write!(f, "expected {expected} per-tick hashes, got {given}")
+            }
+            RunReplayError::PrefixHashDiffers { tick } => write!(
+                f,
+                "the run re-simulated to tick {tick} reaches another state than the replay prefix says"
+            ),
+            RunReplayError::PrefixEnded { tick } => {
+                write!(f, "the replay prefix is of a run that ended on tick {tick}")
             }
         }
     }
@@ -475,6 +490,17 @@ impl RunRecorder {
     /// the SHA-256 of the pack's bytes (ADR-079 §5, ADR-080).
     pub fn start_with_pack(setup: &RunSetup, pack: &Pack) -> Result<RunRecorder, RunReplayError> {
         RunRecorder::start_with(setup, pack.content())
+    }
+
+    /// Resumes the run a replay prefix records (ADR-SAVE-3): re-simulates it from tick 0 with
+    /// `verify_run_with_pack`'s checks, and returns a live recorder at the cut, whose `replay()`
+    /// after more steps is one replay from tick 0. The prefix may end on an open offer.
+    pub fn resume_with_pack(
+        prefix: &RunReplay,
+        pack: &Pack,
+    ) -> Result<RunRecorder, RunReplayError> {
+        let _ = (prefix, pack);
+        unimplemented!("SV2a step 3")
     }
 
     /// The run, for its snapshot and events.
