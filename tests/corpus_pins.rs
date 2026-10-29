@@ -330,8 +330,31 @@ pub(crate) fn check_frozen_tree(tree: &Path) -> Result<(), String> {
 
 /// The record of a frozen version: copies the tree `from` to `to` byte for byte and writes its
 /// manifest, with the bundled pack stored when a case pins it (a frozen tree has no bundled
-/// fallback).
+/// fallback). Refuses a `to` that is not a frozen name or already exists, checks what it wrote
+/// with `check_frozen_tree`, and removes `to` when anything fails. Never touches `from`.
 pub(crate) fn record_frozen(from: &Path, to: &Path) -> Result<(), String> {
+    let name = to
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    if !is_frozen_name(&name) {
+        return Err(format!(
+            "`{name}` is not a frozen version: N must be a number >= 1 without a leading zero"
+        ));
+    }
+    if to.symlink_metadata().is_ok() {
+        return Err(format!(
+            "{} exists: a frozen version is never rewritten",
+            to.display()
+        ));
+    }
+    let written = write_record(from, to).and_then(|()| check_frozen_tree(to));
+    if written.is_err() {
+        let _ = fs::remove_dir_all(to);
+    }
+    written
+}
+
+fn write_record(from: &Path, to: &Path) -> Result<(), String> {
     fn copy(from: &Path, to: &Path) -> Result<(), String> {
         fs::create_dir_all(to).map_err(|e| e.to_string())?;
         for e in fs::read_dir(from).map_err(|e| e.to_string())? {
@@ -707,5 +730,23 @@ mod tests {
                 "{extra}"
             );
         }
+    }
+
+    /// `FREEZE_CORPUS=v<N> cargo test corpus_pins::the_record_is_written_on_request` records
+    /// `tests/corpus/current/` into `tests/corpus/v<N>/` (`cargo xtask bless --freeze v<N>` runs
+    /// it). A no-op without the knob; it writes the real tree, so it has no unit test beyond the
+    /// ones of `record_frozen`.
+    #[test]
+    #[expect(clippy::disallowed_methods, reason = "test knob")]
+    fn the_record_is_written_on_request() {
+        let Some(name) = std::env::var("FREEZE_CORPUS")
+            .ok()
+            .filter(|n| !n.is_empty())
+        else {
+            return;
+        };
+        let to = current_dir().parent().unwrap().join(&name);
+        record_frozen(&current_dir(), &to).unwrap_or_else(|e| panic!("{e}"));
+        println!("recorded {} files", files_of(&to).len());
     }
 }
