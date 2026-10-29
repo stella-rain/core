@@ -17,7 +17,10 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-7, ADR-REPL-3. The determinism
 ## What is where
 
 - `engine/`: the engine (`Engine`): `mod.rs` steps, chooses, spends and hashes; `snapshot.rs`
-  builds the snapshot and `places`, the light read of ids, kinds and positions for the per-tick frame; its tests sit beside them (`horde_tests.rs`, `move_index_tests.rs`).
+  builds the snapshot, `places`, the light read of ids, kinds and positions for the per-tick
+  frame, and `tally`, the read-only view of the run's HUD tallies (kills, rewards taken, named
+  stars, constellation tiers; `Counted` in `ledger.rs`, outside the hashed state); its tests sit
+  beside them (`horde_tests.rs`, `move_index_tests.rs`).
 - `rules_v0/`: the rules of `sim_version` 0. `state.rs` is the run's `State`; `world.rs` the
   run's definitions, resolved once and read-only (`DefIndex`, `AgentDef`, `AttackDef`).
   `schedule.rs` holds `TICK`, the one tick order: a step is added or moved there, and
@@ -39,8 +42,9 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-7, ADR-REPL-3. The determinism
 
 - A steady tick allocates nothing (T1b): `rules_v0/scratch.rs`'s `Scratch` buffers keep their
   memory from tick to tick, are not hashed or cloned, and hold nothing the rules read between
-  ticks. `tests/alloc.rs` counts allocations; a new per-tick `Vec` goes into `Scratch`, a
-  bounded per-entity list into `InlineVec`.
+  ticks. `tests/alloc.rs` counts allocations and frees (a steady tick and the bench tick
+  assert 0 of both); a new per-tick `Vec` goes into `Scratch`, a bounded per-entity list into
+  `InlineVec`.
 
 - The caps (enemies, zones, orbs), the push-apart and the collision cost are ADR-SIM-7's; the benches in
   `benches-fuzz.md` count them.
