@@ -117,7 +117,7 @@ fn offered(e: &Engine) -> Vec<String> {
     let mut ids: Vec<String> = offer
         .candidates
         .iter()
-        .map(|c| c.reward.0.clone())
+        .map(|c| c.reward.to_string())
         .collect();
     ids.sort();
     ids
@@ -129,7 +129,7 @@ fn slot(e: &Engine, reward: &str) -> u8 {
     let at = offer
         .candidates
         .iter()
-        .position(|c| c.reward.0 == reward)
+        .position(|c| c.reward.as_str() == reward)
         .unwrap_or_else(|| panic!("{reward} is not offered"));
     u8::try_from(at).unwrap()
 }
@@ -230,7 +230,12 @@ fn the_hidden_candidate_names_no_rune() {
     let snapshot = e.snapshot();
     let offer = snapshot.progress.as_ref().unwrap().offer.as_ref().unwrap();
     for c in &offer.candidates {
-        assert_eq!(c.hidden, c.reward.0 == "random_rune", "{}", c.reward.0);
+        assert_eq!(
+            c.hidden,
+            c.reward.as_str() == "random_rune",
+            "{}",
+            c.reward.as_str()
+        );
     }
     assert!(snapshot.player.runes.is_empty(), "nothing drawn yet");
     let text = serde_json::to_string(&snapshot).unwrap();
@@ -264,7 +269,7 @@ fn the_pick_draws_a_rune_not_held_and_the_event_carries_it() {
     else {
         panic!("{:?}", e.events());
     };
-    assert_eq!(reward, &ContentId("random_rune".into()));
+    assert_eq!(reward, &ContentId::from("random_rune"));
     assert_eq!(
         e.snapshot().player.runes,
         [RuneView {
@@ -383,7 +388,7 @@ fn banishing_the_random_rune_removes_it_for_the_run() {
     let candidate = slot(&e, "random_rune");
     pick(&mut e, OfferOption::Banish { candidate });
     assert!(e.events().contains(&DomainEvent::RewardBanished {
-        reward: ContentId("random_rune".into())
+        reward: ContentId::from("random_rune")
     }));
     assert_eq!(offered(&e), ["a", "b", "c"]);
     for _ in 0..3 {

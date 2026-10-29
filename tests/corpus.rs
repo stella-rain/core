@@ -1574,9 +1574,9 @@ impl EliteScript {
         };
         let plain_elite = |e: &&stella_rain_core::snapshot::EntityView| {
             e.elite
-                && e.asset.0 != "golem"
+                && e.asset.as_str() != "golem"
                 && (Some(e.id) == self.mimic_revealed.get()
-                    || !(e.asset.0 == "fairy_a" && e.hp <= 12_000))
+                    || !(e.asset.as_str() == "fairy_a" && e.hp <= 12_000))
         };
         let away = |from: stella_rain_core::fixed::Point| Input {
             move_x: -toward(from.x.0 - me.x.0),
@@ -1603,13 +1603,13 @@ impl EliteScript {
         // Once the cap has held a minute back: the goblin, the shrine, the mimic, the rest.
         if (21_660..25_100).contains(&tick) {
             if !self.goblin_met.get() {
-                match nearest(&|e| e.asset.0 == "fairy_a" && e.hp <= 12_000 && e.elite) {
+                match nearest(&|e| e.asset.as_str() == "fairy_a" && e.hp <= 12_000 && e.elite) {
                     Some(g) if d2(g.at) > 40 * 40 * 65_536 => return go(g.at, 40 * 256, false),
                     _ => self.goblin_met.set(true),
                 }
             }
             if !self.shrine_touched.get() {
-                if let Some(shrine) = nearest(&|e| e.asset.0 == "golem") {
+                if let Some(shrine) = nearest(&|e| e.asset.as_str() == "golem") {
                     return go(shrine.at, 0, false);
                 }
             }
@@ -1629,7 +1629,7 @@ impl EliteScript {
         }
 
         // Otherwise wait, out of the range of the elites that act (200 pixels).
-        match nearest(&|e| e.elite && e.asset.0 != "golem") {
+        match nearest(&|e| e.elite && e.asset.as_str() != "golem") {
             Some(e) if d2(e.at) < 240 * 240 * 65_536 => away(e.at),
             _ => Input::default(),
         }
@@ -1708,7 +1708,7 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
         for e in engine.events() {
             match e {
                 DomainEvent::StageSkillUsed { skill, level } => {
-                    used.push((skill.0.clone(), *level));
+                    used.push((skill.to_string(), *level));
                 }
                 DomainEvent::Hit { match_up, .. } => {
                     let i = match match_up {
@@ -1908,7 +1908,7 @@ fn elite_reach(name: &str) -> EliteReach {
                     let v = s.entities.iter().find(|v| v.id == *elite).unwrap();
                     r.spawned.push((
                         *elite,
-                        elite_kind(&v.asset.0, v.hp, v.aura_radius.is_some()),
+                        elite_kind(v.asset.as_str(), v.hp, v.aura_radius.is_some()),
                         tick,
                     ));
                 }

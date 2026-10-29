@@ -23,7 +23,7 @@ fn named() -> Vec<&'static Reward> {
 }
 
 fn id(s: &str) -> ContentId {
-    ContentId(s.into())
+    ContentId::from(s)
 }
 
 #[test]
@@ -39,9 +39,9 @@ fn the_bundled_pack_holds_fifteen_named_stars_six_epic_six_legendary_three_super
         assert_eq!(found, count, "{rarity:?}");
     }
     for r in stars {
-        assert_eq!(r.limit, Some(1), "{}", r.id.0);
-        assert_eq!(r.weight, DEFAULT_WEIGHT / 2, "{}", r.id.0);
-        assert!(r.star.is_some(), "{}", r.id.0);
+        assert_eq!(r.limit, Some(1), "{}", r.id.as_str());
+        assert_eq!(r.weight, DEFAULT_WEIGHT / 2, "{}", r.id.as_str());
+        assert!(r.star.is_some(), "{}", r.id.as_str());
     }
 }
 
@@ -65,8 +65,8 @@ fn the_four_constellations_have_their_members_and_two_tiers() {
     ];
     assert_eq!(sets.len(), 4);
     for (set, (set_id, members)) in sets.iter().zip(expected) {
-        assert_eq!(set.id.0, set_id);
-        let found: Vec<&str> = set.members.iter().map(|m| m.0.as_str()).collect();
+        assert_eq!(set.id.as_str(), set_id);
+        let found: Vec<&str> = set.members.iter().map(|m| m.as_str()).collect();
         assert_eq!(found, members, "{set_id}");
         let thresholds: Vec<u8> = set.tiers.iter().map(|t| t.threshold).collect();
         assert_eq!(thresholds, [2, 3], "{set_id}");
@@ -161,7 +161,7 @@ fn the_bundled_constellations_file_validates_against_the_bundled_rewards() {
     .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(sets.sets().len(), 4);
     for set in sets.sets() {
-        assert_eq!(set.members.len(), 3, "{}", set.id.0);
+        assert_eq!(set.members.len(), 3, "{}", set.id.as_str());
     }
 }
 
@@ -175,7 +175,7 @@ fn effect_of(star: &str, kind: &str) -> Option<u32> {
 
 fn tier_effect(set: &str, tier: usize, kind: &str) -> Option<u32> {
     let sets = Pack::bundled().content().constellations();
-    let set = sets.sets().iter().find(|s| s.id.0 == set).unwrap();
+    let set = sets.sets().iter().find(|s| s.id.as_str() == set).unwrap();
     set.tiers[tier]
         .effects
         .iter()

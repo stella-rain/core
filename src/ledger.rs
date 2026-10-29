@@ -11,6 +11,7 @@ use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::{Rarity, Rewards};
 use crate::rules_v0::state::{AgentState, BossState};
 use crate::snapshot::EntityKind;
+use std::sync::Arc;
 
 /// What an enemy or boss on the map is: its entity ID and sprite content ID.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,7 +26,7 @@ pub struct Seen {
 pub struct StarPick {
     pub rarity: Rarity,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    pub name: Option<Arc<str>>,
 }
 
 /// A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-6).
@@ -64,7 +65,7 @@ impl RunLedger {
         let mut slain_indices = Vec::with_capacity(kinds.len());
         for id in kinds.ids() {
             slain_indices.push(kills.len());
-            kills.push((format!("slain.{}", id.0), 0));
+            kills.push((format!("slain.{}", id.as_str()), 0));
         }
 
         let bestiary = kinds.ids().iter().map(|id| (id.clone(), 0)).collect();
@@ -214,7 +215,7 @@ impl RunLedger {
                                 self.kills[slain_idx].1 = self.kills[slain_idx].1.saturating_add(1);
                             }
                         } else if let Some(id) = kinds.id(*kind) {
-                            self.add_kill(format!("slain.{}", id.0));
+                            self.add_kill(format!("slain.{}", id.as_str()));
                         }
                     }
                 }
@@ -251,7 +252,10 @@ impl RunLedger {
 
     /// Adds bits to the bestiary entry for `kind`, keeping `bestiary` sorted by ID.
     pub fn add_bestiary_bit(&mut self, kind: &ContentId, bit: u16) {
-        match self.bestiary.binary_search_by(|(k, _)| k.0.cmp(&kind.0)) {
+        match self
+            .bestiary
+            .binary_search_by(|(k, _)| k.as_str().cmp(kind.as_str()))
+        {
             Ok(idx) => self.bestiary[idx].1 |= bit,
             Err(idx) => self.bestiary.insert(idx, (kind.clone(), bit)),
         }
@@ -283,7 +287,10 @@ impl RunLedger {
 
     /// Increments a skill use count, keeping `skill_uses` sorted by ID.
     pub fn add_skill_use(&mut self, skill: ContentId) {
-        match self.skill_uses.binary_search_by(|(s, _)| s.0.cmp(&skill.0)) {
+        match self
+            .skill_uses
+            .binary_search_by(|(s, _)| s.as_str().cmp(skill.as_str()))
+        {
             Ok(idx) => self.skill_uses[idx].1 = self.skill_uses[idx].1.saturating_add(1),
             Err(idx) => self.skill_uses.insert(idx, (skill, 1)),
         }
@@ -296,7 +303,7 @@ impl RunLedger {
             return *count;
         }
         if let Some(skill) = id.strip_prefix("skill_uses.") {
-            if let Some((_, count)) = self.skill_uses.iter().find(|(k, _)| k.0 == skill) {
+            if let Some((_, count)) = self.skill_uses.iter().find(|(k, _)| k.as_str() == skill) {
                 return *count;
             }
         }
@@ -316,7 +323,7 @@ impl RunLedger {
     pub fn bits(&self, kind: &str) -> Option<u16> {
         self.bestiary
             .iter()
-            .find(|(k, _)| k.0 == kind)
+            .find(|(k, _)| k.as_str() == kind)
             .and_then(|(_, b)| if *b > 0 { Some(*b) } else { None })
     }
 }
@@ -341,7 +348,7 @@ pub(crate) struct Counted {
     pub(crate) taken: Vec<u8>,
     /// The tier the last `Constellation` of each set carried, per set; 0 = none.
     pub(crate) tiers: Vec<u8>,
-    pub(crate) named: Vec<String>,
+    pub(crate) named: Vec<Arc<str>>,
 }
 
 impl Counted {

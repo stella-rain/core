@@ -341,7 +341,7 @@ pub fn validate(file: &TimeLimitFile, sim_version: u32) -> Result<(), Error> {
     let mut issues = Vec::new();
     let mut issue = |path: String, message: String| issues.push(Issue { path, message });
 
-    if file.id.0 != "time_limit" {
+    if file.id.as_str() != "time_limit" {
         issue("$.id".into(), "must be time_limit".into());
     }
     if !(1..=MAX_LENGTH_TICKS).contains(&file.length_ticks) {
@@ -435,9 +435,9 @@ pub fn validate(file: &TimeLimitFile, sim_version: u32) -> Result<(), Error> {
         }
     }
     let mut boss = |path: String, id: &ContentId| {
-        let message = if !registry::is_well_formed(&id.0) {
+        let message = if !registry::is_well_formed(id.as_str()) {
             "not a valid content ID (lowercase snake_case, at most 32 characters)"
-        } else if registry::find(registry::ENTRIES, Kind::Asset, &id.0)
+        } else if registry::find(registry::ENTRIES, Kind::Asset, id.as_str())
             .is_none_or(|e| e.introduced > sim_version)
         {
             "no such sprite ID in the registry"
@@ -517,7 +517,7 @@ pub fn validate(file: &TimeLimitFile, sim_version: u32) -> Result<(), Error> {
         }
         for (i, w) in waves.iter().enumerate() {
             let Some(id) = &w.id else { continue };
-            if !registry::is_well_formed(&id.0) {
+            if !registry::is_well_formed(id.as_str()) {
                 issue(
                     format!("$.waves[{i}].id"),
                     "not a valid content ID (lowercase snake_case, at most 32 characters)".into(),
@@ -607,7 +607,7 @@ pub fn validate(file: &TimeLimitFile, sim_version: u32) -> Result<(), Error> {
             facing: None,
         };
         for (i, t) in types.iter().enumerate() {
-            if !registry::is_well_formed(&t.id.0) {
+            if !registry::is_well_formed(t.id.as_str()) {
                 issue(
                     format!("$.elite_types[{i}].id"),
                     "not a valid content ID (lowercase snake_case, at most 32 characters)".into(),

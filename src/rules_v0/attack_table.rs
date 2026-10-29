@@ -33,7 +33,7 @@ enum Key {
 impl Key {
     fn of(attack: &AttackRef) -> Key {
         match attack {
-            AttackRef::Preset { id, args } => Key::Preset(id.0.clone(), args.clone()),
+            AttackRef::Preset { id, args } => Key::Preset(id.as_str().to_owned(), args.clone()),
             AttackRef::Inline(phases) => Key::Inline(phases.len(), total_ticks(phases)),
         }
     }
@@ -49,7 +49,7 @@ impl Key {
                 },
             ) => id
                 .as_str()
-                .cmp(other.0.as_str())
+                .cmp(other.as_str())
                 .then_with(|| args.as_slice().cmp(other_args.as_slice())),
             (Key::Preset(..), AttackRef::Inline(_)) => Ordering::Less,
             (Key::Inline(..), AttackRef::Preset { .. }) => Ordering::Greater,
@@ -127,7 +127,7 @@ impl AttackKeys {
         let pool = RangedPool::of(&phases);
         attacks.push(AttackDef {
             phases,
-            preset_id: preset.as_ref().map(|p| Arc::from(p.0.as_str())),
+            preset_id: preset.as_ref().map(|p| Arc::from(p.as_str())),
             preset,
             programs,
             pool,

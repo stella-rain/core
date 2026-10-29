@@ -473,7 +473,10 @@ fn a_preset_is_the_one_weapon_both_buttons_play() {
     let first = |weapon: &str| {
         let mut e = engine(&armed(far(), preset(weapon)));
         e.step(pressing_main());
-        e.snapshot().player.attacks[0].preset.clone().map(|p| p.0)
+        e.snapshot().player.attacks[0]
+            .preset
+            .clone()
+            .map(|p| p.to_string())
     };
     assert_eq!(first("giant_hammer"), None);
     assert_eq!(first("giant_sword").as_deref(), Some("slash"));
@@ -514,7 +517,7 @@ fn every_weapon_preset_is_registered_and_both_roles_are_valid() {
         .filter(|e| e.kind == Kind::Weapon)
         .map(|e| e.id)
         .collect();
-    let defined: Vec<_> = Weapons::bundled().ids().map(|i| i.0.as_str()).collect();
+    let defined: Vec<_> = Weapons::bundled().ids().map(|i| i.as_str()).collect();
     assert_eq!(registered, defined);
     for id in defined {
         let w = Weapons::bundled().tree(id, None).expect("a definition");
@@ -586,7 +589,7 @@ fn active_radius(attack: &AttackRef) -> i32 {
 #[test]
 fn a_smash_ends_its_combo_in_every_weapon() {
     // ADR-084 point 2: after a B press the combo ends, the dash branch included.
-    for id in Weapons::bundled().ids().map(|i| i.0.as_str()) {
+    for id in Weapons::bundled().ids().map(|i| i.as_str()) {
         let w = weapon_of(id);
         for (smash, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
             if smash {

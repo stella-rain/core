@@ -77,7 +77,7 @@ fn of_kind(s: &Snapshot, kind: EntityKind) -> Vec<(u32, String)> {
     s.entities
         .iter()
         .filter(|v| v.kind == kind)
-        .map(|v| (v.id.0, v.asset.0.clone()))
+        .map(|v| (v.id.0, v.asset.to_string()))
         .collect()
 }
 

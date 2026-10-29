@@ -106,7 +106,7 @@ fn invalid_at(v: &Value, path: &str) {
 fn a_valid_file_loads_with_its_sets_and_hash() {
     let c = parse(&file(vec![trio()])).expect("valid");
     assert_eq!(c.sets().len(), 1);
-    assert_eq!(c.sets()[0].id.0, "trio");
+    assert_eq!(c.sets()[0].id.as_str(), "trio");
     assert_eq!(c.sets()[0].members.len(), 3);
     assert_eq!(c.sets()[0].tiers.len(), 2);
     assert!(!c.is_empty());
@@ -486,7 +486,7 @@ fn tiers_reached(e: &Engine) -> Vec<(String, u8)> {
     e.events()
         .iter()
         .filter_map(|ev| match ev {
-            DomainEvent::Constellation { set, tier } => Some((set.0.clone(), *tier)),
+            DomainEvent::Constellation { set, tier } => Some((set.to_string(), *tier)),
             _ => None,
         })
         .collect()
@@ -494,7 +494,7 @@ fn tiers_reached(e: &Engine) -> Vec<(String, u8)> {
 
 fn star_taken(e: &Engine) -> Option<String> {
     e.events().iter().find_map(|ev| match ev {
-        DomainEvent::RewardTaken { star, .. } => star.clone(),
+        DomainEvent::RewardTaken { star, .. } => star.as_ref().map(ToString::to_string),
         _ => None,
     })
 }
@@ -512,7 +512,7 @@ fn the_small_tier_applies_at_two_of_three_and_the_full_one_replaces_it() {
     let progress = |reward: &str| {
         o.candidates
             .iter()
-            .find(|c| c.reward.0 == reward)
+            .find(|c| c.reward.as_str() == reward)
             .unwrap_or_else(|| panic!("{reward} is not offered"))
             .constellation
             .clone()
@@ -530,7 +530,7 @@ fn the_small_tier_applies_at_two_of_three_and_the_full_one_replaces_it() {
     assert!(tiers_reached(&e).is_empty(), "one of three is no tier");
     let view = &e.snapshot().constellations;
     assert_eq!(
-        (view[0].id.0.as_str(), view[0].held, view[0].tier),
+        (view[0].id.as_str(), view[0].held, view[0].tier),
         ("trio", 1, 0)
     );
 
@@ -543,7 +543,11 @@ fn the_small_tier_applies_at_two_of_three_and_the_full_one_replaces_it() {
     next_offer(&mut e);
     assert_eq!(offer(&e).rerolls_left, 1, "the small tier's reroll");
     let o = offer(&e);
-    let n3 = o.candidates.iter().find(|c| c.reward.0 == "n3").unwrap();
+    let n3 = o
+        .candidates
+        .iter()
+        .find(|c| c.reward.as_str() == "n3")
+        .unwrap();
     assert_eq!(
         n3.constellation,
         Some(ConstellationProgress {
@@ -595,7 +599,7 @@ fn a_star_outside_every_set_has_no_progress_and_changes_no_set() {
     assert!(
         o.candidates
             .iter()
-            .filter(|c| c.reward.0 == "n3" || c.reward.0 == "a")
+            .filter(|c| c.reward.as_str() == "n3" || c.reward.as_str() == "a")
             .all(|c| c.constellation.is_none())
     );
     take(&mut e, "n3");
@@ -742,7 +746,7 @@ fn reaching_a_tier_with_an_orbit_gives_its_orbs() {
     }
     let orbits = &e.snapshot().player.orbits;
     assert_eq!(orbits.len(), 1);
-    assert_eq!((orbits[0].reward.0.as_str(), orbits[0].orbs), ("trio", 3));
+    assert_eq!((orbits[0].reward.as_str(), orbits[0].orbs), ("trio", 3));
 }
 
 #[test]

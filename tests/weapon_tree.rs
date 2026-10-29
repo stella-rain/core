@@ -191,7 +191,7 @@ fn a_weapon_lists_its_trees_first_one_first() {
     assert_eq!(
         Weapons::bundled()
             .tree_ids("giant_sword")
-            .map(|t| t.0.as_str())
+            .map(|t| t.as_str())
             .collect::<Vec<_>>(),
         ["giant_sword_base"]
     );

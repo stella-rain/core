@@ -175,7 +175,7 @@ impl TextTable {
 
         // 1. difficulties
         for d in pack.content().difficulties().list() {
-            let key = format!("difficulties/{}", d.id.0);
+            let key = format!("difficulties/{}", d.id.as_str());
             if !self.entries.contains_key(&key) {
                 missing.push(key);
             }
@@ -183,7 +183,7 @@ impl TextTable {
 
         // 2. run_stats
         for s in pack.content().run_stats().stats() {
-            let key = format!("run_stats/{}", s.id.0);
+            let key = format!("run_stats/{}", s.id.as_str());
             if !self.entries.contains_key(&key) {
                 missing.push(key);
             }
@@ -191,7 +191,7 @@ impl TextTable {
 
         // 3. rewards
         for r in pack.content().rewards().rewards() {
-            let key = format!("rewards/{}", r.id.0);
+            let key = format!("rewards/{}", r.id.as_str());
             if !self.entries.contains_key(&key) {
                 missing.push(key);
             }
@@ -199,7 +199,7 @@ impl TextTable {
 
         // 4. stage_skills
         for s in pack.content().stage_skills().skills() {
-            let key = format!("stage_skills/{}", s.id.0);
+            let key = format!("stage_skills/{}", s.id.as_str());
             if !self.entries.contains_key(&key) {
                 missing.push(key);
             }
@@ -207,7 +207,7 @@ impl TextTable {
 
         // 5. perk_sets
         for p in pack.content().perk_sets().sets() {
-            let key = format!("perk_sets/{}", p.id.0);
+            let key = format!("perk_sets/{}", p.id.as_str());
             if !self.entries.contains_key(&key) {
                 missing.push(key);
             }
@@ -216,7 +216,7 @@ impl TextTable {
         // 6. expertise
         for w in pack.content().expertise().weapons() {
             for style in &w.styles {
-                let key = format!("expertise/{}", style.id.0);
+                let key = format!("expertise/{}", style.id.as_str());
                 if !self.entries.contains_key(&key) {
                     missing.push(key);
                 }
@@ -226,14 +226,14 @@ impl TextTable {
                     .chain(&style.upgrade_2)
                     .chain(&style.capstone)
                 {
-                    let ukey = format!("expertise/{}", u.id.0);
+                    let ukey = format!("expertise/{}", u.id.as_str());
                     if !self.entries.contains_key(&ukey) {
                         missing.push(ukey);
                     }
                 }
             }
             for c in &w.common {
-                let key = format!("expertise/{}", c.id.0);
+                let key = format!("expertise/{}", c.id.as_str());
                 if !self.entries.contains_key(&key) {
                     missing.push(key);
                 }

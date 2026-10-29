@@ -193,7 +193,7 @@ fn skills_stars_and_runes_are_counted() {
             reward: "star_vega".into(),
             taken: 1,
             rune: None,
-            star: Some("Vega".to_owned()),
+            star: Some("Vega".into()),
         },
         DomainEvent::StarTaken {
             star: EntityId(2),
@@ -216,7 +216,7 @@ fn skills_stars_and_runes_are_counted() {
         vec![
             StarPick {
                 rarity: Rarity::Rare,
-                name: Some("Vega".to_owned()),
+                name: Some("Vega".into()),
             },
             StarPick {
                 rarity: Rarity::Common,

@@ -130,7 +130,7 @@ fn take(e: &mut Engine, reward: &str) {
     let candidate = offer
         .candidates
         .iter()
-        .position(|c| c.reward.0 == reward)
+        .position(|c| c.reward.as_str() == reward)
         .unwrap_or_else(|| panic!("{reward} is not offered"));
     let option = OfferOption::Take {
         candidate: u8::try_from(candidate).unwrap(),
@@ -156,7 +156,7 @@ fn use_skill(e: &mut Engine) -> Vec<DomainEvent> {
 
 fn used(events: &[DomainEvent]) -> Option<(String, u8)> {
     events.iter().find_map(|ev| match ev {
-        DomainEvent::StageSkillUsed { skill, level } => Some((skill.0.clone(), *level)),
+        DomainEvent::StageSkillUsed { skill, level } => Some((skill.to_string(), *level)),
         _ => None,
     })
 }
@@ -189,7 +189,9 @@ fn applied(events: &[DomainEvent]) -> Vec<(EntityId, String)> {
     events
         .iter()
         .filter_map(|ev| match ev {
-            DomainEvent::StatusApplied { target, status, .. } => Some((*target, status.0.clone())),
+            DomainEvent::StatusApplied { target, status, .. } => {
+                Some((*target, status.to_string()))
+            }
             _ => None,
         })
         .collect()
@@ -221,8 +223,8 @@ fn a_skill_taken_arrives_ready_at_the_level_its_reward_gives() {
     );
     take(&mut e, "aura_r");
     let view = e.snapshot().player.skill.expect("a skill in the slot");
-    assert_eq!(view.skill, ContentId("aura".into()));
-    assert_eq!(view.icon, ContentId(ICON.into()));
+    assert_eq!(view.skill, ContentId::from("aura"));
+    assert_eq!(view.icon, ContentId::from(ICON));
     assert_eq!((view.level, view.ready, view.cooldown_left), (2, true, 0));
 }
 
@@ -297,8 +299,8 @@ fn another_skill_replaces_the_one_held_and_arrives_ready() {
     use_skill(&mut e);
     take(&mut e, "ward_r");
     let view = e.snapshot().player.skill.unwrap();
-    assert_eq!(view.skill, ContentId("ward".into()));
-    assert_eq!(view.icon, ContentId(ICON.into()));
+    assert_eq!(view.skill, ContentId::from("ward"));
+    assert_eq!(view.icon, ContentId::from(ICON));
     assert_eq!((view.level, view.ready, view.cooldown_left), (1, true, 0));
 }
 
@@ -315,7 +317,7 @@ fn a_buff_raises_the_main_character_s_attack_for_its_time() {
     let events = use_skill(&mut e);
     assert!(events.contains(&DomainEvent::StatusApplied {
         target: EntityId(0),
-        status: ContentId("atk_up".into()),
+        status: ContentId::from("atk_up"),
         stacks: 1,
         duration_ticks: DURATION,
     }));

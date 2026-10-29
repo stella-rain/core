@@ -179,7 +179,7 @@ impl Engine {
     /// As `start`, with `content` in place of the bundled files (ADR-067).
     pub fn start_with(setup: &RunSetup, content: &RunContent) -> Result<Engine, Error> {
         run_setup::validate_in(setup, content)?;
-        if setup.mode.0 == "time_limit" {
+        if setup.mode.as_str() == "time_limit" {
             return Engine::start_time_limit(setup, content, content.time_limit());
         }
         let stage = run_setup::stage_in(setup, content)?;
@@ -317,7 +317,7 @@ impl Engine {
 
     fn weapon_str(stage: &World) -> &str {
         match &stage.stage.player.weapon {
-            crate::weapon::WeaponRef::Preset { id, .. } => id.0.as_str(),
+            crate::weapon::WeaponRef::Preset { id, .. } => id.as_str(),
             crate::weapon::WeaponRef::Inline(_) => "inline",
         }
     }

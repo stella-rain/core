@@ -388,7 +388,7 @@ fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
     let mut ids: Vec<&str> = narrow
         .candidates
         .iter()
-        .map(|c| c.reward.0.as_str())
+        .map(|c| c.reward.as_str())
         .collect();
     ids.sort_unstable();
     let mut want = pool.to_vec();
@@ -496,7 +496,10 @@ fn every_mode_of_the_bundled_pack_builds_a_kind_table_that_holds_what_it_spawns(
             e.step(script(tick));
         }
         let ids = e.kinds().ids();
-        assert!(ids.windows(2).all(|w| w[0].0 < w[1].0), "{mode}: sorted");
+        assert!(
+            ids.windows(2).all(|w| w[0].as_str() < w[1].as_str()),
+            "{mode}: sorted"
+        );
         for v in e.snapshot().entities {
             let index = v.kind_index.expect("a kind");
             assert!(e.kinds().id(index).is_some(), "{mode}");

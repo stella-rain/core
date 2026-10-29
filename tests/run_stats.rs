@@ -76,7 +76,7 @@ fn the_bundled_stats_are_the_five_of_version_0() {
     let stats = RunStats::bundled().stats();
     let got: Vec<(&str, StatEffect, u32, u8)> = stats
         .iter()
-        .map(|s| (s.id.0.as_str(), s.effect, s.step, s.limit))
+        .map(|s| (s.id.as_str(), s.effect, s.step, s.limit))
         .collect();
     assert_eq!(
         got,
@@ -98,7 +98,7 @@ fn the_bundled_stats_are_the_five_of_version_0() {
 fn a_valid_file_parses_in_its_order() {
     let stats = parse(&file(vec![stat("b"), stat("a")])).unwrap();
     let ids: Vec<&ContentId> = stats.stats().iter().map(|s| &s.id).collect();
-    assert_eq!(ids, [&ContentId("b".into()), &ContentId("a".into())]);
+    assert_eq!(ids, [&ContentId::from("b"), &ContentId::from("a")]);
 }
 
 #[test]

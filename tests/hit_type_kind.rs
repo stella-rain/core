@@ -53,7 +53,7 @@ fn striker(ty: Option<&str>, hp: u32) -> Stage {
 }
 
 fn kind(e: &Engine, id: &str) -> Option<KindIndex> {
-    e.kinds().index_of(&ContentId(id.into()))
+    e.kinds().index_of(&ContentId::from(id))
 }
 
 fn events_of(stage: &Stage, ticks: u32) -> Vec<DomainEvent> {
@@ -155,7 +155,7 @@ fn every_entity_in_the_snapshot_carries_its_kind_id() {
 #[test]
 fn the_table_is_the_sorted_distinct_ids_of_the_stage() {
     let table = engine(&striker(None, 100)).kinds().clone();
-    let ids: Vec<&str> = table.ids().iter().map(|k| k.0.as_str()).collect();
+    let ids: Vec<&str> = table.ids().iter().map(|k| k.as_str()).collect();
     let mut sorted = ids.clone();
     sorted.sort_unstable();
     sorted.dedup();
@@ -194,7 +194,7 @@ fn two_enemies_of_a_kind_share_an_index_and_other_kinds_differ() {
 
 #[test]
 fn a_table_past_its_limit_is_refused_with_a_path() {
-    let ids: Vec<ContentId> = (0..5).map(|n| ContentId(format!("k{n}"))).collect();
+    let ids: Vec<ContentId> = (0..5).map(|n| ContentId::from(format!("k{n}"))).collect();
     assert_eq!(KindTable::from_ids(&ids, 5).unwrap().len(), 5);
     let issue = KindTable::from_ids(&ids, 4).unwrap_err();
     assert_eq!(issue.path, "$.kinds");
@@ -207,7 +207,7 @@ fn a_table_past_its_limit_is_refused_with_a_path() {
         5
     );
     let many: Vec<ContentId> = (0..=MAX_KINDS)
-        .map(|n| ContentId(format!("k{n}")))
+        .map(|n| ContentId::from(format!("k{n}")))
         .collect();
     assert!(KindTable::from_ids(&many, usize::MAX).is_err());
     assert!(KindTable::from_ids(&many[..MAX_KINDS], usize::MAX).is_ok());

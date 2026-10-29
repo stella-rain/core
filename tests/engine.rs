@@ -148,7 +148,7 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
                 crit: false,
                 echo: false,
             }
-        )) if e.kinds().id(*bat) == Some(&ContentId("bat".into()))
+        )) if e.kinds().id(*bat) == Some(&ContentId::from("bat"))
     ));
     assert_eq!(enemies(&e.snapshot()), 0);
 }
@@ -223,7 +223,7 @@ fn beating_the_boss_clears_the_stage() {
             &DomainEvent::Hit {
                 source: EntityId(0),
                 target: EntityId(1),
-                target_kind: e.kinds().index_of(&ContentId("golem".into())),
+                target_kind: e.kinds().index_of(&ContentId::from("golem")),
                 damage: 10,
                 damage_type: None,
                 match_up: MatchUp::None,
@@ -233,7 +233,7 @@ fn beating_the_boss_clears_the_stage() {
             },
             &DomainEvent::Died {
                 entity: EntityId(1),
-                kind: e.kinds().index_of(&ContentId("golem".into())),
+                kind: e.kinds().index_of(&ContentId::from("golem")),
                 class: stella_rain_core::snapshot::EntityKind::Boss,
                 elite: false,
             },

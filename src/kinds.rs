@@ -39,7 +39,7 @@ impl KindTable {
         limit: usize,
     ) -> Result<KindTable, Issue> {
         let mut ids: Vec<ContentId> = ids.into_iter().cloned().collect();
-        ids.sort_by(|a, b| a.0.cmp(&b.0));
+        ids.sort_by(|a, b| a.as_str().cmp(b.as_str()));
         ids.dedup();
         if ids.len() > limit.min(MAX_KINDS) {
             return Err(Issue {
@@ -85,7 +85,7 @@ impl KindTable {
     /// The index of `id`, `None` for an ID that is not a kind of the run.
     pub fn index_of(&self, id: &ContentId) -> Option<KindIndex> {
         self.ids
-            .binary_search_by(|k| k.0.cmp(&id.0))
+            .binary_search_by(|k| k.as_str().cmp(id.as_str()))
             .ok()
             .map(|i| KindIndex(u16::try_from(i).expect("a run has fewer than 65536 kinds")))
     }

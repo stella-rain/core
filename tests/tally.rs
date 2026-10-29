@@ -21,11 +21,16 @@ type Plain = (u32, Vec<(String, u8)>, Vec<String>, Vec<(String, u8)>);
 
 /// A view as values to compare: kills, taken and tiers sorted by ID, names in event order.
 fn plain(t: Tally<'_>) -> Plain {
-    let mut taken: Vec<(String, u8)> = t.taken().map(|(id, n)| (id.0.clone(), n)).collect();
+    let mut taken: Vec<(String, u8)> = t.taken().map(|(id, n)| (id.to_string(), n)).collect();
     taken.sort();
-    let mut tiers: Vec<(String, u8)> = t.tiers().map(|(id, n)| (id.0.clone(), n)).collect();
+    let mut tiers: Vec<(String, u8)> = t.tiers().map(|(id, n)| (id.to_string(), n)).collect();
     tiers.sort();
-    (t.kills(), taken, t.named().to_vec(), tiers)
+    (
+        t.kills(),
+        taken,
+        t.named().iter().map(ToString::to_string).collect(),
+        tiers,
+    )
 }
 
 /// What `play.gd` counts from the events, the definition the tally keeps.
@@ -55,14 +60,14 @@ impl Fold {
                     star,
                     ..
                 } => {
-                    self.taken.insert(reward.0.clone(), *taken);
+                    self.taken.insert(reward.to_string(), *taken);
                     if let Some(name) = star.as_ref().filter(|n| !n.is_empty()) {
-                        self.named.push(name.clone());
+                        self.named.push(name.to_string());
                     }
                     counted = true;
                 }
                 DomainEvent::Constellation { set, tier } => {
-                    self.tiers.insert(set.0.clone(), *tier);
+                    self.tiers.insert(set.to_string(), *tier);
                     counted = true;
                 }
                 _ => {}

@@ -213,14 +213,14 @@ impl Issues<'_> {
 
     /// `id` must be a registered ID of `kind` that this version has.
     fn registered(&mut self, path: String, id: &ContentId, kind: Kind) {
-        if !registry::is_well_formed(&id.0) {
+        if !registry::is_well_formed(id.as_str()) {
             self.add(
                 path,
                 "not a valid content ID (lowercase snake_case, at most 32 characters)".into(),
             );
             return;
         }
-        match registry::find(registry::ENTRIES, kind, &id.0) {
+        match registry::find(registry::ENTRIES, kind, id.as_str()) {
             Some(e) if e.introduced > self.1 => {
                 self.add(path, "newer than the pack's sim_version".into())
             }
@@ -241,7 +241,7 @@ fn stage_skills(skills: &[StageSkill], out: &mut Issues) {
     }
     for (i, skill) in skills.iter().enumerate() {
         let at = |field: &str| format!("$.stage_skills[{i}].{field}");
-        if !registry::is_well_formed(&skill.id.0) {
+        if !registry::is_well_formed(skill.id.as_str()) {
             out.add(
                 at("id"),
                 "not a valid ID (lowercase snake_case, at most 32 characters)".into(),

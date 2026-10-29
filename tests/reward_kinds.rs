@@ -188,7 +188,7 @@ pub(crate) fn take(e: &mut Engine, reward: &str) {
     let candidate = offer
         .candidates
         .iter()
-        .position(|c| c.reward.0 == reward)
+        .position(|c| c.reward.as_str() == reward)
         .unwrap_or_else(|| panic!("{reward} is not offered"));
     let option = OfferOption::Take {
         candidate: u8::try_from(candidate).unwrap(),

@@ -168,7 +168,7 @@ pub fn validate(file: &DifficultiesFile) -> Result<(), Error> {
     }
     for (i, d) in file.difficulties.iter().enumerate().take(MAX_DIFFICULTIES) {
         let at = |field: &str| format!("$.difficulties[{i}].{field}");
-        if !registry::is_well_formed(&d.id.0) {
+        if !registry::is_well_formed(d.id.as_str()) {
             issue(
                 at("id"),
                 "not a valid ID (lowercase snake_case, at most 32 characters)".into(),
@@ -191,7 +191,7 @@ pub fn validate(file: &DifficultiesFile) -> Result<(), Error> {
             );
         }
         if let Some(after) = &d.opens_after {
-            if !registry::is_well_formed(&after.0) {
+            if !registry::is_well_formed(after.as_str()) {
                 issue(
                     at("opens_after"),
                     "not a valid ID (lowercase snake_case, at most 32 characters)".into(),

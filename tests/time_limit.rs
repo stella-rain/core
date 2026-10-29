@@ -55,7 +55,7 @@ fn the_bundled_file_loads_with_the_defaults() {
         [5 * MINUTE, 10 * MINUTE, 15 * MINUTE, 20 * MINUTE]
     );
     assert_eq!(m.mid_boss_pool().len(), 4);
-    assert_eq!(m.final_boss().0, "core_pair");
+    assert_eq!(m.final_boss().as_str(), "core_pair");
     assert_eq!(m.overtime_ticks(), 5 * MINUTE);
     assert_eq!(m.star_hunter_extra_ticks(), MINUTE);
     assert_eq!((m.map().width.0, m.map().height.0), (1_048_576, 1_048_576));
@@ -371,13 +371,8 @@ fn the_bundled_elite_table_has_no_high_grade_before_minute_16() {
     let tiers = m.elite_table();
     let starts: Vec<u32> = tiers.iter().map(|t| t.start_tick).collect();
     assert_eq!(starts, [0, 6 * MINUTE, 16 * MINUTE]);
-    let names = |i: usize| -> Vec<&str> {
-        tiers[i]
-            .weights
-            .iter()
-            .map(|w| w.elite.0.as_str())
-            .collect()
-    };
+    let names =
+        |i: usize| -> Vec<&str> { tiers[i].weights.iter().map(|w| w.elite.as_str()).collect() };
     assert_eq!(names(0), ["elite_low", "elite_goblin", "elite_shrine"]);
     assert_eq!(
         names(1),
@@ -407,7 +402,7 @@ fn the_bundled_elite_table_has_no_high_grade_before_minute_16() {
 #[test]
 fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
     let all = TimeLimit::bundled().elite_types();
-    let ids: Vec<&str> = all.iter().map(|t| t.id.0.as_str()).collect();
+    let ids: Vec<&str> = all.iter().map(|t| t.id.as_str()).collect();
     assert_eq!(
         ids,
         [
@@ -422,7 +417,7 @@ fn the_bundled_file_defines_the_three_grades_by_placeholder_numbers() {
     );
     // The goblin has its own test (`tests/elite_goblin.rs`).
     let types = &all[..3];
-    let sprites: Vec<&str> = types.iter().map(|t| t.enemy.base.0.as_str()).collect();
+    let sprites: Vec<&str> = types.iter().map(|t| t.enemy.base.as_str()).collect();
     assert_eq!(sprites, ["bat", "fairy_a", "horns_2"]);
     assert!(types.iter().all(|t| t.enemy.elite.is_some()));
     let hp: Vec<u32> = types.iter().map(|t| t.enemy.hp).collect();

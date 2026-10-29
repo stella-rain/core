@@ -109,22 +109,22 @@ fn the_bundled_file_covers_every_weapon_with_three_complete_styles() {
     let covered: Vec<&str> = bundled
         .weapons()
         .iter()
-        .map(|w| w.weapon.0.as_str())
+        .map(|w| w.weapon.as_str())
         .collect();
     assert_eq!(covered, weapon_ids());
     for w in bundled.weapons() {
-        assert_eq!(w.styles.len(), STYLES, "{}", w.weapon.0);
+        assert_eq!(w.styles.len(), STYLES, "{}", w.weapon.as_str());
         for s in &w.styles {
             assert!(!s.upgrade_1.is_empty() && !s.upgrade_2.is_empty() && !s.capstone.is_empty());
         }
-        assert!(!w.common.is_empty(), "{}", w.weapon.0);
+        assert!(!w.common.is_empty(), "{}", w.weapon.as_str());
         // No option has a stack limit, attack speed included (ADR-099).
         assert!(
             w.common
                 .iter()
                 .any(|o| o.effect == ExpertiseEffect::AttackSpeedPct),
             "{}",
-            w.weapon.0
+            w.weapon.as_str()
         );
         assert_eq!(bundled.weapon(&w.weapon), Some(w));
     }
@@ -138,7 +138,7 @@ fn a_valid_file_parses_and_keeps_its_order() {
     let ids: Vec<&str> = e.weapons()[0]
         .styles
         .iter()
-        .map(|s| s.id.0.as_str())
+        .map(|s| s.id.as_str())
         .collect();
     assert_eq!(ids, ["one", "two", "three"]);
 }

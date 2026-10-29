@@ -76,7 +76,7 @@ fn elite_base(id: &str) -> Option<u32> {
     TimeLimit::bundled()
         .elite_types()
         .iter()
-        .find(|t| t.id.0 == id)
+        .find(|t| t.id.as_str() == id)
         .unwrap_or_else(|| panic!("no elite type {id}"))
         .stardust
 }

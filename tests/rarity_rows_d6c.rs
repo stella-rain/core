@@ -164,7 +164,7 @@ fn rune_first(tier_weight: Option<u16>, rune_weight: u32, seeds: u32) -> u32 {
         ];
         let mut e = with(&stage, list);
         next_offer(&mut e);
-        first += u32::from(offer(&e).candidates[0].reward.0 == "rune");
+        first += u32::from(offer(&e).candidates[0].reward.as_str() == "rune");
     }
     first
 }

@@ -17,7 +17,7 @@ use stella_rain_core::stardust::MAX_BANK_CAP;
 use stella_rain_core::validate::limits::MAX_RUN_STARDUST;
 
 fn id(s: &str) -> ContentId {
-    ContentId(s.to_owned())
+    ContentId::from(s)
 }
 
 fn ids(list: &[&str]) -> Vec<ContentId> {

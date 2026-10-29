@@ -13,6 +13,7 @@ use crate::snapshot::{
     PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
     StatusView, TypeBonusView, ZoneView,
 };
+use std::sync::{Arc, LazyLock};
 
 use super::{AttackRun, Engine, ShrineState, StatusState};
 
@@ -43,7 +44,7 @@ impl<'a> Tally<'a> {
     }
 
     /// The star names of the `RewardTaken` events, in event order, repeats kept.
-    pub fn named(&self) -> &'a [String] {
+    pub fn named(&self) -> &'a [Arc<str>] {
         let counted: &'a Counted = self.counted;
         &counted.named
     }
@@ -205,7 +206,7 @@ impl Engine {
                         kind: a.entity_kind(kind),
                         asset: match def.elite.as_ref().and_then(|e| e.mimic.as_ref()) {
                             Some(m) if hidden => m.disguise.clone(),
-                            _ => ContentId(def.base.0.clone()),
+                            _ => def.base.clone(),
                         },
                         kind_index: (!hidden).then_some(a.kind),
                         palette: def.palette.clone(),
@@ -246,7 +247,7 @@ impl Engine {
                     entities.push(EntityView {
                         id: part.id,
                         kind: EntityKind::BossPart,
-                        asset: ContentId(def.asset.0.clone()),
+                        asset: def.asset.clone(),
                         kind_index: Some(part.kind),
                         palette: None,
                         at: Point {
@@ -478,7 +479,7 @@ fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
         .iter()
         .filter_map(|st| {
             st.dot.map(|d| DamageOverTimeView {
-                status: ContentId(st.kind.name().to_owned()),
+                status: st.kind.id(),
                 stacks: st.stacks,
                 ticks_left: st.remaining,
                 next_tick_in: d.next_in,
@@ -487,6 +488,9 @@ fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
         .collect()
 }
 
+/// The ID of a pack leader's aura, shared like the statuses' (`StatusKind::id`).
+static AURA_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("aura"));
+
 /// The statuses of `statuses` for the snapshot (ADR-103 decision 3), sorted by ID: each with
 /// what is left of it and the ticks it was applied for. `aura` adds a pack leader's aura,
 /// which has no timer: it lasts while its entity is in reach.
@@ -494,18 +498,18 @@ fn status_views(statuses: &[StatusState], aura: bool) -> Vec<StatusView> {
     let mut views: Vec<StatusView> = statuses
         .iter()
         .map(|st| StatusView {
-            id: ContentId(st.kind.name().to_owned()),
+            id: st.kind.id(),
             remaining: st.remaining,
             total: st.total,
         })
         .collect();
     if aura {
         views.push(StatusView {
-            id: ContentId("aura".to_owned()),
+            id: AURA_ID.clone(),
             remaining: 0,
             total: 0,
         });
     }
-    views.sort_by(|a, b| a.id.0.cmp(&b.id.0));
+    views.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
     views
 }

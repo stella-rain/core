@@ -127,7 +127,7 @@ fn a_level_up_raises_the_first_stat_and_the_run_goes_on() {
         [
             DomainEvent::LeveledUp { level: 2 },
             DomainEvent::StatRaised {
-                stat: ContentId("max_hp".into()),
+                stat: ContentId::from("max_hp"),
                 spent: 1
             }
         ]
@@ -312,7 +312,7 @@ fn a_stat_added_in_the_content_works_with_no_code() {
     let raised: Vec<_> = seen
         .iter()
         .filter_map(|(_, ev)| match ev {
-            DomainEvent::StatRaised { stat, spent } => Some((stat.0.as_str(), *spent)),
+            DomainEvent::StatRaised { stat, spent } => Some((stat.as_str(), *spent)),
             _ => None,
         })
         .collect();

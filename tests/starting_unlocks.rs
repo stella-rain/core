@@ -50,7 +50,7 @@ fn paths(e: Error) -> Vec<String> {
 }
 
 fn ids(list: &[stella_rain_core::id::ContentId]) -> Vec<&str> {
-    list.iter().map(|id| id.0.as_str()).collect()
+    list.iter().map(|id| id.as_str()).collect()
 }
 
 #[test]
@@ -213,8 +213,8 @@ fn a_pack_refuses_what_the_file_refuses() {
 #[test]
 fn the_free_picks_are_required_ids_the_pack_holds() {
     let u = parse(&file()).unwrap();
-    assert_eq!(u.free_weapon().0, "giant_sword");
-    assert_eq!(u.free_perk_set().0, "duelist");
+    assert_eq!(u.free_weapon().as_str(), "giant_sword");
+    assert_eq!(u.free_perk_set().as_str(), "duelist");
     for (field, bad) in [
         ("free_weapon", "no_such"),
         ("free_weapon", "Bad"),
@@ -237,8 +237,8 @@ fn the_bundled_pack_names_the_free_picks() {
     let u = Pack::bundled()
         .starting_unlocks()
         .expect("the bundled slot");
-    assert_eq!(u.free_weapon().0, "giant_sword");
-    assert_eq!(u.free_perk_set().0, "duelist");
+    assert_eq!(u.free_weapon().as_str(), "giant_sword");
+    assert_eq!(u.free_perk_set().as_str(), "duelist");
 }
 
 // --- A free pick is one of its starting list's IDs (ECO1, DS128) ---------------------------
@@ -285,8 +285,8 @@ fn a_free_pick_anywhere_in_its_list_is_accepted() {
     v["weapons"] = json!(["giant_hammer", "giant_sword"]);
     v["perk_sets"] = json!(["vanguard", "duelist"]);
     let u = parse(&v).unwrap();
-    assert_eq!(u.free_weapon().0, "giant_sword");
-    assert_eq!(u.free_perk_set().0, "duelist");
+    assert_eq!(u.free_weapon().as_str(), "giant_sword");
+    assert_eq!(u.free_perk_set().as_str(), "duelist");
 }
 
 #[test]

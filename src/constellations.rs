@@ -204,7 +204,7 @@ pub fn validate(file: &ConstellationsFile, rewards: &Rewards) -> Result<(), Erro
     }
     for (i, set) in file.constellations.iter().enumerate() {
         let at = |field: &str| format!("$.constellations[{i}].{field}");
-        if !registry::is_well_formed(&set.id.0) {
+        if !registry::is_well_formed(set.id.as_str()) {
             issue(
                 at("id"),
                 "not a valid ID (lowercase snake_case, at most 32 characters)".into(),

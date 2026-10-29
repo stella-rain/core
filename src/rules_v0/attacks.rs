@@ -1446,7 +1446,9 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
         vx: if halted { Fx(0) } else { velocity(dir.x) },
         vy: if halted { Fx(0) } else { velocity(dir.y) },
         dir,
-        style: style.as_ref().map_or(0, |b| registry::orb_style(&b.0)),
+        style: style
+            .as_ref()
+            .map_or(0, |b| registry::orb_style(b.as_str())),
         owner: t.owner,
         damage: t.damage,
         damage_type: t.damage_type,

@@ -104,7 +104,7 @@ impl AttackPresets {
     pub fn definition(&self, id: &str) -> Option<&[AttackPhase]> {
         self.list
             .iter()
-            .find(|p| p.id.0 == id)
+            .find(|p| p.id.as_str() == id)
             .map(|p| p.phases.as_slice())
     }
 
@@ -129,7 +129,7 @@ pub fn validate(file: &AttackPresetsFile) -> Result<(), Error> {
     }
     for (i, p) in file.presets.iter().enumerate().take(MAX_ATTACK_PRESETS) {
         let at = format!("$.presets[{i}]");
-        let Some(entry) = registry::find(registry::ENTRIES, Kind::Preset, &p.id.0) else {
+        let Some(entry) = registry::find(registry::ENTRIES, Kind::Preset, p.id.as_str()) else {
             issue(format!("{at}.id"), "not a registered attack preset".into());
             continue;
         };
@@ -151,7 +151,7 @@ pub fn validate(file: &AttackPresetsFile) -> Result<(), Error> {
         }
         for (k, arg) in p.args.iter().enumerate() {
             let at = format!("{at}.args[{k}]");
-            if !registry::is_well_formed(&arg.name.0) {
+            if !registry::is_well_formed(arg.name.as_str()) {
                 issue(
                     format!("{at}.name"),
                     "not a valid name (lowercase snake_case, at most 32 characters)".into(),
@@ -180,7 +180,7 @@ pub fn validate(file: &AttackPresetsFile) -> Result<(), Error> {
         }
     }
     for entry in registry::ENTRIES.iter().filter(|e| e.kind == Kind::Preset) {
-        if !file.presets.iter().any(|p| p.id.0 == entry.id) {
+        if !file.presets.iter().any(|p| p.id.as_str() == entry.id) {
             issue(
                 "$.presets".into(),
                 format!("the registered preset `{}` is missing", entry.id),

@@ -35,6 +35,7 @@ use crate::trig::PER_DEGREE;
 use crate::validate::limits::{DAMAGE_SCALE, MAX_EVADE_CHARGES, MAX_HEAL_AMOUNT};
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
+use std::sync::Arc;
 
 /// The largest rewards file read (a tuning value; ADR-020 decides that one exists).
 pub const MAX_REWARDS_BYTES: usize = 64 * 1024;
@@ -351,7 +352,7 @@ pub struct Reward {
     /// The star's display name, 1 to `run_stats::MAX_TITLE_CHARS` characters, unique within
     /// the file: required when `named`, and only then.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub star: Option<String>,
+    pub star: Option<Arc<str>>,
     /// Its share of a draw among the rewards of its rarity, from 1 to `MAX_WEIGHT`.
     #[serde(skip_serializing_if = "is_default_weight")]
     pub weight: u16,
@@ -410,7 +411,7 @@ struct RawReward {
     #[serde(default)]
     named: bool,
     #[serde(default)]
-    star: Option<String>,
+    star: Option<Arc<str>>,
     #[serde(default = "default_weight")]
     weight: u16,
 }
@@ -913,7 +914,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
     }
     for (i, reward) in file.rewards.iter().enumerate() {
         let at = |field: &str| format!("$.rewards[{i}].{field}");
-        if !registry::is_well_formed(&reward.id.0) {
+        if !registry::is_well_formed(reward.id.as_str()) {
             issue(
                 at("id"),
                 "not a valid ID (lowercase snake_case, at most 32 characters)".into(),

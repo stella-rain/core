@@ -237,7 +237,7 @@ fn a_setup_without_a_difficulty_reads_as_normal() {
     assert_eq!(v["difficulty"], "hard", "it is written out");
     v.as_object_mut().unwrap().remove("difficulty");
     let old = run_setup::parse_and_validate(v.to_string().as_bytes()).unwrap();
-    assert_eq!(old.difficulty.0, "normal");
+    assert_eq!(old.difficulty.as_str(), "normal");
     assert_eq!(old, setup("normal"));
 }
 

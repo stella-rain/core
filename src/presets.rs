@@ -43,7 +43,7 @@ pub fn take_apart(presets: &AttackPresets, id: &str, args: &[i32]) -> Option<Vec
 /// The phases an attack runs: a preset taken apart, or the inline phases themselves.
 pub fn phases(attack: &AttackRef, presets: &AttackPresets) -> Option<Arc<Vec<AttackPhase>>> {
     match attack {
-        AttackRef::Preset { id, args } => take_apart(presets, &id.0, args).map(Arc::new),
+        AttackRef::Preset { id, args } => take_apart(presets, id.as_str(), args).map(Arc::new),
         AttackRef::Inline(phases) => Some(Arc::new(phases.clone())),
     }
 }

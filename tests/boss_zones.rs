@@ -105,7 +105,7 @@ fn no_boss_phase_has_more_than_24_live_zones() {
     let mut over = Vec::new();
     let mut table = String::new();
     for b in m.bosses() {
-        let id = b.base.0.as_str();
+        let id = b.base.as_str();
         for phase in 0..b.phases.len() {
             let n = peak(id, phase);
             table += &format!("\n  {id} phase {}: {n}", phase + 1);

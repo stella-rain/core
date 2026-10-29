@@ -313,7 +313,7 @@ fn the_bundled_mode_has_the_leader_in_the_middle_and_late_tiers_only() {
     let t = mode
         .elite_types()
         .iter()
-        .find(|t| t.id.0 == "elite_leader")
+        .find(|t| t.id.as_str() == "elite_leader")
         .expect("elite_leader is defined");
     let elite = serde_json::to_value(&t.enemy.elite).unwrap();
     assert_eq!(elite["aura"], pack_aura(40_960, 25), "160 pixels, +25%");
@@ -324,7 +324,7 @@ fn the_bundled_mode_has_the_leader_in_the_middle_and_late_tiers_only() {
         let weight = tier
             .weights
             .iter()
-            .find(|w| w.elite.0 == "elite_leader")
+            .find(|w| w.elite.as_str() == "elite_leader")
             .map(|w| w.weight);
         assert_eq!(weight, (i > 0).then_some(1), "tier {i}");
     }

@@ -237,7 +237,7 @@ fn a_phase_can_end_when_a_part_breaks() {
     let events = play(&mut e, 200, idle());
     let broken: Vec<u32> = ticks_of(
         &events,
-        |ev| matches!(ev, DomainEvent::PartBroken { part } if part.0 == "horn"),
+        |ev| matches!(ev, DomainEvent::PartBroken { part } if part.as_str() == "horn"),
     );
     assert_eq!(broken.len(), 1, "the part breaks once");
     assert_eq!(phase_changes(&events), vec![(broken[0] + 1, 1)]);
