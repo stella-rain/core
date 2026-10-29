@@ -531,3 +531,191 @@ fn tally_allocates_nothing_in_a_steady_tick() {
         "allocations and frees in {STEADY_TICKS} steady ticks of step plus tally, (tick, allocs, frees): {at:?}"
     );
 }
+
+// --- The events that name a content ID (EVENT-ARC) ----------------------------------------
+
+use stella_rain_core::event::DomainEvent;
+
+/// One measured tick: the engine's tick after the step, the allocator calls of the step, and
+/// whether `pick` found the event in `events()` after it.
+struct Row {
+    tick: u32,
+    calls: Allocs,
+    event: bool,
+}
+
+/// Steps `engine` for `warm` ticks unmeasured, then `ticks` more with `input(tick)`, counting
+/// each step.
+fn measure(
+    engine: &mut Engine,
+    warm: u32,
+    ticks: u32,
+    mut input: impl FnMut(u32) -> Input,
+    pick: impl Fn(&DomainEvent) -> bool,
+) -> Vec<Row> {
+    for _ in 0..warm {
+        let t = engine.tick();
+        engine.step(input(t));
+    }
+    let mut rows = Vec::new();
+    for _ in 0..ticks {
+        let t = engine.tick();
+        let i = input(t);
+        let calls = counted3(|| engine.step(i));
+        rows.push(Row {
+            tick: engine.tick(),
+            calls,
+            event: engine.events().iter().any(&pick),
+        });
+    }
+    rows
+}
+
+/// The calls of the ticks that pushed the event and of the tick after each, where
+/// `events.clear()` drops it; the ticks in between are not part of the producer.
+fn around(rows: &[Row]) -> Vec<(u32, Allocs)> {
+    let mut out = Vec::new();
+    for (i, row) in rows.iter().enumerate() {
+        if row.event {
+            out.push((row.tick, row.calls));
+            if let Some(next) = rows.get(i + 1) {
+                out.push((next.tick, next.calls));
+            }
+        }
+    }
+    out
+}
+
+/// A companion that applies `atk_up` to the main character every 5 ticks: a `StatusApplied`
+/// each time, field 1 of the plan.
+fn status_rows() -> Vec<Row> {
+    use crate::common::*;
+    use serde_json::json;
+    let rules = json!([rule(always(), json!("player"), atk_up(10, 30), 5)]);
+    let mut stage = quiet(stage_full(
+        18_000,
+        Some(far_boss()),
+        vec![],
+        vec![companion(50, hold(0, 0), rules)],
+    ));
+    stage.player.hp = 99_900;
+    let mut e = engine(&stage);
+    measure(
+        &mut e,
+        120,
+        60,
+        |_| idle(),
+        |ev| matches!(ev, DomainEvent::StatusApplied { .. }),
+    )
+}
+
+/// A boss whose horn breaks to the Main weapon's shots, field 3.
+fn part_rows() -> Vec<Row> {
+    use crate::common::*;
+    use serde_json::json;
+    let boss = json!({ "base": "golem", "hp": 1_000_000, "radius": 8192,
+        "spawn": { "x": 46_080, "y": 60_000 },
+        "parts": [{ "id": "horn", "asset": "horns_2", "hp": 20,
+                    "offset": { "x": 0, "y": 16_000 }, "radius": 6_000 }],
+        "phases": [{ "transition": [], "timeline": [], "rules": [] }] });
+    let mut stage = stage_full(18_000, Some(boss), vec![], vec![]);
+    stage.player.hp = 99_000;
+    let mut e = engine(&stage);
+    measure(
+        &mut e,
+        0,
+        200,
+        |t| firing(idle(), t),
+        |ev| matches!(ev, DomainEvent::PartBroken { .. }),
+    )
+}
+
+/// The elite of the worst minute, field 6: the run around tick 10_800, where `EliteSpawned` is
+/// pushed once a minute.
+fn elite_rows() -> Vec<Row> {
+    let mut run = bench_fixtures::worst_minute_peak();
+    let _ = &mut run;
+    let mut run = bench_fixtures::worst_minute_case::Run::fast_forwarded(10_790);
+    let mut rows = Vec::new();
+    for _ in 0..40 {
+        let calls = counted3(|| run.play(1));
+        rows.push(Row {
+            tick: run.engine.tick(),
+            calls,
+            event: run
+                .engine
+                .events()
+                .iter()
+                .any(|ev| matches!(ev, DomainEvent::EliteSpawned { .. })),
+        });
+    }
+    rows
+}
+
+/// A stage skill used every 10 ticks, field 2: one enemy dies, its star offers the skill, the
+/// run takes it, and then presses `skill` each tick.
+fn skill_rows() -> Vec<Row> {
+    use crate::common::*;
+    use serde_json::json;
+    use stella_rain_core::rewards::Rewards;
+    use stella_rain_core::snapshot::OfferOption;
+    use stella_rain_core::stage_skill::StageSkills;
+    let near_y = START_Y - 8_192;
+    let waves = vec![wave(
+        1,
+        1,
+        6,
+        enemy(10, hold(START_X, near_y), json!([])),
+        START_X,
+        near_y,
+    )];
+    let mut stage = stage_full(18_000, Some(far_boss()), waves, vec![]);
+    stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
+    stage.stars = Some(
+        serde_json::from_value(json!({
+            "drop_per_mille": 1000, "pity": 1, "cap": 8, "pickup_radius": 12_288,
+            "rerolls": 0, "banishes": 0,
+            "tiers": [{ "from_level": 1, "weights": { "common": 1 } }],
+        }))
+        .unwrap(),
+    );
+    let skills = json!({ "stage_skills": [{ "id": "nova", "icon": "icon_nova", "ahead": 25_600,
+        "levels": [{ "cooldown_ticks": 10, "effects": [{ "type": "pull", "radius": 10_000,
+            "strength": 100, "duration_ticks": 5 }] }] }] });
+    let skills = StageSkills::parse(skills.to_string().as_bytes(), Versions::CURRENT).unwrap();
+    let file = json!({ "rarities": rarities(), "rewards": [
+        { "id": "nova_reward", "rarity": "common", "effect": "stage_skill", "skill": "nova",
+          "amount": 1, "limit": 5 }] });
+    let rewards =
+        Rewards::parse_with(file.to_string().as_bytes(), Versions::CURRENT, &skills).unwrap();
+    let content = RunContent::new(design_run_stats(), rewards);
+    let mut e = Engine::new_with(&stage, &content).expect("the test stage is valid");
+    fire_until(&mut e, idle(), 1200, Engine::offer_open);
+    let option = OfferOption::Take { candidate: 0 };
+    let offer = e.snapshot().progress.unwrap().offer.unwrap();
+    let index = offer.options.iter().position(|o| *o == option).unwrap();
+    e.choose(u32::try_from(index).unwrap()).unwrap();
+    measure(
+        &mut e,
+        30,
+        60,
+        |t| Input {
+            skill: t % 2 == 0,
+            ..idle()
+        },
+        |ev| matches!(ev, DomainEvent::StageSkillUsed { .. }),
+    )
+}
+
+#[test]
+fn the_event_producers_are_reached() {
+    for (name, rows) in [
+        ("StatusApplied", status_rows()),
+        ("PartBroken", part_rows()),
+        ("StageSkillUsed", skill_rows()),
+        ("EliteSpawned", elite_rows()),
+    ] {
+        assert!(!around(&rows).is_empty(), "{name} is never pushed");
+        eprintln!("{name}: {:?}", around(&rows));
+    }
+}
