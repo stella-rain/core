@@ -279,6 +279,58 @@ mod tests {
         assert_eq!(read(&old, &[]), Err(ReplayLoadError::Older(v(1, 1))));
     }
 
+    fn value_only(mut doc: Value) -> Value {
+        let map = doc.as_object_mut().unwrap();
+        let old = map.remove("old_value").unwrap();
+        map.insert("value".into(), old);
+        doc
+    }
+
+    fn schema_only(doc: Value) -> Value {
+        let mut doc = value_only(doc);
+        doc["schema_version"] = json!(2);
+        doc
+    }
+
+    fn inflate(doc: Value) -> Value {
+        let mut doc = from_one_one(doc);
+        doc["padding"] = json!("x".repeat(2000));
+        doc
+    }
+
+    fn migration(apply: fn(Value) -> Value) -> [Migration; 1] {
+        [Migration {
+            from: v(1, 1),
+            apply,
+        }]
+    }
+
+    #[test]
+    fn a_migration_that_does_not_reach_the_current_versions_is_older() {
+        let old = json!({ "schema_version": 1, "sim_version": 1, "old_value": 7 });
+        assert_eq!(
+            read(&old, &migration(value_only)),
+            Err(ReplayLoadError::Older(v(1, 1)))
+        );
+        assert_eq!(
+            read(&old, &migration(schema_only)),
+            Err(ReplayLoadError::Older(v(1, 1)))
+        );
+    }
+
+    #[test]
+    fn a_migration_that_inflates_the_document_is_too_large() {
+        let old = json!({ "schema_version": 1, "sim_version": 1, "old_value": 7 });
+        let size = serde_json::to_vec(&inflate(old.clone())).unwrap().len();
+        assert!(old.to_string().len() < 100 && size > 1024);
+        // `TooLarge`, not `Damaged`: the strict `Doc` would refuse the extra field, so the size
+        // check comes before the second parse.
+        assert_eq!(
+            read(&old, &migration(inflate)),
+            Err(ReplayLoadError::TooLarge { size, limit: 1024 })
+        );
+    }
+
     #[test]
     fn the_size_limit_comes_before_any_parse() {
         let bytes = vec![b'x'; 1025];
