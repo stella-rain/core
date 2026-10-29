@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Where the replay corpus is, for the CI steps that read it (fuzz-short, fuzz-long, Candidate).
 
-The stage layout is tests/corpus/current/{stages,runs} when tests/corpus/current/ exists, else
-tests/corpus/v0 + tests/corpus/runs/v0. Both present, or neither, is an error: a half-done move
-must not pass silently. Folders named packs or v1 are never read.
+The corpus is tests/corpus/current/{stages,runs}. Folders named packs or v<N> are never read.
 
   corpus_paths.py [--root DIR] seeds STAGE_DIR REPLAY_DIR
       copy each stage case's stage.json and run.replay, and each run case's run.replay, as fuzz seeds
@@ -23,18 +21,13 @@ class Fail(Exception):
     pass
 
 
-def layout(root):
-    """(name, stages dir, runs dir) relative to root."""
-    corpus = os.path.join(root, "tests", "corpus")
-    current = os.path.isdir(os.path.join(corpus, "current"))
-    v0 = os.path.isdir(os.path.join(corpus, "v0")) or os.path.isdir(os.path.join(corpus, "runs", "v0"))
-    if current and v0:
-        raise Fail("both corpus layouts exist (tests/corpus/current and tests/corpus/v0)")
-    if current:
-        return "current", "tests/corpus/current/stages", "tests/corpus/current/runs"
-    if v0:
-        return "v0", "tests/corpus/v0", "tests/corpus/runs/v0"
-    raise Fail("no corpus layout found under tests/corpus")
+STAGES = "tests/corpus/current/stages"
+RUNS = "tests/corpus/current/runs"
+
+
+def check(root):
+    if not os.path.isdir(os.path.join(root, "tests", "corpus", "current")):
+        raise Fail("no corpus under tests/corpus/current")
 
 
 def cases(root, rel):
@@ -52,7 +45,8 @@ def copy(root, rel, case, src, dst):
 
 
 def seeds(root, stage_dir, replay_dir):
-    name, stages, runs = layout(root)
+    check(root)
+    stages, runs = STAGES, RUNS
     stage_cases, run_cases = cases(root, stages), cases(root, runs)
     if not stage_cases or not run_cases:
         raise Fail(f"no case folders under {stages} or {runs}")
@@ -63,11 +57,12 @@ def seeds(root, stage_dir, replay_dir):
         copy(root, stages, case, "run.replay", os.path.join(replay_dir, case + ".replay"))
     for case in run_cases:
         copy(root, runs, case, "run.replay", os.path.join(replay_dir, f"run-{case}.replay"))
-    print(f"{len(stage_cases)} stage cases, {len(run_cases)} run cases (layout: {name})")
+    print(f"{len(stage_cases)} stage cases, {len(run_cases)} run cases")
 
 
 def stage_dir(root, case):
-    _, stages, _ = layout(root)
+    check(root)
+    stages = STAGES
     if case not in cases(root, stages):
         raise Fail(f"no stage case {case} under {stages}")
     # Bytes, not print: on Windows print writes \r\n, and Git Bash's $(...) keeps the \r.
