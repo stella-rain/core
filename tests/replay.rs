@@ -476,14 +476,15 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
 #[test]
 fn the_encoding_is_pinned() {
     // The replay file and its hashes for a fixed stage and inputs. Every platform must write
-    // and verify exactly this; a change is a change to the format or to the version 0 rules,
-    // so a PR that changes it regenerates these values and says why (ADR-035).
+    // and verify exactly this; a change is a change to the format or to a frozen version's
+    // rules, which is a new version (ADR-REPL-7). The stage's two versions are in the stage
+    // file, so `stage_sha256` and the content hash moved once, at the freeze of version 1.
     let (stage, replay, bytes) = recorded();
     assert_eq!(
         String::from_utf8(bytes.clone()).unwrap(),
         concat!(
             r#"{"schema_version":1,"sim_version":1,"seed":7,"#,
-            r#""stage_sha256":"45111ffeb51b8951352c5494a5bcfb4295d9cd74ad559ec909e9062a7a0872de","#,
+            r#""stage_sha256":"749df219b108a048afb8e402f18142140d03f971a80653b3e0251833f3e43784","#,
             r#""ticks":35,"final_hash":"f41f6599e39fe57c","#,
             r#""inputs":"AQEAAAIAAAACAgAAGQAAAAICAAADAAAA"}"#,
             "\n"
@@ -500,7 +501,7 @@ fn the_encoding_is_pinned() {
     );
     assert_eq!(
         to_hex(&content_hash(&stage, &bytes)),
-        "a17bc0f364c51628c4ca8171e2232c8ce1f61474aeac43d4ddf7ca1373def12d"
+        "599383fba1b56bd2e49472629057870c4aa6137df1a01882e806eca8a4cbe176"
     );
 }
 

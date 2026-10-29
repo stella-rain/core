@@ -651,8 +651,9 @@ fn a_stage_with_only_spawn_points_serialises_as_before() {
     assert_eq!((compact.len(), fnv(compact.as_bytes())), PINNED_STAGE_V0);
 }
 
-/// The compact form's length and FNV-1a 64, taken on main before VS1.
-const PINNED_STAGE_V0: (usize, u64) = (3294, 17_042_691_344_738_360_148);
+/// The compact form's length and FNV-1a 64, taken on main before VS1; re-taken at the freeze
+/// of version 1, when the fixture's two versions became 1 (same length, the rest unchanged).
+const PINNED_STAGE_V0: (usize, u64) = (3294, 10_467_257_119_685_663_348);
 
 /// Plays `ticks` ticks of `setup` with `input`, every offer answered, and returns how many
 /// enemies appeared and how many of them the leash moved on the tick they appeared.

@@ -46,7 +46,7 @@ fn matches_the_adr_046_vector() {
     // SHA-256 of `CLEAR_INPUT`, computed with `sha256sum`, not with `core`.
     assert_eq!(
         hash_of(CLEAR),
-        "3684311817267d63e3308d859884d1867e8242a13439e8f341247d7f7aefc2f4"
+        "0abb5cdb2a35706fb0c8d95727685e559eb33ecdf513324678a6d973983674bc"
     );
 }
 
@@ -57,19 +57,19 @@ fn every_corpus_stage_keeps_its_hash() {
     for (bytes, expected) in [
         (
             &include_bytes!("corpus/current/stages/agents/stage.json")[..],
-            "8e5e91a2d46d00c08c4d2421fe84751f5d0abe5b15094e88571b314f9a3adcf9",
+            "b7327105943407c1e23da365e9ff2987de08d14d9fddb11fccd048c4e919a92a",
         ),
         (
             &include_bytes!("corpus/current/stages/boss/stage.json")[..],
-            "9e15a614c1db0fe3341dd9755025c00e84e31de34b96eb22e133b10420f9c8cc",
+            "c8cdfe291b329605bf0d507d16701f654f521441dcc1c86263dd6d507ca08cf7",
         ),
         (
             &include_bytes!("corpus/current/stages/fail/stage.json")[..],
-            "6ca63f704d090547d4e0a3690624a6806924cd4f9cf796918fbf36fac66d0251",
+            "937a10822b9294e0487ade13057a9cd3d76c2c6203dc9f17f9a1e6e00397ba5f",
         ),
         (
             &include_bytes!("corpus/current/stages/timeout/stage.json")[..],
-            "2bb981b23f4d6938bf2c0dd68ed0312be2129defd82684c504f91af4df30bd41",
+            "b02533a271d5ce3abc6564a47c49bfa9c39942c709a1c4adaeffe8279cf12dc6",
         ),
     ] {
         assert_eq!(hash_of(bytes), expected);
