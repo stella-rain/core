@@ -190,10 +190,11 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// string that the earlier tick made (the run differs; no buffer grows). SPAWN-CORNER: the peak tick
 /// moved to 10_800 and was `worst_minute_peak` 0, 0, 1: the one free was the 5-byte `ContentId`
 /// (`golem`) of the earlier tick's `EliteSpawned`, dropped by `events.clear()`. EVENT-ARC: a
-/// `ContentId` is an `Arc<str>` cloned from its definition, so the free is gone and it is 0, 0, 0.
+/// `ContentId` is an `Arc<str>` cloned from its definition, so the free is gone and it is 0, 0, 0. `worst_tick` 786 -> 3 allocs, the frees unchanged: its
+/// allocations were the `ContentId` strings of the entities' assets and statuses, now shared.
 /// The cases are built by `bench_fixtures`, outside the count.
 const BENCH_TICK_ALLOCS: [(&str, Allocs); 5] = [
-    ("worst_tick", pin(786, 0, 3)),
+    ("worst_tick", pin(3, 0, 3)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
@@ -736,14 +737,13 @@ fn a_part_broken_event_allocates_and_frees_nothing() {
     assert_producer("PartBroken", &part_rows(), pin(0, 0, 0));
 }
 
-/// The ledger and the effect allocate for their own reasons; the skill's ID is one of the two.
 #[test]
 fn a_stage_skill_used_event_names_its_skill_without_allocating() {
-    assert_producer("StageSkillUsed", &skill_rows(), pin(1, 0, 0));
+    assert_producer("StageSkillUsed", &skill_rows(), pin(0, 0, 0));
 }
 
-/// The elite's tick builds its entity; the ID is one of the three allocations.
+/// The elite's tick builds its entity and allocates once for it; the ID is not an allocation.
 #[test]
 fn an_elite_spawned_event_names_its_asset_without_allocating() {
-    assert_producer("EliteSpawned", &elite_rows(), pin(2, 0, 0));
+    assert_producer("EliteSpawned", &elite_rows(), pin(1, 0, 0));
 }

@@ -494,7 +494,7 @@ fn tiers_reached(e: &Engine) -> Vec<(String, u8)> {
 
 fn star_taken(e: &Engine) -> Option<String> {
     e.events().iter().find_map(|ev| match ev {
-        DomainEvent::RewardTaken { star, .. } => star.clone(),
+        DomainEvent::RewardTaken { star, .. } => star.as_ref().map(ToString::to_string),
         _ => None,
     })
 }

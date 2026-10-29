@@ -11,6 +11,7 @@ use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::{Rarity, Rewards};
 use crate::rules_v0::state::{AgentState, BossState};
 use crate::snapshot::EntityKind;
+use std::sync::Arc;
 
 /// What an enemy or boss on the map is: its entity ID and sprite content ID.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,7 +26,7 @@ pub struct Seen {
 pub struct StarPick {
     pub rarity: Rarity,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    pub name: Option<Arc<str>>,
 }
 
 /// A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-6).
@@ -347,7 +348,7 @@ pub(crate) struct Counted {
     pub(crate) taken: Vec<u8>,
     /// The tier the last `Constellation` of each set carried, per set; 0 = none.
     pub(crate) tiers: Vec<u8>,
-    pub(crate) named: Vec<String>,
+    pub(crate) named: Vec<Arc<str>>,
 }
 
 impl Counted {

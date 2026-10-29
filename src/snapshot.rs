@@ -11,6 +11,7 @@ use crate::id::{ContentId, EntityId};
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
+use std::sync::Arc;
 
 /// An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -311,7 +312,7 @@ pub struct CandidateView {
     pub named: bool,
     /// The named star's display name; with `named` only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub star: Option<String>,
+    pub star: Option<Arc<str>>,
     /// The set a named star belongs to and how far it is; absent for a reward in no set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub constellation: Option<ConstellationProgress>,

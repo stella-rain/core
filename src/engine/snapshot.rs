@@ -13,6 +13,7 @@ use crate::snapshot::{
     PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
     StatusView, TypeBonusView, ZoneView,
 };
+use std::sync::{Arc, LazyLock};
 
 use super::{AttackRun, Engine, ShrineState, StatusState};
 
@@ -43,7 +44,7 @@ impl<'a> Tally<'a> {
     }
 
     /// The star names of the `RewardTaken` events, in event order, repeats kept.
-    pub fn named(&self) -> &'a [String] {
+    pub fn named(&self) -> &'a [Arc<str>] {
         let counted: &'a Counted = self.counted;
         &counted.named
     }
@@ -478,7 +479,7 @@ fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
         .iter()
         .filter_map(|st| {
             st.dot.map(|d| DamageOverTimeView {
-                status: ContentId::from(st.kind.name()),
+                status: st.kind.id(),
                 stacks: st.stacks,
                 ticks_left: st.remaining,
                 next_tick_in: d.next_in,
@@ -487,6 +488,9 @@ fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
         .collect()
 }
 
+/// The ID of a pack leader's aura, shared like the statuses' (`StatusKind::id`).
+static AURA_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("aura"));
+
 /// The statuses of `statuses` for the snapshot (ADR-103 decision 3), sorted by ID: each with
 /// what is left of it and the ticks it was applied for. `aura` adds a pack leader's aura,
 /// which has no timer: it lasts while its entity is in reach.
@@ -494,14 +498,14 @@ fn status_views(statuses: &[StatusState], aura: bool) -> Vec<StatusView> {
     let mut views: Vec<StatusView> = statuses
         .iter()
         .map(|st| StatusView {
-            id: ContentId::from(st.kind.name()),
+            id: st.kind.id(),
             remaining: st.remaining,
             total: st.total,
         })
         .collect();
     if aura {
         views.push(StatusView {
-            id: ContentId::from("aura"),
+            id: AURA_ID.clone(),
             remaining: 0,
             total: 0,
         });

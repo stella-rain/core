@@ -256,7 +256,7 @@ pub enum DomainEvent {
         rune: Option<Rune>,
         /// The star's name when the reward is a named star (core#NS3).
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        star: Option<String>,
+        star: Option<Arc<str>>,
     },
     /// The reward taken just before completed enough of the constellation `set` to reach its
     /// tier `tier`, counted from 1: the tier's effects replace the lower tier's (core#NS3).

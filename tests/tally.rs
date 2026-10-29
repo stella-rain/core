@@ -25,7 +25,12 @@ fn plain(t: Tally<'_>) -> Plain {
     taken.sort();
     let mut tiers: Vec<(String, u8)> = t.tiers().map(|(id, n)| (id.to_string(), n)).collect();
     tiers.sort();
-    (t.kills(), taken, t.named().to_vec(), tiers)
+    (
+        t.kills(),
+        taken,
+        t.named().iter().map(ToString::to_string).collect(),
+        tiers,
+    )
 }
 
 /// What `play.gd` counts from the events, the definition the tally keeps.
@@ -57,7 +62,7 @@ impl Fold {
                 } => {
                     self.taken.insert(reward.to_string(), *taken);
                     if let Some(name) = star.as_ref().filter(|n| !n.is_empty()) {
-                        self.named.push(name.clone());
+                        self.named.push(name.to_string());
                     }
                     counted = true;
                 }

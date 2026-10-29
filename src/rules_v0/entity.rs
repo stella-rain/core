@@ -6,7 +6,7 @@ use super::World;
 use crate::engine::{DotState, State, StatusKind, StatusState, Statuses};
 use crate::event::DomainEvent;
 use crate::fixed::Point;
-use crate::id::{ContentId, EntityId};
+use crate::id::EntityId;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::rune::Rune;
 
@@ -244,7 +244,7 @@ impl State {
         };
         events.push(DomainEvent::StatusApplied {
             target: self.id_of(target),
-            status: ContentId::from(kind.name()),
+            status: kind.id(),
             stacks,
             duration_ticks: duration,
         });
@@ -282,7 +282,7 @@ impl State {
         }
         events.push(DomainEvent::StatusApplied {
             target: self.id_of(target),
-            status: ContentId::from(StatusKind::Stun.name()),
+            status: StatusKind::Stun.id(),
             stacks: 1,
             duration_ticks: ticks,
         });
@@ -333,7 +333,7 @@ impl State {
         };
         events.push(DomainEvent::StatusApplied {
             target: self.id_of(target),
-            status: ContentId::from(kind.name()),
+            status: kind.id(),
             stacks,
             duration_ticks: duration,
         });

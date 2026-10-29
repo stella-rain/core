@@ -16,6 +16,7 @@ use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind};
 use crate::validate::{self};
+use std::sync::LazyLock;
 
 /// Firings or casts left when there is no limit.
 pub(crate) const UNLIMITED: u32 = u32::MAX;
@@ -736,6 +737,11 @@ pub(crate) enum StatusKind {
     Stun,
 }
 
+/// The IDs of `StatusKind::ALL`, in that order, which is the order of the discriminants
+/// (`every_status_kind_is_listed`). Constants, never hashed.
+static STATUS_IDS: LazyLock<[ContentId; StatusKind::COUNT]> =
+    LazyLock::new(|| StatusKind::ALL.map(|k| ContentId::from(k.name())));
+
 impl StatusKind {
     /// The statuses a skill can apply: the damage-over-time ones are not among them.
     pub const FROM_SKILLS: [StatusKind; 3] =
@@ -760,6 +766,12 @@ impl StatusKind {
         StatusKind::Stun,
     ];
     pub const COUNT: usize = StatusKind::ALL.len();
+
+    /// The status as a content ID, a refcount bump of the shared table: an event or a snapshot
+    /// that names a status allocates nothing.
+    pub fn id(self) -> ContentId {
+        STATUS_IDS[self as usize].clone()
+    }
 
     pub fn name(self) -> &'static str {
         match self {
@@ -1159,5 +1171,13 @@ mod status_kind_tests {
         };
         let numbers: Vec<usize> = StatusKind::ALL.into_iter().map(number).collect();
         assert_eq!(numbers, (0..StatusKind::COUNT).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn a_status_kind_is_its_own_id() {
+        for (i, kind) in StatusKind::ALL.into_iter().enumerate() {
+            assert_eq!(kind as usize, i);
+            assert_eq!(kind.id().as_str(), kind.name());
+        }
     }
 }

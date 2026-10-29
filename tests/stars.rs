@@ -975,7 +975,7 @@ fn an_offer_names_its_named_candidate_and_only_that_one() {
     let seen: Vec<(String, bool, Option<String>)> = offer(&e)
         .candidates
         .into_iter()
-        .map(|c| (c.reward.to_string(), c.named, c.star))
+        .map(|c| (c.reward.to_string(), c.named, c.star.map(|s| s.to_string())))
         .collect();
     let mut sorted = seen.clone();
     sorted.sort();
