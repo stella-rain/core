@@ -187,14 +187,16 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// re-pinned lower in the same PR; a count that rises is a regression to fix, never a re-pin
 /// without the PR saying why. DIR1 (the cases at the cap of 260): `worst_tick` 1506 -> 786
 /// allocs; `worst_minute_peak` 3, 3, 3 -> 3, 2, 4, where the extra free drops an event with a
-/// string that the earlier tick made (the run differs; no buffer grows). The cases are built by `bench_fixtures`, outside the
+/// string that the earlier tick made (the run differs; no buffer grows). SPAWN-CORNER: the peak tick
+/// moved to 10_800 and is now `worst_minute_peak` 0, 0, 1: the one free is the 5-byte `ContentId`
+/// (`golem`) of the earlier tick's `EliteSpawned`, dropped by `events.clear()`. The cases are built by `bench_fixtures`, outside the
 /// count.
 const BENCH_TICK_ALLOCS: [(&str, Allocs); 5] = [
     ("worst_tick", pin(786, 0, 3)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
-    ("worst_minute_peak", pin(0, 0, 0)),
+    ("worst_minute_peak", pin(0, 0, 1)),
 ];
 
 fn pinned(case: &str) -> Allocs {

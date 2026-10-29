@@ -48,6 +48,8 @@ pub(crate) struct Scratch {
     /// The enemies granted a ranged token this tick, by `RangedPool` (RA1): worked out from the
     /// state at the start of the act step.
     pub(super) ranged_grants: [Vec<EntityId>; 2],
+    /// The shrine elites alive at the start of the shrines step, by id.
+    pub(super) shrine_ids: Vec<EntityId>,
     /// Spawns the caps refused so far in the tick; `step` hands it to `Load` and empties it.
     pub(super) refused_spawns: u32,
     /// Wave spawns the director held so far in the tick; `step` hands it to `Load` too.
@@ -82,7 +84,8 @@ impl Scratch {
     /// - the grid: one circle, cell and member per enemy, and the cells of the map.
     /// - `hit_lists`: `MAX_ATTACK_TASKS` lists of one entry per enemy and a few more.
     /// - `swings`: a hit box per run and per zone; `consumed`: one per orb;
-    ///   `ranged_grants`: `MAX_RANGED_ATTACKERS` ids in each pool.
+    ///   `ranged_grants`: `MAX_RANGED_ATTACKERS` ids in each pool;
+    ///   `shrine_ids`: one id per enemy.
     pub(super) fn reserve(&mut self, enemies: usize, width: i32, height: i32) {
         self.reserved = Some(Reserved {
             enemies,
@@ -92,6 +95,7 @@ impl Scratch {
         reserve_to(&mut self.bodies, enemies);
         reserve_to(&mut self.offsets, enemies);
         reserve_to(&mut self.found, enemies);
+        reserve_to(&mut self.shrine_ids, enemies);
         reserve_to(&mut self.found_bits, enemies.div_ceil(64));
         self.grid.reserve(enemies, width, height);
         while self.hit_lists.len() < HIT_LISTS {

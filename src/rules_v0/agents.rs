@@ -119,13 +119,16 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
 /// points go to 0 and the tick's hits credit the elite's kill), else when the timer reaches
 /// `fight_ticks` it leaves unkilled. No random number is drawn.
 fn shrines(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let ids: Vec<EntityId> = s
-        .enemies
-        .iter()
-        .filter(|e| e.hp > 0 && e.shrine.is_some())
-        .map(|e| e.id)
-        .collect();
-    for id in ids {
+    // Taken out of the scratch while the loop spawns through `s`, and put back with its room.
+    let mut ids = std::mem::take(&mut s.scratch.shrine_ids);
+    ids.clear();
+    ids.extend(
+        s.enemies
+            .iter()
+            .filter(|e| e.hp > 0 && e.shrine.is_some())
+            .map(|e| e.id),
+    );
+    for &id in &ids {
         let Some(i) = s.enemies.iter().position(|e| e.id == id) else {
             continue;
         };
@@ -173,6 +176,8 @@ fn shrines(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
             sh.fight = Some(fight);
         }
     }
+    ids.clear();
+    s.scratch.shrine_ids = ids;
 }
 
 /// Places `guardians` (a shrine's, or a pack leader's escort) on their ring around `home`, in

@@ -120,6 +120,8 @@ mod runes;
 mod schedule;
 mod scratch;
 mod skill;
+#[cfg(test)]
+mod spawn_edge_tests;
 mod stardust;
 mod stars;
 pub(crate) mod state;
@@ -749,26 +751,71 @@ impl RectSide {
     }
 }
 
-/// A point on the spawn rectangle around `from` (VS1): ±the spawn edge (the view and `spawn_margin`), drawn
-/// from `rng` (the wave's stream for a wave, the horde's for an elite) on the part of `edge`'s
-/// side that is on the map. A side wholly off the map gives way to the opposite one; with
-/// neither on the map the side itself is used and the point moved onto the map. `any` is one draw
-/// over the on-map parts of all four sides; a side with no `along` is one draw along its part;
-/// with `along` there is no draw.
-pub(super) fn edge_point(
-    stage: &World,
-    from: Point,
-    rng: &mut SplitMix64,
-    edge: ViewEdge,
-) -> Point {
-    let map = stage.map();
-    let (w, h) = (i64::from(map.width.0), i64::from(map.height.0));
-    let (px, py) = (i64::from(from.x.0), i64::from(from.y.0));
-    let (ex, ey) = (
-        i64::from(stage.tuning.spawn_edge_x.0),
-        i64::from(stage.tuning.spawn_edge_y.0),
-    );
-    let sides = [
+/// The sides the `any` draw walks, in the order top, right, bottom, left, each with its part:
+/// top and right run `[lo, hi)` and bottom and left `(lo, hi]`, so every perimeter point has one
+/// draw value (the corners go top-left to top, top-right to right, bottom-right to bottom,
+/// bottom-left to left). The part is the part on the map `w` by `h`; with none on the map, the whole sides (moved onto it by the
+/// caller).
+fn any_parts(
+    px: i64,
+    py: i64,
+    ex: i64,
+    ey: i64,
+    w: i64,
+    h: i64,
+) -> [(RectSide, Option<(i64, i64)>); 4] {
+    let mut sides = rect_sides(px, py, ex, ey);
+    // Each corner belongs to one side: top owns top-left, right owns top-right, bottom owns
+    // bottom-right and left owns bottom-left, so the four walk the perimeter once.
+    for side in &mut sides[2..] {
+        side.lo += 1;
+        side.hi += 1;
+    }
+    let parts = sides.map(|side| side.on_map(w, h));
+    let on_map = parts.iter().flatten().map(|(lo, hi)| hi - lo).sum::<i64>() > 0;
+    let mut out = sides.map(|side| (side, None));
+    for (i, side) in sides.iter().enumerate() {
+        out[i].1 = if on_map {
+            parts[i]
+        } else {
+            Some((side.lo, side.hi))
+        };
+    }
+    out
+}
+
+/// How many values the `any` draw has: the length of the on-map parts of all four sides.
+pub(super) fn any_total(px: i64, py: i64, ex: i64, ey: i64, w: i64, h: i64) -> i64 {
+    any_parts(px, py, ex, ey, w, h)
+        .iter()
+        .filter_map(|(_, part)| *part)
+        .map(|(lo, hi)| hi - lo)
+        .sum()
+}
+
+/// The point of the `any` draw's value `t`: the walk along the parts in side order.
+pub(super) fn any_point(
+    px: i64,
+    py: i64,
+    ex: i64,
+    ey: i64,
+    w: i64,
+    h: i64,
+    mut t: i64,
+) -> (i64, i64) {
+    for (side, part) in any_parts(px, py, ex, ey, w, h) {
+        let Some((lo, hi)) = part else { continue };
+        if t < hi - lo {
+            return side.at(lo, t);
+        }
+        t -= hi - lo;
+    }
+    (px, py)
+}
+
+/// The four sides of the spawn rectangle around (`px`, `py`).
+fn rect_sides(px: i64, py: i64, ex: i64, ey: i64) -> [RectSide; 4] {
+    [
         RectSide {
             vertical: false,
             fixed: py - ey,
@@ -793,33 +840,36 @@ pub(super) fn edge_point(
             lo: py - ey,
             hi: py + ey,
         },
-    ];
+    ]
+}
+
+/// A point on the spawn rectangle around `from` (VS1): ±the spawn edge (the view and `spawn_margin`), drawn
+/// from `rng` (the wave's stream for a wave, the horde's for an elite) on the part of `edge`'s
+/// side that is on the map. A side wholly off the map gives way to the opposite one; with
+/// neither on the map the side itself is used and the point moved onto the map. `any` is one draw
+/// over the on-map parts of all four sides, each corner on one side only (`any_parts`); a side with no
+/// `along` is one draw along its part; with `along` there is no draw.
+pub(super) fn edge_point(
+    stage: &World,
+    from: Point,
+    rng: &mut SplitMix64,
+    edge: ViewEdge,
+) -> Point {
+    let map = stage.map();
+    let (w, h) = (i64::from(map.width.0), i64::from(map.height.0));
+    let (px, py) = (i64::from(from.x.0), i64::from(from.y.0));
+    let (ex, ey) = (
+        i64::from(stage.tuning.spawn_edge_x.0),
+        i64::from(stage.tuning.spawn_edge_y.0),
+    );
+    let sides = rect_sides(px, py, ex, ey);
     let parts = sides.map(|side| side.on_map(w, h));
     let draw =
         |rng: &mut SplitMix64, n: i64| i64::from(rng.below(u32::try_from(n).unwrap_or(u32::MAX)));
     let (x, y) = match edge.side {
         Side::Any => {
-            // The on-map parts; with none on the map, the whole sides (moved onto it below).
-            let on_map = parts.iter().flatten().map(|(lo, hi)| hi - lo).sum::<i64>() > 0;
-            let part = |i: usize| {
-                if on_map {
-                    parts[i]
-                } else {
-                    Some((sides[i].lo, sides[i].hi))
-                }
-            };
-            let total: i64 = (0..4).filter_map(part).map(|(lo, hi)| hi - lo).sum();
-            let mut t = draw(rng, total);
-            let mut found = (px, py);
-            for (i, side) in sides.iter().enumerate() {
-                let Some((lo, hi)) = part(i) else { continue };
-                if t < hi - lo {
-                    found = side.at(lo, t);
-                    break;
-                }
-                t -= hi - lo;
-            }
-            found
+            let t = draw(rng, any_total(px, py, ex, ey, w, h));
+            any_point(px, py, ex, ey, w, h, t)
         }
         named => {
             let i = match named {
