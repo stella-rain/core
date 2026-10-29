@@ -15,8 +15,8 @@
 # Rust job waits on it (a push to main and every run off a PR run every job). `rust checks`
 # always runs and fails when a job it needs failed, was cancelled, or was skipped though it had
 # to run, so auto-merge.yml requires only that one check, which a docs-only PR passes too. A
-# newer push to a PR cancels the run of the older one. `frozen corpus unchanged` is the one job
-# besides `what changed` that always runs: a PR may not modify, delete or rename a frozen corpus file.
+# newer push to a PR cancels the run of the older one. `frozen corpus unchanged` runs on every PR,
+# docs-only ones too (its diff step): a PR may not modify, delete or rename a frozen corpus file.
 # Weekly, the whole workflow also runs on main, so a toolchain or runner change, or a main that
 # no push run re-tested (merges by GITHUB_TOKEN start none), fails within a week; PR-only jobs
 # are skipped and the benchmark counts without comparing. It is not a PR check, so auto-merge.yml
