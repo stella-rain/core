@@ -328,9 +328,10 @@ pub(crate) fn check_frozen_tree(tree: &Path) -> Result<(), String> {
     }
 }
 
-/// Test helper: copies a tree to `to` and writes its manifest, with the bundled pack stored when
-/// a case pins it (a frozen tree has no bundled fallback).
-pub(crate) fn freeze_copy(from: &Path, to: &Path) -> Result<(), String> {
+/// The record of a frozen version: copies the tree `from` to `to` byte for byte and writes its
+/// manifest, with the bundled pack stored when a case pins it (a frozen tree has no bundled
+/// fallback).
+pub(crate) fn record_frozen(from: &Path, to: &Path) -> Result<(), String> {
     fn copy(from: &Path, to: &Path) -> Result<(), String> {
         fs::create_dir_all(to).map_err(|e| e.to_string())?;
         for e in fs::read_dir(from).map_err(|e| e.to_string())? {
@@ -550,7 +551,7 @@ mod tests {
         let make = |name: &str| {
             let from = tree(name, "current", false);
             let to = from.parent().unwrap().join("v9");
-            freeze_copy(&from, &to).unwrap();
+            record_frozen(&from, &to).unwrap();
             to
         };
         let ok = make("edit-ok");

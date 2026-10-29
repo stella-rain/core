@@ -56,6 +56,13 @@ fn run(cmd: &mut Command) -> Result<(), String> {
 /// never writes it and fails when it is dirty.
 const CORPUS: &str = "tests/corpus/";
 
+/// A frozen folder is `v<N>` with N >= 1, digits only, no leading zero.
+fn is_frozen_name(name: &str) -> bool {
+    name.strip_prefix('v').is_some_and(|n| {
+        !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) && !n.starts_with('0')
+    })
+}
+
 /// The paths among `paths` that are inside a frozen corpus folder.
 fn frozen_dirty(paths: &[String]) -> Vec<String> {
     paths
@@ -63,13 +70,7 @@ fn frozen_dirty(paths: &[String]) -> Vec<String> {
         .filter(|p| {
             p.strip_prefix(CORPUS)
                 .and_then(|rest| rest.split('/').next())
-                .is_some_and(|dir| {
-                    dir.strip_prefix('v').is_some_and(|n| {
-                        !n.is_empty()
-                            && n.bytes().all(|b| b.is_ascii_digit())
-                            && !n.starts_with('0')
-                    })
-                })
+                .is_some_and(is_frozen_name)
         })
         .cloned()
         .collect()
