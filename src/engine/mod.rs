@@ -445,7 +445,7 @@ fn pool(ids: Option<&[ContentId]>, rewards: &Rewards) -> Result<Vec<u16>, Error>
 }
 
 mod snapshot;
-pub use snapshot::{Place, Places};
+pub use snapshot::{Place, Places, Tally};
 
 #[cfg(test)]
 mod hash_coverage_tests;

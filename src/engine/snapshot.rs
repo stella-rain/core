@@ -15,6 +15,36 @@ use crate::snapshot::{
 
 use super::{AttackRun, Engine, ShrineState, StatusState};
 
+/// A run's HUD tallies after the last tick or choice: what the events of the run said, kept by the engine
+/// outside the hashed state. A resumed run has the tally of the same run played straight.
+#[derive(Clone, Copy, Debug)]
+pub struct Tally<'a> {
+    stub: std::marker::PhantomData<&'a ()>,
+}
+
+impl<'a> Tally<'a> {
+    /// Enemies defeated: every `Died` whose class is `Enemy` (elites included; boss, parts, companions
+    /// and shrines are not), counting a mimic that dies in disguise. Saturates at `u32::MAX`.
+    pub fn kills(&self) -> u32 {
+        0
+    }
+
+    /// Each reward taken at least once, with the count its last `RewardTaken` carried, in the rewards file's order.
+    pub fn taken(&self) -> impl Iterator<Item = (&'a ContentId, u8)> + 'a {
+        std::iter::empty()
+    }
+
+    /// The star names of the `RewardTaken` events, in event order, repeats kept.
+    pub fn named(&self) -> &'a [String] {
+        &[]
+    }
+
+    /// Each constellation that announced a tier, with the last tier its `Constellation` event carried, in the pack's order.
+    pub fn tiers(&self) -> impl Iterator<Item = (&'a ContentId, u8)> + 'a {
+        std::iter::empty()
+    }
+}
+
 /// One drawn entity's id, kind and position (the fields of `EntityView` a frame needs to place an event).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Place {
@@ -37,6 +67,14 @@ pub struct Places {
 }
 
 impl Engine {
+    /// The run's HUD tallies: kills, rewards taken, named stars and constellation tiers, as the
+    /// run's events said them. Read only: it cannot change the state, the hash or the events.
+    pub fn tally(&self) -> Tally<'_> {
+        Tally {
+            stub: std::marker::PhantomData,
+        }
+    }
+
     /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
     /// these fields (and the player's position), without building a snapshot. Allocates only
     /// while `out` grows to the largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`

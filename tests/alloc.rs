@@ -499,3 +499,30 @@ fn places_at_the_cap_allocates_nothing_the_second_time() {
     );
     assert_eq!(counted(|| engine.places(&mut places)), (0, 0));
 }
+
+/// `Engine::tally` beside `step` in the steady window: the counts are kept by the observers and
+/// the read is a borrowed view, so neither allocates nor frees.
+#[test]
+fn tally_allocates_nothing_in_a_steady_tick() {
+    let mut engine = time_limit_case::warmed_up();
+    let from = time_limit_case::WARMUP_TICKS + 1;
+    for tick in from..from + 2 * STEADY_TICKS {
+        engine.step(time_limit_case::input(tick));
+    }
+    let from = from + 2 * STEADY_TICKS;
+    let mut per_tick = Vec::with_capacity(STEADY_TICKS as usize);
+    let mut seen = 0;
+    for tick in from..from + STEADY_TICKS {
+        per_tick.push(counted(|| {
+            engine.step(time_limit_case::input(tick));
+            let t = engine.tally();
+            seen += t.kills() as usize + t.taken().count() + t.named().len() + t.tiers().count();
+        }));
+    }
+    let at = nonzero(&per_tick, from);
+    assert!(
+        at.is_empty(),
+        "allocations and frees in {STEADY_TICKS} steady ticks of step plus tally, (tick, allocs, frees): {at:?}"
+    );
+    assert!(seen > 0, "the tally of the warmed-up run is empty");
+}
