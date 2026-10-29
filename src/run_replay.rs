@@ -61,6 +61,9 @@ pub const MAX_COMMANDS: u32 = 1000;
 /// a share code (`share`).
 pub const MAX_RUN_REPLAY_BYTES: usize = 1024 * 1024;
 
+/// A run replay holds the state hash after every this many ticks (ADR-REPL-4): one second.
+pub const CHECKPOINT_TICKS: u32 = 60;
+
 /// What the hash derived from files replaced one by one starts with, so that it cannot be
 /// mistaken for another SHA-256.
 const CONTENT_TAG: &[u8] = b"stella-rain run content v0\0";
@@ -78,6 +81,11 @@ pub struct RunReplay {
     /// The FNV-1a 64 state hash after the last tick and the commands after it (ADR-019), 16
     /// lowercase hex digits.
     pub final_hash: String,
+    /// The FNV-1a 64 state hash after every 60th tick (60, 120, 180, ...), each taken right
+    /// after that tick and before the commands that follow it, each 16 lowercase hex digits,
+    /// concatenated: `16 * (ticks / 60)` digits, empty for fewer than 60 ticks.
+    #[serde(default)]
+    pub checkpoints: String,
     /// The per-tick inputs, packed as a stage replay's are, then base64.
     pub inputs: String,
     /// The commands between ticks, packed as described in the module documentation, then
@@ -186,6 +194,12 @@ pub enum RunReplayError {
         expected: u32,
         given: usize,
     },
+    /// The `checkpoints` field is not one 16-digit hash per 60 ticks.
+    BadCheckpoints,
+    /// Re-simulation differs from the replay's checkpoint of this second (counted from 1).
+    CheckpointDiffers {
+        second: u32,
+    },
     /// A replay prefix re-simulates to another state at its cut than its hash says.
     PrefixHashDiffers {
         tick: u32,
@@ -251,6 +265,15 @@ impl fmt::Display for RunReplayError {
             RunReplayError::HashCount { expected, given } => {
                 write!(f, "expected {expected} per-tick hashes, got {given}")
             }
+            RunReplayError::BadCheckpoints => {
+                f.write_str("the replay's checkpoints are not one 16-digit hash per 60 ticks")
+            }
+            RunReplayError::CheckpointDiffers { second } => write!(
+                f,
+                "the run differs from the replay's checkpoint of second {second} (between tick {} and tick {})",
+                (second - 1) * CHECKPOINT_TICKS,
+                second * CHECKPOINT_TICKS
+            ),
             RunReplayError::PrefixHashDiffers { tick } => write!(
                 f,
                 "the run re-simulated to tick {tick} reaches another state than the replay prefix says"
@@ -585,6 +608,7 @@ impl RunRecorder {
             content_sha256: self.content_sha256.clone(),
             ticks: self.engine.tick(),
             final_hash: hash_to_hex(self.engine.state_hash()),
+            checkpoints: String::new(),
             inputs: pack_inputs(&self.inputs),
             commands: pack_commands(&self.commands),
         }
