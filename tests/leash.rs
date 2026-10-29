@@ -1,6 +1,6 @@
-//! The leash (EC2, DS80, DS106): a regular enemy outside the reach rectangle around the main
-//! character (|dx| > 840 px or |dy| > 360 px) moves to the rectangle of ±484 × ±244 px on the
-//! opposite side of it, scaled along its own direction and clamped to the map, at most 16 a tick,
+//! The leash (EC2, DS80, DS106): a regular enemy outside the reach rectangle around the view's
+//! centre, the main character held 420 x / 180 y px inside the map (|dx| > 840 px or |dy| > 360
+//! px), moves to the rectangle of ±484 × ±244 px on the opposite side of that centre, scaled along its own direction and clamped to the map, at most 16 a tick,
 //! in entity-ID order; and `Load` counts the relocations and the spawns the caps refused.
 
 use crate::common;
@@ -163,8 +163,11 @@ fn landing_on_the_horizontal_sides_truncates_toward_zero() {
 
 #[test]
 fn a_relocation_near_the_map_edge_lands_on_the_map() {
-    assert_eq!(lands(100, 2000, 941, 2000), (0, 2000 * PX));
-    assert_eq!(lands(2000, 100, 2000, 461), (2000 * PX, 0));
+    // The centre is (3580, 2000): the enemy is 841 px to its left, lands at 3580 + 484 = 4064
+    // and is clamped to the map's right border.
+    assert_eq!(lands(3900, 2000, 2739, 2000), (4000 * PX, 2000 * PX));
+    // The centre is (2000, 3820): 361 px above it, the landing 3820 + 244 = 4064 is clamped.
+    assert_eq!(lands(2000, 3900, 2000, 3459), (2000 * PX, 4000 * PX));
 }
 
 #[test]

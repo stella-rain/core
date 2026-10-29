@@ -1,8 +1,11 @@
 //! The leash (EC2, DS80, DS106): the crowd trails out of reach of a main character who is faster
-//! than most enemies, so a regular enemy outside the reach rectangle around the main character
-//! (more than `leash_reach_x` to the side or `leash_reach_y` above or below, from
-//! `rules.json`) moves to the rectangle of `leash_land_x` by `leash_land_y` around it, on the side opposite where it was,
-//! scaled along its own direction and clamped to the map, and chases from there. At most
+//! than most enemies, so a regular enemy outside the reach rectangle around the view's centre
+//! (`view_centre`, the camera's clamped centre, which is the main character away from a map
+//! edge; more than `leash_reach_x` to the side or `leash_reach_y` above or below, from
+//! `rules.json`) moves to the rectangle of `leash_land_x` by `leash_land_y` around that centre,
+//! on the side opposite where it was, scaled along its own direction and clamped to the map,
+//! and chases from there. Spawns are on the same centre's rectangle, so none is beyond the
+//! reach on its spawn tick. At most
 //! `MAX_LEASH_MOVES_PER_TICK` move in a tick, in entity-ID order.
 //!
 //! Who moves: an enemy with no `elite` state (so no elite, mimic or shrine), no `leave` state
@@ -20,7 +23,8 @@ use crate::fixed::{Fx, Point};
 
 /// Moves the enemies the leash catches; returns how many moved.
 pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) -> u32 {
-    let player = s.player.at;
+    let map = stage.map();
+    let centre = super::view_centre(&map, s.player.at);
     let reach_x = i64::from(stage.tuning.leash_reach_x.0);
     let reach_y = i64::from(stage.tuning.leash_reach_y.0);
     let mut moved = 0;
@@ -29,8 +33,8 @@ pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEven
             break;
         }
         let e = &s.enemies[i];
-        let dx = i64::from(e.at.x.0) - i64::from(player.x.0);
-        let dy = i64::from(e.at.y.0) - i64::from(player.y.0);
+        let dx = i64::from(e.at.x.0) - i64::from(centre.x.0);
+        let dy = i64::from(e.at.y.0) - i64::from(centre.y.0);
         if (dx.abs() <= reach_x && dy.abs() <= reach_y)
             || e.hp == 0
             || e.elite.is_some()
@@ -41,9 +45,9 @@ pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEven
             continue;
         }
         let (ox, oy) = landing_offset(stage, dx, dy);
-        let to = stage.map().clamp(Point {
-            x: player.x.saturating_add(Fx(ox)),
-            y: player.y.saturating_add(Fx(oy)),
+        let to = map.clamp(Point {
+            x: centre.x.saturating_add(Fx(ox)),
+            y: centre.y.saturating_add(Fx(oy)),
         });
         let e = &mut s.enemies[i];
         e.at = to;
@@ -55,7 +59,7 @@ pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEven
     moved
 }
 
-/// The offset from the main character to the landing point of an enemy at (`dx`, `dy`) from it,
+/// The offset from the view's centre to the landing point of an enemy at (`dx`, `dy`) from it,
 /// outside the reach rectangle: mirrored, and scaled along the enemy's own direction until it
 /// meets the landing rectangle. Integer division truncates toward zero.
 fn landing_offset(stage: &World, dx: i64, dy: i64) -> (i32, i32) {

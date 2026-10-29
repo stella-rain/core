@@ -65,7 +65,7 @@ pub struct Load {
     /// Wave spawns the spawn director held in the tick because the crowd was at its target
     /// (DIR1, DS103): horde runs only. They are not refused or lost: the wave's schedule slides.
     pub held_spawns: u32,
-    /// Enemies the leash moved just outside the view, opposite the main character, in the tick (EC2, DS80).
+    /// Enemies the leash moved just outside the view, on the side opposite the view's centre, in the tick (EC2, DS80).
     pub relocated: u32,
 }
 

@@ -301,20 +301,41 @@ fn near_a_map_edge_the_spawn_rectangle_is_the_cameras_not_the_main_characters() 
 
 #[test]
 fn no_spawn_near_a_map_edge_is_relocated_on_its_spawn_tick() {
-    // (main character, edge, spawn point in px). The far-side spawns are 874 x or 394 y px from
+    // (main character, edge, spawn point in px); `along` fixes the point with no draw. The
+    // far-side spawns are 874 x or 394 y px from
     // the main character, past the reach of 840 x 360, and 484 or 244 px from the centre.
     let cases: [((i32, i32), Value, (i64, i64)); 6] = [
-        ((30, 2000), json!({ "side": "right" }), (904, 2000)),
-        ((3970, 2000), json!({ "side": "left" }), (3096, 2000)),
-        ((2000, 30), json!({ "side": "bottom" }), (2000, 424)),
-        ((2000, 3970), json!({ "side": "top" }), (2000, 3576)),
+        (
+            (30, 2000),
+            json!({ "side": "right", "along": 0 }),
+            (904, 2000),
+        ),
+        (
+            (3970, 2000),
+            json!({ "side": "left", "along": 0 }),
+            (3096, 2000),
+        ),
+        (
+            (2000, 30),
+            json!({ "side": "bottom", "along": 0 }),
+            (2000, 424),
+        ),
+        (
+            (2000, 3970),
+            json!({ "side": "top", "along": 0 }),
+            (2000, 3576),
+        ),
         (
             (30, 30),
             json!({ "side": "right", "along": 1000 }),
             (904, 424),
         ),
         // Mid-map, the centre is the main character.
-        ((2000, 2000), json!({ "side": "right" }), (2484, 2000)),
+        (
+            (2000, 2000),
+            json!({ "side": "right", "along": 0 }),
+            (2484, 2000),
+        ),
     ];
     for ((x, y), edge, (sx, sy)) in cases {
         let stage = map_stage(4000, 4000, x, y, vec![edge_wave(0, 1, edge.clone())]);
