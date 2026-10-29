@@ -15,7 +15,8 @@
 # Rust job waits on it (a push to main and every run off a PR run every job). `rust checks`
 # always runs and fails when a job it needs failed, was cancelled, or was skipped though it had
 # to run, so auto-merge.yml requires only that one check, which a docs-only PR passes too. A
-# newer push to a PR cancels the run of the older one.
+# newer push to a PR cancels the run of the older one. `frozen corpus unchanged` is the one job
+# besides `what changed` that always runs: a PR may not modify, delete or rename a frozen corpus file.
 # Weekly, the whole workflow also runs on main, so a toolchain or runner change, or a main that
 # no push run re-tested (merges by GITHUB_TOKEN start none), fails within a week; PR-only jobs
 # are skipped and the benchmark counts without comparing. It is not a PR check, so auto-merge.yml
@@ -151,6 +152,48 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo xtask bless --check
+
+  # A frozen corpus version (`tests/corpus/v<N>/`, N >= 1) is never edited: new versions and new
+  # files may be added, nothing in one may be modified, deleted or renamed. The diff against the
+  # PR's base catches what the test cannot (a deleted folder, a restored old byte); the test
+  # (`corpus::the_frozen_corpus_is_unchanged`) checks the manifest. It runs on every PR, docs-only
+  # ones too (the diff step), and `rust checks` fails when it is skipped. A pathspec such as
+  # `-- 'tests/corpus/v[1-9]*/'` matches nothing in git, so the names are filtered with grep;
+  # `--no-renames` lists a file moved out of a frozen folder as a deletion of its old path.
+  frozen:
+    name: frozen corpus unchanged
+    needs: changes
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Nothing in a frozen corpus folder changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --no-renames --diff-filter=MDR --name-only "$BASE"...HEAD | grep -E '^tests/corpus/v[1-9][0-9]*/' || true)
+          if [ -n "$changed" ]; then
+            echo "::error::a frozen corpus folder (tests/corpus/v<N>/, N >= 1) was changed; new folders and new files may be added, nothing in one may be modified, deleted or renamed:"
+            echo "$changed" >&2
+            exit 1
+          fi
+          echo "no frozen corpus file changed"
+      - if: needs.changes.outputs.code == 'true'
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - if: needs.changes.outputs.code == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - if: needs.changes.outputs.code == 'true'
+        run: cargo test --locked --test integration corpus::the_frozen
 
   test:
     name: tests on ${{ matrix.arch }}
@@ -701,7 +744,7 @@ jobs:
   # `what changed` says no; every other skipped, failed or cancelled job fails this one.
   checks:
     name: rust checks
-    needs: [changes, fuzz-changes, lint, bless, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench-list, bench, bench-profile, cargo-deny]
+    needs: [changes, fuzz-changes, lint, bless, frozen, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench-list, bench, bench-profile, cargo-deny]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -722,6 +765,7 @@ jobs:
             result=$(jq -r --arg j "$job" '.[$j].result' <<<"$NEEDS")
             case "$job" in
               changes) runs=true ;;
+              frozen) runs=true ;;
               fuzz-changes) runs=$pr ;;
               # No `parsing` off a PR, or when `parsing changed` failed, which fails this anyway.
               fuzz-short) runs=false; if [ "$parsing" = true ]; then runs=true; fi ;;
