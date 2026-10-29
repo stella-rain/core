@@ -731,7 +731,7 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rules_v0::{RunDifficulty, RunPool, initial_state};
+    use crate::sim::{RunDifficulty, RunPool, initial_state};
     use crate::run_content::RunContent;
     use crate::version::Versions;
 

@@ -24,7 +24,7 @@ fn gone(distance: i64, axis: i32, k: i64, ticks: i64) -> i64 {
 
 /// Every attacker whose run is in a dashing phase moves one share along its facing, in run
 /// order.
-// Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
+// Kept out of `sim::step`, so the tick-cost gate measures the rules, not the inliner
 // (ADR-058).
 #[inline(never)]
 pub(super) fn act(stage: &World, s: &mut State) {

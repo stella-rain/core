@@ -4,7 +4,7 @@
 //! content files: a size limit before parsing, strict parsing, the current versions only, every
 //! content ID in the registry, and each number under a named cap. Only the file is read here;
 //! its end and the elites come in later steps. The elite table and the elite cap (ADR-090) are
-//! read by the run's elite minutes (`rules_v0::horde`, ADR-090).
+//! read by the run's elite minutes (`sim::horde`, ADR-090).
 //!
 //! Step b (core#212) adds the schedule: `waves`, the enemies that spawn over the run, as a stage's
 //! waves do (`stage::Wave`), checked as a stage's are with larger caps and without elites.

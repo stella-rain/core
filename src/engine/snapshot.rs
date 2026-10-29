@@ -6,7 +6,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::ledger::Counted;
 use crate::rewards::{MAX_BURST_DEPTH, Rewards};
-use crate::rules_v0;
+use crate::sim;
 use crate::snapshot::{
     AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, EntityKind, EntityView,
     EvadeView, ExpertiseView, Facing, HealPickupView, HoldView, MapView, OrbView, OrbitView,
@@ -146,7 +146,7 @@ impl Engine {
     pub fn snapshot(&self) -> Snapshot {
         let s = &self.state;
         let view = |r: &AttackRun| {
-            let p = rules_v0::phase(&self.stage, r, r.phase as usize);
+            let p = sim::phase(&self.stage, r, r.phase as usize);
             AttackView {
                 slot: r.slot,
                 preset: self.stage.attacks[usize::from(r.attack.0)].preset.clone(),
@@ -168,7 +168,7 @@ impl Engine {
         };
         let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
         // The auras of the elites, read once: an enemy within reach of one is strengthened.
-        let auras: Vec<_> = rules_v0::aura_sources(&self.stage, s).collect();
+        let auras: Vec<_> = sim::aura_sources(&self.stage, s).collect();
         let mut entities = Vec::new();
         if let Some((boss, b)) = s.boss.as_ref().map(|b| (&self.stage.boss(b.boss).boss, b)) {
             if b.hp > 0 {
@@ -200,7 +200,7 @@ impl Engine {
                     // Only a non-elite enemy is strengthened by an aura (ADR-090).
                     let reached = kind == EntityKind::Enemy
                         && a.elite.is_none()
-                        && rules_v0::aura_percent(auras.iter().copied(), a.at) > 0;
+                        && sim::aura_percent(auras.iter().copied(), a.at) > 0;
                     out.push(EntityView {
                         id: a.id,
                         kind: a.entity_kind(kind),
@@ -291,7 +291,7 @@ impl Engine {
                     dash_left: s.player.dash.map_or(0, |d| d.left),
                 },
                 combo: {
-                    let (presses, dash, buffered, window_left, auto) = rules_v0::combo_view(s);
+                    let (presses, dash, buffered, window_left, auto) = sim::combo_view(s);
                     ComboView {
                         presses,
                         dash,
@@ -300,15 +300,15 @@ impl Engine {
                         auto,
                     }
                 },
-                charge: rules_v0::charge_view(&self.stage, s).map(|(level, held, perfect)| {
+                charge: sim::charge_view(&self.stage, s).map(|(level, held, perfect)| {
                     ChargeView {
                         level,
                         held,
                         perfect,
                     }
                 }),
-                auto_charge: rules_v0::auto_charge_view(s),
-                hold: rules_v0::hold_view(&self.stage, s)
+                auto_charge: sim::auto_charge_view(s),
+                hold: sim::hold_view(&self.stage, s)
                     .map(|(held, max_ticks)| HoldView { held, max_ticks }),
                 target: s.player.target,
                 skill: s.player.skill.and_then(|slot| {
@@ -380,7 +380,7 @@ impl Engine {
                     let mut runs: Vec<&AttackRun> = s
                         .runs
                         .iter()
-                        .filter(|r| r.owner == rules_v0::PLAYER_ID)
+                        .filter(|r| r.owner == sim::PLAYER_ID)
                         .collect();
                     runs.sort_by_key(|r| r.slot);
                     runs.into_iter().map(view).collect()
@@ -417,7 +417,7 @@ impl Engine {
                 .iter()
                 .enumerate()
                 .map(|(i, b)| {
-                    let beam = rules_v0::beam_to(&s.orbs, i);
+                    let beam = sim::beam_to(&s.orbs, i);
                     OrbView {
                         at: b.at,
                         vx: b.vx,
@@ -440,7 +440,7 @@ impl Engine {
                     })
                     .collect()
             }),
-            constellations: rules_v0::constellation_views(self.content.rewards(), s),
+            constellations: sim::constellation_views(self.content.rewards(), s),
             heal_pickups: s.heal_pickups.as_ref().map_or_else(Vec::new, |h| {
                 h.iter()
                     .map(|p| HealPickupView { id: p.id, at: p.at })
@@ -449,14 +449,14 @@ impl Engine {
             progress: s.progress.as_ref().map(|p| ProgressView {
                 level: p.level,
                 xp: p.xp,
-                xp_next: rules_v0::xp_next(&self.stage, p.level),
+                xp_next: sim::xp_next(&self.stage, p.level),
                 spent: p.spent.clone(),
-                stat_offer: rules_v0::stat_offer_view(s),
-                offer: rules_v0::offer_view(self.content.rewards(), s),
+                stat_offer: sim::stat_offer_view(s),
+                offer: sim::offer_view(self.content.rewards(), s),
             }),
             expertise: s.expertise.as_ref().map(|g| {
                 let (style, path) =
-                    rules_v0::expertise_styles_view(&self.stage, self.content.expertise(), g);
+                    sim::expertise_styles_view(&self.stage, self.content.expertise(), g);
                 ExpertiseView {
                     level: g.level,
                     points: g.points,
@@ -464,10 +464,10 @@ impl Engine {
                     taken: g.taken.clone(),
                     style,
                     path,
-                    offer: rules_v0::expertise_offer_view(&self.stage, self.content.expertise(), s),
+                    offer: sim::expertise_offer_view(&self.stage, self.content.expertise(), s),
                 }
             }),
-            patterns: rules_v0::announced_patterns(&self.stage, s),
+            patterns: sim::announced_patterns(&self.stage, s),
             stardust: s.stardust,
         }
     }

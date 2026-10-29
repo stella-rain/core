@@ -20,7 +20,7 @@ use crate::rune::Rune;
 use std::sync::OnceLock;
 
 use crate::engine::Horde;
-use crate::rules_v0::HordeSpec;
+use crate::sim::HordeSpec;
 use crate::stage::{Map, Stage, StardustFactor, Wave};
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};

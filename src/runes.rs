@@ -1,9 +1,9 @@
 //! The runes file (ADR-099, ADR-067: data picks, code acts): each rune's numbers. What a rune
-//! does is code (`rules_v0`'s runes); when it fires and how hard is this file's. An on-hit
+//! does is code (`sim`'s runes); when it fires and how hard is this file's. An on-hit
 //! rune has a cooldown, a base damage and its own attack: phases as any attack's, whose hit
 //! boxes are centred on the point the combo step hit instead of on the main character.
 //!
-//! Boomerang's attack is its throw (`rules_v0`'s runes): exactly two phases, out and back, each
+//! Boomerang's attack is its throw (`sim`'s runes): exactly two phases, out and back, each
 //! active with a hit box. Homing missiles' is one missile's flight: exactly one phase, active
 //! with a hit box. Only its entry has `missiles`, 1 to `MAX_HOMING_MISSILES` launched together,
 //! and `range`, 1 to `MAX_ASSIST_RANGE`, within which they pick their targets; both are

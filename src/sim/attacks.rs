@@ -808,7 +808,7 @@ fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEv
 }
 
 /// Orbs whose lifetime is over start their bursts, to be carried out this tick.
-// Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
+// Kept out of `sim::step`, so the tick-cost gate measures the rules, not the inliner
 // (ADR-058).
 #[inline(never)]
 pub(super) fn fire_hooks(s: &mut State) {
@@ -1479,7 +1479,7 @@ mod attack_table_tests {
     use super::*;
     use crate::attack::Offset;
     use crate::engine::{Aim, Dir};
-    use crate::rules_v0::world::World;
+    use crate::sim::world::World;
     use crate::run_content::RunContent;
 
     // The two functions below are `faster` and `wider` as they were before attacks were compiled

@@ -15,7 +15,7 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{Error, Issue, validate};
 
 const PX: i32 = 256;
-/// The caps of `rules_v0`.
+/// The caps of `sim`.
 const MAX_ORBS_PER_OWNER: usize = 8;
 const MAX_ORBS_ALIVE: usize = 32;
 

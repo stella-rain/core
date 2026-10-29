@@ -224,11 +224,11 @@ mod tests {
     fn limits_match_runtime_constants() {
         assert_eq!(
             i64::from(VIEW_HALF_WIDTH) * 256,
-            i64::from(crate::rules_v0::VIEW_HALF_WIDTH.0)
+            i64::from(crate::sim::VIEW_HALF_WIDTH.0)
         );
         assert_eq!(
             i64::from(VIEW_HALF_HEIGHT) * 256,
-            i64::from(crate::rules_v0::VIEW_HALF_HEIGHT.0)
+            i64::from(crate::sim::VIEW_HALF_HEIGHT.0)
         );
         assert_eq!(SPAWN_EDGE_X, VIEW_HALF_WIDTH + SPAWN_MARGIN);
         assert_eq!(SPAWN_EDGE_Y, VIEW_HALF_HEIGHT + SPAWN_MARGIN);

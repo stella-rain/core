@@ -155,7 +155,7 @@ pub(super) fn offsets_into(bodies: &[Body], grid: &mut Grid, out: &mut Vec<(i32,
 /// The pass: every enemy moves by its sum. A push never carries an enemy from the map off it;
 /// one already off the map is pushed freely, and is gone once it is past the map's margin, as
 /// an enemy that walks there is.
-// Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
+// Kept out of `sim::step`, so the tick-cost gate measures the rules, not the inliner
 // (ADR-058).
 #[inline(never)]
 pub(super) fn apply(stage: &World, s: &mut State) {

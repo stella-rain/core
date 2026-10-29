@@ -40,7 +40,7 @@ pub mod replay;
 pub mod rewards;
 pub mod rng;
 pub mod rules;
-pub(crate) mod rules_v0;
+pub(crate) mod sim;
 pub mod run_content;
 pub mod run_replay;
 pub mod run_setup;

@@ -1,6 +1,6 @@
 //! Agents (ADR-036 tier 1): rule lists, selectors, conditions, statuses, aggro, movement,
 //! summons and the skills they cast. Small stages whose every tick can be
-//! worked out by hand; the expected numbers come from the constants in `rules_v0`.
+//! worked out by hand; the expected numbers come from the constants in `sim`.
 
 use crate::common;
 

@@ -200,7 +200,7 @@ mod tests {
     use super::*;
     use crate::fixed::Point;
     use crate::rewards::Rarity;
-    use crate::rules_v0::{RunDifficulty, RunPool, initial_state};
+    use crate::sim::{RunDifficulty, RunPool, initial_state};
     use crate::run_content::RunContent;
 
     fn state() -> State {
@@ -291,7 +291,7 @@ mod tests {
 
     fn with_enemy(s: &mut State, id: u32, hp: u32) {
         use crate::engine::{AgentKey, AgentSource};
-        use crate::rules_v0::agents::new_agent;
+        use crate::sim::agents::new_agent;
         let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let key = AgentKey {
             source: AgentSource::Wave,

@@ -11,7 +11,7 @@ use crate::id::{ContentId, EntityId};
 use crate::kinds::KindIndex;
 use crate::pack::ContentFiles;
 use crate::rewards::Rarity;
-use crate::rules_v0::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool};
+use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool};
 use crate::run_content::RunContent;
 use crate::rune::Rune;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind};

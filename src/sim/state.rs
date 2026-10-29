@@ -10,7 +10,7 @@ use crate::kinds::{KindIndex, KindTable};
 use crate::match_ups::MatchUps;
 use crate::rewards::Rarity;
 use crate::rng::{SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_OFFER, TAG_SPAWN, derive};
-use crate::rules_v0::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool, World};
+use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool, World};
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::runes::Runes;
@@ -68,7 +68,7 @@ impl Streams {
 #[derive(Clone, Debug)]
 pub(crate) struct State {
     /// Buffers reused from tick to tick; not part of the state (not hashed, not cloned).
-    pub scratch: crate::rules_v0::Scratch,
+    pub scratch: crate::sim::Scratch,
     /// The run's kinds, fixed at its start (core#271).
     pub kinds: KindTable,
     pub tick: u32,
@@ -1080,7 +1080,7 @@ pub(crate) struct MoveIndex {
 impl MoveIndex {
     /// Room for `owners` entries (DIR1): one per attacker that can have a run.
     pub fn reserve(&mut self, owners: usize) {
-        crate::rules_v0::scratch::reserve_to(&mut self.by_owner, owners);
+        crate::sim::scratch::reserve_to(&mut self.by_owner, owners);
     }
 
     /// The speed `owner`'s runs leave it, 100 with none.
