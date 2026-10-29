@@ -133,7 +133,7 @@ pub fn validate(
     let perk_set_known = |id: &ContentId| perk_sets.index_of(id).is_some();
     let stage_skill_known = |id: &ContentId| stage_skills.index_of(id).is_some();
     let rune_known = |id: &ContentId| {
-        Rune::from_id(&id.0).is_some_and(|rune| {
+        Rune::from_id(id.as_str()).is_some_and(|rune| {
             runes.on_hit(rune).is_some() || runes.damage_over_time(rune).is_some()
         })
     };
@@ -154,7 +154,7 @@ pub fn validate(
         ),
     ] {
         let path = format!("$.{name}");
-        if !registry::is_well_formed(&id.0) {
+        if !registry::is_well_formed(id.as_str()) {
             issues.push(Issue {
                 path,
                 message: "not a valid ID (lowercase snake_case, at most 32 characters)".into(),
@@ -187,7 +187,7 @@ pub fn validate(
         }
         for (i, id) in list.iter().enumerate() {
             let path = format!("$.{name}[{i}]");
-            if !registry::is_well_formed(&id.0) {
+            if !registry::is_well_formed(id.as_str()) {
                 issues.push(Issue {
                     path,
                     message: "not a valid ID (lowercase snake_case, at most 32 characters)".into(),

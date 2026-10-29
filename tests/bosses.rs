@@ -40,16 +40,16 @@ fn setup() -> RunSetup {
 fn definition<'a>(mode: &'a TimeLimit, id: &str) -> &'a Boss {
     mode.bosses()
         .iter()
-        .find(|b| b.base.0 == id)
+        .find(|b| b.base.as_str() == id)
         .unwrap_or_else(|| panic!("no definition of {id}"))
 }
 
 #[test]
 fn the_pool_holds_the_four_mid_bosses_and_the_final_boss_is_the_core_pair() {
     let m = TimeLimit::bundled();
-    let pool: Vec<&str> = m.mid_boss_pool().iter().map(|id| id.0.as_str()).collect();
+    let pool: Vec<&str> = m.mid_boss_pool().iter().map(|id| id.as_str()).collect();
     assert_eq!(pool, MID_BOSSES);
-    assert_eq!(m.final_boss().0, "core_pair");
+    assert_eq!(m.final_boss().as_str(), "core_pair");
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn the_weaver_has_three_phases_and_the_other_mid_bosses_two() {
 #[test]
 fn the_final_boss_has_two_cores_and_three_phases() {
     let core_pair = definition(TimeLimit::bundled(), "core_pair");
-    let parts: Vec<&str> = core_pair.parts.iter().map(|p| p.id.0.as_str()).collect();
+    let parts: Vec<&str> = core_pair.parts.iter().map(|p| p.id.as_str()).collect();
     assert_eq!(parts, ["core_left", "core_right"]);
     assert!(core_pair.parts.iter().all(|p| p.hp > 0));
     assert_eq!(core_pair.phases.len(), 3);

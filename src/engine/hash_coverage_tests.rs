@@ -94,7 +94,7 @@ impl<A: Perturb, B> Perturb for (A, B) {
 
 impl Perturb for ContentId {
     fn perturb(&mut self) {
-        self.0.push('x');
+        *self = ContentId::from(format!("{self}x"));
     }
 }
 

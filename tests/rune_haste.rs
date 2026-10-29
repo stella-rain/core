@@ -96,7 +96,7 @@ fn bleed_of(e: &Engine, id: EntityId) -> DamageOverTimeView {
         .and_then(|en| {
             en.damage_over_time
                 .into_iter()
-                .find(|d| d.status.0 == "bleed")
+                .find(|d| d.status.as_str() == "bleed")
         })
         .expect("the bleed on the target")
 }
@@ -184,7 +184,12 @@ fn every_damage_over_time_kind_is_shortened() {
         .find(|en| en.id == target)
         .unwrap()
         .damage_over_time;
-    let next = |kind: &str| on.iter().find(|d| d.status.0 == kind).unwrap().next_tick_in;
+    let next = |kind: &str| {
+        on.iter()
+            .find(|d| d.status.as_str() == kind)
+            .unwrap()
+            .next_tick_in
+    };
     assert_eq!(
         (next("bleed"), next("poison"), next("burn")),
         (20, 400, 400)
@@ -279,7 +284,7 @@ fn a_run_with_haste_records_and_verifies() {
             let at = offer.and_then(|o| {
                 o.candidates
                     .iter()
-                    .position(|c| !c.hidden && c.reward.0 == "rune_haste")
+                    .position(|c| !c.hidden && c.reward.as_str() == "rune_haste")
             });
             taken |= at.is_some();
             recorder

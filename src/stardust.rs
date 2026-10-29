@@ -95,7 +95,7 @@ impl Stardust {
 
     /// The entry of mode `id`, `None` for a mode the file has none for.
     pub fn mode(&self, id: &str) -> Option<&ModeStardust> {
-        self.file.modes.iter().find(|m| m.id.0 == id)
+        self.file.modes.iter().find(|m| m.id.as_str() == id)
     }
 
     /// The SHA-256 of the bytes it was parsed from.
@@ -122,14 +122,14 @@ pub fn validate(file: &StardustFile) -> Result<(), Error> {
                 message,
             });
         };
-        if !registry::is_well_formed(&mode.id.0) {
+        if !registry::is_well_formed(mode.id.as_str()) {
             bad(
                 ".id",
                 "not a valid ID (lowercase snake_case, at most 32 characters)".into(),
             );
         } else if file.modes[..i].iter().any(|m| m.id == mode.id) {
             bad(".id", "the same mode as an earlier entry".into());
-        } else if registry::find(registry::ENTRIES, Kind::Mode, &mode.id.0).is_none() {
+        } else if registry::find(registry::ENTRIES, Kind::Mode, mode.id.as_str()).is_none() {
             bad(".id", "not a mode the game holds".into());
         }
         let mut shares_ok = true;

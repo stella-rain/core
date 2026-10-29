@@ -383,10 +383,10 @@ fn settles_everything(data: &[u8], pack: &Pack) {
         .map(|d| &d.id)
         .collect();
     for mode in ["trial", "time_limit", "tutorial"] {
-        let mode = ContentId(mode.to_owned());
+        let mode = ContentId::from(mode);
         let cap = content
             .stardust()
-            .mode(&mode.0)
+            .mode(mode.as_str())
             .map_or(u64::MAX, |m| u64::from(m.bank_cap) * 10);
         for difficulty in &file {
             let bank = Bank::new(vec![((mode.clone(), (*difficulty).clone()), held)]);
@@ -410,7 +410,7 @@ fn settles_everything(data: &[u8], pack: &Pack) {
                     assert!(s.opened.is_empty() && s.rune_shards == 0);
                 }
                 let after = s.bank_after.get(&mode, difficulty);
-                let banking = content.stardust().mode(&mode.0).is_some_and(|m| m.bank);
+                let banking = content.stardust().mode(mode.as_str()).is_some_and(|m| m.bank);
                 match (banking, outcome) {
                     (true, RunOutcome::Cleared) => {
                         assert_eq!(after, 0, "a clear left a bank");

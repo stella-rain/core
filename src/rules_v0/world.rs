@@ -489,7 +489,7 @@ impl World {
             tree: Some(tree),
         } = main
         {
-            if let Some(message) = content.weapons().tree_problem(&id.0, &tree.0) {
+            if let Some(message) = content.weapons().tree_problem(id.as_str(), tree.as_str()) {
                 return Err(Issue {
                     path: "$.player.weapon.preset.tree".into(),
                     message: message.into(),

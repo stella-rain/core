@@ -74,7 +74,7 @@ fn statuses(e: &Engine, id: EntityId, name: &str) -> Vec<DamageOverTimeView> {
         .map(|en| en.damage_over_time)
         .unwrap_or_default()
         .into_iter()
-        .filter(|d| d.status.0 == name)
+        .filter(|d| d.status.as_str() == name)
         .collect()
 }
 
@@ -100,7 +100,7 @@ fn a_combo_step_hit_applies_the_status() {
             e.events().iter().any(|ev| matches!(
                 ev,
                 DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180 }
-                    if *t == target && status.0 == name
+                    if *t == target && status.as_str() == name
             )),
             "{name}"
         );
@@ -178,7 +178,7 @@ fn it_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
                         status,
                         stacks: n,
                         duration_ticks,
-                    } if *id == target && status.0 == name => {
+                    } if *id == target && status.as_str() == name => {
                         assert_eq!(*duration_ticks, 180);
                         stacks.push(*n);
                     }
@@ -304,8 +304,8 @@ fn a_run_holding_poison_and_burn_records_and_verifies() {
         }
         for ev in recorder.engine().events() {
             if let DomainEvent::StatusApplied { status, .. } = ev {
-                poisoned |= status.0 == "poison";
-                burnt |= status.0 == "burn";
+                poisoned |= status.as_str() == "poison";
+                burnt |= status.as_str() == "burn";
             }
         }
     }

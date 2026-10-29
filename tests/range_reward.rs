@@ -109,7 +109,7 @@ fn take(e: &mut Engine, reward: &str) {
     let candidate = offer
         .candidates
         .iter()
-        .position(|c| c.reward.0 == reward)
+        .position(|c| c.reward.as_str() == reward)
         .unwrap_or_else(|| panic!("{reward} is not offered"));
     let option = OfferOption::Take {
         candidate: u8::try_from(candidate).unwrap(),
@@ -123,7 +123,7 @@ fn offered(e: &Engine) -> Vec<String> {
     let mut ids: Vec<String> = offer
         .candidates
         .iter()
-        .map(|c| c.reward.0.clone())
+        .map(|c| c.reward.to_string())
         .collect();
     ids.sort();
     ids

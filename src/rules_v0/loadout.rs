@@ -48,7 +48,7 @@ impl Loadout {
             starting_rune: setup
                 .starting_rune
                 .as_ref()
-                .and_then(|id| Rune::from_id(&id.0)),
+                .and_then(|id| Rune::from_id(id.as_str())),
         }
     }
 }

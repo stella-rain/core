@@ -58,7 +58,7 @@ fn statuses(e: &Engine, id: EntityId) -> Vec<DamageOverTimeView> {
         .map(|en| en.damage_over_time)
         .unwrap_or_default()
         .into_iter()
-        .filter(|d| d.status.0 == "bleed")
+        .filter(|d| d.status.as_str() == "bleed")
         .collect()
 }
 
@@ -85,11 +85,11 @@ fn a_combo_step_hit_applies_bleed() {
     assert!(e.events().iter().any(|ev| matches!(
         ev,
         DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180 }
-            if *t == target && status.0 == "bleed"
+            if *t == target && status.as_str() == "bleed"
     )));
     let bleed = statuses(&e, target);
     assert_eq!(bleed.len(), 1);
-    assert_eq!(bleed[0].status.0, "bleed");
+    assert_eq!(bleed[0].status.as_str(), "bleed");
     assert_eq!(
         (bleed[0].stacks, bleed[0].ticks_left, bleed[0].next_tick_in),
         (1, 180, 30)
@@ -133,7 +133,7 @@ fn bleed_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
                     status,
                     stacks: n,
                     duration_ticks,
-                } if *id == target && status.0 == "bleed" => {
+                } if *id == target && status.as_str() == "bleed" => {
                     assert_eq!(*duration_ticks, 180);
                     stacks.push(*n);
                 }
@@ -188,7 +188,10 @@ fn each_enemy_has_its_own_bleed() {
         .entities
         .iter()
         .filter_map(|en| {
-            let bleed = en.damage_over_time.iter().find(|d| d.status.0 == "bleed");
+            let bleed = en
+                .damage_over_time
+                .iter()
+                .find(|d| d.status.as_str() == "bleed");
             bleed.map(|d| (en.id, d.stacks))
         })
         .collect();
@@ -425,7 +428,7 @@ fn a_run_holding_bleed_records_and_verifies() {
             break;
         }
         bled |= recorder.engine().events().iter().any(
-            |ev| matches!(ev, DomainEvent::StatusApplied { status, .. } if status.0 == "bleed"),
+            |ev| matches!(ev, DomainEvent::StatusApplied { status, .. } if status.as_str() == "bleed"),
         );
     }
     assert!(bled, "bleed was applied in the run");
@@ -448,7 +451,7 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
             .map(|en| en.statuses)
             .unwrap_or_default()
             .into_iter()
-            .filter(|s| s.id.0 == "bleed")
+            .filter(|s| s.id.as_str() == "bleed")
             .collect()
     };
     assert!(listed(&e).is_empty());
@@ -527,7 +530,7 @@ fn a_smash_hit_applies_bleed_without_the_rune_held() {
     assert!(e.events().iter().any(|ev| matches!(
         ev,
         DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180 }
-            if *t == target && status.0 == "bleed"
+            if *t == target && status.as_str() == "bleed"
     )));
     let bleed = statuses(&e, target);
     assert_eq!(bleed.len(), 1);
@@ -579,7 +582,7 @@ fn a_smash_stacks_to_the_maximum_and_each_hit_starts_its_duration_again() {
                 duration_ticks,
             } = ev
             {
-                if *id == target && status.0 == "bleed" {
+                if *id == target && status.as_str() == "bleed" {
                     assert_eq!(*duration_ticks, 180);
                     stacks.push(*n);
                 }
@@ -666,7 +669,7 @@ fn a_smash_and_the_rune_share_one_bleed() {
                 ..
             } = ev
             {
-                if *id == target && status.0 == "bleed" {
+                if *id == target && status.as_str() == "bleed" {
                     stacks.push(*n);
                 }
             }

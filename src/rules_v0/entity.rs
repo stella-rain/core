@@ -244,7 +244,7 @@ impl State {
         };
         events.push(DomainEvent::StatusApplied {
             target: self.id_of(target),
-            status: ContentId(kind.name().to_owned()),
+            status: ContentId::from(kind.name()),
             stacks,
             duration_ticks: duration,
         });
@@ -282,7 +282,7 @@ impl State {
         }
         events.push(DomainEvent::StatusApplied {
             target: self.id_of(target),
-            status: ContentId(StatusKind::Stun.name().to_owned()),
+            status: ContentId::from(StatusKind::Stun.name()),
             stacks: 1,
             duration_ticks: ticks,
         });
@@ -333,7 +333,7 @@ impl State {
         };
         events.push(DomainEvent::StatusApplied {
             target: self.id_of(target),
-            status: ContentId(kind.name().to_owned()),
+            status: ContentId::from(kind.name()),
             stacks,
             duration_ticks: duration,
         });

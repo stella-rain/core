@@ -143,7 +143,7 @@ fn candidates(e: &Engine) -> Vec<String> {
     expertise_offer(e)
         .candidates
         .into_iter()
-        .map(|c| c.option.0)
+        .map(|c| c.option.to_string())
         .collect()
 }
 
@@ -350,7 +350,11 @@ fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
     let mut quick_offers = 0;
     while e.offer_open() {
         let offer = expertise_offer(&e);
-        if offer.candidates.iter().any(|c| c.option.0 == "quick") {
+        if offer
+            .candidates
+            .iter()
+            .any(|c| c.option.as_str() == "quick")
+        {
             quick_offers += 1;
         }
         e.choose(0).unwrap();

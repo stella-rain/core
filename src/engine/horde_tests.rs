@@ -196,7 +196,7 @@ fn the_world_compiles_each_horde_boss_once() {
         .stage
         .bosses
         .iter()
-        .map(|b| b.boss.base.0.as_str())
+        .map(|b| b.boss.base.as_str())
         .collect();
     assert_eq!(bases.len(), 5, "{bases:?}");
     let mut distinct = bases.clone();
@@ -234,7 +234,7 @@ fn a_boss_coming_leaves_the_stage_as_it_was() {
 fn the_final_boss_is_the_core_pair_and_its_death_clears_the_run() {
     let mut e = engine(&[50, 100]);
     run_to(&mut e, 100);
-    assert_eq!(boss_def(&e).base.0, "core_pair");
+    assert_eq!(boss_def(&e).base.as_str(), "core_pair");
     assert_eq!(e.state.boss.as_ref().unwrap().parts.len(), 2);
     e.state.boss.as_mut().unwrap().hp = 0;
     e.step(Input::default());
@@ -331,7 +331,7 @@ fn elites_spawned(e: &mut Engine, until: u32) -> Vec<(u32, String)> {
         e.step(Input::default());
         for ev in e.events() {
             if let DomainEvent::EliteSpawned { asset, .. } = ev {
-                out.push((e.tick(), asset.0.clone()));
+                out.push((e.tick(), asset.to_string()));
             }
         }
     }
@@ -432,7 +432,11 @@ fn each_grade_is_spawned_from_its_own_definition() {
         ("elite_mid", "fairy_a"),
         ("elite_high", "horns_2"),
     ] {
-        let def = mode.elite_types().iter().find(|t| t.id.0 == id).unwrap();
+        let def = mode
+            .elite_types()
+            .iter()
+            .find(|t| t.id.as_str() == id)
+            .unwrap();
         let mut e = run_of(1, |v| {
             v["elite_table"] =
                 serde_json::json!([{"start_tick": 0, "weights": [{"elite": id, "weight": 1}]}]);
@@ -454,7 +458,7 @@ fn each_grade_is_spawned_from_its_own_definition() {
     let hp = |id: &str| {
         mode.elite_types()
             .iter()
-            .find(|t| t.id.0 == id)
+            .find(|t| t.id.as_str() == id)
             .unwrap()
             .enemy
             .hp
@@ -556,7 +560,7 @@ fn boss_sprite_at(e: &mut Engine, tick: u32) -> Option<String> {
         .entities
         .iter()
         .find(|v| v.kind == crate::snapshot::EntityKind::Boss)
-        .map(|v| v.asset.0.clone())
+        .map(|v| v.asset.to_string())
 }
 
 /// The mid-bosses drawn from the pool come without repeating whatever the minute marks are
@@ -641,7 +645,7 @@ fn each_mid_boss_s_hit_points_rise_by_its_slot_and_the_final_boss_s_do_not() {
         let parts: Vec<u32> = boss.parts.iter().map(|p| p.hp).collect();
         let want: Vec<u32> = def.parts.iter().map(|p| p.hp * pct / 100).collect();
         assert_eq!(parts, want, "at {t}");
-        seen.push(def.base.0.clone());
+        seen.push(def.base.to_string());
     }
     assert_eq!(seen[3], "core_pair");
 }

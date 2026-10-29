@@ -110,7 +110,7 @@ fn the_bundled_rewards_have_the_stack_limit_of_their_rarity() {
             reward.limit,
             Some(limit),
             "{} ({:?})",
-            reward.id.0,
+            reward.id.as_str(),
             reward.rarity
         );
     }
@@ -173,7 +173,7 @@ fn a_stage_skill_reward_names_a_skill_of_the_stage_skills_file() {
     let rewards = parse_with_skills(&with_skill()).unwrap();
     assert_eq!(rewards.stage_skills(), &skills());
     assert_eq!(
-        rewards.stage_skills().index_of(&ContentId("ward".into())),
+        rewards.stage_skills().index_of(&ContentId::from("ward")),
         Some(1)
     );
     // Not in the bundled skills.
@@ -207,9 +207,9 @@ fn the_rewards_file_no_longer_holds_the_skills() {
 fn a_valid_file_parses_in_its_order() {
     let rewards = parse(&file(vec![reward("b"), reward("a")])).unwrap();
     let ids: Vec<&ContentId> = rewards.rewards().iter().map(|r| &r.id).collect();
-    assert_eq!(ids, [&ContentId("b".into()), &ContentId("a".into())]);
-    assert_eq!(rewards.index_of(&ContentId("a".into())), Some(1));
-    assert_eq!(rewards.index_of(&ContentId("c".into())), None);
+    assert_eq!(ids, [&ContentId::from("b"), &ContentId::from("a")]);
+    assert_eq!(rewards.index_of(&ContentId::from("a")), Some(1));
+    assert_eq!(rewards.index_of(&ContentId::from("c")), None);
 }
 
 #[test]
@@ -533,8 +533,8 @@ fn vigour_is_shown_hit_points_stored_times_100() {
     let amounts: Vec<(&str, u32)> = Rewards::bundled()
         .rewards()
         .iter()
-        .filter(|r| r.id.0.starts_with("max_hp_"))
-        .map(|r| (r.id.0.as_str(), r.amount().unwrap()))
+        .filter(|r| r.id.as_str().starts_with("max_hp_"))
+        .map(|r| (r.id.as_str(), r.amount().unwrap()))
         .collect();
     assert_eq!(
         amounts,

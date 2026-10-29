@@ -508,8 +508,8 @@ impl RunRecorder {
         content: &RunContent,
     ) -> Result<RunRecorder, RunReplayError> {
         let engine = Engine::start_with(setup, content).map_err(RunReplayError::Setup)?;
-        let content =
-            content_sha256_with(&setup.mode.0, content).expect("a mode that starts has content");
+        let content = content_sha256_with(setup.mode.as_str(), content)
+            .expect("a mode that starts has content");
         Ok(RunRecorder {
             setup: setup.clone(),
             content_sha256: to_hex(&content),
@@ -776,7 +776,7 @@ fn resimulate(
     expected: Option<&[u64]>,
 ) -> Result<Resimulated, RunReplayError> {
     let stage = run_setup::stage_in(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
-    let content = content_sha256_with(&replay.setup.mode.0, run_content)
+    let content = content_sha256_with(replay.setup.mode.as_str(), run_content)
         .ok_or(RunReplayError::ContentChanged)?;
     if replay.content_sha256 != to_hex(&content) {
         return Err(RunReplayError::ContentChanged);

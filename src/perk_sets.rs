@@ -187,7 +187,7 @@ pub fn validate(file: &PerkSetsFile) -> Result<(), Error> {
     }
     for (i, set) in file.perk_sets.iter().enumerate().take(MAX_PERK_SETS) {
         let at = |field: &str| format!("$.perk_sets[{i}].{field}");
-        if !registry::is_well_formed(&set.id.0) {
+        if !registry::is_well_formed(set.id.as_str()) {
             issue(
                 at("id"),
                 "not a valid ID (lowercase snake_case, at most 32 characters)".into(),

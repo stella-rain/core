@@ -178,7 +178,7 @@ fn apply(
             duration_ticks,
         } => {
             // The validator holds the status to the registry's, which are `StatusKind`'s.
-            if let Some(kind) = StatusKind::from_name(&status.0) {
+            if let Some(kind) = StatusKind::from_name(status.as_str()) {
                 s.add_status(
                     Who::Player,
                     kind,
@@ -195,7 +195,7 @@ fn apply(
             value_pct,
             duration_ticks,
         } => {
-            let Some(kind) = StatusKind::from_name(&status.0) else {
+            let Some(kind) = StatusKind::from_name(status.as_str()) else {
                 return;
             };
             for who in within(stage, s, point, radius.0) {

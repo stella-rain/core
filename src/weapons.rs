@@ -97,7 +97,7 @@ impl Weapons {
     pub fn tree_ids(&self, weapon: &str) -> impl Iterator<Item = &ContentId> {
         self.list
             .iter()
-            .find(|w| w.id.0 == weapon)
+            .find(|w| w.id.as_str() == weapon)
             .into_iter()
             .flat_map(|w| w.trees.iter().map(|t| &t.id))
     }
@@ -109,7 +109,7 @@ impl Weapons {
         if !registry::is_well_formed(tree) {
             Some("not a valid ID (lowercase snake_case, at most 32 characters)")
         } else if self.tree_ids(weapon).next().is_some()
-            && !self.tree_ids(weapon).any(|t| t.0 == tree)
+            && !self.tree_ids(weapon).any(|t| t.as_str() == tree)
         {
             Some("no such tree for this weapon")
         } else {
@@ -120,10 +120,10 @@ impl Weapons {
     /// A weapon's tree: the one `tree` names, or the first when `None`. `None` for a weapon with
     /// no definition or a tree it does not have.
     pub fn tree(&self, id: &str, tree: Option<&str>) -> Option<&Weapon> {
-        let entry = self.list.iter().find(|w| w.id.0 == id)?;
+        let entry = self.list.iter().find(|w| w.id.as_str() == id)?;
         match tree {
             None => entry.trees.first(),
-            Some(tree) => entry.trees.iter().find(|t| t.id.0 == tree),
+            Some(tree) => entry.trees.iter().find(|t| t.id.as_str() == tree),
         }
         .map(|t| &t.weapon)
     }
@@ -132,7 +132,9 @@ impl Weapons {
     /// weapon itself. `None` for a preset that has no definition, or a tree it does not have.
     pub fn resolve<'a>(&'a self, weapon: &'a WeaponRef<Weapon>) -> Option<&'a Weapon> {
         match weapon {
-            WeaponRef::Preset { id, tree } => self.tree(&id.0, tree.as_ref().map(|t| t.0.as_str())),
+            WeaponRef::Preset { id, tree } => {
+                self.tree(id.as_str(), tree.as_ref().map(|t| t.as_str()))
+            }
             WeaponRef::Inline(w) => Some(w),
         }
     }
@@ -155,7 +157,7 @@ pub fn validate(file: &WeaponsFile) -> Result<(), Error> {
     }
     for (i, w) in file.weapons.iter().enumerate().take(MAX_WEAPONS) {
         let at = format!("$.weapons[{i}]");
-        if registry::find(registry::ENTRIES, Kind::Weapon, &w.id.0).is_none() {
+        if registry::find(registry::ENTRIES, Kind::Weapon, w.id.as_str()).is_none() {
             issue(format!("{at}.id"), "not a registered weapon".into());
         } else if file.weapons[..i].iter().any(|x| x.id == w.id) {
             issue(
@@ -171,7 +173,7 @@ pub fn validate(file: &WeaponsFile) -> Result<(), Error> {
         }
         for (t, tree) in w.trees.iter().enumerate().take(MAX_TREES) {
             let at = format!("{at}.trees[{t}]");
-            if !registry::is_well_formed(&tree.id.0) {
+            if !registry::is_well_formed(tree.id.as_str()) {
                 issue(
                     format!("{at}.id"),
                     "not a valid ID (lowercase snake_case, at most 32 characters)".into(),

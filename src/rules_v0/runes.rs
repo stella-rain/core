@@ -312,7 +312,7 @@ pub(crate) fn pool_mask(ids: &[crate::id::ContentId]) -> u8 {
         return FULL_POOL;
     }
     ids.iter()
-        .filter_map(|id| Rune::from_id(&id.0))
+        .filter_map(|id| Rune::from_id(id.as_str()))
         .fold(0, |mask, r| mask | 1 << r.index())
 }
 

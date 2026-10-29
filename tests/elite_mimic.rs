@@ -250,7 +250,7 @@ fn the_snapshot_shows_the_disguise_and_hides_that_it_is_an_elite() {
     let mut e = engine(&quiet_stage(vec![wave(1, 1, 0, mimic(1), SIDE.0, SIDE.1)]));
     run_until(&mut e, idle(), 3, |_| false);
     let v = mimic_view(&e);
-    assert_eq!(v.asset.0, DISGUISE);
+    assert_eq!(v.asset.as_str(), DISGUISE);
     assert!(disguised(&v));
     assert!(!v.elite, "the minimap does not show a disguised mimic");
     assert_eq!(v.aura_radius, None);
@@ -334,7 +334,7 @@ fn a_revealed_mimic_shows_its_own_sprite_and_is_an_elite_to_the_minimap() {
     )]));
     walk_in(&mut e);
     let v = mimic_view(&e);
-    assert_eq!(v.asset.0, "bat");
+    assert_eq!(v.asset.as_str(), "bat");
     assert!(!disguised(&v));
     assert!(v.elite);
     assert!(
@@ -673,7 +673,7 @@ fn the_elite_spawned_event_names_the_disguise() {
     let spawned: Vec<_> = events
         .iter()
         .filter_map(|(t, ev)| match ev {
-            DomainEvent::EliteSpawned { asset, .. } => Some((*t, asset.0.clone())),
+            DomainEvent::EliteSpawned { asset, .. } => Some((*t, asset.to_string())),
             _ => None,
         })
         .collect();
@@ -701,7 +701,7 @@ fn the_bundled_mode_has_the_mimic_from_minute_6_on() {
     let t = mode
         .elite_types()
         .iter()
-        .find(|t| t.id.0 == "elite_mimic")
+        .find(|t| t.id.as_str() == "elite_mimic")
         .expect("elite_mimic is defined");
     let v = serde_json::to_value(&t.enemy).unwrap();
     assert_eq!(v["elite"]["mimic"]["reveal_radius"], json!(30_720));
@@ -710,7 +710,7 @@ fn the_bundled_mode_has_the_mimic_from_minute_6_on() {
         mode.elite_table()[tier]
             .weights
             .iter()
-            .find(|w| w.elite.0 == "elite_mimic")
+            .find(|w| w.elite.as_str() == "elite_mimic")
             .map(|w| w.weight)
     };
     assert_eq!(weight(0), None);

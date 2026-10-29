@@ -438,7 +438,7 @@ pub fn validate_with(stage: &Stage, registry: &[Entry]) -> Result<(), Error> {
         parts: stage
             .boss
             .iter()
-            .flat_map(|b| b.parts.iter().map(|p| p.id.0.as_str()))
+            .flat_map(|b| b.parts.iter().map(|p| p.id.as_str()))
             .collect(),
         path: Vec::new(),
         issues: Vec::new(),
@@ -568,11 +568,11 @@ impl<'a> Ctx<'a> {
     /// A content ID of `kind` that exists and is available to this stage's `sim_version`.
     fn content_id(&mut self, key: &'static str, id: &ContentId, kind: Kind) -> Option<Entry> {
         self.key(key, |c| {
-            if !registry::is_well_formed(&id.0) {
+            if !registry::is_well_formed(id.as_str()) {
                 c.fail("not a valid content ID (lowercase snake_case, at most 32 characters)");
                 return None;
             }
-            match registry::find(c.registry, kind, &id.0) {
+            match registry::find(c.registry, kind, id.as_str()) {
                 None => {
                     c.fail(format!("no such {kind:?} ID in the registry"));
                     None
@@ -880,7 +880,7 @@ impl<'a> Ctx<'a> {
                 // it against its own content (`World::new`).
                 if tree
                     .as_ref()
-                    .is_some_and(|t| !registry::is_well_formed(&t.0))
+                    .is_some_and(|t| !registry::is_well_formed(t.as_str()))
                 {
                     c.key("tree", |c| c.fail(TREE_ID_PROBLEM));
                 }
@@ -1267,7 +1267,7 @@ impl<'a> Ctx<'a> {
 
     /// A boss part the stage defines.
     fn part(&mut self, key: &'static str, id: &ContentId) {
-        if !self.parts.contains(&id.0.as_str()) {
+        if !self.parts.contains(&id.as_str()) {
             self.key(key, |c| c.fail("the boss has no part with this ID"));
         }
     }
@@ -1460,7 +1460,7 @@ impl<'a> Ctx<'a> {
 
     fn boss_part(&mut self, p: &BossPart, repeated: bool) {
         self.key("id", |c| {
-            if !registry::is_well_formed(&p.id.0) {
+            if !registry::is_well_formed(p.id.as_str()) {
                 c.fail("not a valid part ID (lowercase snake_case, at most 32 characters)");
             } else if repeated {
                 c.fail("two parts have this ID");

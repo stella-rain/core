@@ -80,7 +80,7 @@ fn refused(v: &Value) -> Vec<String> {
 fn the_bundled_file_is_what_the_bundled_pack_holds() {
     let w = Weapons::parse(common::bundled_file("weapons"), Versions::CURRENT).unwrap();
     assert_eq!(&w, Weapons::bundled());
-    let ids: Vec<_> = w.ids().map(|i| i.0.as_str()).collect();
+    let ids: Vec<_> = w.ids().map(|i| i.as_str()).collect();
     assert_eq!(ids, ["giant_hammer", "giant_sword"]);
 }
 

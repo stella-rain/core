@@ -62,7 +62,7 @@ fn the_bundled_file_holds_the_four_difficulties_with_kades_numbers() {
     let ids: Vec<&str> = Difficulties::bundled()
         .list()
         .iter()
-        .map(|d| d.id.0.as_str())
+        .map(|d| d.id.as_str())
         .collect();
     assert_eq!(ids, ["easy", "normal", "hard", "rainy"]);
     let numbers = |id: &str| {
@@ -356,7 +356,7 @@ fn the_bundled_difficulties_pay_and_open_as_designed() {
     let got: Vec<(u32, Option<&str>)> = Difficulties::bundled()
         .list()
         .iter()
-        .map(|d| (d.rune_shards, d.opens_after.as_ref().map(|i| i.0.as_str())))
+        .map(|d| (d.rune_shards, d.opens_after.as_ref().map(|i| i.as_str())))
         .collect();
     assert_eq!(
         got,

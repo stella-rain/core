@@ -64,7 +64,7 @@ fn a_setup_from_before_these_fields_reads_with_the_defaults() {
     let old =
         br#"{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"giant_sword","seed":7}"#;
     let setup = run_setup::parse_and_validate(old).unwrap();
-    assert_eq!(setup.perk_set.0, DEFAULT_PERK_SET);
+    assert_eq!(setup.perk_set.as_str(), DEFAULT_PERK_SET);
     assert_eq!(DEFAULT_PERK_SET, "duelist");
     assert!(setup.rune_pool.is_empty());
     assert!(setup.carried.is_empty());
@@ -528,7 +528,7 @@ fn a_carried_star_counts_toward_its_stack_limit() {
         }
         if e.offer_open() {
             if let Some(o) = e.snapshot().progress.unwrap().offer {
-                let ids: Vec<&str> = o.candidates.iter().map(|c| c.reward.0.as_str()).collect();
+                let ids: Vec<&str> = o.candidates.iter().map(|c| c.reward.as_str()).collect();
                 assert_eq!(ids, ["xp_common"]);
                 return;
             }

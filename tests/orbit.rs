@@ -111,7 +111,7 @@ fn take(e: &mut Engine, reward: &str) {
     let candidate = offer
         .candidates
         .iter()
-        .position(|c| c.reward.0 == reward)
+        .position(|c| c.reward.as_str() == reward)
         .unwrap_or_else(|| panic!("{reward} is not offered"));
     let option = OfferOption::Take {
         candidate: u8::try_from(candidate).unwrap(),
@@ -145,7 +145,7 @@ fn orbits(e: &Engine) -> Vec<(String, u8, u32)> {
                  reward,
                  orbs,
                  cooldown_left,
-             }| { (reward.0.clone(), *orbs, *cooldown_left) },
+             }| { (reward.to_string(), *orbs, *cooldown_left) },
         )
         .collect()
 }

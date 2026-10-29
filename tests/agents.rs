@@ -755,7 +755,7 @@ fn applying_a_status_again_adds_a_stack_up_to_five_and_refreshes_it() {
                 status,
                 stacks,
                 duration_ticks,
-            } if *target == id(0) && status.0 == "atk_up" && *duration_ticks == 30 => {
+            } if *target == id(0) && status.as_str() == "atk_up" && *duration_ticks == 30 => {
                 Some((*t, *stacks))
             }
             _ => None,

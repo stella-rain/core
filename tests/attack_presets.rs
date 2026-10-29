@@ -85,7 +85,7 @@ fn the_bundled_file_is_what_the_bundled_pack_holds() {
     let p =
         AttackPresets::parse(common::bundled_file("attack_presets"), Versions::CURRENT).unwrap();
     assert_eq!(&p, AttackPresets::bundled());
-    let ids: Vec<_> = p.ids().map(|i| i.0.as_str()).collect();
+    let ids: Vec<_> = p.ids().map(|i| i.as_str()).collect();
     assert_eq!(
         ids,
         registry_presets()

@@ -60,7 +60,8 @@ pub fn evade_swings(engine: &Engine, mut input: Input) -> Input {
     let swing = s.entities.iter().any(|v| {
         v.kind == EntityKind::Enemy
             && v.attack.as_ref().is_some_and(|a| {
-                a.kind == PhaseKind::WindUp && a.preset.as_ref().is_some_and(|p| p.0 == "slash")
+                a.kind == PhaseKind::WindUp
+                    && a.preset.as_ref().is_some_and(|p| p.as_str() == "slash")
             })
             && {
                 let (dx, dy) = (i64::from(me.x.0 - v.at.x.0), i64::from(me.y.0 - v.at.y.0));

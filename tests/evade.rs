@@ -242,7 +242,7 @@ fn with_extra(stage: &Stage, amount: u32) -> Engine {
 fn take(e: &mut Engine) {
     fire_until(e, idle(), 1200, Engine::offer_open);
     let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    assert_eq!(offer.candidates[0].reward.0, "extra");
+    assert_eq!(offer.candidates[0].reward.as_str(), "extra");
     let option = OfferOption::Take { candidate: 0 };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
     e.choose(u32::try_from(index).unwrap()).unwrap();

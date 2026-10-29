@@ -89,7 +89,7 @@ fn stuns(e: &Engine, id: EntityId) -> Vec<StatusView> {
         .map(|en| en.statuses)
         .unwrap_or_default()
         .into_iter()
-        .filter(|st| st.id.0 == "stun")
+        .filter(|st| st.id.as_str() == "stun")
         .collect()
 }
 
@@ -131,7 +131,7 @@ fn a_smash_stuns_the_enemy_it_hits_for_its_ticks() {
     let p = play(&mut e, target, &[start], 8);
     let (_, first) = p.hits.first().expect("the smash hits the target");
     assert_eq!(first.len(), 1, "one stun status");
-    assert_eq!(first[0].id.0, "stun");
+    assert_eq!(first[0].id.as_str(), "stun");
     assert_eq!(first[0].total, 30);
     assert_eq!(first[0].remaining, 30);
 }

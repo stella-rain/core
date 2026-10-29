@@ -214,7 +214,7 @@ pub fn validate(file: &RunStatsFile) -> Result<(), Error> {
     }
     for (i, stat) in file.stats.iter().enumerate() {
         let at = |field: &str| format!("$.stats[{i}].{field}");
-        if !registry::is_well_formed(&stat.id.0) {
+        if !registry::is_well_formed(stat.id.as_str()) {
             issue(
                 at("id"),
                 "not a valid ID (lowercase snake_case, at most 32 characters)".into(),

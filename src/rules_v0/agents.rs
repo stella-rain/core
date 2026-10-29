@@ -387,8 +387,11 @@ pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition) -> bool {
             // Strictly below `pct` percent of the maximum.
             u64::from(s.hp(w)) * 100 < u64::from(*pct) * u64::from(s.max_hp(w))
         }),
-        Condition::HasStatus { who, status } => select(s, me, who)
-            .is_some_and(|w| s.statuses(w).iter().any(|st| st.kind.name() == status.0)),
+        Condition::HasStatus { who, status } => select(s, me, who).is_some_and(|w| {
+            s.statuses(w)
+                .iter()
+                .any(|st| st.kind.name() == status.as_str())
+        }),
         Condition::AggroAbove { who, value } => {
             select(s, me, who).is_some_and(|w| s.aggro(w) > *value)
         }

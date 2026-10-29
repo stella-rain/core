@@ -56,7 +56,7 @@ fn the_bundled_file_holds_the_four_sets_with_kades_numbers() {
     let ids: Vec<&str> = PerkSets::bundled()
         .sets()
         .iter()
-        .map(|s| s.id.0.as_str())
+        .map(|s| s.id.as_str())
         .collect();
     assert_eq!(ids, ["vanguard", "duelist", "scout", "scholar"]);
     assert_eq!(

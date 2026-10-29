@@ -91,7 +91,7 @@ fn assert_runes_and_statuses(engine: &Engine) {
         let mut names: Vec<&str> = e
             .damage_over_time
             .iter()
-            .map(|d| d.status.0.as_str())
+            .map(|d| d.status.as_str())
             .collect();
         names.sort();
         assert_eq!(names, ["bleed", "burn", "poison"], "enemy {:?}", e.id);
@@ -100,10 +100,10 @@ fn assert_runes_and_statuses(engine: &Engine) {
                 u32::from(d.stacks),
                 MAX_DOT_STACKS,
                 "{} on {:?}",
-                d.status.0,
+                d.status.as_str(),
                 e.id
             );
-            assert!(d.ticks_left > 0, "{} on {:?}", d.status.0, e.id);
+            assert!(d.ticks_left > 0, "{} on {:?}", d.status.as_str(), e.id);
         }
     }
 }

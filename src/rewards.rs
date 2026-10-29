@@ -913,7 +913,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
     }
     for (i, reward) in file.rewards.iter().enumerate() {
         let at = |field: &str| format!("$.rewards[{i}].{field}");
-        if !registry::is_well_formed(&reward.id.0) {
+        if !registry::is_well_formed(reward.id.as_str()) {
             issue(
                 at("id"),
                 "not a valid ID (lowercase snake_case, at most 32 characters)".into(),

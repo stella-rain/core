@@ -140,7 +140,7 @@ pub fn settle(content: &RunContent, run: &RunResult, bank: &Bank) -> Settlement 
     let key = (run.mode.clone(), run.difficulty.clone());
     let mut bank_after = bank.clone();
     let (mut paid, mut bank_paid, mut banked) = (earned, 0, 0);
-    if let Some(rules) = content.stardust().mode(&run.mode.0) {
+    if let Some(rules) = content.stardust().mode(run.mode.as_str()) {
         let cap = u64::from(rules.bank_cap) * 10;
         // A saved value over the cap counts as the cap.
         let held = bank.get(&key.0, &key.1).min(cap);

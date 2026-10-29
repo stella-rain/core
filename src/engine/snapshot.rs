@@ -205,7 +205,7 @@ impl Engine {
                         kind: a.entity_kind(kind),
                         asset: match def.elite.as_ref().and_then(|e| e.mimic.as_ref()) {
                             Some(m) if hidden => m.disguise.clone(),
-                            _ => ContentId(def.base.0.clone()),
+                            _ => def.base.clone(),
                         },
                         kind_index: (!hidden).then_some(a.kind),
                         palette: def.palette.clone(),
@@ -246,7 +246,7 @@ impl Engine {
                     entities.push(EntityView {
                         id: part.id,
                         kind: EntityKind::BossPart,
-                        asset: ContentId(def.asset.0.clone()),
+                        asset: def.asset.clone(),
                         kind_index: Some(part.kind),
                         palette: None,
                         at: Point {
@@ -478,7 +478,7 @@ fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
         .iter()
         .filter_map(|st| {
             st.dot.map(|d| DamageOverTimeView {
-                status: ContentId(st.kind.name().to_owned()),
+                status: ContentId::from(st.kind.name()),
                 stacks: st.stacks,
                 ticks_left: st.remaining,
                 next_tick_in: d.next_in,
@@ -494,18 +494,18 @@ fn status_views(statuses: &[StatusState], aura: bool) -> Vec<StatusView> {
     let mut views: Vec<StatusView> = statuses
         .iter()
         .map(|st| StatusView {
-            id: ContentId(st.kind.name().to_owned()),
+            id: ContentId::from(st.kind.name()),
             remaining: st.remaining,
             total: st.total,
         })
         .collect();
     if aura {
         views.push(StatusView {
-            id: ContentId("aura".to_owned()),
+            id: ContentId::from("aura"),
             remaining: 0,
             total: 0,
         });
     }
-    views.sort_by(|a, b| a.id.0.cmp(&b.id.0));
+    views.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
     views
 }

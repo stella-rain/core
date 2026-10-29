@@ -222,7 +222,7 @@ fn offered(seeds: std::ops::Range<u64>, ticks: u32) -> BTreeSet<String> {
         let mut e = Engine::start_with(&setup, RunContent::bundled()).unwrap();
         for t in 0..ticks {
             while let Some(offer) = e.snapshot().progress.and_then(|p| p.offer) {
-                seen.extend(offer.candidates.iter().map(|c| c.reward.0.clone()));
+                seen.extend(offer.candidates.iter().map(|c| c.reward.to_string()));
                 let take = offer
                     .options
                     .iter()

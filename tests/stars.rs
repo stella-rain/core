@@ -100,7 +100,7 @@ fn candidates(e: &Engine) -> Vec<String> {
     offer(e)
         .candidates
         .into_iter()
-        .map(|c| c.reward.0)
+        .map(|c| c.reward.to_string())
         .collect()
 }
 
@@ -335,7 +335,7 @@ fn taking_a_candidate_applies_its_reward_and_the_run_goes_on() {
     assert_eq!(
         e.events(),
         [DomainEvent::RewardTaken {
-            reward: ContentId(first),
+            reward: ContentId::from(first),
             taken: 1,
             rune: None,
             star: None,
@@ -381,7 +381,7 @@ fn a_reroll_draws_that_candidate_again_and_spends_a_reroll() {
         e.events(),
         [DomainEvent::CandidateReplaced {
             slot: 1,
-            reward: ContentId(left_out.clone())
+            reward: ContentId::from(left_out.clone())
         }]
     );
     let after = candidates(&e);
@@ -427,7 +427,7 @@ fn a_banished_reward_leaves_the_pool_for_the_rest_of_the_run() {
         matches!(
             e.events(),
             [DomainEvent::RewardBanished { reward }, DomainEvent::CandidateReplaced { slot: 0, .. }]
-                if reward.0 == banished
+                if reward.as_str() == banished
         ),
         "{:?}",
         e.events()
@@ -459,7 +459,7 @@ fn banishing_the_last_reward_closes_the_offer_and_an_empty_pool_opens_none() {
     assert_eq!(
         e.events(),
         [DomainEvent::RewardBanished {
-            reward: ContentId("c0".into())
+            reward: ContentId::from("c0")
         }]
     );
     assert!(!e.offer_open());
@@ -975,7 +975,7 @@ fn an_offer_names_its_named_candidate_and_only_that_one() {
     let seen: Vec<(String, bool, Option<String>)> = offer(&e)
         .candidates
         .into_iter()
-        .map(|c| (c.reward.0, c.named, c.star))
+        .map(|c| (c.reward.to_string(), c.named, c.star))
         .collect();
     let mut sorted = seen.clone();
     sorted.sort();

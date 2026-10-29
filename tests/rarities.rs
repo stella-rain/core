@@ -131,13 +131,13 @@ fn every_difficulty_offers_each_rarity_it_allows() {
     let rewards = Rewards::bundled();
     for d in Difficulties::bundled().list() {
         let range = d.rarity_range(rewards);
-        assert_eq!(range, (d.rarity_min, d.rarity_max), "{}", d.id.0);
+        assert_eq!(range, (d.rarity_min, d.rarity_max), "{}", d.id.as_str());
         for rarity in Rarity::ALL {
             if (d.rarity_min..=d.rarity_max).contains(&rarity) {
                 assert!(
                     rewards.rewards().iter().any(|r| r.rarity == rarity),
                     "{} has no {rarity:?} reward",
-                    d.id.0
+                    d.id.as_str()
                 );
             }
         }
@@ -315,7 +315,7 @@ fn offered(e: &Engine) -> Vec<String> {
     let mut ids: Vec<String> = offer
         .candidates
         .iter()
-        .map(|c| c.reward.0.clone())
+        .map(|c| c.reward.to_string())
         .collect();
     ids.sort();
     ids
@@ -327,7 +327,7 @@ fn take(e: &mut Engine, reward: &str) {
     let candidate = offer
         .candidates
         .iter()
-        .position(|c| c.reward.0 == reward)
+        .position(|c| c.reward.as_str() == reward)
         .unwrap_or_else(|| panic!("{reward} is not offered"));
     let option = OfferOption::Take {
         candidate: u8::try_from(candidate).unwrap(),

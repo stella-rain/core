@@ -263,11 +263,11 @@ impl TryFrom<RunSetupFile> for RunSetup {
 }
 
 fn default_perk_set() -> ContentId {
-    ContentId(DEFAULT_PERK_SET.to_owned())
+    ContentId::from(DEFAULT_PERK_SET)
 }
 
 fn default_difficulty() -> ContentId {
-    ContentId(DEFAULT_DIFFICULTY.to_owned())
+    ContentId::from(DEFAULT_DIFFICULTY)
 }
 
 fn is_zero(n: &u8) -> bool {
@@ -298,10 +298,10 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
     version::check(setup.schema_version, setup.sim_version)?;
     let mut issues = Vec::new();
     let mut id = |key: &str, id: &ContentId, kind: Kind| {
-        let problem = if !registry::is_well_formed(&id.0) {
+        let problem = if !registry::is_well_formed(id.as_str()) {
             Some("not a valid content ID (lowercase snake_case, at most 32 characters)".to_owned())
         } else {
-            match registry::find(registry, kind, &id.0) {
+            match registry::find(registry, kind, id.as_str()) {
                 None => Some(format!("no such {kind:?} ID in the registry")),
                 Some(e) if e.introduced > setup.sim_version => Some(format!(
                     "introduced in sim_version {}, newer than this setup's {}",
@@ -324,7 +324,7 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
     if setup
         .weapon_tree
         .as_ref()
-        .is_some_and(|tree| !registry::is_well_formed(&tree.0))
+        .is_some_and(|tree| !registry::is_well_formed(tree.as_str()))
     {
         issues.push(Issue {
             path: "$.weapon_tree".into(),
@@ -339,7 +339,7 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
             });
         }
         for (i, id) in pool.iter().enumerate().take(MAX_STAR_POOL) {
-            let message = if !registry::is_well_formed(&id.0) {
+            let message = if !registry::is_well_formed(id.as_str()) {
                 "not a valid ID (lowercase snake_case, at most 32 characters)"
             } else if pool[..i].contains(id) {
                 "the same reward as an earlier entry"
@@ -377,11 +377,11 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
         .enumerate()
         .take(registry::MAX_UPGRADES)
     {
-        let in_order = i == 0 || setup.upgrades[i - 1].0 < upgrade.0;
+        let in_order = i == 0 || setup.upgrades[i - 1].as_str() < upgrade.as_str();
         let message = if !in_order {
             "not after the entry before it (sorted, each once)"
         } else {
-            let known = registry::find(registry, Kind::Upgrade, &upgrade.0)
+            let known = registry::find(registry, Kind::Upgrade, upgrade.as_str())
                 .is_some_and(|e| e.introduced <= setup.sim_version);
             if known {
                 continue;
@@ -406,10 +406,10 @@ pub fn validate_with(setup: &RunSetup, registry: &[Entry]) -> Result<(), Error> 
 fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
     let mut issue = |path: String, message: String| issues.push(Issue { path, message });
     let ill_formed = "not a valid ID (lowercase snake_case, at most 32 characters)";
-    if !registry::is_well_formed(&setup.perk_set.0) {
+    if !registry::is_well_formed(setup.perk_set.as_str()) {
         issue("$.perk_set".into(), ill_formed.into());
     }
-    if !registry::is_well_formed(&setup.difficulty.0) {
+    if !registry::is_well_formed(setup.difficulty.as_str()) {
         issue("$.difficulty".into(), ill_formed.into());
     }
     if setup.rune_pool.len() > MAX_RUNE_POOL {
@@ -422,9 +422,9 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
         );
     }
     for (i, rune) in setup.rune_pool.iter().enumerate().take(MAX_RUNE_POOL) {
-        let message = if Rune::from_id(&rune.0).is_none() {
+        let message = if Rune::from_id(rune.as_str()).is_none() {
             "no such rune"
-        } else if i > 0 && setup.rune_pool[i - 1].0 >= rune.0 {
+        } else if i > 0 && setup.rune_pool[i - 1].as_str() >= rune.as_str() {
             "not after the entry before it (sorted, each once)"
         } else {
             continue;
@@ -441,7 +441,7 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
         );
     }
     for (i, star) in setup.carried.iter().enumerate().take(MAX_CARRIED_STARS) {
-        if !registry::is_well_formed(&star.reward.0) {
+        if !registry::is_well_formed(star.reward.as_str()) {
             issue(format!("$.carried[{i}].reward"), ill_formed.into());
         }
     }
@@ -460,7 +460,7 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
         .enumerate()
         .take(MAX_STAT_PRIORITY)
     {
-        if !registry::is_well_formed(&stat.0) {
+        if !registry::is_well_formed(stat.as_str()) {
             issue(format!("$.stat_priority[{i}]"), ill_formed.into());
         } else if setup.stat_priority[..i].contains(stat) {
             issue(
@@ -477,7 +477,7 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
     }
     if let Some(rune) = &setup.starting_rune {
         let in_pool = setup.rune_pool.is_empty() || setup.rune_pool.contains(rune);
-        if Rune::from_id(&rune.0).is_none() {
+        if Rune::from_id(rune.as_str()).is_none() {
             issue("$.starting_rune".into(), "no such rune".into());
         } else if !in_pool {
             issue("$.starting_rune".into(), "not in the rune pool".into());
@@ -647,11 +647,11 @@ fn stage_on(
     difficulties: &Difficulties,
 ) -> Result<Stage, Error> {
     validate(setup)?;
-    if setup.mode.0 == "time_limit" {
+    if setup.mode.as_str() == "time_limit" {
         let difficulty = difficulty_of(setup, difficulties)?;
         return Ok(time_limit_run(setup, time_limit, difficulty, trial)?.0);
     }
-    let base = match setup.mode.0.as_str() {
+    let base = match setup.mode.as_str() {
         "trial" => trial,
         "tutorial" => tutorial,
         _ => {
@@ -717,7 +717,7 @@ pub(crate) fn time_limit_run(
     difficulty: &Difficulty,
     trial: &Stage,
 ) -> Result<(Stage, HordeSpec, Horde), Error> {
-    if setup.mode.0 != "time_limit" {
+    if setup.mode.as_str() != "time_limit" {
         return Err(Error::Invalid(vec![Issue {
             path: "$.mode".into(),
             message: "not the time_limit mode".into(),
@@ -817,7 +817,7 @@ pub(crate) fn time_limit_run(
 /// The most ticks a replay of `stage` may hold. A `time_limit` run's stage ends at the length
 /// and the overtime; its replay may also hold the Star-Hunter's extra time (ADR-079).
 pub fn max_replay_ticks(setup: &RunSetup, stage: &Stage, time_limit: &TimeLimit) -> u32 {
-    if setup.mode.0 == "time_limit" {
+    if setup.mode.as_str() == "time_limit" {
         stage
             .length_ticks
             .saturating_add(time_limit.star_hunter_extra_ticks())
@@ -845,7 +845,7 @@ mod tests {
             weapon: "giant_sword".into(),
             ..RunSetup::default()
         };
-        assert_eq!((setup.seed, setup.mode.0.as_str()), (7, "trial"));
+        assert_eq!((setup.seed, setup.mode.as_str()), (7, "trial"));
         let bytes = serde_json::to_vec(&setup).unwrap();
         assert_eq!(serde_json::from_slice::<RunSetup>(&bytes).unwrap(), setup);
     }

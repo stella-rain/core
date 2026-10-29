@@ -441,7 +441,7 @@ fn the_bundled_mode_has_the_goblin_in_every_tier() {
     let t = mode
         .elite_types()
         .iter()
-        .find(|t| t.id.0 == "elite_goblin")
+        .find(|t| t.id.as_str() == "elite_goblin")
         .expect("elite_goblin is defined");
     assert!(t.enemy.rules.is_empty(), "it has no attack");
     assert_eq!(
@@ -454,7 +454,9 @@ fn the_bundled_mode_has_the_goblin_in_every_tier() {
     ));
     for tier in mode.elite_table() {
         assert!(
-            tier.weights.iter().any(|w| w.elite.0 == "elite_goblin"),
+            tier.weights
+                .iter()
+                .any(|w| w.elite.as_str() == "elite_goblin"),
             "{tier:?}"
         );
     }

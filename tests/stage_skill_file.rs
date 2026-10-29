@@ -89,11 +89,11 @@ fn the_bundled_skills_are_one_effect_each_and_cover_every_block() {
         StageSkills::parse(common::bundled_file("stage_skills"), Versions::CURRENT).as_ref(),
         Ok(bundled)
     );
-    let ids: Vec<&str> = bundled.skills().iter().map(|k| k.id.0.as_str()).collect();
+    let ids: Vec<&str> = bundled.skills().iter().map(|k| k.id.as_str()).collect();
     assert_eq!(ids, ["black_hole", "war_cry", "hex", "nova", "aegis"]);
     let mut blocks = Vec::new();
     for k in bundled.skills() {
-        assert_eq!(k.icon, ContentId(format!("icon_{}", k.id.0)));
+        assert_eq!(k.icon, ContentId::from(format!("icon_{}", k.id)));
         for l in &k.levels {
             assert_eq!(l.effects.len(), 1, "{:?}", k.id);
         }
@@ -104,11 +104,11 @@ fn the_bundled_skills_are_one_effect_each_and_cover_every_block() {
         ["pull", "self_status", "area_status", "attack", "shield"]
     );
     assert_eq!(
-        bundled.index_of(&ContentId("hex".into())),
+        bundled.index_of(&ContentId::from("hex")),
         Some(2),
         "a skill's place in the file"
     );
-    assert_eq!(bundled.index_of(&ContentId("other".into())), None);
+    assert_eq!(bundled.index_of(&ContentId::from("other")), None);
 }
 
 #[test]

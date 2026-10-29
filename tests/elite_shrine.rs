@@ -720,7 +720,7 @@ fn the_bundled_mode_has_the_shrine_in_every_tier() {
     let t = mode
         .elite_types()
         .iter()
-        .find(|t| t.id.0 == "elite_shrine")
+        .find(|t| t.id.as_str() == "elite_shrine")
         .expect("elite_shrine is defined");
     assert_eq!(t.enemy.rules.len(), 1, "it pulses (Z3b)");
     assert_eq!(
@@ -730,7 +730,9 @@ fn the_bundled_mode_has_the_shrine_in_every_tier() {
     assert!(matches!(t.enemy.movement, Movement::Shrine { .. }));
     for tier in mode.elite_table() {
         assert!(
-            tier.weights.iter().any(|w| w.elite.0 == "elite_shrine"),
+            tier.weights
+                .iter()
+                .any(|w| w.elite.as_str() == "elite_shrine"),
             "{tier:?}"
         );
     }

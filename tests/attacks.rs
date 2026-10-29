@@ -800,7 +800,7 @@ fn every_registered_preset_is_in_the_pack_and_passes_the_validator() {
         .collect();
     assert_eq!(
         registered.iter().map(|e| e.id).collect::<Vec<_>>(),
-        presets.ids().map(|i| i.0.as_str()).collect::<Vec<_>>(),
+        presets.ids().map(|i| i.as_str()).collect::<Vec<_>>(),
         "the registry and the pack list the same presets in the same order"
     );
     for entry in registered {

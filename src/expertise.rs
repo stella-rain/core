@@ -262,7 +262,7 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
     }
 
     let missing: Vec<&str> = weapon_presets(sim_version)
-        .filter(|id| !file.weapons.iter().any(|w| w.weapon.0 == *id))
+        .filter(|id| !file.weapons.iter().any(|w| w.weapon.as_str() == *id))
         .collect();
     if !missing.is_empty() {
         issue(
@@ -272,7 +272,7 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
     }
     for (w, weapon) in file.weapons.iter().enumerate() {
         let at = |field: &str| format!("$.weapons[{w}].{field}");
-        if !weapon_presets(sim_version).any(|id| id == weapon.weapon.0) {
+        if !weapon_presets(sim_version).any(|id| id == weapon.weapon.as_str()) {
             issue(at("weapon"), "not a weapon preset".into());
         } else if file.weapons[..w].iter().any(|x| x.weapon == weapon.weapon) {
             issue(at("weapon"), "the same weapon as an earlier entry".into());
@@ -345,7 +345,7 @@ fn check_id<'a>(
     path: &str,
     id: &'a ContentId,
 ) {
-    if !registry::is_well_formed(&id.0) {
+    if !registry::is_well_formed(id.as_str()) {
         issue(
             format!("{path}.id"),
             "not a valid ID (lowercase snake_case, at most 32 characters)".into(),
