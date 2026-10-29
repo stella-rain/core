@@ -6886,6 +6886,10 @@
     "RunReplay": {
       "additionalProperties": false,
       "properties": {
+        "checkpoints": {
+          "description": "The FNV-1a 64 state hash after every 60th tick (60, 120, 180, ...), each taken right\nafter that tick and before the commands that follow it, each 16 lowercase hex digits,\nconcatenated: `16 * (ticks / 60)` digits, empty for fewer than 60 ticks.",
+          "type": "string"
+        },
         "commands": {
           "description": "The commands between ticks, packed as described in the module documentation, then\nbase64.",
           "type": "string"
@@ -6918,6 +6922,7 @@
         "content_sha256",
         "ticks",
         "final_hash",
+        "checkpoints",
         "inputs",
         "commands"
       ],
