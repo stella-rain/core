@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::fixed::Fx;
+use crate::limits::{VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH};
 use crate::pack::Pack;
 use crate::rewards::MAX_OFFER_CANDIDATES;
 use crate::rules_v0::MAX_RANGED_ATTACKERS;
@@ -63,13 +64,13 @@ pub struct RulesFile {
     pub aggro_per_heal_point: u32,
     /// Aggro lost every tick (ADR-036), in stored units: 0 to `limits::MAX_AGGRO`.
     pub aggro_decay: u32,
-    /// How far to the side of the main character a regular enemy may be before the leash moves it, in 1/256 px: 1 to 4,096 px.
+    /// How far to the side of the view's centre a regular enemy may be before the leash moves it, in 1/256 px: 1 to 4,096 px.
     pub leash_reach_x: Fx,
     /// The same above or below, in 1/256 px: 1 to 4,096 px.
     pub leash_reach_y: Fx,
-    /// Where the leash lands an enemy to the side of the main character, in 1/256 px: 1 to `leash_reach_x`.
+    /// Where the leash lands an enemy to the side of the view's centre, in 1/256 px: the spawn edge (420 px + `spawn_margin`) to `leash_reach_x`.
     pub leash_land_x: Fx,
-    /// The same above or below, in 1/256 px: 1 to `leash_reach_y`.
+    /// The same above or below, in 1/256 px: the spawn edge (180 px + `spawn_margin`) to `leash_reach_y`.
     pub leash_land_y: Fx,
     /// How far outside the view an enemy spawns, in 1/256 px: 0 to 1,024 px.
     pub spawn_margin: Fx,
@@ -172,7 +173,7 @@ impl Rules {
         self.file.aggro_decay
     }
 
-    /// How far to the side of the main character a regular enemy may be before the leash moves it, in 1/256 px.
+    /// How far to the side of the view's centre a regular enemy may be before the leash moves it, in 1/256 px.
     pub fn leash_reach_x(&self) -> Fx {
         self.file.leash_reach_x
     }
@@ -362,33 +363,48 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
         0,
         max_aggro,
     );
-    // A land outside where the leash triggers would move an enemy every tick.
-    for (reach, land, reach_name, land_name) in [
+    // A land outside where the leash triggers would move an enemy every tick; a land inside the
+    // spawn edge (the view's half plus `spawn_margin`) would put a fresh spawn beyond it, and one
+    // inside the view's half would land an enemy on screen. The edge is checked only once the
+    // margin is in range (else the margin's issue is the one reported).
+    let margin = i64::from(file.spawn_margin.0);
+    let margin_ok = (0..=px(1024)).contains(&margin);
+    for (reach, land, half, reach_name, land_name) in [
         (
             file.leash_reach_x,
             file.leash_land_x,
+            VIEW_HALF_WIDTH,
             "leash_reach_x",
             "leash_land_x",
         ),
         (
             file.leash_reach_y,
             file.leash_land_y,
+            VIEW_HALF_HEIGHT,
             "leash_reach_y",
             "leash_land_y",
         ),
     ] {
         let reach_ok = within(issues, reach_name, i64::from(reach.0), 1, px(4096));
-        if reach_ok {
-            if i64::from(land.0) > i64::from(reach.0) {
-                issues.push(Issue {
-                    path: format!("$.{land_name}"),
-                    message: format!("at most {reach_name} (found {})", land.0),
-                });
-            } else {
-                within(issues, land_name, i64::from(land.0), 1, i64::from(reach.0));
-            }
+        let land_ok = if !reach_ok {
+            within(issues, land_name, i64::from(land.0), 1, px(4096))
+        } else if i64::from(land.0) > i64::from(reach.0) {
+            issues.push(Issue {
+                path: format!("$.{land_name}"),
+                message: format!("at most {reach_name} (found {})", land.0),
+            });
+            false
         } else {
-            within(issues, land_name, i64::from(land.0), 1, px(4096));
+            within(issues, land_name, i64::from(land.0), 1, i64::from(reach.0))
+        };
+        if land_ok && margin_ok && i64::from(land.0) < px(half) + margin {
+            issues.push(Issue {
+                path: format!("$.{land_name}"),
+                message: format!(
+                    "at least the spawn edge: {half} px + spawn_margin (found {})",
+                    land.0
+                ),
+            });
         }
     }
     within(

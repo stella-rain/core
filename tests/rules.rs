@@ -304,7 +304,8 @@ fn each_new_field_loads_at_its_bounds() {
         ("leash_reach_x", px(4096)),
         ("leash_reach_y", px(4096)),
         ("spawn_margin", 0),
-        ("spawn_margin", px(1024)),
+        // `spawn_margin` at px(1024) needs lands out to its spawn edge:
+        // `the_leash_lands_at_or_beyond_the_spawn_edge`.
         ("ranged_token_cooldown_ticks", 0),
         ("ranged_token_cooldown_ticks", 600),
         ("orbit_step", 1),
