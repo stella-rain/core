@@ -38,17 +38,25 @@ published stages fail to verify.
 - ADR-SIM-3 enforces the float, `usize`/`isize` and hash-iteration bans as lints (for example
   clippy `disallowed-types`); add them when the crate is created.
 
-## `sim_version` (ADR-REPL-5)
+## `sim_version` (ADR-REPL-7)
 
-- Version 0 is a development version (ADR-REPL-5): rules, numbers and the state's byte encoding
-  change in place, without a `rules_vN` copy, until the freeze at P3. The x86_64 and arm64
-  hash check is not relaxed: a PR that changes an outcome on purpose regenerates the version 0
-  corpus (`cargo xtask bless`) and says `Corpus regenerated: <why>`; any other hash change is a bug. SplitMix64 and
-  FNV-1a 64 stay fixed under version 0.
-- From version 1 on, the rules below apply in full.
-- Released `rules_vN` modules are frozen. A change that can alter an outcome goes into a new
-  version through the `schema-change` skill.
-- Shared helpers used by a frozen version keep their behaviour; copy before changing.
+- One module, `sim`, holds every released `sim_version`. The engine runs `v @ 1..=SIM_VERSION`
+  through it and fails closed on any other version. Version 1 is the frozen first version
+  (the freeze, FZ1); version 0 files, packs and replays are refused.
+- A change that can alter an outcome is `sim_version` N+1 and branches on it where behaviour
+  differs (`if version >= N+1`, with a comment `sim_version >= N+1: <why>`); the older branch
+  stays byte for byte. Fixing a bug in older behaviour is an outcome change: gated, never
+  edited in place. The `schema-change` skill has the steps.
+- A gate is enough when the older branch is untouched, the state layout and hash encoding
+  below N+1 are unchanged, the schedule's steps and order below N+1 are unchanged, every frozen
+  case replays with identical hashes and a test at N+1 shows the new behaviour. A full copy
+  (`sim_vN+1`) is for a rewrite only: those cannot hold, or one version needs more than 12
+  gates (above it Kade picks gates or a copy).
+- The frozen corpus `tests/corpus/v<N>/` guards the older versions. An edit to `sim` that moves
+  an older hash is red and cannot be blessed away: revert, gate or copy.
+- Shared leaf code (fixed point, trigonometry, RNG, hash) stays outside `sim` and is pinned by
+  golden tests. Changing its behaviour is a new function beside the old, called from a gate;
+  the old one and its golden test stay while a version uses it.
 - Frozen rules include the state hash and its byte encoding (ADR-SIM-3), and the dynamic budget
   caps with their overflow rules (ADR-SIM-7): raising a cap is a new `sim_version`.
 

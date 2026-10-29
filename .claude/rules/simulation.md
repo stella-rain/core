@@ -21,7 +21,9 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-7, ADR-REPL-3. The determinism
   frame, and `tally`, the read-only view of the run's HUD tallies (kills, rewards taken, named
   stars, constellation tiers; `Counted` in `ledger.rs`, outside the hashed state); its tests sit
   beside them (`horde_tests.rs`, `move_index_tests.rs`).
-- `sim/`: the rules of `sim_version` 0. `state.rs` is the run's `State`; `world.rs` the
+- `sim/`: the rules of every released `sim_version`, one module gated on it (ADR-REPL-7): an
+  outcome change is a gate on the version, a full copy only for a rewrite (`determinism.md`).
+  `state.rs` is the run's `State`; `world.rs` the
   run's definitions, resolved once and read-only (`DefIndex`, `AgentDef`, `AttackDef`).
   `schedule.rs` holds `TICK`, the one tick order: a step is added or moved there, and
   `tick_doc_lists_the_schedule` keeps the table in the `sim` module doc equal to it.

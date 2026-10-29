@@ -6,16 +6,15 @@ description: Change a Stella Rain stage, event or replay type, or anything that 
 # Schema change
 
 The Rust types in `stella-rain/core` are the only schema (ADR-CONT-1). Stages and replays already
-published in creators' repositories must keep loading and verifying forever (ADR-REPL-5, ADR-CONT-2).
+published in creators' repositories must keep loading and verifying forever (ADR-REPL-7, ADR-CONT-2).
 This file is identical in `app` and `core`; change both copies in the same task.
 
 ## 1. Classify the change
 
 | Change | Bump | What else |
 |---|---|---|
-| Any of the changes below while the version is still 0 (ADR-REPL-5) | none | Change in place: no migration, no `rules_vN` copy, no deprecation. If outcomes change, regenerate the version 0 corpus and write `Corpus regenerated: <why>` in the PR |
 | File structure of stages, events or recordings: a field added, removed, renamed or retyped | `schema_version` | Forward migration on load |
-| Anything that can alter an outcome: rules, numbers, RNG use, math, what a content ID does | `sim_version` | A new frozen `rules_vN`; older versions untouched |
+| Anything that can alter an outcome: rules, numbers, RNG use, math, what a content ID does | `sim_version` | A new `sim_version`: a gate in the rules module, a full copy only for a rewrite (ADR-REPL-7) |
 | New content ID (asset, palette, part, block, targeting, skill, attack pattern) | none | Registry entry; permanent once released |
 | Rename or remove a released content ID | not allowed | Deprecate it instead |
 | Refactor, docs, comments | none | The replay corpus proves the hashes are unchanged |
@@ -39,8 +38,9 @@ stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-SVC-6). Version 0 ends with the freeze at 
 1. Edit the types. Unknown fields stay rejected.
 2. `schema_version`: bump the constant and add a migration from the previous version. Files on
    disk are never rewritten in place.
-3. `sim_version`: copy the current rules into a new `rules_vN`, change only the new copy, and
-   add its arm to the dispatch. New stages always get the latest version.
+3. `sim_version`: bump it, branch on it where behaviour differs, leave the older branch
+   untouched, and add a test for the new behaviour; the frozen corpus must pass unchanged (a copy only
+   for a rewrite, ADR-REPL-7 point 3). New stages always get the latest version.
 4. Content ID: add it to the registry with the version that introduces it, its status
    (active or deprecated) and its asset source (ADR-REL-1). Deprecated IDs stay loadable.
 5. Regenerate the JSON Schema and commit its diff with the change.
