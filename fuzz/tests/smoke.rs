@@ -139,6 +139,12 @@ fn a_real_run_replay_verifies() {
             replay_load(&replay),
             "replay_load does not verify a run replay"
         );
+        let run = RunReplay::from_bytes(&replay).expect("a corpus run replay");
+        assert_eq!(
+            run.checkpoints.len(),
+            16 * usize::try_from(run.ticks / 60).unwrap(),
+            "a corpus run replay holds one checkpoint per 60 ticks"
+        );
     }
 }
 
