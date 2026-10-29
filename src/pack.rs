@@ -12,7 +12,9 @@
 //! A content ID a pack introduces, the file's own ID of a run stat, a reward, a stage skill, or
 //! a style or option of a weapon's expertise, an elite type of the `time_limit` mode, or a constellation (listed only when the pack has the list), records the `sim_version` that introduced it in
 //! the pack's `introduced` table, each exactly once, and is refused when that is newer than the
-//! pack's own (ADR-080, as the registry's IDs are for a stage, ADR-017). The registry's IDs a
+//! pack's own (ADR-080, as the registry's IDs are for a stage, ADR-017). An ID the released
+//! content (the bundled pack) does not hold is new and is recorded at the pack's `sim_version`,
+//! and is refused when it is recorded lower (ADR-REPL-6, ADR-CONT-2). The registry's IDs a
 //! file names are checked against the registry by the file's own parser.
 //!
 //! The content files have no versions of their own: the pack's header is the only one, and each
@@ -931,14 +933,16 @@ fn released_expertise(weapon: &ContentId) -> &'static [IntroducedId] {
         .map_or(&[], |e| e.ids.as_slice())
 }
 
-/// Checks one list of the table, at `at`, against the IDs of its file with their paths.
+/// Checks one list of the table, at `at`, against the IDs of its file with their paths. An ID
+/// the `released` entries (the bundled pack's) do not hold is new, and is recorded at the pack's
+/// own `sim_version` (ADR-REPL-6, ADR-CONT-2); a released ID keeps the version it was released at.
 fn check_ids(
     issues: &mut Vec<Issue>,
     at: &str,
     listed: &[IntroducedId],
     ids: &[(String, &ContentId)],
     sim_version: u32,
-    _released: &[IntroducedId],
+    released: &[IntroducedId],
 ) {
     for (i, entry) in listed.iter().enumerate() {
         if !ids.iter().any(|(_, id)| **id == entry.id) {
@@ -957,6 +961,14 @@ fn check_ids(
                 path: format!("{at}[{i}].sim_version"),
                 message: format!(
                     "introduced in sim_version {}, newer than the pack's {sim_version}",
+                    entry.sim_version
+                ),
+            });
+        } else if entry.sim_version < sim_version && !released.iter().any(|r| r.id == entry.id) {
+            issues.push(Issue {
+                path: format!("{at}[{i}].sim_version"),
+                message: format!(
+                    "a new ID is introduced in the pack's sim_version {sim_version}, not {}",
                     entry.sim_version
                 ),
             });
