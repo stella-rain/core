@@ -244,6 +244,11 @@ pub fn replay_load(data: &[u8]) -> bool {
         let recorded = run_replay::record_run(&run.setup, &commands(&run))
             .expect("the commands of a run replay that verified record");
         assert_eq!(recorded, run, "a verified run replay records as another");
+        assert_eq!(
+            run.checkpoints.len(),
+            16 * usize::try_from(run.ticks / run_replay::CHECKPOINT_TICKS).unwrap(),
+            "a verified run replay holds one checkpoint per 60 ticks"
+        );
         if verified.is_ok_and(|v| v.outcome == Outcome::Running) {
             assert!(
                 RunRecorder::resume_with_pack(&run, Pack::bundled()).is_ok(),

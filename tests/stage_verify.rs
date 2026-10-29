@@ -283,8 +283,7 @@ fn bad_command_lines_exit_with_two() {
 #[test]
 fn a_run_replay_is_verified_and_prints_ledger() {
     let replay_path = "tests/corpus/runs/v0/trial/run.replay";
-    let hashes_path = "tests/corpus/runs/v0/trial/hashes.bin";
-    let o = run(&["--run", replay_path, "--hashes", hashes_path]);
+    let o = run(&["--run", replay_path]);
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
     let stdout = out(&o);
     assert!(stdout.contains("result: "));
@@ -298,4 +297,24 @@ fn a_run_replay_is_verified_and_prints_ledger() {
     assert!(stdout.contains("\"picks\":"));
     assert!(stdout.contains("\"skill_uses\":"));
     assert_eq!(err(&o), "");
+}
+
+#[test]
+fn a_run_replay_with_a_changed_checkpoint_is_refused_naming_its_second() {
+    let bytes = std::fs::read("tests/corpus/runs/v0/trial/run.replay").unwrap();
+    let mut replay: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let checkpoints = replay["checkpoints"].as_str().unwrap().to_string();
+    let second = checkpoints.len() / 16;
+    let last = checkpoints.len() - 1;
+    let digit = if checkpoints.ends_with('0') { "1" } else { "0" };
+    replay["checkpoints"] = serde_json::json!(format!("{}{digit}", &checkpoints[..last]));
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("trial-checkpoint.replay");
+    std::fs::write(&path, replay.to_string()).unwrap();
+    let o = run(&["--run", path.to_str().unwrap()]);
+    assert_ne!(o.status.code(), Some(0));
+    let message = err(&o);
+    assert!(
+        message.contains(&format!("checkpoint of second {second}")),
+        "{message}"
+    );
 }

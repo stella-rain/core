@@ -12,8 +12,9 @@
 //! in the PR (ADR-035).
 //!
 //! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
-//! `run.replay` (a run replay: setup, content hash, inputs and commands) and `hashes.bin` (the
-//! hash after every tick, before the commands between it and the next). They need no stage file, because the
+//! `run.replay` alone (a run replay: setup, content hash, inputs, commands and `checkpoints`, the
+//! hash after every 60th tick, which are the expected hashes). A failing second is re-run and its
+//! 61 snapshots written to `target/corpus-diff/<name>/`. They need no stage file, because the
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
 
 use crate::common;
@@ -33,7 +34,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, hash_to_hex};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
-use stella_rain_core::run_setup::{self, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{EntityKind, OfferOption, Snapshot};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::MAX_TICKS;
@@ -128,47 +129,86 @@ pub(crate) fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> 
     }
 }
 
-/// Re-simulates one run case (ADR-079), taking its commands between the ticks, and compares
-/// every tick's hash; then the run replay must verify against the same hashes.
+/// Verifies one run case (ADR-079): its `run.replay` carries the expected hashes as checkpoints,
+/// one every 60 ticks, so it is the one file of the case. A `hashes.bin` or `hashes.txt` beside
+/// it would be a second source of truth and fails the case. When a checkpoint differs, the
+/// snapshots of the ticks of that second are written to `<diff_dir>/<name>/`.
 fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let name = case.file_name().unwrap().to_string_lossy().into_owned();
     let fail = |e: &dyn std::fmt::Display| format!("corpus case `{name}`: {e}");
+    for stale in ["hashes.bin", "hashes.txt"] {
+        if case.join(stale).exists() {
+            return Err(fail(&format!(
+                "{stale} beside run.replay; a run case keeps its hashes as checkpoints in \
+                 run.replay; run `cargo xtask bless`"
+            )));
+        }
+    }
     let replay_bytes = fs::read(case.join("run.replay")).map_err(|e| fail(&e))?;
-    let hashes = read_hashes(case, &name)?;
     let recorded = RunReplay::from_bytes(&replay_bytes).map_err(|e| fail(&e))?;
     let content = case_content(case).map_err(|e| fail(&e))?;
-    let stage =
-        run_setup::stage_with(&recorded.setup, content.time_limit()).map_err(|e| fail(&e))?;
-    let inputs = recorded
-        .unpack_inputs(run_setup::max_replay_ticks(
-            &recorded.setup,
-            &stage,
-            content.time_limit(),
-        ))
-        .map_err(|e| fail(&e))?;
-    let commands = recorded.unpack_commands().map_err(|e| fail(&e))?;
-    if hashes.len() != inputs.len() {
-        return Err(fail(&format!(
-            "hashes.bin has {} hashes, run.replay has {} ticks",
-            hashes.len(),
-            inputs.len()
-        )));
+    match run_replay::verify_run_with(&replay_bytes, &content) {
+        Ok(_) => Ok(()),
+        Err(run_replay::RunReplayError::CheckpointDiffers { second }) => {
+            Err(dump_second(&name, &recorded, &content, second, diff_dir))
+        }
+        Err(e) => Err(fail(&e)),
     }
+}
 
-    let mut engine = Engine::start_with(&recorded.setup, &content).map_err(|e| fail(&e))?;
+/// Re-runs a run case from tick 0 and writes `<diff_dir>/<name>/tick-<NNNNN>.json` for each tick
+/// from the start of `second` to its checkpoint (61 files): the hash and the snapshot after that
+/// tick, before the commands that follow it. Returns the message the case fails with.
+fn dump_second(
+    name: &str,
+    recorded: &RunReplay,
+    content: &RunContent,
+    second: u32,
+    diff_dir: &Path,
+) -> String {
+    let (from, to) = (
+        (second - 1) * run_replay::CHECKPOINT_TICKS,
+        second * run_replay::CHECKPOINT_TICKS,
+    );
+    let dir = diff_dir.join(name);
+    fs::create_dir_all(&dir).unwrap();
+    let dump = |engine: &Engine| {
+        let tick = engine.tick();
+        let file = json!({
+            "case": name,
+            "tick": tick,
+            "hash": hash_to_hex(engine.state_hash()),
+            "snapshot": engine.snapshot(),
+        });
+        let path = dir.join(format!("tick-{tick:05}.json"));
+        fs::write(path, serde_json::to_vec_pretty(&file).unwrap()).unwrap();
+    };
+    let mut engine = Engine::start_with(&recorded.setup, content).unwrap();
+    let commands = recorded.unpack_commands().unwrap();
     let mut next = commands.iter().peekable();
-    for (input, expected) in inputs.iter().zip(&hashes) {
+    if from == 0 {
+        dump(&engine);
+    }
+    for input in recorded.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            apply(&mut engine, c).map_err(|e| fail(&e))?;
+            apply(&mut engine, c).unwrap();
         }
-        let previous = engine.snapshot();
-        engine.step(*input);
-        if engine.state_hash() != *expected {
-            return Err(divergence(&name, *expected, &engine, &previous, diff_dir));
+        engine.step(input);
+        if engine.tick() >= from {
+            dump(&engine);
+        }
+        if engine.tick() == to {
+            break;
         }
     }
-    run_replay::verify_run_against_with(&replay_bytes, &content, &hashes).map_err(|e| fail(&e))?;
-    Ok(())
+    let at = 16 * (second as usize - 1);
+    format!(
+        "corpus case `{name}` diverges in second {second}, between tick {from} and tick {to}: \
+         expected {}, got {}; the snapshots of ticks {from} to {to} are in {}",
+        &recorded.checkpoints[at..at + 16],
+        hash_to_hex(engine.state_hash()),
+        dir.display()
+    )
 }
 
 /// The content a run case plays with: the bundled files, and the `time_limit` mode file of its
@@ -200,22 +240,6 @@ fn hurts_at_design_value(case: &Path) -> bool {
     )
 }
 
-/// The hash after every tick of a run replay, before the commands that follow it.
-fn run_hashes(replay: &RunReplay, content: &RunContent) -> Vec<u64> {
-    let mut engine = Engine::start_with(&replay.setup, content).unwrap();
-    let commands = replay.unpack_commands().unwrap();
-    let mut next = commands.iter().peekable();
-    let mut hashes = Vec::new();
-    for input in replay.unpack_inputs(u32::MAX).unwrap() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            apply(&mut engine, c).unwrap();
-        }
-        engine.step(input);
-        hashes.push(engine.state_hash());
-    }
-    hashes
-}
-
 /// Writes a run case's files from a setup and the commands to run, and the mode file it plays
 /// with if it has one.
 fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[Command]) {
@@ -229,7 +253,13 @@ fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[
     };
     let recorded = run_replay::record_run_with(setup, &content, commands).unwrap();
     write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
-    write_hashes(dir, &run_hashes(&recorded, &content));
+    for stale in ["hashes.bin", "hashes.txt"] {
+        match fs::remove_file(dir.join(stale)) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => panic!("cannot remove {stale}: {e}"),
+        }
+    }
 }
 
 /// Writes the snapshots of the first diverging tick (`engine`'s) and of the one before to
@@ -401,7 +431,7 @@ fn a_text_hashes_file_beside_the_binary_one_fails() {
 }
 
 #[test]
-fn the_writers_write_hashes_bin_and_remove_hashes_txt() {
+fn the_writers_write_their_files_and_remove_stale_hashes() {
     let (case, diff) = changed_hash_case("writer");
     fs::write(case.join("hashes.txt"), "x\n").unwrap();
     write_case(&case, &common::stage_bytes(), &common::clearing_inputs());
@@ -411,15 +441,14 @@ fn the_writers_write_hashes_bin_and_remove_hashes_txt() {
 
     let (case, diff) = changed_run_case("writer");
     fs::write(case.join("hashes.txt"), "x\n").unwrap();
+    fs::write(case.join("hashes.bin"), [0u8; 8]).unwrap();
     let setup = common::run::trial_setup();
     let point = crate::run_play::first_point_tick();
-    write_run_case(&case, &setup, None, &crate::run_play::play_run(point + 20));
+    write_run_case(&case, &setup, None, &crate::run_play::play_run(point + 200));
     assert!(!case.join("hashes.txt").exists());
+    assert!(!case.join("hashes.bin").exists());
     let replay = RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
-    assert_eq!(
-        fs::read(case.join("hashes.bin")).unwrap().len(),
-        8 * replay.ticks as usize
-    );
+    assert_eq!(replay.checkpoints.len(), 16 * (replay.ticks / 60) as usize);
     assert_eq!(check_run_case(&case, &diff), Ok(()));
 }
 
@@ -440,12 +469,11 @@ fn a_replay_that_is_not_the_stages_fails() {
 fn changed_run_case(name: &str) -> (PathBuf, PathBuf) {
     let dir = scratch(&format!("run-{name}"));
     let case = dir.join("case");
-    let point = crate::run_play::first_point_tick();
     write_run_case(
         &case,
         &common::run::trial_setup(),
         None,
-        &crate::run_play::play_run(point + 20),
+        &crate::run_play::play_run(300),
     );
     (case, dir.join("diff"))
 }
@@ -457,26 +485,50 @@ fn an_unchanged_run_case_passes() {
     assert!(!diff.exists(), "a passing case writes no diff");
 }
 
+/// Flips the last digit of the replay's `second`th checkpoint; returns the flipped checkpoint
+/// and the engine's value for it, as numbers.
+fn flip_checkpoint(case: &Path, second: usize) -> (u64, u64) {
+    let path = case.join("run.replay");
+    let mut replay = RunReplay::from_bytes(&fs::read(&path).unwrap()).unwrap();
+    let range = 16 * (second - 1)..16 * second;
+    let engine = replay::hash_from_hex(&replay.checkpoints[range.clone()]).unwrap();
+    let mut digits: Vec<u8> = replay.checkpoints.bytes().collect();
+    let last = range.end - 1;
+    digits[last] = if digits[last] == b'0' { b'1' } else { b'0' };
+    replay.checkpoints = String::from_utf8(digits).unwrap();
+    let flipped = replay::hash_from_hex(&replay.checkpoints[range]).unwrap();
+    fs::write(&path, replay.to_bytes()).unwrap();
+    (flipped, engine)
+}
+
 #[test]
-fn a_changed_hash_in_a_run_case_fails_naming_its_tick() {
-    let (case, diff) = changed_run_case("tick-n");
-    let after_point = crate::run_play::first_point_tick() as usize + 1;
-    let (flipped, engine) = change_hash(&case, after_point);
+fn a_changed_run_case_names_its_second_and_dumps_it() {
+    let (case, diff) = changed_run_case("second");
+    let (flipped, engine) = flip_checkpoint(&case, 2);
     let message = check_run_case(&case, &diff).unwrap_err();
-    assert!(
-        message.contains(&format!("tick {after_point}")),
-        "{message}"
-    );
-    assert!(
-        message.contains(&format!("expected {}", hash_to_hex(flipped))),
-        "{message}"
-    );
-    assert!(
-        message.contains(&format!("got {}", hash_to_hex(engine))),
-        "{message}"
-    );
-    let dump: Value = serde_json::from_slice(&fs::read(diff.join("case.json")).unwrap()).unwrap();
-    assert_eq!(dump["tick"], json!(after_point));
+    for part in [
+        "second 2",
+        "between tick 60 and tick 120",
+        &format!("expected {}", hash_to_hex(flipped)),
+        &format!("got {}", hash_to_hex(engine)),
+    ] {
+        assert!(message.contains(part), "{message}");
+    }
+    let dir = diff.join("case");
+    let mut names: Vec<String> = fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    assert_eq!(names.len(), 61);
+    assert_eq!(names[0], "tick-00060.json");
+    assert_eq!(names[60], "tick-00120.json");
+    let dump: Value =
+        serde_json::from_slice(&fs::read(dir.join("tick-00120.json")).unwrap()).unwrap();
+    assert_eq!(dump["case"], json!("case"));
+    assert_eq!(dump["tick"], json!(120));
+    assert_eq!(dump["hash"], json!(hash_to_hex(engine)));
+    assert_eq!(dump["snapshot"]["tick"], json!(120));
 }
 
 #[test]
@@ -489,25 +541,31 @@ fn a_run_case_whose_stat_priority_changed_fails() {
     fs::write(&path, replay.to_bytes()).unwrap();
     // The priority is in the state from tick 0, so the run differs from the first tick on.
     let message = check_run_case(&case, &diff).unwrap_err();
-    assert!(message.contains("diverges first on tick 1"), "{message}");
+    assert!(
+        message.contains("diverges in second 1, between tick 0 and tick 60"),
+        "{message}"
+    );
 }
 
 #[test]
-fn a_run_case_with_hashes_that_are_not_one_per_tick_fails() {
-    let (case, diff) = changed_run_case("count");
-    let path = case.join("hashes.bin");
-    let bytes = fs::read(&path).unwrap();
-    fs::write(&path, &bytes[..80]).unwrap();
+fn a_run_case_with_damaged_checkpoints_fails() {
+    let (case, diff) = changed_run_case("damaged");
+    let path = case.join("run.replay");
+    let mut replay = RunReplay::from_bytes(&fs::read(&path).unwrap()).unwrap();
+    replay.checkpoints.truncate(replay.checkpoints.len() - 16);
+    fs::write(&path, replay.to_bytes()).unwrap();
     let message = check_run_case(&case, &diff).unwrap_err();
-    assert!(message.contains("hashes.bin has 10 hashes"), "{message}");
+    assert!(message.contains("checkpoints"), "{message}");
+}
 
-    fs::write(&path, &bytes[..bytes.len() - 1]).unwrap();
-    let message = check_run_case(&case, &diff).unwrap_err();
-    assert!(message.contains("hashes.bin"), "{message}");
-    assert!(
-        message.contains("not a whole number of 8-byte hashes"),
-        "{message}"
-    );
+#[test]
+fn a_hashes_file_beside_a_run_case_fails() {
+    for file in ["hashes.bin", "hashes.txt"] {
+        let (case, diff) = changed_run_case("beside");
+        fs::write(case.join(file), [0u8; 8]).unwrap();
+        let message = check_run_case(&case, &diff).unwrap_err();
+        assert!(message.contains(file), "{message}");
+    }
 }
 
 // --- The cases, built from the test helpers --------------------------------------------------

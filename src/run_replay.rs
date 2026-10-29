@@ -22,6 +22,13 @@
 //! with the same checks (a final hash that differs is `PrefixHashDiffers`) and returns a live
 //! recorder at the cut, an open offer included, so a later `replay()` is one run from tick 0.
 //!
+//! A replay also holds `checkpoints`: the state hash after every 60th tick (ADR-REPL-4), each as
+//! 16 lowercase hex digits, concatenated, taken right after the tick and before the commands
+//! that follow it. The recorder writes them; re-simulation checks each as it passes it, so a run
+//! that no longer reproduces fails naming the first second that differs (`CheckpointDiffers`),
+//! and a field that is not `ticks / 60` hashes is `BadCheckpoints`. A run case of the corpus
+//! keeps its expected hashes in them, in place of a hash per tick.
+//!
 //! The content hash is the SHA-256 of the bytes of the content pack the run used (ADR-079 §5,
 //! ADR-080), so any content update invalidates the replay rather than letting it drift, and a
 //! kept pack is found by it. The attack presets and the weapons are files of the pack
@@ -61,6 +68,9 @@ pub const MAX_COMMANDS: u32 = 1000;
 /// a share code (`share`).
 pub const MAX_RUN_REPLAY_BYTES: usize = 1024 * 1024;
 
+/// A run replay holds the state hash after every this many ticks (ADR-REPL-4): one second.
+pub const CHECKPOINT_TICKS: u32 = 60;
+
 /// What the hash derived from files replaced one by one starts with, so that it cannot be
 /// mistaken for another SHA-256.
 const CONTENT_TAG: &[u8] = b"stella-rain run content v0\0";
@@ -78,6 +88,10 @@ pub struct RunReplay {
     /// The FNV-1a 64 state hash after the last tick and the commands after it (ADR-019), 16
     /// lowercase hex digits.
     pub final_hash: String,
+    /// The FNV-1a 64 state hash after every 60th tick (60, 120, 180, ...), each taken right
+    /// after that tick and before the commands that follow it, each 16 lowercase hex digits,
+    /// concatenated: `16 * (ticks / 60)` digits, empty for fewer than 60 ticks.
+    pub checkpoints: String,
     /// The per-tick inputs, packed as a stage replay's are, then base64.
     pub inputs: String,
     /// The commands between ticks, packed as described in the module documentation, then
@@ -186,6 +200,12 @@ pub enum RunReplayError {
         expected: u32,
         given: usize,
     },
+    /// The `checkpoints` field is not one 16-digit hash per 60 ticks.
+    BadCheckpoints,
+    /// Re-simulation differs from the replay's checkpoint of this second (counted from 1).
+    CheckpointDiffers {
+        second: u32,
+    },
     /// A replay prefix re-simulates to another state at its cut than its hash says.
     PrefixHashDiffers {
         tick: u32,
@@ -251,6 +271,15 @@ impl fmt::Display for RunReplayError {
             RunReplayError::HashCount { expected, given } => {
                 write!(f, "expected {expected} per-tick hashes, got {given}")
             }
+            RunReplayError::BadCheckpoints => {
+                f.write_str("the replay's checkpoints are not one 16-digit hash per 60 ticks")
+            }
+            RunReplayError::CheckpointDiffers { second } => write!(
+                f,
+                "the run differs from the replay's checkpoint of second {second} (between tick {} and tick {})",
+                (second - 1) * CHECKPOINT_TICKS,
+                second * CHECKPOINT_TICKS
+            ),
             RunReplayError::PrefixHashDiffers { tick } => write!(
                 f,
                 "the run re-simulated to tick {tick} reaches another state than the replay prefix says"
@@ -464,6 +493,7 @@ pub struct RunRecorder {
     engine: Engine,
     inputs: Vec<Input>,
     commands: Vec<TickCommand>,
+    checkpoints: Vec<u64>,
 }
 
 impl RunRecorder {
@@ -486,6 +516,7 @@ impl RunRecorder {
             engine,
             inputs: Vec::new(),
             commands: Vec::new(),
+            checkpoints: Vec::new(),
         })
     }
 
@@ -527,6 +558,7 @@ impl RunRecorder {
             engine,
             inputs: run.inputs,
             commands: run.commands,
+            checkpoints: run.checkpoints,
         })
     }
 
@@ -550,6 +582,9 @@ impl RunRecorder {
         }
         self.engine.step(input);
         self.inputs.push(input);
+        if self.engine.tick() % CHECKPOINT_TICKS == 0 {
+            self.checkpoints.push(self.engine.state_hash());
+        }
         Ok(())
     }
 
@@ -585,6 +620,7 @@ impl RunRecorder {
             content_sha256: self.content_sha256.clone(),
             ticks: self.engine.tick(),
             final_hash: hash_to_hex(self.engine.state_hash()),
+            checkpoints: self.checkpoints.iter().map(|h| hash_to_hex(*h)).collect(),
             inputs: pack_inputs(&self.inputs),
             commands: pack_commands(&self.commands),
         }
@@ -710,6 +746,27 @@ struct Resimulated {
     final_hash: u64,
     inputs: Vec<Input>,
     commands: Vec<TickCommand>,
+    /// The state hashes after ticks 60, 120, ..., as this run reached them.
+    checkpoints: Vec<u64>,
+}
+
+/// The replay's checkpoints as numbers: exactly `ticks / 60` hashes of 16 lowercase hex
+/// digits. Works on bytes, so a multi-byte character is a bad chunk, never a panic.
+fn parse_checkpoints(replay: &RunReplay) -> Result<Vec<u64>, RunReplayError> {
+    let bytes = replay.checkpoints.as_bytes();
+    let count = usize::try_from(replay.ticks / CHECKPOINT_TICKS).unwrap_or(usize::MAX);
+    if bytes.len() / 16 != count || bytes.len() % 16 != 0 {
+        return Err(RunReplayError::BadCheckpoints);
+    }
+    bytes
+        .chunks(16)
+        .map(|chunk| {
+            std::str::from_utf8(chunk)
+                .ok()
+                .and_then(hash_from_hex)
+                .ok_or(RunReplayError::BadCheckpoints)
+        })
+        .collect()
 }
 
 /// Every check of `verify_inner` but the comparison of the final hash, on a parsed replay.
@@ -731,6 +788,7 @@ fn resimulate(
         run_content.time_limit(),
     ))?;
     let commands = replay.unpack_commands()?;
+    let claimed = parse_checkpoints(replay)?;
     if let Some(expected) = expected {
         if expected.len() != inputs.len() {
             return Err(RunReplayError::HashCount {
@@ -743,6 +801,7 @@ fn resimulate(
     let mut engine =
         Engine::start_with(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
     let mut next = 0;
+    let mut reached = Vec::with_capacity(claimed.len());
     for (i, input) in inputs.iter().enumerate() {
         apply_commands(&mut engine, &commands, &mut next)?;
         if engine.outcome() != Outcome::Running {
@@ -766,6 +825,16 @@ fn resimulate(
                 });
             }
         }
+        if engine.tick() % CHECKPOINT_TICKS == 0 {
+            let actual = engine.state_hash();
+            let at = reached.len();
+            if claimed[at] != actual {
+                return Err(RunReplayError::CheckpointDiffers {
+                    second: u32::try_from(at + 1).unwrap_or(u32::MAX),
+                });
+            }
+            reached.push(actual);
+        }
     }
     apply_commands(&mut engine, &commands, &mut next)?;
     // Every tick from 0 to the last took its commands, and none is after the last; this only
@@ -780,6 +849,7 @@ fn resimulate(
         final_hash,
         inputs,
         commands,
+        checkpoints: reached,
     })
 }
 

@@ -10,7 +10,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{hash_to_hex, pack_inputs};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::MAX_RUN_REPLAY_BYTES;
+use stella_rain_core::run_replay::{CHECKPOINT_TICKS, MAX_RUN_REPLAY_BYTES};
 use stella_rain_core::run_replay::{
     Command, CommandKind, MAX_COMMANDS, RunRecorder, RunReplay, RunReplayError, TickCommand,
     content_sha256, pack_commands, record_run, record_run_with, record_run_with_pack, verify_run,
@@ -409,62 +409,40 @@ fn a_bad_or_newer_setup_is_refused() {
 }
 
 #[test]
-fn a_changed_input_or_seed_reaches_another_final_hash() {
+fn a_changed_input_or_seed_is_refused() {
     // Short of either seed's first offer (seed 1 opens one at tick 175), so a changed seed is a
-    // wrong final hash and not an open offer.
+    // wrong checkpoint and not an open offer.
     let replay = recorded(170);
     let bytes = with(&replay, |v| v["setup"]["seed"] = json!(1));
-    assert!(matches!(
-        verify_run(&bytes),
-        Err(RunReplayError::WrongFinalHash { .. })
-    ));
+    assert_eq!(
+        verify_run(&bytes).err(),
+        Some(RunReplayError::CheckpointDiffers { second: 1 })
+    );
     let mut inputs = replay.unpack_inputs(TRIAL_LENGTH).unwrap();
     inputs[100].move_y = 127;
     let bytes = with(&replay, |v| v["inputs"] = json!(pack_inputs(&inputs)));
-    assert!(matches!(
-        verify_run(&bytes),
-        Err(RunReplayError::WrongFinalHash { .. })
-    ));
+    assert_eq!(
+        verify_run(&bytes).err(),
+        Some(RunReplayError::CheckpointDiffers { second: 2 })
+    );
 }
 
 #[test]
-fn a_changed_stat_priority_reaches_another_final_hash() {
+fn a_changed_stat_priority_is_refused() {
     let point = first_point_tick();
     let replay = recorded(point + 10);
     let bytes = with(&replay, |v| v["setup"]["stat_priority"] = json!(["speed"]));
-    assert!(matches!(
-        verify_run(&bytes),
-        Err(RunReplayError::WrongFinalHash { .. })
-    ));
-}
-
-#[test]
-fn the_mode_s_length_bounds_the_ticks() {
-    let replay = recorded(20);
-    let at_limit = with(&replay, |v| {
-        v["ticks"] = json!(TRIAL_LENGTH);
-        v["inputs"] = json!(pack_inputs(&vec![Input::default(); TRIAL_LENGTH as usize]));
-    });
-    let at_limit = RunReplay::from_bytes(&at_limit).unwrap();
-    assert_eq!(
-        at_limit.unpack_inputs(TRIAL_LENGTH).unwrap().len(),
-        TRIAL_LENGTH as usize
-    );
-
-    let past = with(&replay, |v| {
-        v["ticks"] = json!(TRIAL_LENGTH + 1);
-        v["inputs"] = json!(pack_inputs(&vec![
-            Input::default();
-            TRIAL_LENGTH as usize + 1
-        ]));
-    });
-    assert_eq!(
-        verify_run(&past),
-        Err(RunReplayError::TooManyTicks {
-            ticks: TRIAL_LENGTH + 1,
-            limit: TRIAL_LENGTH
-        })
-    );
+    // The priority is in the state from tick 0: the first checkpoint, or the final hash of a
+    // run shorter than a second, sees it.
+    let expected = if replay.ticks < 60 {
+        matches!(
+            verify_run(&bytes),
+            Err(RunReplayError::WrongFinalHash { .. })
+        )
+    } else {
+        verify_run(&bytes) == Err(RunReplayError::CheckpointDiffers { second: 1 })
+    };
+    assert!(expected);
 }
 
 #[test]
@@ -843,9 +821,25 @@ fn a_tampered_prefix_hash_is_refused() {
         ..prefix.clone()
     };
     assert_ne!(changed.inputs, prefix.inputs);
+    // The checkpoint at tick 300 sees the change before the prefix hash does.
     assert_eq!(
         RunRecorder::resume_with_pack(&changed, pack).err(),
-        Some(RunReplayError::PrefixHashDiffers { tick: 300 })
+        Some(RunReplayError::CheckpointDiffers { second: 5 })
+    );
+    // A prefix cut at tick 299 has no checkpoint after tick 240: the prefix hash catches it.
+    let prefix = recorded(299);
+    let mut inputs = prefix.unpack_inputs(299).unwrap();
+    for input in &mut inputs[290..299] {
+        *input = Input::default();
+    }
+    let changed = RunReplay {
+        inputs: pack_inputs(&inputs),
+        ..prefix.clone()
+    };
+    assert_ne!(changed.inputs, prefix.inputs);
+    assert_eq!(
+        RunRecorder::resume_with_pack(&changed, pack).err(),
+        Some(RunReplayError::PrefixHashDiffers { tick: 299 })
     );
 }
 
@@ -915,5 +909,166 @@ fn a_prefix_of_an_ended_run_is_refused_on_resume() {
     assert_eq!(
         RunRecorder::resume_with_pack(&ended, Pack::bundled()).err(),
         Some(RunReplayError::PrefixEnded { tick: ended.ticks })
+    );
+}
+
+/// The hash `Engine` reaches after each of the first `ticks` ticks of `commands`, taken right
+/// after the tick and before the commands that follow it.
+fn hashes_per_tick(commands: &[Command], ticks: u32) -> Vec<u64> {
+    let mut engine = Engine::start_with(&trial_setup(), RunContent::bundled()).unwrap();
+    let mut out = Vec::new();
+    for c in commands {
+        if out.len() == ticks as usize {
+            break;
+        }
+        let is_step = matches!(c, Command::Step(_));
+        apply(&mut engine, *c);
+        if is_step {
+            out.push(engine.state_hash());
+        }
+    }
+    out
+}
+
+#[test]
+fn checkpoints_are_one_per_60_ticks() {
+    let commands = play_run(200);
+    let run = record_run(&trial_setup(), &commands).unwrap();
+    assert_eq!(run.ticks, 200);
+    assert_eq!(run.checkpoints.len(), 48);
+    let per_tick = hashes_per_tick(&commands, 200);
+    for i in 0..3 {
+        let tick = (i + 1) * CHECKPOINT_TICKS as usize;
+        assert_eq!(
+            &run.checkpoints[16 * i..16 * (i + 1)],
+            hash_to_hex(per_tick[tick - 1]),
+            "checkpoint {i}"
+        );
+    }
+    assert!(!run.checkpoints.contains(&run.final_hash));
+    verify_run(&run.to_bytes()).unwrap();
+
+    let short = recorded(59);
+    assert_eq!(short.checkpoints, "");
+    verify_run(&short.to_bytes()).unwrap();
+    let one = recorded(60);
+    assert_eq!(one.checkpoints.len(), 16);
+    verify_run(&one.to_bytes()).unwrap();
+}
+
+#[test]
+fn a_tampered_tick_reports_its_second() {
+    let a = recorded(300);
+    let mut inputs = a.unpack_inputs(300).unwrap();
+    for input in &mut inputs[125..135] {
+        *input = Input::default();
+    }
+    let b = RunReplay {
+        inputs: pack_inputs(&inputs),
+        ..a.clone()
+    };
+    assert_ne!(a.inputs, b.inputs);
+    assert_eq!(
+        verify_run(&b.to_bytes()).err(),
+        Some(RunReplayError::CheckpointDiffers { second: 3 })
+    );
+    let mut digits: Vec<char> = a.checkpoints.chars().collect();
+    digits[16 + 15] = if digits[16 + 15] == '0' { '1' } else { '0' };
+    let second = RunReplay {
+        checkpoints: digits.iter().collect(),
+        ..a.clone()
+    };
+    assert_eq!(
+        verify_run(&second.to_bytes()).err(),
+        Some(RunReplayError::CheckpointDiffers { second: 2 })
+    );
+    // The first fault wins: a bad checkpoint 4 and a bad final hash answer with the checkpoint.
+    let mut digits: Vec<char> = a.checkpoints.chars().collect();
+    digits[3 * 16] = if digits[3 * 16] == '0' { '1' } else { '0' };
+    let both = RunReplay {
+        checkpoints: digits.iter().collect(),
+        final_hash: "0123456789abcdef".into(),
+        ..a
+    };
+    assert_eq!(
+        verify_run(&both.to_bytes()).err(),
+        Some(RunReplayError::CheckpointDiffers { second: 4 })
+    );
+}
+
+#[test]
+fn the_checkpoint_error_names_its_ticks() {
+    let third = RunReplayError::CheckpointDiffers { second: 3 }.to_string();
+    for part in ["second 3", "tick 120", "tick 180"] {
+        assert!(third.contains(part), "{third}");
+    }
+    let first = RunReplayError::CheckpointDiffers { second: 1 }.to_string();
+    for part in ["second 1", "tick 0", "tick 60"] {
+        assert!(first.contains(part), "{first}");
+    }
+}
+
+#[test]
+fn a_replay_with_damaged_checkpoints_is_refused() {
+    let run = recorded(200);
+    let c = run.checkpoints.clone();
+    assert_eq!(c.len(), 48);
+    let damaged = [
+        c[1..].to_string(),
+        c[16..].to_string(),
+        format!("{c}{}", &c[..16]),
+        c.replacen(|ch: char| ch.is_ascii_lowercase(), "A", 1) + "",
+        format!("g{}", &c[1..]),
+        format!("{}{}", "é".repeat(8), &c[16..]),
+        String::new(),
+    ];
+    for (i, checkpoints) in damaged.into_iter().enumerate() {
+        let replay = RunReplay {
+            checkpoints,
+            ..run.clone()
+        };
+        assert_eq!(
+            verify_run(&replay.to_bytes()).err(),
+            Some(RunReplayError::BadCheckpoints),
+            "case {i}"
+        );
+    }
+    let short = recorded(59);
+    verify_run(&short.to_bytes()).unwrap();
+    let no_key = with(&run, |v| {
+        v.as_object_mut().unwrap().remove("checkpoints");
+    });
+    assert!(matches!(
+        verify_run(&no_key),
+        Err(RunReplayError::Parse { .. })
+    ));
+    let extra = with(&run, |v| v["extra"] = json!(1));
+    assert!(matches!(
+        verify_run(&extra),
+        Err(RunReplayError::Parse { .. })
+    ));
+}
+
+#[test]
+fn a_prefix_keeps_its_checkpoints_when_resumed() {
+    let (setup, pack) = (trial_setup(), Pack::bundled());
+    let all = play_run(400);
+    let cut = after_steps(&all, 0, 300);
+    let prefix = record_run_with_pack(&setup, pack, &all[..cut]).unwrap();
+    assert_eq!(prefix.checkpoints.len(), 80);
+    let mut r = RunRecorder::resume_with_pack(&prefix, pack).unwrap();
+    feed(&mut r, &all[cut..]);
+    let whole = record_run_with_pack(&setup, pack, &all).unwrap();
+    assert_eq!(whole.checkpoints.len(), 96);
+    assert_eq!(r.replay().to_bytes(), whole.to_bytes());
+    let mut digits: Vec<char> = prefix.checkpoints.chars().collect();
+    digits[15] = if digits[15] == '0' { '1' } else { '0' };
+    let bad = RunReplay {
+        checkpoints: digits.iter().collect(),
+        ..prefix
+    };
+    assert_eq!(
+        RunRecorder::resume_with_pack(&bad, pack).err(),
+        Some(RunReplayError::CheckpointDiffers { second: 1 })
     );
 }
