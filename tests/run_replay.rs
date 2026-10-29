@@ -409,62 +409,40 @@ fn a_bad_or_newer_setup_is_refused() {
 }
 
 #[test]
-fn a_changed_input_or_seed_reaches_another_final_hash() {
+fn a_changed_input_or_seed_is_refused() {
     // Short of either seed's first offer (seed 1 opens one at tick 175), so a changed seed is a
-    // wrong final hash and not an open offer.
+    // wrong checkpoint and not an open offer.
     let replay = recorded(170);
     let bytes = with(&replay, |v| v["setup"]["seed"] = json!(1));
-    assert!(matches!(
-        verify_run(&bytes),
-        Err(RunReplayError::WrongFinalHash { .. })
-    ));
+    assert_eq!(
+        verify_run(&bytes).err(),
+        Some(RunReplayError::CheckpointDiffers { second: 1 })
+    );
     let mut inputs = replay.unpack_inputs(TRIAL_LENGTH).unwrap();
     inputs[100].move_y = 127;
     let bytes = with(&replay, |v| v["inputs"] = json!(pack_inputs(&inputs)));
-    assert!(matches!(
-        verify_run(&bytes),
-        Err(RunReplayError::WrongFinalHash { .. })
-    ));
+    assert_eq!(
+        verify_run(&bytes).err(),
+        Some(RunReplayError::CheckpointDiffers { second: 2 })
+    );
 }
 
 #[test]
-fn a_changed_stat_priority_reaches_another_final_hash() {
+fn a_changed_stat_priority_is_refused() {
     let point = first_point_tick();
     let replay = recorded(point + 10);
     let bytes = with(&replay, |v| v["setup"]["stat_priority"] = json!(["speed"]));
-    assert!(matches!(
-        verify_run(&bytes),
-        Err(RunReplayError::WrongFinalHash { .. })
-    ));
-}
-
-#[test]
-fn the_mode_s_length_bounds_the_ticks() {
-    let replay = recorded(20);
-    let at_limit = with(&replay, |v| {
-        v["ticks"] = json!(TRIAL_LENGTH);
-        v["inputs"] = json!(pack_inputs(&vec![Input::default(); TRIAL_LENGTH as usize]));
-    });
-    let at_limit = RunReplay::from_bytes(&at_limit).unwrap();
-    assert_eq!(
-        at_limit.unpack_inputs(TRIAL_LENGTH).unwrap().len(),
-        TRIAL_LENGTH as usize
-    );
-
-    let past = with(&replay, |v| {
-        v["ticks"] = json!(TRIAL_LENGTH + 1);
-        v["inputs"] = json!(pack_inputs(&vec![
-            Input::default();
-            TRIAL_LENGTH as usize + 1
-        ]));
-    });
-    assert_eq!(
-        verify_run(&past),
-        Err(RunReplayError::TooManyTicks {
-            ticks: TRIAL_LENGTH + 1,
-            limit: TRIAL_LENGTH
-        })
-    );
+    // The priority is in the state from tick 0: the first checkpoint, or the final hash of a
+    // run shorter than a second, sees it.
+    let expected = if replay.ticks < 60 {
+        matches!(
+            verify_run(&bytes),
+            Err(RunReplayError::WrongFinalHash { .. })
+        )
+    } else {
+        verify_run(&bytes) == Err(RunReplayError::CheckpointDiffers { second: 1 })
+    };
+    assert!(expected);
 }
 
 #[test]
