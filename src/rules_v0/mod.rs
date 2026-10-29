@@ -181,10 +181,28 @@ pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 pub(crate) const VIEW_HALF_WIDTH: Fx = Fx::px(320);
 pub(crate) const VIEW_HALF_HEIGHT: Fx = Fx::px(180);
 
-/// The centre of the view rectangle for a main character at `at` on `map`.
-pub(crate) fn view_centre(_map: &crate::stage::Map, at: Point) -> Point {
-    at
+/// The centre of the view rectangle for a main character at `at` on `map`: the camera's
+/// centre, which follows the main character but stops where the view would leave the map. It
+/// mirrors `camera_follow.gd` (`_axis`) on each axis: a map no larger than the view gives
+/// `map / 2` (integer division, so an odd number of units loses half a unit, 1/512 px), else
+/// the main character's coordinate held between the half view and `map - half view`.
+pub(crate) fn view_centre(map: &crate::stage::Map, at: Point) -> Point {
+    let axis = |target: Fx, side: Fx, half: Fx| {
+        let (target, side, half) = (i64::from(target.0), i64::from(side.0), i64::from(half.0));
+        let centre = if side <= 2 * half {
+            side / 2
+        } else {
+            target.clamp(half, side - half)
+        };
+        // Within `side`, which fits `i32`.
+        Fx(i32::try_from(centre).unwrap_or(i32::MAX))
+    };
+    Point {
+        x: axis(at.x, map.width, VIEW_HALF_WIDTH),
+        y: axis(at.y, map.height, VIEW_HALF_HEIGHT),
+    }
 }
+
 /// Orbs alive per attacker and in all (core Z2, DS11, tuning rows); an orb over either cap is
 /// dropped in node order.
 pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;
