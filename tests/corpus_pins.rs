@@ -328,9 +328,33 @@ pub(crate) fn check_frozen_tree(tree: &Path) -> Result<(), String> {
     }
 }
 
-/// Test helper: copies a tree to `to` and writes its manifest, with the bundled pack stored when
-/// a case pins it (a frozen tree has no bundled fallback).
-pub(crate) fn freeze_copy(from: &Path, to: &Path) -> Result<(), String> {
+/// The record of a frozen version: copies the tree `from` to `to` byte for byte and writes its
+/// manifest, with the bundled pack stored when a case pins it (a frozen tree has no bundled
+/// fallback). Refuses a `to` that is not a frozen name or already exists, checks what it wrote
+/// with `check_frozen_tree`, and removes `to` when anything fails. Never touches `from`.
+pub(crate) fn record_frozen(from: &Path, to: &Path) -> Result<(), String> {
+    let name = to
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    if !is_frozen_name(&name) {
+        return Err(format!(
+            "`{name}` is not a frozen version: N must be a number >= 1 without a leading zero"
+        ));
+    }
+    if to.symlink_metadata().is_ok() {
+        return Err(format!(
+            "{} exists: a frozen version is never rewritten",
+            to.display()
+        ));
+    }
+    let written = write_record(from, to).and_then(|()| check_frozen_tree(to));
+    if written.is_err() {
+        let _ = fs::remove_dir_all(to);
+    }
+    written
+}
+
+fn write_record(from: &Path, to: &Path) -> Result<(), String> {
     fn copy(from: &Path, to: &Path) -> Result<(), String> {
         fs::create_dir_all(to).map_err(|e| e.to_string())?;
         for e in fs::read_dir(from).map_err(|e| e.to_string())? {
@@ -363,7 +387,7 @@ pub(crate) fn freeze_copy(from: &Path, to: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::corpus::{corpus_dir, runs_dir};
+    use crate::corpus::{corpus_dir, current_dir, runs_dir};
     use stella_rain_core::content_hash::{sha256, to_hex};
     use stella_rain_core::run_replay::{self, RunReplay, RunReplayError};
 
@@ -550,7 +574,7 @@ mod tests {
         let make = |name: &str| {
             let from = tree(name, "current", false);
             let to = from.parent().unwrap().join("v9");
-            freeze_copy(&from, &to).unwrap();
+            record_frozen(&from, &to).unwrap();
             to
         };
         let ok = make("edit-ok");
@@ -591,5 +615,138 @@ mod tests {
         fs::write(t.join("manifest.sha256"), edited).unwrap();
         let path = first.split("  ").nth(1).unwrap().to_string();
         assert!(err_of(check_frozen_tree(&t)).contains(&path));
+    }
+
+    /// Relative paths of every file of a tree, with its bytes.
+    fn files_of(tree: &Path) -> BTreeMap<String, Vec<u8>> {
+        manifest_bytes(tree)
+            .into_iter()
+            .map(|(p, b)| {
+                let rel = p.strip_prefix(tree).unwrap();
+                (rel.to_string_lossy().replace('\\', "/"), b)
+            })
+            .collect()
+    }
+
+    /// The files of `rec` that `from` does not have, and a check that the shared ones are equal.
+    fn added_by_record(from: &Path, rec: &Path) -> Vec<String> {
+        let (from, rec) = (files_of(from), files_of(rec));
+        assert!(
+            from.iter().all(|(p, b)| rec.get(p) == Some(b)),
+            "a file of the source is missing or changed in the record"
+        );
+        rec.keys()
+            .filter(|p| !from.contains_key(*p))
+            .cloned()
+            .collect()
+    }
+
+    #[test]
+    fn the_record_equals_the_tree_plus_the_manifest_and_the_bundled_pack() {
+        let t = tree("rec", "current", false);
+        let v9 = t.parent().unwrap().join("v9");
+        record_frozen(&t, &v9).unwrap();
+        let mut added = added_by_record(&t, &v9);
+        added.sort();
+        let mut want = vec![
+            format!("packs/{}.json", bundled_sha()),
+            "manifest.sha256".into(),
+        ];
+        want.sort();
+        assert_eq!(added, want);
+        assert_eq!(
+            fs::read(v9.join(format!("packs/{}.json", bundled_sha()))).unwrap(),
+            Pack::BUNDLED
+        );
+        check_frozen_tree(&v9).unwrap();
+
+        // The pack is already stored: the record adds the manifest only.
+        let t = tree("rec-stored", "current", true);
+        let v9 = t.parent().unwrap().join("v9");
+        record_frozen(&t, &v9).unwrap();
+        assert_eq!(added_by_record(&t, &v9), ["manifest.sha256"]);
+        check_frozen_tree(&v9).unwrap();
+    }
+
+    #[test]
+    fn a_second_record_refuses_and_changes_nothing() {
+        let t = tree("again", "current", false);
+        let v9 = t.parent().unwrap().join("v9");
+        record_frozen(&t, &v9).unwrap();
+        let before = manifest_bytes(&v9);
+        let e = err_of(record_frozen(&t, &v9));
+        assert!(e.contains("v9") && e.contains("exists"), "{e}");
+        assert_eq!(before, manifest_bytes(&v9));
+    }
+
+    #[test]
+    fn only_a_frozen_name_is_recorded_to() {
+        let t = tree("names", "current", false);
+        for name in ["v0", "current", "v01", "v1a"] {
+            let to = t.parent().unwrap().join(name);
+            let to = if name == "current" {
+                t.parent().unwrap().join("other").join(name)
+            } else {
+                to
+            };
+            let e = err_of(record_frozen(&t, &to));
+            assert!(e.contains(name), "{e}");
+            assert!(!to.exists(), "{name} was written");
+        }
+    }
+
+    #[test]
+    fn a_failed_record_leaves_no_folder() {
+        let t = tree("failed", "current", false);
+        let other = "2".repeat(64);
+        fs::write(
+            t.join("stages/clear/case.json"),
+            format!("{{\"pack_sha256\":\"{other}\"}}"),
+        )
+        .unwrap();
+        let v9 = t.parent().unwrap().join("v9");
+        let e = err_of(record_frozen(&t, &v9));
+        assert!(e.contains("pack sha256"), "{e}");
+        assert!(!v9.exists(), "the half-written folder stayed");
+    }
+
+    #[test]
+    fn the_record_never_writes_its_source() {
+        let t = tree("source", "current", false);
+        let before = manifest_bytes(&t);
+        record_frozen(&t, &t.parent().unwrap().join("v9")).unwrap();
+        assert_eq!(before, manifest_bytes(&t));
+    }
+
+    /// Read only: records the real `tests/corpus/current/` into a scratch folder.
+    #[test]
+    fn the_real_current_tree_records_into_a_scratch_folder_read_only() {
+        let v9 = scratch("real").join("v9");
+        record_frozen(&current_dir(), &v9).unwrap();
+        check_frozen_tree(&v9).unwrap();
+        for extra in added_by_record(&current_dir(), &v9) {
+            assert!(
+                extra == "manifest.sha256" || extra == format!("packs/{}.json", bundled_sha()),
+                "{extra}"
+            );
+        }
+    }
+
+    /// `FREEZE_CORPUS=v<N> cargo test corpus_pins::tests::the_record_is_written_on_request` records
+    /// `tests/corpus/current/` into `tests/corpus/v<N>/` (`cargo xtask bless --freeze v<N>` runs
+    /// it). A no-op without the knob; it writes the real tree, so it has no unit test beyond the
+    /// ones of `record_frozen`.
+    #[test]
+    #[expect(clippy::disallowed_methods, reason = "test knob")]
+    fn the_record_is_written_on_request() {
+        let Some(name) = std::env::var("FREEZE_CORPUS")
+            .ok()
+            .filter(|n| !n.is_empty())
+        else {
+            return;
+        };
+        let to = current_dir().parent().unwrap().join(&name);
+        record_frozen(&current_dir(), &to).unwrap_or_else(|e| panic!("{e}"));
+        println!("recorded {} files", files_of(&to).len());
     }
 }

@@ -1,7 +1,12 @@
 //! `cargo xtask bless` regenerates every generated set of core (schema, corpus, goldens, the
 //! content pack and the bench pins); `--check` reports any set that
-//! is not as committed. Std only: it shells out to `cargo` and `git`.
+//! is not as committed. `cargo xtask bless --freeze v<N>` records `tests/corpus/current/` into a
+//! new frozen `tests/corpus/v<N>/` (ADR-SIM-3): it refuses an existing `v<N>/` and a `current/`
+//! that is not what bless writes, then runs the record test of core, which writes the folder and
+//! its manifest. Std only: it shells out to `cargo` and `git`.
 
+use std::collections::BTreeMap;
+use std::path::Path;
 use std::process::{Command, ExitCode};
 
 /// Where each generated set lives, in the order `bless` regenerates them.
@@ -17,12 +22,14 @@ const SETS: [(&str, &str); 5] = [
 enum Mode {
     Bless,
     Check,
+    Freeze(String),
 }
 
 fn parse(args: &[String]) -> Result<Mode, String> {
     match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
         ["bless"] => Ok(Mode::Bless),
         ["bless", "--check"] => Ok(Mode::Check),
+        ["bless", "--freeze", name] => Ok(Mode::Freeze(name.to_string())),
         _ => Err(format!("unknown arguments {args:?}")),
     }
 }
@@ -56,6 +63,13 @@ fn run(cmd: &mut Command) -> Result<(), String> {
 /// never writes it and fails when it is dirty.
 const CORPUS: &str = "tests/corpus/";
 
+/// A frozen folder is `v<N>` with N >= 1, digits only, no leading zero.
+fn is_frozen_name(name: &str) -> bool {
+    name.strip_prefix('v').is_some_and(|n| {
+        !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) && !n.starts_with('0')
+    })
+}
+
 /// The paths among `paths` that are inside a frozen corpus folder.
 fn frozen_dirty(paths: &[String]) -> Vec<String> {
     paths
@@ -63,13 +77,7 @@ fn frozen_dirty(paths: &[String]) -> Vec<String> {
         .filter(|p| {
             p.strip_prefix(CORPUS)
                 .and_then(|rest| rest.split('/').next())
-                .is_some_and(|dir| {
-                    dir.strip_prefix('v').is_some_and(|n| {
-                        !n.is_empty()
-                            && n.bytes().all(|b| b.is_ascii_digit())
-                            && !n.starts_with('0')
-                    })
-                })
+                .is_some_and(is_frozen_name)
         })
         .cloned()
         .collect()
@@ -111,6 +119,8 @@ fn dirty_in(pathspecs: &[&str]) -> Result<Vec<String>, String> {
 #[derive(Debug, PartialEq, Eq)]
 enum Step {
     ExportPack,
+    /// Writes `tests/corpus/<name>/` from `current/`: the record test, under its knob.
+    Record(String),
     Test {
         env: Option<(&'static str, &'static str)>,
         /// Run without the `CI` variable (a knob under test refuses to write when it is set).
@@ -150,9 +160,138 @@ fn steps() -> Vec<Step> {
     ]
 }
 
+/// The steps of `bless --freeze <name>`: the pack and the corpus as bless regenerates them, then
+/// the record. The schema, goldens and bench pins are not touched.
+fn freeze_steps(name: &str) -> Vec<Step> {
+    let mut steps = steps();
+    steps.retain(|s| {
+        matches!(s, Step::ExportPack)
+            || matches!(
+                s,
+                Step::Test {
+                    filter: "corpus::",
+                    ..
+                }
+            )
+    });
+    steps.push(Step::Record(name.to_string()));
+    steps
+}
+
+const NAME_RULE: &str = "N must be a number >= 1 without a leading zero";
+
+/// Why `name` cannot be frozen in `corpus` (the `tests/corpus/` folder), if it cannot.
+fn freeze_refusal(corpus: &Path, name: &str) -> Result<(), String> {
+    if !is_frozen_name(name) {
+        return Err(format!("`{name}` is not a frozen version: {NAME_RULE}"));
+    }
+    if corpus.join(name).symlink_metadata().is_ok() {
+        return Err(format!(
+            "{CORPUS}{name}/ exists: a frozen version is never rewritten"
+        ));
+    }
+    Ok(())
+}
+
+/// Every file under `root` with its bytes, keyed by path relative to `root` with `/`.
+fn snapshot(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
+    let mut out = BTreeMap::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))? {
+            let path = entry.map_err(|e| e.to_string())?.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let rel = path
+                .strip_prefix(root)
+                .map_err(|e| e.to_string())?
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+            let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            out.insert(rel, bytes);
+        }
+    }
+    Ok(out)
+}
+
+/// The paths that differ between two snapshots (changed, added or removed), sorted, once each.
+fn stale_paths(
+    before: &BTreeMap<String, Vec<u8>>,
+    after: &BTreeMap<String, Vec<u8>>,
+) -> Vec<String> {
+    let mut paths: Vec<_> = before
+        .keys()
+        .chain(after.keys())
+        .filter(|p| before.get(*p) != after.get(*p))
+        .cloned()
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+/// What bless writes that the record depends on: `current/` and the content pack, by repo path.
+fn generated_state() -> Result<BTreeMap<String, Vec<u8>>, String> {
+    let current = format!("{CORPUS}current/");
+    let mut state: BTreeMap<_, _> = snapshot(Path::new(&current))?
+        .into_iter()
+        .map(|(p, b)| (format!("{current}{p}"), b))
+        .collect();
+    let pack = "content/pack.json";
+    state.insert(
+        pack.to_string(),
+        std::fs::read(pack).map_err(|e| format!("{pack}: {e}"))?,
+    );
+    Ok(state)
+}
+
+/// The record of `name`: refuses what must not be frozen, regenerates `current/` as bless does and
+/// refuses when that changed it, then writes the folder. Returns the number of files recorded.
+fn freeze(name: &str) -> Result<usize, String> {
+    frozen_check()?;
+    freeze_refusal(Path::new(CORPUS), name)?;
+    let mut steps = freeze_steps(name);
+    let record = steps.pop().ok_or("no record step")?;
+    let before = generated_state()?;
+    steps.iter().try_for_each(Step::run)?;
+    let stale = stale_paths(&before, &generated_state()?);
+    if !stale.is_empty() {
+        return Err(format!(
+            "{CORPUS}current/ was not what bless writes ({}); bless has rewritten it: review, \
+             commit, then freeze",
+            stale.join(", ")
+        ));
+    }
+    record.run()?;
+    let folder = Path::new(CORPUS).join(name);
+    if !folder.is_dir() {
+        return Err(format!(
+            "the record test ran but {CORPUS}{name}/ was not written (the test filter matched nothing?)"
+        ));
+    }
+    Ok(snapshot(&folder)?.len())
+}
+
 impl Step {
     fn command(&self) -> Command {
         match self {
+            Step::Record(name) => {
+                let mut cmd = Command::new("cargo");
+                cmd.args([
+                    "test",
+                    "--locked",
+                    "--all-features",
+                    "--test",
+                    "integration",
+                    "corpus_pins::tests::the_record_is_written_on_request",
+                ]);
+                cmd.env("FREEZE_CORPUS", name);
+                cmd
+            }
             Step::ExportPack => {
                 let mut cmd = Command::new("cargo");
                 cmd.args([
@@ -202,7 +341,7 @@ impl Step {
                 std::fs::write("content/pack.json", out.stdout)
                     .map_err(|e| format!("content/pack.json: {e}"))
             }
-            Step::Test { .. } => run(&mut cmd),
+            Step::Test { .. } | Step::Record(_) => run(&mut cmd),
         }
     }
 }
@@ -218,11 +357,33 @@ fn main() -> ExitCode {
         Err(e) => {
             eprintln!(
                 "{e}
-usage: cargo xtask bless [--check]"
+usage: cargo xtask bless [--check | --freeze v<N>]"
             );
             return ExitCode::from(2);
         }
     };
+    if let Mode::Freeze(name) = &mode {
+        if !is_frozen_name(name) {
+            eprintln!(
+                "`{name}` is not a frozen version: {NAME_RULE}
+usage: cargo xtask bless --freeze v<N>"
+            );
+            return ExitCode::from(2);
+        }
+        return match freeze(name) {
+            Ok(n) => {
+                println!(
+                    "recorded {CORPUS}{name}/ ({n} files); never edit it, commit it with the \
+                     change that froze it"
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     // Dirty before regenerating counts as stale too: regenerating would hide a hand edit.
     let result = (|| {
         frozen_check()?;
@@ -249,6 +410,7 @@ Commit body: Corpus regenerated: <why>",
             );
             ExitCode::SUCCESS
         }
+        (Ok(_), Mode::Freeze(_)) => unreachable!("freeze returns above"),
         (Ok(paths), Mode::Check) => {
             let sets = stale_sets(&paths);
             if sets.is_empty() {
@@ -378,6 +540,7 @@ mod tests {
     fn writes(step: &Step) -> &'static str {
         match step {
             Step::ExportPack => "pack",
+            Step::Record(_) => "frozen version",
             Step::Test { filter, .. } => match *filter {
                 "schema::" => "schema",
                 "corpus::" => "corpus",
@@ -445,5 +608,114 @@ mod tests {
         let cmd = pins.command();
         let knob = cmd.get_envs().find(|(k, _)| *k == "UPDATE_BENCH_PINS");
         assert_eq!(knob.and_then(|(_, v)| v), Some(std::ffi::OsStr::new("1")));
+    }
+
+    fn tmp(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("xtask-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn freeze_parses_one_name_and_nothing_else() {
+        assert_eq!(
+            parse(&args(&["bless", "--freeze", "v1"])),
+            Ok(Mode::Freeze("v1".into()))
+        );
+        assert_eq!(
+            parse(&args(&["bless", "--freeze", "v12"])),
+            Ok(Mode::Freeze("v12".into()))
+        );
+        for bad in [
+            &["bless", "--freeze"][..],
+            &["bless", "--freeze", "v1", "v2"],
+            &["bless", "--check", "--freeze", "v1"],
+            &["bless", "--freeze", "v1", "--check"],
+            &["--freeze", "v1"],
+        ] {
+            assert!(parse(&args(bad)).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn freeze_refuses_a_name_that_is_not_a_frozen_version() {
+        let dir = tmp("names");
+        for bad in ["v0", "v01", "v1a", "1", "V1", "v", "v-1", "current", ""] {
+            let e = freeze_refusal(&dir, bad).unwrap_err();
+            assert!(e.contains(">= 1"), "{bad}: {e}");
+        }
+        for ok in ["v1", "v9", "v12"] {
+            assert_eq!(freeze_refusal(&dir, ok), Ok(()), "{ok}");
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn freeze_refuses_an_existing_folder_of_any_kind() {
+        let dir = tmp("exists");
+        std::fs::create_dir(dir.join("v1")).unwrap();
+        std::fs::write(dir.join("v3"), b"x").unwrap();
+        std::fs::create_dir_all(dir.join("v4/stages")).unwrap();
+        for taken in ["v1", "v3", "v4"] {
+            let e = freeze_refusal(&dir, taken).unwrap_err();
+            assert!(e.contains(&format!("tests/corpus/{taken}/")), "{e}");
+        }
+        std::fs::create_dir(dir.join("v2")).unwrap();
+        std::fs::remove_dir(dir.join("v2")).unwrap();
+        std::fs::create_dir(dir.join("v5")).unwrap();
+        assert_eq!(freeze_refusal(&dir, "v6"), Ok(()));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn freeze_regenerates_the_pack_and_the_corpus_then_records() {
+        assert_eq!(
+            freeze_steps("v1"),
+            [
+                Step::ExportPack,
+                test_step(("UPDATE_CORPUS", "1"), "corpus::"),
+                Step::Record("v1".into()),
+            ]
+        );
+        let text = format!("{:?}", freeze_steps("v1"));
+        for other in ["UPDATE_SCHEMA", "INSTA_UPDATE", "UPDATE_BENCH_PINS"] {
+            assert!(!text.contains(other), "{other}");
+        }
+        let cmd = Step::Record("v1".into()).command();
+        assert!(
+            cmd.get_envs()
+                .any(|(k, v)| k == "FREEZE_CORPUS" && v == Some(std::ffi::OsStr::new("v1")))
+        );
+        assert!(
+            cmd.get_envs().all(|(k, _)| k != "CI"),
+            "the record leaves CI as it is"
+        );
+        let line = format!("{:?}", cmd.get_args().collect::<Vec<_>>());
+        assert!(
+            line.contains("corpus_pins::tests::the_record_is_written_on_request"),
+            "{line}"
+        );
+        assert!(!format!("{:?}", steps()).contains("Record"));
+    }
+
+    #[test]
+    fn stale_paths_name_what_changed_appeared_or_vanished() {
+        let dir = tmp("snap");
+        std::fs::create_dir_all(dir.join("a/b")).unwrap();
+        std::fs::write(dir.join("a/b/x"), b"1").unwrap();
+        std::fs::write(dir.join("a/y"), b"2").unwrap();
+        std::fs::write(dir.join("z"), b"3").unwrap();
+        let before = snapshot(&dir).unwrap();
+        assert_eq!(before.len(), 3);
+        assert_eq!(before.get("a/b/x"), Some(&b"1".to_vec()));
+        assert_eq!(before, snapshot(&dir).unwrap());
+        assert!(stale_paths(&before, &before).is_empty());
+        std::fs::write(dir.join("a/y"), b"changed").unwrap();
+        std::fs::remove_file(dir.join("z")).unwrap();
+        std::fs::write(dir.join("new"), b"4").unwrap();
+        let after = snapshot(&dir).unwrap();
+        assert_eq!(stale_paths(&before, &after), ["a/y", "new", "z"]);
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
