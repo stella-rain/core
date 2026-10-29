@@ -3,77 +3,361 @@
 //! `manifest.sha256` (ADR-SIM-3). `corpus.rs` plays the cases; this file loads what they pin,
 //! writes it, and checks a frozen tree.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use stella_rain_core::pack::Pack;
+use serde::Deserialize;
+use stella_rain_core::content_hash::{sha256, to_hex};
+use stella_rain_core::pack::{ContentFiles, Pack};
+use stella_rain_core::run_replay::RunReplay;
+
+use crate::common;
+use crate::corpus::{check_case, check_run_case, diff_dir, write_atomic};
 
 /// `case.json`: the pack a case plays on, by the SHA-256 of the pack file's bytes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct CaseJson {
     pub pack_sha256: String,
+    #[serde(default)]
     pub note: Option<String>,
 }
 
-pub(crate) fn read_case_json(_case: &Path) -> Result<CaseJson, String> {
-    Err("not implemented".into())
+fn case_name(case: &Path) -> String {
+    case.file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
+}
+
+fn is_hex_sha(s: &str) -> bool {
+    s.len() == 64
+        && s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+pub(crate) fn read_case_json(case: &Path) -> Result<CaseJson, String> {
+    let name = case_name(case);
+    let bytes = fs::read(case.join("case.json"))
+        .map_err(|e| format!("corpus case `{name}`: case.json: {e}"))?;
+    let json: CaseJson = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("corpus case `{name}`: case.json: {e}"))?;
+    if !is_hex_sha(&json.pack_sha256) {
+        return Err(format!(
+            "corpus case `{name}`: case.json: pack_sha256 is not 64 lowercase hex digits"
+        ));
+    }
+    Ok(json)
+}
+
+fn is_frozen_tree(tree: &Path) -> bool {
+    tree.file_name()
+        .is_some_and(|n| is_frozen_name(&n.to_string_lossy()))
 }
 
 /// The pack `pin` names in `tree` (`<tree>/packs/<pin>.json`, its name checked against its
 /// bytes). Only a tree that is not frozen resolves the bundled pack's hash without a file.
-pub(crate) fn load_pack(_tree: &Path, _pin: &str) -> Result<Pack, String> {
-    Err("not implemented".into())
+pub(crate) fn load_pack(tree: &Path, pin: &str) -> Result<Pack, String> {
+    let file = tree.join("packs").join(format!("{pin}.json"));
+    let bytes = match fs::read(&file) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            if !is_frozen_tree(tree) && pin == to_hex(&Pack::bundled().sha256()) {
+                return Ok(Pack::bundled().clone());
+            }
+            return Err(format!("pack sha256 {pin}: no file {}", file.display()));
+        }
+        Err(e) => return Err(format!("pack sha256 {pin}: {}: {e}", file.display())),
+    };
+    let actual = to_hex(&sha256(&bytes));
+    if actual != pin {
+        return Err(format!(
+            "pack sha256 {pin}: {} hashes to {actual}",
+            file.display()
+        ));
+    }
+    let pack = Pack::from_bytes(&bytes)
+        .map_err(|e| format!("pack sha256 {pin}: {}: {e:?}", file.display()))?;
+    if to_hex(&pack.sha256()) != pin {
+        return Err(format!(
+            "pack sha256 {pin}: the loaded pack hashes differently"
+        ));
+    }
+    Ok(pack)
 }
 
 /// The pack of the case folder `case` (`<tree>/stages/<name>` or `<tree>/runs/<name>`).
-pub(crate) fn case_pack(_case: &Path) -> Result<Pack, String> {
-    Err("not implemented".into())
+pub(crate) fn case_pack(case: &Path) -> Result<Pack, String> {
+    let name = case_name(case);
+    let tree = case
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| format!("corpus case `{name}`: no tree above it"))?;
+    let pin = read_case_json(case)?.pack_sha256;
+    load_pack(tree, &pin).map_err(|e| format!("corpus case `{name}`: {e}"))
 }
 
 /// The pack of a run case, which must also be the one its `run.replay` was recorded with.
-pub(crate) fn run_case_pack(_case: &Path, _replay_bytes: &[u8]) -> Result<Pack, String> {
-    Err("not implemented".into())
+pub(crate) fn run_case_pack(case: &Path, replay_bytes: &[u8]) -> Result<Pack, String> {
+    let name = case_name(case);
+    let pack = case_pack(case)?;
+    let recorded = RunReplay::from_bytes(replay_bytes)
+        .map_err(|e| format!("corpus case `{name}`: run.replay: {e}"))?;
+    let pinned = to_hex(&pack.sha256());
+    if recorded.content_sha256 != pinned {
+        return Err(format!(
+            "corpus case `{name}`: case.json pins pack {pinned}, run.replay was recorded with {}",
+            recorded.content_sha256
+        ));
+    }
+    Ok(pack)
 }
 
 /// A frozen folder is `v<N>` with N >= 1, digits only.
-pub(crate) fn is_frozen_name(_name: &str) -> bool {
-    false
+pub(crate) fn is_frozen_name(name: &str) -> bool {
+    match name.strip_prefix('v') {
+        Some(n) => !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) && !n.starts_with('0'),
+        None => false,
+    }
 }
 
 /// Refuses a path with a frozen folder in it.
-pub(crate) fn ensure_writable(_dir: &Path) -> Result<(), String> {
-    Err("not implemented".into())
+pub(crate) fn ensure_writable(dir: &Path) -> Result<(), String> {
+    match dir
+        .components()
+        .find(|c| is_frozen_name(&c.as_os_str().to_string_lossy()))
+    {
+        Some(c) => Err(format!(
+            "{} is inside the frozen corpus folder {}; a frozen tree is never written",
+            dir.display(),
+            c.as_os_str().to_string_lossy()
+        )),
+        None => Ok(()),
+    }
 }
 
-pub(crate) fn write_case_json(_case: &Path, _pack_sha256: &str) -> Result<(), String> {
-    Err("not implemented".into())
+pub(crate) fn write_case_json(case: &Path, pack_sha256: &str) -> Result<(), String> {
+    ensure_writable(case)?;
+    fs::create_dir_all(case).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&serde_json::json!({ "pack_sha256": pack_sha256 }))
+        .map_err(|e| e.to_string())?;
+    write_atomic(&case.join("case.json"), (json + "\n").as_bytes());
+    Ok(())
 }
 
 /// Writes `packs/<sha256>.json` in `tree`; returns the hash.
-pub(crate) fn write_pack_file(_tree: &Path, _bytes: &[u8]) -> Result<String, String> {
-    Err("not implemented".into())
+pub(crate) fn write_pack_file(tree: &Path, bytes: &[u8]) -> Result<String, String> {
+    ensure_writable(tree)?;
+    let sha = to_hex(&sha256(bytes));
+    let dir = tree.join("packs");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    write_atomic(&dir.join(format!("{sha}.json")), bytes);
+    Ok(sha)
+}
+
+/// Deletes the files of `<tree>/packs/` that no `case.json` of the tree names.
+pub(crate) fn prune_packs(tree: &Path) -> Result<(), String> {
+    ensure_writable(tree)?;
+    let mut named = Vec::new();
+    for sub in ["stages", "runs"] {
+        for case in case_dirs(&tree.join(sub)) {
+            named.push(read_case_json(&case)?.pack_sha256);
+        }
+    }
+    let Ok(entries) = fs::read_dir(tree.join("packs")) else {
+        return Ok(());
+    };
+    for e in entries {
+        let path = e.map_err(|e| e.to_string())?.path();
+        let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned());
+        if !stem.is_some_and(|s| named.contains(&s)) {
+            fs::remove_file(&path).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+/// The case folders of `dir`, sorted.
+pub(crate) fn case_dirs(dir: &Path) -> Vec<PathBuf> {
+    let mut cases: Vec<PathBuf> = fs::read_dir(dir)
+        .map(|rd| {
+            rd.filter_map(|e| e.ok().map(|e| e.path()))
+                .filter(|p| p.is_dir())
+                .collect()
+        })
+        .unwrap_or_default();
+    cases.sort();
+    cases
+}
+
+/// A pack made of the bundled files with `files` replaced.
+fn derived_pack(files: &[(&str, Vec<u8>)]) -> Vec<u8> {
+    let mut all = ContentFiles::bundled().clone();
+    for (name, bytes) in files {
+        assert!(all.insert(name, bytes.clone()), "no content file `{name}`");
+    }
+    all.export().expect("a derived corpus pack exports")
 }
 
 /// The four packs the corpus derives from the bundled one: the run case that plays on each, and
-/// the pack file's bytes.
+/// the pack file's bytes. Enemy attack at 100 stored (`elites`, `stage_skill`: the bot cannot
+/// get out of the way of the bundled hit of 10,000), and a short `time_limit` mode (`elites`,
+/// `time_limit_kill`, `time_limit_overtime`).
 pub(crate) fn override_packs() -> Vec<(&'static str, Vec<u8>)> {
-    Vec::new()
+    let stats = || ("run_stats", common::design_run_stats_json().into_bytes());
+    let mode = |json: String| ("time_limit", json.into_bytes());
+    vec![
+        (
+            "elites",
+            derived_pack(&[stats(), mode(crate::corpus::elites_time_limit().0)]),
+        ),
+        ("stage_skill", derived_pack(&[stats()])),
+        (
+            "time_limit_kill",
+            derived_pack(&[mode(crate::corpus::short_time_limit(12_000).0)]),
+        ),
+        (
+            "time_limit_overtime",
+            derived_pack(&[mode(crate::corpus::short_time_limit(540).0)]),
+        ),
+    ]
 }
 
-/// The manifest text of a frozen tree.
-pub(crate) fn manifest_of(_tree: &Path) -> Result<String, String> {
-    Err("not implemented".into())
+/// The pack file's bytes of the run case `case` that plays on a derived pack.
+pub(crate) fn override_pack(case: &str) -> Vec<u8> {
+    override_packs()
+        .into_iter()
+        .find(|(c, _)| *c == case)
+        .unwrap_or_else(|| panic!("no derived pack for `{case}`"))
+        .1
+}
+
+/// Every file of `tree` but its own manifest, as `path -> sha256`, paths relative with `/`.
+fn hashes_of(tree: &Path) -> Result<BTreeMap<String, String>, String> {
+    let mut out = BTreeMap::new();
+    let mut stack = vec![tree.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for e in fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))? {
+            let path = e.map_err(|e| e.to_string())?.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let rel = path
+                .strip_prefix(tree)
+                .map_err(|e| e.to_string())?
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+            if rel == "manifest.sha256" {
+                continue;
+            }
+            let bytes = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            out.insert(rel, to_hex(&sha256(&bytes)));
+        }
+    }
+    Ok(out)
+}
+
+/// The manifest text of a frozen tree: `<hex>  <path>\n`, sorted by path.
+pub(crate) fn manifest_of(tree: &Path) -> Result<String, String> {
+    Ok(hashes_of(tree)?
+        .into_iter()
+        .map(|(path, hash)| format!("{hash}  {path}\n"))
+        .collect())
 }
 
 /// A frozen tree is what its manifest says, its pack files are named by their hashes, and every
 /// case verifies against the pack it pins, with no bundled fallback.
-pub(crate) fn check_frozen_tree(_tree: &Path) -> Result<(), String> {
-    Err("not implemented".into())
+pub(crate) fn check_frozen_tree(tree: &Path) -> Result<(), String> {
+    let label = tree
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    let stored = fs::read_to_string(tree.join("manifest.sha256"))
+        .map_err(|e| format!("frozen tree {label}: manifest.sha256: {e}"))?;
+    let mut listed = BTreeMap::new();
+    for line in stored.lines() {
+        let (hash, path) = line
+            .split_once("  ")
+            .ok_or_else(|| format!("frozen tree {label}: bad manifest line `{line}`"))?;
+        listed.insert(path.to_string(), hash.to_string());
+    }
+    let actual = hashes_of(tree)?;
+    let mut problems = Vec::new();
+    for (path, hash) in &listed {
+        match actual.get(path) {
+            None => problems.push(format!("frozen tree {label}: {path} is missing")),
+            Some(h) if h != hash => problems.push(format!("frozen tree {label}: {path} changed")),
+            Some(_) => {}
+        }
+    }
+    for path in actual.keys().filter(|p| !listed.contains_key(*p)) {
+        problems.push(format!("frozen tree {label}: {path} was added"));
+    }
+    if stored != manifest_of(tree)? && problems.is_empty() {
+        problems.push(format!(
+            "frozen tree {label}: manifest.sha256 is not sorted or has doubles"
+        ));
+    }
+    for (path, hash) in &actual {
+        if let Some(name) = path
+            .strip_prefix("packs/")
+            .and_then(|p| p.strip_suffix(".json"))
+        {
+            if name != hash {
+                problems.push(format!(
+                    "frozen tree {label}: {path} is not named by its hash"
+                ));
+            }
+        }
+    }
+    if !problems.is_empty() {
+        return Err(problems.join("\n"));
+    }
+    let mut failures = Vec::new();
+    for case in case_dirs(&tree.join("stages")) {
+        failures.extend(check_case(&case, &diff_dir()).err());
+    }
+    for case in case_dirs(&tree.join("runs")) {
+        failures.extend(check_run_case(&case, &diff_dir()).err());
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("\n"))
+    }
 }
 
-/// Test helper: copies a tree to `to` and writes its manifest, with the bundled pack stored.
-pub(crate) fn freeze_copy(_from: &Path, _to: &Path) -> Result<(), String> {
-    Err("not implemented".into())
+/// Test helper: copies a tree to `to` and writes its manifest, with the bundled pack stored when
+/// a case pins it (a frozen tree has no bundled fallback).
+pub(crate) fn freeze_copy(from: &Path, to: &Path) -> Result<(), String> {
+    fn copy(from: &Path, to: &Path) -> Result<(), String> {
+        fs::create_dir_all(to).map_err(|e| e.to_string())?;
+        for e in fs::read_dir(from).map_err(|e| e.to_string())? {
+            let path = e.map_err(|e| e.to_string())?.path();
+            let dest = to.join(path.file_name().unwrap());
+            if path.is_dir() {
+                copy(&path, &dest)?;
+            } else {
+                fs::copy(&path, &dest).map_err(|e| e.to_string())?;
+            }
+        }
+        Ok(())
+    }
+    copy(from, to)?;
+    let bundled = to_hex(&Pack::bundled().sha256());
+    let mut pins = Vec::new();
+    for sub in ["stages", "runs"] {
+        for case in case_dirs(&to.join(sub)) {
+            pins.push(read_case_json(&case)?.pack_sha256);
+        }
+    }
+    let file = to.join("packs").join(format!("{bundled}.json"));
+    if pins.contains(&bundled) && !file.exists() {
+        fs::create_dir_all(to.join("packs")).map_err(|e| e.to_string())?;
+        fs::write(&file, Pack::BUNDLED).map_err(|e| e.to_string())?;
+    }
+    fs::write(to.join("manifest.sha256"), manifest_of(to)?).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
