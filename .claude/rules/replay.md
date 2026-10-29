@@ -36,18 +36,17 @@ Sources: ADR-REPL-3, ADR-REPL-4, ADR-BRDG-3, ADR-SVC-6, ADR-SIM-3.
 
 - `tests/integration.rs` declares every other file as a module (`autotests = false`), so
   `cargo test --test integration <file>::` runs one file.
-- `tests/corpus/`, today: `v0/<case>/` holds `stage.json`, `run.replay` and `hashes.bin` (the
-  state hash after every tick); `runs/v0/<case>/` holds a run's `run.replay` alone, with
-  `checkpoints` every 60th tick (ADR-REPL-3), and `mode.json` for three cases. From CO1:
-  `current/stages/<case>/` and `current/runs/<case>/` (each with `case.json`, the pack it pins),
-  `current/packs/<sha256>.json`, and an immutable `v1/` that FZ1 adds. `corpus.rs` checks it
-  (ADR-SIM-3). The `app` repo reads one file from Cargo's checkout of core:
-  `tests/corpus/runs/v0/stage_skill/run.replay` now, `tests/corpus/current/runs/stage_skill/run.replay`
-  after CO1 (the old path goes with CO1c, the app's bump follows CO1); neither is renamed without
-  the app's bump (`tests/corpus_contract.rs` fails on it). The CI readers (`fuzz-short`,
-  `fuzz-long`, Candidate) go through `.github/scripts/corpus_paths.py`, which takes either layout.
-  An intended change: `cargo xtask bless` (it sets `UPDATE_CORPUS=1` itself); CI runs
-  `cargo xtask bless --check`.
+- `tests/corpus/current/` is the blessed tree: `stages/<case>/` holds `stage.json`, `run.replay`,
+  `hashes.bin` (the state hash after every tick) and `case.json` (the pack it pins); `runs/<case>/`
+  holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-3) and `case.json`;
+  `packs/<sha256>.json` holds the pinned packs other than the bundled one. `tests/corpus/v<N>/`
+  (N >= 1) is a frozen version of the same shape plus `manifest.sha256`: never edited (CI `frozen
+  corpus unchanged` and `corpus::the_frozen_corpus_is_unchanged`); `v1/` arrives with FZ1.
+  `corpus.rs` checks it all (ADR-SIM-3). The `app` repo reads one file from Cargo's checkout of
+  core, `tests/corpus/current/runs/stage_skill/run.replay`; it is not renamed without the app's
+  bump (`tests/corpus_contract.rs` fails on it). The CI readers (`fuzz-short`, `fuzz-long`,
+  Candidate) go through `.github/scripts/corpus_paths.py`. An intended change: `cargo xtask
+  bless` (it sets `UPDATE_CORPUS=1` itself); CI runs `cargo xtask bless --check`.
 - `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/`
   (`cargo xtask bless` regenerates them too, and `tests/bench_pins.toml`;
   `cargo insta test --features record --review` to review one by hand).
