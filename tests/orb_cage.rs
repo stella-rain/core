@@ -10,6 +10,7 @@ use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::fixed::Fx;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{Error, Issue, validate};
 
@@ -339,4 +340,68 @@ fn an_orb_with_no_ticks_to_stop_halts_where_it_is_fired() {
         assert_eq!((o["vx"].as_i64(), o["vy"].as_i64()), (Some(0), Some(0)));
     }
     assert_eq!(beams(&e), 4, "halted at once, so joined at once");
+}
+
+// --- The source of a hit and a beam's width (PHIT) -------------------------------------------
+
+#[test]
+fn a_beam_hit_names_the_link_kind_and_its_owner() {
+    let st = on_the_wrap_beam(vec![cage(4)]);
+    let mut e = engine(&st);
+    let mut sources = Vec::new();
+    for _ in 0..80 {
+        e.step(idle());
+        for ev in e.events() {
+            if let DomainEvent::PlayerHit { source, .. } = ev {
+                sources.push(serde_json::to_value(source).unwrap());
+            }
+        }
+    }
+    // The foe is entity 2 (the far boss is 1); only the beam reaches the main character.
+    assert_eq!(sources, [json!({ "kind": "link", "owner": 2 })]);
+}
+
+fn halted_cage(link: Value) -> Engine {
+    let node = json!({ "type": "ring", "count": 4,
+        "body": [orb(Some(STOP_AFTER), Some(link))] });
+    let mut e = engine(&stage(vec![foe_near(0, 200, vec![node])]));
+    let t0 = until_orbs(&mut e, 4);
+    while e.tick() < t0 + STOP_AFTER {
+        e.step(idle());
+    }
+    e
+}
+
+#[test]
+fn a_beam_s_orb_carries_the_links_width() {
+    let e = halted_cage(link());
+    let list = serde_json::to_value(e.snapshot()).unwrap()["orbs"].clone();
+    assert_eq!(beams(&e), 4);
+    for o in list.as_array().unwrap() {
+        assert_eq!(o["link_width"], json!(8 * PX), "{o}");
+    }
+    // The pack's own width, 20 pixels.
+    let e = halted_cage(json!({ "width": 20 * PX, "rehit_ticks": REHIT }));
+    for o in orbs(&e) {
+        assert_eq!(o["link_width"], json!(5120), "{o}");
+    }
+    assert_eq!(e.snapshot().orbs[0].link_width, Some(Fx(5120)));
+}
+
+#[test]
+fn an_orb_without_a_beam_has_no_width() {
+    // The last orb of a cut ring has no beam, and neither has an orb that flies.
+    let e = halted_cage(link());
+    assert!(
+        e.snapshot()
+            .orbs
+            .iter()
+            .all(|o| o.link_to.is_some() == o.link_width.is_some())
+    );
+    let st = stage(vec![foe_near(0, 200, vec![cage(4)])]);
+    let mut e = engine(&st);
+    until_orbs(&mut e, 4);
+    for o in orbs(&e) {
+        assert!(o.get("link_width").is_none(), "{o}");
+    }
 }

@@ -201,3 +201,43 @@ fn checked_in_schema_is_current() {
         "stale schema files {stale:?}: run `UPDATE_SCHEMA=1 cargo test --test integration schema::`"
     );
 }
+
+#[test]
+fn a_player_hit_names_its_source() {
+    use stella_rain_core::event::{DomainEvent, HitKind, HitSource};
+    use stella_rain_core::id::{ContentId, EntityId};
+    let hit = |attack: Option<ContentId>| DomainEvent::PlayerHit {
+        hp_left: 1,
+        source: HitSource {
+            kind: HitKind::Link,
+            owner: EntityId(5),
+            attack,
+        },
+    };
+    assert_eq!(
+        serde_json::to_value(hit(None)).unwrap(),
+        serde_json::json!({ "type": "PlayerHit",
+            "data": { "hp_left": 1, "source": { "kind": "link", "owner": 5 } } })
+    );
+    assert_eq!(
+        serde_json::to_string(&hit(Some(ContentId::from("x")))).unwrap(),
+        r#"{"type":"PlayerHit","data":{"hp_left":1,"source":{"kind":"link","owner":5,"attack":"x"}}}"#
+    );
+    let extra =
+        r#"{"type":"PlayerHit","data":{"hp_left":1,"source":{"kind":"zone","owner":5,"x":1}}}"#;
+    assert!(serde_json::from_str::<DomainEvent>(extra).is_err());
+    let schema: serde_json::Value = stella_rain_core::schema::all()
+        .iter()
+        .find(|(n, _)| *n == "content.schema.json")
+        .map(|(_, j)| serde_json::from_str(j).unwrap())
+        .unwrap();
+    let one_of = schema["$defs"]["DomainEvent"]["oneOf"].as_array().unwrap();
+    let variant = one_of
+        .iter()
+        .find(|v| v["properties"]["type"]["const"] == "PlayerHit")
+        .unwrap();
+    assert_eq!(
+        variant["properties"]["data"]["required"],
+        serde_json::json!(["hp_left", "source"])
+    );
+}
