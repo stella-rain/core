@@ -388,8 +388,9 @@ jobs:
           key: cargo-fuzz-${{ env.CARGO_FUZZ_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - if: steps.cargo-fuzz.outputs.cache-hit != 'true'
         run: cargo install cargo-fuzz --locked --version "$CARGO_FUZZ_VERSION"
-      # The corpus stages and replays (either layout: corpus_paths.py), the run setups of tests/fixtures/run_setup/, the bundled
-      # content/ files and the bundled content pack (`content-pack export`) are the seeds;
+      # The corpus stages and replays (either layout: corpus_paths.py), the run setups of
+      # tests/fixtures/run_setup/, the bundled content/ files and the bundled content pack
+      # (`content-pack export`) are the seeds;
       # nothing generated is committed. stage_parse also reads its bytes as rewards and run stats,
       # so the content files seed the stage targets too.
       - name: Seeds from the replay corpus

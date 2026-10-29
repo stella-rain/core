@@ -70,7 +70,8 @@ def stage_dir(root, case):
     _, stages, _ = layout(root)
     if case not in cases(root, stages):
         raise Fail(f"no stage case {case} under {stages}")
-    print(f"{stages}/{case}")
+    # Bytes, not print: on Windows print writes \r\n, and Git Bash's $(...) keeps the \r.
+    sys.stdout.buffer.write(f"{stages}/{case}\n".encode())
 
 
 def main():

@@ -162,6 +162,13 @@ class StageDir(unittest.TestCase):
         r = self.stage_dir(new_tree, "x")
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "tests/corpus/current/stages/x"))
 
+    def test_output_ends_in_a_bare_newline(self):
+        # Candidate reads it with $(...) in Git Bash on Windows, which strips \n but not \r.
+        r = subprocess.run([sys.executable, SCRIPT, "--root", ROOT, "stage-dir", "clear"],
+                           capture_output=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertNotIn(b"\r", r.stdout)
+
     def test_absent_name_fails_naming_it(self):
         r = self.stage_dir(old_tree, "nope")
         self.assertEqual(r.returncode, 1)
