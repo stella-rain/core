@@ -5,6 +5,7 @@
 //! which compares in place and allocates nothing.
 
 use std::cmp::Ordering;
+use std::sync::Arc;
 
 use crate::attack::{AttackPhase, AttackRef};
 use crate::attack_presets::AttackPresets;
@@ -126,6 +127,7 @@ impl AttackKeys {
         let pool = RangedPool::of(&phases);
         attacks.push(AttackDef {
             phases,
+            preset_id: preset.as_ref().map(|p| Arc::from(p.0.as_str())),
             preset,
             programs,
             pool,

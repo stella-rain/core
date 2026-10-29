@@ -205,8 +205,8 @@ fn checked_in_schema_is_current() {
 #[test]
 fn a_player_hit_names_its_source() {
     use stella_rain_core::event::{DomainEvent, HitKind, HitSource};
-    use stella_rain_core::id::{ContentId, EntityId};
-    let hit = |attack: Option<ContentId>| DomainEvent::PlayerHit {
+    use stella_rain_core::id::EntityId;
+    let hit = |attack: Option<std::sync::Arc<str>>| DomainEvent::PlayerHit {
         hp_left: 1,
         source: HitSource {
             kind: HitKind::Link,
@@ -220,7 +220,7 @@ fn a_player_hit_names_its_source() {
             "data": { "hp_left": 1, "source": { "kind": "link", "owner": 5 } } })
     );
     assert_eq!(
-        serde_json::to_string(&hit(Some(ContentId::from("x")))).unwrap(),
+        serde_json::to_string(&hit(Some("x".into()))).unwrap(),
         r#"{"type":"PlayerHit","data":{"hp_left":1,"source":{"kind":"link","owner":5,"attack":"x"}}}"#
     );
     let extra =

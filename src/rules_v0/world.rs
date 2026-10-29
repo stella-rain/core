@@ -50,6 +50,8 @@ pub(crate) struct AttackDef {
     pub phases: Vec<AttackPhase>,
     /// The preset it came from, for the frontend to pick its animation.
     pub preset: Option<ContentId>,
+    /// The same ID, shared, so a `PlayerHit` names it without allocating (PHIT).
+    pub preset_id: Option<Arc<str>>,
     /// The program of each phase's `spawn`, in the order of `phases`.
     pub programs: Vec<ProgramIndex>,
     /// The ranged-token pool a ranged start of this attack draws from (RA1, DS83).

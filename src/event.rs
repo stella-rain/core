@@ -2,6 +2,8 @@
 //! effects and sounds, the debug overlay and golden tests; the simulation never reads them.
 //! In a recording each is `{"type": ..., "data": {...}}`.
 
+use std::sync::Arc;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +44,7 @@ pub struct HitSource {
     pub owner: EntityId,
     /// The attack preset it came from; absent for an inline attack.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attack: Option<ContentId>,
+    pub attack: Option<Arc<str>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

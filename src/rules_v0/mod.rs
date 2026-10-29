@@ -1295,7 +1295,7 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Ve
             attack: by
                 .attack
                 .or_else(|| by.program.and_then(|p| stage.attack_of(p)))
-                .and_then(|a| stage.attacks[usize::from(a.0)].preset.clone()),
+                .and_then(|a| stage.attacks[usize::from(a.0)].preset_id.clone()),
         },
     });
     // A powerful attack breaks a charge (core#83).
