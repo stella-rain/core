@@ -1,5 +1,5 @@
 //! The leash (EC2, DS80, DS106): the crowd trails out of reach of a main character who is faster
-//! than most enemies, so a regular enemy outside the view rectangle around the main character
+//! than most enemies, so a regular enemy outside the reach rectangle around the main character
 //! (more than `leash_reach_x` to the side or `leash_reach_y` above or below, from
 //! `rules.json`) moves to the rectangle of `leash_land_x` by `leash_land_y` around it, on the side opposite where it was,
 //! scaled along its own direction and clamped to the map, and chases from there. At most
@@ -56,7 +56,7 @@ pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEven
 }
 
 /// The offset from the main character to the landing point of an enemy at (`dx`, `dy`) from it,
-/// outside the view rectangle: mirrored, and scaled along the enemy's own direction until it
+/// outside the reach rectangle: mirrored, and scaled along the enemy's own direction until it
 /// meets the landing rectangle. Integer division truncates toward zero.
 fn landing_offset(stage: &World, dx: i64, dy: i64) -> (i32, i32) {
     let (lx, ly) = (

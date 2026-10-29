@@ -26,7 +26,11 @@ pub const KILL_SEED: u64 = 1;
 
 /// The seed of the `elites` run case: the first seed under R1's streams where the scripted run
 /// still leaves a shrine and a mimic on the map when the boss calls (checked 1 to 40).
-pub const ELITES_SEED: u64 = 15;
+pub const ELITES_SEED: u64 = 5;
+
+/// The seed of the `time_limit` run case: the first seed where the case still names at least 11
+/// stars (`tests/tally.rs`) with the 840 px view; the trial's seed names 8.
+pub const TIME_LIMIT_SEED: u64 = 1;
 
 /// The seed of the runes reroll test: the first seed under R1's streams where the first offer
 /// after the reroll holds the three other rewards.

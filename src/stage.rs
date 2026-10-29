@@ -476,7 +476,8 @@ pub struct Wave {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spawn: Option<Point>,
     /// A side of the view: each enemy of the wave spawns on the spawn rectangle, 64 px outside
-    /// the view around the main character, on the part of it that is on the map (VS1, DS109).
+    /// the view (840 by 360 px, the camera's, kept inside the map), on the part of it that is on
+    /// the map (VS1, DS109).
     /// Give this or `spawn`, not both.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edge: Option<ViewEdge>,
@@ -501,7 +502,8 @@ pub struct Wave {
 }
 
 /// Where on the spawn rectangle around the main character a wave spawns (VS1): the rectangle is
-/// ±384 by ±244 px, the view (±320 by ±180 px) and a margin of 64 px. Only its part on the map
+/// ±484 by ±244 px, the camera's view (±420 by ±180 px, kept inside the map) and a margin of
+/// 64 px. Only its part on the map
 /// is used; a side wholly off the map gives way to the opposite one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

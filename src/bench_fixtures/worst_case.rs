@@ -27,7 +27,7 @@ pub const WAVES_AT: u32 = 150;
 const LINE_SHOOTER_AT: u32 = 2;
 
 /// How far right of the main character's start the line shooter arrives: 160 pixels, inside the
-/// 640 x 360 view (a placeholder; any point in view of the start will do).
+/// 840 x 360 view (a placeholder; any point in view of the start will do).
 const LINE_SHOOTER_DX: i32 = 160 * 256;
 
 /// The tick the main character sets off for the enemies, and the ticks it walks left and up

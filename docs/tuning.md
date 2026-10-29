@@ -13,7 +13,7 @@
 | `MAX_RULES_BYTES` | 4096 | bytes | ADR-020 |
 | `MAX_ZONES_ALIVE` | 128 | zones alive at once | ADR-SIM-11 |
 | `MAX_RANGED_ATTACKERS` | 4 | regular ranged attackers | ADR-SIM-11 |
-| `VIEW_HALF_WIDTH` | 320 | px | ADR-SIM-11 |
+| `VIEW_HALF_WIDTH` | 420 | px | ADR-SIM-11 |
 | `VIEW_HALF_HEIGHT` | 180 | px | ADR-SIM-11 |
 | `RANGED_ZONE_TOKENS` | 3 | tokens | ADR-SIM-11 |
 | `RANGED_LINE_TOKENS` | 1 | tokens | ADR-SIM-11 |
@@ -29,13 +29,13 @@
 | `CANDIDATES` | 32 | enemies | ADR-058 |
 | `NEIGHBOURS` | 6 | enemies | ADR-058 |
 | `CROWDED_OVER` | 1 | px | ADR-058 |
-| `LEASH_REACH_X` | 640 | px | ADR-126 |
+| `LEASH_REACH_X` | 840 | px | ADR-126 |
 | `LEASH_REACH_Y` | 360 | px | ADR-126 |
-| `LEASH_LAND_X` | 384 | px | ADR-126 |
+| `LEASH_LAND_X` | 484 | px | ADR-126 |
 | `LEASH_LAND_Y` | 244 | px | ADR-126 |
 | `MAX_LEASH_MOVES_PER_TICK` | 16 | moves per tick | ADR-126 |
 | `SPAWN_MARGIN` | 64 | px | ADR-126 |
-| `SPAWN_EDGE_X` | 384 | px | ADR-126 |
+| `SPAWN_EDGE_X` | 484 | px | ADR-126 |
 | `SPAWN_EDGE_Y` | 244 | px | ADR-126 |
 | `MAX_ECHOES_PER_TICK` | 64 | echoes per tick | ADR-058 |
 | `MAX_BURSTS_PER_TICK` | 8 | bursts per tick | ADR-058 |

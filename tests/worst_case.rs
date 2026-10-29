@@ -304,7 +304,7 @@ fn one_of_the_four_shooters_lays_a_line() {
 
 #[test]
 fn the_shooters_stand_in_the_view_of_the_main_character() {
-    // The view is 640 x 360 pixels, centred on the main character; RA1 bars ranged starts
+    // The view is 840 x 360 pixels, centred on the main character; RA1 bars ranged starts
     // outside it. Every enemy stands on the point of `ENEMIES_AT`, the shooters among them.
     let mut engine = worst_case::warmed_up();
     engine.step(worst_case::input(worst_case::WARMUP_TICKS + 1));
@@ -318,7 +318,7 @@ fn the_shooters_stand_in_the_view_of_the_main_character() {
     {
         seen += 1;
         let (dx, dy) = ((e.at.x.0 - me.x.0).abs(), (e.at.y.0 - me.y.0).abs());
-        assert!(dx <= 320 * 256, "{:?} is {dx} units off on x", e.id);
+        assert!(dx <= 420 * 256, "{:?} is {dx} units off on x", e.id);
         assert!(dy <= 180 * 256, "{:?} is {dy} units off on y", e.id);
     }
     assert_eq!(seen, crowd(&engine));
@@ -326,7 +326,7 @@ fn the_shooters_stand_in_the_view_of_the_main_character() {
 
 #[test]
 fn the_line_shooter_arrives_in_view_of_the_main_character() {
-    // RA1 bars a ranged start outside the 640 x 360 view, so the shooter that lays the warning
+    // RA1 bars a ranged start outside the 840 x 360 view, so the shooter that lays the warning
     // line must already be in view when it arrives (tick 2), or the companions take its zone
     // place first (RA1b, DS82). On tick 2 the only enemies are the first wave and that shooter.
     let mut engine = Engine::new_with(&worst_case::stage(), &worst_case::content()).unwrap();
@@ -343,7 +343,7 @@ fn the_line_shooter_arrives_in_view_of_the_main_character() {
     assert!(enemies.len() >= 2, "enemies on tick 3: {}", enemies.len());
     for e in enemies {
         let (dx, dy) = ((e.at.x.0 - me.x.0).abs(), (e.at.y.0 - me.y.0).abs());
-        assert!(dx <= 320 * 256, "{:?} is {dx} units off on x", e.id);
+        assert!(dx <= 420 * 256, "{:?} is {dx} units off on x", e.id);
         assert!(dy <= 180 * 256, "{:?} is {dy} units off on y", e.id);
     }
 }

@@ -387,6 +387,8 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
     // The positions are those on the spawn rectangle (VS1); the sprites and the stream's state
     // are as before, one horde draw per elite.
     // The two left-side places moved one point down when each corner went to one side (SPAWN-CORNER).
+    // They moved again with the 840 px view (VIEW-RECT): the rectangle is ±484 by ±244 px around
+    // (524,288; 524,288), every place on its top or bottom side.
     let table = serde_json::json!([{ "start_tick": 0, "weights": [
         { "elite": "elite_low", "weight": 1 }, { "elite": "elite_mid", "weight": 2 } ] },
         { "start_tick": 10_800, "weights": [
@@ -416,10 +418,10 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
     assert_eq!(
         at,
         [
-            (502_060, 461_824),
-            (425_984, 582_733),
-            (425_984, 490_578),
-            (495_916, 461_824)
+            (544_293, 461_824),
+            (465_996, 461_824),
+            (455_762, 586_752),
+            (529_460, 586_752)
         ]
     );
 }
@@ -795,11 +797,11 @@ fn a_clone_taken_while_waves_are_held_follows_the_original() {
 #[test]
 fn a_spawn_draws_once_on_the_spawn_stream_and_a_held_spawn_draws_nothing() {
     // Every wave of the bundled mode gives `edge` `any` (VS1): one draw over the spawn
-    // rectangle, whole on this map, so `below(643_072)` each.
+    // rectangle, whole on this map, so `below(745_472)` each.
     let drawn = |n: u32| {
         let mut r = crate::rng::derive(1, crate::rng::TAG_SPAWN);
         for _ in 0..n {
-            r.below(643_072);
+            r.below(745_472);
         }
         r.state()
     };

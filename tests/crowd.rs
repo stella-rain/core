@@ -266,12 +266,12 @@ fn fnv1a(hash: u64, word: u32) -> u64 {
 }
 
 /// The first tick the standing bot's crowd (counted as `Load::enemies` is) has the 200 of the
-/// target, taken after VS1 (DS109) and again after SPAWN-CORNER moved the `any`
-/// spawns: the director first acts on it, so every tick before it is what it always was.
-const T200: u32 = 36_180;
+/// target, taken after VS1 (DS109), again after SPAWN-CORNER moved the `any`
+/// spawns and again after VIEW-RECT widened the spawn rectangle and the leash: the director first acts on it, so every tick before it is what it always was.
+const T200: u32 = 39_060;
 /// FNV-1a 64 of each tick's `(tick, enemies, refused_spawns, relocated)` for the ticks before
-/// `T200` of the standing bot's run, taken after VS1 (DS109) and again after SPAWN-CORNER.
-const UNDER_TARGET_DIGEST: u64 = 0xdf41_69bd_d805_7606;
+/// `T200` of the standing bot's run, taken after VS1 (DS109), SPAWN-CORNER and VIEW-RECT.
+const UNDER_TARGET_DIGEST: u64 = 0x752d_ef8f_7d57_6ee4;
 
 #[test]
 fn under_the_target_a_run_is_what_it_was() {

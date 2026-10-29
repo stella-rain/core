@@ -216,9 +216,9 @@ fn the_bundled_file_holds_the_designer_facing_rules() {
     assert_eq!(r.aggro_per_buff(), 4000);
     assert_eq!(r.aggro_per_heal_point(), 2);
     assert_eq!(r.aggro_decay(), 100);
-    assert_eq!(r.leash_reach_x(), Fx(163_840));
+    assert_eq!(r.leash_reach_x(), Fx(215_040));
     assert_eq!(r.leash_reach_y(), Fx(92_160));
-    assert_eq!(r.leash_land_x(), Fx(98_304));
+    assert_eq!(r.leash_land_x(), Fx(123_904));
     assert_eq!(r.leash_land_y(), Fx(62_464));
     assert_eq!(r.spawn_margin(), Fx(16_384));
     assert_eq!(r.ranged_token_cooldown_ticks(), 30);
@@ -331,9 +331,9 @@ fn each_new_field_loads_at_its_bounds() {
 #[test]
 fn the_leash_lands_inside_where_it_triggers() {
     // The land equal to the reach loads; one more is refused at the land's path.
-    let r = with_all(&[("leash_land_x", 163_840)]);
+    let r = with_all(&[("leash_land_x", 215_040)]);
     assert!(Rules::parse(&r, Versions::CURRENT).is_ok());
-    let r = with_all(&[("leash_land_x", 163_841)]);
+    let r = with_all(&[("leash_land_x", 215_041)]);
     assert_eq!(
         paths(Rules::parse(&r, Versions::CURRENT)),
         ["$.leash_land_x"]
