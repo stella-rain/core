@@ -18,7 +18,7 @@ LINE = re.compile(r"^\s*([\d,]+)\s+(\S.*?)\s*$")
 BINARY = re.compile(r"\s+\[[^\]]*\]$")
 NAME_MAX = 200
 TOTALS = "PROGRAM TOTALS"
-STEP_PREFIX = "stella_rain_core::rules_v0::schedule::steps::"
+STEP_PREFIX = "stella_rain_core::sim::schedule::steps::"
 STEP_NAME = re.compile(r"[A-Za-z0-9_]+")
 STEP_SELF = re.compile(r"^(?:|::h[0-9a-f]+|<.*)$")
 RECURSION = re.compile(r"'\d+$")  # callgrind's name for a recursive instance: free'2
@@ -185,7 +185,7 @@ def main():
     parser.add_argument("--top", type=int, default=40)
     parser.add_argument("--summary-top", type=int, default=10)
     parser.add_argument("--annotate", default="callgrind_annotate")
-    parser.add_argument("--schedule", default="src/rules_v0/schedule.rs",
+    parser.add_argument("--schedule", default="src/sim/schedule.rs",
                         help="the file whose steps![...] gives the order of the step table")
     args = parser.parse_args()
     cases = find_cases(args.home)
