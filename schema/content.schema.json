@@ -2547,7 +2547,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The leash moved the enemy `entity` just outside the view, on the side opposite the main character, so the\nfrontend snaps its body instead of interpolating across the screen (EC2, DS80).",
+          "description": "The leash moved the enemy `entity` just outside the view, on the side opposite the view's centre, so the\nfrontend snaps its body instead of interpolating across the screen (EC2, DS80).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -6764,17 +6764,17 @@
           "type": "integer"
         },
         "leash_land_x": {
-          "description": "Where the leash lands an enemy to the side of the main character, in 1/256 px: 1 to `leash_reach_x`.",
+          "description": "Where the leash lands an enemy to the side of the view's centre, in 1/256 px: the spawn edge (420 px + `spawn_margin`) to `leash_reach_x`.",
           "format": "int32",
           "type": "integer"
         },
         "leash_land_y": {
-          "description": "The same above or below, in 1/256 px: 1 to `leash_reach_y`.",
+          "description": "The same above or below, in 1/256 px: the spawn edge (180 px + `spawn_margin`) to `leash_reach_y`.",
           "format": "int32",
           "type": "integer"
         },
         "leash_reach_x": {
-          "description": "How far to the side of the main character a regular enemy may be before the leash moves it, in 1/256 px: 1 to 4,096 px.",
+          "description": "How far to the side of the view's centre a regular enemy may be before the leash moves it, in 1/256 px: 1 to 4,096 px.",
           "format": "int32",
           "type": "integer"
         },
