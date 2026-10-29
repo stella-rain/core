@@ -130,9 +130,9 @@ fn damaged(e: serde_json::Error) -> ReplayLoadError {
 pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,
-    _current: Versions,
-    _migrations: &[Migration],
-    _header: fn(&[u8]) -> Result<Versions, serde_json::Error>,
+    current: Versions,
+    migrations: &[Migration],
+    header: fn(&[u8]) -> Result<Versions, serde_json::Error>,
 ) -> Result<T, ReplayLoadError> {
     if bytes.len() > limit {
         return Err(ReplayLoadError::TooLarge {
@@ -140,7 +140,19 @@ pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
             limit,
         });
     }
-    serde_json::from_slice(bytes).map_err(damaged)
+    let found = header(bytes).map_err(damaged)?;
+    if found.schema_version > current.schema_version || found.sim_version > current.sim_version {
+        return Err(ReplayLoadError::Newer(found));
+    }
+    if found == current {
+        return serde_json::from_slice(bytes).map_err(damaged);
+    }
+    let Some(migration) = migrations.iter().find(|m| m.from == found) else {
+        return Err(ReplayLoadError::Older(found));
+    };
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(damaged)?;
+    let migrated = serde_json::to_vec(&(migration.apply)(value)).map_err(damaged)?;
+    serde_json::from_slice(&migrated).map_err(damaged)
 }
 
 #[cfg(test)]

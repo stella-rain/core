@@ -394,7 +394,7 @@ fn a_wrong_final_hash_is_refused() {
 }
 
 #[test]
-fn a_bad_or_newer_setup_is_refused() {
+fn a_bad_setup_is_refused_and_a_newer_one_is_newer() {
     let replay = recorded(20);
     let bytes = with(&replay, |v| v["setup"]["weapon"] = json!("no_such_weapon"));
     assert!(matches!(
@@ -404,7 +404,10 @@ fn a_bad_or_newer_setup_is_refused() {
     let bytes = with(&replay, |v| v["setup"]["sim_version"] = json!(1));
     assert!(matches!(
         verify_run(&bytes),
-        Err(RunReplayError::Setup(Error::UnsupportedVersion { .. }))
+        Err(RunReplayError::Newer {
+            schema_version: 0,
+            sim_version: 1
+        })
     ));
 }
 

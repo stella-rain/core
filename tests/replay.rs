@@ -359,15 +359,20 @@ fn a_replay_only_verifies_against_its_own_stage() {
         verify(&changed, &bytes),
         Err(ReplayError::NotThisStage("the stage file has changed"))
     );
-    for (field, value, why) in [
-        ("seed", json!(8), "another seed"),
-        ("sim_version", json!(1), "another version"),
-        ("schema_version", json!(1), "another version"),
-    ] {
-        let tampered = with(&replay, |v| v[field] = value.clone());
+    let tampered = with(&replay, |v| v["seed"] = json!(8));
+    assert_eq!(
+        verify(&stage, &tampered),
+        Err(ReplayError::NotThisStage("another seed"))
+    );
+    // Another version is refused when the file is read, before it is compared with the stage.
+    for (field, expected) in [("sim_version", (0, 1)), ("schema_version", (1, 0))] {
+        let tampered = with(&replay, |v| v[field] = json!(1));
         assert_eq!(
             verify(&stage, &tampered),
-            Err(ReplayError::NotThisStage(why)),
+            Err(ReplayError::Newer {
+                schema_version: expected.0,
+                sim_version: expected.1
+            }),
             "{field}"
         );
     }
