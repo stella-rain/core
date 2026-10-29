@@ -304,7 +304,8 @@ fn no_spawn_near_a_map_edge_is_relocated_on_its_spawn_tick() {
     // (main character, edge, spawn point in px); `along` fixes the point with no draw. The
     // far-side spawns are 874 x or 394 y px from
     // the main character, past the reach of 840 x 360, and 484 or 244 px from the centre.
-    let cases: [((i32, i32), Value, (i64, i64)); 6] = [
+    type Case = ((i32, i32), Value, (i64, i64));
+    let cases: [Case; 6] = [
         (
             (30, 2000),
             json!({ "side": "right", "along": 0 }),

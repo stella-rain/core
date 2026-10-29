@@ -175,7 +175,8 @@ fn the_land_point_is_on_the_clamped_view_rectangle_plus_its_margin() {
     // (main character, enemy) in px -> landing point in 1/256 px, worked by hand from the view
     // centre (the main character held 420 x / 180 y px inside the 4,000 px map) plus the mirrored
     // offset scaled along the enemy's direction, truncated toward zero.
-    let rows: [((i32, i32), (i32, i32), (i32, i32), (i32, i32)); 3] = [
+    type Row = ((i32, i32), (i32, i32), (i32, i32), (i32, i32));
+    let rows: [Row; 3] = [
         // Centre (420, 2000); (580, 361) px from it: the horizontal side, ox = -148,480 *
         // 62,464 / 92,416 = -100,357.7 -> -100,357, so x = 107,520 - 100,357.
         ((100, 2000), (1000, 2361), (420, 2000), (7_163, 1756 * PX)),
