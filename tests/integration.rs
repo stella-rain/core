@@ -127,6 +127,7 @@ mod stars;
 mod starting_unlocks;
 mod statuses;
 mod stun;
+mod tally;
 mod text_table;
 mod thunder;
 mod time_limit;
