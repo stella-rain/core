@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay};
 use stella_rain_core::share;
@@ -52,17 +53,21 @@ fn corpus() -> Vec<(String, Vec<u8>, Vec<u8>)> {
         .collect()
 }
 
-/// The `run.replay` of every run case of the corpus (ADR-051) that plays with the bundled
-/// files, which `replay_load` also loads. A case with its own `mode.json` verifies only with
-/// that file, so it is left out here (CI still seeds the fuzz targets with it).
+/// Whether the run case pins the bundled pack in its `case.json`.
+fn pins_bundled(case: &Path) -> bool {
+    let json = fs::read_to_string(case.join("case.json")).expect("case.json");
+    json.contains(&to_hex(&Pack::bundled().sha256()))
+}
+
+/// The `run.replay` of every run case of the corpus (ADR-051) that plays on the bundled pack,
+/// which `replay_load` also loads. A case that pins a derived pack verifies only with that pack,
+/// so it is left out here (CI still seeds the fuzz targets with it).
 fn run_replays() -> Vec<Vec<u8>> {
     let dir = root().join("tests/corpus/current/runs");
     let mut cases: Vec<_> = fs::read_dir(&dir)
         .expect("the run corpus directory")
         .map(|e| e.expect("a run case").path())
-        // The `stage_skill` case plays with an enemy attack of its own (see `tests/corpus.rs`),
-        // so it does not verify with the bundled content.
-        .filter(|case| !case.join("mode.json").exists() && !case.ends_with("stage_skill"))
+        .filter(|case| pins_bundled(case))
         .collect();
     cases.sort();
     assert!(!cases.is_empty(), "the corpus has no run cases");
@@ -97,6 +102,22 @@ fn run_prefixes() -> Vec<Vec<u8>> {
             recorder.replay().to_bytes()
         })
         .collect()
+}
+
+/// The seeds are the whole corpus: a case moved out of `current/` or left unread would shrink
+/// what the fuzz targets start from.
+#[test]
+fn the_smoke_corpus_has_every_case() {
+    let count = |sub: &str| {
+        fs::read_dir(root().join("tests/corpus/current").join(sub))
+            .expect("a corpus folder")
+            .filter(|e| e.as_ref().unwrap().path().is_dir())
+            .count()
+    };
+    assert_eq!(count("stages"), 15);
+    assert_eq!(count("runs"), 9);
+    assert_eq!(corpus().len(), 15);
+    assert_eq!(run_replays().len(), 5);
 }
 
 fn clear() -> (Vec<u8>, Vec<u8>) {

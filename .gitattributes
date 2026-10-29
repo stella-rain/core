@@ -30,9 +30,12 @@
 #
 # Replay corpus (`UPDATE_CORPUS=1`): `git diff` does not print it either (-diff; the per-tick
 # `hashes.bin` is binary). The corpus
-# stages (`stage.json`) and run modes (`mode.json`) are written by hand and stay visible.
+# stages (`stage.json`) are written by hand and stay visible. `case.json` (the pack a case
+# pins) and the pack files in `packs/` are written by the same run.
 tests/corpus/**/run.replay linguist-generated=true -diff
 tests/corpus/**/hashes.bin linguist-generated=true
+tests/corpus/**/case.json linguist-generated=true
+tests/corpus/**/packs/*.json linguist-generated=true -diff
 # JSON Schema (`UPDATE_SCHEMA=1`), goldens (`INSTA_UPDATE=always`), the content pack
 # (`content-pack export`) and the bench pins (`UPDATE_BENCH_PINS=1`): still diffed locally,
 # since a change there is what a reviewer checks.
