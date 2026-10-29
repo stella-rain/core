@@ -286,10 +286,17 @@ impl Engine {
 
     /// Chooses option `index` of the open offer, between ticks (ADR-079 §3): the snapshot's
     /// `offer.options` lists them. It applies at once, and the events are then this choice's.
-    /// Refused, changing nothing, with no offer open or an index outside its options.
+    /// Refused, changing nothing, with no offer open, a `sim_version` this game does not run, or
+    /// an index outside its options.
     pub fn choose(&mut self, index: u32) -> Result<(), ChoiceError> {
         if !self.offer_open() {
             return Err(ChoiceError::NoOffer);
+        }
+        let sim_version = self.stage.sim_version;
+        if !(1..=SIM_VERSION).contains(&sim_version) {
+            // `new` validated the version; refuse, changing nothing and running no rules, if
+            // that stops being true.
+            return Err(ChoiceError::Unsupported { sim_version });
         }
         let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
         let options = sim::offer_options(&self.stage, rewards, expertise, &self.state);
@@ -303,11 +310,6 @@ impl Engine {
                 options: u32::try_from(options.len()).unwrap_or(u32::MAX),
             });
         };
-        let sim_version = self.stage.sim_version;
-        if !(1..=SIM_VERSION).contains(&sim_version) {
-            // `new` validated the version; refuse, changing nothing, if that stops being true.
-            return Err(ChoiceError::Unsupported { sim_version });
-        }
         self.events.clear();
         sim::choose(
             sim_version,
