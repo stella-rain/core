@@ -1,4 +1,4 @@
-//! The replay corpus (ADR-019): `tests/corpus/v0/<name>/` holds a `stage.json`, a `run.replay`
+//! The replay corpus (ADR-019): `tests/corpus/current/stages/<name>/` holds a `stage.json`, a `run.replay`
 //! and `hashes.bin` (the state hash after every tick, 8 bytes little-endian,
 //! `replay::hashes_from_bytes`). Each case
 //! is re-simulated and every tick compared, so a change that moves any hash fails on the first
@@ -11,7 +11,7 @@
 //! `UPDATE_CORPUS=1 cargo test --test integration corpus::` and say `Corpus regenerated: <why>`
 //! in the PR (ADR-035).
 //!
-//! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
+//! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/current/runs/<name>/`: a
 //! `run.replay` alone (a run replay: setup, content hash, inputs, commands and `checkpoints`, the
 //! hash after every 60th tick, which are the expected hashes). A failing second is re-run and its
 //! 61 snapshots written to `target/corpus-diff/<name>/`. They need no stage file, because the
@@ -23,14 +23,20 @@ use stella_rain_core::version::Versions;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::corpus_pins::{
+    case_pack, check_frozen_tree, ensure_writable, is_frozen_name, override_pack, prune_packs,
+    run_case_pack, write_case_json, write_pack_file,
+};
 use crate::run_play::play_run_with;
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
+use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
+use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{self, Replay, hash_to_hex};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
@@ -41,20 +47,24 @@ use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::parse_and_validate;
 
 pub(crate) fn corpus_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/v0")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/stages")
 }
 
 pub(crate) fn runs_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/runs/v0")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/runs")
 }
 
-fn diff_dir() -> PathBuf {
+pub(crate) fn current_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current")
+}
+
+pub(crate) fn diff_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("target/corpus-diff")
 }
 
 /// Re-simulates one case and compares every tick's hash. `Err` is the message the test fails
 /// with; a divergence also leaves `<diff_dir>/<name>.json`.
-fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
+pub(crate) fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let name = case.file_name().unwrap().to_string_lossy().into_owned();
     let read = |file: &str| {
         fs::read(case.join(file)).map_err(|e| format!("corpus case `{name}`: {file}: {e}"))
@@ -78,7 +88,9 @@ fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
         ));
     }
 
-    let mut engine = Engine::new(&stage).map_err(|e| format!("corpus case `{name}`: {e:?}"))?;
+    let pack = case_pack(case)?;
+    let mut engine = Engine::new_with(&stage, pack.content())
+        .map_err(|e| format!("corpus case `{name}`: {e:?}"))?;
     let mut previous = engine.snapshot();
     for (input, expected) in inputs.iter().zip(&hashes) {
         engine.step(*input);
@@ -93,7 +105,8 @@ fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
             "corpus case `{name}`: run.replay's ticks or final hash do not match hashes.bin"
         ));
     }
-    if engine.outcome() == Outcome::Cleared {
+    // The library path plays the bundled pack only (`replay::verify_against` has no pack).
+    if engine.outcome() == Outcome::Cleared && pack.sha256() == Pack::bundled().sha256() {
         replay::verify_against(&stage_bytes, &replay_bytes, &hashes)
             .map_err(|e| format!("corpus case `{name}`: {e}"))?;
     }
@@ -133,7 +146,7 @@ pub(crate) fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> 
 /// one every 60 ticks, so it is the one file of the case. A `hashes.bin` or `hashes.txt` beside
 /// it would be a second source of truth and fails the case. When a checkpoint differs, the
 /// snapshots of the ticks of that second are written to `<diff_dir>/<name>/`.
-fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
+pub(crate) fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let name = case.file_name().unwrap().to_string_lossy().into_owned();
     let fail = |e: &dyn std::fmt::Display| format!("corpus case `{name}`: {e}");
     for stale in ["hashes.bin", "hashes.txt"] {
@@ -146,12 +159,16 @@ fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     }
     let replay_bytes = fs::read(case.join("run.replay")).map_err(|e| fail(&e))?;
     let recorded = RunReplay::from_bytes(&replay_bytes).map_err(|e| fail(&e))?;
-    let content = case_content(case).map_err(|e| fail(&e))?;
-    match run_replay::verify_run_with(&replay_bytes, &content) {
+    let pack = run_case_pack(case, &replay_bytes)?;
+    match run_replay::verify_run_with_pack(&replay_bytes, &pack) {
         Ok(_) => Ok(()),
-        Err(run_replay::RunReplayError::CheckpointDiffers { second }) => {
-            Err(dump_second(&name, &recorded, &content, second, diff_dir))
-        }
+        Err(run_replay::RunReplayError::CheckpointDiffers { second }) => Err(dump_second(
+            &name,
+            &recorded,
+            pack.content(),
+            second,
+            diff_dir,
+        )),
         Err(e) => Err(fail(&e)),
     }
 }
@@ -211,49 +228,27 @@ fn dump_second(
     )
 }
 
-/// The content a run case plays with: the bundled files, and the `time_limit` mode file of its
-/// own when the case has a `mode.json` (a short mode, so that a run ends by the final boss's
-/// kill or by the overtime without 20 minutes of play).
+/// The content a run case plays with: the content of the pack its `case.json` pins.
 pub(crate) fn case_content(case: &Path) -> Result<RunContent, String> {
-    let content = match fs::read(case.join("mode.json")) {
-        Ok(bytes) => {
-            let mode = TimeLimit::parse(&bytes, Versions::CURRENT).map_err(|e| e.to_string())?;
-            RunContent::bundled().clone().with_time_limit(mode)
-        }
-        Err(_) => RunContent::bundled().clone(),
-    };
-    Ok(if hurts_at_design_value(case) {
-        content.with_run_stats(common::design_run_stats())
-    } else {
-        content
-    })
+    case_pack(case).map(|pack| pack.content().clone())
 }
 
-/// The run cases whose bot cannot get out of the way of the bundled hit of 10,000 (five hits
-/// end a trial run): the `elites` and `stage_skill` cases play with an enemy's attack at 100
-/// stored, as they were made, so that they reach what their names say. The other run cases
-/// play on the bundled content.
-fn hurts_at_design_value(case: &Path) -> bool {
-    matches!(
-        case.file_name().and_then(|n| n.to_str()),
-        Some("elites" | "stage_skill")
-    )
-}
-
-/// Writes a run case's files from a setup and the commands to run, and the mode file it plays
-/// with if it has one.
-fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[Command]) {
+/// Writes a run case's files from a setup and the commands to run, on the pack `pack_bytes` (a
+/// derived one, stored in `packs/`) or on the bundled pack, and pins it in `case.json`.
+fn write_run_case(dir: &Path, setup: &RunSetup, pack_bytes: Option<&[u8]>, commands: &[Command]) {
+    ensure_writable(dir).unwrap();
     fs::create_dir_all(dir).unwrap();
-    let content = match mode {
-        Some(json) => {
-            write_atomic(&dir.join("mode.json"), json.as_bytes());
-            case_content(dir).unwrap()
+    let (pack, sha) = match pack_bytes {
+        Some(bytes) => {
+            let sha = write_pack_file(&current_dir(), bytes).unwrap();
+            (Pack::from_bytes(bytes).unwrap(), sha)
         }
-        None => case_content(dir).unwrap(),
+        None => (Pack::bundled().clone(), to_hex(&Pack::bundled().sha256())),
     };
-    let recorded = run_replay::record_run_with(setup, &content, commands).unwrap();
+    write_case_json(dir, &sha).unwrap();
+    let recorded = run_replay::record_run_with_pack(setup, &pack, commands).unwrap();
     write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
-    for stale in ["hashes.bin", "hashes.txt"] {
+    for stale in ["hashes.bin", "hashes.txt", "mode.json"] {
         match fs::remove_file(dir.join(stale)) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -305,7 +300,7 @@ fn scratch(name: &str) -> PathBuf {
 /// Writes `bytes` to `path` so that no reader ever sees half of them: the other tests of this
 /// file read the cases while `UPDATE_CORPUS=1` rewrites them, and a plain `fs::write` truncates
 /// the file first.
-fn write_atomic(path: &Path, bytes: &[u8]) {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) {
     let tmp = path.with_extension("tmp");
     fs::write(&tmp, bytes).unwrap();
     fs::rename(&tmp, path).unwrap();
@@ -322,7 +317,9 @@ fn write_case(dir: &Path, stage_bytes: &[u8], inputs: &[Input]) {
         engine.step(*input);
         hashes.push(engine.state_hash());
     }
+    ensure_writable(dir).unwrap();
     fs::create_dir_all(dir).unwrap();
+    write_case_json(dir, &to_hex(&Pack::bundled().sha256())).unwrap();
     write_atomic(&dir.join("stage.json"), stage_bytes);
     write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
     write_hashes(dir, &hashes);
@@ -1341,7 +1338,10 @@ pub(crate) fn definitions() -> Vec<Definition> {
 /// The run cases: the trial mode played until the main character falls, raising its stats by priority
 /// and answering its offers on the way, with every kind of option; and the same from another
 /// seed, whose run takes a stage skill from an elite's star and uses it.
-fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command>)> {
+/// A run case: its name, setup, the derived pack it plays on (the bundled pack for `None`) and its commands.
+type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
+
+fn run_definitions() -> Vec<RunDefinition> {
     use crate::run_play::{play_run, play_run_from, play_run_in};
     use common::run::{
         ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, time_limit_setup, trial_setup,
@@ -1376,18 +1376,18 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     // Two short modes with no waves and the final boss at tick 60, the only boss: in the first
     // the overtime is long enough for the main character to kill it (it does, at tick 8098);
     // in the second it ends at tick 600 with the boss alive.
-    let (kill_mode, kill_content) = short_time_limit(12_000);
+    let (_, kill_content) = short_time_limit(12_000);
     let kill_setup = RunSetup {
         seed: KILL_SEED,
         ..time_limit_setup()
     };
     let kill_commands = play_run_with(&kill_setup, &kill_content, 20_060, boss_input);
-    let (overtime_mode, overtime_content) = short_time_limit(540);
+    let (_, overtime_content) = short_time_limit(540);
     let kill_setup_2 = time_limit_setup();
     let overtime_commands = play_run_with(&kill_setup_2, &overtime_content, 600, boss_input);
     // The elites run: every elite type, the cap of 5 reached, and each elite's event; its own
     // mode file, below.
-    let (elites_mode, elites_content) = elites_time_limit();
+    let (_, elites_content) = elites_time_limit();
     let elites_setup = RunSetup {
         seed: ELITES_SEED,
         ..time_limit_setup()
@@ -1405,23 +1405,33 @@ fn run_definitions() -> Vec<(&'static str, RunSetup, Option<String>, Vec<Command
     vec![
         ("tutorial", tutorial, None, tutorial_commands),
         ("trial", trial_setup(), None, play_run(TRIAL_LENGTH)),
-        ("stage_skill", stage_skill, None, stage_skill_commands),
+        (
+            "stage_skill",
+            stage_skill,
+            Some(override_pack("stage_skill")),
+            stage_skill_commands,
+        ),
         ("time_limit", time_limit, None, time_limit_commands),
         ("easy", easy, None, easy_commands),
         ("rainy", rainy, None, rainy_commands),
         (
             "time_limit_kill",
             kill_setup,
-            Some(kill_mode),
+            Some(override_pack("time_limit_kill")),
             kill_commands,
         ),
         (
             "time_limit_overtime",
             kill_setup_2,
-            Some(overtime_mode),
+            Some(override_pack("time_limit_overtime")),
             overtime_commands,
         ),
-        ("elites", elites_setup, Some(elites_mode), elites_commands),
+        (
+            "elites",
+            elites_setup,
+            Some(override_pack("elites")),
+            elites_commands,
+        ),
     ]
 }
 
@@ -1453,7 +1463,7 @@ const ELITES_BY_MINUTE: [&str; 12] = [
 /// what comes), the final boss as the only boss at minute 13, 1900 ticks of overtime (the boss's call is due 1800 ticks after it comes),
 /// and the leader's aura at 100%, so that its raise is plain: the escort shoots for the default
 /// 100 (its swing, since BR1a), which 100% makes a hit of 200 (the bundled 25% makes 125, `tests/elite_pack_leader.rs`).
-fn elites_time_limit() -> (String, RunContent) {
+pub(crate) fn elites_time_limit() -> (String, RunContent) {
     let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["length_ticks"] = json!(46_800);
     v["boss_ticks"] = json!([46_800]);
@@ -1628,7 +1638,7 @@ impl EliteScript {
 
 /// A `time_limit` mode with no waves, the final boss at tick 60 and `overtime` ticks of overtime,
 /// as its file and as the content a run reads it with.
-fn short_time_limit(overtime: u32) -> (String, RunContent) {
+pub(crate) fn short_time_limit(overtime: u32) -> (String, RunContent) {
     let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
     v["length_ticks"] = json!(60);
     v["boss_ticks"] = json!([60]);
@@ -2315,12 +2325,13 @@ fn the_corpus_matches() {
             let scaled = common::scaled_bytes(&stage_bytes, common::SCALE);
             write_case(&corpus_dir().join(name), &scaled, &inputs);
         }
-        for (name, setup, mode, commands) in run_definitions() {
-            write_run_case(&runs_dir().join(name), &setup, mode.as_deref(), &commands);
+        for (name, setup, pack, commands) in run_definitions() {
+            write_run_case(&runs_dir().join(name), &setup, pack.as_deref(), &commands);
         }
+        prune_packs(&current_dir()).unwrap();
     }
     let mut cases: Vec<PathBuf> = fs::read_dir(corpus_dir())
-        .expect("tests/corpus/v0 exists")
+        .expect("tests/corpus/current/stages exists")
         .map(|e| e.unwrap().path())
         .filter(|p| p.is_dir())
         .collect();
@@ -2331,7 +2342,7 @@ fn the_corpus_matches() {
         cases.len()
     );
     let mut runs: Vec<PathBuf> = fs::read_dir(runs_dir())
-        .expect("tests/corpus/runs/v0 exists")
+        .expect("tests/corpus/current/runs exists")
         .map(|e| e.unwrap().path())
         .filter(|p| p.is_dir())
         .collect();
@@ -2345,6 +2356,23 @@ fn the_corpus_matches() {
                 .filter_map(|c| check_run_case(c, &diff_dir()).err()),
         )
         .collect();
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Every frozen folder (`tests/corpus/v<N>/`, N >= 1) is what its manifest says and still
+/// verifies against the packs it holds. With none present it passes; the check itself is proved on
+/// a temp tree in `corpus_pins`.
+#[test]
+fn the_frozen_corpus_is_unchanged() {
+    let root = current_dir().parent().unwrap().to_path_buf();
+    let mut failures = Vec::new();
+    for entry in fs::read_dir(&root).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if path.is_dir() && is_frozen_name(&name) {
+            failures.extend(check_frozen_tree(&path).err());
+        }
+    }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 

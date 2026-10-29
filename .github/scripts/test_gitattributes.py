@@ -13,8 +13,7 @@ OTHER_GENERATED = ["tests/bench_pins.toml"]
 
 # Hand-written files beside the generated sets: they must stay counted.
 HAND_WRITTEN = [
-    "tests/corpus/v0/agents/stage.json",
-    "tests/corpus/runs/v0/elites/mode.json",
+    "tests/corpus/current/stages/agents/stage.json",
     "src/lib.rs",
     "tests/corpus.rs",
 ]
@@ -72,8 +71,8 @@ class Attributes(unittest.TestCase):
 
     def test_every_generated_file_is_marked_generated(self):
         for name, prefix in xtask_sets():
-            # The corpus stages and run modes are written by hand; the replays and hashes are not.
-            files = [p for p in tracked(prefix) if not p.endswith(("/stage.json", "/mode.json"))]
+            # The corpus stages are written by hand; the replays, hashes, pins and packs are not.
+            files = [p for p in tracked(prefix) if not p.endswith("/stage.json")]
             self.assertTrue(files, f"{name}: no tracked file under {prefix}")
             unmarked = [p for p, g in generated(files).items() if not g]
             self.assertEqual(unmarked, [], f"{name} ({prefix}) has unmarked files")
@@ -110,6 +109,20 @@ class Attributes(unittest.TestCase):
         for case in stages:
             self.assertIn(case, replays)
         self.assertTrue([case for case in replays if case not in stages], "no run case")
+
+    def test_every_case_folder_has_a_case_json(self):
+        # The pack a case plays on (CO1): one per stage case and per run case, in every tree.
+        files = set(tracked("tests/corpus/"))
+        cases = sorted({p.rsplit("/", 1)[0] for p in files if p.endswith("/run.replay")})
+        self.assertTrue(cases)
+        for case in cases:
+            self.assertIn(case + "/case.json", files, case)
+
+    def test_pins_and_packs_are_marked_generated(self):
+        pins = [p for p in tracked("tests/corpus/") if p.endswith("/case.json") or "/packs/" in p]
+        self.assertTrue(pins)
+        for path, g in generated(pins).items():
+            self.assertTrue(g, path)
 
 
 if __name__ == "__main__":

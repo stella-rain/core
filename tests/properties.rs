@@ -42,12 +42,12 @@ fn config() -> ProptestConfig {
 
 // --- Generators ------------------------------------------------------------------------------
 
-/// The stages of `tests/corpus/v0/`: agents, statuses, healing, orbs, a boss with a part,
+/// The stages of `tests/corpus/current/stages/`: agents, statuses, healing, orbs, a boss with a part,
 /// a run that fails and one that times out.
 fn corpus_stages() -> &'static [Stage] {
     static STAGES: OnceLock<Vec<Stage>> = OnceLock::new();
     STAGES.get_or_init(|| {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/v0");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/stages");
         let mut names: Vec<_> = fs::read_dir(&dir)
             .expect("the corpus directory")
             .map(|entry| entry.expect("a corpus entry").file_name())

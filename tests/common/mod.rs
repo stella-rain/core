@@ -280,9 +280,14 @@ pub fn design_content() -> RunContent {
 
 /// The bundled run stats with an enemy's attack at 100 stored.
 pub fn design_run_stats() -> RunStats {
+    RunStats::parse(design_run_stats_json().as_bytes(), Versions::CURRENT).unwrap()
+}
+
+/// The file `design_run_stats` parses.
+pub fn design_run_stats_json() -> String {
     let mut v: Value = serde_json::from_slice(bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = json!(100);
-    RunStats::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap()
+    v.to_string()
 }
 
 pub fn engine(stage: &Stage) -> Engine {

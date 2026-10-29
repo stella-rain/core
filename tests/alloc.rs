@@ -366,8 +366,8 @@ pub(crate) fn peak_bytes() -> i64 {
 
 #[test]
 fn peak_heap_of_the_worst_minute_is_under_16_mib() {
-    let dir =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/runs/v0/time_limit");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/corpus/current/runs/time_limit");
     let replay = RunReplay::from_bytes(&std::fs::read(dir.join("run.replay")).unwrap()).unwrap();
     let commands = replay.unpack_commands().unwrap();
     let inputs = replay.unpack_inputs(u32::MAX).unwrap();
