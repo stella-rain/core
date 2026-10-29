@@ -1,6 +1,6 @@
 ---
 paths:
-  - "src/rules_v0/**"
+  - "src/sim/**"
   - "src/engine/**"
   - "src/inline.rs"
   - "tests/alloc.rs"
@@ -21,10 +21,10 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-7, ADR-REPL-3. The determinism
   frame, and `tally`, the read-only view of the run's HUD tallies (kills, rewards taken, named
   stars, constellation tiers; `Counted` in `ledger.rs`, outside the hashed state); its tests sit
   beside them (`horde_tests.rs`, `move_index_tests.rs`).
-- `rules_v0/`: the rules of `sim_version` 0. `state.rs` is the run's `State`; `world.rs` the
+- `sim/`: the rules of `sim_version` 0. `state.rs` is the run's `State`; `world.rs` the
   run's definitions, resolved once and read-only (`DefIndex`, `AgentDef`, `AttackDef`).
   `schedule.rs` holds `TICK`, the one tick order: a step is added or moved there, and
-  `tick_doc_lists_the_schedule` keeps the table in the `rules_v0` module doc equal to it.
+  `tick_doc_lists_the_schedule` keeps the table in the `sim` module doc equal to it.
   Each part says what it does not do yet. It holds
   agents and the enemies' push-apart, attacks and their hit boxes, skills, the main character's
   movement, facing and evade, the weapon's combos made by hand with their charged steps and
@@ -40,7 +40,7 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-7, ADR-REPL-3. The determinism
 
 ## Rules
 
-- A steady tick allocates nothing (T1b): `rules_v0/scratch.rs`'s `Scratch` buffers keep their
+- A steady tick allocates nothing (T1b): `sim/scratch.rs`'s `Scratch` buffers keep their
   memory from tick to tick, are not hashed or cloned, and hold nothing the rules read between
   ticks. `tests/alloc.rs` counts allocations and frees (a steady tick and the bench tick
   assert 0 of both); a new per-tick `Vec` goes into `Scratch`, a bounded per-entity list into
