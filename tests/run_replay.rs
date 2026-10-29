@@ -519,19 +519,19 @@ fn only_the_run_replay_format_parses() {
     let unknown = with(&replay, |v| v["extra"] = json!(1));
     assert!(matches!(
         RunReplay::from_bytes(&unknown),
-        Err(RunReplayError::Parse { .. })
+        Err(RunReplayError::Damaged { .. })
     ));
     let missing = with(&replay, |v| {
         v.as_object_mut().unwrap().remove("commands");
     });
     assert!(matches!(
         RunReplay::from_bytes(&missing),
-        Err(RunReplayError::Parse { .. })
+        Err(RunReplayError::Damaged { .. })
     ));
     let unknown_in_setup = with(&replay, |v| v["setup"]["extra"] = json!(1));
     assert!(matches!(
         RunReplay::from_bytes(&unknown_in_setup),
-        Err(RunReplayError::Parse { .. })
+        Err(RunReplayError::Damaged { .. })
     ));
 }
 
@@ -1040,12 +1040,12 @@ fn a_replay_with_damaged_checkpoints_is_refused() {
     });
     assert!(matches!(
         verify_run(&no_key),
-        Err(RunReplayError::Parse { .. })
+        Err(RunReplayError::Damaged { .. })
     ));
     let extra = with(&run, |v| v["extra"] = json!(1));
     assert!(matches!(
         verify_run(&extra),
-        Err(RunReplayError::Parse { .. })
+        Err(RunReplayError::Damaged { .. })
     ));
 }
 

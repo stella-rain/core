@@ -216,22 +216,22 @@ fn the_replay_file_round_trips_and_is_strict() {
     let extra = with(&replay, |v| v["unexpected"] = json!(1));
     assert!(matches!(
         Replay::from_bytes(&extra),
-        Err(ReplayError::Parse { .. })
+        Err(ReplayError::Damaged { .. })
     ));
     let missing = with(&replay, |v| {
         v.as_object_mut().unwrap().remove("inputs");
     });
     assert!(matches!(
         Replay::from_bytes(&missing),
-        Err(ReplayError::Parse { .. })
+        Err(ReplayError::Damaged { .. })
     ));
     assert!(matches!(
         Replay::from_bytes(b""),
-        Err(ReplayError::Parse { .. })
+        Err(ReplayError::Damaged { .. })
     ));
     assert!(matches!(
         Replay::from_bytes(b"[]"),
-        Err(ReplayError::Parse { .. })
+        Err(ReplayError::Damaged { .. })
     ));
 }
 

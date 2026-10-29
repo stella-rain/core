@@ -60,7 +60,7 @@ pub enum ReplayError {
         limit: usize,
     },
     /// Not JSON, or not the replay format.
-    Parse {
+    Damaged {
         line: usize,
         column: usize,
     },
@@ -109,7 +109,7 @@ impl fmt::Display for ReplayError {
             ReplayError::TooLarge { size, limit } => {
                 write!(f, "the replay is {size} bytes; the limit is {limit}")
             }
-            ReplayError::Parse { line, column } => {
+            ReplayError::Damaged { line, column } => {
                 write!(f, "not a valid replay (line {line}, column {column})")
             }
             ReplayError::BadInputs(why) => write!(f, "the replay's inputs are damaged: {why}"),
@@ -248,7 +248,7 @@ impl Replay {
                 limit: MAX_STAGE_REPLAY_BYTES,
             });
         }
-        serde_json::from_slice(bytes).map_err(|e| ReplayError::Parse {
+        serde_json::from_slice(bytes).map_err(|e| ReplayError::Damaged {
             line: e.line(),
             column: e.column(),
         })

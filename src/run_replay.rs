@@ -148,7 +148,7 @@ pub enum RunReplayError {
         limit: usize,
     },
     /// Not JSON, or not the run replay format.
-    Parse {
+    Damaged {
         line: usize,
         column: usize,
     },
@@ -222,7 +222,7 @@ impl fmt::Display for RunReplayError {
             RunReplayError::TooLarge { size, limit } => {
                 write!(f, "the replay is {size} bytes; the limit is {limit}")
             }
-            RunReplayError::Parse { line, column } => {
+            RunReplayError::Damaged { line, column } => {
                 write!(f, "not a valid run replay (line {line}, column {column})")
             }
             RunReplayError::Setup(e) => write!(f, "the run setup is not valid:\n{e}"),
@@ -414,7 +414,7 @@ impl RunReplay {
                 limit: MAX_RUN_REPLAY_BYTES,
             });
         }
-        serde_json::from_slice(bytes).map_err(|e| RunReplayError::Parse {
+        serde_json::from_slice(bytes).map_err(|e| RunReplayError::Damaged {
             line: e.line(),
             column: e.column(),
         })
