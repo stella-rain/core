@@ -180,6 +180,11 @@ pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// inside it, edges included. Tuning values.
 pub(crate) const VIEW_HALF_WIDTH: Fx = Fx::px(320);
 pub(crate) const VIEW_HALF_HEIGHT: Fx = Fx::px(180);
+
+/// The centre of the view rectangle for a main character at `at` on `map`.
+pub(crate) fn view_centre(_map: &crate::stage::Map, at: Point) -> Point {
+    at
+}
 /// Orbs alive per attacker and in all (core Z2, DS11, tuning rows); an orb over either cap is
 /// dropped in node order.
 pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;

@@ -1,7 +1,7 @@
 //! The ranged tokens (RA1, DS82, DS83): the 4 tokens of `MAX_RANGED_ATTACKERS` are 3 zone tokens
 //! and 1 line token, a ranged attack taking the line one when any of its phases lays a line
 //! zone. At the start of the act step each pool grants its free tokens to the nearest ready
-//! regular enemies in the 640 by 360 px view (edges included), ties by entity ID; an enemy out of
+//! regular enemies in the 840 by 360 px view (edges included), ties by entity ID; an enemy out of
 //! view starts no ranged attack. A token a run stops holding (recovery, or its owner gone) cools
 //! for 30 ticks before the pool can grant it again. A stunned enemy, or one whose ranged rule's
 //! condition or selector fails at that moment, is no candidate: it could not use the grant, and
@@ -99,10 +99,15 @@ fn shooting(line: bool, gate: Gate) -> Value {
 }
 
 fn stage(shooters: &[Shooter]) -> Stage {
+    stage_from((CENTRE, CENTRE), shooters)
+}
+
+/// `stage` with the main character starting at `from` px; the shooters stand `dx`, `dy` px from it.
+fn stage_from(from: (i32, i32), shooters: &[Shooter]) -> Stage {
     let waves = shooters
         .iter()
         .map(|s| {
-            let (x, y) = ((CENTRE + s.dx) * PX, (CENTRE + s.dy) * PX);
+            let (x, y) = ((from.0 + s.dx) * PX, (from.1 + s.dy) * PX);
             wave(
                 0,
                 1,
@@ -118,8 +123,8 @@ fn stage(shooters: &[Shooter]) -> Stage {
         width: Fx::px(4000),
         height: Fx::px(4000),
         start: Some(Point {
-            x: Fx::px(CENTRE),
-            y: Fx::px(CENTRE),
+            x: Fx::px(from.0),
+            y: Fx::px(from.1),
         }),
         facing: None,
     });
@@ -186,7 +191,7 @@ fn a_tie_goes_to_the_lower_entity_id() {
 
 #[test]
 fn an_enemy_outside_the_view_starts_nothing() {
-    for (dx, dy) in [(330, 0), (-330, 0), (0, 190), (0, -190), (330, 190)] {
+    for (dx, dy) in [(430, 0), (-430, 0), (0, 190), (0, -190), (430, 190)] {
         let first = first_attacks(&stage(&[zone_shooter(dx, dy)]), 1, 20);
         assert_eq!(first, [None], "at ({dx}, {dy})");
     }
@@ -194,10 +199,20 @@ fn an_enemy_outside_the_view_starts_nothing() {
 
 #[test]
 fn an_enemy_on_the_edge_of_the_view_may_start() {
-    for (dx, dy) in [(320, 0), (-320, 0), (0, 180), (0, -180), (320, -180)] {
+    for (dx, dy) in [(420, 0), (-420, 0), (0, 180), (0, -180), (420, -180)] {
         let first = first_attacks(&stage(&[zone_shooter(dx, dy)]), 1, 20);
         assert!(first[0].is_some(), "at ({dx}, {dy})");
     }
+}
+
+#[test]
+fn near_a_map_edge_the_view_is_the_cameras_rectangle_not_one_centred_on_the_player() {
+    // The main character at (100, 2000): the camera stops at the map's left edge and shows x
+    // from 0 to 840, so 700 px to the right is in view and 850 px is not.
+    let first = first_attacks(&stage_from((100, CENTRE), &[zone_shooter(700, 0)]), 1, 20);
+    assert!(first[0].is_some());
+    let first = first_attacks(&stage_from((100, CENTRE), &[zone_shooter(850, 0)]), 1, 20);
+    assert_eq!(first, [None]);
 }
 
 #[test]

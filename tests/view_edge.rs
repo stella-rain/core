@@ -1,6 +1,7 @@
 //! View-edge spawns (VS1, DS109-4): a wave gives `edge { side, along? }` instead of a map point
-//! and each of its enemies spawns on the spawn rectangle, 64 px outside the 640 by 360 px view
-//! (±384 by ±244 px) around the main character, drawn only on its on-map part; the bundled modes
+//! and each of its enemies spawns on the spawn rectangle, 64 px outside the 840 by 360 px view
+//! (±484 by ±244 px) around the camera's centre (the main character's point held inside the map,
+//! as the app's camera holds it), drawn only on its on-map part; the bundled modes
 //! give `edge`, and no spawn of theirs is moved by the leash on its spawn tick.
 //! Positions are in 1/256 px.
 
@@ -23,9 +24,25 @@ use stella_rain_core::stage::{Map, Stage};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::{Error, parse_and_validate};
 
-/// The spawn rectangle's half sides: 320 + 64 and 180 + 64 px.
-const EX: i64 = 384 * 256;
+/// The spawn rectangle's half sides: 420 + 64 and 180 + 64 px.
+const EX: i64 = 484 * 256;
 const EY: i64 = 244 * 256;
+
+/// The camera's centre on one axis (px): the map's middle when it is no larger than the view,
+/// else the main character's coordinate held `half` px inside the map. Worked from the app's
+/// `camera_follow.gd` `_axis`, not from the code under test.
+fn axis(target: i64, map: i64, half: i64) -> i64 {
+    if map <= 2 * half {
+        map / 2
+    } else {
+        target.clamp(half, map - half)
+    }
+}
+
+/// The camera's centre in 1/256 px for a main character at (`x`, `y`) px on a `w` by `h` px map.
+fn centre(w: i64, h: i64, x: i64, y: i64) -> (i64, i64) {
+    (axis(x, w, 420) * 256, axis(y, h, 180) * 256)
+}
 
 /// A `side x side` px map with the main character starting at (`x`, `y`) px.
 fn map_stage(w: i32, h: i32, x: i32, y: i32, waves: Vec<Value>) -> Stage {
@@ -101,13 +118,13 @@ fn place_of(side: &str, along: Option<i16>) -> (i32, i32) {
 #[test]
 fn along_fixes_the_point_on_the_side_with_no_draw() {
     assert_eq!(place_of("top", Some(0)), (512_000, 449_536));
-    assert_eq!(place_of("top", Some(-1000)), (413_696, 449_536));
-    // Truncation toward zero: 41,582 and not 41,583.
-    assert_eq!(place_of("top", Some(423)), (553_582, 449_536));
-    assert_eq!(place_of("top", Some(-423)), (470_418, 449_536));
-    assert_eq!(place_of("bottom", Some(500)), (561_152, 574_464));
-    assert_eq!(place_of("left", Some(-1000)), (413_696, 449_536));
-    assert_eq!(place_of("right", Some(1000)), (610_304, 574_464));
+    assert_eq!(place_of("top", Some(-1000)), (388_096, 449_536));
+    // Truncation toward zero: 52,163 and not 52,164.
+    assert_eq!(place_of("top", Some(421)), (564_163, 449_536));
+    assert_eq!(place_of("top", Some(-421)), (459_837, 449_536));
+    assert_eq!(place_of("bottom", Some(500)), (573_952, 574_464));
+    assert_eq!(place_of("left", Some(-1000)), (388_096, 449_536));
+    assert_eq!(place_of("right", Some(1000)), (635_904, 574_464));
 }
 
 #[test]
@@ -187,8 +204,8 @@ fn parts(px: i64, py: i64, map: Option<(i64, i64)>) -> Vec<(bool, i64, i64, i64)
 #[test]
 fn any_is_one_draw_over_the_whole_perimeter() {
     let mut rng = derive(7, TAG_SPAWN);
-    let ts: Vec<i64> = (0..4).map(|_| i64::from(rng.below(643_072))).collect();
-    assert_eq!(ts, [237_192, 68_675, 263_349, 281_092]);
+    let ts: Vec<i64> = (0..4).map(|_| i64::from(rng.below(745_472))).collect();
+    assert_eq!(ts, [310_920, 564_291, 324_789, 84_484]);
     let stage = map_stage(
         4000,
         4000,
@@ -196,17 +213,90 @@ fn any_is_one_draw_over_the_whole_perimeter() {
         2000,
         vec![edge_wave(0, 4, json!({ "side": "any" }))],
     );
-    let want = [
-        (610_304, 490_120),
-        (482_371, 449_536),
-        (610_304, 516_277),
-        (610_304, 534_020),
-    ];
+    let want: Vec<(i32, i32)> = ts
+        .iter()
+        .map(|t| {
+            let (x, y) = walk(512_000, 512_000, 1_024_000, 1_024_000, *t);
+            (i32::try_from(x).unwrap(), i32::try_from(y).unwrap())
+        })
+        .collect();
     assert_eq!(enemy_places(&stage, 4), want);
-    for (t, p) in ts.iter().zip(want) {
-        let (x, y) = walk(512_000, 512_000, 1_024_000, 1_024_000, *t);
-        assert_eq!((i32::try_from(x).unwrap(), i32::try_from(y).unwrap()), p);
+}
+
+#[test]
+fn spawns_land_outside_the_21_9_view() {
+    // The 840 by 360 px view is ±420 by ±180 px; the right side is 484 px out, not 384.
+    let right = map_stage(
+        4000,
+        4000,
+        2000,
+        2000,
+        vec![edge_wave(0, 50, json!({ "side": "right" }))],
+    );
+    let mut e = engine(&right);
+    for _ in 0..50 {
+        e.step(idle());
     }
+    let places: Vec<_> = e
+        .snapshot()
+        .entities
+        .into_iter()
+        .filter(|v| v.kind == EntityKind::Enemy)
+        .map(|v| v.at.x.0)
+        .collect();
+    assert!(!places.is_empty());
+    assert!(
+        places.iter().all(|x| *x == 512_000 + 484 * 256),
+        "{places:?}"
+    );
+    let any = map_stage(
+        4000,
+        4000,
+        2000,
+        2000,
+        vec![edge_wave(0, 1, json!({ "side": "any" }))],
+    );
+    for (x, y) in first_spawns(&any, 200) {
+        let (dx, dy) = (
+            (i64::from(x) - 512_000).abs(),
+            (i64::from(y) - 512_000).abs(),
+        );
+        assert!(
+            dx >= 484 * 256 || dy >= 244 * 256,
+            "({x},{y}) is near the view"
+        );
+        assert!(
+            !(dx <= 420 * 256 && dy <= 180 * 256),
+            "({x},{y}) is in view"
+        );
+    }
+}
+
+#[test]
+fn near_a_map_edge_the_spawn_rectangle_is_the_cameras_not_the_main_characters() {
+    let at = |x: i32, y: i32, side: &str| {
+        let stage = map_stage(
+            4000,
+            4000,
+            x,
+            y,
+            vec![edge_wave(0, 1, json!({ "side": side }))],
+        );
+        enemy_places(&stage, 1)[0]
+    };
+    // Main character at (100, 2000): the camera's centre is (420, 2000).
+    let (x, _) = at(100, 2000, "right");
+    assert_eq!(x, (420 + 484) * 256);
+    let (x, _) = at(100, 2000, "left");
+    assert_eq!(x, (420 + 484) * 256);
+    let (x, y) = at(100, 2000, "top");
+    assert_eq!(y, (2000 - 244) * 256);
+    assert!((0..=904 * 256).contains(&x), "x = {x}");
+    // Main character at (3900, 100): the centre is (3580, 180).
+    let (x, _) = at(3900, 100, "left");
+    assert_eq!(x, (3580 - 484) * 256);
+    let (_, y) = at(3900, 100, "bottom");
+    assert_eq!(y, (180 + 244) * 256);
 }
 
 #[test]
@@ -219,7 +309,7 @@ fn a_side_without_along_is_one_draw_along_it() {
         2000,
         vec![edge_wave(0, 1, json!({ "side": "left" }))],
     );
-    assert_eq!(enemy_places(&stage, 1), [(413_696, 449_536 + t)]);
+    assert_eq!(enemy_places(&stage, 1), [(388_096, 449_536 + t)]);
 }
 
 /// What a fixed side must give.
@@ -241,6 +331,7 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
     // (main character px, fixed sides)
     #[allow(clippy::type_complexity)]
     let rows: Vec<((i32, i32), Vec<(&str, Option<i16>, Fixed)>)> = vec![
+        // The centre is (2000, 3820): the bottom side is off the map and gives way to the top.
         (
             (2000, 3900),
             vec![
@@ -249,14 +340,15 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
                     None,
                     Draw {
                         vertical: false,
-                        fixed: 935_936,
-                        lo: 413_696,
-                        len: 196_608,
+                        fixed: 915_456,
+                        lo: 388_096,
+                        len: 247_808,
                     },
                 ),
-                ("bottom", Some(500), At(561_152, 935_936)),
+                ("bottom", Some(500), At(573_952, 915_456)),
             ],
         ),
+        // Centre (2000, 180).
         (
             (2000, 100),
             vec![
@@ -265,14 +357,15 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
                     None,
                     Draw {
                         vertical: false,
-                        fixed: 88_064,
-                        lo: 413_696,
-                        len: 196_608,
+                        fixed: 108_544,
+                        lo: 388_096,
+                        len: 247_808,
                     },
                 ),
-                ("top", Some(500), At(561_152, 88_064)),
+                ("top", Some(500), At(573_952, 108_544)),
             ],
         ),
+        // Centre (420, 2000): the left side is off the map, the right one at 420 + 484 px.
         (
             (100, 2000),
             vec![
@@ -281,14 +374,15 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
                     None,
                     Draw {
                         vertical: true,
-                        fixed: 123_904,
+                        fixed: 231_424,
                         lo: 449_536,
                         len: 124_928,
                     },
                 ),
-                ("left", Some(-1000), At(123_904, 449_536)),
+                ("left", Some(-1000), At(231_424, 449_536)),
             ],
         ),
+        // Centre (3580, 2000).
         (
             (3900, 2000),
             vec![
@@ -297,14 +391,15 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
                     None,
                     Draw {
                         vertical: true,
-                        fixed: 900_096,
+                        fixed: 792_576,
                         lo: 449_536,
                         len: 124_928,
                     },
                 ),
-                ("right", Some(1000), At(900_096, 574_464)),
+                ("right", Some(1000), At(792_576, 574_464)),
             ],
         ),
+        // Centre (420, 180).
         (
             (100, 100),
             vec![
@@ -313,20 +408,23 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
                     None,
                     Draw {
                         vertical: false,
-                        fixed: 88_064,
+                        fixed: 108_544,
                         lo: 0,
-                        len: 123_904,
+                        len: 231_424,
                     },
                 ),
-                ("bottom", Some(-1000), At(0, 88_064)),
-                ("left", Some(0), At(123_904, 25_600)),
+                ("bottom", Some(-1000), At(0, 108_544)),
+                ("left", Some(0), At(231_424, 46_080)),
             ],
         ),
-        ((3900, 100), vec![("right", Some(0), At(900_096, 25_600))]),
-        ((100, 3900), vec![("bottom", Some(0), At(25_600, 935_936))]),
+        // Centre (3580, 180).
+        ((3900, 100), vec![("right", Some(0), At(792_576, 46_080))]),
+        // Centre (420, 3820).
+        ((100, 3900), vec![("bottom", Some(0), At(107_520, 915_456))]),
+        // Centre (3580, 3820): the left side is on the map.
         (
             (3900, 3900),
-            vec![("left", Some(1000), At(900_096, 1_024_000))],
+            vec![("left", Some(1000), At(792_576, 1_024_000))],
         ),
     ];
     for ((x, y), fixed) in rows {
@@ -334,7 +432,7 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
             enemy_places(&map_stage(4000, 4000, x, y, vec![edge_wave(0, 1, edge)]), 1)[0]
         };
         // `any` is one draw over the on-map parts, in the walk's order.
-        let (px, py) = (i64::from(x) * 256, i64::from(y) * 256);
+        let (px, py) = centre(4000, 4000, i64::from(x), i64::from(y));
         let total = walk_total(px, py, Some((1_024_000, 1_024_000)));
         let t = i64::from(derive(7, TAG_SPAWN).below(u32::try_from(total).unwrap()));
         let (wx, wy) = walk(px, py, 1_024_000, 1_024_000, t);
@@ -388,8 +486,8 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
 
 #[test]
 fn a_map_no_larger_than_the_rectangle_clamps_to_its_border() {
-    let t = derive(7, TAG_SPAWN).below(643_072);
-    assert!(t < 643_072);
+    let t = derive(7, TAG_SPAWN).below(745_472);
+    assert!(t < 745_472);
     let stage = map_stage(
         400,
         400,
@@ -630,7 +728,7 @@ fn elite_minutes_spawn_on_the_spawn_rectangle() {
     for (dx, dy) in places {
         let (dx, dy) = (i64::from(dx).abs(), i64::from(dy).abs());
         assert!(
-            (dx == 98_304 && dy <= 62_464) || (dy == 62_464 && dx <= 98_304),
+            (dx == 123_904 && dy <= 62_464) || (dy == 62_464 && dx <= 123_904),
             "an elite at ({dx}, {dy}) from the main character is not on the spawn rectangle"
         );
     }

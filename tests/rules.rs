@@ -216,9 +216,9 @@ fn the_bundled_file_holds_the_designer_facing_rules() {
     assert_eq!(r.aggro_per_buff(), 4000);
     assert_eq!(r.aggro_per_heal_point(), 2);
     assert_eq!(r.aggro_decay(), 100);
-    assert_eq!(r.leash_reach_x(), Fx(163_840));
+    assert_eq!(r.leash_reach_x(), Fx(215_040));
     assert_eq!(r.leash_reach_y(), Fx(92_160));
-    assert_eq!(r.leash_land_x(), Fx(98_304));
+    assert_eq!(r.leash_land_x(), Fx(123_904));
     assert_eq!(r.leash_land_y(), Fx(62_464));
     assert_eq!(r.spawn_margin(), Fx(16_384));
     assert_eq!(r.ranged_token_cooldown_ticks(), 30);

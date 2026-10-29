@@ -1,5 +1,5 @@
 //! The leash (EC2, DS80, DS106): a regular enemy outside the view rectangle around the main
-//! character (|dx| > 640 px or |dy| > 360 px) moves to the rectangle of ±384 × ±244 px on the
+//! character (|dx| > 840 px or |dy| > 360 px) moves to the rectangle of ±484 × ±244 px on the
 //! opposite side of it, scaled along its own direction and clamped to the map, at most 16 a tick,
 //! in entity-ID order; and `Load` counts the relocations and the spawns the caps refused.
 
@@ -94,8 +94,8 @@ fn lands(px: i32, py: i32, ex: i32, ey: i32) -> (i32, i32) {
 }
 
 #[test]
-fn an_enemy_641_px_to_the_side_moves_and_keeps_its_hit_points() {
-    let mut e = engine(&stage_at(2000, vec![still(2641)], vec![], None));
+fn an_enemy_841_px_to_the_side_moves_and_keeps_its_hit_points() {
+    let mut e = engine(&stage_at(2000, vec![still(2841)], vec![], None));
     e.step(idle());
     let id = e
         .snapshot()
@@ -104,7 +104,7 @@ fn an_enemy_641_px_to_the_side_moves_and_keeps_its_hit_points() {
         .find(|v| v.kind == EntityKind::Enemy)
         .unwrap()
         .id;
-    assert_eq!(spot(&e, id.0), (1616 * PX, 2000 * PX));
+    assert_eq!(spot(&e, id.0), (1516 * PX, 2000 * PX));
     assert_eq!(
         e.snapshot()
             .entities
@@ -119,10 +119,10 @@ fn an_enemy_641_px_to_the_side_moves_and_keeps_its_hit_points() {
 }
 
 #[test]
-fn an_enemy_640_px_to_the_side_stays() {
-    let mut e = engine(&stage_at(2000, vec![still(2640)], vec![], None));
+fn an_enemy_840_px_to_the_side_stays() {
+    let mut e = engine(&stage_at(2000, vec![still(2840)], vec![], None));
     e.step(idle());
-    assert_eq!(spot(&e, 1), (2640 * PX, 2000 * PX));
+    assert_eq!(spot(&e, 1), (2840 * PX, 2000 * PX));
     assert_eq!(e.load().relocated, 0);
     assert!(relocated(&e).is_empty());
 }
@@ -135,22 +135,22 @@ fn the_trigger_on_y_is_360_px() {
 
 #[test]
 fn the_trigger_is_a_rectangle_not_a_circle() {
-    // 689 px away, inside the rectangle; and 700 px away, under the old 800 px circle, outside it.
+    // 689 px away, inside the rectangle; and 841 px away, outside it.
     assert_eq!(lands(2000, 2000, 2600, 2340), (2600 * PX, 2340 * PX));
-    assert_eq!(lands(2000, 2000, 2700, 2000), (1616 * PX, 2000 * PX));
+    assert_eq!(lands(2000, 2000, 2841, 2000), (1516 * PX, 2000 * PX));
 }
 
 #[test]
-fn landing_on_an_axis_is_384_or_244_px_on_the_other_side() {
-    assert_eq!(lands(2000, 2000, 2641, 2000), (1616 * PX, 2000 * PX));
-    assert_eq!(lands(2000, 2000, 1359, 2000), (2384 * PX, 2000 * PX));
+fn landing_on_an_axis_is_484_or_244_px_on_the_other_side() {
+    assert_eq!(lands(2000, 2000, 2841, 2000), (1516 * PX, 2000 * PX));
+    assert_eq!(lands(2000, 2000, 1159, 2000), (2484 * PX, 2000 * PX));
     assert_eq!(lands(2000, 2000, 2000, 2361), (2000 * PX, 1756 * PX));
     assert_eq!(lands(2000, 2000, 2000, 1639), (2000 * PX, 2244 * PX));
 }
 
 #[test]
 fn landing_is_scaled_along_the_enemys_own_direction() {
-    // Offset (800, 400) px lands at (-384, -192) px exactly, on the vertical sides.
+    // Offset (800, 400) px lands at (-484, -242) px exactly, on the vertical sides.
     assert_eq!(lands(2000, 2000, 2800, 2400), (1616 * PX, 1808 * PX));
 }
 
@@ -163,7 +163,7 @@ fn landing_on_the_horizontal_sides_truncates_toward_zero() {
 
 #[test]
 fn a_relocation_near_the_map_edge_lands_on_the_map() {
-    assert_eq!(lands(100, 2000, 741, 2000), (0, 2000 * PX));
+    assert_eq!(lands(100, 2000, 941, 2000), (0, 2000 * PX));
     assert_eq!(lands(2000, 100, 2000, 461), (2000 * PX, 0));
 }
 
@@ -182,7 +182,7 @@ fn at_most_16_move_a_tick_the_lowest_ids_first() {
 
 #[test]
 fn a_relocation_draws_no_random_number() {
-    // The same stage with the enemy 641 px away (relocated) or 640 px (not), and a wave that
+    // The same stage with the enemy 841 px away (relocated) or 840 px (not), and a wave that
     // spawns on a ring drawn from the spawn stream later: it lands in the same place.
     let mut ring = wave(
         5,
@@ -214,7 +214,7 @@ fn a_relocation_draws_no_random_number() {
             .unwrap()
             .at
     };
-    assert_eq!(at(2641), at(2640));
+    assert_eq!(at(2841), at(2840));
 }
 
 #[test]
@@ -341,7 +341,7 @@ fn far_enemies(e: &Engine) -> usize {
         .filter(|v| {
             let dx = i64::from(v.at.x.0) - i64::from(snap.player.at.x.0);
             let dy = i64::from(v.at.y.0) - i64::from(snap.player.at.y.0);
-            dx.abs() > i64::from(640 * PX) || dy.abs() > i64::from(360 * PX)
+            dx.abs() > i64::from(840 * PX) || dy.abs() > i64::from(360 * PX)
         })
         .count()
 }

@@ -795,11 +795,11 @@ fn a_clone_taken_while_waves_are_held_follows_the_original() {
 #[test]
 fn a_spawn_draws_once_on_the_spawn_stream_and_a_held_spawn_draws_nothing() {
     // Every wave of the bundled mode gives `edge` `any` (VS1): one draw over the spawn
-    // rectangle, whole on this map, so `below(643_072)` each.
+    // rectangle, whole on this map, so `below(745_472)` each.
     let drawn = |n: u32| {
         let mut r = crate::rng::derive(1, crate::rng::TAG_SPAWN);
         for _ in 0..n {
-            r.below(643_072);
+            r.below(745_472);
         }
         r.state()
     };
