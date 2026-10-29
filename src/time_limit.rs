@@ -110,7 +110,7 @@ pub struct TimeLimitFile {
     pub waves: Vec<Wave>,
     /// The elites each whole minute that starts no boss brings (ADR-090): 1 to
     /// `MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting
-    /// before the length. An elite minute draws from it (`rules_v0::horde`).
+    /// before the length. An elite minute draws from it (`sim::horde`).
     pub elite_table: Vec<EliteTier>,
     /// The elite types: 1 to `MAX_ELITE_DEFINITIONS`, each with a unique ID (ADR-090). The
     /// table names them; one no tier names is allowed.

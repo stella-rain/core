@@ -56,7 +56,7 @@ pub struct AttackPhase {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_PHASE_TICKS))]
     pub rehit_ticks: Option<u32>,
-    /// Emitter nodes started on the phase's first tick, carried out in order (see `rules_v0`'s
+    /// Emitter nodes started on the phase's first tick, carried out in order (see `sim`'s
     /// attacks for what each one does).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub spawn: Vec<Emitter>,
