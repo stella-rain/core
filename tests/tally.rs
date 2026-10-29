@@ -385,14 +385,14 @@ fn a_carried_star_is_held_but_not_taken() {
 
 #[test]
 fn a_cloned_engine_keeps_its_tally() {
-    let setup = common::run::time_limit_setup();
-    let mut e = Engine::start(&setup).unwrap();
-    for _ in 0..1800 {
-        e.step(Default::default());
-    }
+    let mut last = None;
+    walk("easy", None, |rec, _, _, _| {
+        last = Some(rec.engine().clone())
+    });
+    let e = last.unwrap();
     let clone = e.clone();
+    assert!(e.tally().kills() > 0, "nothing was killed in `easy`");
     assert_eq!(plain(clone.tally()), plain(e.tally()));
-    assert!(e.tally().kills() > 0, "nothing was killed in 1800 ticks");
 }
 
 #[test]

@@ -4,7 +4,8 @@ use crate::attack::{Anchor, DamageType, PhaseKind};
 use crate::behaviour::Movement;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
-use crate::rewards::MAX_BURST_DEPTH;
+use crate::ledger::Counted;
+use crate::rewards::{MAX_BURST_DEPTH, Rewards};
 use crate::rules_v0;
 use crate::snapshot::{
     AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, EntityKind, EntityView,
@@ -19,29 +20,44 @@ use super::{AttackRun, Engine, ShrineState, StatusState};
 /// outside the hashed state. A resumed run has the tally of the same run played straight.
 #[derive(Clone, Copy, Debug)]
 pub struct Tally<'a> {
-    stub: std::marker::PhantomData<&'a ()>,
+    counted: &'a Counted,
+    rewards: &'a Rewards,
 }
 
 impl<'a> Tally<'a> {
     /// Enemies defeated: every `Died` whose class is `Enemy` (elites included; boss, parts, companions
     /// and shrines are not), counting a mimic that dies in disguise. Saturates at `u32::MAX`.
     pub fn kills(&self) -> u32 {
-        0
+        self.counted.kills
     }
 
     /// Each reward taken at least once, with the count its last `RewardTaken` carried, in the rewards file's order.
     pub fn taken(&self) -> impl Iterator<Item = (&'a ContentId, u8)> + 'a {
-        std::iter::empty()
+        let (rewards, counted): (&'a Rewards, &'a Counted) = (self.rewards, self.counted);
+        rewards
+            .rewards()
+            .iter()
+            .zip(&counted.taken)
+            .filter(|(_, n)| **n > 0)
+            .map(|(r, n)| (&r.id, *n))
     }
 
     /// The star names of the `RewardTaken` events, in event order, repeats kept.
     pub fn named(&self) -> &'a [String] {
-        &[]
+        let counted: &'a Counted = self.counted;
+        &counted.named
     }
 
     /// Each constellation that announced a tier, with the last tier its `Constellation` event carried, in the pack's order.
     pub fn tiers(&self) -> impl Iterator<Item = (&'a ContentId, u8)> + 'a {
-        std::iter::empty()
+        let (rewards, counted): (&'a Rewards, &'a Counted) = (self.rewards, self.counted);
+        rewards
+            .constellations()
+            .sets()
+            .iter()
+            .zip(&counted.tiers)
+            .filter(|(_, n)| **n > 0)
+            .map(|(c, n)| (&c.id, *n))
     }
 }
 
@@ -71,7 +87,8 @@ impl Engine {
     /// run's events said them. Read only: it cannot change the state, the hash or the events.
     pub fn tally(&self) -> Tally<'_> {
         Tally {
-            stub: std::marker::PhantomData,
+            counted: &self.counted,
+            rewards: self.content.rewards(),
         }
     }
 

@@ -8,7 +8,7 @@ use crate::attack::DamageType;
 use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
-use crate::rewards::Rarity;
+use crate::rewards::{Rarity, Rewards};
 use crate::rules_v0::state::{AgentState, BossState};
 use crate::snapshot::EntityKind;
 
@@ -329,5 +329,65 @@ pub(crate) fn rarity_str(rarity: Rarity) -> &'static str {
         Rarity::Epic => "epic",
         Rarity::Legendary => "legendary",
         Rarity::Supernova => "supernova",
+    }
+}
+
+/// The run's HUD tallies, counted from the events the way the app counts them and kept outside
+/// the hashed state (ADR-BRDG-6): a carried star, which emits no event, is not in them.
+#[derive(Clone, Debug)]
+pub(crate) struct Counted {
+    pub(crate) kills: u32,
+    /// The count the last `RewardTaken` of each reward carried, per reward of the run's file; 0 = never.
+    pub(crate) taken: Vec<u8>,
+    /// The tier the last `Constellation` of each set carried, per set; 0 = none.
+    pub(crate) tiers: Vec<u8>,
+    pub(crate) named: Vec<String>,
+}
+
+impl Counted {
+    /// Reserves everything a steady tick touches, so observing allocates nothing.
+    pub(crate) fn new(rewards: &Rewards) -> Counted {
+        Counted {
+            kills: 0,
+            taken: vec![0; rewards.rewards().len()],
+            tiers: vec![0; rewards.constellations().sets().len()],
+            named: Vec::with_capacity(32),
+        }
+    }
+
+    pub(crate) fn observe(&mut self, rewards: &Rewards, events: &[DomainEvent]) {
+        for event in events {
+            match event {
+                DomainEvent::Died {
+                    class: EntityKind::Enemy,
+                    ..
+                } => self.kills = self.kills.saturating_add(1),
+                DomainEvent::RewardTaken {
+                    reward,
+                    taken,
+                    star,
+                    ..
+                } => {
+                    if let Some(count) = rewards
+                        .index_of(reward)
+                        .and_then(|at| self.taken.get_mut(at))
+                    {
+                        *count = *taken;
+                    }
+                    if let Some(name) = star.as_ref().filter(|n| !n.is_empty()) {
+                        self.named.push(name.clone());
+                    }
+                }
+                DomainEvent::Constellation { set, tier } => {
+                    let sets = rewards.constellations().sets();
+                    if let Some(at) = sets.iter().position(|s| s.id == *set) {
+                        if let Some(held) = self.tiers.get_mut(at) {
+                            *held = *tier;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 }

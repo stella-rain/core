@@ -15,7 +15,7 @@ use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::input::Input;
 use crate::kinds::KindTable;
-use crate::ledger::RunLedger;
+use crate::ledger::{Counted, RunLedger};
 use crate::rewards::Rewards;
 use crate::rules_v0;
 use crate::rules_v0::{HordeSpec, World};
@@ -98,6 +98,8 @@ pub struct Engine {
     load: Load,
     /// The ledger of counts and bestiary encounters (ADR-BRDG-6).
     ledger: RunLedger,
+    /// The HUD tallies, counted from the events (outside the hashed state).
+    counted: Counted,
 }
 
 impl Clone for Engine {
@@ -117,6 +119,7 @@ impl Clone for Engine {
             },
             load: self.load,
             ledger: self.ledger.clone(),
+            counted: self.counted.clone(),
         }
     }
 }
@@ -163,6 +166,7 @@ impl Engine {
             content: content.clone(),
             load: Load::default(),
             ledger,
+            counted: Counted::new(content.rewards()),
         })
     }
 
@@ -205,6 +209,7 @@ impl Engine {
             content: content.clone(),
             load: Load::default(),
             ledger,
+            counted: Counted::new(content.rewards()),
         })
     }
 
@@ -246,6 +251,7 @@ impl Engine {
             content: content.clone(),
             load: Load::default(),
             ledger,
+            counted: Counted::new(content.rewards()),
         })
     }
 
@@ -325,12 +331,14 @@ impl Engine {
             self.state.boss.as_ref(),
             &self.events,
         );
+        self.counted.observe(self.content.rewards(), &self.events);
     }
 
     fn observe_choice(&mut self) {
         let weapon = Self::weapon_str(&self.stage);
         self.ledger
             .observe_choice(&self.state.kinds, weapon, &self.events);
+        self.counted.observe(self.content.rewards(), &self.events);
     }
 
     /// The run stats this run raises with its level-ups.
