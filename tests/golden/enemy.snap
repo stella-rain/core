@@ -46,6 +46,6 @@ expression: recording
 {"dir":"be>fe","tick":15,"type":"ComboReset"}
 {"data":"415b9864e6b517a8","dir":"be>fe","tick":15,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":16,"type":"Input"}
-{"data":{"hp_left":0},"dir":"be>fe","tick":16,"type":"PlayerHit"}
+{"data":{"hp_left":0,"source":{"attack":"aimed_single","kind":"zone","owner":2}},"dir":"be>fe","tick":16,"type":"PlayerHit"}
 {"dir":"be>fe","tick":16,"type":"StageFailed"}
 {"data":"1823e0604a765025","dir":"be>fe","tick":16,"type":"StateHash"}
