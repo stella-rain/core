@@ -1,5 +1,6 @@
-# The long fuzz run of the fuzz targets (`fuzz/fuzz_targets/`, listed by .github/scripts/fuzz_targets.py) (ADR-020 item 7, ADR-054): every week, on demand,
-# and as a reusable workflow for Candidate (candidate.yml calls it).
+# The long fuzz run of every fuzz target (`fuzz/fuzz_targets/`, listed by .github/scripts/fuzz_targets.py;
+# ADR-020 item 7, ADR-054): every week, on demand, and as a reusable workflow for Candidate
+# (candidate.yml calls it).
 # `rust.yml` keeps the 60-second run of a PR that touches parsing.
 #
 # Each target runs in its own job and keeps a corpus that grows from run to run in the Actions
