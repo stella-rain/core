@@ -364,11 +364,13 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
         max_aggro,
     );
     // A land outside where the leash triggers would move an enemy every tick; a land inside the
-    // spawn edge (the view's half plus `spawn_margin`) would put a fresh spawn beyond it, and one
-    // inside the view's half would land an enemy on screen. The edge is checked only once the
-    // margin is in range (else the margin's issue is the one reported).
+    // spawn edge (the view's half plus `spawn_margin`) would put a fresh spawn beyond it and
+    // land a relocated enemy inside the view (unless the map's border clamps it there anyway).
+    // The edge is checked only once the margin is in range (else the margin's issue is the one
+    // reported).
     let margin = i64::from(file.spawn_margin.0);
-    let margin_ok = (0..=px(1024)).contains(&margin);
+    let margin_most = px(1024);
+    let margin_ok = (0..=margin_most).contains(&margin);
     for (reach, land, half, reach_name, land_name) in [
         (
             file.leash_reach_x,
@@ -397,11 +399,12 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
         } else {
             within(issues, land_name, i64::from(land.0), 1, i64::from(reach.0))
         };
-        if land_ok && margin_ok && i64::from(land.0) < px(half) + margin {
+        let edge = px(half) + margin;
+        if land_ok && margin_ok && i64::from(land.0) < edge {
             issues.push(Issue {
                 path: format!("$.{land_name}"),
                 message: format!(
-                    "at least the spawn edge: {half} px + spawn_margin (found {})",
+                    "at least the spawn edge, {half} px + spawn_margin: {edge} (found {})",
                     land.0
                 ),
             });
@@ -412,7 +415,7 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
         "spawn_margin",
         i64::from(file.spawn_margin.0),
         0,
-        px(1024),
+        margin_most,
     );
     within(
         issues,
