@@ -12,7 +12,9 @@
 //! A content ID a pack introduces, the file's own ID of a run stat, a reward, a stage skill, or
 //! a style or option of a weapon's expertise, an elite type of the `time_limit` mode, or a constellation (listed only when the pack has the list), records the `sim_version` that introduced it in
 //! the pack's `introduced` table, each exactly once, and is refused when that is newer than the
-//! pack's own (ADR-080, as the registry's IDs are for a stage, ADR-017). The registry's IDs a
+//! pack's own (ADR-080, as the registry's IDs are for a stage, ADR-017). An ID the released
+//! content (the bundled pack) does not hold is new and is recorded at the pack's `sim_version`,
+//! and is refused when it is recorded lower (ADR-REPL-6, ADR-CONT-2). The registry's IDs a
 //! file names are checked against the registry by the file's own parser.
 //!
 //! The content files have no versions of their own: the pack's header is the only one, and each
@@ -911,13 +913,36 @@ fn expertise_ids(w: usize, weapon: &WeaponExpertise) -> Vec<(String, &ContentId)
     ids
 }
 
-/// Checks one list of the table, at `at`, against the IDs of its file with their paths.
+/// The `introduced` table of the bundled pack: the IDs the released content holds. Read without
+/// the version check (`Pack::bundled` calls `check_introduced`, which calls this).
+fn released() -> &'static Introduced {
+    static RELEASED: OnceLock<Introduced> = OnceLock::new();
+    RELEASED.get_or_init(|| {
+        serde_json::from_slice::<PackFile>(Pack::BUNDLED)
+            .expect("the bundled pack parses")
+            .introduced
+    })
+}
+
+/// The released entries of one weapon's expertise; none for a weapon the release lacks.
+fn released_expertise(weapon: &ContentId) -> &'static [IntroducedId] {
+    released()
+        .expertise
+        .iter()
+        .find(|e| e.weapon == *weapon)
+        .map_or(&[], |e| e.ids.as_slice())
+}
+
+/// Checks one list of the table, at `at`, against the IDs of its file with their paths. An ID
+/// the `released` entries (the bundled pack's) do not hold is new, and is recorded at the pack's
+/// own `sim_version` (ADR-REPL-6, ADR-CONT-2); a released ID keeps the version it was released at.
 fn check_ids(
     issues: &mut Vec<Issue>,
     at: &str,
     listed: &[IntroducedId],
     ids: &[(String, &ContentId)],
     sim_version: u32,
+    released: &[IntroducedId],
 ) {
     for (i, entry) in listed.iter().enumerate() {
         if !ids.iter().any(|(_, id)| **id == entry.id) {
@@ -936,6 +961,14 @@ fn check_ids(
                 path: format!("{at}[{i}].sim_version"),
                 message: format!(
                     "introduced in sim_version {}, newer than the pack's {sim_version}",
+                    entry.sim_version
+                ),
+            });
+        } else if entry.sim_version < sim_version && !released.iter().any(|r| r.id == entry.id) {
+            issues.push(Issue {
+                path: format!("{at}[{i}].sim_version"),
+                message: format!(
+                    "a new ID is introduced in the pack's sim_version {sim_version}, not {}",
                     entry.sim_version
                 ),
             });
@@ -977,16 +1010,27 @@ fn check_introduced(
         "stage_skills.stage_skills",
         stage_skills.skills().iter().map(|s| &s.id),
     );
-    for (at, listed, ids) in [
-        ("$.introduced.run_stats", &introduced.run_stats, &stats),
-        ("$.introduced.rewards", &introduced.rewards, &reward_ids),
+    for (at, listed, ids, released) in [
+        (
+            "$.introduced.run_stats",
+            &introduced.run_stats,
+            &stats,
+            &released().run_stats,
+        ),
+        (
+            "$.introduced.rewards",
+            &introduced.rewards,
+            &reward_ids,
+            &released().rewards,
+        ),
         (
             "$.introduced.stage_skills",
             &introduced.stage_skills,
             &skills,
+            &released().stage_skills,
         ),
     ] {
-        check_ids(&mut issues, at, listed, ids, sim_version);
+        check_ids(&mut issues, at, listed, ids, sim_version, released);
     }
     let sets = paths(
         "perk_sets.perk_sets",
@@ -998,6 +1042,7 @@ fn check_introduced(
         &introduced.perk_sets,
         &sets,
         sim_version,
+        &released().perk_sets,
     );
     let difficulty_ids = paths(
         "difficulties.difficulties",
@@ -1009,6 +1054,7 @@ fn check_introduced(
         &introduced.difficulties,
         &difficulty_ids,
         sim_version,
+        &released().difficulties,
     );
     let elites = paths(
         "modes.time_limit.elite_types",
@@ -1020,6 +1066,7 @@ fn check_introduced(
         &introduced.elite_types,
         &elites,
         sim_version,
+        &released().elite_types,
     );
     if let Some(listed) = &introduced.constellations {
         let sets = paths(
@@ -1032,6 +1079,7 @@ fn check_introduced(
             listed,
             &sets,
             sim_version,
+            released().constellations.as_deref().unwrap_or(&[]),
         );
     }
     for (k, entry) in introduced.expertise.iter().enumerate() {
@@ -1056,6 +1104,7 @@ fn check_introduced(
                 &entry.ids,
                 &ids,
                 sim_version,
+                released_expertise(&entry.weapon),
             );
         } else {
             issues.push(Issue {
@@ -1657,4 +1706,88 @@ pub fn compare_numbers_only(base_dir: &Path, head_dir: &Path) -> Result<(), Comp
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(id: &str, sim_version: u32) -> IntroducedId {
+        IntroducedId {
+            id: id.into(),
+            sim_version,
+        }
+    }
+
+    /// The issues `check_ids` raises for `listed` (each ID also an ID of the file).
+    fn run(listed: &[IntroducedId], sim_version: u32, released: &[IntroducedId]) -> Vec<Issue> {
+        let file_ids: Vec<ContentId> = listed.iter().map(|e| e.id.clone()).collect();
+        let ids: Vec<(String, &ContentId)> = file_ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| (format!("$.rewards.rewards[{i}].id"), id))
+            .collect();
+        let mut issues = Vec::new();
+        check_ids(
+            &mut issues,
+            "$.introduced.rewards",
+            listed,
+            &ids,
+            sim_version,
+            released,
+        );
+        issues
+    }
+
+    #[test]
+    fn a_new_id_recorded_below_the_pack_is_refused() {
+        let issues = run(&[entry("a", 0)], 1, &[]);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].path, "$.introduced.rewards[0].sim_version");
+        assert_eq!(
+            issues[0].message,
+            "a new ID is introduced in the pack's sim_version 1, not 0"
+        );
+    }
+
+    #[test]
+    fn a_released_id_keeps_its_version() {
+        assert!(run(&[entry("a", 0)], 1, &[entry("a", 0)]).is_empty());
+    }
+
+    #[test]
+    fn a_new_id_at_the_pack_version_passes() {
+        assert!(run(&[entry("a", 1)], 1, &[]).is_empty());
+        assert!(run(&[entry("a", 0)], 0, &[]).is_empty());
+    }
+
+    #[test]
+    fn a_newer_entry_gets_only_the_newer_issue() {
+        let issues = run(&[entry("a", 2)], 1, &[]);
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].message.contains("newer than the pack's 1"));
+    }
+
+    #[test]
+    fn only_the_new_entry_among_released_ones_is_refused() {
+        let listed = [entry("r", 0), entry("n", 1), entry("m", 0)];
+        let issues = run(&listed, 1, &[entry("r", 0)]);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].path, "$.introduced.rewards[2].sim_version");
+    }
+
+    #[test]
+    fn the_baseline_is_the_bundled_pack_and_holds_all_its_ids() {
+        let file: PackFile = serde_json::from_slice(Pack::BUNDLED).expect("parses");
+        assert_eq!(released(), &file.introduced);
+        assert!(!released().rewards.is_empty());
+        let _ = Pack::bundled();
+    }
+
+    #[test]
+    fn released_expertise_is_per_weapon() {
+        let weapon = released().expertise[0].weapon.clone();
+        assert!(!released_expertise(&weapon).is_empty());
+        assert!(released_expertise(&"no_such_weapon".into()).is_empty());
+    }
 }

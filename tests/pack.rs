@@ -710,3 +710,31 @@ fn verification_refuses_a_replay_that_names_another_pack() {
         Err(run_replay::RunReplayError::ContentChanged)
     );
 }
+
+#[test]
+fn a_new_reward_is_listed_at_the_pack_version() {
+    let new_reward = |v: &mut Value, sim_version: u64| {
+        v["rewards"]["rewards"]
+            .as_array_mut()
+            .expect("rewards")
+            .push(json!({
+                "id": "star_a", "rarity": "epic", "named": true, "star": "star_a", "limit": 1,
+                "effects": [{ "effect": "attack_pct", "amount": 1 }]
+            }));
+        v["introduced"]["rewards"]
+            .as_array_mut()
+            .expect("introduced rewards")
+            .push(json!({ "id": "star_a", "sim_version": sim_version }));
+    };
+    let mut v = value();
+    new_reward(&mut v, 0);
+    load(&v).expect("a new ID recorded at the pack's version loads");
+
+    let mut v = value();
+    new_reward(&mut v, 1);
+    let Err(PackError::Introduced(issues)) = load(&v) else {
+        panic!("not refused as newer");
+    };
+    assert_eq!(issues.len(), 1);
+    assert!(issues[0].message.contains("newer than the pack's 0"));
+}
