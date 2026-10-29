@@ -331,9 +331,9 @@ fn each_new_field_loads_at_its_bounds() {
 #[test]
 fn the_leash_lands_inside_where_it_triggers() {
     // The land equal to the reach loads; one more is refused at the land's path.
-    let r = with_all(&[("leash_land_x", 163_840)]);
+    let r = with_all(&[("leash_land_x", 215_040)]);
     assert!(Rules::parse(&r, Versions::CURRENT).is_ok());
-    let r = with_all(&[("leash_land_x", 163_841)]);
+    let r = with_all(&[("leash_land_x", 215_041)]);
     assert_eq!(
         paths(Rules::parse(&r, Versions::CURRENT)),
         ["$.leash_land_x"]

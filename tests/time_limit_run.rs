@@ -128,13 +128,26 @@ fn enemies_spawn_on_the_schedule_around_the_main_character() {
     let s = e.snapshot();
     let me = s.player.at;
     for v in s.entities.iter().filter(|v| v.kind == EntityKind::Enemy) {
-        // On the spawn rectangle (VS1): 384 by 244 px around the main character.
+        // On the spawn rectangle (VS1): 484 by 244 px around the camera's centre, the main
+        // character held inside the map (`camera_follow.gd`, `_axis`).
+        let axis = |target: i32, side: i32, half: i32| {
+            i64::from(if side <= 2 * half {
+                side / 2
+            } else {
+                target.clamp(half, side - half)
+            })
+        };
+        let map = m.map();
+        let (cx, cy) = (
+            axis(me.x.0, map.width.0, 420 * 256),
+            axis(me.y.0, map.height.0, 180 * 256),
+        );
         let (dx, dy) = (
-            i64::from(v.at.x.0 - me.x.0).abs(),
-            i64::from(v.at.y.0 - me.y.0).abs(),
+            (i64::from(v.at.x.0) - cx).abs(),
+            (i64::from(v.at.y.0) - cy).abs(),
         );
         assert!(
-            (dx == 98_304 && dy <= 62_464) || (dy == 62_464 && dx <= 98_304),
+            (dx == 123_904 && dy <= 62_464) || (dy == 62_464 && dx <= 123_904),
             "an enemy at ({dx}, {dy}) from the main character is not on the spawn rectangle"
         );
     }

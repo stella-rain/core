@@ -151,7 +151,7 @@ fn landing_on_an_axis_is_484_or_244_px_on_the_other_side() {
 #[test]
 fn landing_is_scaled_along_the_enemys_own_direction() {
     // Offset (800, 400) px lands at (-484, -242) px exactly, on the vertical sides.
-    assert_eq!(lands(2000, 2000, 2800, 2400), (1616 * PX, 1808 * PX));
+    assert_eq!(lands(2000, 2000, 2800, 2400), (1516 * PX, 1758 * PX));
 }
 
 #[test]
@@ -440,14 +440,14 @@ fn the_bosss_summons_are_never_relocated() {
 
 #[test]
 fn a_regular_enemys_summons_and_a_still_enemy_are_relocated() {
-    // The summoner stands 639 px away; its summons drift outward at 1 px a tick.
+    // The summoner stands 839 px away; its summons drift outward at 1 px a tick.
     let drifting = json!({ "type": "straight", "vx": PX, "vy": 0 });
     let summoner = enemy(
         100_000,
         standing(),
         json!([once_summoning(enemy(10, drifting, json!([])))]),
     );
-    let w = wave(0, 1, 1, summoner, 2639 * PX, 2000 * PX);
+    let w = wave(0, 1, 1, summoner, 2839 * PX, 2000 * PX);
     let mut e = engine(&stage_at(2000, vec![w], vec![], None));
     let moved = run_relocating(&mut e, 10, idle());
     assert!(moved.iter().any(|id| id.0 > 1), "a summon moved: {moved:?}");
