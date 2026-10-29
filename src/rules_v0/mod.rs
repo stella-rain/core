@@ -120,6 +120,8 @@ mod runes;
 mod schedule;
 mod scratch;
 mod skill;
+#[cfg(test)]
+mod spawn_edge_tests;
 mod stardust;
 mod stars;
 pub(crate) mod state;
