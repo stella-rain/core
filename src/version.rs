@@ -93,3 +93,189 @@ pub(crate) fn read_member<T: serde::de::DeserializeOwned>(
     check(versions.schema_version, versions.sim_version)?;
     serde_json::from_slice(bytes).map_err(parse_error)
 }
+
+/// One step from an older version pair to the next: `apply` turns the file's JSON at `from`
+/// into the JSON of the version after it (ADR-REPL-5 point 4). The production table is empty
+/// until the freeze at P3.
+pub(crate) struct Migration {
+    pub from: Versions,
+    pub apply: fn(serde_json::Value) -> serde_json::Value,
+}
+
+/// Why a replay file was not loaded. Numbers and positions only, never text from the file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ReplayLoadError {
+    /// Over the file's size limit; it is not parsed.
+    TooLarge { size: usize, limit: usize },
+    /// Recorded by an older version that has no migration.
+    Older(Versions),
+    /// Either version is above this game's.
+    Newer(Versions),
+    /// Not JSON, no versions, or the full parse failed at a known version.
+    Damaged { line: usize, column: usize },
+}
+
+fn damaged(e: serde_json::Error) -> ReplayLoadError {
+    ReplayLoadError::Damaged {
+        line: e.line(),
+        column: e.column(),
+    }
+}
+
+/// Reads a replay file: the size limit first, then the versions alone (`header`), then the
+/// strict parse (ADR-017, ADR-SVC-1). Either version above `current` is `Newer`, whatever else
+/// the file holds; both equal is parsed as it is; below, a migration for exactly that pair is
+/// applied to the JSON first (positions of a `Damaged` after a migration are in the migrated
+/// bytes), and without one the file is `Older`.
+pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    limit: usize,
+    _current: Versions,
+    _migrations: &[Migration],
+    _header: fn(&[u8]) -> Result<Versions, serde_json::Error>,
+) -> Result<T, ReplayLoadError> {
+    if bytes.len() > limit {
+        return Err(ReplayLoadError::TooLarge {
+            size: bytes.len(),
+            limit,
+        });
+    }
+    serde_json::from_slice(bytes).map_err(damaged)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    const CURRENT: Versions = Versions {
+        schema_version: 2,
+        sim_version: 2,
+    };
+
+    #[derive(serde::Deserialize, PartialEq, Debug)]
+    #[serde(deny_unknown_fields)]
+    struct Doc {
+        schema_version: u32,
+        sim_version: u32,
+        value: u32,
+    }
+
+    fn header(bytes: &[u8]) -> Result<Versions, serde_json::Error> {
+        serde_json::from_slice(bytes)
+    }
+
+    fn v(schema_version: u32, sim_version: u32) -> Versions {
+        Versions {
+            schema_version,
+            sim_version,
+        }
+    }
+
+    fn from_one_one(mut doc: Value) -> Value {
+        let map = doc.as_object_mut().unwrap();
+        let old = map.remove("old_value").unwrap();
+        map.insert("value".into(), old);
+        map.insert("schema_version".into(), json!(2));
+        map.insert("sim_version".into(), json!(2));
+        doc
+    }
+
+    const TABLE: &[Migration] = &[Migration {
+        from: Versions {
+            schema_version: 1,
+            sim_version: 1,
+        },
+        apply: from_one_one,
+    }];
+
+    fn read(body: &Value, table: &[Migration]) -> Result<Doc, ReplayLoadError> {
+        read_raw(body.to_string().as_bytes(), table)
+    }
+
+    fn read_raw(bytes: &[u8], table: &[Migration]) -> Result<Doc, ReplayLoadError> {
+        read_replay(bytes, 1024, CURRENT, table, header)
+    }
+
+    fn doc(schema_version: u32, sim_version: u32) -> Value {
+        json!({ "schema_version": schema_version, "sim_version": sim_version, "value": 7 })
+    }
+
+    fn is_damaged<T: std::fmt::Debug>(r: Result<T, ReplayLoadError>) -> bool {
+        matches!(r, Err(ReplayLoadError::Damaged { .. }))
+    }
+
+    #[test]
+    fn a_newer_file_is_newer_even_with_fields_this_version_rejects() {
+        assert_eq!(read(&doc(3, 2), &[]), Err(ReplayLoadError::Newer(v(3, 2))));
+        let mut future = doc(2, 3);
+        future["future"] = json!(1);
+        assert_eq!(read(&future, &[]), Err(ReplayLoadError::Newer(v(2, 3))));
+        // A mixed pair: the newer side wins.
+        assert_eq!(
+            read(&doc(3, 1), TABLE),
+            Err(ReplayLoadError::Newer(v(3, 1)))
+        );
+    }
+
+    #[test]
+    fn an_older_file_with_a_migration_loads_migrated() {
+        let old = json!({ "schema_version": 1, "sim_version": 1, "old_value": 7 });
+        assert_eq!(
+            read(&old, TABLE),
+            Ok(Doc {
+                schema_version: 2,
+                sim_version: 2,
+                value: 7
+            })
+        );
+    }
+
+    #[test]
+    fn an_older_file_without_a_migration_is_older() {
+        let old = json!({ "schema_version": 1, "sim_version": 1, "old_value": 7 });
+        assert_eq!(read(&old, &[]), Err(ReplayLoadError::Older(v(1, 1))));
+        assert_eq!(
+            read(&doc(0, 0), TABLE),
+            Err(ReplayLoadError::Older(v(0, 0)))
+        );
+    }
+
+    #[test]
+    fn a_damaged_file_is_never_older() {
+        let mut bad = doc(2, 2);
+        bad["value"] = json!("x");
+        assert!(is_damaged(read(&bad, TABLE)));
+        let migrated_bad = json!({ "schema_version": 1, "sim_version": 1, "old_value": "x" });
+        assert!(is_damaged(read(&migrated_bad, TABLE)));
+        assert!(is_damaged(read_raw(
+            b"{\"schema_version\": 2, \"sim",
+            TABLE
+        )));
+        assert!(is_damaged(read_raw(b"", TABLE)));
+        assert!(is_damaged(read_raw(b"{}", TABLE)));
+        assert!(is_damaged(read(
+            &json!({ "sim_version": 2, "value": 7 }),
+            TABLE
+        )));
+    }
+
+    #[test]
+    fn the_header_ignores_unknown_fields() {
+        let mut old = json!({ "schema_version": 1, "sim_version": 1, "old_value": 7 });
+        old["extra"] = json!(1);
+        assert_eq!(read(&old, &[]), Err(ReplayLoadError::Older(v(1, 1))));
+    }
+
+    #[test]
+    fn the_size_limit_comes_before_any_parse() {
+        let bytes = vec![b'x'; 1025];
+        assert_eq!(
+            read_raw(&bytes, TABLE),
+            Err(ReplayLoadError::TooLarge {
+                size: 1025,
+                limit: 1024
+            })
+        );
+    }
+}

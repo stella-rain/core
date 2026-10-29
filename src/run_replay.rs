@@ -51,6 +51,7 @@ use crate::replay::{hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::validate;
+use crate::version::{self, ReplayLoadError, Versions};
 
 /// The most commands a run replay holds (a tuning value; ADR-079 decides that a cap exists).
 /// Version 0 gives at most 99 points in a run; the rest is room for the offers' choices, a few
@@ -147,7 +148,17 @@ pub enum RunReplayError {
         size: usize,
         limit: usize,
     },
-    /// Not JSON, or not the run replay format.
+    /// Recorded by an older version of the game that cannot read it.
+    Older {
+        schema_version: u32,
+        sim_version: u32,
+    },
+    /// Written for a newer version of the game (either version is above this one's).
+    Newer {
+        schema_version: u32,
+        sim_version: u32,
+    },
+    /// Not JSON, no versions, or not the run replay format at a version this game reads.
     Damaged {
         line: usize,
         column: usize,
@@ -222,6 +233,20 @@ impl fmt::Display for RunReplayError {
             RunReplayError::TooLarge { size, limit } => {
                 write!(f, "the replay is {size} bytes; the limit is {limit}")
             }
+            RunReplayError::Older {
+                schema_version,
+                sim_version,
+            } => write!(
+                f,
+                "the replay was recorded by an older version (schema {schema_version}, sim {sim_version}); this version cannot read it"
+            ),
+            RunReplayError::Newer {
+                schema_version,
+                sim_version,
+            } => write!(
+                f,
+                "the replay needs a newer version (schema {schema_version}, sim {sim_version})"
+            ),
             RunReplayError::Damaged { line, column } => {
                 write!(f, "not a valid run replay (line {line}, column {column})")
             }
@@ -406,17 +431,34 @@ impl RunReplay {
         bytes
     }
 
-    /// Parses a run replay file: size limit first, then strict parsing.
+    /// Parses a run replay file: the size limit first, then the versions alone (the setup's),
+    /// then the strict parse (ADR-017, ADR-SVC-1). A file for a newer version is `Newer` even if
+    /// it has fields this version rejects; a file that is not JSON, has no versions, or fails the
+    /// strict parse at a version this game reads is `Damaged`, never `Older`.
     pub fn from_bytes(bytes: &[u8]) -> Result<RunReplay, RunReplayError> {
-        if bytes.len() > MAX_RUN_REPLAY_BYTES {
-            return Err(RunReplayError::TooLarge {
-                size: bytes.len(),
-                limit: MAX_RUN_REPLAY_BYTES,
-            });
+        /// The versions alone; the rest of the file is ignored.
+        #[derive(serde::Deserialize)]
+        struct Header {
+            setup: Versions,
         }
-        serde_json::from_slice(bytes).map_err(|e| RunReplayError::Damaged {
-            line: e.line(),
-            column: e.column(),
+        version::read_replay(
+            bytes,
+            MAX_RUN_REPLAY_BYTES,
+            Versions::CURRENT,
+            &[],
+            |bytes| serde_json::from_slice::<Header>(bytes).map(|h| h.setup),
+        )
+        .map_err(|e| match e {
+            ReplayLoadError::TooLarge { size, limit } => RunReplayError::TooLarge { size, limit },
+            ReplayLoadError::Older(v) => RunReplayError::Older {
+                schema_version: v.schema_version,
+                sim_version: v.sim_version,
+            },
+            ReplayLoadError::Newer(v) => RunReplayError::Newer {
+                schema_version: v.schema_version,
+                sim_version: v.sim_version,
+            },
+            ReplayLoadError::Damaged { line, column } => RunReplayError::Damaged { line, column },
         })
     }
 

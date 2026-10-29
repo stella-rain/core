@@ -1072,3 +1072,78 @@ fn a_prefix_keeps_its_checkpoints_when_resumed() {
         Some(RunReplayError::CheckpointDiffers { second: 1 })
     );
 }
+
+// --- The version header ----------------------------------------------------------------------
+
+fn newer(schema_version: u32, sim_version: u32) -> Result<RunReplay, RunReplayError> {
+    Err(RunReplayError::Newer {
+        schema_version,
+        sim_version,
+    })
+}
+
+#[test]
+fn a_run_replay_for_a_newer_version_is_newer() {
+    let replay = recorded(20);
+    let schema = with(&replay, |v| v["setup"]["schema_version"] = json!(1));
+    assert_eq!(RunReplay::from_bytes(&schema), newer(1, 0));
+    // A newer file may hold fields this version rejects; it is still "newer", not damaged.
+    let future = with(&replay, |v| {
+        v["setup"]["sim_version"] = json!(1);
+        v["future"] = json!(1);
+    });
+    assert_eq!(RunReplay::from_bytes(&future), newer(0, 1));
+    let huge = with(&replay, |v| {
+        v["setup"]["schema_version"] = json!(4_000_000_000u32);
+    });
+    assert_eq!(RunReplay::from_bytes(&huge), newer(4_000_000_000, 0));
+}
+
+#[test]
+fn the_run_size_limit_stays_before_the_version() {
+    let replay = recorded(20);
+    let mut big = with(&replay, |v| v["setup"]["schema_version"] = json!(1));
+    big.resize(MAX_RUN_REPLAY_BYTES + 1, b' ');
+    assert_eq!(
+        RunReplay::from_bytes(&big),
+        Err(RunReplayError::TooLarge {
+            size: MAX_RUN_REPLAY_BYTES + 1,
+            limit: MAX_RUN_REPLAY_BYTES
+        })
+    );
+    assert!(matches!(
+        RunReplay::from_bytes(&vec![b'x'; MAX_RUN_REPLAY_BYTES + 1]),
+        Err(RunReplayError::TooLarge { .. })
+    ));
+}
+
+#[test]
+fn a_run_replay_that_cannot_be_parsed_at_a_known_version_is_damaged() {
+    let replay = recorded(20);
+    let bytes = replay.to_bytes();
+    let damaged = |b: &[u8]| {
+        matches!(
+            RunReplay::from_bytes(b),
+            Err(RunReplayError::Damaged { .. })
+        )
+    };
+    assert!(damaged(&with(&replay, |v| {
+        v.as_object_mut().unwrap().remove("commands");
+    })));
+    assert!(damaged(&with(&replay, |v| v["unexpected"] = json!(1))));
+    assert!(damaged(&with(&replay, |v| v["ticks"] = json!("many"))));
+    // The case an app once read as "older": a current-version file without a required key.
+    assert!(damaged(&with(&replay, |v| {
+        v.as_object_mut().unwrap().remove("checkpoints");
+    })));
+    assert!(damaged(&bytes[..bytes.len() / 2]));
+    for no_versions in [&b""[..], b"[]", b"{}", br#"{"setup": {}}"#] {
+        assert!(damaged(no_versions));
+    }
+    assert!(damaged(&with(&replay, |v| {
+        v["setup"].as_object_mut().unwrap().remove("schema_version");
+    })));
+    assert!(damaged(&with(&replay, |v| {
+        v["setup"]["sim_version"] = json!("0");
+    })));
+}
