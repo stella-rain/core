@@ -1417,7 +1417,7 @@
       "type": "object"
     },
     "DamageType": {
-      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
+      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change.",
       "enum": [
         "slash",
         "pierce",
@@ -5638,7 +5638,7 @@
       "type": "object"
     },
     "PerkEffect": {
-      "description": "What a perk does, `amount` times over. The closed list of version 0's perk effects; the\nstat kinds are the run stats' (`StatEffect`) and add to the same totals.",
+      "description": "What a perk does, `amount` times over. The closed list of perk effects; the\nstat kinds are the run stats' (`StatEffect`) and add to the same totals.",
       "oneOf": [
         {
           "const": "max_hp",
@@ -8369,7 +8369,7 @@
       "type": "object"
     },
     "StatEffect": {
-      "description": "What a point in a stat does, `step` times over. The closed list of version 0's effects;\npercentages add up over every stat with the same effect and round down.",
+      "description": "What a point in a stat does, `step` times over. The closed list of effects;\npercentages add up over every stat with the same effect and round down.",
       "oneOf": [
         {
           "const": "max_hp",

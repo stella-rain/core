@@ -36,9 +36,9 @@
       }
     }
   },
-  "schema_version": 0,
+  "schema_version": 1,
   "seed": 7,
-  "sim_version": 0,
+  "sim_version": 1,
   "title": "Test",
   "waves": [
     {

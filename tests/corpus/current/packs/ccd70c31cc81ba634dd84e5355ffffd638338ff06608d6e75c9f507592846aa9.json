@@ -1,627 +1,627 @@
 {
-  "schema_version": 0,
-  "sim_version": 0,
+  "schema_version": 1,
+  "sim_version": 1,
   "introduced": {
     "run_stats": [
       {
         "id": "max_hp",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_speed",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "evade",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "speed",
-        "sim_version": 0
+        "sim_version": 1
       }
     ],
     "rewards": [
       {
         "id": "max_hp_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "max_hp_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "max_hp_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_speed_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_speed_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_speed_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "evade_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "evade_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "evade_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "speed_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "speed_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "speed_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "xp_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "xp_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "xp_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "black_hole_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "war_cry_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "hex_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "nova_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "aegis_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "regen_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "regen_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "regen_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "max_hp_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "max_hp_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "max_hp_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_speed_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_speed_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "attack_speed_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "evade_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "evade_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "evade_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "speed_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "speed_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "speed_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "xp_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "xp_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "xp_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "regen_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "regen_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "regen_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "rune_haste_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "rune_haste_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "rune_haste_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "rune_haste_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "rune_haste_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "rune_haste_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "range_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "range_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "range_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "range_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "range_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "range_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_slash_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_slash_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_slash_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_slash_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_slash_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_slash_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pierce_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pierce_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pierce_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pierce_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pierce_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pierce_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_strike_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_strike_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_strike_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_strike_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_strike_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_strike_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pyro_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pyro_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pyro_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pyro_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pyro_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_pyro_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_hydro_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_hydro_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_hydro_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_hydro_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_hydro_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_hydro_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_electro_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_electro_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_electro_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_electro_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_electro_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_electro_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_cryo_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_cryo_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_cryo_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_cryo_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_cryo_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_cryo_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_anemo_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_anemo_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_anemo_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_anemo_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_anemo_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_anemo_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_geo_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_geo_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_geo_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_geo_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_geo_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_geo_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_dendro_common",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_dendro_uncommon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_dendro_rare",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_dendro_epic",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_dendro_legendary",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "type_bonus_dendro_supernova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "random_rune",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_altair",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_alnitak",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_alnilam",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_mintaka",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_dubhe",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_rigel",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_deneb",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_vega",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_mizar",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_alkaid",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_procyon",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_antares",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_sirius",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_betelgeuse",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "star_polaris",
-        "sim_version": 0
+        "sim_version": 1
       }
     ],
     "stage_skills": [
       {
         "id": "black_hole",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "war_cry",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "hex",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "nova",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "aegis",
-        "sim_version": 0
+        "sim_version": 1
       }
     ],
     "perk_sets": [
       {
         "id": "vanguard",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "duelist",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "scout",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "scholar",
-        "sim_version": 0
+        "sim_version": 1
       }
     ],
     "difficulties": [
       {
         "id": "easy",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "normal",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "hard",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "rainy",
-        "sim_version": 0
+        "sim_version": 1
       }
     ],
     "expertise": [
@@ -630,71 +630,71 @@
         "ids": [
           {
             "id": "crush",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "crush_6",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "crush_9",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "crush_10",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "quake",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "quake_6",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "quake_9",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "quake_10",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "bulwark",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "bulwark_6",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "bulwark_9",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "bulwark_10",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "damage",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "attack_speed",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "hit_box",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "vitality",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "swiftness",
-            "sim_version": 0
+            "sim_version": 1
           }
         ]
       },
@@ -703,71 +703,71 @@
         "ids": [
           {
             "id": "edge",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "edge_6",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "edge_9",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "edge_10",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "tempo",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "tempo_6",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "tempo_9",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "tempo_10",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "reach",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "reach_6",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "reach_9",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "reach_10",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "damage",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "attack_speed",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "hit_box",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "vitality",
-            "sim_version": 0
+            "sim_version": 1
           },
           {
             "id": "swiftness",
-            "sim_version": 0
+            "sim_version": 1
           }
         ]
       }
@@ -775,49 +775,49 @@
     "elite_types": [
       {
         "id": "elite_low",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "elite_mid",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "elite_high",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "elite_goblin",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "elite_shrine",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "elite_leader",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "elite_mimic",
-        "sim_version": 0
+        "sim_version": 1
       }
     ],
     "constellations": [
       {
         "id": "summer_triangle",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "orions_belt",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "big_dipper",
-        "sim_version": 0
+        "sim_version": 1
       },
       {
         "id": "winter_triangle",
-        "sim_version": 0
+        "sim_version": 1
       }
     ]
   },
@@ -4101,8 +4101,8 @@
 },
   "modes": {
     "trial": {
-  "schema_version": 0,
-  "sim_version": 0,
+  "schema_version": 1,
+  "sim_version": 1,
   "id": "trial",
   "title": "Trial",
   "description": "The trial mode: one placeholder stage of bats in waves, a fairy that heals, and a golem whose horn breaks. Defeated enemies give experience, and each level gives a stat point to spend. Two elites hold their places until the golem calls them. Placeholder match-ups: the bats are weak to Slash, the elites strong against Pierce and resist every other attack type, the golem weak to Strike and resists every other attack type; its horn has none. The weapons and the seed come from the run setup.",
@@ -8763,7 +8763,7 @@
   "no_call_ticks": [
     18000
   ],
-  "overtime_ticks": 540,
+  "overtime_ticks": 12000,
   "star_hunter_extra_ticks": 3600,
   "stardust_summon_base": 10,
   "stardust_tiers": [
@@ -8829,8 +8829,8 @@
   "waves": []
 },
     "tutorial": {
-  "schema_version": 0,
-  "sim_version": 0,
+  "schema_version": 1,
+  "sim_version": 1,
   "id": "tutorial",
   "title": "Tutorial",
   "description": "The tutorial mode: three minutes of gentle bats and one weak golem, with no elites, no mid-boss and no Stardust. Placeholder content from the trial stage: the same main character, companion, levels and stars, with the bats weak to Slash and the golem weak to Strike. Every weapon can be switched inside it; the weapon and the seed come from the run setup.",
