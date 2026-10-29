@@ -127,18 +127,44 @@ fn an_along_wave_draws_nothing_so_a_later_drawn_spawn_lands_where_it_would_alone
 
 /// The point of the walk over the sides of the spawn rectangle around (`px`, `py`) (1/256 px) on
 /// a map of `w` by `h`: `t` from the start of the first on-map part, in the order top, right,
-/// bottom, left.
+/// bottom, left. Top and right run `[lo, hi)`, bottom and left `(lo, hi]`: each corner is on
+/// one side.
 fn walk(px: i64, py: i64, w: i64, h: i64, t: i64) -> (i64, i64) {
     walk_over(px, py, Some((w, h)), t)
 }
 
 /// `walk` over the whole sides when `map` is `None`.
 fn walk_over(px: i64, py: i64, map: Option<(i64, i64)>, mut t: i64) -> (i64, i64) {
+    for (vertical, fixed, lo, hi) in parts(px, py, map) {
+        if t < hi - lo {
+            return if vertical {
+                (fixed, lo + t)
+            } else {
+                (lo + t, fixed)
+            };
+        }
+        t -= hi - lo;
+    }
+    panic!("t past the sides");
+}
+
+/// How many draw values the walk has.
+fn walk_total(px: i64, py: i64, map: Option<(i64, i64)>) -> i64 {
+    parts(px, py, map)
+        .iter()
+        .map(|(_, _, lo, hi)| hi - lo)
+        .sum()
+}
+
+/// The sides with a length, as `(vertical, fixed, lo, hi)`, on the map or whole when `map` is
+/// `None`.
+fn parts(px: i64, py: i64, map: Option<(i64, i64)>) -> Vec<(bool, i64, i64, i64)> {
+    let mut out = Vec::new();
     let sides = [
         (false, py - EY, px - EX, px + EX),
         (true, px + EX, py - EY, py + EY),
-        (false, py + EY, px - EX, px + EX),
-        (true, px - EX, py - EY, py + EY),
+        (false, py + EY, px - EX + 1, px + EX + 1),
+        (true, px - EX, py - EY + 1, py + EY + 1),
     ];
     for (vertical, fixed, lo, hi) in sides {
         let (lo, hi) = match map {
@@ -151,19 +177,11 @@ fn walk_over(px: i64, py: i64, map: Option<(i64, i64)>, mut t: i64) -> (i64, i64
             }
             None => (lo, hi),
         };
-        if hi <= lo {
-            continue;
+        if hi > lo {
+            out.push((vertical, fixed, lo, hi));
         }
-        if t < hi - lo {
-            return if vertical {
-                (fixed, lo + t)
-            } else {
-                (lo + t, fixed)
-            };
-        }
-        t -= hi - lo;
     }
-    panic!("t past the sides");
+    out
 }
 
 #[test]
@@ -220,12 +238,11 @@ enum Fixed {
 #[test]
 fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
     use Fixed::{At, Draw};
-    // (main character px, `any` total, fixed sides)
+    // (main character px, fixed sides)
     #[allow(clippy::type_complexity)]
-    let rows: Vec<((i32, i32), u32, Vec<(&str, Option<i16>, Fixed)>)> = vec![
+    let rows: Vec<((i32, i32), Vec<(&str, Option<i16>, Fixed)>)> = vec![
         (
             (2000, 3900),
-            372_736,
             vec![
                 (
                     "bottom",
@@ -242,7 +259,6 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
         ),
         (
             (2000, 100),
-            372_736,
             vec![
                 (
                     "top",
@@ -259,7 +275,6 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
         ),
         (
             (100, 2000),
-            372_736,
             vec![
                 (
                     "left",
@@ -276,7 +291,6 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
         ),
         (
             (3900, 2000),
-            372_736,
             vec![
                 (
                     "right",
@@ -293,7 +307,6 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
         ),
         (
             (100, 100),
-            211_968,
             vec![
                 (
                     "top",
@@ -309,29 +322,21 @@ fn the_maps_edges_and_corners_draw_only_on_the_part_on_the_map() {
                 ("left", Some(0), At(123_904, 25_600)),
             ],
         ),
-        (
-            (3900, 100),
-            211_968,
-            vec![("right", Some(0), At(900_096, 25_600))],
-        ),
-        (
-            (100, 3900),
-            211_968,
-            vec![("bottom", Some(0), At(25_600, 935_936))],
-        ),
+        ((3900, 100), vec![("right", Some(0), At(900_096, 25_600))]),
+        ((100, 3900), vec![("bottom", Some(0), At(25_600, 935_936))]),
         (
             (3900, 3900),
-            211_968,
             vec![("left", Some(1000), At(900_096, 1_024_000))],
         ),
     ];
-    for ((x, y), total, fixed) in rows {
+    for ((x, y), fixed) in rows {
         let at = |edge: Value| {
             enemy_places(&map_stage(4000, 4000, x, y, vec![edge_wave(0, 1, edge)]), 1)[0]
         };
         // `any` is one draw over the on-map parts, in the walk's order.
-        let t = i64::from(derive(7, TAG_SPAWN).below(total));
         let (px, py) = (i64::from(x) * 256, i64::from(y) * 256);
+        let total = walk_total(px, py, Some((1_024_000, 1_024_000)));
+        let t = i64::from(derive(7, TAG_SPAWN).below(u32::try_from(total).unwrap()));
         let (wx, wy) = walk(px, py, 1_024_000, 1_024_000, t);
         assert_eq!(
             at(json!({ "side": "any" })),

@@ -752,7 +752,9 @@ impl RectSide {
 }
 
 /// The sides the `any` draw walks, in the order top, right, bottom, left, each with its part:
-/// the part on the map `w` by `h`; with none on the map, the whole sides (moved onto it by the
+/// top and right run `[lo, hi)` and bottom and left `(lo, hi]`, so every perimeter point has one
+/// draw value (the corners go top-left to top, top-right to right, bottom-right to bottom,
+/// bottom-left to left). The part is the part on the map `w` by `h`; with none on the map, the whole sides (moved onto it by the
 /// caller).
 fn any_parts(
     px: i64,
@@ -762,7 +764,13 @@ fn any_parts(
     w: i64,
     h: i64,
 ) -> [(RectSide, Option<(i64, i64)>); 4] {
-    let sides = rect_sides(px, py, ex, ey);
+    let mut sides = rect_sides(px, py, ex, ey);
+    // Each corner belongs to one side: top owns top-left, right owns top-right, bottom owns
+    // bottom-right and left owns bottom-left, so the four walk the perimeter once.
+    for side in &mut sides[2..] {
+        side.lo += 1;
+        side.hi += 1;
+    }
     let parts = sides.map(|side| side.on_map(w, h));
     let on_map = parts.iter().flatten().map(|(lo, hi)| hi - lo).sum::<i64>() > 0;
     let mut out = sides.map(|side| (side, None));
@@ -839,8 +847,8 @@ fn rect_sides(px: i64, py: i64, ex: i64, ey: i64) -> [RectSide; 4] {
 /// from `rng` (the wave's stream for a wave, the horde's for an elite) on the part of `edge`'s
 /// side that is on the map. A side wholly off the map gives way to the opposite one; with
 /// neither on the map the side itself is used and the point moved onto the map. `any` is one draw
-/// over the on-map parts of all four sides; a side with no `along` is one draw along its part;
-/// with `along` there is no draw.
+/// over the on-map parts of all four sides, each corner on one side only (`any_parts`); a side with no
+/// `along` is one draw along its part; with `along` there is no draw.
 pub(super) fn edge_point(
     stage: &World,
     from: Point,
