@@ -304,7 +304,8 @@ fn each_new_field_loads_at_its_bounds() {
         ("leash_reach_x", px(4096)),
         ("leash_reach_y", px(4096)),
         ("spawn_margin", 0),
-        ("spawn_margin", px(1024)),
+        // `spawn_margin` at px(1024) needs lands out to its spawn edge:
+        // `the_leash_lands_at_or_beyond_the_spawn_edge`.
         ("ranged_token_cooldown_ticks", 0),
         ("ranged_token_cooldown_ticks", 600),
         ("orbit_step", 1),
@@ -346,6 +347,58 @@ fn the_leash_lands_inside_where_it_triggers() {
     assert_eq!(
         paths(Rules::parse(&with("leash_land_x", 0), Versions::CURRENT)),
         ["$.leash_land_x"]
+    );
+}
+
+#[test]
+fn the_leash_lands_at_or_beyond_the_spawn_edge() {
+    // The spawn edge is the view's half (420 x 180 px) plus `spawn_margin` (64 px bundled):
+    // 123,904 and 62,464, which the bundled lands equal.
+    let rules = Rules::bundled();
+    assert_eq!(rules.leash_land_x(), Fx(123_904));
+    assert_eq!(rules.leash_land_y(), Fx(62_464));
+    assert_eq!(
+        paths(Rules::parse(
+            &with("leash_land_x", 123_903),
+            Versions::CURRENT
+        )),
+        ["$.leash_land_x"]
+    );
+    assert_eq!(
+        paths(Rules::parse(
+            &with("leash_land_y", 62_463),
+            Versions::CURRENT
+        )),
+        ["$.leash_land_y"]
+    );
+    // A wider margin moves the edge past the bundled lands (66.4 px).
+    assert_eq!(
+        paths(Rules::parse(
+            &with("spawn_margin", 17_000),
+            Versions::CURRENT
+        )),
+        ["$.leash_land_x", "$.leash_land_y"]
+    );
+    // The largest margin loads with lands (and reaches) out to its edge: 1,444 x 1,204 px.
+    let r = with_all(&[
+        ("spawn_margin", 1024 * 256),
+        ("leash_land_x", 1444 * 256),
+        ("leash_land_y", 1204 * 256),
+        ("leash_reach_x", 1444 * 256),
+        ("leash_reach_y", 1204 * 256),
+    ]);
+    assert!(Rules::parse(&r, Versions::CURRENT).is_ok());
+    // A land already out of range is one issue, not two; a margin out of range is the margin's.
+    assert_eq!(
+        paths(Rules::parse(&with("leash_land_x", 0), Versions::CURRENT)),
+        ["$.leash_land_x"]
+    );
+    assert_eq!(
+        paths(Rules::parse(
+            &with("spawn_margin", 1025 * 256),
+            Versions::CURRENT
+        )),
+        ["$.spawn_margin"]
     );
 }
 

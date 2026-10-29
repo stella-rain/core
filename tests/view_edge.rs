@@ -300,6 +300,78 @@ fn near_a_map_edge_the_spawn_rectangle_is_the_cameras_not_the_main_characters() 
 }
 
 #[test]
+fn no_spawn_near_a_map_edge_is_relocated_on_its_spawn_tick() {
+    // (main character, edge, spawn point in px); `along` fixes the point with no draw. The
+    // far-side spawns are 874 x or 394 y px from
+    // the main character, past the reach of 840 x 360, and 484 or 244 px from the centre.
+    type Case = ((i32, i32), Value, (i64, i64));
+    let cases: [Case; 6] = [
+        (
+            (30, 2000),
+            json!({ "side": "right", "along": 0 }),
+            (904, 2000),
+        ),
+        (
+            (3970, 2000),
+            json!({ "side": "left", "along": 0 }),
+            (3096, 2000),
+        ),
+        (
+            (2000, 30),
+            json!({ "side": "bottom", "along": 0 }),
+            (2000, 424),
+        ),
+        (
+            (2000, 3970),
+            json!({ "side": "top", "along": 0 }),
+            (2000, 3576),
+        ),
+        (
+            (30, 30),
+            json!({ "side": "right", "along": 1000 }),
+            (904, 424),
+        ),
+        // Mid-map, the centre is the main character.
+        (
+            (2000, 2000),
+            json!({ "side": "right", "along": 0 }),
+            (2484, 2000),
+        ),
+    ];
+    for ((x, y), edge, (sx, sy)) in cases {
+        let stage = map_stage(4000, 4000, x, y, vec![edge_wave(0, 1, edge.clone())]);
+        let mut e = engine(&stage);
+        e.step(idle());
+        let (cx, cy) = centre(4000, 4000, i64::from(x), i64::from(y));
+        let spawn = (sx * 256, sy * 256);
+        // The spawn point is on the centre's spawn rectangle.
+        assert!(
+            (spawn.0 - cx).abs() == EX || (spawn.1 - cy).abs() == EY,
+            "({x}, {y}) {edge}"
+        );
+        let relocated = e
+            .events()
+            .iter()
+            .filter(|ev| matches!(ev, DomainEvent::EnemyRelocated { .. }))
+            .count();
+        assert_eq!(relocated, 0, "({x}, {y}) {edge}: relocated");
+        assert_eq!(e.load().relocated, 0, "({x}, {y}) {edge}");
+        let at = e
+            .snapshot()
+            .entities
+            .into_iter()
+            .find(|v| v.kind == EntityKind::Enemy)
+            .expect("the enemy spawned")
+            .at;
+        assert_eq!(
+            (i64::from(at.x.0), i64::from(at.y.0)),
+            spawn,
+            "({x}, {y}) {edge}"
+        );
+    }
+}
+
+#[test]
 fn a_side_without_along_is_one_draw_along_it() {
     let t = i32::try_from(derive(7, TAG_SPAWN).below(124_928)).unwrap();
     let stage = map_stage(
