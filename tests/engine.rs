@@ -177,7 +177,7 @@ fn enemy_zones_hurt_the_character_with_invulnerability_in_between() {
     let hits: Vec<_> = events
         .iter()
         .filter_map(|(t, ev)| match ev {
-            DomainEvent::PlayerHit { hp_left } => Some((*t, *hp_left)),
+            DomainEvent::PlayerHit { hp_left, .. } => Some((*t, *hp_left)),
             _ => None,
         })
         .collect();

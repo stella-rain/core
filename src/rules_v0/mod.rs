@@ -138,7 +138,7 @@ use crate::engine::{
     AgentKey, AgentSource, BossState, Dir, Load, MoveOrder, Outcome, PartState, PlayerState,
     Progress, Pull, Smash, StarField, StatRule, State, Streams,
 };
-use crate::event::DomainEvent;
+use crate::event::{DomainEvent, HitKind, HitSource};
 use crate::expertise::Expertise;
 use crate::fixed::{Fx, Point};
 use crate::hash::{StableHash, StateHasher};
@@ -1266,7 +1266,14 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEve
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = stage.tuning.hit_invulnerable_ticks;
-    events.push(DomainEvent::PlayerHit { hp_left: p.hp });
+    events.push(DomainEvent::PlayerHit {
+        hp_left: p.hp,
+        source: HitSource {
+            kind: HitKind::Attack,
+            owner: b.owner,
+            attack: None,
+        },
+    });
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
         player::break_charge(stage, s, events);

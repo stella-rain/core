@@ -1916,7 +1916,7 @@ fn elite_reach(name: &str) -> EliteReach {
                 DomainEvent::ShrineActivated { elite } => r.activated.push(*elite),
                 DomainEvent::Died { entity, .. } => r.died.push(*entity),
                 DomainEvent::MimicRevealed { elite } => r.revealed.push(*elite),
-                DomainEvent::PlayerHit { hp_left } => {
+                DomainEvent::PlayerHit { hp_left, .. } => {
                     r.hurts.push((tick, hp.saturating_sub(*hp_left)));
                 }
                 DomainEvent::ElitesCalled { elites } => {

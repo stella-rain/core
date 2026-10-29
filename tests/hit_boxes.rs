@@ -81,7 +81,7 @@ fn player_hits(events: &[(u32, DomainEvent)]) -> Vec<(u32, u32)> {
     events
         .iter()
         .filter_map(|(t, ev)| match ev {
-            DomainEvent::PlayerHit { hp_left } => Some((*t, *hp_left)),
+            DomainEvent::PlayerHit { hp_left, .. } => Some((*t, *hp_left)),
             _ => None,
         })
         .collect()

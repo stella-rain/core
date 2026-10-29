@@ -965,7 +965,7 @@ fn a_timeline_attack_that_names_no_damage_does_the_default_100() {
     let mut e = engine(&quiet(stage));
     let events = run_until(&mut e, idle(), 600, |e| e.snapshot().player.hp < 9_900);
     let hit = events.iter().find_map(|(_, ev)| match ev {
-        DomainEvent::PlayerHit { hp_left } => Some(*hp_left),
+        DomainEvent::PlayerHit { hp_left, .. } => Some(*hp_left),
         _ => None,
     });
     assert_eq!(hit, Some(9_800));

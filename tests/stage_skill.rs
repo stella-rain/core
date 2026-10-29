@@ -418,7 +418,7 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
     for _ in 0..200 {
         e.step(idle());
         for ev in e.events() {
-            if let DomainEvent::PlayerHit { hp_left } = ev {
+            if let DomainEvent::PlayerHit { hp_left, .. } = ev {
                 hits.push(*hp_left);
             }
         }

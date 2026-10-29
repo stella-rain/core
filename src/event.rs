@@ -21,6 +21,30 @@ pub enum Press {
     Smash,
 }
 
+/// What kind of thing hurt the main character.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum HitKind {
+    /// A hit box of an attack, or an orb that an attack fired.
+    Attack,
+    /// A zone an attack placed.
+    Zone,
+    /// The beam between two linked orbs.
+    Link,
+}
+
+/// What hurt the main character (PHIT).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HitSource {
+    pub kind: HitKind,
+    /// The attacker that owns it (`Hit::source` is the same kind of ID).
+    pub owner: EntityId,
+    /// The attack preset it came from; absent for an inline attack.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attack: Option<ContentId>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "data", deny_unknown_fields)]
 pub enum DomainEvent {
@@ -62,6 +86,8 @@ pub enum DomainEvent {
     /// The main character was hit.
     PlayerHit {
         hp_left: u32,
+        /// What hurt it.
+        source: HitSource,
     },
     /// `target` regained `amount` hit points.
     Healed {

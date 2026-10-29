@@ -684,4 +684,8 @@ pub struct OrbView {
     /// the beam is as wide as `link.width` and hurts the main character.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_to: Option<u32>,
+    /// The width of that beam, in 1/256 pixel (`link.width` of the content); set exactly when
+    /// `link_to` is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link_width: Option<Fx>,
 }

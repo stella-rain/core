@@ -321,7 +321,7 @@ fn a_beam_deals_the_links_own_damage_when_it_has_one() {
     for _ in 0..60 {
         e.step(idle());
         for ev in e.events() {
-            if let DomainEvent::PlayerHit { hp_left } = ev {
+            if let DomainEvent::PlayerHit { hp_left, .. } = ev {
                 left.push(*hp_left);
             }
         }

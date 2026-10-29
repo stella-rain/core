@@ -294,7 +294,7 @@ fn the_main_character_has_no_profile_so_typed_hits_on_it_are_neutral() {
     let hp_left = run_until(&mut engine(&st), idle(), 3, |_| false)
         .into_iter()
         .find_map(|(_, ev)| match ev {
-            DomainEvent::PlayerHit { hp_left } => Some(hp_left),
+            DomainEvent::PlayerHit { hp_left, .. } => Some(hp_left),
             _ => None,
         });
     assert_eq!(hp_left, Some(89));
