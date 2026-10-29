@@ -7,7 +7,7 @@ use std::process::{Command, ExitCode};
 /// Where each generated set lives, in the order `bless` regenerates them.
 const SETS: [(&str, &str); 5] = [
     ("schema", "schema/"),
-    ("corpus", "tests/corpus/"),
+    ("corpus", "tests/corpus/current/"),
     ("golden", "tests/golden/"),
     ("pack", "content/pack.json"),
     ("bench pins", "tests/bench_pins.toml"),
@@ -52,11 +52,50 @@ fn run(cmd: &mut Command) -> Result<(), String> {
     }
 }
 
+/// The corpus folder of the frozen versions, `tests/corpus/v<N>/`, N >= 1: immutable, so `bless`
+/// never writes it and fails when it is dirty.
+const CORPUS: &str = "tests/corpus/";
+
+/// The paths among `paths` that are inside a frozen corpus folder.
+fn frozen_dirty(paths: &[String]) -> Vec<String> {
+    paths
+        .iter()
+        .filter(|p| {
+            p.strip_prefix(CORPUS)
+                .and_then(|rest| rest.split('/').next())
+                .is_some_and(|dir| {
+                    dir.strip_prefix('v').is_some_and(|n| {
+                        !n.is_empty()
+                            && n.bytes().all(|b| b.is_ascii_digit())
+                            && !n.starts_with('0')
+                    })
+                })
+        })
+        .cloned()
+        .collect()
+}
+
+fn frozen_check() -> Result<(), String> {
+    let dirty = frozen_dirty(&dirty_in(&[CORPUS])?);
+    if dirty.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "bless must never change the frozen corpus tests/corpus/v1/: {}",
+            dirty.join(", ")
+        ))
+    }
+}
+
 /// Changed or untracked files under the generated sets, from `git status`.
 fn dirty_paths() -> Result<Vec<String>, String> {
+    dirty_in(&SETS.map(|(_, path)| path))
+}
+
+fn dirty_in(pathspecs: &[&str]) -> Result<Vec<String>, String> {
     let mut git = Command::new("git");
     git.args(["status", "--porcelain", "--untracked-files=all", "--"]);
-    git.args(SETS.map(|(_, path)| path));
+    git.args(pathspecs);
     let out = git.output().map_err(|e| format!("git: {e}"))?;
     if !out.status.success() {
         return Err(format!("git status failed: {}", out.status));
@@ -186,12 +225,14 @@ usage: cargo xtask bless [--check]"
     };
     // Dirty before regenerating counts as stale too: regenerating would hide a hand edit.
     let result = (|| {
+        frozen_check()?;
         let before = if mode == Mode::Check {
             dirty_paths()?
         } else {
             Vec::new()
         };
         regenerate()?;
+        frozen_check()?;
         Ok::<_, String>([before, dirty_paths()?].concat())
     })();
     match (result, mode) {
@@ -262,6 +303,37 @@ mod tests {
         let pins = args(&["tests/bench_pins.toml", "tests/golden/x.snap"]);
         assert_eq!(stale_sets(&pins), ["golden", "bench pins"]);
         assert!(stale_sets(&args(&["README.md"])).is_empty());
+    }
+
+    #[test]
+    fn bless_writes_only_current() {
+        let corpus = SETS.iter().find(|(name, _)| *name == "corpus").unwrap();
+        assert_eq!(corpus.1, "tests/corpus/current/");
+        assert!(
+            SETS.iter()
+                .all(|(_, path)| frozen_dirty(&[path.to_string()]).is_empty())
+        );
+        assert!(!format!("{:?}", steps()).contains("v1"));
+    }
+
+    #[test]
+    fn a_dirty_frozen_path_fails_bless() {
+        let dirty = args(&[
+            "tests/corpus/v1/x/case.json",
+            "tests/corpus/v12/packs/a.json",
+            "tests/corpus/current/stages/x/case.json",
+            "tests/corpus/v0/x",
+            "tests/corpus/v1a/x",
+            "src/lib.rs",
+        ]);
+        assert_eq!(
+            frozen_dirty(&dirty),
+            [
+                "tests/corpus/v1/x/case.json",
+                "tests/corpus/v12/packs/a.json"
+            ]
+        );
+        assert!(frozen_dirty(&args(&["tests/corpus/current/packs/a.json"])).is_empty());
     }
 
     fn test_step(env: (&'static str, &'static str), filter: &'static str) -> Step {
