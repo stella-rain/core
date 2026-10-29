@@ -13,8 +13,8 @@ OTHER_GENERATED = ["tests/bench_pins.toml"]
 
 # Hand-written files beside the generated sets: they must stay counted.
 HAND_WRITTEN = [
-    "tests/corpus/v0/agents/stage.json",
-    "tests/corpus/runs/v0/elites/mode.json",
+    "tests/corpus/current/stages/agents/stage.json",
+    "tests/corpus/current/runs/elites/mode.json",
     "src/lib.rs",
     "tests/corpus.rs",
 ]

@@ -1,4 +1,4 @@
-//! The replay corpus (ADR-019): `tests/corpus/v0/<name>/` holds a `stage.json`, a `run.replay`
+//! The replay corpus (ADR-019): `tests/corpus/current/stages/<name>/` holds a `stage.json`, a `run.replay`
 //! and `hashes.bin` (the state hash after every tick, 8 bytes little-endian,
 //! `replay::hashes_from_bytes`). Each case
 //! is re-simulated and every tick compared, so a change that moves any hash fails on the first
@@ -11,7 +11,7 @@
 //! `UPDATE_CORPUS=1 cargo test --test integration corpus::` and say `Corpus regenerated: <why>`
 //! in the PR (ADR-035).
 //!
-//! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
+//! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/current/runs/<name>/`: a
 //! `run.replay` alone (a run replay: setup, content hash, inputs, commands and `checkpoints`, the
 //! hash after every 60th tick, which are the expected hashes). A failing second is re-run and its
 //! 61 snapshots written to `target/corpus-diff/<name>/`. They need no stage file, because the
@@ -41,11 +41,11 @@ use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::parse_and_validate;
 
 pub(crate) fn corpus_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/v0")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/stages")
 }
 
 pub(crate) fn runs_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/runs/v0")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/runs")
 }
 
 fn diff_dir() -> PathBuf {
@@ -2320,7 +2320,7 @@ fn the_corpus_matches() {
         }
     }
     let mut cases: Vec<PathBuf> = fs::read_dir(corpus_dir())
-        .expect("tests/corpus/v0 exists")
+        .expect("tests/corpus/current/stages exists")
         .map(|e| e.unwrap().path())
         .filter(|p| p.is_dir())
         .collect();
@@ -2331,7 +2331,7 @@ fn the_corpus_matches() {
         cases.len()
     );
     let mut runs: Vec<PathBuf> = fs::read_dir(runs_dir())
-        .expect("tests/corpus/runs/v0 exists")
+        .expect("tests/corpus/current/runs exists")
         .map(|e| e.unwrap().path())
         .filter(|p| p.is_dir())
         .collect();

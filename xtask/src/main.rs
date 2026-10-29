@@ -251,8 +251,8 @@ mod tests {
     #[test]
     fn changed_paths_name_their_sets_once_in_order() {
         let paths = args(&[
-            "tests/corpus/v0/a/hashes.bin",
-            "tests/corpus/v0/b/hashes.bin",
+            "tests/corpus/current/stages/a/hashes.bin",
+            "tests/corpus/current/stages/b/hashes.bin",
             "schema/stage.json",
             "tests/golden/x.snap",
             "content/pack.json",

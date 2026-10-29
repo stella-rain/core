@@ -1,5 +1,5 @@
 //! The corpus files another repository reads. The `app` repository reads
-//! `tests/corpus/runs/v0/stage_skill/run.replay` from Cargo's checkout of core, so the path is a
+//! `tests/corpus/current/runs/stage_skill/run.replay` from Cargo's checkout of core, so the path is a
 //! contract: these tests fail when the file is renamed, moved or stops parsing, and when
 //! `.claude/rules/replay.md` stops naming it. A new path the app reads is added to
 //! `APP_READ_PATHS` and to that rule in the same change.
@@ -10,7 +10,7 @@ use std::path::Path;
 use stella_rain_core::run_replay::RunReplay;
 
 /// Paths relative to the repository root.
-const APP_READ_PATHS: &[&str] = &["tests/corpus/runs/v0/stage_skill/run.replay"];
+const APP_READ_PATHS: &[&str] = &["tests/corpus/current/runs/stage_skill/run.replay"];
 
 fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))

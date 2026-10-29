@@ -168,7 +168,7 @@ fn a_saved_pack_loads_as_the_same_content() {
 #[test]
 fn a_run_from_the_pack_hashes_as_one_from_the_bundled_content() {
     let content: RunContent = Pack::from_bytes(&bundled()).unwrap().into();
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/runs/v0");
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/runs");
     let mut checked = Vec::new();
     for case in ["trial", "easy", "time_limit"] {
         let case_dir = dir.join(case);

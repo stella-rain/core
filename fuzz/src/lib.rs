@@ -37,7 +37,7 @@ use stella_rain_core::{base64, share};
 const RUN_TICKS: usize = 120;
 
 /// A stage the replay target verifies against (the corpus case that is cleared).
-const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/v0/clear/stage.json");
+const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/current/stages/clear/stage.json");
 
 /// The stage parser and validator (ADR-020 items 1 to 4). A stage that loads can be saved
 /// again, which is what the editor does, and loads again as the same stage. The same bytes are

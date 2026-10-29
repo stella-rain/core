@@ -34,7 +34,7 @@ fn root() -> PathBuf {
 
 /// `(case, stage.json, run.replay)` of every corpus case.
 fn corpus() -> Vec<(String, Vec<u8>, Vec<u8>)> {
-    let dir = root().join("tests/corpus/v0");
+    let dir = root().join("tests/corpus/current/stages");
     let mut cases: Vec<_> = fs::read_dir(&dir)
         .expect("the corpus directory")
         .map(|e| e.expect("a corpus entry").path())
@@ -56,7 +56,7 @@ fn corpus() -> Vec<(String, Vec<u8>, Vec<u8>)> {
 /// files, which `replay_load` also loads. A case with its own `mode.json` verifies only with
 /// that file, so it is left out here (CI still seeds the fuzz targets with it).
 fn run_replays() -> Vec<Vec<u8>> {
-    let dir = root().join("tests/corpus/runs/v0");
+    let dir = root().join("tests/corpus/current/runs");
     let mut cases: Vec<_> = fs::read_dir(&dir)
         .expect("the run corpus directory")
         .map(|e| e.expect("a run case").path())
