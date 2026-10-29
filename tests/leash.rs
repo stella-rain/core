@@ -168,6 +168,39 @@ fn a_relocation_near_the_map_edge_lands_on_the_map() {
 }
 
 #[test]
+fn the_land_point_is_on_the_clamped_view_rectangle_plus_its_margin() {
+    // (main character, enemy) in px -> landing point in 1/256 px, worked by hand from the view
+    // centre (the main character held 420 x / 180 y px inside the 4,000 px map) plus the mirrored
+    // offset scaled along the enemy's direction, truncated toward zero.
+    let rows: [((i32, i32), (i32, i32), (i32, i32), (i32, i32)); 3] = [
+        // Centre (420, 2000); (580, 361) px from it: the horizontal side, ox = -148,480 *
+        // 62,464 / 92,416 = -100,357.7 -> -100,357, so x = 107,520 - 100,357.
+        ((100, 2000), (1000, 2361), (420, 2000), (7_163, 1756 * PX)),
+        // Centre (2000, 180); (900, 320) px from it: the vertical side, oy = -81,920 * 123,904 /
+        // 230,400 = -44,054.8 -> -44,054, so y = 46,080 - 44,054.
+        ((2000, 100), (2900, 500), (2000, 180), (1516 * PX, 2_026)),
+        // Mid-map the centre is the main character.
+        (
+            (2000, 2000),
+            (2841, 2000),
+            (2000, 2000),
+            (1516 * PX, 2000 * PX),
+        ),
+    ];
+    for ((px, py), (ex, ey), (cx, cy), land) in rows {
+        let at = lands(px, py, ex, ey);
+        assert_eq!(at, land, "main character ({px}, {py}), enemy ({ex}, {ey})");
+        let (dx, dy) = ((at.0 - cx * PX).abs(), (at.1 - cy * PX).abs());
+        let (hx, hy) = (484 * PX, 244 * PX);
+        assert!(
+            (dx == hx && dy <= hy) || (dy == hy && dx <= hx),
+            "({dx}, {dy}) is off the rectangle"
+        );
+        assert!((0..=4000 * PX).contains(&at.0) && (0..=4000 * PX).contains(&at.1));
+    }
+}
+
+#[test]
 fn at_most_16_move_a_tick_the_lowest_ids_first() {
     let waves: Vec<Value> = (0..20).map(|_| still(3000)).collect();
     let mut e = engine(&stage_at(2000, waves, vec![], None));
