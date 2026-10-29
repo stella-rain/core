@@ -894,6 +894,9 @@ pub(crate) struct OrbState {
     pub stop: Option<u32>,
     /// The beams this orb is part of (`link`, Z3a-3).
     pub link: Option<OrbLink>,
+    /// The program that fired it, which names its attack in the hit event. Not in the state hash:
+    /// nothing reads it back.
+    pub program: ProgramIndex,
 }
 
 /// An orb's place in a cage (Z3a-3): the orbs of one `ring`, `spread` or `repeat` round of a
@@ -941,6 +944,9 @@ pub(crate) struct ZoneState {
     pub warn_only: bool,
     /// Who it has hit, and on which tick, sorted by entity ID: each once.
     pub hits: Vec<(EntityId, u32)>,
+    /// The program that placed it, which names its attack in the hit event. Not in the state
+    /// hash: nothing reads it back.
+    pub program: ProgramIndex,
 }
 
 /// An orb's burst, waiting for the orb to end.

@@ -606,6 +606,17 @@ impl World {
     }
 }
 
+impl World {
+    /// The attack whose phases carry `program`, for the hit event to name.
+    pub(crate) fn attack_of(&self, program: ProgramIndex) -> Option<AttackIndex> {
+        let at = self
+            .attacks
+            .iter()
+            .position(|a| a.programs.contains(&program))?;
+        u16::try_from(at).ok().map(AttackIndex)
+    }
+}
+
 #[cfg(test)]
 impl World {
     /// A run of `stage` for a unit test.

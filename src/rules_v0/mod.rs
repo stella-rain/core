@@ -1011,7 +1011,8 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             rune: None,
             chain: false,
         };
-        consumed.push(hit_ally_side(stage, s, shot, events));
+        let by = Blame::of_program(HitKind::Attack, b.program);
+        consumed.push(hit_ally_side(stage, s, shot, by, events));
     }
     let mut flags = consumed.iter();
     s.orbs.retain(|_| !flags.next().copied().unwrap_or(false));
@@ -1248,9 +1249,29 @@ pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
     });
 }
 
+/// What hurt the main character, for the `PlayerHit` event: the kind, and the attack it came
+/// from, named directly (a run's) or by the program that placed it (an orb, a zone or a beam).
+#[derive(Clone, Copy)]
+struct Blame {
+    kind: HitKind,
+    program: Option<ProgramIndex>,
+    attack: Option<AttackIndex>,
+}
+
+impl Blame {
+    /// What a program placed: an orb, a zone or a beam.
+    fn of_program(kind: HitKind, program: ProgramIndex) -> Blame {
+        Blame {
+            kind,
+            program: Some(program),
+            attack: None,
+        }
+    }
+}
+
 /// Damage to the main character, raised by its vulnerability and reduced by its defence; it is
 /// then invulnerable for a while.
-fn hurt_player(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
+fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
     // The main character has no profile (ADR-100): every hit on it is neutral.
     let dealt = scale_damage(
@@ -1269,9 +1290,12 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEve
     events.push(DomainEvent::PlayerHit {
         hp_left: p.hp,
         source: HitSource {
-            kind: HitKind::Attack,
+            kind: by.kind,
             owner: b.owner,
-            attack: None,
+            attack: by
+                .attack
+                .or_else(|| by.program.and_then(|p| stage.attack_of(p)))
+                .and_then(|a| stage.attacks[usize::from(a.0)].preset.clone()),
         },
     });
     // A powerful attack breaks a charge (core#83).
@@ -1341,7 +1365,13 @@ pub(crate) fn aura_percent(
 
 /// An orb against the main character (unless it is invulnerable), then the companions in ID
 /// order.
-fn hit_ally_side(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
+fn hit_ally_side(
+    stage: &World,
+    s: &mut State,
+    b: Shot,
+    by: Blame,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
     let p = &s.player;
     if p.invulnerable == 0
         && p.hp > 0
@@ -1352,7 +1382,7 @@ fn hit_ally_side(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainE
             stage.tuning.player_radius,
         )
     {
-        hurt_player(stage, s, aided(stage, s, b), events);
+        hurt_player(stage, s, aided(stage, s, b), by, events);
         return true;
     }
     for i in 0..s.companions.len() {

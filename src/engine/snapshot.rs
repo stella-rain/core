@@ -423,7 +423,8 @@ impl Engine {
                     style: b.style,
                     breakable: b.breakable,
                     link_to: rules_v0::beam_to(&s.orbs, i).and_then(|j| u32::try_from(j).ok()),
-                    link_width: None,
+                    link_width: rules_v0::beam_to(&s.orbs, i)
+                        .and_then(|_| s.orbs[i].link.map(|l| l.width)),
                 })
                 .collect(),
             stars: s.stars.as_ref().map_or_else(Vec::new, |f| {

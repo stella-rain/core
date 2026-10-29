@@ -1310,6 +1310,7 @@ fn emit_zone(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter) -> b
             breaks_charge: t.breaks_charge && !warn_only,
             warn_only: *warn_only,
             hits: Vec::new(),
+            program: t.program,
         },
     );
     t.last_dir = dir;
@@ -1457,6 +1458,7 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
         life,
         stop,
         link,
+        program: t.program,
     });
     if let Some(l) = link {
         for b in s.orbs.iter_mut().filter_map(|b| b.link.as_mut()) {
