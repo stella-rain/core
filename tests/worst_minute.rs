@@ -16,7 +16,7 @@ use crate::alloc::{live_bytes, peak_bytes, reset_peak};
 /// `tests/bench_pins.toml` (a `src/` PR then edits only `tests/`, which the bench guard
 /// allows).
 const WORST_MINUTE_START: u32 = 7_301;
-const PEAK_TICK: u32 = 9_834;
+const PEAK_TICK: u32 = 10_800;
 
 /// The most heap the engine may hold at once in the worst minute (16 MiB).
 const PEAK_HEAP_LIMIT: i64 = 16 * 1024 * 1024;
