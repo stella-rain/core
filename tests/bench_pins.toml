@@ -37,21 +37,21 @@ input = "c8f0ff41826bb896"
 
 [time_limit_tick]
 bench = "time_limit_tick"
-before = "82c8653592a2599a"
-after = "bb445ef7394c0bd5"
+before = "67cba9d0166118a3"
+after = "9bff69fef2929720"
 stage = "8f6c36c32e43485e"
 input = "c8f0ff41826bb896"
 
 [worst_minute]
 bench = "worst_minute"
-before = "4652ca1fbd843cb2"
-after = "c7ca2c3958b0815f"
+before = "3310e4d46c0360a0"
+after = "ff7e84e2c3e20b84"
 stage = "404d2106e0a4aa4b"
 input = "f529d1fcf6015867"
 
 [worst_minute_peak]
 bench = "worst_minute_peak"
-before = "16ce714639f6e766"
-after = "c4cd434856dbb988"
+before = "612c96af1c26c039"
+after = "aa8ba11aa0f98093"
 stage = "404d2106e0a4aa4b"
-input = "b6db9176bde9795a"
+input = "c72ad57b7626882e"
