@@ -1479,8 +1479,8 @@ mod attack_table_tests {
     use super::*;
     use crate::attack::Offset;
     use crate::engine::{Aim, Dir};
-    use crate::sim::world::World;
     use crate::run_content::RunContent;
+    use crate::sim::world::World;
 
     // The two functions below are `faster` and `wider` as they were before attacks were compiled
     // into the world's table, kept as the oracle for `phase`.

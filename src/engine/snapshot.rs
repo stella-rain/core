@@ -300,12 +300,10 @@ impl Engine {
                         auto,
                     }
                 },
-                charge: sim::charge_view(&self.stage, s).map(|(level, held, perfect)| {
-                    ChargeView {
-                        level,
-                        held,
-                        perfect,
-                    }
+                charge: sim::charge_view(&self.stage, s).map(|(level, held, perfect)| ChargeView {
+                    level,
+                    held,
+                    perfect,
                 }),
                 auto_charge: sim::auto_charge_view(s),
                 hold: sim::hold_view(&self.stage, s)

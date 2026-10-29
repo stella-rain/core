@@ -731,8 +731,8 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sim::{RunDifficulty, RunPool, initial_state};
     use crate::run_content::RunContent;
+    use crate::sim::{RunDifficulty, RunPool, initial_state};
     use crate::version::Versions;
 
     const ALL: (Rarity, Rarity) = (Rarity::Common, Rarity::Supernova);

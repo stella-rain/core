@@ -17,11 +17,11 @@ use crate::input::Input;
 use crate::kinds::KindTable;
 use crate::ledger::{Counted, RunLedger};
 use crate::rewards::Rewards;
-use crate::sim;
-use crate::sim::{HordeSpec, World};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::RunStats;
+use crate::sim;
+use crate::sim::{HordeSpec, World};
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
 
@@ -154,8 +154,7 @@ impl Engine {
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
         let stage = World::new(stage.clone(), None, &kinds, content)
             .map_err(|i| Error::Invalid(vec![i]))?;
-        let mut state =
-            sim::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
+        let mut state = sim::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
         sim::set_policy(&mut state, content.run_stats(), stat_priority, pick_stats);
         let weapon = Self::weapon_str(&stage);
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
@@ -415,10 +414,7 @@ impl Engine {
 
 /// What the setup's difficulty brings to the run (ADR-110): its percents, and its rarity range
 /// clamped to the rarities the run's rewards have.
-fn run_difficulty(
-    setup: &RunSetup,
-    content: &RunContent,
-) -> Result<sim::RunDifficulty, Error> {
+fn run_difficulty(setup: &RunSetup, content: &RunContent) -> Result<sim::RunDifficulty, Error> {
     let d = run_setup::difficulty_of(setup, content.difficulties())?;
     Ok(sim::RunDifficulty {
         hp_pct: d.hp_pct,

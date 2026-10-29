@@ -10,8 +10,8 @@ use crate::attack::{DamageType, ZoneShape};
 use crate::engine::Outcome;
 use crate::hash::{StableHash, StateHasher, hash_enum};
 use crate::rewards::Rarity;
-use crate::sim::RangedPool;
 use crate::rune::Rune;
+use crate::sim::RangedPool;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 
 use super::state::*;

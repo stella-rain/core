@@ -200,8 +200,8 @@ mod tests {
     use super::*;
     use crate::fixed::Point;
     use crate::rewards::Rarity;
-    use crate::sim::{RunDifficulty, RunPool, initial_state};
     use crate::run_content::RunContent;
+    use crate::sim::{RunDifficulty, RunPool, initial_state};
 
     fn state() -> State {
         let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
