@@ -126,7 +126,7 @@ jobs:
     needs: check
     uses: ./.github/workflows/fuzz-long.yml
     with:
-      # Longer than the weekly run's 7: about 20 minutes of wall time, 6 targets in parallel.
+      # Longer than the weekly run's 7: about 20 minutes of wall time, every fuzz target in parallel.
       minutes: 15
     # A crash opens the same hash-only issue as a weekly run (fuzz-long.yml needs issues: write).
     permissions:
