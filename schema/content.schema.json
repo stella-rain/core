@@ -279,7 +279,7 @@
           ]
         },
         "spawn": {
-          "description": "Emitter nodes started on the phase's first tick, carried out in order (see `rules_v0`'s\nattacks for what each one does).",
+          "description": "Emitter nodes started on the phase's first tick, carried out in order (see `sim`'s\nattacks for what each one does).",
           "items": {
             "$ref": "#/$defs/Emitter"
           },
@@ -8729,7 +8729,7 @@
           "type": "integer"
         },
         "elite_table": {
-          "description": "The elites each whole minute that starts no boss brings (ADR-090): 1 to\n`MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting\nbefore the length. An elite minute draws from it (`rules_v0::horde`).",
+          "description": "The elites each whole minute that starts no boss brings (ADR-090): 1 to\n`MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting\nbefore the length. An elite minute draws from it (`sim::horde`).",
           "items": {
             "$ref": "#/$defs/EliteTier"
           },
