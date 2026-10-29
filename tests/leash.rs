@@ -368,7 +368,7 @@ fn run_relocating(e: &mut Engine, ticks: u32, input: Input) -> Vec<EntityId> {
     all
 }
 
-/// The enemies outside the reach rectangle around the main character.
+/// The enemies more than 840 x 360 px from the main character (mid-map, the leash's reach).
 fn far_enemies(e: &Engine) -> usize {
     let snap = e.snapshot();
     snap.entities
