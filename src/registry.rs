@@ -1,7 +1,8 @@
 //! The content-ID registry (ADR-026): every ID a stage may use, with the `sim_version` that
 //! introduced it. The validator rejects an ID that is missing, of the wrong kind, or newer than
-//! the stage (ADR-017, ADR-020). Under version 0 everything is introduced in 0 and may change
-//! in place (ADR-035); the entries are placeholders until the registry file replaces them.
+//! the stage (ADR-017, ADR-020). Every ID here is introduced in version 1, the frozen first
+//! version (ADR-REPL-7 point 8); the entries are placeholders until the registry file replaces
+//! them.
 //!
 //! Asset sources (ADR-027) join the entries when real assets exist.
 
@@ -49,7 +50,7 @@ const fn entry(id: &'static str, kind: Kind, args: u8) -> Entry {
     Entry {
         id,
         kind,
-        introduced: 0,
+        introduced: 1,
         availability: Availability::Active,
         args,
     }

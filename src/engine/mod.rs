@@ -4,9 +4,9 @@
 //! seed, or from a run setup, and from the run stats (ADR-067), so the state hash after each
 //! tick is the same on every platform (ADR-019).
 //!
-//! Rules are dispatched by the stage's `sim_version` (ADR-017). Only version 0 exists, and it
-//! changes in place until the freeze (ADR-035): see `sim` for what it does and does not
-//! do yet.
+//! Rules are dispatched by the stage's `sim_version` (ADR-017, ADR-REPL-7 point 3): versions
+//! `1..=SIM_VERSION` run in `sim`, any other fails closed. Version 1 is frozen, so a change of
+//! outcome after it is gated on a new version (see `sim` for what it does and does not do yet).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,7 @@ use crate::sim;
 use crate::sim::{HordeSpec, World};
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
+use crate::version::SIM_VERSION;
 
 /// Why `Engine::choose` refused a choice; the run is unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -267,7 +268,8 @@ impl Engine {
             return;
         }
         match self.stage.sim_version {
-            0 => sim::step(
+            v @ 1..=SIM_VERSION => sim::step(
+                v,
                 &self.stage,
                 self.content.rewards(),
                 self.content.expertise(),
@@ -301,18 +303,21 @@ impl Engine {
                 options: u32::try_from(options.len()).unwrap_or(u32::MAX),
             });
         };
-        self.events.clear();
-        match self.stage.sim_version {
-            0 => sim::choose(
-                &self.stage,
-                rewards,
-                expertise,
-                &mut self.state,
-                option,
-                &mut self.events,
-            ),
-            _ => self.state.outcome = Outcome::Failed,
+        let sim_version = self.stage.sim_version;
+        if !(1..=SIM_VERSION).contains(&sim_version) {
+            // `new` validated the version; refuse, changing nothing, if that stops being true.
+            return Err(ChoiceError::Unsupported { sim_version });
         }
+        self.events.clear();
+        sim::choose(
+            sim_version,
+            &self.stage,
+            rewards,
+            expertise,
+            &mut self.state,
+            option,
+            &mut self.events,
+        );
         self.observe_choice();
         Ok(())
     }

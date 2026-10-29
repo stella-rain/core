@@ -1,11 +1,12 @@
-//! File and rule versions (ADR-017). Both stay 0 until the freeze at P3 (ADR-035): until then
-//! types and rules change in place, and the replay corpus is regenerated on purpose.
+//! File and rule versions (ADR-017). Version 1 is the frozen first version (ADR-REPL-7): a
+//! change to a type or to a rule's outcome is a new version, never an edit in place, and
+//! version 0, the development version before the freeze, is refused everywhere.
 
 /// Structure of stage, event and replay files.
-pub const SCHEMA_VERSION: u32 = 0;
+pub const SCHEMA_VERSION: u32 = 1;
 
 /// Simulation rules.
-pub const SIM_VERSION: u32 = 0;
+pub const SIM_VERSION: u32 = 1;
 
 /// Why a versioned file was not read. Paths and numbers only, never text from the file.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -95,8 +96,8 @@ pub(crate) fn read_member<T: serde::de::DeserializeOwned>(
 }
 
 /// One step from an older version pair to the next: `apply` turns the file's JSON at `from`
-/// into the JSON of the version after it (ADR-REPL-5 point 4). The production table is empty
-/// until the freeze at P3.
+/// into the JSON of the version after it (ADR-REPL-5 point 4). The production table is empty:
+/// version 1 is the first version, and version 0 has no migration (ADR-REPL-7 point 8).
 pub(crate) struct Migration {
     pub from: Versions,
     pub apply: fn(serde_json::Value) -> serde_json::Value,

@@ -92,7 +92,7 @@ fn is_full_speed(v: &u8) -> bool {
 }
 
 /// The damage types, a closed list (ADR-100): three attack types, which are physical, and the
-/// elements. A list for the prototype; changing it is a schema change in version 0.
+/// elements. A list for the prototype; changing it is a schema change.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DamageType {

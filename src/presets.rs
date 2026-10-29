@@ -11,7 +11,7 @@
 //! The developer's weapons (ADR-084) are content too (WP1): `content/weapons.json`, read
 //! through `weapons::Weapons`.
 //!
-//! Under version 0 (ADR-035) the presets are placeholders and change in place.
+//! The presets are placeholders; after the freeze a change to one is a new `sim_version`.
 
 use std::sync::Arc;
 

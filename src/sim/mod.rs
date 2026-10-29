@@ -1,5 +1,5 @@
-//! The rules of `sim_version` 0 (ADR-035): a development version that changes in place until
-//! the freeze at P3, with the hash check across CPUs never relaxed (ADR-019).
+//! The rules of every released `sim_version` (ADR-REPL-7): one module, gated on the version.
+//! Version 1 is the frozen first version; the hash check across CPUs is never relaxed (ADR-019).
 //!
 //! What a tick does, in this order (`schedule::TICK` is the order in code, and a test keeps this
 //! table equal to it):
@@ -565,7 +565,9 @@ pub(crate) fn boss_state(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn step(
+    _version: u32,
     stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
@@ -632,6 +634,7 @@ pub(crate) fn offer_options(
 /// Carries out `option`, one of `offer_options`, on the open offer; when that closes it, the
 /// next offer due opens.
 pub(crate) fn choose(
+    _version: u32,
     stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
