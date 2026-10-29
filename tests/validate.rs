@@ -633,7 +633,7 @@ fn ids_newer_than_the_stage_are_rejected_and_deprecated_ones_load() {
         entries
     };
     let parsed = stage(&b);
-    let newer = with(|e| e.introduced = 1);
+    let newer = with(|e| e.introduced = SIM_VERSION + 1);
     match validate_with(&parsed, &newer) {
         Err(Error::Invalid(found)) => {
             assert_eq!(found.len(), 1);

@@ -233,7 +233,7 @@ fn an_id_newer_than_the_setup_s_sim_version_is_refused() {
         .iter()
         .map(|e| Entry {
             introduced: if e.id == "giant_sword" {
-                1
+                SIM_VERSION + 1
             } else {
                 e.introduced
             },
@@ -245,7 +245,10 @@ fn an_id_newer_than_the_setup_s_sim_version_is_refused() {
         found,
         vec![issue(
             "$.weapon",
-            "introduced in sim_version 1, newer than this setup's 0"
+            &format!(
+                "introduced in sim_version {}, newer than this setup's {SIM_VERSION}",
+                SIM_VERSION + 1
+            )
         )]
     );
 }

@@ -461,10 +461,10 @@ fn the_bundled_pack_introduces_each_constellation_in_the_current_version() {
     assert_eq!(
         listed,
         [
-            ("summer_triangle", 0),
-            ("orions_belt", 0),
-            ("big_dipper", 0),
-            ("winter_triangle", 0)
+            ("summer_triangle", u64::from(SIM_VERSION)),
+            ("orions_belt", u64::from(SIM_VERSION)),
+            ("big_dipper", u64::from(SIM_VERSION)),
+            ("winter_triangle", u64::from(SIM_VERSION))
         ]
     );
     assert_eq!(
@@ -731,16 +731,20 @@ fn a_new_reward_is_listed_at_the_pack_version() {
             .push(json!({ "id": "star_a", "sim_version": sim_version }));
     };
     let mut v = value();
-    new_reward(&mut v, 0);
+    new_reward(&mut v, u64::from(SIM_VERSION));
     load(&v).expect("a new ID recorded at the pack's version loads");
 
     let mut v = value();
-    new_reward(&mut v, 1);
+    new_reward(&mut v, u64::from(SIM_VERSION) + 1);
     let Err(PackError::Introduced(issues)) = load(&v) else {
         panic!("not refused as newer");
     };
     assert_eq!(issues.len(), 1);
-    assert!(issues[0].message.contains("newer than the pack's 0"));
+    assert!(
+        issues[0]
+            .message
+            .contains(&format!("newer than the pack's {SIM_VERSION}"))
+    );
 }
 
 #[test]
