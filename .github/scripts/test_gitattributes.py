@@ -58,11 +58,10 @@ def attrs(paths, *names):
     return result
 
 
-# The corpus's per-tick hashes: raw little-endian u64s, never text (CH1).
-CORPUS_HASHES = [
-    "tests/corpus/v0/clear/hashes.bin",
-    "tests/corpus/runs/v0/trial/hashes.bin",
-]
+def corpus_hashes():
+    """The corpus's per-tick hashes, which are the stage cases' only: raw little-endian u64s,
+    never text (CH1)."""
+    return [p for p in tracked("tests/corpus/") if p.endswith("/hashes.bin")]
 
 
 class Attributes(unittest.TestCase):
@@ -86,8 +85,10 @@ class Attributes(unittest.TestCase):
             self.assertFalse(g, path)
 
     def test_corpus_hashes_are_binary(self):
-        got = attrs(CORPUS_HASHES, "binary", "diff", "text", "linguist-generated")
-        for path in CORPUS_HASHES:
+        hashes = corpus_hashes()
+        self.assertTrue(hashes)
+        got = attrs(hashes, "binary", "diff", "text", "linguist-generated")
+        for path in hashes:
             self.assertEqual(
                 got[path],
                 {"binary": "set", "diff": "unset", "text": "unset", "linguist-generated": "true"},
@@ -97,10 +98,18 @@ class Attributes(unittest.TestCase):
     def test_no_text_hashes_remain(self):
         files = tracked("tests/corpus/")
         self.assertEqual([p for p in files if p.endswith("/hashes.txt")], [])
-        replays = sorted(p[: -len("run.replay")] for p in files if p.endswith("/run.replay"))
-        hashes = sorted(p[: -len("hashes.bin")] for p in files if p.endswith("/hashes.bin"))
+
+    def test_stage_cases_keep_per_tick_hashes_and_run_cases_keep_checkpoints(self):
+        # A stage case has a stage.json and a hashes.bin (a hash per tick); a run case has
+        # neither: its run.replay carries the expected hashes as checkpoints (CP1).
+        files = tracked("tests/corpus/")
+        folder = lambda suffix: sorted(p[: -len(suffix)] for p in files if p.endswith(suffix))
+        stages, hashes, replays = folder("stage.json"), folder("hashes.bin"), folder("run.replay")
         self.assertTrue(replays)
-        self.assertEqual(hashes, replays)
+        self.assertEqual(hashes, stages)
+        for case in stages:
+            self.assertIn(case, replays)
+        self.assertTrue([case for case in replays if case not in stages], "no run case")
 
 
 if __name__ == "__main__":

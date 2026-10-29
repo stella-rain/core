@@ -12,8 +12,9 @@
 //! in the PR (ADR-035).
 //!
 //! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/runs/v0/<name>/`: a
-//! `run.replay` (a run replay: setup, content hash, inputs and commands) and `hashes.bin` (the
-//! hash after every tick, before the commands between it and the next). They need no stage file, because the
+//! `run.replay` alone (a run replay: setup, content hash, inputs, commands and `checkpoints`, the
+//! hash after every 60th tick, which are the expected hashes). A failing second is re-run and its
+//! 61 snapshots written to `target/corpus-diff/<name>/`. They need no stage file, because the
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
 
 use crate::common;
@@ -33,7 +34,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, hash_to_hex};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
-use stella_rain_core::run_setup::{self, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{EntityKind, OfferOption, Snapshot};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::MAX_TICKS;
@@ -128,47 +129,83 @@ pub(crate) fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> 
     }
 }
 
-/// Re-simulates one run case (ADR-079), taking its commands between the ticks, and compares
-/// every tick's hash; then the run replay must verify against the same hashes.
+/// Verifies one run case (ADR-079): its `run.replay` carries the expected hashes as checkpoints,
+/// one every 60 ticks, so it is the one file of the case. A `hashes.bin` or `hashes.txt` beside
+/// it would be a second source of truth and fails the case. When a checkpoint differs, the
+/// snapshots of the ticks of that second are written to `<diff_dir>/<name>/`.
 fn check_run_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
     let name = case.file_name().unwrap().to_string_lossy().into_owned();
     let fail = |e: &dyn std::fmt::Display| format!("corpus case `{name}`: {e}");
+    for stale in ["hashes.bin", "hashes.txt"] {
+        if case.join(stale).exists() {
+            return Err(fail(&format!(
+                "{stale} beside run.replay; a run case keeps its hashes as checkpoints in \
+                 run.replay; run `cargo xtask bless`"
+            )));
+        }
+    }
     let replay_bytes = fs::read(case.join("run.replay")).map_err(|e| fail(&e))?;
-    let hashes = read_hashes(case, &name)?;
     let recorded = RunReplay::from_bytes(&replay_bytes).map_err(|e| fail(&e))?;
     let content = case_content(case).map_err(|e| fail(&e))?;
-    let stage =
-        run_setup::stage_with(&recorded.setup, content.time_limit()).map_err(|e| fail(&e))?;
-    let inputs = recorded
-        .unpack_inputs(run_setup::max_replay_ticks(
-            &recorded.setup,
-            &stage,
-            content.time_limit(),
-        ))
-        .map_err(|e| fail(&e))?;
-    let commands = recorded.unpack_commands().map_err(|e| fail(&e))?;
-    if hashes.len() != inputs.len() {
-        return Err(fail(&format!(
-            "hashes.bin has {} hashes, run.replay has {} ticks",
-            hashes.len(),
-            inputs.len()
-        )));
+    match run_replay::verify_run_with(&replay_bytes, &content) {
+        Ok(_) => Ok(()),
+        Err(run_replay::RunReplayError::CheckpointDiffers { second }) => {
+            Err(dump_second(&name, &recorded, &content, second, diff_dir))
+        }
+        Err(e) => Err(fail(&e)),
     }
+}
 
-    let mut engine = Engine::start_with(&recorded.setup, &content).map_err(|e| fail(&e))?;
+/// Re-runs a run case from tick 0 and writes `<diff_dir>/<name>/tick-<NNNNN>.json` for each tick
+/// from the start of `second` to its checkpoint (61 files): the hash and the snapshot after that
+/// tick, before the commands that follow it. Returns the message the case fails with.
+fn dump_second(
+    name: &str,
+    recorded: &RunReplay,
+    content: &RunContent,
+    second: u32,
+    diff_dir: &Path,
+) -> String {
+    let (from, to) = ((second - 1) * 60, second * 60);
+    let dir = diff_dir.join(name);
+    fs::create_dir_all(&dir).unwrap();
+    let dump = |engine: &Engine| {
+        let tick = engine.tick();
+        let file = json!({
+            "case": name,
+            "tick": tick,
+            "hash": hash_to_hex(engine.state_hash()),
+            "snapshot": engine.snapshot(),
+        });
+        let path = dir.join(format!("tick-{tick:05}.json"));
+        fs::write(path, serde_json::to_vec_pretty(&file).unwrap()).unwrap();
+    };
+    let mut engine = Engine::start_with(&recorded.setup, content).unwrap();
+    let commands = recorded.unpack_commands().unwrap();
     let mut next = commands.iter().peekable();
-    for (input, expected) in inputs.iter().zip(&hashes) {
+    if from == 0 {
+        dump(&engine);
+    }
+    for input in recorded.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            apply(&mut engine, c).map_err(|e| fail(&e))?;
+            apply(&mut engine, c).unwrap();
         }
-        let previous = engine.snapshot();
-        engine.step(*input);
-        if engine.state_hash() != *expected {
-            return Err(divergence(&name, *expected, &engine, &previous, diff_dir));
+        engine.step(input);
+        if engine.tick() >= from {
+            dump(&engine);
+        }
+        if engine.tick() == to {
+            break;
         }
     }
-    run_replay::verify_run_against_with(&replay_bytes, &content, &hashes).map_err(|e| fail(&e))?;
-    Ok(())
+    let at = 16 * (second as usize - 1);
+    format!(
+        "corpus case `{name}` diverges in second {second}, between tick {from} and tick {to}: \
+         expected {}, got {}; the snapshots of ticks {from} to {to} are in {}",
+        &recorded.checkpoints[at..at + 16],
+        hash_to_hex(engine.state_hash()),
+        dir.display()
+    )
 }
 
 /// The content a run case plays with: the bundled files, and the `time_limit` mode file of its
@@ -200,22 +237,6 @@ fn hurts_at_design_value(case: &Path) -> bool {
     )
 }
 
-/// The hash after every tick of a run replay, before the commands that follow it.
-fn run_hashes(replay: &RunReplay, content: &RunContent) -> Vec<u64> {
-    let mut engine = Engine::start_with(&replay.setup, content).unwrap();
-    let commands = replay.unpack_commands().unwrap();
-    let mut next = commands.iter().peekable();
-    let mut hashes = Vec::new();
-    for input in replay.unpack_inputs(u32::MAX).unwrap() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            apply(&mut engine, c).unwrap();
-        }
-        engine.step(input);
-        hashes.push(engine.state_hash());
-    }
-    hashes
-}
-
 /// Writes a run case's files from a setup and the commands to run, and the mode file it plays
 /// with if it has one.
 fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[Command]) {
@@ -229,7 +250,13 @@ fn write_run_case(dir: &Path, setup: &RunSetup, mode: Option<&str>, commands: &[
     };
     let recorded = run_replay::record_run_with(setup, &content, commands).unwrap();
     write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
-    write_hashes(dir, &run_hashes(&recorded, &content));
+    for stale in ["hashes.bin", "hashes.txt"] {
+        match fs::remove_file(dir.join(stale)) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => panic!("cannot remove {stale}: {e}"),
+        }
+    }
 }
 
 /// Writes the snapshots of the first diverging tick (`engine`'s) and of the one before to
