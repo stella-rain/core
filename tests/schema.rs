@@ -241,3 +241,68 @@ fn a_player_hit_names_its_source() {
         serde_json::json!(["hp_left", "source"])
     );
 }
+
+/// EVENT-ARC: an event that names a content ID serialises the ID as the plain string it was when
+/// `ContentId` owned a `String`, and reads it back.
+#[test]
+fn the_events_that_name_an_id_keep_their_json() {
+    use stella_rain_core::event::DomainEvent;
+    use stella_rain_core::id::{ContentId, EntityId};
+    let cases = [
+        (
+            DomainEvent::EliteSpawned {
+                elite: EntityId(7),
+                asset: ContentId::from("golem"),
+                kind: None,
+            },
+            r#"{"type":"EliteSpawned","data":{"elite":7,"asset":"golem"}}"#,
+        ),
+        (
+            DomainEvent::StatusApplied {
+                target: EntityId(3),
+                status: ContentId::from("stun"),
+                stacks: 1,
+                duration_ticks: 30,
+            },
+            r#"{"type":"StatusApplied","data":{"target":3,"status":"stun","stacks":1,"duration_ticks":30}}"#,
+        ),
+        (
+            DomainEvent::RewardTaken {
+                reward: ContentId::from("r"),
+                taken: 1,
+                rune: None,
+                star: Some("S".into()),
+            },
+            r#"{"type":"RewardTaken","data":{"reward":"r","taken":1,"star":"S"}}"#,
+        ),
+        (
+            DomainEvent::RewardTaken {
+                reward: ContentId::from("r"),
+                taken: 1,
+                rune: None,
+                star: None,
+            },
+            r#"{"type":"RewardTaken","data":{"reward":"r","taken":1}}"#,
+        ),
+        (
+            DomainEvent::StatOfferOpened {
+                options: vec![ContentId::from("attack"), ContentId::from("speed")],
+            },
+            r#"{"type":"StatOfferOpened","data":{"options":["attack","speed"]}}"#,
+        ),
+        (
+            DomainEvent::PartBroken {
+                part: ContentId::from("arm"),
+            },
+            r#"{"type":"PartBroken","data":{"part":"arm"}}"#,
+        ),
+    ];
+    for (event, json) in cases {
+        assert_eq!(serde_json::to_string(&event).unwrap(), json);
+        assert_eq!(serde_json::from_str::<DomainEvent>(json).unwrap(), event);
+    }
+    assert_eq!(
+        serde_json::to_string(&ContentId::from("x")).unwrap(),
+        r#""x""#
+    );
+}
