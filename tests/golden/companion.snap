@@ -100,6 +100,6 @@ expression: recording
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":35,"type":"Input"}
 {"data":"53ad353d6b010ea7","dir":"be>fe","tick":35,"type":"StateHash"}
 {"data":{"assist":false,"auto":false,"evade":false,"main":false,"move_x":0,"move_y":0,"skill":false,"smash":false},"dir":"fe>be","tick":36,"type":"Input"}
-{"data":{"hp_left":0},"dir":"be>fe","tick":36,"type":"PlayerHit"}
+{"data":{"hp_left":0,"source":{"attack":"aimed_single","kind":"zone","owner":4}},"dir":"be>fe","tick":36,"type":"PlayerHit"}
 {"dir":"be>fe","tick":36,"type":"StageFailed"}
 {"data":"71671ace20909da1","dir":"be>fe","tick":36,"type":"StateHash"}

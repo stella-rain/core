@@ -24,7 +24,7 @@
 use super::World;
 use crate::attack::{Anchor, DamageType, HitBox, Offset, PhaseKind, ZoneShape};
 use crate::engine::{Dir, Smash, State};
-use crate::event::DomainEvent;
+use crate::event::{DomainEvent, HitKind};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::rune::Rune;
@@ -32,7 +32,7 @@ use crate::trig;
 
 use super::entity::Who;
 use super::grid::Grid;
-use super::{Shot, damage, enemy_grid, hurt_player, overlaps};
+use super::{Blame, Culprit, Shot, damage, enemy_grid, hurt_player, overlaps};
 
 /// What a swing is made by, and so where the targets it has hit are kept.
 #[derive(Clone, Copy)]
@@ -212,6 +212,7 @@ fn cage_beams(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
             continue;
         };
         let (from, to) = (&s.orbs[i], &s.orbs[j]);
+        let from_program = from.program;
         let Some(link) = from.link else {
             continue;
         };
@@ -244,7 +245,8 @@ fn cage_beams(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         if let Some(l) = s.orbs[i].link.as_mut() {
             l.last_hit = Some(s.tick);
         }
-        hurt_player(stage, s, super::aided(stage, s, shot), events);
+        let by = Blame::of_program(HitKind::Link, from_program);
+        hurt_player(stage, s, super::aided(stage, s, shot), by, events);
     }
 }
 
@@ -561,7 +563,14 @@ fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Domai
         && covers(w, p.at, stage.tuning.player_radius)
         && take_hit(s, w, super::PLAYER_ID)
     {
-        hurt_player(stage, s, super::aided(stage, s, shot(w)), events);
+        let by = match w.source {
+            Source::Run(i) => Blame {
+                kind: HitKind::Attack,
+                by: Culprit::Run(s.runs[i].attack),
+            },
+            Source::Zone(i) => Blame::of_program(HitKind::Zone, s.zones[i].program),
+        };
+        hurt_player(stage, s, super::aided(stage, s, shot(w)), by, events);
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];

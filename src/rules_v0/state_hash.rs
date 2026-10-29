@@ -306,6 +306,8 @@ impl StableHash for OrbState {
             life,
             stop,
             link,
+            // not hashed: the program that fired it, for the hit event only.
+            program: _,
         } = self;
         at.stable_hash(h);
         vx.stable_hash(h);
@@ -345,6 +347,8 @@ impl StableHash for ZoneState {
             breaks_charge,
             warn_only,
             hits,
+            // not hashed: the program that placed it, for the hit event only.
+            program: _,
         } = self;
         owner.stable_hash(h);
         friendly.stable_hash(h);

@@ -50,6 +50,8 @@ pub(crate) struct AttackDef {
     pub phases: Vec<AttackPhase>,
     /// The preset it came from, for the frontend to pick its animation.
     pub preset: Option<ContentId>,
+    /// The same ID, shared, so a `PlayerHit` names it without allocating (PHIT).
+    pub preset_id: Option<Arc<str>>,
     /// The program of each phase's `spawn`, in the order of `phases`.
     pub programs: Vec<ProgramIndex>,
     /// The ranged-token pool a ranged start of this attack draws from (RA1, DS83).
@@ -603,6 +605,17 @@ impl World {
             .find(|(p, r, _)| *p == phase && *r == rule)
             .map(|(_, _, d)| *d)
             .expect("a boss summon names the summon rule that made it")
+    }
+}
+
+impl World {
+    /// The attack whose phases carry `program`, for the hit event to name.
+    pub(crate) fn attack_of(&self, program: ProgramIndex) -> Option<AttackIndex> {
+        let at = self
+            .attacks
+            .iter()
+            .position(|a| a.programs.contains(&program))?;
+        u16::try_from(at).ok().map(AttackIndex)
     }
 }
 

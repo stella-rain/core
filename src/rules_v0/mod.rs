@@ -138,7 +138,7 @@ use crate::engine::{
     AgentKey, AgentSource, BossState, Dir, Load, MoveOrder, Outcome, PartState, PlayerState,
     Progress, Pull, Smash, StarField, StatRule, State, Streams,
 };
-use crate::event::DomainEvent;
+use crate::event::{DomainEvent, HitKind, HitSource};
 use crate::expertise::Expertise;
 use crate::fixed::{Fx, Point};
 use crate::hash::{StableHash, StateHasher};
@@ -1011,7 +1011,8 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             rune: None,
             chain: false,
         };
-        consumed.push(hit_ally_side(stage, s, shot, events));
+        let by = Blame::of_program(HitKind::Attack, b.program);
+        consumed.push(hit_ally_side(stage, s, shot, by, events));
     }
     let mut flags = consumed.iter();
     s.orbs.retain(|_| !flags.next().copied().unwrap_or(false));
@@ -1248,9 +1249,35 @@ pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
     });
 }
 
+/// Where the attack of a hit is found.
+#[derive(Clone, Copy)]
+enum Culprit {
+    /// A run's hit box: the run knows its attack.
+    Run(AttackIndex),
+    /// What a program placed (an orb, a zone or a beam): the attack is the one that holds it.
+    Program(ProgramIndex),
+}
+
+/// What hurt the main character, for the `PlayerHit` event: the kind, and where its attack is.
+#[derive(Clone, Copy)]
+struct Blame {
+    kind: HitKind,
+    by: Culprit,
+}
+
+impl Blame {
+    /// What a program placed: an orb, a zone or a beam.
+    fn of_program(kind: HitKind, program: ProgramIndex) -> Blame {
+        Blame {
+            kind,
+            by: Culprit::Program(program),
+        }
+    }
+}
+
 /// Damage to the main character, raised by its vulnerability and reduced by its defence; it is
 /// then invulnerable for a while.
-fn hurt_player(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) {
+fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
     // The main character has no profile (ADR-100): every hit on it is neutral.
     let dealt = scale_damage(
@@ -1266,7 +1293,18 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEve
     let p = &mut s.player;
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = stage.tuning.hit_invulnerable_ticks;
-    events.push(DomainEvent::PlayerHit { hp_left: p.hp });
+    events.push(DomainEvent::PlayerHit {
+        hp_left: p.hp,
+        source: HitSource {
+            kind: by.kind,
+            owner: b.owner,
+            attack: match by.by {
+                Culprit::Run(a) => Some(a),
+                Culprit::Program(p) => stage.attack_of(p),
+            }
+            .and_then(|a| stage.attacks[usize::from(a.0)].preset_id.clone()),
+        },
+    });
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
         player::break_charge(stage, s, events);
@@ -1334,7 +1372,13 @@ pub(crate) fn aura_percent(
 
 /// An orb against the main character (unless it is invulnerable), then the companions in ID
 /// order.
-fn hit_ally_side(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainEvent>) -> bool {
+fn hit_ally_side(
+    stage: &World,
+    s: &mut State,
+    b: Shot,
+    by: Blame,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
     let p = &s.player;
     if p.invulnerable == 0
         && p.hp > 0
@@ -1345,7 +1389,7 @@ fn hit_ally_side(stage: &World, s: &mut State, b: Shot, events: &mut Vec<DomainE
             stage.tuning.player_radius,
         )
     {
-        hurt_player(stage, s, aided(stage, s, b), events);
+        hurt_player(stage, s, aided(stage, s, b), by, events);
         return true;
     }
     for i in 0..s.companions.len() {

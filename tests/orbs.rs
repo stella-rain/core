@@ -265,3 +265,22 @@ fn the_validator_bounds_an_orbs_ticks() {
     let st = stage(vec![foe(START_X, 100, vec![orb(600, false, vec![])])]);
     validate(&st).expect("600 ticks is the limit");
 }
+
+// --- The source of a hit (PHIT) --------------------------------------------------------------
+
+#[test]
+fn an_orb_that_hits_the_main_character_names_the_attack_kind_and_its_owner() {
+    let st = stage(vec![foe(START_X, 100, vec![orb(600, false, vec![])])]);
+    let mut e = engine(&st);
+    let mut sources = Vec::new();
+    for _ in 0..400 {
+        e.step(idle());
+        for ev in e.events() {
+            if let DomainEvent::PlayerHit { source, .. } = ev {
+                sources.push(serde_json::to_value(source).unwrap());
+            }
+        }
+    }
+    // The foe is entity 2 (the far boss is 1); an inline attack has no preset.
+    assert_eq!(sources, [json!({ "kind": "attack", "owner": 2 })]);
+}

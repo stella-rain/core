@@ -81,7 +81,7 @@ fn player_hits(events: &[(u32, DomainEvent)]) -> Vec<(u32, u32)> {
     events
         .iter()
         .filter_map(|(t, ev)| match ev {
-            DomainEvent::PlayerHit { hp_left } => Some((*t, *hp_left)),
+            DomainEvent::PlayerHit { hp_left, .. } => Some((*t, *hp_left)),
             _ => None,
         })
         .collect()
@@ -322,5 +322,47 @@ fn a_hit_box_over_the_boss_hits_the_body_and_each_part_once() {
     assert_eq!(
         hits_by(&st, COMPANION, 3, idle()),
         [(1, EntityId(1), 2), (1, EntityId(3), 2)]
+    );
+}
+
+// --- The source of a hit (PHIT) --------------------------------------------------------------
+
+fn first_hit_source(stage: &Stage) -> serde_json::Value {
+    let events = run_until(&mut engine(stage), idle(), 40, |_| false);
+    events
+        .into_iter()
+        .find_map(|(_, ev)| match ev {
+            DomainEvent::PlayerHit { source, .. } => Some(serde_json::to_value(source).unwrap()),
+            _ => None,
+        })
+        .expect("the main character is hit")
+}
+
+#[test]
+fn a_hit_box_hit_names_the_attack_kind_and_its_owner() {
+    let over = || Some(circle(20 * 256, 0, 4 * 256));
+    let swing = vec![phase("active", 1, over(), Some(5))];
+    let foe = still_enemy(
+        50,
+        START_X,
+        START_Y - 20 * 256,
+        attack("player", true, swing),
+    );
+    // The foe is entity 2 (the far boss is 1); an inline attack has no preset.
+    assert_eq!(
+        first_hit_source(&stage(vec![foe], vec![])),
+        serde_json::json!({ "kind": "attack", "owner": 2 })
+    );
+}
+
+#[test]
+fn a_hit_box_a_preset_made_names_the_preset() {
+    let rules = serde_json::json!([{ "when": always(), "target": "player", "once": true,
+        "cooldown_ticks": 0,
+        "do": { "type": "attack", "attack": { "preset": { "id": "slam" } } } }]);
+    let foe = still_enemy(50, START_X, START_Y - 20 * 256, rules);
+    assert_eq!(
+        first_hit_source(&stage(vec![foe], vec![])),
+        serde_json::json!({ "kind": "attack", "owner": 2, "attack": "slam" })
     );
 }

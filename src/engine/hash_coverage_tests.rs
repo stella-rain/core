@@ -464,6 +464,7 @@ fn orb() -> OrbState {
             rehit_ticks: 6,
             last_hit: Some(7),
         }),
+        program: ProgramIndex(9),
     }
 }
 
@@ -486,6 +487,7 @@ fn zone() -> ZoneState {
         breaks_charge: true,
         warn_only: true,
         hits: vec![(EntityId(1), 2)],
+        program: ProgramIndex(9),
     }
 }
 
@@ -977,7 +979,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         content: []);
     each_field_moves_the_hash!(p, OrbState, |s| &mut s.orbs[0],
         moves: [at, vx, vy, dir, style, owner, damage, damage_type, breaks_charge, smash, combo, hook, breakable, life, stop, link],
-        not_hashed: [],
+        not_hashed: [program],
         content: []);
     each_field_moves_the_hash!(p, OrbLink, |s| s.orbs[0].link.as_mut().unwrap(),
         moves: [group, slot, of, width, damage, rehit_ticks, last_hit],
@@ -989,7 +991,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         content: []);
     each_field_moves_the_hash!(p, ZoneState, |s| &mut s.zones[0],
         moves: [owner, friendly, shape, at, dir, wind_left, active_left, damage, damage_type, breaks_charge, warn_only, hits],
-        not_hashed: [wind_ticks, active_ticks],
+        not_hashed: [wind_ticks, active_ticks, program],
         content: []);
     each_field_moves_the_hash!(p, Dir, |s| &mut s.player.facing,
         moves: [x, y],

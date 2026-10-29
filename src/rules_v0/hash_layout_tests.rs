@@ -39,6 +39,7 @@ fn orb() -> OrbState {
         life: 10,
         stop: None,
         link: None,
+        program: ProgramIndex(0),
     }
 }
 
@@ -143,6 +144,7 @@ fn zone(warn_only: bool) -> ZoneState {
         breaks_charge: false,
         warn_only,
         hits: vec![(EntityId(9), 2)],
+        program: ProgramIndex(0),
     }
 }
 

@@ -138,7 +138,7 @@ fn the_main_character_companions_the_boss_and_its_parts_have_defence() {
         run_until(&mut engine(&st), idle(), 3, |_| false)
             .into_iter()
             .find_map(|(_, ev)| match ev {
-                DomainEvent::PlayerHit { hp_left } => Some(hp_left),
+                DomainEvent::PlayerHit { hp_left, .. } => Some(hp_left),
                 _ => None,
             })
     };

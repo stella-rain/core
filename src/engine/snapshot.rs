@@ -415,14 +415,18 @@ impl Engine {
                 .orbs
                 .iter()
                 .enumerate()
-                .map(|(i, b)| OrbView {
-                    at: b.at,
-                    vx: b.vx,
-                    vy: b.vy,
-                    radius: Fx(self.stage.tuning.orb_radius),
-                    style: b.style,
-                    breakable: b.breakable,
-                    link_to: rules_v0::beam_to(&s.orbs, i).and_then(|j| u32::try_from(j).ok()),
+                .map(|(i, b)| {
+                    let beam = rules_v0::beam_to(&s.orbs, i);
+                    OrbView {
+                        at: b.at,
+                        vx: b.vx,
+                        vy: b.vy,
+                        radius: Fx(self.stage.tuning.orb_radius),
+                        style: b.style,
+                        breakable: b.breakable,
+                        link_to: beam.and_then(|j| u32::try_from(j).ok()),
+                        link_width: beam.and_then(|_| s.orbs[i].link.map(|l| l.width)),
+                    }
                 })
                 .collect(),
             stars: s.stars.as_ref().map_or_else(Vec::new, |f| {

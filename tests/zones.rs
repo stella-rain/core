@@ -494,3 +494,48 @@ fn a_zone_view_carries_the_length_of_its_current_phase() {
     assert_eq!(z.ticks, 12);
     assert!(z.ticks >= z.ticks_left);
 }
+
+// --- The source of a hit (PHIT) --------------------------------------------------------------
+
+/// The `source` of the first `PlayerHit` over `ticks` idle ticks, as JSON.
+fn first_hit_source(stage: &Stage, ticks: u32) -> Value {
+    let events = run_until(&mut engine(stage), idle(), ticks, |_| false);
+    events
+        .into_iter()
+        .find_map(|(_, ev)| match ev {
+            DomainEvent::PlayerHit { source, .. } => Some(serde_json::to_value(source).unwrap()),
+            _ => None,
+        })
+        .expect("the main character is hit")
+}
+
+#[test]
+fn a_zone_hit_names_the_zone_kind_and_its_owner() {
+    let st = stage(
+        vec![foe_attacking_player(spawning(vec![zone(
+            circle(4 * PX),
+            "target",
+            10,
+            5,
+        )]))],
+        vec![],
+    );
+    // The foe is entity 2 (the far boss is 1); an inline attack has no preset.
+    assert_eq!(
+        first_hit_source(&st, 30),
+        json!({ "kind": "zone", "owner": 2 })
+    );
+}
+
+#[test]
+fn a_zone_a_preset_placed_names_the_preset() {
+    let rules = json!([attack_rule(always(), 0)]);
+    let st = stage(
+        vec![still_enemy(50, START_X, START_Y - 100 * PX, rules)],
+        vec![],
+    );
+    assert_eq!(
+        first_hit_source(&st, 60),
+        json!({ "kind": "zone", "owner": 2, "attack": "aimed_single" })
+    );
+}

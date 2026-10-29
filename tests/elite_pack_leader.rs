@@ -78,7 +78,7 @@ fn hurts(events: &[(u32, DomainEvent)]) -> Vec<(u32, u32)> {
     events
         .iter()
         .filter_map(|(t, ev)| match ev {
-            DomainEvent::PlayerHit { hp_left } => {
+            DomainEvent::PlayerHit { hp_left, .. } => {
                 let dealt = hp - hp_left;
                 hp = *hp_left;
                 Some((*t, dealt))
@@ -221,7 +221,7 @@ fn the_aura_of_25_percent_raises_a_default_hit_of_100_to_125_whole() {
         events
             .iter()
             .find_map(|(_, ev)| match ev {
-                DomainEvent::PlayerHit { hp_left } => Some(9_900 - hp_left),
+                DomainEvent::PlayerHit { hp_left, .. } => Some(9_900 - hp_left),
                 _ => None,
             })
             .expect("the shot landed")
