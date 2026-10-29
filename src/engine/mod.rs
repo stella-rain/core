@@ -32,6 +32,9 @@ pub enum ChoiceError {
     NoOffer,
     /// `index` is not below the number of the open offer's `options`.
     OutOfRange { index: u32, options: u32 },
+    /// The run's `sim_version` is not one this game runs (ADR-REPL-7 point 3). `Engine::new`
+    /// refuses such a stage, so this is a fail-closed guard, not a path a valid run takes.
+    Unsupported { sim_version: u32 },
 }
 
 /// How a run stands.
@@ -451,6 +454,8 @@ fn pool(ids: Option<&[ContentId]>, rewards: &Rewards) -> Result<Vec<u16>, Error>
 mod snapshot;
 pub use snapshot::{Place, Places, Tally};
 
+#[cfg(test)]
+mod dispatch_tests;
 #[cfg(test)]
 mod hash_coverage_tests;
 #[cfg(test)]

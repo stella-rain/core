@@ -271,6 +271,11 @@ impl fmt::Display for RunReplayError {
                     f,
                     "a choice on tick {tick} is option {index} of an offer of {options}"
                 ),
+                ChoiceError::Unsupported { sim_version } => write!(
+                    f,
+                    "a choice on tick {tick} is in a run of sim_version {sim_version}, \
+                     which this game does not run"
+                ),
             },
             RunReplayError::InputsAfterEnd { ended_at } => {
                 write!(
