@@ -119,11 +119,12 @@ pub(super) fn ranged_may_start(world: &World, s: &State, id: EntityId, pool: Ran
     s.scratch.ranged_grants[pool.index()].contains(&id) && ranged_room(world, s, pool)
 }
 
-/// Whether `e` stands inside the view rectangle around the main character, edges included.
-fn in_view(e: Point, player: Point) -> bool {
+/// Whether `e` stands inside the view rectangle around `centre` (the camera's, from
+/// `view_centre`), edges included.
+fn in_view(e: Point, centre: Point) -> bool {
     let (dx, dy) = (
-        i64::from(e.x.0) - i64::from(player.x.0),
-        i64::from(e.y.0) - i64::from(player.y.0),
+        i64::from(e.x.0) - i64::from(centre.x.0),
+        i64::from(e.y.0) - i64::from(centre.y.0),
     );
     dx.abs() <= i64::from(VIEW_HALF_WIDTH.0) && dy.abs() <= i64::from(VIEW_HALF_HEIGHT.0)
 }
@@ -154,12 +155,13 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
     let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
     let mut len = [0usize; 2];
     let player = s.player.at;
+    let centre = super::view_centre(&world.map(), player);
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
         // A stunned enemy fires nothing (`act_one`), so it could not use a grant.
         if def.ranged_pools.is_empty()
             || e.hp == 0
-            || !in_view(e.at, player)
+            || !in_view(e.at, centre)
             || super::stun::stunned(&e.statuses)
         {
             continue;

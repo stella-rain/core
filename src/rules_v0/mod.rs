@@ -12,7 +12,7 @@
 //! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
 //! | `spawn_waves` | the waves that are due spawn enemies; a horde run holds them at the crowd target (DIR1) |
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
-//! | `leash` | a regular, unanchored enemy outside the view rectangle (`leash_reach_x`, `leash_reach_y` of `rules.json`) moves to the rectangle of `leash_land_x`, `leash_land_y` opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
+//! | `leash` | a regular, unanchored enemy outside the leash's reach rectangle (`leash_reach_x`, `leash_reach_y` of `rules.json`) moves to the rectangle of `leash_land_x`, `leash_land_y` opposite the main character, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
@@ -175,11 +175,12 @@ pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// it is in its wind-up or active phase. The tokens are the two pools of `rules.json`
 /// (`ranged_zone_tokens`, `ranged_line_tokens`), which sum to at most this (ADR-SIM-7's cap); they go to the nearest ready enemies in view (RA1).
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
-/// The view rectangle, centred on the main character (RA1, DS82): the 1920 by 1080 design screen
-/// at the play zoom of 3, never the device's screen. An enemy starts a ranged attack only from
-/// inside it, edges included. Tuning values.
-pub(crate) const VIEW_HALF_WIDTH: Fx = Fx::px(320);
-pub(crate) const VIEW_HALF_HEIGHT: Fx = Fx::px(180);
+/// The view rectangle (RA1, DS82): the widest supported aspect, 21:9, of the 360 px design
+/// height, 840 by 360 px, never the device's screen. It is the camera's rectangle: centred on the
+/// main character but held inside the map (`view_centre`). An enemy starts a ranged attack
+/// only from inside it, edges included. Tuning values.
+pub(crate) const VIEW_HALF_WIDTH: Fx = Fx::px(crate::limits::VIEW_HALF_WIDTH);
+pub(crate) const VIEW_HALF_HEIGHT: Fx = Fx::px(crate::limits::VIEW_HALF_HEIGHT);
 
 /// The centre of the view rectangle for a main character at `at` on `map`: the camera's
 /// centre, which follows the main character but stops where the view would leave the map. It
@@ -866,7 +867,8 @@ fn rect_sides(px: i64, py: i64, ex: i64, ey: i64) -> [RectSide; 4] {
     ]
 }
 
-/// A point on the spawn rectangle around `from` (VS1): ±the spawn edge (the view and `spawn_margin`), drawn
+/// A point on the spawn rectangle around the view's centre for a main character at `from` (VS1,
+/// `view_centre`): ±the spawn edge (the view and `spawn_margin`), drawn
 /// from `rng` (the wave's stream for a wave, the horde's for an elite) on the part of `edge`'s
 /// side that is on the map. A side wholly off the map gives way to the opposite one; with
 /// neither on the map the side itself is used and the point moved onto the map. `any` is one draw
@@ -880,7 +882,8 @@ pub(super) fn edge_point(
 ) -> Point {
     let map = stage.map();
     let (w, h) = (i64::from(map.width.0), i64::from(map.height.0));
-    let (px, py) = (i64::from(from.x.0), i64::from(from.y.0));
+    let centre = view_centre(&map, from);
+    let (px, py) = (i64::from(centre.x.0), i64::from(centre.y.0));
     let (ex, ey) = (
         i64::from(stage.tuning.spawn_edge_x.0),
         i64::from(stage.tuning.spawn_edge_y.0),

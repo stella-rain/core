@@ -42,7 +42,8 @@ pub const MAX_CROWD_TARGET: u16 = 400;
 pub const MAX_RULES_BYTES: usize = 4 * 1024;
 pub const MAX_ZONES_ALIVE: u32 = 128;
 pub const MAX_RANGED_ATTACKERS: u32 = 4;
-pub const VIEW_HALF_WIDTH: i32 = 320;
+/// Half the widest supported view, 21:9 of the 360 px design height: `360 * 21 / 9 / 2`.
+pub const VIEW_HALF_WIDTH: i32 = 420;
 pub const VIEW_HALF_HEIGHT: i32 = 180;
 pub const RANGED_ZONE_TOKENS: u32 = 3;
 pub const RANGED_LINE_TOKENS: u32 = 1;
@@ -62,15 +63,15 @@ pub const PUSH_NEIGHBOURS: usize = 6;
 pub const PUSH_CROWDED_OVER_PX: i64 = 1;
 
 // The leash (ADR-126)
-pub const LEASH_REACH_X: i32 = 640;
+pub const LEASH_REACH_X: i32 = 2 * VIEW_HALF_WIDTH;
 pub const LEASH_REACH_Y: i32 = 360;
-pub const LEASH_LAND_X: i32 = 384;
+pub const LEASH_LAND_X: i32 = SPAWN_EDGE_X;
 pub const LEASH_LAND_Y: i32 = 244;
 pub const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 
 // Spawn placement (ADR-126)
 pub const SPAWN_MARGIN: i32 = 64;
-pub const SPAWN_EDGE_X: i32 = 384;
+pub const SPAWN_EDGE_X: i32 = VIEW_HALF_WIDTH + SPAWN_MARGIN;
 pub const SPAWN_EDGE_Y: i32 = 244;
 
 // Reward effects (ADR-058, ADR-020, ADR-117)
@@ -126,7 +127,7 @@ pub const LIMITS: &[LimitEntry] = &[
         "regular ranged attackers",
         "ADR-SIM-11",
     ),
-    LimitEntry::new("VIEW_HALF_WIDTH", "320", "px", "ADR-SIM-11"),
+    LimitEntry::new("VIEW_HALF_WIDTH", "420", "px", "ADR-SIM-11"),
     LimitEntry::new("VIEW_HALF_HEIGHT", "180", "px", "ADR-SIM-11"),
     LimitEntry::new("RANGED_ZONE_TOKENS", "3", "tokens", "ADR-SIM-11"),
     LimitEntry::new("RANGED_LINE_TOKENS", "1", "tokens", "ADR-SIM-11"),
@@ -162,9 +163,9 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("CANDIDATES", "32", "enemies", "ADR-058"),
     LimitEntry::new("NEIGHBOURS", "6", "enemies", "ADR-058"),
     LimitEntry::new("CROWDED_OVER", "1", "px", "ADR-058"),
-    LimitEntry::new("LEASH_REACH_X", "640", "px", "ADR-126"),
+    LimitEntry::new("LEASH_REACH_X", "840", "px", "ADR-126"),
     LimitEntry::new("LEASH_REACH_Y", "360", "px", "ADR-126"),
-    LimitEntry::new("LEASH_LAND_X", "384", "px", "ADR-126"),
+    LimitEntry::new("LEASH_LAND_X", "484", "px", "ADR-126"),
     LimitEntry::new("LEASH_LAND_Y", "244", "px", "ADR-126"),
     LimitEntry::new(
         "MAX_LEASH_MOVES_PER_TICK",
@@ -173,7 +174,7 @@ pub const LIMITS: &[LimitEntry] = &[
         "ADR-126",
     ),
     LimitEntry::new("SPAWN_MARGIN", "64", "px", "ADR-126"),
-    LimitEntry::new("SPAWN_EDGE_X", "384", "px", "ADR-126"),
+    LimitEntry::new("SPAWN_EDGE_X", "484", "px", "ADR-126"),
     LimitEntry::new("SPAWN_EDGE_Y", "244", "px", "ADR-126"),
     LimitEntry::new("MAX_ECHOES_PER_TICK", "64", "echoes per tick", "ADR-058"),
     LimitEntry::new("MAX_BURSTS_PER_TICK", "8", "bursts per tick", "ADR-058"),
@@ -221,6 +222,16 @@ mod tests {
 
     #[test]
     fn limits_match_runtime_constants() {
+        assert_eq!(
+            i64::from(VIEW_HALF_WIDTH) * 256,
+            i64::from(crate::rules_v0::VIEW_HALF_WIDTH.0)
+        );
+        assert_eq!(
+            i64::from(VIEW_HALF_HEIGHT) * 256,
+            i64::from(crate::rules_v0::VIEW_HALF_HEIGHT.0)
+        );
+        assert_eq!(SPAWN_EDGE_X, VIEW_HALF_WIDTH + SPAWN_MARGIN);
+        assert_eq!(SPAWN_EDGE_Y, VIEW_HALF_HEIGHT + SPAWN_MARGIN);
         assert_eq!(MAX_ENEMY_CAP, crate::validate::limits::MAX_ENEMY_CAP);
         assert_eq!(MAX_CROWD_TARGET, crate::validate::limits::MAX_CROWD_TARGET);
         assert_eq!(MIN_CAP_HEADROOM_PCT, crate::rules::MIN_CAP_HEADROOM_PCT);
@@ -258,6 +269,24 @@ mod tests {
             MAX_TIME_LIMIT_BYTES,
             crate::time_limit::MAX_TIME_LIMIT_BYTES
         );
+    }
+
+    #[test]
+    fn the_view_and_leash_rows_equal_their_constants() {
+        let row = |name: &str| LIMITS.iter().find(|e| e.name == name).unwrap().value;
+        for (name, value) in [
+            ("VIEW_HALF_WIDTH", VIEW_HALF_WIDTH),
+            ("VIEW_HALF_HEIGHT", VIEW_HALF_HEIGHT),
+            ("LEASH_REACH_X", LEASH_REACH_X),
+            ("LEASH_REACH_Y", LEASH_REACH_Y),
+            ("LEASH_LAND_X", LEASH_LAND_X),
+            ("LEASH_LAND_Y", LEASH_LAND_Y),
+            ("SPAWN_MARGIN", SPAWN_MARGIN),
+            ("SPAWN_EDGE_X", SPAWN_EDGE_X),
+            ("SPAWN_EDGE_Y", SPAWN_EDGE_Y),
+        ] {
+            assert_eq!(row(name), value.to_string(), "{name}");
+        }
     }
 
     #[test]

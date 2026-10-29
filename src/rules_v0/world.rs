@@ -342,7 +342,7 @@ pub(crate) struct Tuning {
     pub leash_reach_y: Fx,
     pub leash_land_x: Fx,
     pub leash_land_y: Fx,
-    /// The spawn rectangle's half width (VS1, DS109) and half height: the view and the file's margin.
+    /// The spawn rectangle's half width (VS1, DS109) and half height: the view (`VIEW_HALF_WIDTH`, `VIEW_HALF_HEIGHT`) and the file's margin.
     pub spawn_edge_x: Fx,
     pub spawn_edge_y: Fx,
     pub ranged_token_cooldown_ticks: u32,

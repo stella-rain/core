@@ -1,4 +1,4 @@
-//! The leash (EC2, DS80, DS106): a regular enemy outside the view rectangle around the main
+//! The leash (EC2, DS80, DS106): a regular enemy outside the reach rectangle around the main
 //! character (|dx| > 840 px or |dy| > 360 px) moves to the rectangle of ±484 × ±244 px on the
 //! opposite side of it, scaled along its own direction and clamped to the map, at most 16 a tick,
 //! in entity-ID order; and `Load` counts the relocations and the spawns the caps refused.
@@ -332,7 +332,7 @@ fn run_relocating(e: &mut Engine, ticks: u32, input: Input) -> Vec<EntityId> {
     all
 }
 
-/// The enemies outside the view rectangle around the main character.
+/// The enemies outside the reach rectangle around the main character.
 fn far_enemies(e: &Engine) -> usize {
     let snap = e.snapshot();
     snap.entities
