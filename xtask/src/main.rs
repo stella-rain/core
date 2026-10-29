@@ -1,7 +1,12 @@
 //! `cargo xtask bless` regenerates every generated set of core (schema, corpus, goldens, the
 //! content pack and the bench pins); `--check` reports any set that
-//! is not as committed. Std only: it shells out to `cargo` and `git`.
+//! is not as committed. `cargo xtask bless --freeze v<N>` records `tests/corpus/current/` into a
+//! new frozen `tests/corpus/v<N>/` (ADR-SIM-3): it refuses an existing `v<N>/` and a `current/`
+//! that is not what bless writes, then runs the record test of core, which writes the folder and
+//! its manifest. Std only: it shells out to `cargo` and `git`.
 
+use std::collections::BTreeMap;
+use std::path::Path;
 use std::process::{Command, ExitCode};
 
 /// Where each generated set lives, in the order `bless` regenerates them.
@@ -17,6 +22,7 @@ const SETS: [(&str, &str); 5] = [
 enum Mode {
     Bless,
     Check,
+    Freeze(String),
 }
 
 fn parse(args: &[String]) -> Result<Mode, String> {
@@ -112,6 +118,8 @@ fn dirty_in(pathspecs: &[&str]) -> Result<Vec<String>, String> {
 #[derive(Debug, PartialEq, Eq)]
 enum Step {
     ExportPack,
+    /// Writes `tests/corpus/<name>/` from `current/`: the record test, under its knob.
+    Record(String),
     Test {
         env: Option<(&'static str, &'static str)>,
         /// Run without the `CI` variable (a knob under test refuses to write when it is set).
@@ -151,9 +159,44 @@ fn steps() -> Vec<Step> {
     ]
 }
 
+/// The steps of `bless --freeze <name>`: the pack and the corpus as bless regenerates them, then
+/// the record. The schema, goldens and bench pins are not touched.
+fn freeze_steps(_name: &str) -> Vec<Step> {
+    Vec::new()
+}
+
+/// Why `name` cannot be frozen in `corpus` (the `tests/corpus/` folder), if it cannot.
+fn freeze_refusal(_corpus: &Path, _name: &str) -> Result<(), String> {
+    Ok(())
+}
+
+/// Every file under `root` with its bytes, keyed by path relative to `root` with `/`.
+fn snapshot(_root: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
+    Ok(BTreeMap::new())
+}
+
+/// The paths that differ between two snapshots (changed, added or removed), sorted, once each.
+fn stale_paths(
+    _before: &BTreeMap<String, Vec<u8>>,
+    _after: &BTreeMap<String, Vec<u8>>,
+) -> Vec<String> {
+    Vec::new()
+}
+
 impl Step {
     fn command(&self) -> Command {
         match self {
+            Step::Record(_) => {
+                let mut cmd = Command::new("cargo");
+                cmd.args([
+                    "test",
+                    "--locked",
+                    "--all-features",
+                    "--test",
+                    "integration",
+                ]);
+                cmd
+            }
             Step::ExportPack => {
                 let mut cmd = Command::new("cargo");
                 cmd.args([
@@ -203,7 +246,7 @@ impl Step {
                 std::fs::write("content/pack.json", out.stdout)
                     .map_err(|e| format!("content/pack.json: {e}"))
             }
-            Step::Test { .. } => run(&mut cmd),
+            Step::Test { .. } | Step::Record(_) => run(&mut cmd),
         }
     }
 }
@@ -250,6 +293,7 @@ Commit body: Corpus regenerated: <why>",
             );
             ExitCode::SUCCESS
         }
+        (Ok(_), Mode::Freeze(_)) => ExitCode::SUCCESS,
         (Ok(paths), Mode::Check) => {
             let sets = stale_sets(&paths);
             if sets.is_empty() {
@@ -379,6 +423,7 @@ mod tests {
     fn writes(step: &Step) -> &'static str {
         match step {
             Step::ExportPack => "pack",
+            Step::Record(_) => "frozen version",
             Step::Test { filter, .. } => match *filter {
                 "schema::" => "schema",
                 "corpus::" => "corpus",
@@ -446,5 +491,111 @@ mod tests {
         let cmd = pins.command();
         let knob = cmd.get_envs().find(|(k, _)| *k == "UPDATE_BENCH_PINS");
         assert_eq!(knob.and_then(|(_, v)| v), Some(std::ffi::OsStr::new("1")));
+    }
+
+    fn tmp(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("xtask-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn freeze_parses_one_name_and_nothing_else() {
+        assert_eq!(
+            parse(&args(&["bless", "--freeze", "v1"])),
+            Ok(Mode::Freeze("v1".into()))
+        );
+        assert_eq!(
+            parse(&args(&["bless", "--freeze", "v12"])),
+            Ok(Mode::Freeze("v12".into()))
+        );
+        for bad in [
+            &["bless", "--freeze"][..],
+            &["bless", "--freeze", "v1", "v2"],
+            &["bless", "--check", "--freeze", "v1"],
+            &["bless", "--freeze", "v1", "--check"],
+            &["--freeze", "v1"],
+        ] {
+            assert!(parse(&args(bad)).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn freeze_refuses_a_name_that_is_not_a_frozen_version() {
+        let dir = tmp("names");
+        for bad in ["v0", "v01", "v1a", "1", "V1", "v", "v-1", "current", ""] {
+            let e = freeze_refusal(&dir, bad).unwrap_err();
+            assert!(e.contains(">= 1"), "{bad}: {e}");
+        }
+        for ok in ["v1", "v9", "v12"] {
+            assert_eq!(freeze_refusal(&dir, ok), Ok(()), "{ok}");
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn freeze_refuses_an_existing_folder_of_any_kind() {
+        let dir = tmp("exists");
+        std::fs::create_dir(dir.join("v1")).unwrap();
+        std::fs::write(dir.join("v3"), b"x").unwrap();
+        std::fs::create_dir_all(dir.join("v4/stages")).unwrap();
+        for taken in ["v1", "v3", "v4"] {
+            let e = freeze_refusal(&dir, taken).unwrap_err();
+            assert!(e.contains(&format!("tests/corpus/{taken}/")), "{e}");
+        }
+        std::fs::create_dir(dir.join("v2")).unwrap();
+        std::fs::remove_dir(dir.join("v2")).unwrap();
+        std::fs::create_dir(dir.join("v5")).unwrap();
+        assert_eq!(freeze_refusal(&dir, "v6"), Ok(()));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn freeze_regenerates_the_pack_and_the_corpus_then_records() {
+        assert_eq!(
+            freeze_steps("v1"),
+            [
+                Step::ExportPack,
+                test_step(("UPDATE_CORPUS", "1"), "corpus::"),
+                Step::Record("v1".into()),
+            ]
+        );
+        let text = format!("{:?}", freeze_steps("v1"));
+        for other in ["UPDATE_SCHEMA", "INSTA_UPDATE", "UPDATE_BENCH_PINS"] {
+            assert!(!text.contains(other), "{other}");
+        }
+        let cmd = Step::Record("v1".into()).command();
+        assert!(
+            cmd.get_envs()
+                .any(|(k, v)| k == "FREEZE_CORPUS" && v == Some(std::ffi::OsStr::new("v1")))
+        );
+        assert!(cmd.get_envs().all(|(k, v)| k != "CI" || v.is_some()));
+        let line = format!("{:?}", cmd.get_args().collect::<Vec<_>>());
+        assert!(
+            line.contains("corpus_pins::the_record_is_written_on_request"),
+            "{line}"
+        );
+        assert!(!format!("{:?}", steps()).contains("Record"));
+    }
+
+    #[test]
+    fn stale_paths_name_what_changed_appeared_or_vanished() {
+        let dir = tmp("snap");
+        std::fs::create_dir_all(dir.join("a/b")).unwrap();
+        std::fs::write(dir.join("a/b/x"), b"1").unwrap();
+        std::fs::write(dir.join("a/y"), b"2").unwrap();
+        std::fs::write(dir.join("z"), b"3").unwrap();
+        let before = snapshot(&dir).unwrap();
+        assert_eq!(before.len(), 3);
+        assert_eq!(before.get("a/b/x"), Some(&b"1".to_vec()));
+        assert_eq!(before, snapshot(&dir).unwrap());
+        assert!(stale_paths(&before, &before).is_empty());
+        std::fs::write(dir.join("a/y"), b"changed").unwrap();
+        std::fs::remove_file(dir.join("z")).unwrap();
+        std::fs::write(dir.join("new"), b"4").unwrap();
+        let after = snapshot(&dir).unwrap();
+        assert_eq!(stale_paths(&before, &after), ["a/y", "new", "z"]);
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
