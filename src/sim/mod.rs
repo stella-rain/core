@@ -870,6 +870,17 @@ fn rect_sides(px: i64, py: i64, ex: i64, ey: i64) -> [RectSide; 4] {
     ]
 }
 
+/// Which side to use when side `i` (0 top, 1 right, 2 bottom, 3 left) of a rectangle around
+/// the view centre is wanted: `i` if on the map, otherwise the opposite side `(i + 2) % 4` if
+/// on the map; if neither fits, `i` is kept (and clamped to the map border).
+fn usable_side(parts: &[Option<(i64, i64)>; 4], i: usize) -> usize {
+    if parts[i].is_some() || parts[(i + 2) % 4].is_none() {
+        i
+    } else {
+        (i + 2) % 4
+    }
+}
+
 /// A point on the spawn rectangle around the view's centre for a main character at `from` (VS1,
 /// `view_centre`): ±the spawn edge (the view and `spawn_margin`), drawn
 /// from `rng` (the wave's stream for a wave, the horde's for an elite) on the part of `edge`'s
@@ -908,11 +919,7 @@ pub(super) fn edge_point(
                 // `Any` is the arm above.
                 Side::Left | Side::Any => 3,
             };
-            let j = if parts[i].is_some() || parts[(i + 2) % 4].is_none() {
-                i
-            } else {
-                (i + 2) % 4
-            };
+            let j = usable_side(&parts, i);
             let side = sides[j];
             let (lo, hi) = parts[j].unwrap_or((side.lo, side.hi));
             match edge.along {
