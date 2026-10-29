@@ -267,7 +267,13 @@ fn freeze(name: &str) -> Result<usize, String> {
         ));
     }
     record.run()?;
-    Ok(snapshot(&Path::new(CORPUS).join(name))?.len())
+    let folder = Path::new(CORPUS).join(name);
+    if !folder.is_dir() {
+        return Err(format!(
+            "the record test ran but {CORPUS}{name}/ was not written (the test filter matched nothing?)"
+        ));
+    }
+    Ok(snapshot(&folder)?.len())
 }
 
 impl Step {
@@ -281,7 +287,7 @@ impl Step {
                     "--all-features",
                     "--test",
                     "integration",
-                    "corpus_pins::the_record_is_written_on_request",
+                    "corpus_pins::tests::the_record_is_written_on_request",
                 ]);
                 cmd.env("FREEZE_CORPUS", name);
                 cmd
@@ -684,7 +690,7 @@ mod tests {
         assert!(cmd.get_envs().all(|(k, v)| k != "CI" || v.is_some()));
         let line = format!("{:?}", cmd.get_args().collect::<Vec<_>>());
         assert!(
-            line.contains("corpus_pins::the_record_is_written_on_request"),
+            line.contains("corpus_pins::tests::the_record_is_written_on_request"),
             "{line}"
         );
         assert!(!format!("{:?}", steps()).contains("Record"));

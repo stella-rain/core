@@ -732,7 +732,7 @@ mod tests {
         }
     }
 
-    /// `FREEZE_CORPUS=v<N> cargo test corpus_pins::the_record_is_written_on_request` records
+    /// `FREEZE_CORPUS=v<N> cargo test corpus_pins::tests::the_record_is_written_on_request` records
     /// `tests/corpus/current/` into `tests/corpus/v<N>/` (`cargo xtask bless --freeze v<N>` runs
     /// it). A no-op without the knob; it writes the real tree, so it has no unit test beyond the
     /// ones of `record_frozen`.
