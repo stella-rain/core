@@ -74,7 +74,7 @@ Each bench target is a key of `benches/budgets.toml`, which CI reads for the lis
   that were fixed.
 - Gate, in `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
   `cargo test`, then `cargo +nightly fuzz build` (all targets). A PR that touches parsing also
-  runs `cargo +nightly fuzz run <target> -- -max_total_time=60` for each target in the
-  `fuzz-short` list of `rust.yml`, seeded from the corpus, bundled content and `content-pack export`.
-- Weekly, each target in the `fuzz-long.yml` matrix runs 7 minutes on a growing cached corpus,
-  and a crash opens a hash-only issue (`.github/scripts/fuzz-report.sh`).
+  runs `cargo +nightly fuzz run <target> -- -max_total_time=60` for each target of `fuzz/Cargo.toml`
+  (`.github/scripts/fuzz_targets.py` lists them; a unit test fails when `fuzz_targets/` and the table
+  disagree), seeded from the corpus, bundled content and `content-pack export`.
+- Weekly, each fuzz target runs 7 minutes on a growing cached corpus; a crash opens a hash-only issue.
