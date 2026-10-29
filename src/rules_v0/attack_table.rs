@@ -33,7 +33,7 @@ enum Key {
 impl Key {
     fn of(attack: &AttackRef) -> Key {
         match attack {
-            AttackRef::Preset { id, args } => Key::Preset(id.to_string(), args.clone()),
+            AttackRef::Preset { id, args } => Key::Preset(id.as_str().to_owned(), args.clone()),
             AttackRef::Inline(phases) => Key::Inline(phases.len(), total_ticks(phases)),
         }
     }
