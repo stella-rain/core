@@ -1150,3 +1150,28 @@ fn a_run_replay_that_cannot_be_parsed_at_a_known_version_is_damaged() {
         v["setup"]["sim_version"] = json!("0");
     })));
 }
+
+/// The corpus' `easy` run replay with its setup's versions set: the file a version-0 build
+/// wrote, apart from those two numbers.
+fn corpus_run_replay_at(schema_version: u32, sim_version: u32) -> Vec<u8> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/corpus/current/runs/easy/run.replay"
+    );
+    let mut value: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    value["setup"]["schema_version"] = json!(schema_version);
+    value["setup"]["sim_version"] = json!(sim_version);
+    serde_json::to_vec(&value).unwrap()
+}
+
+#[test]
+fn a_run_replay_at_version_0_is_older() {
+    // ADR-REPL-7 point 8: the production table has no migration from version 0.
+    assert_eq!(
+        RunReplay::from_bytes(&corpus_run_replay_at(0, 0)).err(),
+        Some(RunReplayError::Older {
+            schema_version: 0,
+            sim_version: 0
+        })
+    );
+}

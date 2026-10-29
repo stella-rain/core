@@ -88,3 +88,12 @@ fn the_upgrade_list_has_room_for_every_upgrade() {
     let n = ENTRIES.iter().filter(|e| e.kind == Kind::Upgrade).count();
     assert!(n <= stella_rain_core::registry::MAX_UPGRADES);
 }
+
+#[test]
+fn every_registry_id_is_introduced_in_version_1() {
+    // ADR-REPL-7 point 8: version 1 is the first version, so every ID is introduced in it.
+    assert!(!ENTRIES.is_empty());
+    for e in ENTRIES {
+        assert_eq!(e.introduced, 1, "{}", e.id);
+    }
+}

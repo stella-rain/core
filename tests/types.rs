@@ -6,6 +6,7 @@ use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::Replay;
 use stella_rain_core::stage::Stage;
+use stella_rain_core::validate;
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 
 const STAGE: &str = include_str!("fixtures/stage_v0.json");
@@ -160,4 +161,37 @@ fn replay_round_trips_and_rejects_unknown_fields() {
     assert_eq!(serde_json::from_str::<Replay>(&json).unwrap(), replay);
     let extra = json.replacen('{', r#"{"unexpected":true,"#, 1);
     assert!(serde_json::from_str::<Replay>(&extra).is_err());
+}
+
+#[test]
+fn versions_are_one_from_the_freeze() {
+    // Version 1 is the frozen first version (ADR-REPL-7); version 0 is refused.
+    assert_eq!((SCHEMA_VERSION, SIM_VERSION), (1, 1));
+    let stage = parse(STAGE).unwrap();
+    assert_eq!(
+        (stage.schema_version, stage.sim_version),
+        (SCHEMA_VERSION, SIM_VERSION)
+    );
+}
+
+/// The fixture with its two versions set.
+fn at_versions(schema_version: u32, sim_version: u32) -> Vec<u8> {
+    let mut value: serde_json::Value = serde_json::from_str(STAGE).unwrap();
+    value["schema_version"] = schema_version.into();
+    value["sim_version"] = sim_version.into();
+    serde_json::to_vec(&value).unwrap()
+}
+
+#[test]
+fn a_stage_at_version_0_is_refused() {
+    // ADR-REPL-7 point 8: no migration from version 0.
+    for (schema_version, sim_version) in [(0, 0), (SCHEMA_VERSION, 0), (0, SIM_VERSION)] {
+        assert_eq!(
+            validate::parse_and_validate(&at_versions(schema_version, sim_version)),
+            Err(validate::Error::UnsupportedVersion {
+                schema_version,
+                sim_version
+            })
+        );
+    }
 }

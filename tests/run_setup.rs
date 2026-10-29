@@ -10,6 +10,7 @@ use stella_rain_core::run_setup::{
     self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
 };
 use stella_rain_core::validate::{self, Error, Issue};
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core::weapon::WeaponRef;
 
 use crate::common;
@@ -504,5 +505,24 @@ fn every_mode_of_the_bundled_pack_builds_a_kind_table_that_holds_what_it_spawns(
             let index = v.kind_index.expect("a kind");
             assert!(e.kinds().id(index).is_some(), "{mode}");
         }
+    }
+}
+
+#[test]
+fn a_setup_at_version_0_is_refused() {
+    // ADR-REPL-7 point 8: no migration from version 0.
+    for (schema_version, sim_version) in [(0, 0), (SCHEMA_VERSION, 0), (0, SIM_VERSION)] {
+        let old = RunSetup {
+            schema_version,
+            sim_version,
+            ..setup()
+        };
+        assert_eq!(
+            run_setup::parse_and_validate(&bytes(&old)),
+            Err(Error::UnsupportedVersion {
+                schema_version,
+                sim_version
+            })
+        );
     }
 }

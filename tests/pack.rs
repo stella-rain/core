@@ -738,3 +738,45 @@ fn a_new_reward_is_listed_at_the_pack_version() {
     assert_eq!(issues.len(), 1);
     assert!(issues[0].message.contains("newer than the pack's 0"));
 }
+
+#[test]
+fn the_bundled_pack_introduces_every_id_in_version_1() {
+    let file: pack::PackFile = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    assert_eq!((file.schema_version, file.sim_version), (1, 1));
+    let i = &file.introduced;
+    let expertise: Vec<_> = i.expertise.iter().flat_map(|w| w.ids.clone()).collect();
+    let constellations = i.constellations.clone().unwrap_or_default();
+    for (name, list) in [
+        ("run_stats", &i.run_stats),
+        ("rewards", &i.rewards),
+        ("stage_skills", &i.stage_skills),
+        ("perk_sets", &i.perk_sets),
+        ("difficulties", &i.difficulties),
+        ("expertise", &expertise),
+        ("elite_types", &i.elite_types),
+        ("constellations", &constellations),
+    ] {
+        assert!(!list.is_empty(), "{name}");
+        for e in list {
+            assert_eq!(e.sim_version, 1, "{name} {}", e.id);
+        }
+    }
+}
+
+#[test]
+fn a_pack_at_version_0_is_refused() {
+    // ADR-REPL-7 point 8: no migration from version 0.
+    for (schema_version, sim_version) in [(0, 0), (1, 0), (0, 1)] {
+        let mut v = value();
+        v["schema_version"] = json!(schema_version);
+        v["sim_version"] = json!(sim_version);
+        assert_eq!(
+            load(&v).err(),
+            Some(PackError::UnsupportedVersion {
+                schema_version,
+                sim_version
+            }),
+            "{schema_version} {sim_version}"
+        );
+    }
+}
