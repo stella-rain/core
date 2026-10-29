@@ -911,6 +911,26 @@ fn expertise_ids(w: usize, weapon: &WeaponExpertise) -> Vec<(String, &ContentId)
     ids
 }
 
+/// The `introduced` table of the bundled pack: the IDs the released content holds. Read without
+/// the version check (`Pack::bundled` calls `check_introduced`, which calls this).
+fn released() -> &'static Introduced {
+    static RELEASED: OnceLock<Introduced> = OnceLock::new();
+    RELEASED.get_or_init(|| {
+        serde_json::from_slice::<PackFile>(Pack::BUNDLED)
+            .expect("the bundled pack parses")
+            .introduced
+    })
+}
+
+/// The released entries of one weapon's expertise; none for a weapon the release lacks.
+fn released_expertise(weapon: &ContentId) -> &'static [IntroducedId] {
+    released()
+        .expertise
+        .iter()
+        .find(|e| e.weapon == *weapon)
+        .map_or(&[], |e| e.ids.as_slice())
+}
+
 /// Checks one list of the table, at `at`, against the IDs of its file with their paths.
 fn check_ids(
     issues: &mut Vec<Issue>,
@@ -918,6 +938,7 @@ fn check_ids(
     listed: &[IntroducedId],
     ids: &[(String, &ContentId)],
     sim_version: u32,
+    _released: &[IntroducedId],
 ) {
     for (i, entry) in listed.iter().enumerate() {
         if !ids.iter().any(|(_, id)| **id == entry.id) {
@@ -977,16 +998,27 @@ fn check_introduced(
         "stage_skills.stage_skills",
         stage_skills.skills().iter().map(|s| &s.id),
     );
-    for (at, listed, ids) in [
-        ("$.introduced.run_stats", &introduced.run_stats, &stats),
-        ("$.introduced.rewards", &introduced.rewards, &reward_ids),
+    for (at, listed, ids, released) in [
+        (
+            "$.introduced.run_stats",
+            &introduced.run_stats,
+            &stats,
+            &released().run_stats,
+        ),
+        (
+            "$.introduced.rewards",
+            &introduced.rewards,
+            &reward_ids,
+            &released().rewards,
+        ),
         (
             "$.introduced.stage_skills",
             &introduced.stage_skills,
             &skills,
+            &released().stage_skills,
         ),
     ] {
-        check_ids(&mut issues, at, listed, ids, sim_version);
+        check_ids(&mut issues, at, listed, ids, sim_version, released);
     }
     let sets = paths(
         "perk_sets.perk_sets",
@@ -998,6 +1030,7 @@ fn check_introduced(
         &introduced.perk_sets,
         &sets,
         sim_version,
+        &released().perk_sets,
     );
     let difficulty_ids = paths(
         "difficulties.difficulties",
@@ -1009,6 +1042,7 @@ fn check_introduced(
         &introduced.difficulties,
         &difficulty_ids,
         sim_version,
+        &released().difficulties,
     );
     let elites = paths(
         "modes.time_limit.elite_types",
@@ -1020,6 +1054,7 @@ fn check_introduced(
         &introduced.elite_types,
         &elites,
         sim_version,
+        &released().elite_types,
     );
     if let Some(listed) = &introduced.constellations {
         let sets = paths(
@@ -1032,6 +1067,7 @@ fn check_introduced(
             listed,
             &sets,
             sim_version,
+            released().constellations.as_deref().unwrap_or(&[]),
         );
     }
     for (k, entry) in introduced.expertise.iter().enumerate() {
@@ -1056,6 +1092,7 @@ fn check_introduced(
                 &entry.ids,
                 &ids,
                 sim_version,
+                released_expertise(&entry.weapon),
             );
         } else {
             issues.push(Issue {
