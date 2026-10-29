@@ -216,22 +216,22 @@ fn the_replay_file_round_trips_and_is_strict() {
     let extra = with(&replay, |v| v["unexpected"] = json!(1));
     assert!(matches!(
         Replay::from_bytes(&extra),
-        Err(ReplayError::Parse { .. })
+        Err(ReplayError::Damaged { .. })
     ));
     let missing = with(&replay, |v| {
         v.as_object_mut().unwrap().remove("inputs");
     });
     assert!(matches!(
         Replay::from_bytes(&missing),
-        Err(ReplayError::Parse { .. })
+        Err(ReplayError::Damaged { .. })
     ));
     assert!(matches!(
         Replay::from_bytes(b""),
-        Err(ReplayError::Parse { .. })
+        Err(ReplayError::Damaged { .. })
     ));
     assert!(matches!(
         Replay::from_bytes(b"[]"),
-        Err(ReplayError::Parse { .. })
+        Err(ReplayError::Damaged { .. })
     ));
 }
 
@@ -359,15 +359,20 @@ fn a_replay_only_verifies_against_its_own_stage() {
         verify(&changed, &bytes),
         Err(ReplayError::NotThisStage("the stage file has changed"))
     );
-    for (field, value, why) in [
-        ("seed", json!(8), "another seed"),
-        ("sim_version", json!(1), "another version"),
-        ("schema_version", json!(1), "another version"),
-    ] {
-        let tampered = with(&replay, |v| v[field] = value.clone());
+    let tampered = with(&replay, |v| v["seed"] = json!(8));
+    assert_eq!(
+        verify(&stage, &tampered),
+        Err(ReplayError::NotThisStage("another seed"))
+    );
+    // Another version is refused when the file is read, before it is compared with the stage.
+    for (field, expected) in [("sim_version", (0, 1)), ("schema_version", (1, 0))] {
+        let tampered = with(&replay, |v| v[field] = json!(1));
         assert_eq!(
             verify(&stage, &tampered),
-            Err(ReplayError::NotThisStage(why)),
+            Err(ReplayError::Newer {
+                schema_version: expected.0,
+                sim_version: expected.1
+            }),
             "{field}"
         );
     }
@@ -596,4 +601,65 @@ proptest::proptest! {
             Err(_) => proptest::prop_assert_ne!(bytes.len() % 8, 0),
         }
     }
+}
+
+// --- The version header ----------------------------------------------------------------------
+
+fn newer(schema_version: u32, sim_version: u32) -> Result<Replay, ReplayError> {
+    Err(ReplayError::Newer {
+        schema_version,
+        sim_version,
+    })
+}
+
+#[test]
+fn a_replay_for_a_newer_version_is_newer() {
+    let (_, replay, _) = recorded();
+    let schema = with(&replay, |v| v["schema_version"] = json!(1));
+    assert_eq!(Replay::from_bytes(&schema), newer(1, 0));
+    // A newer file may hold fields this version rejects; it is still "newer", not damaged.
+    let future = with(&replay, |v| {
+        v["sim_version"] = json!(1);
+        v["future"] = json!(1);
+    });
+    assert_eq!(Replay::from_bytes(&future), newer(0, 1));
+    let huge = with(&replay, |v| v["schema_version"] = json!(4_000_000_000u32));
+    assert_eq!(Replay::from_bytes(&huge), newer(4_000_000_000, 0));
+}
+
+#[test]
+fn the_size_limit_stays_before_the_version() {
+    let (_, replay, _) = recorded();
+    let mut big = with(&replay, |v| v["schema_version"] = json!(1));
+    big.resize(MAX_STAGE_REPLAY_BYTES + 1, b' ');
+    assert_eq!(
+        Replay::from_bytes(&big),
+        Err(ReplayError::TooLarge {
+            size: MAX_STAGE_REPLAY_BYTES + 1,
+            limit: MAX_STAGE_REPLAY_BYTES
+        })
+    );
+    assert!(matches!(
+        Replay::from_bytes(&vec![b'x'; MAX_STAGE_REPLAY_BYTES + 1]),
+        Err(ReplayError::TooLarge { .. })
+    ));
+}
+
+#[test]
+fn a_replay_that_cannot_be_parsed_at_a_known_version_is_damaged() {
+    let (_, replay, bytes) = recorded();
+    let damaged = |b: &[u8]| matches!(Replay::from_bytes(b), Err(ReplayError::Damaged { .. }));
+    assert!(damaged(&with(&replay, |v| {
+        v.as_object_mut().unwrap().remove("inputs");
+    })));
+    assert!(damaged(&with(&replay, |v| v["unexpected"] = json!(1))));
+    assert!(damaged(&with(&replay, |v| v["ticks"] = json!("many"))));
+    assert!(damaged(&bytes[..bytes.len() / 2]));
+    for no_versions in [&b""[..], b"[]", b"{}"] {
+        assert!(damaged(no_versions));
+    }
+    assert!(damaged(&with(&replay, |v| {
+        v.as_object_mut().unwrap().remove("schema_version");
+    })));
+    assert!(damaged(&with(&replay, |v| v["sim_version"] = json!("0"))));
 }

@@ -24,6 +24,7 @@ use crate::input::Input;
 use crate::parsed_stage_hash;
 use crate::stage::Stage;
 use crate::validate;
+use crate::version::{self, ReplayLoadError, Versions};
 
 /// A stage's clear replay file is at most this big (ADR-020). Even a maximum-length replay
 /// whose inputs never repeat fits. It is also what a share code may carry (`share`). A run's
@@ -59,8 +60,18 @@ pub enum ReplayError {
         size: usize,
         limit: usize,
     },
-    /// Not JSON, or not the replay format.
-    Parse {
+    /// Recorded by an older version of the game that cannot read it.
+    Older {
+        schema_version: u32,
+        sim_version: u32,
+    },
+    /// Written for a newer version of the game (either version is above this one's).
+    Newer {
+        schema_version: u32,
+        sim_version: u32,
+    },
+    /// Not JSON, no versions, or not the replay format at a version this game reads.
+    Damaged {
         line: usize,
         column: usize,
     },
@@ -109,7 +120,21 @@ impl fmt::Display for ReplayError {
             ReplayError::TooLarge { size, limit } => {
                 write!(f, "the replay is {size} bytes; the limit is {limit}")
             }
-            ReplayError::Parse { line, column } => {
+            ReplayError::Older {
+                schema_version,
+                sim_version,
+            } => write!(
+                f,
+                "the replay was recorded by an older version (schema {schema_version}, sim {sim_version}); this version cannot read it"
+            ),
+            ReplayError::Newer {
+                schema_version,
+                sim_version,
+            } => write!(
+                f,
+                "the replay needs a newer version (schema {schema_version}, sim {sim_version})"
+            ),
+            ReplayError::Damaged { line, column } => {
                 write!(f, "not a valid replay (line {line}, column {column})")
             }
             ReplayError::BadInputs(why) => write!(f, "the replay's inputs are damaged: {why}"),
@@ -240,17 +265,29 @@ impl Replay {
         bytes
     }
 
-    /// Parses a replay file: size limit first, then strict parsing.
+    /// Parses a replay file: the size limit first, then the versions alone, then the strict
+    /// parse (ADR-017, ADR-SVC-1). A file for a newer version is `Newer` even if it has fields
+    /// this version rejects; a file that is not JSON, has no versions, or fails the strict parse
+    /// at a version this game reads is `Damaged`, never `Older`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Replay, ReplayError> {
-        if bytes.len() > MAX_STAGE_REPLAY_BYTES {
-            return Err(ReplayError::TooLarge {
-                size: bytes.len(),
-                limit: MAX_STAGE_REPLAY_BYTES,
-            });
-        }
-        serde_json::from_slice(bytes).map_err(|e| ReplayError::Parse {
-            line: e.line(),
-            column: e.column(),
+        version::read_replay(
+            bytes,
+            MAX_STAGE_REPLAY_BYTES,
+            Versions::CURRENT,
+            &[],
+            |bytes| serde_json::from_slice(bytes),
+        )
+        .map_err(|e| match e {
+            ReplayLoadError::TooLarge { size, limit } => ReplayError::TooLarge { size, limit },
+            ReplayLoadError::Older(v) => ReplayError::Older {
+                schema_version: v.schema_version,
+                sim_version: v.sim_version,
+            },
+            ReplayLoadError::Newer(v) => ReplayError::Newer {
+                schema_version: v.schema_version,
+                sim_version: v.sim_version,
+            },
+            ReplayLoadError::Damaged { line, column } => ReplayError::Damaged { line, column },
         })
     }
 
