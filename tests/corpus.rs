@@ -24,8 +24,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::corpus_pins::{
-    case_pack, ensure_writable, override_pack, prune_packs, run_case_pack, write_case_json,
-    write_pack_file,
+    case_pack, check_frozen_tree, ensure_writable, is_frozen_name, override_pack, prune_packs,
+    run_case_pack, write_case_json, write_pack_file,
 };
 use crate::run_play::play_run_with;
 use common::*;
@@ -2353,6 +2353,23 @@ fn the_corpus_matches() {
                 .filter_map(|c| check_run_case(c, &diff_dir()).err()),
         )
         .collect();
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Every frozen folder (`tests/corpus/v<N>/`, N >= 1) is what its manifest says and still
+/// verifies against the packs it holds. With none present it passes; the check itself is proved on
+/// a temp tree in `corpus_pins`.
+#[test]
+fn the_frozen_corpus_is_unchanged() {
+    let root = current_dir().parent().unwrap().to_path_buf();
+    let mut failures = Vec::new();
+    for entry in fs::read_dir(&root).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if path.is_dir() && is_frozen_name(&name) {
+            failures.extend(check_frozen_tree(&path).err());
+        }
+    }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
