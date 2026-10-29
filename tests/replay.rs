@@ -15,6 +15,7 @@ use stella_rain_core::replay::{
 };
 use stella_rain_core::rng::SplitMix64;
 use stella_rain_core::validate;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 
 fn recorded() -> (Vec<u8>, Replay, Vec<u8>) {
     let stage = stage_bytes();
@@ -365,8 +366,19 @@ fn a_replay_only_verifies_against_its_own_stage() {
         Err(ReplayError::NotThisStage("another seed"))
     );
     // Another version is refused when the file is read, before it is compared with the stage.
-    for (field, expected) in [("sim_version", (0, 1)), ("schema_version", (1, 0))] {
-        let tampered = with(&replay, |v| v[field] = json!(1));
+    for (field, newer, expected) in [
+        (
+            "sim_version",
+            SIM_VERSION + 1,
+            (SCHEMA_VERSION, SIM_VERSION + 1),
+        ),
+        (
+            "schema_version",
+            SCHEMA_VERSION + 1,
+            (SCHEMA_VERSION + 1, SIM_VERSION),
+        ),
+    ] {
+        let tampered = with(&replay, |v| v[field] = json!(newer));
         assert_eq!(
             verify(&stage, &tampered),
             Err(ReplayError::Newer {
@@ -615,16 +627,22 @@ fn newer(schema_version: u32, sim_version: u32) -> Result<Replay, ReplayError> {
 #[test]
 fn a_replay_for_a_newer_version_is_newer() {
     let (_, replay, _) = recorded();
-    let schema = with(&replay, |v| v["schema_version"] = json!(1));
-    assert_eq!(Replay::from_bytes(&schema), newer(1, 0));
+    let schema = with(&replay, |v| v["schema_version"] = json!(SCHEMA_VERSION + 1));
+    assert_eq!(
+        Replay::from_bytes(&schema),
+        newer(SCHEMA_VERSION + 1, SIM_VERSION)
+    );
     // A newer file may hold fields this version rejects; it is still "newer", not damaged.
     let future = with(&replay, |v| {
-        v["sim_version"] = json!(1);
+        v["sim_version"] = json!(SIM_VERSION + 1);
         v["future"] = json!(1);
     });
-    assert_eq!(Replay::from_bytes(&future), newer(0, 1));
+    assert_eq!(
+        Replay::from_bytes(&future),
+        newer(SCHEMA_VERSION, SIM_VERSION + 1)
+    );
     let huge = with(&replay, |v| v["schema_version"] = json!(4_000_000_000u32));
-    assert_eq!(Replay::from_bytes(&huge), newer(4_000_000_000, 0));
+    assert_eq!(Replay::from_bytes(&huge), newer(4_000_000_000, SIM_VERSION));
 }
 
 #[test]

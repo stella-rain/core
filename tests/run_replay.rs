@@ -19,7 +19,7 @@ use stella_rain_core::run_replay::{
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::Error;
-use stella_rain_core::version::Versions;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 
 use crate::common;
 
@@ -401,13 +401,15 @@ fn a_bad_setup_is_refused_and_a_newer_one_is_newer() {
         verify_run(&bytes),
         Err(RunReplayError::Setup(Error::Invalid(_)))
     ));
-    let bytes = with(&replay, |v| v["setup"]["sim_version"] = json!(1));
+    let bytes = with(&replay, |v| {
+        v["setup"]["sim_version"] = json!(SIM_VERSION + 1)
+    });
     assert!(matches!(
         verify_run(&bytes),
         Err(RunReplayError::Newer {
-            schema_version: 1,
-            sim_version: 1
-        })
+            schema_version,
+            sim_version
+        }) if (schema_version, sim_version) == (SCHEMA_VERSION, SIM_VERSION + 1)
     ));
 }
 
@@ -1088,18 +1090,29 @@ fn newer(schema_version: u32, sim_version: u32) -> Result<RunReplay, RunReplayEr
 #[test]
 fn a_run_replay_for_a_newer_version_is_newer() {
     let replay = recorded(20);
-    let schema = with(&replay, |v| v["setup"]["schema_version"] = json!(1));
-    assert_eq!(RunReplay::from_bytes(&schema), newer(1, 0));
+    let schema = with(&replay, |v| {
+        v["setup"]["schema_version"] = json!(SCHEMA_VERSION + 1)
+    });
+    assert_eq!(
+        RunReplay::from_bytes(&schema),
+        newer(SCHEMA_VERSION + 1, SIM_VERSION)
+    );
     // A newer file may hold fields this version rejects; it is still "newer", not damaged.
     let future = with(&replay, |v| {
-        v["setup"]["sim_version"] = json!(1);
+        v["setup"]["sim_version"] = json!(SIM_VERSION + 1);
         v["future"] = json!(1);
     });
-    assert_eq!(RunReplay::from_bytes(&future), newer(0, 1));
+    assert_eq!(
+        RunReplay::from_bytes(&future),
+        newer(SCHEMA_VERSION, SIM_VERSION + 1)
+    );
     let huge = with(&replay, |v| {
         v["setup"]["schema_version"] = json!(4_000_000_000u32);
     });
-    assert_eq!(RunReplay::from_bytes(&huge), newer(4_000_000_000, 0));
+    assert_eq!(
+        RunReplay::from_bytes(&huge),
+        newer(4_000_000_000, SIM_VERSION)
+    );
 }
 
 #[test]

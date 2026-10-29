@@ -4,7 +4,7 @@
 
 use std::fs;
 use std::path::Path;
-use stella_rain_core::version::Versions;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -241,8 +241,8 @@ fn a_missing_file_is_refused() {
 #[test]
 fn an_unknown_pack_version_is_refused() {
     for (field, n) in [
-        ("schema_version", 1),
-        ("sim_version", 1),
+        ("schema_version", SCHEMA_VERSION + 1),
+        ("sim_version", SIM_VERSION + 1),
         ("sim_version", 7),
     ] {
         let mut v = value();
@@ -393,13 +393,17 @@ fn a_time_limit_boss_the_trial_stage_would_refuse_is_refused_with_the_pack() {
 #[test]
 fn an_id_newer_than_the_pack_is_refused() {
     let mut v = value();
-    v["introduced"]["rewards"][0]["sim_version"] = json!(1);
+    v["introduced"]["rewards"][0]["sim_version"] = json!(SIM_VERSION + 1);
     let Err(PackError::Introduced(issues)) = load(&v) else {
         panic!("not refused as newer");
     };
     assert_eq!(issues.len(), 1);
     assert_eq!(issues[0].path, "$.introduced.rewards[0].sim_version");
-    assert!(issues[0].message.contains("newer than the pack's 0"));
+    assert!(
+        issues[0]
+            .message
+            .contains(&format!("newer than the pack's {SIM_VERSION}"))
+    );
 
     let mut v = value();
     v["introduced"]["expertise"][1]["ids"][2]["sim_version"] = json!(3);
@@ -503,7 +507,7 @@ fn the_constellation_list_names_each_set_once_and_none_newer_than_the_pack() {
         .push(first);
     assert!(matches!(load(&v), Err(PackError::Introduced(_))));
     let mut v = value();
-    v["introduced"]["constellations"][1]["sim_version"] = json!(1);
+    v["introduced"]["constellations"][1]["sim_version"] = json!(SIM_VERSION + 1);
     let Err(PackError::Introduced(issues)) = load(&v) else {
         panic!("not refused as newer");
     };

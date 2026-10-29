@@ -8,6 +8,7 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{
     Error, Issue, limits::*, parse_and_validate, validate, validate_with,
 };
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 
 const STAGE: &str = include_str!("fixtures/stage_v0.json");
 
@@ -169,9 +170,12 @@ fn the_byte_limit_applies_before_parsing() {
 
 #[test]
 fn newer_versions_are_reported_before_the_strict_parse() {
-    for (field, name) in [("schema_version", "schema"), ("sim_version", "sim")] {
+    for (field, name, newer) in [
+        ("schema_version", "schema", SCHEMA_VERSION + 1),
+        ("sim_version", "sim", SIM_VERSION + 1),
+    ] {
         let mut v = base();
-        v[field] = json!(1);
+        v[field] = json!(newer);
         // A newer game may have fields this one does not know.
         v["field_from_the_future"] = json!(true);
         let err = parse_and_validate(v.to_string().as_bytes()).unwrap_err();
@@ -181,7 +185,7 @@ fn newer_versions_are_reported_before_the_strict_parse() {
         );
         assert!(err.to_string().contains("newer version of the game"));
     }
-    // The same stage at version 0 with an unknown field is a parse error.
+    // The same stage at the current versions with an unknown field is a parse error.
     let mut v = base();
     v["field_from_the_future"] = json!(true);
     assert!(matches!(

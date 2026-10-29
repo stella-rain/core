@@ -190,14 +190,14 @@ fn a_setup_holds_no_expertise_level() {
 #[test]
 fn a_setup_from_a_newer_game_is_refused() {
     let newer = RunSetup {
-        sim_version: 1,
+        sim_version: SIM_VERSION + 1,
         ..setup()
     };
     assert_eq!(
         run_setup::parse_and_validate(&bytes(&newer)),
         Err(Error::UnsupportedVersion {
-            schema_version: 1,
-            sim_version: 1
+            schema_version: SCHEMA_VERSION,
+            sim_version: SIM_VERSION + 1
         })
     );
     assert!(matches!(
