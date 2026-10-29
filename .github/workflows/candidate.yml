@@ -179,7 +179,7 @@ jobs:
           EXT: ${{ matrix.ext }}
         run: |
           set -euo pipefail
-          case=tests/corpus/v0/clear
+          case=$(python3 .github/scripts/corpus_paths.py stage-dir clear)
           "target/release/stage-verify$EXT" "$case/stage.json" "$case/run.replay" --hashes "$case/hashes.bin"
       - name: Name the files after the release
         env:
