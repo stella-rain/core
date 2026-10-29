@@ -114,8 +114,8 @@ fn the_exported_pack_gives_the_bundled_content() {
     assert_eq!(pack.content(), RunContent::bundled());
     let trial = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
     assert_eq!(pack.trial(), &trial);
-    assert_eq!(pack.schema_version(), 0);
-    assert_eq!(pack.sim_version(), 0);
+    assert_eq!(pack.schema_version(), SCHEMA_VERSION);
+    assert_eq!(pack.sim_version(), SIM_VERSION);
     let sha: [u8; 32] = Sha256::digest(bundled()).into();
     assert_eq!(pack.sha256(), sha);
 }

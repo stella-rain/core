@@ -6,7 +6,7 @@
 
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
-use stella_rain_core::version::Versions;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 
 use stella_rain_core::attack_presets::{AttackPresets, MAX_ATTACK_PRESETS_BYTES};
 use stella_rain_core::constellations::{Constellations, MAX_CONSTELLATIONS_BYTES};
@@ -154,22 +154,23 @@ fn refuses<E: Debug + PartialEq>(
     parse: impl Fn(usize, usize) -> E,
     unsupported: impl Fn(u32, u32) -> E,
 ) {
+    let newer = SIM_VERSION + 1;
     assert_eq!(
         read(&replace_first(
             bytes,
-            "\"sim_version\": 0",
-            "\"sim_version\": 1"
+            &format!("\"sim_version\": {SIM_VERSION}"),
+            &format!("\"sim_version\": {newer}")
         )),
-        Err(unsupported(0, 1)),
-        "{name}: sim_version 1"
+        Err(unsupported(SCHEMA_VERSION, newer)),
+        "{name}: sim_version {newer}"
     );
     assert_eq!(
         read(&replace_first(
             bytes,
-            "\"schema_version\": 0",
+            &format!("\"schema_version\": {SCHEMA_VERSION}"),
             "\"schema_version\": 7"
         )),
-        Err(unsupported(7, 0)),
+        Err(unsupported(7, SIM_VERSION)),
         "{name}: schema_version 7"
     );
     assert_eq!(
@@ -214,7 +215,17 @@ fn no_content_file_has_its_own_version() {
         let is_stage = matches!(slot.name, "trial" | "tutorial");
         for field in ["schema_version", "sim_version"] {
             if is_stage {
-                assert_eq!(object.get(field), Some(&0.into()), "{} {field}", slot.name);
+                let current = if field == "schema_version" {
+                    SCHEMA_VERSION
+                } else {
+                    SIM_VERSION
+                };
+                assert_eq!(
+                    object.get(field),
+                    Some(&current.into()),
+                    "{} {field}",
+                    slot.name
+                );
             } else {
                 assert!(!object.contains_key(field), "{} has a {field}", slot.name);
             }

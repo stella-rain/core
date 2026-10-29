@@ -28,16 +28,6 @@ fn with_extra_field(pointer: &str) -> String {
 }
 
 #[test]
-fn versions_are_zero_until_the_freeze() {
-    assert_eq!((SCHEMA_VERSION, SIM_VERSION), (0, 0));
-    let stage = parse(STAGE).unwrap();
-    assert_eq!(
-        (stage.schema_version, stage.sim_version),
-        (SCHEMA_VERSION, SIM_VERSION)
-    );
-}
-
-#[test]
 fn stage_with_every_tier_round_trips() {
     let stage = parse(STAGE).unwrap();
     let again = parse(&serde_json::to_string(&stage).unwrap()).unwrap();
