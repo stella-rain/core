@@ -410,7 +410,10 @@ fn settles_everything(data: &[u8], pack: &Pack) {
                     assert!(s.opened.is_empty() && s.rune_shards == 0);
                 }
                 let after = s.bank_after.get(&mode, difficulty);
-                let banking = content.stardust().mode(mode.as_str()).is_some_and(|m| m.bank);
+                let banking = content
+                    .stardust()
+                    .mode(mode.as_str())
+                    .is_some_and(|m| m.bank);
                 match (banking, outcome) {
                     (true, RunOutcome::Cleared) => {
                         assert_eq!(after, 0, "a clear left a bank");
