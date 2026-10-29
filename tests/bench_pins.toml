@@ -37,8 +37,8 @@ input = "c8f0ff41826bb896"
 
 [time_limit_tick]
 bench = "time_limit_tick"
-before = "e6785105ad4e5597"
-after = "5644d24e165526a6"
+before = "fc386858e6d3b4ac"
+after = "28fe9d13bb08ef77"
 stage = "94dc0a94ec87da08"
 input = "c8f0ff41826bb896"
 
