@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 import callgrind_diff as c  # noqa: E402
@@ -251,7 +252,7 @@ class Cli(CliBase):
         diff = open(os.path.join(self.out, "t.c.diff.txt")).read()
         self.assertIn("fn_a", diff)
 
-P = "stella_rain_core::rules_v0::schedule::steps::"
+P = "stella_rain_core::sim::schedule::steps::"
 
 STEP_BASE = """900 PROGRAM TOTALS
 
@@ -299,6 +300,26 @@ class Steps(unittest.TestCase):
                 f.write("fn nothing() {}")
             self.assertIsNone(c.read_order(path))
         self.assertEqual(c.order_steps({"b", "a"}, None), ["a", "b"])
+
+    def test_the_schedule_default_is_the_sim_file(self):
+        class Stop(Exception):
+            pass
+
+        seen = []
+
+        def order(path):
+            seen.append(path)
+            raise Stop
+
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(sys, "argv", ["callgrind_diff.py", "--home", d, "--out", d]), \
+                mock.patch.object(c, "find_cases", return_value=[("t", "h", "b")]), \
+                mock.patch.object(c, "read_order", side_effect=order):
+            with self.assertRaises(Stop):
+                c.main()
+        self.assertEqual(seen, ["src/sim/schedule.rs"])
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+        self.assertTrue(os.path.isfile(os.path.join(root, seen[0])))
 
     def test_rest_is_the_total_minus_the_steps_and_only_changed_rows_show(self):
         base = (900, {"run_attacks": 500, "advance_tick": 200, "old_step": 50})

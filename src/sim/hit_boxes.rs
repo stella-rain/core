@@ -136,7 +136,7 @@ impl Sector {
 
 /// Every active hit box hurts what it covers. `grid` is the enemy grid, built here if a
 /// friendly hit box needs it and left for the orbs after.
-// Kept out of `rules_v0::step`, so the tick-cost gate measures the rules, not the inliner
+// Kept out of `sim::step`, so the tick-cost gate measures the rules, not the inliner
 // (ADR-058).
 #[inline(never)]
 pub(super) fn resolve(

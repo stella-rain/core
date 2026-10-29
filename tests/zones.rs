@@ -19,7 +19,7 @@ use stella_rain_core::validate::{Error, Issue, limits::*, validate};
 const CX: i32 = 20_000;
 const CY: i32 = 30_000;
 const PX: i32 = 256;
-/// The cap of `rules_v0::MAX_ZONES_ALIVE`.
+/// The cap of `sim::MAX_ZONES_ALIVE`.
 const MAX_ZONES_ALIVE: usize = 128;
 
 /// The companion is entity 2 (the far boss is 1); the waves' enemies come after it, in order.

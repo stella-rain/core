@@ -5,7 +5,7 @@
 //! tick is the same on every platform (ADR-019).
 //!
 //! Rules are dispatched by the stage's `sim_version` (ADR-017). Only version 0 exists, and it
-//! changes in place until the freeze (ADR-035): see `rules_v0` for what it does and does not
+//! changes in place until the freeze (ADR-035): see `sim` for what it does and does not
 //! do yet.
 
 use schemars::JsonSchema;
@@ -17,11 +17,11 @@ use crate::input::Input;
 use crate::kinds::KindTable;
 use crate::ledger::{Counted, RunLedger};
 use crate::rewards::Rewards;
-use crate::rules_v0;
-use crate::rules_v0::{HordeSpec, World};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::RunStats;
+use crate::sim;
+use crate::sim::{HordeSpec, World};
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
 
@@ -107,14 +107,14 @@ impl Clone for Engine {
     /// length, and the clone's first ticks would grow them (DIR1).
     fn clone(&self) -> Engine {
         let mut state = self.state.clone();
-        rules_v0::reserve(&self.stage, &mut state);
+        sim::reserve(&self.stage, &mut state);
         Engine {
             stage: self.stage.clone(),
             content: self.content.clone(),
             state,
             events: {
                 let mut events = self.events.clone();
-                events.reserve(rules_v0::events_room(&self.stage).saturating_sub(events.len()));
+                events.reserve(sim::events_room(&self.stage).saturating_sub(events.len()));
                 events
             },
             load: self.load,
@@ -146,21 +146,20 @@ impl Engine {
         pick_stats: bool,
     ) -> Result<Engine, Error> {
         validate::validate(stage)?;
-        let pool = rules_v0::RunPool {
+        let pool = sim::RunPool {
             rewards: pool(None, content.rewards())?,
             extra_rerolls: 0,
-            difficulty: rules_v0::RunDifficulty::NONE,
+            difficulty: sim::RunDifficulty::NONE,
         };
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
         let stage = World::new(stage.clone(), None, &kinds, content)
             .map_err(|i| Error::Invalid(vec![i]))?;
-        let mut state =
-            rules_v0::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
-        rules_v0::set_policy(&mut state, content.run_stats(), stat_priority, pick_stats);
+        let mut state = sim::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
+        sim::set_policy(&mut state, content.run_stats(), stat_priority, pick_stats);
         let weapon = Self::weapon_str(&stage);
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
-            events: Vec::with_capacity(rules_v0::events_room(&stage)),
+            events: Vec::with_capacity(sim::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
@@ -183,7 +182,7 @@ impl Engine {
             return Engine::start_time_limit(setup, content, content.time_limit());
         }
         let stage = run_setup::stage_in(setup, content)?;
-        let pool = rules_v0::RunPool {
+        let pool = sim::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
             extra_rerolls: setup.extra_rerolls,
             difficulty: run_difficulty(setup, content)?,
@@ -191,19 +190,19 @@ impl Engine {
         let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
         let stage = World::new(stage.clone(), None, &kinds, content)
             .map_err(|i| Error::Invalid(vec![i]))?;
-        let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
-        rules_v0::set_policy(
+        let mut state = sim::initial_state(&stage, content, pool, setup.seed, kinds);
+        sim::set_policy(
             &mut state,
             content.run_stats(),
             &setup.stat_priority,
             setup.pick_stats,
         );
-        let loadout = rules_v0::Loadout::of(setup, content);
-        rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
+        let loadout = sim::Loadout::of(setup, content);
+        sim::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         let weapon = Self::weapon_str(&stage);
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
-            events: Vec::with_capacity(rules_v0::events_room(&stage)),
+            events: Vec::with_capacity(sim::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
@@ -224,7 +223,7 @@ impl Engine {
         let difficulty = run_setup::difficulty_of(setup, content.difficulties())?;
         let (stage, spec, horde) =
             run_setup::time_limit_run(setup, mode, difficulty, content.trial())?;
-        let pool = rules_v0::RunPool {
+        let pool = sim::RunPool {
             rewards: pool(setup.star_pool.as_deref(), content.rewards())?,
             extra_rerolls: setup.extra_rerolls,
             difficulty: run_difficulty(setup, content)?,
@@ -232,20 +231,20 @@ impl Engine {
         let kinds = horde_kinds(&stage, &spec).map_err(|i| Error::Invalid(vec![i]))?;
         let stage =
             World::new(stage, Some(spec), &kinds, content).map_err(|i| Error::Invalid(vec![i]))?;
-        let mut state = rules_v0::initial_state(&stage, content, pool, setup.seed, kinds);
+        let mut state = sim::initial_state(&stage, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
-        rules_v0::set_policy(
+        sim::set_policy(
             &mut state,
             content.run_stats(),
             &setup.stat_priority,
             setup.pick_stats,
         );
-        let loadout = rules_v0::Loadout::of(setup, content);
-        rules_v0::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
+        let loadout = sim::Loadout::of(setup, content);
+        sim::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
         let weapon = Self::weapon_str(&stage);
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
-            events: Vec::with_capacity(rules_v0::events_room(&stage)),
+            events: Vec::with_capacity(sim::events_room(&stage)),
             state,
             stage,
             content: content.clone(),
@@ -265,7 +264,7 @@ impl Engine {
             return;
         }
         match self.stage.sim_version {
-            0 => rules_v0::step(
+            0 => sim::step(
                 &self.stage,
                 self.content.rewards(),
                 self.content.expertise(),
@@ -288,7 +287,7 @@ impl Engine {
             return Err(ChoiceError::NoOffer);
         }
         let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
-        let options = rules_v0::offer_options(&self.stage, rewards, expertise, &self.state);
+        let options = sim::offer_options(&self.stage, rewards, expertise, &self.state);
         let Some(option) = usize::try_from(index)
             .ok()
             .and_then(|i| options.get(i))
@@ -301,7 +300,7 @@ impl Engine {
         };
         self.events.clear();
         match self.stage.sim_version {
-            0 => rules_v0::choose(
+            0 => sim::choose(
                 &self.stage,
                 rewards,
                 expertise,
@@ -372,12 +371,12 @@ impl Engine {
 
     /// An offer is open: `step` does nothing until `choose` closes it (ADR-079 §3).
     pub fn offer_open(&self) -> bool {
-        rules_v0::offer_open(&self.state)
+        sim::offer_open(&self.state)
     }
 
     /// FNV-1a 64 over the whole state after the last tick (ADR-019).
     pub fn state_hash(&self) -> u64 {
-        rules_v0::state_hash(&self.state)
+        sim::state_hash(&self.state)
     }
 
     /// The domain events of the last tick, in the order they happened.
@@ -396,10 +395,10 @@ impl Engine {
     pub fn caps(&self) -> Load {
         Load {
             enemies: self.stage.enemy_cap,
-            tasks: rules_v0::MAX_ATTACK_TASKS,
-            zones: rules_v0::MAX_ZONES_ALIVE,
-            orbs: rules_v0::MAX_ORBS_ALIVE,
-            emitter_steps: rules_v0::MAX_EMITTER_STEPS_PER_TICK,
+            tasks: sim::MAX_ATTACK_TASKS,
+            zones: sim::MAX_ZONES_ALIVE,
+            orbs: sim::MAX_ORBS_ALIVE,
+            emitter_steps: sim::MAX_EMITTER_STEPS_PER_TICK,
             // Not caps: what a tick did, not what it may hold.
             refused_spawns: 0,
             held_spawns: 0,
@@ -415,12 +414,9 @@ impl Engine {
 
 /// What the setup's difficulty brings to the run (ADR-110): its percents, and its rarity range
 /// clamped to the rarities the run's rewards have.
-fn run_difficulty(
-    setup: &RunSetup,
-    content: &RunContent,
-) -> Result<rules_v0::RunDifficulty, Error> {
+fn run_difficulty(setup: &RunSetup, content: &RunContent) -> Result<sim::RunDifficulty, Error> {
     let d = run_setup::difficulty_of(setup, content.difficulties())?;
-    Ok(rules_v0::RunDifficulty {
+    Ok(sim::RunDifficulty {
         hp_pct: d.hp_pct,
         damage_pct: d.damage_pct,
         rarity: d.rarity_range(content.rewards()),
@@ -462,5 +458,5 @@ mod horde_tests;
 #[cfg(test)]
 mod move_index_tests;
 
-// Every `State` type lives in `rules_v0::state`; these paths keep working.
-pub(crate) use crate::rules_v0::state::*;
+// Every `State` type lives in `sim::state`; these paths keep working.
+pub(crate) use crate::sim::state::*;

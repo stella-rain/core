@@ -230,7 +230,7 @@ fn a_zones_type_is_part_of_the_state_hash() {
 #[test]
 fn damage_stays_bounded() {
     // The largest base damage a stage may give, weak: 12 000 dealt, in 64 bits. Past the
-    // validator's bounds the arithmetic saturates (`rules_v0::entity`'s own tests).
+    // validator's bounds the arithmetic saturates (`sim::entity`'s own tests).
     let max = validate::limits::MAX_DAMAGE;
     let st = striker(
         once(strike(max, Some("pyro"))),

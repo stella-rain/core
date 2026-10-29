@@ -9,7 +9,7 @@ use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::{Rarity, Rewards};
-use crate::rules_v0::state::{AgentState, BossState};
+use crate::sim::state::{AgentState, BossState};
 use crate::snapshot::EntityKind;
 use std::sync::Arc;
 

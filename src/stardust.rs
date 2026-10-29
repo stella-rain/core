@@ -6,7 +6,7 @@
 //! difficulty); the entry here is a mode's and holds for every difficulty.
 //!
 //! `progression::settle` pays, splits and banks by these numbers; the app keeps the bank in its
-//! save (ADR-101 point 7). Core counts what a run earns (ADR-109, `rules_v0::stardust`); this file
+//! save (ADR-101 point 7). Core counts what a run earns (ADR-109, `sim::stardust`); this file
 //! only carries the numbers, so no simulation outcome depends on it.
 //!
 //! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,

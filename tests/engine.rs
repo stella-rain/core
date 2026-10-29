@@ -1,5 +1,5 @@
 //! The simulation engine (ADR-004, ADR-015) at version 0. Small stages are built here so that
-//! every expected tick can be worked out by hand from the rules in `rules_v0`; the fixture
+//! every expected tick can be worked out by hand from the rules in `sim`; the fixture
 //! stage pins the hash every platform must reproduce (ADR-019).
 
 use serde_json::{Value, json};

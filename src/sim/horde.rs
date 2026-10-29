@@ -23,7 +23,7 @@
 //! never depends on either. An elite is built from the definition of the type drawn (`elite_types` of the mode file); its sprite is the type's.
 //!
 //! The mode's waves are held at the crowd target (DIR1, DS103): `spawn_waves_directed` (in
-//! `rules_v0`) lets a due wave spawn only while the enemies alive are below the target, and slides
+//! `sim`) lets a due wave spawn only while the enemies alive are below the target, and slides
 //! the schedule of one that finds it full. The elites above, the bosses' summons and the rest
 //! spawn in the room between the target and the cap.
 

@@ -28,7 +28,7 @@ use crate::fixed::Fx;
 use crate::limits::{VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH};
 use crate::pack::Pack;
 use crate::rewards::MAX_OFFER_CANDIDATES;
-use crate::rules_v0::MAX_RANGED_ATTACKERS;
+use crate::sim::MAX_RANGED_ATTACKERS;
 use crate::validate::limits::{MAX_AGGRO, MAX_ENEMY_CAP, MAX_ENEMY_XP, MAX_RADIUS};
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};

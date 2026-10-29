@@ -162,7 +162,7 @@ pub mod limits {
     pub const MAX_BOSS_HP: u32 = 1_000_000 * DAMAGE_SCALE;
     /// The largest base damage. With the atk-up, the type bonus and the vulnerability at their
     /// caps and the match-up at its cap, a hit of it is `MAX_DAMAGE × 11 × 11 × 11 × 2`: below
-    /// `u32::MAX` (ADR-056 decision 5), as `rules_v0::entity`'s tests check.
+    /// `u32::MAX` (ADR-056 decision 5), as `sim::entity`'s tests check.
     pub const MAX_DAMAGE: u32 = 10_000 * DAMAGE_SCALE;
     /// At this defence a hit keeps about 1% of its damage (ADR-056, K = 100 × `DAMAGE_SCALE`).
     pub const MAX_DEFENCE: u32 = 10_000 * DAMAGE_SCALE;

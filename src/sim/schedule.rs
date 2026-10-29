@@ -1,6 +1,6 @@
 //! The tick order of `sim_version` 0, as data: `TICK` lists every step of a tick in the order
 //! it runs, and `step` loops over it. `combat.md`'s tick order and the table in the module doc
-//! of `rules_v0` name the same steps; `tick_doc_lists_the_schedule` keeps the table and
+//! of `sim` name the same steps; `tick_doc_lists_the_schedule` keeps the table and
 //! `TICK` equal. Each step is a named `#[inline(never)]` function, so a profile names it (DS71-1).
 
 use super::{
@@ -252,7 +252,7 @@ pub(super) const TICK: &[(&str, Step)] = steps![
 mod tests {
     use super::TICK;
 
-    /// The step names in the table between the `<!-- tick -->` markers of `rules_v0`'s module
+    /// The step names in the table between the `<!-- tick -->` markers of `sim`'s module
     /// doc: the first code-quoted cell of each row.
     fn documented() -> Vec<String> {
         let src = include_str!("mod.rs");
