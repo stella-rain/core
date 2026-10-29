@@ -4,7 +4,7 @@
 
 use std::fs;
 use std::path::Path;
-use stella_rain_core::version::Versions;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -114,8 +114,8 @@ fn the_exported_pack_gives_the_bundled_content() {
     assert_eq!(pack.content(), RunContent::bundled());
     let trial = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
     assert_eq!(pack.trial(), &trial);
-    assert_eq!(pack.schema_version(), 0);
-    assert_eq!(pack.sim_version(), 0);
+    assert_eq!(pack.schema_version(), SCHEMA_VERSION);
+    assert_eq!(pack.sim_version(), SIM_VERSION);
     let sha: [u8; 32] = Sha256::digest(bundled()).into();
     assert_eq!(pack.sha256(), sha);
 }
@@ -241,8 +241,8 @@ fn a_missing_file_is_refused() {
 #[test]
 fn an_unknown_pack_version_is_refused() {
     for (field, n) in [
-        ("schema_version", 1),
-        ("sim_version", 1),
+        ("schema_version", SCHEMA_VERSION + 1),
+        ("sim_version", SIM_VERSION + 1),
         ("sim_version", 7),
     ] {
         let mut v = value();
@@ -393,13 +393,17 @@ fn a_time_limit_boss_the_trial_stage_would_refuse_is_refused_with_the_pack() {
 #[test]
 fn an_id_newer_than_the_pack_is_refused() {
     let mut v = value();
-    v["introduced"]["rewards"][0]["sim_version"] = json!(1);
+    v["introduced"]["rewards"][0]["sim_version"] = json!(SIM_VERSION + 1);
     let Err(PackError::Introduced(issues)) = load(&v) else {
         panic!("not refused as newer");
     };
     assert_eq!(issues.len(), 1);
     assert_eq!(issues[0].path, "$.introduced.rewards[0].sim_version");
-    assert!(issues[0].message.contains("newer than the pack's 0"));
+    assert!(
+        issues[0]
+            .message
+            .contains(&format!("newer than the pack's {SIM_VERSION}"))
+    );
 
     let mut v = value();
     v["introduced"]["expertise"][1]["ids"][2]["sim_version"] = json!(3);
@@ -457,10 +461,10 @@ fn the_bundled_pack_introduces_each_constellation_in_the_current_version() {
     assert_eq!(
         listed,
         [
-            ("summer_triangle", 0),
-            ("orions_belt", 0),
-            ("big_dipper", 0),
-            ("winter_triangle", 0)
+            ("summer_triangle", u64::from(SIM_VERSION)),
+            ("orions_belt", u64::from(SIM_VERSION)),
+            ("big_dipper", u64::from(SIM_VERSION)),
+            ("winter_triangle", u64::from(SIM_VERSION))
         ]
     );
     assert_eq!(
@@ -503,7 +507,7 @@ fn the_constellation_list_names_each_set_once_and_none_newer_than_the_pack() {
         .push(first);
     assert!(matches!(load(&v), Err(PackError::Introduced(_))));
     let mut v = value();
-    v["introduced"]["constellations"][1]["sim_version"] = json!(1);
+    v["introduced"]["constellations"][1]["sim_version"] = json!(SIM_VERSION + 1);
     let Err(PackError::Introduced(issues)) = load(&v) else {
         panic!("not refused as newer");
     };
@@ -546,7 +550,7 @@ fn garbage_is_refused() {
         b"null",
         b"[]",
         b"\xff\xfe",
-        b"{\"schema_version\":0}",
+        b"{\"schema_version\":1}",
     ] {
         assert!(Pack::from_bytes(garbage).is_err());
     }
@@ -727,14 +731,60 @@ fn a_new_reward_is_listed_at_the_pack_version() {
             .push(json!({ "id": "star_a", "sim_version": sim_version }));
     };
     let mut v = value();
-    new_reward(&mut v, 0);
+    new_reward(&mut v, u64::from(SIM_VERSION));
     load(&v).expect("a new ID recorded at the pack's version loads");
 
     let mut v = value();
-    new_reward(&mut v, 1);
+    new_reward(&mut v, u64::from(SIM_VERSION) + 1);
     let Err(PackError::Introduced(issues)) = load(&v) else {
         panic!("not refused as newer");
     };
     assert_eq!(issues.len(), 1);
-    assert!(issues[0].message.contains("newer than the pack's 0"));
+    assert!(
+        issues[0]
+            .message
+            .contains(&format!("newer than the pack's {SIM_VERSION}"))
+    );
+}
+
+#[test]
+fn the_bundled_pack_introduces_every_id_in_version_1() {
+    let file: pack::PackFile = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    assert_eq!((file.schema_version, file.sim_version), (1, 1));
+    let i = &file.introduced;
+    let expertise: Vec<_> = i.expertise.iter().flat_map(|w| w.ids.clone()).collect();
+    let constellations = i.constellations.clone().unwrap_or_default();
+    for (name, list) in [
+        ("run_stats", &i.run_stats),
+        ("rewards", &i.rewards),
+        ("stage_skills", &i.stage_skills),
+        ("perk_sets", &i.perk_sets),
+        ("difficulties", &i.difficulties),
+        ("expertise", &expertise),
+        ("elite_types", &i.elite_types),
+        ("constellations", &constellations),
+    ] {
+        assert!(!list.is_empty(), "{name}");
+        for e in list {
+            assert_eq!(e.sim_version, 1, "{name} {}", e.id);
+        }
+    }
+}
+
+#[test]
+fn a_pack_at_version_0_is_refused() {
+    // ADR-REPL-7 point 8: no migration from version 0.
+    for (schema_version, sim_version) in [(0, 0), (1, 0), (0, 1)] {
+        let mut v = value();
+        v["schema_version"] = json!(schema_version);
+        v["sim_version"] = json!(sim_version);
+        assert_eq!(
+            load(&v).err(),
+            Some(PackError::UnsupportedVersion {
+                schema_version,
+                sim_version
+            }),
+            "{schema_version} {sim_version}"
+        );
+    }
 }

@@ -42,7 +42,7 @@ pub const MAX_PERK_REGEN: u32 = 10 * DAMAGE_SCALE;
 /// The most rerolls or banishes a set adds: as many as a setup may add (`MAX_EXTRA_REROLLS`).
 pub const MAX_PERK_OFFER_EXTRAS: u32 = MAX_EXTRA_REROLLS as u32;
 
-/// What a perk does, `amount` times over. The closed list of version 0's perk effects; the
+/// What a perk does, `amount` times over. The closed list of perk effects; the
 /// stat kinds are the run stats' (`StatEffect`) and add to the same totals.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,

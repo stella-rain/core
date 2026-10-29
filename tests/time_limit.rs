@@ -17,7 +17,7 @@ use stella_rain_core::validate::{
     Error,
     limits::{MAX_ELITES_ALIVE, MAX_MAP_SIDE},
 };
-use stella_rain_core::version::Versions;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 
 const MINUTE: u32 = 3600;
 
@@ -99,8 +99,8 @@ fn unknown_fields_and_other_versions_are_refused() {
         parse_at(
             &good(),
             Versions {
-                schema_version: 0,
-                sim_version: 1
+                schema_version: SCHEMA_VERSION + 1,
+                sim_version: SIM_VERSION + 1
             }
         ),
         Err(Error::UnsupportedVersion { .. })

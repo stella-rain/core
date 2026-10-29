@@ -1417,7 +1417,7 @@
       "type": "object"
     },
     "DamageType": {
-      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change in version 0.",
+      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change.",
       "enum": [
         "slash",
         "pierce",
@@ -5638,7 +5638,7 @@
       "type": "object"
     },
     "PerkEffect": {
-      "description": "What a perk does, `amount` times over. The closed list of version 0's perk effects; the\nstat kinds are the run stats' (`StatEffect`) and add to the same totals.",
+      "description": "What a perk does, `amount` times over. The closed list of perk effects; the\nstat kinds are the run stats' (`StatEffect`) and add to the same totals.",
       "oneOf": [
         {
           "const": "max_hp",
@@ -6314,7 +6314,7 @@
           "type": "string"
         },
         "schema_version": {
-          "description": "Must equal the stage's (ADR-020).",
+          "description": "The `schema_version` the file was written at. This game reads a file at its own\n`SCHEMA_VERSION`; an older one is read only through a migration to it, else it is\n`Older`; a newer one is `Newer` (ADR-REPL-7).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6326,7 +6326,7 @@
           "type": "integer"
         },
         "sim_version": {
-          "description": "Must equal the stage's (ADR-020).",
+          "description": "The `sim_version` the file was written at. This game reads a file at its own\n`SIM_VERSION`; an older one is read only through a migration to it, else it is `Older`;\na newer one is `Newer` (ADR-REPL-7).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -8369,7 +8369,7 @@
       "type": "object"
     },
     "StatEffect": {
-      "description": "What a point in a stat does, `step` times over. The closed list of version 0's effects;\npercentages add up over every stat with the same effect and round down.",
+      "description": "What a point in a stat does, `step` times over. The closed list of effects;\npercentages add up over every stat with the same effect and round down.",
       "oneOf": [
         {
           "const": "max_hp",

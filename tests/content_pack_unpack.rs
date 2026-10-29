@@ -9,6 +9,7 @@ use std::process::{Command, Output};
 
 use serde_json::{Value, json};
 use stella_rain_core::pack::{ContentFiles, Pack};
+use stella_rain_core::version::SIM_VERSION;
 
 /// A scratch tree for one test, `<tmp>/<name>/content` and `<tmp>/<name>/modes`, removed when
 /// it ends.
@@ -128,7 +129,7 @@ fn a_pack_with_one_changed_number_unpacks_and_exports_as_it_was() {
 fn an_invalid_pack_is_refused_and_nothing_is_written() {
     let tree = Tree::new("invalid");
     let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
-    v["introduced"]["rewards"][0]["sim_version"] = json!(1);
+    v["introduced"]["rewards"][0]["sim_version"] = json!(SIM_VERSION + 1);
     let out = unpack(
         &tree.pack(&serde_json::to_vec(&v).unwrap()),
         &tree.content(),
@@ -145,7 +146,8 @@ fn an_invalid_pack_is_refused_and_nothing_is_written() {
 fn a_valid_pack_that_export_would_not_write_is_refused_with_a_path() {
     let tree = Tree::new("form");
     // Valid JSON and content, but not the form export writes.
-    let bytes = edited(|s| s.replacen("\"sim_version\": 0,", "\"sim_version\":0,", 1));
+    let from = format!("\"sim_version\": {SIM_VERSION},");
+    let bytes = edited(|s| s.replacen(&from, &format!("\"sim_version\":{SIM_VERSION},"), 1));
     assert_ne!(bytes, Pack::BUNDLED.to_vec());
     let out = unpack(&tree.pack(&bytes), &tree.content());
     assert_eq!(out.status.code(), Some(1), "{}", text(&out.stderr));

@@ -10,14 +10,15 @@ use stella_rain_core::run_setup::{
     self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
 };
 use stella_rain_core::validate::{self, Error, Issue};
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core::weapon::WeaponRef;
 
 use crate::common;
 
 fn setup() -> RunSetup {
     RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "trial".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,
@@ -174,7 +175,7 @@ fn only_the_setup_format_parses() {
 #[test]
 fn a_setup_holds_no_expertise_level() {
     // Every run starts the expertise gauge at level 0 (ADR-079 §1): the setup carries none.
-    let without = r#"{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"giant_sword","seed":20261010}"#;
+    let without = r#"{"schema_version":1,"sim_version":1,"mode":"trial","weapon":"giant_sword","seed":20261010}"#;
     assert!(run_setup::parse_and_validate(without.as_bytes()).is_ok());
     for field in ["\"main_expertise\":0,", "\"sub_expertise\":0,"] {
         let with = without.replace("\"seed\"", &format!("{field}\"seed\""));
@@ -189,14 +190,14 @@ fn a_setup_holds_no_expertise_level() {
 #[test]
 fn a_setup_from_a_newer_game_is_refused() {
     let newer = RunSetup {
-        sim_version: 1,
+        sim_version: SIM_VERSION + 1,
         ..setup()
     };
     assert_eq!(
         run_setup::parse_and_validate(&bytes(&newer)),
         Err(Error::UnsupportedVersion {
-            schema_version: 0,
-            sim_version: 1
+            schema_version: SCHEMA_VERSION,
+            sim_version: SIM_VERSION + 1
         })
     );
     assert!(matches!(
@@ -232,7 +233,7 @@ fn an_id_newer_than_the_setup_s_sim_version_is_refused() {
         .iter()
         .map(|e| Entry {
             introduced: if e.id == "giant_sword" {
-                1
+                SIM_VERSION + 1
             } else {
                 e.introduced
             },
@@ -244,7 +245,10 @@ fn an_id_newer_than_the_setup_s_sim_version_is_refused() {
         found,
         vec![issue(
             "$.weapon",
-            "introduced in sim_version 1, newer than this setup's 0"
+            &format!(
+                "introduced in sim_version {}, newer than this setup's {SIM_VERSION}",
+                SIM_VERSION + 1
+            )
         )]
     );
 }
@@ -504,5 +508,24 @@ fn every_mode_of_the_bundled_pack_builds_a_kind_table_that_holds_what_it_spawns(
             let index = v.kind_index.expect("a kind");
             assert!(e.kinds().id(index).is_some(), "{mode}");
         }
+    }
+}
+
+#[test]
+fn a_setup_at_version_0_is_refused() {
+    // ADR-REPL-7 point 8: no migration from version 0.
+    for (schema_version, sim_version) in [(0, 0), (SCHEMA_VERSION, 0), (0, SIM_VERSION)] {
+        let old = RunSetup {
+            schema_version,
+            sim_version,
+            ..setup()
+        };
+        assert_eq!(
+            run_setup::parse_and_validate(&bytes(&old)),
+            Err(Error::UnsupportedVersion {
+                schema_version,
+                sim_version
+            })
+        );
     }
 }

@@ -18,40 +18,40 @@
 bench = "worst_tick"
 before = "21735fa3b620d3f0"
 after = "7e6786c603ce48dc"
-stage = "25b72e713a24d312"
+stage = "c933f5aa2553a447"
 input = "cf9a77022954c996"
 
 [hit_tick]
 bench = "hit_tick"
 before = "c55604b22ad2cf8d"
 after = "fc6d79094e9ba2ec"
-stage = "5b469ccfbe7f04f9"
+stage = "742e21faea328e3b"
 input = "c8f0ff41826bb896"
 
 [hit_tick_spread]
 bench = "hit_tick"
 before = "19b64d73364321ee"
 after = "234c6506597903e7"
-stage = "b966b0f10f1515a4"
+stage = "6491c5aa723e3db2"
 input = "c8f0ff41826bb896"
 
 [time_limit_tick]
 bench = "time_limit_tick"
 before = "fc386858e6d3b4ac"
 after = "28fe9d13bb08ef77"
-stage = "94dc0a94ec87da08"
+stage = "5babf4b0bcedd279"
 input = "c8f0ff41826bb896"
 
 [worst_minute]
 bench = "worst_minute"
 before = "6201306870d81bd7"
 after = "2f8a159160af42dd"
-stage = "f7a8c0796a5ae201"
+stage = "d03a85ad770bcc4b"
 input = "f529d1fcf6015867"
 
 [worst_minute_peak]
 bench = "worst_minute_peak"
 before = "0242e84cedb6544c"
 after = "705d700709c5daed"
-stage = "f7a8c0796a5ae201"
+stage = "d03a85ad770bcc4b"
 input = "c72ad57b7626882e"

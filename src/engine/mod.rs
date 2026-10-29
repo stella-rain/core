@@ -4,9 +4,9 @@
 //! seed, or from a run setup, and from the run stats (ADR-067), so the state hash after each
 //! tick is the same on every platform (ADR-019).
 //!
-//! Rules are dispatched by the stage's `sim_version` (ADR-017). Only version 0 exists, and it
-//! changes in place until the freeze (ADR-035): see `sim` for what it does and does not
-//! do yet.
+//! Rules are dispatched by the stage's `sim_version` (ADR-017, ADR-REPL-7 point 3): versions
+//! `1..=SIM_VERSION` run in `sim`, any other fails closed. Version 1 is frozen, so a change of
+//! outcome after it is gated on a new version (see `sim` for what it does and does not do yet).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,7 @@ use crate::sim;
 use crate::sim::{HordeSpec, World};
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
+use crate::version::SIM_VERSION;
 
 /// Why `Engine::choose` refused a choice; the run is unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,6 +33,9 @@ pub enum ChoiceError {
     NoOffer,
     /// `index` is not below the number of the open offer's `options`.
     OutOfRange { index: u32, options: u32 },
+    /// The run's `sim_version` is not one this game runs (ADR-REPL-7 point 3). `Engine::new`
+    /// refuses such a stage, so this is a fail-closed guard, not a path a valid run takes.
+    Unsupported { sim_version: u32 },
 }
 
 /// How a run stands.
@@ -264,7 +268,8 @@ impl Engine {
             return;
         }
         match self.stage.sim_version {
-            0 => sim::step(
+            v @ 1..=SIM_VERSION => sim::step(
+                v,
                 &self.stage,
                 self.content.rewards(),
                 self.content.expertise(),
@@ -281,10 +286,17 @@ impl Engine {
 
     /// Chooses option `index` of the open offer, between ticks (ADR-079 §3): the snapshot's
     /// `offer.options` lists them. It applies at once, and the events are then this choice's.
-    /// Refused, changing nothing, with no offer open or an index outside its options.
+    /// Refused, changing nothing, with no offer open, a `sim_version` this game does not run, or
+    /// an index outside its options.
     pub fn choose(&mut self, index: u32) -> Result<(), ChoiceError> {
         if !self.offer_open() {
             return Err(ChoiceError::NoOffer);
+        }
+        let sim_version = self.stage.sim_version;
+        if !(1..=SIM_VERSION).contains(&sim_version) {
+            // `new` validated the version; refuse, changing nothing and running no rules, if
+            // that stops being true.
+            return Err(ChoiceError::Unsupported { sim_version });
         }
         let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
         let options = sim::offer_options(&self.stage, rewards, expertise, &self.state);
@@ -299,17 +311,15 @@ impl Engine {
             });
         };
         self.events.clear();
-        match self.stage.sim_version {
-            0 => sim::choose(
-                &self.stage,
-                rewards,
-                expertise,
-                &mut self.state,
-                option,
-                &mut self.events,
-            ),
-            _ => self.state.outcome = Outcome::Failed,
-        }
+        sim::choose(
+            sim_version,
+            &self.stage,
+            rewards,
+            expertise,
+            &mut self.state,
+            option,
+            &mut self.events,
+        );
         self.observe_choice();
         Ok(())
     }
@@ -451,6 +461,8 @@ fn pool(ids: Option<&[ContentId]>, rewards: &Rewards) -> Result<Vec<u16>, Error>
 mod snapshot;
 pub use snapshot::{Place, Places, Tally};
 
+#[cfg(test)]
+mod dispatch_tests;
 #[cfg(test)]
 mod hash_coverage_tests;
 #[cfg(test)]

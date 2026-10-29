@@ -63,7 +63,7 @@ pub fn capped_attack_speed_pct(total: u32, cap: u32) -> u32 {
     total.min(cap.min(MAX_ATTACK_SPEED_PCT))
 }
 
-/// What a point in a stat does, `step` times over. The closed list of version 0's effects;
+/// What a point in a stat does, `step` times over. The closed list of effects;
 /// percentages add up over every stat with the same effect and round down.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,

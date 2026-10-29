@@ -178,8 +178,8 @@ fn the_bundled_rewards_still_parse_and_bound_their_new_limits() {
 /// A run setup on `difficulty`, the `time_limit` mode with the bundled content.
 fn setup(difficulty: &str) -> RunSetup {
     RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,

@@ -62,7 +62,7 @@ fn held(e: &Engine) -> Vec<Rune> {
 #[test]
 fn a_setup_from_before_these_fields_reads_with_the_defaults() {
     let old =
-        br#"{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"giant_sword","seed":7}"#;
+        br#"{"schema_version":1,"sim_version":1,"mode":"trial","weapon":"giant_sword","seed":7}"#;
     let setup = run_setup::parse_and_validate(old).unwrap();
     assert_eq!(setup.perk_set.as_str(), DEFAULT_PERK_SET);
     assert_eq!(DEFAULT_PERK_SET, "duelist");

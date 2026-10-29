@@ -13,6 +13,7 @@ use std::process::{Command, Output, Stdio};
 use serde_json::{Value, json};
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::pack::{self, Pack};
+use stella_rain_core::version::SIM_VERSION;
 
 /// A scratch file for one test, removed when it ends.
 struct Scratch(PathBuf);
@@ -63,7 +64,7 @@ fn verify_prints_the_hash_and_sim_version_of_a_valid_pack() {
     let bytes = Pack::BUNDLED.to_vec();
     let sha = to_hex(&Pack::from_bytes(&bytes).unwrap().sha256());
     let expected = format!(
-        "sha256: {sha}\nsim_version: 0\n\
+        "sha256: {sha}\nsim_version: {SIM_VERSION}\n\
          starting_unlocks: 1 weapons, 1 perk_sets, 1 stage_skills, 3 runes\n\
          constellations: 4 sets\n\
          stardust: 2 modes\n\
@@ -82,7 +83,7 @@ fn verify_prints_the_hash_and_sim_version_of_a_valid_pack() {
 #[test]
 fn verify_refuses_an_invalid_pack_with_the_reason_and_without_its_text() {
     let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
-    v["introduced"]["rewards"][0]["sim_version"] = json!(1);
+    v["introduced"]["rewards"][0]["sim_version"] = json!(SIM_VERSION + 1);
     v["zq_secret_marker"] = json!("zq_secret_marker");
     let out = run(&["verify", "-"], &serde_json::to_vec(&v).unwrap());
     assert_eq!(out.status.code(), Some(1));
@@ -92,12 +93,15 @@ fn verify_refuses_an_invalid_pack_with_the_reason_and_without_its_text() {
     assert!(!err.contains("zq_"), "{err}");
 
     let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
-    v["introduced"]["rewards"][0]["sim_version"] = json!(1);
+    v["introduced"]["rewards"][0]["sim_version"] = json!(SIM_VERSION + 1);
     let out = run(&["verify", "-"], &serde_json::to_vec(&v).unwrap());
     assert_eq!(out.status.code(), Some(1));
     let err = text(&out.stderr);
     assert!(
-        err.contains("$.introduced.rewards[0].sim_version: introduced in sim_version 1"),
+        err.contains(&format!(
+            "$.introduced.rewards[0].sim_version: introduced in sim_version {}",
+            SIM_VERSION + 1
+        )),
         "{err}"
     );
 }

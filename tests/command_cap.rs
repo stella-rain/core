@@ -45,8 +45,8 @@ pub fn undying_content() -> RunContent {
 
 pub fn setup(seed: u64, difficulty: &str, extra_rerolls: u8) -> RunSetup {
     RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,

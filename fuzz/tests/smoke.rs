@@ -12,6 +12,7 @@ use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{Replay, ReplayError};
 use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay, RunReplayError};
 use stella_rain_core::share;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core_fuzz::{
     commands, minisign_verify, pack_load, packs_load, replay_load, run_setup, share_decode,
     stage_parse, stage_run,
@@ -158,19 +159,19 @@ fn a_real_replay_verifies() {
 fn a_replay_with_a_raised_version_is_newer_and_not_a_load() {
     let (_, replay) = clear();
     let mut v: serde_json::Value = serde_json::from_slice(&replay).unwrap();
-    v["sim_version"] = serde_json::json!(1);
+    v["sim_version"] = serde_json::json!(SIM_VERSION + 1);
     let raised = v.to_string().into_bytes();
     assert_eq!(
         Replay::from_bytes(&raised),
         Err(ReplayError::Newer {
-            schema_version: 0,
-            sim_version: 1
+            schema_version: SCHEMA_VERSION,
+            sim_version: SIM_VERSION + 1
         })
     );
     assert!(!replay_load(&raised), "a newer replay verifies");
     let run = run_replays().remove(0);
     let mut v: serde_json::Value = serde_json::from_slice(&run).unwrap();
-    v["setup"]["schema_version"] = serde_json::json!(1);
+    v["setup"]["schema_version"] = serde_json::json!(SCHEMA_VERSION + 1);
     let raised = v.to_string().into_bytes();
     assert!(matches!(
         RunReplay::from_bytes(&raised),
@@ -245,7 +246,7 @@ fn garbage_is_rejected_without_a_panic() {
         b"null",
         b"[]",
         b"\xff\xfe\x00",
-        b"{\"schema_version\":0,\"sim_version\":0}",
+        b"{\"schema_version\":1,\"sim_version\":1}",
         b"AAAA",
         &long_run,
     ];
@@ -281,7 +282,7 @@ fn pack_with_constellations() -> Vec<u8> {
         pack["introduced"]["rewards"]
             .as_array_mut()
             .expect("introduced rewards")
-            .push(serde_json::json!({ "id": id, "sim_version": 0 }));
+            .push(serde_json::json!({ "id": id, "sim_version": 1 }));
     }
     pack["constellations"] = serde_json::json!({
         "constellations": [{

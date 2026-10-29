@@ -13,7 +13,7 @@ use stella_rain_core::stage_skill::{
     MAX_STAGE_SKILLS_BYTES, SkillEffect, StageSkills,
 };
 use stella_rain_core::validate::Error;
-use stella_rain_core::version::Versions;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 
 fn self_status() -> Value {
     json!({ "type": "self_status", "status": "atk_up", "value_pct": 20, "duration_ticks": 120 })
@@ -343,7 +343,7 @@ fn only_the_stage_skills_format_parses() {
     };
     for bad in [
         json!("not an object"),
-        json!({ "schema_version": 0, "sim_version": 0 }),
+        json!({ "schema_version": 1, "sim_version": 1 }),
         {
             let mut v = one();
             v["extra"] = json!(1);
@@ -375,13 +375,13 @@ fn a_newer_file_is_unsupported() {
         parse_at(
             &v,
             Versions {
-                schema_version: 0,
-                sim_version: 1
+                schema_version: SCHEMA_VERSION + 1,
+                sim_version: SIM_VERSION + 1
             }
         ),
         Err(Error::UnsupportedVersion {
-            schema_version: 0,
-            sim_version: 1
+            schema_version: SCHEMA_VERSION + 1,
+            sim_version: SIM_VERSION + 1
         })
     );
 }

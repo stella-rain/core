@@ -1,4 +1,4 @@
-//! The tick order of `sim_version` 0, as data: `TICK` lists every step of a tick in the order
+//! The tick order of `sim_version` 1, as data: `TICK` lists every step of a tick in the order
 //! it runs, and `step` loops over it. `combat.md`'s tick order and the table in the module doc
 //! of `sim` name the same steps; `tick_doc_lists_the_schedule` keeps the table and
 //! `TICK` equal. Each step is a named `#[inline(never)]` function, so a profile names it (DS71-1).

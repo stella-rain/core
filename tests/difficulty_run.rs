@@ -27,8 +27,8 @@ const DIFFICULTIES: [(&str, u32, u32); 4] = [
 
 fn setup(difficulty: &str) -> RunSetup {
     RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,

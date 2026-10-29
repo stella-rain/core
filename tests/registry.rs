@@ -69,7 +69,7 @@ fn id_format_rules() {
 }
 
 #[test]
-fn the_combo_upgrades_are_registered_in_version_0() {
+fn the_combo_upgrades_are_registered_in_version_1() {
     // ADR-084 point 7, ADR-026: the permanent upgrades that open the AAB and AAAB steps.
     for id in [
         "giant_hammer_aaab",
@@ -78,7 +78,7 @@ fn the_combo_upgrades_are_registered_in_version_0() {
         "giant_sword_aab",
     ] {
         let e = find(ENTRIES, Kind::Upgrade, id).unwrap_or_else(|| panic!("{id}"));
-        assert_eq!(e.introduced, 0, "{id}");
+        assert_eq!(e.introduced, 1, "{id}");
     }
     assert!(find(ENTRIES, Kind::Weapon, "giant_sword_aab").is_none());
 }
@@ -87,4 +87,13 @@ fn the_combo_upgrades_are_registered_in_version_0() {
 fn the_upgrade_list_has_room_for_every_upgrade() {
     let n = ENTRIES.iter().filter(|e| e.kind == Kind::Upgrade).count();
     assert!(n <= stella_rain_core::registry::MAX_UPGRADES);
+}
+
+#[test]
+fn every_registry_id_is_introduced_in_version_1() {
+    // ADR-REPL-7 point 8: version 1 is the first version, so every ID is introduced in it.
+    assert!(!ENTRIES.is_empty());
+    for e in ENTRIES {
+        assert_eq!(e.introduced, 1, "{}", e.id);
+    }
 }

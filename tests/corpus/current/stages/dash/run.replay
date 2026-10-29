@@ -1,1 +1,1 @@
-{"schema_version":0,"sim_version":0,"seed":7,"stage_sha256":"7a1b8bd3e6261375492a30e0ff1c1a48a312b8122954babbd414d4b2878cbf32","ticks":300,"final_hash":"bf96e0a0acf553ad","inputs":"PAAAACgA2AAyACgAMgDYADIAKAAyANgA"}
+{"schema_version":1,"sim_version":1,"seed":7,"stage_sha256":"15eaa69bce4ad7e62ba1107b678ca7bd47a83fc8ba9517e649ee9158e326f821","ticks":300,"final_hash":"bf96e0a0acf553ad","inputs":"PAAAACgA2AAyACgAMgDYADIAKAAyANgA"}

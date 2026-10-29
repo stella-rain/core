@@ -388,7 +388,7 @@ fn pack_value(sets: Option<Value>) -> Value {
         v["introduced"]["rewards"]
             .as_array_mut()
             .unwrap()
-            .push(json!({ "id": id, "sim_version": 0 }));
+            .push(json!({ "id": id, "sim_version": 1 }));
     }
     if let Some(sets) = sets {
         v["constellations"] = sets;

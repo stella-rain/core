@@ -2,7 +2,7 @@
 //! closed list built into `core`, of two kinds; the Main holds each at most once, never
 //! upgraded or stacked, and never carries one to another run. A run gets them from the random
 //! rune, a star reward that draws one the Main does not hold when it is picked (`rewards`).
-//! A list for the prototype; adding to it is a schema change in version 0.
+//! A list for the prototype; adding to it is a schema change.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

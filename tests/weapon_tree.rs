@@ -13,7 +13,7 @@ use stella_rain_core::weapons::Weapons;
 fn file(weapon: &str, tree: Option<&str>) -> Vec<u8> {
     let tree = tree.map_or(String::new(), |t| format!(r#","weapon_tree":"{t}""#));
     format!(
-        r#"{{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"{weapon}","seed":20261010{tree}}}"#
+        r#"{{"schema_version":1,"sim_version":1,"mode":"trial","weapon":"{weapon}","seed":20261010{tree}}}"#
     )
     .into_bytes()
 }
@@ -101,7 +101,7 @@ fn an_unknown_tree_for_the_weapon_is_refused() {
 
 #[test]
 fn a_setup_that_names_an_old_upgrade_still_reads_and_the_upgrade_opens_nothing() {
-    let bytes = br#"{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"giant_sword","seed":1,"upgrades":["giant_sword_aaab","giant_sword_aab"]}"#;
+    let bytes = br#"{"schema_version":1,"sim_version":1,"mode":"trial","weapon":"giant_sword","seed":1,"upgrades":["giant_sword_aaab","giant_sword_aab"]}"#;
     assert!(run_setup::parse_and_validate(bytes).is_ok());
 }
 

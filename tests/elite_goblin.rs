@@ -362,8 +362,8 @@ fn a_goblin_that_comes_after_the_call_leaves_at_once() {
 
 fn setup() -> RunSetup {
     RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,

@@ -15,6 +15,7 @@ use stella_rain_core::replay::{
 };
 use stella_rain_core::rng::SplitMix64;
 use stella_rain_core::validate;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 
 fn recorded() -> (Vec<u8>, Replay, Vec<u8>) {
     let stage = stage_bytes();
@@ -33,8 +34,8 @@ fn with(replay: &Replay, change: impl FnOnce(&mut Value)) -> Vec<u8> {
 
 fn replay_of(inputs: &[Input], ticks: u32) -> Replay {
     Replay {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         seed: 7,
         stage_sha256: String::new(),
         ticks,
@@ -365,8 +366,19 @@ fn a_replay_only_verifies_against_its_own_stage() {
         Err(ReplayError::NotThisStage("another seed"))
     );
     // Another version is refused when the file is read, before it is compared with the stage.
-    for (field, expected) in [("sim_version", (0, 1)), ("schema_version", (1, 0))] {
-        let tampered = with(&replay, |v| v[field] = json!(1));
+    for (field, newer, expected) in [
+        (
+            "sim_version",
+            SIM_VERSION + 1,
+            (SCHEMA_VERSION, SIM_VERSION + 1),
+        ),
+        (
+            "schema_version",
+            SCHEMA_VERSION + 1,
+            (SCHEMA_VERSION + 1, SIM_VERSION),
+        ),
+    ] {
+        let tampered = with(&replay, |v| v[field] = json!(newer));
         assert_eq!(
             verify(&stage, &tampered),
             Err(ReplayError::Newer {
@@ -464,14 +476,15 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
 #[test]
 fn the_encoding_is_pinned() {
     // The replay file and its hashes for a fixed stage and inputs. Every platform must write
-    // and verify exactly this; a change is a change to the format or to the version 0 rules,
-    // so a PR that changes it regenerates these values and says why (ADR-035).
+    // and verify exactly this; a change is a change to the format or to a frozen version's
+    // rules, which is a new version (ADR-REPL-7). The stage's two versions are in the stage
+    // file, so `stage_sha256` and the content hash moved once, at the freeze of version 1.
     let (stage, replay, bytes) = recorded();
     assert_eq!(
         String::from_utf8(bytes.clone()).unwrap(),
         concat!(
-            r#"{"schema_version":0,"sim_version":0,"seed":7,"#,
-            r#""stage_sha256":"45111ffeb51b8951352c5494a5bcfb4295d9cd74ad559ec909e9062a7a0872de","#,
+            r#"{"schema_version":1,"sim_version":1,"seed":7,"#,
+            r#""stage_sha256":"749df219b108a048afb8e402f18142140d03f971a80653b3e0251833f3e43784","#,
             r#""ticks":35,"final_hash":"f41f6599e39fe57c","#,
             r#""inputs":"AQEAAAIAAAACAgAAGQAAAAICAAADAAAA"}"#,
             "\n"
@@ -488,7 +501,7 @@ fn the_encoding_is_pinned() {
     );
     assert_eq!(
         to_hex(&content_hash(&stage, &bytes)),
-        "a17bc0f364c51628c4ca8171e2232c8ce1f61474aeac43d4ddf7ca1373def12d"
+        "599383fba1b56bd2e49472629057870c4aa6137df1a01882e806eca8a4cbe176"
     );
 }
 
@@ -615,16 +628,22 @@ fn newer(schema_version: u32, sim_version: u32) -> Result<Replay, ReplayError> {
 #[test]
 fn a_replay_for_a_newer_version_is_newer() {
     let (_, replay, _) = recorded();
-    let schema = with(&replay, |v| v["schema_version"] = json!(1));
-    assert_eq!(Replay::from_bytes(&schema), newer(1, 0));
+    let schema = with(&replay, |v| v["schema_version"] = json!(SCHEMA_VERSION + 1));
+    assert_eq!(
+        Replay::from_bytes(&schema),
+        newer(SCHEMA_VERSION + 1, SIM_VERSION)
+    );
     // A newer file may hold fields this version rejects; it is still "newer", not damaged.
     let future = with(&replay, |v| {
-        v["sim_version"] = json!(1);
+        v["sim_version"] = json!(SIM_VERSION + 1);
         v["future"] = json!(1);
     });
-    assert_eq!(Replay::from_bytes(&future), newer(0, 1));
+    assert_eq!(
+        Replay::from_bytes(&future),
+        newer(SCHEMA_VERSION, SIM_VERSION + 1)
+    );
     let huge = with(&replay, |v| v["schema_version"] = json!(4_000_000_000u32));
-    assert_eq!(Replay::from_bytes(&huge), newer(4_000_000_000, 0));
+    assert_eq!(Replay::from_bytes(&huge), newer(4_000_000_000, SIM_VERSION));
 }
 
 #[test]
@@ -662,4 +681,52 @@ fn a_replay_that_cannot_be_parsed_at_a_known_version_is_damaged() {
         v.as_object_mut().unwrap().remove("schema_version");
     })));
     assert!(damaged(&with(&replay, |v| v["sim_version"] = json!("0"))));
+}
+
+/// The corpus' clear replay with its versions set: the file a version-0 build wrote, apart from
+/// those two numbers.
+fn corpus_replay_at(schema_version: u32, sim_version: u32) -> Vec<u8> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/corpus/current/stages/clear/run.replay"
+    );
+    let mut value: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    value["schema_version"] = json!(schema_version);
+    value["sim_version"] = json!(sim_version);
+    serde_json::to_vec(&value).unwrap()
+}
+
+#[test]
+fn a_replay_at_version_0_is_older() {
+    // ADR-REPL-7 point 8: the production table has no migration from version 0.
+    assert_eq!(
+        Replay::from_bytes(&corpus_replay_at(0, 0)),
+        Err(ReplayError::Older {
+            schema_version: 0,
+            sim_version: 0
+        })
+    );
+    assert_eq!(
+        Replay::from_bytes(&corpus_replay_at(1, 0)),
+        Err(ReplayError::Older {
+            schema_version: 1,
+            sim_version: 0
+        })
+    );
+}
+
+#[test]
+fn the_corpus_replay_loads_at_the_current_versions_and_not_one_above() {
+    let current = Replay::from_bytes(&corpus_replay_at(SCHEMA_VERSION, SIM_VERSION)).unwrap();
+    assert_eq!(
+        (current.schema_version, current.sim_version),
+        (SCHEMA_VERSION, SIM_VERSION)
+    );
+    assert_eq!(
+        Replay::from_bytes(&corpus_replay_at(SCHEMA_VERSION + 1, SIM_VERSION + 1)),
+        Err(ReplayError::Newer {
+            schema_version: SCHEMA_VERSION + 1,
+            sim_version: SIM_VERSION + 1
+        })
+    );
 }

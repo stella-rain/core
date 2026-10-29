@@ -30,8 +30,8 @@ fn engine_edited(
     let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
         .unwrap_or_else(|e| panic!("{e:?}"));
     let setup = RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,
@@ -300,8 +300,8 @@ fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
     let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
         .unwrap_or_else(|e| panic!("{e}"));
     let setup = RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,
@@ -530,8 +530,8 @@ fn the_boss_calls_the_elites_of_the_minutes_before_and_after_it_comes() {
 /// keeps it so; `boss_sprite_at` does too).
 fn bundled_run(difficulty: &str, seed: u64) -> Engine {
     let setup = RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,

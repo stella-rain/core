@@ -54,7 +54,7 @@ use crate::validate;
 use crate::version::{self, ReplayLoadError, Versions};
 
 /// The most commands a run replay holds (a tuning value; ADR-079 decides that a cap exists).
-/// Version 0 gives at most 99 points in a run; the rest is room for the offers' choices, a few
+/// Version 1 gives at most 99 points in a run; the rest is room for the offers' choices, a few
 /// per falling star taken. Measured (`tests/command_cap.rs`): the longest run, a
 /// `time_limit` run on normal, hard or rainy through its full overtime (90,000 ticks), played by
 /// a bot that cannot die, takes every offer or rerolls and banishes at each, with 20 extra
@@ -270,6 +270,11 @@ impl fmt::Display for RunReplayError {
                 ChoiceError::OutOfRange { index, options } => write!(
                     f,
                     "a choice on tick {tick} is option {index} of an offer of {options}"
+                ),
+                ChoiceError::Unsupported { sim_version } => write!(
+                    f,
+                    "a choice on tick {tick} is in a run of sim_version {sim_version}, \
+                     which this game does not run"
                 ),
             },
             RunReplayError::InputsAfterEnd { ended_at } => {

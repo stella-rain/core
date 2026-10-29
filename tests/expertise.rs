@@ -13,7 +13,7 @@ use stella_rain_core::expertise::{
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use stella_rain_core::validate::Error;
-use stella_rain_core::version::Versions;
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 
 fn option(id: &str, effect: &str, amount: u32) -> Value {
     json!({
@@ -171,7 +171,7 @@ fn only_the_expertise_format_parses() {
     };
     for bad in [
         json!("not an object"),
-        json!({ "schema_version": 0, "sim_version": 0 }),
+        json!({ "schema_version": 1, "sim_version": 1 }),
         extra(""),
         extra("/weapons/0"),
         extra("/weapons/0/styles/0"),
@@ -195,13 +195,13 @@ fn newer_versions_are_refused_before_the_strict_parse() {
         parse_at(
             &v,
             Versions {
-                schema_version: 0,
-                sim_version: 1
+                schema_version: SCHEMA_VERSION + 1,
+                sim_version: SIM_VERSION + 1
             }
         ),
         Err(Error::UnsupportedVersion {
-            schema_version: 0,
-            sim_version: 1
+            schema_version: SCHEMA_VERSION + 1,
+            sim_version: SIM_VERSION + 1
         })
     );
 }
