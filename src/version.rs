@@ -1,6 +1,7 @@
 //! File and rule versions (ADR-017). Version 1 is the frozen first version (ADR-REPL-7): a
-//! change to a type or to a rule's outcome is a new version, never an edit in place, and
-//! version 0, the development version before the freeze, is refused everywhere.
+//! change to a type or to a rule's outcome is a new version, never an edit in place (for a
+//! rule, a gate in `sim`, a copy only for a rewrite), and version 0, the development version
+//! before the freeze, is refused everywhere.
 
 /// Structure of stage, event and replay files.
 pub const SCHEMA_VERSION: u32 = 1;
@@ -78,8 +79,8 @@ pub(crate) fn read_current<T: serde::de::DeserializeOwned>(
 }
 
 /// Reads a content file: it has no versions of its own and is read at the versions of the pack
-/// that holds it (ADR-CONT-3), checked here so that a future migration has them (ADR-REPL-5
-/// point 4). The size limit first, then the versions, then the strict parse.
+/// that holds it (ADR-CONT-3), checked here so that a future migration has them (ADR-REPL-7
+/// point 1). The size limit first, then the versions, then the strict parse.
 pub(crate) fn read_member<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,
@@ -96,7 +97,7 @@ pub(crate) fn read_member<T: serde::de::DeserializeOwned>(
 }
 
 /// One step from an older version pair to the next: `apply` turns the file's JSON at `from`
-/// into the JSON of the version after it (ADR-REPL-5 point 4). The production table is empty:
+/// into the JSON of the version after it (ADR-REPL-7 point 4). The production table is empty:
 /// version 1 is the first version, and version 0 has no migration (ADR-REPL-7 point 8).
 pub(crate) struct Migration {
     pub from: Versions,
