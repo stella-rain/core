@@ -217,15 +217,27 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
 /// The replay loader (ADR-020 item 5, ADR-051 §3), for stage replays and run replays: a replay
 /// that loads unpacks without a panic and saves to bytes that load as the same replay; any
 /// bytes verified against a stage that is cleared, or as a run replay, never panic, whatever
-/// they claim; and a run replay that verifies is exactly what its own commands record.
+/// they claim; a run replay that verifies is exactly what its own commands record; and a replay
+/// that loads is at this core's versions (any other pair is `Older`, `Newer` or `Damaged`).
 pub fn replay_load(data: &[u8]) -> bool {
+    let current = Versions::CURRENT;
     if let Ok(replay) = Replay::from_bytes(data) {
+        assert_eq!(
+            (replay.schema_version, replay.sim_version),
+            (current.schema_version, current.sim_version),
+            "a replay that loads is at another version"
+        );
         let _ = replay.unpack_inputs(MAX_TICKS);
         let again = Replay::from_bytes(&replay.to_bytes())
             .expect("a replay that loaded loads again once saved");
         assert_eq!(again, replay, "a saved replay loads as another replay");
     }
     if let Ok(run) = RunReplay::from_bytes(data) {
+        assert_eq!(
+            (run.setup.schema_version, run.setup.sim_version),
+            (current.schema_version, current.sim_version),
+            "a run replay that loads is at another version"
+        );
         let _ = run.unpack_inputs(MAX_TICKS);
         let _ = run.unpack_commands();
         let again = RunReplay::from_bytes(&run.to_bytes())
