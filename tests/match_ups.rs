@@ -99,7 +99,7 @@ fn the_file_is_strict_and_size_limited() {
         parse_at(
             &newer,
             Versions {
-                schema_version: 0,
+                schema_version: 1,
                 sim_version: 1
             }
         ),

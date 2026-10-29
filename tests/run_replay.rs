@@ -405,7 +405,7 @@ fn a_bad_setup_is_refused_and_a_newer_one_is_newer() {
     assert!(matches!(
         verify_run(&bytes),
         Err(RunReplayError::Newer {
-            schema_version: 0,
+            schema_version: 1,
             sim_version: 1
         })
     ));

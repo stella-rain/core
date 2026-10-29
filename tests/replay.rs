@@ -33,8 +33,8 @@ fn with(replay: &Replay, change: impl FnOnce(&mut Value)) -> Vec<u8> {
 
 fn replay_of(inputs: &[Input], ticks: u32) -> Replay {
     Replay {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         seed: 7,
         stage_sha256: String::new(),
         ticks,
@@ -470,7 +470,7 @@ fn the_encoding_is_pinned() {
     assert_eq!(
         String::from_utf8(bytes.clone()).unwrap(),
         concat!(
-            r#"{"schema_version":0,"sim_version":0,"seed":7,"#,
+            r#"{"schema_version":1,"sim_version":1,"seed":7,"#,
             r#""stage_sha256":"45111ffeb51b8951352c5494a5bcfb4295d9cd74ad559ec909e9062a7a0872de","#,
             r#""ticks":35,"final_hash":"f41f6599e39fe57c","#,
             r#""inputs":"AQEAAAIAAAACAgAAGQAAAAICAAADAAAA"}"#,

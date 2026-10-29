@@ -123,7 +123,7 @@ fn a_file_over_the_limit_is_not_parsed() {
 fn only_the_run_stats_format_parses() {
     for bad in [
         json!("not an object"),
-        json!({ "schema_version": 0, "sim_version": 0 }),
+        json!({ "schema_version": 1, "sim_version": 1 }),
         {
             let mut v = file(vec![stat("speed")]);
             v["extra"] = json!(1);
@@ -155,12 +155,12 @@ fn a_newer_file_is_unsupported() {
         parse_at(
             &v,
             Versions {
-                schema_version: 0,
+                schema_version: 1,
                 sim_version: 1
             }
         ),
         Err(Error::UnsupportedVersion {
-            schema_version: 0,
+            schema_version: 1,
             sim_version: 1
         })
     );

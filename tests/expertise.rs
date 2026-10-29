@@ -171,7 +171,7 @@ fn only_the_expertise_format_parses() {
     };
     for bad in [
         json!("not an object"),
-        json!({ "schema_version": 0, "sim_version": 0 }),
+        json!({ "schema_version": 1, "sim_version": 1 }),
         extra(""),
         extra("/weapons/0"),
         extra("/weapons/0/styles/0"),
@@ -195,12 +195,12 @@ fn newer_versions_are_refused_before_the_strict_parse() {
         parse_at(
             &v,
             Versions {
-                schema_version: 0,
+                schema_version: 1,
                 sim_version: 1
             }
         ),
         Err(Error::UnsupportedVersion {
-            schema_version: 0,
+            schema_version: 1,
             sim_version: 1
         })
     );

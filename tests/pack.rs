@@ -546,7 +546,7 @@ fn garbage_is_refused() {
         b"null",
         b"[]",
         b"\xff\xfe",
-        b"{\"schema_version\":0}",
+        b"{\"schema_version\":1}",
     ] {
         assert!(Pack::from_bytes(garbage).is_err());
     }

@@ -13,7 +13,7 @@ const CLEAR: &[u8] = include_bytes!("corpus/current/stages/clear/stage.json");
 /// What is hashed for `corpus/current/stages/clear/stage.json`, written out by hand.
 const CLEAR_INPUT: &str = concat!(
     "stella-rain/parsed-stage/v1\n",
-    r#"{"schema_version":0,"sim_version":0,"title":"Test Stage","description":"","seed":7,"#,
+    r#"{"schema_version":1,"sim_version":1,"title":"Test Stage","description":"","seed":7,"#,
     r#""length_ticks":600,"player":{"base":"pilot_a","hp":300,"atk":1000,"#,
     r#""weapon":{"preset":{"id":"giant_sword"}},"#,
     r#""evade":{"distance":12288,"ticks":8,"invulnerable_ticks":10,"cooldown_ticks":40}},"#,
@@ -83,7 +83,7 @@ fn formatting_and_key_order_do_not_change_the_hash() {
         "player":{"weapon":{"preset":{"id":"giant_sword"}},"atk":1000,"hp":300,"base":"pilot_a",
                   "evade":{"cooldown_ticks":40,"invulnerable_ticks":10,"ticks":8,"distance":12288}},
         "length_ticks":600,   "seed":7,
-        "id":"test-stage","sim_version":0,"schema_version":0}
+        "id":"test-stage","sim_version":1,"schema_version":1}
 "#;
     assert_ne!(&reformatted[..], CLEAR);
     assert_eq!(hash_of(reformatted), hash_of(CLEAR));

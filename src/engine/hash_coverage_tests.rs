@@ -721,8 +721,8 @@ fn engine() -> Engine {
     let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
         .unwrap_or_else(|e| panic!("{e:?}"));
     let setup = RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,

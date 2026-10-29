@@ -17,8 +17,8 @@ use crate::common;
 
 fn setup() -> RunSetup {
     RunSetup {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         mode: "trial".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,
@@ -175,7 +175,7 @@ fn only_the_setup_format_parses() {
 #[test]
 fn a_setup_holds_no_expertise_level() {
     // Every run starts the expertise gauge at level 0 (ADR-079 §1): the setup carries none.
-    let without = r#"{"schema_version":0,"sim_version":0,"mode":"trial","weapon":"giant_sword","seed":20261010}"#;
+    let without = r#"{"schema_version":1,"sim_version":1,"mode":"trial","weapon":"giant_sword","seed":20261010}"#;
     assert!(run_setup::parse_and_validate(without.as_bytes()).is_ok());
     for field in ["\"main_expertise\":0,", "\"sub_expertise\":0,"] {
         let with = without.replace("\"seed\"", &format!("{field}\"seed\""));
@@ -196,7 +196,7 @@ fn a_setup_from_a_newer_game_is_refused() {
     assert_eq!(
         run_setup::parse_and_validate(&bytes(&newer)),
         Err(Error::UnsupportedVersion {
-            schema_version: 0,
+            schema_version: 1,
             sim_version: 1
         })
     );

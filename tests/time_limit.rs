@@ -99,7 +99,7 @@ fn unknown_fields_and_other_versions_are_refused() {
         parse_at(
             &good(),
             Versions {
-                schema_version: 0,
+                schema_version: 1,
                 sim_version: 1
             }
         ),

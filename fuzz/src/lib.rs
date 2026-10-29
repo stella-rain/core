@@ -349,7 +349,7 @@ pub fn pack_load(data: &[u8]) -> bool {
     );
     for mode in ["trial", "time_limit"] {
         let setup = RunSetup {
-            schema_version: 0,
+            schema_version: 1,
             sim_version: pack.sim_version(),
             mode: mode.into(),
             weapon: "giant_sword".into(),

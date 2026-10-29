@@ -1,6 +1,6 @@
 {
-  "schema_version": 0,
-  "sim_version": 0,
+  "schema_version": 1,
+  "sim_version": 1,
   "id": "tutorial",
   "title": "Tutorial",
   "description": "The tutorial mode: three minutes of gentle bats and one weak golem, with no elites, no mid-boss and no Stardust. Placeholder content from the trial stage: the same main character, companion, levels and stars, with the bats weak to Slash and the golem weak to Strike. Every weapon can be switched inside it; the weapon and the seed come from the run setup.",

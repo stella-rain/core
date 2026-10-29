@@ -1,6 +1,6 @@
 {
-  "schema_version": 0,
-  "sim_version": 0,
+  "schema_version": 1,
+  "sim_version": 1,
   "id": "placeholder-golem",
   "title": "Placeholder Golem",
   "description": "Every tier of ADR-036 with placeholder content.",

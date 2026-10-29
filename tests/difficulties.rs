@@ -143,7 +143,7 @@ fn versions_and_unknown_fields_are_refused() {
         parse_at(
             &v,
             Versions {
-                schema_version: 0,
+                schema_version: 1,
                 sim_version: 1
             }
         ),

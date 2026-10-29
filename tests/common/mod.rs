@@ -32,7 +32,7 @@ pub fn evade() -> Value {
 /// of the `giant_sword`'s reach until an evade dashes 48 pixels toward it.
 pub fn clearing_stage_json() -> Value {
     json!({
-        "schema_version": 0, "sim_version": 0, "id": "test-stage", "title": "Test Stage",
+        "schema_version": 1, "sim_version": 1, "id": "test-stage", "title": "Test Stage",
         "seed": 7, "length_ticks": 600,
         "player": { "base": "pilot_a", "hp": 3, "atk": 10,
                     "weapon": { "preset": { "id": "giant_sword" } },
@@ -228,7 +228,7 @@ pub fn stage_full(
     companions: Vec<Value>,
 ) -> Stage {
     let mut v = json!({
-        "schema_version": 0, "sim_version": 0, "id": "test", "title": "Test", "seed": 7,
+        "schema_version": 1, "sim_version": 1, "id": "test", "title": "Test", "seed": 7,
         "length_ticks": length_ticks,
         // The weapon: one orb along the facing (straight up until it moves) at 8 pixels a
         // tick on a press of `main`, and no smash. So the hand-worked numbers of the tests that

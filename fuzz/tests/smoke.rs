@@ -163,7 +163,7 @@ fn a_replay_with_a_raised_version_is_newer_and_not_a_load() {
     assert_eq!(
         Replay::from_bytes(&raised),
         Err(ReplayError::Newer {
-            schema_version: 0,
+            schema_version: 1,
             sim_version: 1
         })
     );
@@ -245,7 +245,7 @@ fn garbage_is_rejected_without_a_panic() {
         b"null",
         b"[]",
         b"\xff\xfe\x00",
-        b"{\"schema_version\":0,\"sim_version\":0}",
+        b"{\"schema_version\":1,\"sim_version\":1}",
         b"AAAA",
         &long_run,
     ];
@@ -281,7 +281,7 @@ fn pack_with_constellations() -> Vec<u8> {
         pack["introduced"]["rewards"]
             .as_array_mut()
             .expect("introduced rewards")
-            .push(serde_json::json!({ "id": id, "sim_version": 0 }));
+            .push(serde_json::json!({ "id": id, "sim_version": 1 }));
     }
     pack["constellations"] = serde_json::json!({
         "constellations": [{

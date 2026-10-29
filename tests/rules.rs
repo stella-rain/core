@@ -129,7 +129,7 @@ fn unknown_fields_other_versions_and_big_files_are_refused() {
         Rules::parse(
             v.to_string().as_bytes(),
             Versions {
-                schema_version: 0,
+                schema_version: 1,
                 sim_version: 1
             }
         ),

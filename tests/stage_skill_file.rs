@@ -343,7 +343,7 @@ fn only_the_stage_skills_format_parses() {
     };
     for bad in [
         json!("not an object"),
-        json!({ "schema_version": 0, "sim_version": 0 }),
+        json!({ "schema_version": 1, "sim_version": 1 }),
         {
             let mut v = one();
             v["extra"] = json!(1);
@@ -375,12 +375,12 @@ fn a_newer_file_is_unsupported() {
         parse_at(
             &v,
             Versions {
-                schema_version: 0,
+                schema_version: 1,
                 sim_version: 1
             }
         ),
         Err(Error::UnsupportedVersion {
-            schema_version: 0,
+            schema_version: 1,
             sim_version: 1
         })
     );

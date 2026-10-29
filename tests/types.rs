@@ -149,8 +149,8 @@ fn events_are_type_and_data() {
 #[test]
 fn replay_round_trips_and_rejects_unknown_fields() {
     let replay = Replay {
-        schema_version: 0,
-        sim_version: 0,
+        schema_version: 1,
+        sim_version: 1,
         seed: 48213,
         stage_sha256: "0".repeat(64),
         ticks: 18000,
