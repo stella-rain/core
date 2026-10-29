@@ -446,12 +446,15 @@ jobs:
       - name: Fuzz each target for 60 seconds
         run: |
           set -eu
-          for target in stage_parse stage_run replay_load share_decode run_setup pack_load; do
+          # Every target of fuzz/Cargo.toml, checked against fuzz/fuzz_targets/ (an assignment, so
+          # a failing script stops the step).
+          targets=$(python3 .github/scripts/fuzz_targets.py words)
+          for target in $targets; do
             case "$target" in
               stage_*) seeds=seeds/stage ;;
               replay_load) seeds=seeds/replay ;;
               run_setup) seeds=seeds/setup ;;
-            pack_load) seeds=seeds/pack ;;
+              pack_load) seeds=seeds/pack ;;
               *) seeds= ;;
             esac
             # shellcheck disable=SC2086
