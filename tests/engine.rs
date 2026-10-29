@@ -1,4 +1,4 @@
-//! The simulation engine (ADR-004, ADR-015) at version 0. Small stages are built here so that
+//! The simulation engine (ADR-004, ADR-015) at version 1. Small stages are built here so that
 //! every expected tick can be worked out by hand from the rules in `sim`; the fixture
 //! stage pins the hash every platform must reproduce (ADR-019).
 
@@ -507,8 +507,8 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 
 /// The hash after `GOLDEN_TICKS` ticks of `script` on the fixture stage. Every platform must
 /// produce exactly this (CI runs it on x86_64 and arm64); a change to it is a change to the
-/// rules of version 0, so a PR that changes it regenerates this value and says why
-/// (`Corpus regenerated: <why>`, ADR-035).
+/// frozen rules of version 1, which goes into a new `sim_version` (ADR-REPL-7, the
+/// `schema-change` skill), never a re-pin of this value.
 const GOLDEN_TICKS: u32 = 900;
 const GOLDEN_HASH: u64 = 0x7728_e264_08b8_adf9;
 

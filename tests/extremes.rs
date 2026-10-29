@@ -228,8 +228,8 @@ fn busy_stages_survive_the_whole_stage() {
 
 /// The hash of one mixed run: slot `i` takes extreme `i`, speed and aim stay ordinary. Every
 /// platform must produce exactly this (ADR-019): a difference in how overflow, saturation or
-/// division behaves on another architecture would show here. Under version 0 a change to the
-/// rules may change it (ADR-035); then it is regenerated and the PR says so.
+/// division behaves on another architecture would show here. Version 1 is frozen: a change to
+/// the rules that moves it goes into a new `sim_version` (ADR-REPL-7), never a re-pin.
 const MIXED_HASH: u64 = 0xaf35_4b74_321c_ff45;
 
 #[test]
