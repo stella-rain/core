@@ -166,7 +166,10 @@ fn dump_second(
     second: u32,
     diff_dir: &Path,
 ) -> String {
-    let (from, to) = ((second - 1) * 60, second * 60);
+    let (from, to) = (
+        (second - 1) * run_replay::CHECKPOINT_TICKS,
+        second * run_replay::CHECKPOINT_TICKS,
+    );
     let dir = diff_dir.join(name);
     fs::create_dir_all(&dir).unwrap();
     let dump = |engine: &Engine| {
@@ -428,7 +431,7 @@ fn a_text_hashes_file_beside_the_binary_one_fails() {
 }
 
 #[test]
-fn the_writers_write_hashes_bin_and_remove_hashes_txt() {
+fn the_writers_write_their_files_and_remove_stale_hashes() {
     let (case, diff) = changed_hash_case("writer");
     fs::write(case.join("hashes.txt"), "x\n").unwrap();
     write_case(&case, &common::stage_bytes(), &common::clearing_inputs());

@@ -304,6 +304,7 @@ fn a_run_replay_with_a_changed_checkpoint_is_refused_naming_its_second() {
     let bytes = std::fs::read("tests/corpus/runs/v0/trial/run.replay").unwrap();
     let mut replay: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let checkpoints = replay["checkpoints"].as_str().unwrap().to_string();
+    let second = checkpoints.len() / 16;
     let last = checkpoints.len() - 1;
     let digit = if checkpoints.ends_with('0') { "1" } else { "0" };
     replay["checkpoints"] = serde_json::json!(format!("{}{digit}", &checkpoints[..last]));
@@ -312,5 +313,8 @@ fn a_run_replay_with_a_changed_checkpoint_is_refused_naming_its_second() {
     let o = run(&["--run", path.to_str().unwrap()]);
     assert_ne!(o.status.code(), Some(0));
     let message = err(&o);
-    assert!(message.contains("checkpoint of second 90"), "{message}");
+    assert!(
+        message.contains(&format!("checkpoint of second {second}")),
+        "{message}"
+    );
 }
