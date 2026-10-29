@@ -687,7 +687,10 @@ mod tests {
             cmd.get_envs()
                 .any(|(k, v)| k == "FREEZE_CORPUS" && v == Some(std::ffi::OsStr::new("v1")))
         );
-        assert!(cmd.get_envs().all(|(k, v)| k != "CI" || v.is_some()));
+        assert!(
+            cmd.get_envs().all(|(k, _)| k != "CI"),
+            "the record leaves CI as it is"
+        );
         let line = format!("{:?}", cmd.get_args().collect::<Vec<_>>());
         assert!(
             line.contains("corpus_pins::tests::the_record_is_written_on_request"),
