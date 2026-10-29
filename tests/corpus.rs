@@ -1338,7 +1338,10 @@ pub(crate) fn definitions() -> Vec<Definition> {
 /// The run cases: the trial mode played until the main character falls, raising its stats by priority
 /// and answering its offers on the way, with every kind of option; and the same from another
 /// seed, whose run takes a stage skill from an elite's star and uses it.
-fn run_definitions() -> Vec<(&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>)> {
+/// A run case: its name, setup, the derived pack it plays on (the bundled pack for `None`) and its commands.
+type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
+
+fn run_definitions() -> Vec<RunDefinition> {
     use crate::run_play::{play_run, play_run_from, play_run_in};
     use common::run::{
         ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, time_limit_setup, trial_setup,
