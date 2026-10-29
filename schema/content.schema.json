@@ -1774,10 +1774,15 @@
                   "format": "uint32",
                   "minimum": 0,
                   "type": "integer"
+                },
+                "source": {
+                  "$ref": "#/$defs/HitSource",
+                  "description": "What hurt it."
                 }
               },
               "required": [
-                "hp_left"
+                "hp_left",
+                "source"
               ],
               "type": "object"
             },
@@ -4420,6 +4425,51 @@
         }
       ]
     },
+    "HitKind": {
+      "description": "What kind of thing hurt the main character.",
+      "oneOf": [
+        {
+          "const": "attack",
+          "description": "A hit box of an attack, or an orb that an attack fired.",
+          "type": "string"
+        },
+        {
+          "const": "zone",
+          "description": "A zone an attack placed.",
+          "type": "string"
+        },
+        {
+          "const": "link",
+          "description": "The beam between two linked orbs.",
+          "type": "string"
+        }
+      ]
+    },
+    "HitSource": {
+      "additionalProperties": false,
+      "description": "What hurt the main character (PHIT).",
+      "properties": {
+        "attack": {
+          "description": "The attack preset it came from; absent for an inline attack.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/HitKind"
+        },
+        "owner": {
+          "$ref": "#/$defs/EntityId",
+          "description": "The attacker that owns it (`Hit::source` is the same kind of ID)."
+        }
+      },
+      "required": [
+        "kind",
+        "owner"
+      ],
+      "type": "object"
+    },
     "Hold": {
       "additionalProperties": false,
       "description": "A held step (ADR-084 point 6): an attack that goes on while the button stays held, then a\nrelease attack when it is let go, or at `max_ticks`. The hold begins where the step's\nrecovery after its last `active` phase would, so that phase is the hold's place.",
@@ -5275,6 +5325,14 @@
           "description": "The index, in this list, of the orb a live beam runs to from this one (a cage's `link`);\nthe beam is as wide as `link.width` and hurts the main character.",
           "format": "uint32",
           "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "link_width": {
+          "description": "The width of that beam, in 1/256 pixel (`link.width` of the content); set exactly when\n`link_to` is.",
+          "format": "int32",
           "type": [
             "integer",
             "null"
