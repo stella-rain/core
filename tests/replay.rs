@@ -714,3 +714,19 @@ fn a_replay_at_version_0_is_older() {
         })
     );
 }
+
+#[test]
+fn the_corpus_replay_loads_at_the_current_versions_and_not_one_above() {
+    let current = Replay::from_bytes(&corpus_replay_at(SCHEMA_VERSION, SIM_VERSION)).unwrap();
+    assert_eq!(
+        (current.schema_version, current.sim_version),
+        (SCHEMA_VERSION, SIM_VERSION)
+    );
+    assert_eq!(
+        Replay::from_bytes(&corpus_replay_at(SCHEMA_VERSION + 1, SIM_VERSION + 1)),
+        Err(ReplayError::Newer {
+            schema_version: SCHEMA_VERSION + 1,
+            sim_version: SIM_VERSION + 1
+        })
+    );
+}

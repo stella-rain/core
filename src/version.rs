@@ -354,4 +354,132 @@ mod tests {
             })
         );
     }
+
+    /// The older-replay path with this game's real versions and the corpus' real replays, each
+    /// set back to version 0: the file a version-0 build wrote, apart from those two numbers.
+    mod real {
+        use super::super::*;
+        use super::v;
+        use crate::replay::Replay;
+        use crate::run_replay::RunReplay;
+        use serde_json::{Value, json};
+
+        const STAGE: &[u8] = include_bytes!("../tests/corpus/current/stages/clear/run.replay");
+        const RUN: &[u8] = include_bytes!("../tests/corpus/current/runs/easy/run.replay");
+        const LIMIT: usize = 1 << 20;
+
+        /// Where a replay keeps its versions: at the top, or in a run's `setup`.
+        fn versions_of(doc: &mut Value) -> &mut Value {
+            if doc.get("setup").is_some() {
+                &mut doc["setup"]
+            } else {
+                doc
+            }
+        }
+
+        fn set(mut doc: Value, schema_version: u32, sim_version: u32) -> Value {
+            let at = versions_of(&mut doc);
+            at["schema_version"] = json!(schema_version);
+            at["sim_version"] = json!(sim_version);
+            doc
+        }
+
+        fn at_zero(bytes: &[u8]) -> Vec<u8> {
+            let doc: Value = serde_json::from_slice(bytes).unwrap();
+            serde_json::to_vec(&set(doc, 0, 0)).unwrap()
+        }
+
+        fn to_current(doc: Value) -> Value {
+            set(doc, SCHEMA_VERSION, SIM_VERSION)
+        }
+
+        fn stays(doc: Value) -> Value {
+            doc
+        }
+
+        fn padded(doc: Value) -> Value {
+            let mut doc = to_current(doc);
+            doc["padding"] = json!("x".repeat(300));
+            doc
+        }
+
+        fn from_zero(apply: fn(Value) -> Value) -> [Migration; 1] {
+            [Migration {
+                from: v(0, 0),
+                apply,
+            }]
+        }
+
+        fn stage_header(bytes: &[u8]) -> Result<Versions, serde_json::Error> {
+            serde_json::from_slice(bytes)
+        }
+
+        fn run_header(bytes: &[u8]) -> Result<Versions, serde_json::Error> {
+            #[derive(serde::Deserialize)]
+            struct Header {
+                setup: Versions,
+            }
+            serde_json::from_slice::<Header>(bytes).map(|h| h.setup)
+        }
+
+        fn load<T: serde::de::DeserializeOwned>(
+            bytes: &[u8],
+            limit: usize,
+            table: &[Migration],
+            header: fn(&[u8]) -> Result<Versions, serde_json::Error>,
+        ) -> Result<T, ReplayLoadError> {
+            read_replay(bytes, limit, Versions::CURRENT, table, header)
+        }
+
+        /// Every case of the older path for one corpus replay of type `T`.
+        fn check<T>(
+            bytes: &[u8],
+            header: fn(&[u8]) -> Result<Versions, serde_json::Error>,
+            versions: fn(&T) -> Versions,
+        ) where
+            T: serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+        {
+            let old = at_zero(bytes);
+            let direct: T = serde_json::from_slice(bytes).unwrap();
+            assert_eq!(versions(&direct), Versions::CURRENT);
+            let migrated: T = load(&old, LIMIT, &from_zero(to_current), header).unwrap();
+            assert_eq!(migrated, direct);
+            assert_eq!(
+                versions(&migrated),
+                v(SCHEMA_VERSION, SIM_VERSION),
+                "migrated to this game's versions"
+            );
+            assert_eq!(
+                load::<T>(&old, LIMIT, &[], header),
+                Err(ReplayLoadError::Older(v(0, 0)))
+            );
+            assert_eq!(
+                load::<T>(&old, LIMIT, &from_zero(stays), header),
+                Err(ReplayLoadError::Older(v(0, 0)))
+            );
+            let size = serde_json::to_vec(&padded(serde_json::from_slice(&old).unwrap()))
+                .unwrap()
+                .len();
+            assert!(old.len() < size - 1);
+            assert_eq!(
+                load::<T>(&old, size - 1, &from_zero(padded), header),
+                Err(ReplayLoadError::TooLarge {
+                    size,
+                    limit: size - 1
+                })
+            );
+        }
+
+        #[test]
+        fn a_version_0_stage_replay_loads_only_through_a_migration_to_the_current_versions() {
+            check::<Replay>(STAGE, stage_header, |r| v(r.schema_version, r.sim_version));
+        }
+
+        #[test]
+        fn a_version_0_run_replay_loads_only_through_a_migration_to_the_current_versions() {
+            check::<RunReplay>(RUN, run_header, |r| {
+                v(r.setup.schema_version, r.setup.sim_version)
+            });
+        }
+    }
 }
