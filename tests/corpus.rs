@@ -1344,7 +1344,8 @@ type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
 fn run_definitions() -> Vec<RunDefinition> {
     use crate::run_play::{play_run, play_run_from, play_run_in};
     use common::run::{
-        ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TRIAL_LENGTH, time_limit_setup, trial_setup,
+        ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TIME_LIMIT_SEED, TRIAL_LENGTH, time_limit_setup,
+        trial_setup,
     };
     // `STAGE_SKILL_SEED` was found with every point on attack: the priority keeps that run.
     let stage_skill = RunSetup {
@@ -1359,7 +1360,10 @@ fn run_definitions() -> Vec<RunDefinition> {
     let stage_skill_commands = play_run_in(&stage_skill, &stage_skill_content, TRIAL_LENGTH);
     // The time_limit mode's waves around the main character, played until it falls (it does
     // before the first boss time; the bosses are in `tests/time_limit_run.rs`).
-    let time_limit = time_limit_setup();
+    let time_limit = RunSetup {
+        seed: TIME_LIMIT_SEED,
+        ..time_limit_setup()
+    };
     let time_limit_commands = play_run_from(&time_limit, MAX_TICKS);
     // The time_limit mode on easy and on rainy (ADR-110): the enemies' hit points and damage
     // scaled, the stars inside the rarity range; easy with its own boss times and level table.
