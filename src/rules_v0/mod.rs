@@ -1249,13 +1249,20 @@ pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
     });
 }
 
-/// What hurt the main character, for the `PlayerHit` event: the kind, and the attack it came
-/// from, named directly (a run's) or by the program that placed it (an orb, a zone or a beam).
+/// Where the attack of a hit is found.
+#[derive(Clone, Copy)]
+enum Culprit {
+    /// A run's hit box: the run knows its attack.
+    Run(AttackIndex),
+    /// What a program placed (an orb, a zone or a beam): the attack is the one that holds it.
+    Program(ProgramIndex),
+}
+
+/// What hurt the main character, for the `PlayerHit` event: the kind, and where its attack is.
 #[derive(Clone, Copy)]
 struct Blame {
     kind: HitKind,
-    program: Option<ProgramIndex>,
-    attack: Option<AttackIndex>,
+    by: Culprit,
 }
 
 impl Blame {
@@ -1263,8 +1270,7 @@ impl Blame {
     fn of_program(kind: HitKind, program: ProgramIndex) -> Blame {
         Blame {
             kind,
-            program: Some(program),
-            attack: None,
+            by: Culprit::Program(program),
         }
     }
 }
@@ -1292,10 +1298,11 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Ve
         source: HitSource {
             kind: by.kind,
             owner: b.owner,
-            attack: by
-                .attack
-                .or_else(|| by.program.and_then(|p| stage.attack_of(p)))
-                .and_then(|a| stage.attacks[usize::from(a.0)].preset_id.clone()),
+            attack: match by.by {
+                Culprit::Run(a) => Some(a),
+                Culprit::Program(p) => stage.attack_of(p),
+            }
+            .and_then(|a| stage.attacks[usize::from(a.0)].preset_id.clone()),
         },
     });
     // A powerful attack breaks a charge (core#83).

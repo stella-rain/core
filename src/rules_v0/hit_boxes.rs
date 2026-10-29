@@ -32,7 +32,7 @@ use crate::trig;
 
 use super::entity::Who;
 use super::grid::Grid;
-use super::{Blame, Shot, damage, enemy_grid, hurt_player, overlaps};
+use super::{Blame, Culprit, Shot, damage, enemy_grid, hurt_player, overlaps};
 
 /// What a swing is made by, and so where the targets it has hit are kept.
 #[derive(Clone, Copy)]
@@ -566,8 +566,7 @@ fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Domai
         let by = match w.source {
             Source::Run(i) => Blame {
                 kind: HitKind::Attack,
-                program: None,
-                attack: Some(s.runs[i].attack),
+                by: Culprit::Run(s.runs[i].attack),
             },
             Source::Zone(i) => Blame::of_program(HitKind::Zone, s.zones[i].program),
         };
