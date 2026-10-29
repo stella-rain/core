@@ -188,15 +188,16 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// without the PR saying why. DIR1 (the cases at the cap of 260): `worst_tick` 1506 -> 786
 /// allocs; `worst_minute_peak` 3, 3, 3 -> 3, 2, 4, where the extra free drops an event with a
 /// string that the earlier tick made (the run differs; no buffer grows). SPAWN-CORNER: the peak tick
-/// moved to 10_800 and is now `worst_minute_peak` 0, 0, 1: the one free is the 5-byte `ContentId`
-/// (`golem`) of the earlier tick's `EliteSpawned`, dropped by `events.clear()`. The cases are built by `bench_fixtures`, outside the
-/// count.
+/// moved to 10_800 and was `worst_minute_peak` 0, 0, 1: the one free was the 5-byte `ContentId`
+/// (`golem`) of the earlier tick's `EliteSpawned`, dropped by `events.clear()`. EVENT-ARC: a
+/// `ContentId` is an `Arc<str>` cloned from its definition, so the free is gone and it is 0, 0, 0.
+/// The cases are built by `bench_fixtures`, outside the count.
 const BENCH_TICK_ALLOCS: [(&str, Allocs); 5] = [
     ("worst_tick", pin(786, 0, 3)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
-    ("worst_minute_peak", pin(0, 0, 1)),
+    ("worst_minute_peak", pin(0, 0, 0)),
 ];
 
 fn pinned(case: &str) -> Allocs {
@@ -633,8 +634,6 @@ fn part_rows() -> Vec<Row> {
 /// The elite of the worst minute, field 6: the run around tick 10_800, where `EliteSpawned` is
 /// pushed once a minute.
 fn elite_rows() -> Vec<Row> {
-    let mut run = bench_fixtures::worst_minute_peak();
-    let _ = &mut run;
     let mut run = bench_fixtures::worst_minute_case::Run::fast_forwarded(10_790);
     let mut rows = Vec::new();
     for _ in 0..40 {
@@ -707,15 +706,44 @@ fn skill_rows() -> Vec<Row> {
     )
 }
 
-#[test]
-fn the_event_producers_are_reached() {
-    for (name, rows) in [
-        ("StatusApplied", status_rows()),
-        ("PartBroken", part_rows()),
-        ("StageSkillUsed", skill_rows()),
-        ("EliteSpawned", elite_rows()),
-    ] {
-        assert!(!around(&rows).is_empty(), "{name} is never pushed");
-        eprintln!("{name}: {:?}", around(&rows));
+/// Asserts the calls of the tick that pushes an event and of the next one, where `events.clear()`
+/// drops it: `pushed` is the pin of the tick that pushes it, the tick after calls the allocator
+/// not at all. An ID string in the event would add one allocation to the first and one free to
+/// the second.
+fn assert_producer(name: &str, rows: &[Row], pushed: Allocs) {
+    let calls = around(rows);
+    assert!(!calls.is_empty(), "{name} is never pushed");
+    for (i, (tick, got)) in calls.iter().enumerate() {
+        let want = if rows.iter().any(|r| r.tick == *tick && r.event) {
+            pushed
+        } else {
+            pin(0, 0, 0)
+        };
+        assert_eq!(
+            *got, want,
+            "{name}, tick {tick} (call {i}): (allocs, reallocs, frees)"
+        );
     }
+}
+
+#[test]
+fn a_status_applied_event_allocates_and_frees_nothing() {
+    assert_producer("StatusApplied", &status_rows(), pin(0, 0, 0));
+}
+
+#[test]
+fn a_part_broken_event_allocates_and_frees_nothing() {
+    assert_producer("PartBroken", &part_rows(), pin(0, 0, 0));
+}
+
+/// The ledger and the effect allocate for their own reasons; the skill's ID is one of the two.
+#[test]
+fn a_stage_skill_used_event_names_its_skill_without_allocating() {
+    assert_producer("StageSkillUsed", &skill_rows(), pin(1, 0, 0));
+}
+
+/// The elite's tick builds its entity; the ID is one of the three allocations.
+#[test]
+fn an_elite_spawned_event_names_its_asset_without_allocating() {
+    assert_producer("EliteSpawned", &elite_rows(), pin(2, 0, 0));
 }
