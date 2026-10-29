@@ -126,7 +126,9 @@ fn damaged(e: serde_json::Error) -> ReplayLoadError {
 /// strict parse (ADR-017, ADR-SVC-1). Either version above `current` is `Newer`, whatever else
 /// the file holds; both equal is parsed as it is; below, a migration for exactly that pair is
 /// applied to the JSON first (positions of a `Damaged` after a migration are in the migrated
-/// bytes), and without one the file is `Older`.
+/// bytes), and without one the file is `Older`. A migration's output is checked, not trusted:
+/// over the size limit it is `TooLarge`, and a document that does not reach `current` is
+/// `Older` with the file's own versions; both before the second parse.
 pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,
@@ -152,6 +154,15 @@ pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
     };
     let value: serde_json::Value = serde_json::from_slice(bytes).map_err(damaged)?;
     let migrated = serde_json::to_vec(&(migration.apply)(value)).map_err(damaged)?;
+    if migrated.len() > limit {
+        return Err(ReplayLoadError::TooLarge {
+            size: migrated.len(),
+            limit,
+        });
+    }
+    if header(&migrated).map_err(damaged)? != current {
+        return Err(ReplayLoadError::Older(found));
+    }
     serde_json::from_slice(&migrated).map_err(damaged)
 }
 
