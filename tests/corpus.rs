@@ -411,15 +411,14 @@ fn the_writers_write_hashes_bin_and_remove_hashes_txt() {
 
     let (case, diff) = changed_run_case("writer");
     fs::write(case.join("hashes.txt"), "x\n").unwrap();
+    fs::write(case.join("hashes.bin"), [0u8; 8]).unwrap();
     let setup = common::run::trial_setup();
     let point = crate::run_play::first_point_tick();
-    write_run_case(&case, &setup, None, &crate::run_play::play_run(point + 20));
+    write_run_case(&case, &setup, None, &crate::run_play::play_run(point + 200));
     assert!(!case.join("hashes.txt").exists());
+    assert!(!case.join("hashes.bin").exists());
     let replay = RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
-    assert_eq!(
-        fs::read(case.join("hashes.bin")).unwrap().len(),
-        8 * replay.ticks as usize
-    );
+    assert_eq!(replay.checkpoints.len(), 16 * (replay.ticks / 60) as usize);
     assert_eq!(check_run_case(&case, &diff), Ok(()));
 }
 
@@ -440,12 +439,11 @@ fn a_replay_that_is_not_the_stages_fails() {
 fn changed_run_case(name: &str) -> (PathBuf, PathBuf) {
     let dir = scratch(&format!("run-{name}"));
     let case = dir.join("case");
-    let point = crate::run_play::first_point_tick();
     write_run_case(
         &case,
         &common::run::trial_setup(),
         None,
-        &crate::run_play::play_run(point + 20),
+        &crate::run_play::play_run(300),
     );
     (case, dir.join("diff"))
 }
@@ -457,26 +455,50 @@ fn an_unchanged_run_case_passes() {
     assert!(!diff.exists(), "a passing case writes no diff");
 }
 
+/// Flips the last digit of the replay's `second`th checkpoint; returns the flipped checkpoint
+/// and the engine's value for it, as numbers.
+fn flip_checkpoint(case: &Path, second: usize) -> (u64, u64) {
+    let path = case.join("run.replay");
+    let mut replay = RunReplay::from_bytes(&fs::read(&path).unwrap()).unwrap();
+    let range = 16 * (second - 1)..16 * second;
+    let engine = replay::hash_from_hex(&replay.checkpoints[range.clone()]).unwrap();
+    let mut digits: Vec<u8> = replay.checkpoints.bytes().collect();
+    let last = range.end - 1;
+    digits[last] = if digits[last] == b'0' { b'1' } else { b'0' };
+    replay.checkpoints = String::from_utf8(digits).unwrap();
+    let flipped = replay::hash_from_hex(&replay.checkpoints[range]).unwrap();
+    fs::write(&path, replay.to_bytes()).unwrap();
+    (flipped, engine)
+}
+
 #[test]
-fn a_changed_hash_in_a_run_case_fails_naming_its_tick() {
-    let (case, diff) = changed_run_case("tick-n");
-    let after_point = crate::run_play::first_point_tick() as usize + 1;
-    let (flipped, engine) = change_hash(&case, after_point);
+fn a_changed_run_case_names_its_second_and_dumps_it() {
+    let (case, diff) = changed_run_case("second");
+    let (flipped, engine) = flip_checkpoint(&case, 2);
     let message = check_run_case(&case, &diff).unwrap_err();
-    assert!(
-        message.contains(&format!("tick {after_point}")),
-        "{message}"
-    );
-    assert!(
-        message.contains(&format!("expected {}", hash_to_hex(flipped))),
-        "{message}"
-    );
-    assert!(
-        message.contains(&format!("got {}", hash_to_hex(engine))),
-        "{message}"
-    );
-    let dump: Value = serde_json::from_slice(&fs::read(diff.join("case.json")).unwrap()).unwrap();
-    assert_eq!(dump["tick"], json!(after_point));
+    for part in [
+        "second 2",
+        "between tick 60 and tick 120",
+        &format!("expected {}", hash_to_hex(flipped)),
+        &format!("got {}", hash_to_hex(engine)),
+    ] {
+        assert!(message.contains(part), "{message}");
+    }
+    let dir = diff.join("case");
+    let mut names: Vec<String> = fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    assert_eq!(names.len(), 61);
+    assert_eq!(names[0], "tick-00060.json");
+    assert_eq!(names[60], "tick-00120.json");
+    let dump: Value =
+        serde_json::from_slice(&fs::read(dir.join("tick-00120.json")).unwrap()).unwrap();
+    assert_eq!(dump["case"], json!("case"));
+    assert_eq!(dump["tick"], json!(120));
+    assert_eq!(dump["hash"], json!(hash_to_hex(engine)));
+    assert_eq!(dump["snapshot"]["tick"], json!(120));
 }
 
 #[test]
@@ -489,25 +511,31 @@ fn a_run_case_whose_stat_priority_changed_fails() {
     fs::write(&path, replay.to_bytes()).unwrap();
     // The priority is in the state from tick 0, so the run differs from the first tick on.
     let message = check_run_case(&case, &diff).unwrap_err();
-    assert!(message.contains("diverges first on tick 1"), "{message}");
+    assert!(
+        message.contains("diverges in second 1, between tick 0 and tick 60"),
+        "{message}"
+    );
 }
 
 #[test]
-fn a_run_case_with_hashes_that_are_not_one_per_tick_fails() {
-    let (case, diff) = changed_run_case("count");
-    let path = case.join("hashes.bin");
-    let bytes = fs::read(&path).unwrap();
-    fs::write(&path, &bytes[..80]).unwrap();
+fn a_run_case_with_damaged_checkpoints_fails() {
+    let (case, diff) = changed_run_case("damaged");
+    let path = case.join("run.replay");
+    let mut replay = RunReplay::from_bytes(&fs::read(&path).unwrap()).unwrap();
+    replay.checkpoints.truncate(replay.checkpoints.len() - 16);
+    fs::write(&path, replay.to_bytes()).unwrap();
     let message = check_run_case(&case, &diff).unwrap_err();
-    assert!(message.contains("hashes.bin has 10 hashes"), "{message}");
+    assert!(message.contains("checkpoints"), "{message}");
+}
 
-    fs::write(&path, &bytes[..bytes.len() - 1]).unwrap();
-    let message = check_run_case(&case, &diff).unwrap_err();
-    assert!(message.contains("hashes.bin"), "{message}");
-    assert!(
-        message.contains("not a whole number of 8-byte hashes"),
-        "{message}"
-    );
+#[test]
+fn a_hashes_file_beside_a_run_case_fails() {
+    for file in ["hashes.bin", "hashes.txt"] {
+        let (case, diff) = changed_run_case("beside");
+        fs::write(case.join(file), [0u8; 8]).unwrap();
+        let message = check_run_case(&case, &diff).unwrap_err();
+        assert!(message.contains(file), "{message}");
+    }
 }
 
 // --- The cases, built from the test helpers --------------------------------------------------
