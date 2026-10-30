@@ -22,6 +22,11 @@
 //! | 96 | 32 | `checksum`: SHA-256 of bytes `0..96`, then the payload |
 //! | 128 | 32 | `crate_version`, UTF-8, NUL-padded (information, outside the checksum) |
 //!
+//! The checksum guards against damage, not against a forger: a file whose state, hash, checksum
+//! and prefix digest were all rewritten to agree is accepted, like the prefix itself, whose
+//! commands are unpacked but not replayed. The savepoint is the app's own slot, and a run that
+//! does not reproduce still fails at the final verification.
+//!
 //! The file is untrusted (ADR-SVC-1): the header is read and checked field by field before the
 //! payload is touched, and `payload_len` is compared, never used to allocate.
 

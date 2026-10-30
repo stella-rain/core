@@ -149,11 +149,13 @@ impl Engine {
         let mut events = self.events;
         events.clear();
         Engine {
+            stage: self.stage,
+            content: self.content,
             state,
             events,
+            load: Load::default(),
             ledger,
             counted,
-            ..self
         }
     }
 
