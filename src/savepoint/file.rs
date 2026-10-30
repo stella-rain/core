@@ -3,8 +3,8 @@
 //! reads it with the run's replay prefix and the pack, and returns a live recorder without
 //! re-simulating the prefix. A savepoint is valid only when `SAVEPOINT_FORMAT`, `SIM_VERSION`
 //! and the pack's content hash match; the crate version is not stored, so validity never depends
-//! on the build that wrote the file. Every refusal is one `SavepointError`, and the caller falls back to
-//! `RunRecorder::resume_with_pack`.
+//! on the build that wrote the file. Every refusal is one `SavepointError`, and the caller falls
+//! back to `RunRecorder::resume_with_pack`.
 //!
 //! Layout, all integers little-endian, the payload after the 128-byte header:
 //!
