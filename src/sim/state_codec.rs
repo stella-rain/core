@@ -1421,6 +1421,276 @@ impl Decode for DashState {
     }
 }
 
+// ---- Progression: levels, stars, offers, healing, expertise and the horde ----
+
+impl Encode for Progress {
+    fn encode(&self, w: &mut Writer) {
+        let Progress {
+            level,
+            xp,
+            // not saved: the run stats' rules are content: `decode_state` copies them from the fresh engine
+            stats: _,
+            priority,
+            pick_stats,
+            offers_due,
+            offer_open,
+            spent,
+            totals,
+        } = self;
+        level.encode(w);
+        xp.encode(w);
+        priority.encode(w);
+        pick_stats.encode(w);
+        offers_due.encode(w);
+        offer_open.encode(w);
+        spent.encode(w);
+        totals.encode(w);
+    }
+}
+
+impl Decode for Progress {
+    /// `stats` is left empty: `decode_state` copies it from the fresh engine.
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Progress {
+            level: Decode::decode(r)?,
+            xp: Decode::decode(r)?,
+            stats: Vec::new(),
+            priority: decode_vec(r, MAX_PLACES)?,
+            pick_stats: Decode::decode(r)?,
+            offers_due: Decode::decode(r)?,
+            offer_open: Decode::decode(r)?,
+            spent: decode_vec(r, MAX_PLACES)?,
+            totals: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for StarField {
+    fn encode(&self, w: &mut Writer) {
+        let StarField {
+            misses,
+            on_map,
+            due,
+            offer,
+            rerolls_left,
+            banishes_left,
+            extra_candidates,
+            rarity,
+            rune_pool,
+            pool,
+            taken,
+            banished,
+            set_counts,
+        } = self;
+        misses.encode(w);
+        on_map.encode(w);
+        due.encode(w);
+        offer.encode(w);
+        rerolls_left.encode(w);
+        banishes_left.encode(w);
+        extra_candidates.encode(w);
+        rarity.encode(w);
+        rune_pool.encode(w);
+        pool.encode(w);
+        taken.encode(w);
+        banished.encode(w);
+        set_counts.encode(w);
+    }
+}
+
+impl Decode for StarField {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(StarField {
+            misses: Decode::decode(r)?,
+            on_map: decode_vec(r, cap_u32(usize::from(crate::limits::MAX_STARS_ON_MAP)))?,
+            due: decode_vec(r, cap_u32(usize::from(crate::limits::MAX_STARS_ON_MAP) + 1))?,
+            offer: Decode::decode(r)?,
+            rerolls_left: Decode::decode(r)?,
+            banishes_left: Decode::decode(r)?,
+            extra_candidates: Decode::decode(r)?,
+            rarity: Decode::decode(r)?,
+            rune_pool: Decode::decode(r)?,
+            pool: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+            taken: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+            banished: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+            set_counts: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+        })
+    }
+}
+
+impl Encode for StarState {
+    fn encode(&self, w: &mut Writer) {
+        let StarState { id, at, rarity } = self;
+        id.encode(w);
+        at.encode(w);
+        rarity.encode(w);
+    }
+}
+
+impl Decode for StarState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(StarState {
+            id: Decode::decode(r)?,
+            at: Decode::decode(r)?,
+            rarity: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for Due {
+    fn encode(&self, w: &mut Writer) {
+        let Due { kind, rarity } = self;
+        kind.encode(w);
+        rarity.encode(w);
+    }
+}
+
+impl Decode for Due {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Due {
+            kind: Decode::decode(r)?,
+            rarity: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for OfferState {
+    fn encode(&self, w: &mut Writer) {
+        let OfferState {
+            kind,
+            rarity,
+            candidates,
+        } = self;
+        kind.encode(w);
+        rarity.encode(w);
+        candidates.encode(w);
+    }
+}
+
+impl Decode for OfferState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(OfferState {
+            kind: Decode::decode(r)?,
+            rarity: Decode::decode(r)?,
+            candidates: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+        })
+    }
+}
+
+impl Encode for HealPickup {
+    fn encode(&self, w: &mut Writer) {
+        let HealPickup { id, at } = self;
+        id.encode(w);
+        at.encode(w);
+    }
+}
+
+impl Decode for HealPickup {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(HealPickup {
+            id: Decode::decode(r)?,
+            at: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for ExpertiseGauge {
+    fn encode(&self, w: &mut Writer) {
+        let ExpertiseGauge {
+            level,
+            points,
+            next,
+            offered,
+            offer,
+            taken,
+            range_pct,
+            style,
+            path,
+        } = self;
+        level.encode(w);
+        points.encode(w);
+        next.encode(w);
+        offered.encode(w);
+        offer.encode(w);
+        taken.encode(w);
+        range_pct.encode(w);
+        style.encode(w);
+        path.encode(w);
+    }
+}
+
+impl Decode for ExpertiseGauge {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(ExpertiseGauge {
+            level: Decode::decode(r)?,
+            points: Decode::decode(r)?,
+            next: Decode::decode(r)?,
+            offered: Decode::decode(r)?,
+            offer: Decode::decode(r)?,
+            taken: decode_vec(r, MAX_PLACES)?,
+            range_pct: Decode::decode(r)?,
+            style: Decode::decode(r)?,
+            path: decode_vec(r, MAX_PLACES)?,
+        })
+    }
+}
+
+impl Encode for ExpertiseOffer {
+    fn encode(&self, w: &mut Writer) {
+        let ExpertiseOffer {
+            level,
+            kind,
+            candidates,
+        } = self;
+        level.encode(w);
+        kind.encode(w);
+        candidates.encode(w);
+    }
+}
+
+impl Decode for ExpertiseOffer {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(ExpertiseOffer {
+            level: Decode::decode(r)?,
+            kind: Decode::decode(r)?,
+            candidates: decode_vec(r, MAX_PLACES)?,
+        })
+    }
+}
+
+impl Encode for Horde {
+    fn encode(&self, w: &mut Writer) {
+        let Horde {
+            // not saved: the mode's boss times are content: `decode_state` copies them from the fresh engine
+            boss_ticks: _,
+            // not saved: the mode's no-call times are content: `decode_state` copies them from the fresh engine
+            no_call_ticks: _,
+            // not saved: the mid-bosses' hit points are content: `decode_state` copies them from the fresh engine
+            mid_boss_hp_pct: _,
+            spawned,
+            used,
+            held,
+        } = self;
+        spawned.encode(w);
+        used.encode(w);
+        held.encode(w);
+    }
+}
+
+impl Decode for Horde {
+    /// The times are left empty: `decode_state` copies them from the fresh engine.
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Horde {
+            boss_ticks: Vec::new(),
+            no_call_ticks: Vec::new(),
+            mid_boss_hp_pct: Vec::new(),
+            spawned: Decode::decode(r)?,
+            used: decode_vec(r, MAX_CONTENT_LEN)?,
+            held: decode_vec(r, MAX_CONTENT_LEN)?,
+        })
+    }
+}
+
 #[cfg(test)]
 mod enum_tests {
     use super::*;

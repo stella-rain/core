@@ -9,6 +9,7 @@ use super::*;
 use crate::fixed::{Fx, Point};
 use crate::hash::{StableHash, StateHasher};
 use crate::id::EntityId;
+use crate::rewards::Rarity;
 use crate::savepoint::testing::{from_bytes, round_trip, to_bytes};
 use crate::savepoint::{Decode, DecodeError, Encode};
 use std::fmt::Debug;
@@ -489,6 +490,88 @@ fn a_player_list_past_its_cap_is_refused() {
     p.runes = vec![p.runes[0]; 8];
     assert_eq!(
         from_bytes::<PlayerState>(&to_bytes(&p)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+}
+
+#[test]
+fn the_progression_types_of_the_full_state_round_trip() {
+    let s = base();
+    // `stats` and the horde's times are content, left empty by the decode: the originals are
+    // put back before the comparison, as `decode_state` does.
+    let p = s.progress.as_ref().unwrap();
+    let mut back: Progress = from_bytes(&to_bytes(p)).unwrap();
+    assert!(back.stats.is_empty());
+    back.stats = p.stats.clone();
+    assert_eq!(&back, p);
+    assert_eq!(hash_of(&back), hash_of(p));
+    let h = s.horde.as_ref().unwrap();
+    let mut back: Horde = from_bytes(&to_bytes(h)).unwrap();
+    assert!(back.boss_ticks.is_empty() && back.no_call_ticks.is_empty());
+    assert!(back.mid_boss_hp_pct.is_empty());
+    (back.boss_ticks, back.no_call_ticks, back.mid_boss_hp_pct) = (
+        h.boss_ticks.clone(),
+        h.no_call_ticks.clone(),
+        h.mid_boss_hp_pct.clone(),
+    );
+    assert_eq!(&back, h);
+    assert_eq!(hash_of(&back), hash_of(h));
+
+    let f = s.stars.as_ref().unwrap();
+    round_trip_hashed(f);
+    round_trip_hashed(&f.on_map[0]);
+    round_trip_hashed(&f.due[0]);
+    round_trip_hashed(f.offer.as_ref().unwrap());
+    round_trip_hashed(&s.heal_pickups.as_ref().unwrap()[0]);
+    let g = s.expertise.as_ref().unwrap();
+    round_trip_hashed(g);
+    round_trip_hashed(g.offer.as_ref().unwrap());
+    never_panics(f);
+    never_panics(g);
+}
+
+#[test]
+fn the_star_field_has_its_layout_and_its_caps() {
+    let mut f = base().stars.unwrap();
+    f.on_map.clear();
+    f.due.clear();
+    f.offer = None;
+    f.pool.clear();
+    f.taken.clear();
+    f.banished.clear();
+    f.set_counts.clear();
+    f.misses = 1;
+    f.rerolls_left = 2;
+    f.banishes_left = 3;
+    f.extra_candidates = 4;
+    f.rarity = (Rarity::Uncommon, Rarity::Epic);
+    f.rune_pool = 5;
+    assert_eq!(
+        to_bytes(&f),
+        [
+            1, 0, 0, 0, // misses
+            0, 0, 0, 0, // on_map
+            0, 0, 0, 0, // due
+            0, // offer
+            2, 0, 0, 0, 3, 0, 0, 0, // rerolls_left, banishes_left
+            4, // extra_candidates
+            1, 3, // rarity
+            5, // rune_pool
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, // pool, taken, banished, set_counts
+        ]
+    );
+    round_trip(&f);
+    let mut f = base().stars.unwrap();
+    f.on_map = vec![f.on_map[0]; 65];
+    assert_eq!(
+        from_bytes::<StarField>(&to_bytes(&f)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+    let mut f = base().stars.unwrap();
+    f.pool = vec![0; 193];
+    assert_eq!(
+        from_bytes::<StarField>(&to_bytes(&f)),
         Err(DecodeError::Invalid("list too long"))
     );
 }
