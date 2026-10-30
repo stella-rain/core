@@ -14,13 +14,13 @@ use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay, RunReplayErr
 use stella_rain_core::share;
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core_fuzz::{
-    commands, minisign_verify, pack_load, packs_load, replay_load, run_setup, share_decode,
-    stage_parse, stage_run,
+    commands, minisign_verify, pack_load, packs_load, replay_load, run_setup, savepoint_load,
+    savepoint_recorder, share_decode, stage_parse, stage_run,
 };
 
 type Target = fn(&[u8]) -> bool;
 
-const TARGETS: [(&str, Target); 8] = [
+const TARGETS: [(&str, Target); 9] = [
     ("stage_parse", stage_parse),
     ("stage_run", stage_run),
     ("replay_load", replay_load),
@@ -29,6 +29,7 @@ const TARGETS: [(&str, Target); 8] = [
     ("pack_load", pack_load),
     ("packs_load", packs_load),
     ("minisign_verify", minisign_verify),
+    ("savepoint_load", savepoint_load),
 ];
 
 fn root() -> PathBuf {
@@ -445,4 +446,35 @@ fn the_bundled_attack_presets_parse_as_such_and_a_pack_seed_still_loads() {
         pack_load(Pack::BUNDLED),
         "pack_load rejects the bundled pack"
     );
+}
+
+#[test]
+fn every_target_has_a_file_and_the_other_way_round() {
+    let mut files: Vec<String> = fs::read_dir(root().join("fuzz/fuzz_targets"))
+        .expect("the fuzz target folder")
+        .map(|e| {
+            let name = e.expect("a target file").file_name();
+            name.to_string_lossy().trim_end_matches(".rs").to_owned()
+        })
+        .collect();
+    files.sort();
+    let mut listed: Vec<&str> = TARGETS.iter().map(|t| t.0).collect();
+    listed.sort_unstable();
+    assert_eq!(TARGETS.len(), 9);
+    assert_eq!(files, listed);
+}
+
+#[test]
+fn a_real_savepoint_gets_past_the_loader() {
+    assert!(
+        savepoint_load(&savepoint_recorder(Some(150)).save()),
+        "tick 150"
+    );
+    assert!(
+        savepoint_load(&savepoint_recorder(Some(230)).save()),
+        "tick 230, offer open"
+    );
+    // A savepoint of a tick no prefix of the target holds, and a finished run's.
+    assert!(!savepoint_load(&savepoint_recorder(Some(100)).save()));
+    assert!(!savepoint_load(&savepoint_recorder(None).save()));
 }

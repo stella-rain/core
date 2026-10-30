@@ -6,6 +6,8 @@
 //! the tests can tell a target that reaches the code behind the gate from one that does not.
 //! A panic is a finding: the assertions below say what must hold, not what happens to.
 
+use std::sync::OnceLock;
+
 use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::attack_presets::AttackPresets;
 use stella_rain_core::engine::{Engine, Outcome};
@@ -23,6 +25,7 @@ use stella_rain_core::run_replay::{self, Command, CommandKind, RunRecorder, RunR
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::runes::Runes;
+use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::text::TextTable;
@@ -269,6 +272,105 @@ pub fn replay_load(data: &[u8]) -> bool {
         }
     }
     stage_replay || run_replay
+}
+
+/// The run the savepoint target resumes: a corpus run case that pins the bundled pack, cleared
+/// in 297 ticks, with its one open offer at tick 230.
+const SAVEPOINT_RUN: &[u8] = include_bytes!("../../tests/corpus/current/runs/tutorial/run.replay");
+
+/// The ticks the savepoint target's prefixes are cut at: running, and with the offer open.
+const SAVEPOINT_CUTS: [u32; 2] = [150, 230];
+
+/// Ticks the target steps a loaded run on.
+const SAVEPOINT_EXTRA_STEPS: usize = 20;
+
+/// The fixed run of the savepoint target, played by its own commands up to `cut` ticks (before
+/// the commands that follow that tick), or to its end for `None`.
+pub fn savepoint_recorder(cut: Option<u32>) -> RunRecorder {
+    let run = RunReplay::from_bytes(SAVEPOINT_RUN).expect("the savepoint run is a run replay");
+    let mut recorder = RunRecorder::start_with_pack(&run.setup, Pack::bundled())
+        .expect("the savepoint run starts");
+    let mut steps = 0;
+    for command in commands(&run) {
+        if cut == Some(steps) {
+            break;
+        }
+        match command {
+            Command::Step(input) => {
+                steps += 1;
+                recorder.step(input).expect("the savepoint run steps");
+            }
+            Command::Choose(index) => recorder
+                .choose(index)
+                .expect("the savepoint run's choice is accepted"),
+        }
+    }
+    recorder
+}
+
+/// The replays a savepoint is loaded against: the run at each of `SAVEPOINT_CUTS` and the run
+/// whole (a finished run).
+pub fn savepoint_prefixes() -> &'static [RunReplay] {
+    static PREFIXES: OnceLock<Vec<RunReplay>> = OnceLock::new();
+    PREFIXES.get_or_init(|| {
+        SAVEPOINT_CUTS
+            .iter()
+            .map(|cut| Some(*cut))
+            .chain([None])
+            .map(|cut| savepoint_recorder(cut).replay())
+            .collect()
+    })
+}
+
+/// The savepoint loader (ADR-SAVE-3, ADR-SVC-1). The bytes are a savepoint file, tried against
+/// each prefix of `savepoint_prefixes()` with the bundled pack. The refusal is one of the seven
+/// typed errors (the `match` is exhaustive); a savepoint that loads is the canonical bytes of
+/// the run it holds: its replay is the prefix, saving it again gives the same bytes, its state
+/// hashes as the prefix says, and it steps on without a panic, answering an open offer with
+/// choice 0. Returns whether some prefix accepted the bytes.
+pub fn savepoint_load(data: &[u8]) -> bool {
+    let mut loaded = false;
+    for prefix in savepoint_prefixes() {
+        match RunRecorder::resume_from_savepoint(data, prefix, Pack::bundled()) {
+            Ok(mut recorder) => {
+                loaded = true;
+                assert_eq!(
+                    recorder.replay(),
+                    *prefix,
+                    "a loaded run has another prefix"
+                );
+                assert_eq!(recorder.save(), data, "a loaded savepoint is not canonical");
+                assert_eq!(
+                    replay::hash_to_hex(recorder.engine().state_hash()),
+                    prefix.final_hash,
+                    "a loaded state hashes otherwise than the prefix says"
+                );
+                for _ in 0..SAVEPOINT_EXTRA_STEPS {
+                    if recorder.engine().outcome() != Outcome::Running {
+                        break;
+                    }
+                    let moved = if recorder.engine().offer_open() {
+                        recorder.choose(0)
+                    } else {
+                        recorder.step(Input::default())
+                    };
+                    if moved.is_err() {
+                        break;
+                    }
+                }
+            }
+            Err(
+                SavepointError::Format
+                | SavepointError::SimVersion
+                | SavepointError::Pack
+                | SavepointError::Damaged
+                | SavepointError::HashMismatch
+                | SavepointError::PrefixMismatch
+                | SavepointError::Ended,
+            ) => {}
+        }
+    }
+    loaded
 }
 
 /// A run replay's commands in the order they were made: before each tick the commands that
