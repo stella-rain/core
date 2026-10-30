@@ -816,12 +816,18 @@ fn parse_checkpoints(replay: &RunReplay) -> Result<Vec<u64>, RunReplayError> {
         .collect()
 }
 
-/// Every check of `verify_inner` but the comparison of the final hash, on a parsed replay.
-fn resimulate(
-    replay: &RunReplay,
-    run_content: &RunContent,
-    expected: Option<&[u64]>,
-) -> Result<Resimulated, RunReplayError> {
+/// What a replay holds once parsed and checked against its content, before any tick runs.
+struct History {
+    final_hash: u64,
+    inputs: Vec<Input>,
+    commands: Vec<TickCommand>,
+    /// The checkpoints the replay claims, as numbers.
+    claimed: Vec<u64>,
+}
+
+/// The parsing half of re-simulation: the setup, the content hash, the final hash, the inputs,
+/// the commands and the checkpoints, each checked, in that order. No tick runs.
+fn unpack_history(replay: &RunReplay, run_content: &RunContent) -> Result<History, RunReplayError> {
     let stage = run_setup::stage_in(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
     let content = content_sha256_with(replay.setup.mode.as_str(), run_content)
         .ok_or(RunReplayError::ContentChanged)?;
@@ -836,6 +842,26 @@ fn resimulate(
     ))?;
     let commands = replay.unpack_commands()?;
     let claimed = parse_checkpoints(replay)?;
+    Ok(History {
+        final_hash,
+        inputs,
+        commands,
+        claimed,
+    })
+}
+
+/// Every check of `verify_inner` but the comparison of the final hash, on a parsed replay.
+fn resimulate(
+    replay: &RunReplay,
+    run_content: &RunContent,
+    expected: Option<&[u64]>,
+) -> Result<Resimulated, RunReplayError> {
+    let History {
+        final_hash,
+        inputs,
+        commands,
+        claimed,
+    } = unpack_history(replay, run_content)?;
     if let Some(expected) = expected {
         if expected.len() != inputs.len() {
             return Err(RunReplayError::HashCount {
