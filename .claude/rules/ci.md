@@ -19,6 +19,9 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
   reported, a test past 30 s is listed SLOW, and each run writes a JUnit file, uploaded as the
   `junit-<arch>` artifact. nextest skips doctests, so `cargo test --doc` runs beside it
   (x86_64 only) and fails the day one is added and breaks.
+- `tests on x86_64` also runs the ignored `command_cap::measure_the_longest_run` in release on
+  every run of the job (md-only PRs skip it); a PR that raises the longest bot run's command
+  count re-pins `MEASURED_MOST` in `tests/command_cap.rs` in the same PR.
 - The deep tier (`deep.yml`): 2,000 property cases and the `#[ignore]`d measurements, in release,
   weekly, on demand and called by Candidate; not a PR check. The nextest test group
   `deep` runs those long tests one at a time so their times stay comparable.
