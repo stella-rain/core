@@ -449,8 +449,8 @@ jobs:
           # Generated, not committed: the bytes move with SAVEPOINT_FORMAT and SIM_VERSION. The test
           # runs in fuzz/, so the folder is absolute: cargo fuzz reads seeds/savepoint of the root.
           SAVEPOINT_SEEDS_DIR="$PWD/seeds/savepoint" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_savepoint_seeds -- --ignored
-          test -n "$(ls seeds/savepoint)"
-          ls seeds/savepoint | wc -l
+          test -n "$(find seeds/savepoint -type f)"
+          find seeds/savepoint -type f | wc -l
       - name: Fuzz each target for 60 seconds
         run: |
           set -eu
