@@ -179,7 +179,9 @@ fn checked_in_schema_is_current() {
     for (name, json) in stella_rain_core::schema::all() {
         let path = dir.join(name);
         if update {
-            std::fs::write(&path, &json).unwrap();
+            if std::fs::read_to_string(&path).ok().as_deref() != Some(json.as_str()) {
+                std::fs::write(&path, &json).unwrap();
+            }
         } else if std::fs::read_to_string(&path).ok().as_deref() != Some(json.as_str()) {
             stale.push(name);
         }

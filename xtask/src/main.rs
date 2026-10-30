@@ -319,6 +319,9 @@ impl Step {
                     "integration",
                     filter,
                 ]);
+                if *filter == "schema::" {
+                    cmd.args(["--", "--test-threads=1"]);
+                }
                 if let Some((k, v)) = env {
                     cmd.env(k, v);
                 }
