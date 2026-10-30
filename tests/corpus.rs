@@ -2592,8 +2592,7 @@ fn the_leash_edge_case_is_what_its_name_says() {
                     lx >= 0 && lx <= map_w && ly >= 0 && ly <= map_h,
                     "landed position ({lx}, {ly}) must be on the map"
                 );
-                let outside_view =
-                    (lx - cx).abs() > VIEW_HALF_X || (ly - cy).abs() > VIEW_HALF_Y;
+                let outside_view = (lx - cx).abs() > VIEW_HALF_X || (ly - cy).abs() > VIEW_HALF_Y;
                 assert!(
                     outside_view,
                     "landed position ({lx}, {ly}) must be outside the view of centre ({cx}, {cy})"
@@ -2608,11 +2607,7 @@ fn the_leash_edge_case_is_what_its_name_says() {
     // (e) the three entities are relocated once each
     assert_eq!(
         relocated_entities,
-        vec![
-            (EntityId(2), 5),
-            (EntityId(3), 215),
-            (EntityId(4), 225),
-        ],
+        vec![(EntityId(2), 5), (EntityId(3), 215), (EntityId(4), 225),],
         "entities 2, 3, 4 are relocated once each on their ticks"
     );
 }
