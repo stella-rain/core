@@ -537,3 +537,40 @@ fn a_decoded_ledger_goes_on_counting_where_the_original_does() {
     assert_eq!(resumed, original);
     assert_eq!(resumed.stat("kills.giant_sword.enemy"), 1);
 }
+
+/// The size of a savepoint at the worst ticks the benches count: a record for the PR, not a
+/// gate. Each decodes against the same engine and encodes again to the same bytes.
+#[cfg(feature = "bench")]
+#[test]
+fn encoded_size_of_the_bench_fixtures() {
+    use crate::bench_fixtures;
+    use crate::savepoint::Encode;
+    let engines = [
+        ("worst_tick", bench_fixtures::worst_tick().engine),
+        ("hit_tick", bench_fixtures::hit_tick().engine),
+        ("time_limit_tick", bench_fixtures::time_limit_tick().engine),
+        (
+            "worst_minute_peak",
+            bench_fixtures::worst_minute_peak().engine,
+        ),
+    ];
+    for (name, e) in engines {
+        let (_, _, state, ledger, counted) = e.savepoint_parts();
+        let size = |f: &dyn Fn(&mut crate::savepoint::Writer)| {
+            let mut w = crate::savepoint::Writer::new();
+            f(&mut w);
+            w.finish().len()
+        };
+        eprintln!(
+            "savepoint size {name}: state {} ledger {} counted {}",
+            size(&|w| state.encode(w)),
+            size(&|w| ledger.encode(w)),
+            size(&|w| counted.encode(w)),
+        );
+        let bytes = encode_state(&e);
+        let (s, l, c) = decode_state(&bytes, &e).unwrap_or_else(|err| panic!("{name}: {err:?}"));
+        let mut back = e.clone();
+        (back.state, back.ledger, back.counted) = (s, l, c);
+        assert_eq!(encode_state(&back), bytes, "{name}");
+    }
+}
