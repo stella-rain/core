@@ -24,7 +24,6 @@ const TICK_AT: usize = 48;
 const STATE_HASH_AT: usize = 52;
 const PAYLOAD_LEN_AT: usize = 92;
 const CHECKSUM_AT: usize = 96;
-const CRATE_VERSION_AT: usize = 128;
 
 fn apply(rec: &mut RunRecorder, c: &Command) {
     match *c {
@@ -137,14 +136,7 @@ fn saving_is_deterministic_and_a_resumed_run_saves_the_same_bytes() {
     assert_eq!(bytes, rec.save());
     let r = restore(&bytes, &rec.replay()).unwrap();
     let again = r.save();
-    assert_eq!(again.len(), bytes.len());
-    // The crate version is the only field a build may change.
-    assert_eq!(
-        again[..CRATE_VERSION_AT],
-        bytes[..CRATE_VERSION_AT],
-        "the header before the crate version"
-    );
-    assert_eq!(again[HEADER_LEN..], bytes[HEADER_LEN..]);
+    assert_eq!(again, bytes);
 }
 
 #[test]
@@ -440,12 +432,11 @@ mod golden {
         rec
     }
 
-    /// The case's savepoint at tick 300, its crate version zeroed.
+    /// The case's savepoint at tick 300.
     fn bytes() -> (Vec<u8>, RunReplay, Pack, RunReplay) {
         let (replay, pack) = case();
         let rec = drive(&replay, &pack, 300, None);
-        let mut bytes = rec.save();
-        bytes[CRATE_VERSION_AT..HEADER_LEN].fill(0);
+        let bytes = rec.save();
         let prefix = rec.replay();
         (bytes, prefix, pack, replay)
     }
