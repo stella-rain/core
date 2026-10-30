@@ -1100,6 +1100,9 @@ fn cap_u32(n: usize) -> u32 {
 /// The most places a list of `u8` places into a content file holds.
 const MAX_PLACES: u32 = 256;
 
+/// The runs one attacker can have at once: one for each `u8` slot.
+const MAX_RUN_SLOTS: u32 = 256;
+
 /// The cap of a list whose length is the content's (waves, bosses): `decode_state` checks it
 /// against the fresh engine's, and the bytes left bound the length before that.
 const MAX_CONTENT_LEN: u32 = 1 << 16;
@@ -1503,7 +1506,7 @@ impl Decode for StarField {
         Ok(StarField {
             misses: Decode::decode(r)?,
             on_map: decode_vec(r, cap_u32(usize::from(crate::limits::MAX_STARS_ON_MAP)))?,
-            due: decode_vec(r, cap_u32(usize::from(crate::limits::MAX_STARS_ON_MAP) + 1))?,
+            due: decode_vec(r, MAX_CONTENT_LEN)?,
             offer: Decode::decode(r)?,
             rerolls_left: Decode::decode(r)?,
             banishes_left: Decode::decode(r)?,
@@ -1831,7 +1834,7 @@ impl State {
             companions: decode_vec(r, companions_cap)?,
             enemies: decode_vec(r, enemies_cap)?,
             tasks: decode_vec(r, crate::limits::MAX_ATTACK_TASKS)?,
-            runs: decode_vec(r, enemies_cap + companions_cap + 1)?,
+            runs: decode_vec(r, (enemies_cap + companions_cap + 1) * MAX_RUN_SLOTS)?,
             move_index: Default::default(),
             ranged_cooling: decode_vec(r, crate::limits::MAX_RANGED_ATTACKERS)?,
             orbs: decode_vec(r, crate::limits::MAX_ORBS_ALIVE)?,

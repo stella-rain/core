@@ -3,8 +3,11 @@
 //! The bytes are the `State`, the `RunLedger` and the `Counted`, in that order, with no header
 //! (the file's is the savepoint file's) and no trailing bytes. What the content and the setup
 //! decide is not in them: `decode_state` takes it from a fresh engine of the same run, and
-//! checks every length and index the bytes hold against it, so a stale or hostile file is
-//! refused, not indexed out of range on a later tick (ADR-SVC-1).
+//! checks every length and the content indices it lists against it (`check_indices`), so a
+//! stale file is refused, not indexed out of range on a later tick (ADR-SVC-1). It does not
+//! check that the values are ones a run can reach (a boss phase past its last, a stat point
+//! past its limit): that is for the savepoint file's hash and for the fuzz target on this
+//! function to show whether a check is needed.
 
 use crate::engine::Engine;
 use crate::ledger::{Counted, RunLedger};
@@ -32,7 +35,7 @@ pub(crate) fn decode_state(
     bytes: &[u8],
     fresh: &Engine,
 ) -> Result<(State, RunLedger, Counted), DecodeError> {
-    let (world, content, fresh_state, fresh_ledger, fresh_counted) = fresh.savepoint_parts();
+    let (world, _, fresh_state, fresh_ledger, fresh_counted) = fresh.savepoint_parts();
     let mut r = Reader::new(bytes);
     let mut state = State::decode_over(&mut r, fresh_state)?;
     let ledger = RunLedger::decode(&mut r)?;
@@ -54,7 +57,6 @@ pub(crate) fn decode_state(
     // Only now are the runs known to index real attacks and phases.
     state.move_index.rebuild(world, &state.runs);
     crate::sim::reserve(world, &mut state);
-    let _ = content;
     let ledger = ledger.rebuilt_from(fresh_ledger)?;
     Ok((state, ledger, counted))
 }

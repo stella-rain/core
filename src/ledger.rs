@@ -479,12 +479,13 @@ impl RunLedger {
     /// that is missing is refused. `kills` is not necessarily in key order (`for_engine` lists
     /// the kinds in their own order), so the keys are looked up, not searched.
     pub(crate) fn rebuilt_from(mut self, fresh: &RunLedger) -> Result<RunLedger, DecodeError> {
-        let places: std::collections::BTreeMap<&str, usize> = self
-            .kills
-            .iter()
-            .enumerate()
-            .map(|(at, (key, _))| (key.as_str(), at))
-            .collect();
+        let mut places = std::collections::BTreeMap::new();
+        for (at, (key, _)) in self.kills.iter().enumerate() {
+            // A key twice would leave two entries for one count.
+            if places.insert(key.as_str(), at).is_some() {
+                return Err(DecodeError::Invalid("a kill key is listed twice"));
+            }
+        }
         let place = |fresh_at: usize| {
             places
                 .get(fresh.kills[fresh_at].0.as_str())
@@ -503,6 +504,7 @@ impl RunLedger {
             .collect::<Result<_, _>>()?;
         (self.boss_kill_idx, self.elite_kill_idx, self.enemy_kill_idx) = (boss, elite, enemy);
         self.slain_indices = slain;
+        // Room as `for_engine` leaves it, so that a steady tick after a resume allocates nothing.
         self.kills
             .reserve((3 + fresh.slain_indices.len()).saturating_sub(self.kills.len()));
         self.picks.reserve(32usize.saturating_sub(self.picks.len()));
@@ -620,6 +622,15 @@ mod codec_tests {
             .rebuilt_from(&fresh)
             .unwrap();
         assert_eq!(back, base);
+        // A kill key twice is refused.
+        let mut twice = base.clone();
+        twice.kills.push(twice.kills[0].clone());
+        assert_eq!(
+            from_bytes::<RunLedger>(&to_bytes(&twice))
+                .unwrap()
+                .rebuilt_from(&fresh),
+            Err(DecodeError::Invalid("a kill key is listed twice"))
+        );
         // A ledger without the weapon's keys is another run's.
         let other = RunLedger::default();
         assert_eq!(
