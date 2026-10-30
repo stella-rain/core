@@ -8,10 +8,15 @@ use super::hash_coverage_tests::{Perturb, engine, full_state};
 use super::*;
 use crate::fixed::{Fx, Point};
 use crate::hash::{StableHash, StateHasher};
+use crate::id::ContentId;
 use crate::id::EntityId;
+use crate::kinds::KindTable;
 use crate::rewards::Rarity;
+use crate::run_stats::StunRules;
+use crate::rune::Rune;
 use crate::savepoint::testing::{from_bytes, round_trip, to_bytes};
 use crate::savepoint::{Decode, DecodeError, Encode};
+use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 use std::fmt::Debug;
 
 fn hash_of<T: StableHash>(v: &T) -> u64 {
@@ -45,15 +50,18 @@ fn never_panics<T: Encode + Decode>(v: &T) {
 }
 
 /// One state type: `get` finds a value of it in the base state, and every field of it, listed,
-/// must change the bytes when perturbed.
+/// must change the bytes when perturbed. A field in `rebuilt` is not saved (it comes from the
+/// fresh engine or is derived): perturbing it must leave the bytes as they are. Every field is
+/// in one of the lists, or the invocation does not compile.
 macro_rules! each_field_moves_the_encoding {
     (
         $failures:ident, $base:ident, $ty:ident, $get:expr,
-        fields: [$($f:ident),* $(,)?] $(,)?
+        fields: [$($f:ident),* $(,)?]
+        $(, rebuilt: [$($r:ident),* $(,)?])? $(,)?
     ) => {{
         #[allow(dead_code, unused_variables)]
         fn all_listed(t: &$ty) {
-            let $ty { $($f: _,)* } = t;
+            let $ty { $($f: _,)* $($($r: _,)*)? } = t;
         }
         let get: fn(&mut State) -> &mut $ty = $get;
         let base_bytes = to_bytes(get(&mut $base.clone()));
@@ -68,6 +76,17 @@ macro_rules! each_field_moves_the_encoding {
                 ));
             }
         )*
+        $($(
+            let mut s = $base.clone();
+            Perturb::perturb(&mut get(&mut s).$r);
+            if to_bytes(get(&mut s)) != base_bytes {
+                $failures.push(format!(
+                    "{}.{} is listed as rebuilt but moves the encoding",
+                    stringify!($ty),
+                    stringify!($r)
+                ));
+            }
+        )*)?
     }};
 }
 
@@ -573,5 +592,92 @@ fn the_star_field_has_its_layout_and_its_caps() {
     assert_eq!(
         from_bytes::<StarField>(&to_bytes(&f)),
         Err(DecodeError::Invalid("list too long"))
+    );
+}
+
+// ---- The perturbation of the types the hash test does not cover ----
+
+impl Perturb for StunRules {
+    fn perturb(&mut self) {
+        self.immune_ticks.perturb();
+    }
+}
+
+impl Perturb for KindTable {
+    fn perturb(&mut self) {
+        let ids: Vec<ContentId> = self
+            .ids()
+            .iter()
+            .cloned()
+            .chain([ContentId::from("zz_other")])
+            .collect();
+        *self = KindTable::from_ids(&ids, crate::kinds::MAX_KINDS).unwrap();
+    }
+}
+
+/// The scratch buffers, the match-up table and the runes have no way to change one number from
+/// here; they are content or buffers (`decode_state` takes them from the fresh engine, and the
+/// corpus test compares them), so their perturbation is no change, and listing them under
+/// `rebuilt` is the compile-time half of the check.
+impl Perturb for crate::sim::Scratch {
+    fn perturb(&mut self) {}
+}
+
+impl Perturb for crate::match_ups::MatchUps {
+    fn perturb(&mut self) {}
+}
+
+impl Perturb for crate::runes::Runes {
+    fn perturb(&mut self) {}
+}
+
+#[test]
+fn every_saved_field_of_the_state_moves_the_encoding() {
+    let base = base();
+    let mut failures: Vec<String> = Vec::new();
+    each_field_moves_the_encoding!(failures, base, State, |s| s,
+        fields: [tick, rng, outcome, player, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, progress, stars, heal_pickups, expertise, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, stardust, regen, hp_pct, damage_pct, crit_seed, echoes],
+        rebuilt: [scratch, kinds, move_index, match_ups, runes, stun]);
+    each_field_moves_the_encoding!(failures, base, PlayerState, |s| &mut s.player,
+        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses]);
+    each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.player.combo,
+        fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
+    each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.player.skill.as_mut().unwrap(),
+        fields: [index, level, cooldown_left]);
+    each_field_moves_the_encoding!(failures, base, OrbitState, |s| &mut s.player.orbits[0],
+        fields: [reward, orbs, round, cooldown_left, angle]);
+    each_field_moves_the_encoding!(failures, base, HeldRune, |s| &mut s.player.runes[0],
+        fields: [rune, cooldown_left]);
+    each_field_moves_the_encoding!(failures, base, PullState, |s| s.player.pull.as_mut().unwrap(),
+        fields: [at, radius, strength, ticks_left]);
+    each_field_moves_the_encoding!(failures, base, ShieldState, |s| s.player.shield.as_mut().unwrap(),
+        fields: [amount, ticks_left]);
+    each_field_moves_the_encoding!(failures, base, DashState, |s| s.player.dash.as_mut().unwrap(),
+        fields: [dir, done, left]);
+    each_field_moves_the_encoding!(failures, base, Progress, |s| s.progress.as_mut().unwrap(),
+        fields: [level, xp, priority, pick_stats, offers_due, offer_open, spent, totals],
+        rebuilt: [stats]);
+    each_field_moves_the_encoding!(failures, base, StarField, |s| s.stars.as_mut().unwrap(),
+        fields: [misses, on_map, due, offer, rerolls_left, banishes_left, extra_candidates, rarity, rune_pool, pool, taken, banished, set_counts]);
+    each_field_moves_the_encoding!(failures, base, StarState, |s| &mut s.stars.as_mut().unwrap().on_map[0],
+        fields: [id, at, rarity]);
+    each_field_moves_the_encoding!(failures, base, Due, |s| &mut s.stars.as_mut().unwrap().due[0],
+        fields: [kind, rarity]);
+    each_field_moves_the_encoding!(failures, base, OfferState, |s| s.stars.as_mut().unwrap().offer.as_mut().unwrap(),
+        fields: [kind, rarity, candidates]);
+    each_field_moves_the_encoding!(failures, base, HealPickup, |s| &mut s.heal_pickups.as_mut().unwrap()[0],
+        fields: [id, at]);
+    each_field_moves_the_encoding!(failures, base, ExpertiseGauge, |s| s.expertise.as_mut().unwrap(),
+        fields: [level, points, next, offered, offer, taken, range_pct, style, path]);
+    each_field_moves_the_encoding!(failures, base, ExpertiseOffer, |s| s.expertise.as_mut().unwrap().offer.as_mut().unwrap(),
+        fields: [level, kind, candidates]);
+    each_field_moves_the_encoding!(failures, base, Horde, |s| s.horde.as_mut().unwrap(),
+        fields: [spawned, used, held],
+        rebuilt: [boss_ticks, no_call_ticks, mid_boss_hp_pct]);
+    assert!(
+        failures.is_empty(),
+        "{} fields:\n{}",
+        failures.len(),
+        failures.join("\n")
     );
 }

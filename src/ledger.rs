@@ -528,3 +528,125 @@ impl Decode for Counted {
         })
     }
 }
+
+#[cfg(test)]
+mod codec_tests {
+    use super::*;
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+
+    fn ledger() -> RunLedger {
+        let kinds = KindTable::from_ids(
+            [&ContentId::from("bat"), &ContentId::from("golem")],
+            crate::kinds::MAX_KINDS,
+        )
+        .unwrap();
+        let mut l = RunLedger::for_engine(&kinds, "giant_sword");
+        l.add_kill("rune_taken.burn".into());
+        l.add_bestiary_bit(&ContentId::from("bat"), 3);
+        l.picks.push(StarPick {
+            rarity: Rarity::Rare,
+            name: Some("Vega".into()),
+        });
+        l.add_skill_use(ContentId::from("dash"));
+        l
+    }
+
+    /// Every field of the ledger is saved, or listed as a place that `rebuilt_from` finds again;
+    /// the destructure names them all, so a field added without a decision does not compile.
+    #[test]
+    fn every_field_of_the_ledger_is_saved_or_rebuilt() {
+        let base = ledger();
+        let bytes = to_bytes(&base);
+        #[allow(clippy::type_complexity)]
+        let saved: [(&str, fn(&mut RunLedger)); 4] = [
+            ("kills", |l| l.kills[0].1 += 1),
+            ("bestiary", |l| l.bestiary[0].1 ^= 4),
+            ("picks", |l| l.picks[0].rarity = Rarity::Epic),
+            ("skill_uses", |l| l.skill_uses[0].1 += 1),
+        ];
+        for (name, change) in saved {
+            let mut l = base.clone();
+            change(&mut l);
+            assert_ne!(to_bytes(&l), bytes, "{name} does not move the encoding");
+        }
+        let RunLedger {
+            kills: _,
+            bestiary: _,
+            picks: _,
+            skill_uses: _,
+            enemy_kill_idx,
+            elite_kill_idx,
+            boss_kill_idx,
+            slain_indices,
+        } = &base;
+        let mut l = base.clone();
+        l.enemy_kill_idx = enemy_kill_idx + 1;
+        l.elite_kill_idx = elite_kill_idx + 1;
+        l.boss_kill_idx = boss_kill_idx + 1;
+        l.slain_indices = slain_indices.iter().map(|i| i + 1).collect();
+        assert_eq!(
+            to_bytes(&l),
+            bytes,
+            "the kill places are rebuilt, not saved"
+        );
+        // The pick's name is saved too.
+        let mut l = base.clone();
+        l.picks[0].name = None;
+        assert_ne!(to_bytes(&l), bytes);
+    }
+
+    #[test]
+    fn a_ledger_round_trips_and_its_places_are_found_again() {
+        let base = ledger();
+        let fresh = {
+            let kinds = KindTable::from_ids(
+                [&ContentId::from("bat"), &ContentId::from("golem")],
+                crate::kinds::MAX_KINDS,
+            )
+            .unwrap();
+            RunLedger::for_engine(&kinds, "giant_sword")
+        };
+        let back = from_bytes::<RunLedger>(&to_bytes(&base))
+            .unwrap()
+            .rebuilt_from(&fresh)
+            .unwrap();
+        assert_eq!(back, base);
+        // A ledger without the weapon's keys is another run's.
+        let other = RunLedger::default();
+        assert_eq!(
+            from_bytes::<RunLedger>(&to_bytes(&other))
+                .unwrap()
+                .rebuilt_from(&fresh),
+            Err(DecodeError::Invalid("a kill key of the run is missing"))
+        );
+    }
+
+    #[test]
+    fn the_tallies_move_the_encoding_in_every_field() {
+        let base = Counted {
+            kills: 1,
+            taken: vec![0, 2],
+            tiers: vec![1],
+            named: vec!["Vega".into()],
+        };
+        let bytes = to_bytes(&base);
+        let Counted {
+            kills: _,
+            taken: _,
+            tiers: _,
+            named: _,
+        } = &base;
+        let changes: [(&str, fn(&mut Counted)); 4] = [
+            ("kills", |c| c.kills += 1),
+            ("taken", |c| c.taken[1] += 1),
+            ("tiers", |c| c.tiers[0] += 1),
+            ("named", |c| c.named[0] = "Altair".into()),
+        ];
+        for (name, change) in changes {
+            let mut c = base.clone();
+            change(&mut c);
+            assert_ne!(to_bytes(&c), bytes, "{name} does not move the encoding");
+        }
+        assert_eq!(from_bytes::<Counted>(&bytes), Ok(base));
+    }
+}
