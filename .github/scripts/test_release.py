@@ -241,9 +241,37 @@ class CheckPromote(unittest.TestCase):
             r.check_promote("v0.0.4-rc.1", ["v0.0.4-rc.1"], "0.0.3")
 
 
+VERSION_RS = ("/// Structure of stage, event and replay files.\npub const SCHEMA_VERSION: u32 = 1;\n\n"
+              "/// Simulation rules.\npub const SIM_VERSION: u32 = {};\n")
+
+
+class SimVersion(unittest.TestCase):
+    def test_the_declaration_in_version_rs_gives_its_number(self):
+        self.assertEqual(r.sim_version(VERSION_RS.format(1)), 1)
+
+    def test_a_longer_number_is_read_whole(self):
+        self.assertEqual(r.sim_version("pub const SIM_VERSION: u32 = 12;\n"), 12)
+
+    def test_a_use_is_not_the_declaration(self):
+        with self.assertRaisesRegex(r.ReleaseError, "SIM_VERSION"):
+            r.sim_version("let x = SIM_VERSION;\n")
+
+    def test_the_schema_version_is_not_the_rules_version(self):
+        with self.assertRaisesRegex(r.ReleaseError, "SIM_VERSION"):
+            r.sim_version("pub const SCHEMA_VERSION: u32 = 3;\n")
+
+    def test_two_declarations_are_refused(self):
+        with self.assertRaisesRegex(r.ReleaseError, "SIM_VERSION"):
+            r.sim_version(VERSION_RS.format(1) + "pub const SIM_VERSION: u32 = 2;\n")
+
+
 class Notes(unittest.TestCase):
+    def test_the_title_line_is_the_label(self):
+        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], sim_version=1)
+        self.assertEqual(text.splitlines()[0], "# core v0.0.4 \u00b7 rules v1")
+
     def test_the_notes_name_the_candidate_the_commit_and_the_changes(self):
-        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", ["abc1234 One", "", "def5678 Two"])
+        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", ["abc1234 One", "", "def5678 Two"], sim_version=1)
         self.assertIn("v0.0.4", text.splitlines()[0])
         self.assertIn(f"`{SHA}`", text)
         self.assertIn("Commits since v0.0.3:", text)
@@ -251,7 +279,7 @@ class Notes(unittest.TestCase):
         self.assertIn("SHA256SUMS", text)
 
     def test_the_first_release_has_no_previous(self):
-        self.assertIn("First release.", r.notes("v0.0.1-rc.1", SHA, None, []))
+        self.assertIn("First release.", r.notes("v0.0.1-rc.1", SHA, None, [], sim_version=1))
 
 
 class PackChanged(unittest.TestCase):
@@ -270,14 +298,14 @@ class PackWarning(unittest.TestCase):
             "from this tag before an app build pins it (ADR-080)")
 
     def test_a_changed_pack_puts_the_warning_first(self):
-        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], pack_changed=True)
+        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], pack_changed=True, sim_version=1)
         self.assertEqual(text.splitlines()[0], self.LINE)
 
     def test_an_unchanged_pack_has_no_warning(self):
-        self.assertNotIn("content/pack.json", r.notes("v0.0.4-rc.1", SHA, "v0.0.3", []))
+        self.assertNotIn("content/pack.json", r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], sim_version=1))
 
     def test_the_first_release_has_no_warning(self):
-        self.assertNotIn("content/pack.json", r.notes("v0.0.1-rc.1", SHA, None, [], pack_changed=True))
+        self.assertNotIn("content/pack.json", r.notes("v0.0.1-rc.1", SHA, None, [], pack_changed=True, sim_version=1))
 
 
 def git(cwd, *args):
@@ -303,13 +331,17 @@ class Cli(unittest.TestCase):
         git(self.dev, "config", "user.email", "t@t")
         git(self.dev, "config", "user.name", "t")
         os.makedirs(os.path.join(self.dev, "fuzz"))
-        self.commit("0.0.3", "first")
+        self.commit("0.0.3", "first", sim=1)
         git(self.dev, "tag", "v0.0.3")
         git(self.dev, "push", "-q", "origin", "main", "v0.0.3")
         self.commit("0.0.4", "version 0.0.4")
         git(self.dev, "push", "-q", "origin", "main")
 
-    def commit(self, version, message, lock=None):
+    def commit(self, version, message, lock=None, sim=None):
+        if sim is not None:
+            os.makedirs(os.path.join(self.dev, "src"), exist_ok=True)
+            with open(os.path.join(self.dev, "src", "version.rs"), "w", encoding="utf-8") as f:
+                f.write(sim if isinstance(sim, str) else VERSION_RS.format(sim))
         with open(os.path.join(self.dev, "Cargo.toml"), "w") as f:
             f.write(CARGO.format(version))
         with open(os.path.join(self.dev, "fuzz", "Cargo.lock"), "w") as f:
@@ -324,13 +356,44 @@ class Cli(unittest.TestCase):
         self.commit(final[1:], message or f"Release {final}")
         return git(self.dev, "rev-parse", "HEAD")
 
-    def notes_from_dev(self):
+    def run_notes(self, commit=None):
         log = os.path.join(self.dev, "log.txt")
         with open(log, "w") as f:
             f.write("")
-        rc = script(self.dev, "notes", "v0.0.4-rc.1", SHA, git(self.dev, "describe", "--tags", "--abbrev=0"), log)
+        return script(self.dev, "notes", "v0.2.0-rc.1", commit or git(self.dev, "rev-parse", "HEAD"),
+                      git(self.dev, "describe", "--tags", "--abbrev=0"), log)
+
+    def notes_from_dev(self):
+        rc = self.run_notes()
         self.assertEqual(rc.returncode, 0, rc.stderr)
         return rc.stdout
+
+    def test_notes_title_carries_the_core_version_and_the_rules_version(self):
+        self.assertEqual(self.notes_from_dev().splitlines()[0], "# core v0.2.0 \u00b7 rules v1")
+
+    def test_notes_read_the_rules_version_at_the_released_commit_not_the_working_tree(self):
+        first = git(self.dev, "rev-parse", "HEAD")
+        with open(os.path.join(self.dev, "src", "version.rs"), "w", encoding="utf-8") as f:
+            f.write(VERSION_RS.format(2))
+        self.assertIn("rules v1", self.notes_from_dev().splitlines()[0])
+        git(self.dev, "add", "-A")
+        git(self.dev, "commit", "-q", "-m", "rules 2")
+        self.assertIn("rules v1", self.run_notes(first).stdout.splitlines()[0])
+        self.assertIn("rules v2", self.run_notes().stdout.splitlines()[0])
+
+    def test_notes_refuse_when_the_rules_version_cannot_be_read(self):
+        for case, text in (("missing", None), ("not a number", "pub const SIM_VERSION: u32 = SCHEMA_VERSION;\n"),
+                           ("twice", VERSION_RS.format(1) + "pub const SIM_VERSION: u32 = 2;\n")):
+            with self.subTest(case):
+                if text is None:
+                    git(self.dev, "rm", "-q", "src/version.rs")
+                    git(self.dev, "commit", "-q", "-m", "no version.rs")
+                else:
+                    self.commit("0.0.4", case, sim=text)
+                rc = self.run_notes()
+                self.assertEqual(rc.returncode, 1)
+                self.assertRegex(rc.stderr, r"^release: .*(SIM_VERSION|src/version\.rs)")
+                self.assertEqual(rc.stdout, "")
 
     def write_pack(self, content):
         os.makedirs(os.path.join(self.dev, "content"), exist_ok=True)
