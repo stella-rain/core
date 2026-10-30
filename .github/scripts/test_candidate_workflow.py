@@ -116,6 +116,21 @@ class PromoteTagsTheStampedCommit(unittest.TestCase):
         self.assertIn('-f object="$COMMIT"', text)
 
 
+class PromoteKeepsTheLabel(unittest.TestCase):
+    """The notes' title line (core vX . rules vN) is written by Candidate and reaches the final
+    release because Promote republishes the prerelease's body (after its own
+    "promoted from" line, so the title is the first line of the notes, not of the release body)."""
+
+    def test_promote_releases_the_prerelease_body_and_makes_no_notes_of_its_own(self):
+        check = job_block(read("promote.yml"), "check")
+        self.assertIn('gh release view "$rc"', check)
+        self.assertIn("--json body --jq .body", check)
+        self.assertNotIn("release.py notes", check)
+
+    def test_candidate_reads_the_rules_version_at_the_main_commit(self):
+        self.assertIn('release.py notes "$rc" "$GITHUB_SHA"', job_block(read("candidate.yml"), "check"))
+
+
 class PromoteTellsTheApp(unittest.TestCase):
     def setUp(self):
         self.text = read("promote.yml")
