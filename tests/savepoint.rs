@@ -338,15 +338,17 @@ fn ended_a_savepoint_of_an_ended_run_is_refused() {
 }
 
 #[test]
-fn the_crate_version_is_never_compared() {
+fn every_byte_of_the_header_region_is_checked() {
     let rec = run(120);
     let good = rec.replay();
     let bytes = rec.save();
-    for text in [&b"9.9.9"[..], &[0u8; 5][..]] {
+    for at in 0..bytes.len().min(200) {
         let mut changed = bytes.clone();
-        changed[CRATE_VERSION_AT..CRATE_VERSION_AT + 32].fill(0);
-        changed[CRATE_VERSION_AT..CRATE_VERSION_AT + text.len()].copy_from_slice(text);
-        assert!(restore(&changed, &good).is_ok());
+        changed[at] ^= 1;
+        assert!(
+            restore(&changed, &good).is_err(),
+            "a changed byte at {at} still loads"
+        );
     }
     assert_eq!(
         Savepoint::from_bytes(&bytes)
