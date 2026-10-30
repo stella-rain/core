@@ -328,3 +328,89 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
         failures.join("\n")
     );
 }
+
+#[test]
+fn the_streams_are_five_words_in_order() {
+    let s = base();
+    round_trip_hashed(&s.rng);
+    let bytes = to_bytes(&s.rng);
+    assert_eq!(bytes.len(), 40);
+    assert_eq!(bytes[..8], s.rng.spawn.state().to_le_bytes());
+    assert_eq!(bytes[32..], s.rng.horde.state().to_le_bytes());
+    never_panics(&s.rng);
+    let mut failures: Vec<String> = Vec::new();
+    each_field_moves_the_encoding!(failures, s, Streams, |s| &mut s.rng,
+        fields: [spawn, attack, loot, offer, horde]);
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+/// A live run, not a built state: a few hundred ticks of the bundled `time_limit` mode with its
+/// waves, and at every tick each entity-side value the engine holds round-trips. A short run
+/// does not reach every type (`full_state` covers the rest); the kinds seen are counted below.
+#[test]
+fn the_values_of_a_live_run_round_trip_at_every_tick() {
+    use crate::pack::ContentFiles;
+    use crate::run_content::RunContent;
+    use crate::time_limit::TimeLimit;
+    use crate::version::Versions;
+
+    let mode = TimeLimit::parse(ContentFiles::bundled_file("time_limit"), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    let setup = RunSetup {
+        schema_version: 1,
+        sim_version: 1,
+        mode: "time_limit".into(),
+        weapon: "giant_sword".into(),
+        weapon_tree: None,
+        seed: 7,
+        star_pool: None,
+        extra_rerolls: 0,
+        upgrades: Vec::new(),
+        perk_set: "duelist".into(),
+        rune_pool: Vec::new(),
+        carried: Vec::new(),
+        lumine: 0,
+        starting_rune: None,
+        stat_priority: Vec::new(),
+        pick_stats: false,
+        difficulty: "normal".into(),
+    };
+    let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
+    // agents, parts and bosses, tasks, runs, orbs, zones, echoes
+    let mut seen = [0usize; 7];
+    for _ in 0..900 {
+        e.step(Input::default());
+        let s = &e.state;
+        round_trip_hashed(&s.rng);
+        for a in s.companions.iter().chain(&s.enemies) {
+            round_trip_hashed(a);
+            seen[0] += 1;
+        }
+        if let Some(b) = &s.boss {
+            round_trip_hashed(b);
+            seen[1] += 1;
+        }
+        for t in &s.tasks {
+            round_trip_hashed(t);
+            seen[2] += 1;
+        }
+        for r in &s.runs {
+            round_trip_hashed(r);
+            seen[3] += 1;
+        }
+        for o in &s.orbs {
+            round_trip_hashed(o);
+            seen[4] += 1;
+        }
+        for z in &s.zones {
+            round_trip_hashed(z);
+            seen[5] += 1;
+        }
+        for x in &s.echoes {
+            round_trip_hashed(x);
+            seen[6] += 1;
+        }
+    }
+    println!("seen: agents, bosses, tasks, runs, orbs, zones, echoes = {seen:?}");
+    assert!(seen[0] > 0, "the run holds agents");
+}

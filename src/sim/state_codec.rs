@@ -988,3 +988,35 @@ impl Decode for Echo {
         })
     }
 }
+
+// ---- The generators ----
+
+impl Encode for Streams {
+    /// Five `u64`, each generator's state, in the order the hash writes them.
+    fn encode(&self, w: &mut Writer) {
+        let Streams {
+            spawn,
+            attack,
+            loot,
+            offer,
+            horde,
+        } = self;
+        spawn.encode(w);
+        attack.encode(w);
+        loot.encode(w);
+        offer.encode(w);
+        horde.encode(w);
+    }
+}
+
+impl Decode for Streams {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Streams {
+            spawn: Decode::decode(r)?,
+            attack: Decode::decode(r)?,
+            loot: Decode::decode(r)?,
+            offer: Decode::decode(r)?,
+            horde: Decode::decode(r)?,
+        })
+    }
+}
