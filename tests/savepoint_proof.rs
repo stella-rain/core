@@ -267,7 +267,7 @@ fn check_run(case: &Case, r: &Reference, cut_at: &[u32], restore: Restore) -> Re
         let restored = restore(orig, &bytes, &prefix, &case.pack);
         if restored.engine().tick() != t {
             return fail(format!(
-                "diverges first on tick {}: the restored run is at tick {}",
+                "diverges first on tick {}: the restored run is at tick {}, the cut was at {t}",
                 restored.engine().tick(),
                 restored.engine().tick()
             ));

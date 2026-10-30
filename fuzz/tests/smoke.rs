@@ -477,10 +477,12 @@ fn a_real_savepoint_gets_past_the_loader() {
         savepoint_load(&savepoint_recorder(Some(150)).save()),
         "tick 150"
     );
-    assert!(
-        savepoint_load(&savepoint_recorder(Some(230)).save()),
-        "tick 230, offer open"
-    );
+    // The corpus run is cut where its offer is open and before it ends: a re-bless that moves
+    // either fails here, not silently in the target.
+    let open = savepoint_recorder(Some(230));
+    assert_eq!(open.engine().tick(), 230);
+    assert!(open.engine().offer_open(), "the offer at tick 230 is open");
+    assert!(savepoint_load(&open.save()), "tick 230, offer open");
     // A savepoint of a tick no prefix of the target holds, and a finished run's.
     assert!(!savepoint_load(&savepoint_recorder(Some(100)).save()));
     assert!(!savepoint_load(&savepoint_recorder(None).save()));
