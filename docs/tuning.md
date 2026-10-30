@@ -24,7 +24,7 @@
 | `CANDIDATES` | 32 | enemies | ADR-058 |
 | `NEIGHBOURS` | 6 | enemies | ADR-058 |
 | `CROWDED_OVER` | 1 | px | ADR-058 |
-| `MAX_LEASH_MOVES_PER_TICK` | 16 | moves per tick | ADR-126 |
+| `MAX_LEASH_MOVES_PER_TICK` | 16 | moves per tick | ADR-SIM-11 |
 | `MAX_ECHOES_PER_TICK` | 64 | echoes per tick | ADR-058 |
 | `MAX_BURSTS_PER_TICK` | 8 | bursts per tick | ADR-058 |
 | `MAX_REWARD_EFFECTS` | 4 | effects per reward | ADR-020 |
