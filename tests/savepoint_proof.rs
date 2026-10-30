@@ -8,6 +8,7 @@
 //! and the state codec behind it is crate-private (the library's own `savepoint_tests` cover
 //! the stage cases through it).
 
+use crate::common;
 use crate::corpus_pins::{case_dirs, run_case_pack};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,8 +16,10 @@ use std::path::{Path, PathBuf};
 use stella_rain_core::engine::Outcome;
 use stella_rain_core::input::Input;
 use stella_rain_core::ledger::RunLedger;
-use stella_rain_core::pack::Pack;
+use stella_rain_core::pack::{ContentFiles, Pack};
+use stella_rain_core::rng::{TAG_ATTACK, derive};
 use stella_rain_core::run_replay::{RunRecorder, RunReplay, RunReplayError, TickCommand};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::Snapshot;
 
 type Plain = (u32, Vec<(String, u8)>, Vec<String>, Vec<(String, u8)>);
@@ -498,4 +501,99 @@ fn a_restore_that_forgets_an_open_offer_is_named() {
     let err = check_run(&case, &r, &[cut], &answered).unwrap_err();
     assert!(err.contains(&format!("tutorial cut {cut}")), "{err}");
     assert!(err.contains("offer_open"), "{err}");
+}
+
+// A run whose enemy attack evaluates `rand` expressions, so `rng.attack` moves. No corpus case
+// does, so a restore that leaves that stream fresh would pass every case above.
+
+/// The tutorial mode with its first bat rule's `slash` replaced by an inline attack with three
+/// `rand` expressions: a frozen copy, so a change to the bundled tutorial moves nothing here.
+const RAND_TUTORIAL: &[u8] = include_bytes!("fixtures/savepoint_rng/tutorial_rand_attack.json");
+const RAND_SEED: u64 = 20_261_010;
+const RAND_TICKS: u32 = 1500;
+/// Before the first draw (ticks 121 to 300), then after draws with draws still to come.
+const RAND_CUTS: [u32; 4] = [100, 300, 700, 1200];
+
+fn rand_pack() -> Pack {
+    let mut files = ContentFiles::bundled().clone();
+    assert!(files.insert("tutorial", RAND_TUTORIAL.to_vec()));
+    Pack::from_bytes(&files.export().unwrap()).unwrap()
+}
+
+/// The run recorded here, not stored: `RAND_TICKS` ticks of the run script, the first reward
+/// taken at every offer.
+fn rand_attack_case() -> (Case, Reference) {
+    let pack = rand_pack();
+    let setup = RunSetup {
+        mode: "tutorial".into(),
+        seed: RAND_SEED,
+        ..RunSetup::default()
+    };
+    let mut rec = RunRecorder::start_with_pack(&setup, &pack).unwrap();
+    for tick in 0..RAND_TICKS {
+        if rec.engine().offer_open() {
+            rec.choose(0).unwrap();
+        }
+        rec.step(common::run::run_script(tick)).unwrap();
+    }
+    assert_eq!(rec.engine().outcome(), Outcome::Running);
+    let recorded = rec.replay();
+    let case = Case {
+        label: "fixture/tutorial_rand_attack".to_owned(),
+        inputs: recorded.unpack_inputs(recorded.ticks).unwrap(),
+        commands: recorded.unpack_commands().unwrap(),
+        recorded,
+        pack,
+    };
+    let reference = reference(&case);
+    (case, reference)
+}
+
+fn rand_cuts(r: &Reference) -> Vec<u32> {
+    let mut at = cuts(r);
+    at.extend(RAND_CUTS);
+    at.retain(|t| (1..r.ticks()).contains(t));
+    at.sort_unstable();
+    at.dedup();
+    at
+}
+
+#[test]
+fn the_fixture_pack_loads_and_is_not_the_bundled_one() {
+    let pack = rand_pack();
+    assert_ne!(pack.sha256(), Pack::bundled().sha256());
+    let text = std::str::from_utf8(RAND_TUTORIAL).unwrap();
+    assert_eq!(text.matches("\"rand\"").count(), 3);
+}
+
+#[test]
+fn the_fixture_run_draws_from_the_attack_stream_around_the_cut() {
+    let (case, r) = rand_attack_case();
+    let fresh_stream = derive(RAND_SEED, TAG_ATTACK).state().to_le_bytes();
+    let holds = |bytes: &[u8]| bytes.windows(8).any(|w| w == fresh_stream);
+    let mut saved = vec![];
+    play_from(&case, fresh(&case), 0, |t, rec| {
+        if RAND_CUTS.contains(&t) {
+            saved.push((t, holds(&rec.save())));
+        }
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(
+        saved,
+        [(100, true), (300, false), (700, false), (1200, false)],
+        "the fresh attack stream is in the savepoint only before the first draw"
+    );
+    assert!(
+        r.enemy_mid[1200..].contains(&true),
+        "no enemy attack after the last cut, so no draw follows it"
+    );
+}
+
+#[test]
+fn the_fixture_run_is_running_at_its_last_tick() {
+    let (case, r) = rand_attack_case();
+    assert_eq!(r.end.outcome, Outcome::Running);
+    assert_eq!(r.ticks(), RAND_TICKS);
+    assert!(!case.commands.is_empty(), "no offer was answered");
 }
