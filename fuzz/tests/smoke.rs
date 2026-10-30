@@ -11,11 +11,12 @@ use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{Replay, ReplayError};
 use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay, RunReplayError};
+use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core_fuzz::{
     commands, minisign_verify, pack_load, packs_load, replay_load, run_setup, savepoint_load,
-    savepoint_recorder, share_decode, stage_parse, stage_run,
+    savepoint_prefixes, savepoint_recorder, savepoint_seeds, share_decode, stage_parse, stage_run,
 };
 
 type Target = fn(&[u8]) -> bool;
@@ -311,6 +312,12 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
     if target == "packs_load" {
         return vec![packs_manifest()];
     }
+    if target == "savepoint_load" {
+        return savepoint_seeds()
+            .into_iter()
+            .map(|(_, bytes)| bytes)
+            .collect();
+    }
     if target == "pack_load" {
         return vec![Pack::BUNDLED.to_vec(), pack_with_constellations()];
     }
@@ -477,4 +484,51 @@ fn a_real_savepoint_gets_past_the_loader() {
     // A savepoint of a tick no prefix of the target holds, and a finished run's.
     assert!(!savepoint_load(&savepoint_recorder(Some(100)).save()));
     assert!(!savepoint_load(&savepoint_recorder(None).save()));
+}
+
+#[test]
+fn the_savepoint_seeds_are_deterministic() {
+    assert_eq!(savepoint_seeds(), savepoint_seeds());
+}
+
+#[test]
+fn the_seeds_reach_every_error() {
+    let mut refusals = Vec::new();
+    let mut loaded = false;
+    for (_, bytes) in savepoint_seeds() {
+        for prefix in savepoint_prefixes() {
+            match RunRecorder::resume_from_savepoint(&bytes, prefix, Pack::bundled()) {
+                Ok(_) => loaded = true,
+                Err(e) => refusals.push(e),
+            }
+        }
+    }
+    assert!(loaded, "no seed loads");
+    for want in [
+        SavepointError::Format,
+        SavepointError::SimVersion,
+        SavepointError::Pack,
+        SavepointError::Damaged,
+        SavepointError::HashMismatch,
+        SavepointError::PrefixMismatch,
+        SavepointError::Ended,
+    ] {
+        assert!(refusals.contains(&want), "no seed is refused with {want:?}");
+    }
+}
+
+/// Writes the seeds of `savepoint_load` to the folder `SAVEPOINT_SEEDS_DIR` names, for a
+/// `cargo fuzz run` (they are generated, never committed).
+#[test]
+#[ignore = "writes files: set SAVEPOINT_SEEDS_DIR"]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a tool, not simulation code: it reads the folder"
+)]
+fn write_savepoint_seeds() {
+    let dir = std::env::var("SAVEPOINT_SEEDS_DIR").expect("SAVEPOINT_SEEDS_DIR names the folder");
+    fs::create_dir_all(&dir).expect("the seed folder");
+    for (name, bytes) in savepoint_seeds() {
+        fs::write(Path::new(&dir).join(name), bytes).expect("a seed file");
+    }
 }
