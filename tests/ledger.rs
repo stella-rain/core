@@ -5,7 +5,6 @@
 //! the app wrapper's `Tally`.
 
 use std::fs;
-use std::path::Path;
 
 use stella_rain_core::attack::{DamageType, MatchUp};
 use stella_rain_core::engine::Engine;
@@ -228,7 +227,7 @@ fn skills_stars_and_runes_are_counted() {
 
 #[test]
 fn corpus_run_computes_expected_ledger() {
-    let path = Path::new("tests/corpus/current/runs/trial/run.replay");
+    let path = crate::corpus::runs_dir().join("trial/run.replay");
     let replay_bytes = fs::read(path).expect("corpus run replay must exist");
     let replay = RunReplay::from_bytes(&replay_bytes).unwrap();
     let inputs = replay.unpack_inputs(replay.ticks).unwrap();
