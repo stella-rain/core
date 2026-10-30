@@ -34,8 +34,6 @@ impl LimitEntry {
 
 // Dynamic budgets of a tick (ADR-058)
 pub const MAX_ENEMY_CAP: u16 = 500;
-pub const DEFAULT_CROWD_TARGET: u16 = 200;
-pub const DEFAULT_CAP_HEADROOM_PCT: u32 = 30;
 pub const MIN_CAP_HEADROOM_PCT: u8 = 25;
 pub const MAX_CAP_HEADROOM_PCT: u8 = 30;
 pub const MAX_CROWD_TARGET: u16 = 400;
@@ -45,9 +43,6 @@ pub const MAX_RANGED_ATTACKERS: u32 = 4;
 /// Half the widest supported view, 21:9 of the 360 px design height: `360 * 21 / 9 / 2`.
 pub const VIEW_HALF_WIDTH: i32 = 420;
 pub const VIEW_HALF_HEIGHT: i32 = 180;
-pub const RANGED_ZONE_TOKENS: u32 = 3;
-pub const RANGED_LINE_TOKENS: u32 = 1;
-pub const RANGED_TOKEN_COOLDOWN_TICKS: u32 = 30;
 pub const MAX_ORBS_PER_OWNER: u32 = 8;
 pub const MAX_ORBS_ALIVE: u32 = 32;
 pub const MAX_ORB_TICKS: u32 = 600;
@@ -62,17 +57,8 @@ pub const PUSH_CANDIDATES: usize = 32;
 pub const PUSH_NEIGHBOURS: usize = 6;
 pub const PUSH_CROWDED_OVER_PX: i64 = 1;
 
-// The leash (ADR-126)
-pub const LEASH_REACH_X: i32 = 2 * VIEW_HALF_WIDTH;
-pub const LEASH_REACH_Y: i32 = 360;
-pub const LEASH_LAND_X: i32 = SPAWN_EDGE_X;
-pub const LEASH_LAND_Y: i32 = 244;
+// The leash: the cap stays code, its numbers are content (ADR-CONT-10)
 pub const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
-
-// Spawn placement (ADR-126)
-pub const SPAWN_MARGIN: i32 = 64;
-pub const SPAWN_EDGE_X: i32 = VIEW_HALF_WIDTH + SPAWN_MARGIN;
-pub const SPAWN_EDGE_Y: i32 = 244;
 
 // Reward effects (ADR-058, ADR-020, ADR-117)
 pub const MAX_ECHOES_PER_TICK: usize = 64;
@@ -109,8 +95,6 @@ pub const MAX_TIME_LIMIT_BYTES: usize = 128 * 1024;
 
 pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_ENEMY_CAP", "500", "enemies alive at once", "ADR-058"),
-    LimitEntry::new("crowd_target", "200", "enemies", "ADR-058"),
-    LimitEntry::new("cap_headroom_pct", "30", "percent", "ADR-058"),
     LimitEntry::new("MIN_CAP_HEADROOM_PCT", "25", "percent", "ADR-058"),
     LimitEntry::new("MAX_CAP_HEADROOM_PCT", "30", "percent", "ADR-058"),
     LimitEntry::new("MAX_CROWD_TARGET", "400", "enemies", "ADR-058"),
@@ -129,9 +113,6 @@ pub const LIMITS: &[LimitEntry] = &[
     ),
     LimitEntry::new("VIEW_HALF_WIDTH", "420", "px", "ADR-SIM-11"),
     LimitEntry::new("VIEW_HALF_HEIGHT", "180", "px", "ADR-SIM-11"),
-    LimitEntry::new("RANGED_ZONE_TOKENS", "3", "tokens", "ADR-SIM-11"),
-    LimitEntry::new("RANGED_LINE_TOKENS", "1", "tokens", "ADR-SIM-11"),
-    LimitEntry::new("RANGED_TOKEN_COOLDOWN_TICKS", "30", "ticks", "ADR-SIM-11"),
     LimitEntry::new(
         "MAX_ORBS_PER_OWNER",
         "8",
@@ -163,19 +144,12 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("CANDIDATES", "32", "enemies", "ADR-058"),
     LimitEntry::new("NEIGHBOURS", "6", "enemies", "ADR-058"),
     LimitEntry::new("CROWDED_OVER", "1", "px", "ADR-058"),
-    LimitEntry::new("LEASH_REACH_X", "840", "px", "ADR-126"),
-    LimitEntry::new("LEASH_REACH_Y", "360", "px", "ADR-126"),
-    LimitEntry::new("LEASH_LAND_X", "484", "px", "ADR-126"),
-    LimitEntry::new("LEASH_LAND_Y", "244", "px", "ADR-126"),
     LimitEntry::new(
         "MAX_LEASH_MOVES_PER_TICK",
         "16",
         "moves per tick",
         "ADR-126",
     ),
-    LimitEntry::new("SPAWN_MARGIN", "64", "px", "ADR-126"),
-    LimitEntry::new("SPAWN_EDGE_X", "484", "px", "ADR-126"),
-    LimitEntry::new("SPAWN_EDGE_Y", "244", "px", "ADR-126"),
     LimitEntry::new("MAX_ECHOES_PER_TICK", "64", "echoes per tick", "ADR-058"),
     LimitEntry::new("MAX_BURSTS_PER_TICK", "8", "bursts per tick", "ADR-058"),
     LimitEntry::new("MAX_REWARD_EFFECTS", "4", "effects per reward", "ADR-020"),
@@ -213,6 +187,10 @@ pub fn tuning_catalogue_markdown() -> String {
             entry.name, entry.value, entry.unit, entry.adr
         ));
     }
+    s.push_str(
+        "\nThe numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) \
+         are content, not listed here: see content/rules.json (ADR-CONT-10).\n",
+    );
     s
 }
 
@@ -230,8 +208,10 @@ mod tests {
             i64::from(VIEW_HALF_HEIGHT) * 256,
             i64::from(crate::sim::VIEW_HALF_HEIGHT.0)
         );
-        assert_eq!(SPAWN_EDGE_X, VIEW_HALF_WIDTH + SPAWN_MARGIN);
-        assert_eq!(SPAWN_EDGE_Y, VIEW_HALF_HEIGHT + SPAWN_MARGIN);
+        assert_eq!(
+            MAX_LEASH_MOVES_PER_TICK,
+            crate::sim::MAX_LEASH_MOVES_PER_TICK
+        );
         assert_eq!(MAX_ENEMY_CAP, crate::validate::limits::MAX_ENEMY_CAP);
         assert_eq!(MAX_CROWD_TARGET, crate::validate::limits::MAX_CROWD_TARGET);
         assert_eq!(MIN_CAP_HEADROOM_PCT, crate::rules::MIN_CAP_HEADROOM_PCT);
@@ -272,18 +252,11 @@ mod tests {
     }
 
     #[test]
-    fn the_view_and_leash_rows_equal_their_constants() {
+    fn the_view_rows_equal_their_constants() {
         let row = |name: &str| LIMITS.iter().find(|e| e.name == name).unwrap().value;
         for (name, value) in [
             ("VIEW_HALF_WIDTH", VIEW_HALF_WIDTH),
             ("VIEW_HALF_HEIGHT", VIEW_HALF_HEIGHT),
-            ("LEASH_REACH_X", LEASH_REACH_X),
-            ("LEASH_REACH_Y", LEASH_REACH_Y),
-            ("LEASH_LAND_X", LEASH_LAND_X),
-            ("LEASH_LAND_Y", LEASH_LAND_Y),
-            ("SPAWN_MARGIN", SPAWN_MARGIN),
-            ("SPAWN_EDGE_X", SPAWN_EDGE_X),
-            ("SPAWN_EDGE_Y", SPAWN_EDGE_Y),
         ] {
             assert_eq!(row(name), value.to_string(), "{name}");
         }
