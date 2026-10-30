@@ -199,6 +199,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn no_row_cites_an_archived_adr_126() {
+        assert!(LIMITS.iter().all(|e| e.adr != "ADR-126"));
+        let leash = LIMITS
+            .iter()
+            .find(|e| e.name == "MAX_LEASH_MOVES_PER_TICK")
+            .expect("leash row");
+        assert_eq!(leash.adr, "ADR-SIM-11");
+    }
+
+    #[test]
     fn limits_match_runtime_constants() {
         assert_eq!(
             i64::from(VIEW_HALF_WIDTH) * 256,
