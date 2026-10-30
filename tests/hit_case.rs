@@ -14,7 +14,7 @@ use stella_rain_core::snapshot::{EntityKind, EntityView};
 use stella_rain_core::validate::limits::MAX_MAP_SIDE;
 
 /// The largest map (core#87), and the spread case's two outer crowds: 440 pixels right of the
-/// start and 440 above and below it, inside the earlier leash's 800 pixels (EC2, DS84).
+/// start and 440 above and below it, within the case's own bound of 800 pixels (EC2).
 const SIDE: i32 = MAX_MAP_SIDE;
 const SPREAD_OFFSET: i32 = 112_640;
 const TOP_RIGHT: (i32, i32) = (
@@ -26,8 +26,9 @@ const BOTTOM_RIGHT: (i32, i32) = (
     hit_case::START.1 + SPREAD_OFFSET,
 );
 
-/// The earlier leash's reach (800 pixels, EC2, DS84; the leash is now `rules.json`'s view
-/// rectangle), and the least extent of the spread crowd after the warm-up, in units: 700 pixels on
+/// The case's own bound on how far the spread crowd goes from the start (800 pixels, EC2; not
+/// the leash, whose reach is `rules.json`'s `leash_reach_x` and `leash_reach_y`),
+/// and the least extent of the spread crowd after the warm-up, in units: 700 pixels on
 /// y. The start is 238 pixels from the map's left edge, so x cannot span 700 pixels; it measures
 /// 160,883 (about 630 pixels), and the least is EC2's 140,000.
 const LEASH_REACH: i64 = 204_800;
@@ -142,8 +143,8 @@ fn the_measured_tick_has_its_load() {
 }
 
 /// The spread case (`hit_case::spread_stage`): three waves of the cap's 260 (100, 100 and 60), the
-/// first at the start point, one at the upper right and one at the lower right, inside the leash,
-/// on a map of the largest side that the validator accepts.
+/// first at the start point, one at the upper right and one at the lower right, none of them moved by
+/// the leash, on a map of the largest side that the validator accepts.
 #[test]
 fn the_spread_waves_stand_at_the_start_and_two_outer_crowds() {
     let stage = hit_case::spread_stage();
@@ -174,7 +175,7 @@ fn the_spread_waves_stand_at_the_start_and_two_outer_crowds() {
 }
 
 /// The spread tick has the clustered tick's load, with the main character's step and the zones
-/// on the first crowd only and the other crowds spread inside the leash's reach.
+/// on the first crowd only and the other crowds spread out.
 #[test]
 fn the_spread_tick_has_its_load() {
     let engine = measured(hit_case::spread_warmed_up());

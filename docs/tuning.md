@@ -5,8 +5,6 @@
 | Name | Value | Unit | ADR |
 |---|---|---|---|
 | `MAX_ENEMY_CAP` | 500 | enemies alive at once | ADR-058 |
-| `crowd_target` | 200 | enemies | ADR-058 |
-| `cap_headroom_pct` | 30 | percent | ADR-058 |
 | `MIN_CAP_HEADROOM_PCT` | 25 | percent | ADR-058 |
 | `MAX_CAP_HEADROOM_PCT` | 30 | percent | ADR-058 |
 | `MAX_CROWD_TARGET` | 400 | enemies | ADR-058 |
@@ -15,9 +13,6 @@
 | `MAX_RANGED_ATTACKERS` | 4 | regular ranged attackers | ADR-SIM-11 |
 | `VIEW_HALF_WIDTH` | 420 | px | ADR-SIM-11 |
 | `VIEW_HALF_HEIGHT` | 180 | px | ADR-SIM-11 |
-| `RANGED_ZONE_TOKENS` | 3 | tokens | ADR-SIM-11 |
-| `RANGED_LINE_TOKENS` | 1 | tokens | ADR-SIM-11 |
-| `RANGED_TOKEN_COOLDOWN_TICKS` | 30 | ticks | ADR-SIM-11 |
 | `MAX_ORBS_PER_OWNER` | 8 | slow orbs per attacker | ADR-SIM-11 |
 | `MAX_ORBS_ALIVE` | 32 | slow orbs alive at once | ADR-SIM-6 |
 | `MAX_ORB_TICKS` | 600 | ticks | ADR-SIM-11 |
@@ -29,14 +24,7 @@
 | `CANDIDATES` | 32 | enemies | ADR-058 |
 | `NEIGHBOURS` | 6 | enemies | ADR-058 |
 | `CROWDED_OVER` | 1 | px | ADR-058 |
-| `LEASH_REACH_X` | 840 | px | ADR-126 |
-| `LEASH_REACH_Y` | 360 | px | ADR-126 |
-| `LEASH_LAND_X` | 484 | px | ADR-126 |
-| `LEASH_LAND_Y` | 244 | px | ADR-126 |
 | `MAX_LEASH_MOVES_PER_TICK` | 16 | moves per tick | ADR-126 |
-| `SPAWN_MARGIN` | 64 | px | ADR-126 |
-| `SPAWN_EDGE_X` | 484 | px | ADR-126 |
-| `SPAWN_EDGE_Y` | 244 | px | ADR-126 |
 | `MAX_ECHOES_PER_TICK` | 64 | echoes per tick | ADR-058 |
 | `MAX_BURSTS_PER_TICK` | 8 | bursts per tick | ADR-058 |
 | `MAX_REWARD_EFFECTS` | 4 | effects per reward | ADR-020 |
@@ -58,3 +46,5 @@
 | `MAX_STARS_ON_MAP` | 64 | stars | ADR-117 |
 | `MAX_WAVES` | 16 | waves | ADR-020 |
 | `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-020 |
+
+The numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) are content, not listed here: see content/rules.json (ADR-CONT-10).
