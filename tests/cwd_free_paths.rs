@@ -91,10 +91,8 @@ fn is_opened(before: &str) -> bool {
 }
 
 /// Whether one line (comments dropped like `tests/one_source.rs` does) is flagged.
-#[cfg(test)]
 fn flagged(line: &str) -> bool {
-    let code = line.split("//").next().unwrap_or("");
-    !literals(code, 0).is_empty()
+    !flagged_in(line).is_empty()
 }
 
 /// `(line number, literal)` for every flagged literal in `source`. A literal that starts its line
