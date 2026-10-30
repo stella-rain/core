@@ -489,6 +489,17 @@ fn a_real_savepoint_gets_past_the_loader() {
 }
 
 #[test]
+fn a_loaded_savepoint_is_its_own_bytes() {
+    let bytes = savepoint_recorder(Some(150)).save();
+    assert!(savepoint_load(&bytes));
+    for at in 0..160 {
+        let mut changed = bytes.clone();
+        changed[at] ^= 1;
+        assert!(!savepoint_load(&changed), "a changed byte at {at} loads");
+    }
+}
+
+#[test]
 fn the_savepoint_seeds_are_deterministic() {
     assert_eq!(savepoint_seeds(), savepoint_seeds());
 }
