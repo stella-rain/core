@@ -234,6 +234,32 @@ class FuzzLongYml(unittest.TestCase):
     def test_candidate_comment_has_no_count(self):
         self.assertNotIn("6 targets", read(".github", "workflows", "candidate.yml"))
 
+    def test_minutes_go_through_the_converter(self):
+        fuzz = job_block(self.text, "fuzz")
+        call = 'python3 .github/scripts/fuzz_seconds.py "$MINUTES"'
+        self.assertIn(call, fuzz)
+        self.assertIn('-max_total_time="$max_total_time"', fuzz)
+        self.assertNotIn("$((", self.text)
+        self.assertLess(fuzz.index(call), fuzz.index('cargo "+$FUZZ_NIGHTLY" fuzz run'))
+
+    def test_the_job_still_bounds_the_run(self):
+        fuzz = job_block(self.text, "fuzz")
+        self.assertIn("timeout-minutes: 60", fuzz)
+        self.assertRegex(fuzz, r"permissions:\n\s+contents: read\n\s+strategy:")
+        self.assertRegex(self.text, r"(?m)^permissions: \{\}")
+        self.assertIn("MINUTES: ${{ inputs.minutes || 7 }}", self.text)
+
+    def test_candidate_minutes_are_a_number(self):
+        sys.path.insert(0, HERE)
+        from fuzz_seconds import seconds
+
+        candidate = job_block(read(".github", "workflows", "candidate.yml"), "long-fuzz")
+        got = re.search(r"^\s+minutes: (\S+)$", candidate, re.M).group(1)
+        self.assertEqual(got, "15")
+        self.assertEqual(seconds(got), 900)
+        default = re.search(r"MINUTES: \$\{\{ inputs\.minutes \|\| (\S+) \}\}", self.text).group(1)
+        self.assertEqual(seconds(default), 420)
+
 
 class Rules(unittest.TestCase):
     def test_text(self):
