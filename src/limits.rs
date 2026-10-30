@@ -1,9 +1,11 @@
-//! Tuning limits catalogue and single source of truth for runtime checks (ADR-126, ADR-058).
+//! Tuning limits catalogue and single source of truth for runtime checks (ADR-PROC-2, ADR-SIM-11, ADR-CONT-10).
 //!
 //! Values here define the simulation's authoritative runtime limits, file budgets, and tuning
 //! caps. `content-pack catalogue` generates `docs/tuning.md` from the catalogue table below.
+//! It lists caps and code numbers only; the numbers a designer tunes are `content/rules.json`
+//! keys (ADR-CONT-10).
 
-/// An entry in the tuning limits catalogue (ADR-126).
+/// An entry in the tuning limits catalogue (ADR-PROC-2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LimitEntry {
     pub name: &'static str,
@@ -90,7 +92,7 @@ pub const MAX_WAVES: usize = 16;
 pub const MAX_TIME_LIMIT_BYTES: usize = 128 * 1024;
 
 // ---------------------------------------------------------------------------
-// The limits catalogue table (ADR-126)
+// The limits catalogue table (ADR-PROC-2)
 // ---------------------------------------------------------------------------
 
 pub const LIMITS: &[LimitEntry] = &[
@@ -148,7 +150,7 @@ pub const LIMITS: &[LimitEntry] = &[
         "MAX_LEASH_MOVES_PER_TICK",
         "16",
         "moves per tick",
-        "ADR-126",
+        "ADR-SIM-11",
     ),
     LimitEntry::new("MAX_ECHOES_PER_TICK", "64", "echoes per tick", "ADR-058"),
     LimitEntry::new("MAX_BURSTS_PER_TICK", "8", "bursts per tick", "ADR-058"),
