@@ -116,5 +116,84 @@ class PromoteTagsTheStampedCommit(unittest.TestCase):
         self.assertIn('-f object="$COMMIT"', text)
 
 
+class PromoteTellsTheApp(unittest.TestCase):
+    def setUp(self):
+        self.text = read("promote.yml")
+        self.notify = job_block(self.text, "notify")
+        self.tag = job_block(self.text, "tag")
+        self.check = job_block(self.text, "check")
+
+    def test_notify_waits_for_the_release(self):
+        self.assertRegex(self.notify, r"needs:\s*\[check, tag\]")
+
+    def test_notify_runs_none_of_the_repositorys_code(self):
+        self.assertNotIn("actions/checkout", self.notify)
+        self.assertNotIn("release.py", self.notify)
+
+    def test_notify_can_only_read_this_repository(self):
+        self.assertIn("contents: read", self.notify)
+        self.assertNotRegex(self.notify, re.compile(r"^\s+contents: write", re.M))
+        self.assertRegex(self.text, re.compile(r"^permissions: \{\}$", re.M))
+
+    def test_the_token_is_the_bridge_apps_for_app_only(self):
+        for line in (
+            "actions/create-github-app-token@v3",
+            "client-id: ${{ vars.BRIDGE_APP_CLIENT_ID }}",
+            "private-key: ${{ secrets.BRIDGE_APP_PRIVATE_KEY }}",
+            "repositories: app",
+            "permission-contents: write",
+        ):
+            self.assertIn(line, self.notify)
+        self.assertEqual(re.findall(r"permission-[a-z-]+", self.notify), ["permission-contents"])
+
+    def test_the_tag_job_never_sees_the_app_key(self):
+        for block in (self.tag, self.check):
+            self.assertNotIn("BRIDGE_APP", block)
+            self.assertNotIn("create-github-app-token", block)
+
+    def test_it_sends_core_release_with_the_tag(self):
+        self.assertIn("event_type=core-release", self.notify)
+        self.assertIn("client_payload[tag]=$TAG", self.notify)
+        self.assertIn("repos/$GITHUB_REPOSITORY_OWNER/app/dispatches", self.notify)
+
+    def test_the_tag_comes_through_env_never_inline(self):
+        self.assertIn("TAG: ${{ needs.check.outputs.final }}", self.notify)
+        in_script = False
+        script_indent = 0
+        for line in self.notify.splitlines():
+            indent = len(line) - len(line.lstrip())
+            if in_script and line.strip() and indent <= script_indent:
+                in_script = False
+            if in_script:
+                self.assertNotIn("${{", line, "expression inside a run script")
+            elif re.match(r"^\s+(- )?run: \|\s*$", line):
+                in_script = True
+                script_indent = indent
+            if "${{" in line and not in_script:
+                self.assertRegex(line, r"^\s+(- )?[A-Za-z_-]+: .*\$\{\{")
+
+    def test_only_a_final_release_is_announced(self):
+        self.assertIn("^v[0-9]+\\.[0-9]+\\.[0-9]+$", self.notify)
+        self.assertIn("isPrerelease", self.notify)
+        self.assertIn("isDraft", self.notify)
+        self.assertLess(
+            self.notify.index("isPrerelease"),
+            self.notify.index("actions/create-github-app-token"),
+        )
+
+    def test_a_failed_dispatch_fails_the_run(self):
+        self.assertNotIn("continue-on-error", self.notify)
+        self.assertNotIn("|| true", self.notify)
+        self.assertGreater(
+            self.notify.rindex("::error::"), self.notify.index("event_type=core-release")
+        )
+
+    def test_the_release_steps_are_untouched(self):
+        self.assertIn("contents: write", self.tag)
+        self.assertIn("gh release create", self.tag)
+        self.assertIn("--latest", self.tag)
+        self.assertNotIn("core-release", self.tag)
+
+
 if __name__ == "__main__":
     unittest.main()
