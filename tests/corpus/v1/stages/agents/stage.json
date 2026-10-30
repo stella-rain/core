@@ -1,0 +1,178 @@
+{
+  "boss": {
+    "base": "golem",
+    "hp": 100000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [],
+        "transition": []
+      }
+    ],
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "companions": [
+    {
+      "base": "fairy_a",
+      "hp": 1000,
+      "movement": {
+        "radius": 10240,
+        "type": "orbit"
+      },
+      "radius": 1024,
+      "rules": [
+        {
+          "cooldown_ticks": 30,
+          "do": {
+            "skill": {
+              "duration_ticks": 40,
+              "type": "atk_up",
+              "value_pct": 25
+            },
+            "type": "cast"
+          },
+          "once": false,
+          "target": "player",
+          "when": {
+            "type": "always"
+          }
+        }
+      ]
+    },
+    {
+      "base": "fairy_a",
+      "hp": 1000,
+      "movement": {
+        "distance": 12288,
+        "type": "follow"
+      },
+      "radius": 1024,
+      "rules": [
+        {
+          "cooldown_ticks": 0,
+          "do": {
+            "skill": {
+              "amount": 500,
+              "type": "heal"
+            },
+            "type": "cast"
+          },
+          "once": false,
+          "target": "lowest_hp_ally",
+          "when": {
+            "pct": 100,
+            "type": "hp_below",
+            "who": "lowest_hp_ally"
+          }
+        }
+      ]
+    }
+  ],
+  "description": "",
+  "id": "test",
+  "length_ticks": 600,
+  "player": {
+    "atk": 1000,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 99900,
+    "weapon": {
+      "inline": {
+        "assist_range": 0,
+        "combo": {
+          "main": {
+            "attack": {
+              "inline": [
+                {
+                  "hit_box": {
+                    "angle": 0,
+                    "length": 65536,
+                    "offset": {
+                      "forward": 0,
+                      "right": 0
+                    },
+                    "type": "line",
+                    "width": 2048
+                  },
+                  "kind": "active",
+                  "ticks": 1
+                },
+                {
+                  "hit_box": {
+                    "angle": 0,
+                    "length": 65536,
+                    "offset": {
+                      "forward": 65536,
+                      "right": 0
+                    },
+                    "type": "line",
+                    "width": 2048
+                  },
+                  "kind": "active",
+                  "ticks": 1
+                }
+              ]
+            }
+          }
+        },
+        "window_ticks": 0
+      }
+    }
+  },
+  "schema_version": 1,
+  "seed": 7,
+  "sim_version": 1,
+  "title": "Test",
+  "waves": [
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 5000,
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 96
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 5,
+            "do": {
+              "attack": {
+                "preset": {
+                  "args": [
+                    15
+                  ],
+                  "id": "aimed_single"
+                }
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "nearest_ally",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 46080,
+        "y": 100000
+      }
+    }
+  ]
+}

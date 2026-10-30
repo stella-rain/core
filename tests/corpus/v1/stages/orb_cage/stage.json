@@ -1,0 +1,464 @@
+{
+  "boss": {
+    "base": "golem",
+    "hp": 100000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [],
+        "transition": []
+      }
+    ],
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "companions": [],
+  "description": "",
+  "id": "test",
+  "length_ticks": 600,
+  "player": {
+    "atk": 1000,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 9900,
+    "weapon": {
+      "inline": {
+        "assist_range": 40960,
+        "combo": {
+          "main": {
+            "attack": {
+              "preset": {
+                "args": [],
+                "id": "slash"
+              }
+            },
+            "next": {
+              "main": {
+                "attack": {
+                  "preset": {
+                    "args": [],
+                    "id": "slash"
+                  }
+                },
+                "next": {
+                  "main": {
+                    "attack": {
+                      "preset": {
+                        "args": [],
+                        "id": "thrust"
+                      }
+                    },
+                    "charge": {
+                      "levels": [
+                        {
+                          "at_ticks": 20,
+                          "attack": {
+                            "inline": [
+                              {
+                                "kind": "wind_up",
+                                "move_pct": 50,
+                                "ticks": 8
+                              },
+                              {
+                                "hit_box": {
+                                  "half_angle": 22528,
+                                  "offset": {
+                                    "forward": 2048,
+                                    "right": 0
+                                  },
+                                  "radius": 8192,
+                                  "type": "arc"
+                                },
+                                "kind": "active",
+                                "move_pct": 50,
+                                "ticks": 4,
+                                "type": "slash"
+                              },
+                              {
+                                "kind": "recovery",
+                                "move_pct": 50,
+                                "ticks": 14
+                              }
+                            ]
+                          },
+                          "perfect_pct": 50,
+                          "perfect_ticks": 6
+                        },
+                        {
+                          "at_ticks": 50,
+                          "attack": {
+                            "inline": [
+                              {
+                                "kind": "wind_up",
+                                "move_pct": 50,
+                                "ticks": 12
+                              },
+                              {
+                                "hit_box": {
+                                  "offset": {
+                                    "forward": 0,
+                                    "right": 0
+                                  },
+                                  "radius": 10240,
+                                  "type": "circle"
+                                },
+                                "kind": "active",
+                                "move_pct": 50,
+                                "ticks": 4,
+                                "type": "slash"
+                              },
+                              {
+                                "kind": "recovery",
+                                "move_pct": 50,
+                                "ticks": 20
+                              }
+                            ]
+                          },
+                          "perfect_pct": 50,
+                          "perfect_ticks": 6
+                        }
+                      ],
+                      "max_ticks": 90,
+                      "move_pct": 50
+                    },
+                    "next": {
+                      "main": {
+                        "attack": {
+                          "preset": {
+                            "args": [],
+                            "id": "slash"
+                          }
+                        },
+                        "next": {
+                          "main": {
+                            "attack": {
+                              "preset": {
+                                "args": [],
+                                "id": "thrust"
+                              }
+                            },
+                            "next": {
+                              "smash": {
+                                "attack": {
+                                  "inline": [
+                                    {
+                                      "kind": "wind_up",
+                                      "ticks": 12
+                                    },
+                                    {
+                                      "damage": 16000,
+                                      "hit_box": {
+                                        "offset": {
+                                          "forward": 10240,
+                                          "right": 0
+                                        },
+                                        "radius": 6144,
+                                        "type": "circle"
+                                      },
+                                      "kind": "active",
+                                      "ticks": 4,
+                                      "type": "pierce"
+                                    },
+                                    {
+                                      "kind": "recovery",
+                                      "ticks": 22
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "smash": {
+                            "attack": {
+                              "inline": [
+                                {
+                                  "kind": "wind_up",
+                                  "ticks": 10
+                                },
+                                {
+                                  "damage": 12000,
+                                  "hit_box": {
+                                    "half_angle": 24576,
+                                    "offset": {
+                                      "forward": 2048,
+                                      "right": 0
+                                    },
+                                    "radius": 12288,
+                                    "type": "arc"
+                                  },
+                                  "kind": "active",
+                                  "ticks": 4,
+                                  "type": "slash"
+                                },
+                                {
+                                  "kind": "recovery",
+                                  "ticks": 16
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "smash": {
+                        "attack": {
+                          "inline": [
+                            {
+                              "kind": "wind_up",
+                              "ticks": 10
+                            },
+                            {
+                              "damage": 10000,
+                              "hit_box": {
+                                "offset": {
+                                  "forward": 8192,
+                                  "right": 0
+                                },
+                                "radius": 4096,
+                                "type": "circle"
+                              },
+                              "kind": "active",
+                              "ticks": 3,
+                              "type": "pierce"
+                            },
+                            {
+                              "kind": "recovery",
+                              "ticks": 18
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "smash": {
+                    "attack": {
+                      "inline": [
+                        {
+                          "kind": "wind_up",
+                          "ticks": 8
+                        },
+                        {
+                          "damage": 10000,
+                          "hit_box": {
+                            "half_angle": 20480,
+                            "offset": {
+                              "forward": 2048,
+                              "right": 0
+                            },
+                            "radius": 10240,
+                            "type": "arc"
+                          },
+                          "kind": "active",
+                          "ticks": 4,
+                          "type": "slash"
+                        },
+                        {
+                          "kind": "recovery",
+                          "ticks": 14
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "smash": {
+                "attack": {
+                  "preset": {
+                    "args": [],
+                    "id": "thrust"
+                  }
+                }
+              }
+            }
+          },
+          "smash": {
+            "attack": {
+              "preset": {
+                "args": [],
+                "id": "slash"
+              }
+            }
+          }
+        },
+        "dash": {
+          "main": {
+            "attack": {
+              "preset": {
+                "args": [],
+                "id": "thrust"
+              }
+            }
+          },
+          "smash": {
+            "attack": {
+              "preset": {
+                "args": [],
+                "id": "slash"
+              }
+            }
+          }
+        },
+        "dash_strike_ticks": 10,
+        "smash": {
+          "type": "bleed"
+        },
+        "window_ticks": 20
+      }
+    }
+  },
+  "schema_version": 1,
+  "seed": 7,
+  "sim_version": 1,
+  "title": "Test",
+  "waves": [
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 10000000,
+        "movement": {
+          "at": {
+            "x": 46080,
+            "y": 132000
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 120,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 200,
+                    "kind": "wind_up",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "breakable": true,
+                            "direction": {
+                              "angle": 5120,
+                              "type": "absolute"
+                            },
+                            "link": {
+                              "rehit_ticks": 40,
+                              "width": 1536
+                            },
+                            "speed": 512,
+                            "stop_after": 40,
+                            "ticks": 200,
+                            "type": "orb"
+                          }
+                        ],
+                        "count": 5,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 4
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 46080,
+        "y": 132000
+      }
+    },
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 10000000,
+        "movement": {
+          "at": {
+            "x": 61440,
+            "y": 110000
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": [
+          {
+            "cooldown_ticks": 120,
+            "do": {
+              "attack": {
+                "inline": [
+                  {
+                    "damage": 200,
+                    "kind": "wind_up",
+                    "spawn": [
+                      {
+                        "body": [
+                          {
+                            "breakable": true,
+                            "direction": {
+                              "angle": 5120,
+                              "type": "absolute"
+                            },
+                            "link": {
+                              "damage": 300,
+                              "rehit_ticks": 60,
+                              "width": 2048
+                            },
+                            "speed": 512,
+                            "stop_after": 40,
+                            "ticks": 200,
+                            "type": "orb"
+                          }
+                        ],
+                        "count": 4,
+                        "type": "ring"
+                      }
+                    ],
+                    "ticks": 4
+                  },
+                  {
+                    "kind": "recovery",
+                    "ticks": 10
+                  }
+                ]
+              },
+              "type": "attack"
+            },
+            "once": false,
+            "target": "player",
+            "when": {
+              "type": "always"
+            }
+          }
+        ]
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 61440,
+        "y": 110000
+      }
+    }
+  ]
+}

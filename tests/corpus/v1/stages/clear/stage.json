@@ -1,0 +1,36 @@
+{
+  "boss": {
+    "base": "golem",
+    "hp": 2000,
+    "phases": [
+      {}
+    ],
+    "radius": 8192,
+    "spawn": {
+      "x": 46080,
+      "y": 121856
+    }
+  },
+  "id": "test-stage",
+  "length_ticks": 600,
+  "player": {
+    "atk": 1000,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 300,
+    "weapon": {
+      "preset": {
+        "id": "giant_sword"
+      }
+    }
+  },
+  "schema_version": 1,
+  "seed": 7,
+  "sim_version": 1,
+  "title": "Test Stage"
+}

@@ -1,0 +1,176 @@
+{
+  "boss": {
+    "base": "golem",
+    "hp": 10000,
+    "parts": [
+      {
+        "asset": "horns_2",
+        "hp": 3000,
+        "id": "horn",
+        "offset": {
+          "x": 0,
+          "y": 16000
+        },
+        "radius": 6000
+      }
+    ],
+    "phases": [
+      {
+        "rules": [
+          {
+            "cooldown_ticks": 0,
+            "do": {
+              "ticks": 1,
+              "type": "telegraph"
+            },
+            "once": false,
+            "target": "self",
+            "when": {
+              "pct": 50,
+              "type": "hp_below",
+              "who": {
+                "part": "horn"
+              }
+            }
+          }
+        ],
+        "timeline": [
+          {
+            "ticks": 5,
+            "type": "telegraph"
+          },
+          {
+            "attack": {
+              "preset": {
+                "args": [
+                  15
+                ],
+                "id": "aimed_single"
+              }
+            },
+            "type": "attack"
+          },
+          {
+            "ticks": 10,
+            "to": {
+              "x": 49000,
+              "y": 60000
+            },
+            "type": "move_to"
+          },
+          {
+            "ticks": 5,
+            "type": "wait"
+          },
+          {
+            "type": "loop"
+          }
+        ],
+        "transition": [],
+        "until": {
+          "part": "horn",
+          "type": "part_broken"
+        }
+      },
+      {
+        "rules": [],
+        "timeline": [
+          {
+            "attack": {
+              "preset": {
+                "args": [
+                  15
+                ],
+                "id": "aimed_single"
+              }
+            },
+            "type": "attack"
+          },
+          {
+            "ticks": 8,
+            "type": "wait"
+          },
+          {
+            "type": "loop"
+          }
+        ],
+        "transition": [
+          {
+            "type": "clear_orbs"
+          },
+          {
+            "ticks": 10,
+            "type": "invulnerable_ticks"
+          }
+        ]
+      }
+    ],
+    "radius": 8192,
+    "spawn": {
+      "x": 46080,
+      "y": 60000
+    }
+  },
+  "companions": [],
+  "description": "",
+  "id": "test",
+  "length_ticks": 600,
+  "player": {
+    "atk": 1000,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 99900,
+    "weapon": {
+      "inline": {
+        "assist_range": 0,
+        "combo": {
+          "main": {
+            "attack": {
+              "inline": [
+                {
+                  "hit_box": {
+                    "angle": 0,
+                    "length": 65536,
+                    "offset": {
+                      "forward": 0,
+                      "right": 0
+                    },
+                    "type": "line",
+                    "width": 2048
+                  },
+                  "kind": "active",
+                  "ticks": 1
+                },
+                {
+                  "hit_box": {
+                    "angle": 0,
+                    "length": 65536,
+                    "offset": {
+                      "forward": 65536,
+                      "right": 0
+                    },
+                    "type": "line",
+                    "width": 2048
+                  },
+                  "kind": "active",
+                  "ticks": 1
+                }
+              ]
+            }
+          }
+        },
+        "window_ticks": 0
+      }
+    }
+  },
+  "schema_version": 1,
+  "seed": 7,
+  "sim_version": 1,
+  "title": "Test",
+  "waves": []
+}
