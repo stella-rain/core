@@ -132,7 +132,7 @@ class PromoteTellsTheApp(unittest.TestCase):
 
     def test_notify_can_only_read_this_repository(self):
         self.assertIn("contents: read", self.notify)
-        self.assertNotIn("contents: write", self.notify)
+        self.assertNotRegex(self.notify, re.compile(r"^\s+contents: write", re.M))
         self.assertRegex(self.text, re.compile(r"^permissions: \{\}$", re.M))
 
     def test_the_token_is_the_bridge_apps_for_app_only(self):

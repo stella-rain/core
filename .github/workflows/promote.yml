@@ -7,7 +7,10 @@
 # files, checks them against SHA256SUMS, tags the same commit vX.Y.Z and makes the GitHub
 # release, marked latest, with those files and the prerelease's notes: nothing is built again.
 # Last, it deletes the rc branches of that version and every older one; a failed run keeps them.
-# Only the tag job can write, and it runs none of the repository's code.
+# Only the tag job can write to this repository, and it runs none of the repository's code.
+# After the release exists, the notify job tells app (a core-release dispatch carrying the tag)
+# with a bridge App token that can write only to app. A failed dispatch leaves the release and
+# fails the run; re-run the failed job.
 name: Promote
 
 on:
@@ -130,3 +133,52 @@ jobs:
             echo "Released $FINAL at $COMMIT, promoted from $RC."
             echo "Deleted the rc branches $RELEASED."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  notify:
+    name: notify app of the release
+    needs: [check, tag]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check the release is final
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.final }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$TAG is not a final release tag"
+            exit 1
+          fi
+          flags=$(gh release view "$TAG" --repo "$REPO" --json isPrerelease,isDraft \
+                    --jq '"\(.isPrerelease) \(.isDraft)"')
+          if [ "$flags" != "false false" ]; then
+            echo "::error::$TAG is a prerelease or a draft (isPrerelease isDraft: $flags)"
+            exit 1
+          fi
+
+      - name: Get a token for the app repository from the bridge App
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.BRIDGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BRIDGE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: app
+          permission-contents: write
+
+      - name: Send the core-release dispatch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ needs.check.outputs.final }}
+        run: |
+          set -euo pipefail
+          if ! gh api "repos/$GITHUB_REPOSITORY_OWNER/app/dispatches" \
+                 -f event_type=core-release -f "client_payload[tag]=$TAG"; then
+            echo "::error::the release $TAG exists, but app could not be told (core-release dispatch failed): re-run the failed job notify, or run Core bump in app by hand"
+            exit 1
+          fi
+          echo "Sent \`core-release\` with tag \`$TAG\` to \`$GITHUB_REPOSITORY_OWNER/app\`." >> "$GITHUB_STEP_SUMMARY"
