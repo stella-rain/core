@@ -306,3 +306,59 @@ fn the_events_that_name_an_id_keep_their_json() {
         r#""x""#
     );
 }
+
+#[test]
+fn preset_argument_bounds_in_schema() {
+    use stella_rain_core::registry::{ENTRIES, Kind};
+
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("schema");
+    let bundle_path = dir.join("content.schema.json");
+    let bundle_text = std::fs::read_to_string(&bundle_path).expect("read content.schema.json");
+    let bundle: serde_json::Value =
+        serde_json::from_str(&bundle_text).expect("bundle is valid JSON");
+
+    let preset_schema = &bundle["$defs"]["AttackRef"]["oneOf"][0]["properties"]["preset"];
+    let all_of = preset_schema["allOf"]
+        .as_array()
+        .expect("AttackRef.preset must have allOf array");
+
+    let bounded_presets: Vec<_> = ENTRIES
+        .iter()
+        .filter(|e| e.kind == Kind::Preset && !e.arg_bounds.is_empty())
+        .collect();
+
+    assert_eq!(
+        all_of.len(),
+        bounded_presets.len(),
+        "allOf must have one entry per bounded preset"
+    );
+
+    for (entry, clause) in bounded_presets.iter().zip(all_of.iter()) {
+        assert_eq!(
+            clause["if"]["properties"]["id"]["const"], entry.id,
+            "if.properties.id.const must match preset ID"
+        );
+        assert_eq!(
+            clause["if"]["required"],
+            serde_json::json!(["id"]),
+            "if.required must be [\"id\"]"
+        );
+        let prefix_items = clause["then"]["properties"]["args"]["prefixItems"]
+            .as_array()
+            .expect("then.properties.args.prefixItems must be an array");
+        assert_eq!(prefix_items.len(), entry.arg_bounds.len());
+        for (b, item) in entry.arg_bounds.iter().zip(prefix_items.iter()) {
+            assert_eq!(item["type"], "integer");
+            assert_eq!(item["minimum"], b.min);
+            assert_eq!(item["maximum"], b.max);
+        }
+        assert_eq!(
+            clause["then"]["properties"]["args"]["minItems"],
+            entry.arg_bounds.len()
+        );
+        assert_eq!(
+            clause["then"]["properties"]["args"]["maxItems"],
+            entry.arg_bounds.len()
+        );
+    }
+}

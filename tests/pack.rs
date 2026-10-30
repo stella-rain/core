@@ -788,3 +788,62 @@ fn a_pack_at_version_0_is_refused() {
         );
     }
 }
+
+#[test]
+fn pack_preset_arguments_outside_bounds_are_refused() {
+    let mut v = value();
+    let set_arg = |pack_val: &mut Value, n: i32| {
+        pack_val["weapons"]["weapons"][0]["trees"][0]["weapon"]["combo"]["main"]["attack"] =
+            json!({ "preset": { "id": "aimed_single", "args": [n] } });
+    };
+
+    set_arg(&mut v, 15);
+    assert!(load(&v).is_ok(), "aimed_single with [15] should load");
+
+    set_arg(&mut v, 0);
+    assert!(load(&v).is_ok(), "aimed_single with [0] should load");
+    set_arg(&mut v, 600);
+    assert!(load(&v).is_ok(), "aimed_single with [600] should load");
+
+    set_arg(&mut v, -1);
+    match load(&v) {
+        Err(PackError::File {
+            file,
+            error: Error::Invalid(issues),
+        }) => {
+            assert_eq!(file, "weapons");
+            assert_eq!(issues.len(), 1, "expected 1 issue for N = -1");
+            assert!(
+                issues[0].path.ends_with(".attack.preset.args[0]"),
+                "path was {}",
+                issues[0].path
+            );
+            assert_eq!(
+                issues[0].message,
+                "preset aimed_single argument 0 (wind_up_ticks) is -1, below its minimum 0"
+            );
+        }
+        other => panic!("expected File Invalid error for N = -1, got {other:?}"),
+    }
+
+    set_arg(&mut v, 601);
+    match load(&v) {
+        Err(PackError::File {
+            file,
+            error: Error::Invalid(issues),
+        }) => {
+            assert_eq!(file, "weapons");
+            assert_eq!(issues.len(), 1, "expected 1 issue for N = 601");
+            assert!(
+                issues[0].path.ends_with(".attack.preset.args[0]"),
+                "path was {}",
+                issues[0].path
+            );
+            assert_eq!(
+                issues[0].message,
+                "preset aimed_single argument 0 (wind_up_ticks) is 601, above its maximum 600"
+            );
+        }
+        other => panic!("expected File Invalid error for N = 601, got {other:?}"),
+    }
+}
