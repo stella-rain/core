@@ -414,3 +414,81 @@ fn the_values_of_a_live_run_round_trip_at_every_tick() {
     println!("seen: agents, bosses, tasks, runs, orbs, zones, echoes = {seen:?}");
     assert!(seen[0] > 0, "the run holds agents");
 }
+
+#[test]
+fn the_player_side_types_of_the_full_state_round_trip() {
+    let s = base();
+    let p = &s.player;
+    round_trip_hashed(p);
+    round_trip_hashed(&p.combo);
+    round_trip_hashed(p.dash.as_ref().unwrap());
+    round_trip_hashed(p.skill.as_ref().unwrap());
+    round_trip_hashed(p.pull.as_ref().unwrap());
+    round_trip_hashed(p.shield.as_ref().unwrap());
+    round_trip_hashed(&p.orbits[0]);
+    round_trip_hashed(&p.runes[0]);
+    never_panics(p);
+}
+
+#[test]
+fn the_combo_and_the_dash_have_their_layout() {
+    let combo = ComboState {
+        path: 5,
+        depth: 2,
+        dash: true,
+        buffered: Some(true),
+        running: false,
+        window_left: 7,
+        dash_strike_left: 8,
+        charge: Some(3),
+        hold: None,
+        released: true,
+        hand: false,
+        auto_path: 9,
+        auto_depth: 1,
+        levels: 10,
+        auto_levels: 11,
+        charge_auto: true,
+    };
+    assert_eq!(
+        to_bytes(&combo),
+        [
+            5, 0, 0, 0, 2, 1, 1, 1, 0, 7, 0, 0, 0, 8, 0, 0, 0, 1, 3, 0, 0, 0, 0, 1, 0, 9, 0, 0, 0,
+            1, 10, 0, 0, 0, 11, 0, 0, 0, 1
+        ]
+    );
+    let dash = DashState {
+        dir: Dir { x: 3, y: -4 },
+        done: 2,
+        left: 1,
+    };
+    assert_eq!(
+        to_bytes(&dash),
+        [3, 0, 0, 0, 0xfc, 0xff, 0xff, 0xff, 2, 0, 0, 0, 1, 0, 0, 0]
+    );
+    round_trip(&combo);
+    round_trip(&dash);
+}
+
+#[test]
+fn a_player_list_past_its_cap_is_refused() {
+    // The most the evade can recover at once, the orbits and the runes a run can hold.
+    let mut p = base().player;
+    p.evade_recovering = vec![1; 4];
+    assert_eq!(
+        from_bytes::<PlayerState>(&to_bytes(&p)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+    let mut p = base().player;
+    p.orbits = vec![p.orbits[0]; 5];
+    assert_eq!(
+        from_bytes::<PlayerState>(&to_bytes(&p)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+    let mut p = base().player;
+    p.runes = vec![p.runes[0]; 8];
+    assert_eq!(
+        from_bytes::<PlayerState>(&to_bytes(&p)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+}
