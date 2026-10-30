@@ -1239,6 +1239,43 @@ fn landscape() -> Definition {
     ("landscape", bytes(&stage), inputs)
 }
 
+/// A stage case where the leash moves enemies when the main character stands at the right edge
+/// and then in the bottom-right corner of the map, so the mirrored side of the land rectangle is
+/// off the map each time. LEASH-OFFMAP's rule lands them on the opposite side (the enemy's own
+/// side of the view centre), outside the view.
+fn leash_edge() -> Definition {
+    let (width, height) = (524_288, 262_144);
+    let still = enemy(
+        30,
+        json!({ "type": "straight", "vx": 0, "vy": 0 }),
+        json!([]),
+    );
+    let mut stage = serde_json::to_value(quiet(stage_full(
+        600,
+        Some(far_boss()),
+        vec![
+            wave(5, 1, 1, still.clone(), 700 * 256, 512 * 256),
+            wave(215, 1, 1, still.clone(), 900 * 256, 100 * 256),
+            wave(225, 1, 1, still, 700 * 256, 700 * 256),
+        ],
+        vec![],
+    )))
+    .unwrap();
+    stage["map"] = json!({
+        "width": width,
+        "height": height,
+        "start": { "x": 2000 * 256, "y": 512 * 256 }
+    });
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..40 => common::idle(),
+            40..210 => moving(0, 127),
+            _ => common::idle(),
+        })
+        .collect();
+    ("leash_edge", bytes(&stage), inputs)
+}
+
 /// A stage that runs out of ticks with the boss standing.
 fn timeout() -> Definition {
     let stage = stage_with(90, Some(far_boss()), vec![]);
@@ -1324,6 +1361,7 @@ pub(crate) fn definitions() -> Vec<Definition> {
         evade_charges(),
         fail(),
         landscape(),
+        leash_edge(),
         melee(),
         orbs(),
         orb_cage(),
