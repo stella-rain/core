@@ -290,6 +290,30 @@ mod tests {
     }
 
     #[test]
+    fn the_catalogue_lists_no_number_of_rules_json() {
+        let rules: serde_json::Value =
+            serde_json::from_str(include_str!("../content/rules.json")).unwrap();
+        let keys: Vec<&String> = rules.as_object().unwrap().keys().collect();
+        for key in ["leash_reach_x", "spawn_margin"] {
+            assert!(
+                keys.iter().any(|k| k.as_str() == key),
+                "{key} not in rules.json"
+            );
+        }
+        for key in keys {
+            assert!(
+                !LIMITS.iter().any(|e| e.name.eq_ignore_ascii_case(key)),
+                "the catalogue lists {key}, a number of content/rules.json"
+            );
+        }
+    }
+
+    #[test]
+    fn the_catalogue_points_to_rules_json() {
+        assert!(tuning_catalogue_markdown().ends_with("see content/rules.json (ADR-CONT-10).\n"));
+    }
+
+    #[test]
     fn catalogue_markdown_has_header_and_entries() {
         let md = tuning_catalogue_markdown();
         assert!(md.starts_with("# Tuning limits catalogue\n"));
