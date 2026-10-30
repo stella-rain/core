@@ -404,11 +404,20 @@ impl Counted {
 
 /// The most entries of the ledger's lists: one per kind and a few more for the weapon's three
 /// and the rune keys (`kinds::MAX_KINDS`).
-const MAX_LEDGER_ENTRIES: u32 = crate::kinds::MAX_KINDS as u32 + 64;
+fn max_entries() -> u32 {
+    cap(crate::kinds::MAX_KINDS + 64)
+}
 /// The most stars and names the run's build and tallies hold.
 const MAX_PICKS: u32 = 1 << 16;
 /// The most tallies of the rewards file (`rewards::MAX_REWARDS`).
-const MAX_TALLIES: u32 = crate::rewards::MAX_REWARDS as u32;
+fn max_tallies() -> u32 {
+    cap(crate::rewards::MAX_REWARDS)
+}
+
+/// A cap, from the constant that bounds the list in play.
+fn cap(n: usize) -> u32 {
+    u32::try_from(n).expect("a small cap")
+}
 
 impl Encode for StarPick {
     fn encode(&self, w: &mut Writer) {
@@ -451,10 +460,10 @@ impl Decode for RunLedger {
     /// The places in `kills` are left at 0: `rebuilt_from` sets them.
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
         Ok(RunLedger {
-            kills: decode_vec(r, MAX_LEDGER_ENTRIES)?,
-            bestiary: decode_vec(r, MAX_LEDGER_ENTRIES)?,
+            kills: decode_vec(r, max_entries())?,
+            bestiary: decode_vec(r, max_entries())?,
             picks: decode_vec(r, MAX_PICKS)?,
-            skill_uses: decode_vec(r, crate::kinds::MAX_KINDS as u32)?,
+            skill_uses: decode_vec(r, cap(crate::kinds::MAX_KINDS))?,
             enemy_kill_idx: 0,
             elite_kill_idx: 0,
             boss_kill_idx: 0,
@@ -522,8 +531,8 @@ impl Decode for Counted {
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
         Ok(Counted {
             kills: Decode::decode(r)?,
-            taken: decode_vec(r, MAX_TALLIES)?,
-            tiers: decode_vec(r, MAX_TALLIES)?,
+            taken: decode_vec(r, max_tallies())?,
+            tiers: decode_vec(r, max_tallies())?,
             named: decode_vec(r, MAX_PICKS)?,
         })
     }
@@ -636,6 +645,7 @@ mod codec_tests {
             tiers: _,
             named: _,
         } = &base;
+        #[allow(clippy::type_complexity)]
         let changes: [(&str, fn(&mut Counted)); 4] = [
             ("kills", |c| c.kills += 1),
             ("taken", |c| c.taken[1] += 1),

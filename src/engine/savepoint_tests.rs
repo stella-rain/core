@@ -2,6 +2,9 @@
 //! state and on every state of the replay corpus; a decode checks its lengths and indices
 //! against a fresh engine and refuses damaged bytes without panicking.
 
+// The indices a test sets are the length of a table of a few hundred entries at most.
+#![allow(clippy::cast_possible_truncation)]
+
 use std::path::Path;
 
 use super::hash_coverage_tests::{engine, full_state};

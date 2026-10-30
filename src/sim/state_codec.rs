@@ -1852,7 +1852,7 @@ impl State {
             expertise: Decode::decode(r)?,
             match_ups: fresh.match_ups,
             runes: fresh.runes.clone(),
-            stun: fresh.stun.clone(),
+            stun: fresh.stun,
             max_attack_speed_pct: Decode::decode(r)?,
             enemy_attack_damage: Decode::decode(r)?,
             max_rune_haste_pct: Decode::decode(r)?,

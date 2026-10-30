@@ -13,10 +13,8 @@ use crate::id::EntityId;
 use crate::kinds::KindTable;
 use crate::rewards::Rarity;
 use crate::run_stats::StunRules;
-use crate::rune::Rune;
 use crate::savepoint::testing::{from_bytes, round_trip, to_bytes};
 use crate::savepoint::{Decode, DecodeError, Encode};
-use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 use std::fmt::Debug;
 
 fn hash_of<T: StableHash>(v: &T) -> u64 {
