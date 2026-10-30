@@ -15,6 +15,7 @@ pub fn derive(seed: u64, tag: u64) -> SplitMix64 {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct SplitMix64 {
     state: u64,
 }

@@ -5,6 +5,15 @@
 //! `u32` length, checked against the collection's cap and against the bytes left before
 //! anything is allocated. The reader never panics on any input.
 
+use crate::attack::{DamageType, ZoneShape};
+use crate::behaviour::BossCall;
+use crate::fixed::{Fx, Point};
+use crate::id::{ContentId, EntityId};
+use crate::inline::InlineVec;
+use crate::kinds::KindIndex;
+use crate::rng::SplitMix64;
+use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex};
+
 /// Why some bytes are not a value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DecodeError {
@@ -160,21 +169,325 @@ pub(crate) fn decode_vec<T: Decode>(r: &mut Reader<'_>, cap: u32) -> Result<Vec<
     Ok(items)
 }
 
-impl Encode for u32 {
+macro_rules! int_codec {
+    ($($t:ty => $m:ident),* $(,)?) => {$(
+        impl Encode for $t {
+            fn encode(&self, w: &mut Writer) {
+                w.$m(*self);
+            }
+        }
+        impl Decode for $t {
+            fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+                r.$m()
+            }
+        }
+    )*};
+}
+int_codec!(bool => bool, u8 => u8, u16 => u16, u32 => u32, i32 => i32, u64 => u64, i64 => i64);
+
+/// A newtype or struct of numbers, written as its fields in order.
+macro_rules! newtype_codec {
+    ($($t:ident($inner:ty)),* $(,)?) => {$(
+        impl Encode for $t {
+            fn encode(&self, w: &mut Writer) {
+                let $t(n) = self;
+                n.encode(w);
+            }
+        }
+        impl Decode for $t {
+            fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+                Ok($t(<$inner>::decode(r)?))
+            }
+        }
+    )*};
+}
+newtype_codec!(
+    Fx(i32),
+    EntityId(u32),
+    DefIndex(u16),
+    BossIndex(u16),
+    AttackIndex(u16),
+    ProgramIndex(u32),
+    KindIndex(u16),
+);
+
+impl Encode for Point {
     fn encode(&self, w: &mut Writer) {
-        w.u32(*self);
+        let Point { x, y } = self;
+        x.encode(w);
+        y.encode(w);
     }
 }
 
-impl Decode for u32 {
+impl Decode for Point {
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        r.u32()
+        Ok(Point {
+            x: Fx::decode(r)?,
+            y: Fx::decode(r)?,
+        })
+    }
+}
+
+impl Encode for SplitMix64 {
+    fn encode(&self, w: &mut Writer) {
+        w.u64(self.state());
+    }
+}
+
+impl Decode for SplitMix64 {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(SplitMix64::new(r.u64()?))
+    }
+}
+
+impl<T: Encode + ?Sized> Encode for Box<T> {
+    fn encode(&self, w: &mut Writer) {
+        (**self).encode(w);
+    }
+}
+
+impl<T: Decode> Decode for Box<T> {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        T::decode(r).map(Box::new)
+    }
+}
+
+impl<T: Encode> Encode for [T] {
+    fn encode(&self, w: &mut Writer) {
+        w.len(self.len());
+        for item in self {
+            item.encode(w);
+        }
+    }
+}
+
+impl<T: Encode> Encode for Vec<T> {
+    fn encode(&self, w: &mut Writer) {
+        self.as_slice().encode(w);
+    }
+}
+
+impl<T: Encode, const N: usize> Encode for [T; N] {
+    /// The length is part of the type, so only the items are written.
+    fn encode(&self, w: &mut Writer) {
+        for item in self {
+            item.encode(w);
+        }
+    }
+}
+
+impl<T: Decode, const N: usize> Decode for [T; N] {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        let mut items = Vec::with_capacity(N);
+        for _ in 0..N {
+            items.push(T::decode(r)?);
+        }
+        items
+            .try_into()
+            .map_err(|_| DecodeError::Invalid("array length"))
+    }
+}
+
+impl<A: Encode, B: Encode> Encode for (A, B) {
+    fn encode(&self, w: &mut Writer) {
+        self.0.encode(w);
+        self.1.encode(w);
+    }
+}
+
+impl<A: Decode, B: Decode> Decode for (A, B) {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok((A::decode(r)?, B::decode(r)?))
+    }
+}
+
+/// The most bytes of a `ContentId` (`registry` holds an ID to 32 characters).
+const MAX_CONTENT_ID_BYTES: u32 = 32;
+
+impl<T: Encode> Encode for Option<T> {
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            None => w.u8(0),
+            Some(v) => {
+                w.u8(1);
+                v.encode(w);
+            }
+        }
+    }
+}
+
+impl<T: Decode> Decode for Option<T> {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        match r.u8()? {
+            0 => Ok(None),
+            1 => T::decode(r).map(Some),
+            _ => Err(DecodeError::Invalid("option tag")),
+        }
+    }
+}
+
+impl Encode for ContentId {
+    fn encode(&self, w: &mut Writer) {
+        w.len(self.as_str().len());
+        w.bytes(self.as_str().as_bytes());
+    }
+}
+
+impl Decode for ContentId {
+    /// The ID goes through `ContentId::from`, which does not check the character set: the
+    /// registry's validator does, and a savepoint is trusted only after its pack hash.
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        let n = r.list_len(MAX_CONTENT_ID_BYTES)?;
+        let text = std::str::from_utf8(r.bytes(n)?).map_err(|_| DecodeError::Invalid("utf8"))?;
+        Ok(ContentId::from(text))
+    }
+}
+
+impl<T: Encode + Copy, const N: usize> Encode for InlineVec<T, N> {
+    /// The live items only: the unused places hold whatever `pop` left there.
+    fn encode(&self, w: &mut Writer) {
+        let items: &[T] = self;
+        items.encode(w);
+    }
+}
+
+impl<T: Decode + Copy + Default, const N: usize> Decode for InlineVec<T, N> {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        let cap = u32::try_from(N).map_err(|_| DecodeError::Invalid("list too long"))?;
+        let n = r.list_len(cap)?;
+        let mut list = InlineVec::new();
+        for _ in 0..n {
+            if !list.try_push(T::decode(r)?) {
+                return Err(DecodeError::Invalid("list over its capacity"));
+            }
+        }
+        Ok(list)
+    }
+}
+
+impl Encode for DamageType {
+    fn encode(&self, w: &mut Writer) {
+        w.u8(match self {
+            DamageType::Slash => 0,
+            DamageType::Pierce => 1,
+            DamageType::Strike => 2,
+            DamageType::Pyro => 3,
+            DamageType::Hydro => 4,
+            DamageType::Electro => 5,
+            DamageType::Cryo => 6,
+            DamageType::Anemo => 7,
+            DamageType::Geo => 8,
+            DamageType::Dendro => 9,
+        });
+    }
+}
+
+impl Decode for DamageType {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(match r.u8()? {
+            0 => DamageType::Slash,
+            1 => DamageType::Pierce,
+            2 => DamageType::Strike,
+            3 => DamageType::Pyro,
+            4 => DamageType::Hydro,
+            5 => DamageType::Electro,
+            6 => DamageType::Cryo,
+            7 => DamageType::Anemo,
+            8 => DamageType::Geo,
+            9 => DamageType::Dendro,
+            _ => return Err(DecodeError::Invalid("damage type tag")),
+        })
+    }
+}
+
+impl Encode for ZoneShape {
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            ZoneShape::Circle { radius } => {
+                w.u8(0);
+                radius.encode(w);
+            }
+            ZoneShape::Arc { radius, half_angle } => {
+                w.u8(1);
+                radius.encode(w);
+                half_angle.encode(w);
+            }
+            ZoneShape::Line { length, width } => {
+                w.u8(2);
+                length.encode(w);
+                width.encode(w);
+            }
+        }
+    }
+}
+
+impl Decode for ZoneShape {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        match r.u8()? {
+            0 => Ok(ZoneShape::Circle {
+                radius: Fx::decode(r)?,
+            }),
+            1 => Ok(ZoneShape::Arc {
+                radius: Fx::decode(r)?,
+                half_angle: i32::decode(r)?,
+            }),
+            2 => Ok(ZoneShape::Line {
+                length: Fx::decode(r)?,
+                width: Fx::decode(r)?,
+            }),
+            _ => Err(DecodeError::Invalid("zone shape tag")),
+        }
+    }
+}
+
+impl Encode for BossCall {
+    fn encode(&self, w: &mut Writer) {
+        w.u8(match self {
+            BossCall::Join => 0,
+            BossCall::Leave => 1,
+            BossCall::Stay => 2,
+        });
+    }
+}
+
+impl Decode for BossCall {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        match r.u8()? {
+            0 => Ok(BossCall::Join),
+            1 => Ok(BossCall::Leave),
+            2 => Ok(BossCall::Stay),
+            _ => Err(DecodeError::Invalid("boss call tag")),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Debug;
+
+    /// The bytes of `v`.
+    fn to_bytes<T: Encode>(v: &T) -> Vec<u8> {
+        let mut w = Writer::new();
+        v.encode(&mut w);
+        w.finish()
+    }
+
+    /// `T` from all of `bytes`.
+    fn from_bytes<T: Decode>(bytes: &[u8]) -> Result<T, DecodeError> {
+        let mut r = Reader::new(bytes);
+        let v = T::decode(&mut r)?;
+        r.finish()?;
+        Ok(v)
+    }
+
+    /// `v` decodes from its bytes to a value that encodes to the same bytes.
+    fn round_trip<T: Encode + Decode + PartialEq + Debug>(v: &T) {
+        let bytes = to_bytes(v);
+        let back: T = from_bytes(&bytes).unwrap_or_else(|e| panic!("{v:?}: {e:?}"));
+        assert_eq!(&back, v);
+        assert_eq!(to_bytes(&back), bytes);
+    }
 
     type Read = fn(&mut Reader<'_>) -> Result<(), DecodeError>;
 
@@ -307,5 +620,133 @@ mod tests {
         let mut r = Reader::new(&bytes);
         assert_eq!(decode_vec::<u32>(&mut r, 4), Ok(vec![7, 8]));
         assert_eq!(r.finish(), Ok(()));
+    }
+
+    #[test]
+    fn an_option_is_a_tag_then_the_value() {
+        assert_eq!(to_bytes(&None::<u32>), [0]);
+        assert_eq!(to_bytes(&Some(5u32)), [1, 5, 0, 0, 0]);
+        assert_eq!(from_bytes::<Option<u32>>(&[0]), Ok(None));
+        assert_eq!(from_bytes::<Option<u32>>(&[1, 5, 0, 0, 0]), Ok(Some(5)));
+        assert_eq!(
+            from_bytes::<Option<u32>>(&[2]),
+            Err(DecodeError::Invalid("option tag"))
+        );
+        assert_eq!(
+            from_bytes::<Option<u32>>(&[1, 5]),
+            Err(DecodeError::Truncated)
+        );
+    }
+
+    #[test]
+    fn an_enum_tag_past_the_last_variant_is_refused() {
+        assert_eq!(from_bytes::<DamageType>(&[9]), Ok(DamageType::Dendro));
+        assert!(matches!(
+            from_bytes::<DamageType>(&[10]),
+            Err(DecodeError::Invalid(_))
+        ));
+        assert!(matches!(
+            from_bytes::<ZoneShape>(&[3, 0, 0, 0, 0]),
+            Err(DecodeError::Invalid(_))
+        ));
+        assert_eq!(from_bytes::<BossCall>(&[2]), Ok(BossCall::Stay));
+        assert!(matches!(
+            from_bytes::<BossCall>(&[3]),
+            Err(DecodeError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn every_damage_type_and_zone_shape_round_trips() {
+        for t in DamageType::ALL {
+            round_trip(&t);
+        }
+        round_trip(&ZoneShape::Circle { radius: Fx(3) });
+        round_trip(&ZoneShape::Arc {
+            radius: Fx(3),
+            half_angle: -4,
+        });
+        round_trip(&ZoneShape::Line {
+            length: Fx(5),
+            width: Fx(6),
+        });
+        for c in [BossCall::Join, BossCall::Leave, BossCall::Stay] {
+            round_trip(&c);
+        }
+        // The tags are those of the types' `StableHash`, and of the declaration order.
+        assert_eq!(to_bytes(&DamageType::Pyro), [3]);
+        assert_eq!(to_bytes(&BossCall::Leave), [1]);
+    }
+
+    #[test]
+    fn a_content_id_is_a_length_then_utf8() {
+        assert_eq!(to_bytes(&ContentId::from("ab")), [2, 0, 0, 0, b'a', b'b']);
+        round_trip(&ContentId::from("giant_sword"));
+        let mut long = vec![33, 0, 0, 0];
+        long.extend([b'a'; 33]);
+        assert_eq!(
+            from_bytes::<ContentId>(&long),
+            Err(DecodeError::Invalid("list too long"))
+        );
+        let mut max = vec![32, 0, 0, 0];
+        max.extend([b'a'; 32]);
+        round_trip(&ContentId::from("a".repeat(32)));
+        assert!(from_bytes::<ContentId>(&max).is_ok());
+        assert_eq!(
+            from_bytes::<ContentId>(&[1, 0, 0, 0, 0xff]),
+            Err(DecodeError::Invalid("utf8"))
+        );
+        assert_eq!(
+            from_bytes::<ContentId>(&[5, 0, 0, 0, b'a']),
+            Err(DecodeError::Truncated)
+        );
+    }
+
+    #[test]
+    fn an_inline_list_is_its_live_items_and_no_more_than_its_size() {
+        let over = [4, 0, 0, 0, 1, 2, 3, 4];
+        assert_eq!(
+            from_bytes::<InlineVec<u8, 3>>(&over),
+            Err(DecodeError::Invalid("list too long"))
+        );
+        let mut list: InlineVec<u8, 3> = [1, 2, 3].into_iter().collect();
+        list.pop();
+        // The stale 3 still sits in the third place; the bytes hold the live items only.
+        assert_eq!(to_bytes(&list), [2, 0, 0, 0, 1, 2]);
+        round_trip(&list);
+        let full: InlineVec<u8, 3> = [1, 2, 3].into_iter().collect();
+        round_trip(&full);
+        round_trip(&InlineVec::<u8, 3>::new());
+    }
+
+    #[test]
+    fn the_numbers_and_points_have_their_layout() {
+        assert_eq!(to_bytes(&Fx(-2)), [0xfe, 0xff, 0xff, 0xff]);
+        assert_eq!(
+            to_bytes(&Point { x: Fx(1), y: Fx(2) }),
+            [1, 0, 0, 0, 2, 0, 0, 0]
+        );
+        assert_eq!(to_bytes(&EntityId(7)), [7, 0, 0, 0]);
+        assert_eq!(to_bytes(&DefIndex(0x0102)), [2, 1]);
+        assert_eq!(to_bytes(&ProgramIndex(1)), [1, 0, 0, 0]);
+        round_trip(&AttackIndex(9));
+        round_trip(&BossIndex(9));
+        round_trip(&KindIndex(9));
+        let rng = SplitMix64::new(0x0102_0304_0506_0708);
+        assert_eq!(to_bytes(&rng), [8, 7, 6, 5, 4, 3, 2, 1]);
+        round_trip(&rng);
+        round_trip(&(EntityId(1), 2u32));
+        round_trip(&Box::new(3u16));
+        round_trip(&[1u32, 2, 3]);
+        let hits = vec![(EntityId(1), 2u32), (EntityId(3), 4)];
+        let bytes = to_bytes(&hits);
+        assert_eq!(bytes.len(), 4 + 2 * 8);
+        let mut r = Reader::new(&bytes);
+        assert_eq!(decode_vec::<(EntityId, u32)>(&mut r, 2), Ok(hits));
+        assert_eq!(
+            decode_vec::<(EntityId, u32)>(&mut Reader::new(&bytes), 1),
+            Err(DecodeError::Invalid("list too long"))
+        );
+        assert_eq!(to_bytes(&[1u32, 2]), [1, 0, 0, 0, 2, 0, 0, 0]);
     }
 }
