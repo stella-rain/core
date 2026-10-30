@@ -195,13 +195,13 @@ fn pack_a_savepoint_of_another_pack_is_refused() {
     assert_ne!(kept.sha256(), Pack::bundled().sha256());
     let rec = recorder_with_pack(&kept, 120);
     let prefix = rec.replay();
-    refused(
-        &rec.save(),
-        &prefix,
-        SavepointError::Pack,
-        &prefix,
-        Pack::bundled(),
+    assert_eq!(
+        restore(&rec.save(), &prefix).err(),
+        Some(SavepointError::Pack)
     );
+    // Its own pack restores it, and is the fallback's.
+    assert!(RunRecorder::resume_from_savepoint(&rec.save(), &prefix, &kept).is_ok());
+    assert!(RunRecorder::resume_with_pack(&prefix, &kept).is_ok());
 }
 
 fn recorder_with_pack(pack: &Pack, ticks: u32) -> RunRecorder {
@@ -456,11 +456,16 @@ mod golden {
         format!("{}  {}\n", to_hex(&sha256(bytes)), bytes.len())
     }
 
+    #[expect(clippy::disallowed_methods, reason = "test knob")]
+    fn updating() -> bool {
+        std::env::var("UPDATE_SAVEPOINT_PIN").as_deref() == Ok("1")
+    }
+
     #[test]
     fn the_encoding_matches_its_pinned_format() {
         let (bytes, ..) = bytes();
         let path = pin_path();
-        if std::env::var("UPDATE_SAVEPOINT_PIN").as_deref() == Ok("1") {
+        if updating() {
             assert!(
                 !path.exists(),
                 "{path:?} exists: a pinned format is never re-pinned"
@@ -483,13 +488,12 @@ mod golden {
         let (bytes, prefix, pack, replay) = bytes();
         let sp = Savepoint::from_bytes(&bytes).unwrap();
         assert_eq!(sp.header().format, SAVEPOINT_FORMAT);
-        let mut r = RunRecorder::resume_from_savepoint(&bytes, &prefix, &pack).unwrap();
+        let r = RunRecorder::resume_from_savepoint(&bytes, &prefix, &pack).unwrap();
+        // To the end of tick 360: the checkpoint is taken before the commands that follow it.
+        let mut r = drive(&replay, &pack, 359, Some(r));
+        let input = replay.unpack_inputs(replay.ticks).unwrap()[359];
+        r.step(input).unwrap();
         let checkpoints = replay.checkpoints.as_bytes();
-        for tick in 301..=360 {
-            let input =
-                replay.unpack_inputs(replay.ticks).unwrap()[usize::try_from(tick - 1).unwrap()];
-            r.step(input).unwrap();
-        }
         let want = hash_from_hex(std::str::from_utf8(&checkpoints[5 * 16..6 * 16]).unwrap());
         assert_eq!(Some(r.engine().state_hash()), want);
     }

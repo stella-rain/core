@@ -50,6 +50,7 @@ use crate::pack::Pack;
 use crate::replay::{hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack, write_varint};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
+use crate::savepoint::{self, SavepointError};
 use crate::validate;
 use crate::version::{self, ReplayLoadError, Versions};
 
@@ -609,6 +610,34 @@ impl RunRecorder {
         })
     }
 
+    /// The run as a savepoint file (ADR-SAVE-3): the engine's state with a header that binds it
+    /// to this run's replay so far. Infallible; a run that has ended saves too, and is refused
+    /// on restore.
+    pub fn save(&self) -> Vec<u8> {
+        savepoint::save(&self.engine, &self.replay())
+    }
+
+    /// Resumes the run a savepoint holds, without re-simulating `prefix`, the replay up to the
+    /// savepoint (ADR-SAVE-3). The savepoint must match `SAVEPOINT_FORMAT`, `SIM_VERSION` and
+    /// `pack`, and `prefix` must be the very run it was taken from; a later `replay()` is one
+    /// replay from tick 0. Any refusal leaves nothing behind: the caller runs
+    /// `resume_with_pack(prefix, pack)`.
+    pub fn resume_from_savepoint(
+        bytes: &[u8],
+        prefix: &RunReplay,
+        pack: &Pack,
+    ) -> Result<RunRecorder, SavepointError> {
+        let (engine, history) = savepoint::restore(bytes, prefix, pack)?;
+        Ok(RunRecorder {
+            setup: prefix.setup.clone(),
+            content_sha256: prefix.content_sha256.clone(),
+            engine,
+            inputs: history.inputs,
+            commands: history.commands,
+            checkpoints: history.claimed,
+        })
+    }
+
     /// The run, for its snapshot and events.
     pub fn engine(&self) -> &Engine {
         &self.engine
@@ -817,17 +846,20 @@ fn parse_checkpoints(replay: &RunReplay) -> Result<Vec<u64>, RunReplayError> {
 }
 
 /// What a replay holds once parsed and checked against its content, before any tick runs.
-struct History {
-    final_hash: u64,
-    inputs: Vec<Input>,
-    commands: Vec<TickCommand>,
+pub(crate) struct History {
+    pub(crate) final_hash: u64,
+    pub(crate) inputs: Vec<Input>,
+    pub(crate) commands: Vec<TickCommand>,
     /// The checkpoints the replay claims, as numbers.
-    claimed: Vec<u64>,
+    pub(crate) claimed: Vec<u64>,
 }
 
 /// The parsing half of re-simulation: the setup, the content hash, the final hash, the inputs,
 /// the commands and the checkpoints, each checked, in that order. No tick runs.
-fn unpack_history(replay: &RunReplay, run_content: &RunContent) -> Result<History, RunReplayError> {
+pub(crate) fn unpack_history(
+    replay: &RunReplay,
+    run_content: &RunContent,
+) -> Result<History, RunReplayError> {
     let stage = run_setup::stage_in(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
     let content = content_sha256_with(replay.setup.mode.as_str(), run_content)
         .ok_or(RunReplayError::ContentChanged)?;
