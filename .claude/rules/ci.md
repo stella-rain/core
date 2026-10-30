@@ -26,6 +26,10 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
   `.github/scripts/ios-sim-runner.sh`), both called by Candidate (ADR-REL-3).
 - Candidate, Promote and Candidate guard (`candidate.yml`, `promote.yml`,
   `candidate-guard.yml`); script tests (`scripts.yml`).
+- Promote ends with its `notify` job: after a final release (not a prerelease or draft) it sends
+  app a `core-release` dispatch with `client_payload.tag` (a bridge App token that can write only
+  to app). A failed dispatch leaves the release and fails the run: re-run the failed job `notify`,
+  or run Core bump in app by hand. `bump-app.yml` sends `core-main` on every push to `main`.
 - Project sync, the `CLAUDE.md` check, auto-merge, branch cleanup, actionlint, and the secret and
   key-file scan (`repo-check.yml`).
 - A new PR check's workflow name goes into `auto-merge.yml` (see its header).
