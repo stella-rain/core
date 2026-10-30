@@ -12,6 +12,11 @@ use crate::savepoint::codec::{
 };
 
 use super::state::*;
+use super::world::RangedPool;
+use crate::engine::Outcome;
+use crate::rewards::Rarity;
+use crate::rune::Rune;
+use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 
 // ---- Attacks, orbs and zones ----
 
@@ -1018,5 +1023,119 @@ impl Decode for Streams {
             offer: Decode::decode(r)?,
             horde: Decode::decode(r)?,
         })
+    }
+}
+
+// ---- Enums of the state ----
+
+/// A fieldless enum: a literal tag per variant, the numbers its `StableHash` writes, and no
+/// wildcard arm, so a variant added without a number does not compile.
+macro_rules! enum_codec {
+    ($($ty:ty, $what:literal: { $($variant:path => $tag:literal),* $(,)? });* $(;)?) => {$(
+        impl Encode for $ty {
+            fn encode(&self, w: &mut Writer) {
+                w.u8(match self {
+                    $($variant => $tag,)*
+                });
+            }
+        }
+
+        impl Decode for $ty {
+            fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+                match r.u8()? {
+                    $($tag => Ok($variant),)*
+                    _ => Err(DecodeError::Invalid($what)),
+                }
+            }
+        }
+    )*};
+}
+
+enum_codec! {
+    Outcome, "outcome tag": {
+        Outcome::Running => 0,
+        Outcome::Cleared => 1,
+        Outcome::Failed => 2,
+    };
+    Rarity, "rarity tag": {
+        Rarity::Common => 0,
+        Rarity::Uncommon => 1,
+        Rarity::Rare => 2,
+        Rarity::Epic => 3,
+        Rarity::Legendary => 4,
+        Rarity::Supernova => 5,
+    };
+    OfferKind, "offer kind tag": {
+        OfferKind::Star => 0,
+        OfferKind::Boss => 1,
+    };
+    ExpertiseOfferKind, "expertise offer kind tag": {
+        ExpertiseOfferKind::Common => 0,
+        ExpertiseOfferKind::Style => 1,
+        ExpertiseOfferKind::Upgrade => 2,
+        ExpertiseOfferKind::Capstone => 3,
+    };
+    Rune, "rune tag": {
+        Rune::Explosion => 0,
+        Rune::Thunder => 1,
+        Rune::Boomerang => 2,
+        Rune::HomingMissiles => 3,
+        Rune::Bleed => 4,
+        Rune::Poison => 5,
+        Rune::Burn => 6,
+    };
+    RangedPool, "ranged pool tag": {
+        RangedPool::Zone => 0,
+        RangedPool::Line => 1,
+    };
+}
+
+#[cfg(test)]
+mod enum_tests {
+    use super::*;
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+
+    /// Every variant, in order, is its number; the number after the last is refused.
+    fn tags<T: Encode + Decode + PartialEq + std::fmt::Debug>(all: &[T]) {
+        for (i, v) in all.iter().enumerate() {
+            assert_eq!(to_bytes(v), [u8::try_from(i).unwrap()], "{v:?}");
+            assert_eq!(from_bytes::<T>(&[u8::try_from(i).unwrap()]).as_ref(), Ok(v));
+        }
+        let past = u8::try_from(all.len()).unwrap();
+        assert!(matches!(
+            from_bytes::<T>(&[past]),
+            Err(DecodeError::Invalid(_))
+        ));
+        assert_eq!(from_bytes::<T>(&[]), Err(DecodeError::Truncated));
+    }
+
+    #[test]
+    fn the_enums_of_the_state_are_their_hash_numbers() {
+        tags(&[Outcome::Running, Outcome::Cleared, Outcome::Failed]);
+        tags(&[
+            Rarity::Common,
+            Rarity::Uncommon,
+            Rarity::Rare,
+            Rarity::Epic,
+            Rarity::Legendary,
+            Rarity::Supernova,
+        ]);
+        tags(&[OfferKind::Star, OfferKind::Boss]);
+        tags(&[
+            ExpertiseOfferKind::Common,
+            ExpertiseOfferKind::Style,
+            ExpertiseOfferKind::Upgrade,
+            ExpertiseOfferKind::Capstone,
+        ]);
+        tags(&[
+            Rune::Explosion,
+            Rune::Thunder,
+            Rune::Boomerang,
+            Rune::HomingMissiles,
+            Rune::Bleed,
+            Rune::Poison,
+            Rune::Burn,
+        ]);
+        tags(&[RangedPool::Zone, RangedPool::Line]);
     }
 }
