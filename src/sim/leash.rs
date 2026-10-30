@@ -3,10 +3,10 @@
 //! (`view_centre`, the camera's clamped centre, which is the main character away from a map
 //! edge; more than `leash_reach_x` to the side or `leash_reach_y` above or below, from
 //! `rules.json`) moves to the rectangle of `leash_land_x` by `leash_land_y` around that centre,
-//! on the side opposite where it was, scaled along its own direction and clamped to the map,
-//! and chases from there. Spawns are on the same centre's rectangle, so none is beyond the
-//! reach on its spawn tick. At most
-//! `MAX_LEASH_MOVES_PER_TICK` move in a tick, in entity-ID order.
+//! on the side opposite where it was (or on its own side when that side is off the map, as
+//! spawns do), scaled along its own direction and clamped to the map, and chases from there.
+//! Spawns are on the same centre's rectangle, so none is beyond the reach on its spawn tick.
+//! At most `MAX_LEASH_MOVES_PER_TICK` move in a tick, in entity-ID order.
 //!
 //! Who moves: an enemy with no `elite` state (so no elite, mimic or shrine), no `leave` state
 //! (a goblin that flees keeps fleeing), no attack running, and a definition that roams: not
@@ -20,6 +20,7 @@ use super::{MAX_LEASH_MOVES_PER_TICK, World};
 use crate::engine::State;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
+use crate::stage::Map;
 
 /// Moves the enemies the leash catches; returns how many moved.
 pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) -> u32 {
@@ -44,11 +45,7 @@ pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEven
         {
             continue;
         }
-        let (ox, oy) = landing_offset(stage, dx, dy);
-        let to = map.clamp(Point {
-            x: centre.x.saturating_add(Fx(ox)),
-            y: centre.y.saturating_add(Fx(oy)),
-        });
+        let to = land_point(stage, &map, centre, dx, dy);
         let e = &mut s.enemies[i];
         e.at = to;
         e.order = None;
@@ -57,6 +54,36 @@ pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEven
         moved += 1;
     }
     moved
+}
+
+/// The landing point on the land rectangle around `centre`, falling back to the opposite side
+/// when the mirrored side is off the map, and clamped to the map border if neither fits.
+pub(super) fn land_point(stage: &World, map: &Map, centre: Point, dx: i64, dy: i64) -> Point {
+    let (lx, ly) = (
+        i64::from(stage.tuning.leash_land_x.0),
+        i64::from(stage.tuning.leash_land_y.0),
+    );
+    let (ox, oy) = landing_offset(stage, dx, dy);
+    let (ax, ay) = (dx.abs(), dy.abs());
+    let i = if lx * ay <= ly * ax {
+        if ox > 0 { 1 } else { 3 }
+    } else if oy > 0 {
+        2
+    } else {
+        0
+    };
+
+    let (w, h) = (i64::from(map.width.0), i64::from(map.height.0));
+    let (cx, cy) = (i64::from(centre.x.0), i64::from(centre.y.0));
+    let sides = super::rect_sides(cx, cy, lx, ly);
+    let parts = sides.map(|side| side.on_map(w, h));
+    let j = super::usable_side(&parts, i);
+    let (fx, fy) = if j != i { (-ox, -oy) } else { (ox, oy) };
+
+    map.clamp(Point {
+        x: centre.x.saturating_add(Fx(fx)),
+        y: centre.y.saturating_add(Fx(fy)),
+    })
 }
 
 /// The offset from the view's centre to the landing point of an enemy at (`dx`, `dy`) from it,

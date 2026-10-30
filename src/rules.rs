@@ -183,7 +183,7 @@ impl Rules {
         self.file.leash_reach_y
     }
 
-    /// Where the leash lands an enemy to the side of the main character, in 1/256 px.
+    /// Where the leash lands an enemy to the side of the view's centre, in 1/256 px.
     pub fn leash_land_x(&self) -> Fx {
         self.file.leash_land_x
     }
@@ -365,7 +365,8 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
     );
     // A land outside where the leash triggers would move an enemy every tick; a land inside the
     // spawn edge (the view's half plus `spawn_margin`) would put a fresh spawn beyond it and
-    // land a relocated enemy inside the view (unless the map's border clamps it there anyway).
+    // land a relocated enemy inside the view (unless neither side fits and the border clamps it
+    // there anyway).
     // The edge is checked only once the margin is in range (else the margin's issue is the one
     // reported).
     let margin = i64::from(file.spawn_margin.0);

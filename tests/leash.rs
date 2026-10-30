@@ -1,6 +1,7 @@
 //! The leash (EC2, DS80, DS106): a regular enemy outside the reach rectangle around the view's
 //! centre, the main character held 420 x / 180 y px inside the map (|dx| > 840 px or |dy| > 360
-//! px), moves to the rectangle of ±484 × ±244 px on the opposite side of that centre, scaled along its own direction and clamped to the map, at most 16 a tick,
+//! px), moves to the rectangle of ±484 × ±244 px on the opposite side of that centre (or its own
+//! side when that is off the map), scaled along its own direction and clamped to the map, at most 16 a tick,
 //! in entity-ID order; and `Load` counts the relocations and the spawns the caps refused.
 
 use crate::common;
@@ -162,12 +163,13 @@ fn landing_on_the_horizontal_sides_truncates_toward_zero() {
 }
 
 #[test]
-fn a_relocation_near_the_map_edge_lands_on_the_map() {
-    // The centre is (3580, 2000): the enemy is 841 px to its left, lands at 3580 + 484 = 4064
-    // and is clamped to the map's right border.
-    assert_eq!(lands(3900, 2000, 2739, 2000), (4000 * PX, 2000 * PX));
-    // The centre is (2000, 3820): 361 px above it, the landing 3820 + 244 = 4064 is clamped.
-    assert_eq!(lands(2000, 3900, 2000, 3459), (2000 * PX, 4000 * PX));
+fn a_relocation_near_the_map_edge_lands_outside_the_view() {
+    // The centre is (3580, 2000): the enemy is 850 px to its left; the mirrored side (4064)
+    // is off the map, so it falls back to the left side at 3580 - 484 = 3096 (outside the view).
+    assert_eq!(lands(3970, 2000, 2730, 2000), (3096 * PX, 2000 * PX));
+    // The centre is (2000, 3820): 361 px above it, the mirrored side (4064) is off the map,
+    // so it falls back to the top side at 3820 - 244 = 3576 (outside the view).
+    assert_eq!(lands(2000, 3900, 2000, 3459), (2000 * PX, 3576 * PX));
 }
 
 #[test]
