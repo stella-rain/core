@@ -282,9 +282,6 @@ const SAVEPOINT_RUN: &[u8] = include_bytes!("../../tests/corpus/current/runs/tut
 /// The ticks the savepoint target's prefixes are cut at: running, and with the offer open.
 const SAVEPOINT_CUTS: [u32; 2] = [150, 230];
 
-/// Where the header's crate version starts (`HEADER_LEN` ends it).
-const CRATE_VERSION_AT: usize = 128;
-
 /// Ticks the target steps a loaded run on.
 const SAVEPOINT_EXTRA_STEPS: usize = 20;
 
@@ -329,8 +326,7 @@ pub fn savepoint_prefixes() -> &'static [RunReplay] {
 /// The savepoint loader (ADR-SAVE-3, ADR-SVC-1). The bytes are a savepoint file, tried against
 /// each prefix of `savepoint_prefixes()` with the bundled pack. The refusal is one of the seven
 /// typed errors (the `match` is exhaustive); a savepoint that loads is the canonical bytes of
-/// the run it holds: its replay is the prefix, saving it again gives the same bytes but for the
-/// header's crate version, its state
+/// the run it holds: its replay is the prefix, saving it again gives the same bytes, its state
 /// hashes as the prefix says, and it steps on without a panic, answering an open offer with
 /// choice 0. Returns whether some prefix accepted the bytes.
 pub fn savepoint_load(data: &[u8]) -> bool {
@@ -344,15 +340,8 @@ pub fn savepoint_load(data: &[u8]) -> bool {
                     *prefix,
                     "a loaded run has another prefix"
                 );
-                // Canonical but for the crate version: the header keeps it for information, it
-                // is outside the checksum and never compared, so any text there loads.
                 let saved = recorder.save();
-                assert!(
-                    saved.len() == data.len()
-                        && saved[..CRATE_VERSION_AT] == data[..CRATE_VERSION_AT]
-                        && saved[HEADER_LEN..] == data[HEADER_LEN..],
-                    "a loaded savepoint is not canonical"
-                );
+                assert!(saved == data, "a loaded savepoint is not canonical");
                 assert_eq!(
                     replay::hash_to_hex(recorder.engine().state_hash()),
                     prefix.final_hash,
