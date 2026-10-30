@@ -10,7 +10,7 @@ use crate::fixed::{Fx, Point};
 use crate::hash::{StableHash, StateHasher};
 use crate::id::EntityId;
 use crate::savepoint::testing::{from_bytes, round_trip, to_bytes};
-use crate::savepoint::{Decode, Encode};
+use crate::savepoint::{Decode, DecodeError, Encode};
 use std::fmt::Debug;
 
 fn hash_of<T: StableHash>(v: &T) -> u64 {
@@ -158,6 +158,168 @@ fn every_attack_side_field_moves_the_encoding() {
         fields: [owner, friendly, shape, at, dir, wind_left, active_left, wind_ticks, active_ticks, damage, damage_type, breaks_charge, warn_only, hits, program]);
     each_field_moves_the_encoding!(failures, base, Dir, |s| &mut s.player.facing,
         fields: [x, y]);
+
+    assert!(
+        failures.is_empty(),
+        "{} fields are not saved:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn the_agent_boss_and_status_types_of_the_full_state_round_trip() {
+    let s = base();
+    let agent = &s.enemies[0];
+    round_trip_hashed(agent);
+    round_trip_hashed(&agent.key);
+    round_trip_hashed(&agent.order.unwrap());
+    round_trip_hashed(&agent.rules[0]);
+    round_trip_hashed(&agent.elite.unwrap());
+    round_trip_hashed(&agent.leave.unwrap());
+    round_trip_hashed(agent.shrine.as_deref().unwrap());
+    round_trip_hashed(&agent.statuses);
+    let boss = s.boss.as_ref().unwrap();
+    round_trip_hashed(boss);
+    round_trip_hashed(&boss.parts[0]);
+    let status = s.player.statuses[0];
+    round_trip_hashed(&status);
+    round_trip_hashed(&status.dot.unwrap());
+    round_trip_hashed(&s.echoes[0]);
+    for kind in StatusKind::ALL {
+        round_trip_hashed(&kind);
+    }
+    for source in [
+        AgentSource::Companion,
+        AgentSource::Wave,
+        AgentSource::Summoned,
+        AgentSource::BossRule,
+        AgentSource::Guardian,
+        AgentSource::Escort,
+    ] {
+        round_trip_hashed(&source);
+    }
+}
+
+#[test]
+fn the_tags_of_the_status_and_source_enums_are_their_hash_numbers() {
+    assert_eq!(to_bytes(&StatusKind::Slow), [2]);
+    assert_eq!(to_bytes(&StatusKind::Stun), [6]);
+    assert_eq!(to_bytes(&AgentSource::Escort), [5]);
+    assert!(from_bytes::<StatusKind>(&[7]).is_err());
+    assert!(from_bytes::<AgentSource>(&[6]).is_err());
+}
+
+#[test]
+fn a_cut_or_damaged_agent_or_boss_never_panics_a_decode() {
+    let s = base();
+    never_panics(&s.enemies[0]);
+    never_panics(s.boss.as_ref().unwrap());
+    never_panics(&s.echoes[0]);
+}
+
+#[test]
+fn the_longest_legal_lists_round_trip_and_one_more_is_refused() {
+    let s = base();
+    let id = |n: u32| EntityId(n);
+
+    let mut shrine = s.enemies[0].shrine.clone().unwrap();
+    shrine.guardians = (0..16).map(id).collect();
+    round_trip(&*shrine);
+    shrine.guardians.push(id(16));
+    assert_eq!(
+        from_bytes::<ShrineState>(&to_bytes(&*shrine)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+
+    let mut boss = s.boss.clone().unwrap();
+    let part = boss.parts[0].clone();
+    boss.parts = vec![part.clone(); 8];
+    round_trip(&boss);
+    boss.parts.push(part);
+    assert_eq!(
+        from_bytes::<BossState>(&to_bytes(&boss)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+
+    let mut run = s.runs[0].clone();
+    run.hits = (0..500).map(|n| (id(n), n)).collect();
+    round_trip(&run);
+    run.hits.push((id(500), 500));
+    assert_eq!(
+        from_bytes::<AttackRun>(&to_bytes(&run)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+
+    let mut zone = s.zones[0].clone();
+    zone.hits = (0..500).map(|n| (id(n), n)).collect();
+    round_trip(&zone);
+    zone.hits.push((id(500), 500));
+    assert!(from_bytes::<ZoneState>(&to_bytes(&zone)).is_err());
+
+    let mut task = s.tasks[0].clone();
+    let step = task.base[0];
+    task.base = vec![step; 4];
+    round_trip(&task);
+    task.base.push(step);
+    assert_eq!(
+        from_bytes::<AttackTask>(&to_bytes(&task)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+    let mut hook = s.orbs[0].hook.clone().unwrap();
+    hook.path = vec![step; 4];
+    round_trip(&*hook);
+    hook.path.push(step);
+    assert!(from_bytes::<Hook>(&to_bytes(&*hook)).is_err());
+
+    // The inline lists hold as many as their type: no more, no fewer.
+    let rule = s.enemies[0].rules[0];
+    let rules: Rules = std::iter::repeat_n(rule, 8).collect();
+    round_trip(&rules);
+    let status = s.player.statuses[0];
+    let statuses: Statuses = std::iter::repeat_n(status, StatusKind::COUNT).collect();
+    round_trip(&statuses);
+    let frame = s.tasks[0].frames[0];
+    let frames: Frames = std::iter::repeat_n(frame, 8).collect();
+    round_trip(&frames);
+    let mut nine = to_bytes(&frames);
+    nine[0] = 9;
+    nine.extend(to_bytes(&frame));
+    assert_eq!(
+        from_bytes::<Frames>(&nine),
+        Err(DecodeError::Invalid("list too long"))
+    );
+}
+
+#[test]
+fn every_agent_boss_and_status_field_moves_the_encoding() {
+    let base = base();
+    let mut failures: Vec<String> = Vec::new();
+
+    each_field_moves_the_encoding!(failures, base, BossState, |s| s.boss.as_mut().unwrap(),
+        fields: [id, boss, origin, no_call, kind, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age]);
+    each_field_moves_the_encoding!(failures, base, PartState, |s| &mut s.boss.as_mut().unwrap().parts[0],
+        fields: [id, name, kind, hp, max_hp, defence, offset, radius, statuses]);
+    each_field_moves_the_encoding!(failures, base, AgentKey, |s| &mut s.enemies[0].key,
+        fields: [source, index, rule]);
+    each_field_moves_the_encoding!(failures, base, AgentState, |s| &mut s.enemies[0],
+        fields: [id, def, kind, key, at, hp, max_hp, defence, age, rules, statuses, aggro, order, orbit_angle, crowded, burst, stun_immune, elite, leave, shrine]);
+    each_field_moves_the_encoding!(failures, base, ShrineState, |s| s.enemies[0].shrine.as_deref_mut().unwrap(),
+        fields: [fight, guardians]);
+    each_field_moves_the_encoding!(failures, base, LeaveState, |s| s.enemies[0].leave.as_mut().unwrap(),
+        fields: [disturbed, go]);
+    each_field_moves_the_encoding!(failures, base, EliteState, |s| s.enemies[0].elite.as_mut().unwrap(),
+        fields: [home, called, boss_call, disguised]);
+    each_field_moves_the_encoding!(failures, base, MoveOrder, |s| s.enemies[0].order.as_mut().unwrap(),
+        fields: [to, ticks_left]);
+    each_field_moves_the_encoding!(failures, base, RuleState, |s| &mut s.enemies[0].rules[0],
+        fields: [cooldown_left, charges_left, fired]);
+    each_field_moves_the_encoding!(failures, base, StatusState, |s| &mut s.player.statuses[0],
+        fields: [kind, source, remaining, total, stacks, value_pct, dot]);
+    each_field_moves_the_encoding!(failures, base, DotState, |s| s.player.statuses[0].dot.as_mut().unwrap(),
+        fields: [damage, damage_type, atk_up_pct, type_bonus_pct, interval, next_in]);
+    each_field_moves_the_encoding!(failures, base, Echo, |s| &mut s.echoes[0],
+        fields: [source, target, damage, damage_type]);
 
     assert!(
         failures.is_empty(),
