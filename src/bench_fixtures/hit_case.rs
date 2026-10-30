@@ -123,14 +123,15 @@ pub const SPREAD_SIDE: i32 = 1_048_576;
 
 /// How far from `START`, on each axis, the spread case's outer crowds hold: 440 pixels, so a
 /// crowd's point is about 622 pixels from the main character and the clump round it, once pushed
-/// apart, stayed inside the earlier leash's reach (800 pixels, EC2, DS84; the leash reach is now
-/// `rules.json`'s `leash_reach_x`/`leash_reach_y`).
+/// apart, stays within 800 pixels of the start (the case's own bound, EC2). The leash's reach is
+/// `rules.json`'s `leash_reach_x` (840 pixels) and `leash_reach_y` (360 pixels); the leash moves
+/// none of these crowds (`tests/hit_case.rs`).
 const SPREAD_OFFSET: i32 = 112_640;
 
 /// The spread case (core#146, EC2): the same enemies, in the same waves, on the largest map: the
 /// first at the clump's point, within reach of the main character's step and the companions, the
-/// second above and to the right of the start and the third below and to the right, each inside
-/// the leash's reach. The enemy grid still spans the map (up to 128 by 128 cells of 32 pixels) and its
+/// second above and to the right of the start and the third below and to the right, none of them
+/// moved by the leash. The enemy grid still spans the map (up to 128 by 128 cells of 32 pixels) and its
 /// build reads all of it, while the hit boxes and the zones reach the first wave only.
 pub fn spread_stage() -> Stage {
     let top_right = (START.0 + SPREAD_OFFSET, START.1 - SPREAD_OFFSET);

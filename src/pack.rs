@@ -14,7 +14,7 @@
 //! the pack's `introduced` table, each exactly once, and is refused when that is newer than the
 //! pack's own (ADR-080, as the registry's IDs are for a stage, ADR-017). An ID the released
 //! content (the bundled pack) does not hold is new and is recorded at the pack's `sim_version`,
-//! and is refused when it is recorded lower (ADR-REPL-6, ADR-CONT-2). The registry's IDs a
+//! and is refused when it is recorded lower (ADR-REPL-7, ADR-CONT-2). The registry's IDs a
 //! file names are checked against the registry by the file's own parser.
 //!
 //! The content files have no versions of their own: the pack's header is the only one, and each
@@ -935,7 +935,7 @@ fn released_expertise(weapon: &ContentId) -> &'static [IntroducedId] {
 
 /// Checks one list of the table, at `at`, against the IDs of its file with their paths. An ID
 /// the `released` entries (the bundled pack's) do not hold is new, and is recorded at the pack's
-/// own `sim_version` (ADR-REPL-6, ADR-CONT-2); a released ID keeps the version it was released at.
+/// own `sim_version` (ADR-REPL-7, ADR-CONT-2); a released ID keeps the version it was released at.
 fn check_ids(
     issues: &mut Vec<Issue>,
     at: &str,
