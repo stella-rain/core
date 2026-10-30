@@ -363,13 +363,96 @@
       "type": "object"
     },
     "AttackRef": {
-      "description": "A preset by ID with its arguments, or an inline definition.",
+      "description": "A preset by ID with its arguments, or an inline definition. A preset's arguments are bounded by\nits registry entry.",
       "oneOf": [
         {
           "additionalProperties": false,
           "properties": {
             "preset": {
               "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "id": {
+                        "const": "aimed_single"
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "args": {
+                        "maxItems": 1,
+                        "minItems": 1,
+                        "prefixItems": [
+                          {
+                            "maximum": 600,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "id": {
+                        "const": "aimed_spread"
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "args": {
+                        "maxItems": 1,
+                        "minItems": 1,
+                        "prefixItems": [
+                          {
+                            "maximum": 600,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "id": {
+                        "const": "spiral"
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "args": {
+                        "maxItems": 1,
+                        "minItems": 1,
+                        "prefixItems": [
+                          {
+                            "maximum": 600,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
               "properties": {
                 "args": {
                   "default": [],
