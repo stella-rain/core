@@ -1561,6 +1561,8 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// Validates an attack reference: either a preset with arguments or an inline attack.
+    /// A preset's arguments are bounded in code by its registry entry (ADR-CONT-8, ADR-CONT-2).
     fn attack_ref(&mut self, a: &AttackRef) {
         match a {
             AttackRef::Preset { id, args } => {
@@ -1582,7 +1584,27 @@ impl<'a> Ctx<'a> {
                     }
                     c.key("args", |c| {
                         for (i, v) in args.iter().enumerate() {
-                            c.idx(i, |c| c.number(*v));
+                            c.idx(i, |c| {
+                                c.number(*v);
+                                if let Some(e) = entry {
+                                    if usize::from(e.args) == args.len()
+                                        && (-MAX_NUMBER..=MAX_NUMBER).contains(v)
+                                    {
+                                        let b = &e.arg_bounds[i];
+                                        if *v < b.min {
+                                            c.fail(format!(
+                                                "preset {} argument {} ({}) is {}, below its minimum {}",
+                                                e.id, i, b.name, v, b.min
+                                            ));
+                                        } else if *v > b.max {
+                                            c.fail(format!(
+                                                "preset {} argument {} ({}) is {}, above its maximum {}",
+                                                e.id, i, b.name, v, b.max
+                                            ));
+                                        }
+                                    }
+                                }
+                            });
                         }
                     });
                 });
