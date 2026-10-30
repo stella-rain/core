@@ -62,6 +62,13 @@ def job_block(text, key):
     return m.group(0)
 
 
+ARM = "savepoint_load) seeds=seeds/savepoint ;;"
+GEN = (
+    'SAVEPOINT_SEEDS_DIR="$PWD/seeds/savepoint" cargo test --manifest-path fuzz/Cargo.toml --locked '
+    "--test smoke write_savepoint_seeds -- --ignored"
+)
+
+
 def real_targets():
     with open(os.path.join(ROOT, "fuzz", "Cargo.toml"), "rb") as f:
         return [b["name"] for b in tomllib.load(f)["bin"]]
@@ -120,6 +127,19 @@ class TempTrees(unittest.TestCase):
         self.fails(tree([], []))
 
 
+def producers(case, block):
+    """Every `seeds=seeds/<dir>` arm has `seeds/<dir>` in an earlier line of the job."""
+    for m in re.finditer(r"seeds=(seeds/\w+)", block):
+        case.assertIn(m.group(1), block[: m.start()], f"{m.group(1)} is not produced before its arm")
+
+
+class Smoke(unittest.TestCase):
+    def test_the_seed_writer_exists(self):
+        text = read("fuzz", "tests", "smoke.rs")
+        self.assertRegex(text, r"#\[ignore[^\]]*\][^{]*?fn write_savepoint_seeds")
+        self.assertIn("SAVEPOINT_SEEDS_DIR", text)
+
+
 class RustYml(unittest.TestCase):
     def setUp(self):
         self.block = job_block(read(".github", "workflows", "rust.yml"), "fuzz-short")
@@ -140,6 +160,14 @@ class RustYml(unittest.TestCase):
             self.assertTrue(
                 any(re.fullmatch(arm.replace("*", ".*"), t) for t in targets), f"seed arm {arm} matches no target"
             )
+
+    def test_savepoint_arm_and_step(self):
+        self.assertIn(ARM, self.block)
+        self.assertIn(GEN, self.block)
+        self.assertLess(self.block.index(GEN), self.block.index("fuzz_targets.py words"))
+
+    def test_every_arm_has_a_producer(self):
+        producers(self, self.block)
 
     def test_time_fits_the_timeout(self):
         secs = re.findall(r"-max_total_time=(\d+)", self.block)
@@ -188,6 +216,21 @@ class FuzzLongYml(unittest.TestCase):
             if arm != "*":
                 self.assertTrue(any(re.fullmatch(arm.replace("*", ".*"), t) for t in targets), arm)
 
+    def test_savepoint_arm_and_step(self):
+        fuzz = job_block(self.text, "fuzz")
+        self.assertIn(ARM, fuzz)
+        self.assertIn(GEN, fuzz)
+        self.assertIn("if: matrix.target == 'savepoint_load'", fuzz)
+        self.assertLess(fuzz.index(GEN), fuzz.index('cargo "+$FUZZ_NIGHTLY" fuzz run'))
+
+    def test_every_arm_has_a_producer(self):
+        producers(self, job_block(self.text, "fuzz"))
+
+    def test_candidate_uses_the_long_workflow(self):
+        text = read(".github", "workflows", "candidate.yml")
+        self.assertIn("uses: ./.github/workflows/fuzz-long.yml", job_block(text, "long-fuzz"))
+        self.assertNotIn("seeds=", text)
+
     def test_candidate_comment_has_no_count(self):
         self.assertNotIn("6 targets", read(".github", "workflows", "candidate.yml"))
 
@@ -200,6 +243,10 @@ class Rules(unittest.TestCase):
         self.assertIn("fuzz_targets.py", text)
         self.assertNotIn("the `fuzz-short` list of `rust.yml`", flat)
         self.assertLessEqual(len(text.splitlines()), 80)
+        self.assertIn("savepoint_load", text)
+        replay = read(".claude", "rules", "replay.md")
+        self.assertIn("tests/savepoint_proof.rs", replay)
+        self.assertLessEqual(len(replay.splitlines()), 80)
 
 
 if __name__ == "__main__":

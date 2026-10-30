@@ -50,3 +50,6 @@ Sources: ADR-REPL-3, ADR-REPL-4, ADR-BRDG-3, ADR-SVC-6, ADR-SIM-3.
 - `golden.rs` keeps the recordings as `insta` snapshots in `tests/golden/`
   (`cargo xtask bless` regenerates them too, and `tests/bench_pins.toml`;
   `cargo insta test --features record --review` to review one by hand).
+- `tests/savepoint_proof.rs`: for every run case of the corpus (current and frozen `v1/`) a
+  savepoint restored mid-run gives the uninterrupted run's hashes (ADR-SAVE-3, ADR-SIM-3);
+  `savepoint_load` in `fuzz/` fuzzes the loader.
