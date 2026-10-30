@@ -29,7 +29,9 @@ Usage (run inside the repository; commands that list branches ask origin):
   release.py superseded RC_TAG        origin's rc branches of RC_TAG's version below it
   release.py released TAG             origin's rc branches of version TAG and every older one
   release.py notes RC_TAG COMMIT PREVIOUS|- LOG_FILE
-                                      the release notes; LOG_FILE holds one commit per line
+                                      the release notes; the title line is "core vX.Y.Z · rules vN",
+                                      N being SIM_VERSION in src/version.rs at COMMIT (refuses when
+                                      it cannot be read); LOG_FILE holds one commit per line
                                       since PREVIOUS; starts with a warning when content/pack.json
                                       differs from PREVIOUS's (ADR-080: a content release must follow)
   release.py previous                 the latest release tag, or nothing
@@ -46,6 +48,8 @@ import tomllib
 
 CRATE = "stella-rain-core"
 PACK = "content/pack.json"
+VERSION_RS = "src/version.rs"
+SIM_VERSION_RE = re.compile(r"^pub const SIM_VERSION: u32 = (\d+);\s*$", re.M)
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 CANDIDATE_RE = re.compile(r"^(v\d+\.\d+\.\d+)-rc\.(\d+)$")
@@ -215,13 +219,21 @@ def pack_changed(prev_bytes, head_bytes):
     return prev_bytes != head_bytes
 
 
-def notes(rc, commit, prev, log, pack_changed=False):
+def sim_version(source):
+    """SIM_VERSION as declared in src/version.rs; exactly one declaration, a plain number."""
+    found = SIM_VERSION_RE.findall(source)
+    if len(found) != 1:
+        raise ReleaseError(f'{VERSION_RS} has no single line "pub const SIM_VERSION: u32 = <number>;"')
+    return int(found[0])
+
+
+def notes(rc, commit, prev, log, pack_changed=False, *, sim_version):
     final = CANDIDATE_RE.match(rc).group(1)
     lines = []
     if pack_changed and prev:
         lines += [f"content/pack.json changed since {prev}: publish a stella-rain/content release "
                   "from this tag before an app build pins it (ADR-080)", ""]
-    lines += [f"# {final}", "", f"Commit `{commit}` on `main`, tested as `{rc}`.", "",
+    lines += [f"# core {final} \u00b7 rules v{sim_version}", "", f"Commit `{commit}` on `main`, tested as `{rc}`.", "",
              "## Assets", "",
              "- `stage-verify` for Linux x86_64 and arm64, Windows x86_64 and macOS arm64.",
              "- The JSON Schema of the stage, event, input, replay and snapshot types.",
@@ -316,13 +328,22 @@ def _pack_at(tag):
     return None if done.returncode else done.stdout
 
 
+def _sim_version_at(commit):
+    """SIM_VERSION in src/version.rs at COMMIT, never the working tree."""
+    try:
+        return sim_version(_git("show", f"{commit}^{{commit}}:{VERSION_RS}"))
+    except ReleaseError as e:
+        raise ReleaseError(f"{e} (at {commit})") from None
+
+
 def _notes(rc, commit, prev, log_file):
     prev = None if prev == "-" else prev
+    rules = _sim_version_at(commit)
     changed = False
     if prev:
         head = open(PACK, "rb").read() if os.path.exists(PACK) else None
         changed = pack_changed(_pack_at(prev), head)
-    return notes(rc, commit, prev, _read(log_file).splitlines(), changed)
+    return notes(rc, commit, prev, _read(log_file).splitlines(), changed, sim_version=rules)
 
 
 USAGE = ("usage: release.py final | stamp FINAL | check-main REF | check-release | rc TAG | checks-passed RUN_ID | "
