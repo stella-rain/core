@@ -4,10 +4,13 @@
 //! is public yet; the file format around it (a format constant, a golden guard) is a later task.
 
 pub(crate) mod codec;
+pub(crate) mod state;
 
 // Used by the state codec and the savepoint file, which come next.
 #[allow(unused_imports)]
 pub(crate) use codec::{Decode, DecodeError, Encode, Reader, Writer};
+#[allow(unused_imports)]
+pub(crate) use state::{decode_state, encode_state};
 
 /// What the tests of the codec share.
 #[cfg(test)]

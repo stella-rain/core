@@ -341,7 +341,7 @@ pub(crate) fn rarity_str(rarity: Rarity) -> &'static str {
 
 /// The run's HUD tallies, counted from the events the way the app counts them and kept outside
 /// the hashed state (ADR-BRDG-6): a carried star, which emits no event, is not in them.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Counted {
     pub(crate) kills: u32,
     /// The count the last `RewardTaken` of each reward carried, per reward of the run's file; 0 = never.

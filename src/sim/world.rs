@@ -250,6 +250,11 @@ impl AgentDefs {
         &self.defs[def.at()]
     }
 
+    /// How many definitions the run has: what a saved `DefIndex` is checked against.
+    pub fn len(&self) -> usize {
+        self.defs.len()
+    }
+
     pub fn agent(&self, def: DefIndex) -> &Agent {
         &self.defs[def.at()].agent
     }
