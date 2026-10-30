@@ -262,7 +262,7 @@ jobs:
           cargo nextest run --locked --release --profile ci --run-ignored only -E 'test(=command_cap::measure_the_longest_run)' || status=$?
           mv target/nextest/ci/junit.xml target/nextest/ci/junit-command-cap.xml || true
           if [ "$status" -ne 0 ]; then
-            echo "::error title=Command cap measurement::A bot run takes more commands than MEASURED_MOST. Set MEASURED_MOST in tests/command_cap.rs to the 'most commands:' value printed above, in this PR, and keep 2 x it <= MAX_COMMANDS (src/run_replay.rs). If the failure is the MAX_COMMANDS or verify assertion instead, the cap itself is in question: ask Kade."
+            echo "::error title=Command cap measurement::A bot run takes a different number of commands than MEASURED_MOST (more or fewer). Set MEASURED_MOST in tests/command_cap.rs to the 'most commands:' value printed above, in this PR, and keep 2 x it <= MAX_COMMANDS (src/run_replay.rs). If the failure is the MAX_COMMANDS or verify assertion instead, the cap itself is in question: ask Kade."
           fi
           exit "$status"
       # nextest skips doctests; there are none today, and this fails the day one is added and

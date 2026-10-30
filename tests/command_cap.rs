@@ -242,7 +242,7 @@ fn measure_the_longest_run() {
     }
     println!("most commands: {most}");
     assert!(
-        most <= MEASURED_MOST,
+        most == MEASURED_MOST,
         "a run takes {most} commands: re-pin MEASURED_MOST"
     );
     assert!(
