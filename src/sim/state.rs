@@ -25,6 +25,7 @@ pub(crate) const UNLIMITED: u32 = u32::MAX;
 /// where they were (ADR-SIM-2). Each is `rng::derive(seed, tag)`; the hash writes them in this
 /// order.
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Streams {
     /// The angle of a wave's ring spawn.
     pub spawn: SplitMix64,
@@ -513,6 +514,7 @@ pub(crate) struct DashState {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct BossState {
     pub id: EntityId,
     /// Which of the run's boss definitions (`World::bosses`) it was made from. The definition
@@ -555,6 +557,7 @@ pub(crate) struct BossState {
 
 /// A breakable part of the boss, with its own hit points (ADR-007).
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct PartState {
     pub id: EntityId,
     /// The ID the stage gave it, which `part_broken` and the `part` selector name.
@@ -596,6 +599,7 @@ pub(crate) enum AgentSource {
 
 /// A companion or an enemy: a movement and a rule list (ADR-036 tier 1).
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct AgentState {
     pub id: EntityId,
     /// Its definition in the run's `AgentDefs`.
@@ -665,6 +669,7 @@ impl AgentState {
 
 /// A shrine's fight (ADR-090).
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct ShrineState {
     /// Ticks since the main character touched it, 0 on the tick it did; `None` while untouched.
     pub fight: Option<u32>,
@@ -674,6 +679,7 @@ pub(crate) struct ShrineState {
 
 /// When an elite that leaves is to go (ADR-090).
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct LeaveState {
     /// Ticks since it was disturbed, 0 on the tick it was; `None` while it is not.
     pub disturbed: Option<u32>,
@@ -683,6 +689,7 @@ pub(crate) struct LeaveState {
 
 /// An elite holds `home`, where it spawned, until a boss calls it (ADR-068).
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct EliteState {
     pub home: Point,
     pub called: bool,
@@ -693,6 +700,7 @@ pub(crate) struct EliteState {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct MoveOrder {
     pub to: Point,
     pub ticks_left: u32,
@@ -709,6 +717,7 @@ pub(crate) type Frames = InlineVec<Frame, MAX_FRAMES>;
 const MAX_FRAMES: usize = 8;
 
 #[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct RuleState {
     pub cooldown_left: u32,
     /// Firings left; `UNLIMITED` if there is no limit.
@@ -788,6 +797,7 @@ impl StatusKind {
 
 /// One status on one entity. Applying it again refreshes the duration and adds a stack.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StatusState {
     pub kind: StatusKind,
     /// Who applied it last.
@@ -823,6 +833,7 @@ impl Default for StatusState {
 /// fixed when it was last applied, as an attack's are when it starts (ADR-056); its interval,
 /// and the ticks to its next tick, at least 1.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct DotState {
     pub damage: u32,
     pub damage_type: Option<DamageType>,
@@ -876,6 +887,7 @@ impl Aim {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct OrbState {
     pub at: Point,
     pub vx: Fx,
@@ -915,6 +927,7 @@ pub(crate) struct OrbState {
 /// `link` node share a `group`; slot `j` is joined to slot `(j + 1) % of` by a beam while both are
 /// alive and neither is still flying toward its halt.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct OrbLink {
     pub group: u32,
     /// The round of the loop that fired it.
@@ -932,6 +945,7 @@ pub(crate) struct OrbLink {
 /// A zone (core Z1): an area that does not move. It warns for `wind_left` ticks, then hurts for
 /// `active_left`, then is gone. It has no ID: nothing refers to one.
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct ZoneState {
     /// Who placed it, for the hit event and for aggro.
     pub owner: EntityId,
@@ -963,6 +977,7 @@ pub(crate) struct ZoneState {
 
 /// An orb's burst, waiting for the orb to end.
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Hook {
     pub program: ProgramIndex,
     /// The `orb` node in the program: its `burst` list is what the orb starts.
@@ -1000,6 +1015,7 @@ pub(crate) enum Origin {
 /// A place in the middle of a list of nodes, and the state of the loop or turn whose body the
 /// next frame up is running.
 #[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Frame {
     /// The node of this frame's list that is being carried out.
     pub idx: u16,
@@ -1014,6 +1030,7 @@ pub(crate) struct Frame {
 /// A phased attack an attacker is carrying out (ADR-055): one at a time per attacker and slot.
 /// Its phases spawn their nodes as `AttackTask`s, which run to their own end.
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct AttackRun {
     pub owner: EntityId,
     /// 0 for an agent's or the boss's attacks and the main character's combo (ADR-069).
@@ -1119,6 +1136,7 @@ impl MoveIndex {
 /// needs to know to aim and to hurt. Presets are expanded before they get here, so a preset and
 /// its inline copy are the same task.
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct AttackTask {
     pub owner: EntityId,
     pub program: ProgramIndex,

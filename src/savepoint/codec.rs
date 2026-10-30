@@ -464,30 +464,7 @@ impl Decode for BossCall {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fmt::Debug;
-
-    /// The bytes of `v`.
-    fn to_bytes<T: Encode>(v: &T) -> Vec<u8> {
-        let mut w = Writer::new();
-        v.encode(&mut w);
-        w.finish()
-    }
-
-    /// `T` from all of `bytes`.
-    fn from_bytes<T: Decode>(bytes: &[u8]) -> Result<T, DecodeError> {
-        let mut r = Reader::new(bytes);
-        let v = T::decode(&mut r)?;
-        r.finish()?;
-        Ok(v)
-    }
-
-    /// `v` decodes from its bytes to a value that encodes to the same bytes.
-    fn round_trip<T: Encode + Decode + PartialEq + Debug>(v: &T) {
-        let bytes = to_bytes(v);
-        let back: T = from_bytes(&bytes).unwrap_or_else(|e| panic!("{v:?}: {e:?}"));
-        assert_eq!(&back, v);
-        assert_eq!(to_bytes(&back), bytes);
-    }
+    use crate::savepoint::testing::{from_bytes, round_trip, to_bytes};
 
     type Read = fn(&mut Reader<'_>) -> Result<(), DecodeError>;
 
