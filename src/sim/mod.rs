@@ -12,7 +12,7 @@
 //! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
 //! | `spawn_waves` | the waves that are due spawn enemies; a horde run holds them at the crowd target (DIR1) |
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
-//! | `leash` | a regular, unanchored enemy outside the leash's reach rectangle (`leash_reach_x`, `leash_reach_y` of `rules.json`) around the view's centre (`view_centre`) moves to the centre's rectangle of `leash_land_x`, `leash_land_y` on the opposite side, at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
+//! | `leash` | a regular, unanchored enemy outside the leash's reach rectangle (`leash_reach_x`, `leash_reach_y` of `rules.json`) around the view's centre (`view_centre`) moves to the centre's rectangle of `leash_land_x`, `leash_land_y` on the opposite side (or on the enemy's own side when that one is off the map), at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
@@ -111,6 +111,8 @@ mod heal;
 mod hit_boxes;
 mod horde;
 mod leash;
+#[cfg(test)]
+mod leash_tests;
 mod levels;
 mod loadout;
 mod orbit;
@@ -870,6 +872,17 @@ fn rect_sides(px: i64, py: i64, ex: i64, ey: i64) -> [RectSide; 4] {
     ]
 }
 
+/// Which side to use when side `i` (0 top, 1 right, 2 bottom, 3 left) of a rectangle around
+/// the view centre is wanted: `i` if on the map, otherwise the opposite side `(i + 2) % 4` if
+/// on the map; if neither fits, `i` is kept (and clamped to the map border).
+fn usable_side(parts: &[Option<(i64, i64)>; 4], i: usize) -> usize {
+    if parts[i].is_some() || parts[(i + 2) % 4].is_none() {
+        i
+    } else {
+        (i + 2) % 4
+    }
+}
+
 /// A point on the spawn rectangle around the view's centre for a main character at `from` (VS1,
 /// `view_centre`): ±the spawn edge (the view and `spawn_margin`), drawn
 /// from `rng` (the wave's stream for a wave, the horde's for an elite) on the part of `edge`'s
@@ -908,11 +921,7 @@ pub(super) fn edge_point(
                 // `Any` is the arm above.
                 Side::Left | Side::Any => 3,
             };
-            let j = if parts[i].is_some() || parts[(i + 2) % 4].is_none() {
-                i
-            } else {
-                (i + 2) % 4
-            };
+            let j = usable_side(&parts, i);
             let side = sides[j];
             let (lo, hi) = parts[j].unwrap_or((side.lo, side.hi));
             match edge.along {

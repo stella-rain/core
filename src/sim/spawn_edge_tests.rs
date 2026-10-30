@@ -1,6 +1,6 @@
 //! The `any` spawn draw: every point of the spawn rectangle's perimeter has one draw value.
 
-use super::{any_point, any_total, view_centre};
+use super::{any_point, any_total, usable_side, view_centre};
 use crate::fixed::{Fx, Point};
 use crate::stage::Map;
 
@@ -137,5 +137,29 @@ fn the_view_centre_stays_on_the_map_and_within_the_half_view_of_the_player() {
             assert!((0..=side).contains(&c.x.0) && (0..=side).contains(&c.y.0));
             assert!((c.x.0 - x).abs() <= 420 * 256 && (c.y.0 - y).abs() <= 180 * 256);
         }
+    }
+}
+
+#[test]
+fn usable_side_falls_back_to_opposite_only_when_target_is_off_and_opposite_is_on() {
+    let some = Some((0, 100));
+    for i in 0..4 {
+        let opp = (i + 2) % 4;
+
+        // When parts[i] is Some: gives i (regardless of opposite).
+        let mut parts = [None; 4];
+        parts[i] = some;
+        assert_eq!(usable_side(&parts, i), i);
+        parts[opp] = some;
+        assert_eq!(usable_side(&parts, i), i);
+
+        // When parts[i] is None and opposite is Some: gives opposite.
+        let mut parts = [None; 4];
+        parts[opp] = some;
+        assert_eq!(usable_side(&parts, i), opp);
+
+        // When both parts[i] and opposite are None: gives i.
+        let parts = [None; 4];
+        assert_eq!(usable_side(&parts, i), i);
     }
 }

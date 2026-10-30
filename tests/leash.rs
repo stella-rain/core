@@ -1,6 +1,7 @@
 //! The leash (EC2, DS80, DS106): a regular enemy outside the reach rectangle around the view's
 //! centre, the main character held 420 x / 180 y px inside the map (|dx| > 840 px or |dy| > 360
-//! px), moves to the rectangle of ±484 × ±244 px on the opposite side of that centre, scaled along its own direction and clamped to the map, at most 16 a tick,
+//! px), moves to the rectangle of ±484 × ±244 px on the opposite side of that centre (or its own
+//! side when that is off the map), scaled along its own direction and clamped to the map, at most 16 a tick,
 //! in entity-ID order; and `Load` counts the relocations and the spawns the caps refused.
 
 use crate::common;
@@ -162,12 +163,13 @@ fn landing_on_the_horizontal_sides_truncates_toward_zero() {
 }
 
 #[test]
-fn a_relocation_near_the_map_edge_lands_on_the_map() {
-    // The centre is (3580, 2000): the enemy is 841 px to its left, lands at 3580 + 484 = 4064
-    // and is clamped to the map's right border.
-    assert_eq!(lands(3900, 2000, 2739, 2000), (4000 * PX, 2000 * PX));
-    // The centre is (2000, 3820): 361 px above it, the landing 3820 + 244 = 4064 is clamped.
-    assert_eq!(lands(2000, 3900, 2000, 3459), (2000 * PX, 4000 * PX));
+fn a_relocation_near_the_map_edge_lands_outside_the_view() {
+    // The centre is (3580, 2000): the enemy is 850 px to its left; the mirrored side (4064)
+    // is off the map, so it falls back to the left side at 3580 - 484 = 3096 (outside the view).
+    assert_eq!(lands(3970, 2000, 2730, 2000), (3096 * PX, 2000 * PX));
+    // The centre is (2000, 3820): 361 px above it, the mirrored side (4064) is off the map,
+    // so it falls back to the top side at 3820 - 244 = 3576 (outside the view).
+    assert_eq!(lands(2000, 3900, 2000, 3459), (2000 * PX, 3576 * PX));
 }
 
 #[test]
@@ -491,4 +493,74 @@ fn a_regular_enemys_summons_and_a_still_enemy_are_relocated() {
 
     let mut e = engine(&stage_at(2000, vec![still(3000)], vec![], None));
     assert_eq!(run_relocating(&mut e, 1, idle()), vec![EntityId(1)]);
+}
+
+#[test]
+fn the_leash_falls_back_to_the_opposite_side_when_the_mirrored_side_is_off_the_map() {
+    // (a) Worked points from the plan:
+    // Row A: Tasks#215 example (right edge)
+    assert_eq!(lands(3970, 2000, 2730, 2000), (792_576, 512_000));
+    // Row B: Bottom-right corner (vertical branch)
+    assert_eq!(lands(3970, 3970, 2700, 3500), (792_576, 932_864));
+    // Row C: Top-left corner (horizontal branch)
+    assert_eq!(lands(30, 30, 1400, 980), (184_038, 108_544));
+
+    // Symmetries:
+    // Left edge (symmetric to A)
+    assert_eq!(lands(30, 2000, 1270, 2000), (231_424, 512_000));
+    // Top edge
+    assert_eq!(lands(2000, 30, 2000, 550), (512_000, 108_544));
+    // Bottom edge
+    assert_eq!(lands(2000, 3970, 2000, 3450), (512_000, 915_456));
+    // Bottom-left corner (symmetric to B)
+    assert_eq!(lands(30, 3970, 1300, 3500), (231_424, 932_864));
+    // Top-right corner (symmetric to C)
+    assert_eq!(lands(3970, 30, 2600, 980), (839_962, 108_544));
+}
+
+#[test]
+fn the_land_point_is_not_inside_the_view_near_an_edge_or_corner() {
+    // (b) Property test: for players near edges/corners and in the open,
+    // enemies relocated by the leash must land outside the view rectangle
+    // and within the map bounds.
+    let px_vals = [30, 200, 420, 500, 2000, 3500, 3580, 3800, 3970];
+    let py_vals = [30, 180, 200, 500, 2000, 3500, 3800, 3820, 3970];
+    let directions = [
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -1),
+        (1, 1),
+        (-1, 1),
+        (1, -1),
+        (-1, -1),
+    ];
+    let distances = [850, 950, 1100, 1200];
+
+    for &px in &px_vals {
+        for &py in &py_vals {
+            let cx = px.clamp(420, 4000 - 420);
+            let cy = py.clamp(180, 4000 - 180);
+            for &(dx_dir, dy_dir) in &directions {
+                for &dist in &distances {
+                    let ex = cx + dx_dir * dist;
+                    let ey = cy + dy_dir * dist;
+                    if !(0..=4000).contains(&ex) || !(0..=4000).contains(&ey) {
+                        continue;
+                    }
+                    let (lx, ly) = lands(px, py, ex, ey);
+                    assert!(
+                        (0..=4000 * PX).contains(&lx) && (0..=4000 * PX).contains(&ly),
+                        "land ({lx}, {ly}) must be on the map for player ({px}, {py}), enemy ({ex}, {ey})"
+                    );
+                    let outside_view_x = (lx - cx * PX).abs() > 420 * PX;
+                    let outside_view_y = (ly - cy * PX).abs() > 180 * PX;
+                    assert!(
+                        outside_view_x || outside_view_y,
+                        "land ({lx}, {ly}) inside view of centre ({cx}, {cy}) for player ({px}, {py}), enemy ({ex}, {ey})"
+                    );
+                }
+            }
+        }
+    }
 }
