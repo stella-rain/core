@@ -8,8 +8,6 @@
 //!
 //! Asset sources (ADR-027) join the entries when real assets exist.
 
-use crate::validate::limits;
-
 /// What an ID names. An ID is only valid where its kind is expected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -77,20 +75,24 @@ const fn preset(id: &'static str, bounds: &'static [ArgBound]) -> Entry {
         bounds.len() <= u8::MAX as usize,
         "too many arguments for u8 arity"
     );
+    #[allow(clippy::cast_possible_truncation)]
+    let args = bounds.len() as u8;
     Entry {
         id,
         kind: Kind::Preset,
         introduced: 1,
         availability: Availability::Active,
-        args: bounds.len() as u8,
+        args,
         arg_bounds: bounds,
     }
 }
 
+pub const MAX_WIND_UP: i32 = 600;
+
 const WIND_UP_BOUNDS: &[ArgBound] = &[ArgBound {
     name: "wind_up_ticks",
     min: 0,
-    max: limits::MAX_ZONE_TICKS as i32,
+    max: MAX_WIND_UP,
 }];
 
 /// Sorted by kind, then ID, with no duplicates (`tests/registry.rs`).

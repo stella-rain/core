@@ -151,6 +151,10 @@ fn preset_arguments_have_valid_bounds() {
     }
 
     assert_eq!(MAX_ZONE_TICKS, 600);
+    assert_eq!(
+        stella_rain_core::registry::MAX_WIND_UP,
+        i32::try_from(MAX_ZONE_TICKS).unwrap()
+    );
     for id in ["aimed_single", "aimed_spread", "spiral"] {
         let e = find(ENTRIES, Kind::Preset, id).unwrap_or_else(|| panic!("{id}"));
         assert_eq!(e.arg_bounds.len(), 1, "{id}");
