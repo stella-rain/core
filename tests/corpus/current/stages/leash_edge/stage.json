@@ -1,0 +1,115 @@
+{
+  "boss": {
+    "base": "golem",
+    "hp": 100000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [],
+        "transition": []
+      }
+    ],
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "companions": [],
+  "description": "",
+  "id": "test",
+  "length_ticks": 600,
+  "map": {
+    "height": 262144,
+    "start": {
+      "x": 512000,
+      "y": 131072
+    },
+    "width": 524288
+  },
+  "player": {
+    "atk": 1000,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 9900,
+    "weapon": {
+      "inline": {
+        "assist_range": 0,
+        "combo": {},
+        "window_ticks": 0
+      }
+    }
+  },
+  "schema_version": 1,
+  "seed": 7,
+  "sim_version": 1,
+  "title": "Test",
+  "waves": [
+    {
+      "at_tick": 5,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 3000,
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 0
+        },
+        "radius": 2048,
+        "rules": []
+      },
+      "every_ticks": 1,
+      "spawn": {
+        "x": 179200,
+        "y": 131072
+      }
+    },
+    {
+      "at_tick": 215,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 3000,
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 0
+        },
+        "radius": 2048,
+        "rules": []
+      },
+      "every_ticks": 1,
+      "spawn": {
+        "x": 230400,
+        "y": 25600
+      }
+    },
+    {
+      "at_tick": 225,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 3000,
+        "movement": {
+          "type": "straight",
+          "vx": 0,
+          "vy": 0
+        },
+        "radius": 2048,
+        "rules": []
+      },
+      "every_ticks": 1,
+      "spawn": {
+        "x": 179200,
+        "y": 179200
+      }
+    }
+  ]
+}

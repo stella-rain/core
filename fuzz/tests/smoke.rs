@@ -116,9 +116,9 @@ fn the_smoke_corpus_has_every_case() {
             .filter(|e| e.as_ref().unwrap().path().is_dir())
             .count()
     };
-    assert_eq!(count("stages"), 15);
+    assert_eq!(count("stages"), 16);
     assert_eq!(count("runs"), 9);
-    assert_eq!(corpus().len(), 15);
+    assert_eq!(corpus().len(), 16);
     assert_eq!(run_replays().len(), 5);
 }
 

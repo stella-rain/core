@@ -1239,6 +1239,43 @@ fn landscape() -> Definition {
     ("landscape", bytes(&stage), inputs)
 }
 
+/// A stage case where the leash moves enemies when the main character stands at the right edge
+/// and then in the bottom-right corner of the map, so the mirrored side of the land rectangle is
+/// off the map each time. LEASH-OFFMAP's rule lands them on the opposite side (the enemy's own
+/// side of the view centre), outside the view.
+fn leash_edge() -> Definition {
+    let (width, height) = (524_288, 262_144);
+    let still = enemy(
+        30,
+        json!({ "type": "straight", "vx": 0, "vy": 0 }),
+        json!([]),
+    );
+    let mut stage = serde_json::to_value(quiet(stage_full(
+        600,
+        Some(far_boss()),
+        vec![
+            wave(5, 1, 1, still.clone(), 700 * 256, 512 * 256),
+            wave(215, 1, 1, still.clone(), 900 * 256, 100 * 256),
+            wave(225, 1, 1, still, 700 * 256, 700 * 256),
+        ],
+        vec![],
+    )))
+    .unwrap();
+    stage["map"] = json!({
+        "width": width,
+        "height": height,
+        "start": { "x": 2000 * 256, "y": 512 * 256 }
+    });
+    let inputs = (0..300)
+        .map(|t| match t {
+            0..40 => common::idle(),
+            40..210 => moving(0, 127),
+            _ => common::idle(),
+        })
+        .collect();
+    ("leash_edge", bytes(&stage), inputs)
+}
+
 /// A stage that runs out of ticks with the boss standing.
 fn timeout() -> Definition {
     let stage = stage_with(90, Some(far_boss()), vec![]);
@@ -1324,6 +1361,7 @@ pub(crate) fn definitions() -> Vec<Definition> {
         evade_charges(),
         fail(),
         landscape(),
+        leash_edge(),
         melee(),
         orbs(),
         orb_cage(),
@@ -2444,4 +2482,132 @@ fn the_warn_anchor_case_is_what_its_name_says() {
     assert!(warnings >= 1, "a warning lane is laid");
     assert!(beams >= 4, "the cage is linked: {beams} beams");
     assert!(hits >= 1, "the body hit lands after the warning");
+}
+
+/// The leash_edge stage case: three enemies relocated near the right edge and bottom-right corner,
+/// proving that the leash lands on the opposite side (outside the view) when the mirrored side
+/// is off the map (tasks#216, core#477).
+#[test]
+fn the_leash_edge_case_is_what_its_name_says() {
+    let case = corpus_dir().join("leash_edge");
+    let stage_bytes = fs::read(case.join("stage.json")).unwrap();
+    let recorded_bytes = fs::read(case.join("run.replay")).unwrap();
+    let stage = parse_and_validate(&stage_bytes).unwrap();
+    let recorded = Replay::from_bytes(&recorded_bytes).unwrap();
+    let mut engine = Engine::new(&stage).unwrap();
+
+    const PX: i64 = 256;
+    const VIEW_HALF_X: i64 = 420 * PX; // rules.json / view half width
+    const VIEW_HALF_Y: i64 = 180 * PX; // rules.json / view half height
+    const LAND_HALF_X: i64 = 484 * PX; // rules.json / land rectangle half width
+    const LAND_HALF_Y: i64 = 244 * PX; // rules.json / land rectangle half height
+
+    let map_w = i64::from(stage.map.as_ref().unwrap().width.0);
+    let map_h = i64::from(stage.map.as_ref().unwrap().height.0);
+
+    let mut total_relocations = 0;
+    let mut relocated_entities = Vec::new();
+
+    let inputs = recorded.unpack_inputs(stage.length_ticks).unwrap();
+    assert_eq!(inputs.len(), 300);
+
+    for input in inputs {
+        engine.step(input);
+        let tick = engine.snapshot().tick;
+
+        let events = engine.events();
+        for ev in events {
+            if let DomainEvent::EnemyRelocated { entity } = ev {
+                total_relocations += 1;
+                relocated_entities.push((*entity, tick));
+
+                let snapshot = engine.snapshot();
+                let px = i64::from(snapshot.player.at.x.0);
+                let py = i64::from(snapshot.player.at.y.0);
+
+                // View centre held 420 / 180 inside map
+                let cx = px.clamp(VIEW_HALF_X, map_w - VIEW_HALF_X);
+                let cy = py.clamp(VIEW_HALF_Y, map_h - VIEW_HALF_Y);
+
+                // Wave spawn position for this entity
+                let wave = stage
+                    .waves
+                    .iter()
+                    .find(|w| w.at_tick == tick)
+                    .unwrap_or_else(|| panic!("no wave at tick {tick}"));
+                let spawn_pt = wave.spawn.unwrap();
+                let ex = i64::from(spawn_pt.x.0);
+                let ey = i64::from(spawn_pt.y.0);
+
+                let dx = ex - cx;
+                let dy = ey - cy;
+                let (ax, ay) = (dx.abs(), dy.abs());
+
+                // (b) Mirrored side's fixed coordinate is off the map
+                let is_vertical = LAND_HALF_X * ay <= LAND_HALF_Y * ax;
+                if is_vertical {
+                    let mirrored_x = if dx < 0 {
+                        cx + LAND_HALF_X
+                    } else {
+                        cx - LAND_HALF_X
+                    };
+                    assert!(
+                        mirrored_x < 0 || mirrored_x > map_w,
+                        "mirrored x {mirrored_x} must be off map (0..={map_w})"
+                    );
+                } else {
+                    let mirrored_y = if dy < 0 {
+                        cy + LAND_HALF_Y
+                    } else {
+                        cy - LAND_HALF_Y
+                    };
+                    assert!(
+                        mirrored_y < 0 || mirrored_y > map_h,
+                        "mirrored y {mirrored_y} must be off map (0..={map_h})"
+                    );
+                }
+
+                // (c) Clamped mirrored point (what the old rule gave) is inside the view
+                let (ox, oy) = if is_vertical {
+                    (-dx.signum() * LAND_HALF_X, -dy * LAND_HALF_X / ax)
+                } else {
+                    (-dx * LAND_HALF_Y / ay, -dy.signum() * LAND_HALF_Y)
+                };
+                let old_x = (cx + ox).clamp(0, map_w);
+                let old_y = (cy + oy).clamp(0, map_h);
+                assert!(
+                    (old_x - cx).abs() <= VIEW_HALF_X && (old_y - cy).abs() <= VIEW_HALF_Y,
+                    "old clamped point ({old_x}, {old_y}) must be inside view of centre ({cx}, {cy})"
+                );
+
+                // (d) Landed position in snapshot is on the map and outside the view
+                let entity_snapshot = snapshot
+                    .entities
+                    .iter()
+                    .find(|e| e.id == *entity)
+                    .unwrap_or_else(|| panic!("no entity {entity:?} in snapshot"));
+                let lx = i64::from(entity_snapshot.at.x.0);
+                let ly = i64::from(entity_snapshot.at.y.0);
+                assert!(
+                    lx >= 0 && lx <= map_w && ly >= 0 && ly <= map_h,
+                    "landed position ({lx}, {ly}) must be on the map"
+                );
+                let outside_view = (lx - cx).abs() > VIEW_HALF_X || (ly - cy).abs() > VIEW_HALF_Y;
+                assert!(
+                    outside_view,
+                    "landed position ({lx}, {ly}) must be outside the view of centre ({cx}, {cy})"
+                );
+            }
+        }
+    }
+
+    // (a) exactly 3 events in all 300 ticks
+    assert_eq!(total_relocations, 3, "exactly 3 relocations in 300 ticks");
+
+    // (e) the three entities are relocated once each
+    assert_eq!(
+        relocated_entities,
+        vec![(EntityId(2), 5), (EntityId(3), 215), (EntityId(4), 225),],
+        "entities 2, 3, 4 are relocated once each on their ticks"
+    );
 }
