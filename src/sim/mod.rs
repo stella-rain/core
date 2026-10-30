@@ -127,6 +127,7 @@ mod spawn_edge_tests;
 mod stardust;
 mod stars;
 pub(crate) mod state;
+mod state_codec;
 mod state_hash;
 mod stun;
 mod zones;

@@ -20,7 +20,7 @@ use crate::version::Versions;
 
 /// Changes a value to another one of its type, so that its owner's hash has to move if the
 /// field holding it is hashed.
-trait Perturb {
+pub(super) trait Perturb {
     fn perturb(&mut self);
 }
 
@@ -674,7 +674,7 @@ fn player(p: &mut PlayerState) {
 }
 
 /// A state with every list non-empty and every `Option` `Some`, to perturb field by field.
-fn full_state(e: &Engine) -> State {
+pub(super) fn full_state(e: &Engine) -> State {
     let mut s = e.state.clone();
     player(&mut s.player);
     s.boss = Some(boss());
@@ -714,7 +714,7 @@ fn full_state(e: &Engine) -> State {
     s
 }
 
-fn engine() -> Engine {
+pub(super) fn engine() -> Engine {
     let mut v: serde_json::Value =
         serde_json::from_slice(ContentFiles::bundled_file("time_limit")).unwrap();
     v["waves"] = serde_json::json!([]);

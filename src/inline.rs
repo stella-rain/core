@@ -11,6 +11,14 @@ pub(crate) struct InlineVec<T, const N: usize> {
     len: u8,
 }
 
+/// Compares the live items only: the unused places keep what `pop` and `remove` left there.
+#[cfg(test)]
+impl<T: PartialEq, const N: usize> PartialEq for InlineVec<T, N> {
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
 impl<T: Copy + Default, const N: usize> Default for InlineVec<T, N> {
     fn default() -> Self {
         InlineVec::new()
