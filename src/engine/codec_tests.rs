@@ -8,7 +8,11 @@ use super::hash_coverage_tests::{Perturb, engine, full_state};
 use super::*;
 use crate::fixed::{Fx, Point};
 use crate::hash::{StableHash, StateHasher};
+use crate::id::ContentId;
 use crate::id::EntityId;
+use crate::kinds::KindTable;
+use crate::rewards::Rarity;
+use crate::run_stats::StunRules;
 use crate::savepoint::testing::{from_bytes, round_trip, to_bytes};
 use crate::savepoint::{Decode, DecodeError, Encode};
 use std::fmt::Debug;
@@ -44,15 +48,18 @@ fn never_panics<T: Encode + Decode>(v: &T) {
 }
 
 /// One state type: `get` finds a value of it in the base state, and every field of it, listed,
-/// must change the bytes when perturbed.
+/// must change the bytes when perturbed. A field in `rebuilt` is not saved (it comes from the
+/// fresh engine or is derived): perturbing it must leave the bytes as they are. Every field is
+/// in one of the lists, or the invocation does not compile.
 macro_rules! each_field_moves_the_encoding {
     (
         $failures:ident, $base:ident, $ty:ident, $get:expr,
-        fields: [$($f:ident),* $(,)?] $(,)?
+        fields: [$($f:ident),* $(,)?]
+        $(, rebuilt: [$($r:ident),* $(,)?])? $(,)?
     ) => {{
         #[allow(dead_code, unused_variables)]
         fn all_listed(t: &$ty) {
-            let $ty { $($f: _,)* } = t;
+            let $ty { $($f: _,)* $($($r: _,)*)? } = t;
         }
         let get: fn(&mut State) -> &mut $ty = $get;
         let base_bytes = to_bytes(get(&mut $base.clone()));
@@ -67,6 +74,17 @@ macro_rules! each_field_moves_the_encoding {
                 ));
             }
         )*
+        $($(
+            let mut s = $base.clone();
+            Perturb::perturb(&mut get(&mut s).$r);
+            if to_bytes(get(&mut s)) != base_bytes {
+                $failures.push(format!(
+                    "{}.{} is listed as rebuilt but moves the encoding",
+                    stringify!($ty),
+                    stringify!($r)
+                ));
+            }
+        )*)?
     }};
 }
 
@@ -413,4 +431,251 @@ fn the_values_of_a_live_run_round_trip_at_every_tick() {
     }
     println!("seen: agents, bosses, tasks, runs, orbs, zones, echoes = {seen:?}");
     assert!(seen[0] > 0, "the run holds agents");
+}
+
+#[test]
+fn the_player_side_types_of_the_full_state_round_trip() {
+    let s = base();
+    let p = &s.player;
+    round_trip_hashed(p);
+    round_trip_hashed(&p.combo);
+    round_trip_hashed(p.dash.as_ref().unwrap());
+    round_trip_hashed(p.skill.as_ref().unwrap());
+    round_trip_hashed(p.pull.as_ref().unwrap());
+    round_trip_hashed(p.shield.as_ref().unwrap());
+    round_trip_hashed(&p.orbits[0]);
+    round_trip_hashed(&p.runes[0]);
+    never_panics(p);
+}
+
+#[test]
+fn the_combo_and_the_dash_have_their_layout() {
+    let combo = ComboState {
+        path: 5,
+        depth: 2,
+        dash: true,
+        buffered: Some(true),
+        running: false,
+        window_left: 7,
+        dash_strike_left: 8,
+        charge: Some(3),
+        hold: None,
+        released: true,
+        hand: false,
+        auto_path: 9,
+        auto_depth: 1,
+        levels: 10,
+        auto_levels: 11,
+        charge_auto: true,
+    };
+    assert_eq!(
+        to_bytes(&combo),
+        [
+            5, 0, 0, 0, 2, 1, 1, 1, 0, 7, 0, 0, 0, 8, 0, 0, 0, 1, 3, 0, 0, 0, 0, 1, 0, 9, 0, 0, 0,
+            1, 10, 0, 0, 0, 11, 0, 0, 0, 1
+        ]
+    );
+    let dash = DashState {
+        dir: Dir { x: 3, y: -4 },
+        done: 2,
+        left: 1,
+    };
+    assert_eq!(
+        to_bytes(&dash),
+        [3, 0, 0, 0, 0xfc, 0xff, 0xff, 0xff, 2, 0, 0, 0, 1, 0, 0, 0]
+    );
+    round_trip(&combo);
+    round_trip(&dash);
+}
+
+#[test]
+fn a_player_list_past_its_cap_is_refused() {
+    // The most the evade can recover at once, the orbits and the runes a run can hold.
+    let mut p = base().player;
+    p.evade_recovering = vec![1; 4];
+    assert_eq!(
+        from_bytes::<PlayerState>(&to_bytes(&p)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+    let mut p = base().player;
+    p.orbits = vec![p.orbits[0]; 5];
+    assert_eq!(
+        from_bytes::<PlayerState>(&to_bytes(&p)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+    let mut p = base().player;
+    p.runes = vec![p.runes[0]; 8];
+    assert_eq!(
+        from_bytes::<PlayerState>(&to_bytes(&p)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+}
+
+#[test]
+fn the_progression_types_of_the_full_state_round_trip() {
+    let s = base();
+    // `stats` and the horde's times are content, left empty by the decode: the originals are
+    // put back before the comparison, as `decode_state` does.
+    let p = s.progress.as_ref().unwrap();
+    let mut back: Progress = from_bytes(&to_bytes(p)).unwrap();
+    assert!(back.stats.is_empty());
+    back.stats = p.stats.clone();
+    assert_eq!(&back, p);
+    assert_eq!(hash_of(&back), hash_of(p));
+    let h = s.horde.as_ref().unwrap();
+    let mut back: Horde = from_bytes(&to_bytes(h)).unwrap();
+    assert!(back.boss_ticks.is_empty() && back.no_call_ticks.is_empty());
+    assert!(back.mid_boss_hp_pct.is_empty());
+    (back.boss_ticks, back.no_call_ticks, back.mid_boss_hp_pct) = (
+        h.boss_ticks.clone(),
+        h.no_call_ticks.clone(),
+        h.mid_boss_hp_pct.clone(),
+    );
+    assert_eq!(&back, h);
+    assert_eq!(hash_of(&back), hash_of(h));
+
+    let f = s.stars.as_ref().unwrap();
+    round_trip_hashed(f);
+    round_trip_hashed(&f.on_map[0]);
+    round_trip_hashed(&f.due[0]);
+    round_trip_hashed(f.offer.as_ref().unwrap());
+    round_trip_hashed(&s.heal_pickups.as_ref().unwrap()[0]);
+    let g = s.expertise.as_ref().unwrap();
+    round_trip_hashed(g);
+    round_trip_hashed(g.offer.as_ref().unwrap());
+    never_panics(f);
+    never_panics(g);
+}
+
+#[test]
+fn the_star_field_has_its_layout_and_its_caps() {
+    let mut f = base().stars.unwrap();
+    f.on_map.clear();
+    f.due.clear();
+    f.offer = None;
+    f.pool.clear();
+    f.taken.clear();
+    f.banished.clear();
+    f.set_counts.clear();
+    f.misses = 1;
+    f.rerolls_left = 2;
+    f.banishes_left = 3;
+    f.extra_candidates = 4;
+    f.rarity = (Rarity::Uncommon, Rarity::Epic);
+    f.rune_pool = 5;
+    assert_eq!(
+        to_bytes(&f),
+        [
+            1, 0, 0, 0, // misses
+            0, 0, 0, 0, // on_map
+            0, 0, 0, 0, // due
+            0, // offer
+            2, 0, 0, 0, 3, 0, 0, 0, // rerolls_left, banishes_left
+            4, // extra_candidates
+            1, 3, // rarity
+            5, // rune_pool
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, // pool, taken, banished, set_counts
+        ]
+    );
+    round_trip(&f);
+    let mut f = base().stars.unwrap();
+    f.on_map = vec![f.on_map[0]; 65];
+    assert_eq!(
+        from_bytes::<StarField>(&to_bytes(&f)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+    let mut f = base().stars.unwrap();
+    f.pool = vec![0; 193];
+    assert_eq!(
+        from_bytes::<StarField>(&to_bytes(&f)),
+        Err(DecodeError::Invalid("list too long"))
+    );
+}
+
+// ---- The perturbation of the types the hash test does not cover ----
+
+impl Perturb for StunRules {
+    fn perturb(&mut self) {
+        self.immune_ticks.perturb();
+    }
+}
+
+impl Perturb for KindTable {
+    fn perturb(&mut self) {
+        let ids: Vec<ContentId> = self
+            .ids()
+            .iter()
+            .cloned()
+            .chain([ContentId::from("zz_other")])
+            .collect();
+        *self = KindTable::from_ids(&ids, crate::kinds::MAX_KINDS).unwrap();
+    }
+}
+
+/// The scratch buffers, the match-up table and the runes have no way to change one number from
+/// here; they are content or buffers (`decode_state` takes them from the fresh engine, and the
+/// corpus test compares them), so their perturbation is no change, and listing them under
+/// `rebuilt` is the compile-time half of the check.
+impl Perturb for crate::sim::Scratch {
+    fn perturb(&mut self) {}
+}
+
+impl Perturb for crate::match_ups::MatchUps {
+    fn perturb(&mut self) {}
+}
+
+impl Perturb for crate::runes::Runes {
+    fn perturb(&mut self) {}
+}
+
+#[test]
+fn every_saved_field_of_the_state_moves_the_encoding() {
+    let base = base();
+    let mut failures: Vec<String> = Vec::new();
+    each_field_moves_the_encoding!(failures, base, State, |s| s,
+        fields: [tick, rng, outcome, player, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, progress, stars, heal_pickups, expertise, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, stardust, regen, hp_pct, damage_pct, crit_seed, echoes],
+        rebuilt: [scratch, kinds, move_index, match_ups, runes, stun]);
+    each_field_moves_the_encoding!(failures, base, PlayerState, |s| &mut s.player,
+        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses]);
+    each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.player.combo,
+        fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
+    each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.player.skill.as_mut().unwrap(),
+        fields: [index, level, cooldown_left]);
+    each_field_moves_the_encoding!(failures, base, OrbitState, |s| &mut s.player.orbits[0],
+        fields: [reward, orbs, round, cooldown_left, angle]);
+    each_field_moves_the_encoding!(failures, base, HeldRune, |s| &mut s.player.runes[0],
+        fields: [rune, cooldown_left]);
+    each_field_moves_the_encoding!(failures, base, PullState, |s| s.player.pull.as_mut().unwrap(),
+        fields: [at, radius, strength, ticks_left]);
+    each_field_moves_the_encoding!(failures, base, ShieldState, |s| s.player.shield.as_mut().unwrap(),
+        fields: [amount, ticks_left]);
+    each_field_moves_the_encoding!(failures, base, DashState, |s| s.player.dash.as_mut().unwrap(),
+        fields: [dir, done, left]);
+    each_field_moves_the_encoding!(failures, base, Progress, |s| s.progress.as_mut().unwrap(),
+        fields: [level, xp, priority, pick_stats, offers_due, offer_open, spent, totals],
+        rebuilt: [stats]);
+    each_field_moves_the_encoding!(failures, base, StarField, |s| s.stars.as_mut().unwrap(),
+        fields: [misses, on_map, due, offer, rerolls_left, banishes_left, extra_candidates, rarity, rune_pool, pool, taken, banished, set_counts]);
+    each_field_moves_the_encoding!(failures, base, StarState, |s| &mut s.stars.as_mut().unwrap().on_map[0],
+        fields: [id, at, rarity]);
+    each_field_moves_the_encoding!(failures, base, Due, |s| &mut s.stars.as_mut().unwrap().due[0],
+        fields: [kind, rarity]);
+    each_field_moves_the_encoding!(failures, base, OfferState, |s| s.stars.as_mut().unwrap().offer.as_mut().unwrap(),
+        fields: [kind, rarity, candidates]);
+    each_field_moves_the_encoding!(failures, base, HealPickup, |s| &mut s.heal_pickups.as_mut().unwrap()[0],
+        fields: [id, at]);
+    each_field_moves_the_encoding!(failures, base, ExpertiseGauge, |s| s.expertise.as_mut().unwrap(),
+        fields: [level, points, next, offered, offer, taken, range_pct, style, path]);
+    each_field_moves_the_encoding!(failures, base, ExpertiseOffer, |s| s.expertise.as_mut().unwrap().offer.as_mut().unwrap(),
+        fields: [level, kind, candidates]);
+    each_field_moves_the_encoding!(failures, base, Horde, |s| s.horde.as_mut().unwrap(),
+        fields: [spawned, used, held],
+        rebuilt: [boss_ticks, no_call_ticks, mid_boss_hp_pct]);
+    assert!(
+        failures.is_empty(),
+        "{} fields:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }

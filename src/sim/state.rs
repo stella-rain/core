@@ -157,6 +157,7 @@ pub(crate) struct Echo {
 /// How far a `time_limit` run's bosses have come (core#212): the times, and which pool entries
 /// are used up. What the bosses are is `World::horde` and `World::bosses`, fixed for the run.
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Horde {
     pub boss_ticks: Vec<u32>,
     /// The boss times at which the boss calls no elites (core#336).
@@ -212,6 +213,7 @@ pub(crate) struct ExpertiseOffer {
 /// Falling stars, the offers due and the open one, and what the run's offers have used
 /// (ADR-079 §2, §3).
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StarField {
     /// Kills in a row that dropped no star, for the pity.
     pub misses: u32,
@@ -244,12 +246,14 @@ pub(crate) struct StarField {
 
 /// A heal pickup on the map.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct HealPickup {
     pub id: EntityId,
     pub at: Point,
 }
 
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StarState {
     pub id: EntityId,
     pub at: Point,
@@ -258,12 +262,14 @@ pub(crate) struct StarState {
 
 /// An offer due: what opens it, and the highest rarity a candidate may have.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Due {
     pub kind: OfferKind,
     pub rarity: Rarity,
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct OfferState {
     pub kind: OfferKind,
     /// The highest rarity a candidate may have: the star's, or the top of the boss offer's tier.
@@ -274,6 +280,7 @@ pub(crate) struct OfferState {
 
 /// What a run stat does, from the run stats file.
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StatRule {
     pub id: ContentId,
     pub effect: StatEffect,
@@ -283,6 +290,7 @@ pub(crate) struct StatRule {
 
 /// Experience, levels and stat points (ADR-079 §2, §4; DS18).
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Progress {
     /// From 1.
     pub level: u32,
@@ -306,6 +314,7 @@ pub(crate) struct Progress {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct PlayerState {
     pub at: Point,
     pub hp: u32,
@@ -396,6 +405,7 @@ impl PlayerState {
 
 /// Where the main character is in its Main weapon's combo tree (ADR-070, ADR-076).
 #[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct ComboState {
     /// The presses from the root to the current step, the first in bit 0: 1 for `smash`.
     pub path: u32,
@@ -491,6 +501,7 @@ pub(crate) struct HeldRune {
 /// A pull pulling: its point, radius and strength (fixed-point units), and the ticks left, at
 /// least 1.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct PullState {
     pub at: Point,
     pub radius: i32,
@@ -500,6 +511,7 @@ pub(crate) struct PullState {
 
 /// A shield: the damage it still absorbs, at least 1, and the ticks left, at least 1.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct ShieldState {
     pub amount: u32,
     pub ticks_left: u32,
@@ -507,6 +519,7 @@ pub(crate) struct ShieldState {
 
 /// An evade's dash: locked to its direction, `done` of its ticks moved, `left` to go.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct DashState {
     pub dir: Dir,
     pub done: u32,

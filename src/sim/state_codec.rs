@@ -12,6 +12,11 @@ use crate::savepoint::codec::{
 };
 
 use super::state::*;
+use super::world::RangedPool;
+use crate::engine::Outcome;
+use crate::rewards::Rarity;
+use crate::rune::Rune;
+use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 
 // ---- Attacks, orbs and zones ----
 
@@ -1018,5 +1023,899 @@ impl Decode for Streams {
             offer: Decode::decode(r)?,
             horde: Decode::decode(r)?,
         })
+    }
+}
+
+// ---- Enums of the state ----
+
+/// A fieldless enum: a literal tag per variant, the numbers its `StableHash` writes, and no
+/// wildcard arm, so a variant added without a number does not compile.
+macro_rules! enum_codec {
+    ($($ty:ty, $what:literal: { $($variant:path => $tag:literal),* $(,)? });* $(;)?) => {$(
+        impl Encode for $ty {
+            fn encode(&self, w: &mut Writer) {
+                w.u8(match self {
+                    $($variant => $tag,)*
+                });
+            }
+        }
+
+        impl Decode for $ty {
+            fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+                match r.u8()? {
+                    $($tag => Ok($variant),)*
+                    _ => Err(DecodeError::Invalid($what)),
+                }
+            }
+        }
+    )*};
+}
+
+enum_codec! {
+    Outcome, "outcome tag": {
+        Outcome::Running => 0,
+        Outcome::Cleared => 1,
+        Outcome::Failed => 2,
+    };
+    Rarity, "rarity tag": {
+        Rarity::Common => 0,
+        Rarity::Uncommon => 1,
+        Rarity::Rare => 2,
+        Rarity::Epic => 3,
+        Rarity::Legendary => 4,
+        Rarity::Supernova => 5,
+    };
+    OfferKind, "offer kind tag": {
+        OfferKind::Star => 0,
+        OfferKind::Boss => 1,
+    };
+    ExpertiseOfferKind, "expertise offer kind tag": {
+        ExpertiseOfferKind::Common => 0,
+        ExpertiseOfferKind::Style => 1,
+        ExpertiseOfferKind::Upgrade => 2,
+        ExpertiseOfferKind::Capstone => 3,
+    };
+    Rune, "rune tag": {
+        Rune::Explosion => 0,
+        Rune::Thunder => 1,
+        Rune::Boomerang => 2,
+        Rune::HomingMissiles => 3,
+        Rune::Bleed => 4,
+        Rune::Poison => 5,
+        Rune::Burn => 6,
+    };
+    RangedPool, "ranged pool tag": {
+        RangedPool::Zone => 0,
+        RangedPool::Line => 1,
+    };
+}
+
+// ---- The caps of the lists below ----
+
+/// A cap, from the constant that bounds the list in play.
+fn cap_u32(n: usize) -> u32 {
+    u32::try_from(n).expect("a small cap")
+}
+
+/// The most places a list of `u8` places into a content file holds.
+const MAX_PLACES: u32 = 256;
+
+/// The runs one attacker can have at once: one for each `u8` slot.
+const MAX_RUN_SLOTS: u32 = 256;
+
+/// The cap of a list whose length is the content's (waves, bosses): `decode_state` checks it
+/// against the fresh engine's, and the bytes left bound the length before that.
+const MAX_CONTENT_LEN: u32 = 1 << 16;
+
+// ---- The player ----
+
+impl Encode for PlayerState {
+    fn encode(&self, w: &mut Writer) {
+        let PlayerState {
+            at,
+            hp,
+            max_hp,
+            defence,
+            invulnerable,
+            facing,
+            target,
+            evade_charges,
+            evade_recovering,
+            held,
+            combo,
+            dash,
+            skill,
+            pull,
+            shield,
+            orbits,
+            range_pct,
+            rune_haste_pct,
+            pickup_radius_pct,
+            skill_cooldown_pct,
+            kill_heal,
+            kill_heal_every,
+            kills_counted,
+            crit_chance_pct,
+            crit_damage_pct,
+            echo_hit_pct,
+            burst_pct,
+            burst_radius,
+            burst_depth,
+            burst_depth_extra,
+            type_bonus_pct,
+            runes,
+            aggro,
+            statuses,
+        } = self;
+        at.encode(w);
+        hp.encode(w);
+        max_hp.encode(w);
+        defence.encode(w);
+        invulnerable.encode(w);
+        facing.encode(w);
+        target.encode(w);
+        evade_charges.encode(w);
+        evade_recovering.encode(w);
+        held.encode(w);
+        combo.encode(w);
+        dash.encode(w);
+        skill.encode(w);
+        pull.encode(w);
+        shield.encode(w);
+        orbits.encode(w);
+        range_pct.encode(w);
+        rune_haste_pct.encode(w);
+        pickup_radius_pct.encode(w);
+        skill_cooldown_pct.encode(w);
+        kill_heal.encode(w);
+        kill_heal_every.encode(w);
+        kills_counted.encode(w);
+        crit_chance_pct.encode(w);
+        crit_damage_pct.encode(w);
+        echo_hit_pct.encode(w);
+        burst_pct.encode(w);
+        burst_radius.encode(w);
+        burst_depth.encode(w);
+        burst_depth_extra.encode(w);
+        type_bonus_pct.encode(w);
+        runes.encode(w);
+        aggro.encode(w);
+        statuses.encode(w);
+    }
+}
+
+impl Decode for PlayerState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(PlayerState {
+            at: Decode::decode(r)?,
+            hp: Decode::decode(r)?,
+            max_hp: Decode::decode(r)?,
+            defence: Decode::decode(r)?,
+            invulnerable: Decode::decode(r)?,
+            facing: Decode::decode(r)?,
+            target: Decode::decode(r)?,
+            evade_charges: Decode::decode(r)?,
+            evade_recovering: decode_vec(
+                r,
+                cap_u32(usize::from(crate::validate::limits::MAX_EVADE_CHARGES)),
+            )?,
+            held: Decode::decode(r)?,
+            combo: Decode::decode(r)?,
+            dash: Decode::decode(r)?,
+            skill: Decode::decode(r)?,
+            pull: Decode::decode(r)?,
+            shield: Decode::decode(r)?,
+            orbits: decode_vec(r, cap_u32(crate::rewards::MAX_ORBITS))?,
+            range_pct: Decode::decode(r)?,
+            rune_haste_pct: Decode::decode(r)?,
+            pickup_radius_pct: Decode::decode(r)?,
+            skill_cooldown_pct: Decode::decode(r)?,
+            kill_heal: Decode::decode(r)?,
+            kill_heal_every: Decode::decode(r)?,
+            kills_counted: Decode::decode(r)?,
+            crit_chance_pct: Decode::decode(r)?,
+            crit_damage_pct: Decode::decode(r)?,
+            echo_hit_pct: Decode::decode(r)?,
+            burst_pct: Decode::decode(r)?,
+            burst_radius: Decode::decode(r)?,
+            burst_depth: Decode::decode(r)?,
+            burst_depth_extra: Decode::decode(r)?,
+            type_bonus_pct: Decode::decode(r)?,
+            runes: decode_vec(r, cap_u32(crate::rune::MAX_RUNES))?,
+            aggro: Decode::decode(r)?,
+            statuses: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for ComboState {
+    fn encode(&self, w: &mut Writer) {
+        let ComboState {
+            path,
+            depth,
+            dash,
+            buffered,
+            running,
+            window_left,
+            dash_strike_left,
+            charge,
+            hold,
+            released,
+            hand,
+            auto_path,
+            auto_depth,
+            levels,
+            auto_levels,
+            charge_auto,
+        } = self;
+        path.encode(w);
+        depth.encode(w);
+        dash.encode(w);
+        buffered.encode(w);
+        running.encode(w);
+        window_left.encode(w);
+        dash_strike_left.encode(w);
+        charge.encode(w);
+        hold.encode(w);
+        released.encode(w);
+        hand.encode(w);
+        auto_path.encode(w);
+        auto_depth.encode(w);
+        levels.encode(w);
+        auto_levels.encode(w);
+        charge_auto.encode(w);
+    }
+}
+
+impl Decode for ComboState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(ComboState {
+            path: Decode::decode(r)?,
+            depth: Decode::decode(r)?,
+            dash: Decode::decode(r)?,
+            buffered: Decode::decode(r)?,
+            running: Decode::decode(r)?,
+            window_left: Decode::decode(r)?,
+            dash_strike_left: Decode::decode(r)?,
+            charge: Decode::decode(r)?,
+            hold: Decode::decode(r)?,
+            released: Decode::decode(r)?,
+            hand: Decode::decode(r)?,
+            auto_path: Decode::decode(r)?,
+            auto_depth: Decode::decode(r)?,
+            levels: Decode::decode(r)?,
+            auto_levels: Decode::decode(r)?,
+            charge_auto: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for SkillSlot {
+    fn encode(&self, w: &mut Writer) {
+        let SkillSlot {
+            index,
+            level,
+            cooldown_left,
+        } = self;
+        index.encode(w);
+        level.encode(w);
+        cooldown_left.encode(w);
+    }
+}
+
+impl Decode for SkillSlot {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(SkillSlot {
+            index: Decode::decode(r)?,
+            level: Decode::decode(r)?,
+            cooldown_left: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for OrbitState {
+    fn encode(&self, w: &mut Writer) {
+        let OrbitState {
+            reward,
+            orbs,
+            round,
+            cooldown_left,
+            angle,
+        } = self;
+        reward.encode(w);
+        orbs.encode(w);
+        round.encode(w);
+        cooldown_left.encode(w);
+        angle.encode(w);
+    }
+}
+
+impl Decode for OrbitState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(OrbitState {
+            reward: Decode::decode(r)?,
+            orbs: Decode::decode(r)?,
+            round: Decode::decode(r)?,
+            cooldown_left: Decode::decode(r)?,
+            angle: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for HeldRune {
+    fn encode(&self, w: &mut Writer) {
+        let HeldRune {
+            rune,
+            cooldown_left,
+        } = self;
+        rune.encode(w);
+        cooldown_left.encode(w);
+    }
+}
+
+impl Decode for HeldRune {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(HeldRune {
+            rune: Decode::decode(r)?,
+            cooldown_left: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for PullState {
+    fn encode(&self, w: &mut Writer) {
+        let PullState {
+            at,
+            radius,
+            strength,
+            ticks_left,
+        } = self;
+        at.encode(w);
+        radius.encode(w);
+        strength.encode(w);
+        ticks_left.encode(w);
+    }
+}
+
+impl Decode for PullState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(PullState {
+            at: Decode::decode(r)?,
+            radius: Decode::decode(r)?,
+            strength: Decode::decode(r)?,
+            ticks_left: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for ShieldState {
+    fn encode(&self, w: &mut Writer) {
+        let ShieldState { amount, ticks_left } = self;
+        amount.encode(w);
+        ticks_left.encode(w);
+    }
+}
+
+impl Decode for ShieldState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(ShieldState {
+            amount: Decode::decode(r)?,
+            ticks_left: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for DashState {
+    fn encode(&self, w: &mut Writer) {
+        let DashState { dir, done, left } = self;
+        dir.encode(w);
+        done.encode(w);
+        left.encode(w);
+    }
+}
+
+impl Decode for DashState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(DashState {
+            dir: Decode::decode(r)?,
+            done: Decode::decode(r)?,
+            left: Decode::decode(r)?,
+        })
+    }
+}
+
+// ---- Progression: levels, stars, offers, healing, expertise and the horde ----
+
+impl Encode for Progress {
+    fn encode(&self, w: &mut Writer) {
+        let Progress {
+            level,
+            xp,
+            // not saved: the run stats' rules are content: `decode_state` copies them from the fresh engine
+            stats: _,
+            priority,
+            pick_stats,
+            offers_due,
+            offer_open,
+            spent,
+            totals,
+        } = self;
+        level.encode(w);
+        xp.encode(w);
+        priority.encode(w);
+        pick_stats.encode(w);
+        offers_due.encode(w);
+        offer_open.encode(w);
+        spent.encode(w);
+        totals.encode(w);
+    }
+}
+
+impl Decode for Progress {
+    /// `stats` is left empty: `decode_state` copies it from the fresh engine.
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Progress {
+            level: Decode::decode(r)?,
+            xp: Decode::decode(r)?,
+            stats: Vec::new(),
+            priority: decode_vec(r, MAX_PLACES)?,
+            pick_stats: Decode::decode(r)?,
+            offers_due: Decode::decode(r)?,
+            offer_open: Decode::decode(r)?,
+            spent: decode_vec(r, MAX_PLACES)?,
+            totals: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for StarField {
+    fn encode(&self, w: &mut Writer) {
+        let StarField {
+            misses,
+            on_map,
+            due,
+            offer,
+            rerolls_left,
+            banishes_left,
+            extra_candidates,
+            rarity,
+            rune_pool,
+            pool,
+            taken,
+            banished,
+            set_counts,
+        } = self;
+        misses.encode(w);
+        on_map.encode(w);
+        due.encode(w);
+        offer.encode(w);
+        rerolls_left.encode(w);
+        banishes_left.encode(w);
+        extra_candidates.encode(w);
+        rarity.encode(w);
+        rune_pool.encode(w);
+        pool.encode(w);
+        taken.encode(w);
+        banished.encode(w);
+        set_counts.encode(w);
+    }
+}
+
+impl Decode for StarField {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(StarField {
+            misses: Decode::decode(r)?,
+            on_map: decode_vec(r, cap_u32(usize::from(crate::limits::MAX_STARS_ON_MAP)))?,
+            due: decode_vec(r, MAX_CONTENT_LEN)?,
+            offer: Decode::decode(r)?,
+            rerolls_left: Decode::decode(r)?,
+            banishes_left: Decode::decode(r)?,
+            extra_candidates: Decode::decode(r)?,
+            rarity: Decode::decode(r)?,
+            rune_pool: Decode::decode(r)?,
+            pool: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+            taken: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+            banished: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+            set_counts: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+        })
+    }
+}
+
+impl Encode for StarState {
+    fn encode(&self, w: &mut Writer) {
+        let StarState { id, at, rarity } = self;
+        id.encode(w);
+        at.encode(w);
+        rarity.encode(w);
+    }
+}
+
+impl Decode for StarState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(StarState {
+            id: Decode::decode(r)?,
+            at: Decode::decode(r)?,
+            rarity: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for Due {
+    fn encode(&self, w: &mut Writer) {
+        let Due { kind, rarity } = self;
+        kind.encode(w);
+        rarity.encode(w);
+    }
+}
+
+impl Decode for Due {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Due {
+            kind: Decode::decode(r)?,
+            rarity: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for OfferState {
+    fn encode(&self, w: &mut Writer) {
+        let OfferState {
+            kind,
+            rarity,
+            candidates,
+        } = self;
+        kind.encode(w);
+        rarity.encode(w);
+        candidates.encode(w);
+    }
+}
+
+impl Decode for OfferState {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(OfferState {
+            kind: Decode::decode(r)?,
+            rarity: Decode::decode(r)?,
+            candidates: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+        })
+    }
+}
+
+impl Encode for HealPickup {
+    fn encode(&self, w: &mut Writer) {
+        let HealPickup { id, at } = self;
+        id.encode(w);
+        at.encode(w);
+    }
+}
+
+impl Decode for HealPickup {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(HealPickup {
+            id: Decode::decode(r)?,
+            at: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for ExpertiseGauge {
+    fn encode(&self, w: &mut Writer) {
+        let ExpertiseGauge {
+            level,
+            points,
+            next,
+            offered,
+            offer,
+            taken,
+            range_pct,
+            style,
+            path,
+        } = self;
+        level.encode(w);
+        points.encode(w);
+        next.encode(w);
+        offered.encode(w);
+        offer.encode(w);
+        taken.encode(w);
+        range_pct.encode(w);
+        style.encode(w);
+        path.encode(w);
+    }
+}
+
+impl Decode for ExpertiseGauge {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(ExpertiseGauge {
+            level: Decode::decode(r)?,
+            points: Decode::decode(r)?,
+            next: Decode::decode(r)?,
+            offered: Decode::decode(r)?,
+            offer: Decode::decode(r)?,
+            taken: decode_vec(r, MAX_PLACES)?,
+            range_pct: Decode::decode(r)?,
+            style: Decode::decode(r)?,
+            path: decode_vec(r, MAX_PLACES)?,
+        })
+    }
+}
+
+impl Encode for ExpertiseOffer {
+    fn encode(&self, w: &mut Writer) {
+        let ExpertiseOffer {
+            level,
+            kind,
+            candidates,
+        } = self;
+        level.encode(w);
+        kind.encode(w);
+        candidates.encode(w);
+    }
+}
+
+impl Decode for ExpertiseOffer {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(ExpertiseOffer {
+            level: Decode::decode(r)?,
+            kind: Decode::decode(r)?,
+            candidates: decode_vec(r, MAX_PLACES)?,
+        })
+    }
+}
+
+impl Encode for Horde {
+    fn encode(&self, w: &mut Writer) {
+        let Horde {
+            // not saved: the mode's boss times are content: `decode_state` copies them from the fresh engine
+            boss_ticks: _,
+            // not saved: the mode's no-call times are content: `decode_state` copies them from the fresh engine
+            no_call_ticks: _,
+            // not saved: the mid-bosses' hit points are content: `decode_state` copies them from the fresh engine
+            mid_boss_hp_pct: _,
+            spawned,
+            used,
+            held,
+        } = self;
+        spawned.encode(w);
+        used.encode(w);
+        held.encode(w);
+    }
+}
+
+impl Decode for Horde {
+    /// The times are left empty: `decode_state` copies them from the fresh engine.
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Horde {
+            boss_ticks: Vec::new(),
+            no_call_ticks: Vec::new(),
+            mid_boss_hp_pct: Vec::new(),
+            spawned: Decode::decode(r)?,
+            used: decode_vec(r, MAX_CONTENT_LEN)?,
+            held: decode_vec(r, MAX_CONTENT_LEN)?,
+        })
+    }
+}
+
+// ---- Text ----
+
+/// The most bytes of a name the ledger and the tallies hold (a kill key, a star's name).
+const MAX_TEXT_BYTES: u32 = 256;
+
+impl Encode for str {
+    fn encode(&self, w: &mut Writer) {
+        w.len(self.len());
+        w.bytes(self.as_bytes());
+    }
+}
+
+impl Encode for String {
+    fn encode(&self, w: &mut Writer) {
+        self.as_str().encode(w);
+    }
+}
+
+impl Encode for std::sync::Arc<str> {
+    fn encode(&self, w: &mut Writer) {
+        (**self).encode(w);
+    }
+}
+
+/// The text of at most `MAX_TEXT_BYTES` bytes.
+fn decode_text<'a>(r: &mut Reader<'a>) -> Result<&'a str, DecodeError> {
+    let n = r.list_len(MAX_TEXT_BYTES)?;
+    std::str::from_utf8(r.bytes(n)?).map_err(|_| DecodeError::Invalid("utf8"))
+}
+
+impl Decode for String {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        decode_text(r).map(str::to_owned)
+    }
+}
+
+impl Decode for std::sync::Arc<str> {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        decode_text(r).map(std::sync::Arc::from)
+    }
+}
+
+// ---- The state ----
+
+impl Encode for State {
+    fn encode(&self, w: &mut Writer) {
+        let State {
+            // not saved: buffers reused from tick to tick, never state.
+            scratch: _,
+            // not saved: the run's kinds are content; `decode_state` takes them from the fresh engine.
+            kinds: _,
+            tick,
+            rng,
+            outcome,
+            player,
+            boss,
+            companions,
+            enemies,
+            tasks,
+            runs,
+            // not saved: derived from `runs` and the run's attacks; `decode_state` rebuilds it.
+            move_index: _,
+            ranged_cooling,
+            orbs,
+            zones,
+            spawned,
+            next_id,
+            next_orb_group,
+            progress,
+            stars,
+            heal_pickups,
+            expertise,
+            // not saved: content; `decode_state` takes it from the fresh engine.
+            match_ups: _,
+            // not saved: content, as the match-ups are.
+            runes: _,
+            // not saved: content, as the match-ups are.
+            stun: _,
+            max_attack_speed_pct,
+            enemy_attack_damage,
+            max_rune_haste_pct,
+            horde,
+            stardust,
+            regen,
+            hp_pct,
+            damage_pct,
+            crit_seed,
+            echoes,
+        } = self;
+        tick.encode(w);
+        rng.encode(w);
+        outcome.encode(w);
+        player.encode(w);
+        boss.encode(w);
+        companions.encode(w);
+        enemies.encode(w);
+        tasks.encode(w);
+        runs.encode(w);
+        ranged_cooling.encode(w);
+        orbs.encode(w);
+        zones.encode(w);
+        spawned.encode(w);
+        next_id.encode(w);
+        next_orb_group.encode(w);
+        progress.encode(w);
+        stars.encode(w);
+        heal_pickups.encode(w);
+        expertise.encode(w);
+        max_attack_speed_pct.encode(w);
+        enemy_attack_damage.encode(w);
+        max_rune_haste_pct.encode(w);
+        horde.encode(w);
+        stardust.encode(w);
+        regen.encode(w);
+        hp_pct.encode(w);
+        damage_pct.encode(w);
+        crit_seed.encode(w);
+        echoes.encode(w);
+    }
+}
+
+impl State {
+    /// The state in `r`, with the fields it does not save (the content's tables and buffers)
+    /// taken from `fresh`, the state of an engine started from the same setup and content. The
+    /// lists are only as long as the format allows: `decode_state` checks them against `fresh`,
+    /// and fills the index and the content-sized fields of `progress` and `horde` in.
+    pub(crate) fn decode_over(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
+        let companions_cap = cap_u32(crate::validate::limits::MAX_COMPANIONS);
+        let enemies_cap = u32::from(crate::limits::MAX_ENEMY_CAP);
+        Ok(State {
+            scratch: Default::default(),
+            kinds: fresh.kinds.clone(),
+            tick: Decode::decode(r)?,
+            rng: Decode::decode(r)?,
+            outcome: Decode::decode(r)?,
+            player: Decode::decode(r)?,
+            boss: Decode::decode(r)?,
+            companions: decode_vec(r, companions_cap)?,
+            enemies: decode_vec(r, enemies_cap)?,
+            tasks: decode_vec(r, crate::limits::MAX_ATTACK_TASKS)?,
+            runs: decode_vec(r, (enemies_cap + companions_cap + 1) * MAX_RUN_SLOTS)?,
+            move_index: Default::default(),
+            ranged_cooling: decode_vec(r, crate::limits::MAX_RANGED_ATTACKERS)?,
+            orbs: decode_vec(r, crate::limits::MAX_ORBS_ALIVE)?,
+            zones: decode_vec(r, crate::limits::MAX_ZONES_ALIVE)?,
+            spawned: decode_vec(r, MAX_CONTENT_LEN)?,
+            next_id: Decode::decode(r)?,
+            next_orb_group: Decode::decode(r)?,
+            progress: Decode::decode(r)?,
+            stars: Decode::decode(r)?,
+            heal_pickups: match r.u8()? {
+                0 => None,
+                1 => Some(decode_vec(
+                    r,
+                    u32::from(crate::validate::limits::MAX_HEAL_PICKUPS),
+                )?),
+                _ => return Err(DecodeError::Invalid("option tag")),
+            },
+            expertise: Decode::decode(r)?,
+            match_ups: fresh.match_ups,
+            runes: fresh.runes.clone(),
+            stun: fresh.stun,
+            max_attack_speed_pct: Decode::decode(r)?,
+            enemy_attack_damage: Decode::decode(r)?,
+            max_rune_haste_pct: Decode::decode(r)?,
+            horde: Decode::decode(r)?,
+            stardust: Decode::decode(r)?,
+            regen: Decode::decode(r)?,
+            hp_pct: Decode::decode(r)?,
+            damage_pct: Decode::decode(r)?,
+            crit_seed: Decode::decode(r)?,
+            echoes: decode_vec(r, cap_u32(crate::limits::MAX_ECHOES_PER_TICK))?,
+        })
+    }
+}
+
+#[cfg(test)]
+mod enum_tests {
+    use super::*;
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+
+    /// Every variant, in order, is its number; the number after the last is refused.
+    fn tags<T: Encode + Decode + PartialEq + std::fmt::Debug>(all: &[T]) {
+        for (i, v) in all.iter().enumerate() {
+            assert_eq!(to_bytes(v), [u8::try_from(i).unwrap()], "{v:?}");
+            assert_eq!(from_bytes::<T>(&[u8::try_from(i).unwrap()]).as_ref(), Ok(v));
+        }
+        let past = u8::try_from(all.len()).unwrap();
+        assert!(matches!(
+            from_bytes::<T>(&[past]),
+            Err(DecodeError::Invalid(_))
+        ));
+        assert_eq!(from_bytes::<T>(&[]), Err(DecodeError::Truncated));
+    }
+
+    #[test]
+    fn the_enums_of_the_state_are_their_hash_numbers() {
+        tags(&[Outcome::Running, Outcome::Cleared, Outcome::Failed]);
+        tags(&[
+            Rarity::Common,
+            Rarity::Uncommon,
+            Rarity::Rare,
+            Rarity::Epic,
+            Rarity::Legendary,
+            Rarity::Supernova,
+        ]);
+        tags(&[OfferKind::Star, OfferKind::Boss]);
+        tags(&[
+            ExpertiseOfferKind::Common,
+            ExpertiseOfferKind::Style,
+            ExpertiseOfferKind::Upgrade,
+            ExpertiseOfferKind::Capstone,
+        ]);
+        tags(&[
+            Rune::Explosion,
+            Rune::Thunder,
+            Rune::Boomerang,
+            Rune::HomingMissiles,
+            Rune::Bleed,
+            Rune::Poison,
+            Rune::Burn,
+        ]);
+        tags(&[RangedPool::Zone, RangedPool::Line]);
     }
 }

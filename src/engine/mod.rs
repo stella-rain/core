@@ -130,6 +130,19 @@ impl Clone for Engine {
 }
 
 impl Engine {
+    /// What a savepoint writes and a resume compares with: the world and content (fixed for the
+    /// run), the state, the ledger and the tallies.
+    #[allow(dead_code)] // read by `savepoint`, which the savepoint file uses next
+    pub(crate) fn savepoint_parts(&self) -> (&World, &RunContent, &State, &RunLedger, &Counted) {
+        (
+            &self.stage,
+            &self.content,
+            &self.state,
+            &self.ledger,
+            &self.counted,
+        )
+    }
+
     /// Starts a run. The stage is validated first (ADR-020), so the rules below only ever see
     /// stages inside the budgets.
     /// A stage with levels raises the bundled run stats, in their order.
@@ -472,6 +485,8 @@ mod hash_coverage_tests;
 mod horde_tests;
 #[cfg(test)]
 mod move_index_tests;
+#[cfg(test)]
+mod savepoint_tests;
 
 // Every `State` type lives in `sim::state`; these paths keep working.
 pub(crate) use crate::sim::state::*;

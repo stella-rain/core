@@ -9,6 +9,7 @@ use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::{Rarity, Rewards};
+use crate::savepoint::codec::{Decode, DecodeError, Encode, Reader, Writer, decode_vec};
 use crate::sim::state::{AgentState, BossState};
 use crate::snapshot::EntityKind;
 use std::sync::Arc;
@@ -341,7 +342,7 @@ pub(crate) fn rarity_str(rarity: Rarity) -> &'static str {
 
 /// The run's HUD tallies, counted from the events the way the app counts them and kept outside
 /// the hashed state (ADR-BRDG-6): a carried star, which emits no event, is not in them.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Counted {
     pub(crate) kills: u32,
     /// The count the last `RewardTaken` of each reward carried, per reward of the run's file; 0 = never.
@@ -396,5 +397,277 @@ impl Counted {
                 _ => {}
             }
         }
+    }
+}
+
+// ---- The savepoint encoding ----
+
+/// The most entries of the ledger's lists: one per kind and a few more for the weapon's three
+/// and the rune keys (`kinds::MAX_KINDS`).
+fn max_entries() -> u32 {
+    cap(crate::kinds::MAX_KINDS + 64)
+}
+/// The most stars and names the run's build and tallies hold.
+const MAX_PICKS: u32 = 1 << 16;
+/// The most tallies of the rewards file (`rewards::MAX_REWARDS`).
+fn max_tallies() -> u32 {
+    cap(crate::rewards::MAX_REWARDS)
+}
+
+/// A cap, from the constant that bounds the list in play.
+fn cap(n: usize) -> u32 {
+    u32::try_from(n).expect("a small cap")
+}
+
+impl Encode for StarPick {
+    fn encode(&self, w: &mut Writer) {
+        let StarPick { rarity, name } = self;
+        rarity.encode(w);
+        name.encode(w);
+    }
+}
+
+impl Decode for StarPick {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(StarPick {
+            rarity: Decode::decode(r)?,
+            name: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for RunLedger {
+    fn encode(&self, w: &mut Writer) {
+        let RunLedger {
+            kills,
+            bestiary,
+            picks,
+            skill_uses,
+            // not saved: places in `kills`, found again by their keys (`rebuilt_from`).
+            enemy_kill_idx: _,
+            elite_kill_idx: _,
+            boss_kill_idx: _,
+            slain_indices: _,
+        } = self;
+        kills.encode(w);
+        bestiary.encode(w);
+        picks.encode(w);
+        skill_uses.encode(w);
+    }
+}
+
+impl Decode for RunLedger {
+    /// The places in `kills` are left at 0: `rebuilt_from` sets them.
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(RunLedger {
+            kills: decode_vec(r, max_entries())?,
+            bestiary: decode_vec(r, max_entries())?,
+            picks: decode_vec(r, MAX_PICKS)?,
+            skill_uses: decode_vec(r, cap(crate::kinds::MAX_KINDS))?,
+            enemy_kill_idx: 0,
+            elite_kill_idx: 0,
+            boss_kill_idx: 0,
+            slain_indices: Vec::new(),
+        })
+    }
+}
+
+impl RunLedger {
+    /// The ledger of a decode with the places in `kills` found again, and room reserved as
+    /// `for_engine` does, for a run whose fresh ledger is `fresh`: the three kill keys of the
+    /// weapon and the `slain.` key of each kind are those `fresh` holds at its places. A key
+    /// that is missing is refused. `kills` is not necessarily in key order (`for_engine` lists
+    /// the kinds in their own order), so the keys are looked up, not searched.
+    pub(crate) fn rebuilt_from(mut self, fresh: &RunLedger) -> Result<RunLedger, DecodeError> {
+        let mut places = std::collections::BTreeMap::new();
+        for (at, (key, _)) in self.kills.iter().enumerate() {
+            // A key twice would leave two entries for one count.
+            if places.insert(key.as_str(), at).is_some() {
+                return Err(DecodeError::Invalid("a kill key is listed twice"));
+            }
+        }
+        let place = |fresh_at: usize| {
+            places
+                .get(fresh.kills[fresh_at].0.as_str())
+                .copied()
+                .ok_or(DecodeError::Invalid("a kill key of the run is missing"))
+        };
+        let (boss, elite, enemy) = (
+            place(fresh.boss_kill_idx)?,
+            place(fresh.elite_kill_idx)?,
+            place(fresh.enemy_kill_idx)?,
+        );
+        let slain: Vec<usize> = fresh
+            .slain_indices
+            .iter()
+            .map(|at| place(*at))
+            .collect::<Result<_, _>>()?;
+        (self.boss_kill_idx, self.elite_kill_idx, self.enemy_kill_idx) = (boss, elite, enemy);
+        self.slain_indices = slain;
+        // Room as `for_engine` leaves it, so that a steady tick after a resume allocates nothing.
+        self.kills
+            .reserve((3 + fresh.slain_indices.len()).saturating_sub(self.kills.len()));
+        self.picks.reserve(32usize.saturating_sub(self.picks.len()));
+        self.skill_uses
+            .reserve(4usize.saturating_sub(self.skill_uses.len()));
+        Ok(self)
+    }
+}
+
+impl Encode for Counted {
+    fn encode(&self, w: &mut Writer) {
+        let Counted {
+            kills,
+            taken,
+            tiers,
+            named,
+        } = self;
+        kills.encode(w);
+        taken.encode(w);
+        tiers.encode(w);
+        named.encode(w);
+    }
+}
+
+impl Decode for Counted {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Counted {
+            kills: Decode::decode(r)?,
+            taken: decode_vec(r, max_tallies())?,
+            tiers: decode_vec(r, max_tallies())?,
+            named: decode_vec(r, MAX_PICKS)?,
+        })
+    }
+}
+
+#[cfg(test)]
+mod codec_tests {
+    use super::*;
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+
+    fn ledger() -> RunLedger {
+        let kinds = KindTable::from_ids(
+            [&ContentId::from("bat"), &ContentId::from("golem")],
+            crate::kinds::MAX_KINDS,
+        )
+        .unwrap();
+        let mut l = RunLedger::for_engine(&kinds, "giant_sword");
+        l.add_kill("rune_taken.burn".into());
+        l.add_bestiary_bit(&ContentId::from("bat"), 3);
+        l.picks.push(StarPick {
+            rarity: Rarity::Rare,
+            name: Some("Vega".into()),
+        });
+        l.add_skill_use(ContentId::from("dash"));
+        l
+    }
+
+    /// Every field of the ledger is saved, or listed as a place that `rebuilt_from` finds again;
+    /// the destructure names them all, so a field added without a decision does not compile.
+    #[test]
+    fn every_field_of_the_ledger_is_saved_or_rebuilt() {
+        let base = ledger();
+        let bytes = to_bytes(&base);
+        #[allow(clippy::type_complexity)]
+        let saved: [(&str, fn(&mut RunLedger)); 4] = [
+            ("kills", |l| l.kills[0].1 += 1),
+            ("bestiary", |l| l.bestiary[0].1 ^= 4),
+            ("picks", |l| l.picks[0].rarity = Rarity::Epic),
+            ("skill_uses", |l| l.skill_uses[0].1 += 1),
+        ];
+        for (name, change) in saved {
+            let mut l = base.clone();
+            change(&mut l);
+            assert_ne!(to_bytes(&l), bytes, "{name} does not move the encoding");
+        }
+        let RunLedger {
+            kills: _,
+            bestiary: _,
+            picks: _,
+            skill_uses: _,
+            enemy_kill_idx,
+            elite_kill_idx,
+            boss_kill_idx,
+            slain_indices,
+        } = &base;
+        let mut l = base.clone();
+        l.enemy_kill_idx = enemy_kill_idx + 1;
+        l.elite_kill_idx = elite_kill_idx + 1;
+        l.boss_kill_idx = boss_kill_idx + 1;
+        l.slain_indices = slain_indices.iter().map(|i| i + 1).collect();
+        assert_eq!(
+            to_bytes(&l),
+            bytes,
+            "the kill places are rebuilt, not saved"
+        );
+        // The pick's name is saved too.
+        let mut l = base.clone();
+        l.picks[0].name = None;
+        assert_ne!(to_bytes(&l), bytes);
+    }
+
+    #[test]
+    fn a_ledger_round_trips_and_its_places_are_found_again() {
+        let base = ledger();
+        let fresh = {
+            let kinds = KindTable::from_ids(
+                [&ContentId::from("bat"), &ContentId::from("golem")],
+                crate::kinds::MAX_KINDS,
+            )
+            .unwrap();
+            RunLedger::for_engine(&kinds, "giant_sword")
+        };
+        let back = from_bytes::<RunLedger>(&to_bytes(&base))
+            .unwrap()
+            .rebuilt_from(&fresh)
+            .unwrap();
+        assert_eq!(back, base);
+        // A kill key twice is refused.
+        let mut twice = base.clone();
+        twice.kills.push(twice.kills[0].clone());
+        assert_eq!(
+            from_bytes::<RunLedger>(&to_bytes(&twice))
+                .unwrap()
+                .rebuilt_from(&fresh),
+            Err(DecodeError::Invalid("a kill key is listed twice"))
+        );
+        // A ledger without the weapon's keys is another run's.
+        let other = RunLedger::default();
+        assert_eq!(
+            from_bytes::<RunLedger>(&to_bytes(&other))
+                .unwrap()
+                .rebuilt_from(&fresh),
+            Err(DecodeError::Invalid("a kill key of the run is missing"))
+        );
+    }
+
+    #[test]
+    fn the_tallies_move_the_encoding_in_every_field() {
+        let base = Counted {
+            kills: 1,
+            taken: vec![0, 2],
+            tiers: vec![1],
+            named: vec!["Vega".into()],
+        };
+        let bytes = to_bytes(&base);
+        let Counted {
+            kills: _,
+            taken: _,
+            tiers: _,
+            named: _,
+        } = &base;
+        #[allow(clippy::type_complexity)]
+        let changes: [(&str, fn(&mut Counted)); 4] = [
+            ("kills", |c| c.kills += 1),
+            ("taken", |c| c.taken[1] += 1),
+            ("tiers", |c| c.tiers[0] += 1),
+            ("named", |c| c.named[0] = "Altair".into()),
+        ];
+        for (name, change) in changes {
+            let mut c = base.clone();
+            change(&mut c);
+            assert_ne!(to_bytes(&c), bytes, "{name} does not move the encoding");
+        }
+        assert_eq!(from_bytes::<Counted>(&bytes), Ok(base));
     }
 }
