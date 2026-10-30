@@ -250,6 +250,21 @@ jobs:
           mv target/nextest/ci/junit.xml target/nextest/ci/junit-debug.xml
       # The corpus and the pinned hashes are not behind `record`: they run here on all four runners.
       - run: cargo nextest run --locked --release --profile ci
+      # The ignored measurement of MAX_COMMANDS (tests/command_cap.rs), in release, here and not only in
+      # deep.yml: a PR that makes a bot run take more commands fails here and re-pins MEASURED_MOST in
+      # the same PR. The flags are the release run's above, so nothing is rebuilt (--all-features would
+      # rebuild). ~20 s. The JUnit file of the release run is moved aside first, this run's after.
+      - name: Command cap measurement (longest bot run)
+        if: matrix.arch == 'x86_64'
+        run: |
+          mv target/nextest/ci/junit.xml target/nextest/ci/junit-release.xml
+          status=0
+          cargo nextest run --locked --release --profile ci --run-ignored only -E 'test(=command_cap::measure_the_longest_run)' || status=$?
+          mv target/nextest/ci/junit.xml target/nextest/ci/junit-command-cap.xml || true
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=Command cap measurement::A bot run takes more commands than MEASURED_MOST. Set MEASURED_MOST in tests/command_cap.rs to the 'most commands:' value printed above, in this PR, and keep 2 x it <= MAX_COMMANDS (src/run_replay.rs). If the failure is the MAX_COMMANDS or verify assertion instead, the cap itself is in question: ask Kade."
+          fi
+          exit "$status"
       # nextest skips doctests; there are none today, and this fails the day one is added and
       # breaks. Once is enough: a doctest does not depend on the architecture.
       - if: matrix.arch == 'x86_64'

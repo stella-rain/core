@@ -37,7 +37,8 @@ def step(block, name):
         rf"^      - name: {re.escape(name)}\n((?:(?!      - ).*\n)*)", block, re.M
     )
     assert m, f"no step '{name}'"
-    return m.group(0)
+    # Comments above the next step sit before its `- ` line: not part of this one.
+    return re.sub(r"(?:^ *#.*\n)+\Z", "", m.group(0), flags=re.M)
 
 
 class CommandCapStep(unittest.TestCase):
