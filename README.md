@@ -23,6 +23,10 @@ release, at or below it the release is the next patch (`0.1.0` with `v0.1.0` out
 `v0.1.1`), and Candidate stamps that version into a release commit on top of the `main` commit.
 `main` itself is never written to, so its `Cargo.toml` can lag the latest release; the tag is
 the version. A minor or major release needs a version PR.
+After a final release exists, Promote sends a `core-release` `repository_dispatch` carrying the tag
+(`client_payload.tag`) to the app repository, whose `core-bump` bot opens the bump PR; a prerelease
+is never sent. A failed dispatch leaves the release and fails the run, and re-running the failed
+job `notify` resends it.
 
 ## Balancing
 
