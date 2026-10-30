@@ -5,4 +5,6 @@
 
 mod codec;
 
+// Used by the state codec and the savepoint file, which come next.
+#[allow(unused_imports)]
 pub(crate) use codec::{Decode, DecodeError, Encode, Reader, Writer};

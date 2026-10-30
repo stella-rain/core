@@ -21,88 +21,121 @@ pub(crate) struct Writer {
 
 impl Writer {
     pub(crate) fn new() -> Self {
-        unimplemented!()
+        Writer { buf: Vec::new() }
     }
-    pub(crate) fn with_capacity(_capacity: usize) -> Self {
-        unimplemented!()
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Writer {
+            buf: Vec::with_capacity(capacity),
+        }
     }
-    pub(crate) fn u8(&mut self, _v: u8) {
-        unimplemented!()
+    pub(crate) fn u8(&mut self, v: u8) {
+        self.buf.push(v);
     }
-    pub(crate) fn u16(&mut self, _v: u16) {
-        unimplemented!()
+    pub(crate) fn u16(&mut self, v: u16) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
     }
-    pub(crate) fn u32(&mut self, _v: u32) {
-        unimplemented!()
+    pub(crate) fn u32(&mut self, v: u32) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
     }
-    pub(crate) fn i32(&mut self, _v: i32) {
-        unimplemented!()
+    pub(crate) fn i32(&mut self, v: i32) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
     }
-    pub(crate) fn u64(&mut self, _v: u64) {
-        unimplemented!()
+    pub(crate) fn u64(&mut self, v: u64) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
     }
-    pub(crate) fn i64(&mut self, _v: i64) {
-        unimplemented!()
+    pub(crate) fn i64(&mut self, v: i64) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
     }
-    pub(crate) fn bool(&mut self, _v: bool) {
-        unimplemented!()
+    pub(crate) fn bool(&mut self, v: bool) {
+        self.u8(u8::from(v));
     }
-    pub(crate) fn bytes(&mut self, _v: &[u8]) {
-        unimplemented!()
+    pub(crate) fn bytes(&mut self, v: &[u8]) {
+        self.buf.extend_from_slice(v);
     }
     /// The length of a list, as a `u32`.
-    pub(crate) fn len(&mut self, _len: usize) {
-        unimplemented!()
+    pub(crate) fn len(&mut self, len: usize) {
+        self.u32(u32::try_from(len).expect("a list is shorter than u32::MAX"));
     }
     pub(crate) fn finish(self) -> Vec<u8> {
-        unimplemented!()
+        self.buf
     }
 }
 
-/// Bytes being read. Every read is bounds-checked.
+/// Bytes being read. Every read is bounds-checked, and a read that fails consumes nothing.
 pub(crate) struct Reader<'a> {
     data: &'a [u8],
 }
 
 impl<'a> Reader<'a> {
-    pub(crate) fn new(_data: &'a [u8]) -> Self {
-        unimplemented!()
+    pub(crate) fn new(data: &'a [u8]) -> Self {
+        Reader { data }
     }
     pub(crate) fn remaining(&self) -> usize {
-        unimplemented!()
+        self.data.len()
+    }
+    fn take<const N: usize>(&mut self) -> Result<[u8; N], DecodeError> {
+        let (head, rest) = self
+            .data
+            .split_first_chunk::<N>()
+            .ok_or(DecodeError::Truncated)?;
+        let head = *head;
+        self.data = rest;
+        Ok(head)
     }
     pub(crate) fn u8(&mut self) -> Result<u8, DecodeError> {
-        unimplemented!()
+        Ok(u8::from_le_bytes(self.take()?))
     }
     pub(crate) fn u16(&mut self) -> Result<u16, DecodeError> {
-        unimplemented!()
+        Ok(u16::from_le_bytes(self.take()?))
     }
     pub(crate) fn u32(&mut self) -> Result<u32, DecodeError> {
-        unimplemented!()
+        Ok(u32::from_le_bytes(self.take()?))
     }
     pub(crate) fn i32(&mut self) -> Result<i32, DecodeError> {
-        unimplemented!()
+        Ok(i32::from_le_bytes(self.take()?))
     }
     pub(crate) fn u64(&mut self) -> Result<u64, DecodeError> {
-        unimplemented!()
+        Ok(u64::from_le_bytes(self.take()?))
     }
     pub(crate) fn i64(&mut self) -> Result<i64, DecodeError> {
-        unimplemented!()
+        Ok(i64::from_le_bytes(self.take()?))
     }
     pub(crate) fn bool(&mut self) -> Result<bool, DecodeError> {
-        unimplemented!()
+        match self.data.first() {
+            None => Err(DecodeError::Truncated),
+            Some(0) => self.u8().map(|_| false),
+            Some(1) => self.u8().map(|_| true),
+            Some(_) => Err(DecodeError::Invalid("bool")),
+        }
     }
-    pub(crate) fn bytes(&mut self, _n: usize) -> Result<&'a [u8], DecodeError> {
-        unimplemented!()
+    pub(crate) fn bytes(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
+        let (head, rest) = self
+            .data
+            .split_at_checked(n)
+            .ok_or(DecodeError::Truncated)?;
+        self.data = rest;
+        Ok(head)
     }
     /// The length of a list of items of at least one byte each: at most `cap`, and no more than
     /// the bytes left.
-    pub(crate) fn list_len(&mut self, _cap: u32) -> Result<usize, DecodeError> {
-        unimplemented!()
+    pub(crate) fn list_len(&mut self, cap: u32) -> Result<usize, DecodeError> {
+        let n = self.u32()?;
+        if n > cap {
+            return Err(DecodeError::Invalid("list too long"));
+        }
+        let n = usize::try_from(n).map_err(|_| DecodeError::Invalid("list too long"))?;
+        if n > self.data.len() {
+            return Err(DecodeError::Truncated);
+        }
+        Ok(n)
     }
     /// Ok if every byte was read.
     pub(crate) fn finish(self) -> Result<(), DecodeError> {
-        unimplemented!()
+        if self.data.is_empty() {
+            Ok(())
+        } else {
+            Err(DecodeError::Invalid("trailing bytes"))
+        }
     }
 }
 
@@ -118,25 +151,32 @@ pub(crate) trait Decode: Sized {
 }
 
 /// A list of at most `cap` items, read with the length checks of `Reader::list_len`.
-pub(crate) fn decode_vec<T: Decode>(_r: &mut Reader<'_>, _cap: u32) -> Result<Vec<T>, DecodeError> {
-    unimplemented!()
+pub(crate) fn decode_vec<T: Decode>(r: &mut Reader<'_>, cap: u32) -> Result<Vec<T>, DecodeError> {
+    let n = r.list_len(cap)?;
+    let mut items = Vec::with_capacity(n);
+    for _ in 0..n {
+        items.push(T::decode(r)?);
+    }
+    Ok(items)
 }
 
 impl Encode for u32 {
-    fn encode(&self, _w: &mut Writer) {
-        unimplemented!()
+    fn encode(&self, w: &mut Writer) {
+        w.u32(*self);
     }
 }
 
 impl Decode for u32 {
-    fn decode(_r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        unimplemented!()
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        r.u32()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    type Read = fn(&mut Reader<'_>) -> Result<(), DecodeError>;
 
     fn written(f: impl FnOnce(&mut Writer)) -> Vec<u8> {
         let mut w = Writer::new();
@@ -188,7 +228,7 @@ mod tests {
     /// read consumes nothing.
     #[test]
     fn a_read_past_the_end_is_truncated_and_consumes_nothing() {
-        let reads: [(&str, usize, fn(&mut Reader<'_>) -> Result<(), DecodeError>); 8] = [
+        let reads: [(&str, usize, Read); 8] = [
             ("u8", 1, |r| r.u8().map(drop)),
             ("u16", 2, |r| r.u16().map(drop)),
             ("u32", 4, |r| r.u32().map(drop)),
