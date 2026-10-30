@@ -264,8 +264,9 @@ mod tests {
 
     #[test]
     fn the_catalogue_lists_no_number_of_rules_json() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/content/rules.json");
         let rules: serde_json::Value =
-            serde_json::from_str(include_str!("../content/rules.json")).unwrap();
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         let keys: Vec<&String> = rules.as_object().unwrap().keys().collect();
         for key in ["leash_reach_x", "spawn_margin"] {
             assert!(
