@@ -130,8 +130,9 @@ fn answer_offers(run: &mut RunRecorder, bot: Bot) {
 }
 
 /// The most commands the measurement found (`measure_the_longest_run`), pinned: `MAX_COMMANDS`
-/// is at least twice it.
-const MEASURED_MOST: usize = 244;
+/// is at least twice it. 425 at `2ed393f` (hard, seeds 2 and 4, the `Takes` bot); re-measure
+/// and re-pin when the deep tier reports a higher number.
+const MEASURED_MOST: usize = 425;
 
 /// The bundled mode cut to 20 seconds with a boss at 10 and at 20 and 5 of overtime, a run
 /// that a debug build plays in seconds.
