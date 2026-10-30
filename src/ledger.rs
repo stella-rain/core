@@ -9,6 +9,7 @@ use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::{Rarity, Rewards};
+use crate::savepoint::codec::{Decode, DecodeError, Encode, Reader, Writer, decode_vec};
 use crate::sim::state::{AgentState, BossState};
 use crate::snapshot::EntityKind;
 use std::sync::Arc;
@@ -396,5 +397,134 @@ impl Counted {
                 _ => {}
             }
         }
+    }
+}
+
+// ---- The savepoint encoding ----
+
+/// The most entries of the ledger's lists: one per kind and a few more for the weapon's three
+/// and the rune keys (`kinds::MAX_KINDS`).
+const MAX_LEDGER_ENTRIES: u32 = crate::kinds::MAX_KINDS as u32 + 64;
+/// The most stars and names the run's build and tallies hold.
+const MAX_PICKS: u32 = 1 << 16;
+/// The most tallies of the rewards file (`rewards::MAX_REWARDS`).
+const MAX_TALLIES: u32 = crate::rewards::MAX_REWARDS as u32;
+
+impl Encode for StarPick {
+    fn encode(&self, w: &mut Writer) {
+        let StarPick { rarity, name } = self;
+        rarity.encode(w);
+        name.encode(w);
+    }
+}
+
+impl Decode for StarPick {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(StarPick {
+            rarity: Decode::decode(r)?,
+            name: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for RunLedger {
+    fn encode(&self, w: &mut Writer) {
+        let RunLedger {
+            kills,
+            bestiary,
+            picks,
+            skill_uses,
+            // not saved: places in `kills`, found again by their keys (`rebuilt_from`).
+            enemy_kill_idx: _,
+            elite_kill_idx: _,
+            boss_kill_idx: _,
+            slain_indices: _,
+        } = self;
+        kills.encode(w);
+        bestiary.encode(w);
+        picks.encode(w);
+        skill_uses.encode(w);
+    }
+}
+
+impl Decode for RunLedger {
+    /// The places in `kills` are left at 0: `rebuilt_from` sets them.
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(RunLedger {
+            kills: decode_vec(r, MAX_LEDGER_ENTRIES)?,
+            bestiary: decode_vec(r, MAX_LEDGER_ENTRIES)?,
+            picks: decode_vec(r, MAX_PICKS)?,
+            skill_uses: decode_vec(r, crate::kinds::MAX_KINDS as u32)?,
+            enemy_kill_idx: 0,
+            elite_kill_idx: 0,
+            boss_kill_idx: 0,
+            slain_indices: Vec::new(),
+        })
+    }
+}
+
+impl RunLedger {
+    /// The ledger of a decode with the places in `kills` found again, and room reserved as
+    /// `for_engine` does, for a run whose fresh ledger is `fresh`: the three kill keys of the
+    /// weapon and the `slain.` key of each kind are those `fresh` holds at its places. A key
+    /// that is missing is refused. `kills` is not necessarily in key order (`for_engine` lists
+    /// the kinds in their own order), so the keys are looked up, not searched.
+    pub(crate) fn rebuilt_from(mut self, fresh: &RunLedger) -> Result<RunLedger, DecodeError> {
+        let places: std::collections::BTreeMap<&str, usize> = self
+            .kills
+            .iter()
+            .enumerate()
+            .map(|(at, (key, _))| (key.as_str(), at))
+            .collect();
+        let place = |fresh_at: usize| {
+            places
+                .get(fresh.kills[fresh_at].0.as_str())
+                .copied()
+                .ok_or(DecodeError::Invalid("a kill key of the run is missing"))
+        };
+        let (boss, elite, enemy) = (
+            place(fresh.boss_kill_idx)?,
+            place(fresh.elite_kill_idx)?,
+            place(fresh.enemy_kill_idx)?,
+        );
+        let slain: Vec<usize> = fresh
+            .slain_indices
+            .iter()
+            .map(|at| place(*at))
+            .collect::<Result<_, _>>()?;
+        (self.boss_kill_idx, self.elite_kill_idx, self.enemy_kill_idx) = (boss, elite, enemy);
+        self.slain_indices = slain;
+        self.kills
+            .reserve((3 + fresh.slain_indices.len()).saturating_sub(self.kills.len()));
+        self.picks.reserve(32usize.saturating_sub(self.picks.len()));
+        self.skill_uses
+            .reserve(4usize.saturating_sub(self.skill_uses.len()));
+        Ok(self)
+    }
+}
+
+impl Encode for Counted {
+    fn encode(&self, w: &mut Writer) {
+        let Counted {
+            kills,
+            taken,
+            tiers,
+            named,
+        } = self;
+        kills.encode(w);
+        taken.encode(w);
+        tiers.encode(w);
+        named.encode(w);
+    }
+}
+
+impl Decode for Counted {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Counted {
+            kills: Decode::decode(r)?,
+            taken: decode_vec(r, MAX_TALLIES)?,
+            tiers: decode_vec(r, MAX_TALLIES)?,
+            named: decode_vec(r, MAX_PICKS)?,
+        })
     }
 }

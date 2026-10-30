@@ -1691,6 +1691,182 @@ impl Decode for Horde {
     }
 }
 
+// ---- Text ----
+
+/// The most bytes of a name the ledger and the tallies hold (a kill key, a star's name).
+const MAX_TEXT_BYTES: u32 = 256;
+
+impl Encode for str {
+    fn encode(&self, w: &mut Writer) {
+        w.len(self.len());
+        w.bytes(self.as_bytes());
+    }
+}
+
+impl Encode for String {
+    fn encode(&self, w: &mut Writer) {
+        self.as_str().encode(w);
+    }
+}
+
+impl Encode for std::sync::Arc<str> {
+    fn encode(&self, w: &mut Writer) {
+        (**self).encode(w);
+    }
+}
+
+/// The text of at most `MAX_TEXT_BYTES` bytes.
+fn decode_text<'a>(r: &mut Reader<'a>) -> Result<&'a str, DecodeError> {
+    let n = r.list_len(MAX_TEXT_BYTES)?;
+    std::str::from_utf8(r.bytes(n)?).map_err(|_| DecodeError::Invalid("utf8"))
+}
+
+impl Decode for String {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        decode_text(r).map(str::to_owned)
+    }
+}
+
+impl Decode for std::sync::Arc<str> {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        decode_text(r).map(std::sync::Arc::from)
+    }
+}
+
+// ---- The state ----
+
+impl Encode for State {
+    fn encode(&self, w: &mut Writer) {
+        let State {
+            // not saved: buffers reused from tick to tick, never state.
+            scratch: _,
+            // not saved: the run's kinds are content; `decode_state` takes them from the fresh engine.
+            kinds: _,
+            tick,
+            rng,
+            outcome,
+            player,
+            boss,
+            companions,
+            enemies,
+            tasks,
+            runs,
+            // not saved: derived from `runs` and the run's attacks; `decode_state` rebuilds it.
+            move_index: _,
+            ranged_cooling,
+            orbs,
+            zones,
+            spawned,
+            next_id,
+            next_orb_group,
+            progress,
+            stars,
+            heal_pickups,
+            expertise,
+            // not saved: content; `decode_state` takes it from the fresh engine.
+            match_ups: _,
+            // not saved: content, as the match-ups are.
+            runes: _,
+            // not saved: content, as the match-ups are.
+            stun: _,
+            max_attack_speed_pct,
+            enemy_attack_damage,
+            max_rune_haste_pct,
+            horde,
+            stardust,
+            regen,
+            hp_pct,
+            damage_pct,
+            crit_seed,
+            echoes,
+        } = self;
+        tick.encode(w);
+        rng.encode(w);
+        outcome.encode(w);
+        player.encode(w);
+        boss.encode(w);
+        companions.encode(w);
+        enemies.encode(w);
+        tasks.encode(w);
+        runs.encode(w);
+        ranged_cooling.encode(w);
+        orbs.encode(w);
+        zones.encode(w);
+        spawned.encode(w);
+        next_id.encode(w);
+        next_orb_group.encode(w);
+        progress.encode(w);
+        stars.encode(w);
+        heal_pickups.encode(w);
+        expertise.encode(w);
+        max_attack_speed_pct.encode(w);
+        enemy_attack_damage.encode(w);
+        max_rune_haste_pct.encode(w);
+        horde.encode(w);
+        stardust.encode(w);
+        regen.encode(w);
+        hp_pct.encode(w);
+        damage_pct.encode(w);
+        crit_seed.encode(w);
+        echoes.encode(w);
+    }
+}
+
+impl State {
+    /// The state in `r`, with the fields it does not save (the content's tables and buffers)
+    /// taken from `fresh`, the state of an engine started from the same setup and content. The
+    /// lists are only as long as the format allows: `decode_state` checks them against `fresh`,
+    /// and fills the index and the content-sized fields of `progress` and `horde` in.
+    pub(crate) fn decode_over(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
+        let companions_cap = cap_u32(crate::validate::limits::MAX_COMPANIONS);
+        let enemies_cap = u32::from(crate::limits::MAX_ENEMY_CAP);
+        Ok(State {
+            scratch: Default::default(),
+            kinds: fresh.kinds.clone(),
+            tick: Decode::decode(r)?,
+            rng: Decode::decode(r)?,
+            outcome: Decode::decode(r)?,
+            player: Decode::decode(r)?,
+            boss: Decode::decode(r)?,
+            companions: decode_vec(r, companions_cap)?,
+            enemies: decode_vec(r, enemies_cap)?,
+            tasks: decode_vec(r, crate::limits::MAX_ATTACK_TASKS)?,
+            runs: decode_vec(r, enemies_cap + companions_cap + 1)?,
+            move_index: Default::default(),
+            ranged_cooling: decode_vec(r, crate::limits::MAX_RANGED_ATTACKERS)?,
+            orbs: decode_vec(r, crate::limits::MAX_ORBS_ALIVE)?,
+            zones: decode_vec(r, crate::limits::MAX_ZONES_ALIVE)?,
+            spawned: decode_vec(r, MAX_CONTENT_LEN)?,
+            next_id: Decode::decode(r)?,
+            next_orb_group: Decode::decode(r)?,
+            progress: Decode::decode(r)?,
+            stars: Decode::decode(r)?,
+            heal_pickups: match r.u8()? {
+                0 => None,
+                1 => Some(decode_vec(
+                    r,
+                    u32::from(crate::validate::limits::MAX_HEAL_PICKUPS),
+                )?),
+                _ => return Err(DecodeError::Invalid("option tag")),
+            },
+            expertise: Decode::decode(r)?,
+            match_ups: fresh.match_ups,
+            runes: fresh.runes.clone(),
+            stun: fresh.stun.clone(),
+            max_attack_speed_pct: Decode::decode(r)?,
+            enemy_attack_damage: Decode::decode(r)?,
+            max_rune_haste_pct: Decode::decode(r)?,
+            horde: Decode::decode(r)?,
+            stardust: Decode::decode(r)?,
+            regen: Decode::decode(r)?,
+            hp_pct: Decode::decode(r)?,
+            damage_pct: Decode::decode(r)?,
+            crit_seed: Decode::decode(r)?,
+            echoes: decode_vec(r, cap_u32(crate::limits::MAX_ECHOES_PER_TICK))?,
+        })
+    }
+}
+
 #[cfg(test)]
 mod enum_tests {
     use super::*;

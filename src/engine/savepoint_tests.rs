@@ -19,6 +19,8 @@ type Decoded = Result<(State, RunLedger, Counted), DecodeError>;
 fn saved() -> Engine {
     let mut e = engine();
     e.state = full_state(&e);
+    // The index is derived from the runs; the fixture's was lowered by hand.
+    e.state.move_index.rebuild(&e.stage, &e.state.runs);
     e.ledger.add_kill("kills.giant_sword.enemy".into());
     e.ledger.add_kill("rune_taken.burn".into());
     e.ledger.add_bestiary_bit(&ContentId::from("slime"), 3);
@@ -206,7 +208,7 @@ fn indices() -> Vec<Index> {
         Index {
             message: "skill index out of range",
             set: |s, n| s.player.skill.as_mut().unwrap().index = n as u16,
-            len: |e| e.content.rewards().rewards().len(),
+            len: |e| e.content.rewards().stage_skills().skills().len(),
         },
         Index {
             message: "star pool entry out of range",
@@ -516,4 +518,22 @@ fn corpus_round_trip() {
             }
         }
     }
+}
+
+#[test]
+fn a_decoded_ledger_goes_on_counting_where_the_original_does() {
+    let mut e = engine();
+    // A kill key that sorts before the weapon's own shifts the kill indices (`add_kill`).
+    e.ledger.add_kill("rune_taken.burn".into());
+    e.ledger.add_kill("a_first_key".into());
+    let (_, ledger, _) = decode_state(&encode_state(&e), &e).unwrap();
+    let mut original = e.ledger.clone();
+    let mut resumed = ledger;
+    assert_eq!(resumed, original);
+    for key in ["a_first_key", "kills.giant_sword.enemy", "b_new_key"] {
+        original.add_kill(key.into());
+        resumed.add_kill(key.into());
+    }
+    assert_eq!(resumed, original);
+    assert_eq!(resumed.stat("kills.giant_sword.enemy"), 1);
 }
