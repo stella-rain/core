@@ -116,10 +116,12 @@ jobs:
             *) seeds= ;;
           esac
           mkdir -p "fuzz/corpus/$TARGET"
+          # The input arrives as text such as 1.0; the script gives whole seconds or stops the step.
+          max_total_time=$(python3 .github/scripts/fuzz_seconds.py "$MINUTES")
           # The first directory is the one libFuzzer adds new inputs to.
           # shellcheck disable=SC2086
           cargo "+$FUZZ_NIGHTLY" fuzz run "$TARGET" "fuzz/corpus/$TARGET" $seeds -- \
-            -max_total_time=$((MINUTES * 60)) -max_len=65536
+            -max_total_time="$max_total_time" -max_len=65536
       # Saved even when the run found a crash: the inputs it grew are still worth keeping.
       - uses: actions/cache/save@v6
         if: always()
