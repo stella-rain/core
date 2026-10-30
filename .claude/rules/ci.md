@@ -40,7 +40,8 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
 `bench_alarm.py` (the rise alarm), `bench_pins.py` (which cases compare) and `callgrind_diff.py` (the bench
 profile), tested by `test_release.py`, `test_bench_budget.py`, `test_bench_alarm.py`, `test_bench_pins.py` and
 `test_callgrind_diff.py`; `corpus_paths.py` (where the replay corpus is; tested by
-`test_corpus_paths.py`); `test_candidate_workflow.py`
+`test_corpus_paths.py`); `fuzz_seconds.py` (fuzz-long's minutes to whole seconds; tested by
+`test_fuzz_seconds.py`); `test_candidate_workflow.py`
 checks the release workflows' text. The iOS Simulator runner (`ios-sim-runner.sh`) and the fuzz report
 (`fuzz-report.sh`) have no tests. Run: `python3 -m unittest discover -s .github/scripts`.
 
