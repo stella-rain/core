@@ -114,6 +114,7 @@ mod rune_haste;
 mod runes;
 mod runes_file;
 mod savepoint;
+mod savepoint_proof;
 mod schema;
 mod share;
 mod shot;

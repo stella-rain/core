@@ -6,8 +6,11 @@
 //! the tests can tell a target that reaches the code behind the gate from one that does not.
 //! A panic is a finding: the assertions below say what must hold, not what happens to.
 
+use std::sync::OnceLock;
+
 use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::attack_presets::AttackPresets;
+use stella_rain_core::content_hash::sha256;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::id::ContentId;
@@ -23,6 +26,7 @@ use stella_rain_core::run_replay::{self, Command, CommandKind, RunRecorder, RunR
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::runes::Runes;
+use stella_rain_core::savepoint::{HEADER_LEN, SavepointError};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::text::TextTable;
@@ -269,6 +273,174 @@ pub fn replay_load(data: &[u8]) -> bool {
         }
     }
     stage_replay || run_replay
+}
+
+/// The run the savepoint target resumes: a corpus run case that pins the bundled pack, cleared
+/// in 297 ticks, with its one open offer at tick 230.
+const SAVEPOINT_RUN: &[u8] = include_bytes!("../../tests/corpus/current/runs/tutorial/run.replay");
+
+/// The ticks the savepoint target's prefixes are cut at: running, and with the offer open.
+const SAVEPOINT_CUTS: [u32; 2] = [150, 230];
+
+/// Where the header's crate version starts (`HEADER_LEN` ends it).
+const CRATE_VERSION_AT: usize = 128;
+
+/// Ticks the target steps a loaded run on.
+const SAVEPOINT_EXTRA_STEPS: usize = 20;
+
+/// The fixed run of the savepoint target, played by its own commands up to `cut` ticks (before
+/// the commands that follow that tick), or to its end for `None`.
+pub fn savepoint_recorder(cut: Option<u32>) -> RunRecorder {
+    let run = RunReplay::from_bytes(SAVEPOINT_RUN).expect("the savepoint run is a run replay");
+    let mut recorder = RunRecorder::start_with_pack(&run.setup, Pack::bundled())
+        .expect("the savepoint run starts");
+    let mut steps = 0;
+    for command in commands(&run) {
+        if cut == Some(steps) {
+            break;
+        }
+        match command {
+            Command::Step(input) => {
+                steps += 1;
+                recorder.step(input).expect("the savepoint run steps");
+            }
+            Command::Choose(index) => recorder
+                .choose(index)
+                .expect("the savepoint run's choice is accepted"),
+        }
+    }
+    recorder
+}
+
+/// The replays a savepoint is loaded against: the run at each of `SAVEPOINT_CUTS` and the run
+/// whole (a finished run).
+pub fn savepoint_prefixes() -> &'static [RunReplay] {
+    static PREFIXES: OnceLock<Vec<RunReplay>> = OnceLock::new();
+    PREFIXES.get_or_init(|| {
+        SAVEPOINT_CUTS
+            .iter()
+            .map(|cut| Some(*cut))
+            .chain([None])
+            .map(|cut| savepoint_recorder(cut).replay())
+            .collect()
+    })
+}
+
+/// The savepoint loader (ADR-SAVE-3, ADR-SVC-1). The bytes are a savepoint file, tried against
+/// each prefix of `savepoint_prefixes()` with the bundled pack. The refusal is one of the seven
+/// typed errors (the `match` is exhaustive); a savepoint that loads is the canonical bytes of
+/// the run it holds: its replay is the prefix, saving it again gives the same bytes but for the
+/// header's crate version, its state
+/// hashes as the prefix says, and it steps on without a panic, answering an open offer with
+/// choice 0. Returns whether some prefix accepted the bytes.
+pub fn savepoint_load(data: &[u8]) -> bool {
+    let mut loaded = false;
+    for prefix in savepoint_prefixes() {
+        match RunRecorder::resume_from_savepoint(data, prefix, Pack::bundled()) {
+            Ok(mut recorder) => {
+                loaded = true;
+                assert_eq!(
+                    recorder.replay(),
+                    *prefix,
+                    "a loaded run has another prefix"
+                );
+                // Canonical but for the crate version: the header keeps it for information, it
+                // is outside the checksum and never compared, so any text there loads.
+                let saved = recorder.save();
+                assert!(
+                    saved.len() == data.len()
+                        && saved[..CRATE_VERSION_AT] == data[..CRATE_VERSION_AT]
+                        && saved[HEADER_LEN..] == data[HEADER_LEN..],
+                    "a loaded savepoint is not canonical"
+                );
+                assert_eq!(
+                    replay::hash_to_hex(recorder.engine().state_hash()),
+                    prefix.final_hash,
+                    "a loaded state hashes otherwise than the prefix says"
+                );
+                for _ in 0..SAVEPOINT_EXTRA_STEPS {
+                    if recorder.engine().outcome() != Outcome::Running {
+                        break;
+                    }
+                    let moved = if recorder.engine().offer_open() {
+                        recorder.choose(0)
+                    } else {
+                        recorder.step(Input::default())
+                    };
+                    if moved.is_err() {
+                        break;
+                    }
+                }
+            }
+            Err(
+                SavepointError::Format
+                | SavepointError::SimVersion
+                | SavepointError::Pack
+                | SavepointError::Damaged
+                | SavepointError::HashMismatch
+                | SavepointError::PrefixMismatch
+                | SavepointError::Ended,
+            ) => {}
+        }
+    }
+    loaded
+}
+
+/// The seeds of `savepoint_load`, named for what they are: valid savepoints of the target's run,
+/// one file per refusal (`SavepointError`) made by the byte that causes it, truncations, single
+/// byte flips, a trailing byte and a length field of 0xff. Generated, not committed: the bytes
+/// move with `SAVEPOINT_FORMAT` and `SIM_VERSION`.
+pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
+    const PAYLOAD_LEN_AT: usize = 92;
+    const CHECKSUM_AT: usize = 96;
+    let valid = savepoint_recorder(Some(150)).save();
+    let reseal = |mut bytes: Vec<u8>| {
+        let mut sealed = bytes[..CHECKSUM_AT].to_vec();
+        sealed.extend_from_slice(&bytes[HEADER_LEN..]);
+        bytes[CHECKSUM_AT..CHECKSUM_AT + 32].copy_from_slice(&sha256(&sealed));
+        bytes
+    };
+    let edited = |at: usize, f: &dyn Fn(u8) -> u8| {
+        let mut bytes = valid.clone();
+        bytes[at] = f(bytes[at]);
+        bytes
+    };
+    let mut seeds = vec![
+        (
+            "valid-tick100".to_owned(),
+            savepoint_recorder(Some(100)).save(),
+        ),
+        ("valid-tick150".to_owned(), valid.clone()),
+        (
+            "valid-tick230".to_owned(),
+            savepoint_recorder(Some(230)).save(),
+        ),
+        ("valid-end".to_owned(), savepoint_recorder(None).save()),
+        ("format".to_owned(), edited(4, &|b| b.wrapping_add(1))),
+        ("sim-version".to_owned(), edited(8, &|b| b.wrapping_add(1))),
+        ("pack".to_owned(), reseal(edited(16, &|b| b ^ 1))),
+        ("damaged".to_owned(), edited(valid.len() - 1, &|b| b ^ 1)),
+        ("hash-mismatch".to_owned(), reseal(edited(52, &|b| b ^ 1))),
+    ];
+    for (name, len) in [
+        ("trunc-0", 0),
+        ("trunc-1", 1),
+        ("trunc-half", valid.len() / 2),
+        ("trunc-last", valid.len() - 1),
+    ] {
+        seeds.push((name.to_owned(), valid[..len].to_vec()));
+    }
+    for k in 0..16 {
+        let at = valid.len() * k / 16;
+        seeds.push((format!("flip-{at:04}"), edited(at, &|b| b ^ 0xff)));
+    }
+    let mut trailing = valid.clone();
+    trailing.push(0);
+    seeds.push(("trailing".to_owned(), trailing));
+    let mut long = valid.clone();
+    long[PAYLOAD_LEN_AT..PAYLOAD_LEN_AT + 4].fill(0xff);
+    seeds.push(("len-ff".to_owned(), long));
+    seeds
 }
 
 /// A run replay's commands in the order they were made: before each tick the commands that

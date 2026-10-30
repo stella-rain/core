@@ -83,6 +83,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "savepoint_load"
+path = "fuzz_targets/savepoint_load.rs"
+test = false
+doc = false
+bench = false
+
 # Overflow panics in every profile, as in the root crate (ADR-019): a profile of the root
 # `Cargo.toml` does not reach this workspace. `cargo fuzz` builds with the release profile.
 [profile.dev]
