@@ -88,6 +88,11 @@ class CommandCapStep(unittest.TestCase):
         self.assertIn("re-pin MEASURED_MOST", src)
         self.assertIn("--run-ignored all", read("deep.yml"))
 
+    def test_the_pin_is_exact_so_a_fall_re_pins_too(self):
+        src = read_root("tests/command_cap.rs")
+        self.assertIn("most == MEASURED_MOST,", src)
+        self.assertNotIn("most <= MEASURED_MOST", src)
+
     def test_workflow_rules_hold(self):
         lines = self.text.splitlines()
         self.assertLess(lines.index("permissions: {}"), lines.index("jobs:"))
