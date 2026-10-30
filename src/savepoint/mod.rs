@@ -3,7 +3,7 @@
 //! it back and fails closed with a `DecodeError` on any bytes it does not accept. Nothing here
 //! is public yet; the file format around it (a format constant, a golden guard) is a later task.
 
-mod codec;
+pub(crate) mod codec;
 
 // Used by the state codec and the savepoint file, which come next.
 #[allow(unused_imports)]

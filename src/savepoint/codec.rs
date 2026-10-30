@@ -301,6 +301,29 @@ impl<A: Decode, B: Decode> Decode for (A, B) {
     }
 }
 
+// The caps of the lists a state holds, each from the constant that bounds the list in play.
+
+/// A path into an attack program: one step for each level of nesting (`MAX_PATTERN_DEPTH`).
+pub(crate) fn max_path() -> u32 {
+    crate::validate::limits::MAX_PATTERN_DEPTH
+}
+
+/// The entities one attack run or zone has hit: at most the enemies there can be
+/// (`MAX_ENEMY_CAP`).
+pub(crate) fn max_hits() -> u32 {
+    u32::from(crate::validate::limits::MAX_ENEMY_CAP)
+}
+
+/// The guardians of a shrine (`MAX_SHRINE_GUARDIANS`).
+pub(crate) fn max_guardians() -> u32 {
+    u32::from(crate::validate::limits::MAX_SHRINE_GUARDIANS)
+}
+
+/// The parts of a boss (`MAX_BOSS_PARTS`).
+pub(crate) fn max_parts() -> u32 {
+    u32::try_from(crate::validate::limits::MAX_BOSS_PARTS).expect("a small cap")
+}
+
 /// The most bytes of a `ContentId` (`registry` holds an ID to 32 characters).
 const MAX_CONTENT_ID_BYTES: u32 = 32;
 
