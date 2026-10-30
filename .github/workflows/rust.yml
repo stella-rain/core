@@ -443,6 +443,14 @@ jobs:
           cp tests/fixtures/run_setup/*.json seeds/setup/
           cp content/*.json seeds/stage/
           cargo run --locked --bin content-pack -- export > seeds/pack/bundled.pack
+      - name: Seeds for savepoint_load
+        run: |
+          set -eu
+          # Generated, not committed: the bytes move with SAVEPOINT_FORMAT and SIM_VERSION. The test
+          # runs in fuzz/, so the folder is absolute: cargo fuzz reads seeds/savepoint of the root.
+          SAVEPOINT_SEEDS_DIR="$PWD/seeds/savepoint" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_savepoint_seeds -- --ignored
+          test -n "$(ls seeds/savepoint)"
+          ls seeds/savepoint | wc -l
       - name: Fuzz each target for 60 seconds
         run: |
           set -eu
@@ -455,6 +463,7 @@ jobs:
               replay_load) seeds=seeds/replay ;;
               run_setup) seeds=seeds/setup ;;
               pack_load) seeds=seeds/pack ;;
+              savepoint_load) seeds=seeds/savepoint ;;
               *) seeds= ;;
             esac
             # shellcheck disable=SC2086
