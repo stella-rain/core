@@ -4,6 +4,8 @@
 //! version (ADR-REPL-7 point 8); the entries are placeholders until the registry file replaces
 //! them.
 //!
+//! An attack preset's arguments are bounded in code by its registry entry (ADR-CONT-8, ADR-CONT-2).
+//!
 //! Asset sources (ADR-027) join the entries when real assets exist.
 
 /// What an ID names. An ID is only valid where its kind is expected.
@@ -36,14 +38,25 @@ pub enum Availability {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArgBound {
+    pub name: &'static str,
+    pub min: i32,
+    pub max: i32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Entry {
     pub id: &'static str,
     pub kind: Kind,
     /// The `sim_version` that introduced the ID; a stage may use it from that version on.
     pub introduced: u32,
     pub availability: Availability,
-    /// Arguments an attack preset takes; 0 for every other kind.
+    /// Arguments an attack preset takes; 0 for every other kind. Preset arguments are bounded in
+    /// code (ADR-CONT-8, ADR-CONT-2).
     pub args: u8,
+    /// The name, minimum, and maximum of each argument an attack preset takes; empty for every other
+    /// kind or arity-0 preset.
+    pub arg_bounds: &'static [ArgBound],
 }
 
 const fn entry(id: &'static str, kind: Kind, args: u8) -> Entry {
@@ -53,8 +66,34 @@ const fn entry(id: &'static str, kind: Kind, args: u8) -> Entry {
         introduced: 1,
         availability: Availability::Active,
         args,
+        arg_bounds: &[],
     }
 }
+
+const fn preset(id: &'static str, bounds: &'static [ArgBound]) -> Entry {
+    assert!(
+        bounds.len() <= u8::MAX as usize,
+        "too many arguments for u8 arity"
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    let args = bounds.len() as u8;
+    Entry {
+        id,
+        kind: Kind::Preset,
+        introduced: 1,
+        availability: Availability::Active,
+        args,
+        arg_bounds: bounds,
+    }
+}
+
+pub const MAX_WIND_UP: i32 = 600;
+
+const WIND_UP_BOUNDS: &[ArgBound] = &[ArgBound {
+    name: "wind_up_ticks",
+    min: 0,
+    max: MAX_WIND_UP,
+}];
 
 /// Sorted by kind, then ID, with no duplicates (`tests/registry.rs`).
 pub const ENTRIES: &[Entry] = &[
@@ -75,12 +114,12 @@ pub const ENTRIES: &[Entry] = &[
     entry("weaver", Kind::Asset, 0),
     entry("ice", Kind::Palette, 0),
     entry("orb_small", Kind::Orb, 0),
-    entry("aimed_single", Kind::Preset, 1),
-    entry("aimed_spread", Kind::Preset, 1),
+    preset("aimed_single", WIND_UP_BOUNDS),
+    preset("aimed_spread", WIND_UP_BOUNDS),
     entry("elite_slam", Kind::Preset, 0),
     entry("slam", Kind::Preset, 0),
     entry("slash", Kind::Preset, 0),
-    entry("spiral", Kind::Preset, 1),
+    preset("spiral", WIND_UP_BOUNDS),
     entry("spread_5", Kind::Preset, 0),
     entry("thrust", Kind::Preset, 0),
     entry("twin_shot", Kind::Preset, 0),

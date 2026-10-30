@@ -664,8 +664,10 @@ fn presets_take_the_arguments_the_registry_says() {
         first_issue(&with("twin_shot", json!([1]))).path,
         "$.waves[0].enemy.rules[0].do.attack.preset.args"
     );
+    let out = issues(&with("aimed_single", json!([MAX_NUMBER + 1])));
+    assert_eq!(out.len(), 1);
     assert_eq!(
-        first_issue(&with("aimed_single", json!([MAX_NUMBER + 1]))).path,
+        out[0].path,
         "$.waves[0].enemy.rules[0].do.attack.preset.args[0].value"
     );
     let many = Value::Array(vec![json!(0); MAX_PRESET_ARGS + 1]);
@@ -677,6 +679,54 @@ fn presets_take_the_arguments_the_registry_says() {
         first_issue(&with("not_a_preset", json!([]))).path,
         "$.waves[0].enemy.rules[0].do.attack.preset.id"
     );
+}
+
+#[test]
+fn preset_arguments_outside_bounds_are_refused() {
+    let b = base();
+    let with = |id: &str, args: Value| {
+        let mut v = b.clone();
+        *enemy_attack(&mut v) = json!({ "preset": { "id": id, "args": args } });
+        v
+    };
+
+    for id in ["aimed_single", "aimed_spread", "spiral"] {
+        let below = issues(&with(id, json!([-1])));
+        assert_eq!(below.len(), 1, "expected 1 issue for {id} [-1]");
+        assert_eq!(
+            below[0].path,
+            "$.waves[0].enemy.rules[0].do.attack.preset.args[0]"
+        );
+        assert_eq!(
+            below[0].message,
+            format!("preset {id} argument 0 (wind_up_ticks) is -1, below its minimum 0")
+        );
+
+        let above = issues(&with(id, json!([601])));
+        assert_eq!(above.len(), 1, "expected 1 issue for {id} [601]");
+        assert_eq!(
+            above[0].path,
+            "$.waves[0].enemy.rules[0].do.attack.preset.args[0]"
+        );
+        assert_eq!(
+            above[0].message,
+            format!("preset {id} argument 0 (wind_up_ticks) is 601, above its maximum 600")
+        );
+    }
+}
+
+#[test]
+fn preset_arguments_on_bounds_are_accepted() {
+    let b = base();
+    let with = |id: &str, args: Value| {
+        let mut v = b.clone();
+        *enemy_attack(&mut v) = json!({ "preset": { "id": id, "args": args } });
+        v
+    };
+
+    assert_valid(&with("aimed_single", json!([0])));
+    assert_valid(&with("aimed_single", json!([600])));
+    assert_valid(&with("aimed_single", json!([15])));
 }
 
 #[test]

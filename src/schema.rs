@@ -70,7 +70,10 @@ pub fn all() -> Vec<(&'static str, String)> {
         PacksFile,
     );
 
-    let definitions = generator.take_definitions(true);
+    let mut definitions = generator.take_definitions(true);
+    if let Some(attack_ref) = definitions.get_mut("AttackRef") {
+        attach_preset_arg_bounds(attack_ref);
+    }
     let mut bundle = serde_json::Map::new();
     bundle.insert(
         "$schema".to_string(),
@@ -85,6 +88,50 @@ pub fn all() -> Vec<(&'static str, String)> {
     let mut bundle_json = serde_json::to_string_pretty(&serde_json::Value::Object(bundle))
         .expect("bundle serialises");
     bundle_json.push('\n');
+
+    fn attach_preset_arg_bounds(attack_ref: &mut serde_json::Value) {
+        let preset = &mut attack_ref["oneOf"][0]["properties"]["preset"];
+        if let serde_json::Value::Object(preset_map) = preset {
+            let all_of: Vec<serde_json::Value> = crate::registry::ENTRIES
+                .iter()
+                .filter(|e| e.kind == crate::registry::Kind::Preset && !e.arg_bounds.is_empty())
+                .map(|e| {
+                    let prefix_items: Vec<serde_json::Value> = e
+                        .arg_bounds
+                        .iter()
+                        .map(|b| {
+                            serde_json::json!({
+                                "type": "integer",
+                                "minimum": b.min,
+                                "maximum": b.max,
+                            })
+                        })
+                        .collect();
+                    let n = e.arg_bounds.len();
+                    serde_json::json!({
+                        "if": {
+                            "properties": {
+                                "id": {
+                                    "const": e.id
+                                }
+                            },
+                            "required": ["id"]
+                        },
+                        "then": {
+                            "properties": {
+                                "args": {
+                                    "prefixItems": prefix_items,
+                                    "minItems": n,
+                                    "maxItems": n
+                                }
+                            }
+                        }
+                    })
+                })
+                .collect();
+            preset_map.insert("allOf".to_string(), serde_json::Value::Array(all_of));
+        }
+    }
 
     fn stub(type_name: &str) -> String {
         let mut map = serde_json::Map::new();

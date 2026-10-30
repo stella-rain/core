@@ -97,3 +97,69 @@ fn every_registry_id_is_introduced_in_version_1() {
         assert_eq!(e.introduced, 1, "{}", e.id);
     }
 }
+
+#[test]
+fn preset_arguments_have_valid_bounds() {
+    use stella_rain_core::validate::limits::{MAX_NUMBER, MAX_ZONE_TICKS};
+
+    for e in ENTRIES {
+        assert_eq!(
+            e.arg_bounds.len(),
+            usize::from(e.args),
+            "entry {} arg_bounds len must match args",
+            e.id
+        );
+        if e.kind != Kind::Preset || e.args == 0 {
+            assert!(
+                e.arg_bounds.is_empty(),
+                "non-preset or arity-0 entry {} must have empty arg_bounds",
+                e.id
+            );
+        }
+
+        let mut names = std::collections::BTreeSet::new();
+        for b in e.arg_bounds {
+            assert!(
+                b.min <= b.max,
+                "entry {} arg {} min {} > max {}",
+                e.id,
+                b.name,
+                b.min,
+                b.max
+            );
+            assert!(
+                b.min >= -MAX_NUMBER && b.max <= MAX_NUMBER,
+                "entry {} arg {} bounds [{}, {}] outside +-MAX_NUMBER",
+                e.id,
+                b.name,
+                b.min,
+                b.max
+            );
+            assert!(
+                is_well_formed(b.name),
+                "entry {} arg {} name must be well-formed lowercase snake_case",
+                e.id,
+                b.name
+            );
+            assert!(
+                names.insert(b.name),
+                "entry {} duplicate argument name {}",
+                e.id,
+                b.name
+            );
+        }
+    }
+
+    assert_eq!(MAX_ZONE_TICKS, 600);
+    assert_eq!(
+        stella_rain_core::registry::MAX_WIND_UP,
+        i32::try_from(MAX_ZONE_TICKS).unwrap()
+    );
+    for id in ["aimed_single", "aimed_spread", "spiral"] {
+        let e = find(ENTRIES, Kind::Preset, id).unwrap_or_else(|| panic!("{id}"));
+        assert_eq!(e.arg_bounds.len(), 1, "{id}");
+        assert_eq!(e.arg_bounds[0].name, "wind_up_ticks", "{id}");
+        assert_eq!(e.arg_bounds[0].min, 0, "{id}");
+        assert_eq!(e.arg_bounds[0].max, 600, "{id}");
+    }
+}

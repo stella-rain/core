@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::fixed::Fx;
 use crate::id::ContentId;
 
-/// A preset by ID with its arguments, or an inline definition.
+/// A preset by ID with its arguments, or an inline definition. A preset's arguments are bounded by
+/// its registry entry.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum AttackRef {

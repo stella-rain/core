@@ -26,7 +26,7 @@ the version. A minor or major release needs a version PR.
 
 ## Balancing
 
-Tuning numbers live in core under `content/` and `modes/`. Balancing workflow:
+Tuning numbers live in core under `content/` and `modes/`. Preset arguments have a minimum and a maximum in the registry and the schema (`minimum`/`maximum` under `AttackRef`); a pack or stage outside them is refused at load (for today's presets, a wind-up of 0 to 600 ticks). Balancing workflow:
 
 1. **Compare numbers:** `content-pack compare --numbers-only BASE_DIR HEAD_DIR` verifies that two
    content checkouts differ only in numeric leaf values. Any change to keys, IDs, strings,
