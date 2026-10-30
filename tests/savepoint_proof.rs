@@ -597,3 +597,9 @@ fn the_fixture_run_is_running_at_its_last_tick() {
     assert_eq!(r.ticks(), RAND_TICKS);
     assert!(!case.commands.is_empty(), "no offer was answered");
 }
+
+#[test]
+fn the_rand_attack_run_restores_to_the_uninterrupted_run() {
+    let (case, r) = rand_attack_case();
+    check_run(&case, &r, &rand_cuts(&r), &real_restore).unwrap_or_else(|e| panic!("{e}"));
+}
