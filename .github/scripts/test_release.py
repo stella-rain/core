@@ -267,11 +267,11 @@ class SimVersion(unittest.TestCase):
 
 class Notes(unittest.TestCase):
     def test_the_title_line_is_the_label(self):
-        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], sim_version=1)
+        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], rules=1)
         self.assertEqual(text.splitlines()[0], "# core v0.0.4 \u00b7 rules v1")
 
     def test_the_notes_name_the_candidate_the_commit_and_the_changes(self):
-        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", ["abc1234 One", "", "def5678 Two"], sim_version=1)
+        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", ["abc1234 One", "", "def5678 Two"], rules=1)
         self.assertIn("v0.0.4", text.splitlines()[0])
         self.assertIn(f"`{SHA}`", text)
         self.assertIn("Commits since v0.0.3:", text)
@@ -279,7 +279,7 @@ class Notes(unittest.TestCase):
         self.assertIn("SHA256SUMS", text)
 
     def test_the_first_release_has_no_previous(self):
-        self.assertIn("First release.", r.notes("v0.0.1-rc.1", SHA, None, [], sim_version=1))
+        self.assertIn("First release.", r.notes("v0.0.1-rc.1", SHA, None, [], rules=1))
 
 
 class PackChanged(unittest.TestCase):
@@ -298,14 +298,14 @@ class PackWarning(unittest.TestCase):
             "from this tag before an app build pins it (ADR-080)")
 
     def test_a_changed_pack_puts_the_warning_first(self):
-        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], pack_changed=True, sim_version=1)
+        text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], pack_changed=True, rules=1)
         self.assertEqual(text.splitlines()[0], self.LINE)
 
     def test_an_unchanged_pack_has_no_warning(self):
-        self.assertNotIn("content/pack.json", r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], sim_version=1))
+        self.assertNotIn("content/pack.json", r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], rules=1))
 
     def test_the_first_release_has_no_warning(self):
-        self.assertNotIn("content/pack.json", r.notes("v0.0.1-rc.1", SHA, None, [], pack_changed=True, sim_version=1))
+        self.assertNotIn("content/pack.json", r.notes("v0.0.1-rc.1", SHA, None, [], pack_changed=True, rules=1))
 
 
 def git(cwd, *args):

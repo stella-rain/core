@@ -227,13 +227,13 @@ def sim_version(source):
     return int(found[0])
 
 
-def notes(rc, commit, prev, log, pack_changed=False, *, sim_version):
+def notes(rc, commit, prev, log, pack_changed=False, *, rules):
     final = CANDIDATE_RE.match(rc).group(1)
     lines = []
     if pack_changed and prev:
         lines += [f"content/pack.json changed since {prev}: publish a stella-rain/content release "
                   "from this tag before an app build pins it (ADR-080)", ""]
-    lines += [f"# core {final} \u00b7 rules v{sim_version}", "", f"Commit `{commit}` on `main`, tested as `{rc}`.", "",
+    lines += [f"# core {final} \u00b7 rules v{rules}", "", f"Commit `{commit}` on `main`, tested as `{rc}`.", "",
              "## Assets", "",
              "- `stage-verify` for Linux x86_64 and arm64, Windows x86_64 and macOS arm64.",
              "- The JSON Schema of the stage, event, input, replay and snapshot types.",
@@ -343,7 +343,7 @@ def _notes(rc, commit, prev, log_file):
     if prev:
         head = open(PACK, "rb").read() if os.path.exists(PACK) else None
         changed = pack_changed(_pack_at(prev), head)
-    return notes(rc, commit, prev, _read(log_file).splitlines(), changed, sim_version=rules)
+    return notes(rc, commit, prev, _read(log_file).splitlines(), changed, rules=rules)
 
 
 USAGE = ("usage: release.py final | stamp FINAL | check-main REF | check-release | rc TAG | checks-passed RUN_ID | "

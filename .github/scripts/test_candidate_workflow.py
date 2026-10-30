@@ -118,7 +118,8 @@ class PromoteTagsTheStampedCommit(unittest.TestCase):
 
 class PromoteKeepsTheLabel(unittest.TestCase):
     """The notes' title line (core vX . rules vN) is written by Candidate and reaches the final
-    release because Promote republishes the prerelease's body."""
+    release because Promote republishes the prerelease's body (after its own
+    "promoted from" line, so the title is the first line of the notes, not of the release body)."""
 
     def test_promote_releases_the_prerelease_body_and_makes_no_notes_of_its_own(self):
         check = job_block(read("promote.yml"), "check")
