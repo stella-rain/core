@@ -113,6 +113,7 @@ mod run_stats;
 mod rune_haste;
 mod runes;
 mod runes_file;
+mod savepoint;
 mod schema;
 mod share;
 mod shot;

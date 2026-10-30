@@ -4,7 +4,12 @@
 //! is public yet; the file format around it (a format constant, a golden guard) is a later task.
 
 pub(crate) mod codec;
+mod file;
 pub(crate) mod state;
+
+pub use file::{
+    HEADER_LEN, MAX_SAVEPOINT_BYTES, SAVEPOINT_FORMAT, Savepoint, SavepointError, SavepointHeader,
+};
 
 // Used by the state codec and the savepoint file, which come next.
 #[allow(unused_imports)]
