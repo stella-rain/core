@@ -2511,9 +2511,9 @@ fn the_leash_edge_case_is_what_its_name_says() {
     let inputs = recorded.unpack_inputs(stage.length_ticks).unwrap();
     assert_eq!(inputs.len(), 300);
 
-    for (tick_idx, input) in inputs.into_iter().enumerate() {
-        let tick = tick_idx as u32;
+    for input in inputs {
         engine.step(input);
+        let tick = engine.snapshot().tick;
 
         let events = engine.events();
         for ev in events {
