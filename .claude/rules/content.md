@@ -32,7 +32,8 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
 
 ## What is where
 
-- The types (at `SCHEMA_VERSION`; version 1 is the frozen first version, ADR-REPL-7) are `stage.rs`, `behaviour.rs`, `attack.rs`, `weapon.rs`, `input.rs`, `event.rs` and
+- The types (at `SCHEMA_VERSION`; version 1 is the frozen first version, ADR-REPL-7) are
+  `stage.rs`, `behaviour.rs`, `attack.rs`, `weapon.rs`, `input.rs`, `event.rs` and
   `snapshot.rs` (ADR-REPL-1, ADR-SIM-4, ADR-REPL-3). `serde`, `serde_json` and `schemars` parse and
   describe them, outside the simulation path.
 - `validate.rs`: size limit, strict parse, registry, static budgets (ADR-SVC-1).
@@ -66,7 +67,7 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
 - A number a designer tunes for feel or balance is content: a strict, bounded, schema-generated key
   of `rules.json`, read once into `Tuning`. A `tune/` PR changes it: a new pack hash, no new `sim_version`.
 - Caps, the grid, the push-apart, the view and the units stay in Rust. The test: a number whose
-  change needs code review stays in Rust. A key's bounds are code (`validate_rules`; the two ranged
+  change needs code review stays in Rust. A key's bounds are code (`validate_rules` in `rules.rs`; the two ranged
   token pools sum to at most `MAX_RANGED_ATTACKERS`).
 - `docs/tuning.md` (generated from `src/limits.rs`) lists caps and code numbers only; a key's
   bounds are the schema's.
