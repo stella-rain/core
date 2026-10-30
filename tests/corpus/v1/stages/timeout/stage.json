@@ -1,0 +1,81 @@
+{
+  "boss": {
+    "base": "golem",
+    "hp": 100000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [],
+        "transition": []
+      }
+    ],
+    "radius": 1000,
+    "spawn": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "companions": [],
+  "description": "",
+  "id": "test",
+  "length_ticks": 90,
+  "player": {
+    "atk": 1000,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 300,
+    "weapon": {
+      "inline": {
+        "assist_range": 0,
+        "combo": {
+          "main": {
+            "attack": {
+              "inline": [
+                {
+                  "hit_box": {
+                    "angle": 0,
+                    "length": 65536,
+                    "offset": {
+                      "forward": 0,
+                      "right": 0
+                    },
+                    "type": "line",
+                    "width": 2048
+                  },
+                  "kind": "active",
+                  "ticks": 1
+                },
+                {
+                  "hit_box": {
+                    "angle": 0,
+                    "length": 65536,
+                    "offset": {
+                      "forward": 65536,
+                      "right": 0
+                    },
+                    "type": "line",
+                    "width": 2048
+                  },
+                  "kind": "active",
+                  "ticks": 1
+                }
+              ]
+            }
+          }
+        },
+        "window_ticks": 0
+      }
+    }
+  },
+  "schema_version": 1,
+  "seed": 7,
+  "sim_version": 1,
+  "title": "Test",
+  "waves": []
+}

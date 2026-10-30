@@ -1,0 +1,136 @@
+{
+  "boss": {
+    "base": "golem",
+    "hp": 100000000,
+    "parts": [],
+    "phases": [
+      {
+        "rules": [],
+        "timeline": [],
+        "transition": []
+      }
+    ],
+    "radius": 8192,
+    "spawn": {
+      "x": 46080,
+      "y": 40000
+    }
+  },
+  "companions": [],
+  "description": "",
+  "id": "test",
+  "length_ticks": 600,
+  "player": {
+    "atk": 1000,
+    "base": "pilot_a",
+    "evade": {
+      "cooldown_ticks": 40,
+      "distance": 12288,
+      "invulnerable_ticks": 10,
+      "ticks": 8
+    },
+    "hp": 9900,
+    "weapon": {
+      "preset": {
+        "id": "giant_sword"
+      }
+    }
+  },
+  "schema_version": 1,
+  "seed": 7,
+  "sim_version": 1,
+  "title": "Test",
+  "waves": [
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 3000,
+        "movement": {
+          "at": {
+            "x": 20000,
+            "y": 140000
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": []
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 20000,
+        "y": 140000
+      }
+    },
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 3000,
+        "movement": {
+          "at": {
+            "x": 22000,
+            "y": 152000
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": []
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 22000,
+        "y": 152000
+      }
+    },
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "hp": 3000,
+        "movement": {
+          "at": {
+            "x": 26000,
+            "y": 147456
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": []
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 26000,
+        "y": 147456
+      }
+    },
+    {
+      "at_tick": 1,
+      "count": 1,
+      "enemy": {
+        "base": "bat",
+        "elite": {
+          "range": 1
+        },
+        "hp": 4000,
+        "movement": {
+          "at": {
+            "x": 76000,
+            "y": 147456
+          },
+          "type": "hold"
+        },
+        "radius": 2048,
+        "rules": []
+      },
+      "every_ticks": 0,
+      "spawn": {
+        "x": 76000,
+        "y": 147456
+      }
+    }
+  ]
+}

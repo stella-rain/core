@@ -41,7 +41,7 @@ Sources: ADR-REPL-3, ADR-REPL-4, ADR-BRDG-3, ADR-SVC-6, ADR-SIM-3.
   holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-3) and `case.json`;
   `packs/<sha256>.json` holds the pinned packs other than the bundled one. `tests/corpus/v<N>/`
   (N >= 1) is a frozen version of the same shape plus `manifest.sha256`: never edited (CI `frozen
-  corpus unchanged` and `corpus::the_frozen_corpus_is_unchanged`); `v1/` arrives with FZ1.
+  corpus unchanged` and `corpus::the_frozen_corpus_is_unchanged`); `v1/` is the first, recorded by `cargo xtask bless --freeze v1`.
   `corpus.rs` checks it all (ADR-SIM-3). The `app` repo reads one file from Cargo's checkout of
   core, `tests/corpus/current/runs/stage_skill/run.replay`; it is not renamed without the app's
   bump (`tests/corpus_contract.rs` fails on it). The CI readers (`fuzz-short`, `fuzz-long`,
