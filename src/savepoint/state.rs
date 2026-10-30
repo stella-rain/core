@@ -17,7 +17,6 @@ use crate::sim::state::State;
 use super::{Decode, DecodeError, Encode, Reader, Writer};
 
 /// The state, the ledger and the tallies of `engine` as bytes.
-#[allow(dead_code)] // the savepoint file calls it next
 pub(crate) fn encode_state(engine: &Engine) -> Vec<u8> {
     let (_, _, state, ledger, counted) = engine.savepoint_parts();
     let mut w = Writer::new();
@@ -30,7 +29,6 @@ pub(crate) fn encode_state(engine: &Engine) -> Vec<u8> {
 /// The state, the ledger and the tallies in `bytes`, for a run of `fresh`'s content. `fresh` is
 /// an engine started from the same setup and content, untouched: everything the content and the
 /// setup decide comes from it, and every length and index in the bytes is checked against it.
-#[allow(dead_code)] // the savepoint file calls it next
 pub(crate) fn decode_state(
     bytes: &[u8],
     fresh: &Engine,

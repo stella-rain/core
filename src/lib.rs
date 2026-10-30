@@ -47,7 +47,7 @@ pub mod run_stats;
 pub mod rune;
 pub mod runes;
 #[cfg_attr(not(test), allow(dead_code))]
-pub(crate) mod savepoint;
+pub mod savepoint;
 pub mod schema;
 pub mod share;
 pub(crate) mod sim;

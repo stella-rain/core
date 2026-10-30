@@ -1,15 +1,18 @@
 //! The canonical binary encoding of a run's state, the savepoint's bytes (ADR-SIM-3): a hand
 //! codec that mirrors `StableHash`, with no dependency. `Encode` writes a value, `Decode` reads
-//! it back and fails closed with a `DecodeError` on any bytes it does not accept. Nothing here
-//! is public yet; the file format around it (a format constant, a golden guard) is a later task.
+//! it back and fails closed with a `DecodeError` on any bytes it does not accept. The codec is
+//! crate-private; `Savepoint` (`file`) is the public file around it.
 
 pub(crate) mod codec;
+mod file;
 pub(crate) mod state;
 
-// Used by the state codec and the savepoint file, which come next.
-#[allow(unused_imports)]
+pub use file::{
+    HEADER_LEN, MAX_SAVEPOINT_BYTES, SAVEPOINT_FORMAT, Savepoint, SavepointError, SavepointHeader,
+};
+pub(crate) use file::{restore, save};
+
 pub(crate) use codec::{Decode, DecodeError, Encode, Reader, Writer};
-#[allow(unused_imports)]
 pub(crate) use state::{decode_state, encode_state};
 
 /// What the tests of the codec share.
