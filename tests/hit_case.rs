@@ -14,7 +14,7 @@ use stella_rain_core::snapshot::{EntityKind, EntityView};
 use stella_rain_core::validate::limits::MAX_MAP_SIDE;
 
 /// The largest map (core#87), and the spread case's two outer crowds: 440 pixels right of the
-/// start and 440 above and below it, within the case's own bound of 800 pixels (EC2).
+/// start and 440 above and below it, within the case's own bound, `SPREAD_BOUND`.
 const SIDE: i32 = MAX_MAP_SIDE;
 const SPREAD_OFFSET: i32 = 112_640;
 const TOP_RIGHT: (i32, i32) = (
@@ -26,12 +26,14 @@ const BOTTOM_RIGHT: (i32, i32) = (
     hit_case::START.1 + SPREAD_OFFSET,
 );
 
-/// The case's own bound on how far the spread crowd goes from the start (800 pixels, EC2; not
-/// the leash, whose reach is `rules.json`'s `leash_reach_x` and `leash_reach_y`),
-/// and the least extent of the spread crowd after the warm-up, in units: 700 pixels on
+/// The case's own bound on how far the spread crowd settles from the start: 204,800 units, 800
+/// pixels at 256 units a pixel (EC2). It is a limit of this fixture and not the leash, whose reach
+/// is `rules.json`'s `leash_reach_x` and `leash_reach_y`.
+///
+/// The least extent of the spread crowd after the warm-up, in units: 700 pixels on
 /// y. The start is 238 pixels from the map's left edge, so x cannot span 700 pixels; it measures
 /// 160,883 (about 630 pixels), and the least is EC2's 140,000.
-const LEASH_REACH: i64 = 204_800;
+const SPREAD_BOUND: i64 = 204_800;
 const LEAST_EXTENT_X: i32 = 140_000;
 const LEAST_EXTENT_Y: i32 = 179_200;
 
@@ -201,7 +203,7 @@ fn the_spread_tick_has_its_load() {
         })
         .max();
     assert!(
-        farthest <= Some(LEASH_REACH),
+        farthest <= Some(SPREAD_BOUND),
         "{farthest:?} units from the main character"
     );
     let extent = |axis: fn(&EntityView) -> i32| {
