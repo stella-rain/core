@@ -7,9 +7,14 @@ from __future__ import annotations
 import collections
 import datetime
 import hashlib
+import json
 import plistlib
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 BUNDLE_ID = "com.stellarain.Dinghy"
@@ -163,8 +168,98 @@ def judge_run(lines, devicectl_status):
     return 0, "ok"
 
 
+def say(message):
+    print("ios-runner: " + message, file=sys.stderr, flush=True)
+
+
+def run_tool(step, command):
+    """Run a tool to its end; a failure prints its output and raises."""
+    try:
+        done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    except OSError as err:
+        raise RunnerError("{} failed: cannot run {}: {}".format(step, command[0], err))
+    if done.returncode != 0:
+        sys.stderr.write(done.stdout.decode("utf-8", "replace"))
+        raise RunnerError("{} failed (exit {})".format(step, done.returncode))
+    return done.stdout
+
+
+def decode_profile(path):
+    try:
+        return plistlib.loads(run_tool("profile decode", ["security", "cms", "-D", "-i", str(path)]))
+    except (RunnerError, plistlib.InvalidFileException, ValueError):
+        return None
+
+
+def build_app(root, binary, manifest, chosen):
+    """The signed-ready app: the test binary, Info.plist, the profile and the data tests read."""
+    app = root / APP_NAME
+    app.mkdir()
+    shutil.copy2(binary, app / EXECUTABLE)
+    (app / EXECUTABLE).chmod(0o755)
+    (app / "Info.plist").write_bytes(info_plist(chosen.bundle_id))
+    shutil.copy2(chosen.path, app / "embedded.mobileprovision")
+    for name in BUNDLED:
+        source = Path(manifest) / name
+        if source.is_dir():
+            shutil.copytree(source, app / name, ignore=shutil.ignore_patterns(".DS_Store"))
+        elif source.is_file():
+            shutil.copy2(source, app / name)
+        else:
+            raise RunnerError("{} is missing from {}".format(name, manifest))
+    return app
+
+
+def launch(udid, args):
+    """Run the app on the phone, echoing its console; returns (devicectl status, log lines)."""
+    lines = []
+    try:
+        proc = subprocess.Popen(launch_command(udid, args), stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, errors="replace")
+    except OSError as err:
+        raise RunnerError("launch failed: cannot run xcrun: {}".format(err))
+    for line in proc.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        lines.append(line.rstrip("\n"))
+    return proc.wait(), lines
+
+
+def run(argv):
+    if not argv:
+        raise RunnerError("usage: ios_device_runner.py <test binary> [args...]")
+    binary, args = argv[0], argv[1:]
+    manifest = os.environ.get("CARGO_MANIFEST_DIR") or os.getcwd()
+    with tempfile.TemporaryDirectory(prefix="ios-runner-") as tmp:
+        root = Path(tmp)
+        listing = root / "devices.json"
+        run_tool("device list", ["xcrun", "devicectl", "list", "devices", "--json-output", str(listing)])
+        phone = select_device(json.loads(listing.read_text()))
+        say("device {}, iOS {}".format(phone.name, phone.os_version))
+        identities = parse_identities(
+            run_tool("identity list", ["security", "find-identity", "-v", "-p", "codesigning"]).decode("utf-8", "replace"))
+        profiles = [p for p in load_profiles(Path.home(), decode_profile) if p.data]
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        chosen = choose_profile(profiles, phone.udid, identities, now)
+        app = build_app(root, binary, manifest, chosen)
+        xcent = root / "entitlements.xcent"
+        xcent.write_bytes(entitlements_plist(chosen.entitlements))
+        run_tool("sign", ["codesign", "--force", "--sign", chosen.identity, "--entitlements", str(xcent), str(app)])
+        run_tool("sign check", ["codesign", "--verify", "--strict", str(app)])
+        run_tool("install", install_command(phone.udid, app))
+        status, lines = launch(phone.udid, args)
+        code, message = judge_run(lines, status)
+        if code != 0:
+            raise RunnerError(message)
+        return 0
+
+
 def main(argv):
-    return 0
+    try:
+        return run(argv)
+    except RunnerError as err:
+        say(str(err))
+        return 1
 
 
 if __name__ == "__main__":
