@@ -181,4 +181,42 @@ TOkgu21okl/ci5q4+rWnkEXgVRSkNAUBhYZ4ecntIUaZiHpJWZ1GE9HNNPD2HTSjcdEPcLXQr8lQgDFE
             TrustError::Pack(PacksError::UnsupportedSchema { schema: 2 })
         );
     }
+
+    #[test]
+    fn slot_zero_is_the_pack_signing_key() {
+        const LINE: &str = "RWRhjU1quHNn7PKyTJ8pcRPC12gANdoB4Kz9DiO8JQSuM36rGsTL4MRJ";
+        let bytes = crate::base64::decode(LINE).unwrap();
+        assert_eq!(bytes.len(), 42);
+        assert_eq!(&bytes[0..2], b"Ed");
+        assert_eq!(bytes[2..10], KEY_IDS[0]);
+        assert_eq!(bytes[10..42], PUBLIC_KEYS[0]);
+        assert_eq!(KEY_IDS[0], [0x61, 0x8d, 0x4d, 0x6a, 0xb8, 0x73, 0x67, 0xec]);
+        assert_eq!(
+            PUBLIC_KEYS[0],
+            [
+                242, 178, 76, 159, 41, 113, 19, 194, 215, 104, 0, 53, 218, 1, 224, 172, 253, 14,
+                35, 188, 37, 4, 174, 51, 126, 171, 26, 196, 203, 224, 196, 73
+            ]
+        );
+    }
+
+    #[test]
+    fn slot_one_stays_all_zero() {
+        assert_eq!(KEY_IDS[1], [0u8; 8]);
+        assert_eq!(PUBLIC_KEYS[1], [0u8; 32]);
+    }
+
+    #[test]
+    fn a_stella01_signature_is_an_unknown_key() {
+        for sig in [VALID_SIG, TAMPERED_SIG] {
+            assert_eq!(
+                verify_packs(VALID_MANIFEST, sig),
+                Err(TrustError::UnknownKey)
+            );
+        }
+        assert_eq!(
+            verify_packs(BAD_SCHEMA_MANIFEST, BAD_SCHEMA_SIG),
+            Err(TrustError::UnknownKey)
+        );
+    }
 }
