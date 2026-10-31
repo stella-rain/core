@@ -1,0 +1,18 @@
+{
+  "channels": {
+    "0.1": {
+      "pack_sha256": "2fe30cd1796ae49cf698e6fe5b54120266a0230d884545bff164fd87cd28668a",
+      "tag": "v0.0.6",
+      "text_sha256": null,
+      "url": "https://github.com/stella-rain/content/releases/download/v0.0.6/pack.json"
+    },
+    "0.2": {
+      "pack_sha256": "32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5",
+      "tag": "v0.0.7",
+      "text_sha256": null,
+      "url": "https://github.com/stella-rain/content/releases/download/v0.0.7/pack.json"
+    }
+  },
+  "schema": 1,
+  "seq": 2
+}
