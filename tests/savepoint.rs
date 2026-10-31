@@ -16,6 +16,7 @@ use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::savepoint::{
     HEADER_LEN, MAX_SAVEPOINT_BYTES, SAVEPOINT_FORMAT, Savepoint, SavepointError,
 };
+use stella_rain_core::version::SCHEMA_VERSION;
 
 // The offsets of the header's fields (the layout table of the format).
 const SIM_VERSION_AT: usize = 8;
@@ -349,10 +350,27 @@ fn every_byte_of_the_header_region_is_checked() {
             .schema_version,
         1
     );
-    let mut schema = bytes.clone();
-    put_u32(&mut schema, SCHEMA_VERSION_AT, 7);
-    reseal(&mut schema);
-    assert!(restore(&schema, &good).is_ok());
+}
+
+#[test]
+fn schema_version_another_value_is_refused() {
+    let rec = run(120);
+    let good = rec.replay();
+    let bytes = rec.save();
+    for v in [0, 2, 7, u32::MAX]
+        .into_iter()
+        .filter(|&v| v != SCHEMA_VERSION)
+    {
+        let mut changed = bytes.clone();
+        put_u32(&mut changed, SCHEMA_VERSION_AT, v);
+        assert_eq!(
+            restore(&changed, &good).err(),
+            Some(SavepointError::Damaged),
+            "schema_version {v} without a reseal"
+        );
+        reseal(&mut changed);
+        refused_bundled(&changed, &good, SavepointError::SimVersion, &good);
+    }
 }
 
 #[test]
