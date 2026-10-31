@@ -37,6 +37,7 @@ mod corpus;
 mod corpus_contract;
 mod corpus_pins;
 mod crowd;
+mod cwd_free_paths;
 mod damage_types;
 mod dash;
 mod defence;
