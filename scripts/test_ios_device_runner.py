@@ -449,6 +449,7 @@ class TestWholeRun(unittest.TestCase):
         shutil.move(str(self.profile_file), str(old / "p.mobileprovision"))
         shutil.rmtree(self.home / runner.PROFILE_DIRS[1])
         self.assertEqual(self.run_runner().returncode, 0)
+        self.assertIn("devicectl launch", self.labels())
 
 
 class TestRepository(unittest.TestCase):
