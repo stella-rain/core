@@ -19,17 +19,18 @@ This file is identical in `app` and `core`; change both copies in the same task.
 | Rename or remove a released content ID | not allowed | Deprecate it instead |
 | Refactor, docs, comments | none | The replay corpus proves the hashes are unchanged |
 
-Not sure whether outcomes change? Run the replay corpus: any hash difference means `sim_version`
-(under version 0: a corpus regeneration, named in the PR). Version 0 never relaxes determinism:
-the corpus must still match on x86_64 and arm64, and SplitMix64, FNV-1a 64 and the content hash
-stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-SVC-6). Version 0 ends with the freeze at P3.
+Not sure whether outcomes change? Run the replay corpus: any hash difference in the frozen `v1/`
+corpus means a new `sim_version`, gated inside `sim` (ADR-REPL-7); only `current/` is regenerated.
+Determinism is never relaxed: the corpus must still match on x86_64 and arm64, and SplitMix64,
+FNV-1a 64 and the content hash stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-SVC-6).
 
 ## 2. Test first
 
 - `schema_version`: a test that loads a file of the previous version and asserts the migrated result.
 - `sim_version`: a corpus replay recorded under the new version, and the existing corpus still
   passing under the old versions without changes.
-- Version 0: tests for the new behaviour; the regenerated corpus passing on both architectures.
+- A pack-only change (numbers, or an ID that only composes existing rules): tests for the new behaviour; the
+  frozen `v1/` corpus unchanged and `current/` regenerated, passing on both architectures.
 - If the change adds size or count (more entities, a longer list), adjust the budget in both the
   validator and the runtime clamp (ADR-SVC-1), with a test at the limit and one past it.
 
@@ -53,7 +54,7 @@ corpus. Name any that could not run: `NOT VERIFIED: <gate>: <reason>`.
 
 ## 5. Reach the app
 
-- Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-REL-2), in its own commit
+- Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-REL-9), in its own commit
   or PR that refers to the `core` change.
 - Editor fields come from the generated JSON Schema; never hand-edit a copy. Validation is
   core's alone: GDScript calls it through gdext and never validates against the schema (ADR-CONT-1).
@@ -63,5 +64,5 @@ corpus. Name any that could not run: `NOT VERIFIED: <gate>: <reason>`.
 
 The subject states the effect, for example
 `Waves gain an optional delay_ticks; schema_version 2 migrates version 1 files with a delay of 0`.
-The body names the version bumped and why, the migration, and the corpus result; under
-version 0, whether the corpus was regenerated and why.
+The body names the version bumped and why, the migration, and the corpus result: `v1/`
+unchanged, and whether `current/` was regenerated and why.
