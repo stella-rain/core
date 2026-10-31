@@ -13,7 +13,7 @@
 //! | 0 | 4 | magic `SRSV` |
 //! | 4 | 4 | `format` |
 //! | 8 | 4 | `sim_version` |
-//! | 12 | 4 | `schema_version` (information) |
+//! | 12 | 4 | `schema_version`, compared with this build's |
 //! | 16 | 32 | `content_sha256` of the pack, for the run's mode |
 //! | 48 | 4 | `tick` |
 //! | 52 | 8 | `state_hash` |
@@ -61,7 +61,7 @@ const CHECKSUM_AT: usize = 96;
 pub enum SavepointError {
     /// Not a savepoint of this `SAVEPOINT_FORMAT`.
     Format,
-    /// Saved under another `sim_version`.
+    /// Saved under another `sim_version` or `schema_version`.
     SimVersion,
     /// Saved with another content pack.
     Pack,
@@ -79,7 +79,9 @@ impl fmt::Display for SavepointError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             SavepointError::Format => "not a savepoint of this format",
-            SavepointError::SimVersion => "the savepoint is of another simulation version",
+            SavepointError::SimVersion => {
+                "the savepoint is of another simulation or schema version"
+            }
             SavepointError::Pack => "the savepoint is of another content pack",
             SavepointError::Damaged => "the savepoint is damaged",
             SavepointError::HashMismatch => "the savepoint's state does not hash as saved",
@@ -98,7 +100,7 @@ pub struct SavepointHeader {
     pub format: u32,
     /// The simulation rules version of the run.
     pub sim_version: u32,
-    /// The schema version at save time; stored for information.
+    /// The schema version at save time; a file whose value is not this build's is refused.
     pub schema_version: u32,
     /// The SHA-256 of the content pack, for the run's mode (`content_sha256_with`).
     pub content_sha256: [u8; 32],
@@ -140,7 +142,8 @@ fn checksum(head: &[u8], payload: &[u8]) -> [u8; 32] {
 impl Savepoint {
     /// Reads and checks the header and the checksum, nothing that needs a pack or a prefix, so
     /// a caller can show a slot's tick without one. The checks run in the order `Format`,
-    /// `Damaged` (under a header's length), `SimVersion`, `Damaged` (size, length, checksum);
+    /// `Damaged` (under a header's length), `SimVersion`, `Damaged` (size, length, checksum),
+    /// `SimVersion` (the schema version, after the checksum: an intact file of another schema);
     /// nothing past byte 8 is read before the format is right.
     pub fn from_bytes(bytes: &[u8]) -> Result<Savepoint, SavepointError> {
         if bytes.len() < 8 || bytes[..4] != MAGIC || u32_at(bytes, 4) != SAVEPOINT_FORMAT {
@@ -160,6 +163,9 @@ impl Savepoint {
             || array_at::<32>(bytes, CHECKSUM_AT) != checksum(&bytes[..CHECKSUM_AT], payload)
         {
             return Err(SavepointError::Damaged);
+        }
+        if u32_at(bytes, 12) != SCHEMA_VERSION {
+            return Err(SavepointError::SimVersion);
         }
         let state_hash = u64::from_le_bytes(array_at(bytes, 52));
         Ok(Savepoint {
