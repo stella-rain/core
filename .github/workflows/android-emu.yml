@@ -16,6 +16,11 @@ name: Android emulator
 on:
   workflow_dispatch:
   workflow_call:
+  push: # TEMPORARY: removed in Step 7
+    branches: [claude/core-android-emu]
+    paths:
+      - ".github/workflows/android-emu.yml"
+      - ".github/scripts/android-emu-runner.sh"
 
 permissions: {}
 
