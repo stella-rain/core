@@ -193,11 +193,12 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// `ContentId` is an `Arc<str>` cloned from its definition, so the free is gone and it is 0, 0, 0. `worst_tick` 786 -> 3 allocs, the frees unchanged: its
 /// allocations were the `ContentId` strings of the entities' assets and statuses, now shared.
 /// The cases are built by `bench_fixtures`, outside the count.
-const BENCH_TICK_ALLOCS: [(&str, Allocs); 5] = [
+const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
     ("worst_tick", pin(3, 0, 3)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
+    ("worst_minute", pin(0, 0, 0)),
     ("worst_minute_peak", pin(0, 0, 0)),
 ];
 
@@ -236,6 +237,14 @@ fn the_hit_tick_spread_allocates_as_pinned() {
 #[test]
 fn the_time_limit_tick_allocates_as_pinned() {
     measure_case("time_limit_tick", bench_fixtures::time_limit_tick);
+}
+
+/// `benches/worst_minute.rs` plays the whole minute, `MINUTE_TICKS` of the fixture.
+#[test]
+fn the_worst_minute_allocates_as_pinned() {
+    use stella_rain_core::bench_fixtures::worst_minute_case::MINUTE_TICKS as BENCH_MINUTE_TICKS;
+    let mut run = bench_fixtures::worst_minute();
+    assert_tick_pinned("worst_minute", counted3(|| run.play(BENCH_MINUTE_TICKS)));
 }
 
 /// `benches/worst_minute_peak.rs` measures `run.play(1)`.
