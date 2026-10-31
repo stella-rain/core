@@ -31,25 +31,48 @@ impl Root {
     }
 }
 
+/// A non-empty `over` wins; else `exe_dir` when it is a dinghy app bundle (it holds `Cargo.toml`
+/// and `tests/corpus`); else `manifest`.
 pub(crate) fn resolve_root(
-    _over: Option<OsString>,
-    _exe_dir: Option<&Path>,
+    over: Option<OsString>,
+    exe_dir: Option<&Path>,
     manifest: &Path,
 ) -> Root {
+    if let Some(over) = over.filter(|o| !o.is_empty()) {
+        return Root::Override(PathBuf::from(over));
+    }
+    if let Some(dir) = exe_dir
+        && dir.join("Cargo.toml").is_file()
+        && dir.join("tests/corpus").is_dir()
+    {
+        return Root::Bundle(dir.to_path_buf());
+    }
     Root::Manifest(manifest.to_path_buf())
 }
 
+/// `tmp_var` if set; the temp folder when the tests run from a bundle (the app folder may not
+/// be writable and is not Cargo's); else Cargo's `CARGO_TARGET_TMPDIR` (set for the integration
+/// binary only), else the temp folder.
 pub(crate) fn resolve_scratch(
-    _tmp_var: Option<OsString>,
-    _root: &Root,
+    tmp_var: Option<OsString>,
+    root: &Root,
     target_tmp: Option<&str>,
     temp: &Path,
 ) -> PathBuf {
+    if let Some(tmp) = tmp_var.filter(|t| !t.is_empty()) {
+        return PathBuf::from(tmp);
+    }
+    if matches!(root, Root::Bundle(_)) {
+        return temp.join("stella-core-tests");
+    }
     target_tmp.map_or_else(|| temp.to_path_buf(), PathBuf::from)
 }
 
-pub(crate) fn resolve_target(root: &Root, _scratch: &Path) -> PathBuf {
-    root.path().join("target")
+pub(crate) fn resolve_target(root: &Root, scratch: &Path) -> PathBuf {
+    match root {
+        Root::Bundle(_) => scratch.to_path_buf(),
+        Root::Override(p) | Root::Manifest(p) => p.join("target"),
+    }
 }
 
 fn current_root() -> Root {
