@@ -641,11 +641,29 @@ pub fn packs_load(data: &[u8]) -> bool {
     true
 }
 
+/// The placeholder key id the `minisign_verify` seed was signed with; not core's trusted key.
+pub const MINISIGN_TEST_KEY_ID: [u8; 8] = *b"STELLA01";
+
+/// The placeholder public key the `minisign_verify` seed was signed with; not core's trusted key.
+pub const MINISIGN_TEST_PUBLIC_KEY: [u8; 32] = [
+    23, 56, 28, 152, 98, 105, 33, 97, 209, 110, 106, 198, 68, 166, 87, 110, 159, 114, 144, 255, 72,
+    135, 166, 167, 4, 21, 106, 174, 117, 135, 18, 94,
+];
+
+/// The manifest the `minisign_verify` seed signature covers.
+pub const MINISIGN_SEED_MANIFEST: &[u8] = br#"{"schema":1,"seq":1,"channels":{"0.1":{"tag":"v0.1.0","pack_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","url":"https://content.stella-rain.com/pack.json"}}}"#;
+
 /// The `minisign_verify` fuzz target (SG1a, DS49): untrusted signature bytes through
-/// `verify_packs`. Never panics on garbage, malformed base64, untrusted keys or invalid signatures.
+/// `verify_packs_with_keys` against the placeholder key, so a signature reaches the check:
+/// the shipped `verify_packs` would refuse every seed at the key-id gate. Never panics on
+/// garbage, malformed base64, untrusted keys or invalid signatures.
 pub fn minisign_verify(data: &[u8]) -> bool {
-    const SEED_MANIFEST: &[u8] = br#"{"schema":1,"seq":1,"channels":{"0.1":{"tag":"v0.1.0","pack_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","url":"https://content.stella-rain.com/pack.json"}}}"#;
-    let Ok(packs) = stella_rain_core::pack::trust::verify_packs(SEED_MANIFEST, data) else {
+    let Ok(packs) = stella_rain_core::pack::trust::verify_packs_with_keys(
+        MINISIGN_SEED_MANIFEST,
+        data,
+        &[MINISIGN_TEST_KEY_ID],
+        &[MINISIGN_TEST_PUBLIC_KEY],
+    ) else {
         return false;
     };
     assert_eq!(packs.seq(), 1);

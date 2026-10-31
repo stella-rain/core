@@ -15,8 +15,9 @@ use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core_fuzz::{
-    commands, minisign_verify, pack_load, packs_load, replay_load, run_setup, savepoint_load,
-    savepoint_prefixes, savepoint_recorder, savepoint_seeds, share_decode, stage_parse, stage_run,
+    MINISIGN_SEED_MANIFEST, commands, minisign_verify, pack_load, packs_load, replay_load,
+    run_setup, savepoint_load, savepoint_prefixes, savepoint_recorder, savepoint_seeds,
+    share_decode, stage_parse, stage_run,
 };
 
 type Target = fn(&[u8]) -> bool;
@@ -434,6 +435,16 @@ fn a_real_minisign_signature_gets_past_the_verifier() {
     assert!(
         minisign_verify(&minisign_seed()),
         "minisign_verify rejects the seed"
+    );
+}
+
+#[test]
+fn the_seed_is_refused_by_the_shipped_key() {
+    // The seed carries a placeholder key id, so the fuzz target goes through
+    // `verify_packs_with_keys`; the shipped `verify_packs` stops it at the key-id gate.
+    assert_eq!(
+        stella_rain_core::pack::trust::verify_packs(MINISIGN_SEED_MANIFEST, &minisign_seed()),
+        Err(stella_rain_core::pack::trust::TrustError::UnknownKey)
     );
 }
 
