@@ -183,8 +183,8 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 }
 
 /// The allocator calls of the one tick, or for `worst_minute` the 3,600 ticks of the minute, each
-/// bench measures (`benches/`), by case. These pin today's steady-state allocations at the caps; T1b drives them to 0. A count that falls is
-/// re-pinned lower in the same PR; a count that rises is a regression to fix, never a re-pin
+/// bench measures (`benches/`), by case. These pin today's steady-state allocations at the caps;
+/// T1b drives them to 0. A count that falls is re-pinned lower in the same PR; a count that rises is a regression to fix, never a re-pin
 /// without the PR saying why. DIR1 (the cases at the cap of 260): `worst_tick` 1506 -> 786
 /// allocs; `worst_minute_peak` 3, 3, 3 -> 3, 2, 4, where the extra free drops an event with a
 /// string that the earlier tick made (the run differs; no buffer grows). SPAWN-CORNER: the peak tick
