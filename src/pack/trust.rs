@@ -118,6 +118,17 @@ pub fn verify_packs_with_keys(
 mod tests {
     use super::*;
 
+    /// The placeholder key the fixtures below were signed with; not core's trusted key.
+    const TEST_KEY_ID: [u8; 8] = *b"STELLA01";
+    const TEST_PUBLIC_KEY: [u8; 32] = [
+        23, 56, 28, 152, 98, 105, 33, 97, 209, 110, 106, 198, 68, 166, 87, 110, 159, 114, 144, 255,
+        72, 135, 166, 167, 4, 21, 106, 174, 117, 135, 18, 94,
+    ];
+
+    fn verify_with_test_key(bytes: &[u8], sig: &[u8]) -> Result<Packs, TrustError> {
+        verify_packs_with_keys(bytes, sig, &[TEST_KEY_ID], &[TEST_PUBLIC_KEY])
+    }
+
     const VALID_MANIFEST: &[u8] = br#"{"schema":1,"seq":1,"channels":{"0.1":{"tag":"v0.1.0","pack_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","url":"https://content.stella-rain.com/pack.json"}}}"#;
 
     const VALID_SIG: &[u8] = b"untrusted comment: signature from minisign secret key\n\
@@ -143,7 +154,8 @@ TOkgu21okl/ci5q4+rWnkEXgVRSkNAUBhYZ4ecntIUaZiHpJWZ1GE9HNNPD2HTSjcdEPcLXQr8lQgDFE
 
     #[test]
     fn test_valid_signature_returns_ok_packs() {
-        let packs = verify_packs(VALID_MANIFEST, VALID_SIG).expect("valid signature should verify");
+        let packs =
+            verify_with_test_key(VALID_MANIFEST, VALID_SIG).expect("valid signature should verify");
         assert_eq!(packs.seq(), 1);
         let ch = packs.channel("0.1").expect("0.1 channel present");
         assert_eq!(ch.tag(), "v0.1.0");
@@ -151,13 +163,13 @@ TOkgu21okl/ci5q4+rWnkEXgVRSkNAUBhYZ4ecntIUaZiHpJWZ1GE9HNNPD2HTSjcdEPcLXQr8lQgDFE
 
     #[test]
     fn test_invalid_signature_bytes_returns_signature_error() {
-        let err = verify_packs(VALID_MANIFEST, TAMPERED_SIG).unwrap_err();
+        let err = verify_with_test_key(VALID_MANIFEST, TAMPERED_SIG).unwrap_err();
         assert_eq!(err, TrustError::Signature);
     }
 
     #[test]
     fn test_untrusted_key_signature_returns_unknown_key() {
-        let err = verify_packs(VALID_MANIFEST, UNTRUSTED_KEY_SIG).unwrap_err();
+        let err = verify_with_test_key(VALID_MANIFEST, UNTRUSTED_KEY_SIG).unwrap_err();
         assert_eq!(err, TrustError::UnknownKey);
     }
 
@@ -175,7 +187,7 @@ TOkgu21okl/ci5q4+rWnkEXgVRSkNAUBhYZ4ecntIUaZiHpJWZ1GE9HNNPD2HTSjcdEPcLXQr8lQgDFE
 
     #[test]
     fn test_valid_signature_invalid_pack_json_returns_pack_error() {
-        let err = verify_packs(BAD_SCHEMA_MANIFEST, BAD_SCHEMA_SIG).unwrap_err();
+        let err = verify_with_test_key(BAD_SCHEMA_MANIFEST, BAD_SCHEMA_SIG).unwrap_err();
         assert_eq!(
             err,
             TrustError::Pack(PacksError::UnsupportedSchema { schema: 2 })
