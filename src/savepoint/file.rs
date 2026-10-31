@@ -291,6 +291,27 @@ mod tests {
     }
 
     #[test]
+    fn a_schema_version_other_than_ours_is_refused() {
+        let other = Savepoint {
+            header: SavepointHeader {
+                schema_version: SCHEMA_VERSION + 1,
+                ..sample().header
+            },
+            ..sample()
+        };
+        assert_eq!(
+            Savepoint::from_bytes(&other.to_bytes()).err(),
+            Some(SavepointError::SimVersion)
+        );
+        let mut flipped = sample().to_bytes();
+        flipped[12] ^= 1;
+        assert_eq!(
+            Savepoint::from_bytes(&flipped).err(),
+            Some(SavepointError::Damaged)
+        );
+    }
+
+    #[test]
     fn the_header_is_128_bytes_with_the_documented_offsets() {
         assert_eq!(HEADER_LEN, 128);
         let bytes = sample().to_bytes();
