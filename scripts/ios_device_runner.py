@@ -46,7 +46,7 @@ def select_device(devices_json):
         props = entry.get("deviceProperties") or {}
         platform = hardware.get("platform")
         reality = hardware.get("reality")
-        if platform == "iOS" and reality == "physical" and tunnel == "connected":
+        if platform == "iOS" and reality == "physical" and tunnel == "connected" and hardware.get("udid"):
             found.append(Device(
                 hardware.get("udid"),
                 props.get("name") or hardware.get("marketingName") or "?",
@@ -83,8 +83,9 @@ def load_profiles(home, decode):
         if not folder.is_dir():
             continue
         for path in sorted(folder.iterdir()):
-            if path.suffix == ".mobileprovision":
-                profiles.append(Profile(path, decode(path)))
+            data = decode(path) if path.suffix == ".mobileprovision" else None
+            if data:
+                profiles.append(Profile(path, data))
     return profiles
 
 
@@ -218,11 +219,15 @@ def launch(udid, args):
                                 stderr=subprocess.STDOUT, text=True, errors="replace")
     except OSError as err:
         raise RunnerError("launch failed: cannot run xcrun: {}".format(err))
-    for line in proc.stdout:
-        sys.stdout.write(line)
-        sys.stdout.flush()
-        lines.append(line.rstrip("\n"))
-    return proc.wait(), lines
+    try:
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            lines.append(line.rstrip("\n"))
+        return proc.wait(), lines
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
 
 
 def run(argv):
@@ -238,7 +243,7 @@ def run(argv):
         say("device {}, iOS {}".format(phone.name, phone.os_version))
         identities = parse_identities(
             run_tool("identity list", ["security", "find-identity", "-v", "-p", "codesigning"]).decode("utf-8", "replace"))
-        profiles = [p for p in load_profiles(Path.home(), decode_profile) if p.data]
+        profiles = load_profiles(Path.home(), decode_profile)
         now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         chosen = choose_profile(profiles, phone.udid, identities, now)
         app = build_app(root, binary, manifest, chosen)
