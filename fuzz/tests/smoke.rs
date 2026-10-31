@@ -530,6 +530,21 @@ fn the_seeds_reach_every_error() {
     }
 }
 
+#[test]
+fn a_forged_schema_version_is_refused() {
+    let (_, seed) = savepoint_seeds()
+        .into_iter()
+        .find(|(name, _)| name == "schema-version")
+        .expect("the schema-version seed");
+    for prefix in savepoint_prefixes() {
+        assert_eq!(
+            RunRecorder::resume_from_savepoint(&seed, prefix, Pack::bundled()).err(),
+            Some(SavepointError::SimVersion)
+        );
+    }
+    assert!(!savepoint_load(&seed));
+}
+
 /// Writes the seeds of `savepoint_load` to the folder `SAVEPOINT_SEEDS_DIR` names, for a
 /// `cargo fuzz run` (they are generated, never committed).
 #[test]

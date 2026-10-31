@@ -407,6 +407,10 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
         ("valid-end".to_owned(), savepoint_recorder(None).save()),
         ("format".to_owned(), edited(4, &|b| b.wrapping_add(1))),
         ("sim-version".to_owned(), edited(8, &|b| b.wrapping_add(1))),
+        (
+            "schema-version".to_owned(),
+            reseal(edited(12, &|b| b.wrapping_add(1))),
+        ),
         ("pack".to_owned(), reseal(edited(16, &|b| b ^ 1))),
         ("damaged".to_owned(), edited(valid.len() - 1, &|b| b ^ 1)),
         ("hash-mismatch".to_owned(), reseal(edited(52, &|b| b ^ 1))),
