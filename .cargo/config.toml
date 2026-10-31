@@ -1,2 +1,8 @@
 [alias]
 xtask = "run --quiet --manifest-path xtask/Cargo.toml --"
+
+# The corpus and the golden hash on a real iPhone: cargo-dinghy bundles the crate directory into an
+# app, installs it and runs the test binary (docs/device-gates.md). Only this exact triple; the
+# Simulator triple `aarch64-apple-ios-sim` has its own runner in CI.
+[target.aarch64-apple-ios]
+runner = "cargo dinghy runner --"
