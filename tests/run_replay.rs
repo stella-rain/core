@@ -1257,12 +1257,17 @@ fn a_replay_built_after_a_choice_keeps_the_command() {
     let mut r = RunRecorder::start(&trial_setup()).unwrap();
     feed(&mut r, &commands[..at]);
     let (_, before) = point(&r);
-    feed(&mut r, &commands[at..=at]);
+    // Every choice that applies before the next tick belongs to the point.
+    let end = commands[at..]
+        .iter()
+        .position(|c| matches!(c, Command::Step(_)))
+        .map_or(commands.len(), |n| at + n);
+    feed(&mut r, &commands[at..end]);
     let (tick, after) = point(&r);
-    feed(&mut r, &commands[at + 1..]);
+    feed(&mut r, &commands[end..]);
 
     let verified = verify_run(&r.replay_at(tick, after).to_bytes()).unwrap();
-    assert_eq!(verified.commands, 1);
+    assert_eq!(verified.commands as usize, end - at);
     assert_eq!(verified.final_hash, after);
     assert!(
         matches!(
@@ -1314,6 +1319,8 @@ fn replay_at_with_too_many_ticks_does_not_panic_and_does_not_verify() {
     assert_eq!(replay.ticks, 150);
     assert_eq!(
         verify_run(&replay.to_bytes()),
-        Err(RunReplayError::BadInputs("PLACEHOLDER"))
+        Err(RunReplayError::BadInputs(
+            "there are fewer inputs than ticks"
+        ))
     );
 }

@@ -702,9 +702,39 @@ impl RunRecorder {
         }
     }
 
-    /// The replay of the first `ticks` ticks (stub).
-    pub fn replay_at(&self, _ticks: u32, _final_hash: u64) -> RunReplay {
-        self.replay()
+    /// The replay of the first `ticks` ticks of the run so far, built from what the recorder has
+    /// recorded alone: it reads nothing from the engine, so it is safe to call after the engine
+    /// panicked. `final_hash` is the state hash after tick `ticks` and the commands that carry it
+    /// (what `Engine::state_hash` gave at that point; the caller keeps it, because this method
+    /// cannot ask the engine). The replay holds the first `ticks` inputs, the first
+    /// `ticks / CHECKPOINT_TICKS` checkpoints and the commands up to and including those that apply
+    /// after tick `ticks`, so it verifies when `ticks` and `final_hash` are the run's at one point
+    /// the run reached. Inputs, checkpoints and commands recorded past `ticks` are left out. A
+    /// `ticks` above the number of inputs recorded does not panic; the replay then holds all the
+    /// inputs it has and does not verify. After the run ended and with the engine's own tick and
+    /// hash, this is exactly `replay()`.
+    pub fn replay_at(&self, ticks: u32, final_hash: u64) -> RunReplay {
+        let inputs = usize::try_from(ticks).map_or(self.inputs.len(), |t| t.min(self.inputs.len()));
+        let checkpoints = usize::try_from(ticks / CHECKPOINT_TICKS)
+            .map_or(self.checkpoints.len(), |c| c.min(self.checkpoints.len()));
+        let commands: Vec<TickCommand> = self
+            .commands
+            .iter()
+            .copied()
+            .filter(|c| c.tick <= ticks)
+            .collect();
+        RunReplay {
+            setup: self.setup.clone(),
+            content_sha256: self.content_sha256.clone(),
+            ticks,
+            final_hash: hash_to_hex(final_hash),
+            checkpoints: self.checkpoints[..checkpoints]
+                .iter()
+                .map(|h| hash_to_hex(*h))
+                .collect(),
+            inputs: pack_inputs(&self.inputs[..inputs]),
+            commands: pack_commands(&commands),
+        }
     }
 }
 
