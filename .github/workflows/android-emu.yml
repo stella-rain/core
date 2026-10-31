@@ -1,0 +1,94 @@
+# The tests and the replay corpus in an Android emulator (ADR-REL-3, CORE-ANDROID-EMU): the golden
+# hash of `tests/engine.rs` and the replay corpus must match on bionic and the Android loader as on
+# every other platform. A x86_64 image on a standard Linux runner with KVM (core is public); it
+# proves the Android runtime, not arm64 code generation (the arm64 Linux job covers that). It is
+# not a check of every PR: it runs by hand and as a reusable workflow for Candidate (candidate.yml
+# calls it, as advisory: it is not in the `tag` job's needs). A job that is not a PR check needs
+# no entry in auto-merge.yml.
+#
+# The tests run as a Cargo runner: .github/scripts/android-emu-runner.sh pushes each test binary
+# with `adb` and runs it on the emulator. The tree is built from /data/local/tmp/core, a path the
+# device can also create, so every CARGO_MANIFEST_DIR path resolves on the device unchanged.
+# Doc-tests do not cross-run, and the integration modules that start a host process are skipped
+# by the runner (its SKIP_INTEGRATION list).
+name: Android emulator
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  android-emu:
+    name: tests in the Android emulator (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [debug, release]
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_TARGET_X86_64_LINUX_ANDROID_RUNNER: /data/local/tmp/core/.github/scripts/android-emu-runner.sh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal --target x86_64-linux-android && rustup default stable
+      - name: Place the tree where the device will see it
+        run: |
+          set -eu
+          sudo mkdir -p /data/local/tmp
+          sudo chown "$USER" /data/local/tmp
+          cp -a "$GITHUB_WORKSPACE" /data/local/tmp/core
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: /data/local/tmp/core
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Link with the NDK's clang
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -eu
+          clang="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang"
+          test -x "$clang"
+          echo "NDK $(basename "$ANDROID_NDK_LATEST_HOME")"
+          echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$clang" >> "$GITHUB_ENV"
+          if [ "$PROFILE" = release ]; then
+            echo "CARGO_FLAGS=--release" >> "$GITHUB_ENV"
+          else
+            echo "CARGO_FLAGS=" >> "$GITHUB_ENV"
+          fi
+      - name: Build the tests
+        timeout-minutes: 25
+        working-directory: /data/local/tmp/core
+        run: |
+          # shellcheck disable=SC2086
+          cargo test --locked --all-features --tests $CARGO_FLAGS --target x86_64-linux-android --no-run
+      # The runner user may not open /dev/kvm; without this rule the emulator runs without
+      # acceleration (reactivecircus/android-emulator-runner's README).
+      - name: Let the runner user open /dev/kvm
+        run: |
+          set -eu
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test in the emulator
+        timeout-minutes: 20
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          disable-animations: true
+          force-avd-creation: false
+          working-directory: /data/local/tmp/core
+          # Each line runs in its own shell. The first proves adb returns a command's exit status.
+          script: |
+            bash .github/scripts/android-emu-runner.sh --selfcheck
+            cargo test --locked --all-features --tests $CARGO_FLAGS --target x86_64-linux-android

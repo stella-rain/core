@@ -6,7 +6,7 @@
 #   - picks the final tag: Cargo.toml's version is a floor, so when it is at or below the latest
 #     final tag the release is that tag's next patch, and writes it into Cargo.toml, Cargo.lock and
 #     fuzz/Cargo.lock; main itself is never written to,
-#   - runs the iOS Simulator tests, the deep tier and the long fuzz run (ADR-054) on the main commit, builds
+#   - runs the iOS Simulator tests, the Android emulator tests (advisory), the deep tier and the long fuzz run (ADR-054) on the main commit, builds
 #     `stage-verify` once on the four desktop runners from the stamped tree, so the binary carries
 #     the final version, and runs each build on a corpus replay,
 #   - tags vX.Y.Z-rc.N: the main commit itself when no stamp is needed, else one release commit
@@ -111,6 +111,15 @@ jobs:
     name: release iOS Simulator
     needs: check
     uses: ./.github/workflows/ios-sim.yml
+    permissions:
+      contents: read
+
+  # Advisory first (CORE-ANDROID-EMU): not in the `tag` job's needs, so a red emulator shows on the
+  # run but does not stop the rc. Promoting it to a gate is a one-line change to `tag.needs`.
+  android-emulator:
+    name: release Android emulator
+    needs: check
+    uses: ./.github/workflows/android-emu.yml
     permissions:
       contents: read
 

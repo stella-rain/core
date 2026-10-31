@@ -25,8 +25,10 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
 - The deep tier (`deep.yml`): 2,000 property cases and the `#[ignore]`d measurements, in release,
   weekly, on demand and called by Candidate; not a PR check. The nextest test group
   `deep` runs those long tests one at a time so their times stay comparable.
-- The weekly long fuzz run (`fuzz-long.yml`) and the iOS Simulator tests (`ios-sim.yml`, runner
-  `.github/scripts/ios-sim-runner.sh`), both called by Candidate (ADR-REL-3).
+- The weekly long fuzz run (`fuzz-long.yml`), the iOS Simulator tests (`ios-sim.yml`, runner
+  `.github/scripts/ios-sim-runner.sh`) and the Android emulator tests (`android-emu.yml`, runner
+  `.github/scripts/android-emu-runner.sh`), all called by Candidate (ADR-REL-3); the emulator job is
+  advisory (not in the `tag` job's needs).
 - Candidate, Promote and Candidate guard (`candidate.yml`, `promote.yml`,
   `candidate-guard.yml`); script tests (`scripts.yml`).
 - Promote ends with its `notify` job: after a final release (not a prerelease or draft) it sends
@@ -45,8 +47,9 @@ profile), tested by `test_release.py`, `test_bench_budget.py`, `test_bench_alarm
 `test_callgrind_diff.py`; `corpus_paths.py` (where the replay corpus is; tested by
 `test_corpus_paths.py`); `fuzz_seconds.py` (fuzz-long's minutes to whole seconds; tested by
 `test_fuzz_seconds.py`); `test_candidate_workflow.py`
-checks the release workflows' text. The iOS Simulator runner (`ios-sim-runner.sh`) and the fuzz report
-(`fuzz-report.sh`) have no tests. Run: `python3 -m unittest discover -s .github/scripts`.
+checks the release workflows' text. The Android runner is tested by `test_android_emu_runner.py` and its
+workflow text by `test_android_emu_workflow.py`. The iOS Simulator runner (`ios-sim-runner.sh`) and the
+fuzz report (`fuzz-report.sh`) have no tests. Run: `python3 -m unittest discover -s .github/scripts`.
 
 ## Gates in CI
 
