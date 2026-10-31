@@ -9,18 +9,18 @@ use crate::packs::{Packs, PacksError};
 
 /// Two 32-byte Ed25519 public keys for rotation (DS49, D-SIGN).
 ///
-/// Slot 0 is the active public key (placeholder test key until production keys are populated).
-/// Slot 1 is reserved for key rotation.
+/// Slot 0 is the active pack-signing public key (minisign key id 618d4d6ab87367ec).
+/// Slot 1 is reserved for key rotation: all zero, never matched.
 pub const PUBLIC_KEYS: [[u8; 32]; 2] = [
     [
-        23, 56, 28, 152, 98, 105, 33, 97, 209, 110, 106, 198, 68, 166, 87, 110, 159, 114, 144, 255,
-        72, 135, 166, 167, 4, 21, 106, 174, 117, 135, 18, 94,
+        242, 178, 76, 159, 41, 113, 19, 194, 215, 104, 0, 53, 218, 1, 224, 172, 253, 14, 35, 188,
+        37, 4, 174, 51, 126, 171, 26, 196, 203, 224, 196, 73,
     ],
     [0u8; 32],
 ];
 
 /// 8-byte Minisign key IDs corresponding to `PUBLIC_KEYS`.
-pub const KEY_IDS: [[u8; 8]; 2] = [*b"STELLA01", [0u8; 8]];
+pub const KEY_IDS: [[u8; 8]; 2] = [[0x61, 0x8d, 0x4d, 0x6a, 0xb8, 0x73, 0x67, 0xec], [0u8; 8]];
 
 /// Why trust verification was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
