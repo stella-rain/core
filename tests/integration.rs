@@ -40,6 +40,7 @@ mod crowd;
 mod cwd_free_paths;
 mod damage_types;
 mod dash;
+mod data_root;
 mod defence;
 mod died_class;
 mod difficulties;
