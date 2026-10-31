@@ -701,6 +701,11 @@ impl RunRecorder {
             commands: pack_commands(&self.commands),
         }
     }
+
+    /// The replay of the first `ticks` ticks (stub).
+    pub fn replay_at(&self, _ticks: u32, _final_hash: u64) -> RunReplay {
+        self.replay()
+    }
 }
 
 /// Runs `commands` from `setup`, with the bundled content files, and returns the replay. Recording
@@ -978,7 +983,10 @@ fn apply_commands(
 
 #[cfg(test)]
 mod tests {
-    use super::hash_content;
+    use super::{RunRecorder, hash_content, verify_run};
+    use crate::engine::Engine;
+    use crate::input::Input;
+    use crate::run_setup::RunSetup;
 
     const ATTACK_PRESETS_SHA: [u8; 32] = [14; 32];
     const STATS: [u8; 32] = [7; 32];
@@ -1228,5 +1236,33 @@ mod tests {
             "which file is which"
         );
         assert_ne!(base, hash("trial", b"{}", &[15; 32]), "the attack presets");
+    }
+
+    #[test]
+    fn replay_at_reads_nothing_from_the_engine() {
+        let setup = RunSetup {
+            seed: 20_261_010,
+            ..RunSetup::default()
+        };
+        let mut r = RunRecorder::start(&setup).unwrap();
+        for _ in 0..130 {
+            r.step(Input::default()).unwrap();
+        }
+        let hash = r.engine().state_hash();
+        let bytes_before = r.replay().to_bytes();
+
+        // A recorder whose engine is unrelated to the run: a fresh one at tick 0.
+        let mut bad = r.clone();
+        bad.engine = Engine::start(&setup).unwrap();
+        assert_eq!(bad.replay().ticks, 0, "replay() reads the engine");
+
+        let replay = bad.replay_at(130, hash);
+        assert!(
+            replay.to_bytes() == bytes_before,
+            "the replay is the one the good recorder gave"
+        );
+        let verified = verify_run(&replay.to_bytes()).unwrap();
+        assert_eq!(verified.ticks, 130);
+        assert_eq!(verified.final_hash, hash);
     }
 }
