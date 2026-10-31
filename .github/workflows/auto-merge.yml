@@ -12,6 +12,7 @@
 # changes here in the same PR.
 # The merge uses the bridge App's token (the secret below, vars.BRIDGE_APP_CLIENT_ID), so it
 # starts the `push` runs on main, which `main-red.yml` watches.
+# Started by hand (workflow_dispatch, input number) for one PR: the reusable merges it only if the same gate passes; admin or maintain only.
 # `workflow_run` is read from main: a change to this file acts only after its own merge.
 name: Auto-merge
 
@@ -19,6 +20,12 @@ on:
   workflow_run:
     workflows: ["CLAUDE.md check", "Line endings", "Repository check", "Rust", "Scripts"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      number:
+        description: Pull request number to re-run auto-merge for
+        required: true
+        type: string
 
 permissions: {}
 
@@ -41,6 +48,7 @@ jobs:
         benches/accepted.toml
         benches/budgets.toml
     permissions:
+      actions: read  # which runs of the head commit have finished (dispatched retry)
       contents: write
       pull-requests: write
       issues: write  # close the issues a merged PR says it closes
