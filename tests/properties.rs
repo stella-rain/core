@@ -9,7 +9,6 @@ use crate::common;
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
 use std::sync::OnceLock;
 
 use common::*;
@@ -47,7 +46,7 @@ fn config() -> ProptestConfig {
 fn corpus_stages() -> &'static [Stage] {
     static STAGES: OnceLock<Vec<Stage>> = OnceLock::new();
     STAGES.get_or_init(|| {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/stages");
+        let dir = crate::data_root::data_root().join("tests/corpus/current/stages");
         let mut names: Vec<_> = fs::read_dir(&dir)
             .expect("the corpus directory")
             .map(|entry| entry.expect("a corpus entry").file_name())

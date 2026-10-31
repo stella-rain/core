@@ -640,7 +640,7 @@ fn a_setup_with_all_of_it_runs_deterministically() {
 
 #[test]
 fn every_seed_setup_of_the_fuzz_targets_starts_a_run() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/run_setup");
+    let dir = crate::data_root::data_root().join("tests/fixtures/run_setup");
     let mut count = 0;
     for entry in std::fs::read_dir(dir).unwrap() {
         let bytes = std::fs::read(entry.unwrap().path()).unwrap();

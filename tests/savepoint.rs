@@ -394,16 +394,16 @@ fn the_header_is_read_before_the_payload() {
 mod golden {
     use super::*;
     use std::fs;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use stella_rain_core::content_hash::to_hex;
     use stella_rain_core::replay::hash_from_hex;
 
     fn corpus() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/v1/runs/trial")
+        crate::data_root::data_root().join("tests/corpus/v1/runs/trial")
     }
 
     fn fixtures() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/savepoint")
+        crate::data_root::data_root().join("tests/fixtures/savepoint")
     }
 
     /// The frozen `trial` case, its replay and its pack, read and never written.

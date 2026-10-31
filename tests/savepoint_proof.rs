@@ -11,7 +11,7 @@
 use crate::common;
 use crate::corpus_pins::{case_dirs, run_case_pack};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use stella_rain_core::engine::Outcome;
 use stella_rain_core::input::Input;
@@ -36,7 +36,7 @@ struct Case {
 }
 
 fn tree_dir(tree: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    crate::data_root::data_root()
         .join("tests/corpus")
         .join(tree)
 }

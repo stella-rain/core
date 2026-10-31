@@ -38,7 +38,7 @@ fn load(v: &Value) -> Result<Pack, PackError> {
 /// `content/pack.json` is generated: `cargo xtask bless`.
 #[test]
 fn the_bundled_pack_is_the_export_of_the_individual_files() {
-    let files = ContentFiles::read_dir(&Path::new(env!("CARGO_MANIFEST_DIR")).join("content"))
+    let files = ContentFiles::read_dir(&crate::data_root::data_root().join("content"))
         .expect("content/ and modes/ are readable");
     assert!(
         files.export().expect("the files make a pack") == Pack::BUNDLED,
@@ -79,7 +79,7 @@ fn a_slot_is_where_the_layout_puts_it() {
 /// byte, and the bundled pack has every slot, the optional ones included.
 #[test]
 fn the_bundled_files_are_the_files_on_disk() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("content");
+    let dir = crate::data_root::data_root().join("content");
     for slot in ContentFiles::LAYOUT {
         let on_disk = fs::read(slot.path(&dir)).expect("the file is in the tree");
         let bundled = ContentFiles::bundled()
@@ -168,7 +168,7 @@ fn a_saved_pack_loads_as_the_same_content() {
 #[test]
 fn a_run_from_the_pack_hashes_as_one_from_the_bundled_content() {
     let content: RunContent = Pack::from_bytes(&bundled()).unwrap().into();
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/runs");
+    let dir = crate::data_root::data_root().join("tests/corpus/current/runs");
     let mut checked = Vec::new();
     for case in ["trial", "easy", "time_limit"] {
         let case_dir = dir.join(case);

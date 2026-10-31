@@ -7,6 +7,11 @@
 
 use std::path::Path;
 
+#[allow(dead_code, reason = "shared with tests/, which uses more of it")]
+mod data_root {
+    include!("../../tests/data_root.rs");
+}
+
 use super::hash_coverage_tests::{engine, full_state};
 use super::*;
 use crate::id::EntityId;
@@ -374,9 +379,7 @@ fn pack_of(tree: &Path, case: &Path) -> Pack {
 }
 
 fn cases(tree: &str) -> Vec<Case> {
-    let tree_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/corpus")
-        .join(tree);
+    let tree_dir = data_root::data_root().join("tests/corpus").join(tree);
     let mut out = Vec::new();
     let dirs = |kind: &str| -> Vec<std::path::PathBuf> {
         let mut v: Vec<_> = std::fs::read_dir(tree_dir.join(kind))

@@ -392,7 +392,7 @@ mod tests {
     use stella_rain_core::run_replay::{self, RunReplay, RunReplayError};
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("pins-{name}"));
+        let dir = crate::data_root::scratch_dir().join(format!("pins-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir

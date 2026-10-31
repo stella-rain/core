@@ -24,7 +24,9 @@ use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::content_sha256_with;
 use stella_rain_core::stage::Stage;
 
-const PINS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/bench_pins.toml");
+fn pins_path() -> std::path::PathBuf {
+    crate::data_root::data_root().join("tests/bench_pins.toml")
+}
 const PINS: &str = include_str!("bench_pins.toml");
 const BUDGETS: &str = include_str!("../benches/budgets.toml");
 
@@ -347,7 +349,7 @@ fn bench_pins_are_written_on_request() {
         out.push('\n');
         out.push_str(&measure(&spec).table(spec.id));
     }
-    std::fs::write(PINS_PATH, &out).expect("tests/bench_pins.toml is writable");
+    std::fs::write(pins_path(), &out).expect("tests/bench_pins.toml is writable");
     assert_case_set(&out.parse().expect("the written file is TOML"));
 }
 

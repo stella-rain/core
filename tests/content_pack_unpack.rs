@@ -103,7 +103,7 @@ fn unpacking_the_bundled_pack_and_exporting_gives_its_bytes() {
         if name == "in.pack.json" {
             continue;
         }
-        let bundled = std::fs::read(format!("{}/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap();
+        let bundled = std::fs::read(crate::data_root::data_root().join(&name)).unwrap();
         assert_eq!(written, bundled, "{name}");
         assert!(!written.contains(&b'\r'), "{name}");
     }

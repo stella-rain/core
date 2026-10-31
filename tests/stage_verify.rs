@@ -308,7 +308,9 @@ fn a_run_replay_with_a_changed_checkpoint_is_refused_naming_its_second() {
     let last = checkpoints.len() - 1;
     let digit = if checkpoints.ends_with('0') { "1" } else { "0" };
     replay["checkpoints"] = serde_json::json!(format!("{}{digit}", &checkpoints[..last]));
-    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("trial-checkpoint.replay");
+    let dir = crate::data_root::scratch_dir();
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("trial-checkpoint.replay");
     std::fs::write(&path, replay.to_string()).unwrap();
     let o = run(&["--run", path.to_str().unwrap()]);
     assert_ne!(o.status.code(), Some(0));

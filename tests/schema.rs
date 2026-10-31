@@ -2,11 +2,10 @@
 //! `UPDATE_SCHEMA=1 cargo test --test integration schema::`, and commit the diff with the change.
 
 use std::collections::BTreeSet;
-use std::path::Path;
 
 #[test]
 fn schema_bundle_and_ref_stubs() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("schema");
+    let dir = crate::data_root::data_root().join("schema");
     let bundle_path = dir.join("content.schema.json");
     assert!(
         bundle_path.exists(),
@@ -56,7 +55,7 @@ fn schema_bundle_and_ref_stubs() {
 
 #[test]
 fn every_validate_limit_const_appears_in_schema_bundle() {
-    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest_dir = crate::data_root::data_root();
     let validate_rs = std::fs::read_to_string(manifest_dir.join("src/validate.rs"))
         .expect("read src/validate.rs");
     let limits_start = validate_rs
@@ -172,7 +171,7 @@ fn every_validate_limit_const_appears_in_schema_bundle() {
 
 #[test]
 fn checked_in_schema_is_current() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("schema");
+    let dir = crate::data_root::data_root().join("schema");
     #[expect(clippy::disallowed_methods, reason = "test knob")]
     let update = std::env::var_os("UPDATE_SCHEMA").is_some();
     let mut stale = Vec::new();
@@ -313,7 +312,7 @@ fn the_events_that_name_an_id_keep_their_json() {
 fn preset_argument_bounds_in_schema() {
     use stella_rain_core::registry::{ENTRIES, Kind};
 
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("schema");
+    let dir = crate::data_root::data_root().join("schema");
     let bundle_path = dir.join("content.schema.json");
     let bundle_text = std::fs::read_to_string(&bundle_path).expect("read content.schema.json");
     let bundle: serde_json::Value =

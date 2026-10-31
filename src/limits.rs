@@ -200,6 +200,11 @@ pub fn tuning_catalogue_markdown() -> String {
 mod tests {
     use super::*;
 
+    #[allow(dead_code, reason = "shared with tests/, which uses more of it")]
+    mod data_root {
+        include!("../tests/data_root.rs");
+    }
+
     #[test]
     fn no_row_cites_an_archived_adr_126() {
         assert!(LIMITS.iter().all(|e| e.adr != "ADR-126"));
@@ -276,7 +281,7 @@ mod tests {
 
     #[test]
     fn the_catalogue_lists_no_number_of_rules_json() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/content/rules.json");
+        let path = data_root::data_root().join("content/rules.json");
         let rules: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         let keys: Vec<&String> = rules.as_object().unwrap().keys().collect();
