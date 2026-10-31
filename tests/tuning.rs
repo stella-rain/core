@@ -2,12 +2,11 @@
 
 #![cfg(not(target_os = "ios"))]
 
-use std::path::Path;
 use std::process::Command;
 
 #[test]
 fn tuning_stale() {
-    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest_dir = crate::data_root::data_root();
     let tuning_path = manifest_dir.join("docs/tuning.md");
     let output = Command::new(env!("CARGO_BIN_EXE_content-pack"))
         .arg("catalogue")

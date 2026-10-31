@@ -207,8 +207,7 @@ fn a_new_save_starts_with_the_unlocks_the_app_seeds_today() {
 
 #[test]
 fn a_result_exists_only_for_an_ended_run() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/corpus/current/runs/trial/run.replay");
+    let path = crate::data_root::data_root().join("tests/corpus/current/runs/trial/run.replay");
     let replay = RunReplay::from_bytes(&std::fs::read(path).unwrap()).unwrap();
     let mut engine = Engine::start_with(&replay.setup, RunContent::bundled()).unwrap();
     assert_eq!(RunResult::from_run(&replay.setup, &engine), None);

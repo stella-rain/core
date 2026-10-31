@@ -164,7 +164,7 @@ impl Tree {
         let _ = std::fs::remove_dir_all(&root);
         for dir in ["content", "modes"] {
             std::fs::create_dir_all(root.join(dir)).unwrap();
-            let from = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(dir);
+            let from = crate::data_root::data_root().join(dir);
             for entry in std::fs::read_dir(from).unwrap() {
                 let path = entry.unwrap().path();
                 if path.extension().is_some_and(|e| e == "json") {

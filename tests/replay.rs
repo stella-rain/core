@@ -686,10 +686,7 @@ fn a_replay_that_cannot_be_parsed_at_a_known_version_is_damaged() {
 /// The corpus' clear replay with its versions set: the file a version-0 build wrote, apart from
 /// those two numbers.
 fn corpus_replay_at(schema_version: u32, sim_version: u32) -> Vec<u8> {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/corpus/current/stages/clear/run.replay"
-    );
+    let path = crate::data_root::data_root().join("tests/corpus/current/stages/clear/run.replay");
     let mut value: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     value["schema_version"] = json!(schema_version);
     value["sim_version"] = json!(sim_version);

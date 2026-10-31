@@ -31,7 +31,7 @@ use stella_rain_core::weapons::{MAX_WEAPONS_BYTES, Weapons};
 /// Every `include_bytes!` or `include_str!` of a content or mode file under `dir` (relative to the
 /// crate), as `<path>:<literal>`.
 fn content_includes(dir: &str) -> Vec<String> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = crate::data_root::data_root();
     let mut files = Vec::new();
     walk(&root.join(dir), &mut files);
     files.sort();
@@ -39,7 +39,7 @@ fn content_includes(dir: &str) -> Vec<String> {
     for file in files {
         let text = std::fs::read_to_string(&file).unwrap();
         let path = file
-            .strip_prefix(root)
+            .strip_prefix(&root)
             .unwrap()
             .to_string_lossy()
             .replace('\\', "/");
@@ -96,7 +96,7 @@ fn no_test_compiles_a_content_file_in() {
 
 #[test]
 fn one_reader_of_the_versions() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let root = crate::data_root::data_root().join("src");
     let mut files = Vec::new();
     walk(&root, &mut files);
     files.sort();
@@ -207,7 +207,7 @@ fn refuses_file(name: &str, bytes: &[u8], limit: usize, read: impl Fn(&[u8]) -> 
 /// stages in `modes/` are stages and keep theirs (CS1a-2).
 #[test]
 fn no_content_file_has_its_own_version() {
-    let content_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("content");
+    let content_dir = crate::data_root::data_root().join("content");
     for slot in ContentFiles::LAYOUT {
         let bytes = std::fs::read(slot.path(&content_dir)).unwrap();
         let file: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
@@ -363,10 +363,9 @@ fn every_versioned_file_refuses_another_game_the_same_way() {
     refuses_file("stage", &file("trial"), MAX_STAGE_BYTES, |b| {
         validate::parse_and_validate(b).map(|_| ())
     });
-    let setup = std::fs::read(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/run_setup/trial.json"),
-    )
-    .unwrap();
+    let setup =
+        std::fs::read(crate::data_root::data_root().join("tests/fixtures/run_setup/trial.json"))
+            .unwrap();
     refuses_file("run_setup", &setup, MAX_SETUP_BYTES, |b| {
         run_setup::parse_and_validate(b).map(|_| ())
     });

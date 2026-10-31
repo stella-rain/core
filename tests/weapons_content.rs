@@ -16,7 +16,7 @@ const BEFORE: &str = include_str!("fixtures/weapons_before.json");
 
 #[test]
 fn the_bundled_weapons_file_holds_the_hammer_and_sword_trees_as_before() {
-    let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/content/weapons.json"))
+    let bytes = std::fs::read(crate::data_root::data_root().join("content/weapons.json"))
         .expect("content/weapons.json");
     let file: Value = serde_json::from_slice(&bytes).unwrap();
     let before: Value = serde_json::from_str(BEFORE).unwrap();
@@ -64,7 +64,7 @@ fn a_pack_without_weapons_is_refused() {
 
 fn bundled_file() -> Value {
     serde_json::from_slice(
-        &std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/content/weapons.json")).unwrap(),
+        &std::fs::read(crate::data_root::data_root().join("content/weapons.json")).unwrap(),
     )
     .unwrap()
 }

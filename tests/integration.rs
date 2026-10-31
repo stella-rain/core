@@ -158,7 +158,7 @@ mod zones;
 /// here; a missing `mod` line would leave its tests out silently.
 #[test]
 fn every_test_file_is_a_module_here() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let dir = crate::data_root::data_root().join("tests");
     let declared: Vec<&str> = include_str!("integration.rs")
         .lines()
         .filter_map(|line| line.strip_prefix("mod ")?.strip_suffix(';'))

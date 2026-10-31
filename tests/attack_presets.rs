@@ -47,11 +47,8 @@ fn the_pack_lists_every_registry_preset_with_today_s_phases() {
             "{id}"
         );
     }
-    let on_disk = std::fs::read(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/content/attack_presets.json"
-    ))
-    .expect("content/attack_presets.json");
+    let on_disk = std::fs::read(crate::data_root::data_root().join("content/attack_presets.json"))
+        .expect("content/attack_presets.json");
     let file: Value = serde_json::from_slice(&on_disk).unwrap();
     assert_eq!(file, pack["attack_presets"]);
 }

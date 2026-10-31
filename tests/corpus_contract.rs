@@ -5,15 +5,15 @@
 //! `APP_READ_PATHS` and to that rule in the same change.
 
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 
 use stella_rain_core::run_replay::RunReplay;
 
 /// Paths relative to the repository root.
 const APP_READ_PATHS: &[&str] = &["tests/corpus/current/runs/stage_skill/run.replay"];
 
-fn root() -> &'static Path {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+fn root() -> PathBuf {
+    crate::data_root::data_root()
 }
 
 #[test]

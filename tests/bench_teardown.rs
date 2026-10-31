@@ -83,7 +83,7 @@ fn table_keys(toml: &str) -> Vec<String> {
 }
 
 fn benches_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches")
+    crate::data_root::data_root().join("benches")
 }
 
 /// The bench files directly in `benches/` (not `benches/support/`), sorted by name.

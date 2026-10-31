@@ -47,19 +47,19 @@ use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::parse_and_validate;
 
 pub(crate) fn corpus_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/stages")
+    crate::data_root::data_root().join("tests/corpus/current/stages")
 }
 
 pub(crate) fn runs_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/runs")
+    crate::data_root::data_root().join("tests/corpus/current/runs")
 }
 
 pub(crate) fn current_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current")
+    crate::data_root::data_root().join("tests/corpus/current")
 }
 
 pub(crate) fn diff_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("target/corpus-diff")
+    crate::data_root::data_root().join("target/corpus-diff")
 }
 
 /// Re-simulates one case and compares every tick's hash. `Err` is the message the test fails

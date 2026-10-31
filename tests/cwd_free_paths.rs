@@ -1,5 +1,5 @@
-//! A test reaches a repository file through `env!("CARGO_MANIFEST_DIR")`, never through the working
-//! directory: the iOS Simulator spawns a test binary without the repository as its working
+//! A test reaches a repository file through `data_root()` (`tests/data_root.rs`), never through the
+//! working directory or `env!("CARGO_MANIFEST_DIR")` itself: the iOS Simulator spawns a test binary without the repository as its working
 //! directory, so a relative path misses there while every host run passes.
 
 // The scan reads the crate's tree, which the iOS Simulator run does not have.
@@ -156,17 +156,17 @@ fn relative(root: &Path, path: &Path) -> String {
 
 #[test]
 fn tests_open_files_through_the_manifest_dir() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = crate::data_root::data_root();
     let mut sites = Vec::new();
-    for path in scanned_files(root) {
-        let file = relative(root, &path);
+    for path in scanned_files(&root) {
+        let file = relative(&root, &path);
         let source = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{file}: {e}"));
         for (line, literal) in flagged_in(&source) {
             let allowed = ALLOWED.iter().any(|(f, l, _)| *f == file && *l == literal);
             if !allowed {
                 sites.push(format!(
                     "{file}:{line}: a test opens \"{literal}\" relative to the working directory; \
-                     build it from env!(\"CARGO_MANIFEST_DIR\") (tests/corpus.rs has runs_dir(), \
+                     build it from crate::data_root::data_root() (tests/corpus.rs has runs_dir(), \
                      current_dir(), corpus_dir())"
                 ));
             }
@@ -178,7 +178,7 @@ fn tests_open_files_through_the_manifest_dir() {
 #[test]
 fn only_the_three_component_literals_are_allowed_and_each_still_occurs() {
     assert_eq!(ALLOWED.len(), 3);
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = crate::data_root::data_root();
     for (file, literal, _) in ALLOWED {
         let source = fs::read_to_string(root.join(file)).unwrap();
         assert!(
@@ -240,10 +240,10 @@ fn bypasses(line: &str) -> bool {
 
 #[test]
 fn repository_files_are_read_through_the_data_root() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = crate::data_root::data_root();
     let mut sites = Vec::new();
-    for path in scanned_files(root) {
-        let file = relative(root, &path);
+    for path in scanned_files(&root) {
+        let file = relative(&root, &path);
         if DIRECT.iter().any(|(f, _)| *f == file) {
             continue;
         }
@@ -264,7 +264,7 @@ fn repository_files_are_read_through_the_data_root() {
 #[test]
 fn only_two_files_read_the_build_directories_and_each_still_does() {
     assert_eq!(DIRECT.len(), 2);
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = crate::data_root::data_root();
     for (file, _) in DIRECT {
         let source = fs::read_to_string(root.join(file)).unwrap();
         assert!(
