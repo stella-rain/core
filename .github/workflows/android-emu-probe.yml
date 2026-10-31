@@ -3,7 +3,8 @@
 name: Android emulator probe
 
 on:
-  pull_request:
+  push:
+    branches: [claude/core-android-emu]
     paths:
       - ".github/workflows/android-emu-probe.yml"
 
