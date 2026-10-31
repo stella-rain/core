@@ -1202,3 +1202,125 @@ fn the_corpus_run_replay_loads_at_the_current_versions_and_not_one_above() {
         })
     );
 }
+
+/// The tick and state hash of `recorder`'s engine, as a caller that keeps them would.
+fn point(recorder: &RunRecorder) -> (u32, u64) {
+    (recorder.engine().tick(), recorder.engine().state_hash())
+}
+
+#[test]
+fn a_replay_built_at_tick_n_verifies_up_to_n() {
+    let commands = play_run(300);
+    let mut r = RunRecorder::start(&trial_setup()).unwrap();
+    let mut points = Vec::new();
+    for c in &commands {
+        match *c {
+            Command::Step(input) => r.step(input).unwrap(),
+            Command::Choose(index) => r.choose(index).unwrap(),
+        }
+        // Right after the step that reaches the tick, with no offer open.
+        let (tick, hash) = point(&r);
+        if matches!(c, Command::Step(_))
+            && !r.engine().offer_open()
+            && [59, 60, 130].contains(&tick)
+        {
+            points.push((tick, hash));
+        }
+    }
+    assert_eq!(
+        points.iter().map(|p| p.0).collect::<Vec<_>>(),
+        [59, 60, 130]
+    );
+    for (n, hash) in points {
+        let replay = r.replay_at(n, hash);
+        let verified = verify_run(&replay.to_bytes()).unwrap();
+        assert_eq!(verified.ticks, n);
+        assert_eq!(verified.final_hash, hash);
+        assert_eq!(verified.outcome, Outcome::Running);
+        assert_eq!(
+            replay.checkpoints.len(),
+            16 * (n / CHECKPOINT_TICKS) as usize
+        );
+        let cut = after_steps(&commands, 0, n as usize);
+        let first_n = record_run(&trial_setup(), &commands[..cut]).unwrap();
+        assert_eq!(replay, first_n, "the replay of the first {n} ticks");
+    }
+}
+
+#[test]
+fn a_replay_built_after_a_choice_keeps_the_command() {
+    let commands = play_run(TRIAL_LENGTH);
+    let at = commands
+        .iter()
+        .position(|c| matches!(c, Command::Choose(_)))
+        .unwrap();
+    let mut r = RunRecorder::start(&trial_setup()).unwrap();
+    feed(&mut r, &commands[..at]);
+    let (_, before) = point(&r);
+    // Every choice that applies before the next tick belongs to the point.
+    let end = commands[at..]
+        .iter()
+        .position(|c| matches!(c, Command::Step(_)))
+        .map_or(commands.len(), |n| at + n);
+    feed(&mut r, &commands[at..end]);
+    let (tick, after) = point(&r);
+    feed(&mut r, &commands[end..]);
+
+    let verified = verify_run(&r.replay_at(tick, after).to_bytes()).unwrap();
+    assert_eq!(verified.commands as usize, end - at);
+    assert_eq!(verified.final_hash, after);
+    assert!(
+        matches!(
+            verify_run(&r.replay_at(tick, before).to_bytes()),
+            Err(RunReplayError::WrongFinalHash { .. })
+        ),
+        "the hash must include the command at the tick"
+    );
+}
+
+#[test]
+fn replay_at_with_the_engines_own_tick_and_hash_is_replay() {
+    let commands = play_run(TRIAL_LENGTH);
+    let mut r = RunRecorder::start(&trial_setup()).unwrap();
+    let mut checked = 0;
+    for c in &commands {
+        match *c {
+            Command::Step(input) => r.step(input).unwrap(),
+            Command::Choose(index) => r.choose(index).unwrap(),
+        }
+        let (tick, hash) = point(&r);
+        if [59, 60, 130].contains(&tick) || r.engine().offer_open() {
+            assert_eq!(r.replay_at(tick, hash), r.replay(), "at tick {tick}");
+            checked += 1;
+        }
+    }
+    assert!(checked >= 4, "ticks and an open offer were checked");
+
+    let (setup, content) = (time_limit_setup(), falling_content());
+    let mut fell = RunRecorder::start_with(&setup, &content).unwrap();
+    for c in &play_run_in(&setup, &content, TRIAL_LENGTH) {
+        match *c {
+            Command::Step(input) => fell.step(input).unwrap(),
+            Command::Choose(index) => fell.choose(index).unwrap(),
+        }
+    }
+    assert_ne!(fell.engine().outcome(), Outcome::Running);
+    let (tick, hash) = point(&fell);
+    assert_eq!(fell.replay_at(tick, hash), fell.replay());
+}
+
+#[test]
+fn replay_at_with_too_many_ticks_does_not_panic_and_does_not_verify() {
+    let commands = play_run(100);
+    let mut r = RunRecorder::start(&trial_setup()).unwrap();
+    feed(&mut r, &commands);
+    let (_, hash) = point(&r);
+    let replay = r.replay_at(150, hash);
+    assert_eq!(replay.ticks, 150);
+    assert_eq!(
+        verify_run(&replay.to_bytes()),
+        Err(RunReplayError::BadInputs(
+            "there are fewer inputs than ticks"
+        ))
+    );
+}

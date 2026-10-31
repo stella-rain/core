@@ -701,6 +701,41 @@ impl RunRecorder {
             commands: pack_commands(&self.commands),
         }
     }
+
+    /// The replay of the first `ticks` ticks of the run so far, built from what the recorder has
+    /// recorded alone: it reads nothing from the engine, so it is safe to call after the engine
+    /// panicked. `final_hash` is the state hash after tick `ticks` and the commands that carry it
+    /// (what `Engine::state_hash` gave at that point; the caller keeps it, because this method
+    /// cannot ask the engine). The replay holds the first `ticks` inputs, the first
+    /// `ticks / CHECKPOINT_TICKS` checkpoints and the commands up to and including those that apply
+    /// after tick `ticks`, so it verifies when `ticks` and `final_hash` are the run's at one point
+    /// the run reached. Inputs, checkpoints and commands recorded past `ticks` are left out. A
+    /// `ticks` above the number of inputs recorded does not panic; the replay then holds all the
+    /// inputs it has and does not verify. After the run ended and with the engine's own tick and
+    /// hash, this is exactly `replay()`.
+    pub fn replay_at(&self, ticks: u32, final_hash: u64) -> RunReplay {
+        let inputs = usize::try_from(ticks).map_or(self.inputs.len(), |t| t.min(self.inputs.len()));
+        let checkpoints = usize::try_from(ticks / CHECKPOINT_TICKS)
+            .map_or(self.checkpoints.len(), |c| c.min(self.checkpoints.len()));
+        let commands: Vec<TickCommand> = self
+            .commands
+            .iter()
+            .copied()
+            .filter(|c| c.tick <= ticks)
+            .collect();
+        RunReplay {
+            setup: self.setup.clone(),
+            content_sha256: self.content_sha256.clone(),
+            ticks,
+            final_hash: hash_to_hex(final_hash),
+            checkpoints: self.checkpoints[..checkpoints]
+                .iter()
+                .map(|h| hash_to_hex(*h))
+                .collect(),
+            inputs: pack_inputs(&self.inputs[..inputs]),
+            commands: pack_commands(&commands),
+        }
+    }
 }
 
 /// Runs `commands` from `setup`, with the bundled content files, and returns the replay. Recording
@@ -978,7 +1013,10 @@ fn apply_commands(
 
 #[cfg(test)]
 mod tests {
-    use super::hash_content;
+    use super::{RunRecorder, hash_content, verify_run};
+    use crate::engine::Engine;
+    use crate::input::Input;
+    use crate::run_setup::RunSetup;
 
     const ATTACK_PRESETS_SHA: [u8; 32] = [14; 32];
     const STATS: [u8; 32] = [7; 32];
@@ -1228,5 +1266,33 @@ mod tests {
             "which file is which"
         );
         assert_ne!(base, hash("trial", b"{}", &[15; 32]), "the attack presets");
+    }
+
+    #[test]
+    fn replay_at_reads_nothing_from_the_engine() {
+        let setup = RunSetup {
+            seed: 20_261_010,
+            ..RunSetup::default()
+        };
+        let mut r = RunRecorder::start(&setup).unwrap();
+        for _ in 0..130 {
+            r.step(Input::default()).unwrap();
+        }
+        let hash = r.engine().state_hash();
+        let bytes_before = r.replay().to_bytes();
+
+        // A recorder whose engine is unrelated to the run: a fresh one at tick 0.
+        let mut bad = r.clone();
+        bad.engine = Engine::start(&setup).unwrap();
+        assert_eq!(bad.replay().ticks, 0, "replay() reads the engine");
+
+        let replay = bad.replay_at(130, hash);
+        assert!(
+            replay.to_bytes() == bytes_before,
+            "the replay is the one the good recorder gave"
+        );
+        let verified = verify_run(&replay.to_bytes()).unwrap();
+        assert_eq!(verified.ticks, 130);
+        assert_eq!(verified.final_hash, hash);
     }
 }
