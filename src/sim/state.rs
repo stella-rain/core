@@ -75,7 +75,8 @@ pub(crate) struct State {
     pub tick: u32,
     pub rng: Streams,
     pub outcome: Outcome,
-    pub player: PlayerState,
+    /// The players, in entity-ID order (`PlayerIdx::id`): one now (ADR-SIM-12).
+    pub players: Players,
     pub boss: Option<BossState>,
     /// The allies that act on their own, in entity-ID order.
     pub companions: Vec<AgentState>,
@@ -311,6 +312,127 @@ pub(crate) struct Progress {
     pub spent: Vec<u8>,
     /// What the points spent add up to for each effect, in `StatEffect::ALL` order.
     pub totals: [u32; StatEffect::ALL.len()],
+}
+
+/// The most players a run holds (ADR-SIM-12 point 1). A code cap, not a tuning number.
+pub(crate) const MAX_PLAYERS: u8 = 3;
+
+/// Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the
+/// companions come after the players. An enum of the `MAX_PLAYERS` places, so that an index into
+/// the players' array needs no bounds check (a tick indexes it thousands of times, ADR-SIM-8).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum PlayerIdx {
+    First,
+    Second,
+    Third,
+}
+
+impl PlayerIdx {
+    /// The only player of a run of one.
+    pub(crate) const SOLO: PlayerIdx = PlayerIdx::First;
+
+    /// Player `i`, if a run can hold that many.
+    #[cfg(test)]
+    pub(crate) fn new(i: u8) -> Option<PlayerIdx> {
+        match i {
+            0 => Some(PlayerIdx::First),
+            1 => Some(PlayerIdx::Second),
+            2 => Some(PlayerIdx::Third),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn get(self) -> usize {
+        self as usize
+    }
+
+    /// The entity ID of this player.
+    #[inline]
+    pub(crate) fn id(self) -> EntityId {
+        EntityId(self as u32)
+    }
+
+    /// The player that entity `id` is, in a party of `party` players.
+    #[inline]
+    pub(crate) fn of_id(id: EntityId, party: usize) -> Option<PlayerIdx> {
+        match id.0 {
+            0 if party > 0 => Some(PlayerIdx::First),
+            1 if party > 1 => Some(PlayerIdx::Second),
+            2 if party > 2 => Some(PlayerIdx::Third),
+            _ => None,
+        }
+    }
+}
+
+/// The players of a run: `1..=MAX_PLAYERS` of them. All places are held, the ones past `len`
+/// as copies of the first that nothing reads, so that an index is a plain offset and a steady
+/// tick allocates nothing.
+#[derive(Clone, Debug)]
+pub(crate) struct Players {
+    items: [PlayerState; MAX_PLAYERS as usize],
+    len: u8,
+}
+
+#[cfg(test)]
+impl PartialEq for Players {
+    fn eq(&self, other: &Players) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+
+impl Players {
+    pub(crate) fn solo(p: PlayerState) -> Players {
+        Players {
+            items: [p.clone(), p.clone(), p],
+            len: 1,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn of(ps: Vec<PlayerState>) -> Option<Players> {
+        if ps.is_empty() || ps.len() > usize::from(MAX_PLAYERS) {
+            return None;
+        }
+        let len = u8::try_from(ps.len()).ok()?;
+        let first = ps[0].clone();
+        let mut it = ps.into_iter();
+        Some(Players {
+            items: std::array::from_fn(|_| it.next().unwrap_or_else(|| first.clone())),
+            len,
+        })
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        usize::from(self.len)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, PlayerState> {
+        self.items[..self.len()].iter()
+    }
+
+    /// Players 1 and up.
+    pub(crate) fn others(&self) -> &[PlayerState] {
+        &self.items[1..self.len()]
+    }
+}
+
+impl std::ops::Index<PlayerIdx> for Players {
+    type Output = PlayerState;
+    #[inline]
+    fn index(&self, i: PlayerIdx) -> &PlayerState {
+        debug_assert!(i.get() < self.len());
+        &self.items[i.get()]
+    }
+}
+
+impl std::ops::IndexMut<PlayerIdx> for Players {
+    #[inline]
+    fn index_mut(&mut self, i: PlayerIdx) -> &mut PlayerState {
+        debug_assert!(i.get() < self.len());
+        &mut self.items[i.get()]
+    }
 }
 
 #[derive(Clone, Debug)]

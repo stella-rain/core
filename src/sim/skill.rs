@@ -22,6 +22,7 @@ use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::input::Input;
 use crate::rewards::Rewards;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{Dir, PlayerState, PullState, ShieldState, SkillSlot, State, StatusKind};
 use crate::stage_skill::{MAX_SKILL_EFFECTS, MAX_SKILL_LEVELS, SkillEffect};
 use crate::trig::SCALE;
@@ -29,16 +30,16 @@ use crate::trig::SCALE;
 use super::attacks;
 use super::entity::Who;
 use super::levels;
+use super::overlaps;
 use super::player;
-use super::{PLAYER_ID, overlaps};
 
 /// The main character's attack slot for a stage skill's attack (ADR-069); the combo is 0.
 pub(super) const SKILL_SLOT: u8 = 1;
 
 /// The timers of the slot, the pull and the shield run down a tick; the pull and the shield end
 /// when theirs reach 0.
-pub(super) fn tick(s: &mut State) {
-    let p = &mut s.player;
+pub(super) fn tick(s: &mut State, me: PlayerIdx) {
+    let p = &mut s.players[me];
     if let Some(slot) = &mut p.skill {
         slot.cooldown_left = slot.cooldown_left.saturating_sub(1);
     }
@@ -82,13 +83,13 @@ pub(super) fn take(rewards: &Rewards, p: &mut PlayerState, index: usize, levels:
 
 /// Where the aim points: toward the target while `assist` is on and there is one, else the
 /// facing.
-fn aim(s: &State, input: Input) -> Dir {
+fn aim(s: &State, me: PlayerIdx, input: Input) -> Dir {
     if input.assist {
-        if let Some(dir) = s.player.target.and_then(|t| player::toward(s, t)) {
+        if let Some(dir) = s.players[me].target.and_then(|t| player::toward(s, me, t)) {
             return dir;
         }
     }
-    s.player.facing
+    s.players[me].facing
 }
 
 /// `ticks` shortened by `pct` percent, the percent held to `MAX_SKILL_COOLDOWN_TOTAL_PCT` so a
@@ -107,10 +108,11 @@ pub(super) fn press(
     stage: &World,
     rewards: &Rewards,
     s: &mut State,
+    me: PlayerIdx,
     input: Input,
     events: &mut Vec<DomainEvent>,
 ) {
-    let Some(slot) = s.player.skill else {
+    let Some(slot) = s.players[me].skill else {
         return;
     };
     if slot.cooldown_left > 0 {
@@ -122,22 +124,22 @@ pub(super) fn press(
     let Some(level) = def.levels.get(usize::from(slot.level).saturating_sub(1)) else {
         return;
     };
-    let dir = aim(s, input);
+    let dir = aim(s, me, input);
     let scale = i64::from(SCALE);
     let ahead = i64::from(def.ahead.0);
     // `ahead` is at most 512 pixels and the direction at most `SCALE` long.
     let point = stage.map().clamp(Point {
-        x: s.player
+        x: s.players[me]
             .at
             .x
             .saturating_add(Fx::from_wide(i64::from(dir.x) * ahead / scale)),
-        y: s.player
+        y: s.players[me]
             .at
             .y
             .saturating_add(Fx::from_wide(i64::from(dir.y) * ahead / scale)),
     });
-    s.player.skill = Some(SkillSlot {
-        cooldown_left: shortened(level.cooldown_ticks, s.player.skill_cooldown_pct),
+    s.players[me].skill = Some(SkillSlot {
+        cooldown_left: shortened(level.cooldown_ticks, s.players[me].skill_cooldown_pct),
         ..slot
     });
     events.push(DomainEvent::StageSkillUsed {
@@ -146,7 +148,7 @@ pub(super) fn press(
     });
     // The validator holds a level to `MAX_SKILL_EFFECTS`.
     for effect in level.effects.iter().take(MAX_SKILL_EFFECTS) {
-        apply(stage, s, effect, point, dir, events);
+        apply(stage, s, me, effect, point, dir, events);
     }
 }
 
@@ -154,6 +156,7 @@ pub(super) fn press(
 fn apply(
     stage: &World,
     s: &mut State,
+    me: PlayerIdx,
     effect: &SkillEffect,
     point: Point,
     dir: Dir,
@@ -165,7 +168,7 @@ fn apply(
             strength,
             duration_ticks,
         } => {
-            s.player.pull = Some(PullState {
+            s.players[me].pull = Some(PullState {
                 at: point,
                 radius: radius.0,
                 strength: strength.0,
@@ -180,9 +183,9 @@ fn apply(
             // The validator holds the status to the registry's, which are `StatusKind`'s.
             if let Some(kind) = StatusKind::from_name(status.as_str()) {
                 s.add_status(
-                    Who::Player,
+                    Who::Player(me),
                     kind,
-                    PLAYER_ID,
+                    me.id(),
                     *value_pct,
                     *duration_ticks,
                     events,
@@ -199,11 +202,11 @@ fn apply(
                 return;
             };
             for who in within(stage, s, point, radius.0) {
-                s.add_status(who, kind, PLAYER_ID, *value_pct, *duration_ticks, events);
+                s.add_status(who, kind, me.id(), *value_pct, *duration_ticks, events);
             }
         }
         SkillEffect::Attack { attack } => {
-            attacks::end_run(stage, s, PLAYER_ID, SKILL_SLOT);
+            attacks::end_run(stage, s, me.id(), SKILL_SLOT);
             let strike = attacks::Strike {
                 bonus_pct: 0,
                 speed_pct: 0,
@@ -211,13 +214,23 @@ fn apply(
                 smash: None,
             };
             let damage = levels::attack(s, stage.player.atk);
-            attacks::start_player(stage, s, SKILL_SLOT, dir, attack, damage, strike, events);
+            attacks::start_player(
+                stage,
+                s,
+                PlayerIdx::SOLO, // N=1: M-PER-PLAYER
+                SKILL_SLOT,
+                dir,
+                attack,
+                damage,
+                strike,
+                events,
+            );
         }
         SkillEffect::Shield {
             amount,
             duration_ticks,
         } => {
-            s.player.shield = Some(ShieldState {
+            s.players[me].shield = Some(ShieldState {
                 amount: *amount,
                 ticks_left: *duration_ticks,
             });
@@ -251,8 +264,8 @@ fn within(stage: &World, s: &State, at: Point, radius: i32) -> Vec<Who> {
 }
 
 /// The pull's step for this tick, after the enemies have moved and pushed apart.
-pub(super) fn pull(stage: &World, s: &mut State) {
-    let Some(b) = s.player.pull else {
+pub(super) fn pull(stage: &World, s: &mut State, me: PlayerIdx) {
+    let Some(b) = s.players[me].pull else {
         return;
     };
     let map = stage.map();
@@ -282,8 +295,8 @@ pub(super) fn pull(stage: &World, s: &mut State) {
 
 /// The part of `damage` to the main character the shield absorbs; what is left of it. A
 /// shield with nothing left is gone.
-pub(super) fn absorb(s: &mut State, damage: u32) -> u32 {
-    let p = &mut s.player;
+pub(super) fn absorb(s: &mut State, me: PlayerIdx, damage: u32) -> u32 {
+    let p = &mut s.players[me];
     let Some(sh) = &mut p.shield else {
         return damage;
     };

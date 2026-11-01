@@ -22,6 +22,9 @@ use super::{Load, Outcome, Places};
 
 /// A run under the rules of one `sim_version`: the compiled stage and the state it changes, both
 /// of that version's types. The engine reaches them, and the snapshot view, only through here.
+// The frozen state is the larger: the live one keeps its players in a list (ADR-SIM-12). One run
+// is held per engine, so the size difference costs nothing.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub(crate) enum Run {
     /// Version 1, the frozen first rules (`sim_v1`).
@@ -37,6 +40,7 @@ pub(crate) enum Run {
 }
 
 /// The state of a savepoint, of the version that wrote it.
+#[allow(clippy::large_enum_variant)] // as `Run`: one is held at a time
 pub(crate) enum Saved {
     V1(sim_v1::state::State),
     V2(sim::state::State),
@@ -165,7 +169,13 @@ impl Run {
         );
         if let Some(setup) = b.setup {
             let loadout = sim::Loadout::of(setup, b.content);
-            sim::apply_loadout(&world, b.content.rewards(), &mut state, &loadout);
+            sim::apply_loadout(
+                &world,
+                b.content.rewards(),
+                &mut state,
+                sim::state::PlayerIdx::SOLO,
+                &loadout,
+            );
         }
         Ok(Run::V2 { world, state })
     }

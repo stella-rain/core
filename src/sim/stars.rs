@@ -34,6 +34,7 @@ use crate::rewards::{
 };
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{
     Due, HeldRune, OfferState, PlayerState, Progress, StarField, StarState, State,
 };
@@ -159,15 +160,15 @@ fn draw_rarity(rng: &mut SplitMix64, weights: &RarityWeights, range: (Rarity, Ra
 }
 
 /// The main character takes the stars inside its pickup circle; their offers are due.
-pub(super) fn pick_up(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     let Some(cfg) = &stage.stars else {
         return;
     };
-    if s.player.hp == 0 {
+    if s.players[me].hp == 0 {
         return;
     };
-    let at = s.player.at;
-    let radius = widened(cfg.pickup_radius.0, s.player.pickup_radius_pct);
+    let at = s.players[me].at;
+    let radius = widened(cfg.pickup_radius.0, s.players[me].pickup_radius_pct);
     let Some(f) = s.stars.as_mut() else {
         return;
     };
@@ -202,8 +203,12 @@ pub(super) fn open_due(
     }
     let rune_weight = random_rune_weight(stage, s);
     let State {
-        rng, stars, player, ..
+        rng,
+        stars,
+        players,
+        ..
     } = s;
+    let player = &players[PlayerIdx::SOLO]; // N=1: M-PER-PLAYER
     let Some(f) = stars.as_mut() else {
         return;
     };
@@ -348,7 +353,7 @@ fn id(rewards: &Rewards, i: u16) -> ContentId {
 }
 
 /// The options of the open offer, in index order; empty without one.
-pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
+pub(crate) fn options(rewards: &Rewards, s: &State, me: PlayerIdx) -> Vec<OfferOption> {
     let Some((f, o)) = s.stars.as_ref().and_then(|f| Some((f, f.offer.as_ref()?))) else {
         return Vec::new();
     };
@@ -356,7 +361,7 @@ pub(crate) fn options(rewards: &Rewards, s: &State) -> Vec<OfferOption> {
     let mut out: Vec<OfferOption> = (0..n)
         .map(|candidate| OfferOption::Take { candidate })
         .collect();
-    let runes = &s.player.runes;
+    let runes = &s.players[me].runes;
     if f.rerolls_left > 0 && first_rarity(rewards, f, runes, o.rarity, &o.candidates).is_some() {
         out.extend((0..n).map(|candidate| OfferOption::Reroll { candidate }));
     }
@@ -566,10 +571,11 @@ pub(super) fn choose(
         rng,
         stars,
         progress,
-        player,
+        players,
         regen,
         ..
     } = s;
+    let player = &mut players[PlayerIdx::SOLO]; // N=1: M-PER-PLAYER
     let Some(f) = stars.as_mut() else {
         return;
     };
@@ -722,7 +728,7 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                 }
             })
             .collect(),
-        options: options(rewards, s),
+        options: options(rewards, s, PlayerIdx::SOLO), // N=1: M-PER-PLAYER
         rerolls_left: f.rerolls_left,
         banishes_left: f.banishes_left,
     })
@@ -858,10 +864,11 @@ mod tests {
             rng,
             stars,
             progress,
-            player,
+            players,
             regen,
             ..
         } = &mut s;
+        let player = &mut players[PlayerIdx::SOLO];
         let f = stars.as_mut().expect("a star field");
         take(
             &stage,

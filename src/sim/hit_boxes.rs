@@ -27,6 +27,7 @@ use crate::event::{DomainEvent, HitKind};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::rune::Rune;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{Dir, Smash, State};
 use crate::trig;
 
@@ -153,17 +154,17 @@ pub(super) fn resolve(
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
     if !s.orbs.is_empty() {
-        break_orbs(stage, s, &swings, events);
+        break_orbs(stage, s, PlayerIdx::SOLO, &swings, events); // N=1: M-PER-PLAYER
     }
     if s.next_orb_group > 0 {
-        cage_beams(stage, s, events);
+        cage_beams(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     }
     for w in &swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
             hit_enemy_side(stage, s, grid, w, (&mut bits, &mut found), events);
         } else {
-            hit_ally_side(stage, s, w, events);
+            hit_ally_side(stage, s, PlayerIdx::SOLO, w, events); // N=1: M-PER-PLAYER
         }
     }
     if swings.iter().any(|w| w.once) {
@@ -178,8 +179,14 @@ pub(super) fn resolve(
 /// A breakable enemy orb that a hit box of the main character covers is removed, with no burst,
 /// and reported once (core Z2, C24). It is gone before the orbs land, so it hurts nobody this
 /// tick.
-fn break_orbs(stage: &World, s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
-    let mine = |w: &&Swing| w.friendly && w.owner == super::PLAYER_ID;
+fn break_orbs(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    swings: &[Swing],
+    events: &mut Vec<DomainEvent>,
+) {
+    let mine = |w: &&Swing| w.friendly && w.owner == me.id();
     s.orbs.retain(|b| {
         if !b.breakable {
             return true;
@@ -202,9 +209,9 @@ fn break_orbs(stage: &World, s: &mut State, swings: &[Swing], events: &mut Vec<D
 /// `rehit_ticks`; an orb broken just above is gone, and its beams with it. Each beam is a line
 /// from one orb to its neighbour, tested like a hit box line; its last hit is kept on the orb it
 /// starts from.
-fn cage_beams(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+fn cage_beams(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     for i in 0..s.orbs.len() {
-        let p = &s.player;
+        let p = &s.players[me];
         if p.hp == 0 || p.invulnerable > 0 {
             return;
         }
@@ -246,7 +253,7 @@ fn cage_beams(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
             l.last_hit = Some(s.tick);
         }
         let by = Blame::of_program(HitKind::Link, from_program);
-        hurt_player(stage, s, super::aided(stage, s, shot), by, events);
+        hurt_player(stage, s, me, super::aided(stage, s, shot), by, events);
     }
 }
 
@@ -504,7 +511,7 @@ fn hit_enemy_side(
         if boss.invulnerable == 0 {
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-                damage(stage, s, shot(w), Who::Boss, events);
+                damage(stage, s, PlayerIdx::SOLO, shot(w), Who::Boss, events); // N=1: M-PER-PLAYER
             }
             let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
             for i in 0..parts {
@@ -513,7 +520,7 @@ fn hit_enemy_side(
                 };
                 let (id, hp, radius) = (part.id, part.hp, part.radius);
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
-                    damage(stage, s, shot(w), Who::BossPart(i), events);
+                    damage(stage, s, PlayerIdx::SOLO, shot(w), Who::BossPart(i), events); // N=1: M-PER-PLAYER
                 }
             }
         }
@@ -545,10 +552,12 @@ fn hit_enemy_side(
             && covers(w, at, radius)
             && take_hit(s, w, id)
         {
-            damage(stage, s, shot(w), Who::Enemy(i), events);
+            damage(stage, s, PlayerIdx::SOLO, shot(w), Who::Enemy(i), events); // N=1: M-PER-PLAYER
             match w.smash {
-                Some(Smash::Pull(pull)) => super::pull_enemy(stage, s, i, pull),
-                Some(Smash::Knockback(push)) => super::knock_enemy(stage, s, i, push),
+                Some(Smash::Pull(pull)) => super::pull_enemy(stage, s, PlayerIdx::SOLO, i, pull), // N=1: M-PER-PLAYER
+                Some(Smash::Knockback(push)) => {
+                    super::knock_enemy(stage, s, PlayerIdx::SOLO, i, push) // N=1: M-PER-PLAYER
+                }
                 _ => {}
             }
         }
@@ -556,12 +565,18 @@ fn hit_enemy_side(
 }
 
 /// The main character (unless it is invulnerable), then the companions in ID order.
-fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<DomainEvent>) {
-    let p = &s.player;
+fn hit_ally_side(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    w: &Swing,
+    events: &mut Vec<DomainEvent>,
+) {
+    let p = &s.players[me];
     if p.hp > 0
         && p.invulnerable == 0
         && covers(w, p.at, stage.tuning.player_radius)
-        && take_hit(s, w, super::PLAYER_ID)
+        && take_hit(s, w, me.id())
     {
         let by = match w.source {
             Source::Run(i) => Blame {
@@ -570,7 +585,7 @@ fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Domai
             },
             Source::Zone(i) => Blame::of_program(HitKind::Zone, s.zones[i].program),
         };
-        hurt_player(stage, s, super::aided(stage, s, shot(w)), by, events);
+        hurt_player(stage, s, me, super::aided(stage, s, shot(w)), by, events);
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
@@ -580,6 +595,7 @@ fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Domai
             damage(
                 stage,
                 s,
+                me,
                 super::aided(stage, s, shot(w)),
                 Who::Companion(i),
                 events,

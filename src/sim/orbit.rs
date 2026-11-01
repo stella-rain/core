@@ -16,10 +16,10 @@
 use super::World;
 use crate::event::DomainEvent;
 use crate::rewards::{MAX_ORBITS, MAX_ORBS, Rewards};
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{Dir, OrbitState, PlayerState, State};
 use crate::trig::PER_TURN;
 
-use super::PLAYER_ID;
 use super::attacks;
 use super::levels;
 
@@ -62,14 +62,20 @@ fn facing(angle: i32, j: u8, round: u8) -> Dir {
 }
 
 /// One tick of every orbit held.
-pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
-    for k in 0..s.player.orbits.len() {
-        let mut o = s.player.orbits[k];
+pub(super) fn act(
+    stage: &World,
+    rewards: &Rewards,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
+    for k in 0..s.players[me].orbits.len() {
+        let mut o = s.players[me].orbits[k];
         let Some(def) = rewards.orbit_def(o.reward) else {
             continue;
         };
         o.cooldown_left = o.cooldown_left.saturating_sub(1);
-        let attacking = (0..MAX_ORBS).any(|j| attacks::busy(s, PLAYER_ID, slot(k, j)));
+        let attacking = (0..MAX_ORBS).any(|j| attacks::busy(s, me.id(), slot(k, j)));
         if o.cooldown_left == 0 && !attacking {
             let damage = levels::attack(s, stage.player.atk);
             let strike = attacks::Strike {
@@ -83,6 +89,7 @@ pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut 
                 attacks::start_player(
                     stage,
                     s,
+                    PlayerIdx::SOLO, // N=1: M-PER-PLAYER
                     slot(k, j),
                     dir,
                     &def.attack,
@@ -96,7 +103,7 @@ pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut 
         }
         let first = slot(k, 0);
         for r in s.runs.iter_mut() {
-            if r.owner == PLAYER_ID && (first..first + MAX_ORBS).contains(&r.slot) {
+            if r.owner == me.id() && (first..first + MAX_ORBS).contains(&r.slot) {
                 r.facing = facing(o.angle, r.slot - first, o.round);
             }
         }
@@ -105,6 +112,6 @@ pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut 
             .angle
             .saturating_add(def.turn_per_tick)
             .rem_euclid(PER_TURN);
-        s.player.orbits[k] = o;
+        s.players[me].orbits[k] = o;
     }
 }

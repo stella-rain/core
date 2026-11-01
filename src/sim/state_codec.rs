@@ -10,6 +10,7 @@ use crate::savepoint::codec::{
     Decode, DecodeError, Encode, Reader, Writer, decode_vec, max_guardians, max_hits, max_parts,
     max_path,
 };
+use crate::sim::state::PlayerIdx;
 
 use super::state::*;
 use super::world::RangedPool;
@@ -1748,7 +1749,7 @@ impl Encode for State {
             tick,
             rng,
             outcome,
-            player,
+            players,
             boss,
             companions,
             enemies,
@@ -1786,7 +1787,9 @@ impl Encode for State {
         tick.encode(w);
         rng.encode(w);
         outcome.encode(w);
-        player.encode(w);
+        // Format 1 holds one player, written where it was a field of its own.
+        assert!(players.len() == 1, "savepoint format 1 holds one player");
+        players[PlayerIdx::SOLO].encode(w);
         boss.encode(w);
         companions.encode(w);
         enemies.encode(w);
@@ -1829,7 +1832,7 @@ impl State {
             tick: Decode::decode(r)?,
             rng: Decode::decode(r)?,
             outcome: Decode::decode(r)?,
-            player: Decode::decode(r)?,
+            players: Players::solo(Decode::decode(r)?),
             boss: Decode::decode(r)?,
             companions: decode_vec(r, companions_cap)?,
             enemies: decode_vec(r, enemies_cap)?,

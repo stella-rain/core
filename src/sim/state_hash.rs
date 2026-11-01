@@ -12,6 +12,7 @@ use crate::hash::{StableHash, StateHasher, hash_enum};
 use crate::rewards::Rarity;
 use crate::rune::Rune;
 use crate::sim::RangedPool;
+use crate::sim::state::PlayerIdx;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 
 use super::state::*;
@@ -985,7 +986,7 @@ impl StableHash for State {
             tick,
             rng,
             outcome,
-            player,
+            players,
             boss,
             companions,
             enemies,
@@ -1023,7 +1024,8 @@ impl StableHash for State {
         tick.stable_hash(h);
         rng.stable_hash(h);
         outcome.stable_hash(h);
-        player.stable_hash(h);
+        // Player 0 alone, as the one player was: no length, so a run of one hashes as before.
+        players[PlayerIdx::SOLO].stable_hash(h);
         boss.stable_hash(h);
         companions.stable_hash(h);
         enemies.stable_hash(h);
@@ -1049,6 +1051,11 @@ impl StableHash for State {
         damage_pct.stable_hash(h);
         crit_seed.stable_hash(h);
         echoes.stable_hash(h);
+        // Players 1 and up, after everything else, only when there are any (provisional
+        // layout for a party; ADR-SIM-12).
+        if !players.others().is_empty() {
+            players.others().stable_hash(h);
+        }
     }
 }
 

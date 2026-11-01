@@ -8,16 +8,17 @@ use crate::fixed::Point;
 use crate::id::EntityId;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::rune::Rune;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{DotState, State, StatusKind, StatusState, Statuses};
 
-use super::{MAX_AGGRO, PLAYER_ID, Shot};
+use super::{MAX_AGGRO, Shot};
 
 /// An entity of the run, by place. Indexes are into `State::companions`, `State::enemies` and
 /// the boss's parts, and stay valid within a tick: nothing is removed until the collision step
 /// ends (a broken part keeps its place with 0 hit points).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Who {
-    Player,
+    Player(PlayerIdx),
     Boss,
     BossPart(usize),
     Companion(usize),
@@ -52,7 +53,7 @@ impl State {
 
     pub(super) fn id_of(&self, who: Who) -> EntityId {
         match who {
-            Who::Player => PLAYER_ID,
+            Who::Player(i) => i.id(),
             Who::Boss => self.boss_state().id,
             Who::BossPart(i) => self.boss_state().parts[i].id,
             Who::Companion(i) => self.companions[i].id,
@@ -62,7 +63,7 @@ impl State {
 
     pub(super) fn at(&self, who: Who) -> Point {
         match who {
-            Who::Player => self.player.at,
+            Who::Player(i) => self.players[i].at,
             Who::Boss => self.boss_state().at,
             // Where the part is: the boss's place and the part's offset (the stage has it).
             Who::BossPart(i) => self.part_at(i),
@@ -73,7 +74,7 @@ impl State {
 
     pub(super) fn hp(&self, who: Who) -> u32 {
         match who {
-            Who::Player => self.player.hp,
+            Who::Player(i) => self.players[i].hp,
             Who::Boss => self.boss_state().hp,
             Who::BossPart(i) => self.boss_state().parts[i].hp,
             Who::Companion(i) => self.companions[i].hp,
@@ -83,7 +84,7 @@ impl State {
 
     pub(super) fn hp_mut(&mut self, who: Who) -> &mut u32 {
         match who {
-            Who::Player => &mut self.player.hp,
+            Who::Player(i) => &mut self.players[i].hp,
             Who::Boss => &mut self.boss.as_mut().expect("a boss").hp,
             Who::BossPart(i) => &mut self.boss.as_mut().expect("a boss").parts[i].hp,
             Who::Companion(i) => &mut self.companions[i].hp,
@@ -93,7 +94,7 @@ impl State {
 
     pub(super) fn defence(&self, who: Who) -> u32 {
         match who {
-            Who::Player => self.player.defence,
+            Who::Player(i) => self.players[i].defence,
             Who::Boss => self.boss_state().defence,
             Who::BossPart(i) => self.boss_state().parts[i].defence,
             Who::Companion(i) => self.companions[i].defence,
@@ -103,7 +104,7 @@ impl State {
 
     pub(super) fn max_hp(&self, who: Who) -> u32 {
         match who {
-            Who::Player => self.player.max_hp,
+            Who::Player(i) => self.players[i].max_hp,
             Who::Boss => self.boss_state().max_hp,
             Who::BossPart(i) => self.boss_state().parts[i].max_hp,
             Who::Companion(i) => self.companions[i].max_hp,
@@ -124,7 +125,7 @@ impl State {
     /// Aggro belongs to allies; everything else has none.
     pub(super) fn aggro(&self, who: Who) -> u32 {
         match who {
-            Who::Player => self.player.aggro,
+            Who::Player(i) => self.players[i].aggro,
             Who::Companion(i) => self.companions[i].aggro,
             Who::Boss | Who::BossPart(_) | Who::Enemy(_) => 0,
         }
@@ -132,7 +133,7 @@ impl State {
 
     pub(super) fn statuses(&self, who: Who) -> &[StatusState] {
         match who {
-            Who::Player => &self.player.statuses,
+            Who::Player(i) => &self.players[i].statuses,
             Who::Boss => &self.boss_state().statuses,
             Who::BossPart(i) => &self.boss_state().parts[i].statuses,
             Who::Companion(i) => &self.companions[i].statuses,
@@ -142,7 +143,7 @@ impl State {
 
     fn statuses_mut(&mut self, who: Who) -> &mut Statuses {
         match who {
-            Who::Player => &mut self.player.statuses,
+            Who::Player(i) => &mut self.players[i].statuses,
             Who::Boss => &mut self.boss.as_mut().expect("a boss").statuses,
             Who::BossPart(i) => &mut self.boss.as_mut().expect("a boss").parts[i].statuses,
             Who::Companion(i) => &mut self.companions[i].statuses,
@@ -152,7 +153,7 @@ impl State {
 
     /// The main character and the companions are allies; enemies and the boss are not.
     pub(super) fn is_ally(who: Who) -> bool {
-        matches!(who, Who::Player | Who::Companion(_))
+        matches!(who, Who::Player(_) | Who::Companion(_))
     }
 
     pub(super) fn is_alive(&self, who: Who) -> bool {
@@ -161,8 +162,8 @@ impl State {
 
     /// The entity with this ID, if it is still around.
     pub(super) fn find(&self, id: EntityId) -> Option<Who> {
-        if id == PLAYER_ID {
-            return Some(Who::Player);
+        if let Some(i) = PlayerIdx::of_id(id, self.players.len()) {
+            return Some(Who::Player(i));
         }
         if self.boss.as_ref().is_some_and(|b| b.id == id) {
             return Some(Who::Boss);
@@ -188,8 +189,8 @@ impl State {
 
     /// The ally with this entity ID, if it is still around.
     pub(super) fn find_ally(&self, id: EntityId) -> Option<Who> {
-        if id == PLAYER_ID {
-            return Some(Who::Player);
+        if let Some(i) = PlayerIdx::of_id(id, self.players.len()) {
+            return Some(Who::Player(i));
         }
         self.companions
             .iter()
@@ -200,7 +201,7 @@ impl State {
     /// Adds to an ally's aggro (ADR-036), up to a cap. Others have none to raise.
     pub(super) fn raise_aggro(&mut self, id: EntityId, amount: u32) {
         let slot = match self.find_ally(id) {
-            Some(Who::Player) => &mut self.player.aggro,
+            Some(Who::Player(PlayerIdx::SOLO)) => &mut self.players[PlayerIdx::SOLO].aggro, // N=1: M-DOWN-PARTY
             Some(Who::Companion(i)) => &mut self.companions[i].aggro,
             _ => return,
         };
@@ -405,7 +406,7 @@ fn tick_dots_of(stage: &World, s: &mut State, who: Who, events: &mut Vec<DomainE
                 rune: Rune::of_dot(st.kind),
                 chain: false,
             };
-            super::damage(stage, s, shot, who, events);
+            super::damage(stage, s, PlayerIdx::SOLO, shot, who, events); // N=1: M-DOWN-PARTY
         }
         if remaining == 0 {
             s.statuses_mut(who).remove(i);
@@ -493,8 +494,8 @@ pub(super) fn tick_statuses_and_aggro(
         list.retain(|st| st.dot.is_some() || st.remaining > 0);
         dots
     }
-    let mut dots = age(&mut s.player.statuses);
-    s.player.aggro = s.player.aggro.saturating_sub(aggro_decay);
+    let mut dots = age(&mut s.players[PlayerIdx::SOLO].statuses); // N=1: M-DOWN-PARTY
+    s.players[PlayerIdx::SOLO].aggro = s.players[PlayerIdx::SOLO].aggro.saturating_sub(aggro_decay); // N=1: M-DOWN-PARTY
     if let Some(b) = &mut s.boss {
         dots |= age(&mut b.statuses);
         for part in &mut b.parts {

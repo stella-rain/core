@@ -12,6 +12,7 @@ use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::input::Input;
 use crate::rewards::Rewards;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::State;
 
 /// What the steps of a tick read and write: the run's content, its state, the tick's input,
@@ -21,6 +22,8 @@ pub(super) struct Ctx<'a> {
     pub(super) rewards: &'a Rewards,
     pub(super) expertise: &'a Expertise,
     pub(super) s: &'a mut State,
+    /// The player the tick's per-player steps act for: the only one, until a run holds a party.
+    pub(super) me: PlayerIdx,
     pub(super) input: Input,
     pub(super) events: &'a mut Vec<DomainEvent>,
     pub(super) load: &'a mut Load,
@@ -44,6 +47,7 @@ impl<'a> Ctx<'a> {
             rewards,
             expertise,
             s,
+            me: PlayerIdx::SOLO,
             input,
             events,
             load,
@@ -71,7 +75,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn regen(c: &mut Ctx) {
-        loadout::regen(c.s);
+        loadout::regen(c.s, c.me);
     }
 
     #[inline(never)]
@@ -96,7 +100,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn runes_tick(c: &mut Ctx) {
-        runes::tick(c.s);
+        runes::tick(c.s, c.me);
     }
 
     #[inline(never)]
@@ -106,19 +110,19 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn player_update(c: &mut Ctx) {
-        player::update(c.world, c.rewards, c.s, c.input, c.events);
+        player::update(c.world, c.rewards, c.s, c.me, c.input, c.events);
     }
 
     #[inline(never)]
     pub(super) fn runes_fly(c: &mut Ctx) {
-        if !c.s.player.runes.is_empty() {
+        if !c.s.players[c.me].runes.is_empty() {
             runes::fly(c.world, c.s);
         }
     }
 
     #[inline(never)]
     pub(super) fn orbits(c: &mut Ctx) {
-        orbit::act(c.world, c.rewards, c.s, c.events);
+        orbit::act(c.world, c.rewards, c.s, c.me, c.events);
     }
 
     #[inline(never)]
@@ -148,12 +152,12 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn skill_pull(c: &mut Ctx) {
-        skill::pull(c.world, c.s);
+        skill::pull(c.world, c.s, c.me);
     }
 
     #[inline(never)]
     pub(super) fn runes_steer(c: &mut Ctx) {
-        if !c.s.player.runes.is_empty() {
+        if !c.s.players[c.me].runes.is_empty() {
             runes::steer(c.world, c.s);
         }
     }
@@ -195,7 +199,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn decide_outcome(c: &mut Ctx) {
-        super::decide_outcome(c.world, c.s, c.events);
+        super::decide_outcome(c.world, c.s, c.me, c.events);
     }
 
     #[inline(never)]

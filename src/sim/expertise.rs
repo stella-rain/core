@@ -44,6 +44,7 @@ use crate::expertise::{
 };
 use crate::id::ContentId;
 use crate::rng::SplitMix64;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
 use crate::snapshot::{
     ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption,
@@ -105,7 +106,7 @@ pub(super) fn credit(stage: &World, s: &mut State, target: Who, killed: bool) {
             .boss_def(stage)
             .and_then(|b| b.expertise)
             .map(|p| ExpertisePoints { kill: 0, ..p }),
-        Who::Player | Who::Companion(_) => None,
+        Who::Player(_) | Who::Companion(_) => None,
     };
     let (Some(g), Some(p)) = (s.expertise.as_mut(), points) else {
         return;
@@ -359,6 +360,7 @@ pub(super) fn choose(
     stage: &World,
     expertise: &Expertise,
     s: &mut State,
+    me: PlayerIdx,
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
@@ -366,10 +368,11 @@ pub(super) fn choose(
         rng,
         stars,
         progress,
-        player,
+        players,
         expertise: g,
         ..
     } = s;
+    let player = &mut players[me];
     let Some(g) = g.as_mut() else {
         return;
     };

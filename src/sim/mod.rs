@@ -1,6 +1,10 @@
 //! The live rules (ADR-REPL-7, ADR-REPL-9): the module that runs the newest `sim_version`, with the
 //! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-019).
 //!
+//! The state holds its players as `players`, one now, addressed by a `PlayerIdx` (ADR-SIM-12); a
+//! system that acts on or for a player takes `me` right after the state. A place that names no
+//! player yet reads `PlayerIdx::SOLO` and says which later change settles it (`// N=1: ...`).
+//!
 //! What a tick does, in this order (`schedule::TICK` is the order in code, and a test keeps this
 //! table equal to it):
 //!
@@ -104,6 +108,8 @@ mod combat;
 mod dash;
 mod entity;
 mod expertise;
+#[cfg(test)]
+mod frozen_tests;
 mod grid;
 #[cfg(test)]
 mod hash_layout_tests;
@@ -117,6 +123,10 @@ mod levels;
 mod loadout;
 mod orbit;
 mod player;
+#[cfg(test)]
+mod players_pin_tests;
+#[cfg(test)]
+mod players_tests;
 mod push;
 mod runes;
 mod schedule;
@@ -157,6 +167,7 @@ use crate::sim::state::{
     AgentKey, AgentSource, BossState, Dir, MoveOrder, PartState, PlayerState, Progress, Pull,
     Smash, StarField, StatRule, State, Streams,
 };
+use crate::sim::state::{PlayerIdx, Players};
 use crate::snapshot::{EntityKind, OfferOption};
 use crate::stage::{Side, ViewEdge};
 use crate::trig;
@@ -218,8 +229,6 @@ pub(crate) const MAX_ORBS_ALIVE: u32 = 32;
 pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
 pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 
-/// The main character is always entity 0; the boss, if any, is 1, then the companions.
-pub(crate) const PLAYER_ID: EntityId = EntityId(0);
 /// The radius the enemy grid is built for (`Grid::rebuild`'s probe radius); it sets the cell side
 /// with the largest enemy, so it stays what the friendly orbs' radius was.
 const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
@@ -331,7 +340,9 @@ fn unreserved_state(
 ) -> State {
     let run_stats = content.run_stats();
     let rewards = content.rewards().rewards().len();
-    let mut next_id = 1;
+    // The players take the first entity IDs, the boss and the companions come after them.
+    let players = 1;
+    let mut next_id = players;
     let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
         next_id += 1;
@@ -380,7 +391,7 @@ fn unreserved_state(
         tick: 0,
         rng: Streams::new(seed),
         outcome: Outcome::Running,
-        player: PlayerState {
+        players: Players::solo(PlayerState {
             at: start,
             hp: stage.player.hp,
             max_hp: stage.player.hp,
@@ -424,7 +435,7 @@ fn unreserved_state(
             runes: Vec::new(),
             aggro: 0,
             statuses: Default::default(),
-        },
+        }),
         boss,
         companions,
         enemies: Vec::new(),
@@ -632,7 +643,7 @@ pub(crate) fn offer_options(
     } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
         levels::options(s)
     } else {
-        stars::options(rewards, s)
+        stars::options(rewards, s, PlayerIdx::SOLO) // N=1: M-PER-PLAYER
     }
 }
 
@@ -648,9 +659,9 @@ pub(crate) fn choose(
     events: &mut Vec<DomainEvent>,
 ) {
     if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
-        expertise::choose(stage, expertise, s, option, events);
+        expertise::choose(stage, expertise, s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
     } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
-        levels::choose(s, option, events);
+        levels::choose(s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
     } else {
         stars::choose(stage, rewards, s, option, events);
     }
@@ -743,10 +754,10 @@ fn spawn_wave(stage: &World, s: &mut State, i: usize) {
         rule: 0,
     };
     let at = match (wave.edge, wave.spawn) {
-        (Some(edge), _) => edge_point(stage, s.player.at, &mut s.rng.spawn, edge),
+        (Some(edge), _) => edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.spawn, edge), // N=1: M-DOWN-PARTY
         (None, Some(p)) => p,
         // The validator refuses a wave with neither.
-        (None, None) => s.player.at,
+        (None, None) => s.players[PlayerIdx::SOLO].at, // N=1: M-DOWN-PARTY
     };
     spawn_enemy(stage, s, key, at);
 }
@@ -1103,7 +1114,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             chain: false,
         };
         let by = Blame::of_program(HitKind::Attack, b.program);
-        consumed.push(hit_ally_side(stage, s, shot, by, events));
+        consumed.push(hit_ally_side(stage, s, PlayerIdx::SOLO, shot, by, events)); // N=1: M-PER-PLAYER
     }
     let mut flags = consumed.iter();
     s.orbs.retain(|_| !flags.next().copied().unwrap_or(false));
@@ -1112,20 +1123,20 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         s.scratch.grid = grid;
     }
     s.companions.retain(|c| c.hp > 0);
-    combat::bursts(stage, s, events);
+    combat::bursts(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     levels::credit_defeated(stage, s, events);
     stardust::credit_defeated(stage, s);
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
-    heal::kills_heal(s, events);
+    heal::kills_heal(s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     s.enemies.retain(|e| e.hp > 0);
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         stars::boss_killed(stage, s);
-        heal::boss_killed(stage, s, events);
+        heal::boss_killed(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
         stardust::boss_killed(stage, s);
     }
-    stars::pick_up(stage, s, events);
-    heal::pick_up(stage, s, events);
+    stars::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
+    heal::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
 }
 
 /// The enemies as circles, in index order, for friendly hit boxes to land on and for the
@@ -1145,7 +1156,14 @@ fn enemy_grid(stage: &World, s: &mut State) -> Grid {
 /// reported too. A combo step's hit adds expertise points (`expertise`), puts the
 /// damage-over-time runes' statuses on a target it leaves standing, and fires the on-hit runes
 /// that are ready (`runes`).
-fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
+fn damage(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    b: Shot,
+    target: Who,
+    events: &mut Vec<DomainEvent>,
+) {
     // A shrine, or a mimic in disguise, is an object: nothing damages it (ADR-090).
     if !damageable(s, target) {
         return;
@@ -1157,12 +1175,12 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
     // The common case, with no combat reward held, pays for one comparison (ADR-058).
-    let crit = s.player.crit_chance_pct != 0
-        && combat::crits(s, &b, id, s.hp(target), !State::is_ally(target));
+    let crit = s.players[me].crit_chance_pct != 0
+        && combat::crits(s, me, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
         combat::crit_damage(
             b.damage,
-            s.player.crit_damage_pct,
+            s.players[me].crit_damage_pct,
             stage.tuning.crit_damage_base_pct,
         )
     } else {
@@ -1193,8 +1211,8 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     });
     if dead {
         events.push(death_event(s, target, id));
-    } else if s.player.echo_hit_pct != 0 {
-        combat::queue_echo(s, &b, id, dealt, !State::is_ally(target));
+    } else if s.players[me].echo_hit_pct != 0 {
+        combat::queue_echo(s, me, &b, id, dealt, !State::is_ally(target));
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(stage.tuning.aggro_per_damage));
     if b.combo {
@@ -1205,12 +1223,12 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         if let Some(Smash::Stun { ticks }) = b.smash.filter(|_| !dead) {
             stun::apply(stage, s, target, b.owner, ticks, events);
         }
-        if !s.player.runes.is_empty() {
+        if !s.players[me].runes.is_empty() {
             if !dead {
-                runes::apply_dots(s, target, events);
+                runes::apply_dots(s, me, target, events);
             }
             let at = s.at(target);
-            runes::on_hit(stage, s, id, at, events);
+            runes::on_hit(stage, s, me, id, at, events);
         }
     }
 }
@@ -1242,7 +1260,7 @@ pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
             Some(&s.enemies[i]),
         ),
         // The main character is not reported by a `Died`; it counts with its allies.
-        Who::Player => (EntityKind::Companion, None),
+        Who::Player(_) => (EntityKind::Companion, None),
     };
     DomainEvent::Died {
         entity: id,
@@ -1258,7 +1276,7 @@ pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
 /// is the part's ID. The main character has none, and a mimic still in disguise shows none.
 pub(super) fn kind_of(s: &State, who: Who) -> Option<KindIndex> {
     match who {
-        Who::Player => None,
+        Who::Player(_) => None,
         Who::Boss => Some(s.boss_state().kind),
         Who::BossPart(i) => Some(s.boss_state().parts[i].kind),
         Who::Companion(i) => Some(s.companions[i].kind),
@@ -1276,19 +1294,19 @@ fn profile<'a>(stage: &'a World, s: &'a State, target: Who) -> Option<&'a Profil
         Who::Enemy(i) => stage.defs.agent(s.enemies[i].def).profile.as_ref(),
         Who::Boss => s.boss_def(stage)?.profile.as_ref(),
         Who::BossPart(i) => s.boss_def(stage)?.parts.get(i)?.profile.as_ref(),
-        Who::Player | Who::Companion(_) => None,
+        Who::Player(_) | Who::Companion(_) => None,
     }
 }
 
 /// The Sub weapon's pull on enemy `i`, hit by a combo part (ADR-070): it is drawn toward the
 /// main character by at most `distance`, over `ticks`, as a move order that replaces its
 /// movement, and stops where their circles touch. A dead enemy and an elite are not pulled.
-pub(super) fn pull_enemy(stage: &World, s: &mut State, i: usize, pull: Pull) {
+pub(super) fn pull_enemy(stage: &World, s: &mut State, me: PlayerIdx, i: usize, pull: Pull) {
     let e = &s.enemies[i];
     if e.hp == 0 || e.elite.is_some() {
         return;
     }
-    let to = s.player.at;
+    let to = s.players[me].at;
     let (dx, dy) = (
         i64::from(e.at.x.0) - i64::from(to.x.0),
         i64::from(e.at.y.0) - i64::from(to.y.0),
@@ -1316,12 +1334,12 @@ pub(super) fn pull_enemy(stage: &World, s: &mut State, i: usize, pull: Pull) {
 /// the main character by at most `distance`, over `ticks`, as a move order that replaces its
 /// movement, and ends inside the map. A dead enemy and an elite are not pushed, nor one on the
 /// main character's very centre (no direction); a boss and its parts are never enemies here.
-pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
+pub(super) fn knock_enemy(stage: &World, s: &mut State, me: PlayerIdx, i: usize, push: Pull) {
     let e = &s.enemies[i];
     if e.hp == 0 || e.elite.is_some() {
         return;
     }
-    let from = s.player.at;
+    let from = s.players[me].at;
     let (dx, dy) = (
         i64::from(e.at.x.0) - i64::from(from.x.0),
         i64::from(e.at.y.0) - i64::from(from.y.0),
@@ -1371,9 +1389,16 @@ impl Blame {
 
 /// Damage to the main character, raised by its vulnerability and reduced by its defence; it is
 /// then invulnerable for a while.
-fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Vec<DomainEvent>) {
+fn hurt_player(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    b: Shot,
+    by: Blame,
+    events: &mut Vec<DomainEvent>,
+) {
     let vulnerable = status_pct(
-        &s.player.statuses,
+        &s.players[me].statuses,
         crate::sim::state::StatusKind::Vulnerable,
     );
     // The main character has no profile (ADR-100): every hit on it is neutral.
@@ -1383,11 +1408,11 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Ve
         0,
         vulnerable,
         0,
-        s.player.defence,
+        s.players[me].defence,
         stage.tuning.defence_k,
     );
-    let dealt = skill::absorb(s, dealt);
-    let p = &mut s.player;
+    let dealt = skill::absorb(s, me, dealt);
+    let p = &mut s.players[me];
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = stage.tuning.hit_invulnerable_ticks;
     events.push(DomainEvent::PlayerHit {
@@ -1404,7 +1429,7 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Ve
     });
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
-        player::break_charge(stage, s, events);
+        player::break_charge(stage, s, me, events);
     }
 }
 
@@ -1472,11 +1497,12 @@ pub(crate) fn aura_percent(
 fn hit_ally_side(
     stage: &World,
     s: &mut State,
+    me: PlayerIdx,
     b: Shot,
     by: Blame,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    let p = &s.player;
+    let p = &s.players[me];
     if p.invulnerable == 0
         && p.hp > 0
         && overlaps(
@@ -1486,14 +1512,14 @@ fn hit_ally_side(
             stage.tuning.player_radius,
         )
     {
-        hurt_player(stage, s, aided(stage, s, b), by, events);
+        hurt_player(stage, s, me, aided(stage, s, b), by, events);
         return true;
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = stage.defs.agent(c.def).radius.0;
         if c.hp > 0 && overlaps(b.at, stage.tuning.orb_radius, c.at, radius) {
-            damage(stage, s, aided(stage, s, b), Who::Companion(i), events);
+            damage(stage, s, me, aided(stage, s, b), Who::Companion(i), events);
             return true;
         }
     }
@@ -1501,8 +1527,8 @@ fn hit_ally_side(
 }
 
 /// The main character's death wins over a clear on the same tick.
-fn decide_outcome(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    if s.player.hp == 0 {
+fn decide_outcome(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    if s.players[me].hp == 0 {
         s.outcome = Outcome::Failed;
         events.push(DomainEvent::StageFailed);
         return;
