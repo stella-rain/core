@@ -25,6 +25,11 @@ path = "src/bin/stage_verify.rs"
 name = "content-pack"
 path = "src/bin/content_pack.rs"
 
+[[bin]]
+name = "spike_rollback"
+path = "src/bin/spike_rollback.rs"
+required-features = ["bench"]
+
 [features]
 # The JSON Lines recorder of ADR-016: commands, domain events and state hashes, for tests and
 # debugging. Not in release builds; a bug report is a stage and a replay instead.
