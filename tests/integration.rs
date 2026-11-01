@@ -91,6 +91,7 @@ mod parsed_stage_hash;
 mod perk_sets;
 mod phases;
 mod places;
+mod players_api;
 mod poison_burn;
 mod progression;
 mod properties;

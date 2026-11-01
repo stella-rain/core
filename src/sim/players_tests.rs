@@ -157,3 +157,20 @@ fn the_snapshot_shim_reads_player_0() {
     super::snapshot::places(&s2, &mut places);
     assert_eq!(places.player, s2.players[PlayerIdx::SOLO].at);
 }
+
+#[test]
+fn a_party_of_two_has_two_views() {
+    let e = worst_case::warmed_up();
+    let (world, s) = live(&e);
+    let mut s2 = two_players(s);
+    s2.players[p1()].hp = 1;
+    let snap = super::snapshot::build(world, e.content(), &s2);
+    assert_eq!(snap.players.len(), 2);
+    assert_eq!(snap.players[1].hp, 1);
+    assert_eq!(snap.players[0].hp, s.players[PlayerIdx::SOLO].hp);
+    let mut places = crate::engine::Places::default();
+    super::snapshot::places(&s2, &mut places);
+    assert_eq!(places.players.len(), 2);
+    assert_eq!(places.players[0], s2.players[PlayerIdx::SOLO].at);
+    assert_eq!(places.players[1], s2.players[p1()].at);
+}
