@@ -1,6 +1,7 @@
 ---
 paths:
   - "src/sim/**"
+  - "src/sim_v1/**"
   - "src/engine/**"
   - "src/inline.rs"
   - "tests/alloc.rs"
@@ -21,8 +22,11 @@ Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-7, ADR-REPL-3, ADR-CONT-10. Th
   frame, and `tally`, the read-only view of the run's HUD tallies (kills, rewards taken, named
   stars, constellation tiers; `Counted` in `ledger.rs`, outside the hashed state); its tests sit
   beside them (`horde_tests.rs`, `move_index_tests.rs`).
-- `sim/`: the rules of every released `sim_version`, one module gated on it (ADR-REPL-7): an
-  outcome change is a gate on the version, a full copy only for a rewrite (`determinism.md`).
+- `sim/`: the live rules, run for the newest `sim_version` (ADR-REPL-7, ADR-REPL-9): an outcome
+  change is a gate on the version, a full copy only for a rewrite (`determinism.md`).
+- `sim_v1/`: the frozen rules of `sim_version` 1, a copy of `sim` that owns its `World`, `State`
+  and snapshot view. A change to its behaviour is refused; it is edited only to keep compiling
+  against a shared type, and the frozen corpus `tests/corpus/v1/` is the guard. In both:
   `state.rs` is the run's `State`; `world.rs` the
   run's definitions, resolved once and read-only (`DefIndex`, `AgentDef`, `AttackDef`).
   `schedule.rs` holds `TICK`, the one tick order: a step is added or moved there, and
