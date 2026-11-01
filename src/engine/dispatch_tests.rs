@@ -45,7 +45,7 @@ fn at_version(v: u32) -> Engine {
 /// The engine at `v` with a stat offer open.
 fn offering_at(v: u32) -> Engine {
     let mut e = at_version(v);
-    let progress = e.state.progress.as_mut().expect("a run has levels");
+    let progress = e.run.progress.as_mut().expect("a run has levels");
     progress.offers_due = 1;
     progress.offer_open = true;
     assert!(e.offer_open());

@@ -15,7 +15,7 @@ use crate::snapshot::{
 };
 use std::sync::{Arc, LazyLock};
 
-use super::{AttackRun, Engine, ShrineState, StatusState};
+use super::{AttackRun, Engine, Run, ShrineState, StatusState};
 
 /// A run's HUD tallies after the last tick or choice: what the events of the run said, kept by the engine
 /// outside the hashed state. A resumed run has the tally of the same run played straight.
@@ -98,7 +98,7 @@ impl Engine {
     /// while `out` grows to the largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`
     /// (which names this function); `tests/places.rs` holds the two equal.
     pub fn places(&self, out: &mut Places) {
-        let s = &self.state;
+        let Run::V1(s) = &self.run;
         out.entities.clear();
         out.stars.clear();
         out.boss = None;
@@ -144,7 +144,7 @@ impl Engine {
     /// What the frontend draws after the last tick (ADR-005). `places` repeats its rules for
     /// the ids, kinds and positions, and the player's position: change them together.
     pub fn snapshot(&self) -> Snapshot {
-        let s = &self.state;
+        let Run::V1(s) = &self.run;
         let view = |r: &AttackRun| {
             let p = sim::phase(&self.stage, r, r.phase as usize);
             AttackView {

@@ -26,9 +26,10 @@ type Decoded = Result<(State, RunLedger, Counted), DecodeError>;
 /// An engine holding the full state, a ledger and tallies with something in each field.
 fn saved() -> Engine {
     let mut e = engine();
-    e.state = full_state(&e);
+    e.run = Run::V1(full_state(&e));
     // The index is derived from the runs; the fixture's was lowered by hand.
-    e.state.move_index.rebuild(&e.stage, &e.state.runs);
+    let Run::V1(s) = &mut e.run;
+    s.move_index.rebuild(&e.stage, &s.runs);
     e.ledger.add_kill("kills.giant_sword.enemy".into());
     e.ledger.add_kill("rune_taken.burn".into());
     e.ledger.add_bestiary_bit(&ContentId::from("slime"), 3);
@@ -50,7 +51,7 @@ fn saved() -> Engine {
 fn decode_edited(edit: impl FnOnce(&mut State)) -> Decoded {
     let fresh = saved();
     let mut edited = fresh.clone();
-    edit(&mut edited.state);
+    edit(&mut edited.run);
     decode_state(&encode_state(&edited), &fresh)
 }
 
@@ -75,7 +76,7 @@ fn round_trip_hand_built() {
     assert_eq!(counted, *orig_counted);
     assert_eq!(debug_of(&state), debug_of(orig));
     let mut back = e.clone();
-    back.state = state;
+    back.run = Run::V1(state);
     assert_eq!(back.state_hash(), e.state_hash());
 }
 
@@ -166,7 +167,7 @@ fn indices() -> Vec<Index> {
         Index {
             message: "agent kind out of range",
             set: |s, n| s.enemies[0].kind = KindIndex(n as u16),
-            len: |e| e.state.kinds.len(),
+            len: |e| e.run.kinds.len(),
         },
         Index {
             message: "boss index out of range",
@@ -176,12 +177,12 @@ fn indices() -> Vec<Index> {
         Index {
             message: "boss kind out of range",
             set: |s, n| s.boss.as_mut().unwrap().kind = KindIndex(n as u16),
-            len: |e| e.state.kinds.len(),
+            len: |e| e.run.kinds.len(),
         },
         Index {
             message: "part kind out of range",
             set: |s, n| s.boss.as_mut().unwrap().parts[0].kind = KindIndex(n as u16),
-            len: |e| e.state.kinds.len(),
+            len: |e| e.run.kinds.len(),
         },
         Index {
             message: "run attack out of range",
@@ -259,7 +260,7 @@ fn indices_are_checked() {
 #[test]
 fn a_run_phase_past_its_attack_is_refused_before_the_move_index_is_built() {
     let fresh = saved();
-    let phases = fresh.stage.attacks[usize::from(fresh.state.runs[0].attack.0)]
+    let phases = fresh.stage.attacks[usize::from(fresh.run.runs[0].attack.0)]
         .phases
         .len();
     assert_eq!(
@@ -279,7 +280,7 @@ fn first_diff(a: &[u8], b: &[u8]) -> usize {
 
 fn encoded(edit: impl FnOnce(&mut State)) -> Vec<u8> {
     let mut e = saved();
-    edit(&mut e.state);
+    edit(&mut e.run);
     encode_state(&e)
 }
 
@@ -289,8 +290,8 @@ fn bytes_are_checked() {
     let empty = engine();
     let bare = {
         let mut e = saved();
-        e.state.progress = None;
-        e.state.stars = None;
+        e.run.progress = None;
+        e.run.stars = None;
         e
     };
     for (name, e) in [("full", &fresh), ("fresh", &empty), ("bare", &bare)] {
@@ -477,7 +478,7 @@ fn check_savepoint(case: &Case, engine: &Engine, next: usize) {
         "{at}: horde times"
     );
     let mut resumed = engine.clone();
-    resumed.state = state;
+    resumed.run = Run::V1(state);
     resumed.ledger = ledger;
     resumed.counted = counted;
     // (a) the hash, (f) the bytes, which hold every saved index field
@@ -576,7 +577,7 @@ fn encoded_size_of_the_bench_fixtures() {
         let bytes = encode_state(&e);
         let (s, l, c) = decode_state(&bytes, &e).unwrap_or_else(|err| panic!("{name}: {err:?}"));
         let mut back = e.clone();
-        (back.state, back.ledger, back.counted) = (s, l, c);
+        (*back.run, back.ledger, back.counted) = (s, l, c);
         assert_eq!(encode_state(&back), bytes, "{name}");
     }
 }
