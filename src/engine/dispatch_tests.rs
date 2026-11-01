@@ -60,7 +60,7 @@ fn version_1_runs_the_rules() {
     assert_eq!(e.tick(), 1);
     assert_eq!(e.outcome(), Outcome::Running);
     let mut e = offering_at(1);
-    assert_eq!(e.choose(0), Ok(()));
+    assert_eq!(e.choose(crate::id::PlayerIdx::SOLO, 0), Ok(()));
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn a_choice_at_another_version_is_unsupported_and_changes_nothing() {
         let mut e = offering_at(v);
         let before = e.state_hash();
         assert_eq!(
-            e.choose(0),
+            e.choose(crate::id::PlayerIdx::SOLO, 0),
             Err(ChoiceError::Unsupported { sim_version: v }),
             "{v}"
         );

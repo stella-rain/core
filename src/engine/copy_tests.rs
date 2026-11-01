@@ -57,7 +57,7 @@ fn the_copy_equals_the_original_on_the_first_ticks_of_the_worst_minute() {
     for tick in 1..=600 {
         for run in [&mut a, &mut b] {
             while run.engine.offer_open() {
-                run.engine.choose(0).unwrap();
+                run.engine.choose(crate::id::PlayerIdx::SOLO, 0).unwrap();
             }
             run.engine.step(input_at(run.engine.tick()));
         }
@@ -76,7 +76,7 @@ fn scripted(version: u32) -> (Engine, Vec<(u64, Vec<DomainEvent>)>) {
     let mut seen = Vec::new();
     for tick in 1..=600u32 {
         while e.offer_open() {
-            e.choose(0).unwrap();
+            e.choose(crate::id::PlayerIdx::SOLO, 0).unwrap();
             seen.push((e.state_hash(), e.events().to_vec()));
         }
         e.step(Input {

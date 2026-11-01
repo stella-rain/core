@@ -21,7 +21,8 @@ fn pin(mut e: Engine, input: fn(u32) -> Input) -> u64 {
     feed(&e);
     for i in 1..=TICKS {
         while e.offer_open() {
-            e.choose(0).expect("option 0 exists");
+            e.choose(crate::id::PlayerIdx::SOLO, 0)
+                .expect("option 0 exists");
         }
         let tick = e.tick() + 1;
         e.step(input(tick));

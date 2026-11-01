@@ -78,7 +78,8 @@ pub struct Snapshot {
     pub tick: u32,
     /// The map's size, so the frontend can bound its camera (core#87).
     pub map: MapView,
-    pub player: PlayerView,
+    /// One per active player, indexed by `PlayerIdx`; a run of one has one.
+    pub players: Vec<PlayerView>,
     /// Companions, enemies, the boss and its parts, in entity-ID order.
     pub entities: Vec<EntityView>,
     pub orbs: Vec<OrbView>,

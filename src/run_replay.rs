@@ -44,6 +44,7 @@ use sha2::{Digest, Sha256};
 use crate::base64;
 use crate::content_hash::to_hex;
 use crate::engine::{ChoiceError, Engine, Outcome};
+use crate::id::PlayerIdx;
 use crate::input::Input;
 use crate::ledger::RunLedger;
 use crate::pack::Pack;
@@ -267,6 +268,11 @@ impl fmt::Display for RunReplayError {
             }
             RunReplayError::BadHash => f.write_str("the replay's final hash is not 16 hex digits"),
             RunReplayError::ChoiceRefused { tick, error } => match error {
+                ChoiceError::NoPlayer { player } => write!(
+                    f,
+                    "a choice on tick {tick} names player {} outside the party",
+                    player.get()
+                ),
                 ChoiceError::NoOffer => write!(f, "a choice on tick {tick} has no offer open"),
                 ChoiceError::OutOfRange { index, options } => write!(
                     f,
@@ -671,7 +677,8 @@ impl RunRecorder {
         self.room()?;
         let tick = self.engine.tick();
         self.engine
-            .choose(index)
+            // N=1: replay schema 2 names the player.
+            .choose(PlayerIdx::SOLO, index)
             .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
         self.record(tick, CommandKind::Choose, index);
         Ok(())
@@ -1003,8 +1010,9 @@ fn apply_commands(
     while let Some(c) = commands.get(*next).filter(|c| c.tick == engine.tick()) {
         let tick = c.tick;
         match c.kind {
+            // N=1: replay schema 2 names the player.
             CommandKind::Choose => engine
-                .choose(c.index)
+                .choose(PlayerIdx::SOLO, c.index)
                 .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?,
         }
         *next += 1;

@@ -358,9 +358,13 @@ impl Players {
         usize::from(self.len)
     }
 
-    #[cfg(test)]
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, PlayerState> {
         self.items[..self.len()].iter()
+    }
+
+    /// The players of the party, in `PlayerIdx` order.
+    pub(crate) fn as_slice(&self) -> &[PlayerState] {
+        &self.items[..self.len()]
     }
 
     /// Players 1 and up.

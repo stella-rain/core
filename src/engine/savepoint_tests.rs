@@ -443,7 +443,7 @@ fn cases(tree: &str) -> Vec<Case> {
 fn apply_due(engine: &mut Engine, commands: &[TickCommand], next: &mut usize) {
     while let Some(c) = commands.get(*next).filter(|c| c.tick == engine.tick()) {
         match c.kind {
-            CommandKind::Choose => engine.choose(c.index).unwrap(),
+            CommandKind::Choose => engine.choose(crate::id::PlayerIdx::SOLO, c.index).unwrap(),
         }
         *next += 1;
     }

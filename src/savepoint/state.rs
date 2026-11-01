@@ -262,20 +262,22 @@ macro_rules! state_codec {
             for z in &s.zones {
                 below(z.program.0 as usize, programs, "zone program out of range")?;
             }
-            // The one place the macro reads the player: the accessor each version passes.
-            let player: fn(&State) -> &crate::$sim::state::PlayerState = $get;
-            for o in &player(s).orbits {
-                // The key of an orbit is its reward's place, or `ORBIT_SET_BASE` and a set's place.
-                let in_range = match o.reward.checked_sub(ORBIT_SET_BASE) {
-                    None => usize::from(o.reward) < rewards,
-                    Some(set) => usize::from(set) < sets,
-                };
-                if !in_range {
-                    return Err(DecodeError::Invalid("orbit reward out of range"));
+            // The one place the macro reads the players: the accessor each version passes.
+            let players: fn(&State) -> &[crate::$sim::state::PlayerState] = $get;
+            for p in players(s) {
+                for o in &p.orbits {
+                    // The key of an orbit is its reward's place, or `ORBIT_SET_BASE` and a set's place.
+                    let in_range = match o.reward.checked_sub(ORBIT_SET_BASE) {
+                        None => usize::from(o.reward) < rewards,
+                        Some(set) => usize::from(set) < sets,
+                    };
+                    if !in_range {
+                        return Err(DecodeError::Invalid("orbit reward out of range"));
+                    }
                 }
-            }
-            if let Some(slot) = &player(s).skill {
-                below(usize::from(slot.index), skills, "skill index out of range")?;
+                if let Some(slot) = &p.skill {
+                    below(usize::from(slot.index), skills, "skill index out of range")?;
+                }
             }
             if let Some(f) = &s.stars {
                 for p in &f.pool {
@@ -305,12 +307,11 @@ macro_rules! state_codec {
 }
 
 mod v1 {
-    state_codec!(sim_v1, |s| &s.player);
+    state_codec!(sim_v1, |s| std::slice::from_ref(&s.player));
 }
 
 mod v2 {
-    // shim: a run of one has its player at the first place.
-    state_codec!(sim, |s| &s.players[crate::sim::state::PlayerIdx::SOLO]);
+    state_codec!(sim, |s| s.players.as_slice());
 }
 
 #[cfg(test)]

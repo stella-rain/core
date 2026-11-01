@@ -33,7 +33,8 @@ pub(crate) fn places(s: &State, out: &mut Places) {
     out.entities.clear();
     out.stars.clear();
     out.boss = None;
-    out.player = s.player.at;
+    out.players.clear();
+    out.players.push(s.player.at);
     // Boss, companions, boss parts, then enemies: the order of their entity IDs.
     let alive_boss = s.boss.as_ref().filter(|b| b.hp > 0);
     if let Some(b) = alive_boss {
@@ -202,7 +203,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             width: map.width,
             height: map.height,
         },
-        player: PlayerView {
+        players: vec![PlayerView {
             at: s.player.at,
             hp: s.player.hp,
             radius: Fx(world.tuning.player_radius),
@@ -307,7 +308,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 runs.into_iter().map(view).collect()
             },
             statuses: status_views(&s.player.statuses, false),
-        },
+        }],
         entities,
         zones: s
             .zones

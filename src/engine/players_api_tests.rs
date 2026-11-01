@@ -1,7 +1,7 @@
 //! The public API names players (ADR-SIM-12): the snapshot and the places hold one entry per
 //! player, and `choose` takes the player. At one player the bytes are the pins'.
 
-use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};
+use crate::bench_fixtures::{hit_case, time_limit_case, worst_case, worst_minute_case};
 use crate::id::PlayerIdx;
 use crate::input::Input;
 
@@ -18,7 +18,15 @@ fn p1() -> PlayerIdx {
 
 /// An engine with an offer open, from the first of the walks that reaches one.
 fn with_offer() -> Engine {
-    let cases: [(Engine, fn(u32) -> Input); 3] = [
+    let cases: [(Engine, fn(u32) -> Input); 5] = [
+        (
+            worst_minute_case::worst_minute().engine,
+            worst_minute_case::input_at,
+        ),
+        (
+            Engine::new(&orb_cage()).expect("the stage runs"),
+            worst_minute_case::input_at,
+        ),
         (worst_case::warmed_up(), worst_case::input),
         (hit_case::warmed_up(), hit_case::input),
         (time_limit_case::warmed_up(), time_limit_case::input),

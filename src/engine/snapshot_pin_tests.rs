@@ -23,11 +23,11 @@ enum Hashed {
 }
 
 fn first_player(snap: &Snapshot) -> &PlayerView {
-    &snap.player
+    &snap.players[0]
 }
 
 fn first_place(places: &Places) -> Point {
-    places.player
+    places.players[0]
 }
 
 /// What a walk saw of the views that are rare; the walks together must reach each.
@@ -74,7 +74,8 @@ fn walk(mut e: Engine, input: fn(u32) -> Input, seen: &mut Seen, hashed: Hashed)
     let mut places = Places::default();
     for _ in 0..TICKS {
         if e.offer_open() {
-            e.choose(0).expect("option 0 exists");
+            e.choose(crate::id::PlayerIdx::SOLO, 0)
+                .expect("option 0 exists");
         }
         let next = e.tick() + 1;
         e.step(input(next));
@@ -115,7 +116,8 @@ fn corpus_runs(seen: &mut Seen, hashed: Hashed) -> u64 {
         let mut places = Places::default();
         for input in inputs {
             while let Some(c) = next.next_if(|c| c.tick == e.tick()) {
-                e.choose(c.index).expect("a recorded choice");
+                e.choose(crate::id::PlayerIdx::SOLO, c.index)
+                    .expect("a recorded choice");
             }
             e.step(input);
             observe(&e, &mut places, &mut h, seen, hashed);
@@ -158,12 +160,12 @@ fn the_snapshot_and_places_bytes_are_pinned() {
     assert_eq!(
         got,
         [
-            6_007_333_234_870_677_627,
-            1_083_962_551_720_018_677,
-            18_257_309_650_369_995_727,
-            13_557_465_715_812_010_972,
-            3_394_240_720_001_409_529,
-            12_260_812_894_625_264_736
+            13_289_178_128_488_374_889,
+            635_422_739_227_353_371,
+            8_334_290_342_550_971_945,
+            16_256_233_327_070_679_368,
+            6_438_994_331_722_358_287,
+            3_396_478_400_011_208_156
         ],
         "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs"
     );
