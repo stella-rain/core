@@ -13,7 +13,8 @@ use crate::snapshot::{OfferOption, Snapshot};
 
 use super::{Load, Places, State};
 
-/// A run under the rules of one `sim_version`: the compiled stage and the state it changes.
+/// A run under the rules of one `sim_version`: the compiled stage and the state it changes, both
+/// of that version's types. The engine reaches them, and the snapshot view, only through here.
 #[derive(Debug, Clone)]
 pub(crate) enum Run {
     /// Version 1, the frozen first rules.
