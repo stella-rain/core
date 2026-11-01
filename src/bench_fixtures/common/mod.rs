@@ -103,7 +103,8 @@ pub fn stage_full(
     companions: Vec<Value>,
 ) -> Stage {
     let mut v = json!({
-        "schema_version": 1, "sim_version": 1, "id": "test", "title": "Test", "seed": 7,
+        "schema_version": 1, "id": "test", "title": "Test", "seed": 7,
+        "sim_version": crate::version::SIM_VERSION,
         "length_ticks": length_ticks,
         // The weapon is `default_weapon`; the cases replace it with `armed`.
         "player": { "base": "pilot_a", "hp": 99, "atk": 10,

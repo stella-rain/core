@@ -2365,6 +2365,7 @@ fn the_corpus_matches() {
         // The stages are written at design values and scaled here (ADR-103).
         for (name, stage_bytes, inputs) in definitions() {
             let scaled = common::scaled_bytes(&stage_bytes, common::SCALE);
+            let scaled = common::at_open_version(&scaled);
             write_case(&corpus_dir().join(name), &scaled, &inputs);
         }
         for (name, setup, pack, commands) in run_definitions() {

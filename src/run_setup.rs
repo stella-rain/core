@@ -662,6 +662,8 @@ fn stage_on(
         }
     };
     let mut stage = base.clone();
+    // The run's rules are its setup's (ADR-REPL-9); the mode file's own version is not the run's.
+    stage.sim_version = setup.sim_version;
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
         tree: setup.weapon_tree.clone(),
@@ -724,6 +726,7 @@ pub(crate) fn time_limit_run(
         }]));
     }
     let mut stage = trial.clone();
+    stage.sim_version = setup.sim_version;
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
         tree: setup.weapon_tree.clone(),

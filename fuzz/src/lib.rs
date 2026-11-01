@@ -33,7 +33,7 @@ use stella_rain_core::text::TextTable;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::{MAX_RUN_STARDUST, MAX_TICKS};
 use stella_rain_core::validate::{self, parse_and_validate};
-use stella_rain_core::version::Versions;
+use stella_rain_core::version::{FIRST_SIM_VERSION, Versions};
 use stella_rain_core::{base64, share};
 
 /// Ticks `stage_run` simulates: long enough for waves, attacks and boss phases to start, short
@@ -222,13 +222,13 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
 /// that loads unpacks without a panic and saves to bytes that load as the same replay; any
 /// bytes verified against a stage that is cleared, or as a run replay, never panic, whatever
 /// they claim; a run replay that verifies is exactly what its own commands record; and a replay
-/// that loads is at this core's versions (any other pair is `Older`, `Newer` or `Damaged`).
+/// that loads is at this core's schema version and a sim version from `FIRST_SIM_VERSION` to the current (any other pair is `Older`, `Newer` or `Damaged`).
 pub fn replay_load(data: &[u8]) -> bool {
     let current = Versions::CURRENT;
     if let Ok(replay) = Replay::from_bytes(data) {
-        assert_eq!(
-            (replay.schema_version, replay.sim_version),
-            (current.schema_version, current.sim_version),
+        assert!(
+            replay.schema_version == current.schema_version
+                && (FIRST_SIM_VERSION..=current.sim_version).contains(&replay.sim_version),
             "a replay that loads is at another version"
         );
         let _ = replay.unpack_inputs(MAX_TICKS);
@@ -237,9 +237,9 @@ pub fn replay_load(data: &[u8]) -> bool {
         assert_eq!(again, replay, "a saved replay loads as another replay");
     }
     if let Ok(run) = RunReplay::from_bytes(data) {
-        assert_eq!(
-            (run.setup.schema_version, run.setup.sim_version),
-            (current.schema_version, current.sim_version),
+        assert!(
+            run.setup.schema_version == current.schema_version
+                && (FIRST_SIM_VERSION..=current.sim_version).contains(&run.setup.sim_version),
             "a run replay that loads is at another version"
         );
         let _ = run.unpack_inputs(MAX_TICKS);

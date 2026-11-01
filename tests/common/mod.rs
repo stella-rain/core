@@ -429,6 +429,16 @@ pub fn scaled_bytes(bytes: &[u8], factor: u64) -> Vec<u8> {
     out
 }
 
+/// A stage's bytes with its `sim_version` set to the open version (`SIM_VERSION`): the corpus'
+/// stage cases are written at the live rules, whatever version the test template says.
+pub fn at_open_version(bytes: &[u8]) -> Vec<u8> {
+    let mut value: Value = serde_json::from_slice(bytes).unwrap();
+    value["sim_version"] = stella_rain_core::version::SIM_VERSION.into();
+    let mut out = serde_json::to_vec_pretty(&value).unwrap();
+    out.push(b'\n');
+    out
+}
+
 #[test]
 fn near_start_is_the_start_moved_by_whole_pixels() {
     assert_eq!(near_start(0, 0), (START_X, START_Y));

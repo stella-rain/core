@@ -15,7 +15,7 @@ use stella_rain_core::replay::{
 };
 use stella_rain_core::rng::SplitMix64;
 use stella_rain_core::validate;
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::version::{FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION};
 
 fn recorded() -> (Vec<u8>, Replay, Vec<u8>) {
     let stage = stage_bytes();
@@ -375,7 +375,7 @@ fn a_replay_only_verifies_against_its_own_stage() {
         (
             "schema_version",
             SCHEMA_VERSION + 1,
-            (SCHEMA_VERSION + 1, SIM_VERSION),
+            (SCHEMA_VERSION + 1, FIRST_SIM_VERSION),
         ),
     ] {
         let tampered = with(&replay, |v| v[field] = json!(newer));
@@ -631,7 +631,7 @@ fn a_replay_for_a_newer_version_is_newer() {
     let schema = with(&replay, |v| v["schema_version"] = json!(SCHEMA_VERSION + 1));
     assert_eq!(
         Replay::from_bytes(&schema),
-        newer(SCHEMA_VERSION + 1, SIM_VERSION)
+        newer(SCHEMA_VERSION + 1, FIRST_SIM_VERSION)
     );
     // A newer file may hold fields this version rejects; it is still "newer", not damaged.
     let future = with(&replay, |v| {
@@ -643,7 +643,10 @@ fn a_replay_for_a_newer_version_is_newer() {
         newer(SCHEMA_VERSION, SIM_VERSION + 1)
     );
     let huge = with(&replay, |v| v["schema_version"] = json!(4_000_000_000u32));
-    assert_eq!(Replay::from_bytes(&huge), newer(4_000_000_000, SIM_VERSION));
+    assert_eq!(
+        Replay::from_bytes(&huge),
+        newer(4_000_000_000, FIRST_SIM_VERSION)
+    );
 }
 
 #[test]

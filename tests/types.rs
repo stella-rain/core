@@ -7,7 +7,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::replay::Replay;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate;
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::version::{FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION};
 
 const STAGE: &str = include_str!("fixtures/stage_v0.json");
 
@@ -155,12 +155,13 @@ fn replay_round_trips_and_rejects_unknown_fields() {
 
 #[test]
 fn versions_are_one_from_the_freeze() {
-    // Version 1 is the frozen first version (ADR-REPL-7); version 0 is refused.
-    assert_eq!((SCHEMA_VERSION, SIM_VERSION), (1, 1));
+    // Version 1 is the frozen first version (ADR-REPL-7) and still read beside the open
+    // version 2 (ADR-REPL-9); version 0 is refused.
+    assert_eq!((SCHEMA_VERSION, SIM_VERSION), (1, 2));
     let stage = parse(STAGE).unwrap();
     assert_eq!(
         (stage.schema_version, stage.sim_version),
-        (SCHEMA_VERSION, SIM_VERSION)
+        (SCHEMA_VERSION, FIRST_SIM_VERSION)
     );
 }
 

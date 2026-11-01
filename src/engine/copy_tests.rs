@@ -160,6 +160,7 @@ fn the_two_schedules_name_the_same_steps_in_the_same_order() {
 
 fn recorder_at(version: u32) -> RunRecorder {
     let setup = RunSetup {
+        sim_version: version,
         mode: "time_limit".into(),
         seed: 3,
         ..RunSetup::default()
@@ -236,4 +237,54 @@ fn a_stage_runs_the_same_under_either_version() {
         b.step(input);
         assert_same_tick(&a, &b, "trial", tick);
     }
+}
+
+#[test]
+fn the_bench_cases_run_the_live_rules() {
+    use bench_fixtures::{
+        hit_tick, hit_tick_spread, time_limit_tick, worst_minute, worst_minute_peak, worst_tick,
+    };
+    let engines = [
+        ("worst_tick", worst_tick().engine),
+        ("hit_tick", hit_tick().engine),
+        ("hit_tick_spread", hit_tick_spread().engine),
+        ("time_limit_tick", time_limit_tick().engine),
+        ("worst_minute", worst_minute().engine),
+        ("worst_minute_peak", worst_minute_peak().engine),
+    ];
+    for (name, e) in engines {
+        assert_eq!(e.run.module(), "sim", "{name}");
+        assert_eq!(e.version(), crate::version::SIM_VERSION, "{name}");
+    }
+}
+
+#[test]
+fn the_frozen_v1_cases_run_sim_v1() {
+    let root = super::savepoint_tests::data_root::data_root().join("tests/corpus/v1");
+    let mut stages = 0;
+    for dir in std::fs::read_dir(root.join("stages")).unwrap() {
+        let stage = crate::validate::parse_and_validate(
+            &std::fs::read(dir.unwrap().path().join("stage.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(Engine::new(&stage).unwrap().run.module(), "sim_v1");
+        stages += 1;
+    }
+    assert!(stages > 0);
+    let mut runs = 0;
+    for dir in std::fs::read_dir(root.join("runs")).unwrap() {
+        let replay = crate::run_replay::RunReplay::from_bytes(
+            &std::fs::read(dir.unwrap().path().join("run.replay")).unwrap(),
+        )
+        .unwrap();
+        let pack = std::fs::read_dir(root.join("packs"))
+            .unwrap()
+            .map(|p| Pack::from_bytes(&std::fs::read(p.unwrap().path()).unwrap()).unwrap())
+            .find(|p| crate::content_hash::to_hex(&p.sha256()) == replay.content_sha256)
+            .expect("the run's pack is kept");
+        let e = Engine::start_with(&replay.setup, pack.content()).unwrap();
+        assert_eq!(e.run.module(), "sim_v1");
+        runs += 1;
+    }
+    assert!(runs > 0);
 }

@@ -8,7 +8,7 @@
 use std::path::Path;
 
 #[allow(dead_code, reason = "shared with tests/, which uses more of it")]
-mod data_root {
+pub(super) mod data_root {
     include!("../../tests/data_root.rs");
 }
 
@@ -411,7 +411,10 @@ fn cases(tree: &str) -> Vec<Case> {
         let pack = pack_of(&tree_dir, &dir);
         out.push(Case {
             name,
-            start: Box::new(move || Engine::new_with(&stage, pack.content()).unwrap()),
+            // The codec read here is the frozen state's: the current cases, at 2, run as 1.
+            start: Box::new(move || {
+                Engine::forced(1, || Engine::new_with(&stage, pack.content()).unwrap())
+            }),
             inputs,
             commands: Vec::new(),
         });
@@ -426,7 +429,9 @@ fn cases(tree: &str) -> Vec<Case> {
         let setup = recorded.setup.clone();
         out.push(Case {
             name,
-            start: Box::new(move || Engine::start_with(&setup, pack.content()).unwrap()),
+            start: Box::new(move || {
+                Engine::forced(1, || Engine::start_with(&setup, pack.content()).unwrap())
+            }),
             inputs,
             commands,
         });
@@ -562,15 +567,18 @@ fn a_decoded_ledger_goes_on_counting_where_the_original_does() {
 fn encoded_size_of_the_bench_fixtures() {
     use crate::bench_fixtures;
     use crate::savepoint::Encode;
-    let engines = [
-        ("worst_tick", bench_fixtures::worst_tick().engine),
-        ("hit_tick", bench_fixtures::hit_tick().engine),
-        ("time_limit_tick", bench_fixtures::time_limit_tick().engine),
-        (
-            "worst_minute_peak",
-            bench_fixtures::worst_minute_peak().engine,
-        ),
-    ];
+    // The state read here is the frozen version's (`savepoint_parts`): build the cases at 1.
+    let engines = Engine::forced(1, || {
+        [
+            ("worst_tick", bench_fixtures::worst_tick().engine),
+            ("hit_tick", bench_fixtures::hit_tick().engine),
+            ("time_limit_tick", bench_fixtures::time_limit_tick().engine),
+            (
+                "worst_minute_peak",
+                bench_fixtures::worst_minute_peak().engine,
+            ),
+        ]
+    });
     for (name, e) in engines {
         let (_, _, state, ledger, counted) = e.savepoint_parts();
         let size = |f: &dyn Fn(&mut crate::savepoint::Writer)| {
