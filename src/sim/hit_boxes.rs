@@ -180,7 +180,7 @@ pub(super) fn resolve(
 /// and reported once (core Z2, C24). It is gone before the orbs land, so it hurts nobody this
 /// tick.
 fn break_orbs(stage: &World, s: &mut State, swings: &[Swing], events: &mut Vec<DomainEvent>) {
-    let mine = |w: &&Swing| w.friendly && w.owner == super::PLAYER_ID;
+    let mine = |w: &&Swing| w.friendly && w.owner == PlayerIdx::SOLO.id();
     s.orbs.retain(|b| {
         if !b.breakable {
             return true;
@@ -562,7 +562,7 @@ fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Domai
     if p.hp > 0
         && p.invulnerable == 0
         && covers(w, p.at, stage.tuning.player_radius)
-        && take_hit(s, w, super::PLAYER_ID)
+        && take_hit(s, w, PlayerIdx::SOLO.id())
     {
         let by = match w.source {
             Source::Run(i) => Blame {

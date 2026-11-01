@@ -21,9 +21,9 @@ use crate::snapshot::{
 
 use super::state::{AgentState, AttackRun, ShrineState, State, StatusState};
 use super::{
-    PLAYER_ID, World, announced_patterns, aura_percent, aura_sources, auto_charge_view, beam_to,
-    charge_view, combo_view, constellation_views, expertise_offer_view, expertise_styles_view,
-    hold_view, offer_view, phase, stat_offer_view, xp_next,
+    World, announced_patterns, aura_percent, aura_sources, auto_charge_view, beam_to, charge_view,
+    combo_view, constellation_views, expertise_offer_view, expertise_styles_view, hold_view,
+    offer_view, phase, stat_offer_view, xp_next,
 };
 
 /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
@@ -299,8 +299,11 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 })
                 .collect(),
             attacks: {
-                let mut runs: Vec<&AttackRun> =
-                    s.runs.iter().filter(|r| r.owner == PLAYER_ID).collect();
+                let mut runs: Vec<&AttackRun> = s
+                    .runs
+                    .iter()
+                    .filter(|r| r.owner == PlayerIdx::SOLO.id())
+                    .collect();
                 runs.sort_by_key(|r| r.slot);
                 runs.into_iter().map(view).collect()
             },

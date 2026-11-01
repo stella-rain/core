@@ -78,7 +78,7 @@ fn agent(s: &State, who: Who) -> &AgentState {
     match who {
         Who::Companion(i) => &s.companions[i],
         Who::Enemy(i) => &s.enemies[i],
-        Who::Player | Who::Boss | Who::BossPart(_) => {
+        Who::Player(_) | Who::Boss | Who::BossPart(_) => {
             unreachable!("only companions and enemies are agents")
         }
     }
@@ -88,7 +88,7 @@ pub(super) fn agent_mut(s: &mut State, who: Who) -> &mut AgentState {
     match who {
         Who::Companion(i) => &mut s.companions[i],
         Who::Enemy(i) => &mut s.enemies[i],
-        Who::Player | Who::Boss | Who::BossPart(_) => {
+        Who::Player(_) | Who::Boss | Who::BossPart(_) => {
             unreachable!("only companions and enemies are agents")
         }
     }
@@ -388,7 +388,7 @@ fn time_since_start(s: &State, me: Who) -> u32 {
     match me {
         Who::Companion(_) | Who::Enemy(_) => agent(s, me).age,
         Who::Boss => s.boss.as_ref().map_or(0, |b| b.phase_age),
-        Who::Player | Who::BossPart(_) => 0,
+        Who::Player(_) | Who::BossPart(_) => 0,
     }
 }
 

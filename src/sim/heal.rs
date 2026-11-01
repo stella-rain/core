@@ -17,7 +17,7 @@ use crate::sim::state::PlayerIdx;
 use crate::sim::state::{HealPickup, PlayerState, State};
 use crate::validate::limits::MAX_HEAL_AMOUNT;
 
-use super::{PLAYER_ID, overlaps, widened};
+use super::{overlaps, widened};
 
 /// The boss died this tick: it heals the main character `boss_pct` percent of its most.
 pub(super) fn boss_killed(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
@@ -121,7 +121,7 @@ fn heal(player: &mut PlayerState, want: u64, events: &mut Vec<DomainEvent>) {
     let healed = (u64::from(before) + want).min(u64::from(player.max_hp));
     player.hp = u32::try_from(healed).unwrap_or(player.max_hp);
     events.push(DomainEvent::Healed {
-        target: PLAYER_ID,
+        target: PlayerIdx::SOLO.id(),
         amount: player.hp.saturating_sub(before),
     });
 }

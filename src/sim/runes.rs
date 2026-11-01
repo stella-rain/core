@@ -77,7 +77,7 @@ pub(super) const MISSILE_SLOT: u8 = 64;
 /// The on-hit rune whose attack run `r` is, by its slot (`FIRST_SLOT` plus the rune's place, or
 /// a missile's); `None` for every other run.
 pub(super) fn of_run(r: &crate::sim::state::AttackRun) -> Option<Rune> {
-    if r.owner != super::PLAYER_ID {
+    if r.owner != PlayerIdx::SOLO.id() {
         return None;
     }
     match r.slot {
@@ -206,7 +206,7 @@ fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEven
         interval,
         next_in: interval,
     };
-    let source = s.id_of(Who::Player);
+    let source = s.id_of(Who::Player(PlayerIdx::SOLO));
     s.add_dot(target, kind, source, dot, duration, max_stacks, events);
 }
 
@@ -227,7 +227,7 @@ fn launch(
     // The validator holds both to their caps; the clamps keep an unvalidated file there.
     let n = missiles.clamp(1, MAX_HOMING_MISSILES) as u8;
     let range = range.0.clamp(0, MAX_ASSIST_RANGE);
-    let player = s.id_of(Who::Player);
+    let player = s.id_of(Who::Player(PlayerIdx::SOLO));
     if (0..n).any(|k| attacks::busy(s, player, MISSILE_SLOT.saturating_add(k))) {
         return false;
     }

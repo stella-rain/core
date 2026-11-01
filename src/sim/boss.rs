@@ -31,6 +31,7 @@ use crate::attack::AttackRef;
 use crate::behaviour::BossCall;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{BossState, MoveOrder, Origin, State};
 use crate::snapshot::PatternView;
 use crate::stage::{Step, Transition};
@@ -355,7 +356,7 @@ fn start_attack(
         s,
         Who::Boss,
         0,
-        Who::Player,
+        Who::Player(PlayerIdx::SOLO),
         attack,
         damage,
         age,

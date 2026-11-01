@@ -357,7 +357,7 @@ pub(super) fn start_player(
     strike: Strike,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    if busy(s, s.id_of(Who::Player), slot) {
+    if busy(s, s.id_of(Who::Player(PlayerIdx::SOLO)), slot) {
         return false;
     }
     let attack = world.attack_index(attack);
@@ -368,7 +368,7 @@ pub(super) fn start_player(
         world,
         s,
         Launch {
-            owner: Who::Player,
+            owner: Who::Player(PlayerIdx::SOLO),
             slot,
             aim: Aim::Fixed(facing),
             attack,
@@ -400,7 +400,8 @@ pub(super) fn start_rune(
     base_damage: u32,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    if busy(s, s.id_of(Who::Player), slot) || world.attacks[usize::from(attack.0)].phases.is_empty()
+    if busy(s, s.id_of(Who::Player(PlayerIdx::SOLO)), slot)
+        || world.attacks[usize::from(attack.0)].phases.is_empty()
     {
         return false;
     }
@@ -408,7 +409,7 @@ pub(super) fn start_rune(
         world,
         s,
         Launch {
-            owner: Who::Player,
+            owner: Who::Player(PlayerIdx::SOLO),
             slot,
             aim: Aim::Fixed(facing),
             attack,
@@ -590,7 +591,7 @@ fn launch(world: &World, s: &mut State, launch: Launch, events: &mut Vec<DomainE
     // holds to the hard cap; the clamp keeps an unvalidated table there (ADR-100).
     let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
     let held = &s.players[PlayerIdx::SOLO].type_bonus_pct;
-    let type_bonus_pct = (owner == Who::Player && held.iter().any(|pct| *pct > 0))
+    let type_bonus_pct = (owner == Who::Player(PlayerIdx::SOLO) && held.iter().any(|pct| *pct > 0))
         .then(|| Box::new(held.map(|pct| pct.min(limit))));
     let facing = self::aim(s, s.at(owner), aim);
     let spot = uses_spot(&world.attacks[usize::from(attack.0)].phases).then(|| match aim {
@@ -759,7 +760,7 @@ pub(super) fn phase_damage(world: &World, r: &AttackRun) -> u32 {
 
 /// Whether run `r` is the main character's combo step, A or B (ADR-078 §2).
 pub(super) fn is_combo(r: &AttackRun) -> bool {
-    r.owner == super::PLAYER_ID && r.slot == super::player::COMBO_SLOT
+    r.owner == PlayerIdx::SOLO.id() && r.slot == super::player::COMBO_SLOT
 }
 
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase

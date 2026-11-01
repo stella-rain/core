@@ -30,8 +30,8 @@ use crate::trig::SCALE;
 use super::attacks;
 use super::entity::Who;
 use super::levels;
+use super::overlaps;
 use super::player;
-use super::{PLAYER_ID, overlaps};
 
 /// The main character's attack slot for a stage skill's attack (ADR-069); the combo is 0.
 pub(super) const SKILL_SLOT: u8 = 1;
@@ -187,9 +187,9 @@ fn apply(
             // The validator holds the status to the registry's, which are `StatusKind`'s.
             if let Some(kind) = StatusKind::from_name(status.as_str()) {
                 s.add_status(
-                    Who::Player,
+                    Who::Player(PlayerIdx::SOLO),
                     kind,
-                    PLAYER_ID,
+                    PlayerIdx::SOLO.id(),
                     *value_pct,
                     *duration_ticks,
                     events,
@@ -206,11 +206,18 @@ fn apply(
                 return;
             };
             for who in within(stage, s, point, radius.0) {
-                s.add_status(who, kind, PLAYER_ID, *value_pct, *duration_ticks, events);
+                s.add_status(
+                    who,
+                    kind,
+                    PlayerIdx::SOLO.id(),
+                    *value_pct,
+                    *duration_ticks,
+                    events,
+                );
             }
         }
         SkillEffect::Attack { attack } => {
-            attacks::end_run(stage, s, PLAYER_ID, SKILL_SLOT);
+            attacks::end_run(stage, s, PlayerIdx::SOLO.id(), SKILL_SLOT);
             let strike = attacks::Strike {
                 bonus_pct: 0,
                 speed_pct: 0,

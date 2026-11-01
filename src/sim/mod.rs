@@ -223,8 +223,6 @@ pub(crate) const MAX_ORBS_ALIVE: u32 = 32;
 pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
 pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 
-/// The main character is always entity 0; the boss, if any, is 1, then the companions.
-pub(crate) const PLAYER_ID: EntityId = EntityId(0);
 /// The radius the enemy grid is built for (`Grid::rebuild`'s probe radius); it sets the cell side
 /// with the largest enemy, so it stays what the friendly orbs' radius was.
 const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
@@ -1249,7 +1247,7 @@ pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
             Some(&s.enemies[i]),
         ),
         // The main character is not reported by a `Died`; it counts with its allies.
-        Who::Player => (EntityKind::Companion, None),
+        Who::Player(_) => (EntityKind::Companion, None),
     };
     DomainEvent::Died {
         entity: id,
@@ -1265,7 +1263,7 @@ pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
 /// is the part's ID. The main character has none, and a mimic still in disguise shows none.
 pub(super) fn kind_of(s: &State, who: Who) -> Option<KindIndex> {
     match who {
-        Who::Player => None,
+        Who::Player(_) => None,
         Who::Boss => Some(s.boss_state().kind),
         Who::BossPart(i) => Some(s.boss_state().parts[i].kind),
         Who::Companion(i) => Some(s.companions[i].kind),
@@ -1283,7 +1281,7 @@ fn profile<'a>(stage: &'a World, s: &'a State, target: Who) -> Option<&'a Profil
         Who::Enemy(i) => stage.defs.agent(s.enemies[i].def).profile.as_ref(),
         Who::Boss => s.boss_def(stage)?.profile.as_ref(),
         Who::BossPart(i) => s.boss_def(stage)?.parts.get(i)?.profile.as_ref(),
-        Who::Player | Who::Companion(_) => None,
+        Who::Player(_) | Who::Companion(_) => None,
     }
 }
 

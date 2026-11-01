@@ -106,7 +106,7 @@ pub(super) fn credit(stage: &World, s: &mut State, target: Who, killed: bool) {
             .boss_def(stage)
             .and_then(|b| b.expertise)
             .map(|p| ExpertisePoints { kill: 0, ..p }),
-        Who::Player | Who::Companion(_) => None,
+        Who::Player(_) | Who::Companion(_) => None,
     };
     let (Some(g), Some(p)) = (s.expertise.as_mut(), points) else {
         return;

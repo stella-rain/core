@@ -20,7 +20,6 @@ use crate::sim::state::PlayerIdx;
 use crate::sim::state::{Dir, OrbitState, PlayerState, State};
 use crate::trig::PER_TURN;
 
-use super::PLAYER_ID;
 use super::attacks;
 use super::levels;
 
@@ -70,7 +69,7 @@ pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut 
             continue;
         };
         o.cooldown_left = o.cooldown_left.saturating_sub(1);
-        let attacking = (0..MAX_ORBS).any(|j| attacks::busy(s, PLAYER_ID, slot(k, j)));
+        let attacking = (0..MAX_ORBS).any(|j| attacks::busy(s, PlayerIdx::SOLO.id(), slot(k, j)));
         if o.cooldown_left == 0 && !attacking {
             let damage = levels::attack(s, stage.player.atk);
             let strike = attacks::Strike {
@@ -97,7 +96,7 @@ pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut 
         }
         let first = slot(k, 0);
         for r in s.runs.iter_mut() {
-            if r.owner == PLAYER_ID && (first..first + MAX_ORBS).contains(&r.slot) {
+            if r.owner == PlayerIdx::SOLO.id() && (first..first + MAX_ORBS).contains(&r.slot) {
                 r.facing = facing(o.angle, r.slot - first, o.round);
             }
         }

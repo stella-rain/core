@@ -24,7 +24,7 @@ fn dist2(a: Point, b: Point) -> u64 {
 }
 
 fn allies(s: &State) -> impl Iterator<Item = Who> + '_ {
-    std::iter::once(Who::Player)
+    std::iter::once(Who::Player(PlayerIdx::SOLO))
         .chain((0..s.companions.len()).map(Who::Companion))
         .filter(|w| s.is_alive(*w))
 }
@@ -43,7 +43,9 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
     let by_distance = |w: &Who| (dist2(from, s.at(*w)), s.id_of(*w));
     match selector {
         Selector::Myself => Some(me),
-        Selector::Player => s.is_alive(Who::Player).then_some(Who::Player),
+        Selector::Player => s
+            .is_alive(Who::Player(PlayerIdx::SOLO))
+            .then_some(Who::Player(PlayerIdx::SOLO)),
         Selector::NearestEnemy => enemies(s).min_by_key(by_distance),
         Selector::BossFirst => match s.boss {
             Some(_) if s.is_alive(Who::Boss) => Some(Who::Boss),

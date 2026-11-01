@@ -145,7 +145,7 @@ fn move_by(stage: &World, p: &mut PlayerState, dx: i64, dy: i64) {
 
 fn move_player(stage: &World, s: &mut State, x: i8, y: i8) {
     let keep = speed_pct(&s.players[PlayerIdx::SOLO].statuses)
-        * attacks::move_pct(stage, s, s.id_of(Who::Player))
+        * attacks::move_pct(stage, s, s.id_of(Who::Player(PlayerIdx::SOLO)))
         / 100
         * held_move_pct(stage, s)
         / 100;
@@ -288,12 +288,12 @@ fn combo(
     if let Some(press) = press_of_pressed(pressed) {
         s.players[PlayerIdx::SOLO].combo.buffered = Some(press);
     }
-    let me = s.id_of(Who::Player);
-    let busy = attacks::busy(s, me, COMBO_SLOT);
+    let me_id = s.id_of(Who::Player(PlayerIdx::SOLO));
+    let busy = attacks::busy(s, me_id, COMBO_SLOT);
     // A held step holds where its recovery would begin, unless a buffered press takes its next
     // step first (ADR-084 points 3 and 6).
     if busy
-        && attacks::hold_ready(stage, s, me, COMBO_SLOT)
+        && attacks::hold_ready(stage, s, me_id, COMBO_SLOT)
         && begins_hold(main, &s.players[PlayerIdx::SOLO].combo, input)
     {
         begin_hold(stage, s, main, input, events);
@@ -334,8 +334,8 @@ fn combo(
         return;
     }
     let next = step_at(main, &c).is_some_and(|st| st.next.get(smash).is_some());
-    if next && attacks::in_end_recovery(stage, s, me, COMBO_SLOT) {
-        attacks::end_run(stage, s, me, COMBO_SLOT);
+    if next && attacks::in_end_recovery(stage, s, me_id, COMBO_SLOT) {
+        attacks::end_run(stage, s, me_id, COMBO_SLOT);
         take_step(stage, s, main, smash, by_hand, input, events);
     }
 }
@@ -381,8 +381,8 @@ fn begin_hold(
     input: Input,
     events: &mut Vec<DomainEvent>,
 ) {
-    let me = s.id_of(Who::Player);
-    attacks::end_run(stage, s, me, COMBO_SLOT);
+    let me_id = s.id_of(Who::Player(PlayerIdx::SOLO));
+    attacks::end_run(stage, s, me_id, COMBO_SLOT);
     s.players[PlayerIdx::SOLO].combo.hold = Some(0);
     spin(stage, s, main, input, events);
 }
@@ -433,7 +433,7 @@ fn holding(
         return;
     }
     s.players[PlayerIdx::SOLO].combo.hold = Some(held);
-    if !attacks::busy(s, s.id_of(Who::Player), COMBO_SLOT) {
+    if !attacks::busy(s, s.id_of(Who::Player(PlayerIdx::SOLO)), COMBO_SLOT) {
         spin(stage, s, main, input, events);
     }
 }
@@ -448,8 +448,8 @@ fn release_hold(
     input: Input,
     events: &mut Vec<DomainEvent>,
 ) {
-    let me = s.id_of(Who::Player);
-    attacks::end_run(stage, s, me, COMBO_SLOT);
+    let me_id = s.id_of(Who::Player(PlayerIdx::SOLO));
+    attacks::end_run(stage, s, me_id, COMBO_SLOT);
     s.players[PlayerIdx::SOLO].combo.hold = None;
     s.players[PlayerIdx::SOLO].combo.released = true;
     strike(stage, s, &hold.release, 0, input.assist, events);
@@ -768,8 +768,8 @@ fn release(
 
 /// An evade cancels the running step, breaks a charge and clears the buffer (ADR-070).
 fn cancel(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let me = s.id_of(Who::Player);
-    attacks::end_run(stage, s, me, COMBO_SLOT);
+    let me_id = s.id_of(Who::Player(PlayerIdx::SOLO));
+    attacks::end_run(stage, s, me_id, COMBO_SLOT);
     let c = &mut s.players[PlayerIdx::SOLO].combo;
     if c.charge.take().is_some() {
         events.push(DomainEvent::ChargeBroken);
@@ -786,14 +786,14 @@ fn cancel(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
 /// attack (a hold's loop ends with it), and the combo starts again from the root (ADR-070,
 /// ADR-084 point 6).
 pub(super) fn break_charge(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let me = s.id_of(Who::Player);
+    let me_id = s.id_of(Who::Player(PlayerIdx::SOLO));
     let charging = s.players[PlayerIdx::SOLO].combo.charge.take().is_some();
     let holding = s.players[PlayerIdx::SOLO].combo.hold.take().is_some();
     if !charging && !holding {
         return;
     }
     if holding {
-        attacks::end_run(stage, s, me, COMBO_SLOT);
+        attacks::end_run(stage, s, me_id, COMBO_SLOT);
         events.push(DomainEvent::HoldBroken);
     }
     if charging {
