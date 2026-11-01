@@ -7,7 +7,8 @@
 //! Rules are dispatched by the stage's `sim_version` (ADR-017, ADR-REPL-7 point 3): versions
 //! `1..=SIM_VERSION` run in `sim`, any other fails closed. Version 1 is frozen, so a change of
 //! outcome after it is a gate on the new version in `sim`, a copy only for a rewrite (see `sim`
-//! for what it does and does not do yet).
+//! for what it does and does not do yet). The engine holds its state as a `Run`, one variant per
+//! released rules version (`run.rs`, ADR-REPL-9), and every call into the rules goes through it.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
