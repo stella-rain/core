@@ -330,7 +330,7 @@ mod players_tests {
         let Run::V2 { world, state } = e.run() else {
             panic!("the live rules")
         };
-        let rewards = e.content().rewards().len();
+        let rewards = e.content().rewards().rewards().len();
         let bad = OrbitState {
             reward: u16::try_from(rewards).unwrap(),
             orbs: 1,
@@ -339,7 +339,6 @@ mod players_tests {
             angle: 0,
         };
         let first = state.players[PlayerIdx::SOLO].clone();
-        let second = PlayerIdx::new(1).unwrap();
         let build = |bad_on: usize| {
             let (mut a, mut b) = (first.clone(), first.clone());
             [&mut a, &mut b][bad_on].orbits.push(bad.clone());
@@ -352,7 +351,6 @@ mod players_tests {
         ));
         assert_eq!(check_indices(&build(0), world, e.content()), refused);
         assert_eq!(check_indices(&build(1), world, e.content()), refused);
-        let _ = second;
         let mut ok = state.clone();
         ok.players = Players::of(vec![first.clone(), first]).unwrap();
         assert_eq!(check_indices(&ok, world, e.content()), Ok(()));

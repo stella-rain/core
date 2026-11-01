@@ -107,3 +107,53 @@ mod tests {
 )]
 #[serde(transparent)]
 pub struct EntityId(pub u32);
+
+/// The most players a run holds (ADR-SIM-12 point 1). A code cap, not a tuning number.
+pub const MAX_PLAYERS: u8 = 3;
+
+/// Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the
+/// companions come after the players. An enum of the `MAX_PLAYERS` places, so that an index into
+/// the players' array needs no bounds check (a tick indexes it thousands of times, ADR-SIM-8).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PlayerIdx {
+    First,
+    Second,
+    Third,
+}
+
+impl PlayerIdx {
+    /// The only player of a run of one.
+    pub const SOLO: PlayerIdx = PlayerIdx::First;
+
+    /// Player `i`, if a run can hold that many.
+    pub fn new(i: u8) -> Option<PlayerIdx> {
+        match i {
+            0 => Some(PlayerIdx::First),
+            1 => Some(PlayerIdx::Second),
+            2 => Some(PlayerIdx::Third),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn get(self) -> usize {
+        self as usize
+    }
+
+    /// The entity ID of this player.
+    #[inline]
+    pub fn id(self) -> EntityId {
+        EntityId(self as u32)
+    }
+
+    /// The player that entity `id` is, in a party of `party` players.
+    #[inline]
+    pub fn of_id(id: EntityId, party: usize) -> Option<PlayerIdx> {
+        match id.0 {
+            0 if party > 0 => Some(PlayerIdx::First),
+            1 if party > 1 => Some(PlayerIdx::Second),
+            2 if party > 2 => Some(PlayerIdx::Third),
+            _ => None,
+        }
+    }
+}
