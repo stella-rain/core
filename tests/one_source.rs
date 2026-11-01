@@ -6,7 +6,7 @@
 
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
+use stella_rain_core::version::{FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION, Versions};
 
 use stella_rain_core::attack_presets::{AttackPresets, MAX_ATTACK_PRESETS_BYTES};
 use stella_rain_core::constellations::{Constellations, MAX_CONSTELLATIONS_BYTES};
@@ -155,10 +155,19 @@ fn refuses<E: Debug + PartialEq>(
     unsupported: impl Fn(u32, u32) -> E,
 ) {
     let newer = SIM_VERSION + 1;
+    // The pack header says the open version; a mode's stage keeps the version of its file.
+    let text = String::from_utf8_lossy(bytes);
+    let own = if text.contains(&format!("\"sim_version\": {SIM_VERSION}"))
+        || text.contains(&format!("\"sim_version\":{SIM_VERSION}"))
+    {
+        SIM_VERSION
+    } else {
+        FIRST_SIM_VERSION
+    };
     assert_eq!(
         read(&replace_first(
             bytes,
-            &format!("\"sim_version\": {SIM_VERSION}"),
+            &format!("\"sim_version\": {own}"),
             &format!("\"sim_version\": {newer}")
         )),
         Err(unsupported(SCHEMA_VERSION, newer)),
@@ -170,7 +179,7 @@ fn refuses<E: Debug + PartialEq>(
             &format!("\"schema_version\": {SCHEMA_VERSION}"),
             "\"schema_version\": 7"
         )),
-        Err(unsupported(7, SIM_VERSION)),
+        Err(unsupported(7, own)),
         "{name}: schema_version 7"
     );
     assert_eq!(
@@ -218,7 +227,7 @@ fn no_content_file_has_its_own_version() {
                 let current = if field == "schema_version" {
                     SCHEMA_VERSION
                 } else {
-                    SIM_VERSION
+                    FIRST_SIM_VERSION
                 };
                 assert_eq!(
                     object.get(field),

@@ -19,7 +19,7 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::ConstellationProgress;
 use stella_rain_core::stage::{RarityWeights, Stage, Tier};
 use stella_rain_core::validate::Error;
-use stella_rain_core::version::Versions;
+use stella_rain_core::version::{SIM_VERSION, Versions};
 
 use crate::common::run::{CONSTELLATIONS_TRIO_SEED, plain_content, plain_setup};
 use crate::reward_kinds::{near, next_offer, offer, plain, take};
@@ -388,7 +388,7 @@ fn pack_value(sets: Option<Value>) -> Value {
         v["introduced"]["rewards"]
             .as_array_mut()
             .unwrap()
-            .push(json!({ "id": id, "sim_version": 1 }));
+            .push(json!({ "id": id, "sim_version": SIM_VERSION }));
     }
     if let Some(sets) = sets {
         v["constellations"] = sets;

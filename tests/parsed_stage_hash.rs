@@ -8,9 +8,9 @@ use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::parsed_stage_hash::{parsed_stage_hash, parsed_stage_hash_input};
 use stella_rain_core::validate::parse_and_validate;
 
-const CLEAR: &[u8] = include_bytes!("corpus/current/stages/clear/stage.json");
+const CLEAR: &[u8] = include_bytes!("corpus/v1/stages/clear/stage.json");
 
-/// What is hashed for `corpus/current/stages/clear/stage.json`, written out by hand.
+/// What is hashed for `corpus/v1/stages/clear/stage.json`, written out by hand.
 const CLEAR_INPUT: &str = concat!(
     "stella-rain/parsed-stage/v1\n",
     r#"{"schema_version":1,"sim_version":1,"title":"Test Stage","description":"","seed":7,"#,
@@ -56,19 +56,19 @@ fn every_corpus_stage_keeps_its_hash() {
     // (agents, rules, attacks, boss parts and phases).
     for (bytes, expected) in [
         (
-            &include_bytes!("corpus/current/stages/agents/stage.json")[..],
+            &include_bytes!("corpus/v1/stages/agents/stage.json")[..],
             "b7327105943407c1e23da365e9ff2987de08d14d9fddb11fccd048c4e919a92a",
         ),
         (
-            &include_bytes!("corpus/current/stages/boss/stage.json")[..],
+            &include_bytes!("corpus/v1/stages/boss/stage.json")[..],
             "c8cdfe291b329605bf0d507d16701f654f521441dcc1c86263dd6d507ca08cf7",
         ),
         (
-            &include_bytes!("corpus/current/stages/fail/stage.json")[..],
+            &include_bytes!("corpus/v1/stages/fail/stage.json")[..],
             "937a10822b9294e0487ade13057a9cd3d76c2c6203dc9f17f9a1e6e00397ba5f",
         ),
         (
-            &include_bytes!("corpus/current/stages/timeout/stage.json")[..],
+            &include_bytes!("corpus/v1/stages/timeout/stage.json")[..],
             "b02533a271d5ce3abc6564a47c49bfa9c39942c709a1c4adaeffe8279cf12dc6",
         ),
     ] {

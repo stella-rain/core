@@ -246,7 +246,7 @@ fn an_id_newer_than_the_setup_s_sim_version_is_refused() {
         vec![issue(
             "$.weapon",
             &format!(
-                "introduced in sim_version {}, newer than this setup's {SIM_VERSION}",
+                "introduced in sim_version {}, newer than this setup's 1",
                 SIM_VERSION + 1
             )
         )]

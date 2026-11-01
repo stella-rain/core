@@ -260,7 +260,7 @@ fn the_bench_cases_run_the_live_rules() {
 
 #[test]
 fn the_frozen_v1_cases_run_sim_v1() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/v1");
+    let root = super::savepoint_tests::data_root::data_root().join("tests/corpus/v1");
     let mut stages = 0;
     for dir in std::fs::read_dir(root.join("stages")).unwrap() {
         let stage = crate::validate::parse_and_validate(
