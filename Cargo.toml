@@ -89,6 +89,10 @@ cast_lossless = "deny"
 name = "integration"
 path = "tests/integration.rs"
 
+[[test]]
+name = "spike_rollback"
+path = "tests/spike_rollback.rs"
+
 [[bench]]
 name = "worst_tick"
 harness = false
