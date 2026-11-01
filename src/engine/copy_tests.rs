@@ -160,6 +160,7 @@ fn the_two_schedules_name_the_same_steps_in_the_same_order() {
 
 fn recorder_at(version: u32) -> RunRecorder {
     let setup = RunSetup {
+        sim_version: version,
         mode: "time_limit".into(),
         seed: 3,
         ..RunSetup::default()

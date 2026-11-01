@@ -750,7 +750,7 @@ fn a_new_reward_is_listed_at_the_pack_version() {
 #[test]
 fn the_bundled_pack_introduces_every_id_in_version_1() {
     let file: pack::PackFile = serde_json::from_slice(Pack::BUNDLED).unwrap();
-    assert_eq!((file.schema_version, file.sim_version), (1, 1));
+    assert_eq!((file.schema_version, file.sim_version), (1, SIM_VERSION));
     let i = &file.introduced;
     let expertise: Vec<_> = i.expertise.iter().flat_map(|w| w.ids.clone()).collect();
     let constellations = i.constellations.clone().unwrap_or_default();

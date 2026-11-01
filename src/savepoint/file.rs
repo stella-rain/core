@@ -331,7 +331,7 @@ mod tests {
             );
         }
         assert_eq!(
-            Savepoint::from_bytes(&at(2)).err(),
+            Savepoint::from_bytes(&at(SIM_VERSION + 1)).err(),
             Some(SavepointError::SimVersion)
         );
     }

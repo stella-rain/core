@@ -7,8 +7,8 @@
 /// Structure of stage, event and replay files.
 pub const SCHEMA_VERSION: u32 = 1;
 
-/// Simulation rules.
-pub const SIM_VERSION: u32 = 1;
+/// Simulation rules: the open live version (ADR-REPL-9); version 1 is frozen in `sim_v1`.
+pub const SIM_VERSION: u32 = 2;
 
 /// The oldest simulation rules still read; version 0 is refused (ADR-REPL-7 point 8).
 pub const FIRST_SIM_VERSION: u32 = 1;
