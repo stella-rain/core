@@ -562,15 +562,18 @@ fn a_decoded_ledger_goes_on_counting_where_the_original_does() {
 fn encoded_size_of_the_bench_fixtures() {
     use crate::bench_fixtures;
     use crate::savepoint::Encode;
-    let engines = [
-        ("worst_tick", bench_fixtures::worst_tick().engine),
-        ("hit_tick", bench_fixtures::hit_tick().engine),
-        ("time_limit_tick", bench_fixtures::time_limit_tick().engine),
-        (
-            "worst_minute_peak",
-            bench_fixtures::worst_minute_peak().engine,
-        ),
-    ];
+    // The state read here is the frozen version's (`savepoint_parts`): build the cases at 1.
+    let engines = Engine::forced(1, || {
+        [
+            ("worst_tick", bench_fixtures::worst_tick().engine),
+            ("hit_tick", bench_fixtures::hit_tick().engine),
+            ("time_limit_tick", bench_fixtures::time_limit_tick().engine),
+            (
+                "worst_minute_peak",
+                bench_fixtures::worst_minute_peak().engine,
+            ),
+        ]
+    });
     for (name, e) in engines {
         let (_, _, state, ledger, counted) = e.savepoint_parts();
         let size = |f: &dyn Fn(&mut crate::savepoint::Writer)| {

@@ -11,7 +11,7 @@ use crate::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 fn setup() -> RunSetup {
     RunSetup {
         schema_version: SCHEMA_VERSION,
-        sim_version: SIM_VERSION,
+        sim_version: 1,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,
