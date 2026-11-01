@@ -50,7 +50,7 @@ pub(crate) fn decode_state(
 /// The coding of one rules module's state: the same text for each version, which owns its types
 /// (ADR-REPL-9). Frozen versions keep their text; a change to the live one is a new version's.
 macro_rules! state_codec {
-    ($sim:ident) => {
+    ($sim:ident, $get:expr) => {
         use crate::$sim::World;
         use crate::$sim::state::State;
 
@@ -262,7 +262,9 @@ macro_rules! state_codec {
             for z in &s.zones {
                 below(z.program.0 as usize, programs, "zone program out of range")?;
             }
-            for o in &s.player.orbits {
+            // The one place the macro reads the player: the accessor each version passes.
+            let player: fn(&State) -> &crate::$sim::state::PlayerState = $get;
+            for o in &player(s).orbits {
                 // The key of an orbit is its reward's place, or `ORBIT_SET_BASE` and a set's place.
                 let in_range = match o.reward.checked_sub(ORBIT_SET_BASE) {
                     None => usize::from(o.reward) < rewards,
@@ -272,7 +274,7 @@ macro_rules! state_codec {
                     return Err(DecodeError::Invalid("orbit reward out of range"));
                 }
             }
-            if let Some(slot) = &s.player.skill {
+            if let Some(slot) = &player(s).skill {
                 below(usize::from(slot.index), skills, "skill index out of range")?;
             }
             if let Some(f) = &s.stars {
@@ -303,9 +305,10 @@ macro_rules! state_codec {
 }
 
 mod v1 {
-    state_codec!(sim_v1);
+    state_codec!(sim_v1, |s| &s.player);
 }
 
 mod v2 {
-    state_codec!(sim);
+    // shim: a run of one has its player at the first place.
+    state_codec!(sim, |s| &s.players[crate::sim::state::PlayerIdx::SOLO]);
 }

@@ -33,6 +33,7 @@ use crate::engine::Outcome;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentKey, AgentSource, State};
 use crate::stage::{Side, ViewEdge};
 
@@ -79,8 +80,8 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
 
     let spawn = stage.boss(boss).boss.spawn;
     let to = stage.map().clamp(Point {
-        x: s.player.at.x,
-        y: s.player
+        x: s.players[PlayerIdx::SOLO].at.x,
+        y: s.players[PlayerIdx::SOLO]
             .at
             .y
             .saturating_add(Fx(-stage.tuning.boss_arrival_above)),
@@ -151,7 +152,7 @@ pub(super) fn spawn_elite(stage: &World, s: &mut State, events: &mut Vec<DomainE
         side: Side::Any,
         along: None,
     };
-    let at = super::edge_point(stage, s.player.at, &mut s.rng.horde, any);
+    let at = super::edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.horde, any);
     let id = EntityId(s.next_id);
     let key = AgentKey {
         source: AgentSource::Wave,

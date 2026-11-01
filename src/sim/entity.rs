@@ -8,6 +8,7 @@ use crate::fixed::Point;
 use crate::id::EntityId;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::rune::Rune;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{DotState, State, StatusKind, StatusState, Statuses};
 
 use super::{MAX_AGGRO, PLAYER_ID, Shot};
@@ -62,7 +63,7 @@ impl State {
 
     pub(super) fn at(&self, who: Who) -> Point {
         match who {
-            Who::Player => self.player.at,
+            Who::Player => self.players[PlayerIdx::SOLO].at,
             Who::Boss => self.boss_state().at,
             // Where the part is: the boss's place and the part's offset (the stage has it).
             Who::BossPart(i) => self.part_at(i),
@@ -73,7 +74,7 @@ impl State {
 
     pub(super) fn hp(&self, who: Who) -> u32 {
         match who {
-            Who::Player => self.player.hp,
+            Who::Player => self.players[PlayerIdx::SOLO].hp,
             Who::Boss => self.boss_state().hp,
             Who::BossPart(i) => self.boss_state().parts[i].hp,
             Who::Companion(i) => self.companions[i].hp,
@@ -83,7 +84,7 @@ impl State {
 
     pub(super) fn hp_mut(&mut self, who: Who) -> &mut u32 {
         match who {
-            Who::Player => &mut self.player.hp,
+            Who::Player => &mut self.players[PlayerIdx::SOLO].hp,
             Who::Boss => &mut self.boss.as_mut().expect("a boss").hp,
             Who::BossPart(i) => &mut self.boss.as_mut().expect("a boss").parts[i].hp,
             Who::Companion(i) => &mut self.companions[i].hp,
@@ -93,7 +94,7 @@ impl State {
 
     pub(super) fn defence(&self, who: Who) -> u32 {
         match who {
-            Who::Player => self.player.defence,
+            Who::Player => self.players[PlayerIdx::SOLO].defence,
             Who::Boss => self.boss_state().defence,
             Who::BossPart(i) => self.boss_state().parts[i].defence,
             Who::Companion(i) => self.companions[i].defence,
@@ -103,7 +104,7 @@ impl State {
 
     pub(super) fn max_hp(&self, who: Who) -> u32 {
         match who {
-            Who::Player => self.player.max_hp,
+            Who::Player => self.players[PlayerIdx::SOLO].max_hp,
             Who::Boss => self.boss_state().max_hp,
             Who::BossPart(i) => self.boss_state().parts[i].max_hp,
             Who::Companion(i) => self.companions[i].max_hp,
@@ -124,7 +125,7 @@ impl State {
     /// Aggro belongs to allies; everything else has none.
     pub(super) fn aggro(&self, who: Who) -> u32 {
         match who {
-            Who::Player => self.player.aggro,
+            Who::Player => self.players[PlayerIdx::SOLO].aggro,
             Who::Companion(i) => self.companions[i].aggro,
             Who::Boss | Who::BossPart(_) | Who::Enemy(_) => 0,
         }
@@ -132,7 +133,7 @@ impl State {
 
     pub(super) fn statuses(&self, who: Who) -> &[StatusState] {
         match who {
-            Who::Player => &self.player.statuses,
+            Who::Player => &self.players[PlayerIdx::SOLO].statuses,
             Who::Boss => &self.boss_state().statuses,
             Who::BossPart(i) => &self.boss_state().parts[i].statuses,
             Who::Companion(i) => &self.companions[i].statuses,
@@ -142,7 +143,7 @@ impl State {
 
     fn statuses_mut(&mut self, who: Who) -> &mut Statuses {
         match who {
-            Who::Player => &mut self.player.statuses,
+            Who::Player => &mut self.players[PlayerIdx::SOLO].statuses,
             Who::Boss => &mut self.boss.as_mut().expect("a boss").statuses,
             Who::BossPart(i) => &mut self.boss.as_mut().expect("a boss").parts[i].statuses,
             Who::Companion(i) => &mut self.companions[i].statuses,
@@ -200,7 +201,7 @@ impl State {
     /// Adds to an ally's aggro (ADR-036), up to a cap. Others have none to raise.
     pub(super) fn raise_aggro(&mut self, id: EntityId, amount: u32) {
         let slot = match self.find_ally(id) {
-            Some(Who::Player) => &mut self.player.aggro,
+            Some(Who::Player) => &mut self.players[PlayerIdx::SOLO].aggro,
             Some(Who::Companion(i)) => &mut self.companions[i].aggro,
             _ => return,
         };
@@ -493,8 +494,8 @@ pub(super) fn tick_statuses_and_aggro(
         list.retain(|st| st.dot.is_some() || st.remaining > 0);
         dots
     }
-    let mut dots = age(&mut s.player.statuses);
-    s.player.aggro = s.player.aggro.saturating_sub(aggro_decay);
+    let mut dots = age(&mut s.players[PlayerIdx::SOLO].statuses);
+    s.players[PlayerIdx::SOLO].aggro = s.players[PlayerIdx::SOLO].aggro.saturating_sub(aggro_decay);
     if let Some(b) = &mut s.boss {
         dots |= age(&mut b.statuses);
         for part in &mut b.parts {

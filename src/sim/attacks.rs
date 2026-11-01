@@ -38,6 +38,7 @@
 //! `MAX_EMITTER_STEPS_PER_TICK` node steps across all of them, after which the rest wait for
 //! the next tick, in order. Orbs and zones are capped as everywhere else.
 
+use crate::sim::state::PlayerIdx;
 use std::ops::Deref;
 
 use crate::attack::{
@@ -154,7 +155,7 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
     const MOST: usize = MAX_RANGED_ATTACKERS as usize;
     let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
     let mut len = [0usize; 2];
-    let player = s.player.at;
+    let player = s.players[PlayerIdx::SOLO].at;
     let centre = super::view_centre(&world.map(), player);
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
@@ -588,7 +589,7 @@ fn launch(world: &World, s: &mut State, launch: Launch, events: &mut Vec<DomainE
     // The main character's type bonuses, each held to the content's limit, which the validator
     // holds to the hard cap; the clamp keeps an unvalidated table there (ADR-100).
     let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
-    let held = &s.player.type_bonus_pct;
+    let held = &s.players[PlayerIdx::SOLO].type_bonus_pct;
     let type_bonus_pct = (owner == Who::Player && held.iter().any(|pct| *pct > 0))
         .then(|| Box::new(held.map(|pct| pct.min(limit))));
     let facing = self::aim(s, s.at(owner), aim);

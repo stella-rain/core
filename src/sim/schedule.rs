@@ -12,6 +12,7 @@ use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::input::Input;
 use crate::rewards::Rewards;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::State;
 
 /// What the steps of a tick read and write: the run's content, its state, the tick's input,
@@ -111,7 +112,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn runes_fly(c: &mut Ctx) {
-        if !c.s.player.runes.is_empty() {
+        if !c.s.players[PlayerIdx::SOLO].runes.is_empty() {
             runes::fly(c.world, c.s);
         }
     }
@@ -153,7 +154,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn runes_steer(c: &mut Ctx) {
-        if !c.s.player.runes.is_empty() {
+        if !c.s.players[PlayerIdx::SOLO].runes.is_empty() {
             runes::steer(c.world, c.s);
         }
     }

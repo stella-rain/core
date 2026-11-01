@@ -16,6 +16,7 @@
 use super::World;
 use crate::event::DomainEvent;
 use crate::rewards::{MAX_ORBITS, MAX_ORBS, Rewards};
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{Dir, OrbitState, PlayerState, State};
 use crate::trig::PER_TURN;
 
@@ -63,8 +64,8 @@ fn facing(angle: i32, j: u8, round: u8) -> Dir {
 
 /// One tick of every orbit held.
 pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
-    for k in 0..s.player.orbits.len() {
-        let mut o = s.player.orbits[k];
+    for k in 0..s.players[PlayerIdx::SOLO].orbits.len() {
+        let mut o = s.players[PlayerIdx::SOLO].orbits[k];
         let Some(def) = rewards.orbit_def(o.reward) else {
             continue;
         };
@@ -105,6 +106,6 @@ pub(super) fn act(stage: &World, rewards: &Rewards, s: &mut State, events: &mut 
             .angle
             .saturating_add(def.turn_per_tick)
             .rem_euclid(PER_TURN);
-        s.player.orbits[k] = o;
+        s.players[PlayerIdx::SOLO].orbits[k] = o;
     }
 }

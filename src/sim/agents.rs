@@ -9,6 +9,7 @@ use crate::behaviour::{Agent, BossCall, Condition, Guardians, Movement, Rule};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{
     AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, Rules,
     ShrineState, State, Statuses, UNLIMITED,
@@ -143,7 +144,12 @@ fn shrines(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         };
         let fight = e.shrine.as_ref().and_then(|sh| sh.fight);
         let Some(fight) = fight else {
-            if !super::overlaps(e.at, def.radius.0, s.player.at, stage.tuning.player_radius) {
+            if !super::overlaps(
+                e.at,
+                def.radius.0,
+                s.players[PlayerIdx::SOLO].at,
+                stage.tuning.player_radius,
+            ) {
                 continue;
             }
             let (home, wave) = (e.at, e.key.index);
@@ -278,7 +284,7 @@ fn reveal(s: &mut State, me: Who, def: &Agent, events: &mut Vec<DomainEvent>) {
     let Some(mimic) = def.elite.as_ref().and_then(|e| e.mimic.as_ref()) else {
         return;
     };
-    let player = s.player.at;
+    let player = s.players[PlayerIdx::SOLO].at;
     let called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
     let id = s.id_of(me);
     let a = agent_mut(s, me);
@@ -304,7 +310,13 @@ fn waits(s: &State, me: Who, def: &Agent) -> bool {
     let (Some(elite), Some(st)) = (def.elite.as_ref(), agent(s, me).elite) else {
         return false;
     };
-    !st.called && !super::overlaps(agent(s, me).at, elite.range.0, s.player.at, 0)
+    !st.called
+        && !super::overlaps(
+            agent(s, me).at,
+            elite.range.0,
+            s.players[PlayerIdx::SOLO].at,
+            0,
+        )
 }
 
 /// The rule states of `me`: an agent's, or the boss's for the phase it is in.
@@ -396,7 +408,9 @@ pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition) -> bool {
             select(s, me, who).is_some_and(|w| s.aggro(w) > *value)
         }
         Condition::TimeAbove { ticks } => time_since_start(s, me) > *ticks,
-        Condition::NearTarget { distance } => super::overlaps(s.at(me), distance.0, s.player.at, 0),
+        Condition::NearTarget { distance } => {
+            super::overlaps(s.at(me), distance.0, s.players[PlayerIdx::SOLO].at, 0)
+        }
         Condition::PartBroken { part } => match &s.boss {
             Some(boss) => boss
                 .parts
@@ -455,7 +469,7 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 /// `Straight` and a `move_to` order are not held back.
 fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
     let map = stage.map();
-    let player_at = s.player.at;
+    let player_at = s.players[PlayerIdx::SOLO].at;
     let attacking = super::attacks::move_pct(stage, s, s.id_of(me));
     if attacking == 0 {
         return;

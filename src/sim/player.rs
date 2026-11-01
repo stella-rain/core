@@ -34,6 +34,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
 use crate::rewards::Rewards;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
 use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
@@ -92,9 +93,9 @@ pub(super) fn update(
     events: &mut Vec<DomainEvent>,
 ) {
     let held = input::held_buttons(input);
-    let pressed = held & !s.player.held;
-    s.player.held = held;
-    let p = &mut s.player;
+    let pressed = held & !s.players[PlayerIdx::SOLO].held;
+    s.players[PlayerIdx::SOLO].held = held;
+    let p = &mut s.players[PlayerIdx::SOLO];
     p.invulnerable = p.invulnerable.saturating_sub(1);
     for t in &mut p.evade_recovering {
         *t -= 1;
@@ -102,23 +103,24 @@ pub(super) fn update(
     p.evade_recovering.retain(|&t| t > 0);
     p.combo.dash_strike_left = p.combo.dash_strike_left.saturating_sub(1);
     skill::tick(s);
-    let p = &mut s.player;
+    let p = &mut s.players[PlayerIdx::SOLO];
     let (x, y) = (input.move_x.max(-STICK_MAX), input.move_y.max(-STICK_MAX));
     if let Some(dir) = stick_direction(x, y) {
         p.facing = dir;
     }
     // The validator lets only defined presets through.
     let main = stage.weapon();
-    s.player.target = match main {
+    s.players[PlayerIdx::SOLO].target = match main {
         Some(m) if input.assist || input.auto => select::assist_target(stage, s, m.assist_range.0),
         _ => None,
     };
-    if pressed & input::EVADE != 0 && s.player.evade_ready() > 0 {
+    if pressed & input::EVADE != 0 && s.players[PlayerIdx::SOLO].evade_ready() > 0 {
         let cooldown = levels::evade_cooldown(s, stage.player.evade.cooldown_ticks);
-        start_evade(stage, &mut s.player, cooldown, events);
+        start_evade(stage, &mut s.players[PlayerIdx::SOLO], cooldown, events);
         cancel(stage, s, events);
         let strike = main.map_or(0, |m| m.dash_strike_ticks);
-        s.player.combo.dash_strike_left = stage.player.evade.ticks.saturating_add(strike);
+        s.players[PlayerIdx::SOLO].combo.dash_strike_left =
+            stage.player.evade.ticks.saturating_add(strike);
     }
     if pressed & input::SKILL != 0 {
         skill::press(stage, rewards, s, input, events);
@@ -126,8 +128,8 @@ pub(super) fn update(
     if let Some(main) = main {
         combo(stage, s, main, input, pressed, events);
     }
-    if s.player.dash.is_some() {
-        dash(stage, &mut s.player);
+    if s.players[PlayerIdx::SOLO].dash.is_some() {
+        dash(stage, &mut s.players[PlayerIdx::SOLO]);
     } else {
         move_player(stage, s, x, y);
     }
@@ -142,13 +144,14 @@ fn move_by(stage: &World, p: &mut PlayerState, dx: i64, dy: i64) {
 }
 
 fn move_player(stage: &World, s: &mut State, x: i8, y: i8) {
-    let keep = speed_pct(&s.player.statuses) * attacks::move_pct(stage, s, s.id_of(Who::Player))
+    let keep = speed_pct(&s.players[PlayerIdx::SOLO].statuses)
+        * attacks::move_pct(stage, s, s.id_of(Who::Player))
         / 100
         * held_move_pct(stage, s)
         / 100;
     let cap = levels::speed(s, i64::from(stage.tuning.player_speed) * keep / 100);
     let (dx, dy) = stick_move(x, y, cap);
-    move_by(stage, &mut s.player, dx, dy);
+    move_by(stage, &mut s.players[PlayerIdx::SOLO], dx, dy);
 }
 
 /// A press with a charge ready dashes along the facing, which is the stick's direction when it
@@ -274,16 +277,16 @@ fn combo(
     pressed: u8,
     events: &mut Vec<DomainEvent>,
 ) {
-    if let Some(ticks) = s.player.combo.charge {
+    if let Some(ticks) = s.players[PlayerIdx::SOLO].combo.charge {
         charging(stage, s, main, input, pressed, ticks, events);
         return;
     }
-    if let Some(ticks) = s.player.combo.hold {
+    if let Some(ticks) = s.players[PlayerIdx::SOLO].combo.hold {
         holding(stage, s, main, input, pressed, ticks, events);
         return;
     }
     if let Some(press) = press_of_pressed(pressed) {
-        s.player.combo.buffered = Some(press);
+        s.players[PlayerIdx::SOLO].combo.buffered = Some(press);
     }
     let me = s.id_of(Who::Player);
     let busy = attacks::busy(s, me, COMBO_SLOT);
@@ -291,31 +294,37 @@ fn combo(
     // step first (ADR-084 points 3 and 6).
     if busy
         && attacks::hold_ready(stage, s, me, COMBO_SLOT)
-        && begins_hold(main, &s.player.combo, input)
+        && begins_hold(main, &s.players[PlayerIdx::SOLO].combo, input)
     {
         begin_hold(stage, s, main, input, events);
         return;
     }
-    if s.player.combo.running && !busy {
-        s.player.combo.running = false;
-        s.player.combo.window_left = main.window_ticks;
+    if s.players[PlayerIdx::SOLO].combo.running && !busy {
+        s.players[PlayerIdx::SOLO].combo.running = false;
+        s.players[PlayerIdx::SOLO].combo.window_left = main.window_ticks;
     }
     // The window counts the ticks after the step on which a press continues the combo; once
     // they are used up, the combo is back at the root before this tick's press.
-    if !busy && s.player.combo.depth > 0 && s.player.combo.window_left == 0 {
-        reset(&mut s.player.combo, events);
+    if !busy
+        && s.players[PlayerIdx::SOLO].combo.depth > 0
+        && s.players[PlayerIdx::SOLO].combo.window_left == 0
+    {
+        reset(&mut s.players[PlayerIdx::SOLO].combo, events);
     }
-    let c = s.player.combo;
-    let (smash, by_hand) = match (c.buffered, auto_press(&c, input, s.player.target.is_some())) {
+    let c = s.players[PlayerIdx::SOLO].combo;
+    let (smash, by_hand) = match (
+        c.buffered,
+        auto_press(&c, input, s.players[PlayerIdx::SOLO].target.is_some()),
+    ) {
         (Some(smash), _) => (smash, true),
         (None, Some(Auto::Next(smash))) => (smash, false),
         (None, Some(Auto::Again)) if !busy => {
-            reset(&mut s.player.combo, events);
+            reset(&mut s.players[PlayerIdx::SOLO].combo, events);
             (c.auto_path & 1 == 1, false)
         }
         _ => {
             if !busy && c.depth > 0 {
-                s.player.combo.window_left -= 1;
+                s.players[PlayerIdx::SOLO].combo.window_left -= 1;
             }
             return;
         }
@@ -374,14 +383,16 @@ fn begin_hold(
 ) {
     let me = s.id_of(Who::Player);
     attacks::end_run(stage, s, me, COMBO_SLOT);
-    s.player.combo.hold = Some(0);
+    s.players[PlayerIdx::SOLO].combo.hold = Some(0);
     spin(stage, s, main, input, events);
 }
 
 /// The loop starts again, as a new attack: its facing is the main character's as it starts
 /// (ADR-069), or the target's with aim assist on (ADR-072).
 fn spin(stage: &World, s: &mut State, main: &Weapon, input: Input, events: &mut Vec<DomainEvent>) {
-    let Some(hold) = step_at(main, &s.player.combo).and_then(|st| st.hold.as_ref()) else {
+    let Some(hold) =
+        step_at(main, &s.players[PlayerIdx::SOLO].combo).and_then(|st| st.hold.as_ref())
+    else {
         return;
     };
     strike(stage, s, &hold.loop_attack, 0, input.assist, events);
@@ -400,11 +411,11 @@ fn holding(
     events: &mut Vec<DomainEvent>,
 ) {
     if let Some(press) = press_of_pressed(pressed) {
-        s.player.combo.buffered = Some(press);
+        s.players[PlayerIdx::SOLO].combo.buffered = Some(press);
     }
-    let c = s.player.combo;
+    let c = s.players[PlayerIdx::SOLO].combo;
     let Some(hold) = step_at(main, &c).and_then(|st| st.hold.as_ref()) else {
-        s.player.combo.hold = None;
+        s.players[PlayerIdx::SOLO].combo.hold = None;
         return;
     };
     let still = if last_press_smash(&c) {
@@ -421,7 +432,7 @@ fn holding(
         release_hold(stage, s, hold, held, input, events);
         return;
     }
-    s.player.combo.hold = Some(held);
+    s.players[PlayerIdx::SOLO].combo.hold = Some(held);
     if !attacks::busy(s, s.id_of(Who::Player), COMBO_SLOT) {
         spin(stage, s, main, input, events);
     }
@@ -439,8 +450,8 @@ fn release_hold(
 ) {
     let me = s.id_of(Who::Player);
     attacks::end_run(stage, s, me, COMBO_SLOT);
-    s.player.combo.hold = None;
-    s.player.combo.released = true;
+    s.players[PlayerIdx::SOLO].combo.hold = None;
+    s.players[PlayerIdx::SOLO].combo.released = true;
     strike(stage, s, &hold.release, 0, input.assist, events);
     events.push(DomainEvent::HoldReleased { ticks });
 }
@@ -499,7 +510,7 @@ fn take_step(
     input: Input,
     events: &mut Vec<DomainEvent>,
 ) {
-    let c = &mut s.player.combo;
+    let c = &mut s.players[PlayerIdx::SOLO].combo;
     c.buffered = None;
     c.released = false;
     let onward = step_at(main, c).is_some_and(|st| st.next.get(smash).is_some());
@@ -532,11 +543,14 @@ fn take_step(
     let held = by_hand && if smash { input.smash } else { input.main };
     // Auto mode charges a step to the level recorded for it, with no button (ADR-114).
     let auto_level = step.charge.as_ref().filter(|_| !by_hand).map_or(0, |_| {
-        level_of(s.player.combo.levels, s.player.combo.depth - 1)
+        level_of(
+            s.players[PlayerIdx::SOLO].combo.levels,
+            s.players[PlayerIdx::SOLO].combo.depth - 1,
+        )
     });
     if step.charge.is_some() && (held || auto_level > 0) {
-        s.player.combo.charge = Some(0);
-        s.player.combo.charge_auto = !held;
+        s.players[PlayerIdx::SOLO].combo.charge = Some(0);
+        s.players[PlayerIdx::SOLO].combo.charge_auto = !held;
     } else {
         strike(stage, s, &step.attack, 0, input.assist || !by_hand, events);
     }
@@ -556,11 +570,11 @@ fn strike(
     events: &mut Vec<DomainEvent>,
 ) {
     if aim {
-        if let Some(dir) = s.player.target.and_then(|t| toward(s, t)) {
-            s.player.facing = dir;
+        if let Some(dir) = s.players[PlayerIdx::SOLO].target.and_then(|t| toward(s, t)) {
+            s.players[PlayerIdx::SOLO].facing = dir;
         }
     }
-    let smash = if last_press_smash(&s.player.combo) {
+    let smash = if last_press_smash(&s.players[PlayerIdx::SOLO].combo) {
         stage
             .weapon()
             .and_then(|w| w.smash)
@@ -582,15 +596,14 @@ fn strike(
     let strike = attacks::Strike {
         bonus_pct,
         speed_pct: levels::attack_speed(s),
-        range_pct: s
-            .player
+        range_pct: s.players[PlayerIdx::SOLO]
             .range_pct
             .saturating_add(s.expertise.as_ref().map_or(0, |g| g.range_pct)),
         smash,
     };
-    let facing = s.player.facing;
+    let facing = s.players[PlayerIdx::SOLO].facing;
     let damage = levels::attack(s, stage.player.atk);
-    s.player.combo.running =
+    s.players[PlayerIdx::SOLO].combo.running =
         attacks::start_player(stage, s, COMBO_SLOT, facing, attack, damage, strike, events);
 }
 
@@ -598,7 +611,7 @@ fn strike(
 /// the main character's centre.
 pub(super) fn toward(s: &State, target: EntityId) -> Option<Dir> {
     let to = s.at(s.find(target)?);
-    let from = s.player.at;
+    let from = s.players[PlayerIdx::SOLO].at;
     let (dx, dy) = (
         i64::from(to.x.0) - i64::from(from.x.0),
         i64::from(to.y.0) - i64::from(from.y.0),
@@ -628,16 +641,18 @@ fn in_perfect_window(charge: &Charge, held: u32) -> bool {
 
 /// The current step's charge, if it is charging.
 fn current_charge<'a>(stage: &'a World, s: &State) -> Option<&'a Charge> {
-    s.player.combo.charge?;
+    s.players[PlayerIdx::SOLO].combo.charge?;
     let main = stage.weapon()?;
-    step_at(main, &s.player.combo)?.charge.as_ref()
+    step_at(main, &s.players[PlayerIdx::SOLO].combo)?
+        .charge
+        .as_ref()
 }
 
 /// The charge's view for the snapshot: its level (0 before level 1), ticks held and whether
 /// this tick is inside a perfect window.
 pub(crate) fn charge_view(stage: &World, s: &State) -> Option<(u8, u32, bool)> {
-    let held = s.player.combo.charge?;
-    if s.player.combo.charge_auto {
+    let held = s.players[PlayerIdx::SOLO].combo.charge?;
+    if s.players[PlayerIdx::SOLO].combo.charge_auto {
         return None;
     }
     let charge = current_charge(stage, s)?;
@@ -651,7 +666,7 @@ pub(crate) fn charge_view(stage: &World, s: &State) -> Option<(u8, u32, bool)> {
 /// The level auto mode is charging the current step to (ADR-114), if it is charging: the
 /// snapshot's `auto_charge`, which leaves `charge` for hand charges only.
 pub(crate) fn auto_charge_view(s: &State) -> Option<u8> {
-    let c = &s.player.combo;
+    let c = &s.players[PlayerIdx::SOLO].combo;
     (c.charge.is_some() && c.charge_auto).then(|| level_of(c.levels, c.depth.saturating_sub(1)))
 }
 
@@ -666,15 +681,15 @@ fn charging(
     held: u32,
     events: &mut Vec<DomainEvent>,
 ) {
-    let c = s.player.combo;
+    let c = s.players[PlayerIdx::SOLO].combo;
     let Some(step) = step_at(main, &c) else {
-        s.player.combo.charge = None;
-        s.player.combo.charge_auto = false;
+        s.players[PlayerIdx::SOLO].combo.charge = None;
+        s.players[PlayerIdx::SOLO].combo.charge_auto = false;
         return;
     };
     let Some(charge) = &step.charge else {
-        s.player.combo.charge = None;
-        s.player.combo.charge_auto = false;
+        s.players[PlayerIdx::SOLO].combo.charge = None;
+        s.players[PlayerIdx::SOLO].combo.charge_auto = false;
         return;
     };
     if c.charge_auto {
@@ -682,14 +697,14 @@ fn charging(
         // the button does not matter; it lets go on the tick the recorded level is reached,
         // never judged for the perfect bonus.
         if let Some(press) = press_of_pressed(pressed) {
-            s.player.combo.buffered = Some(press);
+            s.players[PlayerIdx::SOLO].combo.buffered = Some(press);
         }
         let held = held.saturating_add(1);
         let target = usize::from(level_of(c.levels, c.depth - 1)).min(charge.levels.len());
         if level_at(charge, held) >= target || held >= charge.max_ticks {
             release(stage, s, step, charge, held, false, true, events);
         } else {
-            s.player.combo.charge = Some(held);
+            s.players[PlayerIdx::SOLO].combo.charge = Some(held);
         }
         return;
     }
@@ -706,7 +721,7 @@ fn charging(
     if held >= charge.max_ticks {
         release(stage, s, step, charge, held, false, input.assist, events);
     } else {
-        s.player.combo.charge = Some(held);
+        s.players[PlayerIdx::SOLO].combo.charge = Some(held);
     }
 }
 
@@ -724,10 +739,10 @@ fn release(
     aim: bool,
     events: &mut Vec<DomainEvent>,
 ) {
-    s.player.combo.charge = None;
-    s.player.combo.charge_auto = false;
+    s.players[PlayerIdx::SOLO].combo.charge = None;
+    s.players[PlayerIdx::SOLO].combo.charge_auto = false;
     let level = level_at(charge, held);
-    let c = &mut s.player.combo;
+    let c = &mut s.players[PlayerIdx::SOLO].combo;
     c.levels = with_level(
         c.levels,
         c.depth.saturating_sub(1),
@@ -755,7 +770,7 @@ fn release(
 fn cancel(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let me = s.id_of(Who::Player);
     attacks::end_run(stage, s, me, COMBO_SLOT);
-    let c = &mut s.player.combo;
+    let c = &mut s.players[PlayerIdx::SOLO].combo;
     if c.charge.take().is_some() {
         events.push(DomainEvent::ChargeBroken);
     }
@@ -772,8 +787,8 @@ fn cancel(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
 /// ADR-084 point 6).
 pub(super) fn break_charge(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let me = s.id_of(Who::Player);
-    let charging = s.player.combo.charge.take().is_some();
-    let holding = s.player.combo.hold.take().is_some();
+    let charging = s.players[PlayerIdx::SOLO].combo.charge.take().is_some();
+    let holding = s.players[PlayerIdx::SOLO].combo.hold.take().is_some();
     if !charging && !holding {
         return;
     }
@@ -784,7 +799,7 @@ pub(super) fn break_charge(stage: &World, s: &mut State, events: &mut Vec<Domain
     if charging {
         events.push(DomainEvent::ChargeBroken);
     }
-    let c = &mut s.player.combo;
+    let c = &mut s.players[PlayerIdx::SOLO].combo;
     c.buffered = None;
     reset(c, events);
 }
@@ -800,14 +815,16 @@ fn held_move_pct(stage: &World, s: &State) -> i64 {
 
 /// The current step's hold, if it is held.
 fn current_hold<'a>(stage: &'a World, s: &State) -> Option<&'a Hold> {
-    s.player.combo.hold?;
+    s.players[PlayerIdx::SOLO].combo.hold?;
     let main = stage.weapon()?;
-    step_at(main, &s.player.combo)?.hold.as_ref()
+    step_at(main, &s.players[PlayerIdx::SOLO].combo)?
+        .hold
+        .as_ref()
 }
 
 /// The hold's view for the snapshot (ADR-084 point 9): the ticks held and the most it can last.
 pub(crate) fn hold_view(stage: &World, s: &State) -> Option<(u32, u32)> {
-    let held = s.player.combo.hold?;
+    let held = s.players[PlayerIdx::SOLO].combo.hold?;
     Some((held, current_hold(stage, s)?.max_ticks))
 }
 
@@ -819,7 +836,7 @@ fn presses_of(path: u32, depth: u8) -> Vec<Press> {
 /// The combo's view for the snapshot: the presses from the root, whether it began in the dash
 /// branch, the buffered press, the window's ticks left and the auto combo.
 pub(crate) fn combo_view(s: &State) -> (Vec<Press>, bool, Option<Press>, u32, Vec<Press>) {
-    let c = &s.player.combo;
+    let c = &s.players[PlayerIdx::SOLO].combo;
     (
         presses_of(c.path, c.depth),
         c.dash,

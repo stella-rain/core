@@ -75,7 +75,8 @@ pub(crate) struct State {
     pub tick: u32,
     pub rng: Streams,
     pub outcome: Outcome,
-    pub player: PlayerState,
+    /// The players, in entity-ID order (`PlayerIdx::id`): one now (ADR-SIM-12).
+    pub players: Players,
     pub boss: Option<BossState>,
     /// The allies that act on their own, in entity-ID order.
     pub companions: Vec<AgentState>,
@@ -311,6 +312,96 @@ pub(crate) struct Progress {
     pub spent: Vec<u8>,
     /// What the points spent add up to for each effect, in `StatEffect::ALL` order.
     pub totals: [u32; StatEffect::ALL.len()],
+}
+
+/// The most players a run holds (ADR-SIM-12 point 1). A code cap, not a tuning number.
+pub(crate) const MAX_PLAYERS: u8 = 3;
+
+/// Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the
+/// companions come after the players.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct PlayerIdx(u8);
+
+impl PlayerIdx {
+    /// The only player of a run of one.
+    pub(crate) const SOLO: PlayerIdx = PlayerIdx(0);
+
+    /// Player `i`, if a run can hold that many.
+    #[cfg(test)]
+    pub(crate) fn new(i: u8) -> Option<PlayerIdx> {
+        (i < MAX_PLAYERS).then_some(PlayerIdx(i))
+    }
+
+    pub(crate) fn get(self) -> usize {
+        usize::from(self.0)
+    }
+
+    /// The entity ID of this player.
+    pub(crate) fn id(self) -> EntityId {
+        EntityId(u32::from(self.0))
+    }
+
+    /// The player that entity `id` is, in a party of `party` players.
+    pub(crate) fn of_id(id: EntityId, party: usize) -> Option<PlayerIdx> {
+        let i = u8::try_from(id.0).ok()?;
+        (usize::from(i) < party).then_some(PlayerIdx(i))
+    }
+}
+
+/// The players of a run: `1..=MAX_PLAYERS` of them, with room for all reserved at the start, so
+/// that a steady tick allocates nothing.
+#[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) struct Players(Vec<PlayerState>);
+
+impl Players {
+    pub(crate) fn solo(p: PlayerState) -> Players {
+        let mut v = Vec::with_capacity(usize::from(MAX_PLAYERS));
+        v.push(p);
+        Players(v)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn of(ps: Vec<PlayerState>) -> Option<Players> {
+        if ps.is_empty() || ps.len() > usize::from(MAX_PLAYERS) {
+            return None;
+        }
+        let mut v = Vec::with_capacity(usize::from(MAX_PLAYERS));
+        v.extend(ps);
+        Some(Players(v))
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub(crate) fn indices(&self) -> impl Iterator<Item = PlayerIdx> + use<> {
+        (0..self.0.len()).map(|i| PlayerIdx(u8::try_from(i).unwrap_or(u8::MAX)))
+    }
+
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, PlayerState> {
+        self.0.iter()
+    }
+
+    /// Players 1 and up.
+    pub(crate) fn others(&self) -> &[PlayerState] {
+        &self.0[1..]
+    }
+}
+
+impl std::ops::Index<PlayerIdx> for Players {
+    type Output = PlayerState;
+    #[inline]
+    fn index(&self, i: PlayerIdx) -> &PlayerState {
+        &self.0[i.get()]
+    }
+}
+
+impl std::ops::IndexMut<PlayerIdx> for Players {
+    #[inline]
+    fn index_mut(&mut self, i: PlayerIdx) -> &mut PlayerState {
+        &mut self.0[i.get()]
+    }
 }
 
 #[derive(Clone, Debug)]

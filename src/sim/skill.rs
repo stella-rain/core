@@ -22,6 +22,7 @@ use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::input::Input;
 use crate::rewards::Rewards;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{Dir, PlayerState, PullState, ShieldState, SkillSlot, State, StatusKind};
 use crate::stage_skill::{MAX_SKILL_EFFECTS, MAX_SKILL_LEVELS, SkillEffect};
 use crate::trig::SCALE;
@@ -38,7 +39,7 @@ pub(super) const SKILL_SLOT: u8 = 1;
 /// The timers of the slot, the pull and the shield run down a tick; the pull and the shield end
 /// when theirs reach 0.
 pub(super) fn tick(s: &mut State) {
-    let p = &mut s.player;
+    let p = &mut s.players[PlayerIdx::SOLO];
     if let Some(slot) = &mut p.skill {
         slot.cooldown_left = slot.cooldown_left.saturating_sub(1);
     }
@@ -84,11 +85,14 @@ pub(super) fn take(rewards: &Rewards, p: &mut PlayerState, index: usize, levels:
 /// facing.
 fn aim(s: &State, input: Input) -> Dir {
     if input.assist {
-        if let Some(dir) = s.player.target.and_then(|t| player::toward(s, t)) {
+        if let Some(dir) = s.players[PlayerIdx::SOLO]
+            .target
+            .and_then(|t| player::toward(s, t))
+        {
             return dir;
         }
     }
-    s.player.facing
+    s.players[PlayerIdx::SOLO].facing
 }
 
 /// `ticks` shortened by `pct` percent, the percent held to `MAX_SKILL_COOLDOWN_TOTAL_PCT` so a
@@ -110,7 +114,7 @@ pub(super) fn press(
     input: Input,
     events: &mut Vec<DomainEvent>,
 ) {
-    let Some(slot) = s.player.skill else {
+    let Some(slot) = s.players[PlayerIdx::SOLO].skill else {
         return;
     };
     if slot.cooldown_left > 0 {
@@ -127,17 +131,20 @@ pub(super) fn press(
     let ahead = i64::from(def.ahead.0);
     // `ahead` is at most 512 pixels and the direction at most `SCALE` long.
     let point = stage.map().clamp(Point {
-        x: s.player
+        x: s.players[PlayerIdx::SOLO]
             .at
             .x
             .saturating_add(Fx::from_wide(i64::from(dir.x) * ahead / scale)),
-        y: s.player
+        y: s.players[PlayerIdx::SOLO]
             .at
             .y
             .saturating_add(Fx::from_wide(i64::from(dir.y) * ahead / scale)),
     });
-    s.player.skill = Some(SkillSlot {
-        cooldown_left: shortened(level.cooldown_ticks, s.player.skill_cooldown_pct),
+    s.players[PlayerIdx::SOLO].skill = Some(SkillSlot {
+        cooldown_left: shortened(
+            level.cooldown_ticks,
+            s.players[PlayerIdx::SOLO].skill_cooldown_pct,
+        ),
         ..slot
     });
     events.push(DomainEvent::StageSkillUsed {
@@ -165,7 +172,7 @@ fn apply(
             strength,
             duration_ticks,
         } => {
-            s.player.pull = Some(PullState {
+            s.players[PlayerIdx::SOLO].pull = Some(PullState {
                 at: point,
                 radius: radius.0,
                 strength: strength.0,
@@ -217,7 +224,7 @@ fn apply(
             amount,
             duration_ticks,
         } => {
-            s.player.shield = Some(ShieldState {
+            s.players[PlayerIdx::SOLO].shield = Some(ShieldState {
                 amount: *amount,
                 ticks_left: *duration_ticks,
             });
@@ -252,7 +259,7 @@ fn within(stage: &World, s: &State, at: Point, radius: i32) -> Vec<Who> {
 
 /// The pull's step for this tick, after the enemies have moved and pushed apart.
 pub(super) fn pull(stage: &World, s: &mut State) {
-    let Some(b) = s.player.pull else {
+    let Some(b) = s.players[PlayerIdx::SOLO].pull else {
         return;
     };
     let map = stage.map();
@@ -283,7 +290,7 @@ pub(super) fn pull(stage: &World, s: &mut State) {
 /// The part of `damage` to the main character the shield absorbs; what is left of it. A
 /// shield with nothing left is gone.
 pub(super) fn absorb(s: &mut State, damage: u32) -> u32 {
-    let p = &mut s.player;
+    let p = &mut s.players[PlayerIdx::SOLO];
     let Some(sh) = &mut p.shield else {
         return damage;
     };

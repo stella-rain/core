@@ -9,6 +9,7 @@ use crate::event::HitKind;
 use crate::hash::{StableHash, StateHasher};
 use crate::id::EntityId;
 use crate::input::Input;
+use crate::savepoint::codec::{Encode, Writer};
 use crate::sim::entity::Who;
 
 fn engines() -> [Engine; 3] {
@@ -89,7 +90,7 @@ fn a_second_player_is_a_tail_of_the_hash() {
 fn a_state_of_two_players_is_not_a_savepoint() {
     let e = worst_case::warmed_up();
     let s2 = two_players(live(&e).1);
-    let _ = super::state_codec::encode_for_test(&s2);
+    s2.encode(&mut Writer::new());
 }
 
 #[test]
@@ -106,7 +107,14 @@ fn a_system_acts_on_the_player_it_is_given() {
     let before0 = s2.players[PlayerIdx::SOLO].clone();
     let mut events = Vec::new();
     let mut solo = s.clone();
-    player::update(world, rewards, &mut solo, PlayerIdx::SOLO, input, &mut events);
+    player::update(
+        world,
+        rewards,
+        &mut solo,
+        PlayerIdx::SOLO,
+        input,
+        &mut events,
+    );
     player::update(world, rewards, &mut s2, p1(), input, &mut events);
     assert_eq!(s2.players[PlayerIdx::SOLO], before0);
     assert_eq!(s2.players[p1()].at, solo.players[PlayerIdx::SOLO].at);

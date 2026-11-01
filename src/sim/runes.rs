@@ -50,6 +50,7 @@
 //! of `StatusKind`'s kinds, and the enemies at most `World::enemy_cap` of each.
 
 use super::World;
+use crate::sim::state::PlayerIdx;
 
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -90,7 +91,7 @@ pub(super) fn of_run(r: &crate::sim::state::AttackRun) -> Option<Rune> {
 
 /// Every on-hit rune's cooldown counts down by a tick.
 pub(super) fn tick(s: &mut State) {
-    for r in &mut s.player.runes {
+    for r in &mut s.players[PlayerIdx::SOLO].runes {
         r.cooldown_left = r.cooldown_left.saturating_sub(1);
     }
 }
@@ -104,11 +105,11 @@ pub(super) fn on_hit(
     at: Point,
     events: &mut Vec<DomainEvent>,
 ) {
-    for i in 0..s.player.runes.len() {
+    for i in 0..s.players[PlayerIdx::SOLO].runes.len() {
         let HeldRune {
             rune,
             cooldown_left,
-        } = s.player.runes[i];
+        } = s.players[PlayerIdx::SOLO].runes[i];
         if cooldown_left > 0 {
             continue;
         }
@@ -119,23 +120,29 @@ pub(super) fn on_hit(
         // there. Rune Haste shortens it as it is set.
         let cooldown = rune_haste_ticks(
             entry.cooldown_ticks.min(MAX_RUNE_COOLDOWN_TICKS),
-            s.player.rune_haste_pct.min(s.max_rune_haste_pct),
+            s.players[PlayerIdx::SOLO]
+                .rune_haste_pct
+                .min(s.max_rune_haste_pct),
         );
         let damage = entry.damage;
         let Some(attack) = stage.rune_attacks[usize::from(rune.index())] else {
             continue;
         };
         let slot = FIRST_SLOT.saturating_add(rune.index());
-        let facing = s.player.facing;
+        let facing = s.players[PlayerIdx::SOLO].facing;
         if rune == Rune::HomingMissiles {
             let (missiles, range) = (entry.missiles.unwrap_or(1), entry.range.unwrap_or(Fx(0)));
             if launch(stage, s, hit, at, missiles, range, attack, damage, events) {
-                s.player.runes[i].cooldown_left = cooldown;
+                s.players[PlayerIdx::SOLO].runes[i].cooldown_left = cooldown;
             }
             continue;
         }
         let thrown = rune == Rune::Boomerang;
-        let from = if thrown { s.player.at } else { at };
+        let from = if thrown {
+            s.players[PlayerIdx::SOLO].at
+        } else {
+            at
+        };
         if attacks::start_rune(stage, s, slot, from, facing, attack, damage, events) {
             if thrown {
                 // It was pushed last; its first step counts the tick it is thrown on.
@@ -146,7 +153,7 @@ pub(super) fn on_hit(
                     fly_one(stage, s, r);
                 }
             }
-            s.player.runes[i].cooldown_left = cooldown;
+            s.players[PlayerIdx::SOLO].runes[i].cooldown_left = cooldown;
         }
     }
 }
@@ -154,8 +161,8 @@ pub(super) fn on_hit(
 /// A combo step hit `target`, which still stands: each damage-over-time rune held puts its
 /// status on it, in the order held.
 pub(super) fn apply_dots(s: &mut State, target: Who, events: &mut Vec<DomainEvent>) {
-    for i in 0..s.player.runes.len() {
-        let rune = s.player.runes[i].rune;
+    for i in 0..s.players[PlayerIdx::SOLO].runes.len() {
+        let rune = s.players[PlayerIdx::SOLO].runes[i].rune;
         apply_dot(s, target, rune, events);
     }
 }
@@ -182,7 +189,9 @@ fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEven
     // The validator holds every number to its cap; the clamps keep an unvalidated file there.
     let interval = rune_haste_ticks(
         entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS),
-        s.player.rune_haste_pct.min(s.max_rune_haste_pct),
+        s.players[PlayerIdx::SOLO]
+            .rune_haste_pct
+            .min(s.max_rune_haste_pct),
     );
     let duration = entry.duration_ticks.clamp(1, MAX_DOT_DURATION_TICKS);
     let max_stacks = u16::try_from(entry.max_stacks.clamp(1, MAX_DOT_STACKS)).unwrap_or(1);
@@ -190,10 +199,10 @@ fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEven
     let dot = DotState {
         damage: entry.damage.min(MAX_DAMAGE),
         damage_type: entry.damage_type,
-        atk_up_pct: status_pct(&s.player.statuses, StatusKind::AtkUp),
-        type_bonus_pct: entry
-            .damage_type
-            .map_or(0, |ty| s.player.type_bonus_pct[ty.index()].min(limit)),
+        atk_up_pct: status_pct(&s.players[PlayerIdx::SOLO].statuses, StatusKind::AtkUp),
+        type_bonus_pct: entry.damage_type.map_or(0, |ty| {
+            s.players[PlayerIdx::SOLO].type_bonus_pct[ty.index()].min(limit)
+        }),
         interval,
         next_in: interval,
     };
@@ -223,7 +232,10 @@ fn launch(
         return false;
     }
     let targets = select::assist_targets(stage, s, range, usize::from(n));
-    let (from, facing) = (s.player.at, s.player.facing);
+    let (from, facing) = (
+        s.players[PlayerIdx::SOLO].at,
+        s.players[PlayerIdx::SOLO].facing,
+    );
     for k in 0..n {
         let target = match targets.len() {
             0 => hit,
@@ -271,7 +283,7 @@ pub(super) fn steer(stage: &World, s: &mut State) {
 /// Run `i`'s centre goes the distance left to its goal over the phase's ticks left, this one
 /// counted, so that it is there on the phase's last tick.
 fn fly_one(stage: &World, s: &mut State, i: usize) {
-    let to_player = s.player.at;
+    let to_player = s.players[PlayerIdx::SOLO].at;
     let r = &mut s.runs[i];
     let (Some(at), Some(turn)) = (r.at, r.throw) else {
         return;

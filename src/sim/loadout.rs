@@ -12,6 +12,7 @@ use crate::rewards::Rewards;
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
 use crate::rune::{MAX_RUNES, Rune};
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{HeldRune, State};
 
 use super::{levels, runes, stars};
@@ -65,10 +66,11 @@ pub(crate) fn apply(stage: &World, rewards: &Rewards, s: &mut State, loadout: &L
         rng,
         stars,
         progress,
-        player,
+        players,
         regen,
         ..
     } = s;
+    let player = &mut players[PlayerIdx::SOLO];
     if let Some(f) = stars.as_mut() {
         for &i in &loadout.carried {
             stars::take(
@@ -110,7 +112,7 @@ fn perk(s: &mut State, entry: PerkEntry) {
         }
         effect => {
             if let (Some(effect), Some(p)) = (effect.stat(), s.progress.as_mut()) {
-                levels::add_effect(p, &mut s.player, effect, amount);
+                levels::add_effect(p, &mut s.players[PlayerIdx::SOLO], effect, amount);
             }
         }
     }
@@ -119,6 +121,9 @@ fn perk(s: &mut State, entry: PerkEntry) {
 /// A second has passed: the main character gets its regeneration back, never beyond the most.
 pub(super) fn regen(s: &mut State) {
     if s.regen > 0 && s.tick % REGEN_TICKS == 0 {
-        s.player.hp = s.player.hp.saturating_add(s.regen).min(s.player.max_hp);
+        s.players[PlayerIdx::SOLO].hp = s.players[PlayerIdx::SOLO]
+            .hp
+            .saturating_add(s.regen)
+            .min(s.players[PlayerIdx::SOLO].max_hp);
     }
 }

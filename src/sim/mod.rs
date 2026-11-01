@@ -121,8 +121,6 @@ mod orbit;
 mod player;
 #[cfg(test)]
 mod players_pin_tests;
-#[cfg(test)]
-mod players_tests;
 mod push;
 mod runes;
 mod schedule;
@@ -163,6 +161,7 @@ use crate::sim::state::{
     AgentKey, AgentSource, BossState, Dir, MoveOrder, PartState, PlayerState, Progress, Pull,
     Smash, StarField, StatRule, State, Streams,
 };
+use crate::sim::state::{PlayerIdx, Players};
 use crate::snapshot::{EntityKind, OfferOption};
 use crate::stage::{Side, ViewEdge};
 use crate::trig;
@@ -337,7 +336,9 @@ fn unreserved_state(
 ) -> State {
     let run_stats = content.run_stats();
     let rewards = content.rewards().rewards().len();
-    let mut next_id = 1;
+    // The players take the first entity IDs, the boss and the companions come after them.
+    let players = 1;
+    let mut next_id = players;
     let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
         next_id += 1;
@@ -386,7 +387,7 @@ fn unreserved_state(
         tick: 0,
         rng: Streams::new(seed),
         outcome: Outcome::Running,
-        player: PlayerState {
+        players: Players::solo(PlayerState {
             at: start,
             hp: stage.player.hp,
             max_hp: stage.player.hp,
@@ -430,7 +431,7 @@ fn unreserved_state(
             runes: Vec::new(),
             aggro: 0,
             statuses: Default::default(),
-        },
+        }),
         boss,
         companions,
         enemies: Vec::new(),
@@ -749,10 +750,10 @@ fn spawn_wave(stage: &World, s: &mut State, i: usize) {
         rule: 0,
     };
     let at = match (wave.edge, wave.spawn) {
-        (Some(edge), _) => edge_point(stage, s.player.at, &mut s.rng.spawn, edge),
+        (Some(edge), _) => edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.spawn, edge),
         (None, Some(p)) => p,
         // The validator refuses a wave with neither.
-        (None, None) => s.player.at,
+        (None, None) => s.players[PlayerIdx::SOLO].at,
     };
     spawn_enemy(stage, s, key, at);
 }
@@ -1163,12 +1164,12 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
     // The common case, with no combat reward held, pays for one comparison (ADR-058).
-    let crit = s.player.crit_chance_pct != 0
+    let crit = s.players[PlayerIdx::SOLO].crit_chance_pct != 0
         && combat::crits(s, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
         combat::crit_damage(
             b.damage,
-            s.player.crit_damage_pct,
+            s.players[PlayerIdx::SOLO].crit_damage_pct,
             stage.tuning.crit_damage_base_pct,
         )
     } else {
@@ -1199,7 +1200,7 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     });
     if dead {
         events.push(death_event(s, target, id));
-    } else if s.player.echo_hit_pct != 0 {
+    } else if s.players[PlayerIdx::SOLO].echo_hit_pct != 0 {
         combat::queue_echo(s, &b, id, dealt, !State::is_ally(target));
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(stage.tuning.aggro_per_damage));
@@ -1211,7 +1212,7 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         if let Some(Smash::Stun { ticks }) = b.smash.filter(|_| !dead) {
             stun::apply(stage, s, target, b.owner, ticks, events);
         }
-        if !s.player.runes.is_empty() {
+        if !s.players[PlayerIdx::SOLO].runes.is_empty() {
             if !dead {
                 runes::apply_dots(s, target, events);
             }
@@ -1294,7 +1295,7 @@ pub(super) fn pull_enemy(stage: &World, s: &mut State, i: usize, pull: Pull) {
     if e.hp == 0 || e.elite.is_some() {
         return;
     }
-    let to = s.player.at;
+    let to = s.players[PlayerIdx::SOLO].at;
     let (dx, dy) = (
         i64::from(e.at.x.0) - i64::from(to.x.0),
         i64::from(e.at.y.0) - i64::from(to.y.0),
@@ -1327,7 +1328,7 @@ pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
     if e.hp == 0 || e.elite.is_some() {
         return;
     }
-    let from = s.player.at;
+    let from = s.players[PlayerIdx::SOLO].at;
     let (dx, dy) = (
         i64::from(e.at.x.0) - i64::from(from.x.0),
         i64::from(e.at.y.0) - i64::from(from.y.0),
@@ -1379,7 +1380,7 @@ impl Blame {
 /// then invulnerable for a while.
 fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Vec<DomainEvent>) {
     let vulnerable = status_pct(
-        &s.player.statuses,
+        &s.players[PlayerIdx::SOLO].statuses,
         crate::sim::state::StatusKind::Vulnerable,
     );
     // The main character has no profile (ADR-100): every hit on it is neutral.
@@ -1389,11 +1390,11 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Ve
         0,
         vulnerable,
         0,
-        s.player.defence,
+        s.players[PlayerIdx::SOLO].defence,
         stage.tuning.defence_k,
     );
     let dealt = skill::absorb(s, dealt);
-    let p = &mut s.player;
+    let p = &mut s.players[PlayerIdx::SOLO];
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = stage.tuning.hit_invulnerable_ticks;
     events.push(DomainEvent::PlayerHit {
@@ -1482,7 +1483,7 @@ fn hit_ally_side(
     by: Blame,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    let p = &s.player;
+    let p = &s.players[PlayerIdx::SOLO];
     if p.invulnerable == 0
         && p.hp > 0
         && overlaps(
@@ -1508,7 +1509,7 @@ fn hit_ally_side(
 
 /// The main character's death wins over a clear on the same tick.
 fn decide_outcome(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    if s.player.hp == 0 {
+    if s.players[PlayerIdx::SOLO].hp == 0 {
         s.outcome = Outcome::Failed;
         events.push(DomainEvent::StageFailed);
         return;

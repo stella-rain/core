@@ -6,6 +6,7 @@
 //! an enemy's `nearest_ally` is the nearest of them. Enemies are the enemies and the boss.
 
 use super::World;
+use crate::sim::state::PlayerIdx;
 use std::cmp::Reverse;
 
 use crate::behaviour::Selector;
@@ -70,7 +71,7 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
 /// elite, then any other enemy; within a class the nearest, then the lower entity ID. One pass
 /// over the enemies, at most the enemy cap (ADR-020).
 pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<EntityId> {
-    let from = s.player.at;
+    let from = s.players[PlayerIdx::SOLO].at;
     let mut best: Option<(u8, u64, EntityId)> = None;
     let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
         if !overlaps(from, range, at, radius) {
@@ -104,7 +105,7 @@ pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<Enti
 /// (ADR-099). One pass over the enemies, each set against at most `n` kept. Its own walk, so
 /// that aim assist's stays as the tick-cost gate measures it (ADR-058).
 pub(super) fn assist_targets(stage: &World, s: &State, range: i32, n: usize) -> Vec<EntityId> {
-    let from = s.player.at;
+    let from = s.players[PlayerIdx::SOLO].at;
     let mut kept: Vec<(u8, u64, EntityId)> = Vec::with_capacity(n.saturating_add(1));
     let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
         if !overlaps(from, range, at, radius) {

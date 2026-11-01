@@ -19,13 +19,14 @@
 use super::{MAX_LEASH_MOVES_PER_TICK, World};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::State;
 use crate::stage::Map;
 
 /// Moves the enemies the leash catches; returns how many moved.
 pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) -> u32 {
     let map = stage.map();
-    let centre = super::view_centre(&map, s.player.at);
+    let centre = super::view_centre(&map, s.players[PlayerIdx::SOLO].at);
     let reach_x = i64::from(stage.tuning.leash_reach_x.0);
     let reach_y = i64::from(stage.tuning.leash_reach_y.0);
     let mut moved = 0;

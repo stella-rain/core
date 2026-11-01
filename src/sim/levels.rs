@@ -19,6 +19,7 @@ use super::World;
 use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::run_stats::{self, RunStats, StatEffect};
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, PlayerState, Progress, State};
 use crate::snapshot::{OfferOption, StatOfferView};
 
@@ -78,7 +79,7 @@ fn gain(stage: &World, s: &mut State, xp: u32, events: &mut Vec<DomainEvent>) {
         if p.pick_stats {
             p.offers_due = p.offers_due.saturating_add(1);
         } else if let Some(at) = first_below_limit(p) {
-            raise(p, &mut s.player, at, events);
+            raise(p, &mut s.players[PlayerIdx::SOLO], at, events);
         }
     }
     if p.level >= MAX_LEVEL {
@@ -186,8 +187,9 @@ pub(super) fn options(s: &State) -> Vec<OfferOption> {
 /// Takes `option`, one of `options`: raises that stat and closes the offer.
 pub(super) fn choose(s: &mut State, option: OfferOption, events: &mut Vec<DomainEvent>) {
     let State {
-        progress, player, ..
+        progress, players, ..
     } = s;
+    let player = &mut players[PlayerIdx::SOLO];
     let Some(p) = progress.as_mut() else {
         return;
     };

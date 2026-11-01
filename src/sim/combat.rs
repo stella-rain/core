@@ -17,6 +17,7 @@ use crate::rewards::{
 };
 use crate::rng::SplitMix64;
 use crate::sim::state::Echo;
+use crate::sim::state::PlayerIdx;
 
 use super::{PLAYER_ID, Shot, State, overlaps};
 
@@ -26,7 +27,9 @@ use super::{PLAYER_ID, Shot, State, overlaps};
 /// and where the shot landed, so two hits on one target in one tick differ and no draw is
 /// taken from the run's generator.
 pub(super) fn crits(s: &State, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bool {
-    let chance = s.player.crit_chance_pct.min(MAX_CRIT_CHANCE_TOTAL_PCT);
+    let chance = s.players[PlayerIdx::SOLO]
+        .crit_chance_pct
+        .min(MAX_CRIT_CHANCE_TOTAL_PCT);
     if chance == 0 || b.chain || b.rune.is_some() || !b.friendly || b.owner != PLAYER_ID || !foe {
         return false;
     }
@@ -57,7 +60,9 @@ pub(super) fn crit_damage(damage: u32, bonus_pct: u32, base_pct: u64) -> u32 {
 /// hit dealt, at least 1, and is dealt a tick later, at the start of `collide`. The queue holds
 /// `MAX_ECHOES_PER_TICK`: the hits after that, in the order they landed, echo nothing.
 pub(super) fn queue_echo(s: &mut State, b: &Shot, target: EntityId, dealt: u32, foe: bool) {
-    let pct = s.player.echo_hit_pct.min(MAX_ECHO_HIT_PCT);
+    let pct = s.players[PlayerIdx::SOLO]
+        .echo_hit_pct
+        .min(MAX_ECHO_HIT_PCT);
     if pct == 0
         || dealt == 0
         || b.chain
@@ -130,7 +135,7 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
 /// burst's kills are credited like any other (experience, drops, kills for a heal); the depth
 /// is all that stops the chain. The boss and its parts are not hurt by a burst.
 pub(super) fn bursts(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let p = &s.player;
+    let p = &s.players[PlayerIdx::SOLO];
     if p.burst_pct == 0 {
         return;
     }
@@ -260,7 +265,7 @@ mod tests {
     #[test]
     fn a_roll_draws_nothing_from_the_runs_generator() {
         let mut s = state();
-        s.player.crit_chance_pct = 50;
+        s.players[PlayerIdx::SOLO].crit_chance_pct = 50;
         let before = s.rng.states();
         assert!(rolls(&mut s, shot(PLAYER_ID)) > 0);
         assert_eq!(s.rng.states(), before);
@@ -270,10 +275,10 @@ mod tests {
     fn the_roll_follows_the_chance_and_only_the_main_characters_own_hits_on_foes() {
         let mut s = state();
         assert_eq!(rolls(&mut s, shot(PLAYER_ID)), 0, "no chance held");
-        s.player.crit_chance_pct = 50;
+        s.players[PlayerIdx::SOLO].crit_chance_pct = 50;
         let half = rolls(&mut s, shot(PLAYER_ID));
         assert!((400..=600).contains(&half), "{half} of 1000");
-        s.player.crit_chance_pct = u32::MAX;
+        s.players[PlayerIdx::SOLO].crit_chance_pct = u32::MAX;
         let most = rolls(&mut s, shot(PLAYER_ID));
         assert!((650..=850).contains(&most), "held to 75: {most}");
         let mut other = shot(PLAYER_ID);
@@ -315,7 +320,7 @@ mod tests {
         let mut s = state();
         queue_echo(&mut s, &shot(PLAYER_ID), EntityId(5), 100, true);
         assert!(s.echoes.is_empty(), "no echo reward held");
-        s.player.echo_hit_pct = 35;
+        s.players[PlayerIdx::SOLO].echo_hit_pct = 35;
         queue_echo(&mut s, &shot(PLAYER_ID), EntityId(5), 100, true);
         queue_echo(&mut s, &shot(PLAYER_ID), EntityId(5), 1, true);
         assert_eq!(
@@ -376,9 +381,9 @@ mod tests {
     fn burst_state(pct: u32, radius: u32, depth: u32) -> State {
         let mut s = state();
         (
-            s.player.burst_pct,
-            s.player.burst_radius,
-            s.player.burst_depth,
+            s.players[PlayerIdx::SOLO].burst_pct,
+            s.players[PlayerIdx::SOLO].burst_radius,
+            s.players[PlayerIdx::SOLO].burst_depth,
         ) = (pct, radius, depth);
         s
     }

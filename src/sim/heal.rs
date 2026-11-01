@@ -13,6 +13,7 @@
 use super::World;
 use crate::event::DomainEvent;
 use crate::id::EntityId;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{HealPickup, PlayerState, State};
 use crate::validate::limits::MAX_HEAL_AMOUNT;
 
@@ -23,12 +24,12 @@ pub(super) fn boss_killed(stage: &World, s: &mut State, events: &mut Vec<DomainE
     let Some(cfg) = &stage.heal else {
         return;
     };
-    if s.player.hp == 0 {
+    if s.players[PlayerIdx::SOLO].hp == 0 {
         return;
     }
-    let most = u64::from(s.player.max_hp);
+    let most = u64::from(s.players[PlayerIdx::SOLO].max_hp);
     let want = most * u64::from(cfg.boss_pct) / 100;
-    heal(&mut s.player, want, events);
+    heal(&mut s.players[PlayerIdx::SOLO], want, events);
 }
 
 /// Stars and pickups for the regular enemies at 0 hp, before they are removed (see the module
@@ -67,11 +68,14 @@ pub(super) fn pick_up(stage: &World, s: &mut State, events: &mut Vec<DomainEvent
     let Some(cfg) = &stage.heal else {
         return;
     };
-    if s.player.hp == 0 {
+    if s.players[PlayerIdx::SOLO].hp == 0 {
         return;
     }
-    let at = s.player.at;
-    let radius = widened(cfg.pickup_radius.0, s.player.pickup_radius_pct);
+    let at = s.players[PlayerIdx::SOLO].at;
+    let radius = widened(
+        cfg.pickup_radius.0,
+        s.players[PlayerIdx::SOLO].pickup_radius_pct,
+    );
     let taken = {
         let Some(pickups) = s.heal_pickups.as_mut() else {
             return;
@@ -81,7 +85,11 @@ pub(super) fn pick_up(stage: &World, s: &mut State, events: &mut Vec<DomainEvent
         before - pickups.len()
     };
     for _ in 0..taken {
-        heal(&mut s.player, u64::from(cfg.amount), events);
+        heal(
+            &mut s.players[PlayerIdx::SOLO],
+            u64::from(cfg.amount),
+            events,
+        );
     }
 }
 
@@ -90,19 +98,21 @@ pub(super) fn pick_up(stage: &World, s: &mut State, events: &mut Vec<DomainEvent
 /// hit points, held to `MAX_HEAL_AMOUNT`, once for each interval counted. A main character at 0
 /// hit points heals nothing but still counts.
 pub(super) fn kills_heal(s: &mut State, events: &mut Vec<DomainEvent>) {
-    let every = s.player.kill_heal_every;
+    let every = s.players[PlayerIdx::SOLO].kill_heal_every;
     if every == 0 {
         return;
     }
     let kills = s.enemies.iter().filter(|e| e.hp == 0 && !e.burst).count();
-    let counted = u64::from(s.player.kills_counted) + u64::try_from(kills).unwrap_or(u64::MAX);
+    let counted = u64::from(s.players[PlayerIdx::SOLO].kills_counted)
+        + u64::try_from(kills).unwrap_or(u64::MAX);
     let heals = counted / u64::from(every);
-    s.player.kills_counted = u32::try_from(counted % u64::from(every)).unwrap_or(0);
-    if heals == 0 || s.player.hp == 0 {
+    s.players[PlayerIdx::SOLO].kills_counted =
+        u32::try_from(counted % u64::from(every)).unwrap_or(0);
+    if heals == 0 || s.players[PlayerIdx::SOLO].hp == 0 {
         return;
     }
-    let each = u64::from(s.player.kill_heal.min(MAX_HEAL_AMOUNT));
-    heal(&mut s.player, each * heals, events);
+    let each = u64::from(s.players[PlayerIdx::SOLO].kill_heal.min(MAX_HEAL_AMOUNT));
+    heal(&mut s.players[PlayerIdx::SOLO], each * heals, events);
 }
 
 /// Heals `player` by `want` hit points, as far as its most allows, and reports what it healed.
@@ -141,8 +151,8 @@ mod tests {
             1,
             crate::kinds::KindTable::of_stage(&stage).unwrap(),
         );
-        s.player.max_hp = 100_000;
-        s.player.hp = 1_000;
+        s.players[PlayerIdx::SOLO].max_hp = 100_000;
+        s.players[PlayerIdx::SOLO].hp = 1_000;
         s
     }
 
@@ -161,7 +171,10 @@ mod tests {
         let mut s = state();
         let mut events = Vec::new();
         kills_heal(&mut s, &mut events);
-        assert_eq!((s.player.kills_counted, healed(&events)), (0, vec![]));
+        assert_eq!(
+            (s.players[PlayerIdx::SOLO].kills_counted, healed(&events)),
+            (0, vec![])
+        );
     }
 
     /// `credited` defeated enemies and one that blew itself up, all at 0 hit points.
@@ -194,28 +207,46 @@ mod tests {
     #[test]
     fn it_heals_every_n_kills_that_give_credit_and_carries_the_rest() {
         let mut s = state();
-        (s.player.kill_heal, s.player.kill_heal_every) = (500, 3);
+        (
+            s.players[PlayerIdx::SOLO].kill_heal,
+            s.players[PlayerIdx::SOLO].kill_heal_every,
+        ) = (500, 3);
         let mut events = Vec::new();
         defeated(&mut s, 2);
         kills_heal(&mut s, &mut events);
         // Two kills and a self-destruct: two counted, no heal yet.
-        assert_eq!((s.player.kills_counted, healed(&events)), (2, vec![]));
+        assert_eq!(
+            (s.players[PlayerIdx::SOLO].kills_counted, healed(&events)),
+            (2, vec![])
+        );
         s.enemies.clear();
         defeated(&mut s, 5);
         kills_heal(&mut s, &mut events);
         // Seven in all: two intervals of three, one carried.
         assert_eq!(healed(&events), vec![1_000]);
-        assert_eq!((s.player.hp, s.player.kills_counted), (2_000, 1));
+        assert_eq!(
+            (
+                s.players[PlayerIdx::SOLO].hp,
+                s.players[PlayerIdx::SOLO].kills_counted
+            ),
+            (2_000, 1)
+        );
     }
 
     #[test]
     fn a_main_character_at_0_hit_points_counts_but_is_not_healed() {
         let mut s = state();
-        (s.player.kill_heal, s.player.kill_heal_every) = (500, 1);
-        s.player.hp = 0;
+        (
+            s.players[PlayerIdx::SOLO].kill_heal,
+            s.players[PlayerIdx::SOLO].kill_heal_every,
+        ) = (500, 1);
+        s.players[PlayerIdx::SOLO].hp = 0;
         let mut events = Vec::new();
         defeated(&mut s, 2);
         kills_heal(&mut s, &mut events);
-        assert_eq!((s.player.hp, healed(&events)), (0, vec![]));
+        assert_eq!(
+            (s.players[PlayerIdx::SOLO].hp, healed(&events)),
+            (0, vec![])
+        );
     }
 }

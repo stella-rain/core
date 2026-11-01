@@ -27,6 +27,7 @@ use crate::event::{DomainEvent, HitKind};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::rune::Rune;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{Dir, Smash, State};
 use crate::trig;
 
@@ -204,7 +205,7 @@ fn break_orbs(stage: &World, s: &mut State, swings: &[Swing], events: &mut Vec<D
 /// starts from.
 fn cage_beams(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     for i in 0..s.orbs.len() {
-        let p = &s.player;
+        let p = &s.players[PlayerIdx::SOLO];
         if p.hp == 0 || p.invulnerable > 0 {
             return;
         }
@@ -557,7 +558,7 @@ fn hit_enemy_side(
 
 /// The main character (unless it is invulnerable), then the companions in ID order.
 fn hit_ally_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<DomainEvent>) {
-    let p = &s.player;
+    let p = &s.players[PlayerIdx::SOLO];
     if p.hp > 0
         && p.invulnerable == 0
         && covers(w, p.at, stage.tuning.player_radius)

@@ -44,6 +44,7 @@ use crate::expertise::{
 };
 use crate::id::ContentId;
 use crate::rng::SplitMix64;
+use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
 use crate::snapshot::{
     ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption,
@@ -366,10 +367,11 @@ pub(super) fn choose(
         rng,
         stars,
         progress,
-        player,
+        players,
         expertise: g,
         ..
     } = s;
+    let player = &mut players[PlayerIdx::SOLO];
     let Some(g) = g.as_mut() else {
         return;
     };
