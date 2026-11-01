@@ -3,12 +3,12 @@
 //! them.
 
 use super::World;
-use crate::engine::{DotState, State, StatusKind, StatusState, Statuses};
 use crate::event::DomainEvent;
 use crate::fixed::Point;
 use crate::id::EntityId;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::rune::Rune;
+use crate::sim::state::{DotState, State, StatusKind, StatusState, Statuses};
 
 use super::{MAX_AGGRO, PLAYER_ID, Shot};
 
@@ -40,11 +40,11 @@ impl State {
     pub(super) fn boss_pair<'a>(
         &'a self,
         stage: &'a World,
-    ) -> Option<(&'a crate::stage::Boss, &'a crate::engine::BossState)> {
+    ) -> Option<(&'a crate::stage::Boss, &'a crate::sim::state::BossState)> {
         self.boss.as_ref().map(|b| (&stage.boss(b.boss).boss, b))
     }
 
-    pub(super) fn boss_state(&self) -> &crate::engine::BossState {
+    pub(super) fn boss_state(&self) -> &crate::sim::state::BossState {
         self.boss
             .as_ref()
             .expect("Who::Boss only exists while there is a boss")

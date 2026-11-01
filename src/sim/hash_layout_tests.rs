@@ -4,13 +4,13 @@
 
 use super::world::{DefIndex, ProgramIndex};
 use crate::attack::ZoneShape;
-use crate::engine::{
-    AgentKey, AgentSource, AgentState, Aim, Dir, Frame, Hook, OrbState, PathStep, ZoneState,
-};
 use crate::fixed::{Fx, Point};
 use crate::hash::{StableHash, StateHasher, fnv1a64};
 use crate::id::EntityId;
 use crate::kinds::KindIndex;
+use crate::sim::state::{
+    AgentKey, AgentSource, AgentState, Aim, Dir, Frame, Hook, OrbState, PathStep, ZoneState,
+};
 
 fn hash_of(v: &impl StableHash) -> u64 {
     let mut h = StateHasher::new();

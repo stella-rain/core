@@ -7,11 +7,12 @@ use super::{
     World, agents, attacks, boss, collide, count, dash, decide_outcome, entity, expertise, horde,
     leash, loadout, move_orbs, open_offers, orbit, player, push, runes, skill, spawn_waves, zones,
 };
-use crate::engine::{Load, Outcome, State};
+use crate::engine::{Load, Outcome};
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::input::Input;
 use crate::rewards::Rewards;
+use crate::sim::state::State;
 
 /// What the steps of a tick read and write: the run's content, its state, the tick's input,
 /// and what the steps pass on to each other within the tick.

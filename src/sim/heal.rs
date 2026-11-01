@@ -11,9 +11,9 @@
 //! in the order they dropped. Nothing heals a main character at 0 hit points.
 
 use super::World;
-use crate::engine::{HealPickup, PlayerState, State};
 use crate::event::DomainEvent;
 use crate::id::EntityId;
+use crate::sim::state::{HealPickup, PlayerState, State};
 use crate::validate::limits::MAX_HEAL_AMOUNT;
 
 use super::{PLAYER_ID, overlaps, widened};
@@ -166,10 +166,10 @@ mod tests {
 
     /// `credited` defeated enemies and one that blew itself up, all at 0 hit points.
     fn defeated(s: &mut State, credited: u32) {
-        use crate::engine::{AgentKey, AgentSource};
         use crate::fixed::Point;
         use crate::id::EntityId;
         use crate::sim::agents::new_agent;
+        use crate::sim::state::{AgentKey, AgentSource};
         let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let key = AgentKey {
             source: AgentSource::Wave,

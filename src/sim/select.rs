@@ -9,9 +9,9 @@ use super::World;
 use std::cmp::Reverse;
 
 use crate::behaviour::Selector;
-use crate::engine::State;
 use crate::fixed::Point;
 use crate::id::EntityId;
+use crate::sim::state::State;
 
 use super::entity::Who;
 use super::overlaps;

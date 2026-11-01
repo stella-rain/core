@@ -18,11 +18,11 @@
 //! A new pull or shield replaces the one there; statuses refresh as any status does (ADR-036).
 
 use super::World;
-use crate::engine::{Dir, PlayerState, PullState, ShieldState, SkillSlot, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::input::Input;
 use crate::rewards::Rewards;
+use crate::sim::state::{Dir, PlayerState, PullState, ShieldState, SkillSlot, State, StatusKind};
 use crate::stage_skill::{MAX_SKILL_EFFECTS, MAX_SKILL_LEVELS, SkillEffect};
 use crate::trig::SCALE;
 

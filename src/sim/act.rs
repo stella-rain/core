@@ -2,8 +2,8 @@
 
 use super::World;
 use crate::behaviour::{Action, Skill};
-use crate::engine::{AgentKey, AgentSource, MoveOrder, State, StatusKind};
 use crate::event::DomainEvent;
+use crate::sim::state::{AgentKey, AgentSource, MoveOrder, State, StatusKind};
 
 use super::agents::agent_mut;
 use super::attacks;

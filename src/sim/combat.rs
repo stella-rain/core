@@ -8,7 +8,6 @@
 use super::World;
 use super::entity::Who;
 use crate::attack::MatchUp;
-use crate::engine::Echo;
 use crate::event::DomainEvent;
 use crate::fixed::Fx;
 use crate::id::EntityId;
@@ -17,6 +16,7 @@ use crate::rewards::{
     MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_ECHOES_PER_TICK,
 };
 use crate::rng::SplitMix64;
+use crate::sim::state::Echo;
 
 use super::{PLAYER_ID, Shot, State, overlaps};
 
@@ -290,8 +290,8 @@ mod tests {
     }
 
     fn with_enemy(s: &mut State, id: u32, hp: u32) {
-        use crate::engine::{AgentKey, AgentSource};
         use crate::sim::agents::new_agent;
+        use crate::sim::state::{AgentKey, AgentSource};
         let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let key = AgentKey {
             source: AgentSource::Wave,

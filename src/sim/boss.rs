@@ -29,9 +29,9 @@
 use super::World;
 use crate::attack::AttackRef;
 use crate::behaviour::BossCall;
-use crate::engine::{BossState, MoveOrder, Origin, State};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
+use crate::sim::state::{BossState, MoveOrder, Origin, State};
 use crate::snapshot::PatternView;
 use crate::stage::{Step, Transition};
 

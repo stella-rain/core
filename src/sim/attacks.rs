@@ -44,16 +44,16 @@ use crate::attack::{
     Anchor, AttackPhase, AttackRef, Dash, Direction, Emitter, Expr, HitBox, PhaseKind,
 };
 use crate::difficulties::scale_pct;
-use crate::engine::{
-    Aim, AttackRun, AttackTask, Dir, Frame, Frames, Hook, OrbLink, OrbState, Origin, PathStep,
-    Smash, State, StatusKind, ZoneState,
-};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::registry;
 use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
+use crate::sim::state::{
+    Aim, AttackRun, AttackTask, Dir, Frame, Frames, Hook, OrbLink, OrbState, Origin, PathStep,
+    Smash, State, StatusKind, ZoneState,
+};
 use crate::trig;
 use crate::validate::limits::{MAX_LEN, MAX_ORB_TICKS, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS};
 
@@ -1478,8 +1478,8 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
 mod attack_table_tests {
     use super::*;
     use crate::attack::Offset;
-    use crate::engine::{Aim, Dir};
     use crate::run_content::RunContent;
+    use crate::sim::state::{Aim, Dir};
     use crate::sim::world::World;
 
     // The two functions below are `faster` and `wider` as they were before attacks were compiled
