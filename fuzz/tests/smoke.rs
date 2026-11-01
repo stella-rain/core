@@ -285,7 +285,7 @@ fn pack_with_constellations() -> Vec<u8> {
         pack["introduced"]["rewards"]
             .as_array_mut()
             .expect("introduced rewards")
-            .push(serde_json::json!({ "id": id, "sim_version": 1 }));
+            .push(serde_json::json!({ "id": id, "sim_version": SIM_VERSION }));
     }
     pack["constellations"] = serde_json::json!({
         "constellations": [{
