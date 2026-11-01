@@ -1,13 +1,17 @@
 //! File and rule versions (ADR-017). Version 1 is the frozen first version (ADR-REPL-7): a
 //! change to a type or to a rule's outcome is a new version, never an edit in place (for a
 //! rule, a gate in `sim`, a copy only for a rewrite), and version 0, the development version
-//! before the freeze, is refused everywhere.
+//! before the freeze, is refused everywhere. A file is read at any `sim_version` from
+//! `FIRST_SIM_VERSION` up to `SIM_VERSION` (ADR-REPL-9): the frozen versions keep loading.
 
 /// Structure of stage, event and replay files.
 pub const SCHEMA_VERSION: u32 = 1;
 
 /// Simulation rules.
 pub const SIM_VERSION: u32 = 1;
+
+/// The oldest simulation rules still read; version 0 is refused (ADR-REPL-7 point 8).
+pub const FIRST_SIM_VERSION: u32 = 1;
 
 /// Why a versioned file was not read. Paths and numbers only, never text from the file.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -23,9 +27,20 @@ pub(crate) enum ReadError {
     },
 }
 
-/// Checks both versions against this game's.
+/// Checks both versions against this game's: the schema exactly, the sim version within
+/// `FIRST_SIM_VERSION..=SIM_VERSION`.
 pub(crate) fn check(schema_version: u32, sim_version: u32) -> Result<(), ReadError> {
-    if schema_version == SCHEMA_VERSION && sim_version == SIM_VERSION {
+    check_in(schema_version, sim_version, FIRST_SIM_VERSION, SIM_VERSION)
+}
+
+/// `check` for the sim versions `oldest..=current`.
+pub(crate) fn check_in(
+    schema_version: u32,
+    sim_version: u32,
+    oldest: u32,
+    current: u32,
+) -> Result<(), ReadError> {
+    if schema_version == SCHEMA_VERSION && (oldest..=current).contains(&sim_version) {
         Ok(())
     } else {
         Err(ReadError::UnsupportedVersion {
@@ -66,6 +81,16 @@ pub(crate) fn read_current<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,
 ) -> Result<T, ReadError> {
+    read_current_in(bytes, limit, FIRST_SIM_VERSION, SIM_VERSION)
+}
+
+/// `read_current` for the sim versions `oldest..=current`.
+pub(crate) fn read_current_in<T: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    limit: usize,
+    oldest: u32,
+    current: u32,
+) -> Result<T, ReadError> {
     if bytes.len() > limit {
         return Err(ReadError::TooLarge {
             size: bytes.len(),
@@ -74,7 +99,12 @@ pub(crate) fn read_current<T: serde::de::DeserializeOwned>(
     }
     // Not `deny_unknown_fields`: only the two versions are read here.
     let versions: Versions = serde_json::from_slice(bytes).map_err(parse_error)?;
-    check(versions.schema_version, versions.sim_version)?;
+    check_in(
+        versions.schema_version,
+        versions.sim_version,
+        oldest,
+        current,
+    )?;
     serde_json::from_slice(bytes).map_err(parse_error)
 }
 
@@ -126,7 +156,8 @@ fn damaged(e: serde_json::Error) -> ReplayLoadError {
 
 /// Reads a replay file: the size limit first, then the versions alone (`header`), then the
 /// strict parse (ADR-017, ADR-SVC-1). Either version above `current` is `Newer`, whatever else
-/// the file holds; both equal is parsed as it is; below, a migration for exactly that pair is
+/// the file holds; the current schema with a sim version in `oldest..=current.sim_version` is
+/// parsed as it is; below that, a migration for exactly that pair is
 /// applied to the JSON first (positions of a `Damaged` after a migration are in the migrated
 /// bytes), and without one the file is `Older`. A migration's output is checked, not trusted:
 /// over the size limit it is `TooLarge`, and a document that does not reach `current` is
@@ -134,6 +165,7 @@ fn damaged(e: serde_json::Error) -> ReplayLoadError {
 pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,
+    oldest: u32,
     current: Versions,
     migrations: &[Migration],
     header: fn(&[u8]) -> Result<Versions, serde_json::Error>,
@@ -148,7 +180,9 @@ pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
     if found.schema_version > current.schema_version || found.sim_version > current.sim_version {
         return Err(ReplayLoadError::Newer(found));
     }
-    if found == current {
+    if found.schema_version == current.schema_version
+        && (oldest..=current.sim_version).contains(&found.sim_version)
+    {
         return serde_json::from_slice(bytes).map_err(damaged);
     }
     let Some(migration) = migrations.iter().find(|m| m.from == found) else {
@@ -511,7 +545,14 @@ mod tests {
             table: &[Migration],
             header: fn(&[u8]) -> Result<Versions, serde_json::Error>,
         ) -> Result<T, ReplayLoadError> {
-            read_replay(bytes, limit, FIRST_SIM_VERSION, Versions::CURRENT, table, header)
+            read_replay(
+                bytes,
+                limit,
+                FIRST_SIM_VERSION,
+                Versions::CURRENT,
+                table,
+                header,
+            )
         }
 
         /// Every case of the older path for one corpus replay of type `T`.
