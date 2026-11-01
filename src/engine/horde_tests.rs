@@ -144,7 +144,7 @@ fn a_boss_summon_outlives_its_boss_and_keeps_its_definition() {
         e.run
             .enemies
             .iter()
-            .map(|en| e.stage.defs.agent(en.def).hp)
+            .map(|en| e.run.world().defs.agent(en.def).hp)
             .collect()
     };
     let made = summon_hp(&e);
@@ -170,7 +170,7 @@ fn a_boss_summon_outlives_its_boss_and_keeps_its_definition() {
 
 /// The definition of the boss on the field.
 fn boss_def(e: &Engine) -> &crate::stage::Boss {
-    &e.stage.boss(e.run.boss.as_ref().unwrap().boss).boss
+    &e.run.world().boss(e.run.boss.as_ref().unwrap().boss).boss
 }
 
 /// The slot of the boss on the field in the run's list of boss definitions.
@@ -193,7 +193,8 @@ fn the_world_compiles_each_horde_boss_once() {
     });
     // Three definitions of the file, and the template once for each of the two sprites.
     let bases: Vec<&str> = e
-        .stage
+        .run
+        .world()
         .bosses
         .iter()
         .map(|b| b.boss.base.as_str())
@@ -221,11 +222,12 @@ fn the_world_compiles_each_horde_boss_once() {
 #[test]
 fn a_boss_coming_leaves_the_stage_as_it_was() {
     let mut e = engine(&[50, 100]);
-    let before = e.stage.stage.clone();
+    let before = e.run.world().stage.clone();
     run_to(&mut e, 100);
     assert!(e.run.boss.is_some(), "a boss has come");
     assert_eq!(
-        e.stage.stage, before,
+        e.run.world().stage,
+        before,
         "the stage is read-only for a run (core#271)"
     );
 }
@@ -276,7 +278,11 @@ fn the_run_lasts_its_length_and_its_overtime_and_an_empty_field_does_not_clear_i
     let mut e = engine(&[50, 100]);
     run_to(&mut e, 99);
     assert_eq!(e.outcome(), Outcome::Running);
-    assert_eq!(e.stage.length_ticks, 100 + 18_000, "the run's overtime");
+    assert_eq!(
+        e.run.world().length_ticks,
+        100 + 18_000,
+        "the run's overtime"
+    );
 }
 
 #[test]

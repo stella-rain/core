@@ -7,8 +7,9 @@
 //! Rules are dispatched by the stage's `sim_version` (ADR-017, ADR-REPL-7 point 3): versions
 //! `1..=SIM_VERSION` run in `sim`, any other fails closed. Version 1 is frozen, so a change of
 //! outcome after it is a gate on the new version in `sim`, a copy only for a rewrite (see `sim`
-//! for what it does and does not do yet). The engine holds its state as a `Run`, one variant per
-//! released rules version (`run.rs`, ADR-REPL-9), and every call into the rules goes through it.
+//! for what it does and does not do yet). The engine holds its run as a `Run`, one variant per
+//! released rules version (`run.rs`, ADR-REPL-9) that owns that version's `World` and `State`;
+//! every call into the rules goes through it, the snapshot view included (`sim::snapshot`).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -94,7 +95,6 @@ fn horde_kinds(stage: &Stage, horde: &HordeSpec) -> Result<KindTable, crate::val
 /// A run of one stage.
 #[derive(Debug)]
 pub struct Engine {
-    stage: World,
     /// The content files the run reads (ADR-067), fixed for the run.
     content: RunContent,
     run: Run,
@@ -113,14 +113,14 @@ impl Clone for Engine {
     /// length, and the clone's first ticks would grow them (DIR1).
     fn clone(&self) -> Engine {
         let mut run = self.run.clone();
-        run.reserve(&self.stage);
+        run.reserve();
+        let Run::V1 { world, .. } = &self.run;
         Engine {
-            stage: self.stage.clone(),
             content: self.content.clone(),
             run,
             events: {
                 let mut events = self.events.clone();
-                events.reserve(sim::events_room(&self.stage).saturating_sub(events.len()));
+                events.reserve(sim::events_room(world).saturating_sub(events.len()));
                 events
             },
             load: self.load,
@@ -134,14 +134,8 @@ impl Engine {
     /// What a savepoint writes and a resume compares with: the world and content (fixed for the
     /// run), the state, the ledger and the tallies.
     pub(crate) fn savepoint_parts(&self) -> (&World, &RunContent, &State, &RunLedger, &Counted) {
-        let Run::V1(state) = &self.run;
-        (
-            &self.stage,
-            &self.content,
-            state,
-            &self.ledger,
-            &self.counted,
-        )
+        let Run::V1 { world, state } = &self.run;
+        (world, &self.content, state, &self.ledger, &self.counted)
     }
 
     /// This engine with the state, ledger and tallies a savepoint held: a fresh engine of the
@@ -150,10 +144,10 @@ impl Engine {
     pub(crate) fn with_saved(self, state: State, ledger: RunLedger, counted: Counted) -> Engine {
         let mut events = self.events;
         events.clear();
+        let Run::V1 { world, .. } = self.run;
         Engine {
-            stage: self.stage,
             content: self.content,
-            run: Run::V1(state),
+            run: Run::V1 { world, state },
             events,
             load: Load::default(),
             ledger,
@@ -188,16 +182,15 @@ impl Engine {
             difficulty: sim::RunDifficulty::NONE,
         };
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = World::new(stage.clone(), None, &kinds, content)
+        let world = World::new(stage.clone(), None, &kinds, content)
             .map_err(|i| Error::Invalid(vec![i]))?;
-        let mut state = sim::initial_state(&stage, content, pool, u64::from(stage.seed), kinds);
+        let mut state = sim::initial_state(&world, content, pool, u64::from(world.seed), kinds);
         sim::set_policy(&mut state, content.run_stats(), stat_priority, pick_stats);
-        let weapon = Self::weapon_str(&stage);
+        let weapon = Self::weapon_str(&world);
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
-            events: Vec::with_capacity(sim::events_room(&stage)),
-            run: Run::V1(state),
-            stage,
+            events: Vec::with_capacity(sim::events_room(&world)),
+            run: Run::V1 { world, state },
             content: content.clone(),
             load: Load::default(),
             ledger,
@@ -224,9 +217,9 @@ impl Engine {
             difficulty: run_difficulty(setup, content)?,
         };
         let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage = World::new(stage.clone(), None, &kinds, content)
+        let world = World::new(stage.clone(), None, &kinds, content)
             .map_err(|i| Error::Invalid(vec![i]))?;
-        let mut state = sim::initial_state(&stage, content, pool, setup.seed, kinds);
+        let mut state = sim::initial_state(&world, content, pool, setup.seed, kinds);
         sim::set_policy(
             &mut state,
             content.run_stats(),
@@ -234,13 +227,12 @@ impl Engine {
             setup.pick_stats,
         );
         let loadout = sim::Loadout::of(setup, content);
-        sim::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
-        let weapon = Self::weapon_str(&stage);
+        sim::apply_loadout(&world, content.rewards(), &mut state, &loadout);
+        let weapon = Self::weapon_str(&world);
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
-            events: Vec::with_capacity(sim::events_room(&stage)),
-            run: Run::V1(state),
-            stage,
+            events: Vec::with_capacity(sim::events_room(&world)),
+            run: Run::V1 { world, state },
             content: content.clone(),
             load: Load::default(),
             ledger,
@@ -265,9 +257,9 @@ impl Engine {
             difficulty: run_difficulty(setup, content)?,
         };
         let kinds = horde_kinds(&stage, &spec).map_err(|i| Error::Invalid(vec![i]))?;
-        let stage =
+        let world =
             World::new(stage, Some(spec), &kinds, content).map_err(|i| Error::Invalid(vec![i]))?;
-        let mut state = sim::initial_state(&stage, content, pool, setup.seed, kinds);
+        let mut state = sim::initial_state(&world, content, pool, setup.seed, kinds);
         state.horde = Some(horde);
         sim::set_policy(
             &mut state,
@@ -276,13 +268,12 @@ impl Engine {
             setup.pick_stats,
         );
         let loadout = sim::Loadout::of(setup, content);
-        sim::apply_loadout(&stage, content.rewards(), &mut state, &loadout);
-        let weapon = Self::weapon_str(&stage);
+        sim::apply_loadout(&world, content.rewards(), &mut state, &loadout);
+        let weapon = Self::weapon_str(&world);
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
-            events: Vec::with_capacity(sim::events_room(&stage)),
-            run: Run::V1(state),
-            stage,
+            events: Vec::with_capacity(sim::events_room(&world)),
+            run: Run::V1 { world, state },
             content: content.clone(),
             load: Load::default(),
             ledger,
@@ -299,9 +290,8 @@ impl Engine {
         if self.offer_open() {
             return;
         }
-        match self.stage.sim_version {
+        match self.run.declared_version() {
             1..=SIM_VERSION => self.run.step(
-                &self.stage,
                 self.content.rewards(),
                 self.content.expertise(),
                 input,
@@ -310,8 +300,8 @@ impl Engine {
             ),
             // `new` validated the version; fail closed if that ever stops being true.
             _ => {
-                let Run::V1(s) = &mut self.run;
-                s.outcome = Outcome::Failed;
+                let Run::V1 { state, .. } = &mut self.run;
+                state.outcome = Outcome::Failed;
             }
         }
         self.observe_tick();
@@ -325,14 +315,14 @@ impl Engine {
         if !self.offer_open() {
             return Err(ChoiceError::NoOffer);
         }
-        let sim_version = self.stage.sim_version;
+        let sim_version = self.run.declared_version();
         if !(1..=SIM_VERSION).contains(&sim_version) {
             // `new` validated the version; refuse, changing nothing and running no rules, if
             // that stops being true.
             return Err(ChoiceError::Unsupported { sim_version });
         }
         let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
-        let options = self.run.offer_options(&self.stage, rewards, expertise);
+        let options = self.run.offer_options(rewards, expertise);
         let Some(option) = usize::try_from(index)
             .ok()
             .and_then(|i| options.get(i))
@@ -345,7 +335,7 @@ impl Engine {
         };
         self.events.clear();
         self.run
-            .choose(&self.stage, rewards, expertise, option, &mut self.events);
+            .choose(rewards, expertise, option, &mut self.events);
         self.observe_choice();
         Ok(())
     }
@@ -358,17 +348,23 @@ impl Engine {
     }
 
     fn observe_tick(&mut self) {
-        let weapon = Self::weapon_str(&self.stage);
-        let Run::V1(s) = &self.run;
-        self.ledger
-            .observe_tick(&s.kinds, weapon, &s.enemies, s.boss.as_ref(), &self.events);
+        let Run::V1 { world, state } = &self.run;
+        let weapon = Self::weapon_str(world);
+        self.ledger.observe_tick(
+            &state.kinds,
+            weapon,
+            &state.enemies,
+            state.boss.as_ref(),
+            &self.events,
+        );
         self.counted.observe(self.content.rewards(), &self.events);
     }
 
     fn observe_choice(&mut self) {
-        let weapon = Self::weapon_str(&self.stage);
-        let Run::V1(s) = &self.run;
-        self.ledger.observe_choice(&s.kinds, weapon, &self.events);
+        let Run::V1 { world, state } = &self.run;
+        let weapon = Self::weapon_str(world);
+        self.ledger
+            .observe_choice(&state.kinds, weapon, &self.events);
         self.counted.observe(self.content.rewards(), &self.events);
     }
 
@@ -385,24 +381,24 @@ impl Engine {
     /// The run's kind table: what every `KindIndex` in its events and snapshots names. Fixed for
     /// the run, so read it once; key anything kept past the run on the ID, not the index.
     pub fn kinds(&self) -> &KindTable {
-        let Run::V1(s) = &self.run;
-        &s.kinds
+        let Run::V1 { state, .. } = &self.run;
+        &state.kinds
     }
 
     pub fn tick(&self) -> u32 {
-        let Run::V1(s) = &self.run;
-        s.tick
+        let Run::V1 { state, .. } = &self.run;
+        state.tick
     }
 
     /// The Stardust the run has earned, times 10 (ADR-109); 0 in a stage without a factor.
     pub fn stardust(&self) -> u32 {
-        let Run::V1(s) = &self.run;
-        s.stardust.unwrap_or(0)
+        let Run::V1 { state, .. } = &self.run;
+        state.stardust.unwrap_or(0)
     }
 
     pub fn outcome(&self) -> Outcome {
-        let Run::V1(s) = &self.run;
-        s.outcome
+        let Run::V1 { state, .. } = &self.run;
+        state.outcome
     }
 
     /// An offer is open: `step` does nothing until `choose` closes it (ADR-079 §3).
@@ -429,8 +425,9 @@ impl Engine {
     /// cap on enemies is the run's own, derived from its crowd target and the pack's headroom
     /// (DIR1); the others are the rules' constants.
     pub fn caps(&self) -> Load {
+        let Run::V1 { world, .. } = &self.run;
         Load {
-            enemies: self.stage.enemy_cap,
+            enemies: world.enemy_cap,
             tasks: sim::MAX_ATTACK_TASKS,
             zones: sim::MAX_ZONES_ALIVE,
             orbs: sim::MAX_ORBS_ALIVE,
@@ -501,6 +498,8 @@ mod horde_tests;
 mod move_index_tests;
 #[cfg(test)]
 mod savepoint_tests;
+#[cfg(test)]
+mod snapshot_pin_tests;
 
 // Every `State` type lives in `sim::state`; these paths keep working.
 pub(crate) use crate::sim::state::*;
