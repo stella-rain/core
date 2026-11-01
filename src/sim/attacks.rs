@@ -136,7 +136,7 @@ fn in_view(e: Point, centre: Point) -> bool {
 /// charges are left, its condition and selector hold now) and no attack of theirs running (RA-STUN);
 /// the nearest come first, by squared distance, ties by entity ID. The grants are scratch,
 /// worked out from the state each tick. No random number is drawn.
-pub(super) fn grant_ranged(world: &World, s: &mut State) {
+pub(super) fn grant_ranged(world: &World, s: &mut State, me: PlayerIdx) {
     for g in &mut s.scratch.ranged_grants {
         g.clear();
     }
@@ -155,7 +155,7 @@ pub(super) fn grant_ranged(world: &World, s: &mut State) {
     const MOST: usize = MAX_RANGED_ATTACKERS as usize;
     let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
     let mut len = [0usize; 2];
-    let player = s.players[PlayerIdx::SOLO].at;
+    let player = s.players[me].at;
     let centre = super::view_centre(&world.map(), player);
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
@@ -314,6 +314,7 @@ pub(super) fn start_with(
     launch(
         world,
         s,
+        PlayerIdx::SOLO,
         Launch {
             owner,
             slot,
@@ -350,6 +351,7 @@ pub(super) struct Strike {
 pub(super) fn start_player(
     world: &World,
     s: &mut State,
+    me: PlayerIdx,
     slot: u8,
     facing: Dir,
     attack: &AttackRef,
@@ -357,7 +359,7 @@ pub(super) fn start_player(
     strike: Strike,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    if busy(s, s.id_of(Who::Player(PlayerIdx::SOLO)), slot) {
+    if busy(s, s.id_of(Who::Player(me)), slot) {
         return false;
     }
     let attack = world.attack_index(attack);
@@ -367,8 +369,9 @@ pub(super) fn start_player(
     launch(
         world,
         s,
+        me,
         Launch {
-            owner: Who::Player(PlayerIdx::SOLO),
+            owner: Who::Player(me),
             slot,
             aim: Aim::Fixed(facing),
             attack,
@@ -393,6 +396,7 @@ pub(super) fn start_player(
 pub(super) fn start_rune(
     world: &World,
     s: &mut State,
+    me: PlayerIdx,
     slot: u8,
     at: Point,
     facing: Dir,
@@ -400,7 +404,7 @@ pub(super) fn start_rune(
     base_damage: u32,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    if busy(s, s.id_of(Who::Player(PlayerIdx::SOLO)), slot)
+    if busy(s, s.id_of(Who::Player(me)), slot)
         || world.attacks[usize::from(attack.0)].phases.is_empty()
     {
         return false;
@@ -408,8 +412,9 @@ pub(super) fn start_rune(
     launch(
         world,
         s,
+        me,
         Launch {
-            owner: Who::Player(PlayerIdx::SOLO),
+            owner: Who::Player(me),
             slot,
             aim: Aim::Fixed(facing),
             attack,
@@ -570,7 +575,13 @@ fn wider_box(hit_box: &HitBox, pct: u32) -> HitBox {
 }
 
 /// Pushes a run of `launch.attack` and begins its first phase.
-fn launch(world: &World, s: &mut State, launch: Launch, events: &mut Vec<DomainEvent>) {
+fn launch(
+    world: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    launch: Launch,
+    events: &mut Vec<DomainEvent>,
+) {
     let Launch {
         owner,
         slot,
@@ -590,8 +601,8 @@ fn launch(world: &World, s: &mut State, launch: Launch, events: &mut Vec<DomainE
     // The main character's type bonuses, each held to the content's limit, which the validator
     // holds to the hard cap; the clamp keeps an unvalidated table there (ADR-100).
     let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
-    let held = &s.players[PlayerIdx::SOLO].type_bonus_pct;
-    let type_bonus_pct = (owner == Who::Player(PlayerIdx::SOLO) && held.iter().any(|pct| *pct > 0))
+    let held = &s.players[me].type_bonus_pct;
+    let type_bonus_pct = (owner == Who::Player(me) && held.iter().any(|pct| *pct > 0))
         .then(|| Box::new(held.map(|pct| pct.min(limit))));
     let facing = self::aim(s, s.at(owner), aim);
     let spot = uses_spot(&world.attacks[usize::from(attack.0)].phases).then(|| match aim {

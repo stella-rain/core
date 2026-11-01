@@ -639,7 +639,7 @@ pub(crate) fn offer_options(
     } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
         levels::options(s)
     } else {
-        stars::options(rewards, s)
+        stars::options(rewards, s, PlayerIdx::SOLO)
     }
 }
 
@@ -1110,7 +1110,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             chain: false,
         };
         let by = Blame::of_program(HitKind::Attack, b.program);
-        consumed.push(hit_ally_side(stage, s, shot, by, events));
+        consumed.push(hit_ally_side(stage, s, PlayerIdx::SOLO, shot, by, events));
     }
     let mut flags = consumed.iter();
     s.orbs.retain(|_| !flags.next().copied().unwrap_or(false));
@@ -1119,20 +1119,20 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         s.scratch.grid = grid;
     }
     s.companions.retain(|c| c.hp > 0);
-    combat::bursts(stage, s, events);
+    combat::bursts(stage, s, PlayerIdx::SOLO, events);
     levels::credit_defeated(stage, s, events);
     stardust::credit_defeated(stage, s);
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
-    heal::kills_heal(s, events);
+    heal::kills_heal(s, PlayerIdx::SOLO, events);
     s.enemies.retain(|e| e.hp > 0);
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         stars::boss_killed(stage, s);
-        heal::boss_killed(stage, s, events);
+        heal::boss_killed(stage, s, PlayerIdx::SOLO, events);
         stardust::boss_killed(stage, s);
     }
-    stars::pick_up(stage, s, events);
-    heal::pick_up(stage, s, events);
+    stars::pick_up(stage, s, PlayerIdx::SOLO, events);
+    heal::pick_up(stage, s, PlayerIdx::SOLO, events);
 }
 
 /// The enemies as circles, in index order, for friendly hit boxes to land on and for the
@@ -1152,7 +1152,14 @@ fn enemy_grid(stage: &World, s: &mut State) -> Grid {
 /// reported too. A combo step's hit adds expertise points (`expertise`), puts the
 /// damage-over-time runes' statuses on a target it leaves standing, and fires the on-hit runes
 /// that are ready (`runes`).
-fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<DomainEvent>) {
+fn damage(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    b: Shot,
+    target: Who,
+    events: &mut Vec<DomainEvent>,
+) {
     // A shrine, or a mimic in disguise, is an object: nothing damages it (ADR-090).
     if !damageable(s, target) {
         return;
@@ -1164,12 +1171,12 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
     // The common case, with no combat reward held, pays for one comparison (ADR-058).
-    let crit = s.players[PlayerIdx::SOLO].crit_chance_pct != 0
-        && combat::crits(s, &b, id, s.hp(target), !State::is_ally(target));
+    let crit = s.players[me].crit_chance_pct != 0
+        && combat::crits(s, me, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
         combat::crit_damage(
             b.damage,
-            s.players[PlayerIdx::SOLO].crit_damage_pct,
+            s.players[me].crit_damage_pct,
             stage.tuning.crit_damage_base_pct,
         )
     } else {
@@ -1200,8 +1207,8 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     });
     if dead {
         events.push(death_event(s, target, id));
-    } else if s.players[PlayerIdx::SOLO].echo_hit_pct != 0 {
-        combat::queue_echo(s, &b, id, dealt, !State::is_ally(target));
+    } else if s.players[me].echo_hit_pct != 0 {
+        combat::queue_echo(s, me, &b, id, dealt, !State::is_ally(target));
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(stage.tuning.aggro_per_damage));
     if b.combo {
@@ -1212,12 +1219,12 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         if let Some(Smash::Stun { ticks }) = b.smash.filter(|_| !dead) {
             stun::apply(stage, s, target, b.owner, ticks, events);
         }
-        if !s.players[PlayerIdx::SOLO].runes.is_empty() {
+        if !s.players[me].runes.is_empty() {
             if !dead {
-                runes::apply_dots(s, target, events);
+                runes::apply_dots(s, me, target, events);
             }
             let at = s.at(target);
-            runes::on_hit(stage, s, id, at, events);
+            runes::on_hit(stage, s, me, id, at, events);
         }
     }
 }
@@ -1290,12 +1297,12 @@ fn profile<'a>(stage: &'a World, s: &'a State, target: Who) -> Option<&'a Profil
 /// The Sub weapon's pull on enemy `i`, hit by a combo part (ADR-070): it is drawn toward the
 /// main character by at most `distance`, over `ticks`, as a move order that replaces its
 /// movement, and stops where their circles touch. A dead enemy and an elite are not pulled.
-pub(super) fn pull_enemy(stage: &World, s: &mut State, i: usize, pull: Pull) {
+pub(super) fn pull_enemy(stage: &World, s: &mut State, me: PlayerIdx, i: usize, pull: Pull) {
     let e = &s.enemies[i];
     if e.hp == 0 || e.elite.is_some() {
         return;
     }
-    let to = s.players[PlayerIdx::SOLO].at;
+    let to = s.players[me].at;
     let (dx, dy) = (
         i64::from(e.at.x.0) - i64::from(to.x.0),
         i64::from(e.at.y.0) - i64::from(to.y.0),
@@ -1323,12 +1330,12 @@ pub(super) fn pull_enemy(stage: &World, s: &mut State, i: usize, pull: Pull) {
 /// the main character by at most `distance`, over `ticks`, as a move order that replaces its
 /// movement, and ends inside the map. A dead enemy and an elite are not pushed, nor one on the
 /// main character's very centre (no direction); a boss and its parts are never enemies here.
-pub(super) fn knock_enemy(stage: &World, s: &mut State, i: usize, push: Pull) {
+pub(super) fn knock_enemy(stage: &World, s: &mut State, me: PlayerIdx, i: usize, push: Pull) {
     let e = &s.enemies[i];
     if e.hp == 0 || e.elite.is_some() {
         return;
     }
-    let from = s.players[PlayerIdx::SOLO].at;
+    let from = s.players[me].at;
     let (dx, dy) = (
         i64::from(e.at.x.0) - i64::from(from.x.0),
         i64::from(e.at.y.0) - i64::from(from.y.0),
@@ -1378,9 +1385,16 @@ impl Blame {
 
 /// Damage to the main character, raised by its vulnerability and reduced by its defence; it is
 /// then invulnerable for a while.
-fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Vec<DomainEvent>) {
+fn hurt_player(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    b: Shot,
+    by: Blame,
+    events: &mut Vec<DomainEvent>,
+) {
     let vulnerable = status_pct(
-        &s.players[PlayerIdx::SOLO].statuses,
+        &s.players[me].statuses,
         crate::sim::state::StatusKind::Vulnerable,
     );
     // The main character has no profile (ADR-100): every hit on it is neutral.
@@ -1390,11 +1404,11 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Ve
         0,
         vulnerable,
         0,
-        s.players[PlayerIdx::SOLO].defence,
+        s.players[me].defence,
         stage.tuning.defence_k,
     );
-    let dealt = skill::absorb(s, PlayerIdx::SOLO, dealt);
-    let p = &mut s.players[PlayerIdx::SOLO];
+    let dealt = skill::absorb(s, me, dealt);
+    let p = &mut s.players[me];
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = stage.tuning.hit_invulnerable_ticks;
     events.push(DomainEvent::PlayerHit {
@@ -1411,7 +1425,7 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Ve
     });
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
-        player::break_charge(stage, s, PlayerIdx::SOLO, events);
+        player::break_charge(stage, s, me, events);
     }
 }
 
@@ -1479,11 +1493,12 @@ pub(crate) fn aura_percent(
 fn hit_ally_side(
     stage: &World,
     s: &mut State,
+    me: PlayerIdx,
     b: Shot,
     by: Blame,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    let p = &s.players[PlayerIdx::SOLO];
+    let p = &s.players[me];
     if p.invulnerable == 0
         && p.hp > 0
         && overlaps(
@@ -1493,14 +1508,14 @@ fn hit_ally_side(
             stage.tuning.player_radius,
         )
     {
-        hurt_player(stage, s, aided(stage, s, b), by, events);
+        hurt_player(stage, s, me, aided(stage, s, b), by, events);
         return true;
     }
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = stage.defs.agent(c.def).radius.0;
         if c.hp > 0 && overlaps(b.at, stage.tuning.orb_radius, c.at, radius) {
-            damage(stage, s, aided(stage, s, b), Who::Companion(i), events);
+            damage(stage, s, me, aided(stage, s, b), Who::Companion(i), events);
             return true;
         }
     }
@@ -1508,8 +1523,8 @@ fn hit_ally_side(
 }
 
 /// The main character's death wins over a clear on the same tick.
-fn decide_outcome(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    if s.players[PlayerIdx::SOLO].hp == 0 {
+fn decide_outcome(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    if s.players[me].hp == 0 {
         s.outcome = Outcome::Failed;
         events.push(DomainEvent::StageFailed);
         return;

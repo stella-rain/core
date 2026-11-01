@@ -100,7 +100,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn runes_tick(c: &mut Ctx) {
-        runes::tick(c.s);
+        runes::tick(c.s, c.me);
     }
 
     #[inline(never)]
@@ -199,7 +199,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn decide_outcome(c: &mut Ctx) {
-        super::decide_outcome(c.world, c.s, c.events);
+        super::decide_outcome(c.world, c.s, c.me, c.events);
     }
 
     #[inline(never)]

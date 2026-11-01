@@ -97,7 +97,7 @@ pub(super) fn agent_mut(s: &mut State, who: Who) -> &mut AgentState {
 /// Every agent moves, then acts, in entity-ID order. Agents summoned this tick start next tick.
 pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     // Before any rule fires: the ranged tokens go to the nearest ready enemies in view (RA1).
-    super::attacks::grant_ranged(stage, s);
+    super::attacks::grant_ranged(stage, s, PlayerIdx::SOLO);
     for i in 0..s.companions.len() {
         act_one(stage, s, Who::Companion(i), events);
     }

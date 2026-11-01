@@ -616,8 +616,17 @@ fn strike(
     };
     let facing = s.players[me].facing;
     let damage = levels::attack(s, stage.player.atk);
-    s.players[me].combo.running =
-        attacks::start_player(stage, s, COMBO_SLOT, facing, attack, damage, strike, events);
+    s.players[me].combo.running = attacks::start_player(
+        stage,
+        s,
+        PlayerIdx::SOLO,
+        COMBO_SLOT,
+        facing,
+        attack,
+        damage,
+        strike,
+        events,
+    );
 }
 
 /// The direction from the main character to the entity `target`, if it is there and not on

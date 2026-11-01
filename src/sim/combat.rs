@@ -26,17 +26,9 @@ use super::{Shot, State, overlaps};
 /// crit chance held. The roll is a hash of the run's seed, the tick, the target, its hit points
 /// and where the shot landed, so two hits on one target in one tick differ and no draw is
 /// taken from the run's generator.
-pub(super) fn crits(s: &State, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bool {
-    let chance = s.players[PlayerIdx::SOLO]
-        .crit_chance_pct
-        .min(MAX_CRIT_CHANCE_TOTAL_PCT);
-    if chance == 0
-        || b.chain
-        || b.rune.is_some()
-        || !b.friendly
-        || b.owner != PlayerIdx::SOLO.id()
-        || !foe
-    {
+pub(super) fn crits(s: &State, me: PlayerIdx, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bool {
+    let chance = s.players[me].crit_chance_pct.min(MAX_CRIT_CHANCE_TOTAL_PCT);
+    if chance == 0 || b.chain || b.rune.is_some() || !b.friendly || b.owner != me.id() || !foe {
         return false;
     }
     let parts = [
@@ -65,16 +57,21 @@ pub(super) fn crit_damage(damage: u32, bonus_pct: u32, base_pct: u64) -> u32 {
 /// rune's hit and a damage-over-time tick do not. The echo is the reward's percent of what the
 /// hit dealt, at least 1, and is dealt a tick later, at the start of `collide`. The queue holds
 /// `MAX_ECHOES_PER_TICK`: the hits after that, in the order they landed, echo nothing.
-pub(super) fn queue_echo(s: &mut State, b: &Shot, target: EntityId, dealt: u32, foe: bool) {
-    let pct = s.players[PlayerIdx::SOLO]
-        .echo_hit_pct
-        .min(MAX_ECHO_HIT_PCT);
+pub(super) fn queue_echo(
+    s: &mut State,
+    me: PlayerIdx,
+    b: &Shot,
+    target: EntityId,
+    dealt: u32,
+    foe: bool,
+) {
+    let pct = s.players[me].echo_hit_pct.min(MAX_ECHO_HIT_PCT);
     if pct == 0
         || dealt == 0
         || b.chain
         || b.rune.is_some()
         || !b.friendly
-        || b.owner != PlayerIdx::SOLO.id()
+        || b.owner != me.id()
         || !foe
         || s.echoes.len() >= MAX_ECHOES_PER_TICK
     {
@@ -140,8 +137,8 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
 /// bursts go off in a tick; a kill past that is still credited, it just does not burst. A
 /// burst's kills are credited like any other (experience, drops, kills for a heal); the depth
 /// is all that stops the chain. The boss and its parts are not hurt by a burst.
-pub(super) fn bursts(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let p = &s.players[PlayerIdx::SOLO];
+pub(super) fn bursts(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    let p = &s.players[me];
     if p.burst_pct == 0 {
         return;
     }
@@ -177,7 +174,7 @@ pub(super) fn bursts(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>
                 .max(1);
             let shot = Shot {
                 at,
-                owner: PlayerIdx::SOLO.id(),
+                owner: me.id(),
                 friendly: true,
                 damage: amount,
                 damage_type: None,
@@ -195,7 +192,7 @@ pub(super) fn bursts(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>
                 {
                     continue;
                 }
-                super::damage(stage, s, shot, Who::Enemy(j), events);
+                super::damage(stage, s, me, shot, Who::Enemy(j), events);
                 if s.enemies[j].hp == 0 {
                     next.push(j);
                 }
@@ -263,7 +260,7 @@ mod tests {
         (0..1_000u32)
             .filter(|t| {
                 s.tick = *t;
-                crits(s, &b, EntityId(1), 500, true)
+                crits(s, PlayerIdx::SOLO, &b, EntityId(1), 500, true)
             })
             .count()
     }
@@ -299,7 +296,14 @@ mod tests {
         assert_eq!(rolls(&mut s, rune), 0, "nor a rune's");
         assert_eq!(rolls(&mut s, shot(EntityId(9))), 0, "nor another's hit");
         assert!(
-            !crits(&s, &shot(PlayerIdx::SOLO.id()), EntityId(1), 500, false),
+            !crits(
+                &s,
+                PlayerIdx::SOLO,
+                &shot(PlayerIdx::SOLO.id()),
+                EntityId(1),
+                500,
+                false
+            ),
             "nor on an ally"
         );
     }
@@ -328,11 +332,32 @@ mod tests {
     #[test]
     fn echoes_are_queued_at_their_percent_and_capped_per_tick() {
         let mut s = state();
-        queue_echo(&mut s, &shot(PlayerIdx::SOLO.id()), EntityId(5), 100, true);
+        queue_echo(
+            &mut s,
+            PlayerIdx::SOLO,
+            &shot(PlayerIdx::SOLO.id()),
+            EntityId(5),
+            100,
+            true,
+        );
         assert!(s.echoes.is_empty(), "no echo reward held");
         s.players[PlayerIdx::SOLO].echo_hit_pct = 35;
-        queue_echo(&mut s, &shot(PlayerIdx::SOLO.id()), EntityId(5), 100, true);
-        queue_echo(&mut s, &shot(PlayerIdx::SOLO.id()), EntityId(5), 1, true);
+        queue_echo(
+            &mut s,
+            PlayerIdx::SOLO,
+            &shot(PlayerIdx::SOLO.id()),
+            EntityId(5),
+            100,
+            true,
+        );
+        queue_echo(
+            &mut s,
+            PlayerIdx::SOLO,
+            &shot(PlayerIdx::SOLO.id()),
+            EntityId(5),
+            1,
+            true,
+        );
         assert_eq!(
             s.echoes.iter().map(|e| e.damage).collect::<Vec<_>>(),
             [35, 1],
@@ -340,17 +365,45 @@ mod tests {
         );
         let mut chained = shot(PlayerIdx::SOLO.id());
         chained.chain = true;
-        queue_echo(&mut s, &chained, EntityId(5), 100, true);
-        queue_echo(&mut s, &shot(EntityId(9)), EntityId(5), 100, true);
-        queue_echo(&mut s, &shot(PlayerIdx::SOLO.id()), EntityId(5), 100, false);
-        queue_echo(&mut s, &shot(PlayerIdx::SOLO.id()), EntityId(5), 0, true);
+        queue_echo(&mut s, PlayerIdx::SOLO, &chained, EntityId(5), 100, true);
+        queue_echo(
+            &mut s,
+            PlayerIdx::SOLO,
+            &shot(EntityId(9)),
+            EntityId(5),
+            100,
+            true,
+        );
+        queue_echo(
+            &mut s,
+            PlayerIdx::SOLO,
+            &shot(PlayerIdx::SOLO.id()),
+            EntityId(5),
+            100,
+            false,
+        );
+        queue_echo(
+            &mut s,
+            PlayerIdx::SOLO,
+            &shot(PlayerIdx::SOLO.id()),
+            EntityId(5),
+            0,
+            true,
+        );
         assert_eq!(
             s.echoes.len(),
             2,
             "no echo of an echo, a stranger's hit or an ally"
         );
         for i in 0..100 {
-            queue_echo(&mut s, &shot(PlayerIdx::SOLO.id()), EntityId(i), 100, true);
+            queue_echo(
+                &mut s,
+                PlayerIdx::SOLO,
+                &shot(PlayerIdx::SOLO.id()),
+                EntityId(i),
+                100,
+                true,
+            );
         }
         assert_eq!(s.echoes.len(), MAX_ECHOES_PER_TICK);
         // The first to land are the ones kept.
@@ -412,7 +465,7 @@ mod tests {
     fn run(s: &mut State) -> Vec<DomainEvent> {
         let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let mut events = Vec::new();
-        bursts(&stage, s, &mut events);
+        bursts(&stage, s, PlayerIdx::SOLO, &mut events);
         events
     }
 

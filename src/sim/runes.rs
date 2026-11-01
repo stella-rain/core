@@ -17,7 +17,7 @@
 //! character's without a combo step (point 3): the runes file's damage a stack, raised by the
 //! main character's atk-up and its type bonus for the rune's type as they are when it is
 //! applied, as an attack's are when it starts (ADR-056), and by the target's multipliers at
-//! each tick (`entity::tick_dots`). The step's own bonuses (a perfect release's) are not its.
+//! each tick (`entity::tick_dots`, PlayerIdx::SOLO). The step's own bonuses (a perfect release's) are not its.
 //! A smash's hit that leaves its target standing adds one stack of bleed the same way, with the
 //! same numbers, whether the rune is held or not (`apply_smash_bleed`, ADR-084 point 8): each
 //! source adds its stack to the one bleed (ADR-099 point 3).
@@ -90,8 +90,8 @@ pub(super) fn of_run(r: &crate::sim::state::AttackRun) -> Option<Rune> {
 }
 
 /// Every on-hit rune's cooldown counts down by a tick.
-pub(super) fn tick(s: &mut State) {
-    for r in &mut s.players[PlayerIdx::SOLO].runes {
+pub(super) fn tick(s: &mut State, me: PlayerIdx) {
+    for r in &mut s.players[me].runes {
         r.cooldown_left = r.cooldown_left.saturating_sub(1);
     }
 }
@@ -101,15 +101,16 @@ pub(super) fn tick(s: &mut State) {
 pub(super) fn on_hit(
     stage: &World,
     s: &mut State,
+    me: PlayerIdx,
     hit: EntityId,
     at: Point,
     events: &mut Vec<DomainEvent>,
 ) {
-    for i in 0..s.players[PlayerIdx::SOLO].runes.len() {
+    for i in 0..s.players[me].runes.len() {
         let HeldRune {
             rune,
             cooldown_left,
-        } = s.players[PlayerIdx::SOLO].runes[i];
+        } = s.players[me].runes[i];
         if cooldown_left > 0 {
             continue;
         }
@@ -120,50 +121,46 @@ pub(super) fn on_hit(
         // there. Rune Haste shortens it as it is set.
         let cooldown = rune_haste_ticks(
             entry.cooldown_ticks.min(MAX_RUNE_COOLDOWN_TICKS),
-            s.players[PlayerIdx::SOLO]
-                .rune_haste_pct
-                .min(s.max_rune_haste_pct),
+            s.players[me].rune_haste_pct.min(s.max_rune_haste_pct),
         );
         let damage = entry.damage;
         let Some(attack) = stage.rune_attacks[usize::from(rune.index())] else {
             continue;
         };
         let slot = FIRST_SLOT.saturating_add(rune.index());
-        let facing = s.players[PlayerIdx::SOLO].facing;
+        let facing = s.players[me].facing;
         if rune == Rune::HomingMissiles {
             let (missiles, range) = (entry.missiles.unwrap_or(1), entry.range.unwrap_or(Fx(0)));
-            if launch(stage, s, hit, at, missiles, range, attack, damage, events) {
-                s.players[PlayerIdx::SOLO].runes[i].cooldown_left = cooldown;
+            if launch(
+                stage, s, me, hit, at, missiles, range, attack, damage, events,
+            ) {
+                s.players[me].runes[i].cooldown_left = cooldown;
             }
             continue;
         }
         let thrown = rune == Rune::Boomerang;
-        let from = if thrown {
-            s.players[PlayerIdx::SOLO].at
-        } else {
-            at
-        };
-        if attacks::start_rune(stage, s, slot, from, facing, attack, damage, events) {
+        let from = if thrown { s.players[me].at } else { at };
+        if attacks::start_rune(stage, s, me, slot, from, facing, attack, damage, events) {
             if thrown {
                 // It was pushed last; its first step counts the tick it is thrown on.
                 if let Some(r) = s.runs.last_mut() {
                     r.throw = Some(at);
                 }
                 if let Some(r) = s.runs.len().checked_sub(1) {
-                    fly_one(stage, s, r);
+                    fly_one(stage, s, me, r);
                 }
             }
-            s.players[PlayerIdx::SOLO].runes[i].cooldown_left = cooldown;
+            s.players[me].runes[i].cooldown_left = cooldown;
         }
     }
 }
 
 /// A combo step hit `target`, which still stands: each damage-over-time rune held puts its
 /// status on it, in the order held.
-pub(super) fn apply_dots(s: &mut State, target: Who, events: &mut Vec<DomainEvent>) {
-    for i in 0..s.players[PlayerIdx::SOLO].runes.len() {
-        let rune = s.players[PlayerIdx::SOLO].runes[i].rune;
-        apply_dot(s, target, rune, events);
+pub(super) fn apply_dots(s: &mut State, me: PlayerIdx, target: Who, events: &mut Vec<DomainEvent>) {
+    for i in 0..s.players[me].runes.len() {
+        let rune = s.players[me].runes[i].rune;
+        apply_dot(s, me, target, rune, events);
     }
 }
 
@@ -171,12 +168,12 @@ pub(super) fn apply_dots(s: &mut State, target: Who, events: &mut Vec<DomainEven
 /// the bleed rune's numbers (ADR-084 point 8). It adds its own stack when the rune is held too:
 /// each source adds its stacks to the one bleed (ADR-099 point 3).
 pub(super) fn apply_smash_bleed(s: &mut State, target: Who, events: &mut Vec<DomainEvent>) {
-    apply_dot(s, target, Rune::Bleed, events);
+    apply_dot(s, PlayerIdx::SOLO, target, Rune::Bleed, events);
 }
 
 /// Puts `rune`'s status on `target`, when `rune` is damage over time and the run's content has
 /// its entry; a run without one applies none (fail closed).
-fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEvent>) {
+fn apply_dot(s: &mut State, me: PlayerIdx, target: Who, rune: Rune, events: &mut Vec<DomainEvent>) {
     let kind = match rune {
         Rune::Bleed => StatusKind::Bleed,
         Rune::Poison => StatusKind::Poison,
@@ -189,9 +186,7 @@ fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEven
     // The validator holds every number to its cap; the clamps keep an unvalidated file there.
     let interval = rune_haste_ticks(
         entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS),
-        s.players[PlayerIdx::SOLO]
-            .rune_haste_pct
-            .min(s.max_rune_haste_pct),
+        s.players[me].rune_haste_pct.min(s.max_rune_haste_pct),
     );
     let duration = entry.duration_ticks.clamp(1, MAX_DOT_DURATION_TICKS);
     let max_stacks = u16::try_from(entry.max_stacks.clamp(1, MAX_DOT_STACKS)).unwrap_or(1);
@@ -199,14 +194,14 @@ fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEven
     let dot = DotState {
         damage: entry.damage.min(MAX_DAMAGE),
         damage_type: entry.damage_type,
-        atk_up_pct: status_pct(&s.players[PlayerIdx::SOLO].statuses, StatusKind::AtkUp),
-        type_bonus_pct: entry.damage_type.map_or(0, |ty| {
-            s.players[PlayerIdx::SOLO].type_bonus_pct[ty.index()].min(limit)
-        }),
+        atk_up_pct: status_pct(&s.players[me].statuses, StatusKind::AtkUp),
+        type_bonus_pct: entry
+            .damage_type
+            .map_or(0, |ty| s.players[me].type_bonus_pct[ty.index()].min(limit)),
         interval,
         next_in: interval,
     };
-    let source = s.id_of(Who::Player(PlayerIdx::SOLO));
+    let source = s.id_of(Who::Player(me));
     s.add_dot(target, kind, source, dot, duration, max_stacks, events);
 }
 
@@ -216,6 +211,7 @@ fn apply_dot(s: &mut State, target: Who, rune: Rune, events: &mut Vec<DomainEven
 fn launch(
     stage: &World,
     s: &mut State,
+    me: PlayerIdx,
     hit: EntityId,
     at: Point,
     missiles: u32,
@@ -227,15 +223,12 @@ fn launch(
     // The validator holds both to their caps; the clamps keep an unvalidated file there.
     let n = missiles.clamp(1, MAX_HOMING_MISSILES) as u8;
     let range = range.0.clamp(0, MAX_ASSIST_RANGE);
-    let player = s.id_of(Who::Player(PlayerIdx::SOLO));
+    let player = s.id_of(Who::Player(me));
     if (0..n).any(|k| attacks::busy(s, player, MISSILE_SLOT.saturating_add(k))) {
         return false;
     }
     let targets = select::assist_targets(stage, s, range, usize::from(n));
-    let (from, facing) = (
-        s.players[PlayerIdx::SOLO].at,
-        s.players[PlayerIdx::SOLO].facing,
-    );
+    let (from, facing) = (s.players[me].at, s.players[me].facing);
     for k in 0..n {
         let target = match targets.len() {
             0 => hit,
@@ -243,14 +236,14 @@ fn launch(
         };
         let goal = s.find(target).map_or(at, |w| s.at(w));
         let slot = MISSILE_SLOT.saturating_add(k);
-        if attacks::start_rune(stage, s, slot, from, facing, attack, damage, events) {
+        if attacks::start_rune(stage, s, me, slot, from, facing, attack, damage, events) {
             // It was pushed last; its first step counts the tick it launches on.
             if let Some(r) = s.runs.last_mut() {
                 r.throw = Some(goal);
                 r.homing = Some(target);
             }
             if let Some(r) = s.runs.len().checked_sub(1) {
-                fly_one(stage, s, r);
+                fly_one(stage, s, me, r);
             }
         }
     }
@@ -262,7 +255,7 @@ fn launch(
 pub(super) fn fly(stage: &World, s: &mut State) {
     for i in 0..s.runs.len() {
         if s.runs[i].throw.is_some() && s.runs[i].homing.is_none() {
-            fly_one(stage, s, i);
+            fly_one(stage, s, PlayerIdx::SOLO, i);
         }
     }
 }
@@ -276,14 +269,14 @@ pub(super) fn steer(stage: &World, s: &mut State) {
         if let Some(w) = s.find(target).filter(|w| s.is_alive(*w)) {
             s.runs[i].throw = Some(s.at(w));
         }
-        fly_one(stage, s, i);
+        fly_one(stage, s, PlayerIdx::SOLO, i);
     }
 }
 
 /// Run `i`'s centre goes the distance left to its goal over the phase's ticks left, this one
 /// counted, so that it is there on the phase's last tick.
-fn fly_one(stage: &World, s: &mut State, i: usize) {
-    let to_player = s.players[PlayerIdx::SOLO].at;
+fn fly_one(stage: &World, s: &mut State, me: PlayerIdx, i: usize) {
+    let to_player = s.players[me].at;
     let r = &mut s.runs[i];
     let (Some(at), Some(turn)) = (r.at, r.throw) else {
         return;

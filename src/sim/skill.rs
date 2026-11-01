@@ -214,7 +214,17 @@ fn apply(
                 smash: None,
             };
             let damage = levels::attack(s, stage.player.atk);
-            attacks::start_player(stage, s, SKILL_SLOT, dir, attack, damage, strike, events);
+            attacks::start_player(
+                stage,
+                s,
+                PlayerIdx::SOLO,
+                SKILL_SLOT,
+                dir,
+                attack,
+                damage,
+                strike,
+                events,
+            );
         }
         SkillEffect::Shield {
             amount,
