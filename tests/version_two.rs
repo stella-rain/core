@@ -173,7 +173,8 @@ fn bump(file: &Path) {
 fn the_frozen_v1_corpus_replays_with_the_same_hashes_at_version_2() {
     let frozen = current_dir().parent().unwrap().join("v1");
     check_frozen_tree(&frozen).unwrap();
-    let scratch = std::env::temp_dir().join(format!("sr-version-two-{}", std::process::id()));
+    let scratch =
+        crate::data_root::scratch_dir().join(format!("sr-version-two-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
     let copy = scratch.join("v1");
     copy_tree(&frozen, &copy);
