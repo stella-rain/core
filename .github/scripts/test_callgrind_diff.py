@@ -280,6 +280,15 @@ class Steps(unittest.TestCase):
         _, rows = c.parse_annotate("1 PROGRAM TOTALS\n 7  <f.rs>:" + P + "x::h0123abcd\n 4  ???:x\n")
         self.assertEqual(c.parse_steps(rows), {"x": 7})
 
+    def test_a_step_of_the_frozen_rules_is_counted_as_the_same_step(self):
+        frozen = P.replace("::sim::", "::sim_v1::")
+        text = ("1 PROGRAM TOTALS\n 60  ???:" + frozen + "run_attacks\n 40  ???:" + P
+                + "run_attacks\n 9  ???:" + frozen + "advance_tick::h0123abcd\n 5  ???:" + frozen + "a::inner\n")
+        _, rows = c.parse_annotate(text)
+        self.assertEqual(c.parse_steps(rows), {"run_attacks": 100, "advance_tick": 9})
+        self.assertFalse(c.steps_unreliable(rows, 200))
+        self.assertTrue(c.steps_unreliable(rows, 100))
+
     def test_closures_and_helpers_inside_a_step_are_not_added_to_it(self):
         text = ("1 PROGRAM TOTALS\n 60  ???:" + P + "a\n 50  ???:" + P + "a::inner\n 30  ???:" + P
                 + "a::{{closure}}\n 5  ???:" + P + "a::h0123abcd\n")
