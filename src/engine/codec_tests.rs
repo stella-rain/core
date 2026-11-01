@@ -618,6 +618,10 @@ impl Perturb for KindTable {
 /// here; they are content or buffers (`decode_state` takes them from the fresh engine, and the
 /// corpus test compares them), so their perturbation is no change, and listing them under
 /// `rebuilt` is the compile-time half of the check.
+impl Perturb for crate::sim_v1::Scratch {
+    fn perturb(&mut self) {}
+}
+
 impl Perturb for crate::sim::Scratch {
     fn perturb(&mut self) {}
 }

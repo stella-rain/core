@@ -14,7 +14,7 @@ use crate::pack::ContentFiles;
 use crate::rewards::Rarity;
 use crate::run_content::RunContent;
 use crate::rune::Rune;
-use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool};
+use crate::sim_v1::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool};
 use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 use crate::time_limit::TimeLimit;
 use crate::version::Versions;

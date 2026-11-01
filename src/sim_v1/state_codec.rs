@@ -1658,17 +1658,6 @@ impl Decode for Horde {
     }
 }
 
-// ---- Text ----
-
-/// The most bytes of a name the ledger and the tallies hold (a kill key, a star's name).
-const MAX_TEXT_BYTES: u32 = 256;
-
-/// The text of at most `MAX_TEXT_BYTES` bytes.
-fn decode_text<'a>(r: &mut Reader<'a>) -> Result<&'a str, DecodeError> {
-    let n = r.list_len(MAX_TEXT_BYTES)?;
-    std::str::from_utf8(r.bytes(n)?).map_err(|_| DecodeError::Invalid("utf8"))
-}
-
 // ---- The state ----
 
 impl Encode for State {
@@ -1806,7 +1795,11 @@ impl State {
 #[cfg(test)]
 mod enum_tests {
     use super::*;
+    use crate::engine::Outcome;
+    use crate::rewards::Rarity;
+    use crate::rune::Rune;
     use crate::savepoint::testing::{from_bytes, to_bytes};
+    use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 
     /// Every variant, in order, is its number; the number after the last is refused.
     fn tags<T: Encode + Decode + PartialEq + std::fmt::Debug>(all: &[T]) {

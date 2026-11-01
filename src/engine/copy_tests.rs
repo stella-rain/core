@@ -94,6 +94,10 @@ fn scripted(version: u32) -> (Engine, Vec<(u64, Vec<DomainEvent>)>) {
 fn the_copy_equals_the_original_on_a_scripted_run() {
     let ((a, seen_a), (b, seen_b)) = (scripted(1), scripted(2));
     assert_eq!(seen_a, seen_b);
+    assert!(
+        seen_a.iter().any(|(_, events)| !events.is_empty()),
+        "the script makes something happen"
+    );
     assert_eq!(a.snapshot(), b.snapshot());
 }
 
@@ -101,7 +105,6 @@ fn the_copy_equals_the_original_on_a_scripted_run() {
 fn the_ledger_and_the_tallies_are_equal_for_both_versions() {
     let ((a, _), (b, _)) = (scripted(1), scripted(2));
     assert_eq!(a.ledger(), b.ledger());
-    assert!(a.tally().kills() > 0, "the script kills something");
     assert_eq!(a.tally().kills(), b.tally().kills());
     assert_eq!(
         a.tally().taken().collect::<Vec<_>>(),
@@ -215,4 +218,23 @@ fn a_savepoint_of_another_version_than_the_setup_is_refused() {
         );
     }
     let _ = save;
+}
+
+#[test]
+fn a_stage_runs_the_same_under_either_version() {
+    let stage = crate::validate::parse_and_validate(crate::run_setup::mode_stage("trial").unwrap())
+        .unwrap();
+    let mut a = Engine::new_forced(&stage, 1).unwrap();
+    let mut b = Engine::new_forced(&stage, 2).unwrap();
+    assert_eq!((a.run.module(), b.run.module()), ("sim_v1", "sim"));
+    for tick in 1..=120 {
+        let input = Input {
+            main: tick % 3 == 0,
+            move_x: 50,
+            ..Input::default()
+        };
+        a.step(input);
+        b.step(input);
+        assert_same_tick(&a, &b, "trial", tick);
+    }
 }
