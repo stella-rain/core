@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sim_version": 1,
+  "sim_version": 2,
   "introduced": {
     "run_stats": [
       {
@@ -8763,7 +8763,7 @@
   "no_call_ticks": [
     18000
   ],
-  "overtime_ticks": 540,
+  "overtime_ticks": 12000,
   "star_hunter_extra_ticks": 3600,
   "stardust_summon_base": 10,
   "stardust_tiers": [
