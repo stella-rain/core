@@ -41,7 +41,11 @@ fn solo_state_hash_and_savepoint_bytes_are_pinned() {
     ];
     assert_eq!(
         got,
-        [0, 0, 0],
+        [
+            15_108_713_697_578_387_562,
+            6_803_785_181_847_753_420,
+            14_234_592_711_951_511_813,
+        ],
         "worst_case, hit_case, time_limit_case; never regenerated"
     );
 }

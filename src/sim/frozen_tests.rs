@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// FNV-1a 64 over the files of `src/sim_v1`, sorted by path, each as its path, a zero byte, its
 /// length and its content.
-const SIM_V1_SOURCE: u64 = 0;
+const SIM_V1_SOURCE: u64 = 1_179_136_501_895_703_855;
 
 fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).expect("src/sim_v1 is readable") {
