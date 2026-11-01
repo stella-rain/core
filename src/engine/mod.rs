@@ -489,6 +489,8 @@ pub use snapshot::{Place, Places, Tally};
 #[cfg(test)]
 mod codec_tests;
 #[cfg(test)]
+mod copy_tests;
+#[cfg(test)]
 mod dispatch_tests;
 #[cfg(test)]
 mod hash_coverage_tests;
