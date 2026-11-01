@@ -675,7 +675,7 @@ fn player(p: &mut PlayerState) {
 
 /// A state with every list non-empty and every `Option` `Some`, to perturb field by field.
 pub(super) fn full_state(e: &Engine) -> State {
-    let mut s = e.state.clone();
+    let Run::V1(mut s) = e.run.clone();
     player(&mut s.player);
     s.boss = Some(boss());
     s.companions = vec![agent()];
@@ -758,7 +758,7 @@ impl Probe {
             "the probe's stage has two attacks"
         );
         let base = full_state(&engine);
-        engine.state = base.clone();
+        engine.run = Run::V1(base.clone());
         let base_hash = engine.state_hash();
         Probe {
             engine,
@@ -772,7 +772,7 @@ impl Probe {
     fn moves(&mut self, change: impl FnOnce(&mut State)) -> bool {
         let mut s = self.base.clone();
         change(&mut s);
-        self.engine.state = s;
+        self.engine.run = Run::V1(s);
         self.engine.state_hash() != self.base_hash
     }
 

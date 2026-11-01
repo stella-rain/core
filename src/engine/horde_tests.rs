@@ -63,9 +63,9 @@ fn arrivals_and_calls(e: &mut Engine, until: u32) -> (Vec<u32>, Vec<u32>) {
     let (mut arrived, mut called) = (Vec::new(), Vec::new());
     let mut last = None;
     while e.tick() < until {
-        e.state.player.hp = e.state.player.max_hp;
+        e.run.player.hp = e.run.player.max_hp;
         e.step(Input::default());
-        let id = e.state.boss.as_ref().map(|b| b.id);
+        let id = e.run.boss.as_ref().map(|b| b.id);
         if id.is_some() && id != last {
             arrived.push(e.tick());
         }
@@ -93,7 +93,7 @@ fn a_boss_calls_its_elites_after_the_same_time_whenever_it_arrives() {
 /// Drops the boss on the field below 70% of its hit points and steps once: whether it
 /// called its elites on that tick.
 fn calls_below_70_pct(e: &mut Engine) -> bool {
-    let boss = e.state.boss.as_mut().unwrap();
+    let boss = e.run.boss.as_mut().unwrap();
     boss.hp = boss.max_hp * 69 / 100;
     e.step(Input::default());
     e.events()
@@ -139,9 +139,9 @@ fn summoning_mode(v: &mut serde_json::Value) {
 fn a_boss_summon_outlives_its_boss_and_keeps_its_definition() {
     let mut e = engine_edited(&[50, 100, 150], &[], summoning_mode);
     run_to(&mut e, 60);
-    let first = e.state.boss.as_ref().unwrap().id;
+    let first = e.run.boss.as_ref().unwrap().id;
     let summon_hp = |e: &Engine| -> Vec<u32> {
-        e.state
+        e.run
             .enemies
             .iter()
             .map(|en| e.stage.defs.agent(en.def).hp)
@@ -149,13 +149,13 @@ fn a_boss_summon_outlives_its_boss_and_keeps_its_definition() {
     };
     let made = summon_hp(&e);
     assert_eq!(made.len(), 1, "the first boss has summoned");
-    e.state.boss.as_mut().unwrap().hp = 0;
+    e.run.boss.as_mut().unwrap().hp = 0;
     for _ in 0..60 {
-        e.state.player.hp = e.state.player.max_hp;
+        e.run.player.hp = e.run.player.max_hp;
         e.step(Input::default());
     }
     assert_ne!(
-        e.state.boss.as_ref().unwrap().id,
+        e.run.boss.as_ref().unwrap().id,
         first,
         "the next boss has come"
     );
@@ -170,12 +170,12 @@ fn a_boss_summon_outlives_its_boss_and_keeps_its_definition() {
 
 /// The definition of the boss on the field.
 fn boss_def(e: &Engine) -> &crate::stage::Boss {
-    &e.stage.boss(e.state.boss.as_ref().unwrap().boss).boss
+    &e.stage.boss(e.run.boss.as_ref().unwrap().boss).boss
 }
 
 /// The slot of the boss on the field in the run's list of boss definitions.
 fn boss_slot(e: &Engine) -> u32 {
-    u32::from(e.state.boss.as_ref().unwrap().boss.0)
+    u32::from(e.run.boss.as_ref().unwrap().boss.0)
 }
 
 #[test]
@@ -223,7 +223,7 @@ fn a_boss_coming_leaves_the_stage_as_it_was() {
     let mut e = engine(&[50, 100]);
     let before = e.stage.stage.clone();
     run_to(&mut e, 100);
-    assert!(e.state.boss.is_some(), "a boss has come");
+    assert!(e.run.boss.is_some(), "a boss has come");
     assert_eq!(
         e.stage.stage, before,
         "the stage is read-only for a run (core#271)"
@@ -235,8 +235,8 @@ fn the_final_boss_is_the_core_pair_and_its_death_clears_the_run() {
     let mut e = engine(&[50, 100]);
     run_to(&mut e, 100);
     assert_eq!(boss_def(&e).base.as_str(), "core_pair");
-    assert_eq!(e.state.boss.as_ref().unwrap().parts.len(), 2);
-    e.state.boss.as_mut().unwrap().hp = 0;
+    assert_eq!(e.run.boss.as_ref().unwrap().parts.len(), 2);
+    e.run.boss.as_mut().unwrap().hp = 0;
     e.step(Input::default());
     assert_eq!(e.outcome(), Outcome::Cleared);
 }
@@ -245,15 +245,15 @@ fn the_final_boss_is_the_core_pair_and_its_death_clears_the_run() {
 fn a_mid_boss_s_death_does_not_clear_the_run_and_the_final_boss_s_does() {
     let mut e = engine(&[50, 100]);
     run_to(&mut e, 50);
-    assert!(e.state.boss.as_ref().is_some_and(|b| b.hp > 0));
+    assert!(e.run.boss.as_ref().is_some_and(|b| b.hp > 0));
     // The mid-boss falls; the stage's own rule would clear the run here.
-    e.state.boss.as_mut().unwrap().hp = 0;
+    e.run.boss.as_mut().unwrap().hp = 0;
     run_to(&mut e, 99);
     assert_eq!(e.outcome(), Outcome::Running);
     run_to(&mut e, 100);
-    let final_boss = e.state.boss.as_ref().unwrap();
+    let final_boss = e.run.boss.as_ref().unwrap();
     assert!(final_boss.hp > 0, "a new boss at the last time");
-    e.state.boss.as_mut().unwrap().hp = 0;
+    e.run.boss.as_mut().unwrap().hp = 0;
     e.step(Input::default());
     assert_eq!(e.outcome(), Outcome::Cleared);
     assert!(e.events().contains(&DomainEvent::StageCleared));
@@ -263,8 +263,8 @@ fn a_mid_boss_s_death_does_not_clear_the_run_and_the_final_boss_s_does() {
 fn the_main_character_s_death_fails_the_run_and_wins_over_the_final_boss_s() {
     let mut e = engine(&[50, 100]);
     run_to(&mut e, 100);
-    e.state.boss.as_mut().unwrap().hp = 0;
-    e.state.player.hp = 0;
+    e.run.boss.as_mut().unwrap().hp = 0;
+    e.run.player.hp = 0;
     e.step(Input::default());
     assert_eq!(e.outcome(), Outcome::Failed);
     assert!(e.events().contains(&DomainEvent::StageFailed));
@@ -282,8 +282,8 @@ fn the_run_lasts_its_length_and_its_overtime_and_an_empty_field_does_not_clear_i
 #[test]
 fn the_run_fails_when_the_overtime_runs_out_with_the_final_boss_alive() {
     let mut e = engine(&[50, 100]);
-    e.state.player.hp = u32::MAX;
-    e.state.player.max_hp = u32::MAX;
+    e.run.player.hp = u32::MAX;
+    e.run.player.max_hp = u32::MAX;
     run_to(&mut e, 100 + 18_000 - 1);
     assert_eq!(e.outcome(), Outcome::Running);
     e.step(Input::default());
@@ -319,8 +319,8 @@ fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
         difficulty: "normal".into(),
     };
     let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
-    e.state.player.hp = u32::MAX;
-    e.state.player.max_hp = u32::MAX;
+    e.run.player.hp = u32::MAX;
+    e.run.player.max_hp = u32::MAX;
     e
 }
 
@@ -408,13 +408,8 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
             (14_400, "bat")
         ]
     );
-    assert_eq!(e.state.rng.horde.state(), 15_227_162_336_133_205_109);
-    let at: Vec<(i32, i32)> = e
-        .state
-        .enemies
-        .iter()
-        .map(|a| (a.at.x.0, a.at.y.0))
-        .collect();
+    assert_eq!(e.run.rng.horde.state(), 15_227_162_336_133_205_109);
+    let at: Vec<(i32, i32)> = e.run.enemies.iter().map(|a| (a.at.x.0, a.at.y.0)).collect();
     assert_eq!(
         at,
         [
@@ -445,12 +440,7 @@ fn each_grade_is_spawned_from_its_own_definition() {
         });
         let spawned = elites_spawned(&mut e, 3_600);
         assert_eq!(spawned, [(3_600, sprite.to_string())], "{id}");
-        let elites: Vec<_> = e
-            .state
-            .enemies
-            .iter()
-            .filter(|a| a.elite.is_some())
-            .collect();
+        let elites: Vec<_> = e.run.enemies.iter().filter(|a| a.elite.is_some()).collect();
         assert_eq!(elites.len(), 1);
         assert_eq!(
             elites[0].hp, def.enemy.hp,
@@ -485,13 +475,13 @@ fn the_cap_holds_an_elite_back_but_the_generator_is_drawn_the_same() {
         few += elites_spawned(&mut tight, at).len();
         many += elites_spawned(&mut roomy, at).len();
         assert_eq!(
-            tight.state.rng.horde.state(),
-            roomy.state.rng.horde.state(),
+            tight.run.rng.horde.state(),
+            roomy.run.rng.horde.state(),
             "the generator after minute {minute}"
         );
     }
     assert_eq!((few, many), (1, 4), "the cap held three back");
-    let alive = |e: &Engine| e.state.enemies.iter().filter(|a| a.elite.is_some()).count();
+    let alive = |e: &Engine| e.run.enemies.iter().filter(|a| a.elite.is_some()).count();
     assert_eq!((alive(&tight), alive(&roomy)), (1, 4));
 }
 
@@ -518,7 +508,7 @@ fn the_boss_calls_the_elites_of_the_minutes_before_and_after_it_comes() {
     assert_eq!(called, [(5_800, 1)]);
     // The elite of minute 2 spawned after the call: called at once.
     let elites: Vec<bool> = e
-        .state
+        .run
         .enemies
         .iter()
         .filter_map(|a| a.elite.map(|el| el.called))
@@ -555,7 +545,7 @@ fn bundled_run(difficulty: &str, seed: u64) -> Engine {
 /// The sprite of the boss on the field once the run has reached `tick`.
 fn boss_sprite_at(e: &mut Engine, tick: u32) -> Option<String> {
     while e.tick() < tick {
-        e.state.player.hp = e.state.player.max_hp;
+        e.run.player.hp = e.run.player.max_hp;
         e.step(Input::default());
     }
     e.snapshot()
@@ -613,7 +603,7 @@ fn the_run_draws_three_distinct_mid_bosses_from_the_four_seed_3() {
 fn assert_easy_run_draws_one_mid_boss(seed: u64) {
     const POOL: [&str; 4] = ["stone_warden", "lantern_choir", "horn_charger", "weaver"];
     let mut e = bundled_run("easy", seed);
-    let horde = e.state.horde.as_ref().unwrap();
+    let horde = e.run.horde.as_ref().unwrap();
     assert_eq!(horde.boss_ticks, [18_000, 36_000], "seed {seed}");
     let drawn = boss_sprite_at(&mut e, 18_000).expect("a boss");
     assert!(POOL.contains(&drawn.as_str()), "seed {seed}: {drawn}");
@@ -637,7 +627,7 @@ fn each_mid_boss_s_hit_points_rise_by_its_slot_and_the_final_boss_s_do_not() {
     let mut seen = Vec::new();
     for (t, pct) in [(50, 100), (100, 130), (150, 160), (200, 100)] {
         run_to(&mut e, t);
-        let boss = e.state.boss.as_ref().unwrap();
+        let boss = e.run.boss.as_ref().unwrap();
         let def = mode
             .bosses()
             .iter()
@@ -714,21 +704,21 @@ fn directed(target: u16, waves: &[(u32, u16, u32)]) -> Engine {
 
 /// One tick with the main character kept alive.
 fn step_alive(e: &mut Engine) {
-    e.state.player.hp = e.state.player.max_hp;
+    e.run.player.hp = e.run.player.max_hp;
     e.step(Input::default());
 }
 
 fn held(e: &Engine, wave: usize) -> u32 {
-    e.state.horde.as_ref().unwrap().held[wave]
+    e.run.horde.as_ref().unwrap().held[wave]
 }
 
 fn spawned(e: &Engine, wave: usize) -> u16 {
-    e.state.spawned[wave]
+    e.run.spawned[wave]
 }
 
 fn removed(e: &mut Engine, n: usize) {
-    let len = e.state.enemies.len();
-    e.state.enemies.truncate(len - n);
+    let len = e.run.enemies.len();
+    e.run.enemies.truncate(len - n);
 }
 
 #[test]
@@ -744,7 +734,7 @@ fn a_held_wave_slides_its_schedule_and_does_not_catch_up() {
     }
     assert_eq!(held(&e, 1), 300, "held a tick more each tick");
     assert_eq!(spawned(&e, 1), 0, "held, not spawned");
-    assert_eq!(e.state.enemies.len(), 20);
+    assert_eq!(e.run.enemies.len(), 20);
     // Room for ten: it spawns one, not the backlog, and the next 60 ticks later.
     removed(&mut e, 10);
     let mut came = Vec::new();
@@ -812,7 +802,7 @@ fn a_spawn_draws_once_on_the_spawn_stream_and_a_held_spawn_draws_nothing() {
     }
     assert!(held(&e, 1) > 0, "wave 1 was held");
     assert_eq!(
-        e.state.rng.spawn.state(),
+        e.run.rng.spawn.state(),
         drawn(20),
         "20 spawns, no draw held"
     );
@@ -821,7 +811,7 @@ fn a_spawn_draws_once_on_the_spawn_stream_and_a_held_spawn_draws_nothing() {
         step_alive(&mut e);
     }
     assert_eq!(
-        e.state.rng.spawn.state(),
+        e.run.rng.spawn.state(),
         drawn(22),
         "two more spawns, two more draws"
     );
@@ -834,7 +824,7 @@ fn an_elite_draws_its_place_whether_or_not_it_can_spawn() {
     let at_minute_5 = |cap: u32| {
         let mut e = run_of(7, |v| v["elite_cap"] = serde_json::json!(cap));
         elites_spawned(&mut e, 5 * 3_600 + 10);
-        e.state.rng.horde.state()
+        e.run.rng.horde.state()
     };
     assert_eq!(at_minute_5(1), at_minute_5(32));
 }

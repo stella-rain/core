@@ -398,7 +398,7 @@ fn the_values_of_a_live_run_round_trip_at_every_tick() {
     let mut seen = [0usize; 7];
     for _ in 0..900 {
         e.step(Input::default());
-        let s = &e.state;
+        let s = &e.run;
         round_trip_hashed(&s.rng);
         for a in s.companions.iter().chain(&s.enemies) {
             round_trip_hashed(a);

@@ -7,7 +7,8 @@
 //! Rules are dispatched by the stage's `sim_version` (ADR-017, ADR-REPL-7 point 3): versions
 //! `1..=SIM_VERSION` run in `sim`, any other fails closed. Version 1 is frozen, so a change of
 //! outcome after it is a gate on the new version in `sim`, a copy only for a rewrite (see `sim`
-//! for what it does and does not do yet).
+//! for what it does and does not do yet). The engine holds its state as a `Run`, one variant per
+//! released rules version (`run.rs`, ADR-REPL-9), and every call into the rules goes through it.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -96,7 +97,7 @@ pub struct Engine {
     stage: World,
     /// The content files the run reads (ADR-067), fixed for the run.
     content: RunContent,
-    state: State,
+    run: Run,
     /// Events of the last tick; cleared when the next one starts.
     events: Vec<DomainEvent>,
     /// What the last tick used of the dynamic budgets; zero when the tick did not run.
@@ -111,12 +112,12 @@ impl Clone for Engine {
     /// A clone keeps the room the run reserved at load: a derived clone of a `Vec` has only its
     /// length, and the clone's first ticks would grow them (DIR1).
     fn clone(&self) -> Engine {
-        let mut state = self.state.clone();
-        sim::reserve(&self.stage, &mut state);
+        let mut run = self.run.clone();
+        run.reserve(&self.stage);
         Engine {
             stage: self.stage.clone(),
             content: self.content.clone(),
-            state,
+            run,
             events: {
                 let mut events = self.events.clone();
                 events.reserve(sim::events_room(&self.stage).saturating_sub(events.len()));
@@ -133,10 +134,11 @@ impl Engine {
     /// What a savepoint writes and a resume compares with: the world and content (fixed for the
     /// run), the state, the ledger and the tallies.
     pub(crate) fn savepoint_parts(&self) -> (&World, &RunContent, &State, &RunLedger, &Counted) {
+        let Run::V1(state) = &self.run;
         (
             &self.stage,
             &self.content,
-            &self.state,
+            state,
             &self.ledger,
             &self.counted,
         )
@@ -151,7 +153,7 @@ impl Engine {
         Engine {
             stage: self.stage,
             content: self.content,
-            state,
+            run: Run::V1(state),
             events,
             load: Load::default(),
             ledger,
@@ -194,7 +196,7 @@ impl Engine {
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
             events: Vec::with_capacity(sim::events_room(&stage)),
-            state,
+            run: Run::V1(state),
             stage,
             content: content.clone(),
             load: Load::default(),
@@ -237,7 +239,7 @@ impl Engine {
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
             events: Vec::with_capacity(sim::events_room(&stage)),
-            state,
+            run: Run::V1(state),
             stage,
             content: content.clone(),
             load: Load::default(),
@@ -279,7 +281,7 @@ impl Engine {
         let ledger = RunLedger::for_engine(&state.kinds, weapon);
         Ok(Engine {
             events: Vec::with_capacity(sim::events_room(&stage)),
-            state,
+            run: Run::V1(state),
             stage,
             content: content.clone(),
             load: Load::default(),
@@ -298,18 +300,19 @@ impl Engine {
             return;
         }
         match self.stage.sim_version {
-            v @ 1..=SIM_VERSION => sim::step(
-                v,
+            1..=SIM_VERSION => self.run.step(
                 &self.stage,
                 self.content.rewards(),
                 self.content.expertise(),
-                &mut self.state,
                 input,
                 &mut self.events,
                 &mut self.load,
             ),
             // `new` validated the version; fail closed if that ever stops being true.
-            _ => self.state.outcome = Outcome::Failed,
+            _ => {
+                let Run::V1(s) = &mut self.run;
+                s.outcome = Outcome::Failed;
+            }
         }
         self.observe_tick();
     }
@@ -329,7 +332,7 @@ impl Engine {
             return Err(ChoiceError::Unsupported { sim_version });
         }
         let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
-        let options = sim::offer_options(&self.stage, rewards, expertise, &self.state);
+        let options = self.run.offer_options(&self.stage, rewards, expertise);
         let Some(option) = usize::try_from(index)
             .ok()
             .and_then(|i| options.get(i))
@@ -341,15 +344,8 @@ impl Engine {
             });
         };
         self.events.clear();
-        sim::choose(
-            sim_version,
-            &self.stage,
-            rewards,
-            expertise,
-            &mut self.state,
-            option,
-            &mut self.events,
-        );
+        self.run
+            .choose(&self.stage, rewards, expertise, option, &mut self.events);
         self.observe_choice();
         Ok(())
     }
@@ -363,20 +359,16 @@ impl Engine {
 
     fn observe_tick(&mut self) {
         let weapon = Self::weapon_str(&self.stage);
-        self.ledger.observe_tick(
-            &self.state.kinds,
-            weapon,
-            &self.state.enemies,
-            self.state.boss.as_ref(),
-            &self.events,
-        );
+        let Run::V1(s) = &self.run;
+        self.ledger
+            .observe_tick(&s.kinds, weapon, &s.enemies, s.boss.as_ref(), &self.events);
         self.counted.observe(self.content.rewards(), &self.events);
     }
 
     fn observe_choice(&mut self) {
         let weapon = Self::weapon_str(&self.stage);
-        self.ledger
-            .observe_choice(&self.state.kinds, weapon, &self.events);
+        let Run::V1(s) = &self.run;
+        self.ledger.observe_choice(&s.kinds, weapon, &self.events);
         self.counted.observe(self.content.rewards(), &self.events);
     }
 
@@ -393,30 +385,34 @@ impl Engine {
     /// The run's kind table: what every `KindIndex` in its events and snapshots names. Fixed for
     /// the run, so read it once; key anything kept past the run on the ID, not the index.
     pub fn kinds(&self) -> &KindTable {
-        &self.state.kinds
+        let Run::V1(s) = &self.run;
+        &s.kinds
     }
 
     pub fn tick(&self) -> u32 {
-        self.state.tick
+        let Run::V1(s) = &self.run;
+        s.tick
     }
 
     /// The Stardust the run has earned, times 10 (ADR-109); 0 in a stage without a factor.
     pub fn stardust(&self) -> u32 {
-        self.state.stardust.unwrap_or(0)
+        let Run::V1(s) = &self.run;
+        s.stardust.unwrap_or(0)
     }
 
     pub fn outcome(&self) -> Outcome {
-        self.state.outcome
+        let Run::V1(s) = &self.run;
+        s.outcome
     }
 
     /// An offer is open: `step` does nothing until `choose` closes it (ADR-079 §3).
     pub fn offer_open(&self) -> bool {
-        sim::offer_open(&self.state)
+        self.run.offer_open()
     }
 
     /// FNV-1a 64 over the whole state after the last tick (ADR-019).
     pub fn state_hash(&self) -> u64 {
-        sim::state_hash(&self.state)
+        self.run.state_hash()
     }
 
     /// The domain events of the last tick, in the order they happened.
@@ -488,7 +484,9 @@ fn pool(ids: Option<&[ContentId]>, rewards: &Rewards) -> Result<Vec<u16>, Error>
     }
 }
 
+mod run;
 mod snapshot;
+pub(crate) use run::Run;
 pub use snapshot::{Place, Places, Tally};
 
 #[cfg(test)]
