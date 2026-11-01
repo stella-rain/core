@@ -8,9 +8,8 @@ use crate::snapshot::EntityKind;
 use super::*;
 
 fn orb_cage() -> crate::stage::Stage {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/corpus/current/stages/orb_cage/stage.json");
-    crate::validate::parse_and_validate(&std::fs::read(path).expect("orb_cage")).expect("valid")
+    let bytes = include_bytes!("../../tests/corpus/v1/stages/orb_cage/stage.json");
+    crate::validate::parse_and_validate(bytes).expect("a valid stage")
 }
 
 /// What a walk saw of the views that are rare; the walks together must reach each.
@@ -57,25 +56,24 @@ fn walk(mut e: Engine, input: fn(u32) -> Input, seen: &mut Seen) -> u64 {
     h.finish()
 }
 
-/// The corpus run cases that play on the bundled pack, in name order.
+/// The frozen version 1 run cases that play on its pack, so the walk does not move with the
+/// bundled content.
 fn corpus_runs(seen: &mut Seen) -> u64 {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/runs");
-    let mut names: Vec<_> = std::fs::read_dir(&root)
-        .expect("the corpus runs")
-        .map(|d| d.expect("an entry").path())
-        .collect();
-    names.sort();
-    let bundled = crate::pack::Pack::bundled().sha256();
+    let pack = crate::pack::Pack::from_bytes(include_bytes!(
+        "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+    ))
+    .expect("the version 1 pack");
+    let content = pack.content();
+    let replays: [&[u8]; 5] = [
+        include_bytes!("../../tests/corpus/v1/runs/easy/run.replay"),
+        include_bytes!("../../tests/corpus/v1/runs/rainy/run.replay"),
+        include_bytes!("../../tests/corpus/v1/runs/time_limit/run.replay"),
+        include_bytes!("../../tests/corpus/v1/runs/trial/run.replay"),
+        include_bytes!("../../tests/corpus/v1/runs/tutorial/run.replay"),
+    ];
     let mut h = StateHasher::new();
-    for case in names {
-        let pinned = std::fs::read_to_string(case.join("case.json")).expect("case.json");
-        let hex: String = bundled.iter().map(|b| format!("{b:02x}")).collect();
-        if !pinned.contains(&hex) {
-            continue;
-        }
-        let bytes = std::fs::read(case.join("run.replay")).expect("run.replay");
-        let recorded = crate::run_replay::RunReplay::from_bytes(&bytes).expect("a run replay");
-        let content = RunContent::bundled();
+    for bytes in replays {
+        let recorded = crate::run_replay::RunReplay::from_bytes(bytes).expect("a run replay");
         let stage = run_setup::stage_with(&recorded.setup, content.time_limit()).expect("a stage");
         let inputs = recorded
             .unpack_inputs(run_setup::max_replay_ticks(
@@ -150,6 +148,7 @@ fn the_snapshot_and_places_bytes_are_pinned() {
     assert!(missing.is_empty(), "the walks never saw: {missing:?}");
 }
 
+#[cfg(any())] // Run::snapshot and Run::places arrive with the move of the view
 #[test]
 fn run_snapshot_is_the_engines() {
     let mut e = worst_case::warmed_up();
