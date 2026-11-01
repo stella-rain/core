@@ -55,12 +55,18 @@ impl Loadout {
 }
 
 /// Applies `loadout` to the state before the first tick.
-pub(crate) fn apply(stage: &World, rewards: &Rewards, s: &mut State, loadout: &Loadout) {
+pub(crate) fn apply(
+    stage: &World,
+    rewards: &Rewards,
+    s: &mut State,
+    me: PlayerIdx,
+    loadout: &Loadout,
+) {
     if let Some(f) = s.stars.as_mut() {
         f.rune_pool = loadout.rune_pool;
     }
     for entry in &loadout.perk {
-        perk(s, *entry);
+        perk(s, me, *entry);
     }
     let State {
         rng,
@@ -70,7 +76,7 @@ pub(crate) fn apply(stage: &World, rewards: &Rewards, s: &mut State, loadout: &L
         regen,
         ..
     } = s;
-    let player = &mut players[PlayerIdx::SOLO];
+    let player = &mut players[me];
     if let Some(f) = stars.as_mut() {
         for &i in &loadout.carried {
             stars::take(
@@ -96,7 +102,7 @@ pub(crate) fn apply(stage: &World, rewards: &Rewards, s: &mut State, loadout: &L
     }
 }
 
-fn perk(s: &mut State, entry: PerkEntry) {
+fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
     let amount = entry.amount;
     match entry.effect {
         PerkEffect::Regen => s.regen = s.regen.saturating_add(amount),
@@ -112,18 +118,18 @@ fn perk(s: &mut State, entry: PerkEntry) {
         }
         effect => {
             if let (Some(effect), Some(p)) = (effect.stat(), s.progress.as_mut()) {
-                levels::add_effect(p, &mut s.players[PlayerIdx::SOLO], effect, amount);
+                levels::add_effect(p, &mut s.players[me], effect, amount);
             }
         }
     }
 }
 
 /// A second has passed: the main character gets its regeneration back, never beyond the most.
-pub(super) fn regen(s: &mut State) {
+pub(super) fn regen(s: &mut State, me: PlayerIdx) {
     if s.regen > 0 && s.tick % REGEN_TICKS == 0 {
-        s.players[PlayerIdx::SOLO].hp = s.players[PlayerIdx::SOLO]
+        s.players[me].hp = s.players[me]
             .hp
             .saturating_add(s.regen)
-            .min(s.players[PlayerIdx::SOLO].max_hp);
+            .min(s.players[me].max_hp);
     }
 }

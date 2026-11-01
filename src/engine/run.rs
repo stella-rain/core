@@ -169,7 +169,13 @@ impl Run {
         );
         if let Some(setup) = b.setup {
             let loadout = sim::Loadout::of(setup, b.content);
-            sim::apply_loadout(&world, b.content.rewards(), &mut state, &loadout);
+            sim::apply_loadout(
+                &world,
+                b.content.rewards(),
+                &mut state,
+                sim::state::PlayerIdx::SOLO,
+                &loadout,
+            );
         }
         Ok(Run::V2 { world, state })
     }

@@ -121,6 +121,8 @@ mod orbit;
 mod player;
 #[cfg(test)]
 mod players_pin_tests;
+#[cfg(test)]
+mod players_tests;
 mod push;
 mod runes;
 mod schedule;
@@ -653,9 +655,9 @@ pub(crate) fn choose(
     events: &mut Vec<DomainEvent>,
 ) {
     if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
-        expertise::choose(stage, expertise, s, option, events);
+        expertise::choose(stage, expertise, s, PlayerIdx::SOLO, option, events);
     } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
-        levels::choose(s, option, events);
+        levels::choose(s, PlayerIdx::SOLO, option, events);
     } else {
         stars::choose(stage, rewards, s, option, events);
     }
@@ -1391,7 +1393,7 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Ve
         s.players[PlayerIdx::SOLO].defence,
         stage.tuning.defence_k,
     );
-    let dealt = skill::absorb(s, dealt);
+    let dealt = skill::absorb(s, PlayerIdx::SOLO, dealt);
     let p = &mut s.players[PlayerIdx::SOLO];
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = stage.tuning.hit_invulnerable_ticks;
@@ -1409,7 +1411,7 @@ fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Ve
     });
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
-        player::break_charge(stage, s, events);
+        player::break_charge(stage, s, PlayerIdx::SOLO, events);
     }
 }
 

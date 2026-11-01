@@ -219,7 +219,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 dash_left: s.players[PlayerIdx::SOLO].dash.map_or(0, |d| d.left),
             },
             combo: {
-                let (presses, dash, buffered, window_left, auto) = combo_view(s);
+                let (presses, dash, buffered, window_left, auto) = combo_view(s, PlayerIdx::SOLO);
                 ComboView {
                     presses,
                     dash,
@@ -228,13 +228,16 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     auto,
                 }
             },
-            charge: charge_view(world, s).map(|(level, held, perfect)| ChargeView {
-                level,
-                held,
-                perfect,
+            charge: charge_view(world, s, PlayerIdx::SOLO).map(|(level, held, perfect)| {
+                ChargeView {
+                    level,
+                    held,
+                    perfect,
+                }
             }),
-            auto_charge: auto_charge_view(s),
-            hold: hold_view(world, s).map(|(held, max_ticks)| HoldView { held, max_ticks }),
+            auto_charge: auto_charge_view(s, PlayerIdx::SOLO),
+            hold: hold_view(world, s, PlayerIdx::SOLO)
+                .map(|(held, max_ticks)| HoldView { held, max_ticks }),
             target: s.players[PlayerIdx::SOLO].target,
             skill: s.players[PlayerIdx::SOLO].skill.and_then(|slot| {
                 let def = content.stage_skills().get(usize::from(slot.index))?;

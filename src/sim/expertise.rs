@@ -360,6 +360,7 @@ pub(super) fn choose(
     stage: &World,
     expertise: &Expertise,
     s: &mut State,
+    me: PlayerIdx,
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
@@ -371,7 +372,7 @@ pub(super) fn choose(
         expertise: g,
         ..
     } = s;
-    let player = &mut players[PlayerIdx::SOLO];
+    let player = &mut players[me];
     let Some(g) = g.as_mut() else {
         return;
     };
