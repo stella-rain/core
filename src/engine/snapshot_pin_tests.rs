@@ -149,3 +149,18 @@ fn the_snapshot_and_places_bytes_are_pinned() {
     .collect();
     assert!(missing.is_empty(), "the walks never saw: {missing:?}");
 }
+
+#[test]
+fn run_snapshot_is_the_engines() {
+    let mut e = worst_case::warmed_up();
+    let (mut p, mut q) = (Places::default(), Places::default());
+    for tick in 0..=100 {
+        if tick == 0 || tick == 1 || tick == 100 {
+            assert_eq!(e.run.snapshot(e.content()), e.snapshot(), "tick {tick}");
+            e.run.places(&mut p);
+            e.places(&mut q);
+            assert_eq!(p, q, "tick {tick}");
+        }
+        e.step(worst_case::input(e.tick() + 1));
+    }
+}

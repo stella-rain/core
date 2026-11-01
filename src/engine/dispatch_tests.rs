@@ -38,7 +38,7 @@ fn engine() -> Engine {
 /// The engine with its run's `sim_version` set to `v`, past what `Engine::new` checks.
 fn at_version(v: u32) -> Engine {
     let mut e = engine();
-    e.stage.stage.sim_version = v;
+    e.run.world_mut().stage.sim_version = v;
     e
 }
 
@@ -106,11 +106,34 @@ fn the_run_variant_is_the_stage_version() {
         restored,
     ];
     for e in &engines {
-        assert_eq!(e.run.version(), e.stage.sim_version);
+        assert_eq!(e.run.version(), e.run.declared_version());
     }
 }
 
 #[test]
-fn the_run_is_its_state_alone() {
-    assert_eq!(size_of::<Run>(), size_of::<State>());
+fn the_run_owns_its_world() {
+    let mode = TimeLimit::parse(ContentFiles::bundled_file("time_limit"), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
+    let mut recorder = crate::run_replay::RunRecorder::start(&setup()).unwrap();
+    recorder.step(Input::default()).unwrap();
+    let prefix = recorder.replay();
+    let (restored, _) =
+        crate::savepoint::restore(&recorder.save(), &prefix, crate::pack::Pack::bundled()).unwrap();
+    let engines = [
+        Engine::new(&stage).unwrap(),
+        Engine::start(&setup()).unwrap(),
+        Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap(),
+        engine().clone(),
+        restored,
+    ];
+    for e in &engines {
+        assert_eq!(e.run.world().sim_version, e.run.declared_version());
+        assert_eq!(e.run.world().sim_version, e.run.version());
+    }
+}
+
+#[test]
+fn the_run_is_its_world_and_state_alone() {
+    assert_eq!(size_of::<Run>(), size_of::<World>() + size_of::<State>());
 }
