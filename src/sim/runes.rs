@@ -108,7 +108,10 @@ pub(super) fn on_hit(
     at: Point,
     events: &mut Vec<DomainEvent>,
 ) {
-    for i in 0..s.players[me].runes.len() {
+    // The player's haste, facing and place do not change while its runes fire.
+    let p = &s.players[me];
+    let (held, haste_pct, facing, player_at) = (p.runes.len(), p.rune_haste_pct, p.facing, p.at);
+    for i in 0..held {
         let HeldRune {
             rune,
             cooldown_left,
@@ -123,14 +126,13 @@ pub(super) fn on_hit(
         // there. Rune Haste shortens it as it is set.
         let cooldown = rune_haste_ticks(
             entry.cooldown_ticks.min(MAX_RUNE_COOLDOWN_TICKS),
-            s.players[me].rune_haste_pct.min(s.max_rune_haste_pct),
+            haste_pct.min(s.max_rune_haste_pct),
         );
         let damage = entry.damage;
         let Some(attack) = stage.rune_attacks[usize::from(rune.index())] else {
             continue;
         };
         let slot = FIRST_SLOT.saturating_add(rune.index());
-        let facing = s.players[me].facing;
         if rune == Rune::HomingMissiles {
             let (missiles, range) = (entry.missiles.unwrap_or(1), entry.range.unwrap_or(Fx(0)));
             if launch(
@@ -141,7 +143,7 @@ pub(super) fn on_hit(
             continue;
         }
         let thrown = rune == Rune::Boomerang;
-        let from = if thrown { s.players[me].at } else { at };
+        let from = if thrown { player_at } else { at };
         if attacks::start_rune(stage, s, me, slot, from, facing, attack, damage, events) {
             if thrown {
                 // It was pushed last; its first step counts the tick it is thrown on.
@@ -186,9 +188,10 @@ fn apply_dot(s: &mut State, me: PlayerIdx, target: Who, rune: Rune, events: &mut
         return;
     };
     // The validator holds every number to its cap; the clamps keep an unvalidated file there.
+    let p = &s.players[me];
     let interval = rune_haste_ticks(
         entry.interval_ticks.clamp(1, MAX_DOT_INTERVAL_TICKS),
-        s.players[me].rune_haste_pct.min(s.max_rune_haste_pct),
+        p.rune_haste_pct.min(s.max_rune_haste_pct),
     );
     let duration = entry.duration_ticks.clamp(1, MAX_DOT_DURATION_TICKS);
     let max_stacks = u16::try_from(entry.max_stacks.clamp(1, MAX_DOT_STACKS)).unwrap_or(1);
@@ -196,10 +199,10 @@ fn apply_dot(s: &mut State, me: PlayerIdx, target: Who, rune: Rune, events: &mut
     let dot = DotState {
         damage: entry.damage.min(MAX_DAMAGE),
         damage_type: entry.damage_type,
-        atk_up_pct: status_pct(&s.players[me].statuses, StatusKind::AtkUp),
+        atk_up_pct: status_pct(&p.statuses, StatusKind::AtkUp),
         type_bonus_pct: entry
             .damage_type
-            .map_or(0, |ty| s.players[me].type_bonus_pct[ty.index()].min(limit)),
+            .map_or(0, |ty| p.type_bonus_pct[ty.index()].min(limit)),
         interval,
         next_in: interval,
     };
