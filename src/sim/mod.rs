@@ -104,6 +104,8 @@ mod combat;
 mod dash;
 mod entity;
 mod expertise;
+#[cfg(test)]
+mod frozen_tests;
 mod grid;
 #[cfg(test)]
 mod hash_layout_tests;
@@ -117,6 +119,8 @@ mod levels;
 mod loadout;
 mod orbit;
 mod player;
+#[cfg(test)]
+mod players_pin_tests;
 mod push;
 mod runes;
 mod schedule;
