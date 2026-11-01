@@ -143,6 +143,7 @@ mod tutorial;
 mod type_bonuses;
 mod types;
 mod validate;
+mod version_flag;
 mod version_two;
 mod view_edge;
 mod warn_anchor;
