@@ -142,3 +142,33 @@ fn the_run_is_its_world_and_state_and_a_tag_alone() {
     assert!(size_of::<Run>() >= largest);
     assert!(size_of::<Run>() <= largest + align_of::<Run>());
 }
+
+#[test]
+fn a_setup_runs_the_rules_of_its_own_version() {
+    for (version, module) in [(1, "sim_v1"), (2, "sim")] {
+        for mode in ["trial", "time_limit"] {
+            let setup = RunSetup {
+                sim_version: version,
+                mode: mode.into(),
+                ..setup()
+            };
+            let e = Engine::start(&setup).unwrap_or_else(|e| panic!("{mode} {version}: {e:?}"));
+            assert_eq!(e.version(), version, "{mode} {version}");
+            assert_eq!(e.run.module(), module, "{mode} {version}");
+        }
+    }
+}
+
+#[test]
+fn a_setup_of_another_version_fails_closed() {
+    for version in [0, SIM_VERSION + 1] {
+        for mode in ["trial", "time_limit"] {
+            let setup = RunSetup {
+                sim_version: version,
+                mode: mode.into(),
+                ..setup()
+            };
+            assert!(Engine::start(&setup).is_err(), "{mode} {version}");
+        }
+    }
+}
