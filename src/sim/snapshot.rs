@@ -31,10 +31,12 @@ use super::{
 /// while `out` grows to the largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`
 /// (which names this function); `tests/places.rs` holds the two equal.
 pub(crate) fn places(s: &State, out: &mut Places) {
+    // shim: the snapshot is of the first player until it is made per player.
+    let me = PlayerIdx::SOLO;
     out.entities.clear();
     out.stars.clear();
     out.boss = None;
-    out.player = s.players[PlayerIdx::SOLO].at;
+    out.player = s.players[me].at;
     // Boss, companions, boss parts, then enemies: the order of their entity IDs.
     let alive_boss = s.boss.as_ref().filter(|b| b.hp > 0);
     if let Some(b) = alive_boss {
@@ -74,6 +76,8 @@ pub(crate) fn places(s: &State, out: &mut Places) {
 /// What the frontend draws after the last tick (ADR-005). `places` repeats its rules for
 /// the ids, kinds and positions, and the player's position: change them together.
 pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot {
+    // shim: the snapshot is of the first player until it is made per player.
+    let me = PlayerIdx::SOLO;
     let view = |r: &AttackRun| {
         let p = phase(world, r, r.phase as usize);
         AttackView {
@@ -204,22 +208,22 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             height: map.height,
         },
         player: PlayerView {
-            at: s.players[PlayerIdx::SOLO].at,
-            hp: s.players[PlayerIdx::SOLO].hp,
+            at: s.players[me].at,
+            hp: s.players[me].hp,
             radius: Fx(world.tuning.player_radius),
             facing: Facing {
-                x: s.players[PlayerIdx::SOLO].facing.x,
-                y: s.players[PlayerIdx::SOLO].facing.y,
+                x: s.players[me].facing.x,
+                y: s.players[me].facing.y,
             },
-            invulnerable: s.players[PlayerIdx::SOLO].invulnerable,
+            invulnerable: s.players[me].invulnerable,
             evade: EvadeView {
-                charges: s.players[PlayerIdx::SOLO].evade_charges,
-                ready: s.players[PlayerIdx::SOLO].evade_ready(),
-                recovering: s.players[PlayerIdx::SOLO].evade_recovering.clone(),
-                dash_left: s.players[PlayerIdx::SOLO].dash.map_or(0, |d| d.left),
+                charges: s.players[me].evade_charges,
+                ready: s.players[me].evade_ready(),
+                recovering: s.players[me].evade_recovering.clone(),
+                dash_left: s.players[me].dash.map_or(0, |d| d.left),
             },
             combo: {
-                let (presses, dash, buffered, window_left, auto) = combo_view(s, PlayerIdx::SOLO);
+                let (presses, dash, buffered, window_left, auto) = combo_view(s, me);
                 ComboView {
                     presses,
                     dash,
@@ -228,18 +232,15 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     auto,
                 }
             },
-            charge: charge_view(world, s, PlayerIdx::SOLO).map(|(level, held, perfect)| {
-                ChargeView {
-                    level,
-                    held,
-                    perfect,
-                }
+            charge: charge_view(world, s, me).map(|(level, held, perfect)| ChargeView {
+                level,
+                held,
+                perfect,
             }),
-            auto_charge: auto_charge_view(s, PlayerIdx::SOLO),
-            hold: hold_view(world, s, PlayerIdx::SOLO)
-                .map(|(held, max_ticks)| HoldView { held, max_ticks }),
-            target: s.players[PlayerIdx::SOLO].target,
-            skill: s.players[PlayerIdx::SOLO].skill.and_then(|slot| {
+            auto_charge: auto_charge_view(s, me),
+            hold: hold_view(world, s, me).map(|(held, max_ticks)| HoldView { held, max_ticks }),
+            target: s.players[me].target,
+            skill: s.players[me].skill.and_then(|slot| {
                 let def = content.stage_skills().get(usize::from(slot.index))?;
                 Some(SkillView {
                     skill: def.id.clone(),
@@ -249,16 +250,16 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     cooldown_left: slot.cooldown_left,
                 })
             }),
-            pull: s.players[PlayerIdx::SOLO].pull.map(|b| PullView {
+            pull: s.players[me].pull.map(|b| PullView {
                 at: b.at,
                 radius: Fx(b.radius),
                 ticks_left: b.ticks_left,
             }),
-            shield: s.players[PlayerIdx::SOLO].shield.map(|sh| ShieldView {
+            shield: s.players[me].shield.map(|sh| ShieldView {
                 amount: sh.amount,
                 ticks_left: sh.ticks_left,
             }),
-            orbits: s.players[PlayerIdx::SOLO]
+            orbits: s.players[me]
                 .orbits
                 .iter()
                 .filter_map(|o| {
@@ -269,31 +270,31 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     })
                 })
                 .collect(),
-            range_pct: s.players[PlayerIdx::SOLO].range_pct,
-            rune_haste_pct: s.players[PlayerIdx::SOLO].rune_haste_pct,
-            pickup_radius_pct: s.players[PlayerIdx::SOLO].pickup_radius_pct,
-            skill_cooldown_pct: s.players[PlayerIdx::SOLO].skill_cooldown_pct,
-            kill_heal: s.players[PlayerIdx::SOLO].kill_heal,
-            kill_heal_every: s.players[PlayerIdx::SOLO].kill_heal_every,
-            crit_chance_pct: s.players[PlayerIdx::SOLO].crit_chance_pct,
-            crit_damage_pct: s.players[PlayerIdx::SOLO].crit_damage_pct,
-            echo_hit_pct: s.players[PlayerIdx::SOLO].echo_hit_pct,
-            burst_pct: s.players[PlayerIdx::SOLO].burst_pct,
-            burst_radius: s.players[PlayerIdx::SOLO].burst_radius,
-            burst_depth: s.players[PlayerIdx::SOLO]
+            range_pct: s.players[me].range_pct,
+            rune_haste_pct: s.players[me].rune_haste_pct,
+            pickup_radius_pct: s.players[me].pickup_radius_pct,
+            skill_cooldown_pct: s.players[me].skill_cooldown_pct,
+            kill_heal: s.players[me].kill_heal,
+            kill_heal_every: s.players[me].kill_heal_every,
+            crit_chance_pct: s.players[me].crit_chance_pct,
+            crit_damage_pct: s.players[me].crit_damage_pct,
+            echo_hit_pct: s.players[me].echo_hit_pct,
+            burst_pct: s.players[me].burst_pct,
+            burst_radius: s.players[me].burst_radius,
+            burst_depth: s.players[me]
                 .burst_depth
-                .saturating_add(s.players[PlayerIdx::SOLO].burst_depth_extra)
+                .saturating_add(s.players[me].burst_depth_extra)
                 .min(MAX_BURST_DEPTH),
             type_bonuses: DamageType::ALL
                 .iter()
-                .zip(s.players[PlayerIdx::SOLO].type_bonus_pct)
+                .zip(s.players[me].type_bonus_pct)
                 .filter(|(_, pct)| *pct > 0)
                 .map(|(ty, pct)| TypeBonusView {
                     damage_type: *ty,
                     pct,
                 })
                 .collect(),
-            runes: s.players[PlayerIdx::SOLO]
+            runes: s.players[me]
                 .runes
                 .iter()
                 .map(|r| RuneView {
@@ -302,15 +303,12 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 })
                 .collect(),
             attacks: {
-                let mut runs: Vec<&AttackRun> = s
-                    .runs
-                    .iter()
-                    .filter(|r| r.owner == PlayerIdx::SOLO.id())
-                    .collect();
+                let mut runs: Vec<&AttackRun> =
+                    s.runs.iter().filter(|r| r.owner == me.id()).collect();
                 runs.sort_by_key(|r| r.slot);
                 runs.into_iter().map(view).collect()
             },
-            statuses: status_views(&s.players[PlayerIdx::SOLO].statuses, false),
+            statuses: status_views(&s.players[me].statuses, false),
         },
         entities,
         zones: s

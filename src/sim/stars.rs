@@ -208,7 +208,7 @@ pub(super) fn open_due(
         players,
         ..
     } = s;
-    let player = &players[PlayerIdx::SOLO];
+    let player = &players[PlayerIdx::SOLO]; // N=1: M-PER-PLAYER
     let Some(f) = stars.as_mut() else {
         return;
     };
@@ -575,7 +575,7 @@ pub(super) fn choose(
         regen,
         ..
     } = s;
-    let player = &mut players[PlayerIdx::SOLO];
+    let player = &mut players[PlayerIdx::SOLO]; // N=1: M-PER-PLAYER
     let Some(f) = stars.as_mut() else {
         return;
     };
@@ -728,7 +728,7 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                 }
             })
             .collect(),
-        options: options(rewards, s, PlayerIdx::SOLO),
+        options: options(rewards, s, PlayerIdx::SOLO), // N=1: M-PER-PLAYER
         rerolls_left: f.rerolls_left,
         banishes_left: f.banishes_left,
     })

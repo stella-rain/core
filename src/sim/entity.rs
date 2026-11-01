@@ -201,7 +201,7 @@ impl State {
     /// Adds to an ally's aggro (ADR-036), up to a cap. Others have none to raise.
     pub(super) fn raise_aggro(&mut self, id: EntityId, amount: u32) {
         let slot = match self.find_ally(id) {
-            Some(Who::Player(PlayerIdx::SOLO)) => &mut self.players[PlayerIdx::SOLO].aggro,
+            Some(Who::Player(PlayerIdx::SOLO)) => &mut self.players[PlayerIdx::SOLO].aggro, // N=1: M-DOWN-PARTY
             Some(Who::Companion(i)) => &mut self.companions[i].aggro,
             _ => return,
         };
@@ -406,7 +406,7 @@ fn tick_dots_of(stage: &World, s: &mut State, who: Who, events: &mut Vec<DomainE
                 rune: Rune::of_dot(st.kind),
                 chain: false,
             };
-            super::damage(stage, s, PlayerIdx::SOLO, shot, who, events);
+            super::damage(stage, s, PlayerIdx::SOLO, shot, who, events); // N=1: M-DOWN-PARTY
         }
         if remaining == 0 {
             s.statuses_mut(who).remove(i);
@@ -494,8 +494,8 @@ pub(super) fn tick_statuses_and_aggro(
         list.retain(|st| st.dot.is_some() || st.remaining > 0);
         dots
     }
-    let mut dots = age(&mut s.players[PlayerIdx::SOLO].statuses);
-    s.players[PlayerIdx::SOLO].aggro = s.players[PlayerIdx::SOLO].aggro.saturating_sub(aggro_decay);
+    let mut dots = age(&mut s.players[PlayerIdx::SOLO].statuses); // N=1: M-DOWN-PARTY
+    s.players[PlayerIdx::SOLO].aggro = s.players[PlayerIdx::SOLO].aggro.saturating_sub(aggro_decay); // N=1: M-DOWN-PARTY
     if let Some(b) = &mut s.boss {
         dots |= age(&mut b.statuses);
         for part in &mut b.parts {

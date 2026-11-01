@@ -1,6 +1,10 @@
 //! The live rules (ADR-REPL-7, ADR-REPL-9): the module that runs the newest `sim_version`, with the
 //! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-019).
 //!
+//! The state holds its players as `players`, one now, addressed by a `PlayerIdx` (ADR-SIM-12); a
+//! system that acts on or for a player takes `me` right after the state. A place that names no
+//! player yet reads `PlayerIdx::SOLO` and says which later change settles it (`// N=1: ...`).
+//!
 //! What a tick does, in this order (`schedule::TICK` is the order in code, and a test keeps this
 //! table equal to it):
 //!
@@ -639,7 +643,7 @@ pub(crate) fn offer_options(
     } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
         levels::options(s)
     } else {
-        stars::options(rewards, s, PlayerIdx::SOLO)
+        stars::options(rewards, s, PlayerIdx::SOLO) // N=1: M-PER-PLAYER
     }
 }
 
@@ -655,9 +659,9 @@ pub(crate) fn choose(
     events: &mut Vec<DomainEvent>,
 ) {
     if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
-        expertise::choose(stage, expertise, s, PlayerIdx::SOLO, option, events);
+        expertise::choose(stage, expertise, s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
     } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
-        levels::choose(s, PlayerIdx::SOLO, option, events);
+        levels::choose(s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
     } else {
         stars::choose(stage, rewards, s, option, events);
     }
@@ -750,10 +754,10 @@ fn spawn_wave(stage: &World, s: &mut State, i: usize) {
         rule: 0,
     };
     let at = match (wave.edge, wave.spawn) {
-        (Some(edge), _) => edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.spawn, edge),
+        (Some(edge), _) => edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.spawn, edge), // N=1: M-DOWN-PARTY
         (None, Some(p)) => p,
         // The validator refuses a wave with neither.
-        (None, None) => s.players[PlayerIdx::SOLO].at,
+        (None, None) => s.players[PlayerIdx::SOLO].at, // N=1: M-DOWN-PARTY
     };
     spawn_enemy(stage, s, key, at);
 }
@@ -1110,7 +1114,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             chain: false,
         };
         let by = Blame::of_program(HitKind::Attack, b.program);
-        consumed.push(hit_ally_side(stage, s, PlayerIdx::SOLO, shot, by, events));
+        consumed.push(hit_ally_side(stage, s, PlayerIdx::SOLO, shot, by, events)); // N=1: M-PER-PLAYER
     }
     let mut flags = consumed.iter();
     s.orbs.retain(|_| !flags.next().copied().unwrap_or(false));
@@ -1119,20 +1123,20 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         s.scratch.grid = grid;
     }
     s.companions.retain(|c| c.hp > 0);
-    combat::bursts(stage, s, PlayerIdx::SOLO, events);
+    combat::bursts(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     levels::credit_defeated(stage, s, events);
     stardust::credit_defeated(stage, s);
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
-    heal::kills_heal(s, PlayerIdx::SOLO, events);
+    heal::kills_heal(s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     s.enemies.retain(|e| e.hp > 0);
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         stars::boss_killed(stage, s);
-        heal::boss_killed(stage, s, PlayerIdx::SOLO, events);
+        heal::boss_killed(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
         stardust::boss_killed(stage, s);
     }
-    stars::pick_up(stage, s, PlayerIdx::SOLO, events);
-    heal::pick_up(stage, s, PlayerIdx::SOLO, events);
+    stars::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
+    heal::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
 }
 
 /// The enemies as circles, in index order, for friendly hit boxes to land on and for the

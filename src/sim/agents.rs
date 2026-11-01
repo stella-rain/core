@@ -97,7 +97,7 @@ pub(super) fn agent_mut(s: &mut State, who: Who) -> &mut AgentState {
 /// Every agent moves, then acts, in entity-ID order. Agents summoned this tick start next tick.
 pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     // Before any rule fires: the ranged tokens go to the nearest ready enemies in view (RA1).
-    super::attacks::grant_ranged(stage, s, PlayerIdx::SOLO);
+    super::attacks::grant_ranged(stage, s, PlayerIdx::SOLO); // N=1: M-DOWN-PARTY
     for i in 0..s.companions.len() {
         act_one(stage, s, Who::Companion(i), events);
     }
@@ -147,7 +147,7 @@ fn shrines(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
             if !super::overlaps(
                 e.at,
                 def.radius.0,
-                s.players[PlayerIdx::SOLO].at,
+                s.players[PlayerIdx::SOLO].at, // N=1: M-DOWN-PARTY
                 stage.tuning.player_radius,
             ) {
                 continue;
@@ -284,7 +284,7 @@ fn reveal(s: &mut State, me: Who, def: &Agent, events: &mut Vec<DomainEvent>) {
     let Some(mimic) = def.elite.as_ref().and_then(|e| e.mimic.as_ref()) else {
         return;
     };
-    let player = s.players[PlayerIdx::SOLO].at;
+    let player = s.players[PlayerIdx::SOLO].at; // N=1: M-DOWN-PARTY
     let called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
     let id = s.id_of(me);
     let a = agent_mut(s, me);
@@ -314,7 +314,7 @@ fn waits(s: &State, me: Who, def: &Agent) -> bool {
         && !super::overlaps(
             agent(s, me).at,
             elite.range.0,
-            s.players[PlayerIdx::SOLO].at,
+            s.players[PlayerIdx::SOLO].at, // N=1: M-DOWN-PARTY
             0,
         )
 }
@@ -409,7 +409,7 @@ pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition) -> bool {
         }
         Condition::TimeAbove { ticks } => time_since_start(s, me) > *ticks,
         Condition::NearTarget { distance } => {
-            super::overlaps(s.at(me), distance.0, s.players[PlayerIdx::SOLO].at, 0)
+            super::overlaps(s.at(me), distance.0, s.players[PlayerIdx::SOLO].at, 0) // N=1: M-DOWN-PARTY
         }
         Condition::PartBroken { part } => match &s.boss {
             Some(boss) => boss
@@ -469,7 +469,7 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 /// `Straight` and a `move_to` order are not held back.
 fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
     let map = stage.map();
-    let player_at = s.players[PlayerIdx::SOLO].at;
+    let player_at = s.players[PlayerIdx::SOLO].at; // N=1: M-DOWN-PARTY
     let attacking = super::attacks::move_pct(stage, s, s.id_of(me));
     if attacking == 0 {
         return;

@@ -268,7 +268,7 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
     c.released = false;
 }
 
-/// One tick of the combo (ADR-070, ADR-076, PlayerIdx::SOLO): see the module's description.
+/// One tick of the combo (ADR-070, ADR-076): see the module's description.
 fn combo(
     stage: &World,
     s: &mut State,
@@ -405,6 +405,7 @@ fn spin(
 /// One tick of a hold (ADR-084 point 6): a press is buffered, as during any step. Letting go,
 /// or reaching `max_ticks`, releases with the ticks held; otherwise the hold goes on, and the
 /// loop starts again once the last one has ended.
+#[allow(clippy::too_many_arguments)]
 fn holding(
     stage: &World,
     s: &mut State,
@@ -619,7 +620,7 @@ fn strike(
     s.players[me].combo.running = attacks::start_player(
         stage,
         s,
-        PlayerIdx::SOLO,
+        PlayerIdx::SOLO, // N=1: M-PER-PLAYER
         COMBO_SLOT,
         facing,
         attack,
@@ -692,6 +693,7 @@ pub(crate) fn auto_charge_view(s: &State, me: PlayerIdx) -> Option<u8> {
 
 /// A charge held rises a tick; let go, judged on the last held tick (the one whose snapshot
 /// the player saw, ADR-005), or at `max_ticks` without the bonus, it releases.
+#[allow(clippy::too_many_arguments)]
 fn charging(
     stage: &World,
     s: &mut State,
@@ -845,9 +847,11 @@ pub(super) fn break_charge(
 /// `move_pct`, 100 when neither is on.
 fn held_move_pct(stage: &World, s: &State) -> i64 {
     if let Some(hold) = current_hold(stage, s, PlayerIdx::SOLO) {
+        // N=1: M-PER-PLAYER
+        // N=1: M-PER-PLAYER
         return i64::from(hold.move_pct);
     }
-    current_charge(stage, s, PlayerIdx::SOLO).map_or(100, |c| i64::from(c.move_pct))
+    current_charge(stage, s, PlayerIdx::SOLO).map_or(100, |c| i64::from(c.move_pct)) // N=1: M-PER-PLAYER
 }
 
 /// The current step's hold, if it is held.

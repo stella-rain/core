@@ -17,7 +17,7 @@
 //! character's without a combo step (point 3): the runes file's damage a stack, raised by the
 //! main character's atk-up and its type bonus for the rune's type as they are when it is
 //! applied, as an attack's are when it starts (ADR-056), and by the target's multipliers at
-//! each tick (`entity::tick_dots`, PlayerIdx::SOLO). The step's own bonuses (a perfect release's) are not its.
+//! each tick (`entity::tick_dots`). The step's own bonuses (a perfect release's) are not its.
 //! A smash's hit that leaves its target standing adds one stack of bleed the same way, with the
 //! same numbers, whether the rune is held or not (`apply_smash_bleed`, ADR-084 point 8): each
 //! source adds its stack to the one bleed (ADR-099 point 3).
@@ -78,6 +78,8 @@ pub(super) const MISSILE_SLOT: u8 = 64;
 /// a missile's); `None` for every other run.
 pub(super) fn of_run(r: &crate::sim::state::AttackRun) -> Option<Rune> {
     if r.owner != PlayerIdx::SOLO.id() {
+        // N=1: M-PER-PLAYER
+        // N=1: M-PER-PLAYER
         return None;
     }
     match r.slot {
@@ -168,7 +170,7 @@ pub(super) fn apply_dots(s: &mut State, me: PlayerIdx, target: Who, events: &mut
 /// the bleed rune's numbers (ADR-084 point 8). It adds its own stack when the rune is held too:
 /// each source adds its stacks to the one bleed (ADR-099 point 3).
 pub(super) fn apply_smash_bleed(s: &mut State, target: Who, events: &mut Vec<DomainEvent>) {
-    apply_dot(s, PlayerIdx::SOLO, target, Rune::Bleed, events);
+    apply_dot(s, PlayerIdx::SOLO, target, Rune::Bleed, events); // N=1: M-PER-PLAYER
 }
 
 /// Puts `rune`'s status on `target`, when `rune` is damage over time and the run's content has
@@ -255,7 +257,7 @@ fn launch(
 pub(super) fn fly(stage: &World, s: &mut State) {
     for i in 0..s.runs.len() {
         if s.runs[i].throw.is_some() && s.runs[i].homing.is_none() {
-            fly_one(stage, s, PlayerIdx::SOLO, i);
+            fly_one(stage, s, PlayerIdx::SOLO, i); // N=1: M-PER-PLAYER
         }
     }
 }
@@ -269,7 +271,7 @@ pub(super) fn steer(stage: &World, s: &mut State) {
         if let Some(w) = s.find(target).filter(|w| s.is_alive(*w)) {
             s.runs[i].throw = Some(s.at(w));
         }
-        fly_one(stage, s, PlayerIdx::SOLO, i);
+        fly_one(stage, s, PlayerIdx::SOLO, i); // N=1: M-PER-PLAYER
     }
 }
 

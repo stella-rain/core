@@ -217,7 +217,7 @@ fn apply(
             attacks::start_player(
                 stage,
                 s,
-                PlayerIdx::SOLO,
+                PlayerIdx::SOLO, // N=1: M-PER-PLAYER
                 SKILL_SLOT,
                 dir,
                 attack,

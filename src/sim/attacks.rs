@@ -314,7 +314,7 @@ pub(super) fn start_with(
     launch(
         world,
         s,
-        PlayerIdx::SOLO,
+        PlayerIdx::SOLO, // N=1: M-DOWN-PARTY
         Launch {
             owner,
             slot,
@@ -771,7 +771,7 @@ pub(super) fn phase_damage(world: &World, r: &AttackRun) -> u32 {
 
 /// Whether run `r` is the main character's combo step, A or B (ADR-078 §2).
 pub(super) fn is_combo(r: &AttackRun) -> bool {
-    r.owner == PlayerIdx::SOLO.id() && r.slot == super::player::COMBO_SLOT
+    r.owner == PlayerIdx::SOLO.id() && r.slot == super::player::COMBO_SLOT // N=1: M-DOWN-PARTY
 }
 
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase

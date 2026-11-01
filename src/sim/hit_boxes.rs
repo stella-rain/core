@@ -154,17 +154,17 @@ pub(super) fn resolve(
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
     if !s.orbs.is_empty() {
-        break_orbs(stage, s, PlayerIdx::SOLO, &swings, events);
+        break_orbs(stage, s, PlayerIdx::SOLO, &swings, events); // N=1: M-PER-PLAYER
     }
     if s.next_orb_group > 0 {
-        cage_beams(stage, s, PlayerIdx::SOLO, events);
+        cage_beams(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     }
     for w in &swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
             hit_enemy_side(stage, s, grid, w, (&mut bits, &mut found), events);
         } else {
-            hit_ally_side(stage, s, PlayerIdx::SOLO, w, events);
+            hit_ally_side(stage, s, PlayerIdx::SOLO, w, events); // N=1: M-PER-PLAYER
         }
     }
     if swings.iter().any(|w| w.once) {
@@ -511,7 +511,7 @@ fn hit_enemy_side(
         if boss.invulnerable == 0 {
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-                damage(stage, s, PlayerIdx::SOLO, shot(w), Who::Boss, events);
+                damage(stage, s, PlayerIdx::SOLO, shot(w), Who::Boss, events); // N=1: M-PER-PLAYER
             }
             let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
             for i in 0..parts {
@@ -520,7 +520,7 @@ fn hit_enemy_side(
                 };
                 let (id, hp, radius) = (part.id, part.hp, part.radius);
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
-                    damage(stage, s, PlayerIdx::SOLO, shot(w), Who::BossPart(i), events);
+                    damage(stage, s, PlayerIdx::SOLO, shot(w), Who::BossPart(i), events); // N=1: M-PER-PLAYER
                 }
             }
         }
@@ -552,11 +552,11 @@ fn hit_enemy_side(
             && covers(w, at, radius)
             && take_hit(s, w, id)
         {
-            damage(stage, s, PlayerIdx::SOLO, shot(w), Who::Enemy(i), events);
+            damage(stage, s, PlayerIdx::SOLO, shot(w), Who::Enemy(i), events); // N=1: M-PER-PLAYER
             match w.smash {
-                Some(Smash::Pull(pull)) => super::pull_enemy(stage, s, PlayerIdx::SOLO, i, pull),
+                Some(Smash::Pull(pull)) => super::pull_enemy(stage, s, PlayerIdx::SOLO, i, pull), // N=1: M-PER-PLAYER
                 Some(Smash::Knockback(push)) => {
-                    super::knock_enemy(stage, s, PlayerIdx::SOLO, i, push)
+                    super::knock_enemy(stage, s, PlayerIdx::SOLO, i, push) // N=1: M-PER-PLAYER
                 }
                 _ => {}
             }

@@ -356,7 +356,7 @@ fn start_attack(
         s,
         Who::Boss,
         0,
-        Who::Player(PlayerIdx::SOLO),
+        Who::Player(PlayerIdx::SOLO), // N=1: M-DOWN-PARTY
         attack,
         damage,
         age,

@@ -375,10 +375,7 @@ impl Players {
         self.0.len()
     }
 
-    pub(crate) fn indices(&self) -> impl Iterator<Item = PlayerIdx> + use<> {
-        (0..self.0.len()).map(|i| PlayerIdx(u8::try_from(i).unwrap_or(u8::MAX)))
-    }
-
+    #[cfg(test)]
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, PlayerState> {
         self.0.iter()
     }

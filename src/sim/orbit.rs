@@ -89,7 +89,7 @@ pub(super) fn act(
                 attacks::start_player(
                     stage,
                     s,
-                    PlayerIdx::SOLO,
+                    PlayerIdx::SOLO, // N=1: M-PER-PLAYER
                     slot(k, j),
                     dir,
                     &def.attack,

@@ -24,7 +24,7 @@ fn dist2(a: Point, b: Point) -> u64 {
 }
 
 fn allies(s: &State) -> impl Iterator<Item = Who> + '_ {
-    std::iter::once(Who::Player(PlayerIdx::SOLO))
+    std::iter::once(Who::Player(PlayerIdx::SOLO)) // N=1: M-DOWN-PARTY
         .chain((0..s.companions.len()).map(Who::Companion))
         .filter(|w| s.is_alive(*w))
 }
@@ -44,8 +44,8 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
     match selector {
         Selector::Myself => Some(me),
         Selector::Player => s
-            .is_alive(Who::Player(PlayerIdx::SOLO))
-            .then_some(Who::Player(PlayerIdx::SOLO)),
+            .is_alive(Who::Player(PlayerIdx::SOLO)) // N=1: M-DOWN-PARTY
+            .then_some(Who::Player(PlayerIdx::SOLO)), // N=1: M-DOWN-PARTY
         Selector::NearestEnemy => enemies(s).min_by_key(by_distance),
         Selector::BossFirst => match s.boss {
             Some(_) if s.is_alive(Who::Boss) => Some(Who::Boss),
@@ -73,7 +73,7 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
 /// elite, then any other enemy; within a class the nearest, then the lower entity ID. One pass
 /// over the enemies, at most the enemy cap (ADR-020).
 pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<EntityId> {
-    let from = s.players[PlayerIdx::SOLO].at;
+    let from = s.players[PlayerIdx::SOLO].at; // N=1: M-DOWN-PARTY
     let mut best: Option<(u8, u64, EntityId)> = None;
     let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
         if !overlaps(from, range, at, radius) {
@@ -107,7 +107,7 @@ pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<Enti
 /// (ADR-099). One pass over the enemies, each set against at most `n` kept. Its own walk, so
 /// that aim assist's stays as the tick-cost gate measures it (ADR-058).
 pub(super) fn assist_targets(stage: &World, s: &State, range: i32, n: usize) -> Vec<EntityId> {
-    let from = s.players[PlayerIdx::SOLO].at;
+    let from = s.players[PlayerIdx::SOLO].at; // N=1: M-DOWN-PARTY
     let mut kept: Vec<(u8, u64, EntityId)> = Vec::with_capacity(n.saturating_add(1));
     let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
         if !overlaps(from, range, at, radius) {

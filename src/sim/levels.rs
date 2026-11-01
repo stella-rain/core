@@ -56,7 +56,7 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<Dom
             _ => stage.tuning.default_xp,
         })
         .fold(0u32, u32::saturating_add);
-    gain(stage, s, PlayerIdx::SOLO, xp, events);
+    gain(stage, s, PlayerIdx::SOLO, xp, events); // N=1: M-PER-PLAYER
 }
 
 fn gain(stage: &World, s: &mut State, me: PlayerIdx, xp: u32, events: &mut Vec<DomainEvent>) {

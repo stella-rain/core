@@ -117,7 +117,7 @@ fn heal(player: &mut PlayerState, want: u64, events: &mut Vec<DomainEvent>) {
     let healed = (u64::from(before) + want).min(u64::from(player.max_hp));
     player.hp = u32::try_from(healed).unwrap_or(player.max_hp);
     events.push(DomainEvent::Healed {
-        target: PlayerIdx::SOLO.id(),
+        target: PlayerIdx::SOLO.id(), // N=1: M-PER-PLAYER
         amount: player.hp.saturating_sub(before),
     });
 }

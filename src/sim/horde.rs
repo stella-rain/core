@@ -80,8 +80,8 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
 
     let spawn = stage.boss(boss).boss.spawn;
     let to = stage.map().clamp(Point {
-        x: s.players[PlayerIdx::SOLO].at.x,
-        y: s.players[PlayerIdx::SOLO]
+        x: s.players[PlayerIdx::SOLO].at.x, // N=1: M-DOWN-PARTY
+        y: s.players[PlayerIdx::SOLO] // N=1: M-DOWN-PARTY
             .at
             .y
             .saturating_add(Fx(-stage.tuning.boss_arrival_above)),
@@ -152,7 +152,7 @@ pub(super) fn spawn_elite(stage: &World, s: &mut State, events: &mut Vec<DomainE
         side: Side::Any,
         along: None,
     };
-    let at = super::edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.horde, any);
+    let at = super::edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.horde, any); // N=1: M-DOWN-PARTY
     let id = EntityId(s.next_id);
     let key = AgentKey {
         source: AgentSource::Wave,
