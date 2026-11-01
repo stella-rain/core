@@ -190,8 +190,7 @@ impl Engine {
     }
 
     /// An engine of `run` and `content`, before its first tick.
-    fn of(run: Run, content: &RunContent, forced: bool) -> Engine {
-        let _ = forced;
+    fn of(run: Run, content: &RunContent, #[allow(unused)] forced: bool) -> Engine {
         Engine {
             events: Vec::with_capacity(run.events_room()),
             ledger: run.new_ledger(),
@@ -549,10 +548,15 @@ impl Engine {
     /// under the rules of `version`, whatever the stage says: for tests of a version the game does
     /// not release yet.
     pub(crate) fn forced<T>(version: u32, make: impl FnOnce() -> T) -> T {
-        let before = FORCED.with(|f| f.replace(Some(version)));
-        let out = make();
-        FORCED.with(|f| f.set(before));
-        out
+        /// Puts the previous setting back, also when `make` panics.
+        struct Restore(Option<u32>);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                FORCED.with(|f| f.set(self.0));
+            }
+        }
+        let _restore = Restore(FORCED.with(|f| f.replace(Some(version))));
+        make()
     }
 
     /// An engine for `stage` under the rules of `version`, past the `SIM_VERSION` check.

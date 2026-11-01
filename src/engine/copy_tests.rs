@@ -7,7 +7,7 @@ use super::*;
 use crate::bench_fixtures::{self, Case};
 use crate::pack::Pack;
 use crate::run_replay::RunRecorder;
-use crate::savepoint::{Savepoint, SavepointError, restore, save};
+use crate::savepoint::{Savepoint, SavepointError, restore};
 
 /// What a run shows after a tick, to compare two engines on.
 fn observed(e: &Engine) -> (u64, Vec<DomainEvent>, crate::snapshot::Snapshot, Load) {
@@ -217,7 +217,6 @@ fn a_savepoint_of_another_version_than_the_setup_is_refused() {
             "{other}"
         );
     }
-    let _ = save;
 }
 
 #[test]
