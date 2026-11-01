@@ -318,47 +318,75 @@ pub(crate) struct Progress {
 pub(crate) const MAX_PLAYERS: u8 = 3;
 
 /// Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the
-/// companions come after the players.
+/// companions come after the players. An enum of the `MAX_PLAYERS` places, so that an index into
+/// the players' array needs no bounds check (a tick indexes it thousands of times, ADR-SIM-8).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PlayerIdx(u8);
+pub(crate) enum PlayerIdx {
+    First,
+    Second,
+    Third,
+}
 
 impl PlayerIdx {
     /// The only player of a run of one.
-    pub(crate) const SOLO: PlayerIdx = PlayerIdx(0);
+    pub(crate) const SOLO: PlayerIdx = PlayerIdx::First;
 
     /// Player `i`, if a run can hold that many.
     #[cfg(test)]
     pub(crate) fn new(i: u8) -> Option<PlayerIdx> {
-        (i < MAX_PLAYERS).then_some(PlayerIdx(i))
+        match i {
+            0 => Some(PlayerIdx::First),
+            1 => Some(PlayerIdx::Second),
+            2 => Some(PlayerIdx::Third),
+            _ => None,
+        }
     }
 
+    #[inline]
     pub(crate) fn get(self) -> usize {
-        usize::from(self.0)
+        self as usize
     }
 
     /// The entity ID of this player.
+    #[inline]
     pub(crate) fn id(self) -> EntityId {
-        EntityId(u32::from(self.0))
+        EntityId(self as u32)
     }
 
     /// The player that entity `id` is, in a party of `party` players.
+    #[inline]
     pub(crate) fn of_id(id: EntityId, party: usize) -> Option<PlayerIdx> {
-        let i = u8::try_from(id.0).ok()?;
-        (usize::from(i) < party).then_some(PlayerIdx(i))
+        match id.0 {
+            0 if party > 0 => Some(PlayerIdx::First),
+            1 if party > 1 => Some(PlayerIdx::Second),
+            2 if party > 2 => Some(PlayerIdx::Third),
+            _ => None,
+        }
     }
 }
 
-/// The players of a run: `1..=MAX_PLAYERS` of them, with room for all reserved at the start, so
-/// that a steady tick allocates nothing.
+/// The players of a run: `1..=MAX_PLAYERS` of them. All places are held, the ones past `len`
+/// as copies of the first that nothing reads, so that an index is a plain offset and a steady
+/// tick allocates nothing.
 #[derive(Clone, Debug)]
-#[cfg_attr(test, derive(PartialEq))]
-pub(crate) struct Players(Vec<PlayerState>);
+pub(crate) struct Players {
+    items: [PlayerState; MAX_PLAYERS as usize],
+    len: u8,
+}
+
+#[cfg(test)]
+impl PartialEq for Players {
+    fn eq(&self, other: &Players) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
 
 impl Players {
     pub(crate) fn solo(p: PlayerState) -> Players {
-        let mut v = Vec::with_capacity(usize::from(MAX_PLAYERS));
-        v.push(p);
-        Players(v)
+        Players {
+            items: [p.clone(), p.clone(), p],
+            len: 1,
+        }
     }
 
     #[cfg(test)]
@@ -366,23 +394,27 @@ impl Players {
         if ps.is_empty() || ps.len() > usize::from(MAX_PLAYERS) {
             return None;
         }
-        let mut v = Vec::with_capacity(usize::from(MAX_PLAYERS));
-        v.extend(ps);
-        Some(Players(v))
+        let len = u8::try_from(ps.len()).ok()?;
+        let first = ps[0].clone();
+        let mut it = ps.into_iter();
+        Some(Players {
+            items: std::array::from_fn(|_| it.next().unwrap_or_else(|| first.clone())),
+            len,
+        })
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.0.len()
+        usize::from(self.len)
     }
 
     #[cfg(test)]
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, PlayerState> {
-        self.0.iter()
+        self.items[..self.len()].iter()
     }
 
     /// Players 1 and up.
     pub(crate) fn others(&self) -> &[PlayerState] {
-        &self.0[1..]
+        &self.items[1..self.len()]
     }
 }
 
@@ -390,14 +422,16 @@ impl std::ops::Index<PlayerIdx> for Players {
     type Output = PlayerState;
     #[inline]
     fn index(&self, i: PlayerIdx) -> &PlayerState {
-        &self.0[i.get()]
+        debug_assert!(i.get() < self.len());
+        &self.items[i.get()]
     }
 }
 
 impl std::ops::IndexMut<PlayerIdx> for Players {
     #[inline]
     fn index_mut(&mut self, i: PlayerIdx) -> &mut PlayerState {
-        &mut self.0[i.get()]
+        debug_assert!(i.get() < self.len());
+        &mut self.items[i.get()]
     }
 }
 

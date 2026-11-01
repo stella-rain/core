@@ -1174,19 +1174,15 @@ fn damage(
     );
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
-    // One look at the player: none of these change while the hit is dealt.
-    let p = &s.players[me];
-    let (crit_chance, crit_damage, echo_hit, has_runes) = (
-        p.crit_chance_pct,
-        p.crit_damage_pct,
-        p.echo_hit_pct,
-        !p.runes.is_empty(),
-    );
     // The common case, with no combat reward held, pays for one comparison (ADR-058).
-    let crit =
-        crit_chance != 0 && combat::crits(s, me, &b, id, s.hp(target), !State::is_ally(target));
+    let crit = s.players[me].crit_chance_pct != 0
+        && combat::crits(s, me, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
-        combat::crit_damage(b.damage, crit_damage, stage.tuning.crit_damage_base_pct)
+        combat::crit_damage(
+            b.damage,
+            s.players[me].crit_damage_pct,
+            stage.tuning.crit_damage_base_pct,
+        )
     } else {
         b.damage
     };
@@ -1215,7 +1211,7 @@ fn damage(
     });
     if dead {
         events.push(death_event(s, target, id));
-    } else if echo_hit != 0 {
+    } else if s.players[me].echo_hit_pct != 0 {
         combat::queue_echo(s, me, &b, id, dealt, !State::is_ally(target));
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(stage.tuning.aggro_per_damage));
@@ -1227,7 +1223,7 @@ fn damage(
         if let Some(Smash::Stun { ticks }) = b.smash.filter(|_| !dead) {
             stun::apply(stage, s, target, b.owner, ticks, events);
         }
-        if has_runes {
+        if !s.players[me].runes.is_empty() {
             if !dead {
                 runes::apply_dots(s, me, target, events);
             }
