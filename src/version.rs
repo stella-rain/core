@@ -219,7 +219,7 @@ mod tests {
     }
 
     fn read_raw(bytes: &[u8], table: &[Migration]) -> Result<Doc, ReplayLoadError> {
-        read_replay(bytes, 1024, CURRENT, table, header)
+        read_replay(bytes, 1024, CURRENT.sim_version, CURRENT, table, header)
     }
 
     fn doc(schema_version: u32, sim_version: u32) -> Value {
@@ -228,6 +228,88 @@ mod tests {
 
     fn is_damaged<T: std::fmt::Debug>(r: Result<T, ReplayLoadError>) -> bool {
         matches!(r, Err(ReplayLoadError::Damaged { .. }))
+    }
+
+    #[test]
+    fn check_in_accepts_the_sim_range_and_the_exact_schema() {
+        for sim in 1..=3 {
+            assert_eq!(check_in(1, sim, 1, 3), Ok(()));
+        }
+        for sim in [0, 4] {
+            assert_eq!(
+                check_in(1, sim, 1, 3),
+                Err(ReadError::UnsupportedVersion {
+                    schema_version: 1,
+                    sim_version: sim
+                })
+            );
+        }
+        assert!(check_in(2, 2, 1, 3).is_err());
+    }
+
+    #[test]
+    fn read_current_in_reads_the_versions_before_the_rest() {
+        #[derive(serde::Deserialize, Debug, PartialEq)]
+        #[serde(deny_unknown_fields)]
+        struct File {
+            schema_version: u32,
+            sim_version: u32,
+        }
+        let read = |s: &str| read_current_in::<File>(s.as_bytes(), 1024, 1, 3);
+        assert!(read(r#"{"schema_version":1,"sim_version":1}"#).is_ok());
+        assert!(read(r#"{"schema_version":1,"sim_version":3}"#).is_ok());
+        for sim in [0, 4] {
+            let body = format!(r#"{{"schema_version":1,"sim_version":{sim}}}"#);
+            assert_eq!(
+                read(&body),
+                Err(ReadError::UnsupportedVersion {
+                    schema_version: 1,
+                    sim_version: sim
+                })
+            );
+        }
+        assert_eq!(
+            read(r#"{"schema_version":1,"sim_version":4,"unknown":1}"#),
+            Err(ReadError::UnsupportedVersion {
+                schema_version: 1,
+                sim_version: 4
+            })
+        );
+    }
+
+    fn never(_: Value) -> Value {
+        panic!("a file in the supported range is not migrated")
+    }
+
+    #[test]
+    fn a_replay_in_the_supported_range_is_read_as_it_is() {
+        let current = v(1, 3);
+        let table = [Migration {
+            from: v(1, 2),
+            apply: never,
+        }];
+        let load = |sim: u32| {
+            read_replay::<Doc>(
+                doc(1, sim).to_string().as_bytes(),
+                1024,
+                1,
+                current,
+                &table,
+                header,
+            )
+        };
+        for sim in 1..=3 {
+            assert_eq!(
+                load(sim),
+                Ok(Doc {
+                    schema_version: 1,
+                    sim_version: sim,
+                    value: 7
+                })
+            );
+        }
+        assert_eq!(load(0), Err(ReplayLoadError::Older(v(1, 0))));
+        assert_eq!(load(4), Err(ReplayLoadError::Newer(v(1, 4))));
     }
 
     #[test]
@@ -429,7 +511,7 @@ mod tests {
             table: &[Migration],
             header: fn(&[u8]) -> Result<Versions, serde_json::Error>,
         ) -> Result<T, ReplayLoadError> {
-            read_replay(bytes, limit, Versions::CURRENT, table, header)
+            read_replay(bytes, limit, FIRST_SIM_VERSION, Versions::CURRENT, table, header)
         }
 
         /// Every case of the older path for one corpus replay of type `T`.

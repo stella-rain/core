@@ -297,6 +297,34 @@ mod tests {
     }
 
     #[test]
+    fn the_sim_version_range_is_checked_on_the_header() {
+        let at = |sim_version: u32| {
+            Savepoint {
+                header: SavepointHeader {
+                    sim_version,
+                    ..sample().header
+                },
+                ..sample()
+            }
+            .to_bytes()
+        };
+        for sim in [1, 2] {
+            let read = Savepoint::from_bytes_in(&at(sim), 1, 3).unwrap();
+            assert_eq!(read.header().sim_version, sim);
+        }
+        for sim in [0, 4] {
+            assert_eq!(
+                Savepoint::from_bytes_in(&at(sim), 1, 3).err(),
+                Some(SavepointError::SimVersion)
+            );
+        }
+        assert_eq!(
+            Savepoint::from_bytes(&at(2)).err(),
+            Some(SavepointError::SimVersion)
+        );
+    }
+
+    #[test]
     fn a_schema_version_other_than_ours_is_refused() {
         let other = Savepoint {
             header: SavepointHeader {
