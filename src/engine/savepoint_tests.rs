@@ -13,6 +13,7 @@ mod data_root {
 }
 
 use super::hash_coverage_tests::{engine, full_state};
+use super::run::v1::State;
 use super::*;
 use crate::id::EntityId;
 use crate::pack::Pack;
@@ -26,10 +27,11 @@ type Decoded = Result<(State, RunLedger, Counted), DecodeError>;
 /// An engine holding the full state, a ledger and tallies with something in each field.
 fn saved() -> Engine {
     let mut e = engine();
-    e.run = Run::V1(full_state(&e));
+    let full = full_state(&e);
+    e.run.set_state(full);
     // The index is derived from the runs; the fixture's was lowered by hand.
-    let Run::V1(s) = &mut e.run;
-    s.move_index.rebuild(&e.stage, &s.runs);
+    let Run::V1 { world, state } = &mut e.run;
+    state.move_index.rebuild(world, &state.runs);
     e.ledger.add_kill("kills.giant_sword.enemy".into());
     e.ledger.add_kill("rune_taken.burn".into());
     e.ledger.add_bestiary_bit(&ContentId::from("slime"), 3);
@@ -76,7 +78,7 @@ fn round_trip_hand_built() {
     assert_eq!(counted, *orig_counted);
     assert_eq!(debug_of(&state), debug_of(orig));
     let mut back = e.clone();
-    back.run = Run::V1(state);
+    back.run.set_state(state);
     assert_eq!(back.state_hash(), e.state_hash());
 }
 
@@ -162,7 +164,7 @@ fn indices() -> Vec<Index> {
         Index {
             message: "agent def out of range",
             set: |s, n| s.enemies[0].def = DefIndex(n as u16),
-            len: |e| e.stage.defs.len(),
+            len: |e| e.run.world().defs.len(),
         },
         Index {
             message: "agent kind out of range",
@@ -172,7 +174,7 @@ fn indices() -> Vec<Index> {
         Index {
             message: "boss index out of range",
             set: |s, n| s.boss.as_mut().unwrap().boss = BossIndex(n as u16),
-            len: |e| e.stage.bosses.len(),
+            len: |e| e.run.world().bosses.len(),
         },
         Index {
             message: "boss kind out of range",
@@ -187,27 +189,27 @@ fn indices() -> Vec<Index> {
         Index {
             message: "run attack out of range",
             set: |s, n| s.runs[0].attack = AttackIndex(n as u16),
-            len: |e| e.stage.attacks.len(),
+            len: |e| e.run.world().attacks.len(),
         },
         Index {
             message: "task program out of range",
             set: |s, n| s.tasks[0].program = ProgramIndex(n as u32),
-            len: |e| e.stage.emitters.len(),
+            len: |e| e.run.world().emitters.len(),
         },
         Index {
             message: "orb program out of range",
             set: |s, n| s.orbs[0].program = ProgramIndex(n as u32),
-            len: |e| e.stage.emitters.len(),
+            len: |e| e.run.world().emitters.len(),
         },
         Index {
             message: "zone program out of range",
             set: |s, n| s.zones[0].program = ProgramIndex(n as u32),
-            len: |e| e.stage.emitters.len(),
+            len: |e| e.run.world().emitters.len(),
         },
         Index {
             message: "hook program out of range",
             set: |s, n| s.orbs[0].hook.as_mut().unwrap().program = ProgramIndex(n as u32),
-            len: |e| e.stage.emitters.len(),
+            len: |e| e.run.world().emitters.len(),
         },
         Index {
             message: "orbit reward out of range",
@@ -260,7 +262,7 @@ fn indices_are_checked() {
 #[test]
 fn a_run_phase_past_its_attack_is_refused_before_the_move_index_is_built() {
     let fresh = saved();
-    let phases = fresh.stage.attacks[usize::from(fresh.run.runs[0].attack.0)]
+    let phases = fresh.run.world().attacks[usize::from(fresh.run.runs[0].attack.0)]
         .phases
         .len();
     assert_eq!(
@@ -478,7 +480,7 @@ fn check_savepoint(case: &Case, engine: &Engine, next: usize) {
         "{at}: horde times"
     );
     let mut resumed = engine.clone();
-    resumed.run = Run::V1(state);
+    resumed.run.set_state(state);
     resumed.ledger = ledger;
     resumed.counted = counted;
     // (a) the hash, (f) the bytes, which hold every saved index field

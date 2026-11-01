@@ -1,7 +1,7 @@
-//! The engine's run state, one variant per released rules version (ADR-REPL-9 point 1,
-//! ADR-REPL-7 point 4): each version owns its state types. Every call into the rules goes
-//! through a `match` here, so adding a version lists each site as a compile error. No box, no
-//! trait object: a one-variant enum is its `State`, with no tag.
+//! The engine's run, one variant per released rules version (ADR-REPL-9 point 1, ADR-REPL-7
+//! point 4): each version owns its `World`, its `State` and its snapshot view. Every call into
+//! the rules goes through a `match` here, so adding a version lists each site as a compile
+//! error. No box, no trait object: a one-variant enum is its `World` and `State`, with no tag.
 
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
@@ -12,24 +12,31 @@ use crate::snapshot::OfferOption;
 
 use super::{Load, State};
 
-/// The state of a run under the rules of one `sim_version`.
+/// A run under the rules of one `sim_version`: the compiled stage and the state it changes.
 #[derive(Debug, Clone)]
 pub(crate) enum Run {
     /// Version 1, the frozen first rules.
-    V1(State),
+    V1 { world: World, state: State },
 }
 
 impl Run {
     /// The `sim_version` whose rules this state belongs to.
     pub(crate) fn version(&self) -> u32 {
         match self {
-            Run::V1(_) => 1,
+            Run::V1 { .. } => 1,
+        }
+    }
+
+    /// The `sim_version` the run's stage says: what `Engine` checks against the released
+    /// versions before it runs a rule.
+    pub(crate) fn declared_version(&self) -> u32 {
+        match self {
+            Run::V1 { world, .. } => world.sim_version,
         }
     }
 
     pub(crate) fn step(
         &mut self,
-        stage: &World,
         rewards: &Rewards,
         expertise: &Expertise,
         input: Input,
@@ -38,13 +45,16 @@ impl Run {
     ) {
         let version = self.version();
         match self {
-            Run::V1(s) => sim::step(version, stage, rewards, expertise, s, input, events, load),
+            Run::V1 { world, state } => {
+                sim::step(
+                    version, world, rewards, expertise, state, input, events, load,
+                );
+            }
         }
     }
 
     pub(crate) fn choose(
         &mut self,
-        stage: &World,
         rewards: &Rewards,
         expertise: &Expertise,
         option: OfferOption,
@@ -52,37 +62,38 @@ impl Run {
     ) {
         let version = self.version();
         match self {
-            Run::V1(s) => sim::choose(version, stage, rewards, expertise, s, option, events),
+            Run::V1 { world, state } => {
+                sim::choose(version, world, rewards, expertise, state, option, events);
+            }
         }
     }
 
     pub(crate) fn offer_open(&self) -> bool {
         match self {
-            Run::V1(s) => sim::offer_open(s),
+            Run::V1 { state, .. } => sim::offer_open(state),
         }
     }
 
     pub(crate) fn offer_options(
         &self,
-        stage: &World,
         rewards: &Rewards,
         expertise: &Expertise,
     ) -> Vec<OfferOption> {
         match self {
-            Run::V1(s) => sim::offer_options(stage, rewards, expertise, s),
+            Run::V1 { world, state } => sim::offer_options(world, rewards, expertise, state),
         }
     }
 
     pub(crate) fn state_hash(&self) -> u64 {
         match self {
-            Run::V1(s) => sim::state_hash(s),
+            Run::V1 { state, .. } => sim::state_hash(state),
         }
     }
 
     /// Reserves the room a run holds from load, so a clone's first ticks do not grow it (DIR1).
-    pub(crate) fn reserve(&mut self, stage: &World) {
+    pub(crate) fn reserve(&mut self) {
         match self {
-            Run::V1(s) => sim::reserve(stage, s),
+            Run::V1 { world, state } => sim::reserve(world, state),
         }
     }
 }
@@ -92,15 +103,40 @@ impl Run {
 impl std::ops::Deref for Run {
     type Target = State;
     fn deref(&self) -> &State {
-        let Run::V1(s) = self;
-        s
+        let Run::V1 { state, .. } = self;
+        state
     }
 }
 
 #[cfg(test)]
 impl std::ops::DerefMut for Run {
     fn deref_mut(&mut self) -> &mut State {
-        let Run::V1(s) = self;
-        s
+        let Run::V1 { state, .. } = self;
+        state
     }
+}
+
+#[cfg(test)]
+impl Run {
+    pub(crate) fn world(&self) -> &World {
+        let Run::V1 { world, .. } = self;
+        world
+    }
+
+    pub(crate) fn world_mut(&mut self) -> &mut World {
+        let Run::V1 { world, .. } = self;
+        world
+    }
+
+    pub(crate) fn set_state(&mut self, new: State) {
+        let Run::V1 { state, .. } = self;
+        *state = new;
+    }
+}
+
+/// The version's types, by one path for the tests; a new version repoints this in one place.
+#[cfg(test)]
+pub(crate) mod v1 {
+    pub(crate) use crate::sim::World;
+    pub(crate) use crate::sim::state::*;
 }

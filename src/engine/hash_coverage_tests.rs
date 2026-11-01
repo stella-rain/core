@@ -3,6 +3,7 @@
 //! `each_field_moves_the_hash!`, which destructures the type without `..`: a field that is in
 //! none of its three lists does not compile.
 
+use super::run::v1::{AgentState, BossState, PlayerState, State};
 use super::*;
 use crate::attack::{DamageType, ZoneShape};
 use crate::behaviour::BossCall;
@@ -675,7 +676,7 @@ fn player(p: &mut PlayerState) {
 
 /// A state with every list non-empty and every `Option` `Some`, to perturb field by field.
 pub(super) fn full_state(e: &Engine) -> State {
-    let Run::V1(mut s) = e.run.clone();
+    let mut s = (*e.run).clone();
     player(&mut s.player);
     s.boss = Some(boss());
     s.companions = vec![agent()];
@@ -754,11 +755,11 @@ impl Probe {
     fn new() -> Probe {
         let mut engine = engine();
         assert!(
-            engine.stage.attacks.len() >= 2,
+            engine.run.world().attacks.len() >= 2,
             "the probe's stage has two attacks"
         );
         let base = full_state(&engine);
-        engine.run = Run::V1(base.clone());
+        engine.run.set_state(base.clone());
         let base_hash = engine.state_hash();
         Probe {
             engine,
@@ -772,7 +773,7 @@ impl Probe {
     fn moves(&mut self, change: impl FnOnce(&mut State)) -> bool {
         let mut s = self.base.clone();
         change(&mut s);
-        self.engine.run = Run::V1(s);
+        self.engine.run.set_state(s);
         self.engine.state_hash() != self.base_hash
     }
 

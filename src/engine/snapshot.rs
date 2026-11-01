@@ -98,7 +98,7 @@ impl Engine {
     /// while `out` grows to the largest crowd it has held. Keeps the visibility, position and kind rules of `snapshot()`
     /// (which names this function); `tests/places.rs` holds the two equal.
     pub fn places(&self, out: &mut Places) {
-        let Run::V1(s) = &self.run;
+        let Run::V1 { state: s, .. } = &self.run;
         out.entities.clear();
         out.stars.clear();
         out.boss = None;
@@ -144,12 +144,12 @@ impl Engine {
     /// What the frontend draws after the last tick (ADR-005). `places` repeats its rules for
     /// the ids, kinds and positions, and the player's position: change them together.
     pub fn snapshot(&self) -> Snapshot {
-        let Run::V1(s) = &self.run;
+        let Run::V1 { world, state: s } = &self.run;
         let view = |r: &AttackRun| {
-            let p = sim::phase(&self.stage, r, r.phase as usize);
+            let p = sim::phase(world, r, r.phase as usize);
             AttackView {
                 slot: r.slot,
-                preset: self.stage.attacks[usize::from(r.attack.0)].preset.clone(),
+                preset: world.attacks[usize::from(r.attack.0)].preset.clone(),
                 phase: u8::try_from(r.phase).unwrap_or(u8::MAX),
                 kind: p.kind,
                 tick: r.tick,
@@ -168,9 +168,9 @@ impl Engine {
         };
         let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
         // The auras of the elites, read once: an enemy within reach of one is strengthened.
-        let auras: Vec<_> = sim::aura_sources(&self.stage, s).collect();
+        let auras: Vec<_> = sim::aura_sources(world, s).collect();
         let mut entities = Vec::new();
-        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&self.stage.boss(b.boss).boss, b)) {
+        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&world.boss(b.boss).boss, b)) {
             if b.hp > 0 {
                 entities.push(EntityView {
                     id: b.id,
@@ -195,7 +195,7 @@ impl Engine {
         let agent_views =
             |kind, agents: &[crate::engine::AgentState], out: &mut Vec<EntityView>| {
                 for a in agents {
-                    let def = self.stage.defs.agent(a.def);
+                    let def = world.defs.agent(a.def);
                     let hidden = a.hidden();
                     // Only a non-elite enemy is strengthened by an aura (ADR-090).
                     let reached = kind == EntityKind::Enemy
@@ -241,7 +241,7 @@ impl Engine {
         agent_views(EntityKind::Companion, &s.companions, &mut entities);
         // A part is drawn while it and its boss are alive: a dead boss takes its unbroken
         // parts with it (core#60).
-        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&self.stage.boss(b.boss).boss, b)) {
+        if let Some((boss, b)) = s.boss.as_ref().map(|b| (&world.boss(b.boss).boss, b)) {
             for (part, def) in b.parts.iter().zip(&boss.parts) {
                 if b.hp > 0 && part.hp > 0 {
                     entities.push(EntityView {
@@ -268,7 +268,7 @@ impl Engine {
             }
         }
         agent_views(EntityKind::Enemy, &s.enemies, &mut entities);
-        let map = self.stage.map();
+        let map = world.map();
         Snapshot {
             tick: s.tick,
             map: MapView {
@@ -278,7 +278,7 @@ impl Engine {
             player: PlayerView {
                 at: s.player.at,
                 hp: s.player.hp,
-                radius: Fx(self.stage.tuning.player_radius),
+                radius: Fx(world.tuning.player_radius),
                 facing: Facing {
                     x: s.player.facing.x,
                     y: s.player.facing.y,
@@ -300,13 +300,13 @@ impl Engine {
                         auto,
                     }
                 },
-                charge: sim::charge_view(&self.stage, s).map(|(level, held, perfect)| ChargeView {
+                charge: sim::charge_view(world, s).map(|(level, held, perfect)| ChargeView {
                     level,
                     held,
                     perfect,
                 }),
                 auto_charge: sim::auto_charge_view(s),
-                hold: sim::hold_view(&self.stage, s)
+                hold: sim::hold_view(world, s)
                     .map(|(held, max_ticks)| HoldView { held, max_ticks }),
                 target: s.player.target,
                 skill: s.player.skill.and_then(|slot| {
@@ -420,7 +420,7 @@ impl Engine {
                         at: b.at,
                         vx: b.vx,
                         vy: b.vy,
-                        radius: Fx(self.stage.tuning.orb_radius),
+                        radius: Fx(world.tuning.orb_radius),
                         style: b.style,
                         breakable: b.breakable,
                         link_to: beam.and_then(|j| u32::try_from(j).ok()),
@@ -447,14 +447,13 @@ impl Engine {
             progress: s.progress.as_ref().map(|p| ProgressView {
                 level: p.level,
                 xp: p.xp,
-                xp_next: sim::xp_next(&self.stage, p.level),
+                xp_next: sim::xp_next(world, p.level),
                 spent: p.spent.clone(),
                 stat_offer: sim::stat_offer_view(s),
                 offer: sim::offer_view(self.content.rewards(), s),
             }),
             expertise: s.expertise.as_ref().map(|g| {
-                let (style, path) =
-                    sim::expertise_styles_view(&self.stage, self.content.expertise(), g);
+                let (style, path) = sim::expertise_styles_view(world, self.content.expertise(), g);
                 ExpertiseView {
                     level: g.level,
                     points: g.points,
@@ -462,10 +461,10 @@ impl Engine {
                     taken: g.taken.clone(),
                     style,
                     path,
-                    offer: sim::expertise_offer_view(&self.stage, self.content.expertise(), s),
+                    offer: sim::expertise_offer_view(world, self.content.expertise(), s),
                 }
             }),
-            patterns: sim::announced_patterns(&self.stage, s),
+            patterns: sim::announced_patterns(world, s),
             stardust: s.stardust,
         }
     }

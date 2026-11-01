@@ -1,6 +1,7 @@
 //! The rules dispatch (ADR-REPL-7 point 3): `step` and `choose` run the rules for a run whose
 //! `sim_version` is in `1..=SIM_VERSION` and fail closed on any other, changing nothing.
 
+use super::run::v1::{State, World};
 use super::*;
 use crate::pack::ContentFiles;
 use crate::run_content::RunContent;

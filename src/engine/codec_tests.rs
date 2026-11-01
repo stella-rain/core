@@ -5,6 +5,7 @@
 //! hash, the encoding saves every field, the content indices included.
 
 use super::hash_coverage_tests::{Perturb, engine, full_state};
+use super::run::v1::{AgentState, BossState, PlayerState, State};
 use super::*;
 use crate::fixed::{Fx, Point};
 use crate::hash::{StableHash, StateHasher};
