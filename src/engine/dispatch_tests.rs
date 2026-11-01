@@ -7,10 +7,8 @@ use crate::run_content::RunContent;
 use crate::time_limit::TimeLimit;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 
-fn engine() -> Engine {
-    let mode = TimeLimit::parse(ContentFiles::bundled_file("time_limit"), Versions::CURRENT)
-        .unwrap_or_else(|e| panic!("{e:?}"));
-    let setup = RunSetup {
+fn setup() -> RunSetup {
+    RunSetup {
         schema_version: SCHEMA_VERSION,
         sim_version: SIM_VERSION,
         mode: "time_limit".into(),
@@ -28,8 +26,13 @@ fn engine() -> Engine {
         stat_priority: Vec::new(),
         pick_stats: true,
         difficulty: "normal".into(),
-    };
-    Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
+    }
+}
+
+fn engine() -> Engine {
+    let mode = TimeLimit::parse(ContentFiles::bundled_file("time_limit"), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap()
 }
 
 /// The engine with its run's `sim_version` set to `v`, past what `Engine::new` checks.
@@ -83,4 +86,31 @@ fn a_choice_at_another_version_is_unsupported_and_changes_nothing() {
         assert_eq!(e.outcome(), Outcome::Running, "{v}");
         assert!(e.offer_open(), "{v}");
     }
+}
+
+#[test]
+fn the_run_variant_is_the_stage_version() {
+    let mode = TimeLimit::parse(ContentFiles::bundled_file("time_limit"), Versions::CURRENT)
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
+    let mut recorder = crate::run_replay::RunRecorder::start(&setup()).unwrap();
+    recorder.step(Input::default()).unwrap();
+    let prefix = recorder.replay();
+    let (restored, _) =
+        crate::savepoint::restore(&recorder.save(), &prefix, crate::pack::Pack::bundled()).unwrap();
+    let engines = [
+        Engine::new(&stage).unwrap(),
+        Engine::start(&setup()).unwrap(),
+        Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap(),
+        engine().clone(),
+        restored,
+    ];
+    for e in &engines {
+        assert_eq!(e.run.version(), e.stage.sim_version);
+    }
+}
+
+#[test]
+fn the_run_is_its_state_alone() {
+    assert_eq!(size_of::<Run>(), size_of::<State>());
 }
