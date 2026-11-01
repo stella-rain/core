@@ -121,6 +121,8 @@ mod orbit;
 mod player;
 #[cfg(test)]
 mod players_pin_tests;
+#[cfg(test)]
+mod players_tests;
 mod push;
 mod runes;
 mod schedule;
