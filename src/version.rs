@@ -3,12 +3,20 @@
 //! rule, a gate in `sim`, a copy only for a rewrite), and version 0, the development version
 //! before the freeze, is refused everywhere. A file is read at any `sim_version` from
 //! `FIRST_SIM_VERSION` up to `SIM_VERSION` (ADR-REPL-9): the frozen versions keep loading.
+//! `DEVELOPMENT` marks the live `SIM_VERSION` as open until the freeze (ADR-REPL-9).
 
 /// Structure of stage, event and replay files.
 pub const SCHEMA_VERSION: u32 = 1;
 
 /// Simulation rules: the open live version (ADR-REPL-9); version 1 is frozen in `sim_v1`.
 pub const SIM_VERSION: u32 = 2;
+
+/// Set while the live rules (`sim_version` `SIM_VERSION`, module `sim`) are open and change in
+/// place (ADR-REPL-9). A replay or resume slot made on such a build is test-build data and may
+/// stop verifying. The freeze writes `tests/corpus/v<SIM_VERSION>/` once and removes this flag;
+/// the app shows one label while it is set and refuses to promote such a build. Nothing in core
+/// reads it: no rule, hash, file check or `read_*` function branches on it.
+pub const DEVELOPMENT: bool = true;
 
 /// The oldest simulation rules still read; version 0 is refused (ADR-REPL-7 point 8).
 pub const FIRST_SIM_VERSION: u32 = 1;
@@ -211,6 +219,17 @@ mod tests {
         schema_version: 2,
         sim_version: 2,
     };
+
+    #[test]
+    fn the_flag_does_not_change_which_files_are_read() {
+        for sim in FIRST_SIM_VERSION..=SIM_VERSION {
+            assert_eq!(check(SCHEMA_VERSION, sim), Ok(()));
+        }
+        assert!(matches!(
+            check(SCHEMA_VERSION, SIM_VERSION + 1),
+            Err(ReadError::UnsupportedVersion { .. })
+        ));
+    }
 
     #[derive(serde::Deserialize, PartialEq, Debug)]
     #[serde(deny_unknown_fields)]
