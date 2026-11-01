@@ -25,7 +25,13 @@ fn assert_same_tick(a: &Engine, b: &Engine, what: &str, tick: u32) {
 
 /// Steps both engines `ticks` ticks on `input`, comparing after each.
 fn same_for(case: (Case, Case), ticks: u32, what: &str) {
-    let (Case { engine: mut a, input }, Case { engine: mut b, .. }) = case;
+    let (
+        Case {
+            engine: mut a,
+            input,
+        },
+        Case { engine: mut b, .. },
+    ) = case;
     assert_eq!((a.run.version(), b.run.version()), (1, 2), "{what}");
     assert_same_tick(&a, &b, what, 0);
     for tick in 1..=ticks {

@@ -1,5 +1,5 @@
-//! The rules of every released `sim_version` (ADR-REPL-7): one module, gated on the version.
-//! Version 1 is the frozen first version; the hash check across CPUs is never relaxed (ADR-019).
+//! The live rules (ADR-REPL-7, ADR-REPL-9): the module that runs the newest `sim_version`, with the
+//! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-019).
 //!
 //! What a tick does, in this order (`schedule::TICK` is the order in code, and a test keeps this
 //! table equal to it):
