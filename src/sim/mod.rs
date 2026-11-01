@@ -122,6 +122,7 @@ mod runes;
 mod schedule;
 mod scratch;
 mod skill;
+pub(crate) mod snapshot;
 #[cfg(test)]
 mod spawn_edge_tests;
 mod stardust;

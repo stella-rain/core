@@ -7,10 +7,11 @@ use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::input::Input;
 use crate::rewards::Rewards;
+use crate::run_content::RunContent;
 use crate::sim::{self, World};
-use crate::snapshot::OfferOption;
+use crate::snapshot::{OfferOption, Snapshot};
 
-use super::{Load, State};
+use super::{Load, Places, State};
 
 /// A run under the rules of one `sim_version`: the compiled stage and the state it changes.
 #[derive(Debug, Clone)]
@@ -87,6 +88,20 @@ impl Run {
     pub(crate) fn state_hash(&self) -> u64 {
         match self {
             Run::V1 { state, .. } => sim::state_hash(state),
+        }
+    }
+
+    /// What the frontend draws after the last tick, built by this version's rules.
+    pub(crate) fn snapshot(&self, content: &RunContent) -> Snapshot {
+        match self {
+            Run::V1 { world, state } => sim::snapshot::build(world, content, state),
+        }
+    }
+
+    /// Fills `out` with where the drawn things are, by this version's rules.
+    pub(crate) fn places(&self, out: &mut Places) {
+        match self {
+            Run::V1 { state, .. } => sim::snapshot::places(state, out),
         }
     }
 

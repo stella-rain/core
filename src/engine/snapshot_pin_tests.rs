@@ -148,7 +148,6 @@ fn the_snapshot_and_places_bytes_are_pinned() {
     assert!(missing.is_empty(), "the walks never saw: {missing:?}");
 }
 
-#[cfg(any())] // Run::snapshot and Run::places arrive with the move of the view
 #[test]
 fn run_snapshot_is_the_engines() {
     let mut e = worst_case::warmed_up();
