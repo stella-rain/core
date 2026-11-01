@@ -16,7 +16,7 @@
 //! What it does not do yet: a zone has no combo credit or smash of its own; a friendly zone
 //! hurts as a plain hit.
 
-use crate::engine::{State, ZoneState};
+use crate::sim::state::{State, ZoneState};
 
 use super::scratch::Scratch;
 use super::{MAX_ZONES_ALIVE, count};

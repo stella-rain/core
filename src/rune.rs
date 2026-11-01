@@ -83,8 +83,8 @@ impl Rune {
     }
 
     /// The damage-over-time rune whose status is `kind`; `None` for every other status.
-    pub(crate) fn of_dot(kind: crate::engine::StatusKind) -> Option<Rune> {
-        use crate::engine::StatusKind;
+    pub(crate) fn of_dot(kind: crate::sim::state::StatusKind) -> Option<Rune> {
+        use crate::sim::state::StatusKind;
         match kind {
             StatusKind::Bleed => Some(Rune::Bleed),
             StatusKind::Poison => Some(Rune::Poison),

@@ -10,7 +10,6 @@ use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::{Rarity, Rewards};
 use crate::savepoint::codec::{Decode, DecodeError, Encode, Reader, Writer, decode_vec};
-use crate::sim::state::{AgentState, BossState};
 use crate::snapshot::EntityKind;
 use std::sync::Arc;
 
@@ -52,6 +51,43 @@ pub struct RunLedger {
     slain_indices: Vec<usize>,
 }
 
+/// What the ledger reads of an enemy: each rules module's `AgentState` says it (ADR-REPL-9), so
+/// the ledger is not copied per module.
+pub(crate) trait SeenEnemy {
+    fn kind(&self) -> KindIndex;
+    fn crowded(&self) -> bool;
+    fn burst(&self) -> bool;
+}
+
+/// What the ledger reads of a boss: its kind.
+pub(crate) trait SeenBoss {
+    fn kind(&self) -> KindIndex;
+}
+
+macro_rules! seen_by_ledger {
+    ($module:ident) => {
+        impl SeenEnemy for crate::$module::state::AgentState {
+            fn kind(&self) -> KindIndex {
+                self.kind
+            }
+            fn crowded(&self) -> bool {
+                self.crowded
+            }
+            fn burst(&self) -> bool {
+                self.burst
+            }
+        }
+
+        impl SeenBoss for crate::$module::state::BossState {
+            fn kind(&self) -> KindIndex {
+                self.kind
+            }
+        }
+    };
+}
+seen_by_ledger!(sim);
+seen_by_ledger!(sim_v1);
+
 impl RunLedger {
     /// Creates a ledger pre-allocated for an engine run so steady ticks do not allocate (DIR1).
     pub fn for_engine(kinds: &KindTable, weapon: &str) -> RunLedger {
@@ -87,17 +123,17 @@ impl RunLedger {
         &mut self,
         kinds: &KindTable,
         weapon: &str,
-        enemies: &[AgentState],
-        boss: Option<&BossState>,
+        enemies: &[impl SeenEnemy],
+        boss: Option<&impl SeenBoss>,
         events: &[DomainEvent],
     ) {
         for enemy in enemies {
-            if !enemy.crowded && !enemy.burst {
-                self.mark_seen_index(kinds, enemy.kind);
+            if !enemy.crowded() && !enemy.burst() {
+                self.mark_seen_index(kinds, enemy.kind());
             }
         }
         if let Some(b) = boss {
-            self.mark_seen_index(kinds, b.kind);
+            self.mark_seen_index(kinds, b.kind());
         }
         if !events.is_empty() {
             self.observe_events(kinds, weapon, events);

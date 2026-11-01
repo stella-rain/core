@@ -17,9 +17,9 @@
 //! and kind; its `move_to` order and crowded flag are cleared. No random number is drawn.
 
 use super::{MAX_LEASH_MOVES_PER_TICK, World};
-use crate::engine::State;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
+use crate::sim::state::State;
 use crate::stage::Map;
 
 /// Moves the enemies the leash catches; returns how many moved.

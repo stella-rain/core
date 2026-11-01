@@ -6,13 +6,13 @@
 use super::DefIndex;
 use super::World;
 use crate::behaviour::{Agent, BossCall, Condition, Guardians, Movement, Rule};
-use crate::engine::{
-    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, Rules,
-    ShrineState, State, Statuses, UNLIMITED,
-};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::sim::state::{
+    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, Rules,
+    ShrineState, State, Statuses, UNLIMITED,
+};
 use crate::trig;
 
 use super::act::perform;

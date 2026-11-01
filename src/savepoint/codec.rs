@@ -211,6 +211,19 @@ newtype_codec!(
     KindIndex(u16),
 );
 
+/// The index types of the frozen rules are their own types (ADR-REPL-9), coded the same way.
+mod frozen_indices {
+    use super::*;
+    use crate::sim_v1::{AttackIndex, BossIndex, DefIndex, ProgramIndex};
+
+    newtype_codec!(
+        DefIndex(u16),
+        BossIndex(u16),
+        AttackIndex(u16),
+        ProgramIndex(u32),
+    );
+}
+
 impl Encode for Point {
     fn encode(&self, w: &mut Writer) {
         let Point { x, y } = self;

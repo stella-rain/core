@@ -29,12 +29,12 @@
 
 use super::World;
 use crate::attack::AttackRef;
-use crate::engine::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
 use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
 use crate::rewards::Rewards;
+use crate::sim::state::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
 use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
 use crate::weapon::{Charge, Hold, SmashEffect, Step, Weapon};

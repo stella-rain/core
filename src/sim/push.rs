@@ -14,8 +14,8 @@
 //! enemy is, one held still by an attack phase included.
 
 use super::{Scratch, World};
-use crate::engine::State;
 use crate::fixed::{Fx, Point};
+use crate::sim::state::State;
 use crate::trig;
 
 use super::dash;

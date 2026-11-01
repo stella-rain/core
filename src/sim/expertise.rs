@@ -38,13 +38,13 @@
 //! levels due are passed over at once, so the offers' cost stays bounded too.
 
 use super::World;
-use crate::engine::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
 use crate::event::DomainEvent;
 use crate::expertise::{
     Expertise, ExpertiseEffect, ExpertiseOption, Style, TABLE_LEVELS, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::rng::SplitMix64;
+use crate::sim::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
 use crate::snapshot::{
     ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption,
 };
@@ -449,8 +449,8 @@ pub(super) fn choose(
 /// steps' widening.
 fn apply(
     range_pct: &mut u32,
-    progress: &mut Option<crate::engine::Progress>,
-    player: &mut crate::engine::PlayerState,
+    progress: &mut Option<crate::sim::state::Progress>,
+    player: &mut crate::sim::state::PlayerState,
     effect: ExpertiseEffect,
     amount: u32,
 ) {

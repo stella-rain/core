@@ -23,11 +23,11 @@
 
 use super::World;
 use crate::attack::{Anchor, DamageType, HitBox, Offset, PhaseKind, ZoneShape};
-use crate::engine::{Dir, Smash, State};
 use crate::event::{DomainEvent, HitKind};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::rune::Rune;
+use crate::sim::state::{Dir, Smash, State};
 use crate::trig;
 
 use super::entity::Who;

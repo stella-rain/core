@@ -12,7 +12,7 @@ use super::World;
 use super::attacks;
 use super::entity::Who;
 use super::state::{AgentState, AttackRun};
-use crate::engine::State;
+use crate::sim::state::State;
 
 /// How far along one axis of the facing (`axis`, scaled by `SCALE`) the dash has gone after `k`
 /// of `ticks` ticks: `distance × k / ticks` along the facing, rounded once. A tick moves from

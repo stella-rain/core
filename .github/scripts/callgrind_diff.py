@@ -18,7 +18,11 @@ LINE = re.compile(r"^\s*([\d,]+)\s+(\S.*?)\s*$")
 BINARY = re.compile(r"\s+\[[^\]]*\]$")
 NAME_MAX = 200
 TOTALS = "PROGRAM TOTALS"
-STEP_PREFIX = "stella_rain_core::sim::schedule::steps::"
+# The live rules and the frozen ones (ADR-REPL-9) run the same schedule; a step is counted by its name.
+STEP_PREFIXES = (
+    "stella_rain_core::sim::schedule::steps::",
+    "stella_rain_core::sim_v1::schedule::steps::",
+)
 STEP_NAME = re.compile(r"[A-Za-z0-9_]+")
 STEP_SELF = re.compile(r"^(?:|::h[0-9a-f]+|<.*)$")
 RECURSION = re.compile(r"'\d+$")  # callgrind's name for a recursive instance: free'2
@@ -40,16 +44,22 @@ def parse_annotate(text):
     return total, rows
 
 
+def step_prefix(name):
+    """The schedule prefix `name` starts with, or None."""
+    return next((p for p in STEP_PREFIXES if name.startswith(p)), None)
+
+
 def parse_steps(rows):
     """{step: inclusive Ir} of the rows of a parsed inclusive annotate that are named tick steps."""
     steps = {}
     for name, count in rows.items():
         name = FILE_SPLIT.sub("", name, count=1)
         name = RECURSION.sub("", name.rstrip())
-        if name.startswith(STEP_PREFIX):
-            step = STEP_NAME.match(name[len(STEP_PREFIX):])
+        prefix = step_prefix(name)
+        if prefix:
+            step = STEP_NAME.match(name[len(prefix):])
             # only the step's own function (a hash or generics may follow), not a closure or helper inside it
-            if step and STEP_SELF.match(name[len(STEP_PREFIX) + step.end():]):
+            if step and STEP_SELF.match(name[len(prefix) + step.end():]):
                 steps[step.group()] = steps.get(step.group(), 0) + count
     return steps
 
@@ -61,9 +71,10 @@ def steps_unreliable(rows, total):
     for name, count in rows.items():
         name = FILE_SPLIT.sub("", name, count=1).rstrip()
         bare = RECURSION.sub("", name)
-        if bare.startswith(STEP_PREFIX):
-            step = STEP_NAME.match(bare[len(STEP_PREFIX):])
-            if step and STEP_SELF.match(bare[len(STEP_PREFIX) + step.end():]):
+        prefix = step_prefix(bare)
+        if prefix:
+            step = STEP_NAME.match(bare[len(prefix):])
+            if step and STEP_SELF.match(bare[len(prefix) + step.end():]):
                 if bare != name:
                     return True
                 steps += count

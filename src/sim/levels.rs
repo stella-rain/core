@@ -16,10 +16,10 @@
 //! Percentages round down.
 
 use super::World;
-use crate::engine::{AgentSource, PlayerState, Progress, State};
 use crate::event::DomainEvent;
 use crate::id::ContentId;
 use crate::run_stats::{self, RunStats, StatEffect};
+use crate::sim::state::{AgentSource, PlayerState, Progress, State};
 use crate::snapshot::{OfferOption, StatOfferView};
 
 /// The highest level; past it experience is no longer counted (ADR-020: it bounds the points).

@@ -19,8 +19,8 @@ use crate::run_content::RunContent;
 use crate::rune::Rune;
 use std::sync::OnceLock;
 
-use crate::engine::Horde;
 use crate::sim::HordeSpec;
+use crate::sim::state::Horde;
 use crate::stage::{Map, Stage, StardustFactor, Wave};
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};

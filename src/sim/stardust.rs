@@ -10,7 +10,7 @@
 //! counts nothing.
 
 use super::World;
-use crate::engine::{AgentSource, State};
+use crate::sim::state::{AgentSource, State};
 use crate::stage::StardustFactor;
 use crate::validate::limits::MAX_RUN_STARDUST;
 

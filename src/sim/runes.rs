@@ -51,7 +51,6 @@
 
 use super::World;
 
-use crate::engine::{DotState, HeldRune, PlayerState, State, StatusKind};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
@@ -62,6 +61,7 @@ use crate::runes::{
     MAX_DOT_DURATION_TICKS, MAX_DOT_INTERVAL_TICKS, MAX_DOT_STACKS, MAX_HOMING_MISSILES,
     MAX_RUNE_COOLDOWN_TICKS,
 };
+use crate::sim::state::{DotState, HeldRune, PlayerState, State, StatusKind};
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 
 use super::entity::{Who, status_pct};
@@ -75,7 +75,7 @@ pub(super) const MISSILE_SLOT: u8 = 64;
 
 /// The on-hit rune whose attack run `r` is, by its slot (`FIRST_SLOT` plus the rune's place, or
 /// a missile's); `None` for every other run.
-pub(super) fn of_run(r: &crate::engine::AttackRun) -> Option<Rune> {
+pub(super) fn of_run(r: &crate::sim::state::AttackRun) -> Option<Rune> {
     if r.owner != super::PLAYER_ID {
         return None;
     }

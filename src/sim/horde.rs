@@ -29,10 +29,11 @@
 
 use super::{Arrival, World};
 use crate::behaviour::BossCall;
-use crate::engine::{AgentKey, AgentSource, Outcome, State};
+use crate::engine::Outcome;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::sim::state::{AgentKey, AgentSource, State};
 use crate::stage::{Side, ViewEdge};
 
 /// 60 ticks a second, 60 seconds.

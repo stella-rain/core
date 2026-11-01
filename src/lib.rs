@@ -51,6 +51,7 @@ pub mod savepoint;
 pub mod schema;
 pub mod share;
 pub(crate) mod sim;
+pub(crate) mod sim_v1;
 pub mod snapshot;
 pub mod stage;
 pub mod stage_skill;

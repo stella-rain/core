@@ -25,9 +25,6 @@
 use super::World;
 use crate::attack::DamageType;
 use crate::constellations;
-use crate::engine::{
-    Due, HeldRune, OfferState, PlayerState, Progress, StarField, StarState, State,
-};
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::{
@@ -37,6 +34,9 @@ use crate::rewards::{
 };
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
+use crate::sim::state::{
+    Due, HeldRune, OfferState, PlayerState, Progress, StarField, StarState, State,
+};
 use crate::snapshot::{
     CandidateView, ConstellationProgress, ConstellationView, OfferKind, OfferOption, OfferView,
 };

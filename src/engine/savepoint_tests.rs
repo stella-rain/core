@@ -19,10 +19,16 @@ use crate::id::EntityId;
 use crate::pack::Pack;
 use crate::replay::Replay;
 use crate::run_replay::{CommandKind, RunReplay, TickCommand};
-use crate::savepoint::{DecodeError, decode_state, encode_state};
+use crate::savepoint::{DecodeError, encode_state};
 use crate::validate::parse_and_validate;
 
 type Decoded = Result<(State, RunLedger, Counted), DecodeError>;
+
+/// `decode_state` of an engine that runs version 1, the rules these tests edit.
+fn decode_state(bytes: &[u8], fresh: &Engine) -> Decoded {
+    let (saved, ledger, counted) = crate::savepoint::decode_state(bytes, fresh)?;
+    Ok((saved.v1(), ledger, counted))
+}
 
 /// An engine holding the full state, a ledger and tallies with something in each field.
 fn saved() -> Engine {
@@ -30,7 +36,9 @@ fn saved() -> Engine {
     let full = full_state(&e);
     e.run.set_state(full);
     // The index is derived from the runs; the fixture's was lowered by hand.
-    let Run::V1 { world, state } = &mut e.run;
+    let Run::V1 { world, state } = &mut e.run else {
+        unreachable!("a test engine runs version 1")
+    };
     state.move_index.rebuild(world, &state.runs);
     e.ledger.add_kill("kills.giant_sword.enemy".into());
     e.ledger.add_kill("rune_taken.burn".into());
@@ -159,7 +167,7 @@ struct Index {
 
 fn indices() -> Vec<Index> {
     use crate::kinds::KindIndex;
-    use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex};
+    use crate::sim_v1::{AttackIndex, BossIndex, DefIndex, ProgramIndex};
     vec![
         Index {
             message: "agent def out of range",

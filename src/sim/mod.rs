@@ -1,5 +1,5 @@
-//! The rules of every released `sim_version` (ADR-REPL-7): one module, gated on the version.
-//! Version 1 is the frozen first version; the hash check across CPUs is never relaxed (ADR-019).
+//! The live rules (ADR-REPL-7, ADR-REPL-9): the module that runs the newest `sim_version`, with the
+//! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-019).
 //!
 //! What a tick does, in this order (`schedule::TICK` is the order in code, and a test keeps this
 //! table equal to it):
@@ -139,11 +139,7 @@ mod select;
 use crate::attack::{DamageType, MatchUp, Profile};
 use crate::behaviour::BossCall;
 use crate::difficulties::scale_pct;
-use crate::engine::AgentState;
-use crate::engine::{
-    AgentKey, AgentSource, BossState, Dir, Load, MoveOrder, Outcome, PartState, PlayerState,
-    Progress, Pull, Smash, StarField, StatRule, State, Streams,
-};
+use crate::engine::{Load, Outcome};
 use crate::event::{DomainEvent, HitKind, HitSource};
 use crate::expertise::Expertise;
 use crate::fixed::{Fx, Point};
@@ -156,6 +152,11 @@ use crate::rng::SplitMix64;
 use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
+use crate::sim::state::AgentState;
+use crate::sim::state::{
+    AgentKey, AgentSource, BossState, Dir, MoveOrder, PartState, PlayerState, Progress, Pull,
+    Smash, StarField, StatRule, State, Streams,
+};
 use crate::snapshot::{EntityKind, OfferOption};
 use crate::stage::{Side, ViewEdge};
 use crate::trig;
@@ -429,7 +430,7 @@ fn unreserved_state(
         enemies: Vec::new(),
         tasks: Vec::new(),
         runs: Vec::new(),
-        move_index: crate::engine::MoveIndex::default(),
+        move_index: crate::sim::state::MoveIndex::default(),
         ranged_cooling: Vec::new(),
         orbs: Vec::new(),
         zones: Vec::new(),
@@ -1022,13 +1023,13 @@ fn move_orbs(stage: &World, s: &mut State) {
 
 /// The orb that the beam from orb `i` runs to, if it is live: both are alive, in one group, and
 /// neither is still flying toward its halt. A ring of two has one beam, from slot 0.
-pub(crate) fn beam_to(orbs: &[crate::engine::OrbState], i: usize) -> Option<usize> {
+pub(crate) fn beam_to(orbs: &[crate::sim::state::OrbState], i: usize) -> Option<usize> {
     let from = orbs.get(i)?;
     let link = from.link?;
     if link.of < 2 || (link.of == 2 && link.slot == 1) {
         return None;
     }
-    let flying = |b: &crate::engine::OrbState| b.stop.is_some_and(|n| n > 0);
+    let flying = |b: &crate::sim::state::OrbState| b.stop.is_some_and(|n| n > 0);
     if flying(from) {
         return None;
     }
@@ -1149,7 +1150,10 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     if !damageable(s, target) {
         return;
     }
-    let vulnerable = status_pct(s.statuses(target), crate::engine::StatusKind::Vulnerable);
+    let vulnerable = status_pct(
+        s.statuses(target),
+        crate::sim::state::StatusKind::Vulnerable,
+    );
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
     // The common case, with no combat reward held, pays for one comparison (ADR-058).
@@ -1368,7 +1372,10 @@ impl Blame {
 /// Damage to the main character, raised by its vulnerability and reduced by its defence; it is
 /// then invulnerable for a while.
 fn hurt_player(stage: &World, s: &mut State, b: Shot, by: Blame, events: &mut Vec<DomainEvent>) {
-    let vulnerable = status_pct(&s.player.statuses, crate::engine::StatusKind::Vulnerable);
+    let vulnerable = status_pct(
+        &s.player.statuses,
+        crate::sim::state::StatusKind::Vulnerable,
+    );
     // The main character has no profile (ADR-100): every hit on it is neutral.
     let dealt = scale_damage(
         b.damage,

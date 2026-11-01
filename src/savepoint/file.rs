@@ -219,13 +219,13 @@ impl Savepoint {
 
 /// The savepoint file of `engine` and `prefix`, the replay of the run up to it.
 pub(crate) fn save(engine: &Engine, prefix: &RunReplay) -> Vec<u8> {
-    let (_, content, ..) = engine.savepoint_parts();
+    let content = engine.content();
     let content_sha256 = content_sha256_with(prefix.setup.mode.as_str(), content)
         .expect("a mode that runs has content");
     Savepoint {
         header: SavepointHeader {
             format: SAVEPOINT_FORMAT,
-            sim_version: SIM_VERSION,
+            sim_version: engine.version(),
             schema_version: SCHEMA_VERSION,
             content_sha256,
             tick: engine.tick(),
@@ -238,7 +238,7 @@ pub(crate) fn save(engine: &Engine, prefix: &RunReplay) -> Vec<u8> {
 }
 
 /// The engine of a savepoint and the history of its prefix, after every check, in this order:
-/// the file's (`Savepoint::from_bytes`), the pack, the prefix's setup and size, the payload,
+/// the file's (`Savepoint::from_bytes`), its `sim_version` against the prefix setup's, the pack, the prefix's setup and size, the payload,
 /// the state hash, the prefix against the header, the prefix's own unpacking, and the run
 /// still running. Nothing is simulated.
 pub(crate) fn restore(
@@ -248,6 +248,9 @@ pub(crate) fn restore(
 ) -> Result<(Engine, History), SavepointError> {
     let file = Savepoint::from_bytes(bytes)?;
     let head = file.header();
+    if head.sim_version != prefix.setup.sim_version {
+        return Err(SavepointError::SimVersion);
+    }
     if content_sha256_with(prefix.setup.mode.as_str(), pack.content()) != Some(head.content_sha256)
     {
         return Err(SavepointError::Pack);
