@@ -2,14 +2,32 @@
 //! (ADR-REPL-7 point 4) cannot change a byte of either.
 
 use crate::bench_fixtures::{hit_case, time_limit_case, worst_case, worst_minute_case};
+use crate::fixed::Point;
 use crate::hash::StateHasher;
-use crate::snapshot::EntityKind;
+use crate::snapshot::{EntityKind, PlayerView, Snapshot};
 
 use super::*;
 
 fn orb_cage() -> crate::stage::Stage {
     let bytes = include_bytes!("../../tests/corpus/v1/stages/orb_cage/stage.json");
     crate::validate::parse_and_validate(bytes).expect("a valid stage")
+}
+
+/// What a walk hashes after each tick.
+#[derive(Clone, Copy)]
+enum Hashed {
+    /// The whole snapshot's JSON and the places' debug text.
+    Whole,
+    /// Only the first player's view and position.
+    FirstPlayer,
+}
+
+fn first_player(snap: &Snapshot) -> &PlayerView {
+    &snap.player
+}
+
+fn first_place(places: &Places) -> Point {
+    places.player
 }
 
 /// What a walk saw of the views that are rare; the walks together must reach each.
@@ -27,11 +45,20 @@ struct Seen {
 const TICKS: u32 = 600;
 
 /// Hashes the snapshot's JSON and the places' debug text after a tick, and notes what it showed.
-fn observe(e: &Engine, places: &mut Places, h: &mut StateHasher, seen: &mut Seen) {
+fn observe(e: &Engine, places: &mut Places, h: &mut StateHasher, seen: &mut Seen, hashed: Hashed) {
     let snap = e.snapshot();
-    h.write_bytes(&serde_json::to_vec(&snap).expect("a snapshot serializes"));
     e.places(places);
-    h.write_bytes(format!("{places:?}").as_bytes());
+    match hashed {
+        Hashed::Whole => {
+            h.write_bytes(&serde_json::to_vec(&snap).expect("a snapshot serializes"));
+            h.write_bytes(format!("{places:?}").as_bytes());
+        }
+        Hashed::FirstPlayer => {
+            let view = first_player(&snap);
+            h.write_bytes(&serde_json::to_vec(view).expect("a view serializes"));
+            h.write_bytes(format!("{:?}", first_place(places)).as_bytes());
+        }
+    }
     seen.attack |= snap.entities.iter().any(|v| v.attack.is_some());
     seen.boss |= snap.entities.iter().any(|v| v.kind == EntityKind::Boss);
     seen.link |= snap.orbs.iter().any(|o| o.link_to.is_some());
@@ -42,7 +69,7 @@ fn observe(e: &Engine, places: &mut Places, h: &mut StateHasher, seen: &mut Seen
 }
 
 /// Plays `TICKS` ticks taking option 0 at every offer, observing each.
-fn walk(mut e: Engine, input: fn(u32) -> Input, seen: &mut Seen) -> u64 {
+fn walk(mut e: Engine, input: fn(u32) -> Input, seen: &mut Seen, hashed: Hashed) -> u64 {
     let mut h = StateHasher::new();
     let mut places = Places::default();
     for _ in 0..TICKS {
@@ -51,14 +78,14 @@ fn walk(mut e: Engine, input: fn(u32) -> Input, seen: &mut Seen) -> u64 {
         }
         let next = e.tick() + 1;
         e.step(input(next));
-        observe(&e, &mut places, &mut h, seen);
+        observe(&e, &mut places, &mut h, seen, hashed);
     }
     h.finish()
 }
 
 /// The frozen version 1 run cases that play on its pack, so the walk does not move with the
 /// bundled content.
-fn corpus_runs(seen: &mut Seen) -> u64 {
+fn corpus_runs(seen: &mut Seen, hashed: Hashed) -> u64 {
     let pack = crate::pack::Pack::from_bytes(include_bytes!(
         "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
     ))
@@ -91,35 +118,43 @@ fn corpus_runs(seen: &mut Seen) -> u64 {
                 e.choose(c.index).expect("a recorded choice");
             }
             e.step(input);
-            observe(&e, &mut places, &mut h, seen);
+            observe(&e, &mut places, &mut h, seen, hashed);
         }
     }
     h.finish()
 }
 
-#[test]
-fn the_snapshot_and_places_bytes_are_pinned() {
-    let mut seen = Seen::default();
-    let got = [
-        walk(worst_case::warmed_up(), worst_case::input, &mut seen),
-        walk(hit_case::warmed_up(), hit_case::input, &mut seen),
+/// The six walks, hashing `hashed`.
+fn six_walks(seen: &mut Seen, hashed: Hashed) -> [u64; 6] {
+    [
+        walk(worst_case::warmed_up(), worst_case::input, seen, hashed),
+        walk(hit_case::warmed_up(), hit_case::input, seen, hashed),
         walk(
             time_limit_case::warmed_up(),
             time_limit_case::input,
-            &mut seen,
+            seen,
+            hashed,
         ),
         walk(
             worst_minute_case::worst_minute().engine,
             worst_minute_case::input_at,
-            &mut seen,
+            seen,
+            hashed,
         ),
         walk(
             Engine::new(&orb_cage()).expect("the stage runs"),
             worst_minute_case::input_at,
-            &mut seen,
+            seen,
+            hashed,
         ),
-        corpus_runs(&mut seen),
-    ];
+        corpus_runs(seen, hashed),
+    ]
+}
+
+#[test]
+fn the_snapshot_and_places_bytes_are_pinned() {
+    let mut seen = Seen::default();
+    let got = six_walks(&mut seen, Hashed::Whole);
     assert_eq!(
         got,
         [
@@ -146,6 +181,24 @@ fn the_snapshot_and_places_bytes_are_pinned() {
     .map(|(_, what)| *what)
     .collect();
     assert!(missing.is_empty(), "the walks never saw: {missing:?}");
+}
+
+/// Pins the first player's view and position bytes before the view becomes a list.
+#[test]
+fn the_player_view_bytes_are_pinned() {
+    let got = six_walks(&mut Seen::default(), Hashed::FirstPlayer);
+    assert_eq!(
+        got,
+        [
+            17_941_544_039_666_470_376,
+            2_698_022_397_726_184_157,
+            315_411_175_829_159_291,
+            13_759_183_982_994_529_872,
+            11_854_411_370_225_542_390,
+            17_735_575_978_225_829_493
+        ],
+        "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs"
+    );
 }
 
 #[test]
