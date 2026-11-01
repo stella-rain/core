@@ -501,6 +501,8 @@ mod horde_tests;
 mod move_index_tests;
 #[cfg(test)]
 mod savepoint_tests;
+#[cfg(test)]
+mod snapshot_pin_tests;
 
 // Every `State` type lives in `sim::state`; these paths keep working.
 pub(crate) use crate::sim::state::*;
