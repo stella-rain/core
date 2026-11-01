@@ -24,7 +24,7 @@ use crate::input::Input;
 use crate::parsed_stage_hash;
 use crate::stage::Stage;
 use crate::validate;
-use crate::version::{self, ReplayLoadError, Versions};
+use crate::version::{self, FIRST_SIM_VERSION, ReplayLoadError, Versions};
 
 /// A stage's clear replay file is at most this big (ADR-020). Even a maximum-length replay
 /// whose inputs never repeat fits. It is also what a share code may carry (`share`). A run's
@@ -38,9 +38,9 @@ pub struct Replay {
     /// `SCHEMA_VERSION`; an older one is read only through a migration to it, else it is
     /// `Older`; a newer one is `Newer` (ADR-REPL-7).
     pub schema_version: u32,
-    /// The `sim_version` the file was written at. This game reads a file at its own
-    /// `SIM_VERSION`; an older one is read only through a migration to it, else it is `Older`;
-    /// a newer one is `Newer` (ADR-REPL-7).
+    /// The `sim_version` the file was written at. This game reads a file at any version
+    /// from `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a
+    /// migration, else it is `Older`; a newer one is `Newer` (ADR-REPL-7).
     pub sim_version: u32,
     /// Must equal the stage's.
     pub seed: u32,
@@ -277,6 +277,7 @@ impl Replay {
         version::read_replay(
             bytes,
             MAX_STAGE_REPLAY_BYTES,
+            FIRST_SIM_VERSION,
             Versions::CURRENT,
             &[],
             |bytes| serde_json::from_slice(bytes),

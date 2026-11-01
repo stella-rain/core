@@ -1,10 +1,10 @@
 //! The savepoint file (ADR-SAVE-3): a fixed header, then the engine-state payload
 //! (`encode_state`). `RunRecorder::save` writes one at a tick; `RunRecorder::resume_from_savepoint`
 //! reads it with the run's replay prefix and the pack, and returns a live recorder without
-//! re-simulating the prefix. A savepoint is valid only when `SAVEPOINT_FORMAT`, `SIM_VERSION`
-//! and the pack's content hash match; the crate version is not stored, so validity never depends
-//! on the build that wrote the file. Every refusal is one `SavepointError`, and the caller falls
-//! back to `RunRecorder::resume_with_pack`.
+//! re-simulating the prefix. A savepoint is valid only when `SAVEPOINT_FORMAT`, a `sim_version`
+//! from `FIRST_SIM_VERSION` to `SIM_VERSION` and the pack's content hash match; the crate
+//! version is not stored, so validity never depends on the build that wrote the file. Every
+//! refusal is one `SavepointError`, and the caller falls back to `RunRecorder::resume_with_pack`.
 //!
 //! Layout, all integers little-endian, the payload after the 128-byte header:
 //!
@@ -40,7 +40,7 @@ use crate::replay::hash_to_hex;
 use crate::run_replay::{
     History, MAX_RUN_REPLAY_BYTES, RunReplay, content_sha256_with, unpack_history,
 };
-use crate::version::{SCHEMA_VERSION, SIM_VERSION};
+use crate::version::{FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION};
 
 use super::{decode_state, encode_state};
 
@@ -146,13 +146,22 @@ impl Savepoint {
     /// `SimVersion` (the schema version, after the checksum: an intact file of another schema);
     /// nothing past byte 8 is read before the format is right.
     pub fn from_bytes(bytes: &[u8]) -> Result<Savepoint, SavepointError> {
+        Savepoint::from_bytes_in(bytes, FIRST_SIM_VERSION, SIM_VERSION)
+    }
+
+    /// `from_bytes` for the sim versions `oldest..=current`.
+    pub(crate) fn from_bytes_in(
+        bytes: &[u8],
+        oldest: u32,
+        current: u32,
+    ) -> Result<Savepoint, SavepointError> {
         if bytes.len() < 8 || bytes[..4] != MAGIC || u32_at(bytes, 4) != SAVEPOINT_FORMAT {
             return Err(SavepointError::Format);
         }
         if bytes.len() < HEADER_LEN {
             return Err(SavepointError::Damaged);
         }
-        if u32_at(bytes, 8) != SIM_VERSION {
+        if !(oldest..=current).contains(&u32_at(bytes, 8)) {
             return Err(SavepointError::SimVersion);
         }
         if bytes.len() > MAX_SAVEPOINT_BYTES {
@@ -294,6 +303,34 @@ mod tests {
             },
             payload: vec![7, 8, 9],
         }
+    }
+
+    #[test]
+    fn the_sim_version_range_is_checked_on_the_header() {
+        let at = |sim_version: u32| {
+            Savepoint {
+                header: SavepointHeader {
+                    sim_version,
+                    ..sample().header
+                },
+                ..sample()
+            }
+            .to_bytes()
+        };
+        for sim in [1, 2] {
+            let read = Savepoint::from_bytes_in(&at(sim), 1, 3).unwrap();
+            assert_eq!(read.header().sim_version, sim);
+        }
+        for sim in [0, 4] {
+            assert_eq!(
+                Savepoint::from_bytes_in(&at(sim), 1, 3).err(),
+                Some(SavepointError::SimVersion)
+            );
+        }
+        assert_eq!(
+            Savepoint::from_bytes(&at(2)).err(),
+            Some(SavepointError::SimVersion)
+        );
     }
 
     #[test]
