@@ -3,6 +3,7 @@
 //! rule, a gate in `sim`, a copy only for a rewrite), and version 0, the development version
 //! before the freeze, is refused everywhere. A file is read at any `sim_version` from
 //! `FIRST_SIM_VERSION` up to `SIM_VERSION` (ADR-REPL-9): the frozen versions keep loading.
+//! `DEVELOPMENT` marks the live `SIM_VERSION` as open until the freeze (ADR-REPL-9).
 
 /// Structure of stage, event and replay files.
 pub const SCHEMA_VERSION: u32 = 1;
@@ -15,7 +16,7 @@ pub const SIM_VERSION: u32 = 2;
 /// stop verifying. The freeze writes `tests/corpus/v<SIM_VERSION>/` once and removes this flag;
 /// the app shows one label while it is set and refuses to promote such a build. Nothing in core
 /// reads it: no rule, hash, file check or `read_*` function branches on it.
-pub const DEVELOPMENT: bool = false;
+pub const DEVELOPMENT: bool = true;
 
 /// The oldest simulation rules still read; version 0 is refused (ADR-REPL-7 point 8).
 pub const FIRST_SIM_VERSION: u32 = 1;
