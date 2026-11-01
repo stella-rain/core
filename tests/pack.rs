@@ -445,7 +445,7 @@ fn every_id_a_pack_introduces_is_listed_once() {
 }
 
 #[test]
-fn the_bundled_pack_introduces_each_constellation_in_the_current_version() {
+fn the_bundled_pack_keeps_each_constellation_at_the_version_that_introduced_it() {
     let v = value();
     let listed: Vec<(&str, u64)> = v["introduced"]["constellations"]
         .as_array()
@@ -461,10 +461,10 @@ fn the_bundled_pack_introduces_each_constellation_in_the_current_version() {
     assert_eq!(
         listed,
         [
-            ("summer_triangle", u64::from(SIM_VERSION)),
-            ("orions_belt", u64::from(SIM_VERSION)),
-            ("big_dipper", u64::from(SIM_VERSION)),
-            ("winter_triangle", u64::from(SIM_VERSION))
+            ("summer_triangle", 1),
+            ("orions_belt", 1),
+            ("big_dipper", 1),
+            ("winter_triangle", 1)
         ]
     );
     assert_eq!(

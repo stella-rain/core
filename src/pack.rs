@@ -1132,20 +1132,35 @@ fn check_introduced(
     }
 }
 
-/// The table of `content`'s IDs, each introduced in `sim_version`.
+/// `ids` with the version each was released at in `released`, or `sim_version` when new.
+fn stamp(released: &[IntroducedId], ids: Vec<&ContentId>, sim_version: u32) -> Vec<IntroducedId> {
+    ids.into_iter()
+        .map(|id| IntroducedId {
+            id: id.clone(),
+            sim_version: released
+                .iter()
+                .find(|r| r.id == *id)
+                .map_or(sim_version, |r| r.sim_version),
+        })
+        .collect()
+}
+
+/// The table of `content`'s IDs: an ID the released table holds keeps the version it was
+/// released at, a new one is introduced in `sim_version` (ADR-REPL-7 point 6, ADR-REPL-9).
 fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
-    let list = |ids: Vec<&ContentId>| -> Vec<IntroducedId> {
-        ids.into_iter()
-            .map(|id| IntroducedId {
-                id: id.clone(),
-                sim_version,
-            })
-            .collect()
-    };
+    let released = released();
+    let list = |released: &[IntroducedId], ids: Vec<&ContentId>| stamp(released, ids, sim_version);
     Introduced {
-        run_stats: list(content.run_stats().stats().iter().map(|s| &s.id).collect()),
-        rewards: list(content.rewards().rewards().iter().map(|r| &r.id).collect()),
+        run_stats: list(
+            &released.run_stats,
+            content.run_stats().stats().iter().map(|s| &s.id).collect(),
+        ),
+        rewards: list(
+            &released.rewards,
+            content.rewards().rewards().iter().map(|r| &r.id).collect(),
+        ),
         stage_skills: list(
+            &released.stage_skills,
             content
                 .stage_skills()
                 .skills()
@@ -1161,6 +1176,7 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
             .map(|(w, weapon)| WeaponIds {
                 weapon: weapon.weapon.clone(),
                 ids: list(
+                    released_expertise(&weapon.weapon),
                     expertise_ids(w, weapon)
                         .into_iter()
                         .map(|(_, id)| id)
@@ -1168,8 +1184,12 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
                 ),
             })
             .collect(),
-        perk_sets: list(content.perk_sets().sets().iter().map(|s| &s.id).collect()),
+        perk_sets: list(
+            &released.perk_sets,
+            content.perk_sets().sets().iter().map(|s| &s.id).collect(),
+        ),
         difficulties: list(
+            &released.difficulties,
             content
                 .difficulties()
                 .list()
@@ -1178,6 +1198,7 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
                 .collect(),
         ),
         elite_types: list(
+            &released.elite_types,
             content
                 .time_limit()
                 .elite_types()
@@ -1186,6 +1207,7 @@ fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
                 .collect(),
         ),
         constellations: Some(list(
+            released.constellations.as_deref().unwrap_or(&[]),
             content
                 .constellations()
                 .sets()
@@ -1782,6 +1804,19 @@ mod tests {
         assert_eq!(released(), &file.introduced);
         assert!(!released().rewards.is_empty());
         let _ = Pack::bundled();
+    }
+
+    #[test]
+    fn a_released_id_keeps_its_version_and_a_new_one_gets_the_pack_s() {
+        let (a, b): (ContentId, ContentId) = ("a".into(), "b".into());
+        let got = stamp(&[entry("a", 1)], vec![&a, &b], 2);
+        assert_eq!(got, [entry("a", 1), entry("b", 2)]);
+    }
+
+    #[test]
+    fn the_bundled_content_exports_the_table_it_was_released_with() {
+        let table = introduced_at(RunContent::bundled(), SIM_VERSION + 5);
+        assert_eq!(table, *released());
     }
 
     #[test]
