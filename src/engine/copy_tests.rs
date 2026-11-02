@@ -52,9 +52,8 @@ fn plain(events: &[DomainEvent]) -> Vec<DomainEvent> {
 }
 
 /// What a run shows after a tick, to compare two engines on.
-fn observed(e: &Engine) -> (u64, String, String, Load) {
+fn observed(e: &Engine) -> (String, String, Load) {
     (
-        e.state_hash(),
         as_v1(e, &plain(e.events())),
         as_v1(e, &e.snapshot()),
         e.caps(),
@@ -113,7 +112,7 @@ fn the_copy_equals_the_original_on_the_first_ticks_of_the_worst_minute() {
 }
 
 /// A scripted run: the main button held, a dash at tick 100 and 400, every offer taken at 0.
-fn scripted(version: u32) -> (Engine, Vec<(u64, String)>) {
+fn scripted(version: u32) -> (Engine, Vec<String>) {
     let setup = RunSetup {
         mode: "time_limit".into(),
         seed: 7,
@@ -124,7 +123,7 @@ fn scripted(version: u32) -> (Engine, Vec<(u64, String)>) {
     for tick in 1..=600u32 {
         while e.offer_open() {
             crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0).unwrap();
-            seen.push((e.state_hash(), as_v1(&e, &plain(e.events()))));
+            seen.push(as_v1(&e, &plain(e.events())));
         }
         e.step(&[Input {
             main: true,
@@ -132,7 +131,7 @@ fn scripted(version: u32) -> (Engine, Vec<(u64, String)>) {
             evade: tick == 100 || tick == 400,
             ..Input::default()
         }]);
-        seen.push((e.state_hash(), as_v1(&e, &plain(e.events()))));
+        seen.push(as_v1(&e, &plain(e.events())));
     }
     (e, seen)
 }
@@ -142,7 +141,7 @@ fn the_copy_equals_the_original_on_a_scripted_run() {
     let ((a, seen_a), (b, seen_b)) = (scripted(1), scripted(2));
     assert_eq!(seen_a, seen_b);
     assert!(
-        seen_a.iter().any(|(_, events)| events != "[]"),
+        seen_a.iter().any(|events| events != "[]"),
         "the script makes something happen"
     );
     assert_eq!(as_v1(&a, &a.snapshot()), as_v1(&b, &b.snapshot()));
@@ -334,14 +333,4 @@ fn the_frozen_v1_cases_run_sim_v1() {
         runs += 1;
     }
     assert!(runs > 0);
-}
-
-/// The savepoint bytes of the newest rules are those of version 1 at one player: the entity
-/// numbers are written without the reserved player slots (ADR-SIM-13), `next_id` included.
-#[test]
-fn the_state_bytes_of_both_versions_are_equal() {
-    use crate::savepoint::state::encode_state;
-    let (a, b) = (recorder_at(1), recorder_at(2));
-    assert_eq!(encode_state(a.engine()), encode_state(b.engine()));
-    assert_eq!(a.engine().state_hash(), b.engine().state_hash());
 }

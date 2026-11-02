@@ -100,7 +100,7 @@ pub(crate) struct State {
     pub spawned: Vec<u16>,
     /// The next entity number. It starts at `MAX_PLAYERS`: the numbers 0 to 2 are the player slots,
     /// present or not (ADR-SIM-13). The hash and the savepoint write it, like every entity number,
-    /// without the empty slots (`id_gap`, ADR-SIM-12).
+    /// as it is.
     pub next_id: u32,
     /// Cage groups taken so far (Z3a-3).
     pub next_orb_group: u32,
@@ -390,12 +390,11 @@ impl Default for Career {
 /// numbers 0 to 2 are the slots whether or not one is present (ADR-SIM-13).
 ///
 /// Each slot also holds its `Career` (the level progress, the offer generator, the star offers,
-/// the expertise gauge, the Stardust and the regeneration). The state hash and savepoint format 1
-/// write slot 0's career where the run's single values were, so a run of one is byte for byte
-/// what it was; the careers of slots 1 and 2 are hashed in the tail after their players (per
-/// slot: progress, offer generator, offers, expertise, Stardust, regen), a provisional layout the
-/// hash-layout work will settle. Format 1 holds one player, so a party is
-/// not yet a savepoint. A party builder supplies a career for every present slot.
+/// the expertise gauge, the Stardust and the regeneration). The state hash and the savepoint write
+/// the shared fields, then one presence byte (bit `i` is slot `i`) and, for each present slot in
+/// ascending order, its player and its career (ADR-SIM-3, ADR-SAVE-7); an absent slot writes
+/// nothing, and a hole in the mask hashes and saves. A party builder supplies a career for every
+/// present slot.
 #[derive(Clone, Debug)]
 pub(crate) struct Players {
     items: [PlayerState; MAX_PLAYERS as usize],
@@ -480,6 +479,11 @@ impl Players {
     #[cfg(test)]
     pub(crate) fn keeping_career_of(mut self, old: &Players) -> Players {
         self.careers[0] = old.career(PlayerIdx::SOLO).clone();
+        // The offers go with the star field in every present slot (the hash and the savepoint
+        // check it): the others start with slot 0's offers, and nothing else of its career.
+        for me in self.indices().skip(1) {
+            self.careers[me.get()].offers = self.careers[0].offers.clone();
+        }
         self
     }
 

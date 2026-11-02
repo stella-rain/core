@@ -26,7 +26,8 @@
 //! The star field is two parts: the run's (`StarField`: the stars on the map, the pity, the
 //! rarity range, the rune and reward pools) and each player's (`Offers` in the `Career`: the
 //! offers due and open, the rerolls and banishes left, and what the offers have used). The
-//! hash and savepoint format 1 write slot 0's where the one star field and generator were.
+//! hash and the savepoint write the run's part with the shared fields and each present player's
+//! in its block.
 //! Offers are per slot: a star taken is due to the player that took it, the boss's offer to every
 //! present player at that player's own tier, and each offer draws from its slot's generator. The
 //! drops on the map are shared, and a drop's tier is the highest level among the present players.

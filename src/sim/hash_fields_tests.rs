@@ -42,7 +42,7 @@ fn party(s: &State, mask: u8) -> State {
         out.players.careers_mut_for_test()[usize::from(i)] = career.clone();
     }
     for i in out.players.indices().collect::<Vec<_>>() {
-        out.players.both_mut(i).0.at.x.0 += 10 * i32::from(i.get() as u8);
+        out.players.both_mut(i).0.at.x.0 += 10 * i32::try_from(i.get()).expect("a slot");
     }
     out
 }
