@@ -157,3 +157,55 @@ impl PlayerIdx {
         }
     }
 }
+
+#[cfg(test)]
+mod gap_tests {
+    //! The map between the live rules' entity numbers (players first, slots 0 to 2 reserved) and
+    //! the compact numbers the hash and the savepoint write (ADR-SIM-12, ADR-SIM-13).
+    use super::*;
+
+    #[test]
+    fn a_party_of_one_maps_its_ids_down_by_two() {
+        assert_eq!(to_compact(EntityId(0), 2), 0);
+        assert_eq!(to_compact(EntityId(3), 2), 1);
+        assert_eq!(to_compact(EntityId(4), 2), 2);
+        assert_eq!(from_compact(0, 2), Some(EntityId(0)));
+        assert_eq!(from_compact(1, 2), Some(EntityId(3)));
+        assert_eq!(from_compact(2, 2), Some(EntityId(4)));
+    }
+
+    #[test]
+    fn a_party_of_two_maps_down_by_one_and_three_not_at_all() {
+        assert_eq!(to_compact(EntityId(1), 1), 1);
+        assert_eq!(to_compact(EntityId(3), 1), 2);
+        for id in 0..50 {
+            assert_eq!(to_compact(EntityId(id), 0), id);
+            assert_eq!(from_compact(id, 0), Some(EntityId(id)));
+        }
+    }
+
+    #[test]
+    fn the_inverse_returns_every_id_a_run_holds() {
+        for (gap, party) in [(0u32, 3u32), (1, 2), (2, 1)] {
+            let ids = (0..party).chain(3..=1000);
+            for id in ids {
+                let compact = to_compact(EntityId(id), gap);
+                assert_eq!(from_compact(compact, gap), Some(EntityId(id)), "gap {gap}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_number_that_does_not_fit_is_refused_not_a_panic() {
+        assert_eq!(from_compact(u32::MAX, 2), None);
+        assert_eq!(from_compact(u32::MAX, 1), None);
+        assert_eq!(from_compact(u32::MAX, 0), Some(EntityId(u32::MAX)));
+    }
+
+    #[test]
+    fn the_gap_is_the_slots_a_party_leaves_empty() {
+        assert_eq!(id_gap(1), 2);
+        assert_eq!(id_gap(2), 1);
+        assert_eq!(id_gap(3), 0);
+    }
+}

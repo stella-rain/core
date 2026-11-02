@@ -762,4 +762,33 @@ mod tests {
         );
         assert_eq!(to_bytes(&[1u32, 2]), [1, 0, 0, 0, 2, 0, 0, 0]);
     }
+
+    #[test]
+    fn a_gap_writes_entity_ids_compact_and_reads_them_back() {
+        let ids = (EntityId(3), Some(EntityId(4)), vec![(EntityId(0), 5u32), (EntityId(9), 1)]);
+        let mut w = Writer::new();
+        w.set_id_gap(2);
+        ids.0.encode(&mut w);
+        assert_eq!(w.buf, [1, 0, 0, 0]);
+        ids.1.encode(&mut w);
+        ids.2.encode(&mut w);
+        let bytes = w.finish();
+        let mut r = Reader::new(&bytes);
+        r.set_id_gap(2);
+        assert_eq!(EntityId::decode(&mut r), Ok(ids.0));
+        assert_eq!(<Option<EntityId>>::decode(&mut r), Ok(ids.1));
+        assert_eq!(<Vec<(EntityId, u32)>>::decode(&mut r), Ok(ids.2));
+        assert_eq!(written(|w| EntityId(3).encode(w)), [3, 0, 0, 0]);
+    }
+
+    #[test]
+    fn a_number_past_the_range_is_invalid_not_a_panic() {
+        let bytes = u32::MAX.to_le_bytes();
+        let mut r = Reader::new(&bytes);
+        r.set_id_gap(2);
+        assert_eq!(
+            EntityId::decode(&mut r),
+            Err(DecodeError::Invalid("entity id out of range"))
+        );
+    }
 }

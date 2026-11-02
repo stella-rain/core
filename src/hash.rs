@@ -276,4 +276,20 @@ mod tests {
         }
         assert_prefix_free(&of_lists);
     }
+
+    #[test]
+    fn a_gap_maps_entity_ids_down_as_the_old_numbering_had_them() {
+        use crate::id::EntityId;
+        let mut gapped = StateHasher::new();
+        gapped.set_id_gap(2);
+        let mut plain = StateHasher::new();
+        EntityId(0).stable_hash(&mut gapped);
+        Some(EntityId(3)).stable_hash(&mut gapped);
+        vec![(EntityId(4), 7u32)].stable_hash(&mut gapped);
+        EntityId(0).stable_hash(&mut plain);
+        Some(EntityId(1)).stable_hash(&mut plain);
+        vec![(EntityId(2), 7u32)].stable_hash(&mut plain);
+        assert_eq!(gapped.finish(), plain.finish());
+        assert_eq!(bytes_of(&EntityId(3)), [3, 0, 0, 0], "the default gap is 0");
+    }
 }
