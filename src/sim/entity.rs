@@ -261,6 +261,7 @@ impl State {
             status: kind.id(),
             stacks,
             duration_ticks: duration,
+            source: self.players.owner_of(source).map(PlayerIdx::id),
         });
     }
 }
@@ -299,6 +300,7 @@ impl State {
             status: StatusKind::Stun.id(),
             stacks: 1,
             duration_ticks: ticks,
+            source: self.players.owner_of(source).map(PlayerIdx::id),
         });
     }
 }
@@ -350,6 +352,7 @@ impl State {
             status: kind.id(),
             stacks,
             duration_ticks: duration,
+            source: self.players.owner_of(source).map(PlayerIdx::id),
         });
     }
 }

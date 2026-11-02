@@ -46,7 +46,8 @@ pub(crate) struct Scratch {
     pub(super) hit_lists: Vec<Vec<(EntityId, u32)>>,
     /// The player whose hit took each enemy (by index) from above 0 to 0 hit points this tick, in
     /// the tick's fixed order of hits; `None` for an enemy no hit defeated. Read by the bursts and
-    /// the kill-heal; emptied by `collide` once the dead are removed. Not hashed: enemy indices
+    /// the kill-heal; emptied by `collide` once the dead are removed. A `Died` event's `killer` is the same player,
+    /// read as the hit lands (ADR-SIM-12). Not hashed: enemy indices
     /// are stable from the first hit to that removal (ADR-SIM-3).
     pub(super) killers: Vec<Option<PlayerIdx>>,
     /// Whether each orb of the tick was used up.

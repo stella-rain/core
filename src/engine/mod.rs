@@ -18,7 +18,7 @@ use crate::event::DomainEvent;
 use crate::id::{ContentId, PlayerIdx};
 use crate::input::Input;
 use crate::kinds::KindTable;
-use crate::ledger::{Counted, RunLedger};
+use crate::ledger::{Counted, PlayerStats, RunLedger};
 use crate::rewards::Rewards;
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
@@ -108,6 +108,9 @@ pub struct Engine {
     ledger: RunLedger,
     /// The HUD tallies, counted from the events (outside the hashed state).
     counted: Counted,
+    /// Damage, kills and support per player slot, folded from the events (outside the hashed
+    /// state and the savepoint's first format, ADR-SIM-13).
+    player_stats: PlayerStats,
     /// Built past the `SIM_VERSION` check by `Engine::forced`, to run a version the game does
     /// not release yet.
     #[cfg(test)]
@@ -131,6 +134,7 @@ impl Clone for Engine {
             load: self.load,
             ledger: self.ledger.clone(),
             counted: self.counted.clone(),
+            player_stats: self.player_stats.clone(),
             #[cfg(test)]
             forced: self.forced,
         }
@@ -180,16 +184,20 @@ impl Engine {
     pub(crate) fn with_saved(self, state: Saved, ledger: RunLedger, counted: Counted) -> Engine {
         let mut events = self.events;
         events.clear();
-        Engine {
+        let mut engine = Engine {
             content: self.content,
             run: self.run.with_state(state),
             events,
             load: Load::default(),
             ledger,
             counted,
+            player_stats: PlayerStats::default(),
             #[cfg(test)]
             forced: self.forced,
-        }
+        };
+        // A format 1 savepoint does not hold the totals: they restart at its tick.
+        engine.player_stats = PlayerStats::resumed_at(engine.tick());
+        engine
     }
 
     /// An engine of `run` and `content`, before its first tick.
@@ -201,6 +209,7 @@ impl Engine {
             content: content.clone(),
             load: Load::default(),
             counted: Counted::new(content.rewards()),
+            player_stats: PlayerStats::default(),
             #[cfg(test)]
             forced,
         }
@@ -429,12 +438,22 @@ impl Engine {
 
     fn observe_tick(&mut self) {
         self.run.observe_tick(&mut self.ledger, &self.events);
-        self.counted.observe(self.content.rewards(), &self.events);
+        self.counted
+            .observe(self.content.rewards(), &self.events, &mut self.player_stats);
     }
 
     fn observe_choice(&mut self) {
         self.run.observe_choice(&mut self.ledger, &self.events);
-        self.counted.observe(self.content.rewards(), &self.events);
+        self.counted
+            .observe(self.content.rewards(), &self.events, &mut self.player_stats);
+    }
+
+    /// Damage dealt, kills and support per player slot, folded from the events of every step
+    /// (ADR-SIM-13). Not hashed, and not in a format 1 savepoint: a run resumed from one counts
+    /// from its tick (`PlayerStats::is_complete` is false); `RunRecorder::resume_with_pack` rebuilds
+    /// it exactly. A run of `sim_version` 1 stays zero.
+    pub fn player_stats(&self) -> &PlayerStats {
+        &self.player_stats
     }
 
     /// The run stats this run raises with its level-ups.

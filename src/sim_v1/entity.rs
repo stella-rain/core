@@ -246,6 +246,7 @@ impl State {
             status: kind.id(),
             stacks,
             duration_ticks: duration,
+            source: None,
         });
     }
 }
@@ -284,6 +285,7 @@ impl State {
             status: StatusKind::Stun.id(),
             stacks: 1,
             duration_ticks: ticks,
+            source: None,
         });
     }
 }
@@ -335,6 +337,7 @@ impl State {
             status: kind.id(),
             stacks,
             duration_ticks: duration,
+            source: None,
         });
     }
 }

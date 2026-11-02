@@ -1,12 +1,13 @@
 //! Run ledger (ADR-BRDG-6): counts kills, bestiary bits, picks and skill uses
-//! inside the simulation from domain events and state observations.
+//! inside the simulation from domain events and state observations. `PlayerStats` folds the
+//! events' source players into per-slot totals beside `Counted`, outside the hashed state.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::attack::DamageType;
 use crate::event::DomainEvent;
-use crate::id::ContentId;
+use crate::id::{ContentId, EntityId, MAX_PLAYERS, PlayerIdx};
 use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::{Rarity, Rewards};
 use crate::savepoint::codec::{Decode, DecodeError, Encode, Reader, Writer, decode_vec};
@@ -399,13 +400,35 @@ impl Counted {
         }
     }
 
-    pub(crate) fn observe(&mut self, rewards: &Rewards, events: &[DomainEvent]) {
+    /// Counts `events` into the tallies and folds them into `stats` in the same pass: the
+    /// one loop over a tick's events is part of the measured tick (ADR-SIM-8).
+    pub(crate) fn observe(
+        &mut self,
+        rewards: &Rewards,
+        events: &[DomainEvent],
+        stats: &mut PlayerStats,
+    ) {
         for event in events {
             match event {
                 DomainEvent::Died {
                     class: EntityKind::Enemy,
+                    killer,
                     ..
-                } => self.kills = self.kills.saturating_add(1),
+                } => {
+                    self.kills = self.kills.saturating_add(1);
+                    stats.kill(*killer);
+                }
+                DomainEvent::Hit {
+                    player: Some(player),
+                    buffed_by,
+                    damage,
+                    ..
+                } => stats.hit(*player, *buffed_by, *damage),
+                DomainEvent::Healed {
+                    source: Some(giver),
+                    target,
+                    amount,
+                } => stats.heal(*giver, *target, *amount),
                 DomainEvent::RewardTaken {
                     reward,
                     taken,
@@ -432,6 +455,116 @@ impl Counted {
                 }
                 _ => {}
             }
+        }
+    }
+}
+
+/// What one player slot did in the run, folded from the events (ADR-SIM-13).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SlotStats {
+    /// Damage the slot's hits dealt, overkill included (a `Hit`'s `damage`); echoes count.
+    pub damage_dealt: u64,
+    /// Enemies the slot defeated: a `Died` of class `Enemy` naming it as the killer.
+    pub kills: u32,
+    /// Damage dealt by other players while buffed by this slot, plus the hit points it healed in
+    /// another entity.
+    pub support: u64,
+}
+
+/// Per-slot damage dealt, kills and support, folded from the events of every step by the
+/// `Engine` and kept outside the hashed state and the savepoint's first format (ADR-SIM-13):
+/// a replay steps an engine and so rebuilds it exactly. A run resumed from a savepoint
+/// starts it at zero at the savepoint's tick (`from_tick`), and `is_complete` says whether it
+/// covers the whole run. Runs of `sim_version` 1 name no player in their events, so theirs stay zero.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PlayerStats {
+    slots: [SlotStats; MAX_PLAYERS as usize],
+    from_tick: u32,
+}
+
+impl PlayerStats {
+    /// Totals of zero for a run resumed at `tick`, which they cover from there on.
+    pub(crate) fn resumed_at(tick: u32) -> PlayerStats {
+        PlayerStats {
+            from_tick: tick,
+            ..PlayerStats::default()
+        }
+    }
+
+    /// The totals of one slot.
+    pub fn slot(&self, player: PlayerIdx) -> SlotStats {
+        self.slots[player.get()]
+    }
+
+    /// The tick the folding began at: 0 for a run stepped from its start.
+    pub fn from_tick(&self) -> u32 {
+        self.from_tick
+    }
+
+    /// Whether the totals cover the whole run, not only the ticks since a savepoint.
+    pub fn is_complete(&self) -> bool {
+        self.from_tick == 0
+    }
+
+    /// The slot an entity number names, if it is a player's.
+    fn at(&mut self, id: EntityId) -> Option<&mut SlotStats> {
+        self.slots.get_mut(usize::try_from(id.0).ok()?)
+    }
+
+    /// Adds the events of one step.
+    pub fn fold(&mut self, events: &[DomainEvent]) {
+        for event in events {
+            match event {
+                DomainEvent::Hit {
+                    player: Some(player),
+                    buffed_by,
+                    damage,
+                    ..
+                } => self.hit(*player, *buffed_by, *damage),
+                DomainEvent::Healed {
+                    source: Some(giver),
+                    target,
+                    amount,
+                } => self.heal(*giver, *target, *amount),
+                DomainEvent::Died {
+                    class: EntityKind::Enemy,
+                    killer,
+                    ..
+                } => self.kill(*killer),
+                _ => {}
+            }
+        }
+    }
+
+    /// A hit by `player`, buffed by `buffed_by`.
+    #[inline]
+    fn hit(&mut self, player: EntityId, buffed_by: Option<EntityId>, damage: u32) {
+        let damage = u64::from(damage);
+        if let Some(slot) = self.at(player) {
+            slot.damage_dealt = slot.damage_dealt.saturating_add(damage);
+        }
+        if let Some(buffer) = buffed_by.filter(|b| *b != player) {
+            if let Some(slot) = self.at(buffer) {
+                slot.support = slot.support.saturating_add(damage);
+            }
+        }
+    }
+
+    /// A heal of `amount` that `giver` gave to `target`; a self-heal is not support.
+    #[inline]
+    fn heal(&mut self, giver: EntityId, target: EntityId, amount: u32) {
+        if giver != target {
+            if let Some(slot) = self.at(giver) {
+                slot.support = slot.support.saturating_add(u64::from(amount));
+            }
+        }
+    }
+
+    /// An enemy defeated by `killer`, if a hit did it.
+    #[inline]
+    fn kill(&mut self, killer: Option<EntityId>) {
+        if let Some(slot) = killer.and_then(|k| self.at(k)) {
+            slot.kills = slot.kills.saturating_add(1);
         }
     }
 }
@@ -705,5 +838,154 @@ mod codec_tests {
             assert_ne!(to_bytes(&c), bytes, "{name} does not move the encoding");
         }
         assert_eq!(from_bytes::<Counted>(&bytes), Ok(base));
+    }
+}
+
+#[cfg(test)]
+mod player_stats_tests {
+    use super::*;
+    use crate::id::{EntityId, PlayerIdx};
+
+    fn slot(i: u8) -> PlayerIdx {
+        PlayerIdx::new(i).expect("a slot")
+    }
+
+    fn hit(player: Option<u32>, buffed_by: Option<u32>, damage: u32) -> DomainEvent {
+        DomainEvent::Hit {
+            source: EntityId(0),
+            target: EntityId(40),
+            target_kind: None,
+            damage,
+            damage_type: None,
+            match_up: Default::default(),
+            rune: None,
+            crit: false,
+            echo: false,
+            player: player.map(EntityId),
+            buffed_by: buffed_by.map(EntityId),
+        }
+    }
+
+    fn died(class: EntityKind, killer: Option<u32>) -> DomainEvent {
+        DomainEvent::Died {
+            entity: EntityId(40),
+            kind: None,
+            class,
+            elite: false,
+            killer: killer.map(EntityId),
+        }
+    }
+
+    fn healed(source: Option<u32>, target: u32, amount: u32) -> DomainEvent {
+        DomainEvent::Healed {
+            target: EntityId(target),
+            amount,
+            source: source.map(EntityId),
+        }
+    }
+
+    fn folded(events: &[DomainEvent]) -> PlayerStats {
+        let mut stats = PlayerStats::default();
+        stats.fold(events);
+        stats
+    }
+
+    #[test]
+    fn damage_is_summed_per_hitter() {
+        let stats = folded(&[hit(Some(1), None, 40), hit(Some(1), None, 60)]);
+        assert_eq!(stats.slot(slot(1)).damage_dealt, 100);
+        assert_eq!(stats.slot(slot(0)), SlotStats::default());
+        assert_eq!(stats.slot(slot(2)), SlotStats::default());
+    }
+
+    #[test]
+    fn only_a_defeated_enemy_with_a_killer_scores_a_kill() {
+        let stats = folded(&[
+            died(EntityKind::Enemy, Some(2)),
+            died(EntityKind::Enemy, Some(2)),
+            died(EntityKind::Boss, Some(2)),
+            died(EntityKind::Shrine, Some(2)),
+            died(EntityKind::Companion, Some(2)),
+            died(EntityKind::Enemy, None),
+            hit(None, None, 99),
+        ]);
+        assert_eq!(stats.slot(slot(2)).kills, 2);
+        assert_eq!(stats.slot(slot(2)).damage_dealt, 0);
+        assert_eq!(stats.slot(slot(0)), SlotStats::default());
+    }
+
+    #[test]
+    fn an_id_beyond_the_party_is_ignored() {
+        let stats = folded(&[
+            hit(Some(3), Some(4), 10),
+            died(EntityKind::Enemy, Some(9)),
+            healed(Some(5), 0, 10),
+        ]);
+        assert_eq!(stats, PlayerStats::default());
+    }
+
+    #[test]
+    fn totals_saturate() {
+        let mut stats = folded(&[hit(Some(0), None, u32::MAX)]);
+        stats.slots[0].damage_dealt = u64::MAX - 1;
+        stats.fold(&[hit(Some(0), None, 5)]);
+        assert_eq!(stats.slot(slot(0)).damage_dealt, u64::MAX);
+    }
+
+    #[test]
+    fn a_buffer_earns_support_from_the_damage_it_enabled() {
+        let stats = folded(&[hit(Some(1), Some(0), 50)]);
+        assert_eq!(stats.slot(slot(1)).damage_dealt, 50);
+        assert_eq!(stats.slot(slot(0)).support, 50);
+        assert_eq!(stats.slot(slot(1)).support, 0);
+        assert_eq!(
+            folded(&[hit(Some(1), Some(1), 50)]).slot(slot(1)).support,
+            0
+        );
+    }
+
+    #[test]
+    fn a_heal_given_to_another_is_support_and_a_self_heal_or_a_companion_heal_is_not() {
+        assert_eq!(folded(&[healed(Some(0), 1, 7)]).slot(slot(0)).support, 7);
+        assert_eq!(folded(&[healed(Some(0), 0, 7)]), PlayerStats::default());
+        assert_eq!(folded(&[healed(None, 1, 7)]), PlayerStats::default());
+    }
+
+    #[test]
+    fn a_resumed_count_starts_at_its_tick_and_is_not_complete() {
+        assert!(PlayerStats::default().is_complete());
+        let stats = PlayerStats::resumed_at(120);
+        assert_eq!((stats.from_tick(), stats.is_complete()), (120, false));
+        assert_eq!(stats.slot(slot(0)), SlotStats::default());
+    }
+
+    #[test]
+    fn an_event_keeps_its_old_json_when_the_new_fields_are_absent() {
+        let plain = serde_json::to_string(&hit(None, None, 5)).unwrap();
+        assert!(
+            !plain.contains("player") && !plain.contains("buffed_by"),
+            "{plain}"
+        );
+        let named = hit(Some(1), Some(0), 5);
+        let text = serde_json::to_string(&named).unwrap();
+        assert!(
+            text.contains("\"player\":1") && text.contains("\"buffed_by\":0"),
+            "{text}"
+        );
+        assert_eq!(serde_json::from_str::<DomainEvent>(&text).unwrap(), named);
+        assert_eq!(
+            serde_json::from_str::<DomainEvent>(&plain).unwrap(),
+            hit(None, None, 5)
+        );
+        let old = r#"{"type":"Died","data":{"entity":40,"class":"enemy"}}"#;
+        assert_eq!(
+            serde_json::from_str::<DomainEvent>(old).unwrap(),
+            died(EntityKind::Enemy, None)
+        );
+        let old = r#"{"type":"Healed","data":{"target":0,"amount":3}}"#;
+        assert_eq!(
+            serde_json::from_str::<DomainEvent>(old).unwrap(),
+            healed(None, 0, 3)
+        );
     }
 }

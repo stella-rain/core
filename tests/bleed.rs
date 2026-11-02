@@ -84,7 +84,7 @@ fn a_combo_step_hit_applies_bleed() {
     )));
     assert!(e.events().iter().any(|ev| matches!(
         ev,
-        DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180 }
+        DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180, .. }
             if *t == target && status.as_str() == "bleed"
     )));
     let bleed = statuses(&e, target);
@@ -133,6 +133,7 @@ fn bleed_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
                     status,
                     stacks: n,
                     duration_ticks,
+                    ..
                 } if *id == target && status.as_str() == "bleed" => {
                     assert_eq!(*duration_ticks, 180);
                     stacks.push(*n);
@@ -529,7 +530,7 @@ fn a_smash_hit_applies_bleed_without_the_rune_held() {
     e.step(&[smash_presses(start, &[0])(start)]);
     assert!(e.events().iter().any(|ev| matches!(
         ev,
-        DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180 }
+        DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180, .. }
             if *t == target && status.as_str() == "bleed"
     )));
     let bleed = statuses(&e, target);
@@ -580,6 +581,7 @@ fn a_smash_stacks_to_the_maximum_and_each_hit_starts_its_duration_again() {
                 status,
                 stacks: n,
                 duration_ticks,
+                ..
             } = ev
             {
                 if *id == target && status.as_str() == "bleed" {

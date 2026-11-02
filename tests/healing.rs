@@ -155,7 +155,7 @@ fn run(
 fn healed(seen: &[(u32, DomainEvent)]) -> Vec<u32> {
     seen.iter()
         .filter_map(|(_, ev)| match ev {
-            DomainEvent::Healed { target, amount } if target.0 == PLAYER => Some(*amount),
+            DomainEvent::Healed { target, amount, .. } if target.0 == PLAYER => Some(*amount),
             _ => None,
         })
         .collect()
