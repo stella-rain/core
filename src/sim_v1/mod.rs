@@ -103,6 +103,7 @@ pub(crate) use world::{
 mod combat;
 mod dash;
 mod entity;
+pub(crate) mod event;
 mod expertise;
 mod grid;
 #[cfg(test)]
@@ -136,11 +137,11 @@ mod zones;
 pub(crate) use player::{auto_charge_view, charge_view, combo_view, hold_view};
 mod select;
 
+use self::event::{DomainEvent, HitKind, HitSource};
 use crate::attack::{DamageType, MatchUp, Profile};
 use crate::behaviour::BossCall;
 use crate::difficulties::scale_pct;
 use crate::engine::{Load, Outcome};
-use crate::event::{DomainEvent, HitKind, HitSource};
 use crate::expertise::Expertise;
 use crate::fixed::{Fx, Point};
 use crate::hash::{StableHash, StateHasher};
@@ -1190,8 +1191,6 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         rune: b.rune,
         crit,
         echo: false,
-        player: None,
-        buffed_by: None,
     });
     if dead {
         events.push(death_event(s, target, id));
@@ -1251,7 +1250,6 @@ pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
         kind: kind_of(s, target),
         class,
         elite: agent.is_some_and(AgentState::shows_elite),
-        killer: None,
     }
 }
 

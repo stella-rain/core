@@ -27,9 +27,9 @@
 //! is not called and stays (ADR-090).
 
 use super::World;
+use super::event::DomainEvent;
 use crate::attack::AttackRef;
 use crate::behaviour::BossCall;
-use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::sim_v1::state::{BossState, MoveOrder, Origin, State};
 use crate::snapshot::PatternView;

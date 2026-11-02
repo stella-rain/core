@@ -51,7 +51,7 @@
 
 use super::World;
 
-use crate::event::DomainEvent;
+use super::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::rewards::{MAX_TYPE_BONUS_PCT, rune_haste_ticks};

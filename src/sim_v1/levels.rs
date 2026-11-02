@@ -16,7 +16,7 @@
 //! Percentages round down.
 
 use super::World;
-use crate::event::DomainEvent;
+use super::event::DomainEvent;
 use crate::id::ContentId;
 use crate::run_stats::{self, RunStats, StatEffect};
 use crate::sim_v1::state::{AgentSource, PlayerState, Progress, State};

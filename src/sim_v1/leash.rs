@@ -16,8 +16,8 @@
 //! companions are not enemies of `State::enemies`. It keeps its hit points, statuses, runes, ID
 //! and kind; its `move_to` order and crowded flag are cleared. No random number is drawn.
 
+use super::event::DomainEvent;
 use super::{MAX_LEASH_MOVES_PER_TICK, World};
-use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::sim_v1::state::State;
 use crate::stage::Map;

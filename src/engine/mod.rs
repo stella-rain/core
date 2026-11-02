@@ -556,6 +556,7 @@ fn pool(ids: Option<&[ContentId]>, rewards: &Rewards) -> Result<Vec<u16>, Error>
 
 mod run;
 mod snapshot;
+mod v1_events;
 pub(crate) use run::{Build, Difficulty, Run, Saved};
 pub use snapshot::{Place, Places, Tally};
 
@@ -591,6 +592,8 @@ mod players_api_tests;
 mod savepoint_tests;
 #[cfg(test)]
 mod snapshot_pin_tests;
+#[cfg(test)]
+mod v1_events_tests;
 
 // Every `State` type lives in its rules module's `state`; the tests name the frozen rules'
 // (`sim_v1::state::*`), which they run, and the live module's (`sim::state::*`) when a version 2
@@ -697,6 +700,3 @@ impl Engine {
         Engine::forced(version, || Engine::new(stage))
     }
 }
-
-#[cfg(test)]
-mod v1_events_tests;

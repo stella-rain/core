@@ -14,7 +14,7 @@
 //! at the next round, and the round going on keeps its own.
 
 use super::World;
-use crate::event::DomainEvent;
+use super::event::DomainEvent;
 use crate::rewards::{MAX_ORBITS, MAX_ORBS, Rewards};
 use crate::sim_v1::state::{Dir, OrbitState, PlayerState, State};
 use crate::trig::PER_TURN;

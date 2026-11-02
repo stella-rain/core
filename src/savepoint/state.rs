@@ -36,7 +36,7 @@ pub(crate) fn decode_state(
     let (fresh_ledger, fresh_counted) = fresh.saved_parts();
     let content = fresh.content();
     match fresh.run() {
-        Run::V1 { world, state } => {
+        Run::V1 { world, state, .. } => {
             v1::decode(bytes, world, content, (state, fresh_ledger, fresh_counted))
                 .map(|(s, l, c)| (Saved::V1(s), l, c))
         }

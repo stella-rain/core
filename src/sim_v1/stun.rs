@@ -4,7 +4,7 @@
 //! ticks (ADR-085 point 6), and a stun of no ticks does nothing.
 
 use super::World;
-use crate::event::DomainEvent;
+use super::event::DomainEvent;
 use crate::id::EntityId;
 use crate::sim_v1::state::{State, StatusKind, StatusState};
 use crate::validate::limits::MAX_STUN_TICKS;

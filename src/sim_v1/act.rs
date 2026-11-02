@@ -1,8 +1,8 @@
 //! What a rule or a skill does once it fires: attacks, casts, summons, moves and telegraphs.
 
 use super::World;
+use super::event::DomainEvent;
 use crate::behaviour::{Action, Skill};
-use crate::event::DomainEvent;
 use crate::sim_v1::state::{AgentKey, AgentSource, MoveOrder, State, StatusKind};
 
 use super::agents::agent_mut;
@@ -133,7 +133,6 @@ pub(super) fn cast(
                 events.push(DomainEvent::Healed {
                     target: s.id_of(target),
                     amount: healed,
-                    source: None,
                 });
                 s.raise_aggro(
                     source,

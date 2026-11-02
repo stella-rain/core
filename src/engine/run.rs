@@ -31,6 +31,10 @@ pub(crate) enum Run {
     V1 {
         world: sim_v1::World,
         state: sim_v1::state::State,
+        /// The frozen events of the tick being run: `v1_events` adapts them into the engine's
+        /// list. Scratch, like `sim_v1::scratch`: empty between calls, never saved, hashed or
+        /// compared.
+        events: Vec<sim_v1::event::DomainEvent>,
     },
     /// Version 2, the live rules (`sim`).
     V2 {
@@ -142,7 +146,12 @@ impl Run {
             let loadout = sim_v1::Loadout::of(setup, b.content);
             sim_v1::apply_loadout(&world, b.content.rewards(), &mut state, &loadout);
         }
-        Ok(Run::V1 { world, state })
+        let events = Vec::with_capacity(sim_v1::events_room(&world));
+        Ok(Run::V1 {
+            world,
+            state,
+            events,
+        })
     }
 
     fn new_v2(b: Build<'_>) -> Result<Run, Issue> {
@@ -219,10 +228,15 @@ impl Run {
     ) {
         let version = self.version();
         match self {
-            Run::V1 { world, state } => {
+            Run::V1 {
+                world,
+                state,
+                events: frozen,
+            } => {
                 sim_v1::step(
-                    version, world, rewards, expertise, state, inputs[0], events, load,
+                    version, world, rewards, expertise, state, inputs[0], frozen, load,
                 );
+                events.extend(frozen.drain(..).map(Into::into));
             }
             Run::V2 { world, state } => {
                 sim::step(
@@ -243,8 +257,13 @@ impl Run {
     ) {
         let version = self.version();
         match self {
-            Run::V1 { world, state } => {
-                sim_v1::choose(version, world, rewards, expertise, state, option, events);
+            Run::V1 {
+                world,
+                state,
+                events: frozen,
+            } => {
+                sim_v1::choose(version, world, rewards, expertise, state, option, frozen);
+                events.extend(frozen.drain(..).map(Into::into));
             }
             Run::V2 { world, state } => {
                 sim::choose(
@@ -287,7 +306,7 @@ impl Run {
         player: PlayerIdx,
     ) -> Vec<OfferOption> {
         match self {
-            Run::V1 { world, state } => sim_v1::offer_options(world, rewards, expertise, state),
+            Run::V1 { world, state, .. } => sim_v1::offer_options(world, rewards, expertise, state),
             Run::V2 { world, state } => {
                 sim::offer_options(world, rewards, expertise, state, player)
             }
@@ -304,7 +323,7 @@ impl Run {
     /// What the frontend draws after the last tick, built by this version's rules.
     pub(crate) fn snapshot(&self, content: &RunContent) -> Snapshot {
         match self {
-            Run::V1 { world, state } => sim_v1::snapshot::build(world, content, state),
+            Run::V1 { world, state, .. } => sim_v1::snapshot::build(world, content, state),
             Run::V2 { world, state } => sim::snapshot::build(world, content, state),
         }
     }
@@ -320,7 +339,14 @@ impl Run {
     /// Reserves the room a run holds from load, so a clone's first ticks do not grow it (DIR1).
     pub(crate) fn reserve(&mut self) {
         match self {
-            Run::V1 { world, state } => sim_v1::reserve(world, state),
+            Run::V1 {
+                world,
+                state,
+                events,
+            } => {
+                sim_v1::reserve(world, state);
+                events.reserve(sim_v1::events_room(world).saturating_sub(events.len()));
+            }
             Run::V2 { world, state } => sim::reserve(world, state),
         }
     }
@@ -443,7 +469,11 @@ impl Run {
     /// This run with the state a savepoint held, of the same version, the world kept.
     pub(crate) fn with_state(self, saved: Saved) -> Run {
         match (self, saved) {
-            (Run::V1 { world, .. }, Saved::V1(state)) => Run::V1 { world, state },
+            (Run::V1 { world, events, .. }, Saved::V1(state)) => Run::V1 {
+                world,
+                state,
+                events,
+            },
             (Run::V2 { world, .. }, Saved::V2(state)) => Run::V2 { world, state },
             // `decode_state` reads the state with the fresh run's own module.
             (_, _) => unreachable!("a saved state is of the version of the run it is read for"),

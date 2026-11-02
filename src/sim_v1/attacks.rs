@@ -40,11 +40,11 @@
 
 use std::ops::Deref;
 
+use super::event::DomainEvent;
 use crate::attack::{
     Anchor, AttackPhase, AttackRef, Dash, Direction, Emitter, Expr, HitBox, PhaseKind,
 };
 use crate::difficulties::scale_pct;
-use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::registry;

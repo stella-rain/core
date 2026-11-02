@@ -38,7 +38,7 @@
 //! levels due are passed over at once, so the offers' cost stays bounded too.
 
 use super::World;
-use crate::event::DomainEvent;
+use super::event::DomainEvent;
 use crate::expertise::{
     Expertise, ExpertiseEffect, ExpertiseOption, Style, TABLE_LEVELS, WeaponExpertise,
 };

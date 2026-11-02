@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::attack::{DamageType, HitBox, PhaseKind, ZoneShape};
-use crate::event::Press;
+pub use crate::event::Press;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::kinds::KindIndex;

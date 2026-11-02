@@ -3,12 +3,12 @@
 //! of `sim` name the same steps; `tick_doc_lists_the_schedule` keeps the table and
 //! `TICK` equal. Each step is a named `#[inline(never)]` function, so a profile names it (DS71-1).
 
+use super::event::DomainEvent;
 use super::{
     World, agents, attacks, boss, collide, count, dash, decide_outcome, entity, expertise, horde,
     leash, loadout, move_orbs, open_offers, orbit, player, push, runes, skill, spawn_waves, zones,
 };
 use crate::engine::{Load, Outcome};
-use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::input::Input;
 use crate::rewards::Rewards;

@@ -6,14 +6,14 @@
 use super::*;
 use crate::attack::{DamageType, MatchUp};
 use crate::bench_fixtures;
-use crate::input::Input;
 use crate::event::{DomainEvent, HitKind, HitSource};
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId, PlayerIdx};
+use crate::input::Input;
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
-use crate::run_setup::RunSetup;
+use crate::sim_v1;
 use crate::sim_v1::event as v1;
 use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind, Press};
 use std::sync::Arc;
@@ -34,13 +34,20 @@ fn every_v1_event() -> Vec<v1::DomainEvent> {
             echo: true,
         },
         E::KillBurst {
-            at: Point { x: Fx(10), y: Fx(11) },
+            at: Point {
+                x: Fx(10),
+                y: Fx(11),
+            },
             radius: 11,
             depth: 12,
         },
         E::PlayerHit {
             hp_left: 13,
-            source: HitSource { kind: HitKind::Zone, owner: EntityId(14), attack: Some("preset".into()) },
+            source: v1::HitSource {
+                kind: v1::HitKind::Zone,
+                owner: EntityId(14),
+                attack: Some("preset".into()),
+            },
         },
         E::Healed {
             target: EntityId(15),
@@ -70,18 +77,14 @@ fn every_v1_event() -> Vec<v1::DomainEvent> {
             perfect: true,
         },
         E::ChargeBroken,
-        E::HoldReleased {
-            ticks: 28,
-        },
+        E::HoldReleased { ticks: 28 },
         E::HoldBroken,
         E::RuleFired {
             agent: EntityId(29),
             rule: 30,
             target: Some(EntityId(31)),
         },
-        E::PhaseChanged {
-            phase: 32,
-        },
+        E::PhaseChanged { phase: 32 },
         E::Telegraph {
             source: EntityId(33),
             ticks: 34,
@@ -97,9 +100,7 @@ fn every_v1_event() -> Vec<v1::DomainEvent> {
         },
         E::StageCleared,
         E::StageFailed,
-        E::LeveledUp {
-            level: 40,
-        },
+        E::LeveledUp { level: 40 },
         E::StatRaised {
             stat: ContentId::from("id41"),
             spent: 42,
@@ -118,9 +119,7 @@ fn every_v1_event() -> Vec<v1::DomainEvent> {
         E::HealDropped {
             pickup: EntityId(48),
         },
-        E::ElitesCalled {
-            elites: 49,
-        },
+        E::ElitesCalled { elites: 49 },
         E::EliteSpawned {
             elite: EntityId(50),
             asset: ContentId::from("id51"),
@@ -140,7 +139,10 @@ fn every_v1_event() -> Vec<v1::DomainEvent> {
         },
         E::OrbBroken {
             owner: EntityId(57),
-            at: Point { x: Fx(58), y: Fx(59) },
+            at: Point {
+                x: Fx(58),
+                y: Fx(59),
+            },
         },
         E::OfferOpened {
             kind: OfferKind::Boss,
@@ -230,9 +232,13 @@ fn the_adapter_carries_every_field_in_order() {
 fn the_player_fields_are_none_and_the_bytes_are_those_of_before() {
     // The texts are the live type's serialisation of the same events, taken before the move.
     let literal = |name: &str| match name {
-        "Hit" => r#"{"type":"Hit","data":{"source":1,"target":2,"target_kind":3,"damage":4,"damage_type":"pyro","match_up":"strong","rune":"explosion","crit":true,"echo":true}}"#,
+        "Hit" => {
+            r#"{"type":"Hit","data":{"source":1,"target":2,"target_kind":3,"damage":4,"damage_type":"pyro","match_up":"strong","rune":"explosion","crit":true,"echo":true}}"#
+        }
         "Healed" => r#"{"type":"Healed","data":{"target":15,"amount":16}}"#,
-        "StatusApplied" => r#"{"type":"StatusApplied","data":{"target":17,"status":"id18","stacks":19,"duration_ticks":20}}"#,
+        "StatusApplied" => {
+            r#"{"type":"StatusApplied","data":{"target":17,"status":"id18","stacks":19,"duration_ticks":20}}"#
+        }
         "Died" => r#"{"type":"Died","data":{"entity":36,"kind":37,"class":"boss","elite":true}}"#,
         other => panic!("no literal for {other}"),
     };
@@ -326,8 +332,10 @@ fn step_both(e: &mut Engine, by_hand: &mut Engine, input: Input) -> usize {
 
 #[test]
 fn a_version_1_engine_streams_the_frozen_events_in_order() {
-    let bench_fixtures::Case { engine: mut e, input } =
-        Engine::forced(1, bench_fixtures::worst_tick);
+    let bench_fixtures::Case {
+        engine: mut e,
+        input,
+    } = Engine::forced(1, bench_fixtures::worst_tick);
     let mut by_hand = e.clone();
     let mut total = 0;
     for _ in 0..60 {
@@ -338,12 +346,8 @@ fn a_version_1_engine_streams_the_frozen_events_in_order() {
 
 #[test]
 fn a_version_1_choose_streams_the_frozen_events_in_order() {
-    let setup = RunSetup {
-        mode: "time_limit".into(),
-        seed: 7,
-        ..RunSetup::default()
-    };
-    let mut e = Engine::forced(1, || Engine::start(&setup).unwrap());
+    use bench_fixtures::worst_minute_case::{Run as Case, input_at};
+    let mut e = Engine::forced(1, || Case::fast_forwarded(0)).engine;
     let mut by_hand = e.clone();
     let (mut picks, mut total) = (0, 0);
     for tick in 1..=600u32 {
@@ -373,11 +377,7 @@ fn a_version_1_choose_streams_the_frozen_events_in_order() {
             total += adapted.len();
             picks += 1;
         }
-        let input = Input {
-            main: true,
-            move_x: if tick % 90 < 45 { 100 } else { -100 },
-            ..Input::default()
-        };
+        let input = input_at(e.tick());
         total += step_both(&mut e, &mut by_hand, input);
     }
     assert!(picks > 0, "an offer opened and was chosen");
@@ -403,8 +403,10 @@ fn the_scratch_is_reserved_at_load_and_after_a_clone() {
 
 #[test]
 fn the_scratch_never_allocates_after_load() {
-    let bench_fixtures::Case { engine: mut e, input } =
-        Engine::forced(1, bench_fixtures::worst_tick);
+    let bench_fixtures::Case {
+        engine: mut e,
+        input,
+    } = Engine::forced(1, bench_fixtures::worst_tick);
     let (scratch, _) = v1_room(&e);
     let events = e.events.capacity();
     for tick in 1..=120 {
