@@ -342,7 +342,7 @@ mod players_tests {
         let first = state.players[PlayerIdx::SOLO].clone();
         let build = |bad_on: usize| {
             let (mut a, mut b) = (first.clone(), first.clone());
-            [&mut a, &mut b][bad_on].orbits.push(bad.clone());
+            [&mut a, &mut b][bad_on].orbits.push(bad);
             let mut s = state.clone();
             s.players = Players::of(vec![a, b]).unwrap();
             s

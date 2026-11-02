@@ -16,9 +16,12 @@ fn p1() -> PlayerIdx {
     PlayerIdx::new(1).expect("player 1")
 }
 
+/// An engine and the input that plays it.
+type Case = (Engine, fn(u32) -> Input);
+
 /// An engine with an offer open, from the first of the walks that reaches one.
 fn with_offer() -> Engine {
-    let cases: [(Engine, fn(u32) -> Input); 5] = [
+    let cases: [Case; 5] = [
         (
             worst_minute_case::worst_minute().engine,
             worst_minute_case::input_at,
