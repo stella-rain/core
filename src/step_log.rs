@@ -310,7 +310,7 @@ fn scan(
 
 #[cfg(test)]
 mod tests {
-    use super::{Record, StepLog};
+    use super::{RangeStep, Record, StepLog, StepRange, read_step_range};
     use crate::base64;
     use crate::engine::ChoiceError;
     use crate::input::Input;
@@ -848,5 +848,311 @@ mod tests {
             log.encode(),
             hex("01 00 05 02 00 00 01 01 00 00 02 02 00 00")
         );
+    }
+
+    // ---- the range reader (ADR-REPL-10) ----
+
+    const MAX: u32 = u32::MAX;
+
+    fn idle() -> Input {
+        Input::default()
+    }
+
+    fn range(text: &str, ticks: u32, a: u32, b: u32) -> Result<StepRange, RunReplayError> {
+        read_step_range(&hex(text), ticks, MAX, a, b)
+    }
+
+    fn steps(text: &str, ticks: u32, a: u32, b: u32) -> Vec<RangeStep> {
+        range(text, ticks, a, b).unwrap().steps
+    }
+
+    fn run_of(run: u32, input: Input) -> RangeStep {
+        RangeStep::Ticks {
+            run,
+            inputs: vec![input],
+        }
+    }
+
+    fn pick_of(index: u32) -> RangeStep {
+        RangeStep::Picks {
+            picks: vec![Some(index)],
+        }
+    }
+
+    /// One entry per tick, and the picks where they fall: the oracle's expanded form.
+    #[derive(Debug, PartialEq)]
+    enum Entry {
+        Tick(Vec<Input>),
+        Picks(Vec<Option<u32>>),
+    }
+
+    /// The full decode, expanded to one entry per tick and cut to `a..b` by the rule written out
+    /// again from the semantics: a PICKS after `p` ticks is in when `a <= p < b`, and a range
+    /// ending at `ticks` also takes the picks after the last tick; an empty range holds nothing.
+    fn oracle(log: &StepLog, ticks: u32, a: u32, b: u32) -> Vec<Entry> {
+        let mut out = Vec::new();
+        let mut world = 0u32;
+        for record in &log.records {
+            match record {
+                Record::Ticks { run, inputs } => {
+                    for t in world..world + run {
+                        if a <= t && t < b {
+                            out.push(Entry::Tick(inputs.clone()));
+                        }
+                    }
+                    world += run;
+                }
+                Record::Picks { picks } => {
+                    let inside =
+                        (a <= world && world < b) || (a < b && b == ticks && world == ticks);
+                    if inside {
+                        out.push(Entry::Picks(picks.clone()));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    fn expand(steps: &[RangeStep]) -> Vec<Entry> {
+        let mut out = Vec::new();
+        for step in steps {
+            match step {
+                RangeStep::Ticks { run, inputs } => {
+                    for _ in 0..*run {
+                        out.push(Entry::Tick(inputs.clone()));
+                    }
+                }
+                RangeStep::Picks { picks } => out.push(Entry::Picks(picks.clone())),
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn a_range_that_starts_inside_a_run_is_clipped() {
+        let log = "01 00 05 02 00 00";
+        assert_eq!(steps(log, 5, 2, 4), [run_of(2, main_held())]);
+        assert_eq!(steps(log, 5, 0, 5), [run_of(5, main_held())]);
+        assert_eq!(steps(log, 5, 4, 5), [run_of(1, main_held())]);
+        assert_eq!(steps(log, 5, 0, 1), [run_of(1, main_held())]);
+        let whole = range(log, 5, 0, 5).unwrap();
+        assert_eq!((whole.present, whole.first, whole.end), (1, 0, 5));
+    }
+
+    #[test]
+    fn an_empty_range_is_ok_and_holds_nothing() {
+        let log = "01 00 05 02 00 00";
+        for at in [0, 3, 5] {
+            assert_eq!(steps(log, 5, at, at), []);
+        }
+        // Even trailing picks are not in an empty range, and the log is still validated.
+        let trailing = "01 00 02 02 00 00 01 01 07";
+        assert_eq!(steps(trailing, 2, 2, 2), []);
+        assert_eq!(
+            range("01 00 05 02 00", 5, 0, 0),
+            Err(RunReplayError::BadInputs("ends in the middle of a record"))
+        );
+    }
+
+    #[test]
+    fn a_pick_comes_with_the_tick_after_it() {
+        // Tick 0 held, a pick of index 0 after it (position 1), then two idle ticks.
+        let log = "01 00 01 02 00 00 01 01 00 00 02 00 00 00";
+        assert_eq!(steps(log, 3, 0, 1), [run_of(1, main_held())]);
+        assert_eq!(steps(log, 3, 1, 3), [pick_of(0), run_of(2, idle())]);
+        assert_eq!(
+            steps(log, 3, 0, 3),
+            [run_of(1, main_held()), pick_of(0), run_of(2, idle())]
+        );
+        assert_eq!(steps(log, 3, 1, 2), [pick_of(0), run_of(1, idle())]);
+        assert_eq!(
+            steps(log, 3, 0, 2),
+            [run_of(1, main_held()), pick_of(0), run_of(1, idle())]
+        );
+        assert_eq!(steps(log, 3, 2, 3), [run_of(1, idle())]);
+    }
+
+    #[test]
+    fn a_pick_before_the_first_tick_is_in_a_range_that_starts_at_0() {
+        let log = "01 01 01 00 00 05 02 00 00";
+        assert_eq!(steps(log, 5, 0, 2), [pick_of(0), run_of(2, main_held())]);
+        assert_eq!(steps(log, 5, 1, 2), [run_of(1, main_held())]);
+        assert_eq!(steps(log, 5, 0, 0), []);
+    }
+
+    #[test]
+    fn the_picks_after_the_last_tick_belong_to_a_range_ending_there() {
+        let log = "01 00 02 02 00 00 01 01 07";
+        assert_eq!(steps(log, 2, 0, 2), [run_of(2, main_held()), pick_of(7)]);
+        assert_eq!(steps(log, 2, 0, 1), [run_of(1, main_held())]);
+        assert_eq!(steps(log, 2, 1, 2), [run_of(1, main_held()), pick_of(7)]);
+    }
+
+    #[test]
+    fn several_picks_at_one_position_keep_their_order() {
+        let log = "01 00 01 02 00 00 01 01 03 01 01 04 00 01 00 00 00";
+        assert_eq!(
+            steps(log, 2, 1, 2),
+            [pick_of(3), pick_of(4), run_of(1, idle())]
+        );
+        assert_eq!(steps(log, 2, 0, 1), [run_of(1, main_held())]);
+    }
+
+    #[test]
+    fn a_party_of_three_gets_three_inputs_per_run() {
+        let log = "07 00 02 02 00 00 00 00 00 00 00 00";
+        assert_eq!(
+            steps(log, 2, 0, 1),
+            [RangeStep::Ticks {
+                run: 1,
+                inputs: vec![main_held(), idle(), idle()]
+            }]
+        );
+        assert_eq!(range(log, 2, 0, 1).unwrap().present, 7);
+    }
+
+    #[test]
+    fn a_bad_range_is_refused_without_reading_the_log() {
+        let log = "01 00 05 02 00 00";
+        let backwards = Err(RunReplayError::BadInputs("a tick range that is backwards"));
+        let past = Err(RunReplayError::BadInputs("a tick range past the last tick"));
+        assert_eq!(range(log, 5, 3, 2), backwards);
+        assert_eq!(range(log, 5, 0, 6), past);
+        assert_eq!(range(log, 5, 6, 6), past);
+        // The bytes are not even looked at.
+        assert_eq!(range("", 5, 3, 2), backwards);
+        assert_eq!(range("", 5, 0, 6), past);
+        assert_eq!(
+            read_step_range(&hex(log), 11, 10, 0, 0),
+            Err(RunReplayError::TooManyTicks {
+                ticks: 11,
+                limit: 10
+            })
+        );
+    }
+
+    #[test]
+    fn the_range_reader_refuses_what_the_decoder_refuses() {
+        let cases: [(&str, u32); 15] = [
+            ("00 00 01 00 00 00", 1),
+            ("09 00 01 00 00 00", 1),
+            ("01 00 01 80 00 00", 1),
+            ("01 07 01 00 00 00", 1),
+            ("01 02 00", 0),
+            ("01 03 00", 0),
+            ("01 00 00 00 00 00", 0),
+            ("01 00 01 00 00 00 00 01 00 00 00", 2),
+            ("01 01 00", 0),
+            ("01 00 05 02 00", 5),
+            ("01 00", 0),
+            ("01 00 04 00 00 00", 5),
+            ("01 00 06 00 00 00", 5),
+            ("01 00 85 00 00 00 00", 5),
+            ("01 00 01 00 80 00", 1),
+        ];
+        for (bytes, ticks) in cases {
+            let want = StepLog::decode(&hex(bytes), ticks, MAX).unwrap_err();
+            assert_eq!(range(bytes, ticks, 0, 0).unwrap_err(), want, "{bytes}");
+            assert_eq!(range(bytes, ticks, 0, ticks).unwrap_err(), want, "{bytes}");
+        }
+        // Damage after `b` is still refused.
+        let damaged = "01 00 02 02 00 00 00 03 00 00 00 07";
+        let want = StepLog::decode(&hex(damaged), 5, MAX).unwrap_err();
+        assert_eq!(range(damaged, 5, 0, 1).unwrap_err(), want);
+        // The 1001st PICKS is refused after the range ends.
+        let mut many = String::from("01");
+        for _ in 0..=MAX_COMMANDS {
+            many.push_str(" 01 01 00");
+        }
+        let want = StepLog::decode(&hex(&many), 0, MAX).unwrap_err();
+        assert!(matches!(want, RunReplayError::TooManyCommands { .. }));
+        assert_eq!(range(&many, 0, 0, 0).unwrap_err(), want);
+    }
+
+    #[test]
+    fn a_huge_run_is_clipped_not_expanded() {
+        let log = "01 00 ff ff ff ff 0f 02 00 00";
+        assert_eq!(steps(log, MAX, 0, 10), [run_of(10, main_held())]);
+        assert_eq!(
+            steps(log, MAX, 4_000_000_000, 4_000_000_010),
+            [run_of(10, main_held())]
+        );
+        assert_eq!(steps(log, MAX, 0, MAX), [run_of(MAX, main_held())]);
+    }
+
+    #[test]
+    fn the_range_read_is_the_oracle_on_every_corpus_case() {
+        let mut state = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for (name, bytes) in corpus_files()
+            .into_iter()
+            .filter(|(n, _)| n.starts_with("current"))
+        {
+            let replay = RunReplay::from_bytes(&bytes).unwrap();
+            let raw = base64::decode(&replay.inputs).unwrap();
+            let ticks = replay.ticks;
+            let log = StepLog::decode(&raw, ticks, MAX).unwrap();
+            let mut ranges = vec![
+                (0, 0),
+                (0, ticks),
+                (ticks, ticks),
+                (ticks - 1, ticks),
+                (0, 1),
+            ];
+            let mut k = 0;
+            while k < ticks {
+                ranges.push((k, (k + 60).min(ticks)));
+                k += 60;
+            }
+            for _ in 0..200 {
+                let x = (next() % (u64::from(ticks) + 1)) as u32;
+                let y = (next() % (u64::from(ticks) + 1)) as u32;
+                ranges.push((x.min(y), x.max(y)));
+            }
+            for (a, b) in ranges {
+                let got = read_step_range(&raw, ticks, MAX, a, b).unwrap();
+                assert_eq!(got.present, log.present, "{name}");
+                assert_eq!((got.first, got.end), (a, b), "{name}");
+                assert!(got.steps.len() <= log.records.len(), "{name} {a}..{b}");
+                assert_eq!(
+                    expand(&got.steps),
+                    oracle(&log, ticks, a, b),
+                    "{name} {a}..{b}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_whole_range_is_the_decoded_log() {
+        for (name, bytes) in corpus_files()
+            .into_iter()
+            .filter(|(n, _)| n.starts_with("current"))
+        {
+            let replay = RunReplay::from_bytes(&bytes).unwrap();
+            let raw = base64::decode(&replay.inputs).unwrap();
+            let log = StepLog::decode(&raw, replay.ticks, MAX).unwrap();
+            let got = read_step_range(&raw, replay.ticks, MAX, 0, replay.ticks).unwrap();
+            let want: Vec<RangeStep> = log
+                .records
+                .iter()
+                .map(|r| match r {
+                    Record::Ticks { run, inputs } => RangeStep::Ticks {
+                        run: *run,
+                        inputs: inputs.clone(),
+                    },
+                    Record::Picks { picks } => RangeStep::Picks {
+                        picks: picks.clone(),
+                    },
+                })
+                .collect();
+            assert_eq!(got.steps, want, "{name}");
+        }
     }
 }
