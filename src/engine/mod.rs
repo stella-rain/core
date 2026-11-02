@@ -109,7 +109,7 @@ pub struct Engine {
     /// The HUD tallies, counted from the events (outside the hashed state).
     counted: Counted,
     /// Damage, kills and support per player slot, folded from the events (outside the hashed
-    /// state and the savepoint's first format, ADR-SIM-13).
+    /// state; a savepoint holds them, ADR-SIM-13, ADR-SAVE-7).
     player_stats: PlayerStats,
     /// Built past the `SIM_VERSION` check by `Engine::forced`, to run a version the game does
     /// not release yet.
@@ -152,9 +152,9 @@ impl Engine {
         &self.run
     }
 
-    /// The ledger and the tallies, for the savepoint.
-    pub(crate) fn saved_parts(&self) -> (&RunLedger, &Counted) {
-        (&self.ledger, &self.counted)
+    /// The ledger, the tallies and the player stats, for the savepoint.
+    pub(crate) fn saved_parts(&self) -> (&RunLedger, &Counted, &PlayerStats) {
+        (&self.ledger, &self.counted, &self.player_stats)
     }
 
     /// The version 1 parts of a savepoint, for the tests that read them: the world, the content,
@@ -178,26 +178,29 @@ impl Engine {
         )
     }
 
-    /// This engine with the state, ledger and tallies a savepoint held: a fresh engine of the
-    /// same setup and content (the world and content are not saved), the saved parts swapped in.
-    /// `decode_state` has reserved the state's room; no tick rule changes.
-    pub(crate) fn with_saved(self, state: Saved, ledger: RunLedger, counted: Counted) -> Engine {
+    /// This engine with the state, ledger, tallies and player stats a savepoint held: a fresh
+    /// engine of the same setup and content (the world and content are not saved), the saved
+    /// parts swapped in. `decode_state` has reserved the state's room; no tick rule changes.
+    pub(crate) fn with_saved(
+        self,
+        state: Saved,
+        ledger: RunLedger,
+        counted: Counted,
+        player_stats: PlayerStats,
+    ) -> Engine {
         let mut events = self.events;
         events.clear();
-        let mut engine = Engine {
+        Engine {
             content: self.content,
             run: self.run.with_state(state),
             events,
             load: Load::default(),
             ledger,
             counted,
-            player_stats: PlayerStats::default(),
+            player_stats,
             #[cfg(test)]
             forced: self.forced,
-        };
-        // A format 1 savepoint does not hold the totals: they restart at its tick.
-        engine.player_stats = PlayerStats::resumed_at(engine.tick());
-        engine
+        }
     }
 
     /// An engine of `run` and `content`, before its first tick.
@@ -449,9 +452,8 @@ impl Engine {
     }
 
     /// Damage dealt, kills and support per player slot, folded from the events of every step
-    /// (ADR-SIM-13). Not hashed, and not in a format 1 savepoint: a run resumed from one counts
-    /// from its tick (`PlayerStats::is_complete` is false); `RunRecorder::resume_with_pack` rebuilds
-    /// it exactly. A run of `sim_version` 1 stays zero.
+    /// (ADR-SIM-13). Not hashed, but in a savepoint (ADR-SAVE-7), so a resumed run's totals are
+    /// those of the whole run, as a replay rebuilds them. A run of `sim_version` 1 stays zero.
     pub fn player_stats(&self) -> &PlayerStats {
         &self.player_stats
     }

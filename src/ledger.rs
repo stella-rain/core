@@ -472,38 +472,35 @@ pub struct SlotStats {
 }
 
 /// Per-slot damage dealt, kills and support, folded from the events of every step by the
-/// `Engine` and kept outside the hashed state and the savepoint's first format (ADR-SIM-13):
-/// a replay steps an engine and so rebuilds it exactly. A run resumed from a savepoint
-/// starts it at zero at the savepoint's tick (`from_tick`), and `is_complete` says whether it
-/// covers the whole run. Runs of `sim_version` 1 name no player in their events, so theirs stay zero.
+/// `Engine` and kept outside the hashed state (ADR-SIM-13). A replay steps an engine and so
+/// rebuilds it exactly; a savepoint holds it as a fixed record before the state (ADR-SAVE-7), so
+/// a run resumed from one has the totals of the whole run. Runs of `sim_version` 1 name no player
+/// in their events, so theirs stay zero.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlayerStats {
     slots: [SlotStats; MAX_PLAYERS as usize],
-    from_tick: u32,
 }
 
-impl PlayerStats {
-    /// Totals of zero for a run resumed at `tick`, which they cover from there on.
-    pub(crate) fn resumed_at(tick: u32) -> PlayerStats {
-        PlayerStats {
-            from_tick: tick,
-            ..PlayerStats::default()
-        }
-    }
+/// The bytes of a savepoint's stats record: per slot `damage_dealt: u64`, `kills: u32`,
+/// `support: u64`, little-endian.
+pub(crate) const STATS_RECORD_LEN: usize = MAX_PLAYERS as usize * 20;
 
+impl PlayerStats {
     /// The totals of one slot.
     pub fn slot(&self, player: PlayerIdx) -> SlotStats {
         self.slots[player.get()]
     }
 
-    /// The tick the folding began at: 0 for a run stepped from its start.
-    pub fn from_tick(&self) -> u32 {
-        self.from_tick
-    }
-
-    /// Whether the totals cover the whole run, not only the ticks since a savepoint.
-    pub fn is_complete(&self) -> bool {
-        self.from_tick == 0
+    /// The record of a savepoint of the party `mask`: a slot that is not in the party is zero,
+    /// or the record is refused.
+    pub(crate) fn decode_for(r: &mut Reader<'_>, mask: u8) -> Result<PlayerStats, DecodeError> {
+        let stats = PlayerStats::decode(r)?;
+        for (i, s) in stats.slots.iter().enumerate() {
+            if mask >> i & 1 == 0 && *s != SlotStats::default() {
+                return Err(DecodeError::Invalid("stats of an absent player"));
+            }
+        }
+        Ok(stats)
     }
 
     /// The slot an entity number names, if it is a player's.
@@ -841,6 +838,30 @@ mod codec_tests {
     }
 }
 
+impl Encode for PlayerStats {
+    fn encode(&self, w: &mut Writer) {
+        for s in &self.slots {
+            s.damage_dealt.encode(w);
+            s.kills.encode(w);
+            s.support.encode(w);
+        }
+    }
+}
+
+impl Decode for PlayerStats {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        let mut slots = [SlotStats::default(); MAX_PLAYERS as usize];
+        for s in &mut slots {
+            *s = SlotStats {
+                damage_dealt: Decode::decode(r)?,
+                kills: Decode::decode(r)?,
+                support: Decode::decode(r)?,
+            };
+        }
+        Ok(PlayerStats { slots })
+    }
+}
+
 #[cfg(test)]
 mod player_stats_tests {
     use super::*;
@@ -952,11 +973,27 @@ mod player_stats_tests {
     }
 
     #[test]
-    fn a_resumed_count_starts_at_its_tick_and_is_not_complete() {
-        assert!(PlayerStats::default().is_complete());
-        let stats = PlayerStats::resumed_at(120);
-        assert_eq!((stats.from_tick(), stats.is_complete()), (120, false));
-        assert_eq!(stats.slot(slot(0)), SlotStats::default());
+    fn the_record_is_sixty_bytes_and_round_trips() {
+        use crate::savepoint::testing::{round_trip, to_bytes};
+        let stats = folded(&[hit(Some(1), None, 9), died(EntityKind::Enemy, Some(1))]);
+        let bytes = to_bytes(&stats);
+        assert_eq!(bytes.len(), STATS_RECORD_LEN);
+        assert_eq!(bytes.len(), 60);
+        assert_eq!(bytes[20..28], 9u64.to_le_bytes(), "slot 1's damage_dealt");
+        assert_eq!(bytes[28..32], 1u32.to_le_bytes(), "slot 1's kills");
+        round_trip(&stats);
+    }
+
+    #[test]
+    fn a_record_for_an_absent_player_is_refused() {
+        use crate::savepoint::testing::to_bytes;
+        let bytes = to_bytes(&folded(&[hit(Some(1), None, 9)]));
+        let read = |mask| PlayerStats::decode_for(&mut Reader::new(&bytes), mask);
+        assert_eq!(read(0b011).map(|s| s.slot(slot(1)).damage_dealt), Ok(9));
+        assert_eq!(
+            read(0b001),
+            Err(DecodeError::Invalid("stats of an absent player"))
+        );
     }
 
     #[test]

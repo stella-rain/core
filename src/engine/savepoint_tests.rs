@@ -26,7 +26,7 @@ type Decoded = Result<(State, RunLedger, Counted), DecodeError>;
 
 /// `decode_state` of an engine that runs version 1, the rules these tests edit.
 fn decode_state(bytes: &[u8], fresh: &Engine) -> Decoded {
-    let (saved, ledger, counted) = crate::savepoint::decode_state(bytes, fresh)?;
+    let (saved, ledger, counted, _) = crate::savepoint::decode_state(bytes, fresh)?;
     Ok((saved.v1(), ledger, counted))
 }
 

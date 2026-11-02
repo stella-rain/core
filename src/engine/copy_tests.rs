@@ -244,8 +244,8 @@ fn the_state_of_either_version_round_trips_through_its_codec() {
             ..RunSetup::default()
         };
         let fresh = Engine::forced(version, || Engine::start(&setup).unwrap());
-        let (state, ledger, counted) = decode_state(&encode_state(e), &fresh).unwrap();
-        let back = fresh.with_saved(state, ledger, counted);
+        let (state, ledger, counted, stats) = decode_state(&encode_state(e), &fresh).unwrap();
+        let back = fresh.with_saved(state, ledger, counted, stats);
         assert_eq!(back.state_hash(), e.state_hash(), "version {version}");
         assert_eq!(back.run.version(), version);
     }
