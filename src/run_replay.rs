@@ -479,15 +479,17 @@ impl RunReplay {
         })
     }
 
-    /// The inputs of a schema 1 replay, one per tick: exactly `ticks` of them, and `ticks` at
-    /// most `max_ticks`. A schema 2 replay's `inputs` are a step log, not this stream, and are
-    /// refused here.
+    /// The solo inputs of the replay, one per tick: exactly `ticks` of them, and `ticks` at
+    /// most `max_ticks`. A schema 1 replay's `inputs` are this stream; a schema 2 replay's are a
+    /// step log, whose solo view this is (a party other than one is refused).
     pub fn unpack_inputs(&self, max_ticks: u32) -> Result<Vec<Input>, RunReplayError> {
         if self.setup.schema_version >= 2 {
-            return Err(RunReplayError::BadInputs(
-                "a schema 2 replay's inputs are a step log",
-            ));
+            return Ok(self.step_log(max_ticks)?.to_solo()?.0);
         }
+        self.unpack_inputs_v1(max_ticks)
+    }
+
+    fn unpack_inputs_v1(&self, max_ticks: u32) -> Result<Vec<Input>, RunReplayError> {
         if self.ticks > max_ticks {
             return Err(RunReplayError::TooManyTicks {
                 ticks: self.ticks,
@@ -500,8 +502,16 @@ impl RunReplay {
     }
 
     /// The commands between ticks, in order: at most `MAX_COMMANDS`, of known kinds, none after
-    /// tick `ticks`.
+    /// tick `ticks`. A schema 1 replay's `commands` are this list; at schema 2 it is derived
+    /// from the picks of the step log (the solo view).
     pub fn unpack_commands(&self) -> Result<Vec<TickCommand>, RunReplayError> {
+        if self.setup.schema_version >= 2 {
+            return Ok(self.step_log(u32::MAX)?.to_solo()?.1);
+        }
+        self.unpack_commands_v1()
+    }
+
+    fn unpack_commands_v1(&self) -> Result<Vec<TickCommand>, RunReplayError> {
         let bad = RunReplayError::BadCommands;
         let bytes = base64::decode(&self.commands).map_err(|_| bad("not valid base64"))?;
         let mut commands = Vec::new();
@@ -547,8 +557,8 @@ impl RunReplay {
                 .map_err(|_| RunReplayError::BadInputs("not valid base64"))?;
             return StepLog::decode(&bytes, self.ticks, max_ticks);
         }
-        let inputs = self.unpack_inputs(max_ticks)?;
-        let commands = self.unpack_commands()?;
+        let inputs = self.unpack_inputs_v1(max_ticks)?;
+        let commands = self.unpack_commands_v1()?;
         Ok(StepLog::from_schema1(&inputs, &commands))
     }
 }
