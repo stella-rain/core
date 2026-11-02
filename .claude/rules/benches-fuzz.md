@@ -74,7 +74,7 @@ is a key of `benches/budgets.toml`, which CI reads for the list of benches.
   raising one takes CI minutes: Kade's call.
 - Gate, in `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`,
   then `cargo +nightly fuzz build` (all targets). A PR that touches parsing also runs
-  `cargo +nightly fuzz run <target> -- -max_total_time=60` for each target of `fuzz/Cargo.toml`
+  each target of `fuzz/Cargo.toml` 60 s, one per CPU (`pack_load` with a whole pack as `-max_len`)
   (`.github/scripts/fuzz_targets.py` lists them; a unit test fails when `fuzz_targets/` and the table
   disagree), seeded from the corpus, bundled content, `content-pack export` and the seeds above.
 - Weekly, each target runs 7 minutes on a growing cached corpus; a crash opens a hash-only issue.
