@@ -72,3 +72,57 @@ fn sim_v1_is_the_frozen_copy() {
          its body"
     );
 }
+
+/// Whether `line` reaches the live event module: `crate::event` followed by anything that is
+/// not part of an identifier, or a `crate::{ .. }` list that names `event`.
+fn imports_live_event(line: &str) -> bool {
+    let is_ident = |c: char| c.is_alphanumeric() || c == '_';
+    let mut rest = line;
+    while let Some(at) = rest.find("crate::") {
+        let after = &rest[at + "crate::".len()..];
+        if let Some(tail) = after.strip_prefix("event") {
+            if !tail.starts_with(is_ident) {
+                return true;
+            }
+        }
+        if let Some(list) = after.strip_prefix('{') {
+            let list = list.split('}').next().unwrap_or("");
+            let names_event = list
+                .split(|c: char| !is_ident(c))
+                .any(|word| word == "event");
+            if names_event {
+                return true;
+            }
+        }
+        rest = after;
+    }
+    false
+}
+
+#[test]
+fn the_event_scan_finds_a_live_import() {
+    assert!(imports_live_event("use crate::event::DomainEvent;"));
+    assert!(imports_live_event("use crate::{event, fixed};"));
+    assert!(imports_live_event("use crate::{fixed, event::Press};"));
+    assert!(!imports_live_event("use super::event::DomainEvent;"));
+    assert!(!imports_live_event("use crate::snapshot::Press;"));
+    assert!(!imports_live_event("use crate::event_log::Log;"));
+}
+
+/// The frozen rules own the events they emit (ADR-REPL-9 point 1, ADR-REPL-7 point 3): a change
+/// to the live event edits `engine/v1_events.rs`, never `sim_v1`.
+#[test]
+fn sim_v1_imports_nothing_from_the_live_event() {
+    let mut found = Vec::new();
+    for (path, text) in SIM_V1_FILES {
+        for (n, line) in text.lines().enumerate() {
+            if imports_live_event(line) {
+                found.push(format!("sim_v1/{path}:{}", n + 1));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "sim_v1 imports the live event type: {found:?}"
+    );
+}
