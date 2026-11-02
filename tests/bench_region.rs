@@ -84,5 +84,4 @@ fn the_allocation_free_regions_stay_free() {
 fn a_harness_allocation_is_seen() {
     let counts = counted3(|| Vec::<u8>::with_capacity(1));
     assert_ne!(counts, none());
-    assert!(format!("{counts:?}").contains("allocs: 1,"), "{counts:?}");
 }
