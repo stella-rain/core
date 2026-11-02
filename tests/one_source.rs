@@ -185,7 +185,7 @@ fn refuses<E: Debug + PartialEq>(
     assert_eq!(
         read(&replace_first(
             bytes,
-            &format!("\"schema_version\": {SCHEMA_VERSION}"),
+            &format!("\"schema_version\": {own_schema}"),
             "\"schema_version\": 7"
         )),
         Err(unsupported(7, own)),
