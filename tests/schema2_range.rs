@@ -100,7 +100,7 @@ fn ranges(ticks: u32, seed: u64) -> Vec<(u32, u32)> {
             state ^= state << 13;
             state ^= state >> 7;
             state ^= state << 17;
-            (state % (u64::from(ticks) + 1)) as u32
+            u32::try_from(state % (u64::from(ticks) + 1)).unwrap()
         };
         let (x, y) = (next(), next());
         out.push((x.min(y), x.max(y)));

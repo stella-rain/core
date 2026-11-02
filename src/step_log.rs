@@ -184,6 +184,137 @@ impl StepLog {
     }
 }
 
+/// One step of a tick range (ADR-REPL-10).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RangeStep {
+    /// `run` world ticks, each with these inputs (one per present slot, in slot order).
+    Ticks { run: u32, inputs: Vec<Input> },
+    /// One step that does not advance the world: the pick of each present slot, if any.
+    Picks { picks: Vec<Option<u32>> },
+}
+
+/// The steps of world ticks `first..end` of a step log.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StepRange {
+    /// Bit `i` set when player slot `i` is present at tick 0 (the log's, not the range's).
+    pub present: u8,
+    pub first: u32,
+    pub end: u32,
+    pub steps: Vec<RangeStep>,
+}
+
+/// The steps of world ticks `a..b` of a schema 2 step log of `ticks` world ticks, at most
+/// `max_ticks` (ADR-REPL-10). Ticks are 0-based and the range is half-open: tick `i` takes the
+/// state after `i` ticks to the state after `i + 1`.
+///
+/// - A TICKS run that overlaps the range is returned once, clipped to its overlap: a run is
+///   never split into ticks and never expanded, so the memory is bounded by the records in the
+///   range, not by `ticks`, `a`, `b` or a claimed run.
+/// - A PICKS step after `p` world ticks goes with the tick after it: it is in the range iff
+///   `a <= p < b`; a range with `b == ticks` also holds the picks after the last tick. An empty
+///   range (`a == b`) holds no step. The picks at `p == a` are therefore in the range, which is
+///   what a re-simulation from the state after `a` ticks needs.
+/// - The whole log is validated with the full decoder's checks, so a damaged log is refused
+///   with the same error however small the range. `a > b` and `b > ticks` are `BadInputs`; both
+///   are checked before the bytes are read.
+pub fn read_step_range(
+    bytes: &[u8],
+    ticks: u32,
+    max_ticks: u32,
+    a: u32,
+    b: u32,
+) -> Result<StepRange, RunReplayError> {
+    check_range(ticks, a, b)?;
+    let mut sink = RangeSink::new(ticks, a, b);
+    let present = scan(bytes, ticks, max_ticks, &mut sink)?;
+    Ok(sink.finish(present))
+}
+
+fn check_range(ticks: u32, a: u32, b: u32) -> Result<(), RunReplayError> {
+    if a > b {
+        return Err(RunReplayError::BadInputs("a tick range that is backwards"));
+    }
+    if b > ticks {
+        return Err(RunReplayError::BadInputs("a tick range past the last tick"));
+    }
+    Ok(())
+}
+
+/// The sink of the range reader: keeps what falls in `a..b`.
+struct RangeSink {
+    ticks: u32,
+    a: u32,
+    b: u32,
+    steps: Vec<RangeStep>,
+}
+
+impl RangeSink {
+    fn new(ticks: u32, a: u32, b: u32) -> RangeSink {
+        RangeSink {
+            ticks,
+            a,
+            b,
+            steps: Vec::new(),
+        }
+    }
+
+    fn finish(self, present: u8) -> StepRange {
+        StepRange {
+            present,
+            first: self.a,
+            end: self.b,
+            steps: self.steps,
+        }
+    }
+}
+
+impl Sink for RangeSink {
+    fn ticks(&mut self, start: u32, run: u32, inputs: &[Input]) {
+        let from = start.max(self.a);
+        let to = (start + run).min(self.b);
+        if from < to {
+            self.steps.push(RangeStep::Ticks {
+                run: to - from,
+                inputs: inputs.to_vec(),
+            });
+        }
+    }
+
+    fn picks(&mut self, at: u32, picks: &[Option<u32>]) {
+        let inside = (self.a <= at && at < self.b)
+            || (self.a < self.b && self.b == self.ticks && at == self.ticks);
+        if inside {
+            self.steps.push(RangeStep::Picks {
+                picks: picks.to_vec(),
+            });
+        }
+    }
+}
+
+impl StepLog {
+    /// The steps of world ticks `a..b` of an already decoded log, by the rule of
+    /// `read_step_range`.
+    pub(crate) fn range(&self, a: u32, b: u32) -> Result<StepRange, RunReplayError> {
+        let ticks = self.records.iter().fold(0u32, |t, r| match r {
+            Record::Ticks { run, .. } => t.saturating_add(*run),
+            Record::Picks { .. } => t,
+        });
+        check_range(ticks, a, b)?;
+        let mut sink = RangeSink::new(ticks, a, b);
+        let mut world = 0u32;
+        for record in &self.records {
+            match record {
+                Record::Ticks { run, inputs } => {
+                    sink.ticks(world, *run, inputs);
+                    world += run;
+                }
+                Record::Picks { picks } => sink.picks(world, picks),
+            }
+        }
+        Ok(sink.finish(self.present))
+    }
+}
+
 /// What the scanner reports for each record, by reference: nothing is allocated for it.
 trait Sink {
     /// `run` world ticks from world tick `start`, with one input per present slot.
@@ -1111,8 +1242,8 @@ mod tests {
                 k += 60;
             }
             for _ in 0..200 {
-                let x = (next() % (u64::from(ticks) + 1)) as u32;
-                let y = (next() % (u64::from(ticks) + 1)) as u32;
+                let x = u32::try_from(next() % (u64::from(ticks) + 1)).unwrap();
+                let y = u32::try_from(next() % (u64::from(ticks) + 1)).unwrap();
                 ranges.push((x.min(y), x.max(y)));
             }
             for (a, b) in ranges {
