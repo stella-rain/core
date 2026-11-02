@@ -5,8 +5,11 @@
 //! match-ups): the setup names a mode
 //! whose content is bundled in `core`, so no stage file and no save data is needed.
 //!
-//! A `.replay` of a run is one JSON object. Its inputs are packed as a stage replay's are (see
-//! `replay`). Its commands are packed in the order they applied, each as the tick (a LEB128
+//! A `.replay` of a run is one JSON object, written at schema 2 (ADR-REPL-7 point 4,
+//! ADR-REPL-10): `inputs` is the step log (see `step_log`), each pick inside its step, and
+//! `commands` is empty. A schema 1 file is still read and verified, and its two streams are
+//! described here. Its inputs are packed as a stage replay's are (see `replay`). Its commands
+//! are packed in the order they applied, each as the tick (a LEB128
 //! delta from the previous command's tick, from 0 for the first), the kind (one byte: 0
 //! `choose`; 1 was `spend`, removed with DS18 and refused) and the index (LEB128). A command carries the number of ticks completed
 //! when it applied, so several commands between the same two ticks have deltas of 0.
@@ -48,7 +51,7 @@ use crate::id::PlayerIdx;
 use crate::input::Input;
 use crate::ledger::RunLedger;
 use crate::pack::Pack;
-use crate::replay::{hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack, write_varint};
+use crate::replay::{hash_from_hex, hash_to_hex, read_varint, unpack, write_varint};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::savepoint::{self, SavepointError};
@@ -98,10 +101,11 @@ pub struct RunReplay {
     /// after that tick and before the commands that follow it, each 16 lowercase hex digits,
     /// concatenated: `16 * (ticks / 60)` digits, empty for fewer than 60 ticks.
     pub checkpoints: String,
-    /// The per-tick inputs, packed as a stage replay's are, then base64.
+    /// The inputs: at schema 1 the per-tick input stream packed as a stage replay's is; at
+    /// schema 2 the step log (`step_log`), then base64.
     pub inputs: String,
-    /// The commands between ticks, packed as described in the module documentation, then
-    /// base64.
+    /// Schema 1: the commands between ticks, packed as described in the module documentation.
+    /// Schema 2: the empty string; a pick is a field of the step it was made on.
     pub commands: String,
 }
 
@@ -111,7 +115,8 @@ const RETIRED_SPEND: u8 = 1;
 /// The kind of a command between ticks, and its byte in the packed stream.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
-    /// Option `index` of the open offer (ADR-079 §3).
+    /// Option `index` of the open offer (ADR-079 §3). Read from schema 1 files; no writer
+    /// writes it into a file (schema 2 holds a pick inside its step).
     Choose,
 }
 
@@ -479,15 +484,17 @@ impl RunReplay {
         })
     }
 
-    /// The inputs of a schema 1 replay, one per tick: exactly `ticks` of them, and `ticks` at
-    /// most `max_ticks`. A schema 2 replay's `inputs` are a step log, not this stream, and are
-    /// refused here.
+    /// The solo inputs of the replay, one per tick: exactly `ticks` of them, and `ticks` at
+    /// most `max_ticks`. A schema 1 replay's `inputs` are this stream; a schema 2 replay's are a
+    /// step log, whose solo view this is (a party other than one is refused).
     pub fn unpack_inputs(&self, max_ticks: u32) -> Result<Vec<Input>, RunReplayError> {
         if self.setup.schema_version >= 2 {
-            return Err(RunReplayError::BadInputs(
-                "a schema 2 replay's inputs are a step log",
-            ));
+            return Ok(self.step_log(max_ticks)?.to_solo()?.0);
         }
+        self.unpack_inputs_v1(max_ticks)
+    }
+
+    fn unpack_inputs_v1(&self, max_ticks: u32) -> Result<Vec<Input>, RunReplayError> {
         if self.ticks > max_ticks {
             return Err(RunReplayError::TooManyTicks {
                 ticks: self.ticks,
@@ -500,8 +507,16 @@ impl RunReplay {
     }
 
     /// The commands between ticks, in order: at most `MAX_COMMANDS`, of known kinds, none after
-    /// tick `ticks`.
+    /// tick `ticks`. A schema 1 replay's `commands` are this list; at schema 2 it is derived
+    /// from the picks of the step log (the solo view).
     pub fn unpack_commands(&self) -> Result<Vec<TickCommand>, RunReplayError> {
+        if self.setup.schema_version >= 2 {
+            return self.step_log(u32::MAX)?.solo_commands();
+        }
+        self.unpack_commands_v1()
+    }
+
+    fn unpack_commands_v1(&self) -> Result<Vec<TickCommand>, RunReplayError> {
         let bad = RunReplayError::BadCommands;
         let bytes = base64::decode(&self.commands).map_err(|_| bad("not valid base64"))?;
         let mut commands = Vec::new();
@@ -547,8 +562,8 @@ impl RunReplay {
                 .map_err(|_| RunReplayError::BadInputs("not valid base64"))?;
             return StepLog::decode(&bytes, self.ticks, max_ticks);
         }
-        let inputs = self.unpack_inputs(max_ticks)?;
-        let commands = self.unpack_commands()?;
+        let inputs = self.unpack_inputs_v1(max_ticks)?;
+        let commands = self.unpack_commands_v1()?;
         Ok(StepLog::from_schema1(&inputs, &commands))
     }
 }
@@ -745,6 +760,12 @@ impl RunRecorder {
         self.commands.push(TickCommand { tick, kind, index });
     }
 
+    /// The schema 2 `inputs` field for `inputs` and `commands`: the step log, then base64. The
+    /// recorder keeps the solo lists of schema 1 and builds the file at its two output points.
+    fn step_log(&self, inputs: &[Input], commands: &[TickCommand]) -> String {
+        base64::encode(&StepLog::from_schema1(inputs, commands).encode())
+    }
+
     /// The replay of the run so far: complete once the run has ended, a bug report before.
     pub fn replay(&self) -> RunReplay {
         RunReplay {
@@ -753,8 +774,8 @@ impl RunRecorder {
             ticks: self.engine.tick(),
             final_hash: hash_to_hex(self.engine.state_hash()),
             checkpoints: self.checkpoints.iter().map(|h| hash_to_hex(*h)).collect(),
-            inputs: pack_inputs(&self.inputs),
-            commands: pack_commands(&self.commands),
+            inputs: self.step_log(&self.inputs, &self.commands),
+            commands: String::new(),
         }
     }
 
@@ -788,8 +809,8 @@ impl RunRecorder {
                 .iter()
                 .map(|h| hash_to_hex(*h))
                 .collect(),
-            inputs: pack_inputs(&self.inputs[..inputs]),
-            commands: pack_commands(&commands),
+            inputs: self.step_log(&self.inputs[..inputs], &commands),
+            commands: String::new(),
         }
     }
 }

@@ -485,7 +485,7 @@ fn the_encoding_is_pinned() {
     assert_eq!(
         String::from_utf8(bytes.clone()).unwrap(),
         concat!(
-            r#"{"schema_version":1,"sim_version":1,"seed":7,"#,
+            r#"{"schema_version":2,"sim_version":1,"seed":7,"#,
             r#""stage_sha256":"749df219b108a048afb8e402f18142140d03f971a80653b3e0251833f3e43784","#,
             r#""ticks":35,"final_hash":"f41f6599e39fe57c","#,
             r#""inputs":"AQEAAAIAAAACAgAAGQAAAAICAAADAAAA"}"#,
@@ -501,9 +501,11 @@ fn the_encoding_is_pinned() {
             1, 1, 0, 0, 2, 0, 0, 0, 2, 2, 0, 0, 25, 0, 0, 0, 2, 2, 0, 0, 3, 0, 0, 0
         ]
     );
+    // The content hash covers the replay file's bytes, so it moved once with the written schema
+    // (the only byte that differs is the 1 that is now a 2).
     assert_eq!(
         to_hex(&content_hash(&stage, &bytes)),
-        "599383fba1b56bd2e49472629057870c4aa6137df1a01882e806eca8a4cbe176"
+        "32c970fae27884cce6e803edf47525fc6993d5604a31455865a9bcb167254087"
     );
 }
 
@@ -762,8 +764,9 @@ fn a_stage_replay_at_schema_2_allows_interact() {
     let one = record(&stage_at_schema(1), &inputs).unwrap();
     let two_stage = stage_at_schema(2);
     let two = record(&two_stage, &inputs).unwrap();
-    assert_eq!((one.schema_version, two.schema_version), (1, 2));
-    // The same bytes and the same hash at 2: only the version moved.
+    // The writer writes the schema writers write, whatever the stage file's own is.
+    assert_eq!((one.schema_version, two.schema_version), (2, 2));
+    // The same bytes and the same hash whichever the stage's schema.
     assert_eq!(one.inputs, two.inputs);
     assert_eq!(one.final_hash, two.final_hash);
     let plain = verify(&two_stage, &two.to_bytes()).unwrap();
@@ -771,9 +774,13 @@ fn a_stage_replay_at_schema_2_allows_interact() {
     // Bit 6 is the interact button at 2: the simulation ignores it, so the hash is the same.
     let held = verify(&two_stage, &with_interact_flag(&two)).unwrap();
     assert_eq!(held.final_hash, plain.final_hash);
-    // At 1 it is an unknown flag.
+    // A replay at 1 pairs with a stage at 1 (and, by the sim version alone, at 2) ...
+    let at_one = with(&one, |v| v["schema_version"] = json!(1));
+    let at_one = Replay::from_bytes(&at_one).unwrap();
+    assert!(verify(&stage_at_schema(1), &at_one.to_bytes()).is_ok());
+    // ... and at 1 the interact flag is an unknown flag.
     assert_eq!(
-        verify(&stage_at_schema(1), &with_interact_flag(&one)),
+        verify(&stage_at_schema(1), &with_interact_flag(&at_one)),
         Err(ReplayError::BadInputs("a run has unknown flags"))
     );
 }
