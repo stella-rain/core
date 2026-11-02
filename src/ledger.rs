@@ -707,3 +707,134 @@ mod codec_tests {
         assert_eq!(from_bytes::<Counted>(&bytes), Ok(base));
     }
 }
+
+#[cfg(test)]
+mod player_stats_tests {
+    use super::*;
+    use crate::id::{EntityId, PlayerIdx};
+
+    fn slot(i: u8) -> PlayerIdx {
+        PlayerIdx::new(i).expect("a slot")
+    }
+
+    fn hit(player: Option<u32>, buffed_by: Option<u32>, damage: u32) -> DomainEvent {
+        DomainEvent::Hit {
+            source: EntityId(0),
+            target: EntityId(40),
+            target_kind: None,
+            damage,
+            damage_type: None,
+            match_up: Default::default(),
+            rune: None,
+            crit: false,
+            echo: false,
+            player: player.map(EntityId),
+            buffed_by: buffed_by.map(EntityId),
+        }
+    }
+
+    fn died(class: EntityKind, killer: Option<u32>) -> DomainEvent {
+        DomainEvent::Died {
+            entity: EntityId(40),
+            kind: None,
+            class,
+            elite: false,
+            killer: killer.map(EntityId),
+        }
+    }
+
+    fn healed(source: Option<u32>, target: u32, amount: u32) -> DomainEvent {
+        DomainEvent::Healed {
+            target: EntityId(target),
+            amount,
+            source: source.map(EntityId),
+        }
+    }
+
+    fn folded(events: &[DomainEvent]) -> PlayerStats {
+        let mut stats = PlayerStats::default();
+        stats.fold(events);
+        stats
+    }
+
+    #[test]
+    fn damage_is_summed_per_hitter() {
+        let stats = folded(&[hit(Some(1), None, 40), hit(Some(1), None, 60)]);
+        assert_eq!(stats.slot(slot(1)).damage_dealt, 100);
+        assert_eq!(stats.slot(slot(0)), SlotStats::default());
+        assert_eq!(stats.slot(slot(2)), SlotStats::default());
+    }
+
+    #[test]
+    fn only_a_defeated_enemy_with_a_killer_scores_a_kill() {
+        let stats = folded(&[
+            died(EntityKind::Enemy, Some(2)),
+            died(EntityKind::Enemy, Some(2)),
+            died(EntityKind::Boss, Some(2)),
+            died(EntityKind::Shrine, Some(2)),
+            died(EntityKind::Companion, Some(2)),
+            died(EntityKind::Enemy, None),
+            hit(None, None, 99),
+        ]);
+        assert_eq!(stats.slot(slot(2)).kills, 2);
+        assert_eq!(stats.slot(slot(2)).damage_dealt, 0);
+        assert_eq!(stats.slot(slot(0)), SlotStats::default());
+    }
+
+    #[test]
+    fn an_id_beyond_the_party_is_ignored() {
+        let stats = folded(&[
+            hit(Some(3), Some(4), 10),
+            died(EntityKind::Enemy, Some(9)),
+            healed(Some(5), 0, 10),
+        ]);
+        assert_eq!(stats, PlayerStats::default());
+    }
+
+    #[test]
+    fn totals_saturate() {
+        let mut stats = folded(&[hit(Some(0), None, u32::MAX)]);
+        stats.slots[0].damage_dealt = u64::MAX - 1;
+        stats.fold(&[hit(Some(0), None, 5)]);
+        assert_eq!(stats.slot(slot(0)).damage_dealt, u64::MAX);
+    }
+
+    #[test]
+    fn a_buffer_earns_support_from_the_damage_it_enabled() {
+        let stats = folded(&[hit(Some(1), Some(0), 50)]);
+        assert_eq!(stats.slot(slot(1)).damage_dealt, 50);
+        assert_eq!(stats.slot(slot(0)).support, 50);
+        assert_eq!(stats.slot(slot(1)).support, 0);
+        assert_eq!(folded(&[hit(Some(1), Some(1), 50)]).slot(slot(1)).support, 0);
+    }
+
+    #[test]
+    fn a_heal_given_to_another_is_support_and_a_self_heal_or_a_companion_heal_is_not() {
+        assert_eq!(folded(&[healed(Some(0), 1, 7)]).slot(slot(0)).support, 7);
+        assert_eq!(folded(&[healed(Some(0), 0, 7)]), PlayerStats::default());
+        assert_eq!(folded(&[healed(None, 1, 7)]), PlayerStats::default());
+    }
+
+    #[test]
+    fn a_resumed_count_starts_at_its_tick_and_is_not_complete() {
+        assert!(PlayerStats::default().is_complete());
+        let stats = PlayerStats::resumed_at(120);
+        assert_eq!((stats.from_tick(), stats.is_complete()), (120, false));
+        assert_eq!(stats.slot(slot(0)), SlotStats::default());
+    }
+
+    #[test]
+    fn an_event_keeps_its_old_json_when_the_new_fields_are_absent() {
+        let plain = serde_json::to_string(&hit(None, None, 5)).unwrap();
+        assert!(!plain.contains("player") && !plain.contains("buffed_by"), "{plain}");
+        let named = hit(Some(1), Some(0), 5);
+        let text = serde_json::to_string(&named).unwrap();
+        assert!(text.contains("\"player\":1") && text.contains("\"buffed_by\":0"), "{text}");
+        assert_eq!(serde_json::from_str::<DomainEvent>(&text).unwrap(), named);
+        assert_eq!(serde_json::from_str::<DomainEvent>(&plain).unwrap(), hit(None, None, 5));
+        let old = r#"{"type":"Died","data":{"entity":40,"class":"Enemy"}}"#;
+        assert_eq!(serde_json::from_str::<DomainEvent>(old).unwrap(), died(EntityKind::Enemy, None));
+        let old = r#"{"type":"Healed","data":{"target":0,"amount":3}}"#;
+        assert_eq!(serde_json::from_str::<DomainEvent>(old).unwrap(), healed(None, 0, 3));
+    }
+}
