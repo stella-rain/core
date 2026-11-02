@@ -105,6 +105,7 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
             continue;
         }
         let hp = s.hp_mut(target);
+        let hp_before = *hp;
         *hp = hp.saturating_sub(echo.damage);
         let dead = *hp == 0;
         events.push(DomainEvent::Hit {
@@ -119,6 +120,11 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
             echo: true,
         });
         if dead {
+            if let Who::Enemy(i) = target {
+                if hp_before > 0 {
+                    super::record_kill(s, i, super::hitter(s, echo.source));
+                }
+            }
             events.push(super::death_event(s, target, echo.target));
         }
         s.raise_aggro(
@@ -138,7 +144,13 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
 /// bursts go off in a tick; a kill past that is still credited, it just does not burst. A
 /// burst's kills are credited like any other (experience, drops, kills for a heal); the depth
 /// is all that stops the chain. The boss and its parts are not hurt by a burst.
-pub(super) fn bursts(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+pub(super) fn bursts(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    gone_off: &mut usize,
+    events: &mut Vec<DomainEvent>,
+) {
     let p = &s.players[me];
     if p.burst_pct == 0 {
         return;
@@ -152,18 +164,19 @@ pub(super) fn bursts(stage: &World, s: &mut State, me: PlayerIdx, events: &mut V
         .clamp(1, MAX_BURST_DEPTH);
     let fallen = |s: &State| -> Vec<usize> {
         (0..s.enemies.len())
-            .filter(|&i| s.enemies[i].hp == 0 && !s.enemies[i].burst)
+            .filter(|&i| {
+                s.enemies[i].hp == 0 && !s.enemies[i].burst && super::killer_of(s, i) == me
+            })
             .collect()
     };
     let mut round = fallen(s);
-    let mut gone_off = 0;
     for link in 1..=depth {
         let mut next = Vec::new();
         for &i in &round {
-            if gone_off == MAX_BURSTS_PER_TICK {
+            if *gone_off == MAX_BURSTS_PER_TICK {
                 return;
             }
-            gone_off += 1;
+            *gone_off += 1;
             let (at, max_hp) = (s.enemies[i].at, s.enemies[i].max_hp);
             events.push(DomainEvent::KillBurst {
                 at,
@@ -472,7 +485,7 @@ mod tests {
     fn run(s: &mut State) -> Vec<DomainEvent> {
         let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let mut events = Vec::new();
-        bursts(&stage, s, PlayerIdx::SOLO, &mut events);
+        bursts(&stage, s, PlayerIdx::SOLO, &mut 0, &mut events);
         events
     }
 

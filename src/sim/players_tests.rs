@@ -1180,6 +1180,12 @@ mod route {
         }
     }
 
+    /// Player `by` hits enemy `at` for far more than it has.
+    fn hit(w: &World, s: &mut State, by: u8, at: usize, ev: &mut Vec<crate::event::DomainEvent>) {
+        let shot = shot_of(s, by, at);
+        super::super::damage(w, s, slot(by), shot, Who::Enemy(at), ev);
+    }
+
     /// Enemy `i` alone at its place, at `hp`: the others are far away and strong.
     fn lone(s: &mut State, i: usize, hp: u32) {
         s.enemies[i].hp = hp;
@@ -1207,14 +1213,7 @@ mod route {
         let (w, mut s) = kill_state();
         lone(&mut s, 0, 1);
         let mut ev = Vec::new();
-        super::super::damage(
-            &w,
-            &mut s,
-            slot(1),
-            shot_of(&s, 1, 0),
-            Who::Enemy(0),
-            &mut ev,
-        );
+        hit(&w, &mut s, 1, 0, &mut ev);
         ev.clear();
         super::super::collide(&w, &mut s, false, &mut ev);
         assert_eq!(bursts_in(&ev), 1, "slot 1's burst only: {ev:?}");
@@ -1226,14 +1225,7 @@ mod route {
             s.players[slot(i)].kill_heal_every = 1;
         }
         let mut ev = Vec::new();
-        super::super::damage(
-            &w,
-            &mut s,
-            slot(1),
-            shot_of(&s, 1, 0),
-            Who::Enemy(0),
-            &mut ev,
-        );
+        hit(&w, &mut s, 1, 0, &mut ev);
         ev.clear();
         super::super::collide(&w, &mut s, false, &mut ev);
         let healed: Vec<_> = ev
@@ -1248,14 +1240,7 @@ mod route {
         let (w, mut s) = kill_state();
         lone(&mut s, 0, 1);
         let mut ev = Vec::new();
-        super::super::damage(
-            &w,
-            &mut s,
-            slot(0),
-            shot_of(&s, 0, 0),
-            Who::Enemy(0),
-            &mut ev,
-        );
+        hit(&w, &mut s, 0, 0, &mut ev);
         super::super::collide(&w, &mut s, false, &mut ev);
         assert_eq!((counted(&s, 0), counted(&s, 1)), (1, 0));
     }
@@ -1264,18 +1249,14 @@ mod route {
     fn a_burst_chain_kill_is_the_bursters() {
         let (w, mut s) = kill_state();
         lone(&mut s, 0, 1);
+        for i in 0..2 {
+            s.players[slot(i)].kill_heal_every = 3;
+        }
         let at = s.enemies[0].at;
         s.enemies[1].at = at;
         s.enemies[1].hp = 1;
         let mut ev = Vec::new();
-        super::super::damage(
-            &w,
-            &mut s,
-            slot(1),
-            shot_of(&s, 1, 0),
-            Who::Enemy(0),
-            &mut ev,
-        );
+        hit(&w, &mut s, 1, 0, &mut ev);
         super::super::collide(&w, &mut s, false, &mut ev);
         assert_eq!(
             (counted(&s, 0), counted(&s, 1)),
@@ -1290,22 +1271,8 @@ mod route {
             let (w, mut s) = kill_state();
             lone(&mut s, 0, 1);
             let mut ev = Vec::new();
-            super::super::damage(
-                &w,
-                &mut s,
-                slot(first),
-                shot_of(&s, first, 0),
-                Who::Enemy(0),
-                &mut ev,
-            );
-            super::super::damage(
-                &w,
-                &mut s,
-                slot(second),
-                shot_of(&s, second, 0),
-                Who::Enemy(0),
-                &mut ev,
-            );
+            hit(&w, &mut s, first, 0, &mut ev);
+            hit(&w, &mut s, second, 0, &mut ev);
             super::super::collide(&w, &mut s, false, &mut ev);
             assert_eq!(counted(&s, first), 1, "first {first}");
             assert_eq!(counted(&s, second), 0, "second {second}");
@@ -1322,6 +1289,7 @@ mod route {
         for by in [1u8, 0] {
             let (w, mut s) = kill_state();
             lone(&mut s, 0, 100);
+            s.enemies[0].statuses = Default::default();
             let mut ev = Vec::new();
             super::super::runes::apply_smash_bleed(&mut s, slot(1), Who::Enemy(0), &mut ev);
             super::super::runes::apply_smash_bleed(&mut s, slot(by), Who::Enemy(0), &mut ev);
@@ -1329,7 +1297,7 @@ mod route {
                 .statuses
                 .iter()
                 .find(|st| st.dot.is_some())
-                .expect("a bleed");
+                .unwrap_or_else(|| panic!("a bleed: {:?}", s.enemies[0].statuses));
             assert_eq!(st.source, slot(by).id());
             for st in s.enemies[0].statuses.iter_mut() {
                 if let Some(d) = st.dot.as_mut() {
@@ -1348,14 +1316,7 @@ mod route {
         let (w, mut s) = kill_state();
         lone(&mut s, 0, 1);
         let mut ev = Vec::new();
-        super::super::damage(
-            &w,
-            &mut s,
-            slot(1),
-            shot_of(&s, 1, 0),
-            Who::Enemy(0),
-            &mut ev,
-        );
+        hit(&w, &mut s, 1, 0, &mut ev);
         assert!(!s.scratch.killers.is_empty());
         assert!(s.clone().scratch.killers.is_empty(), "a clone starts empty");
         super::super::collide(&w, &mut s, false, &mut ev);

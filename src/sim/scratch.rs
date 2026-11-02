@@ -5,6 +5,7 @@
 use super::grid::Grid;
 use super::hit_boxes::Swing;
 use super::push::Body;
+use super::state::PlayerIdx;
 use crate::id::EntityId;
 
 /// Makes room in `v` for `capacity` items in all, whatever it holds now: a vector is reserved
@@ -43,6 +44,11 @@ pub(crate) struct Scratch {
     pub(super) found_bits: Vec<u64>,
     /// Emptied hit lists of ended attack runs (`AttackRun::hits`), for new runs to take.
     pub(super) hit_lists: Vec<Vec<(EntityId, u32)>>,
+    /// The player whose hit took each enemy (by index) from above 0 to 0 hit points this tick, in
+    /// the tick's fixed order of hits; `None` for an enemy no hit defeated. Read by the bursts and
+    /// the kill-heal; emptied by `collide` once the dead are removed. Not hashed: enemy indices
+    /// are stable from the first hit to that removal (ADR-SIM-3).
+    pub(super) killers: Vec<Option<PlayerIdx>>,
     /// Whether each orb of the tick was used up.
     pub(super) consumed: Vec<bool>,
     /// The enemies granted a ranged token this tick, by `RangedPool` (RA1): worked out from the
@@ -80,7 +86,7 @@ impl Scratch {
     /// Reserves every buffer for a run of up to `enemies` enemies alive on a map `width` by
     /// `height` (1/256 pixels), once, when the run is built (DIR1, ADR-SIM-7 decision 9): a tick
     /// then never grows one. The bounds, per buffer:
-    /// - `bodies`, `offsets`, `found`: one entry per enemy; `found_bits`: one bit per enemy.
+    /// - `bodies`, `offsets`, `found`, `killers`: one entry per enemy; `found_bits`: one bit per enemy.
     /// - the grid: one circle, cell and member per enemy, and the cells of the map.
     /// - `hit_lists`: `MAX_ATTACK_TASKS` lists of one entry per enemy and a few more.
     /// - `swings`: a hit box per run and per zone; `consumed`: one per orb;
@@ -96,6 +102,7 @@ impl Scratch {
         reserve_to(&mut self.offsets, enemies);
         reserve_to(&mut self.found, enemies);
         reserve_to(&mut self.shrine_ids, enemies);
+        reserve_to(&mut self.killers, enemies);
         reserve_to(&mut self.found_bits, enemies.div_ceil(64));
         self.grid.reserve(enemies, width, height);
         while self.hit_lists.len() < HIT_LISTS {

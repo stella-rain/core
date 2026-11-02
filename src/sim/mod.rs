@@ -1198,7 +1198,12 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         s.scratch.grid = grid;
     }
     s.companions.retain(|c| c.hp > 0);
-    combat::bursts(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
+    // A kill's burst, kill-heal and expertise go to the killer; the bursts of all slots share the
+    // tick's cap.
+    let mut gone_off = 0;
+    for me in s.players.indices() {
+        combat::bursts(stage, s, me, &mut gone_off, events);
+    }
     levels::credit_defeated(stage, s, events);
     // Stardust is shared: every present player earns every kill's base.
     for me in s.players.indices() {
@@ -1206,8 +1211,11 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     }
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
-    heal::kills_heal(s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
+    for me in s.players.indices() {
+        heal::kills_heal(s, me, events);
+    }
     s.enemies.retain(|e| e.hp > 0);
+    s.scratch.killers.clear();
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         for me in s.players.indices() {
             stars::boss_killed(stage, s, me);
@@ -1280,8 +1288,14 @@ fn damage(
         stage.tuning.defence_k,
     );
     let hp = s.hp_mut(target);
+    let before = *hp;
     *hp = hp.saturating_sub(dealt);
     let dead = *hp == 0;
+    if dead && before > 0 {
+        if let Who::Enemy(i) = target {
+            record_kill(s, i, me);
+        }
+    }
     events.push(DomainEvent::Hit {
         source: b.owner,
         target: id,
@@ -1315,6 +1329,37 @@ fn damage(
             runes::on_hit(stage, s, me, id, at, events);
         }
     }
+}
+
+/// Records `me` as the killer of enemy `i`: the first hit of the tick, in its fixed order, that
+/// takes the enemy to 0 hit points keeps the credit. Called only for a hit that defeats it.
+pub(super) fn record_kill(s: &mut State, i: usize, me: PlayerIdx) {
+    let n = s.enemies.len();
+    let killers = &mut s.scratch.killers;
+    if killers.len() < n {
+        killers.resize(n, None);
+    }
+    if let Some(k) = killers.get_mut(i).filter(|k| k.is_none()) {
+        *k = Some(me);
+    }
+}
+
+/// The player that defeated enemy `i` this tick. An enemy at 0 hit points no hit defeated (a
+/// shrine's win) is credited to the lowest present slot.
+pub(super) fn killer_of(s: &State, i: usize) -> PlayerIdx {
+    s.scratch
+        .killers
+        .get(i)
+        .copied()
+        .flatten()
+        .or_else(|| s.players.indices().next())
+        .unwrap_or(PlayerIdx::SOLO)
+}
+
+/// The player that made a hit by `owner`: a companion's, or any other id, is the run's first
+/// player (the stage's companions belong to no player).
+pub(super) fn hitter(s: &State, owner: EntityId) -> PlayerIdx {
+    s.players.owner_of(owner).unwrap_or(PlayerIdx::SOLO)
 }
 
 /// Whether anything can damage `target`: a shrine and a mimic in disguise are objects (ADR-090).

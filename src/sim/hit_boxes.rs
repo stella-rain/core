@@ -507,11 +507,14 @@ fn hit_enemy_side(
     (bits, found): (&mut Vec<u64>, &mut Vec<usize>),
     events: &mut Vec<DomainEvent>,
 ) {
+    // The player who made the swing; a companion's swing is the run's first player's (the stage's
+    // companions belong to no player).
+    let me = super::hitter(s, w.owner);
     if let Some((def, boss)) = s.boss_pair(stage) {
         if boss.invulnerable == 0 {
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
-                damage(stage, s, PlayerIdx::SOLO, shot(w), Who::Boss, events); // N=1: M-PER-PLAYER
+                damage(stage, s, me, shot(w), Who::Boss, events);
             }
             let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
             for i in 0..parts {
@@ -520,7 +523,7 @@ fn hit_enemy_side(
                 };
                 let (id, hp, radius) = (part.id, part.hp, part.radius);
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
-                    damage(stage, s, PlayerIdx::SOLO, shot(w), Who::BossPart(i), events); // N=1: M-PER-PLAYER
+                    damage(stage, s, me, shot(w), Who::BossPart(i), events);
                 }
             }
         }
@@ -552,12 +555,10 @@ fn hit_enemy_side(
             && covers(w, at, radius)
             && take_hit(s, w, id)
         {
-            damage(stage, s, PlayerIdx::SOLO, shot(w), Who::Enemy(i), events); // N=1: M-PER-PLAYER
+            damage(stage, s, me, shot(w), Who::Enemy(i), events);
             match w.smash {
-                Some(Smash::Pull(pull)) => super::pull_enemy(stage, s, PlayerIdx::SOLO, i, pull), // N=1: M-PER-PLAYER
-                Some(Smash::Knockback(push)) => {
-                    super::knock_enemy(stage, s, PlayerIdx::SOLO, i, push) // N=1: M-PER-PLAYER
-                }
+                Some(Smash::Pull(pull)) => super::pull_enemy(stage, s, me, i, pull),
+                Some(Smash::Knockback(push)) => super::knock_enemy(stage, s, me, i, push),
                 _ => {}
             }
         }

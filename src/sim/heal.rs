@@ -100,7 +100,9 @@ pub(super) fn kills_heal(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEv
     if every == 0 {
         return;
     }
-    let kills = s.enemies.iter().filter(|e| e.hp == 0 && !e.burst).count();
+    let kills = (0..s.enemies.len())
+        .filter(|&i| s.enemies[i].hp == 0 && !s.enemies[i].burst && super::killer_of(s, i) == me)
+        .count();
     let counted = u64::from(s.players[me].kills_counted) + u64::try_from(kills).unwrap_or(u64::MAX);
     let heals = counted / u64::from(every);
     s.players[me].kills_counted = u32::try_from(counted % u64::from(every)).unwrap_or(0);
