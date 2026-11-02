@@ -12,9 +12,8 @@ mod support;
 
 #[library_benchmark]
 #[bench::worst_minute(args = (bench_fixtures::worst_minute()), teardown = support::forget_measured)]
-fn worst_minute(mut run: Run) -> Run {
-    run.play(MINUTE_TICKS);
-    run
+fn worst_minute(run: Run) -> Run {
+    support::minute(run, MINUTE_TICKS)
 }
 
 library_benchmark_group!(

@@ -15,9 +15,7 @@ mod support;
 // The same crowd over the largest map (core#146): the grid spans the map, and its build reads it.
 #[bench::hit_tick_spread(args = (bench_fixtures::hit_tick_spread()), teardown = support::forget_measured)]
 fn hit_tick(case: Case) -> Engine {
-    let Case { mut engine, input } = case;
-    engine.step(&[input]);
-    engine
+    support::tick(case)
 }
 
 library_benchmark_group!(
