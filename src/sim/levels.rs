@@ -40,10 +40,6 @@ pub(crate) fn xp_next(stage: &World, level: u32) -> u32 {
 
 /// Experience for the enemies at 0 hp, before they are removed.
 pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    if s.players.career(PlayerIdx::SOLO).progress.is_none() {
-        // N=1: M-PER-PLAYER
-        return;
-    }
     let xp = s
         .enemies
         .iter()
@@ -57,7 +53,12 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<Dom
             _ => stage.tuning.default_xp,
         })
         .fold(0u32, u32::saturating_add);
-    gain(stage, s, PlayerIdx::SOLO, xp, events); // N=1: M-PER-PLAYER
+    // Every present player earns it, each raised by its own `XpPct`.
+    for me in s.players.indices() {
+        if s.players.career(me).progress.is_some() {
+            gain(stage, s, me, xp, events);
+        }
+    }
 }
 
 fn gain(stage: &World, s: &mut State, me: PlayerIdx, xp: u32, events: &mut Vec<DomainEvent>) {
@@ -93,12 +94,12 @@ fn gain(stage: &World, s: &mut State, me: PlayerIdx, xp: u32, events: &mut Vec<D
 /// unknown or repeated one is ignored) first, then the stats it leaves out in their own order.
 pub(crate) fn set_policy(
     s: &mut State,
+    me: PlayerIdx,
     run_stats: &RunStats,
     priority: &[ContentId],
     pick_stats: bool,
 ) {
-    let Some(p) = s.players.career_mut(PlayerIdx::SOLO).progress.as_mut() else {
-        // N=1: M-PER-PLAYER
+    let Some(p) = s.players.career_mut(me).progress.as_mut() else {
         return;
     };
     let named = |id: &ContentId| run_stats.stats().iter().position(|st| st.id == *id);
@@ -152,14 +153,13 @@ fn raise(p: &mut Progress, player: &mut PlayerState, at: usize, events: &mut Vec
     events.push(DomainEvent::StatRaised { stat: id, spent });
 }
 
-/// Opens the next stat offer due, unless an offer is open. Levels due while every stat is at its
-/// limit give nothing.
-pub(super) fn open_due(s: &mut State, events: &mut Vec<DomainEvent>) {
-    if super::offer_open(s) {
+/// Opens the next stat offer due to `me`, unless `me` has an offer open. Levels due while every
+/// stat is at its limit give nothing.
+pub(super) fn open_due(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    if super::offer_open_for(s, me) {
         return;
     }
-    let Some(p) = s.players.career_mut(PlayerIdx::SOLO).progress.as_mut() else {
-        // N=1: M-PER-PLAYER
+    let Some(p) = s.players.career_mut(me).progress.as_mut() else {
         return;
     };
     if p.offers_due == 0 {
@@ -177,9 +177,9 @@ pub(super) fn open_due(s: &mut State, events: &mut Vec<DomainEvent>) {
     });
 }
 
-/// The open stat offer's options: a take of each stat below its limit.
-pub(super) fn options(s: &State) -> Vec<OfferOption> {
-    let career = s.players.career(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+/// The options of `me`'s open stat offer: a take of each stat below its limit.
+pub(super) fn options(s: &State, me: PlayerIdx) -> Vec<OfferOption> {
+    let career = s.players.career(me);
     career.progress.as_ref().map_or_else(Vec::new, |p| {
         (0..open_stats(p).len())
             .map(|i| OfferOption::Take {
@@ -209,9 +209,9 @@ pub(super) fn choose(
     }
 }
 
-/// The open stat offer, for the snapshot.
-pub(crate) fn offer_view(s: &State) -> Option<StatOfferView> {
-    let career = s.players.career(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+/// The stat offer `me` has open, for the snapshot.
+pub(crate) fn offer_view(s: &State, me: PlayerIdx) -> Option<StatOfferView> {
+    let career = s.players.career(me);
     let p = career.progress.as_ref().filter(|p| p.offer_open)?;
     Some(StatOfferView {
         options: open_stats(p)

@@ -492,12 +492,21 @@ impl Players {
             .map(|(_, p)| p)
     }
 
-    /// The `PlayerIdx` of each player of the party, in slot order.
-    #[cfg(test)]
-    pub(crate) fn indices(&self) -> impl Iterator<Item = PlayerIdx> + '_ {
+    /// The `PlayerIdx` of each player of the party, in slot order. It holds a copy of the mask,
+    /// not the party, so a loop over it may borrow the state mutably.
+    pub(crate) fn indices(&self) -> impl Iterator<Item = PlayerIdx> + use<> {
+        let present = self.present;
         (0..MAX_PLAYERS)
-            .filter(|i| self.present >> i & 1 == 1)
+            .filter(move |i| present >> i & 1 == 1)
             .filter_map(PlayerIdx::new)
+    }
+
+    /// The present slot whose entity number is `id` (ADR-SIM-13): the owner of a shot, a hit or a
+    /// dot a player made. `None` for a companion, an enemy or a slot not in the party.
+    #[inline]
+    pub(crate) fn owner_of(&self, id: EntityId) -> Option<PlayerIdx> {
+        let me = u8::try_from(id.0).ok().and_then(PlayerIdx::new)?;
+        self.is_present(me).then_some(me)
     }
 
     /// Players 1 and up that are present, in slot order.

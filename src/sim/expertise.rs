@@ -264,7 +264,8 @@ fn any_left(stage: &World, expertise: &Expertise, held: &[u8]) -> bool {
     places(pool).any(|i| eligible(pool, i, held))
 }
 
-/// Opens the offer of the first level due that has a candidate, unless an offer is open.
+/// Opens the offer of the first level due to `me` that has a candidate, unless `me` has an offer
+/// open.
 pub(super) fn open_due(
     stage: &World,
     expertise: &Expertise,
@@ -272,7 +273,7 @@ pub(super) fn open_due(
     me: PlayerIdx,
     events: &mut Vec<DomainEvent>,
 ) {
-    if super::offer_open(s) {
+    if super::offer_open_for(s, me) {
         return;
     }
     let crate::sim::state::Career {

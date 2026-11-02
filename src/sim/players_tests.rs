@@ -957,7 +957,7 @@ mod career_rest {
 mod route {
     use super::super::state::{Due, OfferState};
     use super::*;
-    use crate::error::ChoiceError;
+    use crate::engine::ChoiceError;
     use crate::rewards::Rarity;
     use crate::snapshot::OfferKind;
 
@@ -994,11 +994,24 @@ mod route {
     }
 
     fn offer_of(e: &Engine, i: u8) -> Option<&OfferState> {
-        live(e).1.players.career(slot(i)).offers.as_ref()?.offer.as_ref()
+        live(e)
+            .1
+            .players
+            .career(slot(i))
+            .offers
+            .as_ref()?
+            .offer
+            .as_ref()
     }
 
     fn taken_of(e: &Engine, i: u8) -> u32 {
-        let o = live(e).1.players.career(slot(i)).offers.as_ref().expect("offers");
+        let o = live(e)
+            .1
+            .players
+            .career(slot(i))
+            .offers
+            .as_ref()
+            .expect("offers");
         o.taken.iter().map(|t| u32::from(*t)).sum()
     }
 
@@ -1055,11 +1068,16 @@ mod route {
         let mut e = party(2);
         due_on(&mut e, 1);
         let (hash, tick) = (e.state_hash(), e.tick());
+        let b = [0, 1].map(|i| taken_of(&e, i));
         e.step(&picks(&[(0, 0)], 2));
-        assert_eq!((e.state_hash(), e.tick()), (hash, tick), "slot 0 has no offer");
+        assert_eq!(
+            (e.state_hash(), e.tick()),
+            (hash, tick),
+            "slot 0 has no offer"
+        );
         e.step(&picks(&[(1, 0)], 2));
         assert_eq!(e.tick(), tick, "the tick does not advance");
-        assert_eq!((taken_of(&e, 0), taken_of(&e, 1)), (0, 1));
+        assert_eq!((taken_of(&e, 0), taken_of(&e, 1)), (b[0], b[1] + 1));
     }
 
     #[test]
@@ -1067,16 +1085,20 @@ mod route {
         let mut e = party(3);
         due_on(&mut e, 0);
         due_on(&mut e, 2);
-        let tick = e.tick();
+        let (tick, b) = (e.tick(), [0, 1, 2].map(|i| taken_of(&e, i)));
         e.step(&picks(&[(0, 0), (2, 0)], 3));
-        assert_eq!((taken_of(&e, 0), taken_of(&e, 1), taken_of(&e, 2)), (1, 0, 1));
+        assert_eq!(
+            [0, 1, 2].map(|i| taken_of(&e, i)),
+            [b[0] + 1, b[1], b[2] + 1]
+        );
         assert_eq!(e.tick(), tick);
 
         let mut e = party(3);
         due_on(&mut e, 0);
         due_on(&mut e, 2);
+        let b = [0, 1, 2].map(|i| taken_of(&e, i));
         e.step(&picks(&[(0, 99), (2, 0)], 3));
-        assert_eq!((taken_of(&e, 0), taken_of(&e, 2)), (0, 1));
+        assert_eq!((taken_of(&e, 0), taken_of(&e, 2)), (b[0], b[2] + 1));
         assert!(offer_of(&e, 0).is_some(), "slot 0's offer is still open");
         assert!(e.offer_open());
     }
@@ -1094,7 +1116,13 @@ mod route {
             "slot 0's draws do not move slot 1's stream"
         );
         let s = live(&both).1;
-        assert_ne!(s.players.career(slot(1)).offer, s.players.career(slot(2)).offer);
-        assert_ne!(s.players.career(PlayerIdx::SOLO).offer, s.players.career(slot(1)).offer);
+        assert_ne!(
+            s.players.career(slot(1)).offer,
+            s.players.career(slot(2)).offer
+        );
+        assert_ne!(
+            s.players.career(PlayerIdx::SOLO).offer,
+            s.players.career(slot(1)).offer
+        );
     }
 }

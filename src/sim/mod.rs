@@ -484,7 +484,9 @@ fn unreserved_state(
             },
             Career::new(
                 seed,
-                PlayerIdx::SOLO, // N=1: M-PER-PLAYER
+                // The run's first player; the other slots are built by the party builder (a test
+                // here, recording parties later).
+                PlayerIdx::SOLO,
                 progress,
                 offers,
                 expertise::initial(stage, content.expertise()),
@@ -630,27 +632,29 @@ pub(crate) fn step(
     );
 }
 
-/// A stat offer is open.
-fn stat_offer_open(s: &State) -> bool {
-    let career = s.players.career(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+/// A stat offer is open for `me`.
+fn stat_offer_open(s: &State, me: PlayerIdx) -> bool {
+    let career = s.players.career(me);
     career.progress.as_ref().is_some_and(|p| p.offer_open)
 }
 
-/// An offer is open, a star's, a boss's, an expertise level's or a stat offer: the world is
-/// stopped.
-pub(crate) fn offer_open(s: &State) -> bool {
-    s.players.career(PlayerIdx::SOLO).offers.as_ref().is_some_and(|o| o.offer.is_some()) // N=1: M-PER-PLAYER
-        || s.players
-            .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
-            .expertise
-            .as_ref()
-            .is_some_and(|g| g.offer.is_some())
-        || stat_offer_open(s)
+/// `me` has an offer open, a star's, a boss's, an expertise level's or a stat offer.
+pub(crate) fn offer_open_for(s: &State, me: PlayerIdx) -> bool {
+    let career = s.players.career(me);
+    career.offers.as_ref().is_some_and(|o| o.offer.is_some())
+        || career.expertise.as_ref().is_some_and(|g| g.offer.is_some())
+        || stat_offer_open(s, me)
 }
 
-/// Opens the first offer due, unless one is open: the boss offer, then the expertise levels'
-/// in level order, then the stat offers in level order, then the stars' in the order taken
-/// (ADR-079 §2, DS18).
+/// An offer is open for any present player: the world is stopped.
+pub(crate) fn offer_open(s: &State) -> bool {
+    s.players.indices().any(|me| offer_open_for(s, me))
+}
+
+/// Opens, for every present player in slot order, the first offer due unless one is open for
+/// that player: the boss offer, then the expertise levels' in level order, then the stat offers
+/// in level order, then the stars' in the order taken (ADR-079 §2, DS18). The players open
+/// theirs side by side.
 fn open_offers(
     stage: &World,
     rewards: &Rewards,
@@ -658,57 +662,85 @@ fn open_offers(
     s: &mut State,
     events: &mut Vec<DomainEvent>,
 ) {
-    stars::open_due(stage, rewards, s, events, true);
-    expertise::open_due(stage, expertise, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
-    levels::open_due(s, events);
-    stars::open_due(stage, rewards, s, events, false);
+    for me in s.players.indices() {
+        open_offers_for(stage, rewards, expertise, s, me, events);
+    }
 }
 
-/// The options of the open offer, in index order; empty without one.
+#[cfg(test)]
+pub(crate) fn open_offers_for_test(
+    stage: &World,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    events: &mut Vec<DomainEvent>,
+) {
+    open_offers(stage, rewards, expertise, s, events);
+}
+
+/// `open_offers` for the player `me` alone.
+fn open_offers_for(
+    stage: &World,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
+    stars::open_due(stage, rewards, s, me, events, true);
+    expertise::open_due(stage, expertise, s, me, events);
+    levels::open_due(s, me, events);
+    stars::open_due(stage, rewards, s, me, events, false);
+}
+
+/// The options of `me`'s open offer, in index order; empty without one.
 pub(crate) fn offer_options(
     stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
     s: &State,
+    me: PlayerIdx,
 ) -> Vec<OfferOption> {
     if s.players
-        .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        .career(me)
         .expertise
         .as_ref()
         .is_some_and(|g| g.offer.is_some())
     {
-        expertise::options(stage, expertise, s, PlayerIdx::SOLO) // N=1: M-PER-PLAYER
-    } else if stat_offer_open(s) {
-        levels::options(s)
+        expertise::options(stage, expertise, s, me)
+    } else if stat_offer_open(s, me) {
+        levels::options(s, me)
     } else {
-        stars::options(rewards, s, PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        stars::options(rewards, s, me)
     }
 }
 
-/// Carries out `option`, one of `offer_options`, on the open offer; when that closes it, the
-/// next offer due opens.
+/// Carries out `option`, one of `offer_options`, on `me`'s open offer; when that closes it, the
+/// next offer due to `me` opens. The other players' due offers opened at the end of the tick.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn choose(
     _version: u32,
     stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
     s: &mut State,
+    me: PlayerIdx,
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
     if s.players
-        .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        .career(me)
         .expertise
         .as_ref()
         .is_some_and(|g| g.offer.is_some())
     {
-        expertise::choose(stage, expertise, s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
-    } else if stat_offer_open(s) {
-        levels::choose(s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
+        expertise::choose(stage, expertise, s, me, option, events);
+    } else if stat_offer_open(s, me) {
+        levels::choose(s, me, option, events);
     } else {
-        stars::choose(stage, rewards, s, option, events);
+        stars::choose(stage, rewards, s, me, option, events);
     }
-    open_offers(stage, rewards, expertise, s, events);
+    open_offers_for(stage, rewards, expertise, s, me, events);
 }
 
 fn count<T>(items: &[T]) -> u32 {
@@ -1168,18 +1200,27 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     s.companions.retain(|c| c.hp > 0);
     combat::bursts(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     levels::credit_defeated(stage, s, events);
-    stardust::credit_defeated(stage, s, PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    // Stardust is shared: every present player earns every kill's base.
+    for me in s.players.indices() {
+        stardust::credit_defeated(stage, s, me);
+    }
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
     heal::kills_heal(s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     s.enemies.retain(|e| e.hp > 0);
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
-        stars::boss_killed(stage, s);
-        heal::boss_killed(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
-        stardust::boss_killed(stage, s, PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+        for me in s.players.indices() {
+            stars::boss_killed(stage, s, me);
+            heal::boss_killed(stage, s, me, events);
+            stardust::boss_killed(stage, s, me);
+        }
     }
-    stars::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
-    heal::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
+    // The stars and pick-ups on the map are shared: the lowest slot takes what its circle
+    // covers, and the next finds it gone.
+    for me in s.players.indices() {
+        stars::pick_up(stage, s, me, events);
+        heal::pick_up(stage, s, me, events);
+    }
 }
 
 /// The enemies as circles, in index order, for friendly hit boxes to land on and for the
