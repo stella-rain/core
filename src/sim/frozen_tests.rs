@@ -74,47 +74,68 @@ fn sim_v1_is_the_frozen_copy() {
     );
 }
 
-/// Whether `line` reaches the live event module: `crate::event` followed by anything that is
-/// not part of an identifier, or a `crate::{ .. }` list that names `event`.
-fn imports_live_event(line: &str) -> bool {
-    // A comment may name the live type; only code imports it.
-    if line.trim_start().starts_with("//") {
-        return false;
-    }
+/// The 1-based lines of `text` that reach the live event module: `crate::event` followed by
+/// anything that is not part of an identifier, or a `crate::{ .. }` list, over any number of
+/// lines, that names `event` at its top level. Line comments are blanked first: a comment may
+/// name the live type, only code imports it.
+fn live_event_lines(text: &str) -> Vec<usize> {
     let is_ident = |c: char| c.is_alphanumeric() || c == '_';
-    let mut rest = line;
-    while let Some(at) = rest.find("crate::") {
-        let after = &rest[at + "crate::".len()..];
-        if let Some(tail) = after.strip_prefix("event") {
-            if !tail.starts_with(is_ident) {
-                return true;
+    let code: String = text
+        .lines()
+        .map(|line| line.split("//").next().unwrap_or(""))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut found = Vec::new();
+    let mut from = 0;
+    while let Some(at) = code[from..].find("crate::").map(|i| i + from) {
+        let after = at + "crate::".len();
+        let rest = &code[after..];
+        let hit = if let Some(tail) = rest.strip_prefix("event") {
+            !tail.starts_with(is_ident)
+        } else if rest.starts_with('{') {
+            let (mut depth, mut top) = (0, String::new());
+            for c in rest.chars() {
+                match c {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ if depth == 1 => top.push(c),
+                    _ => top.push(' '),
+                }
             }
+            top.split(|c: char| !is_ident(c)).any(|w| w == "event")
+        } else {
+            false
+        };
+        if hit {
+            found.push(code[..at].matches('\n').count() + 1);
         }
-        if let Some(list) = after.strip_prefix('{') {
-            let list = list.split('}').next().unwrap_or("");
-            let names_event = list
-                .split(|c: char| !is_ident(c))
-                .any(|word| word == "event");
-            if names_event {
-                return true;
-            }
-        }
-        rest = after;
+        from = after;
     }
-    false
+    found
 }
 
 #[test]
 fn the_event_scan_finds_a_live_import() {
-    assert!(imports_live_event("use crate::event::DomainEvent;"));
-    assert!(imports_live_event("use crate::{event, fixed};"));
-    assert!(imports_live_event("use crate::{fixed, event::Press};"));
-    assert!(!imports_live_event("use super::event::DomainEvent;"));
-    assert!(!imports_live_event("use crate::snapshot::Press;"));
-    assert!(!imports_live_event("use crate::event_log::Log;"));
-    assert!(!imports_live_event(
-        "//! into the live `crate::event::DomainEvent`."
+    let finds = |text: &str| !live_event_lines(text).is_empty();
+    assert!(finds("use crate::event::DomainEvent;"));
+    assert!(finds("use crate::{event, fixed};"));
+    assert!(finds("use crate::{fixed, event::Press};"));
+    assert!(finds(
+        "use crate::{\n    fixed::Fx,\n    event::DomainEvent,\n};"
     ));
+    assert!(finds("let x = 1;\nuse crate::event;"));
+    assert!(!finds("use super::event::DomainEvent;"));
+    assert!(!finds("use crate::snapshot::Press;"));
+    assert!(!finds("use crate::event_log::Log;"));
+    assert!(!finds("use crate::{snapshot::{event_view, Press}, fixed};"));
+    assert!(!finds("//! into the live `crate::event::DomainEvent`."));
+    assert!(!finds("let x = 1; // was crate::event::Press"));
+    assert_eq!(live_event_lines("a\nuse crate::{\n  event,\n};"), [2]);
 }
 
 /// The frozen rules own the events they emit (ADR-REPL-9 point 1, ADR-REPL-7 point 3): a change
@@ -123,10 +144,8 @@ fn the_event_scan_finds_a_live_import() {
 fn sim_v1_imports_nothing_from_the_live_event() {
     let mut found = Vec::new();
     for (path, text) in SIM_V1_FILES {
-        for (n, line) in text.lines().enumerate() {
-            if imports_live_event(line) {
-                found.push(format!("sim_v1/{path}:{}", n + 1));
-            }
+        for line in live_event_lines(text) {
+            found.push(format!("sim_v1/{path}:{line}"));
         }
     }
     assert!(
