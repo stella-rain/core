@@ -523,6 +523,8 @@ mod horde_tests;
 #[cfg(test)]
 mod move_index_tests;
 #[cfg(test)]
+mod pick_tests;
+#[cfg(test)]
 mod players_api_tests;
 #[cfg(test)]
 mod savepoint_tests;

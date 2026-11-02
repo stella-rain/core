@@ -90,6 +90,7 @@ mod packs;
 mod parsed_stage_hash;
 mod perk_sets;
 mod phases;
+mod pick_input;
 mod pick_pins;
 mod places;
 mod players_api;

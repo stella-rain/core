@@ -12,7 +12,7 @@ fn orb_cage() -> crate::stage::Stage {
     crate::validate::parse_and_validate(bytes).expect("a valid stage")
 }
 
-fn p1() -> PlayerIdx {
+pub(super) fn p1() -> PlayerIdx {
     PlayerIdx::new(1).expect("player 1")
 }
 
@@ -20,7 +20,7 @@ fn p1() -> PlayerIdx {
 type Case = (Engine, fn(u32) -> Input);
 
 /// An engine with an offer open, from the first of the walks that reaches one.
-fn with_offer() -> Engine {
+pub(super) fn with_offer() -> Engine {
     let cases: [Case; 5] = [
         (
             worst_minute_case::worst_minute().engine,
