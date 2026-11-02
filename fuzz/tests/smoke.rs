@@ -700,25 +700,28 @@ fn the_fuzz_crate_tests_are_built_optimised() {
     // The sweep simulates whole runs; at opt-level 0 it takes about 13 minutes, at 1 about 1.5
     // (ADR-SIM-3, ADR-019). Overflow checks must stay on beside it.
     let text = fs::read_to_string(root().join("fuzz/Cargo.toml")).expect("fuzz/Cargo.toml");
-    let section: Vec<&str> = text
+    let section: Vec<String> = text
         .lines()
         .skip_while(|line| line.trim() != "[profile.dev]")
         .skip(1)
         .take_while(|line| !line.starts_with('['))
-        .map(str::trim)
+        .map(|line| {
+            // Without an inline comment or spaces, so `opt-level=1 # note` reads as it is.
+            let code = line.split('#').next().unwrap_or_default();
+            code.split_whitespace().collect::<String>()
+        })
         .collect();
     assert!(!section.is_empty(), "fuzz/Cargo.toml has no [profile.dev]");
     let level = section
         .iter()
-        .find_map(|line| line.strip_prefix("opt-level"))
-        .and_then(|rest| rest.trim().strip_prefix('='))
-        .and_then(|value| value.trim().parse::<u8>().ok());
+        .find_map(|line| line.strip_prefix("opt-level="))
+        .and_then(|value| value.parse::<u8>().ok());
     assert!(
         level.is_some_and(|n| n >= 1),
         "[profile.dev] of fuzz/Cargo.toml needs opt-level = 1 or higher, has {level:?}"
     );
     assert!(
-        section.contains(&"overflow-checks = true"),
+        section.iter().any(|line| line == "overflow-checks=true"),
         "[profile.dev] of fuzz/Cargo.toml must keep overflow-checks = true"
     );
 }
