@@ -1,5 +1,6 @@
 //! Run ledger (ADR-BRDG-6): counts kills, bestiary bits, picks and skill uses
-//! inside the simulation from domain events and state observations.
+//! inside the simulation from domain events and state observations. `PlayerStats` folds the
+//! events' source players into per-slot totals beside `Counted`, outside the hashed state.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

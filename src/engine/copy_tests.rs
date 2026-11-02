@@ -32,11 +32,30 @@ fn as_v1(e: &Engine, value: &impl std::fmt::Debug) -> String {
     out
 }
 
+/// `events` without the players they name (`player`, `buffed_by`, `source`, `killer`), which only
+/// the newest rules fill: the copy is compared on everything version 1 also says.
+fn plain(events: &[DomainEvent]) -> Vec<DomainEvent> {
+    let mut out = events.to_vec();
+    for event in &mut out {
+        match event {
+            DomainEvent::Hit {
+                player, buffed_by, ..
+            } => (*player, *buffed_by) = (None, None),
+            DomainEvent::Healed { source, .. } | DomainEvent::StatusApplied { source, .. } => {
+                *source = None;
+            }
+            DomainEvent::Died { killer, .. } => *killer = None,
+            _ => {}
+        }
+    }
+    out
+}
+
 /// What a run shows after a tick, to compare two engines on.
 fn observed(e: &Engine) -> (u64, String, String, Load) {
     (
         e.state_hash(),
-        as_v1(e, &e.events()),
+        as_v1(e, &plain(e.events())),
         as_v1(e, &e.snapshot()),
         e.caps(),
     )
@@ -105,7 +124,7 @@ fn scripted(version: u32) -> (Engine, Vec<(u64, String)>) {
     for tick in 1..=600u32 {
         while e.offer_open() {
             crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0).unwrap();
-            seen.push((e.state_hash(), as_v1(&e, &e.events())));
+            seen.push((e.state_hash(), as_v1(&e, &plain(e.events()))));
         }
         e.step(&[Input {
             main: true,
@@ -113,7 +132,7 @@ fn scripted(version: u32) -> (Engine, Vec<(u64, String)>) {
             evade: tick == 100 || tick == 400,
             ..Input::default()
         }]);
-        seen.push((e.state_hash(), as_v1(&e, &e.events())));
+        seen.push((e.state_hash(), as_v1(&e, &plain(e.events()))));
     }
     (e, seen)
 }
