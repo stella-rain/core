@@ -121,6 +121,7 @@ mod runes_file;
 mod savepoint;
 mod savepoint_proof;
 mod schema;
+mod schema2_write;
 mod share;
 mod shot;
 mod stage_skill;
