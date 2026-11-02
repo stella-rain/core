@@ -713,6 +713,12 @@ jobs:
           ARCH: ${{ matrix.arch }}
           BENCH: ${{ matrix.bench }}
         run: python3 .github/scripts/bench_budget.py --arch "$ARCH" --bench "$BENCH" --bench-output "$RUNNER_TEMP/bench.txt"
+      # A profile that counts the drop of a bench fixture (drop_glue of an Engine, Run or Case under the
+      # bench wrapper) measures the heap layout, not the tick (ADR-SIM-8). This reads the measured profile;
+      # tests/bench_teardown.rs is the check of the bench text. It fails when it cannot read a profile.
+      - name: Check the teardown of the benches
+        if: ${{ !cancelled() && steps.count.outcome == 'success' }}
+        run: python3 .github/scripts/bench_drop_guard.py --home "$IAI_CALLGRIND_HOME"
       # A compared case that rose over BENCH_ALARM_PCT fails unless a new entry of benches/accepted.toml,
       # merged by Kade, names this PR and covers the count (ADR-SIM-8). The base commit's ledger
       # tells new entries from old ones. A case that moved is printed, not gated (ADR-SIM-10).
