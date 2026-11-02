@@ -4640,6 +4640,15 @@
           "minimum": -128,
           "type": "integer"
         },
+        "pick": {
+          "description": "On a tick where an offer is open: the option to take, an index into the offer's `options`\n(ADR-REPL-3). Read only then; ignored otherwise. Not part of the schema 1 replay stream.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "skill": {
           "description": "The stage skill button (Y) is held on this tick: a press uses the skill in the slot when\nit is ready (ADR-075).",
           "type": "boolean"
