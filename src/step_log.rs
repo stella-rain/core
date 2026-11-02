@@ -49,84 +49,14 @@ impl StepLog {
         ticks: u32,
         max_ticks: u32,
     ) -> Result<StepLog, RunReplayError> {
-        let bad = RunReplayError::BadInputs;
-        if ticks > max_ticks {
-            return Err(RunReplayError::TooManyTicks {
-                ticks,
-                limit: max_ticks,
-            });
-        }
-        let cut = bad("ends in the middle of a record");
-        let present = *bytes.first().ok_or(cut.clone())?;
-        if present == 0 {
-            return Err(bad("no player is present"));
-        }
-        if present & !0b111 != 0 {
-            return Err(bad("a player slot beyond the party"));
-        }
-        let players = StepLog::players(present);
-        let mut pos = 1;
-        let mut world = 0u32;
-        let mut picks_seen = 0u32;
-        let mut records: Vec<Record> = Vec::new();
-        while pos < bytes.len() {
-            let opcode = bytes[pos];
-            pos += 1;
-            match opcode {
-                TICKS => {
-                    let run = read_varint(bytes, &mut pos).map_err(bad)?;
-                    if run == 0 {
-                        return Err(bad("a run has length 0"));
-                    }
-                    if run > ticks - world {
-                        return Err(bad("there are more inputs than ticks"));
-                    }
-                    let mut inputs = Vec::with_capacity(players);
-                    for _ in 0..players {
-                        let block = *bytes
-                            .get(pos..pos + 3)
-                            .and_then(|b| <&[u8; 3]>::try_from(b).ok())
-                            .ok_or(cut.clone())?;
-                        pos += 3;
-                        inputs.push(input_of_block(block, true).map_err(bad)?);
-                    }
-                    if matches!(records.last(), Some(Record::Ticks { inputs: before, .. }) if *before == inputs)
-                    {
-                        return Err(bad("a run repeats the input of the run before"));
-                    }
-                    world += run;
-                    records.push(Record::Ticks { run, inputs });
-                }
-                PICKS => {
-                    if picks_seen >= MAX_COMMANDS {
-                        return Err(RunReplayError::TooManyCommands {
-                            limit: MAX_COMMANDS,
-                        });
-                    }
-                    let mut picks = Vec::with_capacity(players);
-                    for _ in 0..players {
-                        let marker = *bytes.get(pos).ok_or(cut.clone())?;
-                        pos += 1;
-                        picks.push(match marker {
-                            0 => None,
-                            1 => Some(read_varint(bytes, &mut pos).map_err(bad)?),
-                            _ => return Err(bad("a pick marker is neither 0 nor 1")),
-                        });
-                    }
-                    if picks.iter().all(Option::is_none) {
-                        return Err(bad("a record has no pick"));
-                    }
-                    picks_seen += 1;
-                    records.push(Record::Picks { picks });
-                }
-                JOIN | LEAVE => return Err(bad("a join or leave this build cannot run")),
-                _ => return Err(bad("an unknown record")),
-            }
-        }
-        if world != ticks {
-            return Err(bad("there are fewer inputs than ticks"));
-        }
-        Ok(StepLog { present, records })
+        let mut sink = Collect {
+            records: Vec::new(),
+        };
+        let present = scan(bytes, ticks, max_ticks, &mut sink)?;
+        Ok(StepLog {
+            present,
+            records: sink.records,
+        })
     }
 
     /// The canonical bytes: `decode(encode(x)) == x` for any log `decode` can return.
@@ -252,6 +182,130 @@ impl StepLog {
         }
         Ok((inputs, commands))
     }
+}
+
+/// What the scanner reports for each record, by reference: nothing is allocated for it.
+trait Sink {
+    /// `run` world ticks from world tick `start`, with one input per present slot.
+    fn ticks(&mut self, start: u32, run: u32, inputs: &[Input]);
+    /// One PICKS step after `at` world ticks.
+    fn picks(&mut self, at: u32, picks: &[Option<u32>]);
+}
+
+/// The sink of `decode`: every record, pushed.
+struct Collect {
+    records: Vec<Record>,
+}
+
+impl Sink for Collect {
+    fn ticks(&mut self, _start: u32, run: u32, inputs: &[Input]) {
+        self.records.push(Record::Ticks {
+            run,
+            inputs: inputs.to_vec(),
+        });
+    }
+
+    fn picks(&mut self, _at: u32, picks: &[Option<u32>]) {
+        self.records.push(Record::Picks {
+            picks: picks.to_vec(),
+        });
+    }
+}
+
+/// Walks the schema 2 bytes of a replay of `ticks` world ticks, at most `max_ticks`, with every
+/// check of the format, and reports each record to `sink`. Returns the `present` byte. It is
+/// the only decoder, so every reader refuses the same bytes with the same error. It keeps the
+/// blocks of the run before in one reused buffer and allocates nothing per record.
+fn scan(
+    bytes: &[u8],
+    ticks: u32,
+    max_ticks: u32,
+    sink: &mut impl Sink,
+) -> Result<u8, RunReplayError> {
+    let bad = RunReplayError::BadInputs;
+    if ticks > max_ticks {
+        return Err(RunReplayError::TooManyTicks {
+            ticks,
+            limit: max_ticks,
+        });
+    }
+    let cut = bad("ends in the middle of a record");
+    let present = *bytes.first().ok_or(cut.clone())?;
+    if present == 0 {
+        return Err(bad("no player is present"));
+    }
+    if present & !0b111 != 0 {
+        return Err(bad("a player slot beyond the party"));
+    }
+    let players = StepLog::players(present);
+    let mut pos = 1;
+    let mut world = 0u32;
+    let mut picks_seen = 0u32;
+    // The inputs of the record before, when it was a TICKS record.
+    let mut before: Vec<Input> = Vec::with_capacity(players);
+    let mut after_ticks = false;
+    let mut inputs: Vec<Input> = Vec::with_capacity(players);
+    let mut picks: Vec<Option<u32>> = Vec::with_capacity(players);
+    while pos < bytes.len() {
+        let opcode = bytes[pos];
+        pos += 1;
+        match opcode {
+            TICKS => {
+                let run = read_varint(bytes, &mut pos).map_err(bad)?;
+                if run == 0 {
+                    return Err(bad("a run has length 0"));
+                }
+                if run > ticks - world {
+                    return Err(bad("there are more inputs than ticks"));
+                }
+                inputs.clear();
+                for _ in 0..players {
+                    let block = *bytes
+                        .get(pos..pos + 3)
+                        .and_then(|b| <&[u8; 3]>::try_from(b).ok())
+                        .ok_or(cut.clone())?;
+                    pos += 3;
+                    inputs.push(input_of_block(block, true).map_err(bad)?);
+                }
+                if after_ticks && before == inputs {
+                    return Err(bad("a run repeats the input of the run before"));
+                }
+                sink.ticks(world, run, &inputs);
+                world += run;
+                std::mem::swap(&mut before, &mut inputs);
+                after_ticks = true;
+            }
+            PICKS => {
+                if picks_seen >= MAX_COMMANDS {
+                    return Err(RunReplayError::TooManyCommands {
+                        limit: MAX_COMMANDS,
+                    });
+                }
+                picks.clear();
+                for _ in 0..players {
+                    let marker = *bytes.get(pos).ok_or(cut.clone())?;
+                    pos += 1;
+                    picks.push(match marker {
+                        0 => None,
+                        1 => Some(read_varint(bytes, &mut pos).map_err(bad)?),
+                        _ => return Err(bad("a pick marker is neither 0 nor 1")),
+                    });
+                }
+                if picks.iter().all(Option::is_none) {
+                    return Err(bad("a record has no pick"));
+                }
+                picks_seen += 1;
+                sink.picks(world, &picks);
+                after_ticks = false;
+            }
+            JOIN | LEAVE => return Err(bad("a join or leave this build cannot run")),
+            _ => return Err(bad("an unknown record")),
+        }
+    }
+    if world != ticks {
+        return Err(bad("there are fewer inputs than ticks"));
+    }
+    Ok(present)
 }
 
 #[cfg(test)]
