@@ -104,8 +104,6 @@ pub(crate) struct State {
     pub next_id: u32,
     /// Cage groups taken so far (Z3a-3).
     pub next_orb_group: u32,
-    /// Experience and levels; `None` in a stage without levels.
-    pub progress: Option<Progress>,
     /// Falling stars and offers; `None` in a stage without stars.
     pub stars: Option<StarField>,
     /// Heal pickups on the map, in the order they dropped; `None` in a stage without healing.
@@ -319,6 +317,14 @@ pub(crate) struct Progress {
 
 pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};
 
+/// What one player carries through the run besides the player's body: the experience and levels
+/// (`None` in a stage without levels). One per slot in `Players` (ADR-SIM-12).
+#[derive(Clone, Debug, Default)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) struct Career {
+    pub progress: Option<Progress>,
+}
+
 /// The players of a run: `1..=MAX_PLAYERS` of them, in the slots a presence mask names. All
 /// places are held, the absent ones as copies of the first that nothing reads, so that an index
 /// is a plain offset and a steady tick allocates nothing. Slot 0 is always present. The entity
@@ -326,6 +332,8 @@ pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};
 #[derive(Clone, Debug)]
 pub(crate) struct Players {
     items: [PlayerState; MAX_PLAYERS as usize],
+    /// The career of each slot; an absent slot holds `Career::default()`, which nothing reads.
+    careers: [Career; MAX_PLAYERS as usize],
     /// Bit `i` is set when slot `i` is in the party.
     present: u8,
 }
@@ -333,7 +341,9 @@ pub(crate) struct Players {
 #[cfg(test)]
 impl PartialEq for Players {
     fn eq(&self, other: &Players) -> bool {
-        self.present == other.present && self.iter().eq(other.iter())
+        self.present == other.present
+            && self.iter().eq(other.iter())
+            && self.indices().all(|i| self.career(i) == other.career(i))
     }
 }
 
@@ -341,9 +351,10 @@ impl Players {
     /// The mask of a party of one.
     const SOLO_MASK: u8 = 0b001;
 
-    pub(crate) fn solo(p: PlayerState) -> Players {
+    pub(crate) fn solo(p: PlayerState, career: Career) -> Players {
         Players {
             items: [p.clone(), p.clone(), p],
+            careers: [career, Career::default(), Career::default()],
             present: Self::SOLO_MASK,
         }
     }
@@ -358,6 +369,7 @@ impl Players {
         let mut it = ps.into_iter();
         Some(Players {
             items: std::array::from_fn(|_| it.next().unwrap_or_else(|| first.clone())),
+            careers: Default::default(),
             present,
         })
     }
@@ -369,6 +381,7 @@ impl Players {
         assert!(mask < 1 << MAX_PLAYERS, "a mask of {MAX_PLAYERS} slots");
         Players {
             items: [p.clone(), p.clone(), p],
+            careers: Default::default(),
             present: mask,
         }
     }
@@ -415,6 +428,42 @@ impl Players {
     /// Players 1 and up that are present, in slot order.
     pub(crate) fn others(&self) -> impl Iterator<Item = &PlayerState> + '_ {
         self.iter().skip(1)
+    }
+
+    /// The career of player `me`.
+    #[inline]
+    pub(crate) fn career(&self, me: PlayerIdx) -> &Career {
+        debug_assert!(self.is_present(me));
+        &self.careers[me.get()]
+    }
+
+    #[inline]
+    pub(crate) fn career_mut(&mut self, me: PlayerIdx) -> &mut Career {
+        debug_assert!(self.is_present(me));
+        &mut self.careers[me.get()]
+    }
+
+    /// Player `me` and the career of `me` together: a split borrow of the two lists.
+    #[inline]
+    pub(crate) fn both_mut(&mut self, me: PlayerIdx) -> (&mut PlayerState, &mut Career) {
+        debug_assert!(self.is_present(me));
+        (&mut self.items[me.get()], &mut self.careers[me.get()])
+    }
+
+    /// The careers of players 1 and up that are present, in slot order, like `others`.
+    pub(crate) fn other_careers(&self) -> impl Iterator<Item = &Career> + '_ {
+        self.careers
+            .iter()
+            .enumerate()
+            .skip(1)
+            .filter(|(i, _)| self.present >> i & 1 == 1)
+            .map(|(_, c)| c)
+    }
+
+    /// All three careers, absent slots included (tests).
+    #[cfg(test)]
+    pub(crate) fn careers_mut_for_test(&mut self) -> &mut [Career; MAX_PLAYERS as usize] {
+        &mut self.careers
     }
 }
 

@@ -369,14 +369,19 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 .map(|p| HealPickupView { id: p.id, at: p.at })
                 .collect()
         }),
-        progress: s.progress.as_ref().map(|p| ProgressView {
-            level: p.level,
-            xp: p.xp,
-            xp_next: xp_next(world, p.level),
-            spent: p.spent.clone(),
-            stat_offer: stat_offer_view(s),
-            offer: offer_view(content.rewards(), s),
-        }),
+        progress: s
+            .players
+            .career(PlayerIdx::SOLO)
+            .progress
+            .as_ref() // N=1: M-PER-PLAYER
+            .map(|p| ProgressView {
+                level: p.level,
+                xp: p.xp,
+                xp_next: xp_next(world, p.level),
+                spent: p.spent.clone(),
+                stat_offer: stat_offer_view(s),
+                offer: offer_view(content.rewards(), s),
+            }),
         expertise: s.expertise.as_ref().map(|g| {
             let (style, path) = expertise_styles_view(world, content.expertise(), g);
             ExpertiseView {

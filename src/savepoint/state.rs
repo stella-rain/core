@@ -319,6 +319,8 @@ macro_rules! state_codec_v2 {
         use crate::$sim::state::State;
 
         use super::*;
+        use crate::id::PlayerIdx;
+        // Format 1 holds one player: the progress below is slot 0's career.
 
         pub(super) fn encode(state: &State, ledger: &RunLedger, counted: &Counted) -> Vec<u8> {
             let mut w = Writer::new();
@@ -343,7 +345,14 @@ macro_rules! state_codec_v2 {
 
             check_shape(&state, &counted, fresh_state, fresh_counted)?;
             // The content-sized fields the bytes do not hold.
-            if let (Some(p), Some(f)) = (state.progress.as_mut(), fresh_state.progress.as_ref()) {
+            if let (Some(p), Some(f)) = (
+                state.players.career_mut(PlayerIdx::SOLO).progress.as_mut(),
+                fresh_state
+                    .players
+                    .career(PlayerIdx::SOLO)
+                    .progress
+                    .as_ref(),
+            ) {
                 p.stats = f.stats.clone();
             }
             if let (Some(h), Some(f)) = (state.horde.as_mut(), fresh_state.horde.as_ref()) {
@@ -386,8 +395,8 @@ macro_rules! state_codec_v2 {
                 return Err(differs("spawned length differs from the content"));
             }
             same_presence(
-                &s.progress,
-                &fresh.progress,
+                &s.players.career(PlayerIdx::SOLO).progress,
+                &fresh.players.career(PlayerIdx::SOLO).progress,
                 "progress presence differs from the content",
             )?;
             same_presence(
@@ -415,7 +424,10 @@ macro_rules! state_codec_v2 {
                 &fresh.stardust,
                 "stardust presence differs from the content",
             )?;
-            if let (Some(p), Some(f)) = (&s.progress, &fresh.progress) {
+            if let (Some(p), Some(f)) = (
+                &s.players.career(PlayerIdx::SOLO).progress,
+                &fresh.players.career(PlayerIdx::SOLO).progress,
+            ) {
                 if p.spent.len() != f.stats.len() {
                     return Err(differs("spent length differs from the content"));
                 }
@@ -638,6 +650,6 @@ mod frozen_text_tests {
         );
         let start = src.find(start_marker).expect("the macro");
         let end = src.find(end_marker).expect("version 1") + end_marker.len();
-        assert_eq!(fnv1a64(src[start..end].as_bytes()), V1_TEXT_HASH);
+        assert_eq!(fnv1a64(&src.as_bytes()[start..end]), V1_TEXT_HASH);
     }
 }

@@ -1,7 +1,7 @@
 //! The state holds its players as `players`, addressed by a `PlayerIdx` (ADR-SIM-12), and a system
 //! acts on the player it is given. At one player the bytes are the pins' (`players_pin_tests`).
 
-use super::state::{MAX_PLAYERS, PlayerIdx, Players, State};
+use super::state::{Career, MAX_PLAYERS, PlayerIdx, Players, State};
 use super::{Blame, Culprit, Shot, World, hurt_player, player};
 use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};
 use crate::engine::{Engine, Run};
@@ -172,7 +172,7 @@ fn ps(e: &Engine) -> super::state::PlayerState {
 fn a_solo_party_holds_slot_zero_in_a_mask() {
     let e = worst_case::warmed_up();
     let p = ps(&e);
-    let solo = Players::solo(p.clone());
+    let solo = Players::solo(p.clone(), Career::default());
     assert_eq!(solo.mask(), 0b001);
     assert_eq!(solo.len(), 1);
     let three = Players::of(vec![p.clone(), p.clone(), p.clone()]).unwrap();
@@ -273,10 +273,12 @@ fn a_saved_next_id_inside_the_player_slots_is_refused() {
 // The level progress is per slot: `Players.careers` (ADR-SIM-12).
 
 mod careers {
-    use super::super::state::{Career, Progress, StatRule};
+    use super::super::state::{Progress, StatRule};
     use super::*;
     use crate::id::ContentId;
     use crate::run_stats::StatEffect;
+
+    type Edit = fn(&mut Progress);
 
     fn progress() -> Progress {
         Progress {
@@ -359,7 +361,7 @@ mod careers {
             spent: _,
             totals: _,
         } = progress();
-        let edits: [(&str, fn(&mut Progress)); 8] = [
+        let edits: [(&str, Edit); 8] = [
             ("level", |p| p.level += 1),
             ("xp", |p| p.xp += 1),
             ("priority", |p| p.priority.push(1)),
@@ -393,9 +395,9 @@ mod careers {
 
     #[test]
     fn slots_1_and_2_are_in_the_hash_tail_in_slot_order() {
-        for mask in [0b011, 0b111] {
+        for (mask, top) in [(0b011u8, 2u8), (0b111, 3)] {
             let none = party(mask);
-            for slot in 1..mask.count_ones() as u8 {
+            for slot in 1..top {
                 let some = with_career(none.clone(), slot, Some(progress()));
                 assert_ne!(hash_of(&some), hash_of(&none), "{mask:b} slot {slot}");
                 let mut moved = progress();

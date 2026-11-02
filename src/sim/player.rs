@@ -116,7 +116,7 @@ pub(super) fn update(
         _ => None,
     };
     if pressed & input::EVADE != 0 && s.players[me].evade_ready() > 0 {
-        let cooldown = levels::evade_cooldown(s, stage.player.evade.cooldown_ticks);
+        let cooldown = levels::evade_cooldown(s, me, stage.player.evade.cooldown_ticks);
         start_evade(stage, &mut s.players[me], cooldown, events);
         cancel(stage, s, me, events);
         let strike = main.map_or(0, |m| m.dash_strike_ticks);
@@ -149,7 +149,7 @@ fn move_player(stage: &World, s: &mut State, me: PlayerIdx, x: i8, y: i8) {
         / 100
         * held_move_pct(stage, s)
         / 100;
-    let cap = levels::speed(s, i64::from(stage.tuning.player_speed) * keep / 100);
+    let cap = levels::speed(s, me, i64::from(stage.tuning.player_speed) * keep / 100);
     let (dx, dy) = stick_move(x, y, cap);
     move_by(stage, &mut s.players[me], dx, dy);
 }
@@ -609,14 +609,14 @@ fn strike(
     };
     let strike = attacks::Strike {
         bonus_pct,
-        speed_pct: levels::attack_speed(s),
+        speed_pct: levels::attack_speed(s, me),
         range_pct: s.players[me]
             .range_pct
             .saturating_add(s.expertise.as_ref().map_or(0, |g| g.range_pct)),
         smash,
     };
     let facing = s.players[me].facing;
-    let damage = levels::attack(s, stage.player.atk);
+    let damage = levels::attack(s, me, stage.player.atk);
     s.players[me].combo.running = attacks::start_player(
         stage,
         s,
