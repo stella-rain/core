@@ -82,8 +82,11 @@ pub fn take(e: &mut Engine, reward: &str) {
         .iter()
         .position(|o| *o == option)
         .expect("the take option");
-    e.choose(u32::try_from(index).expect("an option index"))
-        .expect("the choice");
+    e.choose(
+        crate::id::PlayerIdx::SOLO,
+        u32::try_from(index).expect("an option index"),
+    )
+    .expect("the choice");
 }
 
 /// Takes the random rune from the next seven offers: the Main holds every rune, in the order

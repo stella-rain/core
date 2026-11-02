@@ -85,7 +85,7 @@ fn px(v: &Value) -> (i64, i64) {
 fn a_warn_only_zone_warns_for_its_wind_up_and_hurts_nothing() {
     let st = stage(spawning(7500, vec![warn(30)]));
     let mut e = engine(&st);
-    let hp = e.snapshot().player.hp;
+    let hp = e.snapshot().players[0].hp;
     let mut events = Vec::new();
     for tick in 1..=120u32 {
         e.step(idle());
@@ -100,9 +100,9 @@ fn a_warn_only_zone_warns_for_its_wind_up_and_hurts_nothing() {
         } else {
             assert!(z.is_empty(), "tick {tick}");
         }
-        assert_eq!(e.snapshot().player.invulnerable, 0, "tick {tick}");
+        assert_eq!(e.snapshot().players[0].invulnerable, 0, "tick {tick}");
     }
-    assert_eq!(e.snapshot().player.hp, hp);
+    assert_eq!(e.snapshot().players[0].hp, hp);
     assert!(
         events
             .iter()
@@ -133,7 +133,7 @@ fn a_mixed_phase_hurts_only_through_the_normal_zone() {
         let hits = ticks_of(&run_until(&mut e, idle(), 60, |_| false), |ev| {
             matches!(ev, DomainEvent::PlayerHit { .. })
         });
-        (hits, e.snapshot().player.hp)
+        (hits, e.snapshot().players[0].hp)
     };
     let (hits, hp) = run(&both);
     assert_eq!(hits, vec![1]);
@@ -226,7 +226,7 @@ fn an_orb_spawns_at_the_target_moved_by_its_offset() {
     let (vx, vy) = (o["vx"].as_i64().unwrap(), o["vy"].as_i64().unwrap());
     assert_eq!(vx, 0);
     assert!(vy > 0);
-    let me = e.snapshot().player.at;
+    let me = e.snapshot().players[0].at;
     assert_eq!(
         px(&o["at"]),
         (
@@ -241,11 +241,11 @@ fn an_orb_spawns_at_the_target_moved_by_its_offset() {
 fn an_orb_samples_the_target_once_when_it_fires() {
     let st = firing_late(vec![orb(Some("target"), 16 * PX)]);
     let mut e = engine(&st);
-    let start = e.snapshot().player.at;
+    let start = e.snapshot().players[0].at;
     let left = moving(-127, 0);
     let t = first_orb_tick(&mut e, left);
     assert_eq!(t, 31);
-    let me = e.snapshot().player.at;
+    let me = e.snapshot().players[0].at;
     let o = orbs(&e)[0].clone();
     let (ox, _) = px(&o["at"]);
     assert!(
@@ -320,7 +320,7 @@ fn a_cage_forms_round_the_target_where_it_stood_when_the_node_fired() {
     let st = firing_late(vec![cage]);
     let mut e = engine(&st);
     let t0 = first_orb_tick(&mut e, idle());
-    let me = e.snapshot().player.at;
+    let me = e.snapshot().players[0].at;
     while e.tick() < t0 + 60 {
         e.step(idle());
     }

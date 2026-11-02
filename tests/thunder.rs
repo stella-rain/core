@@ -82,8 +82,7 @@ fn a_combo_step_hit_calls_thunder_down_on_the_point_hit_after_its_wind_up() {
     let step_hit = e.tick();
     assert_eq!(cooldown(&e), 60, "set as it fires");
     let snapshot = e.snapshot();
-    let strike = snapshot
-        .player
+    let strike = snapshot.players[0]
         .attacks
         .iter()
         .find(|a| a.slot == THUNDER_SLOT)
@@ -284,10 +283,7 @@ fn a_run_holding_thunder_records_and_verifies() {
         if recorder.step(input).is_err() {
             break;
         }
-        fired |= recorder
-            .engine()
-            .snapshot()
-            .player
+        fired |= recorder.engine().snapshot().players[0]
             .runes
             .iter()
             .any(|r| r.rune == Rune::Thunder && r.cooldown_left > 0);

@@ -8,6 +8,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::rewards::{MAX_HP_AMOUNT, Rarity, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
@@ -138,7 +139,7 @@ fn boss_stage_with(shooters: usize, boss_hp: u32, heal: Value) -> Stage {
 }
 
 fn hp(e: &Engine) -> u32 {
-    e.snapshot().player.hp
+    e.snapshot().players[0].hp
 }
 
 /// Steps `e` until `stop` holds, pressing the Main weapon every 6 ticks (`firing`); returns the
@@ -428,7 +429,8 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 #[test]

@@ -169,6 +169,7 @@ impl Run {
         );
         if let Some(setup) = b.setup {
             let loadout = sim::Loadout::of(setup, b.content);
+            // A run's setup loads the first player; the party grows with the per-player setup.
             sim::apply_loadout(
                 &world,
                 b.content.rewards(),
@@ -244,6 +245,14 @@ impl Run {
             Run::V2 { world, state } => {
                 sim::choose(version, world, rewards, expertise, state, option, events);
             }
+        }
+    }
+
+    /// How many players the run holds: the live rules' party, one in version 1.
+    pub(crate) fn party(&self) -> usize {
+        match self {
+            Run::V1 { .. } => 1,
+            Run::V2 { state, .. } => state.players.len(),
         }
     }
 

@@ -71,8 +71,8 @@ pub struct Places {
     pub stars: Vec<(EntityId, Point)>,
     /// The boss on the field: the id of the `Boss` entity, if any.
     pub boss: Option<EntityId>,
-    /// The player's position: `Snapshot::player.at`. The player always exists, alive or dead.
-    pub player: Point,
+    /// As `Snapshot::players`, the position of each; a player always exists, alive or dead.
+    pub players: Vec<Point>,
 }
 
 impl Engine {
@@ -86,7 +86,7 @@ impl Engine {
     }
 
     /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
-    /// these fields (and the player's position), without building a snapshot. Allocates only
+    /// these fields (and the players' positions), without building a snapshot. Allocates only
     /// while `out` grows to the largest crowd it has held. The run's rules module fills it
     /// (`sim::snapshot`), keeping the visibility, position and kind rules of `snapshot()`;
     /// `tests/places.rs` holds the two equal.
@@ -96,7 +96,7 @@ impl Engine {
 
     /// What the frontend draws after the last tick (ADR-005), built by the run's rules module
     /// (`sim::snapshot`). Its `places` repeats the rules for the ids, kinds and positions, and
-    /// the player's position: change them together.
+    /// the players' positions: change them together.
     pub fn snapshot(&self) -> Snapshot {
         self.run.snapshot(&self.content)
     }

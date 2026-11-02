@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::rewards::{MAX_ORBS, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
@@ -117,13 +118,13 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 /// The orbit's attacks, not the combo's: slot, tick in its phase and facing.
 fn attacks(e: &Engine) -> Vec<(u8, u32, Facing)> {
-    e.snapshot()
-        .player
+    e.snapshot().players[0]
         .attacks
         .iter()
         .filter(|a| a.slot >= FIRST_SLOT)
@@ -136,8 +137,7 @@ fn slots(e: &Engine) -> Vec<u8> {
 }
 
 fn orbits(e: &Engine) -> Vec<(String, u8, u32)> {
-    e.snapshot()
-        .player
+    e.snapshot().players[0]
         .orbits
         .iter()
         .map(

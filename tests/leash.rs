@@ -296,9 +296,9 @@ fn an_elite_the_boss_a_companion_and_an_enemy_in_a_wind_up_stay() {
     }
     let snap = e.snapshot();
     assert!(
-        snap.player.at.x.0 < (2000 - 100) * PX,
+        snap.players[0].at.x.0 < (2000 - 100) * PX,
         "the main character walked far from the winder: {:?}",
-        snap.player.at
+        snap.players[0].at
     );
     for (id, at) in before {
         assert_eq!(
@@ -378,8 +378,8 @@ fn far_enemies(e: &Engine) -> usize {
         .iter()
         .filter(|v| v.kind == EntityKind::Enemy)
         .filter(|v| {
-            let dx = i64::from(v.at.x.0) - i64::from(snap.player.at.x.0);
-            let dy = i64::from(v.at.y.0) - i64::from(snap.player.at.y.0);
+            let dx = i64::from(v.at.x.0) - i64::from(snap.players[0].at.x.0);
+            let dy = i64::from(v.at.y.0) - i64::from(snap.players[0].at.y.0);
             dx.abs() > i64::from(840 * PX) || dy.abs() > i64::from(360 * PX)
         })
         .count()

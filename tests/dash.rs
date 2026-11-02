@@ -132,7 +132,7 @@ fn the_hit_box_travels_with_the_attacker() {
     // The main character stands 326 pixels below; the dash goes 400 pixels, through it.
     let st = stage(vec![dasher(near_start(0, -326), phases(400, true))]);
     let mut e = engine(&st);
-    let radius = e.snapshot().player.radius.0;
+    let radius = e.snapshot().players[0].radius.0;
     let (px, py) = player_at(&e);
     assert_eq!((px, py), near_start(0, 0));
     let mut first_overlap = None;

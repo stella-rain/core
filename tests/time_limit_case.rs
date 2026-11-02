@@ -101,7 +101,7 @@ fn the_measured_tick_holds_the_horde_a_boss_and_the_main_characters_hits() {
     assert!(load.tasks >= 1, "enemies are attacking");
     assert!(load.zones >= 1, "zones are placed");
     let snapshot = engine.snapshot();
-    assert!(snapshot.player.hp > 0, "the main character is alive");
+    assert!(snapshot.players[0].hp > 0, "the main character is alive");
     let alive = |kind| snapshot.entities.iter().filter(|e| e.kind == kind).count();
     assert_eq!(alive(EntityKind::Enemy), usize::from(enemy_cap()));
     assert_eq!(alive(EntityKind::Boss), 1);

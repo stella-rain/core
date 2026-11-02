@@ -459,7 +459,7 @@ fn assisted() -> Input {
 
 fn target_x(e: &Engine) -> Option<i32> {
     let s = e.snapshot();
-    let id = s.player.target?;
+    let id = s.players[0].target?;
     s.entities
         .iter()
         .find(|v| v.id == id)

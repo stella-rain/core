@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 use stella_rain_core::base64;
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{hash_to_hex, pack_inputs};
@@ -72,7 +73,7 @@ fn commands_of(replay: &RunReplay) -> Vec<TickCommand> {
 fn apply(engine: &mut Engine, c: Command) {
     match c {
         Command::Step(input) => engine.step(input),
-        Command::Choose(index) => engine.choose(index).unwrap(),
+        Command::Choose(index) => engine.choose(PlayerIdx::SOLO, index).unwrap(),
     }
 }
 
@@ -140,7 +141,7 @@ fn a_choice_after_the_run_ended_is_refused() {
     let mut engine = Engine::start(&trial_setup()).unwrap();
     while engine.outcome() == Outcome::Running {
         if engine.offer_open() {
-            engine.choose(0).unwrap();
+            engine.choose(PlayerIdx::SOLO, 0).unwrap();
             commands.push(Command::Choose(0));
             continue;
         }
@@ -151,7 +152,7 @@ fn a_choice_after_the_run_ended_is_refused() {
     let replay = record_run(&trial_setup(), &commands).unwrap();
     assert_ne!(engine.outcome(), Outcome::Running);
     let hash = engine.state_hash();
-    assert_eq!(engine.choose(0), Err(ChoiceError::NoOffer));
+    assert_eq!(engine.choose(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
     assert_eq!(engine.state_hash(), hash);
     let mut late = commands_of(&replay);
     late.push(choose(replay.ticks, 0));

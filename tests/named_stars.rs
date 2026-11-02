@@ -131,7 +131,7 @@ fn taking_a_random_rune_bundle_gives_the_rune_and_the_haste() {
     let mut e = crate::reward_kinds::with(&near(40), list);
     next_offer(&mut e);
     crate::reward_kinds::take(&mut e, "dog");
-    let player = e.snapshot().player;
+    let player = e.snapshot().players[0].clone();
     assert_eq!(player.runes.len(), 1);
     assert_eq!(player.rune_haste_pct, 100);
 }

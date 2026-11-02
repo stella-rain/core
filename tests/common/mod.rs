@@ -304,7 +304,7 @@ pub fn running(waves: Vec<Value>) -> Engine {
 }
 
 pub fn player_at(e: &Engine) -> (i32, i32) {
-    let at = e.snapshot().player.at;
+    let at = e.snapshot().players[0].at;
     (at.x.0, at.y.0)
 }
 

@@ -690,7 +690,7 @@ fn the_aimed_presets_fan_out_round_the_aim() {
     e.step(idle());
     let zones = e.snapshot().zones;
     assert_eq!(zones.len(), 1);
-    let player = e.snapshot().player.at;
+    let player = e.snapshot().players[0].at;
     assert_eq!((zones[0].at.x, zones[0].at.y), (player.x, player.y));
     // Seven lines over 30 degrees: 15 degrees either side of straight down.
     let fan: Vec<_> = preset_zones("aimed_spread", vec![600], 1)

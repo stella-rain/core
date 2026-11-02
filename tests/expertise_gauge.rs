@@ -95,7 +95,7 @@ fn view(level: u32, points: u32, next: u32) -> ExpertiseView {
 /// then waits 20 ticks for its hit to land.
 fn press(e: &mut Engine, smash: bool) {
     for _ in 0..60 {
-        if e.snapshot().player.attacks.iter().all(|a| a.slot != 0) {
+        if e.snapshot().players[0].attacks.iter().all(|a| a.slot != 0) {
             break;
         }
         e.step(idle());

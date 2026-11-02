@@ -162,7 +162,7 @@ proptest! {
         for input in &inputs {
             e.step(*input);
             let s = e.snapshot();
-            let player = s.player.at;
+            let player = s.players[0].at;
             prop_assert!(within(s.map, player.x.0, player.y.0, 0), "player {:?} on tick {}", player, s.tick);
             for entity in &s.entities {
                 let at = entity.at;
@@ -181,7 +181,7 @@ proptest! {
 /// `hp` is a `u32`, so it cannot go below zero; what can go wrong is going up. The main
 /// character has entity ID 0.
 fn hp_by_id(s: &Snapshot) -> BTreeMap<u32, u32> {
-    let mut hp = BTreeMap::from([(0, s.player.hp)]);
+    let mut hp = BTreeMap::from([(0, s.players[0].hp)]);
     hp.extend(s.entities.iter().map(|e| (e.id.0, e.hp)));
     hp
 }

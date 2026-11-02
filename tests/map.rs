@@ -235,7 +235,7 @@ fn an_orb_lives_exactly_its_ticks() {
 }
 
 fn facing_of(e: &Engine) -> (i32, i32) {
-    let f = e.snapshot().player.facing;
+    let f = e.snapshot().players[0].facing;
     (f.x, f.y)
 }
 

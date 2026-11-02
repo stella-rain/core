@@ -6,6 +6,7 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
 
@@ -191,7 +192,7 @@ fn mode_kills(setup: &RunSetup, commands: &[Command]) -> Vec<(u32, u32)> {
         let before = e.stardust();
         match c {
             Command::Step(input) => e.step(*input),
-            Command::Choose(i) => e.choose(*i).unwrap(),
+            Command::Choose(i) => e.choose(PlayerIdx::SOLO, *i).unwrap(),
         }
         if e.stardust() > before {
             out.push((e.tick(), e.stardust() - before));
@@ -222,7 +223,7 @@ fn a_verified_run_reports_the_stardust_it_earned() {
     for c in &commands {
         match c {
             Command::Step(input) => e.step(*input),
-            Command::Choose(i) => e.choose(*i).unwrap(),
+            Command::Choose(i) => e.choose(PlayerIdx::SOLO, *i).unwrap(),
         }
     }
     assert!(e.stardust() > 0);

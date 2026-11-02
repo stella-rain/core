@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
@@ -128,7 +129,8 @@ pub fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 /// Takes the random rune from the next seven offers: the Main holds every rune, in the order
@@ -137,14 +139,18 @@ pub fn take_all(e: &mut Engine) {
     for _ in Rune::ALL {
         take(e, "random_rune");
     }
-    let mut held: Vec<Rune> = e.snapshot().player.runes.iter().map(|r| r.rune).collect();
+    let mut held: Vec<Rune> = e.snapshot().players[0]
+        .runes
+        .iter()
+        .map(|r| r.rune)
+        .collect();
     held.sort();
     assert_eq!(held, Rune::ALL, "every rune held");
 }
 
 /// The cooldown left of `rune`, held.
 pub fn cooldown_of(e: &Engine, rune: Rune) -> u32 {
-    let runes = e.snapshot().player.runes;
+    let runes = e.snapshot().players[0].runes.clone();
     runes
         .iter()
         .find(|r| r.rune == rune)

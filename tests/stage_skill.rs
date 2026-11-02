@@ -8,6 +8,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
@@ -136,7 +137,8 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 fn pressing_skill() -> Input {
@@ -209,7 +211,7 @@ fn the_slot_is_empty_at_the_start_and_a_press_does_nothing() {
         &starry(vec![]),
         content(vec![skill("aura", &[buff(50)])], &[("aura_r", "aura", 1)]),
     );
-    assert_eq!(e.snapshot().player.skill, None);
+    assert_eq!(e.snapshot().players[0].skill, None);
     e.step(pressing_skill());
     assert_eq!(used(e.events()), None);
 }
@@ -222,7 +224,10 @@ fn a_skill_taken_arrives_ready_at_the_level_its_reward_gives() {
         content(skills, &[("aura_r", "aura", 2)]),
     );
     take(&mut e, "aura_r");
-    let view = e.snapshot().player.skill.expect("a skill in the slot");
+    let view = e.snapshot().players[0]
+        .skill
+        .clone()
+        .expect("a skill in the slot");
     assert_eq!(view.skill, ContentId::from("aura"));
     assert_eq!(view.icon, ContentId::from(ICON));
     assert_eq!((view.level, view.ready, view.cooldown_left), (2, true, 0));
@@ -241,7 +246,7 @@ fn a_press_uses_it_and_its_level_s_cooldown_counts_from_the_use() {
     assert_eq!(used(e.events()), Some(("aura".into(), 2)));
     e.step(idle());
     // Level 2's cooldown is 110 ticks; one tick has passed since the use.
-    let view = e.snapshot().player.skill.unwrap();
+    let view = e.snapshot().players[0].skill.clone().unwrap();
     assert_eq!((view.ready, view.cooldown_left), (false, COOLDOWN - 10 - 1));
     // Pressed on every other tick from then on: used again 110 ticks after the first use.
     let mut again = None;
@@ -265,7 +270,7 @@ fn the_same_skill_again_raises_its_level_up_to_its_highest() {
     let mut levels = Vec::new();
     for _ in 0..3 {
         take(&mut e, "aura_r");
-        levels.push(e.snapshot().player.skill.unwrap().level);
+        levels.push(e.snapshot().players[0].skill.clone().unwrap().level);
     }
     assert_eq!(levels, [1, 2, 2]);
 }
@@ -280,7 +285,7 @@ fn the_same_skill_taken_while_it_cools_down_keeps_cooling_down() {
     take(&mut e, "aura_r");
     use_skill(&mut e);
     take(&mut e, "aura_r");
-    let view = e.snapshot().player.skill.unwrap();
+    let view = e.snapshot().players[0].skill.clone().unwrap();
     assert_eq!(view.level, 2);
     assert!(!view.ready && view.cooldown_left > 0);
 }
@@ -298,7 +303,7 @@ fn another_skill_replaces_the_one_held_and_arrives_ready() {
     take(&mut e, "aura_r");
     use_skill(&mut e);
     take(&mut e, "ward_r");
-    let view = e.snapshot().player.skill.unwrap();
+    let view = e.snapshot().players[0].skill.clone().unwrap();
     assert_eq!(view.skill, ContentId::from("ward"));
     assert_eq!(view.icon, ContentId::from(ICON));
     assert_eq!((view.level, view.ready, view.cooldown_left), (1, true, 0));
@@ -368,7 +373,7 @@ fn a_pull_draws_the_enemies_near_its_point_to_it_and_holds_them_there() {
     let far = enemies_at(&e)[1];
     e.step(pressing_skill());
     assert_eq!(enemies_at(&e)[0].1, START_X + 2_560 - 256, "the first pull");
-    let view = e.snapshot().player.pull.expect("a pull");
+    let view = e.snapshot().players[0].pull.expect("a pull");
     assert_eq!((view.at.x.0, view.at.y.0), (START_X, point_y));
     assert_eq!((view.radius.0, view.ticks_left), (16_384, DURATION));
     for _ in 0..20 {
@@ -380,9 +385,9 @@ fn a_pull_draws_the_enemies_near_its_point_to_it_and_holds_them_there() {
     for _ in 21..DURATION {
         e.step(idle());
     }
-    assert!(e.snapshot().player.pull.is_some(), "its last tick");
+    assert!(e.snapshot().players[0].pull.is_some(), "its last tick");
     e.step(idle());
-    assert_eq!(e.snapshot().player.pull, None, "over after its time");
+    assert_eq!(e.snapshot().players[0].pull, None, "over after its time");
 }
 
 #[test]
@@ -409,10 +414,10 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
         ),
     );
     take(&mut e, "ward_r");
-    let hp = e.snapshot().player.hp;
+    let hp = e.snapshot().players[0].hp;
     use_skill(&mut e);
     assert_eq!(
-        e.snapshot().player.shield.map(|s| s.amount),
+        e.snapshot().players[0].shield.map(|s| s.amount),
         Some(100),
         "the shield is up"
     );
@@ -428,7 +433,7 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
     // The first shot's 100 damage (the default, 1 before the scale of ADR-103) is absorbed; the shield is gone, and the next one hurts.
     assert_eq!(hits.first(), Some(&hp));
     assert!(hits.iter().any(|&h| h < hp), "{hits:?}");
-    assert_eq!(e.snapshot().player.shield, None);
+    assert_eq!(e.snapshot().players[0].shield, None);
 }
 
 #[test]
@@ -457,7 +462,11 @@ fn an_attack_runs_in_its_own_slot_beside_a_combo_step() {
             .any(|ev| matches!(ev, DomainEvent::ComboStep { .. })),
         "the combo step on the same tick"
     );
-    let slots: Vec<u8> = e.snapshot().player.attacks.iter().map(|a| a.slot).collect();
+    let slots: Vec<u8> = e.snapshot().players[0]
+        .attacks
+        .iter()
+        .map(|a| a.slot)
+        .collect();
     assert!(slots.contains(&1), "the stage skill's slot: {slots:?}");
     let hit = e
         .events()
@@ -490,7 +499,7 @@ fn with_assist_on_the_point_is_ahead_toward_the_target() {
         assist: true,
         ..pressing_skill()
     });
-    let view = e.snapshot().player.pull.expect("a pull");
+    let view = e.snapshot().players[0].pull.expect("a pull");
     assert_eq!((view.at.x.0, view.at.y.0), (START_X + AHEAD, START_Y));
 }
 
@@ -570,7 +579,7 @@ fn a_pull_and_an_area_status_act_at_the_one_point() {
     );
     assert_eq!(enemies_at(&e)[0].1, near.1 - 256, "and pulled");
     assert_eq!(enemies_at(&e)[1], far);
-    let view = e.snapshot().player.pull.expect("a pull");
+    let view = e.snapshot().players[0].pull.expect("a pull");
     assert_eq!((view.at.x.0, view.at.y.0), (START_X, START_Y - AHEAD));
 }
 
@@ -586,7 +595,11 @@ fn each_level_brings_its_own_effects() {
     );
     take(&mut e, "aura_r");
     use_skill(&mut e);
-    assert_eq!(e.snapshot().player.shield, None, "level 1 has no shield");
+    assert_eq!(
+        e.snapshot().players[0].shield,
+        None,
+        "level 1 has no shield"
+    );
     take(&mut e, "aura_r");
     for _ in 0..COOLDOWN {
         e.step(idle());
@@ -594,7 +607,7 @@ fn each_level_brings_its_own_effects() {
     let events = use_skill(&mut e);
     assert_eq!(used(&events), Some(("aura".into(), 2)));
     assert_eq!(applied(&events), [(EntityId(0), "atk_up".to_string())]);
-    assert_eq!(e.snapshot().player.shield.map(|s| s.amount), Some(4));
+    assert_eq!(e.snapshot().players[0].shield.map(|s| s.amount), Some(4));
 }
 
 #[test]
@@ -619,11 +632,11 @@ fn a_new_pull_shield_or_attack_replaces_the_one_still_going() {
     for _ in 0..10 {
         e.step(idle());
     }
-    let p = e.snapshot().player;
+    let p = e.snapshot().players[0].clone();
     assert_eq!(p.pull.unwrap().ticks_left, DURATION - 11);
     assert_eq!(p.shield.unwrap().ticks_left, DURATION - 11);
     e.step(pressing_skill());
-    let p = e.snapshot().player;
+    let p = e.snapshot().players[0].clone();
     assert_eq!(p.pull.unwrap().ticks_left, DURATION, "a new pull");
     assert_eq!(p.shield.unwrap().ticks_left, DURATION, "a new shield");
     let skill_runs: Vec<u32> = p

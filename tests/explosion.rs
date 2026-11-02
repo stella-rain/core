@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::{Fx, Point};
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
 use stella_rain_core::rune::Rune;
@@ -73,8 +74,7 @@ fn a_combo_step_hit_fires_an_explosion_around_the_point_hit() {
     )));
     assert_eq!(cooldown(&e), 30, "set as it fires");
     let snapshot = e.snapshot();
-    let blast = snapshot
-        .player
+    let blast = snapshot.players[0]
         .attacks
         .iter()
         .find(|a| a.slot == RUNE_SLOT)
@@ -182,13 +182,13 @@ fn without_the_rune_a_step_fires_nothing() {
         .iter()
         .position(|o| *o == OfferOption::Skip)
         .unwrap();
-    e.choose(u32::try_from(skip).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(skip).unwrap())
+        .unwrap();
     let target = wait_for_target(&mut e);
     let seen = hits(&mut e, target, 100, |t| firing(idle(), t));
     assert!(of(&seen, BLAST).is_empty());
     assert!(
-        e.snapshot()
-            .player
+        e.snapshot().players[0]
             .attacks
             .iter()
             .all(|a| a.slot != RUNE_SLOT)
@@ -392,10 +392,7 @@ fn a_run_holding_explosion_records_and_verifies() {
         if recorder.step(input).is_err() {
             break;
         }
-        fired |= recorder
-            .engine()
-            .snapshot()
-            .player
+        fired |= recorder.engine().snapshot().players[0]
             .runes
             .iter()
             .any(|r| r.cooldown_left > 0);

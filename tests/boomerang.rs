@@ -67,8 +67,7 @@ fn cooldown(e: &Engine) -> u32 {
 /// Where the boomerang's hit box is centred, while it flies.
 fn centre(e: &Engine) -> Option<Point> {
     let snapshot = e.snapshot();
-    let attack = snapshot
-        .player
+    let attack = snapshot.players[0]
         .attacks
         .iter()
         .find(|a| a.slot == BOOMERANG_SLOT)?;
@@ -188,7 +187,7 @@ fn it_comes_back_to_where_the_main_character_has_moved() {
     for _ in 0..LEG {
         e.step(right);
     }
-    let at = e.snapshot().player.at;
+    let at = e.snapshot().players[0].at;
     assert!(at.x.0 > START_X, "it moved");
     assert_eq!(centre(&e), Some(at), "back on the main character");
 }
@@ -414,10 +413,7 @@ fn a_run_holding_boomerang_records_and_verifies() {
         if recorder.step(input).is_err() {
             break;
         }
-        fired |= recorder
-            .engine()
-            .snapshot()
-            .player
+        fired |= recorder.engine().snapshot().players[0]
             .runes
             .iter()
             .any(|r| r.rune == Rune::Boomerang && r.cooldown_left > 0);

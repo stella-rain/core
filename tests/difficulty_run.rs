@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use stella_rain_core::difficulties::scale_pct;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rarity;
 use stella_rain_core::run_content::RunContent;
@@ -142,8 +143,8 @@ fn damage_taken(difficulty: &str, ticks: u32) -> u32 {
         }]);
     });
     let mut e = start(difficulty, &m);
-    let full = e.snapshot().player.hp;
-    full - step_to(&mut e, ticks).player.hp
+    let full = e.snapshot().players[0].hp;
+    full - step_to(&mut e, ticks).players[0].hp
 }
 
 #[test]
@@ -265,7 +266,7 @@ fn star_rarities(difficulty: &str, ticks: u32) -> Vec<Rarity> {
             break;
         }
         while e.offer_open() {
-            e.choose(0).unwrap();
+            e.choose(PlayerIdx::SOLO, 0).unwrap();
         }
         let input = crate::common::run::run_input(&e, t);
         e.step(input);

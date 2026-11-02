@@ -23,7 +23,7 @@ fn view(id: &str, remaining: u32, total: u32) -> StatusView {
 
 /// The main character's statuses in the snapshot.
 fn player_statuses(e: &Engine) -> Vec<StatusView> {
-    e.snapshot().player.statuses
+    e.snapshot().players[0].statuses.clone()
 }
 
 /// A rule of an enemy that applies `skill` to the main character on the first tick, once.

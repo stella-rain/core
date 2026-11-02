@@ -114,7 +114,7 @@ fn play(e: &mut Engine, inputs: &[Input]) -> Played {
             .zones
             .iter()
             .filter(|z| z.friendly)
-            .map(|z| snapshot.player.at.y.0 - z.at.y.0)
+            .map(|z| snapshot.players[0].at.y.0 - z.at.y.0)
             .collect();
         played
             .shots
@@ -168,12 +168,12 @@ fn with_nothing_buffered_the_recovery_plays_and_a_press_during_it_is_taken_at_on
     let mut e = engine(&combo_stage(WINDOW));
     play(&mut e, &presses(&[(1, "a")], 10));
     assert_eq!(
-        e.snapshot().player.attacks.len(),
+        e.snapshot().players[0].attacks.len(),
         1,
         "A recovers to tick 10"
     );
     e.step(idle());
-    assert!(e.snapshot().player.attacks.is_empty());
+    assert!(e.snapshot().players[0].attacks.is_empty());
 
     let p = played(&combo_stage(WINDOW), &presses(&[(1, "a"), (8, "a")], 20));
     assert_eq!(p.steps(), [(1, Press::Main, 1), (8, Press::Main, 2)]);
@@ -239,13 +239,13 @@ fn the_window_keeps_the_place_for_its_ticks_after_the_step() {
     // The snapshot counts the window down: the ticks left after this one.
     let mut e = engine(&combo_stage(WINDOW));
     play(&mut e, &presses(&[(1, "a")], 11));
-    assert_eq!(e.snapshot().player.combo.window_left, WINDOW - 1);
+    assert_eq!(e.snapshot().players[0].combo.window_left, WINDOW - 1);
     play(&mut e, &presses(&[], 9));
-    assert_eq!(e.snapshot().player.combo.window_left, 0);
-    assert_eq!(e.snapshot().player.combo.presses, [Press::Main]);
+    assert_eq!(e.snapshot().players[0].combo.window_left, 0);
+    assert_eq!(e.snapshot().players[0].combo.presses, [Press::Main]);
     let p = play(&mut e, &presses(&[], 1));
     assert_eq!(p.resets(), [21]);
-    assert!(e.snapshot().player.combo.presses.is_empty());
+    assert!(e.snapshot().players[0].combo.presses.is_empty());
 }
 
 #[test]
@@ -261,7 +261,7 @@ fn with_a_window_of_0_the_next_press_after_the_step_starts_from_the_root() {
 fn the_snapshot_shows_the_combo_and_the_buffered_press() {
     let mut e = engine(&combo_stage(WINDOW));
     play(&mut e, &presses(&[(1, "a"), (3, "b")], 3));
-    let combo = e.snapshot().player.combo;
+    let combo = e.snapshot().players[0].combo.clone();
     assert_eq!(
         (combo.presses, combo.dash, combo.buffered),
         (vec![Press::Main], false, Some(Press::Smash))
@@ -294,7 +294,11 @@ fn a_press_during_the_dash_or_its_dash_strike_ticks_takes_the_dash_branch() {
         let mut e = engine(&combo_stage(WINDOW));
         let p = play(&mut e, &presses(keys, at + 2));
         assert_eq!(p.shots, [(at + 2, speed)], "a press on tick {at}");
-        assert_eq!(e.snapshot().player.combo.dash, dash, "a press on tick {at}");
+        assert_eq!(
+            e.snapshot().players[0].combo.dash,
+            dash,
+            "a press on tick {at}"
+        );
     }
     // A press with no dash step starts from the root.
     let p = played(&combo_stage(WINDOW), &presses(&[(1, "x"), (3, "b")], 10));
@@ -473,7 +477,7 @@ fn a_preset_is_the_one_weapon_both_buttons_play() {
     let first = |weapon: &str| {
         let mut e = engine(&armed(far(), preset(weapon)));
         e.step(pressing_main());
-        e.snapshot().player.attacks[0]
+        e.snapshot().players[0].attacks[0]
             .preset
             .clone()
             .map(|p| p.to_string())

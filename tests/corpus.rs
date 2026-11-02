@@ -18,6 +18,7 @@
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
 
 use crate::common;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::version::Versions;
 
 use std::fs;
@@ -138,7 +139,9 @@ fn write_hashes(dir: &Path, hashes: &[u64]) {
 /// Applies one command between ticks, as a replay's verification does.
 pub(crate) fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> {
     match c.kind {
-        CommandKind::Choose => engine.choose(c.index).map_err(|e| format!("{e:?}")),
+        CommandKind::Choose => engine
+            .choose(PlayerIdx::SOLO, c.index)
+            .map_err(|e| format!("{e:?}")),
     }
 }
 
@@ -1582,7 +1585,7 @@ impl EliteScript {
         if s.entities.iter().any(|e| e.kind == EntityKind::Boss) {
             return crate::zone_bot::run_input_for(engine, tick, &[EntityKind::Boss], u32::MAX);
         }
-        let me = s.player.at;
+        let me = s.players[0].at;
         let enemies = || {
             s.entities
                 .iter()
@@ -1743,7 +1746,7 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
                     None => s.progress.unwrap().offer.unwrap().options,
                 };
                 kinds.push(std::mem::discriminant(&options[c.index as usize]));
-                engine.choose(c.index).unwrap();
+                engine.choose(PlayerIdx::SOLO, c.index).unwrap();
             }
         }
         engine.step(input);
@@ -1914,7 +1917,7 @@ fn elite_reach(name: &str) -> EliteReach {
     let commands = replay.unpack_commands().unwrap();
     let mut next = commands.iter().peekable();
     let mut r = EliteReach::default();
-    let mut hp = engine.snapshot().player.hp;
+    let mut hp = engine.snapshot().players[0].hp;
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             apply(&mut engine, c).unwrap();
@@ -1976,7 +1979,7 @@ fn elite_reach(name: &str) -> EliteReach {
                 _ => {}
             }
         }
-        hp = s.player.hp;
+        hp = s.players[0].hp;
     }
     r
 }
@@ -2070,7 +2073,7 @@ fn what_happens(name: &str) -> (Outcome, u32, usize) {
         engine.step(input);
         peak = peak.max(engine.snapshot().orbs.len());
     }
-    (engine.outcome(), engine.snapshot().player.hp, peak)
+    (engine.outcome(), engine.snapshot().players[0].hp, peak)
 }
 
 /// The most zones a recorded case has alive at once, and whether it empties them at the end of
@@ -2252,7 +2255,7 @@ fn evade_reach() -> EvadeReach {
     };
     let (mut was_held, mut spent_all) = (false, false);
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
-        let before = engine.snapshot().player.evade;
+        let before = engine.snapshot().players[0].evade.clone();
         engine.step(input);
         let evaded = engine.events().contains(&DomainEvent::Evaded);
         let pressed = input.evade && !was_held;
@@ -2260,7 +2263,7 @@ fn evade_reach() -> EvadeReach {
         e.evades += usize::from(evaded);
         e.chained += usize::from(evaded && before.dash_left > 0);
         e.refused += usize::from(pressed && !evaded && before.ready == 0);
-        let after = engine.snapshot().player.evade;
+        let after = engine.snapshot().players[0].evade.clone();
         spent_all |= after.ready == 0;
         e.all_back_after_spending |= spent_all && after.ready == after.charges;
     }
@@ -2296,8 +2299,7 @@ fn assist_reach() -> AssistReach {
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
         engine.step(input);
         let s = engine.snapshot();
-        let target = s
-            .player
+        let target = s.players[0]
             .target
             .and_then(|id| s.entities.iter().find(|e| e.id == id));
         if let Some(t) = target {
@@ -2331,7 +2333,7 @@ fn landscape_reach() -> (bool, i32) {
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
         engine.step(input);
         let s = engine.snapshot();
-        corner |= (s.player.at.x.0, s.player.at.y.0) == (s.map.width.0, 0);
+        corner |= (s.players[0].at.x.0, s.players[0].at.y.0) == (s.map.width.0, 0);
         let xs = s.zones.iter().map(|z| z.at.x.0);
         farthest = xs
             .chain(s.entities.iter().map(|e| e.at.x.0))
@@ -2523,8 +2525,8 @@ fn the_leash_edge_case_is_what_its_name_says() {
                 relocated_entities.push((*entity, tick));
 
                 let snapshot = engine.snapshot();
-                let px = i64::from(snapshot.player.at.x.0);
-                let py = i64::from(snapshot.player.at.y.0);
+                let px = i64::from(snapshot.players[0].at.x.0);
+                let py = i64::from(snapshot.players[0].at.y.0);
 
                 // View centre held 420 / 180 inside map
                 let cx = px.clamp(VIEW_HALF_X, map_w - VIEW_HALF_X);

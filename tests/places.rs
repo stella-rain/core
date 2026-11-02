@@ -55,9 +55,16 @@ pub(crate) fn assert_places_match(engine: &Engine, places: &mut Places) -> Vec<E
         .find(|e| e.kind == EntityKind::Boss)
         .map(|e| e.id);
     assert_eq!(places.boss, boss, "boss at tick {}", engine.tick());
+    let positions: Vec<_> = snapshot.players.iter().map(|p| p.at).collect();
     assert_eq!(
-        places.player,
-        snapshot.player.at,
+        places.players,
+        positions,
+        "players at tick {}",
+        engine.tick()
+    );
+    assert_eq!(
+        places.players[0],
+        snapshot.players[0].at,
         "player at tick {}",
         engine.tick()
     );
@@ -70,8 +77,8 @@ fn note(seen: &mut Seen, engine: &Engine, places: &mut Places) {
     }
     seen.ticks += 1;
     seen.player_positions
-        .insert((places.player.x.0, places.player.y.0));
-    seen.ticks_player_dead += u64::from(engine.snapshot().player.hp == 0);
+        .insert((places.players[0].x.0, places.players[0].y.0));
+    seen.ticks_player_dead += u64::from(engine.snapshot().players[0].hp == 0);
     seen.ticks_with_stars += u64::from(!places.stars.is_empty());
     if places.boss.is_some() {
         seen.boss_was_present = true;
@@ -191,12 +198,12 @@ fn a_dirty_buffer_is_cleared() {
 
     let fresh = common::engine(&stage);
     assert_ne!(
-        places.player,
-        fresh.snapshot().player.at,
+        places.players[0],
+        fresh.snapshot().players[0].at,
         "the crowded player should be off the start"
     );
     fresh.places(&mut places);
-    assert_eq!(places.player, fresh.snapshot().player.at);
+    assert_eq!(places.players[0], fresh.snapshot().players[0].at);
     let mut clean = Places::default();
     fresh.places(&mut clean);
     assert_eq!(places, clean);

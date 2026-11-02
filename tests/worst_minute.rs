@@ -92,7 +92,7 @@ fn a_boss_arrives_inside_the_minute_and_the_player_survives_it() {
         Outcome::Running,
         "the player did not survive"
     );
-    assert!(run.engine.snapshot().player.hp > 0);
+    assert!(run.engine.snapshot().players[0].hp > 0);
 }
 
 #[test]

@@ -131,7 +131,7 @@ fn enemy_mid_attack(s: &Snapshot) -> bool {
 
 /// A snapshot with the player in a combo, a charge, a hold or a skill.
 fn player_mid_attack(s: &Snapshot) -> bool {
-    let p = &s.player;
+    let p = &s.players[0];
     !p.combo.presses.is_empty() || p.charge.is_some() || p.hold.is_some() || p.skill.is_some()
 }
 

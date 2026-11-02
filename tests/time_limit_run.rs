@@ -86,7 +86,10 @@ fn a_time_limit_setup_starts_on_the_open_field() {
     let mut e = Engine::start(&setup(1)).unwrap();
     let s = e.snapshot();
     assert_eq!((s.map.width.0, s.map.height.0), (1_048_576, 1_048_576));
-    assert_eq!((s.player.at.x.0, s.player.at.y.0), (524_288, 524_288));
+    assert_eq!(
+        (s.players[0].at.x.0, s.players[0].at.y.0),
+        (524_288, 524_288)
+    );
     for _ in 0..120 {
         e.step(Input::default());
     }
@@ -126,7 +129,7 @@ fn enemies_spawn_on_the_schedule_around_the_main_character() {
         [(29, 0), (30, 1), (49, 1), (50, 2), (110, 5), (300, 5)]
     );
     let s = e.snapshot();
-    let me = s.player.at;
+    let me = s.players[0].at;
     for v in s.entities.iter().filter(|v| v.kind == EntityKind::Enemy) {
         // On the spawn rectangle (VS1): 484 by 244 px around the camera's centre, the main
         // character held inside the map (`camera_follow.gd`, `_axis`).

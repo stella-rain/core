@@ -8,6 +8,7 @@
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::version::Versions;
 
 use stella_rain_core::engine::Engine;
@@ -394,7 +395,7 @@ fn peak_heap_of_the_worst_minute_is_under_16_mib() {
     for (i, input) in inputs.into_iter().enumerate() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             match c.kind {
-                CommandKind::Choose => engine.choose(c.index).unwrap(),
+                CommandKind::Choose => engine.choose(PlayerIdx::SOLO, c.index).unwrap(),
             }
         }
         engine.step(input);
@@ -497,7 +498,7 @@ fn places_allocates_nothing_in_a_steady_tick() {
         "allocations and frees in {STEADY_TICKS} steady ticks of step plus places, (tick, allocs, frees): {at:?}"
     );
     assert!(!places.entities.is_empty());
-    assert_eq!(places.player, engine.snapshot().player.at);
+    assert_eq!(places.players[0], engine.snapshot().players[0].at);
 }
 
 /// At the cap of 260 enemies the first `places` may grow the buffer; the second may not.
@@ -704,7 +705,8 @@ fn skill_rows() -> Vec<Row> {
     let option = OfferOption::Take { candidate: 0 };
     let offer = e.snapshot().progress.unwrap().offer.unwrap();
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
     measure(
         &mut e,
         30,

@@ -2,6 +2,7 @@
 use crate::common;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
@@ -109,7 +110,7 @@ pub fn run_input(engine: &Engine, tick: u32) -> Input {
 pub fn run_input_for(engine: &Engine, tick: u32, kinds: &[EntityKind], brave_from: u32) -> Input {
     let mut input = run_script(tick);
     let s = engine.snapshot();
-    let me = s.player.at;
+    let me = s.players[0].at;
     let d2 = |at: Point| {
         let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
         x * x + y * y
@@ -157,7 +158,7 @@ pub fn run_input_for(engine: &Engine, tick: u32, kinds: &[EntityKind], brave_fro
 /// at the last moment, that `run_input_for` makes (`LATE` while it goes for an elite, `at_elite`).
 pub fn avoid_orbs(engine: &Engine, mut input: Input, at_elite: bool) -> Input {
     let s = engine.snapshot();
-    let me = s.player.at;
+    let me = s.players[0].at;
     let d2 = |at: Point| {
         let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
         x * x + y * y
@@ -215,7 +216,7 @@ fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
             continue;
         };
         let pick = u32::try_from(pick).unwrap();
-        engine.choose(pick).unwrap();
+        engine.choose(PlayerIdx::SOLO, pick).unwrap();
         out.push(Command::Choose(pick));
     }
 }
@@ -225,7 +226,7 @@ fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
 pub fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command>) {
     while engine.offer_open() {
         if engine.snapshot().expertise.and_then(|g| g.offer).is_some() {
-            engine.choose(0).unwrap();
+            engine.choose(PlayerIdx::SOLO, 0).unwrap();
             out.push(Command::Choose(0));
         } else {
             answer(engine, *offers, out);

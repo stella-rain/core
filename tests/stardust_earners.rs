@@ -7,6 +7,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::run_replay::{Command, record_run, verify_run};
 use stella_rain_core::run_setup;
 use stella_rain_core::stage::Stage;
@@ -395,7 +396,7 @@ fn a_full_time_limit_run_verifies_and_pays_the_new_earners() {
     for c in &commands {
         match c {
             Command::Step(input) => e.step(*input),
-            Command::Choose(i) => e.choose(*i).unwrap(),
+            Command::Choose(i) => e.choose(PlayerIdx::SOLO, *i).unwrap(),
         }
     }
     let replay = record_run(&setup, &commands).unwrap();

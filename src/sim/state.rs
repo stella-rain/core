@@ -314,56 +314,7 @@ pub(crate) struct Progress {
     pub totals: [u32; StatEffect::ALL.len()],
 }
 
-/// The most players a run holds (ADR-SIM-12 point 1). A code cap, not a tuning number.
-pub(crate) const MAX_PLAYERS: u8 = 3;
-
-/// Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the
-/// companions come after the players. An enum of the `MAX_PLAYERS` places, so that an index into
-/// the players' array needs no bounds check (a tick indexes it thousands of times, ADR-SIM-8).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PlayerIdx {
-    First,
-    Second,
-    Third,
-}
-
-impl PlayerIdx {
-    /// The only player of a run of one.
-    pub(crate) const SOLO: PlayerIdx = PlayerIdx::First;
-
-    /// Player `i`, if a run can hold that many.
-    #[cfg(test)]
-    pub(crate) fn new(i: u8) -> Option<PlayerIdx> {
-        match i {
-            0 => Some(PlayerIdx::First),
-            1 => Some(PlayerIdx::Second),
-            2 => Some(PlayerIdx::Third),
-            _ => None,
-        }
-    }
-
-    #[inline]
-    pub(crate) fn get(self) -> usize {
-        self as usize
-    }
-
-    /// The entity ID of this player.
-    #[inline]
-    pub(crate) fn id(self) -> EntityId {
-        EntityId(self as u32)
-    }
-
-    /// The player that entity `id` is, in a party of `party` players.
-    #[inline]
-    pub(crate) fn of_id(id: EntityId, party: usize) -> Option<PlayerIdx> {
-        match id.0 {
-            0 if party > 0 => Some(PlayerIdx::First),
-            1 if party > 1 => Some(PlayerIdx::Second),
-            2 if party > 2 => Some(PlayerIdx::Third),
-            _ => None,
-        }
-    }
-}
+pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};
 
 /// The players of a run: `1..=MAX_PLAYERS` of them. All places are held, the ones past `len`
 /// as copies of the first that nothing reads, so that an index is a plain offset and a steady
@@ -407,9 +358,13 @@ impl Players {
         usize::from(self.len)
     }
 
-    #[cfg(test)]
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, PlayerState> {
         self.items[..self.len()].iter()
+    }
+
+    /// The players of the party, in `PlayerIdx` order.
+    pub(crate) fn as_slice(&self) -> &[PlayerState] {
+        &self.items[..self.len()]
     }
 
     /// Players 1 and up.

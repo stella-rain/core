@@ -118,7 +118,7 @@ fn resets(events: &[(u32, DomainEvent)]) -> Vec<u32> {
 }
 
 fn auto_combo(e: &Engine) -> Vec<Press> {
-    e.snapshot().player.combo.auto
+    e.snapshot().players[0].combo.auto.clone()
 }
 
 const M: Press = Press::Main;
@@ -162,7 +162,7 @@ fn with_auto_off_nothing_is_pressed() {
 fn auto_mode_plays_a_charged_step_as_its_plain_step() {
     let mut e = engine(&stage_with_bat(charging_a(), 0, -RANGE / 2));
     let events = play(&mut e, &auto(&[], 1));
-    assert_eq!(e.snapshot().player.charge, None);
+    assert_eq!(e.snapshot().players[0].charge, None);
     let events = [events, play(&mut e, &auto(&[], 9))].concat();
     assert_eq!(steps(&events), [(1, M, 1), (5, M, 2), (9, M, 3)]);
 }
@@ -200,7 +200,7 @@ fn an_evade_ends_a_hand_combo_into_the_auto_combo_and_auto_mode_never_dash_strik
     let events = play(&mut e, &auto(&[(1, "a"), (3, "x")], 13));
     assert_eq!(steps(&events), [(1, M, 1), (3, M, 1), (13, M, 1)]);
     assert_eq!(resets(&events), [3, 13]);
-    assert!(!e.snapshot().player.combo.dash);
+    assert!(!e.snapshot().players[0].combo.dash);
     assert_eq!(auto_combo(&e), [M]);
 }
 
@@ -223,12 +223,12 @@ fn auto_mode_faces_the_target_with_assist_off_and_the_hand_does_not() {
     let to_the_right = stage_with_bat(a_step(), RANGE / 2, 0);
     let mut e = engine(&to_the_right);
     play(&mut e, &auto(&[], 1));
-    let f = e.snapshot().player.facing;
+    let f = e.snapshot().players[0].facing;
     assert_eq!((f.x, f.y), (SCALE, 0));
 
     let mut e = engine(&to_the_right);
     play(&mut e, &auto(&[(1, "b")], 1));
-    let f = e.snapshot().player.facing;
+    let f = e.snapshot().players[0].facing;
     assert_eq!((f.x, f.y), (0, -SCALE));
 }
 
@@ -259,7 +259,7 @@ fn charged_stage() -> Stage {
 /// The auto field of the snapshot, read from its JSON so that these tests state the contract
 /// (absent when auto mode is not charging) and not the Rust type.
 fn auto_charge(e: &Engine) -> Option<u64> {
-    let player = serde_json::to_value(e.snapshot().player).unwrap();
+    let player = serde_json::to_value(e.snapshot().players[0].clone()).unwrap();
     player.get("auto_charge").and_then(Value::as_u64)
 }
 
@@ -292,7 +292,10 @@ fn auto_run(
     for input in inputs {
         e.step(*input);
         events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
-        views.push((e.snapshot().player.charge.map(|c| c.level), auto_charge(e)));
+        views.push((
+            e.snapshot().players[0].charge.map(|c| c.level),
+            auto_charge(e),
+        ));
     }
     (events, views)
 }

@@ -9,6 +9,7 @@ use std::fs;
 use stella_rain_core::attack::{DamageType, MatchUp};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::kinds::{KindIndex, KindTable};
 use stella_rain_core::ledger::{RunLedger, Seen, StarPick};
@@ -240,7 +241,7 @@ fn corpus_run_computes_expected_ledger() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             match c.kind {
                 stella_rain_core::run_replay::CommandKind::Choose => {
-                    engine.choose(c.index).unwrap();
+                    engine.choose(PlayerIdx::SOLO, c.index).unwrap();
                 }
             }
         }

@@ -15,7 +15,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::event::DomainEvent;
-use crate::id::ContentId;
+use crate::id::{ContentId, PlayerIdx};
 use crate::input::Input;
 use crate::kinds::KindTable;
 use crate::ledger::{Counted, RunLedger};
@@ -31,6 +31,8 @@ use crate::version::SIM_VERSION;
 /// Why `Engine::choose` refused a choice; the run is unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChoiceError {
+    /// `player` is not in the run's party.
+    NoPlayer { player: PlayerIdx },
     /// No offer is open.
     NoOffer,
     /// `index` is not below the number of the open offer's `options`.
@@ -342,11 +344,20 @@ impl Engine {
         self.observe_tick();
     }
 
-    /// Chooses option `index` of the open offer, between ticks (ADR-079 §3): the snapshot's
-    /// `offer.options` lists them. It applies at once, and the events are then this choice's.
-    /// Refused, changing nothing, with no offer open, a `sim_version` this game does not run, or
-    /// an index outside its options.
-    pub fn choose(&mut self, index: u32) -> Result<(), ChoiceError> {
+    /// The players in the run's party: `1..=MAX_PLAYERS` (ADR-SIM-12).
+    pub fn players(&self) -> usize {
+        self.run.party()
+    }
+
+    /// Chooses option `index` of the open offer for `player`, between ticks (ADR-079 §3): the
+    /// snapshot's `offer.options` lists them. It applies at once, and the events are then this
+    /// choice's. The open offer belongs to the run for now, so any player in the party takes it.
+    /// Refused, changing nothing, for a player outside the party, with no offer open, a
+    /// `sim_version` this game does not run, or an index outside its options.
+    pub fn choose(&mut self, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
+        if player.get() >= self.players() {
+            return Err(ChoiceError::NoPlayer { player });
+        }
         if !self.offer_open() {
             return Err(ChoiceError::NoOffer);
         }
@@ -511,6 +522,8 @@ mod hash_coverage_tests;
 mod horde_tests;
 #[cfg(test)]
 mod move_index_tests;
+#[cfg(test)]
+mod players_api_tests;
 #[cfg(test)]
 mod savepoint_tests;
 #[cfg(test)]

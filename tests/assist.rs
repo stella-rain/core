@@ -83,7 +83,7 @@ fn pressed(assist: bool) -> Input {
 /// Where the snapshot's target is, relative to the main character's start.
 fn target(e: &Engine) -> Option<(i32, i32)> {
     let s = e.snapshot();
-    let id = s.player.target?;
+    let id = s.players[0].target?;
     let v = s.entities.iter().find(|v| v.id == id)?;
     Some((v.at.x.0 - START_X, v.at.y.0 - START_Y))
 }
@@ -106,7 +106,7 @@ fn shot_velocity(e: &Engine) -> (i32, i32) {
 }
 
 fn facing(e: &Engine) -> (i32, i32) {
-    let f = e.snapshot().player.facing;
+    let f = e.snapshot().players[0].facing;
     (f.x, f.y)
 }
 
@@ -116,7 +116,7 @@ fn facing(e: &Engine) -> (i32, i32) {
 fn with_assist_off_there_is_no_target() {
     let mut e = engine(&plain(vec![bat_at(1, RANGE / 2, 0)]));
     e.step(idle());
-    assert_eq!(e.snapshot().player.target, None);
+    assert_eq!(e.snapshot().players[0].target, None);
 }
 
 #[test]
@@ -167,7 +167,7 @@ fn the_boss_comes_before_a_nearer_elite() {
         .iter()
         .find(|v| v.kind == EntityKind::Boss)
         .expect("the boss is on the field");
-    assert_eq!(s.player.target, Some(boss.id));
+    assert_eq!(s.players[0].target, Some(boss.id));
 }
 
 // --- The step ----------------------------------------------------------------------------------
@@ -205,7 +205,7 @@ fn a_charged_step_faces_the_target_of_its_release() {
     for _ in 1..=8 {
         e.step(pressed(true));
     }
-    assert_eq!(e.snapshot().player.charge.map(|c| c.level), Some(1));
+    assert_eq!(e.snapshot().players[0].charge.map(|c| c.level), Some(1));
     e.step(assisted());
     assert_eq!(shot_velocity(&e), (-SHOT, 0));
     assert_eq!(facing(&e), (-SCALE, 0));

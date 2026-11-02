@@ -7,6 +7,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::difficulties::Difficulties;
 use stella_rain_core::engine::Engine;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{Command, record_run, verify_run};
 use stella_rain_core::run_setup::{self, RunSetup};
@@ -184,7 +185,7 @@ fn a_mode_run_earns_by_its_tier_and_its_replay_verifies() {
             let before = e.stardust();
             match c {
                 Command::Step(input) => e.step(*input),
-                Command::Choose(i) => e.choose(*i).unwrap(),
+                Command::Choose(i) => e.choose(PlayerIdx::SOLO, *i).unwrap(),
             }
             if e.stardust() > before {
                 gains.push(e.stardust() - before);

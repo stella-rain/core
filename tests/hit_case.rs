@@ -190,7 +190,7 @@ fn the_spread_tick_has_its_load() {
     let by_player = hits_by(&engine, |s| s == PLAYER);
     assert!(by_player >= 90, "{by_player} hits by the main character");
     let crowd = enemies(&engine);
-    let player = engine.snapshot().player.at;
+    let player = engine.snapshot().players[0].at;
     let farthest = crowd
         .iter()
         .map(|e| {

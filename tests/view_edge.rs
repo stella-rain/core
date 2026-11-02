@@ -777,7 +777,7 @@ fn elite_places(cap: u32) -> Vec<(i32, i32)> {
     let mut out = Vec::new();
     while e.tick() < 5 * 3600 - 1 {
         e.step(Input::default());
-        let me = e.snapshot().player.at;
+        let me = e.snapshot().players[0].at;
         for ev in e.events() {
             if let DomainEvent::EliteSpawned { elite, .. } = ev {
                 let at = e

@@ -208,7 +208,7 @@ macro_rules! state_codec {
         /// Every index the bytes hold is below the length of what it indexes in the fresh engine's run,
         /// which the `Decode` impls cannot see. Reads of these indices in the rules are unchecked
         /// (`world.attacks[..]`, `emitters[..]`, `defs.get`) or would silently skip a thing.
-        fn check_indices(
+        pub(super) fn check_indices(
             s: &State,
             world: &World,
             content: &RunContent,
@@ -262,20 +262,22 @@ macro_rules! state_codec {
             for z in &s.zones {
                 below(z.program.0 as usize, programs, "zone program out of range")?;
             }
-            // The one place the macro reads the player: the accessor each version passes.
-            let player: fn(&State) -> &crate::$sim::state::PlayerState = $get;
-            for o in &player(s).orbits {
-                // The key of an orbit is its reward's place, or `ORBIT_SET_BASE` and a set's place.
-                let in_range = match o.reward.checked_sub(ORBIT_SET_BASE) {
-                    None => usize::from(o.reward) < rewards,
-                    Some(set) => usize::from(set) < sets,
-                };
-                if !in_range {
-                    return Err(DecodeError::Invalid("orbit reward out of range"));
+            // The one place the macro reads the players: the accessor each version passes.
+            let players: fn(&State) -> &[crate::$sim::state::PlayerState] = $get;
+            for p in players(s) {
+                for o in &p.orbits {
+                    // The key of an orbit is its reward's place, or `ORBIT_SET_BASE` and a set's place.
+                    let in_range = match o.reward.checked_sub(ORBIT_SET_BASE) {
+                        None => usize::from(o.reward) < rewards,
+                        Some(set) => usize::from(set) < sets,
+                    };
+                    if !in_range {
+                        return Err(DecodeError::Invalid("orbit reward out of range"));
+                    }
                 }
-            }
-            if let Some(slot) = &player(s).skill {
-                below(usize::from(slot.index), skills, "skill index out of range")?;
+                if let Some(slot) = &p.skill {
+                    below(usize::from(slot.index), skills, "skill index out of range")?;
+                }
             }
             if let Some(f) = &s.stars {
                 for p in &f.pool {
@@ -305,10 +307,53 @@ macro_rules! state_codec {
 }
 
 mod v1 {
-    state_codec!(sim_v1, |s| &s.player);
+    state_codec!(sim_v1, |s| std::slice::from_ref(&s.player));
 }
 
 mod v2 {
-    // shim: a run of one has its player at the first place.
-    state_codec!(sim, |s| &s.players[crate::sim::state::PlayerIdx::SOLO]);
+    state_codec!(sim, |s| s.players.as_slice());
+}
+
+#[cfg(test)]
+mod players_tests {
+    //! The index check reads every player, not the first only (ADR-SIM-12).
+
+    use crate::bench_fixtures::worst_case;
+    use crate::engine::Run;
+    use crate::id::PlayerIdx;
+    use crate::sim::state::{OrbitState, Players};
+
+    use super::v2::check_indices;
+
+    #[test]
+    fn the_savepoint_check_reads_every_player() {
+        let e = worst_case::warmed_up();
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules")
+        };
+        let rewards = e.content().rewards().rewards().len();
+        let bad = OrbitState {
+            reward: u16::try_from(rewards).unwrap(),
+            orbs: 1,
+            round: 0,
+            cooldown_left: 0,
+            angle: 0,
+        };
+        let first = state.players[PlayerIdx::SOLO].clone();
+        let build = |bad_on: usize| {
+            let (mut a, mut b) = (first.clone(), first.clone());
+            [&mut a, &mut b][bad_on].orbits.push(bad);
+            let mut s = state.clone();
+            s.players = Players::of(vec![a, b]).unwrap();
+            s
+        };
+        let refused = Err(crate::savepoint::codec::DecodeError::Invalid(
+            "orbit reward out of range",
+        ));
+        assert_eq!(check_indices(&build(0), world, e.content()), refused);
+        assert_eq!(check_indices(&build(1), world, e.content()), refused);
+        let mut ok = state.clone();
+        ok.players = Players::of(vec![first.clone(), first]).unwrap();
+        assert_eq!(check_indices(&ok, world, e.content()), Ok(()));
+    }
 }

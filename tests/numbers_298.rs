@@ -4,6 +4,7 @@
 //! the ceiling the content may not pass (ADR-020, ADR-110).
 
 use std::collections::BTreeSet;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::version::Versions;
 
 use serde_json::{Value, json};
@@ -228,7 +229,8 @@ fn offered(seeds: std::ops::Range<u64>, ticks: u32) -> BTreeSet<String> {
                     .iter()
                     .position(|o| matches!(o, OfferOption::Take { .. }))
                     .unwrap();
-                e.choose(u32::try_from(take).unwrap()).unwrap();
+                e.choose(PlayerIdx::SOLO, u32::try_from(take).unwrap())
+                    .unwrap();
             }
             if e.offer_open() {
                 break;

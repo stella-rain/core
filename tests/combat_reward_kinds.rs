@@ -309,7 +309,7 @@ fn the_snapshot_shows_the_totals_held_to_their_bounds() {
             next_offer(&mut e);
             take(&mut e, "k");
         }
-        serde_json::to_value(e.snapshot().player).unwrap()
+        serde_json::to_value(e.snapshot().players[0].clone()).unwrap()
     };
     let none = view(vec![entry("attack_pct", 1)], 1);
     for field in [
