@@ -101,9 +101,10 @@ mod tests {
     }
 }
 
-/// An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036). In
-/// the live rules the numbers 0 to 2 are the player slots, present or not (ADR-SIM-13), and the
-/// boss, the companions and the enemies are numbered from 3.
+// In the live rules the numbers 0 to 2 are the player slots, present or not (ADR-SIM-13), and
+// the boss, the companions and the enemies are numbered from 3. A plain comment: a doc comment
+// on this type is part of the generated schema.
+/// An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
