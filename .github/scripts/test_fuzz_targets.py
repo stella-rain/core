@@ -67,6 +67,11 @@ GEN = (
     'SAVEPOINT_SEEDS_DIR="$PWD/seeds/savepoint" cargo test --manifest-path fuzz/Cargo.toml --locked '
     "--test smoke write_savepoint_seeds -- --ignored"
 )
+STEP_ARM = "step_log_range) seeds=seeds/step_log_range ;;"
+STEP_GEN = (
+    'STEP_LOG_RANGE_SEEDS_DIR="$PWD/seeds/step_log_range" cargo test --manifest-path fuzz/Cargo.toml --locked '
+    "--test smoke write_step_log_range_seeds -- --ignored"
+)
 
 
 def real_targets():
@@ -139,6 +144,11 @@ class Smoke(unittest.TestCase):
         self.assertRegex(text, r"#\[ignore[^\]]*\][^{]*?fn write_savepoint_seeds")
         self.assertIn("SAVEPOINT_SEEDS_DIR", text)
 
+    def test_the_step_log_range_seed_writer_exists(self):
+        text = read("fuzz", "tests", "smoke.rs")
+        self.assertRegex(text, r"#\[ignore[^\]]*\][^{]*?fn write_step_log_range_seeds")
+        self.assertIn("STEP_LOG_RANGE_SEEDS_DIR", text)
+
 
 class RustYml(unittest.TestCase):
     def setUp(self):
@@ -166,6 +176,11 @@ class RustYml(unittest.TestCase):
         self.assertIn(GEN, self.block)
         self.assertLess(self.block.index(GEN), self.block.index("fuzz_targets.py words"))
 
+    def test_step_log_range_arm_and_step(self):
+        self.assertIn(STEP_ARM, self.block)
+        self.assertIn(STEP_GEN, self.block)
+        self.assertLess(self.block.index(STEP_GEN), self.block.index("fuzz_targets.py words"))
+
     def test_every_arm_has_a_producer(self):
         producers(self, self.block)
 
@@ -186,6 +201,14 @@ class RustYml(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(len(r.stdout.split()), len(real_targets()))
+
+
+class FuzzChanges(unittest.TestCase):
+    def test_the_path_list_holds_step_log_rs(self):
+        block = job_block(read(".github", "workflows", "rust.yml"), "fuzz-changes")
+        m = re.search(r"git diff --name-only .*?\)\n", block, re.S)
+        self.assertTrue(m, "no git diff path list")
+        self.assertIn("src/step_log.rs", m.group(0).split())
 
 
 class FuzzLongYml(unittest.TestCase):
@@ -222,6 +245,13 @@ class FuzzLongYml(unittest.TestCase):
         self.assertIn(GEN, fuzz)
         self.assertIn("if: matrix.target == 'savepoint_load'", fuzz)
         self.assertLess(fuzz.index(GEN), fuzz.index('cargo "+$FUZZ_NIGHTLY" fuzz run'))
+
+    def test_step_log_range_arm_and_step(self):
+        fuzz = job_block(self.text, "fuzz")
+        self.assertIn(STEP_ARM, fuzz)
+        self.assertIn(STEP_GEN, fuzz)
+        self.assertIn("if: matrix.target == 'step_log_range'", fuzz)
+        self.assertLess(fuzz.index(STEP_GEN), fuzz.index('cargo "+$FUZZ_NIGHTLY" fuzz run'))
 
     def test_every_arm_has_a_producer(self):
         producers(self, job_block(self.text, "fuzz"))
