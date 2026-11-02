@@ -54,6 +54,12 @@ impl StateHasher {
         self.id_gap = gap;
     }
 
+    /// Every byte written so far (tests of the layout read bytes, not only the digest).
+    #[cfg(test)]
+    pub(crate) fn trace(&self) -> &[u8] {
+        &self.written
+    }
+
     pub fn write_bytes(&mut self, bytes: &[u8]) {
         #[cfg(test)]
         self.written.extend_from_slice(bytes);

@@ -121,6 +121,8 @@ mod expertise;
 mod frozen_tests;
 mod grid;
 #[cfg(test)]
+mod hash_fields_tests;
+#[cfg(test)]
 mod hash_layout_tests;
 mod heal;
 mod hit_boxes;
