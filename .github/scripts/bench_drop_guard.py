@@ -12,8 +12,8 @@ The check, per case of $IAI_CALLGRIND_HOME (the head profile only): `callgrind_a
 --tree=caller --show=Ir --threshold=100`; a callee line starts `*` and the lines of its callers sit
 above it, each starting `<`. A hit is a `drop_glue` or `drop_in_place` of a type that names Engine,
 Run or Case whose direct caller is the wrapper (the shape seen on valgrind 3.22). Matching is by
-marker and name, not by column. It fails closed: no callgrind file, or an annotate that cannot read
-a head file, exits 1.
+marker and name, not by column. It fails closed: no callgrind file, an annotate that cannot read a
+head file, or an annotate text that never mentions the wrapper (a format this does not know) exits 1.
 
     python3 .github/scripts/bench_drop_guard.py --home "$IAI_CALLGRIND_HOME"
 """
@@ -55,6 +55,12 @@ def annotate(tool, head):
     return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
 
 
+def failure(e):
+    """Why an annotate run failed: its stderr when it has one."""
+    err = getattr(e, "stderr", None)
+    return f"{e}: {err.strip()[:300]}" if err and err.strip() else str(e)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", required=True, help="IAI_CALLGRIND_HOME")
@@ -70,8 +76,13 @@ def main():
         try:
             text = annotate(args.annotate, head)
         except (OSError, subprocess.CalledProcessError) as e:
-            print(f"::error title=bench teardown::{label}: callgrind_annotate could not read {os.path.basename(head)}: {e}")
+            print(f"::error title=bench teardown::{label}: callgrind_annotate could not read {os.path.basename(head)}: {failure(e)}")
             summary.append(f"- {label}: profile unreadable")
+            failed = True
+            continue
+        if WRAPPER not in text:
+            print(f"::error title=bench teardown::{label}: the annotate text never names {WRAPPER}: a format this guard does not know")
+            summary.append(f"- {label}: profile format not recognised")
             failed = True
             continue
         for callee, caller in find_hits(text):

@@ -150,6 +150,21 @@ class Cli(unittest.TestCase):
         p = self.run_cli(annotate=failing)
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
 
+    def test_a_text_that_never_names_the_wrapper_fails_closed(self):
+        self.case("hit_tick", "a", HEADER + block([STEP], STEP_DROP, 79))
+        p = self.run_cli()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("format this guard does not know", p.stdout)
+
+    def test_the_annotate_error_is_reported(self):
+        self.case("hit_tick", "a", CLEAN)
+        failing = os.path.join(self.tmp.name, "failing")
+        with open(failing, "w") as f:
+            f.write(f"#!{sys.executable}\nimport sys\nsys.stderr.write('perl is missing')\nsys.exit(2)\n")
+        os.chmod(failing, 0o755)
+        p = self.run_cli(annotate=failing)
+        self.assertIn("perl is missing", p.stdout)
+
     def test_a_missing_annotate_fails_closed(self):
         self.case("hit_tick", "a", CLEAN)
         p = self.run_cli(annotate=os.path.join(self.tmp.name, "nope"))
