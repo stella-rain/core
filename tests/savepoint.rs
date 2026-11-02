@@ -477,7 +477,9 @@ mod golden {
     /// older build saved (header 1, schema 1 prefix) still restores
     /// (`a_savepoint_header_must_agree_with_its_prefix`). Old line:
     /// `aa70e16f9c1c228ce7ee88d15d384f017cfcb90dc863122cfe9196c9909b7619  2123`. From here a
-    /// pinned format is never re-pinned.
+    /// pinned format is never re-pinned. Format 2 has its own line in `v2.sha256` (the frozen
+    /// `trial` case's version 1 state under the format 2 header and the 60-byte stats record);
+    /// `v1.sha256` stays as history, format 1 files being refused.
     #[test]
     fn the_encoding_matches_its_pinned_format() {
         let (bytes, ..) = bytes();
