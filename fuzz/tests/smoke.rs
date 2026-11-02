@@ -681,3 +681,80 @@ fn write_step_log_range_seeds() {
         fs::write(Path::new(&dir).join(name), bytes).expect("a seed file");
     }
 }
+
+/// The most ticks the `step_log_range` seeds may claim in all, counting the seeds the target's
+/// oracle runs on (those at or under `EXPAND_LIMIT`, 65,536 ticks). Each seed is swept by
+/// `every_prefix_and_flipped_byte_of_the_seeds_is_survived`, so this bounds the cost of that
+/// sweep for the target. Raising it is a decision to take the CI minutes.
+const STEP_LOG_RANGE_TICK_BUDGET: u64 = 490_000;
+
+/// The most ticks the run replays seeded to `replay_load` may hold in all (what it re-simulates
+/// per call, before the sweep multiplies it). Raising it is a decision to take the CI minutes.
+const RUN_SEED_TICK_BUDGET: u64 = 53_000;
+
+/// The bound of the target's oracle on the ticks a log claims (`EXPAND_LIMIT`).
+const ORACLE_TICK_LIMIT: u32 = 65_536;
+
+#[test]
+fn the_fuzz_crate_tests_are_built_optimised() {
+    // The sweep simulates whole runs; at opt-level 0 it takes about 13 minutes, at 1 about 1.5
+    // (ADR-SIM-3, ADR-019). Overflow checks must stay on beside it.
+    let text = fs::read_to_string(root().join("fuzz/Cargo.toml")).expect("fuzz/Cargo.toml");
+    let section: Vec<String> = text
+        .lines()
+        .skip_while(|line| line.trim() != "[profile.dev]")
+        .skip(1)
+        .take_while(|line| !line.starts_with('['))
+        .map(|line| {
+            // Without an inline comment or spaces, so `opt-level=1 # note` reads as it is.
+            let code = line.split('#').next().unwrap_or_default();
+            code.split_whitespace().collect::<String>()
+        })
+        .collect();
+    assert!(!section.is_empty(), "fuzz/Cargo.toml has no [profile.dev]");
+    let level = section
+        .iter()
+        .find_map(|line| line.strip_prefix("opt-level="))
+        .and_then(|value| value.parse::<u8>().ok());
+    assert!(
+        level.is_some_and(|n| n >= 1),
+        "[profile.dev] of fuzz/Cargo.toml needs opt-level = 1 or higher, has {level:?}"
+    );
+    assert!(
+        section.iter().any(|line| line == "overflow-checks=true"),
+        "[profile.dev] of fuzz/Cargo.toml must keep overflow-checks = true"
+    );
+}
+
+#[test]
+fn the_step_log_range_seeds_expand_a_bounded_number_of_ticks() {
+    let mut sum = 0u64;
+    for (name, bytes) in step_log_range_seeds() {
+        let ticks = u32::from_le_bytes(bytes[..4].try_into().expect("the ticks word"));
+        if ticks <= ORACLE_TICK_LIMIT {
+            sum += u64::from(ticks);
+        } else {
+            assert!(
+                name.starts_with("forged-"),
+                "{name} claims {ticks} ticks, over the oracle's {ORACLE_TICK_LIMIT}"
+            );
+        }
+    }
+    assert!(
+        sum <= STEP_LOG_RANGE_TICK_BUDGET,
+        "the step_log_range seeds claim {sum} ticks, over the budget {STEP_LOG_RANGE_TICK_BUDGET}"
+    );
+}
+
+#[test]
+fn the_run_seeds_simulate_a_bounded_number_of_ticks() {
+    let sum: u64 = run_replays()
+        .iter()
+        .chain(run_prefixes().iter())
+        .map(|bytes| u64::from(RunReplay::from_bytes(bytes).expect("a run seed").ticks))
+        .sum();
+    assert!(
+        sum <= RUN_SEED_TICK_BUDGET,
+        "the run seeds hold {sum} ticks, over the budget {RUN_SEED_TICK_BUDGET}"
+    );
+}
