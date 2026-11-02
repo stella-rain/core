@@ -366,9 +366,12 @@ jobs:
       - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
       # The cache's key holds the stable rustc; `key` adds the nightly the fuzz build uses.
       # cargo-fuzz has its own cache below, so this one leaves ~/.cargo/bin alone.
+      # shared-key: fuzz-build and fuzz-short build the same targets, and fuzz-short runs only on
+      # PRs, so it reads the cache fuzz-build saves on main.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: fuzz
+          shared-key: fuzz-nightly
           key: ${{ env.FUZZ_NIGHTLY }}
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -432,9 +435,12 @@ jobs:
       - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
       # The cache's key holds the stable rustc; `key` adds the nightly the fuzz build uses.
       # cargo-fuzz has its own cache below, so this one leaves ~/.cargo/bin alone.
+      # shared-key: fuzz-build and fuzz-short build the same targets, and fuzz-short runs only on
+      # PRs, so it reads the cache fuzz-build saves on main.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: fuzz
+          shared-key: fuzz-nightly
           key: ${{ env.FUZZ_NIGHTLY }}
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
