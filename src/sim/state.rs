@@ -108,8 +108,6 @@ pub(crate) struct State {
     pub stars: Option<StarField>,
     /// Heal pickups on the map, in the order they dropped; `None` in a stage without healing.
     pub heal_pickups: Option<Vec<HealPickup>>,
-    /// The expertise gauge; `None` in a stage whose enemies and boss give no expertise points.
-    pub expertise: Option<ExpertiseGauge>,
     /// What each match-up does to a hit (ADR-100): content, fixed for the run and covered by
     /// the content hash, so the state hash leaves it out.
     pub match_ups: MatchUps,
@@ -127,12 +125,6 @@ pub(crate) struct State {
     pub max_rune_haste_pct: u32,
     /// The bosses of a `time_limit` run, as they come; `None` in any other run.
     pub horde: Option<Horde>,
-    /// The Stardust the run has earned, times 10 (ADR-109): `Some` in a stage with a Stardust
-    /// factor.
-    pub stardust: Option<u32>,
-    /// Hit points the main character regenerates each second (a perk, ADR-105): set at the start
-    /// and raised by rewards.
-    pub regen: u32,
     /// The percents the run's difficulty scales enemies' hit points and attacks' damage by
     /// (ADR-110): fixed for the run, part of the setup, and hashed with it.
     pub hp_pct: u32,
@@ -327,7 +319,8 @@ pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};
 
 /// What one player carries through the run besides the player's body: the experience and levels
 /// (`None` in a stage without levels), the offer generator and the star offers (`None` in a stage
-/// without stars). One per slot in `Players` (ADR-SIM-12, ADR-SIM-2).
+/// without stars), the expertise gauge, the Stardust earned and the regeneration. One per slot in
+/// `Players` (ADR-SIM-12, ADR-SIM-2).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Career {
@@ -336,6 +329,14 @@ pub(crate) struct Career {
     /// (`TAG_OFFER` for slot 0).
     pub offer: SplitMix64,
     pub offers: Option<Offers>,
+    /// The expertise gauge; `None` in a stage whose enemies and boss give no expertise points.
+    pub expertise: Option<ExpertiseGauge>,
+    /// The Stardust the run has earned, times 10 (ADR-109): `Some` in a stage with a Stardust
+    /// factor.
+    pub stardust: Option<u32>,
+    /// Hit points the main character regenerates each second (a perk, ADR-105): set at the start
+    /// and raised by rewards.
+    pub regen: u32,
 }
 
 /// The offer generator's tag of slot `me`.
@@ -355,11 +356,16 @@ impl Career {
         me: PlayerIdx,
         progress: Option<Progress>,
         offers: Option<Offers>,
+        expertise: Option<ExpertiseGauge>,
+        stardust: Option<u32>,
     ) -> Career {
         Career {
             progress,
             offer: derive(seed, offer_tag(me)),
             offers,
+            expertise,
+            stardust,
+            regen: 0,
         }
     }
 }
@@ -371,6 +377,9 @@ impl Default for Career {
             progress: None,
             offer: SplitMix64::new(0),
             offers: None,
+            expertise: None,
+            stardust: None,
+            regen: 0,
         }
     }
 }
@@ -380,10 +389,11 @@ impl Default for Career {
 /// is a plain offset and a steady tick allocates nothing. Slot 0 is always present. The entity
 /// numbers 0 to 2 are the slots whether or not one is present (ADR-SIM-13).
 ///
-/// Each slot also holds its `Career` (the level progress, the offer generator and the star
-/// offers). The state hash and savepoint format 1 write slot 0's career where the run's single
-/// progress, offer generator and offers were, so a run of one is byte for byte what it was; the
-/// careers of slots 1 and 2 are hashed in the tail after their players, a provisional layout the
+/// Each slot also holds its `Career` (the level progress, the offer generator, the star offers,
+/// the expertise gauge, the Stardust and the regeneration). The state hash and savepoint format 1
+/// write slot 0's career where the run's single values were, so a run of one is byte for byte
+/// what it was; the careers of slots 1 and 2 are hashed in the tail after their players (per
+/// slot: progress, offer generator, offers, expertise, Stardust, regen), a provisional layout the
 /// hash-layout work will settle. Format 1 holds one player, so a party is
 /// not yet a savepoint. A party builder supplies a career for every present slot.
 #[derive(Clone, Debug)]

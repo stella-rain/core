@@ -1443,6 +1443,12 @@ impl Encode for Career {
             progress,
             offer: _,
             offers: _,
+            // not hashed/saved here: written by `State`.
+            expertise: _,
+            // not hashed/saved here: written by `State`.
+            stardust: _,
+            // not hashed/saved here: written by `State`.
+            regen: _,
         } = self;
         progress.encode(w);
     }
@@ -1846,7 +1852,6 @@ impl State {
             next_orb_group,
             stars,
             heal_pickups,
-            expertise,
             // not saved: content; `decode_state` takes it from the fresh engine.
             match_ups: _,
             // not saved: content, as the match-ups are.
@@ -1857,8 +1862,6 @@ impl State {
             enemy_attack_damage,
             max_rune_haste_pct,
             horde,
-            stardust,
-            regen,
             hp_pct,
             damage_pct,
             crit_seed,
@@ -1885,13 +1888,15 @@ impl State {
         players.career(PlayerIdx::SOLO).encode(w);
         encode_star_field(stars, &players.career(PlayerIdx::SOLO).offers, w);
         heal_pickups.encode(w);
-        expertise.encode(w);
+        // Slot 0's expertise gauge, Stardust and regeneration, where the run's single ones were.
+        let career = players.career(PlayerIdx::SOLO);
+        career.expertise.encode(w);
         max_attack_speed_pct.encode(w);
         enemy_attack_damage.encode(w);
         max_rune_haste_pct.encode(w);
         horde.encode(w);
-        stardust.encode(w);
-        regen.encode(w);
+        career.stardust.encode(w);
+        career.regen.encode(w);
         hp_pct.encode(w);
         damage_pct.encode(w);
         crit_seed.encode(w);
@@ -1965,17 +1970,23 @@ impl State {
                 )?),
                 _ => return Err(DecodeError::Invalid("option tag")),
             },
-            expertise: Decode::decode(r)?,
             match_ups: fresh.match_ups,
             runes: fresh.runes.clone(),
             stun: fresh.stun,
-            max_attack_speed_pct: Decode::decode(r)?,
+            max_attack_speed_pct: {
+                // Slot 0's expertise gauge, where the run's single one was.
+                career.expertise = Decode::decode(r)?;
+                Decode::decode(r)?
+            },
             enemy_attack_damage: Decode::decode(r)?,
             max_rune_haste_pct: Decode::decode(r)?,
             horde: Decode::decode(r)?,
-            stardust: Decode::decode(r)?,
-            regen: Decode::decode(r)?,
-            hp_pct: Decode::decode(r)?,
+            hp_pct: {
+                // Slot 0's Stardust and regeneration, where the run's single ones were.
+                career.stardust = Decode::decode(r)?;
+                career.regen = Decode::decode(r)?;
+                Decode::decode(r)?
+            },
             damage_pct: Decode::decode(r)?,
             crit_seed: Decode::decode(r)?,
             echoes: decode_vec(r, cap_u32(crate::limits::MAX_ECHOES_PER_TICK))?,

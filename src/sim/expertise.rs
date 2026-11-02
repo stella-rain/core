@@ -92,7 +92,7 @@ fn need(expertise: &Expertise, level: u32, before: u32) -> u32 {
 }
 
 /// A combo step's hit on `target`, which `killed`, adds its points to the gauge.
-pub(super) fn credit(stage: &World, s: &mut State, target: Who, killed: bool) {
+pub(super) fn credit(stage: &World, s: &mut State, me: PlayerIdx, target: Who, killed: bool) {
     let points = match target {
         Who::Enemy(i) => s.enemies.get(i).and_then(|e| match e.key.source {
             AgentSource::Wave => usize::try_from(e.key.index)
@@ -108,7 +108,7 @@ pub(super) fn credit(stage: &World, s: &mut State, target: Who, killed: bool) {
             .map(|p| ExpertisePoints { kill: 0, ..p }),
         Who::Player(_) | Who::Companion(_) => None,
     };
-    let (Some(g), Some(p)) = (s.expertise.as_mut(), points) else {
+    let (Some(g), Some(p)) = (s.players.career_mut(me).expertise.as_mut(), points) else {
         return;
     };
     let gained = if killed {
@@ -120,8 +120,8 @@ pub(super) fn credit(stage: &World, s: &mut State, target: Who, killed: bool) {
 }
 
 /// The levels the gauge's points reach this tick.
-pub(super) fn level_up(expertise: &Expertise, s: &mut State) {
-    let Some(g) = s.expertise.as_mut() else {
+pub(super) fn level_up(expertise: &Expertise, s: &mut State, me: PlayerIdx) {
+    let Some(g) = s.players.career_mut(me).expertise.as_mut() else {
         return;
     };
     while g.next > 0 && g.points >= g.next {
@@ -269,17 +269,17 @@ pub(super) fn open_due(
     stage: &World,
     expertise: &Expertise,
     s: &mut State,
+    me: PlayerIdx,
     events: &mut Vec<DomainEvent>,
 ) {
     if super::offer_open(s) {
         return;
     }
-    let State {
-        players,
+    let crate::sim::state::Career {
+        offer: rng,
         expertise: g,
         ..
-    } = s;
-    let rng = &mut players.career_mut(PlayerIdx::SOLO).offer; // N=1: M-PER-PLAYER
+    } = s.players.career_mut(me);
     let Some(g) = g.as_mut() else {
         return;
     };
@@ -332,17 +332,24 @@ pub(super) fn open_due(
 }
 
 /// Rerolls left in the run, shared with the stars' offers; none in a stage without stars.
-fn rerolls_left(s: &State) -> u32 {
+fn rerolls_left(s: &State, me: PlayerIdx) -> u32 {
     s.players
-        .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        .career(me)
         .offers
         .as_ref()
         .map_or(0, |o| o.rerolls_left)
 }
 
 /// The options of the open expertise offer, in index order; empty without one.
-pub(crate) fn options(stage: &World, expertise: &Expertise, s: &State) -> Vec<OfferOption> {
+pub(crate) fn options(
+    stage: &World,
+    expertise: &Expertise,
+    s: &State,
+    me: PlayerIdx,
+) -> Vec<OfferOption> {
     let Some((_, o)) = s
+        .players
+        .career(me)
         .expertise
         .as_ref()
         .and_then(|g| Some((g, g.offer.as_ref()?)))
@@ -354,7 +361,7 @@ pub(crate) fn options(stage: &World, expertise: &Expertise, s: &State) -> Vec<Of
         .map(|candidate| OfferOption::Take { candidate })
         .collect();
     if o.kind == ExpertiseOfferKind::Common
-        && rerolls_left(s) > 0
+        && rerolls_left(s, me) > 0
         && any_left(stage, expertise, &o.candidates)
     {
         out.extend((0..n).map(|candidate| OfferOption::Reroll { candidate }));
@@ -371,16 +378,13 @@ pub(super) fn choose(
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
-    let State {
-        players,
-        expertise: g,
-        ..
-    } = s;
-    let (player, career) = players.both_mut(me);
+    let (player, career) = s.players.both_mut(me);
     let crate::sim::state::Career {
         progress,
         offer: rng,
         offers,
+        expertise: g,
+        ..
     } = career;
     let Some(g) = g.as_mut() else {
         return;
@@ -506,8 +510,9 @@ pub(crate) fn offer_view(
     stage: &World,
     expertise: &Expertise,
     s: &State,
+    me: PlayerIdx,
 ) -> Option<ExpertiseOfferView> {
-    let g = s.expertise.as_ref()?;
+    let g = s.players.career(me).expertise.as_ref()?;
     let o = g.offer.as_ref()?;
     Some(ExpertiseOfferView {
         level: o.level,
@@ -522,8 +527,8 @@ pub(crate) fn offer_view(
                 })
             })
             .collect(),
-        options: options(stage, expertise, s),
-        rerolls_left: rerolls_left(s),
+        options: options(stage, expertise, s, me),
+        rerolls_left: rerolls_left(s, me),
     })
 }
 

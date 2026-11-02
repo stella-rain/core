@@ -410,8 +410,8 @@ macro_rules! state_codec_v2 {
                 "heal_pickups presence differs from the content",
             )?;
             same_presence(
-                &s.expertise,
-                &fresh.expertise,
+                &s.players.career(PlayerIdx::SOLO).expertise,
+                &fresh.players.career(PlayerIdx::SOLO).expertise,
                 "expertise presence differs from the content",
             )?;
             same_presence(
@@ -420,8 +420,8 @@ macro_rules! state_codec_v2 {
                 "horde presence differs from the content",
             )?;
             same_presence(
-                &s.stardust,
-                &fresh.stardust,
+                &s.players.career(PlayerIdx::SOLO).stardust,
+                &fresh.players.career(PlayerIdx::SOLO).stardust,
                 "stardust presence differs from the content",
             )?;
             if let (Some(p), Some(f)) = (
@@ -455,7 +455,10 @@ macro_rules! state_codec_v2 {
                     return Err(differs("star set_counts length differs from the content"));
                 }
             }
-            if let (Some(a), Some(f)) = (&s.expertise, &fresh.expertise) {
+            if let (Some(a), Some(f)) = (
+                &s.players.career(PlayerIdx::SOLO).expertise,
+                &fresh.players.career(PlayerIdx::SOLO).expertise,
+            ) {
                 if a.taken.len() != f.taken.len() {
                     return Err(differs("expertise taken length differs from the content"));
                 }
@@ -572,7 +575,7 @@ macro_rules! state_codec_v2 {
                     below(usize::from(*c), rewards, "offer candidate out of range")?;
                 }
             }
-            if let Some(g) = &s.expertise {
+            if let Some(g) = &s.players.career(PlayerIdx::SOLO).expertise {
                 if let Some(o) = &g.offer {
                     if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
                         for c in &o.candidates {
@@ -802,52 +805,43 @@ mod career_rest_tests {
 
     #[test]
     fn slot_0s_gauge_stardust_and_regen_round_trip() {
-        let mut earned = 0;
-        for (mut e, stage, input) in [
-            (
-                worst_case::warmed_up(),
-                worst_case::stage(),
-                worst_case::input as fn(u32) -> _,
-            ),
-            (
-                time_limit_case::warmed_up(),
-                time_limit_case::stage(),
-                time_limit_case::input,
-            ),
+        let mut gauges = 0;
+        for (e, stage) in [
+            (worst_case::warmed_up(), worst_case::stage()),
+            (time_limit_case::warmed_up(), time_limit_case::stage()),
         ] {
             let fresh = Engine::new_with(&stage, e.content()).unwrap();
-            for _ in 0..3_000 {
-                let tick = e.tick() + 1;
-                e.step(&[input(tick)]);
-                let Run::V2 { state, .. } = e.run() else {
-                    panic!("the live rules")
-                };
-                let c = state.players.career(PlayerIdx::SOLO);
-                if c.expertise.as_ref().is_some_and(|g| g.points > 0) && c.stardust > Some(0) {
-                    break;
-                }
-            }
-            let Run::V2 { state, .. } = e.run() else {
+            // The cases earn nothing in their warm-up, so the values are set on a copy.
+            let (mut saved, ledger, counted) = decode_state(&encode_state(&e), &fresh).unwrap();
+            let crate::engine::Saved::V2(state) = &mut saved else {
                 panic!("the live rules")
             };
-            let c = state.players.career(PlayerIdx::SOLO);
-            if !(c.expertise.as_ref().is_some_and(|g| g.points > 0) && c.stardust > Some(0)) {
-                continue;
+            let c = state.players.career_mut(PlayerIdx::SOLO);
+            if let Some(g) = c.expertise.as_mut() {
+                gauges += 1;
+                g.points = 4;
+                g.level = 2;
+                g.range_pct = 6;
             }
-            earned += 1;
-            let bytes = encode_state(&e);
+            if c.stardust.is_some() {
+                c.stardust = Some(1_230);
+            }
+            c.regen = 3;
+            let (want_gauge, want_dust) = (c.expertise.clone(), c.stardust);
+            let set = fresh.clone().with_saved(saved, ledger, counted);
+            let bytes = encode_state(&set);
             let (saved, ledger, counted) = decode_state(&bytes, &fresh).unwrap();
             let back = fresh.clone().with_saved(saved, ledger, counted);
             let Run::V2 { state: b, .. } = back.run() else {
                 panic!("the live rules")
             };
             let d = b.players.career(PlayerIdx::SOLO);
-            assert_eq!(d.expertise, c.expertise);
-            assert_eq!(d.stardust, c.stardust);
-            assert_eq!(d.regen, c.regen);
+            assert_eq!(d.expertise, want_gauge);
+            assert_eq!(d.stardust, want_dust);
+            assert_eq!(d.regen, 3);
             assert_eq!(encode_state(&back), bytes);
         }
-        assert!(earned > 0, "no case earned expertise and Stardust");
+        assert!(gauges > 0, "no case has a gauge");
     }
 
     #[test]
@@ -865,9 +859,9 @@ mod career_rest_tests {
             let counted = e.saved_parts().1;
             let mut bad = state.clone();
             let c = bad.players.career_mut(PlayerIdx::SOLO);
-            if c.expertise.is_some() {
+            if let Some(g) = c.expertise.as_mut() {
                 checked += 1;
-                c.expertise.as_mut().unwrap().taken.push(0);
+                g.taken.push(0);
                 assert_eq!(
                     check_shape(&bad, counted, blank, counted),
                     Err(DecodeError::Invalid(

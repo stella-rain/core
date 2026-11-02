@@ -353,7 +353,11 @@ impl Run {
     pub(crate) fn stardust(&self) -> u32 {
         match self {
             Run::V1 { state, .. } => state.stardust.unwrap_or(0),
-            Run::V2 { state, .. } => state.stardust.unwrap_or(0),
+            Run::V2 { state, .. } => state
+                .players
+                .career(sim::state::PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+                .stardust
+                .unwrap_or(0),
         }
     }
 

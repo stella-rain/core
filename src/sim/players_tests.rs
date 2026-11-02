@@ -500,7 +500,11 @@ mod offers {
         for seed in [0, 42, u64::MAX] {
             let tags = [TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2];
             let states: Vec<u64> = (0..MAX_PLAYERS)
-                .map(|i| Career::new(seed, slot(i), None, None).offer.state())
+                .map(|i| {
+                    Career::new(seed, slot(i), None, None, None, None)
+                        .offer
+                        .state()
+                })
                 .collect();
             for (i, tag) in tags.iter().enumerate() {
                 assert_eq!(states[i], derive(seed, *tag).state());
@@ -708,6 +712,8 @@ mod career_rest {
         PlayerIdx::new(i).unwrap()
     }
 
+    type Edit = Box<dyn Fn(&mut ExpertiseGauge)>;
+
     fn gauge(k: u32) -> ExpertiseGauge {
         ExpertiseGauge {
             level: 1 + k,
@@ -747,7 +753,7 @@ mod career_rest {
     fn every_field_of_slot_0s_gauge_stardust_and_regen_moves_the_hash() {
         for mask in [0b001u8, 0b011] {
             let (_, base) = party(mask);
-            let mut edits: Vec<Box<dyn Fn(&mut ExpertiseGauge)>> = vec![
+            let mut edits: Vec<Edit> = vec![
                 Box::new(|g| g.level += 1),
                 Box::new(|g| g.points += 1),
                 Box::new(|g| g.next += 1),

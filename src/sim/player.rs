@@ -610,9 +610,13 @@ fn strike(
     let strike = attacks::Strike {
         bonus_pct,
         speed_pct: levels::attack_speed(s, me),
-        range_pct: s.players[me]
-            .range_pct
-            .saturating_add(s.expertise.as_ref().map_or(0, |g| g.range_pct)),
+        range_pct: s.players[me].range_pct.saturating_add(
+            s.players
+                .career(me)
+                .expertise
+                .as_ref()
+                .map_or(0, |g| g.range_pct),
+        ),
         smash,
     };
     let facing = s.players[me].facing;

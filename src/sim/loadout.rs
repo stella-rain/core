@@ -68,12 +68,7 @@ pub(crate) fn apply(
     for entry in &loadout.perk {
         perk(s, me, *entry);
     }
-    let State {
-        stars,
-        players,
-        regen,
-        ..
-    } = s;
+    let State { stars, players, .. } = s;
     let (player, career) = players.both_mut(me);
     if let (Some(f), Some(o)) = (stars.as_ref(), career.offers.as_mut()) {
         for &i in &loadout.carried {
@@ -83,7 +78,7 @@ pub(crate) fn apply(
                 &mut career.offer,
                 &mut career.progress,
                 player,
-                regen,
+                &mut career.regen,
                 f,
                 o,
                 i,
@@ -101,10 +96,13 @@ pub(crate) fn apply(
     }
 }
 
-fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
+pub(super) fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
     let amount = entry.amount;
     match entry.effect {
-        PerkEffect::Regen => s.regen = s.regen.saturating_add(amount),
+        PerkEffect::Regen => {
+            let career = s.players.career_mut(me);
+            career.regen = career.regen.saturating_add(amount);
+        }
         PerkEffect::ExtraRerolls => {
             if let Some(o) = s.players.career_mut(me).offers.as_mut() {
                 o.rerolls_left = o.rerolls_left.saturating_add(amount);
@@ -126,10 +124,11 @@ fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
 
 /// A second has passed: the main character gets its regeneration back, never beyond the most.
 pub(super) fn regen(s: &mut State, me: PlayerIdx) {
-    if s.regen > 0 && s.tick % REGEN_TICKS == 0 {
+    let regen = s.players.career(me).regen;
+    if regen > 0 && s.tick % REGEN_TICKS == 0 {
         s.players[me].hp = s.players[me]
             .hp
-            .saturating_add(s.regen)
+            .saturating_add(regen)
             .min(s.players[me].max_hp);
     }
 }

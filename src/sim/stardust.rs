@@ -10,7 +10,7 @@
 //! counts nothing.
 
 use super::World;
-use crate::sim::state::{AgentSource, State};
+use crate::sim::state::{AgentSource, PlayerIdx, State};
 use crate::stage::StardustFactor;
 use crate::validate::limits::MAX_RUN_STARDUST;
 
@@ -25,19 +25,20 @@ pub(crate) fn factor_pct(f: &StardustFactor, tick: u32) -> u32 {
 }
 
 /// Adds a kill of base `base` at this tick to the counter.
-fn earn(stage: &World, s: &mut State, base: u32) {
-    let (Some(f), Some(total)) = (stage.stardust.as_ref(), s.stardust) else {
+fn earn(stage: &World, s: &mut State, me: PlayerIdx, base: u32) {
+    let (Some(f), Some(total)) = (stage.stardust.as_ref(), s.players.career(me).stardust) else {
         return;
     };
     let pct = factor_pct(f, s.tick);
     let gained = u64::from(base) * u64::from(pct) / 100;
     let sum = u64::from(total) + gained;
-    s.stardust = Some(u32::try_from(sum.min(u64::from(MAX_RUN_STARDUST))).unwrap_or(u32::MAX));
+    s.players.career_mut(me).stardust =
+        Some(u32::try_from(sum.min(u64::from(MAX_RUN_STARDUST))).unwrap_or(u32::MAX));
 }
 
 /// The enemies at 0 hp, before they are removed.
-pub(super) fn credit_defeated(stage: &World, s: &mut State) {
-    if s.stardust.is_none() {
+pub(super) fn credit_defeated(stage: &World, s: &mut State, me: PlayerIdx) {
+    if s.players.career(me).stardust.is_none() {
         return;
     }
     let summon_base = stage.stardust.as_ref().and_then(|f| f.summon_base);
@@ -55,14 +56,14 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State) {
         })
         .collect();
     for base in bases {
-        earn(stage, s, base);
+        earn(stage, s, me, base);
     }
 }
 
 /// The boss has just died.
-pub(super) fn boss_killed(stage: &World, s: &mut State) {
+pub(super) fn boss_killed(stage: &World, s: &mut State, me: PlayerIdx) {
     if let Some(base) = s.boss_def(stage).and_then(|b| b.stardust) {
-        earn(stage, s, base);
+        earn(stage, s, me, base);
     }
 }
 

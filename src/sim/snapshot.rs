@@ -382,20 +382,25 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 stat_offer: stat_offer_view(s),
                 offer: offer_view(content.rewards(), s),
             }),
-        expertise: s.expertise.as_ref().map(|g| {
-            let (style, path) = expertise_styles_view(world, content.expertise(), g);
-            ExpertiseView {
-                level: g.level,
-                points: g.points,
-                next: g.next,
-                taken: g.taken.clone(),
-                style,
-                path,
-                offer: expertise_offer_view(world, content.expertise(), s),
-            }
-        }),
+        expertise: s
+            .players
+            .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+            .expertise
+            .as_ref()
+            .map(|g| {
+                let (style, path) = expertise_styles_view(world, content.expertise(), g);
+                ExpertiseView {
+                    level: g.level,
+                    points: g.points,
+                    next: g.next,
+                    taken: g.taken.clone(),
+                    style,
+                    path,
+                    offer: expertise_offer_view(world, content.expertise(), s, PlayerIdx::SOLO), // N=1: M-PER-PLAYER
+                }
+            }),
         patterns: announced_patterns(world, s),
-        stardust: s.stardust,
+        stardust: s.players.career(PlayerIdx::SOLO).stardust, // N=1: M-PER-PLAYER
     }
 }
 
