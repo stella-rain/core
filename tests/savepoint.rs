@@ -470,6 +470,14 @@ mod golden {
         std::env::var("UPDATE_SAVEPOINT_PIN").as_deref() == Ok("1")
     }
 
+    /// The pin is of the savepoint the recorder saves for a frozen case at tick 300. It was
+    /// re-pinned once, when the replay schema moved from 1 to 2 and the layout did not: the
+    /// header carries `SCHEMA_VERSION` and `history_sha256` hashes the prefix replay's bytes (now
+    /// the step log), so those two fields changed; `SAVEPOINT_FORMAT` stays 1 and a savepoint an
+    /// older build saved (header 1, schema 1 prefix) still restores
+    /// (`a_savepoint_header_must_agree_with_its_prefix`). Old line:
+    /// `aa70e16f9c1c228ce7ee88d15d384f017cfcb90dc863122cfe9196c9909b7619  2123`. From here a
+    /// pinned format is never re-pinned.
     #[test]
     fn the_encoding_matches_its_pinned_format() {
         let (bytes, ..) = bytes();
