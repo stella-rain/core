@@ -5,8 +5,11 @@
 //! match-ups): the setup names a mode
 //! whose content is bundled in `core`, so no stage file and no save data is needed.
 //!
-//! A `.replay` of a run is one JSON object. Its inputs are packed as a stage replay's are (see
-//! `replay`). Its commands are packed in the order they applied, each as the tick (a LEB128
+//! A `.replay` of a run is one JSON object, written at schema 2 (ADR-REPL-7 point 4,
+//! ADR-REPL-10): `inputs` is the step log (see `step_log`), each pick inside its step, and
+//! `commands` is empty. A schema 1 file is still read and verified, and its two streams are
+//! described here. Its inputs are packed as a stage replay's are (see `replay`). Its commands
+//! are packed in the order they applied, each as the tick (a LEB128
 //! delta from the previous command's tick, from 0 for the first), the kind (one byte: 0
 //! `choose`; 1 was `spend`, removed with DS18 and refused) and the index (LEB128). A command carries the number of ticks completed
 //! when it applied, so several commands between the same two ticks have deltas of 0.
@@ -98,10 +101,11 @@ pub struct RunReplay {
     /// after that tick and before the commands that follow it, each 16 lowercase hex digits,
     /// concatenated: `16 * (ticks / 60)` digits, empty for fewer than 60 ticks.
     pub checkpoints: String,
-    /// The per-tick inputs, packed as a stage replay's are, then base64.
+    /// The inputs: at schema 1 the per-tick input stream packed as a stage replay's is; at
+    /// schema 2 the step log (`step_log`), then base64.
     pub inputs: String,
-    /// The commands between ticks, packed as described in the module documentation, then
-    /// base64.
+    /// Schema 1: the commands between ticks, packed as described in the module documentation.
+    /// Schema 2: the empty string; a pick is a field of the step it was made on.
     pub commands: String,
 }
 
@@ -111,7 +115,8 @@ const RETIRED_SPEND: u8 = 1;
 /// The kind of a command between ticks, and its byte in the packed stream.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
-    /// Option `index` of the open offer (ADR-079 §3).
+    /// Option `index` of the open offer (ADR-079 §3). Read from schema 1 files; no writer
+    /// writes it into a file (schema 2 holds a pick inside its step).
     Choose,
 }
 

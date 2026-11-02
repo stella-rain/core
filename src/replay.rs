@@ -36,9 +36,10 @@ pub const MAX_STAGE_REPLAY_BYTES: usize = 256 * 1024;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Replay {
-    /// The `schema_version` the file was written at. This game reads a file at its own
-    /// `SCHEMA_VERSION`; an older one is read only through a migration to it, else it is
-    /// `Older`; a newer one is `Newer` (ADR-REPL-7).
+    /// The `schema_version` the file was written at. This game reads the range
+    /// `FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION` and writes `SCHEMA_VERSION`; one below
+    /// the range is read only through a migration, else it is `Older`; a newer one is `Newer`
+    /// (ADR-REPL-7).
     pub schema_version: u32,
     /// The `sim_version` the file was written at. This game reads a file at any version
     /// from `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a
