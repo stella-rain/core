@@ -1141,4 +1141,224 @@ mod route {
             s.players.career(slot(1)).offer
         );
     }
+
+    /// A party's world and state with the kill rewards on slots 0 and 1 and the tick's other
+    /// work taken away, so that a test sees only the hits it makes.
+    fn kill_state() -> (World, State) {
+        let e = party(3);
+        let (w, s) = live(&e);
+        let mut s = s.clone();
+        s.runs.clear();
+        s.orbs.clear();
+        s.zones.clear();
+        s.echoes.clear();
+        for i in 0..2 {
+            let p = &mut s.players[slot(i)];
+            p.burst_pct = 50;
+            p.burst_radius = 400;
+            p.burst_depth = 1;
+            p.kill_heal_every = 2;
+            p.kill_heal = 1;
+            p.kills_counted = 0;
+            p.hp = p.max_hp - 1;
+        }
+        (w.clone(), s)
+    }
+
+    fn shot_of(s: &State, by: u8, at: usize) -> Shot {
+        Shot {
+            at: s.enemies[at].at,
+            owner: slot(by).id(),
+            friendly: true,
+            damage: 1_000_000,
+            damage_type: None,
+            breaks_charge: false,
+            smash: None,
+            combo: false,
+            rune: None,
+            chain: false,
+        }
+    }
+
+    /// Enemy `i` alone at its place, at `hp`: the others are far away and strong.
+    fn lone(s: &mut State, i: usize, hp: u32) {
+        s.enemies[i].hp = hp;
+        let at = s.enemies[i].at;
+        for j in 0..s.enemies.len() {
+            if j != i {
+                s.enemies[j].at.x.0 = at.x.0.saturating_add(900_000);
+                s.enemies[j].hp = s.enemies[j].max_hp.max(1_000);
+            }
+        }
+    }
+
+    fn counted(s: &State, i: u8) -> u32 {
+        s.players[slot(i)].kills_counted
+    }
+
+    fn bursts_in(ev: &[crate::event::DomainEvent]) -> usize {
+        ev.iter()
+            .filter(|e| matches!(e, crate::event::DomainEvent::KillBurst { .. }))
+            .count()
+    }
+
+    #[test]
+    fn a_kill_goes_to_the_player_whose_hit_brought_it_to_zero() {
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        let mut ev = Vec::new();
+        super::super::damage(
+            &w,
+            &mut s,
+            slot(1),
+            shot_of(&s, 1, 0),
+            Who::Enemy(0),
+            &mut ev,
+        );
+        ev.clear();
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert_eq!(bursts_in(&ev), 1, "slot 1's burst only: {ev:?}");
+        assert_eq!((counted(&s, 0), counted(&s, 1)), (0, 1));
+
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        for i in 0..2 {
+            s.players[slot(i)].kill_heal_every = 1;
+        }
+        let mut ev = Vec::new();
+        super::super::damage(
+            &w,
+            &mut s,
+            slot(1),
+            shot_of(&s, 1, 0),
+            Who::Enemy(0),
+            &mut ev,
+        );
+        ev.clear();
+        super::super::collide(&w, &mut s, false, &mut ev);
+        let healed: Vec<_> = ev
+            .iter()
+            .filter_map(|e| match e {
+                crate::event::DomainEvent::Healed { target, .. } => Some(*target),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(healed, vec![slot(1).id()]);
+
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        let mut ev = Vec::new();
+        super::super::damage(
+            &w,
+            &mut s,
+            slot(0),
+            shot_of(&s, 0, 0),
+            Who::Enemy(0),
+            &mut ev,
+        );
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert_eq!((counted(&s, 0), counted(&s, 1)), (1, 0));
+    }
+
+    #[test]
+    fn a_burst_chain_kill_is_the_bursters() {
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        let at = s.enemies[0].at;
+        s.enemies[1].at = at;
+        s.enemies[1].hp = 1;
+        let mut ev = Vec::new();
+        super::super::damage(
+            &w,
+            &mut s,
+            slot(1),
+            shot_of(&s, 1, 0),
+            Who::Enemy(0),
+            &mut ev,
+        );
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert_eq!(
+            (counted(&s, 0), counted(&s, 1)),
+            (0, 2),
+            "A and the one it burst"
+        );
+    }
+
+    #[test]
+    fn the_earlier_hit_wins_and_a_defeat_with_no_hit_goes_to_the_lowest_slot() {
+        for (first, second) in [(1u8, 0u8), (0, 1)] {
+            let (w, mut s) = kill_state();
+            lone(&mut s, 0, 1);
+            let mut ev = Vec::new();
+            super::super::damage(
+                &w,
+                &mut s,
+                slot(first),
+                shot_of(&s, first, 0),
+                Who::Enemy(0),
+                &mut ev,
+            );
+            super::super::damage(
+                &w,
+                &mut s,
+                slot(second),
+                shot_of(&s, second, 0),
+                Who::Enemy(0),
+                &mut ev,
+            );
+            super::super::collide(&w, &mut s, false, &mut ev);
+            assert_eq!(counted(&s, first), 1, "first {first}");
+            assert_eq!(counted(&s, second), 0, "second {second}");
+        }
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 0);
+        let mut ev = Vec::new();
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert_eq!((counted(&s, 0), counted(&s, 1)), (1, 0), "a shrine's win");
+    }
+
+    #[test]
+    fn a_dot_kills_for_the_player_who_applied_it_last() {
+        for by in [1u8, 0] {
+            let (w, mut s) = kill_state();
+            lone(&mut s, 0, 100);
+            let mut ev = Vec::new();
+            super::super::runes::apply_smash_bleed(&mut s, slot(1), Who::Enemy(0), &mut ev);
+            super::super::runes::apply_smash_bleed(&mut s, slot(by), Who::Enemy(0), &mut ev);
+            let st = s.enemies[0]
+                .statuses
+                .iter()
+                .find(|st| st.dot.is_some())
+                .expect("a bleed");
+            assert_eq!(st.source, slot(by).id());
+            for st in s.enemies[0].statuses.iter_mut() {
+                if let Some(d) = st.dot.as_mut() {
+                    d.next_in = 1;
+                    d.damage = 1_000_000;
+                }
+            }
+            super::super::collide(&w, &mut s, true, &mut ev);
+            assert_eq!(counted(&s, by), 1, "bleed by {by}");
+            assert_eq!(counted(&s, 1 - by), 0);
+        }
+    }
+
+    #[test]
+    fn the_kill_record_is_scratch_and_empty_after_the_tick() {
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        let mut ev = Vec::new();
+        super::super::damage(
+            &w,
+            &mut s,
+            slot(1),
+            shot_of(&s, 1, 0),
+            Who::Enemy(0),
+            &mut ev,
+        );
+        assert!(!s.scratch.killers.is_empty());
+        assert!(s.clone().scratch.killers.is_empty(), "a clone starts empty");
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert!(s.scratch.killers.is_empty());
+    }
 }
