@@ -368,7 +368,9 @@ fn unreserved_state(
             agents::new_agent(id, index, stage.defs.get(index), key, start, angle)
         })
         .collect();
-    // The boss's parts come after the companions in the order of entity IDs.
+    // The boss's parts come after the companions in the order of entity IDs. Of these, the crit roll
+    // and the push-apart angle read a number: they read `State::roll_key`, the number without
+    // the empty player slots (ADR-SIM-13).
     let boss = boss_id.map(|id| {
         let arrival = Arrival {
             at: stage.boss(BossIndex(0)).boss.spawn,

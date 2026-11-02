@@ -316,3 +316,13 @@ fn the_frozen_v1_cases_run_sim_v1() {
     }
     assert!(runs > 0);
 }
+
+/// The savepoint bytes of the newest rules are those of version 1 at one player: the entity
+/// numbers are written without the reserved player slots (ADR-SIM-13), `next_id` included.
+#[test]
+fn the_state_bytes_of_both_versions_are_equal() {
+    use crate::savepoint::state::encode_state;
+    let (a, b) = (recorder_at(1), recorder_at(2));
+    assert_eq!(encode_state(a.engine()), encode_state(b.engine()));
+    assert_eq!(a.engine().state_hash(), b.engine().state_hash());
+}

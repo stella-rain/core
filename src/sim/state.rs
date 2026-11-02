@@ -98,6 +98,9 @@ pub(crate) struct State {
     pub zones: Vec<ZoneState>,
     /// Enemies spawned so far, per wave.
     pub spawned: Vec<u16>,
+    /// The next entity number. It starts at `MAX_PLAYERS`: the numbers 0 to 2 are the player slots,
+    /// present or not (ADR-SIM-13). The hash and the savepoint write it, like every entity number,
+    /// without the empty slots (`id_gap`, ADR-SIM-12).
     pub next_id: u32,
     /// Cage groups taken so far (Z3a-3).
     pub next_orb_group: u32,
