@@ -4623,6 +4623,10 @@
           "description": "The evade button (X) is held on this tick: a press dashes when an evade is ready.",
           "type": "boolean"
         },
+        "interact": {
+          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-13). Read by the down\nand revive rules only; the simulation ignores it until they exist. Schema 2 only: the\nschema 1 stream cannot carry it.",
+          "type": "boolean"
+        },
         "main": {
           "description": "The Main attack button (A) is held on this tick (ADR-070).",
           "type": "boolean"

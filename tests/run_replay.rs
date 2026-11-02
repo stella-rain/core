@@ -19,7 +19,9 @@ use stella_rain_core::run_replay::{
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::Error;
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
+use stella_rain_core::version::{
+    NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION, Versions,
+};
 
 use crate::common;
 
@@ -1091,11 +1093,11 @@ fn newer(schema_version: u32, sim_version: u32) -> Result<RunReplay, RunReplayEr
 fn a_run_replay_for_a_newer_version_is_newer() {
     let replay = recorded(20);
     let schema = with(&replay, |v| {
-        v["setup"]["schema_version"] = json!(SCHEMA_VERSION + 1)
+        v["setup"]["schema_version"] = json!(NEWEST_READ_SCHEMA_VERSION + 1)
     });
     assert_eq!(
         RunReplay::from_bytes(&schema),
-        newer(SCHEMA_VERSION + 1, SIM_VERSION)
+        newer(NEWEST_READ_SCHEMA_VERSION + 1, SIM_VERSION)
     );
     // A newer file may hold fields this version rejects; it is still "newer", not damaged.
     let future = with(&replay, |v| {
@@ -1195,9 +1197,13 @@ fn the_corpus_run_replay_loads_at_the_current_versions_and_not_one_above() {
         (SCHEMA_VERSION, SIM_VERSION)
     );
     assert_eq!(
-        RunReplay::from_bytes(&corpus_run_replay_at(SCHEMA_VERSION + 1, SIM_VERSION + 1)).err(),
+        RunReplay::from_bytes(&corpus_run_replay_at(
+            NEWEST_READ_SCHEMA_VERSION + 1,
+            SIM_VERSION + 1
+        ))
+        .err(),
         Some(RunReplayError::Newer {
-            schema_version: SCHEMA_VERSION + 1,
+            schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
             sim_version: SIM_VERSION + 1
         })
     );

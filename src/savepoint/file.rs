@@ -40,7 +40,10 @@ use crate::replay::hash_to_hex;
 use crate::run_replay::{
     History, MAX_RUN_REPLAY_BYTES, RunReplay, content_sha256_with, unpack_history,
 };
-use crate::version::{FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION};
+use crate::version::{
+    FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION,
+    SIM_VERSION,
+};
 
 use super::{decode_state, encode_state};
 
@@ -173,7 +176,7 @@ impl Savepoint {
         {
             return Err(SavepointError::Damaged);
         }
-        if u32_at(bytes, 12) != SCHEMA_VERSION {
+        if !(FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION).contains(&u32_at(bytes, 12)) {
             return Err(SavepointError::SimVersion);
         }
         let state_hash = u64::from_le_bytes(array_at(bytes, 52));
@@ -337,10 +340,32 @@ mod tests {
     }
 
     #[test]
+    fn schema_1_and_2_savepoints_are_read_and_others_are_not() {
+        use crate::version::{FIRST_SCHEMA_VERSION, NEWEST_READ_SCHEMA_VERSION};
+        let with = |schema_version| Savepoint {
+            header: SavepointHeader {
+                schema_version,
+                ..sample().header
+            },
+            ..sample()
+        };
+        for schema in FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION {
+            let read = Savepoint::from_bytes(&with(schema).to_bytes()).unwrap();
+            assert_eq!(read.header.schema_version, schema);
+        }
+        for schema in [0, NEWEST_READ_SCHEMA_VERSION + 1] {
+            assert_eq!(
+                Savepoint::from_bytes(&with(schema).to_bytes()).err(),
+                Some(SavepointError::SimVersion)
+            );
+        }
+    }
+
+    #[test]
     fn a_schema_version_other_than_ours_is_refused() {
         let other = Savepoint {
             header: SavepointHeader {
-                schema_version: SCHEMA_VERSION + 1,
+                schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
                 ..sample().header
             },
             ..sample()

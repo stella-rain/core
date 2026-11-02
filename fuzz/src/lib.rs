@@ -33,7 +33,9 @@ use stella_rain_core::text::TextTable;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::{MAX_RUN_STARDUST, MAX_TICKS};
 use stella_rain_core::validate::{self, parse_and_validate};
-use stella_rain_core::version::{FIRST_SIM_VERSION, Versions};
+use stella_rain_core::version::{
+    FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, Versions,
+};
 use stella_rain_core::{base64, share};
 
 /// Ticks `stage_run` simulates: long enough for waves, attacks and boss phases to start, short
@@ -220,6 +222,7 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
             assist: byte(t, 2) & 16 != 0,
             auto: byte(t, 2) & 32 != 0,
             pick: None,
+            interact: false,
         })
         .collect()
 }
@@ -230,10 +233,14 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
 /// they claim; a run replay that verifies is exactly what its own commands record; and a replay
 /// that loads is at this core's schema version and a sim version from `FIRST_SIM_VERSION` to the current (any other pair is `Older`, `Newer` or `Damaged`).
 pub fn replay_load(data: &[u8]) -> bool {
-    let current = Versions::CURRENT;
+    // The newest versions this build reads; writers still write `Versions::CURRENT`.
+    let current = Versions {
+        schema_version: NEWEST_READ_SCHEMA_VERSION,
+        sim_version: Versions::CURRENT.sim_version,
+    };
     if let Ok(replay) = Replay::from_bytes(data) {
         assert!(
-            replay.schema_version == current.schema_version
+            (FIRST_SCHEMA_VERSION..=current.schema_version).contains(&replay.schema_version)
                 && (FIRST_SIM_VERSION..=current.sim_version).contains(&replay.sim_version),
             "a replay that loads is at another version"
         );
@@ -244,7 +251,7 @@ pub fn replay_load(data: &[u8]) -> bool {
     }
     if let Ok(run) = RunReplay::from_bytes(data) {
         assert!(
-            run.setup.schema_version == current.schema_version
+            (FIRST_SCHEMA_VERSION..=current.schema_version).contains(&run.setup.schema_version)
                 && (FIRST_SIM_VERSION..=current.sim_version).contains(&run.setup.sim_version),
             "a run replay that loads is at another version"
         );
@@ -255,7 +262,21 @@ pub fn replay_load(data: &[u8]) -> bool {
         assert_eq!(again, run, "a saved run replay loads as another run replay");
         // A prefix that resumes is a replay of itself, whatever the bytes claimed.
         if let Ok(resumed) = RunRecorder::resume_with_pack(&run, Pack::bundled()) {
-            assert_eq!(resumed.replay(), run, "a resumed prefix replays as another");
+            // The recorder writes schema 1: a schema 2 prefix resumes as its schema 1 form.
+            if run.setup.schema_version == SCHEMA_VERSION {
+                assert_eq!(resumed.replay(), run, "a resumed prefix replays as another");
+            } else {
+                let again = resumed.replay();
+                assert_eq!(
+                    (&again.final_hash, again.ticks),
+                    (&run.final_hash, run.ticks),
+                    "a resumed schema 2 prefix replays as another run"
+                );
+                assert!(
+                    run_replay::verify_run(&again.to_bytes()).is_ok(),
+                    "a resumed schema 2 prefix does not verify as schema 1"
+                );
+            }
         }
     }
     let stage_replay = replay::verify(CLEAR_STAGE, data).is_ok();
@@ -263,9 +284,13 @@ pub fn replay_load(data: &[u8]) -> bool {
     let run_replay = verified.is_ok();
     if run_replay {
         let run = RunReplay::from_bytes(data).expect("a run replay that verified loads");
-        let recorded = run_replay::record_run(&run.setup, &commands(&run))
-            .expect("the commands of a run replay that verified record");
-        assert_eq!(recorded, run, "a verified run replay records as another");
+        // A schema 2 run's inputs are a step log that `commands` does not read; the recorder
+        // writes schema 1 until the writer moves, so only schema 1 re-records to itself.
+        if run.setup.schema_version == SCHEMA_VERSION {
+            let recorded = run_replay::record_run(&run.setup, &commands(&run))
+                .expect("the commands of a run replay that verified record");
+            assert_eq!(recorded, run, "a verified run replay records as another");
+        }
         assert_eq!(
             run.checkpoints.len(),
             16 * usize::try_from(run.ticks / run_replay::CHECKPOINT_TICKS).unwrap(),
@@ -415,7 +440,8 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
         ("sim-version".to_owned(), edited(8, &|b| b.wrapping_add(1))),
         (
             "schema-version".to_owned(),
-            reseal(edited(12, &|b| b.wrapping_add(1))),
+            // Schema 2 is readable; 3 is not.
+            reseal(edited(12, &|b| b.wrapping_add(2))),
         ),
         ("pack".to_owned(), reseal(edited(16, &|b| b ^ 1))),
         ("damaged".to_owned(), edited(valid.len() - 1, &|b| b ^ 1)),

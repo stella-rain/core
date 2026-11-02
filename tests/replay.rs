@@ -15,7 +15,9 @@ use stella_rain_core::replay::{
 };
 use stella_rain_core::rng::SplitMix64;
 use stella_rain_core::validate;
-use stella_rain_core::version::{FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::version::{
+    FIRST_SIM_VERSION, NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION,
+};
 
 fn recorded() -> (Vec<u8>, Replay, Vec<u8>) {
     let stage = stage_bytes();
@@ -374,8 +376,8 @@ fn a_replay_only_verifies_against_its_own_stage() {
         ),
         (
             "schema_version",
-            SCHEMA_VERSION + 1,
-            (SCHEMA_VERSION + 1, FIRST_SIM_VERSION),
+            NEWEST_READ_SCHEMA_VERSION + 1,
+            (NEWEST_READ_SCHEMA_VERSION + 1, FIRST_SIM_VERSION),
         ),
     ] {
         let tampered = with(&replay, |v| v[field] = json!(newer));
@@ -628,10 +630,12 @@ fn newer(schema_version: u32, sim_version: u32) -> Result<Replay, ReplayError> {
 #[test]
 fn a_replay_for_a_newer_version_is_newer() {
     let (_, replay, _) = recorded();
-    let schema = with(&replay, |v| v["schema_version"] = json!(SCHEMA_VERSION + 1));
+    let schema = with(&replay, |v| {
+        v["schema_version"] = json!(NEWEST_READ_SCHEMA_VERSION + 1)
+    });
     assert_eq!(
         Replay::from_bytes(&schema),
-        newer(SCHEMA_VERSION + 1, FIRST_SIM_VERSION)
+        newer(NEWEST_READ_SCHEMA_VERSION + 1, FIRST_SIM_VERSION)
     );
     // A newer file may hold fields this version rejects; it is still "newer", not damaged.
     let future = with(&replay, |v| {
@@ -723,10 +727,53 @@ fn the_corpus_replay_loads_at_the_current_versions_and_not_one_above() {
         (SCHEMA_VERSION, SIM_VERSION)
     );
     assert_eq!(
-        Replay::from_bytes(&corpus_replay_at(SCHEMA_VERSION + 1, SIM_VERSION + 1)),
+        Replay::from_bytes(&corpus_replay_at(
+            NEWEST_READ_SCHEMA_VERSION + 1,
+            SIM_VERSION + 1
+        )),
         Err(ReplayError::Newer {
-            schema_version: SCHEMA_VERSION + 1,
+            schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
             sim_version: SIM_VERSION + 1
         })
+    );
+}
+
+// --- Schema 2 (ADR-REPL-7 point 4) -------------------------------------------------------------
+
+/// The clearing stage with its schema version set.
+fn stage_at_schema(schema_version: u32) -> Vec<u8> {
+    let mut v: Value = serde_json::from_slice(&stage_bytes()).unwrap();
+    v["schema_version"] = json!(schema_version);
+    serde_json::to_vec(&v).unwrap()
+}
+
+/// The replay of `stage` with the interact flag (bit 6) set on the first run of its inputs.
+fn with_interact_flag(replay: &Replay) -> Vec<u8> {
+    let mut bytes = base64::decode(&replay.inputs).unwrap();
+    // The first run is one tick (the evade), so its length is one varint byte.
+    assert_eq!(bytes[0], 1);
+    bytes[1] |= 0b100_0000;
+    with(replay, |v| v["inputs"] = json!(base64::encode(&bytes)))
+}
+
+#[test]
+fn a_stage_replay_at_schema_2_allows_interact() {
+    let inputs = clearing_inputs();
+    let one = record(&stage_at_schema(1), &inputs).unwrap();
+    let two_stage = stage_at_schema(2);
+    let two = record(&two_stage, &inputs).unwrap();
+    assert_eq!((one.schema_version, two.schema_version), (1, 2));
+    // The same bytes and the same hash at 2: only the version moved.
+    assert_eq!(one.inputs, two.inputs);
+    assert_eq!(one.final_hash, two.final_hash);
+    let plain = verify(&two_stage, &two.to_bytes()).unwrap();
+    assert_eq!(plain.ticks, CLEAR_TICK);
+    // Bit 6 is the interact button at 2: the simulation ignores it, so the hash is the same.
+    let held = verify(&two_stage, &with_interact_flag(&two)).unwrap();
+    assert_eq!(held.final_hash, plain.final_hash);
+    // At 1 it is an unknown flag.
+    assert_eq!(
+        verify(&stage_at_schema(1), &with_interact_flag(&one)),
+        Err(ReplayError::BadInputs("a run has unknown flags"))
     );
 }

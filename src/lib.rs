@@ -57,6 +57,7 @@ pub mod stage;
 pub mod stage_skill;
 pub mod stardust;
 pub mod starting_unlocks;
+pub(crate) mod step_log;
 pub mod text;
 pub mod time_limit;
 pub mod trig;

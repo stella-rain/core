@@ -12,7 +12,7 @@ use stella_rain_core::run_replay::{
     RunRecorder, RunReplayError, content_sha256, content_sha256_with, verify_run, verify_run_with,
 };
 use stella_rain_core::validate::Error;
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
+use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SIM_VERSION, Versions};
 
 use crate::common;
 
@@ -99,7 +99,7 @@ fn the_file_is_strict_and_size_limited() {
         parse_at(
             &newer,
             Versions {
-                schema_version: SCHEMA_VERSION + 1,
+                schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
                 sim_version: SIM_VERSION + 1
             }
         ),

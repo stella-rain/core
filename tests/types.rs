@@ -86,6 +86,7 @@ fn input_record_holds_the_stick_four_buttons_and_two_switches_only() {
         assist: true,
         auto: false,
         pick: None,
+        interact: false,
     };
     let value = serde_json::to_value(input).unwrap();
     let keys: Vec<&str> = value
@@ -185,5 +186,81 @@ fn a_stage_at_version_0_is_refused() {
                 sim_version
             })
         );
+    }
+}
+
+#[test]
+fn interact_is_not_in_the_wire() {
+    use stella_rain_core::replay::pack_inputs;
+    // A false `interact` is omitted: eight keys, as before schema 2.
+    let value = serde_json::to_value(Input::default()).unwrap();
+    assert_eq!(value.as_object().unwrap().len(), 8);
+    assert!(value.get("interact").is_none());
+    let held = Input {
+        interact: true,
+        ..Input::default()
+    };
+    let value = serde_json::to_value(held).unwrap();
+    assert_eq!(value["interact"], serde_json::json!(true));
+    assert_eq!(serde_json::from_value::<Input>(value).unwrap(), held);
+    let all = r#""move_x":0,"move_y":0,"main":false,"smash":false,"evade":false,"skill":false,"assist":false,"auto":false"#;
+    let without: Input = serde_json::from_str(&format!("{{{all}}}")).unwrap();
+    assert!(!without.interact);
+    assert!(serde_json::from_str::<Input>(&format!(r#"{{{all},"interact":1}}"#)).is_err());
+    // Schema 1's stream cannot carry it.
+    assert_eq!(pack_inputs(&[held]), pack_inputs(&[Input::default()]));
+}
+
+#[test]
+fn interact_moves_no_hash() {
+    use stella_rain_core::engine::Engine;
+    use stella_rain_core::run_setup::RunSetup;
+    let setup = RunSetup::default();
+    let mut plain = Engine::start(&setup).unwrap();
+    let mut held = Engine::start(&setup).unwrap();
+    for tick in 0..300u32 {
+        let walk = Input {
+            move_x: i8::try_from(tick % 100).unwrap(),
+            move_y: -40,
+            main: tick % 7 < 3,
+            ..Input::default()
+        };
+        plain.step(&[walk]);
+        held.step(&[Input {
+            interact: true,
+            ..walk
+        }]);
+        assert_eq!(plain.state_hash(), held.state_hash(), "tick {tick}");
+    }
+}
+
+#[test]
+fn the_version_range_is_one_to_two_and_writers_write_one() {
+    use stella_rain_core::version::{FIRST_SCHEMA_VERSION, NEWEST_READ_SCHEMA_VERSION};
+    assert_eq!(FIRST_SCHEMA_VERSION, 1);
+    assert_eq!(NEWEST_READ_SCHEMA_VERSION, 2);
+    assert_eq!(SCHEMA_VERSION, 1);
+}
+
+#[test]
+fn readers_take_schema_1_and_2() {
+    use stella_rain_core::version::NEWEST_READ_SCHEMA_VERSION;
+    for sim in FIRST_SIM_VERSION..=SIM_VERSION {
+        for schema in 1..=NEWEST_READ_SCHEMA_VERSION {
+            assert_eq!(
+                validate::parse_and_validate(&at_versions(schema, sim)).map(|s| s.schema_version),
+                Ok(schema),
+                "({schema}, {sim})"
+            );
+        }
+        for schema in [0, NEWEST_READ_SCHEMA_VERSION + 1] {
+            assert_eq!(
+                validate::parse_and_validate(&at_versions(schema, sim)),
+                Err(validate::Error::UnsupportedVersion {
+                    schema_version: schema,
+                    sim_version: sim
+                })
+            );
+        }
     }
 }

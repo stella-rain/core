@@ -13,7 +13,7 @@ use stella_rain_core::expertise::{
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use stella_rain_core::validate::Error;
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
+use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SIM_VERSION, Versions};
 
 fn option(id: &str, effect: &str, amount: u32) -> Value {
     json!({
@@ -195,12 +195,12 @@ fn newer_versions_are_refused_before_the_strict_parse() {
         parse_at(
             &v,
             Versions {
-                schema_version: SCHEMA_VERSION + 1,
+                schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
                 sim_version: SIM_VERSION + 1
             }
         ),
         Err(Error::UnsupportedVersion {
-            schema_version: SCHEMA_VERSION + 1,
+            schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
             sim_version: SIM_VERSION + 1
         })
     );

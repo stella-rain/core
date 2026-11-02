@@ -18,7 +18,7 @@ use stella_rain_core::run_stats::{
 };
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::DAMAGE_SCALE;
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
+use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SIM_VERSION, Versions};
 
 use crate::common;
 
@@ -155,12 +155,12 @@ fn a_newer_file_is_unsupported() {
         parse_at(
             &v,
             Versions {
-                schema_version: SCHEMA_VERSION + 1,
+                schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
                 sim_version: SIM_VERSION + 1
             }
         ),
         Err(Error::UnsupportedVersion {
-            schema_version: SCHEMA_VERSION + 1,
+            schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
             sim_version: SIM_VERSION + 1
         })
     );

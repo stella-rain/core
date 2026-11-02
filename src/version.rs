@@ -5,8 +5,17 @@
 //! `FIRST_SIM_VERSION` up to `SIM_VERSION` (ADR-REPL-9): the frozen versions keep loading.
 //! `DEVELOPMENT` marks the live `SIM_VERSION` as open until the freeze (ADR-REPL-9).
 
-/// Structure of stage, event and replay files.
+/// Structure of stage, event and replay files, as writers write it. The next change sets it
+/// to 2 (replay schema 2).
 pub const SCHEMA_VERSION: u32 = 1;
+
+/// The oldest `schema_version` still read (ADR-REPL-7 point 4): schema 1 files keep loading.
+pub const FIRST_SCHEMA_VERSION: u32 = 1;
+
+/// The newest `schema_version` this build reads; the writer's `SCHEMA_VERSION` rises to it in
+/// the next change. Schema 2 changes the run replay's input stream and adds `Input.interact`;
+/// stage, pack and setup files have the same structure at 1 and 2 (ADR-REPL-7 point 4).
+pub const NEWEST_READ_SCHEMA_VERSION: u32 = 2;
 
 /// Simulation rules: the open live version (ADR-REPL-9); version 1 is frozen in `sim_v1`.
 pub const SIM_VERSION: u32 = 2;
@@ -35,20 +44,23 @@ pub(crate) enum ReadError {
     },
 }
 
-/// Checks both versions against this game's: the schema exactly, the sim version within
+/// Checks both versions against this game's: the schema within
+/// `FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION`, the sim version within
 /// `FIRST_SIM_VERSION..=SIM_VERSION`.
 pub(crate) fn check(schema_version: u32, sim_version: u32) -> Result<(), ReadError> {
     check_in(schema_version, sim_version, FIRST_SIM_VERSION, SIM_VERSION)
 }
 
-/// `check` for the sim versions `oldest..=current`.
+/// `check` for the sim versions `oldest..=current` (the schema range is the same).
 pub(crate) fn check_in(
     schema_version: u32,
     sim_version: u32,
     oldest: u32,
     current: u32,
 ) -> Result<(), ReadError> {
-    if schema_version == SCHEMA_VERSION && (oldest..=current).contains(&sim_version) {
+    if (FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION).contains(&schema_version)
+        && (oldest..=current).contains(&sim_version)
+    {
         Ok(())
     } else {
         Err(ReadError::UnsupportedVersion {
@@ -70,6 +82,12 @@ impl Versions {
     /// This game's.
     pub const CURRENT: Versions = Versions {
         schema_version: SCHEMA_VERSION,
+        sim_version: SIM_VERSION,
+    };
+
+    /// The newest versions this game reads: what the replay readers take as `current`.
+    pub(crate) const NEWEST_READ: Versions = Versions {
+        schema_version: NEWEST_READ_SCHEMA_VERSION,
         sim_version: SIM_VERSION,
     };
 }
@@ -163,16 +181,20 @@ fn damaged(e: serde_json::Error) -> ReplayLoadError {
 }
 
 /// Reads a replay file: the size limit first, then the versions alone (`header`), then the
-/// strict parse (ADR-017, ADR-SVC-1). Either version above `current` is `Newer`, whatever else
-/// the file holds; the current schema with a sim version in `oldest..=current.sim_version` is
-/// parsed as it is; below that, a migration for exactly that pair is
-/// applied to the JSON first (positions of a `Damaged` after a migration are in the migrated
-/// bytes), and without one the file is `Older`. A migration's output is checked, not trusted:
-/// over the size limit it is `TooLarge`, and a document that does not reach `current` is
-/// `Older` with the file's own versions; both before the second parse.
+/// strict parse (ADR-017, ADR-SVC-1). `current` is the newest pair this game reads; either number
+/// above it is `Newer`, whatever else the file holds. A schema in `oldest_schema..=current.schema`
+/// with a sim version in `oldest..=current.sim_version` is parsed as it is (this is how a schema 1
+/// and a schema 2 file both load, ADR-REPL-7 point 4); anything below that is migrated by a
+/// migration for exactly that pair, applied to the JSON first (positions of a `Damaged` after a
+/// migration are in the migrated bytes), and without one the file is `Older`. A migration's
+/// output is checked, not trusted: over the size limit it is `TooLarge`, and a document whose
+/// schema is not `current.schema`, or whose sim version is not the file's own (a migration never
+/// changes the rules version), is `Older` with the file's own versions; both before the second
+/// parse.
 pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,
+    oldest_schema: u32,
     oldest: u32,
     current: Versions,
     migrations: &[Migration],
@@ -188,7 +210,7 @@ pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
     if found.schema_version > current.schema_version || found.sim_version > current.sim_version {
         return Err(ReplayLoadError::Newer(found));
     }
-    if found.schema_version == current.schema_version
+    if (oldest_schema..=current.schema_version).contains(&found.schema_version)
         && (oldest..=current.sim_version).contains(&found.sim_version)
     {
         return serde_json::from_slice(bytes).map_err(damaged);
@@ -204,7 +226,8 @@ pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
             limit,
         });
     }
-    if header(&migrated).map_err(damaged)? != current {
+    let after = header(&migrated).map_err(damaged)?;
+    if after.schema_version != current.schema_version || after.sim_version != found.sim_version {
         return Err(ReplayLoadError::Older(found));
     }
     serde_json::from_slice(&migrated).map_err(damaged)
@@ -231,6 +254,112 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn the_readers_take_the_schema_range() {
+        for sim in FIRST_SIM_VERSION..=SIM_VERSION {
+            for schema in FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION {
+                assert_eq!(check(schema, sim), Ok(()), "({schema}, {sim})");
+                assert_eq!(
+                    read_member::<serde_json::Value>(b"{}", 16, v(schema, sim)).map(|_| ()),
+                    Ok(())
+                );
+                let body = format!(r#"{{"schema_version":{schema},"sim_version":{sim}}}"#);
+                assert!(read_current::<serde_json::Value>(body.as_bytes(), 1024).is_ok());
+            }
+            for schema in [0, NEWEST_READ_SCHEMA_VERSION + 1] {
+                let err = Err(ReadError::UnsupportedVersion {
+                    schema_version: schema,
+                    sim_version: sim,
+                });
+                assert_eq!(check(schema, sim), err);
+                assert_eq!(
+                    read_member::<serde_json::Value>(b"{}", 16, v(schema, sim)).map(|_| ()),
+                    err
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_migrated_file_keeps_its_sim_version() {
+        fn keeps(mut doc: Value) -> Value {
+            doc["schema_version"] = json!(2);
+            doc["value"] = doc["old_value"].take();
+            doc.as_object_mut().unwrap().remove("old_value");
+            doc
+        }
+        fn moves_sim(mut doc: Value) -> Value {
+            doc = keeps(doc);
+            doc["sim_version"] = json!(2);
+            doc
+        }
+        fn stays_at_schema_1(mut doc: Value) -> Value {
+            doc = keeps(doc);
+            doc["schema_version"] = json!(1);
+            doc
+        }
+        let old = json!({ "schema_version": 1, "sim_version": 1, "old_value": 7 });
+        let load = |apply: fn(Value) -> Value| {
+            read_replay::<Doc>(
+                old.to_string().as_bytes(),
+                1024,
+                2,
+                1,
+                v(2, 2),
+                &[Migration {
+                    from: v(1, 1),
+                    apply,
+                }],
+                header,
+            )
+        };
+        assert_eq!(
+            load(keeps),
+            Ok(Doc {
+                schema_version: 2,
+                sim_version: 1,
+                value: 7
+            })
+        );
+        assert_eq!(load(moves_sim), Err(ReplayLoadError::Older(v(1, 1))));
+        assert_eq!(
+            load(stays_at_schema_1),
+            Err(ReplayLoadError::Older(v(1, 1)))
+        );
+    }
+
+    #[test]
+    fn a_replay_of_either_readable_schema_loads_as_it_is() {
+        let load = |schema: u32, sim: u32| {
+            read_replay::<Doc>(
+                doc(schema, sim).to_string().as_bytes(),
+                1024,
+                FIRST_SCHEMA_VERSION,
+                FIRST_SIM_VERSION,
+                v(NEWEST_READ_SCHEMA_VERSION, SIM_VERSION),
+                &[],
+                header,
+            )
+        };
+        for schema in 1..=2 {
+            assert!(load(schema, 1).is_ok() && load(schema, 2).is_ok());
+        }
+        assert_eq!(load(0, 2), Err(ReplayLoadError::Older(v(0, 2))));
+        let mut future = doc(3, 2);
+        future["unknown"] = json!(1);
+        let bytes = future.to_string();
+        let newer = read_replay::<Doc>(
+            bytes.as_bytes(),
+            1024,
+            FIRST_SCHEMA_VERSION,
+            FIRST_SIM_VERSION,
+            v(NEWEST_READ_SCHEMA_VERSION, SIM_VERSION),
+            &[],
+            header,
+        );
+        assert_eq!(newer, Err(ReplayLoadError::Newer(v(3, 2))));
+    }
+
     #[derive(serde::Deserialize, PartialEq, Debug)]
     #[serde(deny_unknown_fields)]
     struct Doc {
@@ -255,7 +384,6 @@ mod tests {
         let old = map.remove("old_value").unwrap();
         map.insert("value".into(), old);
         map.insert("schema_version".into(), json!(2));
-        map.insert("sim_version".into(), json!(2));
         doc
     }
 
@@ -272,7 +400,15 @@ mod tests {
     }
 
     fn read_raw(bytes: &[u8], table: &[Migration]) -> Result<Doc, ReplayLoadError> {
-        read_replay(bytes, 1024, CURRENT.sim_version, CURRENT, table, header)
+        read_replay(
+            bytes,
+            1024,
+            CURRENT.schema_version,
+            CURRENT.sim_version,
+            CURRENT,
+            table,
+            header,
+        )
     }
 
     fn doc(schema_version: u32, sim_version: u32) -> Value {
@@ -297,7 +433,7 @@ mod tests {
                 })
             );
         }
-        assert!(check_in(2, 2, 1, 3).is_err());
+        assert!(check_in(3, 2, 1, 3).is_err());
     }
 
     #[test]
@@ -346,6 +482,7 @@ mod tests {
                 doc(1, sim).to_string().as_bytes(),
                 1024,
                 1,
+                1,
                 current,
                 &table,
                 header,
@@ -385,7 +522,7 @@ mod tests {
             read(&old, TABLE),
             Ok(Doc {
                 schema_version: 2,
-                sim_version: 2,
+                sim_version: 1,
                 value: 7
             })
         );
@@ -434,9 +571,10 @@ mod tests {
         doc
     }
 
-    fn schema_only(doc: Value) -> Value {
-        let mut doc = value_only(doc);
-        doc["schema_version"] = json!(2);
+    /// Reaches the current schema but moves the rules version, which no migration may do.
+    fn moves_the_sim_version(doc: Value) -> Value {
+        let mut doc = from_one_one(doc);
+        doc["sim_version"] = json!(2);
         doc
     }
 
@@ -461,7 +599,7 @@ mod tests {
             Err(ReplayLoadError::Older(v(1, 1)))
         );
         assert_eq!(
-            read(&old, &migration(schema_only)),
+            read(&old, &migration(moves_the_sim_version)),
             Err(ReplayLoadError::Older(v(1, 1)))
         );
     }
@@ -520,13 +658,15 @@ mod tests {
             doc
         }
 
+        /// The file a schema 0 build wrote: a migration never changes the rules version, so the
+        /// sim version stays this game's.
         fn at_zero(bytes: &[u8]) -> Vec<u8> {
             let doc: Value = serde_json::from_slice(bytes).unwrap();
-            serde_json::to_vec(&set(doc, 0, 0)).unwrap()
+            serde_json::to_vec(&set(doc, 0, SIM_VERSION)).unwrap()
         }
 
         fn to_current(doc: Value) -> Value {
-            set(doc, SCHEMA_VERSION, SIM_VERSION)
+            set(doc, NEWEST_READ_SCHEMA_VERSION, SIM_VERSION)
         }
 
         fn stays(doc: Value) -> Value {
@@ -541,7 +681,7 @@ mod tests {
 
         fn from_zero(apply: fn(Value) -> Value) -> [Migration; 1] {
             [Migration {
-                from: v(0, 0),
+                from: v(0, SIM_VERSION),
                 apply,
             }]
         }
@@ -567,8 +707,9 @@ mod tests {
             read_replay(
                 bytes,
                 limit,
+                FIRST_SCHEMA_VERSION,
                 FIRST_SIM_VERSION,
-                Versions::CURRENT,
+                v(NEWEST_READ_SCHEMA_VERSION, SIM_VERSION),
                 table,
                 header,
             )
@@ -580,25 +721,30 @@ mod tests {
             header: fn(&[u8]) -> Result<Versions, serde_json::Error>,
             versions: fn(&T) -> Versions,
         ) where
-            T: serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+            T: serde::de::DeserializeOwned + serde::Serialize + PartialEq + std::fmt::Debug,
         {
             let old = at_zero(bytes);
             let direct: T = serde_json::from_slice(bytes).unwrap();
             assert_eq!(versions(&direct), Versions::CURRENT);
             let migrated: T = load(&old, LIMIT, &from_zero(to_current), header).unwrap();
-            assert_eq!(migrated, direct);
             assert_eq!(
                 versions(&migrated),
-                v(SCHEMA_VERSION, SIM_VERSION),
-                "migrated to this game's versions"
+                v(NEWEST_READ_SCHEMA_VERSION, SIM_VERSION),
+                "migrated to the newest schema this game reads, on the file's own rules"
             );
+            let as_direct = set(
+                serde_json::to_value(&migrated).unwrap(),
+                SCHEMA_VERSION,
+                SIM_VERSION,
+            );
+            assert_eq!(as_direct, serde_json::to_value(&direct).unwrap());
             assert_eq!(
                 load::<T>(&old, LIMIT, &[], header),
-                Err(ReplayLoadError::Older(v(0, 0)))
+                Err(ReplayLoadError::Older(v(0, SIM_VERSION)))
             );
             assert_eq!(
                 load::<T>(&old, LIMIT, &from_zero(stays), header),
-                Err(ReplayLoadError::Older(v(0, 0)))
+                Err(ReplayLoadError::Older(v(0, SIM_VERSION)))
             );
             let size = serde_json::to_vec(&padded(serde_json::from_slice(&old).unwrap()))
                 .unwrap()

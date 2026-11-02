@@ -16,7 +16,7 @@ use stella_rain_core::run_replay::{content_sha256, content_sha256_with};
 use stella_rain_core::stage::LevelTable;
 use stella_rain_core::time_limit::{MAX_BOSS_TIMES, MAX_LENGTH_TICKS};
 use stella_rain_core::validate::Error;
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
+use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SIM_VERSION, Versions};
 
 fn difficulty(id: &str) -> Value {
     json!({
@@ -143,7 +143,7 @@ fn versions_and_unknown_fields_are_refused() {
         parse_at(
             &v,
             Versions {
-                schema_version: SCHEMA_VERSION + 1,
+                schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
                 sim_version: SIM_VERSION + 1
             }
         ),
