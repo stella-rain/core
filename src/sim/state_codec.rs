@@ -1742,6 +1742,19 @@ impl Decode for std::sync::Arc<str> {
 
 impl Encode for State {
     fn encode(&self, w: &mut Writer) {
+        // Format 1 holds one player: the entity IDs are written without the empty slots.
+        assert!(
+            self.players.len() == 1,
+            "savepoint format 1 holds one player"
+        );
+        w.set_id_gap(self.id_gap());
+        self.encode_fields(w);
+        w.set_id_gap(0);
+    }
+}
+
+impl State {
+    fn encode_fields(&self, w: &mut Writer) {
         let State {
             // not saved: buffers reused from tick to tick, never state.
             scratch: _,
@@ -1825,6 +1838,14 @@ impl State {
     /// lists are only as long as the format allows: `decode_state` checks them against `fresh`,
     /// and fills the index and the content-sized fields of `progress` and `horde` in.
     pub(crate) fn decode_over(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
+        // The gap the bytes were written with: format 1 holds the one player `Players::solo` is.
+        r.set_id_gap(crate::id::id_gap(1));
+        let state = Self::decode_fields(r, fresh);
+        r.set_id_gap(0);
+        state
+    }
+
+    fn decode_fields(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
         let companions_cap = cap_u32(crate::validate::limits::MAX_COMPANIONS);
         let enemies_cap = u32::from(crate::limits::MAX_ENEMY_CAP);
         Ok(State {

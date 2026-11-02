@@ -33,7 +33,8 @@ pub(super) fn crits(s: &State, me: PlayerIdx, b: &Shot, id: EntityId, hp: u32, f
     }
     let parts = [
         u64::from(s.tick),
-        u64::from(id.0),
+        // The key, not the number: a party of one rolls as it did before the slots were reserved.
+        u64::from(s.roll_key(id)),
         u64::from(hp),
         u64::from(u32::from_ne_bytes(b.at.x.0.to_ne_bytes())),
         u64::from(u32::from_ne_bytes(b.at.y.0.to_ne_bytes())),

@@ -167,7 +167,7 @@ use crate::sim::state::{
     AgentKey, AgentSource, BossState, Dir, MoveOrder, PartState, PlayerState, Progress, Pull,
     Smash, StarField, StatRule, State, Streams,
 };
-use crate::sim::state::{PlayerIdx, Players};
+use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use crate::snapshot::{EntityKind, OfferOption};
 use crate::stage::{Side, ViewEdge};
 use crate::trig;
@@ -340,9 +340,9 @@ fn unreserved_state(
 ) -> State {
     let run_stats = content.run_stats();
     let rewards = content.rewards().rewards().len();
-    // The players take the first entity IDs, the boss and the companions come after them.
-    let players = 1;
-    let mut next_id = players;
+    // Slots 0 to 2 are reserved for the players whether or not a slot is in the party
+    // (ADR-SIM-13); the boss and the companions come after them.
+    let mut next_id = u32::from(MAX_PLAYERS);
     let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
         next_id += 1;

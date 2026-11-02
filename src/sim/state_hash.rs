@@ -979,6 +979,16 @@ impl StableHash for Horde {
 
 impl StableHash for State {
     fn stable_hash(&self, h: &mut StateHasher) {
+        // The entity IDs are written without the empty player slots (ADR-SIM-13), so a party of
+        // one hashes as it did before they were reserved.
+        h.set_id_gap(self.id_gap());
+        self.hash_fields(h);
+        h.set_id_gap(0);
+    }
+}
+
+impl State {
+    fn hash_fields(&self, h: &mut StateHasher) {
         let State {
             // not hashed: buffers reused from tick to tick, never state.
             scratch: _,

@@ -30,7 +30,7 @@ use crate::corpus::{apply, current_dir};
 use crate::corpus_pins::{case_dirs, case_pack, run_case_pack};
 
 /// How many entity numbers the player slots reserve beyond the one slot a solo party holds.
-const ID_GAP: u32 = 0;
+const ID_GAP: u32 = 2;
 /// The snapshot is digested on every this-many-th tick of a run or bench case, and on the last.
 const SNAPSHOT_STRIDE: u32 = 30;
 /// The ticks a bench tick case plays after its warm-up.
@@ -45,8 +45,9 @@ fn map(n: u32) -> u32 {
     if n < 3 { n } else { n - ID_GAP }
 }
 
-/// Feeds `text` to `sha` with every `EntityId(n)` rewritten to `EntityId(map(n))`.
-fn feed_mapped(sha: &mut Sha256, text: &str) {
+/// `text` with every `EntityId(n)` rewritten to `EntityId(map(n))`: the numbers the version 2
+/// rules gave an entity before the player slots were reserved.
+pub(crate) fn rewrite_ids(text: &str) -> String {
     const TAG: &str = "EntityId(";
     let mut rest = text;
     let mut mapped = String::new();
@@ -59,7 +60,12 @@ fn feed_mapped(sha: &mut Sha256, text: &str) {
         rest = &tail[digits..];
     }
     mapped.push_str(rest);
-    sha.update(mapped.as_bytes());
+    mapped
+}
+
+/// Feeds `text` to `sha` with its entity IDs mapped.
+fn feed_mapped(sha: &mut Sha256, text: &str) {
+    sha.update(rewrite_ids(text).as_bytes());
     sha.update(b"\n");
 }
 
@@ -335,12 +341,6 @@ fn the_id_map_leaves_the_slots_and_moves_the_rest_by_the_gap() {
     assert_eq!(map(0), 0);
     assert_eq!(map(2), 2);
     assert_eq!(map(3), 3 - ID_GAP);
-    let mut sha = Sha256::new();
-    let mut other = Sha256::new();
-    feed_mapped(
-        &mut sha,
-        &format!("x EntityId({}) y Some(EntityId(0))", 3 + ID_GAP),
-    );
-    feed_mapped(&mut other, "x EntityId(3) y Some(EntityId(0))");
-    assert_eq!(hex16(sha), hex16(other));
+    let before = format!("x EntityId({}) y Some(EntityId(0))", 3 + ID_GAP);
+    assert_eq!(rewrite_ids(&before), "x EntityId(3) y Some(EntityId(0))");
 }
