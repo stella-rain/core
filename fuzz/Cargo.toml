@@ -99,8 +99,12 @@ bench = false
 
 # Overflow panics in every profile, as in the root crate (ADR-019): a profile of the root
 # `Cargo.toml` does not reach this workspace. `cargo fuzz` builds with the release profile.
+# The smoke tests simulate whole replays: about 13 minutes at opt-level 0, about 1.5 at 1.
+# Overflow checks and debug assertions stay on, and an outcome cannot depend on the level
+# (ADR-019).
 [profile.dev]
 overflow-checks = true
+opt-level = 1
 
 [profile.release]
 overflow-checks = true
