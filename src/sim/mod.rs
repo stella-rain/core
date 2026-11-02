@@ -48,8 +48,13 @@
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! `collide`, and each level-up raises a stat or opens a stat offer (`levels`). The progress is
-//! per player slot (`Players.careers`); until commands are routed per player it is slot 0's.
-//! So are the expertise gauge, the Stardust and the regeneration (`Career`): the hash and format 1
+//! per player slot (`Players.careers`), and so are the expertise gauge, the Stardust and the
+//! regeneration (`Career`). Experience and Stardust are shared: every present player earns each
+//! kill's, XP raised by that player's own `XpPct`. A kill's burst, kill-heal and expertise go to
+//! the killer, the first hit of the tick (in `collide`'s fixed order) that takes the target to 0
+//! hit points, found through the scratch `killers`; a damage-over-time tick is the hit of the
+//! player who applied the stack last. Offers are per slot and the world stops while any is open.
+//! The hash and format 1
 //! write slot 0's where the run's single ones were, and the tail holds the other slots' (progress,
 //! offer generator, offers, expertise, Stardust, regen), a layout the hash-layout work settles.
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes

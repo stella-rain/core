@@ -13,7 +13,8 @@
 //!   the sector `half_angle` to each side of the facing. Integer only: squared distances in 64
 //!   or 128 bits, and the arc's edges and angle from the sine table.
 //! - Friendly hit boxes hit the boss, its parts and the enemies (found through the enemy grid),
-//!   in entity-ID order; enemy hit boxes hit the main character, then the companions. A hit box
+//!   in entity-ID order; enemy hit boxes hit the present players in slot order, then the companions
+//!   once. A hit box
 //!   hits every target inside it (cleave), each once per active phase, or again `rehit_ticks`
 //!   after its last hit. A homing missile's (ADR-099) hits only the first, once, and the
 //!   missile is gone once every hit box has landed. A target that cannot be hurt (invulnerable, dead) is not hit and not

@@ -1,6 +1,7 @@
 //! The named stars' combat rewards (core#NS2b, app#336): critical hits, echoes of hits and kill
-//! bursts. They act on the main character's own hits only: a hit of a rune, of a
-//! damage-over-time status, an echo and a burst neither crit nor echo.
+//! bursts. They act on a player's own hits only: a hit of a rune, of a
+//! damage-over-time status, an echo and a burst neither crit nor echo. A kill's burst goes to the
+//! killer (`Scratch::killers`), and a burst's chain kills are the burster's.
 //!
 //! A run without any of the rewards runs none of this: every entry point returns at once, the
 //! state writes nothing for them to the hash and no random number is drawn.
