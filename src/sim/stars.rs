@@ -114,7 +114,8 @@ pub(super) fn drop_from_defeated(stage: &World, s: &mut State, events: &mut Vec<
 
 /// The drop table's tier for the player's level.
 fn tier_of<'a>(cfg: &'a Stars, s: &State) -> Option<&'a Tier> {
-    let level = s.progress.as_ref().map_or(1, |p| p.level);
+    let career = s.players.career(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    let level = career.progress.as_ref().map_or(1, |p| p.level);
     cfg.tiers
         .iter()
         .rev()
@@ -570,12 +571,12 @@ pub(super) fn choose(
     let State {
         rng,
         stars,
-        progress,
         players,
         regen,
         ..
     } = s;
-    let player = &mut players[PlayerIdx::SOLO]; // N=1: M-PER-PLAYER
+    let (player, career) = players.both_mut(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    let progress = &mut career.progress;
     let Some(f) = stars.as_mut() else {
         return;
     };
@@ -863,12 +864,12 @@ mod tests {
         let State {
             rng,
             stars,
-            progress,
             players,
             regen,
             ..
         } = &mut s;
-        let player = &mut players[PlayerIdx::SOLO];
+        let (player, career) = players.both_mut(PlayerIdx::SOLO);
+        let progress = &mut career.progress;
         let f = stars.as_mut().expect("a star field");
         take(
             &stage,

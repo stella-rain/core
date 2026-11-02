@@ -71,19 +71,18 @@ pub(crate) fn apply(
     let State {
         rng,
         stars,
-        progress,
         players,
         regen,
         ..
     } = s;
-    let player = &mut players[me];
+    let (player, career) = players.both_mut(me);
     if let Some(f) = stars.as_mut() {
         for &i in &loadout.carried {
             stars::take(
                 stage,
                 rewards,
                 &mut rng.offer,
-                progress,
+                &mut career.progress,
                 player,
                 regen,
                 f,
@@ -117,8 +116,9 @@ fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
             }
         }
         effect => {
-            if let (Some(effect), Some(p)) = (effect.stat(), s.progress.as_mut()) {
-                levels::add_effect(p, &mut s.players[me], effect, amount);
+            let (player, career) = s.players.both_mut(me);
+            if let (Some(effect), Some(p)) = (effect.stat(), career.progress.as_mut()) {
+                levels::add_effect(p, player, effect, amount);
             }
         }
     }

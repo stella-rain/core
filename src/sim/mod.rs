@@ -47,7 +47,8 @@
 //! capstone.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
-//! `collide`, and each level-up raises a stat or opens a stat offer (`levels`).
+//! `collide`, and each level-up raises a stat or opens a stat offer (`levels`). The progress is
+//! per player slot (`Players.careers`); until commands are routed per player it is slot 0's.
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in `open_offers`, answered between ticks (`stars`).
 //!
@@ -164,8 +165,8 @@ use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::sim::state::AgentState;
 use crate::sim::state::{
-    AgentKey, AgentSource, BossState, Dir, MoveOrder, PartState, PlayerState, Progress, Pull,
-    Smash, StarField, StatRule, State, Streams,
+    AgentKey, AgentSource, BossState, Career, Dir, MoveOrder, PartState, PlayerState, Progress,
+    Pull, Smash, StarField, StatRule, State, Streams,
 };
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use crate::snapshot::{EntityKind, OfferOption};
@@ -388,56 +389,81 @@ fn unreserved_state(
             &kinds,
         )
     });
+    let progress = stage.levels.as_ref().map(|_| Progress {
+        level: 1,
+        xp: 0,
+        stats: run_stats
+            .stats()
+            .iter()
+            .map(|s| StatRule {
+                id: s.id.clone(),
+                effect: s.effect,
+                step: s.step,
+                limit: s.limit,
+            })
+            .collect(),
+        priority: (0..run_stats.stats().len())
+            .map(|i| u8::try_from(i).unwrap_or(u8::MAX))
+            .collect(),
+        pick_stats: false,
+        offers_due: 0,
+        offer_open: false,
+        spent: vec![0; run_stats.stats().len()],
+        totals: [0; StatEffect::ALL.len()],
+    });
     State {
         scratch: Scratch::default(),
         tick: 0,
         rng: Streams::new(seed),
         outcome: Outcome::Running,
-        players: Players::solo(PlayerState {
-            at: start,
-            hp: stage.player.hp,
-            max_hp: stage.player.hp,
-            defence: stage.player.defence,
-            invulnerable: 0,
-            // Up the map unless the map's facing says otherwise (core#147).
-            facing: stage
-                .map()
-                .facing
-                .map_or(Dir::UP, |angle| attacks::rotate(Dir::DOWN, angle)),
-            target: None,
-            // The validator holds it to 1..=3; the clamp keeps an unvalidated stage there too.
-            evade_charges: stage
-                .player
-                .evade
-                .charges
-                .clamp(1, crate::validate::limits::MAX_EVADE_CHARGES),
-            evade_recovering: Vec::new(),
-            held: 0,
-            combo: player::initial_combo(stage),
-            dash: None,
-            skill: None,
-            pull: None,
-            shield: None,
-            orbits: Vec::new(),
-            range_pct: 0,
-            rune_haste_pct: 0,
-            pickup_radius_pct: 0,
-            skill_cooldown_pct: 0,
-            kill_heal: 0,
-            kill_heal_every: 0,
-            kills_counted: 0,
-            crit_chance_pct: 0,
-            crit_damage_pct: 0,
-            echo_hit_pct: 0,
-            burst_pct: 0,
-            burst_radius: 0,
-            burst_depth: 0,
-            burst_depth_extra: 0,
-            type_bonus_pct: [0; DamageType::ALL.len()],
-            runes: Vec::new(),
-            aggro: 0,
-            statuses: Default::default(),
-        }),
+        players: Players::solo(
+            PlayerState {
+                at: start,
+                hp: stage.player.hp,
+                max_hp: stage.player.hp,
+                defence: stage.player.defence,
+                invulnerable: 0,
+                // Up the map unless the map's facing says otherwise (core#147).
+                facing: stage
+                    .map()
+                    .facing
+                    .map_or(Dir::UP, |angle| attacks::rotate(Dir::DOWN, angle)),
+                target: None,
+                // The validator holds it to 1..=3; the clamp keeps an unvalidated stage there too.
+                evade_charges: stage
+                    .player
+                    .evade
+                    .charges
+                    .clamp(1, crate::validate::limits::MAX_EVADE_CHARGES),
+                evade_recovering: Vec::new(),
+                held: 0,
+                combo: player::initial_combo(stage),
+                dash: None,
+                skill: None,
+                pull: None,
+                shield: None,
+                orbits: Vec::new(),
+                range_pct: 0,
+                rune_haste_pct: 0,
+                pickup_radius_pct: 0,
+                skill_cooldown_pct: 0,
+                kill_heal: 0,
+                kill_heal_every: 0,
+                kills_counted: 0,
+                crit_chance_pct: 0,
+                crit_damage_pct: 0,
+                echo_hit_pct: 0,
+                burst_pct: 0,
+                burst_radius: 0,
+                burst_depth: 0,
+                burst_depth_extra: 0,
+                type_bonus_pct: [0; DamageType::ALL.len()],
+                runes: Vec::new(),
+                aggro: 0,
+                statuses: Default::default(),
+            },
+            Career { progress },
+        ),
         boss,
         companions,
         enemies: Vec::new(),
@@ -450,28 +476,6 @@ fn unreserved_state(
         spawned: vec![0; stage.waves.len()],
         next_id,
         next_orb_group: 0,
-        progress: stage.levels.as_ref().map(|_| Progress {
-            level: 1,
-            xp: 0,
-            stats: run_stats
-                .stats()
-                .iter()
-                .map(|s| StatRule {
-                    id: s.id.clone(),
-                    effect: s.effect,
-                    step: s.step,
-                    limit: s.limit,
-                })
-                .collect(),
-            priority: (0..run_stats.stats().len())
-                .map(|i| u8::try_from(i).unwrap_or(u8::MAX))
-                .collect(),
-            pick_stats: false,
-            offers_due: 0,
-            offer_open: false,
-            spent: vec![0; run_stats.stats().len()],
-            totals: [0; StatEffect::ALL.len()],
-        }),
         stars: stage.stars.as_ref().map(|st| StarField {
             misses: 0,
             on_map: Vec::new(),
@@ -610,12 +614,18 @@ pub(crate) fn step(
     );
 }
 
+/// A stat offer is open.
+fn stat_offer_open(s: &State) -> bool {
+    let career = s.players.career(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    career.progress.as_ref().is_some_and(|p| p.offer_open)
+}
+
 /// An offer is open, a star's, a boss's, an expertise level's or a stat offer: the world is
 /// stopped.
 pub(crate) fn offer_open(s: &State) -> bool {
     s.stars.as_ref().is_some_and(|f| f.offer.is_some())
         || s.expertise.as_ref().is_some_and(|g| g.offer.is_some())
-        || s.progress.as_ref().is_some_and(|p| p.offer_open)
+        || stat_offer_open(s)
 }
 
 /// Opens the first offer due, unless one is open: the boss offer, then the expertise levels'
@@ -643,7 +653,7 @@ pub(crate) fn offer_options(
 ) -> Vec<OfferOption> {
     if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
         expertise::options(stage, expertise, s)
-    } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
+    } else if stat_offer_open(s) {
         levels::options(s)
     } else {
         stars::options(rewards, s, PlayerIdx::SOLO) // N=1: M-PER-PLAYER
@@ -663,7 +673,7 @@ pub(crate) fn choose(
 ) {
     if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
         expertise::choose(stage, expertise, s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
-    } else if s.progress.as_ref().is_some_and(|p| p.offer_open) {
+    } else if stat_offer_open(s) {
         levels::choose(s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
     } else {
         stars::choose(stage, rewards, s, option, events);

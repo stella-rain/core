@@ -213,7 +213,7 @@ fn apply(
                 range_pct: 0,
                 smash: None,
             };
-            let damage = levels::attack(s, stage.player.atk);
+            let damage = levels::attack(s, me, stage.player.atk);
             attacks::start_player(
                 stage,
                 s,

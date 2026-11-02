@@ -367,12 +367,12 @@ pub(super) fn choose(
     let State {
         rng,
         stars,
-        progress,
         players,
         expertise: g,
         ..
     } = s;
-    let player = &mut players[me];
+    let (player, career) = players.both_mut(me);
+    let progress = &mut career.progress;
     let Some(g) = g.as_mut() else {
         return;
     };
