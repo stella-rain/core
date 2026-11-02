@@ -325,10 +325,11 @@ impl Engine {
     /// run is over this does nothing, so a replay that is longer than the run cannot change the
     /// final hash.
     ///
-    /// While an offer is open the world is stopped (ADR-079 §3): the first player, in
-    /// `PlayerIdx` order, whose `pick` is accepted by `check_pick` takes that option, the events
-    /// are the pick's and the tick does not advance; other picks are ignored, and with no
-    /// acceptable pick nothing changes. With no offer open `pick` is not read (ADR-REPL-3).
+    /// While an offer is open for any player the world is stopped (ADR-079 §3): each player, in
+    /// `PlayerIdx` order, whose `pick` is accepted by `check_pick` takes that option of its own
+    /// offer, the events are the picks' and the tick does not advance; a player with no offer
+    /// open, or a refused pick, is ignored, and with no acceptable pick nothing changes. With no
+    /// offer open `pick` is not read (ADR-REPL-3).
     ///
     /// # Panics
     ///
@@ -338,13 +339,14 @@ impl Engine {
         self.events.clear();
         self.load = Load::default();
         if self.offer_open() {
-            let taken = inputs.iter().enumerate().find_map(|(i, input)| {
-                let index = input.pick?;
-                let player = PlayerIdx::new(u8::try_from(i).ok()?)?;
-                self.pick_option(player, index).ok()
-            });
-            if let Some(option) = taken {
-                self.take(option);
+            for (i, input) in inputs.iter().enumerate() {
+                let Some(player) = u8::try_from(i).ok().and_then(PlayerIdx::new) else {
+                    continue;
+                };
+                // Each accepted pick is read after the picks before it were taken.
+                if let Some(option) = input.pick.and_then(|k| self.pick_option(player, k).ok()) {
+                    self.take(player, option);
+                }
             }
             return;
         }
@@ -368,11 +370,10 @@ impl Engine {
         self.run.party()
     }
 
-    /// Whether `player` could take option `index` of the open offer by a pick in `step`
-    /// (ADR-079 §3): the snapshot's `offer.options` lists them. The open offer belongs to the run
-    /// for now, so any player in the party takes it. Refused for a player outside the party,
-    /// with no offer open, a `sim_version` this game does not run, or an index outside its
-    /// options. Read-only.
+    /// Whether `player` could take option `index` of its open offer by a pick in `step`
+    /// (ADR-079 §3). An open offer belongs to the slot that holds it, and the snapshot shows the
+    /// first player's. Refused for a player outside the party, a player with no offer open, a
+    /// `sim_version` this game does not run, or an index outside its options. Read-only.
     pub fn check_pick(&self, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
         self.pick_option(player, index).map(|_| ())
     }
@@ -381,7 +382,7 @@ impl Engine {
         if player.get() >= self.players() {
             return Err(ChoiceError::NoPlayer { player });
         }
-        if !self.offer_open() {
+        if !self.run.offer_open_for(player) {
             return Err(ChoiceError::NoOffer);
         }
         let sim_version = self.run.declared_version();
@@ -390,9 +391,9 @@ impl Engine {
             // that stops being true.
             return Err(ChoiceError::Unsupported { sim_version });
         }
-        let options = self
-            .run
-            .offer_options(self.content.rewards(), self.content.expertise());
+        let options =
+            self.run
+                .offer_options(self.content.rewards(), self.content.expertise(), player);
         usize::try_from(index)
             .ok()
             .and_then(|i| options.get(i))
@@ -403,11 +404,12 @@ impl Engine {
             })
     }
 
-    /// Takes `option` of the open offer, already accepted by `pick_option`.
-    fn take(&mut self, option: OfferOption) {
+    /// Takes `option` of `player`'s open offer, already accepted by `pick_option`.
+    fn take(&mut self, player: PlayerIdx, option: OfferOption) {
         self.run.choose(
             self.content.rewards(),
             self.content.expertise(),
+            player,
             option,
             &mut self.events,
         );
@@ -612,6 +614,63 @@ impl Engine {
         }
         let _restore = Restore(FORCED.with(|f| f.replace(Some(version))));
         make()
+    }
+
+    /// An engine for `stage` under the rules of version 2 with `n` players (1 to 3): each a copy
+    /// of the first player, with a career of its own from the first player's setup and its own
+    /// offer generator. Slots 1 and 2 do not move or attack by `step` yet.
+    ///
+    /// # Panics
+    ///
+    /// If `n` is not in `1..=3`, or the stage does not run.
+    pub(crate) fn party(stage: &Stage, n: u8) -> Engine {
+        Engine::new_forced(stage, 2)
+            .expect("a stage that runs")
+            .into_party(n)
+    }
+
+    /// This engine, which runs the live rules, as a party of `n`; see `party`.
+    pub(crate) fn into_party(mut self, n: u8) -> Engine {
+        use crate::sim::state::{Career, Players};
+        assert!((1..=crate::id::MAX_PLAYERS).contains(&n), "1 to 3 players");
+        if n == 1 {
+            return self;
+        }
+        let Run::V2 { state, .. } = &mut self.run else {
+            panic!("the live rules");
+        };
+        let first = state.players[PlayerIdx::SOLO].clone();
+        let c0 = state.players.career(PlayerIdx::SOLO).clone();
+        let mut players =
+            Players::with_mask((1u8 << n) - 1, first).keeping_career_of(&state.players);
+        for i in 1..n {
+            let me = PlayerIdx::new(i).expect("a slot");
+            *players.career_mut(me) = Career::new(
+                state.crit_seed,
+                me,
+                c0.progress.clone(),
+                c0.offers.clone(),
+                c0.expertise.clone(),
+                c0.stardust,
+            );
+        }
+        state.players = players;
+        self.run.reserve();
+        self
+    }
+
+    /// The run, to edit its state (tests).
+    pub(crate) fn run_mut(&mut self) -> &mut Run {
+        &mut self.run
+    }
+
+    /// Opens what is due to every present player, as the tick's last step does (tests).
+    pub(crate) fn open_offers_for_test(&mut self) {
+        let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
+        let Run::V2 { world, state } = &mut self.run else {
+            panic!("the live rules");
+        };
+        crate::sim::open_offers_for_test(world, rewards, expertise, state, &mut self.events);
     }
 
     /// An engine for `stage` under the rules of `version`, past the `SIM_VERSION` check.

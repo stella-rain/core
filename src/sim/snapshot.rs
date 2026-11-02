@@ -75,6 +75,10 @@ pub(crate) fn places(s: &State, out: &mut Places) {
 /// What the frontend draws after the last tick (ADR-005). `places` repeats its rules for
 /// the ids, kinds and positions, and the player's position: change them together.
 pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot {
+    // The public `Snapshot` holds one progress, one offer, one gauge and one Stardust number, so it
+    // shows the run's first player; a view per player is a snapshot-schema change (the
+    // per-player snapshot).
+    let shown = PlayerIdx::SOLO;
     let view = |r: &AttackRun| {
         let p = phase(world, r, r.phase as usize);
         AttackView {
@@ -363,7 +367,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 })
                 .collect()
         }),
-        constellations: constellation_views(content.rewards(), s),
+        constellations: constellation_views(content.rewards(), s, shown),
         heal_pickups: s.heal_pickups.as_ref().map_or_else(Vec::new, |h| {
             h.iter()
                 .map(|p| HealPickupView { id: p.id, at: p.at })
@@ -371,36 +375,31 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
         }),
         progress: s
             .players
-            .career(PlayerIdx::SOLO)
+            .career(shown)
             .progress
-            .as_ref() // N=1: M-PER-PLAYER
+            .as_ref()
             .map(|p| ProgressView {
                 level: p.level,
                 xp: p.xp,
                 xp_next: xp_next(world, p.level),
                 spent: p.spent.clone(),
-                stat_offer: stat_offer_view(s),
-                offer: offer_view(content.rewards(), s),
+                stat_offer: stat_offer_view(s, shown),
+                offer: offer_view(content.rewards(), s, shown),
             }),
-        expertise: s
-            .players
-            .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
-            .expertise
-            .as_ref()
-            .map(|g| {
-                let (style, path) = expertise_styles_view(world, content.expertise(), g);
-                ExpertiseView {
-                    level: g.level,
-                    points: g.points,
-                    next: g.next,
-                    taken: g.taken.clone(),
-                    style,
-                    path,
-                    offer: expertise_offer_view(world, content.expertise(), s, PlayerIdx::SOLO), // N=1: M-PER-PLAYER
-                }
-            }),
+        expertise: s.players.career(shown).expertise.as_ref().map(|g| {
+            let (style, path) = expertise_styles_view(world, content.expertise(), g);
+            ExpertiseView {
+                level: g.level,
+                points: g.points,
+                next: g.next,
+                taken: g.taken.clone(),
+                style,
+                path,
+                offer: expertise_offer_view(world, content.expertise(), s, shown),
+            }
+        }),
         patterns: announced_patterns(world, s),
-        stardust: s.players.career(PlayerIdx::SOLO).stardust, // N=1: M-PER-PLAYER
+        stardust: s.players.career(shown).stardust,
     }
 }
 

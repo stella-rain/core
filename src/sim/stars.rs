@@ -27,7 +27,9 @@
 //! rarity range, the rune and reward pools) and each player's (`Offers` in the `Career`: the
 //! offers due and open, the rerolls and banishes left, and what the offers have used). The
 //! hash and savepoint format 1 write slot 0's where the one star field and generator were.
-//! Every player still routes to slot 0 here (`// N=1: M-PER-PLAYER`).
+//! Offers are per slot: a star taken is due to the player that took it, the boss's offer to every
+//! present player at that player's own tier, and each offer draws from its slot's generator. The
+//! drops on the map are shared, and a drop's tier is the highest level among the present players.
 
 use super::World;
 use crate::attack::DamageType;
@@ -67,7 +69,7 @@ pub(super) fn drop_from_defeated(stage: &World, s: &mut State, events: &mut Vec<
     let Some(cfg) = &stage.stars else {
         return;
     };
-    let Some(tier) = tier_of(cfg, s) else {
+    let Some(tier) = tier_of(cfg, top_level(s)) else {
         return;
     };
     let cap = usize::from(cfg.cap.min(MAX_STARS_ON_MAP));
@@ -119,10 +121,26 @@ pub(super) fn drop_from_defeated(stage: &World, s: &mut State, events: &mut Vec<
     }
 }
 
-/// The drop table's tier for the player's level.
-fn tier_of<'a>(cfg: &'a Stars, s: &State) -> Option<&'a Tier> {
-    let career = s.players.career(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
-    let level = career.progress.as_ref().map_or(1, |p| p.level);
+/// The level of player `me`; 1 in a stage without levels.
+fn level_of(s: &State, me: PlayerIdx) -> u32 {
+    s.players
+        .career(me)
+        .progress
+        .as_ref()
+        .map_or(1, |p| p.level)
+}
+
+/// The highest level among the present players: what a drop on the shared map is drawn for.
+fn top_level(s: &State) -> u32 {
+    s.players
+        .indices()
+        .map(|me| level_of(s, me))
+        .max()
+        .unwrap_or(1)
+}
+
+/// The drop table's tier for `level`.
+fn tier_of(cfg: &Stars, level: u32) -> Option<&Tier> {
     cfg.tiers
         .iter()
         .rev()
@@ -130,20 +148,18 @@ fn tier_of<'a>(cfg: &'a Stars, s: &State) -> Option<&'a Tier> {
         .or(cfg.tiers.first())
 }
 
-/// The boss died this tick: its offer is due first, at the highest rarity of the player's tier.
-pub(super) fn boss_killed(stage: &World, s: &mut State) {
+/// The boss died this tick: `me`'s offer is due first, at the highest rarity of `me`'s tier.
+pub(super) fn boss_killed(stage: &World, s: &mut State, me: PlayerIdx) {
+    let level = level_of(s, me);
     let Some(rarity) = stage
         .stars
         .as_ref()
-        .and_then(|cfg| tier_of(cfg, s))
+        .and_then(|cfg| tier_of(cfg, level))
         .and_then(|t| t.weights.highest())
     else {
         return;
     };
-    if let (Some(f), Some(o)) = (
-        s.stars.as_ref(),
-        s.players.career_mut(PlayerIdx::SOLO).offers.as_mut(), // N=1: M-PER-PLAYER
-    ) {
+    if let (Some(f), Some(o)) = (s.stars.as_ref(), s.players.career_mut(me).offers.as_mut()) {
         // Inside the difficulty's range (ADR-110).
         let rarity = rarity.clamp(f.rarity.0, f.rarity.1);
         let kind = OfferKind::Boss;
@@ -201,21 +217,22 @@ pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut 
     });
 }
 
-/// Opens the first offer due that has a candidate, unless an offer is open; with `boss_only`,
-/// only while the first due is the boss offer.
+/// Opens the first offer due to `me` that has a candidate, unless `me` has an offer open; with
+/// `boss_only`, only while the first due is the boss offer.
 pub(super) fn open_due(
     stage: &World,
     rewards: &Rewards,
     s: &mut State,
+    me: PlayerIdx,
     events: &mut Vec<DomainEvent>,
     boss_only: bool,
 ) {
-    if super::offer_open(s) {
+    if super::offer_open_for(s, me) {
         return;
     }
-    let rune_weight = random_rune_weight(stage, s);
+    let rune_weight = random_rune_weight(stage, s, me);
     let State { stars, players, .. } = s;
-    let (player, career) = players.both_mut(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    let (player, career) = players.both_mut(me);
     let Career {
         offer: rng, offers, ..
     } = career;
@@ -305,13 +322,14 @@ fn first_rarity(
         })
 }
 
-/// The random rune's draw weight set by the drop table's tier for the player's level, if it
-/// sets one: it replaces the reward's own `weight` in the draws of an offer.
-fn random_rune_weight(stage: &World, s: &State) -> Option<u16> {
+/// The random rune's draw weight set by the drop table's tier for `me`'s level, if it sets one:
+/// it replaces the reward's own `weight` in the draws of an offer.
+fn random_rune_weight(stage: &World, s: &State, me: PlayerIdx) -> Option<u16> {
+    let level = level_of(s, me);
     stage
         .stars
         .as_ref()
-        .and_then(|cfg| tier_of(cfg, s))
+        .and_then(|cfg| tier_of(cfg, level))
         .and_then(|t| t.random_rune_weight)
 }
 
@@ -588,12 +606,13 @@ pub(super) fn choose(
     stage: &World,
     rewards: &Rewards,
     s: &mut State,
+    me: PlayerIdx,
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
-    let rune_weight = random_rune_weight(stage, s);
+    let rune_weight = random_rune_weight(stage, s, me);
     let State { stars, players, .. } = s;
-    let (player, career) = players.both_mut(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    let (player, career) = players.both_mut(me);
     let Career {
         progress,
         offer: rng,
@@ -706,9 +725,13 @@ fn progress(rewards: &Rewards, o: &Offers, reward: &ContentId) -> Option<Constel
 }
 
 /// The run's sets and how far each is, for the snapshot.
-pub(crate) fn constellation_views(rewards: &Rewards, s: &State) -> Vec<ConstellationView> {
-    let Some(o) = s.players.career(PlayerIdx::SOLO).offers.as_ref() else {
-        return Vec::new(); // N=1: M-PER-PLAYER
+pub(crate) fn constellation_views(
+    rewards: &Rewards,
+    s: &State,
+    me: PlayerIdx,
+) -> Vec<ConstellationView> {
+    let Some(o) = s.players.career(me).offers.as_ref() else {
+        return Vec::new();
     };
     rewards
         .constellations()
@@ -726,8 +749,8 @@ pub(crate) fn constellation_views(rewards: &Rewards, s: &State) -> Vec<Constella
 }
 
 /// What the frontend shows of the open offer.
-pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
-    let offers = s.players.career(PlayerIdx::SOLO).offers.as_ref()?; // N=1: M-PER-PLAYER
+pub(crate) fn offer_view(rewards: &Rewards, s: &State, me: PlayerIdx) -> Option<OfferView> {
+    let offers = s.players.career(me).offers.as_ref()?;
     let o = offers.offer.as_ref()?;
     Some(OfferView {
         kind: o.kind,
@@ -747,7 +770,7 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                 }
             })
             .collect(),
-        options: options(rewards, s, PlayerIdx::SOLO), // N=1: M-PER-PLAYER
+        options: options(rewards, s, me),
         rerolls_left: offers.rerolls_left,
         banishes_left: offers.banishes_left,
     })
@@ -839,7 +862,7 @@ mod tests {
             1,
             crate::kinds::KindTable::of_stage(&stage).unwrap(),
         );
-        boss_killed(&stage, &mut s);
+        boss_killed(&stage, &mut s, PlayerIdx::SOLO);
         let due = &s
             .players
             .career(PlayerIdx::SOLO)

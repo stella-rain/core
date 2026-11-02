@@ -6,7 +6,7 @@
 
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
-use crate::id::ContentId;
+use crate::id::{ContentId, PlayerIdx};
 use crate::input::Input;
 use crate::kinds::KindTable;
 use crate::ledger::RunLedger;
@@ -161,8 +161,10 @@ impl Run {
         };
         let mut state = sim::initial_state(&world, b.content, pool, b.seed, b.kinds);
         state.horde = b.horde;
+        // A run's setup loads the first player; per-player setup comes with recording parties.
         sim::set_policy(
             &mut state,
+            PlayerIdx::SOLO,
             b.content.run_stats(),
             b.stat_priority,
             b.pick_stats,
@@ -174,7 +176,7 @@ impl Run {
                 &world,
                 b.content.rewards(),
                 &mut state,
-                sim::state::PlayerIdx::SOLO,
+                PlayerIdx::SOLO,
                 &loadout,
             );
         }
@@ -230,10 +232,12 @@ impl Run {
         }
     }
 
+    /// Carries out `option` of `player`'s open offer; version 1 has one player and ignores it.
     pub(crate) fn choose(
         &mut self,
         rewards: &Rewards,
         expertise: &Expertise,
+        player: PlayerIdx,
         option: OfferOption,
         events: &mut Vec<DomainEvent>,
     ) {
@@ -243,7 +247,9 @@ impl Run {
                 sim_v1::choose(version, world, rewards, expertise, state, option, events);
             }
             Run::V2 { world, state } => {
-                sim::choose(version, world, rewards, expertise, state, option, events);
+                sim::choose(
+                    version, world, rewards, expertise, state, player, option, events,
+                );
             }
         }
     }
@@ -256,6 +262,16 @@ impl Run {
         }
     }
 
+    /// Whether `player` has an offer open.
+    pub(crate) fn offer_open_for(&self, player: PlayerIdx) -> bool {
+        match self {
+            Run::V1 { state, .. } => player == PlayerIdx::SOLO && sim_v1::offer_open(state),
+            Run::V2 { state, .. } => {
+                state.players.is_present(player) && sim::offer_open_for(state, player)
+            }
+        }
+    }
+
     pub(crate) fn offer_open(&self) -> bool {
         match self {
             Run::V1 { state, .. } => sim_v1::offer_open(state),
@@ -263,14 +279,18 @@ impl Run {
         }
     }
 
+    /// The options of `player`'s open offer; version 1 has one player and ignores it.
     pub(crate) fn offer_options(
         &self,
         rewards: &Rewards,
         expertise: &Expertise,
+        player: PlayerIdx,
     ) -> Vec<OfferOption> {
         match self {
             Run::V1 { world, state } => sim_v1::offer_options(world, rewards, expertise, state),
-            Run::V2 { world, state } => sim::offer_options(world, rewards, expertise, state),
+            Run::V2 { world, state } => {
+                sim::offer_options(world, rewards, expertise, state, player)
+            }
         }
     }
 
@@ -353,11 +373,9 @@ impl Run {
     pub(crate) fn stardust(&self) -> u32 {
         match self {
             Run::V1 { state, .. } => state.stardust.unwrap_or(0),
-            Run::V2 { state, .. } => state
-                .players
-                .career(sim::state::PlayerIdx::SOLO) // N=1: M-PER-PLAYER
-                .stardust
-                .unwrap_or(0),
+            // `Engine::stardust` is one number and every present player earns the same, until a
+            // player can join late (joining and leaving a run); it reads the first player's.
+            Run::V2 { state, .. } => state.players.career(PlayerIdx::SOLO).stardust.unwrap_or(0),
         }
     }
 

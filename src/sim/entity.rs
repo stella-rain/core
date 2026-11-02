@@ -419,7 +419,10 @@ fn tick_dots_of(stage: &World, s: &mut State, who: Who, events: &mut Vec<DomainE
                 rune: Rune::of_dot(st.kind),
                 chain: false,
             };
-            super::damage(stage, s, PlayerIdx::SOLO, shot, who, events); // N=1: M-DOWN-PARTY
+            // The player who applied the stack last (`StatusState.source`); a source that is no
+            // present player is the run's first.
+            let me = super::hitter(s, st.source);
+            super::damage(stage, s, me, shot, who, events);
         }
         if remaining == 0 {
             s.statuses_mut(who).remove(i);

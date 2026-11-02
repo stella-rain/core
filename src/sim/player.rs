@@ -147,7 +147,7 @@ fn move_player(stage: &World, s: &mut State, me: PlayerIdx, x: i8, y: i8) {
     let keep = speed_pct(&s.players[me].statuses)
         * attacks::move_pct(stage, s, s.id_of(Who::Player(me)))
         / 100
-        * held_move_pct(stage, s)
+        * held_move_pct(stage, s, me)
         / 100;
     let cap = levels::speed(s, me, i64::from(stage.tuning.player_speed) * keep / 100);
     let (dx, dy) = stick_move(x, y, cap);
@@ -622,15 +622,7 @@ fn strike(
     let facing = s.players[me].facing;
     let damage = levels::attack(s, me, stage.player.atk);
     s.players[me].combo.running = attacks::start_player(
-        stage,
-        s,
-        PlayerIdx::SOLO, // N=1: M-PER-PLAYER
-        COMBO_SLOT,
-        facing,
-        attack,
-        damage,
-        strike,
-        events,
+        stage, s, me, COMBO_SLOT, facing, attack, damage, strike, events,
     );
 }
 
@@ -849,13 +841,11 @@ pub(super) fn break_charge(
 
 /// The movement speed, in percent, a charge or a hold leaves the main character: its
 /// `move_pct`, 100 when neither is on.
-fn held_move_pct(stage: &World, s: &State) -> i64 {
-    if let Some(hold) = current_hold(stage, s, PlayerIdx::SOLO) {
-        // N=1: M-PER-PLAYER
-        // N=1: M-PER-PLAYER
+fn held_move_pct(stage: &World, s: &State, me: PlayerIdx) -> i64 {
+    if let Some(hold) = current_hold(stage, s, me) {
         return i64::from(hold.move_pct);
     }
-    current_charge(stage, s, PlayerIdx::SOLO).map_or(100, |c| i64::from(c.move_pct)) // N=1: M-PER-PLAYER
+    current_charge(stage, s, me).map_or(100, |c| i64::from(c.move_pct))
 }
 
 /// The current step's hold, if it is held.

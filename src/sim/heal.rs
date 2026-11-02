@@ -34,7 +34,7 @@ pub(super) fn boss_killed(
     }
     let most = u64::from(s.players[me].max_hp);
     let want = most * u64::from(cfg.boss_pct) / 100;
-    heal(&mut s.players[me], want, events);
+    heal(&mut s.players[me], me, want, events);
 }
 
 /// Stars and pickups for the regular enemies at 0 hp, before they are removed (see the module
@@ -87,7 +87,7 @@ pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut 
         before - pickups.len()
     };
     for _ in 0..taken {
-        heal(&mut s.players[me], u64::from(cfg.amount), events);
+        heal(&mut s.players[me], me, u64::from(cfg.amount), events);
     }
 }
 
@@ -100,7 +100,9 @@ pub(super) fn kills_heal(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEv
     if every == 0 {
         return;
     }
-    let kills = s.enemies.iter().filter(|e| e.hp == 0 && !e.burst).count();
+    let kills = (0..s.enemies.len())
+        .filter(|&i| s.enemies[i].hp == 0 && !s.enemies[i].burst && super::killer_of(s, i) == me)
+        .count();
     let counted = u64::from(s.players[me].kills_counted) + u64::try_from(kills).unwrap_or(u64::MAX);
     let heals = counted / u64::from(every);
     s.players[me].kills_counted = u32::try_from(counted % u64::from(every)).unwrap_or(0);
@@ -108,16 +110,16 @@ pub(super) fn kills_heal(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEv
         return;
     }
     let each = u64::from(s.players[me].kill_heal.min(MAX_HEAL_AMOUNT));
-    heal(&mut s.players[me], each * heals, events);
+    heal(&mut s.players[me], me, each * heals, events);
 }
 
-/// Heals `player` by `want` hit points, as far as its most allows, and reports what it healed.
-fn heal(player: &mut PlayerState, want: u64, events: &mut Vec<DomainEvent>) {
+/// Heals `player`, the slot `me`, by `want` hit points, as far as its most allows, and reports what it healed.
+fn heal(player: &mut PlayerState, me: PlayerIdx, want: u64, events: &mut Vec<DomainEvent>) {
     let before = player.hp;
     let healed = (u64::from(before) + want).min(u64::from(player.max_hp));
     player.hp = u32::try_from(healed).unwrap_or(player.max_hp);
     events.push(DomainEvent::Healed {
-        target: PlayerIdx::SOLO.id(), // N=1: M-PER-PLAYER
+        target: me.id(),
         amount: player.hp.saturating_sub(before),
     });
 }

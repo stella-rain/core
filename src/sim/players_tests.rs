@@ -951,3 +951,495 @@ mod career_rest {
         assert_eq!((career(&mut s, 0).regen, career(&mut s, 1).regen), (0, 7));
     }
 }
+
+/// Routing to the acting player: the slot of an entity, the offers of each slot, and the picks
+/// of a party (ADR-SIM-12, ADR-SIM-13, ADR-SIM-2).
+mod route {
+    use super::super::state::{Due, OfferState};
+    use super::*;
+    use crate::engine::ChoiceError;
+    use crate::rewards::Rarity;
+    use crate::snapshot::OfferKind;
+
+    fn slot(i: u8) -> PlayerIdx {
+        PlayerIdx::new(i).expect("a slot")
+    }
+
+    /// The worst case as a party of `n`.
+    fn party(n: u8) -> Engine {
+        worst_case::warmed_up().into_party(n)
+    }
+
+    fn state_mut(e: &mut Engine) -> &mut State {
+        match e.run_mut() {
+            Run::V2 { state, .. } => state,
+            Run::V1 { .. } => panic!("the live rules"),
+        }
+    }
+
+    /// Puts a due star offer on slot `i` and opens what is due.
+    fn due_on(e: &mut Engine, i: u8) {
+        let s = state_mut(e);
+        s.players
+            .career_mut(slot(i))
+            .offers
+            .as_mut()
+            .expect("the worst case has stars")
+            .due
+            .push(Due {
+                kind: OfferKind::Star,
+                rarity: Rarity::Common,
+            });
+        e.open_offers_for_test();
+    }
+
+    fn offer_of(e: &Engine, i: u8) -> Option<&OfferState> {
+        live(e)
+            .1
+            .players
+            .career(slot(i))
+            .offers
+            .as_ref()?
+            .offer
+            .as_ref()
+    }
+
+    fn taken_of(e: &Engine, i: u8) -> u32 {
+        let o = live(e)
+            .1
+            .players
+            .career(slot(i))
+            .offers
+            .as_ref()
+            .expect("offers");
+        o.taken.iter().map(|t| u32::from(*t)).sum()
+    }
+
+    fn picks(of: &[(usize, u32)], n: usize) -> Vec<Input> {
+        let mut v = vec![Input::default(); n];
+        for (i, k) in of {
+            v[*i] = Input::picking(*k);
+        }
+        v
+    }
+
+    #[test]
+    fn a_party_is_built_from_a_stage_for_one_to_three_players() {
+        let bytes = include_bytes!("../../tests/corpus/v1/stages/orb_cage/stage.json");
+        let stage = crate::validate::parse_and_validate(bytes).expect("a valid stage");
+        for n in 1..=3u8 {
+            let e = Engine::party(&stage, n);
+            assert_eq!(e.players(), usize::from(n));
+            assert_eq!(live(&e).1.players.len(), usize::from(n));
+        }
+        let s = live(&Engine::party(&stage, 3)).1.clone();
+        assert_ne!(
+            s.players.career(slot(1)).offer,
+            s.players.career(slot(2)).offer
+        );
+    }
+
+    #[test]
+    fn owner_of_names_the_present_slot_of_an_entity_number() {
+        let e = worst_case::warmed_up();
+        let ps = ps(&e);
+        let p = Players::with_mask(0b011, ps.clone());
+        assert_eq!(p.owner_of(EntityId(0)), Some(PlayerIdx::SOLO));
+        assert_eq!(p.owner_of(EntityId(1)), Some(slot(1)));
+        assert_eq!(p.owner_of(EntityId(2)), None);
+        let hole = Players::with_mask(0b101, ps);
+        assert_eq!(hole.owner_of(EntityId(1)), None);
+        assert_eq!(hole.owner_of(EntityId(2)), Some(slot(2)));
+        assert_eq!(hole.owner_of(EntityId(3)), None);
+        assert_eq!(hole.owner_of(EntityId(900)), None);
+    }
+
+    #[test]
+    fn an_offer_is_open_for_the_slot_that_holds_it() {
+        let mut e = party(3);
+        due_on(&mut e, 1);
+        let s = live(&e).1;
+        assert!(super::super::offer_open(s));
+        assert!(super::super::offer_open_for(s, slot(1)));
+        assert!(!super::super::offer_open_for(s, PlayerIdx::SOLO));
+        assert!(!super::super::offer_open_for(s, slot(2)));
+        assert!(e.offer_open());
+    }
+
+    #[test]
+    fn a_pick_is_checked_against_its_own_slots_offer() {
+        let mut e = party(2);
+        due_on(&mut e, 1);
+        assert!(offer_of(&e, 1).is_some() && offer_of(&e, 0).is_none());
+        assert_eq!(e.check_pick(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
+        assert_eq!(e.check_pick(slot(1), 0), Ok(()));
+        assert_eq!(
+            e.check_pick(slot(2), 0),
+            Err(ChoiceError::NoPlayer { player: slot(2) })
+        );
+    }
+
+    #[test]
+    fn a_step_applies_the_pick_of_the_slot_with_the_offer() {
+        let mut e = party(2);
+        due_on(&mut e, 1);
+        let (hash, tick) = (e.state_hash(), e.tick());
+        let b = [0, 1].map(|i| taken_of(&e, i));
+        e.step(&picks(&[(0, 0)], 2));
+        assert_eq!(
+            (e.state_hash(), e.tick()),
+            (hash, tick),
+            "slot 0 has no offer"
+        );
+        e.step(&picks(&[(1, 0)], 2));
+        assert_eq!(e.tick(), tick, "the tick does not advance");
+        assert_eq!((taken_of(&e, 0), taken_of(&e, 1)), (b[0], b[1] + 1));
+    }
+
+    #[test]
+    fn every_accepted_pick_applies_and_a_refused_one_does_not_hold_back_the_rest() {
+        let mut e = party(3);
+        due_on(&mut e, 0);
+        due_on(&mut e, 2);
+        let (tick, b) = (e.tick(), [0, 1, 2].map(|i| taken_of(&e, i)));
+        e.step(&picks(&[(0, 0), (2, 0)], 3));
+        assert_eq!(
+            [0, 1, 2].map(|i| taken_of(&e, i)),
+            [b[0] + 1, b[1], b[2] + 1]
+        );
+        assert_eq!(e.tick(), tick);
+
+        let mut e = party(3);
+        due_on(&mut e, 0);
+        due_on(&mut e, 2);
+        let b = [0, 1, 2].map(|i| taken_of(&e, i));
+        e.step(&picks(&[(0, 99), (2, 0)], 3));
+        assert_eq!((taken_of(&e, 0), taken_of(&e, 2)), (b[0], b[2] + 1));
+        assert!(offer_of(&e, 0).is_some(), "slot 0's offer is still open");
+        assert!(e.offer_open());
+    }
+
+    #[test]
+    fn each_slot_draws_from_its_own_stream() {
+        let mut both = party(3);
+        due_on(&mut both, 0);
+        due_on(&mut both, 1);
+        let mut only1 = party(3);
+        due_on(&mut only1, 1);
+        assert_eq!(
+            offer_of(&both, 1).map(|o| o.candidates.clone()),
+            offer_of(&only1, 1).map(|o| o.candidates.clone()),
+            "slot 0's draws do not move slot 1's stream"
+        );
+        let s = live(&both).1;
+        assert_ne!(
+            s.players.career(slot(1)).offer,
+            s.players.career(slot(2)).offer
+        );
+        assert_ne!(
+            s.players.career(PlayerIdx::SOLO).offer,
+            s.players.career(slot(1)).offer
+        );
+    }
+
+    /// A party's world and state with the kill rewards on slots 0 and 1 and the tick's other
+    /// work taken away, so that a test sees only the hits it makes.
+    fn kill_state() -> (World, State) {
+        let e = party(3);
+        let (w, s) = live(&e);
+        let mut s = s.clone();
+        s.runs.clear();
+        s.orbs.clear();
+        s.zones.clear();
+        s.echoes.clear();
+        for i in 0..2 {
+            let p = &mut s.players[slot(i)];
+            p.burst_pct = 50;
+            p.burst_radius = 400;
+            p.burst_depth = 1;
+            p.kill_heal_every = 2;
+            p.kill_heal = 1;
+            p.kills_counted = 0;
+            p.hp = p.max_hp - 1;
+        }
+        (w.clone(), s)
+    }
+
+    fn shot_of(s: &State, by: u8, at: usize) -> Shot {
+        Shot {
+            at: s.enemies[at].at,
+            owner: slot(by).id(),
+            friendly: true,
+            damage: 1_000_000,
+            damage_type: None,
+            breaks_charge: false,
+            smash: None,
+            combo: false,
+            rune: None,
+            chain: false,
+        }
+    }
+
+    /// Player `by` hits enemy `at` for far more than it has.
+    fn hit(w: &World, s: &mut State, by: u8, at: usize, ev: &mut Vec<crate::event::DomainEvent>) {
+        let shot = shot_of(s, by, at);
+        super::super::damage(w, s, slot(by), shot, Who::Enemy(at), ev);
+    }
+
+    /// Enemy `i` alone at its place, at `hp`: the others are far away and strong.
+    fn lone(s: &mut State, i: usize, hp: u32) {
+        s.enemies[i].hp = hp;
+        let at = s.enemies[i].at;
+        for j in 0..s.enemies.len() {
+            if j != i {
+                s.enemies[j].at.x.0 = at.x.0.saturating_add(900_000);
+                s.enemies[j].hp = s.enemies[j].max_hp.max(1_000);
+            }
+        }
+    }
+
+    fn counted(s: &State, i: u8) -> u32 {
+        s.players[slot(i)].kills_counted
+    }
+
+    fn bursts_in(ev: &[crate::event::DomainEvent]) -> usize {
+        ev.iter()
+            .filter(|e| matches!(e, crate::event::DomainEvent::KillBurst { .. }))
+            .count()
+    }
+
+    #[test]
+    fn a_kill_goes_to_the_player_whose_hit_brought_it_to_zero() {
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        let mut ev = Vec::new();
+        hit(&w, &mut s, 1, 0, &mut ev);
+        ev.clear();
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert_eq!(bursts_in(&ev), 1, "slot 1's burst only: {ev:?}");
+        assert_eq!((counted(&s, 0), counted(&s, 1)), (0, 1));
+
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        for i in 0..2 {
+            s.players[slot(i)].kill_heal_every = 1;
+        }
+        let mut ev = Vec::new();
+        hit(&w, &mut s, 1, 0, &mut ev);
+        ev.clear();
+        super::super::collide(&w, &mut s, false, &mut ev);
+        let healed: Vec<_> = ev
+            .iter()
+            .filter_map(|e| match e {
+                crate::event::DomainEvent::Healed { target, .. } => Some(*target),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(healed, vec![slot(1).id()]);
+
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        let mut ev = Vec::new();
+        hit(&w, &mut s, 0, 0, &mut ev);
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert_eq!((counted(&s, 0), counted(&s, 1)), (1, 0));
+    }
+
+    #[test]
+    fn a_burst_chain_kill_is_the_bursters() {
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        for i in 0..2 {
+            s.players[slot(i)].kill_heal_every = 3;
+        }
+        let at = s.enemies[0].at;
+        s.enemies[1].at = at;
+        s.enemies[1].hp = 1;
+        let mut ev = Vec::new();
+        hit(&w, &mut s, 1, 0, &mut ev);
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert_eq!(
+            (counted(&s, 0), counted(&s, 1)),
+            (0, 2),
+            "A and the one it burst"
+        );
+    }
+
+    #[test]
+    fn the_earlier_hit_wins_and_a_defeat_with_no_hit_goes_to_the_lowest_slot() {
+        for (first, second) in [(1u8, 0u8), (0, 1)] {
+            let (w, mut s) = kill_state();
+            lone(&mut s, 0, 1);
+            let mut ev = Vec::new();
+            hit(&w, &mut s, first, 0, &mut ev);
+            hit(&w, &mut s, second, 0, &mut ev);
+            super::super::collide(&w, &mut s, false, &mut ev);
+            assert_eq!(counted(&s, first), 1, "first {first}");
+            assert_eq!(counted(&s, second), 0, "second {second}");
+        }
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 0);
+        let mut ev = Vec::new();
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert_eq!((counted(&s, 0), counted(&s, 1)), (1, 0), "a shrine's win");
+    }
+
+    #[test]
+    fn a_dot_kills_for_the_player_who_applied_it_last() {
+        for by in [1u8, 0] {
+            let (w, mut s) = kill_state();
+            lone(&mut s, 0, 100);
+            s.enemies[0].statuses = Default::default();
+            let mut ev = Vec::new();
+            super::super::runes::apply_smash_bleed(&mut s, slot(1), Who::Enemy(0), &mut ev);
+            super::super::runes::apply_smash_bleed(&mut s, slot(by), Who::Enemy(0), &mut ev);
+            let st = s.enemies[0]
+                .statuses
+                .iter()
+                .find(|st| st.dot.is_some())
+                .unwrap_or_else(|| panic!("a bleed: {:?}", s.enemies[0].statuses));
+            assert_eq!(st.source, slot(by).id());
+            for st in s.enemies[0].statuses.iter_mut() {
+                if let Some(d) = st.dot.as_mut() {
+                    d.next_in = 1;
+                    d.damage = 1_000_000;
+                }
+            }
+            super::super::collide(&w, &mut s, true, &mut ev);
+            assert_eq!(counted(&s, by), 1, "bleed by {by}");
+            assert_eq!(counted(&s, 1 - by), 0);
+        }
+    }
+
+    #[test]
+    fn the_kill_record_is_scratch_and_empty_after_the_tick() {
+        let (w, mut s) = kill_state();
+        lone(&mut s, 0, 1);
+        let mut ev = Vec::new();
+        hit(&w, &mut s, 1, 0, &mut ev);
+        assert!(!s.scratch.killers.is_empty());
+        assert!(s.clone().scratch.killers.is_empty(), "a clone starts empty");
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert!(s.scratch.killers.is_empty());
+    }
+
+    #[test]
+    fn xp_and_stardust_are_shared_by_every_present_player() {
+        let e = worst_case::warmed_up().into_party(3);
+        let (w, s) = live(&e);
+        let (mut w, mut s) = (w.clone(), s.clone());
+        w.stage.stardust = Some(crate::stage::StardustFactor {
+            tiers: vec![crate::stage::StardustTier {
+                start_tick: 0,
+                pct: 50,
+            }],
+            summon_base: None,
+        });
+        for i in 0..3 {
+            let c = s.players.career_mut(slot(i));
+            c.stardust = Some(0);
+            assert!(c.progress.is_some(), "the worst case has levels");
+        }
+        s.enemies[0].key.source = super::super::state::AgentSource::Wave;
+        s.enemies[0].key.index = 0;
+        w.stage.waves[0].stardust = Some(100);
+        s.enemies[0].hp = 0;
+        s.enemies[0].burst = false;
+        let before = [0, 1, 2].map(|i| {
+            let p = s.players.career(slot(i)).progress.as_ref().unwrap();
+            (p.level, p.xp)
+        });
+        let mut ev = Vec::new();
+        s.runs.clear();
+        s.orbs.clear();
+        super::super::collide(&w, &mut s, false, &mut ev);
+        let after = [0, 1, 2].map(|i| {
+            let p = s.players.career(slot(i)).progress.as_ref().unwrap();
+            (p.level, p.xp)
+        });
+        assert!(
+            after.iter().zip(before).all(|(a, b)| *a != b),
+            "{before:?} {after:?}"
+        );
+        assert_eq!(after[0], after[1]);
+        assert_eq!(after[1], after[2]);
+        let dust = [0, 1, 2].map(|i| s.players.career(slot(i)).stardust);
+        assert!(
+            dust[0] > Some(0) && dust[0] == dust[1] && dust[1] == dust[2],
+            "{dust:?}"
+        );
+    }
+
+    #[test]
+    fn an_absent_slot_earns_nothing_and_nothing_panics() {
+        let e = worst_case::warmed_up();
+        let (w, s) = live(&e);
+        let (w, mut s) = (w.clone(), s.clone());
+        s.players = Players::with_mask(0b101, ps(&e)).keeping_career_of(&s.players);
+        s.enemies[0].hp = 0;
+        s.enemies[0].burst = false;
+        s.runs.clear();
+        s.orbs.clear();
+        let mut ev = Vec::new();
+        super::super::collide(&w, &mut s, false, &mut ev);
+        assert!(s.players.career(PlayerIdx::SOLO).progress.is_some());
+    }
+
+    #[test]
+    fn the_lowest_slot_takes_the_star_both_circles_cover() {
+        use super::super::state::StarState;
+        let e = worst_case::warmed_up().into_party(2);
+        let (w, s) = live(&e);
+        let (w, mut s) = (w.clone(), s.clone());
+        let due = |s: &State, i: u8| s.players.career(slot(i)).offers.as_ref().unwrap().due.len();
+        let at = s.players[PlayerIdx::SOLO].at;
+        s.players[slot(1)].at = at;
+        s.players[slot(1)].hp = s.players[slot(1)].max_hp;
+        s.stars.as_mut().expect("stars").on_map = vec![StarState {
+            id: EntityId(900),
+            at,
+            rarity: crate::rewards::Rarity::Common,
+        }];
+        let before = [due(&s, 0), due(&s, 1)];
+        let mut ev = Vec::new();
+        for me in s.players.indices() {
+            super::super::stars::pick_up(&w, &mut s, me, &mut ev);
+        }
+        assert_eq!((due(&s, 0), due(&s, 1)), (before[0] + 1, before[1]));
+
+        // A star only slot 1 covers goes to slot 1.
+        let far = crate::fixed::Point {
+            x: at.x,
+            y: crate::fixed::Fx(at.y.0.saturating_add(3_000_000)),
+        };
+        s.players[slot(1)].at = far;
+        s.stars.as_mut().unwrap().on_map = vec![StarState {
+            id: EntityId(901),
+            at: far,
+            rarity: crate::rewards::Rarity::Common,
+        }];
+        let before = [due(&s, 0), due(&s, 1)];
+        for me in s.players.indices() {
+            super::super::stars::pick_up(&w, &mut s, me, &mut ev);
+        }
+        assert_eq!((due(&s, 0), due(&s, 1)), (before[0], before[1] + 1));
+    }
+
+    #[test]
+    fn a_boss_kill_makes_a_boss_offer_due_to_each_present_player() {
+        let e = worst_case::warmed_up().into_party(3);
+        let (w, s) = live(&e);
+        let (w, mut s) = (w.clone(), s.clone());
+        for me in s.players.indices() {
+            super::super::stars::boss_killed(&w, &mut s, me);
+        }
+        for i in 0..3 {
+            let due = &s.players.career(slot(i)).offers.as_ref().unwrap().due;
+            assert_eq!(
+                due.first().map(|d| d.kind),
+                Some(OfferKind::Boss),
+                "slot {i}"
+            );
+        }
+    }
+}

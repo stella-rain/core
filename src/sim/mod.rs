@@ -48,8 +48,13 @@
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! `collide`, and each level-up raises a stat or opens a stat offer (`levels`). The progress is
-//! per player slot (`Players.careers`); until commands are routed per player it is slot 0's.
-//! So are the expertise gauge, the Stardust and the regeneration (`Career`): the hash and format 1
+//! per player slot (`Players.careers`), and so are the expertise gauge, the Stardust and the
+//! regeneration (`Career`). Experience and Stardust are shared: every present player earns each
+//! kill's, XP raised by that player's own `XpPct`. A kill's burst, kill-heal and expertise go to
+//! the killer, the first hit of the tick (in `collide`'s fixed order) that takes the target to 0
+//! hit points, found through the scratch `killers`; a damage-over-time tick is the hit of the
+//! player who applied the stack last. Offers are per slot and the world stops while any is open.
+//! The hash and format 1
 //! write slot 0's where the run's single ones were, and the tail holds the other slots' (progress,
 //! offer generator, offers, expertise, Stardust, regen), a layout the hash-layout work settles.
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
@@ -484,7 +489,9 @@ fn unreserved_state(
             },
             Career::new(
                 seed,
-                PlayerIdx::SOLO, // N=1: M-PER-PLAYER
+                // The run's first player; the other slots are built by the party builder (a test
+                // here, recording parties later).
+                PlayerIdx::SOLO,
                 progress,
                 offers,
                 expertise::initial(stage, content.expertise()),
@@ -630,27 +637,29 @@ pub(crate) fn step(
     );
 }
 
-/// A stat offer is open.
-fn stat_offer_open(s: &State) -> bool {
-    let career = s.players.career(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+/// A stat offer is open for `me`.
+fn stat_offer_open(s: &State, me: PlayerIdx) -> bool {
+    let career = s.players.career(me);
     career.progress.as_ref().is_some_and(|p| p.offer_open)
 }
 
-/// An offer is open, a star's, a boss's, an expertise level's or a stat offer: the world is
-/// stopped.
-pub(crate) fn offer_open(s: &State) -> bool {
-    s.players.career(PlayerIdx::SOLO).offers.as_ref().is_some_and(|o| o.offer.is_some()) // N=1: M-PER-PLAYER
-        || s.players
-            .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
-            .expertise
-            .as_ref()
-            .is_some_and(|g| g.offer.is_some())
-        || stat_offer_open(s)
+/// `me` has an offer open, a star's, a boss's, an expertise level's or a stat offer.
+pub(crate) fn offer_open_for(s: &State, me: PlayerIdx) -> bool {
+    let career = s.players.career(me);
+    career.offers.as_ref().is_some_and(|o| o.offer.is_some())
+        || career.expertise.as_ref().is_some_and(|g| g.offer.is_some())
+        || stat_offer_open(s, me)
 }
 
-/// Opens the first offer due, unless one is open: the boss offer, then the expertise levels'
-/// in level order, then the stat offers in level order, then the stars' in the order taken
-/// (ADR-079 §2, DS18).
+/// An offer is open for any present player: the world is stopped.
+pub(crate) fn offer_open(s: &State) -> bool {
+    s.players.indices().any(|me| offer_open_for(s, me))
+}
+
+/// Opens, for every present player in slot order, the first offer due unless one is open for
+/// that player: the boss offer, then the expertise levels' in level order, then the stat offers
+/// in level order, then the stars' in the order taken (ADR-079 §2, DS18). The players open
+/// theirs side by side.
 fn open_offers(
     stage: &World,
     rewards: &Rewards,
@@ -658,57 +667,85 @@ fn open_offers(
     s: &mut State,
     events: &mut Vec<DomainEvent>,
 ) {
-    stars::open_due(stage, rewards, s, events, true);
-    expertise::open_due(stage, expertise, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
-    levels::open_due(s, events);
-    stars::open_due(stage, rewards, s, events, false);
+    for me in s.players.indices() {
+        open_offers_for(stage, rewards, expertise, s, me, events);
+    }
 }
 
-/// The options of the open offer, in index order; empty without one.
+#[cfg(test)]
+pub(crate) fn open_offers_for_test(
+    stage: &World,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    events: &mut Vec<DomainEvent>,
+) {
+    open_offers(stage, rewards, expertise, s, events);
+}
+
+/// `open_offers` for the player `me` alone.
+fn open_offers_for(
+    stage: &World,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
+    stars::open_due(stage, rewards, s, me, events, true);
+    expertise::open_due(stage, expertise, s, me, events);
+    levels::open_due(s, me, events);
+    stars::open_due(stage, rewards, s, me, events, false);
+}
+
+/// The options of `me`'s open offer, in index order; empty without one.
 pub(crate) fn offer_options(
     stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
     s: &State,
+    me: PlayerIdx,
 ) -> Vec<OfferOption> {
     if s.players
-        .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        .career(me)
         .expertise
         .as_ref()
         .is_some_and(|g| g.offer.is_some())
     {
-        expertise::options(stage, expertise, s, PlayerIdx::SOLO) // N=1: M-PER-PLAYER
-    } else if stat_offer_open(s) {
-        levels::options(s)
+        expertise::options(stage, expertise, s, me)
+    } else if stat_offer_open(s, me) {
+        levels::options(s, me)
     } else {
-        stars::options(rewards, s, PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        stars::options(rewards, s, me)
     }
 }
 
-/// Carries out `option`, one of `offer_options`, on the open offer; when that closes it, the
-/// next offer due opens.
+/// Carries out `option`, one of `offer_options`, on `me`'s open offer; when that closes it, the
+/// next offer due to `me` opens. The other players' due offers opened at the end of the tick.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn choose(
     _version: u32,
     stage: &World,
     rewards: &Rewards,
     expertise: &Expertise,
     s: &mut State,
+    me: PlayerIdx,
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
     if s.players
-        .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        .career(me)
         .expertise
         .as_ref()
         .is_some_and(|g| g.offer.is_some())
     {
-        expertise::choose(stage, expertise, s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
-    } else if stat_offer_open(s) {
-        levels::choose(s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
+        expertise::choose(stage, expertise, s, me, option, events);
+    } else if stat_offer_open(s, me) {
+        levels::choose(s, me, option, events);
     } else {
-        stars::choose(stage, rewards, s, option, events);
+        stars::choose(stage, rewards, s, me, option, events);
     }
-    open_offers(stage, rewards, expertise, s, events);
+    open_offers_for(stage, rewards, expertise, s, me, events);
 }
 
 fn count<T>(items: &[T]) -> u32 {
@@ -1157,7 +1194,10 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             chain: false,
         };
         let by = Blame::of_program(HitKind::Attack, b.program);
-        consumed.push(hit_ally_side(stage, s, PlayerIdx::SOLO, shot, by, events)); // N=1: M-PER-PLAYER
+        consumed.push(
+            hit_players_side(stage, s, shot, by, events)
+                || hit_companions_side(stage, s, shot, events),
+        );
     }
     let mut flags = consumed.iter();
     s.orbs.retain(|_| !flags.next().copied().unwrap_or(false));
@@ -1166,20 +1206,39 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         s.scratch.grid = grid;
     }
     s.companions.retain(|c| c.hp > 0);
-    combat::bursts(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
+    // A kill's burst, kill-heal and expertise go to the killer; the bursts of all slots share the
+    // tick's cap.
+    let mut gone_off = 0;
+    for me in s.players.indices() {
+        combat::bursts(stage, s, me, &mut gone_off, events);
+    }
     levels::credit_defeated(stage, s, events);
-    stardust::credit_defeated(stage, s, PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    // Stardust is shared: every present player earns every kill's base.
+    for me in s.players.indices() {
+        stardust::credit_defeated(stage, s, me);
+    }
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
-    heal::kills_heal(s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
-    s.enemies.retain(|e| e.hp > 0);
-    if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
-        stars::boss_killed(stage, s);
-        heal::boss_killed(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
-        stardust::boss_killed(stage, s, PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    for me in s.players.indices() {
+        heal::kills_heal(s, me, events);
     }
-    stars::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
-    heal::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
+    // The record is by enemy index, which no step between a hit and this removal changes.
+    debug_assert!(s.scratch.killers.len() <= s.enemies.len());
+    s.enemies.retain(|e| e.hp > 0);
+    s.scratch.killers.clear();
+    if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
+        for me in s.players.indices() {
+            stars::boss_killed(stage, s, me);
+            heal::boss_killed(stage, s, me, events);
+            stardust::boss_killed(stage, s, me);
+        }
+    }
+    // The stars and pick-ups on the map are shared: the lowest slot takes what its circle
+    // covers, and the next finds it gone.
+    for me in s.players.indices() {
+        stars::pick_up(stage, s, me, events);
+        heal::pick_up(stage, s, me, events);
+    }
 }
 
 /// The enemies as circles, in index order, for friendly hit boxes to land on and for the
@@ -1239,8 +1298,14 @@ fn damage(
         stage.tuning.defence_k,
     );
     let hp = s.hp_mut(target);
+    let before = *hp;
     *hp = hp.saturating_sub(dealt);
     let dead = *hp == 0;
+    if dead && before > 0 {
+        if let Who::Enemy(i) = target {
+            record_kill(s, i, me);
+        }
+    }
     events.push(DomainEvent::Hit {
         source: b.owner,
         target: id,
@@ -1261,7 +1326,7 @@ fn damage(
     if b.combo {
         expertise::credit(stage, s, me, target, dead);
         if !dead && b.smash == Some(Smash::Bleed) {
-            runes::apply_smash_bleed(s, target, events);
+            runes::apply_smash_bleed(s, me, target, events);
         }
         if let Some(Smash::Stun { ticks }) = b.smash.filter(|_| !dead) {
             stun::apply(stage, s, target, b.owner, ticks, events);
@@ -1274,6 +1339,37 @@ fn damage(
             runes::on_hit(stage, s, me, id, at, events);
         }
     }
+}
+
+/// Records `me` as the killer of enemy `i`: the first hit of the tick, in its fixed order, that
+/// takes the enemy to 0 hit points keeps the credit. Called only for a hit that defeats it.
+pub(super) fn record_kill(s: &mut State, i: usize, me: PlayerIdx) {
+    let n = s.enemies.len();
+    let killers = &mut s.scratch.killers;
+    if killers.len() < n {
+        killers.resize(n, None);
+    }
+    if let Some(k) = killers.get_mut(i).filter(|k| k.is_none()) {
+        *k = Some(me);
+    }
+}
+
+/// The player that defeated enemy `i` this tick. An enemy at 0 hit points no hit defeated (a
+/// shrine's win) is credited to the lowest present slot.
+pub(super) fn killer_of(s: &State, i: usize) -> PlayerIdx {
+    s.scratch
+        .killers
+        .get(i)
+        .copied()
+        .flatten()
+        .or_else(|| s.players.indices().next())
+        .unwrap_or(PlayerIdx::SOLO)
+}
+
+/// The player that made a hit by `owner`: a companion's, or any other id, is the run's first
+/// player (the stage's companions belong to no player).
+pub(super) fn hitter(s: &State, owner: EntityId) -> PlayerIdx {
+    s.players.owner_of(owner).unwrap_or(PlayerIdx::SOLO)
 }
 
 /// Whether anything can damage `target`: a shrine and a mimic in disguise are objects (ADR-090).
@@ -1535,34 +1631,53 @@ pub(crate) fn aura_percent(
         .unwrap_or(0)
 }
 
-/// An orb against the main character (unless it is invulnerable), then the companions in ID
-/// order.
-fn hit_ally_side(
+/// An orb against the players in slot order, unless one is invulnerable: the first it overlaps
+/// takes it, and it is used up.
+fn hit_players_side(
     stage: &World,
     s: &mut State,
-    me: PlayerIdx,
     b: Shot,
     by: Blame,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    let p = &s.players[me];
-    if p.invulnerable == 0
-        && p.hp > 0
-        && overlaps(
-            b.at,
-            stage.tuning.orb_radius,
-            p.at,
-            stage.tuning.player_radius,
-        )
-    {
-        hurt_player(stage, s, me, aided(stage, s, b), by, events);
-        return true;
+    for me in s.players.indices() {
+        let p = &s.players[me];
+        if p.invulnerable == 0
+            && p.hp > 0
+            && overlaps(
+                b.at,
+                stage.tuning.orb_radius,
+                p.at,
+                stage.tuning.player_radius,
+            )
+        {
+            hurt_player(stage, s, me, aided(stage, s, b), by, events);
+            return true;
+        }
     }
+    false
+}
+
+/// An orb against the companions in ID order: the first it overlaps takes it.
+fn hit_companions_side(
+    stage: &World,
+    s: &mut State,
+    b: Shot,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = stage.defs.agent(c.def).radius.0;
         if c.hp > 0 && overlaps(b.at, stage.tuning.orb_radius, c.at, radius) {
-            damage(stage, s, me, aided(stage, s, b), Who::Companion(i), events);
+            // An enemy's hit on a companion reads no player (it neither crits nor echoes).
+            damage(
+                stage,
+                s,
+                PlayerIdx::SOLO,
+                aided(stage, s, b),
+                Who::Companion(i),
+                events,
+            );
             return true;
         }
     }
