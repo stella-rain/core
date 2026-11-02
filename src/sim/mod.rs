@@ -1189,7 +1189,10 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
             chain: false,
         };
         let by = Blame::of_program(HitKind::Attack, b.program);
-        consumed.push(hit_ally_side(stage, s, PlayerIdx::SOLO, shot, by, events)); // N=1: M-PER-PLAYER
+        consumed.push(
+            hit_players_side(stage, s, shot, by, events)
+                || hit_companions_side(stage, s, shot, events),
+        );
     }
     let mut flags = consumed.iter();
     s.orbs.retain(|_| !flags.next().copied().unwrap_or(false));
@@ -1621,34 +1624,53 @@ pub(crate) fn aura_percent(
         .unwrap_or(0)
 }
 
-/// An orb against the main character (unless it is invulnerable), then the companions in ID
-/// order.
-fn hit_ally_side(
+/// An orb against the players in slot order, unless one is invulnerable: the first it overlaps
+/// takes it, and it is used up.
+fn hit_players_side(
     stage: &World,
     s: &mut State,
-    me: PlayerIdx,
     b: Shot,
     by: Blame,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
-    let p = &s.players[me];
-    if p.invulnerable == 0
-        && p.hp > 0
-        && overlaps(
-            b.at,
-            stage.tuning.orb_radius,
-            p.at,
-            stage.tuning.player_radius,
-        )
-    {
-        hurt_player(stage, s, me, aided(stage, s, b), by, events);
-        return true;
+    for me in s.players.indices() {
+        let p = &s.players[me];
+        if p.invulnerable == 0
+            && p.hp > 0
+            && overlaps(
+                b.at,
+                stage.tuning.orb_radius,
+                p.at,
+                stage.tuning.player_radius,
+            )
+        {
+            hurt_player(stage, s, me, aided(stage, s, b), by, events);
+            return true;
+        }
     }
+    false
+}
+
+/// An orb against the companions in ID order: the first it overlaps takes it.
+fn hit_companions_side(
+    stage: &World,
+    s: &mut State,
+    b: Shot,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let radius = stage.defs.agent(c.def).radius.0;
         if c.hp > 0 && overlaps(b.at, stage.tuning.orb_radius, c.at, radius) {
-            damage(stage, s, me, aided(stage, s, b), Who::Companion(i), events);
+            // An enemy's hit on a companion reads no player (it neither crits nor echoes).
+            damage(
+                stage,
+                s,
+                PlayerIdx::SOLO,
+                aided(stage, s, b),
+                Who::Companion(i),
+                events,
+            );
             return true;
         }
     }

@@ -154,17 +154,24 @@ pub(super) fn resolve(
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
     if !s.orbs.is_empty() {
-        break_orbs(stage, s, PlayerIdx::SOLO, &swings, events); // N=1: M-PER-PLAYER
+        for me in s.players.indices() {
+            break_orbs(stage, s, me, &swings, events);
+        }
     }
     if s.next_orb_group > 0 {
-        cage_beams(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
+        // A beam's `last_hit` is shared, so a beam hurts at most one player per `rehit_ticks`,
+        // the lowest slot first.
+        for me in s.players.indices() {
+            cage_beams(stage, s, me, events);
+        }
     }
     for w in &swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
             hit_enemy_side(stage, s, grid, w, (&mut bits, &mut found), events);
         } else {
-            hit_ally_side(stage, s, PlayerIdx::SOLO, w, events); // N=1: M-PER-PLAYER
+            hit_players_side(stage, s, w, events);
+            hit_companions_side(stage, s, w, events);
         }
     }
     if swings.iter().any(|w| w.once) {
@@ -565,42 +572,289 @@ fn hit_enemy_side(
     }
 }
 
-/// The main character (unless it is invulnerable), then the companions in ID order.
-fn hit_ally_side(
-    stage: &World,
-    s: &mut State,
-    me: PlayerIdx,
-    w: &Swing,
-    events: &mut Vec<DomainEvent>,
-) {
-    let p = &s.players[me];
-    if p.hp > 0
-        && p.invulnerable == 0
-        && covers(w, p.at, stage.tuning.player_radius)
-        && take_hit(s, w, me.id())
-    {
-        let by = match w.source {
-            Source::Run(i) => Blame {
-                kind: HitKind::Attack,
-                by: Culprit::Run(s.runs[i].attack),
-            },
-            Source::Zone(i) => Blame::of_program(HitKind::Zone, s.zones[i].program),
-        };
-        hurt_player(stage, s, me, super::aided(stage, s, shot(w)), by, events);
+/// Every player in the party that the swing covers, in slot order, unless it is invulnerable:
+/// each is hurt once.
+fn hit_players_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<DomainEvent>) {
+    for me in s.players.indices() {
+        let p = &s.players[me];
+        if p.hp > 0
+            && p.invulnerable == 0
+            && covers(w, p.at, stage.tuning.player_radius)
+            && take_hit(s, w, me.id())
+        {
+            let by = match w.source {
+                Source::Run(i) => Blame {
+                    kind: HitKind::Attack,
+                    by: Culprit::Run(s.runs[i].attack),
+                },
+                Source::Zone(i) => Blame::of_program(HitKind::Zone, s.zones[i].program),
+            };
+            hurt_player(stage, s, me, super::aided(stage, s, shot(w)), by, events);
+        }
     }
+}
+
+/// The companions in ID order, each hurt once however many players there are.
+fn hit_companions_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<DomainEvent>) {
     for i in 0..s.companions.len() {
         let c = &s.companions[i];
         let (id, at, hp) = (c.id, c.at, c.hp);
         let radius = stage.defs.agent(c.def).radius.0;
         if hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
+            // An enemy's hit on a companion reads no player (it neither crits nor echoes).
             damage(
                 stage,
                 s,
-                me,
+                PlayerIdx::SOLO,
                 super::aided(stage, s, shot(w)),
                 Who::Companion(i),
                 events,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod party_tests {
+    //! Hits on each player of a party (ADR-SIM-12): an enemy's swing or orb reaches every player
+    //! it covers, once each and in slot order, and the companions once.
+
+    use super::*;
+    use crate::bench_fixtures::worst_case;
+    use crate::engine::Run;
+    use crate::event::DomainEvent;
+
+    fn slot(i: u8) -> PlayerIdx {
+        PlayerIdx::new(i).expect("a slot")
+    }
+
+    fn party() -> (World, State) {
+        let e = worst_case::warmed_up().into_party(3);
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules");
+        };
+        let mut s = state.clone();
+        assert!(!s.runs.is_empty(), "a run for the swing to belong to");
+        s.runs[0].hits.clear();
+        for i in 0..3 {
+            let p = &mut s.players[slot(i)];
+            p.hp = p.max_hp;
+            p.invulnerable = 0;
+            p.at.x.0 = i32::from(i) * 4_000_000;
+            p.at.y.0 = 0;
+        }
+        s.companions.clear();
+        (world.clone(), s)
+    }
+
+    fn swing(at: Point, radius: i32, friendly: bool, owner: EntityId) -> Swing {
+        Swing {
+            source: Source::Run(0),
+            owner,
+            slot: 0,
+            friendly,
+            area: Area {
+                centre: at,
+                facing: Dir::UP,
+                radius,
+                arc: None,
+                line: None,
+            },
+            damage: 10,
+            damage_type: None,
+            rehit_ticks: None,
+            breaks_charge: false,
+            smash: None,
+            combo: false,
+            rune: None,
+            once: false,
+        }
+    }
+
+    fn hp(s: &State) -> [u32; 3] {
+        [0, 1, 2].map(|i| s.players[slot(i)].hp)
+    }
+
+    fn hurt_in(ev: &[DomainEvent]) -> usize {
+        ev.iter()
+            .filter(|e| matches!(e, DomainEvent::PlayerHit { .. }))
+            .count()
+    }
+
+    #[test]
+    fn a_swing_hurts_the_player_it_covers_and_no_other() {
+        let (w, mut s) = party();
+        let before = hp(&s);
+        let mut ev = Vec::new();
+        let sw = swing(
+            s.players[slot(2)].at,
+            w.tuning.player_radius,
+            false,
+            EntityId(900),
+        );
+        hit_players_side(&w, &mut s, &sw, &mut ev);
+        let after = hp(&s);
+        assert_eq!((after[0], after[1]), (before[0], before[1]));
+        assert!(after[2] < before[2]);
+        assert_eq!(hurt_in(&ev), 1);
+    }
+
+    #[test]
+    fn a_swing_over_all_three_hurts_each_once_in_slot_order() {
+        let (w, mut s) = party();
+        for i in 1..3 {
+            s.players[slot(i)].at = s.players[PlayerIdx::SOLO].at;
+        }
+        let before = hp(&s);
+        let mut ev = Vec::new();
+        let at = s.players[PlayerIdx::SOLO].at;
+        let sw = swing(at, w.tuning.player_radius, false, EntityId(900));
+        hit_players_side(&w, &mut s, &sw, &mut ev);
+        assert!(hp(&s).iter().zip(before).all(|(a, b)| *a < b));
+        assert_eq!(hurt_in(&ev), 3);
+        let order: Vec<_> = ev
+            .iter()
+            .filter_map(|e| match e {
+                DomainEvent::PlayerHit { hp_left, .. } => Some(*hp_left),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(order, hp(&s).to_vec(), "in slot order");
+    }
+
+    #[test]
+    fn an_invulnerable_player_is_skipped() {
+        let (w, mut s) = party();
+        for i in 1..3 {
+            s.players[slot(i)].at = s.players[PlayerIdx::SOLO].at;
+        }
+        s.players[slot(1)].invulnerable = 30;
+        let before = hp(&s);
+        let mut ev = Vec::new();
+        let at = s.players[PlayerIdx::SOLO].at;
+        let sw = swing(at, w.tuning.player_radius, false, EntityId(900));
+        hit_players_side(&w, &mut s, &sw, &mut ev);
+        let after = hp(&s);
+        assert!(after[0] < before[0] && after[2] < before[2]);
+        assert_eq!(after[1], before[1]);
+    }
+
+    #[test]
+    fn an_orb_is_used_up_by_the_first_player_it_overlaps() {
+        let (w, mut s) = party();
+        s.players[slot(1)].at = s.players[PlayerIdx::SOLO].at;
+        let before = hp(&s);
+        let shot = Shot {
+            at: s.players[PlayerIdx::SOLO].at,
+            owner: EntityId(900),
+            friendly: false,
+            damage: 10,
+            damage_type: None,
+            breaks_charge: false,
+            smash: None,
+            combo: false,
+            rune: None,
+            chain: false,
+        };
+        let by = Blame::of_program(HitKind::Attack, crate::sim::world::ProgramIndex(0));
+        let mut ev = Vec::new();
+        assert!(super::super::hit_players_side(
+            &w, &mut s, shot, by, &mut ev
+        ));
+        let after = hp(&s);
+        assert!(after[0] < before[0]);
+        assert_eq!((after[1], after[2]), (before[1], before[2]));
+        assert_eq!(hurt_in(&ev), 1);
+    }
+
+    fn orb(
+        at: Point,
+        owner: EntityId,
+        link: Option<crate::sim::state::OrbLink>,
+    ) -> crate::sim::state::OrbState {
+        crate::sim::state::OrbState {
+            at,
+            vx: Fx(0),
+            vy: Fx(0),
+            dir: Dir::UP,
+            style: 0,
+            owner,
+            damage: 1,
+            damage_type: None,
+            breaks_charge: false,
+            smash: None,
+            combo: false,
+            hook: None,
+            breakable: true,
+            life: 100,
+            stop: None,
+            link,
+            program: crate::sim::world::ProgramIndex(0),
+        }
+    }
+
+    #[test]
+    fn a_players_swing_breaks_an_orb_and_a_companions_does_not() {
+        let (w, mut s) = party();
+        for (owner, broken) in [(slot(1).id(), true), (EntityId(900), false)] {
+            s.orbs = vec![orb(Point::default(), EntityId(900), None)];
+            let sw = swing(Point::default(), 1_000_000, true, owner);
+            let mut ev = Vec::new();
+            for me in s.players.indices() {
+                break_orbs(&w, &mut s, me, std::slice::from_ref(&sw), &mut ev);
+            }
+            assert_eq!(s.orbs.is_empty(), broken, "owner {owner:?}");
+            assert_eq!(
+                ev.iter()
+                    .filter(|e| matches!(e, DomainEvent::OrbBroken { .. }))
+                    .count(),
+                usize::from(broken)
+            );
+        }
+    }
+
+    #[test]
+    fn a_beam_hurts_one_player_per_rehit_by_the_shared_last_hit() {
+        let (w, mut s) = party();
+        let link = |slot| crate::sim::state::OrbLink {
+            group: 1,
+            slot,
+            of: 2,
+            width: Fx::px(40),
+            damage: 10,
+            rehit_ticks: 30,
+            last_hit: None,
+        };
+        let (a, b) = (
+            Point::default(),
+            Point {
+                x: Fx::px(200),
+                y: Fx(0),
+            },
+        );
+        s.orbs = vec![
+            orb(a, EntityId(900), Some(link(0))),
+            orb(b, EntityId(900), Some(link(1))),
+        ];
+        s.tick = 100;
+        let mid = Point {
+            x: Fx::px(100),
+            y: Fx(0),
+        };
+        for i in 0..2 {
+            s.players[slot(i)].at = mid;
+        }
+        let before = hp(&s);
+        let mut ev = Vec::new();
+        for me in s.players.indices() {
+            cage_beams(&w, &mut s, me, &mut ev);
+        }
+        let after = hp(&s);
+        assert!(after[0] < before[0], "the lowest slot is hit");
+        assert_eq!(
+            after[1], before[1],
+            "the shared last hit spares slot 1 this tick"
+        );
+        assert_eq!(hurt_in(&ev), 1);
     }
 }
