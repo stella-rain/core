@@ -477,12 +477,6 @@ impl Players {
         self.present >> i.get() & 1 == 1
     }
 
-    /// Whether the slots in the party are the first `len()` slots, as a party of one is: the
-    /// `id_gap` map of the hash and the savepoint is one-to-one only then.
-    pub(crate) fn is_prefix(&self) -> bool {
-        self.present & (self.present + 1) == 0
-    }
-
     /// The players of the party, in slot order.
     pub(crate) fn iter(&self) -> impl DoubleEndedIterator<Item = &PlayerState> + '_ {
         self.items
@@ -510,6 +504,7 @@ impl Players {
     }
 
     /// Players 1 and up that are present, in slot order.
+    #[cfg(test)]
     pub(crate) fn others(&self) -> impl Iterator<Item = &PlayerState> + '_ {
         self.iter().skip(1)
     }
@@ -535,6 +530,7 @@ impl Players {
     }
 
     /// The careers of players 1 and up that are present, in slot order, like `others`.
+    #[cfg(test)]
     pub(crate) fn other_careers(&self) -> impl Iterator<Item = &Career> + '_ {
         self.careers
             .iter()
