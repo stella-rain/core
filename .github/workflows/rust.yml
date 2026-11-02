@@ -466,13 +466,21 @@ jobs:
           SAVEPOINT_SEEDS_DIR="$PWD/seeds/savepoint" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_savepoint_seeds -- --ignored
           test -n "$(find seeds/savepoint -type f)"
           find seeds/savepoint -type f | wc -l
-      - name: Fuzz each target for 60 seconds
+      - name: Fuzz each target for 60 seconds, one per CPU
         run: |
           set -eu
           # Every target of fuzz/Cargo.toml, checked against fuzz/fuzz_targets/ (an assignment, so
           # a failing script stops the step).
           targets=$(python3 .github/scripts/fuzz_targets.py words)
-          for target in $targets; do
+          # Built once here, so the runs below start at once instead of each waiting on cargo.
+          cargo "+$FUZZ_NIGHTLY" fuzz build
+          # One libFuzzer process uses one CPU: one target per CPU (4 on a GitHub runner), each
+          # still for 60 seconds. Each run writes its own log, shown below in order, so the outputs
+          # do not interleave; a failed run leaves a .failed mark.
+          mkdir -p fuzz-logs
+          # shellcheck disable=SC2329 # called by xargs, through bash -c
+          fuzz_one() {
+            target=$1
             # A seed longer than -max_len is cut to it: pack_load takes a whole pack
             # (Pack::MAX_BYTES) and one byte more, the others 64 KiB.
             max_len=65536
@@ -484,9 +492,28 @@ jobs:
               savepoint_load) seeds=seeds/savepoint ;;
               *) seeds= ;;
             esac
+            echo "start $target"
             # shellcheck disable=SC2086
-            cargo "+$FUZZ_NIGHTLY" fuzz run "$target" $seeds -- -max_total_time=60 -max_len="$max_len"
+            if ! cargo "+$FUZZ_NIGHTLY" fuzz run "$target" $seeds -- -max_total_time=60 -max_len="$max_len" \
+              > "fuzz-logs/$target.log" 2>&1; then
+              touch "fuzz-logs/$target.failed"
+            fi
+            echo "done $target"
+          }
+          export -f fuzz_one
+          # shellcheck disable=SC2016 # $1 is bash -c's argument, expanded there
+          echo "$targets" | tr ' ' '\n' | xargs -P "$(nproc)" -I{} bash -c 'fuzz_one "$1"' _ {}
+          status=0
+          for target in $targets; do
+            echo "::group::$target"
+            cat "fuzz-logs/$target.log"
+            echo "::endgroup::"
+            if [ -e "fuzz-logs/$target.failed" ]; then
+              echo "::error title=fuzz $target::$target failed; its log is in the group above, its input in fuzz-artifacts"
+              status=1
+            fi
           done
+          exit "$status"
       # A crash input is a stage, replay, pack or share code, so it can be read here and replayed with
       # `cargo fuzz run <target> <file>`; copy it to fuzz/regressions/<target>/ with the fix.
       - name: Upload the crash inputs

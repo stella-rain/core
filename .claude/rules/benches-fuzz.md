@@ -74,7 +74,7 @@ Each bench target is a key of `benches/budgets.toml`, which CI reads for the lis
   that were fixed. `savepoint_load` is seeded from generated savepoints (`write_savepoint_seeds`).
 - Gate, in `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
   `cargo test`, then `cargo +nightly fuzz build` (all targets). A PR that touches parsing also
-  runs `cargo +nightly fuzz run <target> -- -max_total_time=60` for each target of `fuzz/Cargo.toml`
+  runs each target of `fuzz/Cargo.toml` 60 s, one per CPU (`pack_load` with a whole pack as `-max_len`)
   (`.github/scripts/fuzz_targets.py` lists them; a unit test fails when `fuzz_targets/` and the table
   disagree), seeded from the corpus, bundled content, `content-pack export` and the savepoints.
 - Weekly, each fuzz target runs 7 minutes on a growing cached corpus; a crash opens a hash-only issue.

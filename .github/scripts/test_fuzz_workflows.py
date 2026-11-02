@@ -63,7 +63,8 @@ def step(block, name):
     """The step named `name`, from its `- name:` line to the next step."""
     m = re.search(rf"^      - name: {re.escape(name)}\n((?:(?!      - ).*\n)*)", block, re.M)
     assert m, f"no step '{name}'"
-    return m.group(0)
+    # Comments above the next step sit before its `- ` line: not part of this one.
+    return re.sub(r"(?:^ *#.*\n)+\Z", "", m.group(0), flags=re.M)
 
 
 SHORT_STEP = "Fuzz each target for 60 seconds, one per CPU"
