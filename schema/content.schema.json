@@ -7950,8 +7950,12 @@
           },
           "type": "array"
         },
-        "player": {
-          "$ref": "#/$defs/PlayerView"
+        "players": {
+          "description": "One per active player, indexed by `PlayerIdx`; a run of one has one.",
+          "items": {
+            "$ref": "#/$defs/PlayerView"
+          },
+          "type": "array"
         },
         "progress": {
           "anyOf": [
@@ -7996,7 +8000,7 @@
       "required": [
         "tick",
         "map",
-        "player",
+        "players",
         "entities",
         "orbs"
       ],
