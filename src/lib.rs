@@ -55,6 +55,7 @@ pub(crate) mod sim_v1;
 pub mod snapshot;
 pub mod stage;
 pub mod stage_skill;
+mod step_log;
 pub mod stardust;
 pub mod starting_unlocks;
 pub mod text;

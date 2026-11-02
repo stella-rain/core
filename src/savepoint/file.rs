@@ -337,6 +337,28 @@ mod tests {
     }
 
     #[test]
+    fn schema_1_and_2_savepoints_are_read_and_others_are_not() {
+        use crate::version::{FIRST_SCHEMA_VERSION, NEWEST_READ_SCHEMA_VERSION};
+        let with = |schema_version| Savepoint {
+            header: SavepointHeader {
+                schema_version,
+                ..sample().header
+            },
+            ..sample()
+        };
+        for schema in FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION {
+            let read = Savepoint::from_bytes(&with(schema).to_bytes()).unwrap();
+            assert_eq!(read.header.schema_version, schema);
+        }
+        for schema in [0, NEWEST_READ_SCHEMA_VERSION + 1] {
+            assert_eq!(
+                Savepoint::from_bytes(&with(schema).to_bytes()).err(),
+                Some(SavepointError::SimVersion)
+            );
+        }
+    }
+
+    #[test]
     fn a_schema_version_other_than_ours_is_refused() {
         let other = Savepoint {
             header: SavepointHeader {

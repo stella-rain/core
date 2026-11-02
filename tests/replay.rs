@@ -730,3 +730,43 @@ fn the_corpus_replay_loads_at_the_current_versions_and_not_one_above() {
         })
     );
 }
+
+// --- Schema 2 (ADR-REPL-7 point 4) -------------------------------------------------------------
+
+/// The clearing stage with its schema version set.
+fn stage_at_schema(schema_version: u32) -> Vec<u8> {
+    let mut v: Value = serde_json::from_slice(&stage_bytes()).unwrap();
+    v["schema_version"] = json!(schema_version);
+    serde_json::to_vec(&v).unwrap()
+}
+
+/// The replay of `stage` with the interact flag (bit 6) set on the first run of its inputs.
+fn with_interact_flag(replay: &Replay) -> Vec<u8> {
+    let mut bytes = base64::decode(&replay.inputs).unwrap();
+    // The first run is one tick (the evade), so its length is one varint byte.
+    assert_eq!(bytes[0], 1);
+    bytes[1] |= 0b100_0000;
+    with(replay, |v| v["inputs"] = json!(base64::encode(&bytes)))
+}
+
+#[test]
+fn a_stage_replay_at_schema_2_allows_interact() {
+    let inputs = clearing_inputs();
+    let one = record(&stage_at_schema(1), &inputs).unwrap();
+    let two_stage = stage_at_schema(2);
+    let two = record(&two_stage, &inputs).unwrap();
+    assert_eq!((one.schema_version, two.schema_version), (1, 2));
+    // The same bytes and the same hash at 2: only the version moved.
+    assert_eq!(one.inputs, two.inputs);
+    assert_eq!(one.final_hash, two.final_hash);
+    let plain = verify(&two_stage, &two.to_bytes()).unwrap();
+    assert_eq!(plain.ticks, CLEAR_TICK);
+    // Bit 6 is the interact button at 2: the simulation ignores it, so the hash is the same.
+    let held = verify(&two_stage, &with_interact_flag(&two)).unwrap();
+    assert_eq!(held.final_hash, plain.final_hash);
+    // At 1 it is an unknown flag.
+    assert_eq!(
+        verify(&stage_at_schema(1), &with_interact_flag(&one)),
+        Err(ReplayError::BadInputs("a run has unknown flags"))
+    );
+}
