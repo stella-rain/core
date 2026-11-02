@@ -220,6 +220,7 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
             assist: byte(t, 2) & 16 != 0,
             auto: byte(t, 2) & 32 != 0,
             pick: None,
+            interact: false,
         })
         .collect()
 }
@@ -415,7 +416,8 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
         ("sim-version".to_owned(), edited(8, &|b| b.wrapping_add(1))),
         (
             "schema-version".to_owned(),
-            reseal(edited(12, &|b| b.wrapping_add(1))),
+            // Schema 2 is readable; 3 is not.
+            reseal(edited(12, &|b| b.wrapping_add(2))),
         ),
         ("pack".to_owned(), reseal(edited(16, &|b| b ^ 1))),
         ("damaged".to_owned(), edited(valid.len() - 1, &|b| b ^ 1)),

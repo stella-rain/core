@@ -975,9 +975,7 @@ fn resimulate(
     let mut engine =
         Engine::start_with(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
     // The slots present must be exactly the engine's party, from slot 0.
-    if usize::from(log.present.count_ones() as u8) != engine.players()
-        || log.present != (1u8 << engine.players()) - 1
-    {
+    if usize::from(log.present) != (1usize << engine.players()) - 1 {
         return Err(RunReplayError::BadInputs(
             "the party does not match the run",
         ));
