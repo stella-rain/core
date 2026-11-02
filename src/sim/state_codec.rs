@@ -1595,6 +1595,44 @@ fn decode_star_field(
     ))
 }
 
+impl Encode for Offers {
+    fn encode(&self, w: &mut Writer) {
+        let Offers {
+            due,
+            offer,
+            rerolls_left,
+            banishes_left,
+            extra_candidates,
+            taken,
+            banished,
+            set_counts,
+        } = self;
+        due.encode(w);
+        offer.encode(w);
+        rerolls_left.encode(w);
+        banishes_left.encode(w);
+        extra_candidates.encode(w);
+        taken.encode(w);
+        banished.encode(w);
+        set_counts.encode(w);
+    }
+}
+
+impl Decode for Offers {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Offers {
+            due: decode_vec(r, MAX_CONTENT_LEN)?,
+            offer: Decode::decode(r)?,
+            rerolls_left: Decode::decode(r)?,
+            banishes_left: Decode::decode(r)?,
+            extra_candidates: Decode::decode(r)?,
+            taken: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+            banished: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+            set_counts: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+        })
+    }
+}
+
 impl Encode for StarState {
     fn encode(&self, w: &mut Writer) {
         let StarState { id, at, rarity } = self;

@@ -113,6 +113,8 @@ pub(crate) use attacks::phase;
 pub(crate) use world::{
     AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, RangedPool, World,
 };
+#[cfg(test)]
+mod codec_fields_tests;
 mod combat;
 mod dash;
 mod entity;
