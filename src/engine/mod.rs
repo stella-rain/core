@@ -697,3 +697,6 @@ impl Engine {
         Engine::forced(version, || Engine::new(stage))
     }
 }
+
+#[cfg(test)]
+mod v1_events_tests;
