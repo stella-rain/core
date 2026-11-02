@@ -477,8 +477,15 @@ impl RunReplay {
         })
     }
 
-    /// The inputs, one per tick: exactly `ticks` of them, and `ticks` at most `max_ticks`.
+    /// The inputs of a schema 1 replay, one per tick: exactly `ticks` of them, and `ticks` at
+    /// most `max_ticks`. A schema 2 replay's `inputs` are a step log, not this stream, and are
+    /// refused here.
     pub fn unpack_inputs(&self, max_ticks: u32) -> Result<Vec<Input>, RunReplayError> {
+        if self.setup.schema_version >= 2 {
+            return Err(RunReplayError::BadInputs(
+                "a schema 2 replay's inputs are a step log",
+            ));
+        }
         if self.ticks > max_ticks {
             return Err(RunReplayError::TooManyTicks {
                 ticks: self.ticks,
