@@ -2115,7 +2115,7 @@ fn orb_and_token_reach(name: &str) -> (usize, usize, usize, bool) {
         let tokens = snapshot
             .entities
             .iter()
-            .filter(|e| (2..10).contains(&e.id.0))
+            .filter(|e| (4..12).contains(&e.id.0)) // entities 2 to 9 before the player slots were reserved
             .filter(|e| {
                 e.attack
                     .as_ref()
@@ -2607,7 +2607,8 @@ fn the_leash_edge_case_is_what_its_name_says() {
     // (e) the three entities are relocated once each
     assert_eq!(
         relocated_entities,
-        vec![(EntityId(2), 5), (EntityId(3), 215), (EntityId(4), 225),],
-        "entities 2, 3, 4 are relocated once each on their ticks"
+        // Entities 2, 3, 4 before the player slots 0 to 2 were reserved: 4, 5, 6 now.
+        vec![(EntityId(4), 5), (EntityId(5), 215), (EntityId(6), 225),],
+        "entities 4, 5, 6 are relocated once each on their ticks"
     );
 }

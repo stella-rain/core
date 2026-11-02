@@ -108,7 +108,8 @@ fn the_measured_tick_has_its_load() {
         by_player >= cap(&engine) * 9 / 10,
         "{by_player} hits by the main character"
     );
-    let by_guards = hits_by(&engine, |s| s != PLAYER && s.0 < 6);
+    // The companions are entities 1 to 5 before the player slots 0 to 2 were reserved: 3 to 7.
+    let by_guards = hits_by(&engine, |s| s != PLAYER && s.0 < 8);
     assert!(
         by_guards >= 4 * (cap(&engine) * 18 / 100),
         "{by_guards} hits by the companions"
