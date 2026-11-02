@@ -363,14 +363,19 @@ pub(crate) fn flags_of(input: &Input) -> u8 {
         | u8::from(input.auto) << 5
 }
 
-/// Packs `inputs` into runs, then base64.
+/// Packs `inputs` into runs, then base64: the schema 1 stream, without `interact`.
 pub fn pack_inputs(inputs: &[Input]) -> String {
+    pack_inputs_with(inputs, false)
+}
+
+/// As `pack_inputs`; `interact` keeps bit 6 of the flags (the schema 2 stage replay stream).
+pub(crate) fn pack_inputs_with(inputs: &[Input], interact: bool) -> String {
     let canonical = |i: &Input| Input {
         move_x: i.move_x.max(-i8::MAX),
         move_y: i.move_y.max(-i8::MAX),
-        // The pick and interact are not part of the schema 1 stream.
+        // The pick is not part of the stream.
         pick: None,
-        interact: false,
+        interact: interact && i.interact,
         ..*i
     };
     let inputs: Vec<Input> = inputs.iter().map(canonical).collect();
@@ -380,9 +385,7 @@ pub fn pack_inputs(inputs: &[Input]) -> String {
         let input = inputs[i];
         let run = inputs[i..].iter().take_while(|x| **x == input).count();
         write_varint(&mut out, u32::try_from(run).unwrap_or(u32::MAX));
-        out.push(flags_of(&input));
-        out.push(input.move_x.to_le_bytes()[0]);
-        out.push(input.move_y.to_le_bytes()[0]);
+        out.extend_from_slice(&block_of(&input));
         i += run;
     }
     base64::encode(&out)
@@ -510,7 +513,9 @@ fn verify_inner(
 ) -> Result<Verified, ReplayError> {
     let replay = Replay::from_bytes(replay_bytes)?;
     let stage: Stage = validate::parse_and_validate(stage_bytes).map_err(ReplayError::Stage)?;
-    if replay.schema_version != stage.schema_version || replay.sim_version != stage.sim_version {
+    // The replay's own schema was range-checked when it was read; a stage file at schema 1 or 2
+    // pairs with a replay at 1 or 2.
+    if replay.sim_version != stage.sim_version {
         return Err(ReplayError::NotThisStage("another version"));
     }
     if replay.seed != stage.seed {
