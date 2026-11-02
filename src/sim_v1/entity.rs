@@ -3,7 +3,7 @@
 //! them.
 
 use super::World;
-use crate::event::DomainEvent;
+use super::event::DomainEvent;
 use crate::fixed::Point;
 use crate::id::EntityId;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
@@ -246,7 +246,6 @@ impl State {
             status: kind.id(),
             stacks,
             duration_ticks: duration,
-            source: None,
         });
     }
 }
@@ -285,7 +284,6 @@ impl State {
             status: StatusKind::Stun.id(),
             stacks: 1,
             duration_ticks: ticks,
-            source: None,
         });
     }
 }
@@ -337,7 +335,6 @@ impl State {
             status: kind.id(),
             stacks,
             duration_ticks: duration,
-            source: None,
         });
     }
 }

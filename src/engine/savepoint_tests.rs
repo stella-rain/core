@@ -36,7 +36,7 @@ fn saved() -> Engine {
     let full = full_state(&e);
     e.run.set_state(full);
     // The index is derived from the runs; the fixture's was lowered by hand.
-    let Run::V1 { world, state } = &mut e.run else {
+    let Run::V1 { world, state, .. } = &mut e.run else {
         unreachable!("a test engine runs version 1")
     };
     state.move_index.rebuild(world, &state.runs);

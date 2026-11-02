@@ -18,7 +18,7 @@
 //! A new pull or shield replaces the one there; statuses refresh as any status does (ADR-036).
 
 use super::World;
-use crate::event::DomainEvent;
+use super::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::input::Input;
 use crate::rewards::Rewards;

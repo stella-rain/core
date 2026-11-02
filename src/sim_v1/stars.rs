@@ -23,9 +23,9 @@
 //! once (`super::choose`). Every draw is from the run's generator, in this order.
 
 use super::World;
+use super::event::DomainEvent;
 use crate::attack::DamageType;
 use crate::constellations;
-use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::{
     EffectEntry, MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,

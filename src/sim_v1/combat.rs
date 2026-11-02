@@ -7,8 +7,8 @@
 
 use super::World;
 use super::entity::Who;
+use super::event::DomainEvent;
 use crate::attack::MatchUp;
-use crate::event::DomainEvent;
 use crate::fixed::Fx;
 use crate::id::EntityId;
 use crate::rewards::{
@@ -108,8 +108,6 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
             rune: None,
             crit: false,
             echo: true,
-            player: None,
-            buffed_by: None,
         });
         if dead {
             events.push(super::death_event(s, target, echo.target));

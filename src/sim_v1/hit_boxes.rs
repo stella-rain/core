@@ -22,8 +22,8 @@
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
 use super::World;
+use super::event::{DomainEvent, HitKind};
 use crate::attack::{Anchor, DamageType, HitBox, Offset, PhaseKind, ZoneShape};
-use crate::event::{DomainEvent, HitKind};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::rune::Rune;

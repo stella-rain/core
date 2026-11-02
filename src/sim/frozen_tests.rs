@@ -5,10 +5,10 @@ use crate::hash::StateHasher;
 
 /// FNV-1a 64 over the files of `src/sim_v1`, sorted by path, each as its path, a zero byte, its
 /// length and its content.
-const SIM_V1_SOURCE: u64 = 18_142_368_067_911_637_289;
+const SIM_V1_SOURCE: u64 = 8_587_317_920_102_118_791;
 
 /// Every source file of `sim_v1`, by path from its folder, sorted. The text is compiled in, so
-/// that the test needs no file on a device; `sim_v1` takes no new file, so the list is closed.
+/// that the test needs no file on a device; `sim_v1` takes no new file but `event.rs`, its own event types, so the list is closed.
 const SIM_V1_FILES: &[(&str, &str)] = &[
     ("act.rs", include_str!("../sim_v1/act.rs")),
     ("agents.rs", include_str!("../sim_v1/agents.rs")),
@@ -18,6 +18,7 @@ const SIM_V1_FILES: &[(&str, &str)] = &[
     ("combat.rs", include_str!("../sim_v1/combat.rs")),
     ("dash.rs", include_str!("../sim_v1/dash.rs")),
     ("entity.rs", include_str!("../sim_v1/entity.rs")),
+    ("event.rs", include_str!("../sim_v1/event.rs")),
     ("expertise.rs", include_str!("../sim_v1/expertise.rs")),
     ("grid.rs", include_str!("../sim_v1/grid.rs")),
     (
@@ -70,5 +71,85 @@ fn sim_v1_is_the_frozen_copy() {
         "src/sim_v1 changed: a change to its behaviour needs Kade's call (ADR-REPL-9 point 1); \
          an edit only to keep compiling updates this constant in the same commit and says so in \
          its body"
+    );
+}
+
+/// The 1-based lines of `text` that reach the live event module: `crate::event` followed by
+/// anything that is not part of an identifier, or a `crate::{ .. }` list, over any number of
+/// lines, that names `event` at its top level. Line comments are blanked first: a comment may
+/// name the live type, only code imports it.
+fn live_event_lines(text: &str) -> Vec<usize> {
+    let is_ident = |c: char| c.is_alphanumeric() || c == '_';
+    let code: String = text
+        .lines()
+        .map(|line| line.split("//").next().unwrap_or(""))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut found = Vec::new();
+    let mut from = 0;
+    while let Some(at) = code[from..].find("crate::").map(|i| i + from) {
+        let after = at + "crate::".len();
+        let rest = &code[after..];
+        let hit = if let Some(tail) = rest.strip_prefix("event") {
+            !tail.starts_with(is_ident)
+        } else if rest.starts_with('{') {
+            let (mut depth, mut top) = (0, String::new());
+            for c in rest.chars() {
+                match c {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ if depth == 1 => top.push(c),
+                    _ => top.push(' '),
+                }
+            }
+            top.split(|c: char| !is_ident(c)).any(|w| w == "event")
+        } else {
+            false
+        };
+        if hit {
+            found.push(code[..at].matches('\n').count() + 1);
+        }
+        from = after;
+    }
+    found
+}
+
+#[test]
+fn the_event_scan_finds_a_live_import() {
+    let finds = |text: &str| !live_event_lines(text).is_empty();
+    assert!(finds("use crate::event::DomainEvent;"));
+    assert!(finds("use crate::{event, fixed};"));
+    assert!(finds("use crate::{fixed, event::Press};"));
+    assert!(finds(
+        "use crate::{\n    fixed::Fx,\n    event::DomainEvent,\n};"
+    ));
+    assert!(finds("let x = 1;\nuse crate::event;"));
+    assert!(!finds("use super::event::DomainEvent;"));
+    assert!(!finds("use crate::snapshot::Press;"));
+    assert!(!finds("use crate::event_log::Log;"));
+    assert!(!finds("use crate::{snapshot::{event_view, Press}, fixed};"));
+    assert!(!finds("//! into the live `crate::event::DomainEvent`."));
+    assert!(!finds("let x = 1; // was crate::event::Press"));
+    assert_eq!(live_event_lines("a\nuse crate::{\n  event,\n};"), [2]);
+}
+
+/// The frozen rules own the events they emit (ADR-REPL-9 point 1, ADR-REPL-7 point 3): a change
+/// to the live event edits `engine/v1_events.rs`, never `sim_v1`.
+#[test]
+fn sim_v1_imports_nothing_from_the_live_event() {
+    let mut found = Vec::new();
+    for (path, text) in SIM_V1_FILES {
+        for line in live_event_lines(text) {
+            found.push(format!("sim_v1/{path}:{line}"));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "sim_v1 imports the live event type: {found:?}"
     );
 }

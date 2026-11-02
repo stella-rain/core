@@ -5,8 +5,8 @@
 
 use super::DefIndex;
 use super::World;
+use super::event::DomainEvent;
 use crate::behaviour::{Agent, BossCall, Condition, Guardians, Movement, Rule};
-use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::sim_v1::state::{

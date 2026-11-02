@@ -11,7 +11,7 @@
 //! in the order they dropped. Nothing heals a main character at 0 hit points.
 
 use super::World;
-use crate::event::DomainEvent;
+use super::event::DomainEvent;
 use crate::id::EntityId;
 use crate::sim_v1::state::{HealPickup, PlayerState, State};
 use crate::validate::limits::MAX_HEAL_AMOUNT;
@@ -113,7 +113,6 @@ fn heal(player: &mut PlayerState, want: u64, events: &mut Vec<DomainEvent>) {
     events.push(DomainEvent::Healed {
         target: PLAYER_ID,
         amount: player.hp.saturating_sub(before),
-        source: None,
     });
 }
 

@@ -27,10 +27,10 @@
 //! the schedule of one that finds it full. The elites above, the bosses' summons and the rest
 //! spawn in the room between the target and the cap.
 
+use super::event::DomainEvent;
 use super::{Arrival, World};
 use crate::behaviour::BossCall;
 use crate::engine::Outcome;
-use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::sim_v1::state::{AgentKey, AgentSource, State};

@@ -28,13 +28,14 @@
 //! becomes the auto combo when it resets, unless it began in the dash branch.
 
 use super::World;
+use super::event::DomainEvent;
 use crate::attack::AttackRef;
-use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
 use crate::rewards::Rewards;
 use crate::sim_v1::state::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
+use crate::snapshot::Press;
 use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
 use crate::weapon::{Charge, Hold, SmashEffect, Step, Weapon};
