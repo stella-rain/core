@@ -374,7 +374,7 @@ macro_rules! state_codec_v2 {
         }
 
         /// Each length the content decides, and each `Option` it decides, equals the fresh engine's.
-        fn check_shape(
+        pub(super) fn check_shape(
             s: &State,
             counted: &Counted,
             fresh: &State,
@@ -591,11 +591,11 @@ mod players_tests {
     //! The index check reads every player, not the first only (ADR-SIM-12).
 
     use crate::bench_fixtures::worst_case;
-    use crate::engine::Run;
+    use crate::engine::{Engine, Run};
     use crate::id::PlayerIdx;
     use crate::sim::state::{OrbitState, Players};
 
-    use super::v2::check_indices;
+    use super::v2::{check_indices, check_shape};
 
     #[test]
     fn the_savepoint_check_reads_every_player() {
@@ -627,6 +627,54 @@ mod players_tests {
         let mut ok = state.clone();
         ok.players = Players::of(vec![first.clone(), first]).unwrap();
         assert_eq!(check_indices(&ok, world, e.content()), Ok(()));
+    }
+    #[test]
+    fn slot_0s_career_round_trips_and_its_presence_is_checked() {
+        use crate::bench_fixtures::time_limit_case;
+        use crate::savepoint::DecodeError;
+        use crate::savepoint::state::{decode_state, encode_state};
+
+        let e = time_limit_case::warmed_up();
+        let fresh = Engine::new_with(&time_limit_case::stage(), e.content()).unwrap();
+        let (
+            Run::V2 { state: before, .. },
+            Run::V2 {
+                state: blank,
+                world,
+            },
+        ) = (e.run(), fresh.run())
+        else {
+            panic!("the live rules")
+        };
+        let had = before.players.career(PlayerIdx::SOLO).progress.clone();
+        assert!(had.is_some(), "the case has levels");
+        let (saved, ledger, counted) = decode_state(&encode_state(&e), &fresh).unwrap();
+        let back = fresh.clone().with_saved(saved, ledger, counted);
+        let Run::V2 { state: after, .. } = back.run() else {
+            panic!("the live rules")
+        };
+        let mut want = had.unwrap();
+        want.stats = blank
+            .players
+            .career(PlayerIdx::SOLO)
+            .progress
+            .as_ref()
+            .unwrap()
+            .stats
+            .clone();
+        assert_eq!(after.players.career(PlayerIdx::SOLO).progress, Some(want));
+        assert_eq!(back.state_hash(), e.state_hash());
+
+        let _ = world;
+        let mut bad = before.clone();
+        bad.players.career_mut(PlayerIdx::SOLO).progress = None;
+        let counted = e.saved_parts().1;
+        assert_eq!(
+            check_shape(&bad, counted, blank, counted),
+            Err(DecodeError::Invalid(
+                "progress presence differs from the content"
+            ))
+        );
     }
 }
 
